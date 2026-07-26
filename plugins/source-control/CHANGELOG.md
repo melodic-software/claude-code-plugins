@@ -3,6 +3,219 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.33.0]
+
+### Added
+
+- **`/commit` ships a deterministic exec-bit backstop (#1579).** The skill's ordered exec-bit
+  procedure was advisory prose with no tier under it, and prose is what a long session stops
+  executing: four new shebang scripts once shipped `100644` with only the consuming repo's CI
+  catching it. Two tiers now sit under it. A pre-computed probe line at the TOP of the skill —
+  inside the documented 5,000-token compaction re-attach window — reports staged newly-added shebang
+  files still at `100644`; and `skills/commit/scripts/exec-bit-check.sh` (`--list` / `--probe` /
+  `--fix`, with a 47-case `.test.sh`) makes the per-commit step a command with an exit code. Both,
+  because the probe is only a snapshot at invocation and cannot see files staged later in the flow.
+
+  Hardened in review before merge, all found by the PR reviewer on #1590:
+
+  - **Every mode anchors at the repository root.** `git diff --cached --name-status` emits
+    repo-root-relative paths while a `git ls-files` pathspec resolves against the cwd; run from a
+    subdirectory those disagreed, every lookup missed, and the check reported no offenders even when
+    they existed — a fail-open backstop. Caller pathspecs are re-anchored via `--show-prefix` before
+    the directory change so a scoped `--fix` from a subdirectory still matches. The skill's
+    config-layer probes anchor the same way, matching the root-resolution rule
+    `reference/config-resolution.md` already states; unanchored, a session started in a
+    subdirectory silently dropped the team convention and `trailer_policy`.
+  - **A worktree symlink over a staged regular file is refused, not chmod-ed.** `-e` follows a
+    symlink, so an unguarded `chmod +x` would have made the link's target executable — a file that
+    can sit entirely outside the repository. The `-L` test now runs before `-e`.
+  - **The exec bit does not survive a pathspec (`--only`) commit under `core.filemode=false`, and
+    that is now documented as a hard constraint** rather than silently losing the fix. `--only`
+    records the working-tree mode, and with filemode off git cannot see the `chmod +x`, so a
+    correctly-set `100755` index entry is rebuilt as `100644`. Verified both directions on a fixture:
+    plain index commit preserves `100755`, pathspec commit loses it. Two candidate workarounds were
+    tested and **both failed** on that platform — `-c core.fileMode=true` on the commit, and a
+    post-commit `update-index` plus `--amend --only` — so neither is offered. The guidance is
+    instead to commit an exec-bit-corrected path with the plain index form (splitting the commit if
+    the rest needs a pathspec) and to confirm with `git ls-tree HEAD`, never the index. Both
+    behaviors are pinned as characterization tests so a future git change fails loudly.
+  - **`--list0`** (NUL-delimited) added for pathnames containing a newline, which would otherwise
+    break `--list`'s one-record-per-line contract; `--list` and `--probe` shell-quote such a path so
+    the ambiguity is visible rather than silent.
+
+  `--fix` **requires an explicit scope** — `-- <path>...` or a deliberate `--all` — and exits 2
+  otherwise, changing nothing. It mutates index entries, and the staged set can hold a concurrent
+  session's work (the whole premise of the pathspec-limited commit form), so an unscoped default
+  would have inverted this skill's own surgical-staging discipline. `--list` and `--probe` stay
+  unscoped because they only read; the asymmetry is deliberate.
+
+  A new cross-platform hazard was found and pinned while implementing this: under
+  `core.filemode=false` — **the default on Windows/NTFS** — git ignores worktree permission bits
+  entirely and stages every file `100644`, so `chmod +x` alone NEVER reaches the index and
+  `git update-index --chmod=+x` is the only thing that can produce a `100755` entry. The script
+  always performs both writes, and the test suite pins the case with `core.filemode` set explicitly
+  so it tests the same thing on every platform. Demonstrated live: this change's own two new scripts
+  staged at `100644` despite `chmod +x`, and the new check caught them pre-commit.
+
+- **A per-commit checklist at the top of the hub (#1583)**, as the cheap re-anchor for a session
+  that has drifted — seven numbered steps, stated as commands rather than facts to recall.
+
+- **Pre-computed probes of all three config layers (#1583).** A skipped resolution was previously
+  invisible. The tracked-team probe tests **tracked-ness** via `git ls-files --error-unmatch`, not
+  file existence, and reports an untracked file at that path as `present but UNTRACKED — not a
+  config layer` — preserving the rule 0.25.1 established, rather than reintroducing it as a
+  drafting-surface bug.
+
+### Changed
+
+- **The `Co-Authored-By` context clause is now OPTIONAL, and the harness is named in the ladder
+  (#1581).** The default template mandated `(<context>)`; a census of this repo found compliance not
+  merely low but collapsing — 41.6% of trailers carry the clause over the last 150 commits, 12.1%
+  over the last 40. A mandate nobody follows is worse than no mandate, so the default is now the
+  context-free form with the clause as an optional addition.
+
+  The ladder also gains the rung it never had. Harness-injected commit guidance is neither a config
+  layer nor a project convention, so a session receiving both it and this skill had no stated
+  tiebreak. It is now rung 3, with an explicit rule: adopt its **shape**, never its **literal text**.
+  Observed first-hand — that injected guidance can carry a **hardcoded model name that does not match
+  the running session** (a `Fable 5` trailer injected into an Opus 5 session), and copying it verbatim
+  writes a false provenance claim into durable git history, which is precisely the harm the template
+  exists to prevent.
+
+  The originating audit's "62 of 74 trailers" figure does **not** reproduce on any window of this
+  branch (at the window where the total is 74, the non-compliant count is 49); the figures were
+  wrong, the direction right, the trend worse than claimed. Its suggestion to "have setup write an
+  explicit `trailer_policy`" is **refuted as already-done** — `trailer_policy` is a documented key
+  and `/source-control:setup` already interviews for and writes it.
+
+- **Composition is now two named forms, and "remembered convention" is neither (#1583).** "Compose by
+  natural-language reference" was ambiguous between re-invoking `/commit` and following an absorbed
+  convention from memory. A composing skill must now name which it is doing: re-invoke, or run the
+  per-commit checklist itself as commands. The policy also names *what* decays — not the message
+  shape, which is reinforced visibly every commit, but the ordered per-commit checks, which produce
+  no signal when skipped.
+
+- **The hub is split into `reference/` spokes with load-when pointers (#1583).** Auto-compaction
+  re-attaches only the first 5,000 tokens of each invoked skill
+  (<https://code.claude.com/docs/en/skills>, "Skill content lifecycle", fetched 2026-07-26), and the
+  hub was spending that window on ~130 lines of pathspec/hide-restore and format-check edge
+  machinery while the per-commit checks sat in the tail that gets dropped first. Four spokes now
+  carry the depth — `reference/format-check.md`, `reference/exec-bit.md`,
+  `reference/pathspec-commits.md`, `reference/staging-preconditions.md` — and the hub leads with the
+  checklist, staging rules, and commit mechanic. No rule was dropped; the staging preconditions keep
+  their detection command and action inline as a table, with only the per-condition rationale moved.
+
+- **`disable-model-invocation: false` is now declared explicitly, with the deviation recorded
+  (#1584).** Same effective behavior as the omitted default, but the choice is visible. A
+  `/commit`-shaped skill is the canonical archetype for `disable-model-invocation: true`, and every
+  other skill in this plugin declares the field; this one deviates deliberately because its
+  composition design requires the model to be able to reach it. The skill body now records the
+  deviation, the reason, and the compensating controls.
+
+## [0.32.1]
+
+### Fixed
+
+- **`source-control-babysit-merge`'s `--allow-unpinned-head` guard now strips an `=value` tail
+  before the prefix comparison (#1522).** The guard refuses the flag and every long-option prefix
+  of it via `"--allow-unpinned-head" == "$arg"*`, but `--allow-unpinned-head=true` is not itself a
+  prefix of `--allow-unpinned-head` — the `=true` suffix broke the match, so the wrapper let the
+  argument through and argparse rejected it instead (the flag is `store_true`, which never accepts
+  an explicit argument). The refusal was still real today, but incidentally so: it depended on the
+  interpreter behind the wrapper exactly as this guard exists to not do — the moment the guarded
+  flag (or an equivalent guarded flag) accepted a value, the same test would have stopped refusing
+  anything, silently. Fixed by stemming each argument on its first `=` before the prefix test.
+  `engine.test.sh` gains a `check_wrapper_refusal` helper that asserts the wrapper's own refusal
+  text on stderr (not just exit code — exit 2 is shared between the wrapper's refusal and
+  argparse's own usage/rejection errors, so an exit-code-only assertion would have passed before
+  and after this fix for different reasons) and new rows for `--allow-unpinned-head=true`,
+  `--allow-unpinned=1`, and `--allow-unpinned-hea=1`, plus no-over-refusal rows for
+  `--allow-dependency`, `--allow-unprotected`, and `--allowed-owners=owner`.
+
+## [0.32.0]
+
+### Added
+
+- **`babysit-loop` gains the loop-lane convention's one named, explicit paired-argument merge-rung
+  exception (#1309).** Standing merge-rung raises still bind from the team-tracked seam layer only.
+  The exception: an invocation whose own argument line types both the literal `autopilot` tier
+  keyword and the dedicated raise argument `--merge c3-this-run` — each never inherited from
+  `babysit_loop_tier`, never defaulted, never supplied by a config layer, never model-composed on
+  the caller's behalf; the raise token exists for this exception alone, so a saved invocation or
+  template carrying the merge-inert `autopilot` tier keyword alone acquires no merge authority —
+  widens *that single invocation's* merge dimension up to and including C3, in a repository
+  that has already adopted the baseline rung. It persists nothing, ratifies nothing, and is not a
+  substitute for the recorded `c3-autonomous` seam flip. A merge-eligible PR blocked on a
+  `needs-human` label, an open finding, or a contradictory thread gets one fresh frontier-tier
+  subagent — sharing no conversation context with whatever produced or previously reviewed the PR —
+  dispatched to resolve that blocker through `babysit-prs`'s guarded-mutation path before the
+  deterministic gate runs; the gate itself is never bypassed or weakened, and an unresolved or
+  uncertain blocker still escalates. `babysit-prs`'s "escalate security/P1 even in autopilot" rule
+  carries a matching named exception for that one dispatch path only. Tracks loop-lane convention
+  3.0.0.
+- **The widening lifts only the raise restriction.** Every merge-dimension argument value other
+  than `c3-this-run` still only selects a *lower* rung, so `autopilot --merge human-only` merges
+  nothing; the order is tracked rung → the paired raise → the C4/C5 ceiling.
+- **The C4/C5 floor reads the pull request, not the linked item's stamp.** `work-classes.md` assigns
+  a class from the risk-property bundle, "not the task's surface description". C5 is two executable
+  snapshot tests, either marking C5 and each failing closed when its field is unavailable: a
+  cross-repository head (`isCrossRepository` / `headRepositoryOwner`), or an `authorAssociation`
+  other than `OWNER`/`MEMBER` — catching the outside collaborator whose base-repository branch
+  passes the fork test while still being an external contribution. A fork PR closing an internally
+  classified C2/C3 issue is still C5; the partition never tests the author
+  login against `babysit_watched_owners`, which is a repository-owner allowlist rather than a
+  trusted-author list and would call every internally authored PR on an org-owned repo C5. C4
+  follows the diff's blast radius: a refactor, migration, or contract change is C4 however its item
+  is stamped, and a PR whose shape no longer matches its recorded class fails closed to escalation.
+- **Human blocking feedback, operator-parked items, and merge conflicts stay outside the dispatch —
+  and outside the merge-capable set.** A human `CHANGES_REQUESTED` review, explicit human blocking
+  language, or an unresolved inline
+  human thread remains a stop-and-ask condition per `reference/feedback.md`'s "Human Feedback" — the
+  exception does not amend it, no dispatch is made, and the rung partition withholds the PR from
+  the merge-capable set entirely (routed to `safe`), because a merge-capable tier's own runbook
+  widens thread scope to human threads and the base merge gate does not inspect ordinary human
+  blocking comments. An item wearing the `needs-human` role label
+  without the machine escalation marker is operator-*parked*, belongs to the attended queue, never
+  draws a dispatch on the label alone, and its PR is likewise withheld from the merge-capable set —
+  the merge gate does not inspect the linked item's labels. Conflicts route to the dedicated
+  merge-only conflict
+  worker; the dispatch never rebases a PR branch, which would need the force-push forbidden
+  cross-tier.
+- **Edit-capable resolution runs the per-PR worker lifecycle, and the partition reruns after it.**
+  A blocker needing a code change gets the isolated PR worktree, the HEAD assertion at the live PR
+  head, and the commit/refspec push `reference/safety.md` requires — the guarded wrappers implement
+  merge and thread resolution and create no worktree, which a lane launched from a neutral directory
+  has no substitute for. After any resolver mutation the PR is re-snapshotted and step 3's
+  provenance, C4-diff, and rung partition rerun before the merge-capable invocation, so a resolution
+  that expanded a C2/C3 change into a refactor or contract change leaves the eligible set rather
+  than merging under a stale classification.
+- **Partition eligibility is pinned to the head SHA it examined — for every push, not only the
+  resolver's.** The merge-capable invocation carries the partitioned head as its merge gate's
+  `--expected-head`; a normal worker fix-push (babysit-prs Autopilot steps 1–2) moves the head off
+  the pin, the pinned gate's head-match refusal blocks the merge deterministically, and the
+  invocation reports the new head instead of re-pinning (babysit-prs gains the matching named
+  "Lane-pinned merge authorization" exception in `reference/safety.md`). The lane reruns the
+  partition on the post-push head and only a still-eligible PR gets a fresh merge-capable
+  invocation pinned to it — no head merges that the partition did not class-check.
+- **The widening lasts the invocation that typed it, not one cycle.** Every `/loop` wakeup
+  re-invokes the same prompt in the same session and carries the same explicit authorization, so the
+  rung does not silently drop after the first cycle and no operator input is awaited that a loop
+  cannot supply. It ends when a newly launched invocation omits either token of the pair.
+- **The dispatch is leased and its tier is resolved, not named.** It acquires, heartbeats, and
+  releases the PR's own worker lease around itself — the guarded-mutation wrappers pin comment
+  state, they do not confer concurrency ownership — and a lease another worker holds means no
+  dispatch. Its capability tier is requested as the convention's §3 frontier row and resolved to a
+  live-updating model alias by that section's runtime-resolution rule, rather than a `fable`/`opus`
+  family alias written into the lane as the tier's definition; a run that cannot establish which
+  alias currently satisfies `frontier` escalates instead of dispatching, because inheriting the
+  session's model would forfeit the capability the dispatch stands on.
+- **C4/C5 floor stated as unconditional across the merge surface.** No rung, no seam config, and no
+  invocation argument — including this exception and including `full-autonomy` — ever grants merge
+  authority over a `work-class: structural` (C4) or `work-class: untrusted-provenance` (C5) item.
+  This was already the autonomy matrix's promotion contract ("never promotes"); `babysit-loop`,
+  `reference/config-resolution.md`, and the convention now say so explicitly rather than leaving it
+  to be inferred from a rung name.
+
 ## [0.31.8]
 
 ### Fixed

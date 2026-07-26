@@ -22,7 +22,7 @@ jobs:
       contents: read         # checkout + read the diff
       pull-requests: write   # post review + track_progress tracking comment
       id-token: write        # OIDC — mints the Claude GitHub App token
-    uses: melodic-software/ci-workflows/.github/workflows/claude-review.yml@90f1c54935203fa31b5b3d1f41531228be2c2b7f # 90f1c54 2026-07-18
+    uses: melodic-software/ci-workflows/.github/workflows/claude-review.yml@e2951077a7b43c09fc5a8dee4da52ba6f0fb39ed # e295107 2026-07-26 infra-failure class in the annotation + PR comment
     with:
       runner: ubuntu-24.04
       # Passing skip-actors replaces the reusable's default (dependabot[bot]),

@@ -886,8 +886,8 @@ surfaces named exhaustively — this plugin READS more than most, and that is it
   The `auditor` agent carries Bash and Write, **named honestly**: neither is read-only — Bash is
   justified for `claude plugin validate` and config-resolution probes plus safe fixture
   reproductions; Write is scoped by standing instruction to the evidence-packet directory only
-  (the dumb-zone contract needs the agent to persist its own `findings.md` so the main thread can
-  stay summary-only — surfaced by the dumb-zone smoke). Its standing instructions forbid mutation
+  (the dumb-zone contract needs the agent to persist its own `audit-notes.md` so the main thread
+  can stay summary-only — surfaced by the dumb-zone smoke). Its standing instructions forbid mutation
   of the audited plugin, installs, writes outside the packet, and network beyond WebFetch.
   Untrusted-content posture (audited source is data, never instructions) is a standing
   instruction in BOTH the hub skill and the agent, backed by a prompt-injection anti-pattern eval

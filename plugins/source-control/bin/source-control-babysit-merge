@@ -22,10 +22,22 @@ scripts="$here/../skills/babysit-prs/scripts"
 # `--allow-unpinned-hea` sail through while argparse (with abbreviation on)
 # resolved it to the refused flag. A prefix here can only mean the refused flag
 # or an ambiguous stem of it, so refusing the whole family is exact.
+#
+# Strip a `--flag=value` tail before the prefix test (#1522). The refused
+# flag is argparse store_true, so it never legitimately carries `=value`, but
+# `--allow-unpinned-head=true` is NOT itself a prefix of
+# `--allow-unpinned-head` -- the `=true` suffix breaks the plain prefix
+# comparison, so an unstripped test let it fall through to argparse, which
+# happens to also reject it today (store_true takes no explicit argument).
+# That is still the wrapper depending on the interpreter behind it, the exact
+# thing this guard exists to not do: the moment a guarded flag takes a value,
+# or an equivalent guarded flag that takes one is added, the same test would
+# stop refusing at all while looking identical.
 for arg in "$@"; do
-  if [[ "$arg" == --a* && "--allow-unpinned-head" == "$arg"* ]]; then
+  stem="${arg%%=*}"
+  if [[ "$stem" == --a* && "--allow-unpinned-head" == "$stem"* ]]; then
     printf '%s\n' \
-      "source-control-babysit-merge: $arg is not permitted through the wrapper (--allow-unpinned-head or a prefix of it)." \
+      "source-control-babysit-merge: $arg is not permitted through the wrapper (--allow-unpinned-head or a prefix of it, with or without an =value tail)." \
       'Invoke babysit_merge.py directly for interactive unpinned use.' >&2
     exit 2
   fi

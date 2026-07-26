@@ -3,6 +3,98 @@
 All notable changes to the `markdown-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.1]
+
+### Fixed
+
+- **The telemetry payload could be falsified rather than merely lost.**
+  `build_data_json` handed the findings array to `jq -n` as an `--argjson`
+  value. Windows caps a process command line at 32767 characters, and
+  `data.findings` is deliberately uncapped, so the array blew past that
+  somewhere between 300 and 600 entries (reproduced with the hooks' own jq:
+  300 pass, 600 fail with `rc=126`, "argument list too long"). `jq` never ran
+  and the fallback emitted an envelope claiming **zero** findings, with `tool`
+  and `file` blanked — for the noisiest files in the repository, which are the
+  ones a sink is most likely wired for. Telemetry is documented best-effort and
+  lossy, so a *dropped* envelope is inside contract; one that *arrives*
+  reporting a 600-finding file as clean is not. The array now reaches `jq` on
+  stdin; `tool` and `file` stay as arguments, both bounded by a path length.
+  The shared `hook::emit_telemetry` hands the finished payload over the same
+  way (#1595), so an oversized envelope is currently dropped rather than
+  delivered — the correct failure direction, and the one this change
+  establishes. The 600-finding case asserts the invariant that holds either way
+  and keeps holding once #1595 lands: lost, never falsified.
+- **Carriage returns leaked into the report.** `markdownlint-cli2` is a Node
+  process whose stdout is CRLF-terminated on Windows, and command substitution
+  strips only the trailing newline — so every retained violation line carried a
+  CR that survived JSON-escaping into `additionalContext` as a literal `\r`.
+- **The digest-store prune ran on every Markdown edit and was unbounded in
+  depth.** It now runs only when a *new* digest file is created — the steady
+  state for a repeatedly-edited file already has one, so the common path no
+  longer walks the directory at all — and carries `-maxdepth 1`.
+  `CLAUDE_PLUGIN_DATA` is shared with the `trust-approvals` tree and with
+  whatever a future version of this plugin puts there; a recursive age-based
+  `-delete` has no business reaching into a sibling's state.
+- **The rule histogram truncated silently.** It named the top five rules and
+  stopped, so `MD013 x48` read as the whole story on a file where twelve more
+  rules were firing. It now carries `+N more rule(s)`, the same way the finding
+  list already reported its own remainder. A test asserts the suffix is absent
+  when every rule fits, so it cannot become permanent decoration.
+
+## [0.8.0]
+
+### Fixed
+
+- **Lint reporting is bounded instead of unbounded.** The hook appended every
+  line of markdownlint's whole-file output to `additionalContext` on every
+  touch — no cap, no baseline, no dedup — so a file edited repeatedly produced
+  a full re-dump each time. Measured in one consuming session: 21 dumps,
+  ~378 KB (~95K tokens), one file dumped eight times with byte-identical
+  content, and 97% of one real file's 324 findings from a single rule that
+  repository intentionally violates. Now every run reports the finding count
+  and a rule histogram (which rules dominate, highest first), lists at most 20
+  individual violations, and reports the omitted remainder as a count.
+  markdownlint's own banner lines (its version, the resolved `Finding:` glob
+  list, `Linting:`, `Summary:`) no longer enter the report at all — they say
+  nothing about the edited file and cost context on every edit.
+- **An unchanged finding set no longer repeats its detail.** The finding set is
+  content-hashed per file per session under `CLAUDE_PLUGIN_DATA`; a repeat with
+  the same set reports its summary and omits the per-finding lines. The
+  **summary always goes out** — suppressing the message entirely would
+  reproduce, on this plugin, exactly the invisible-hook defect the disclosure
+  below fixes.
+- **A run that rewrote the file is no longer silent about it.** On the
+  clean-after-fix path the hook emitted nothing at all, so `--fix` rewriting the
+  user's file was indistinguishable from the hook not running. The count
+  markdownlint-cli2 reports (`Attempted: N fixes in 1 file`) is now surfaced on
+  both channels. It is only a count: `markdownlint-cli2` offers no per-fix
+  detail, so neither can this hook.
+
+### Added
+
+- **`markdown_format_max_findings` userConfig (default `20`, `0` = unlimited).**
+  Bounds the per-run violation listing only; the count and rule histogram are
+  always reported. Read from the
+  `CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_MAX_FINDINGS` environment mirror, because
+  shell-form hook commands reject `${user_config.*}` substitution outright. A
+  value that is not a non-negative integer falls back to the default and is
+  never interpolated anywhere.
+- Contract tests for the cap, the configurable cap (including a garbage value),
+  the rule histogram, banner exclusion, the delta gate in both directions,
+  uncapped telemetry, and the applied-fix disclosure.
+
+### Changed
+
+- The telemetry payload is deliberately **not** capped — a sink is a machine,
+  and the cap exists to protect the model's context, not a log file.
+  `data.findings` keeps its shape and its full contents.
+
+## [0.7.1]
+
+### Changed
+
+- **Test scaffolding: migrated `mktemp -p` temp file/dir creation to the portable `mktemp "$DIR/template"` form.** BSD/macOS `mktemp` has no `-p` flag; the directory now rides in the positional TEMPLATE argument instead, which both GNU and BSD `mktemp` accept identically. Test-only — no hook behavior change. Part of #1527 (`markdown-format.test.sh`).
+
 ## [0.7.0]
 
 ### Security

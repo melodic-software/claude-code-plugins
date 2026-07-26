@@ -77,15 +77,48 @@ elif echo "$out" | grep -q "PORTABILITY: ${f}:1:"; then
 else
   fail "expected PORTABILITY with file:line, got: $out"
 fi
-rm -f "$f" "$tok"
+rm -f "$f"
 
 # --- the POSIX-portable bracket-expression replacement does NOT fire -------
-tok="$(one_token_list '\\b')"
 f="$(tmpsh 'grep -Eq "(^|[^A-Za-z0-9_\$])require($|[^A-Za-z0-9_\$])" "$file"')"
 if scan_paths "$tok" "$f" >/dev/null 2>&1; then
   ok "the bracket-expression word-boundary replacement does not fire"
 else
   fail "the POSIX-portable replacement must not be flagged"
+fi
+rm -f "$f"
+
+# --- a pattern BUILT on one line and CONSUMED on another still fires. This
+# is the shape a grep/sed-same-line context requirement silently un-catches,
+# and it is live in this repo (instruction-scan.sh's I6_ERE/RATIONALE_ERE),
+# so the class deliberately stays bare — see the token file's note. ---------
+f="$(tmpsh "PAT=\"\\brequire\\b\"
+grep -Eq \"\$PAT\" \"\$file\"")"
+if out="$(scan_paths "$tok" "$f" 2>&1)"; then
+  fail "a \\\\b pattern assigned to a variable should fail, got success: $out"
+elif echo "$out" | grep -q "PORTABILITY: ${f}:1:"; then
+  ok "a \\\\b pattern built in a variable and used later is detected"
+else
+  fail "expected PORTABILITY on the assignment line, got: $out"
+fi
+rm -f "$f"
+
+# --- the mirror-image cost of staying bare: portable printf escape syntax
+# carrying the same two characters DOES fire (over-flag, the documented
+# direction), and `portability-ok:` is the recorded one-line escape for it --
+f="$(tmpsh "printf '\\bspinner-frame\\n'")"
+if scan_paths "$tok" "$f" >/dev/null 2>&1; then
+  fail "printf '\\b' must still fire -- the class is bare by design"
+else
+  ok "printf '\\b' fires (accepted over-flag, excusable per site)"
+fi
+rm -f "$f"
+
+f="$(tmpsh "printf '\\bspinner-frame\\n'  # portability-ok: printf escape, not a regex")"
+if scan_paths "$tok" "$f" >/dev/null 2>&1; then
+  ok "printf '\\b' with a portability-ok: annotation is excused"
+else
+  fail "an annotated printf '\\b' must be excused"
 fi
 rm -f "$f" "$tok"
 
@@ -107,7 +140,7 @@ done
 # grep -P / --perl-regexp
 # =============================================================================
 
-tok="$(one_token_list 'grep[^\n]*[[:space:]]-[A-Za-z]*P[A-Za-z]*([[:space:]]|$)')"
+tok="$(one_token_list 'grep[^\n]*[[:space:]]-[A-Za-z]*P[A-Za-z]*([[:space:]|&;()<>'"'"'"`]|$)')"
 
 f="$(tmpsh 'grep -P "\\d+" "$file"')"
 if out="$(scan_paths "$tok" "$f" 2>&1)"; then
@@ -142,11 +175,30 @@ else
 fi
 rm -f "$f" "$tok"
 
+# --- operator-terminated forms: no trailing whitespace before a control
+# operator, redirection, subshell close or quote must still be detected
+# (#1537 — the boundary originally accepted only whitespace or end of line) -
+tok="$(one_token_list 'grep[^\n]*[[:space:]]-[A-Za-z]*P[A-Za-z]*([[:space:]|&;()<>'"'"'"`]|$)')"
+while IFS= read -r case; do
+  f="$(tmpsh "$case")"
+  if out="$(scan_paths "$tok" "$f" 2>&1)"; then
+    fail "[$case] should fail, got success: $out"
+  else
+    ok "[$case] is detected"
+  fi
+  rm -f "$f"
+done <<'CASES'
+x=$(grep -P)
+grep -P|head -n1
+grep -P; echo done
+CASES
+rm -f "$tok"
+
 # =============================================================================
 # echo -e / sort -V
 # =============================================================================
 
-tok="$(one_token_list 'echo[[:space:]]+-[a-zA-Z]*e[a-zA-Z]*([[:space:]]|$)')"
+tok="$(one_token_list 'echo[[:space:]]+-[a-zA-Z]*e[a-zA-Z]*([[:space:]|&;()<>'"'"'"`]|$)')"
 
 f="$(tmpsh 'echo -e "line1\nline2"')"
 if out="$(scan_paths "$tok" "$f" 2>&1)"; then
@@ -163,9 +215,25 @@ if scan_paths "$tok" "$f" >/dev/null 2>&1; then
 else
   ok "echo -ne (combined flags) is detected"
 fi
-rm -f "$f" "$tok"
+rm -f "$f"
 
-tok="$(one_token_list 'sort[^\n]*[[:space:]]-[A-Za-z]*V[A-Za-z]*([[:space:]]|$)')"
+# --- operator-terminated forms (#1537) --------------------------------------
+while IFS= read -r case; do
+  f="$(tmpsh "$case")"
+  if out="$(scan_paths "$tok" "$f" 2>&1)"; then
+    fail "[$case] should fail, got success: $out"
+  else
+    ok "[$case] is detected"
+  fi
+  rm -f "$f"
+done <<'CASES'
+x=$(echo -e)
+echo -e|cat
+echo -e; echo done
+CASES
+rm -f "$tok"
+
+tok="$(one_token_list 'sort[^\n]*[[:space:]]-[A-Za-z]*V[A-Za-z]*([[:space:]|&;()<>'"'"'"`]|$)')"
 
 f="$(tmpsh 'sort -V "$file"')"
 if out="$(scan_paths "$tok" "$f" 2>&1)"; then
@@ -182,7 +250,290 @@ if scan_paths "$tok" "$f" >/dev/null 2>&1; then
 else
   ok "sort -Vr (V not last in the cluster) is detected"
 fi
+rm -f "$f"
+
+# --- operator-terminated forms: no trailing whitespace before a control
+# operator, redirection, subshell close or quote must still be detected
+# (#1537 — the boundary originally accepted only whitespace or end of line,
+# missing exactly these three forms cited in the issue) ---------------------
+while IFS= read -r case; do
+  f="$(tmpsh "$case")"
+  if out="$(scan_paths "$tok" "$f" 2>&1)"; then
+    fail "[$case] should fail, got success: $out"
+  else
+    ok "[$case] is detected"
+  fi
+  rm -f "$f"
+done <<'CASES'
+x=$(sort -V)
+sort -V|head -n1
+sort -V; echo done
+CASES
+rm -f "$tok"
+
+# --- sort -V's long-form spellings: --version-sort and --sort=version ------
+tok="$(one_token_list '--version-sort')"
+f="$(tmpsh 'sort --version-sort "$file"')"
+if out="$(scan_paths "$tok" "$f" 2>&1)"; then
+  fail "sort --version-sort should fail, got success: $out"
+else
+  ok "sort --version-sort (long form) is detected"
+fi
 rm -f "$f" "$tok"
+
+tok="$(one_token_list 'sort[^\n]*[[:space:]]--sort(=|[[:space:]]+)['"'"'"]?version([[:space:]|&;()<>'"'"'"`]|$)')"
+
+# --- every spelling of --sort's mandatory WORD: attached after `=` or handed
+# over as the next argv element, bare or shell-quoted, and terminated by a
+# control operator rather than whitespace ---------------------------------
+while IFS= read -r case; do
+  f="$(tmpsh "$case")"
+  if out="$(scan_paths "$tok" "$f" 2>&1)"; then
+    fail "[$case] should fail, got success: $out"
+  else
+    ok "[$case] is detected"
+  fi
+  rm -f "$f"
+done <<'CASES'
+sort --sort=version "$file"
+sort --sort version "$file"
+sort --sort='version' "$file"
+sort --sort="version" "$file"
+sort --sort 'version' "$file"
+sort --sort=version
+x=$(sort --sort=version)
+sort --sort=version|head -n1
+sort --sort=version; echo done
+sort --sort=version >"$out"
+CASES
+
+# --- ...but `--sort=<key>` belongs to portable commands too: Git's own
+# version-aware tag ordering must not be reported as a GNU `sort` violation
+f="$(tmpsh 'git tag --sort=version:refname --list')"
+if scan_paths "$tok" "$f" >/dev/null 2>&1; then
+  ok "git tag --sort=version:refname is not flagged (no sort command, no WORD boundary)"
+else
+  fail "git tag --sort=version:refname must not be flagged"
+fi
+rm -f "$f" "$tok"
+
+# --- an OPENING quote after a short-option cluster is not a word terminator
+# (#1546): the shell splices it into the same word. For `echo` that ends the
+# matter, because a non-cluster splice is simply printed -- bash prints
+# `echo -e"mail"` as the literal `-email` and `echo -e"mail\tX"` as
+# `-email\tX` with no escape interpretation. That is working portable code and
+# flagging it would be a false positive, so echo's continuation class is
+# limited to its own cluster letters (bash advertises `echo [-neE]`).
+f="$(tmpsh "$(printf '%s\n' \
+  'echo -e"mail"' \
+  'echo -e"mail\tX"')")"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  ok "a non-cluster quoted splice after echo -e is not flagged (printed literally)"
+else
+  fail "echo -e non-cluster splices must not be flagged, got: $out"
+fi
+rm -f "$f"
+
+# --- ...but the splice DOES keep the flag live when the content is option
+# letters, so grep and sort must still be flagged there (#1546). Verified on
+# bash: `grep -P"i" '\d'` matches a digit where the same grep without -P does
+# not, `grep -Px '.*\d.*'` likewise, and `sort -V"r"` reverse version-sorts.
+f="$(tmpsh "$(printf '%s\n' \
+  'grep -P"x" file' \
+  "grep -P'x' file" \
+  'sort -V"r" file' \
+  "echo -e\"n\" 'a\\tb'")")"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "letter splices keep the GNU flag live and should fail, got success: $out"
+elif [[ "$(echo "$out" | grep -c "PORTABILITY: ${f}:")" -eq 4 ]]; then
+  ok "a quoted splice of option letters still reports the live GNU flag"
+else
+  fail "expected all 4 letter splices flagged, got: $out"
+fi
+rm -f "$f"
+
+# --- a splice that is neither empty nor option letters is not a cluster at
+# all, and for grep/sort it is not working code either (`grep -P"attern"` and
+# `sort -V"ersion"` both abort with `unknown option`), so a variable or a
+# multi-word value stays unflagged rather than guessing at its expansion.
+f="$(tmpsh "$(printf '%s\n' \
+  'grep -P"$re" file' \
+  'sort -V"$v" file' \
+  'grep -P"x y" file')")"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  ok "a non-letter quoted splice is not treated as a cluster"
+else
+  fail "variable and multi-word splices must not be flagged, got: $out"
+fi
+rm -f "$f"
+
+# --- the segment scan stops at a command SEPARATOR, but a command
+# SUBSTITUTION in an earlier argument is not one: the outer command continues
+# past the closing paren, so excluding `(`/`)` from the gap hid a live GNU-only
+# option later on the same command (#1546).
+f="$(tmpsh "$(printf '%s\n' \
+  'grep -e "$(printf pattern)" -P file' \
+  'sort -k "$(printf 1)" -V file' \
+  'sort -k "$(printf 1)" --sort=version file')")"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "an option after a command substitution should fail, got success: $out"
+elif [[ "$(echo "$out" | grep -c "PORTABILITY: ${f}:")" -eq 3 ]]; then
+  ok "the scan continues past a command substitution to a later GNU-only option"
+else
+  fail "expected all 3 post-substitution options flagged, got: $out"
+fi
+rm -f "$f"
+
+# --- ...while a real separator still stops it, so the #1546 false positive
+# that motivated scoping the gap stays fixed.
+f="$(tmpsh "$(printf '%s\n' \
+  "grep foo /dev/null; printf '%s\\\\n' -P|cat" \
+  "sort /dev/null; printf '%s\\\\n' -V|cat")")"
+if scan_paths "$REAL_TOKENS" "$f" >/dev/null 2>&1; then
+  ok "a later command's option-shaped argument is still not attributed backwards"
+else
+  fail "the separator scoping must still hold: $(scan_paths "$REAL_TOKENS" "$f" 2>&1)"
+fi
+rm -f "$f"
+
+# --- an EMPTY quote pair is the one quoted form that must still match (#1546).
+# Quote removal deletes it, so the flag really is passed: on bash,
+# `printf '[%s]\n' -P'' pattern` prints `[-P]` then `[pattern]`, `grep -P'' '\d'`
+# matches a digit where a -P-less grep does not, and `echo -e'' 'a\tb'` emits a
+# real tab. Ignoring these was a false negative, not the accepted narrowing.
+f="$(tmpsh "$(printf '%s\n' \
+  "grep -P'' pattern" \
+  'sort -V"" file' \
+  "echo -e'' value" \
+  "grep -P''" \
+  'sort -V""')")"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "empty quote pairs should still be detected, got success: $out"
+elif [[ "$(echo "$out" | grep -c "PORTABILITY: ${f}:")" -eq 5 ]]; then
+  ok "an empty quote pair after an option cluster is still detected"
+else
+  fail "expected all 5 empty-pair forms flagged, got: $out"
+fi
+rm -f "$f"
+
+# --- REPEATED empty pairs are removed just the same, so the class is starred
+# rather than optional (#1546): `printf '[%s]\n' -P'''' pattern` prints `[-P]`
+# then `[pattern]`, exactly as the single-pair form does.
+f="$(tmpsh "$(printf '%s\n' \
+  "grep -P'''' pattern" \
+  'sort -V'"''"'"" file' \
+  "echo -e\"\"'' value")")"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "repeated empty quote pairs should be detected, got success: $out"
+elif [[ "$(echo "$out" | grep -c "PORTABILITY: ${f}:")" -eq 3 ]]; then
+  ok "repeated empty quote pairs are detected, not just a single pair"
+else
+  fail "expected all 3 repeated-pair forms flagged, got: $out"
+fi
+rm -f "$f"
+
+# --- a cluster letter AFTER a quoted pair is still part of the same word, so
+# letters and quoted chunks interleave rather than the letters having to come
+# first (#1546). Verified on bash: `grep -P"a"i '\d'` matches a digit where a
+# -P-less grep does not, `sort -V"r"f` reverse version-sorts, and
+# `echo -e"n"E 'a\tb'` consumes the whole word as the `-enE` option cluster
+# (nothing of it is printed).
+f="$(tmpsh "$(printf '%s\n' \
+  'grep -P"x"i pattern file' \
+  "grep -P'x'i pattern file" \
+  'sort -V"r"f file' \
+  "echo -e\"n\"E 'a\\tb'")")"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "a cluster letter after a quoted pair should be flagged, got success: $out"
+elif [[ "$(echo "$out" | grep -c "PORTABILITY: ${f}:")" -eq 4 ]]; then
+  ok "cluster letters and quoted chunks interleave in either order"
+else
+  fail "expected all 4 interleaved forms flagged, got: $out"
+fi
+rm -f "$f"
+
+# --- ...but echo's cluster admits only its own letters, quoted or not (#1546).
+# `help echo` advertises `echo [-neE]`, so any other letter makes the word an
+# unrecognized option that bash prints literally rather than a longer cluster
+# -- verified: `echo -em "a\tb"`, `echo -me "a\tb"` and
+# `echo -e"n"mail "a\tb"` each emit the option word followed by the literal
+# `a\tb`. All three are working portable code. grep and sort need no such
+# narrowing: an unrecognized cluster aborts them, so there is nothing working
+# to break.
+f="$(tmpsh "$(printf '%s\n' \
+  "echo -e\"n\"mail 'a\\tb'" \
+  "echo -em 'a\\tb'" \
+  "echo -me 'a\\tb'")")"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  ok "a non-[neE] letter in echo's cluster is printed literally and is not flagged"
+else
+  fail "echo clusters with a non-[neE] letter must not be flagged, got: $out"
+fi
+rm -f "$f"
+
+# --- ...while every genuine [neE] cluster still is.
+f="$(tmpsh "$(printf '%s\n' \
+  "echo -ne 'a\\tb'" \
+  "echo -eE 'a\\tb'" \
+  "echo -e\"n\"E 'a\\tb'")")"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "genuine [neE] clusters should still be flagged, got success: $out"
+elif [[ "$(echo "$out" | grep -c "PORTABILITY: ${f}:")" -eq 3 ]]; then
+  ok "echo clusters built only from n/e/E are still flagged"
+else
+  fail "expected all 3 [neE] clusters flagged, got: $out"
+fi
+rm -f "$f"
+
+# --- ...and the option scan stops at a shell command separator (#1546), the
+# same rule the mktemp -p token carries: a physical line is not a command, so
+# with `|` and `;` in the boundary a LATER command's option-shaped argument
+# was being attributed to an earlier grep/sort.
+f="$(tmpsh "$(printf '%s\n' \
+  "grep foo /dev/null; printf '%s\\n' -P|cat" \
+  "sort /dev/null; printf '%s\\n' -V|cat" \
+  "grep foo /dev/null && printf '%s\\n' -P" \
+  "sort /dev/null && printf '%s\\n' --sort=version")")"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  ok "a later command's -P/-V/--sort argument is not attributed to grep/sort"
+else
+  fail "the option scan must stop at a command separator, got: $out"
+fi
+rm -f "$f"
+
+# --- a process substitution attached to an option word is the same shape as an
+# attached quote, not a redirection (#1546): the shell concatenates `<(`/`>(`
+# into the current word, so bash runs `echo -e<(printf x)` as the single
+# argument `-e/dev/fd/63` and prints it literally -- the flag never activates.
+f="$(tmpsh "$(printf '%s\n' \
+  'echo -e<(printf x)' \
+  'grep -P<(printf x) foo' \
+  'sort -V<(printf x)' \
+  'sort --sort=version<(printf x)' \
+  'grep -P>(cat) foo')")"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  ok "a process substitution attached to an option cluster is not flagged"
+else
+  fail "attached process substitutions must not be flagged, got: $out"
+fi
+rm -f "$f"
+
+# --- ...but a bare `<`/`>` still opens a REDIRECTION, which does terminate the
+# word, so the operator-terminated detections #1537 added must all survive.
+f="$(tmpsh "$(printf '%s\n' \
+  'sort -V <file' \
+  'sort -V >out' \
+  'grep -P<file' \
+  'echo -e>out' \
+  'sort --sort=version<file')")"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "redirection-terminated GNU options should fail, got success: $out"
+elif [[ "$(echo "$out" | grep -c "PORTABILITY: ${f}:")" -eq 5 ]]; then
+  ok "a redirection after an option cluster still terminates the word and is flagged"
+else
+  fail "expected all 5 redirection forms flagged, got: $out"
+fi
+rm -f "$f"
 
 # =============================================================================
 # sed -i without a backup-suffix argument
@@ -206,22 +557,184 @@ else
 fi
 rm -f "$f"
 
-# --- the portable BSD-safe -i '' / -i "" idiom is auto-guarded, not flagged
+# --- the space-separated empty-suffix idiom (-i '' / -i "") is NOT the
+# portable form it looks like -- verified against a real GNU sed 4.9, that
+# exact invocation exits 2 (the empty string is consumed as sed's SCRIPT
+# argument, not as -i's suffix), so it must stay flagged, not be excused.
 f="$(tmpsh "sed -i '' 's/foo/bar/' \"\$file\"")"
-if scan_paths "$tok" "$f" >/dev/null 2>&1; then
-  ok "sed -i '' (explicit empty-suffix, single-quoted) is not flagged"
+if out="$(scan_paths "$tok" "$f" 2>&1)"; then
+  fail "sed -i '' should fail -- it is GNU-incompatible despite looking BSD-safe, got success: $out"
 else
-  fail "sed -i '' must not be flagged -- it is the portable BSD-safe idiom"
+  ok "sed -i '' (space-separated empty-suffix, single-quoted) is detected, not excused"
 fi
 rm -f "$f"
 
 f="$(tmpsh 'sed -i "" -E "s/foo/bar/" "$file"')"
-if scan_paths "$tok" "$f" >/dev/null 2>&1; then
-  ok "sed -i \"\" (explicit empty-suffix, double-quoted) is not flagged"
+if out="$(scan_paths "$tok" "$f" 2>&1)"; then
+  fail "sed -i \"\" should fail -- it is GNU-incompatible despite looking BSD-safe, got success: $out"
 else
-  fail 'sed -i "" must not be flagged -- it is the portable BSD-safe idiom'
+  ok "sed -i \"\" (space-separated empty-suffix, double-quoted) is detected, not excused"
 fi
 rm -f "$f" "$tok"
+
+# =============================================================================
+# sed -Ei (extended-regex + unsuffixed in-place combined into one flag
+# cluster), and --in-place (GNU long form) — #1513
+# =============================================================================
+
+tok="$(one_token_list '(^|[^[:alnum:]_])sed([[:space:]][^\n]*)?[[:space:]]-[A-Za-z]*E[A-Za-z]*i([[:space:]|&;()<>]|$)')"
+
+f="$(tmpsh "sed -Ei 's/foo/bar/' \"\$file\"")"
+if out="$(scan_paths "$tok" "$f" 2>&1)"; then
+  fail "sed -Ei (unsuffixed) should fail, got success: $out"
+else
+  ok "sed -Ei (unsuffixed) is detected"
+fi
+rm -f "$f"
+
+# --- an indented invocation still matches (the non-identifier branch of the
+# command-token anchor, not the start-of-line branch) -----------------------
+f="$(tmpsh "  sed -Ei 's/foo/bar/' \"\$file\"")"
+if out="$(scan_paths "$tok" "$f" 2>&1)"; then
+  fail "indented sed -Ei should fail, got success: $out"
+else
+  ok "indented sed -Ei is detected (command-token anchor allows a leading separator)"
+fi
+rm -f "$f"
+
+# --- E/i need not be adjacent or the only letters in the cluster, but i must
+# be the cluster's LAST letter (GNU syntax is -i[SUFFIX]) -------------------
+f="$(tmpsh "sed -nEi 's/foo/bar/' \"\$file\"")"
+if out="$(scan_paths "$tok" "$f" 2>&1)"; then
+  fail "sed -nEi (E/i not adjacent, extra letter in cluster) should fail, got success: $out"
+else
+  ok "sed -nEi (E/i not adjacent, extra letter in cluster) is detected"
+fi
+rm -f "$f"
+
+# --- -iE is NOT the unsuffixed form: GNU's syntax is -i[SUFFIX], so the E is
+# an attached backup suffix (verified against GNU sed 4.9: `sed -iE ... f`
+# writes the backup `fE`), i.e. the dual-compatible shape -------------------
+f="$(tmpsh "sed -iE 's/foo/bar/' \"\$file\"")"
+if scan_paths "$tok" "$f" >/dev/null 2>&1; then
+  ok "sed -iE (E is an attached backup suffix, not a flag) is not flagged"
+else
+  fail "sed -iE must not be flagged -- E is an attached nonempty suffix, which is dual-compatible"
+fi
+rm -f "$f"
+
+# --- an attached NONEMPTY suffix is dual-compatible, not flagged -----------
+f="$(tmpsh "sed -Ei.bak 's/foo/bar/' \"\$file\"")"
+if scan_paths "$tok" "$f" >/dev/null 2>&1; then
+  ok "sed -Ei.bak (attached nonempty suffix) is not flagged"
+else
+  fail "sed -Ei.bak must not be flagged -- attached suffix is dual-compatible"
+fi
+rm -f "$f"
+
+# --- an attached EMPTY suffix is the same ambiguous shape as -i'' (deferred,
+# see the token file) -- must not be flagged -------------------------------
+f="$(tmpsh "sed -Ei'' 's/foo/bar/' \"\$file\"")"
+if scan_paths "$tok" "$f" >/dev/null 2>&1; then
+  ok "sed -Ei'' (attached empty suffix) is not flagged -- deferred ambiguous shape"
+else
+  fail "sed -Ei'' must not be flagged -- it is the same deferred ambiguous shape as -i''"
+fi
+rm -f "$f"
+
+# --- plain -i (no E) does not double-fire this cluster token ---------------
+f="$(tmpsh "sed -i 's/foo/bar/' \"\$file\"")"
+if scan_paths "$tok" "$f" >/dev/null 2>&1; then
+  ok "plain sed -i (no E in the cluster) does not fire the -Ei token"
+else
+  fail "plain sed -i must not fire the E+i combined-cluster token"
+fi
+rm -f "$f"
+
+# --- anchored to a sed mention on the line: bare -Ei from an unrelated tool
+# name is not itself sufficient (grep also has -E and -i, commonly combined)
+f="$(tmpsh "grep -Ei 'pattern' \"\$file\"")"
+if scan_paths "$tok" "$f" >/dev/null 2>&1; then
+  ok "grep -Ei (no 'sed' on the line) does not fire the sed-scoped token"
+else
+  fail "grep -Ei must not fire a sed-scoped token -- it has no 'sed' mention on the line"
+fi
+rm -f "$f"
+
+# --- the anchor is a sed COMMAND token, not any occurrence of the three
+# characters: an identifier that merely contains 'sed' must not arm it ------
+f="$(tmpsh "used=\"\$(grep -Ei 'pattern' \"\$file\")\"")"
+if scan_paths "$tok" "$f" >/dev/null 2>&1; then
+  ok "an identifier containing 'sed' (used=) does not arm the sed-scoped token"
+else
+  fail "used=\"\$(grep -Ei ...)\" must not fire -- 'sed' inside an identifier is not a sed command"
+fi
+rm -f "$f"
+
+# --- operator-terminated forms: no trailing whitespace before a control
+# operator, redirection, or subshell close must still be detected (#1545 —
+# the boundary originally accepted only whitespace or end of line, the same
+# class of false negative #1537 fixed for sort -V/grep -P/echo -e). Quotes
+# are NOT in this token's boundary (unlike the sibling tokens above) — see
+# the "sed -Ei'' must not be flagged" test above for why. --------------------
+while IFS= read -r case; do
+  f="$(tmpsh "$case")"
+  if out="$(scan_paths "$tok" "$f" 2>&1)"; then
+    fail "[$case] should fail, got success: $out"
+  else
+    ok "[$case] is detected"
+  fi
+  rm -f "$f"
+done <<'CASES'
+x=$(sed -Ei)
+sed -Ei|cat
+sed -Ei; echo done
+CASES
+rm -f "$tok"
+
+tok="$(one_token_list '(^|[^[:alnum:]_])sed([[:space:]][^\n]*)?[[:space:]]--in-place([[:space:]|&;()<>]|=|$)')"
+
+f="$(tmpsh "sed --in-place 's/foo/bar/' \"\$file\"")"
+if out="$(scan_paths "$tok" "$f" 2>&1)"; then
+  fail "sed --in-place (bare) should fail, got success: $out"
+else
+  ok "sed --in-place (bare) is detected"
+fi
+rm -f "$f"
+
+f="$(tmpsh "sed --in-place=.bak 's/foo/bar/' \"\$file\"")"
+if out="$(scan_paths "$tok" "$f" 2>&1)"; then
+  fail "sed --in-place=SUFFIX should fail, got success: $out"
+else
+  ok "sed --in-place=SUFFIX (long form has no portable BSD equivalent, suffixed or not) is detected"
+fi
+rm -f "$f"
+
+# --- an unrelated tool's own --in-place option (defined or forwarded by the
+# script itself) is not a GNU sed invocation and must not be flagged --------
+f="$(tmpsh "case \"\$1\" in --in-place) in_place=1 ;; esac")"
+if scan_paths "$tok" "$f" >/dev/null 2>&1; then
+  ok "a script's own --in-place option arm is not flagged (no sed command on the line)"
+else
+  fail "--in-place must be scoped to a sed invocation -- an unrelated option arm must not fire"
+fi
+rm -f "$f"
+
+# --- operator-terminated forms (#1545) --------------------------------------
+while IFS= read -r case; do
+  f="$(tmpsh "$case")"
+  if out="$(scan_paths "$tok" "$f" 2>&1)"; then
+    fail "[$case] should fail, got success: $out"
+  else
+    ok "[$case] is detected"
+  fi
+  rm -f "$f"
+done <<'CASES'
+x=$(sed --in-place)
+sed --in-place|cat
+sed --in-place; echo done
+CASES
+rm -f "$tok"
 
 # =============================================================================
 # readlink -f / --canonicalize, auto-guarded by a co-located realpath attempt
@@ -242,6 +755,19 @@ if scan_paths "$tok" "$f" >/dev/null 2>&1; then
   ok "readlink -f co-located with a realpath attempt is auto-guarded"
 else
   fail "the realpath-first fallback ladder must not be flagged"
+fi
+rm -f "$f"
+
+# --- mere co-location is not enough -- the guard requires an actual `||`
+# fallback relationship. Two unconditional statements (semicolon-separated,
+# no ||) both mentioning realpath/readlink on one line must still flag: the
+# GNU-only readlink -f call runs unconditionally regardless of what realpath
+# did, so there is no real fallback protecting it.
+f="$(tmpsh 'realpath -- "$1" >/dev/null; readlink -f -- "$1"')"
+if out="$(scan_paths "$tok" "$f" 2>&1)"; then
+  fail "realpath;readlink with no || fallback relationship should fail, got success: $out"
+else
+  ok "realpath and readlink with no actual || fallback relationship is still flagged"
 fi
 rm -f "$f" "$tok"
 
@@ -304,6 +830,65 @@ else
   fail "whole-file portability-scope should pass"
 fi
 rm -f "$f" "$tok"
+
+# --- a mere MENTION of the token (not a genuine comment-line declaration) --
+# does NOT exempt the file -- #1513: a doc-block sentence explaining the
+# mechanism, or a string literal containing the words, must not wrongly
+# excuse a real hit.
+tok="$(one_token_list '\\b')"
+f="$(tmpsh '# This script supports a whole-file portability-scope: <reason> declaration.
+grep -Eq "\\bfoo\\b" "$file"')"
+if out="$(scan_paths "$tok" "$f" 2>&1)"; then
+  fail "a doc-comment merely mentioning portability-scope: should not exempt the file, got success: $out"
+elif echo "$out" | grep -q "PORTABILITY: ${f}:2:"; then
+  ok "a doc-comment mentioning portability-scope: (not a genuine declaration) does not exempt the file"
+else
+  fail "expected line 2 flagged (not exempted), got: $out"
+fi
+rm -f "$f"
+
+f="$(tmpsh 'msg="see portability-scope: docs for details"
+grep -Eq "\\bfoo\\b" "$file"')"
+if out="$(scan_paths "$tok" "$f" 2>&1)"; then
+  fail "a string literal mentioning portability-scope: should not exempt the file, got success: $out"
+elif echo "$out" | grep -q "PORTABILITY: ${f}:2:"; then
+  ok "a string literal mentioning portability-scope: (not a comment) does not exempt the file"
+else
+  fail "expected line 2 flagged (not exempted), got: $out"
+fi
+rm -f "$f" "$tok"
+
+# --- a genuine declaration mid-file (not necessarily line 1) still works ---
+tok="$(one_token_list '\\b')"
+f="$(tmpsh 'plain_line=1
+  # portability-scope: indented declaration still counts
+grep -Eq "\\bfoo\\b" "$file"')"
+if scan_paths "$tok" "$f" >/dev/null 2>&1; then
+  ok "an indented genuine portability-scope declaration anywhere in the file still exempts it"
+else
+  fail "an indented genuine portability-scope declaration should still exempt the file"
+fi
+rm -f "$f" "$tok"
+
+# =============================================================================
+# awk operand disambiguation: a scanned file whose name is shaped like an
+# identifier=value assignment must not be silently dropped from the scan
+# (#1513)
+# =============================================================================
+
+tok="$(one_token_list '\\b')"
+fx="$(mktemp -d)"
+mkdir -p "$fx/scripts"
+cp "$SCRIPT" "$fx/scripts/"
+printf 'grep -Eq "\\bfoo\\b" "$file"\n' >"$fx/FOO=bar.sh"
+out="$(cd "$fx" && SHELL_PORTABILITY_TOKENS="$tok" bash scripts/check-shell-portability.sh --paths "FOO=bar.sh" 2>&1)"
+rc=$?
+if [[ "$rc" -ne 0 ]] && echo "$out" | grep -q 'PORTABILITY: FOO=bar\.sh:1:'; then
+  ok "a filename shaped like identifier=value is scanned, not silently dropped by awk"
+else
+  fail "an identifier=value-shaped filename must be scanned, not dropped (rc=$rc): $out"
+fi
+rm -rf "$fx" "$tok"
 
 # =============================================================================
 # Fail-closed behavior
@@ -406,12 +991,195 @@ else
   fail "markdown-format.sh must stay clean under the shipped token list, got: $out"
 fi
 
-# --- staged (commented) classes stay inactive under the shipped list -------
-f="$(tmpsh 'x=$(date -d "$s" +%s); y=$(stat -c%s "$f"); t=$(mktemp -p "$d")')"
+# --- remaining staged (commented) classes stay inactive under the shipped list
+f="$(tmpsh 'x=$(date -d "$s" +%s); y=$(stat -c%s "$f")')"
 if scan_paths "$REAL_TOKENS" "$f" >/dev/null 2>&1; then
-  ok "staged classes (date -d, stat -c, mktemp -p) are inactive in the shipped list"
+  ok "remaining staged classes (date -d, stat -c) are inactive in the shipped list"
 else
   fail "shipped list should only enforce the active classes"
+fi
+rm -f "$f"
+
+# --- sort's long-form spellings are active in the SHIPPED list (not just the
+# isolated-token mechanism proven above): every flagged spelling on its own
+# line, plus Git's portable `--sort=<key>` which must stay clean -----------
+f="$(tmpsh "$(printf '%s\n' \
+  'sort --version-sort "$file"' \
+  'sort --sort=version "$file"' \
+  'sort --sort version "$file"' \
+  'sort --sort='"'"'version'"'"' "$file"' \
+  'x=$(sort --sort=version)' \
+  'git tag --sort=version:refname --list')")"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "sort long forms should fail under the shipped list, got success: $out"
+elif [[ "$(echo "$out" | grep -c "PORTABILITY: ${f}:")" -eq 5 ]] &&
+  ! echo "$out" | grep -q "PORTABILITY: ${f}:6:"; then
+  ok "the shipped list detects every sort long form and spares git tag --sort=<key>"
+else
+  fail "expected hits on lines 1-5 only, got: $out"
+fi
+rm -f "$f"
+
+# --- operator-terminated short-flag forms are active in the SHIPPED list too
+# (#1537): sort -V, grep -P, echo -e each widened to the same boundary
+# `--sort=WORD` already used, proven here against the real token list rather
+# than only the isolated-token mechanism above ------------------------------
+f="$(tmpsh "$(printf '%s\n' \
+  'x=$(sort -V)' \
+  'sort -V|head -n1' \
+  'x=$(grep -P)' \
+  'grep -P|head -n1' \
+  'x=$(echo -e)' \
+  'echo -e|cat')")"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "operator-terminated sort -V/grep -P/echo -e should fail under the shipped list, got success: $out"
+elif [[ "$(echo "$out" | grep -c "PORTABILITY: ${f}:")" -eq 6 ]]; then
+  ok "the shipped list detects every operator-terminated sort -V/grep -P/echo -e form"
+else
+  fail "expected all 6 operator-terminated forms flagged, got: $out"
+fi
+rm -f "$f"
+
+# --- mktemp -p is now ACTIVE (#1527) ----------------------------------------
+f="$(tmpsh 't=$(mktemp -p "$d")')"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "shipped list should flag mktemp -p now that it is active: $out"
+else
+  ok "shipped list flags mktemp -p (active class, #1527)"
+fi
+rm -f "$f"
+
+f="$(tmpsh 't=$(mktemp -dp "$d" tmp.XXXXXX)')"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "shipped list should flag mktemp -dp combined cluster: $out"
+else
+  ok "shipped list flags mktemp -dp combined short-option cluster"
+fi
+rm -f "$f"
+
+f="$(tmpsh 't=$(mktemp "$d/tmp.XXXXXX")')"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  ok "the portable mktemp \"\$DIR/template\" form (no -p) is not flagged"
+else
+  fail "the portable mktemp form should not be flagged, got: $out"
+fi
+rm -f "$f"
+
+# --- attached-value and long-form parent-directory spellings (#1543). GNU
+# getopt takes -p's DIR joined to the cluster, and documents --tmpdir[=DIR] as
+# the equivalent; both are as BSD-incompatible as the whitespace-delimited form
+# a cluster-plus-whitespace boundary alone matched. The attached DIR is an
+# arbitrary string, so one whose first segment is alphabetic must flag exactly
+# like `-p/tmp` — verified against GNU coreutils 8.32, where
+# `mktemp -prel/sub name.XXXXXX` creates `rel/sub/name.XXXXXX`.
+f="$(tmpsh "$(printf '%s\n' \
+  'mktemp -p/tmp name.XXXXXX' \
+  'mktemp -prel/sub name.XXXXXX' \
+  'mktemp --tmpdir=/tmp name.XXXXXX' \
+  'mktemp --tmpdir name.XXXXXX')")"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "attached -p<DIR> and --tmpdir spellings should be flagged, got success: $out"
+elif [[ "$(echo "$out" | grep -c "PORTABILITY: ${f}:")" -eq 4 ]]; then
+  ok "the shipped list flags both attached -p<DIR> forms and both --tmpdir spellings"
+else
+  fail "expected all 4 parent-directory spellings flagged, got: $out"
+fi
+rm -f "$f"
+
+# --- ...and the option scan stops at a shell command separator (#1543): a
+# physical line is not a command, so a later command's `-p` is not mktemp's.
+f="$(tmpsh 'tmp=$(mktemp); cp -p source "$tmp"')"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  ok "cp -p after a portable mktemp on the same line is not flagged"
+else
+  fail "a later command's -p must not be attributed to mktemp, got: $out"
+fi
+rm -f "$f"
+
+# --- ...including the legacy backtick spelling of that substitution (#1543).
+# A closing backtick ends the substitution exactly as `)` ends `$(...)`, so in
+# the VAR=value-prefixed command below the `-p` is cp's, not mktemp's.
+f="$(tmpsh 'tmp=`mktemp` cp -p source target')"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  ok "cp -p after a backtick-substituted portable mktemp is not flagged"
+else
+  fail "a closing backtick must end the option scan, got: $out"
+fi
+rm -f "$f"
+
+# --- ...without over-stopping: a `-p` INSIDE the backtick substitution is
+# mktemp's own and must keep flagging.
+f="$(tmpsh 'tmp=`mktemp -p "$d"`')"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "mktemp -p inside a backtick substitution must still be flagged: $out"
+else
+  ok "mktemp -p inside a backtick substitution is still flagged"
+fi
+rm -f "$f"
+
+# --- both mktemp tokens are anchored to the COMMAND TOKEN (#1543): `-p` and
+# `--tmpdir` are GNU mktemp's flags, not a flag of every command whose name
+# merely contains "mktemp". The boundary is a shell WORD POSITION rather than
+# an enumeration of legal name characters -- `+` and `@` are as legal in a
+# command name as `-` and `.`, so any such enumeration is unfinishable.
+f="$(tmpsh "$(printf '%s\n' \
+  'mktemp_wrapper -p /tmp' \
+  'my_mktemp -p /tmp' \
+  'mktempfoo -p /tmp' \
+  'safe-mktemp -p /tmp' \
+  'my.mktemp -p /tmp' \
+  'safe+mktemp -p /tmp' \
+  'safe@mktemp --tmpdir=/tmp' \
+  'safe-mktemp --tmpdir=/tmp' \
+  'xmktemp --tmpdir=/tmp')")"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  ok "commands whose name merely contains mktemp are not flagged"
+else
+  fail "mktemp's tokens must not match a different command's name, got: $out"
+fi
+rm -f "$f"
+
+# --- ...and the real command still flags at every position the anchor admits:
+# line start, after a separator, inside a substitution, reached by absolute
+# path (`/` is a path separator, not part of a name), and with the command
+# token itself quoted -- the shell strips those quotes and runs the same
+# GNU-only mktemp.
+f="$(tmpsh "$(printf '%s\n' \
+  'mktemp -p /tmp' \
+  'cd /tmp && mktemp -p sub' \
+  't=$(mktemp --tmpdir=/tmp)' \
+  '/usr/bin/mktemp -p /tmp' \
+  '"/usr/bin/mktemp" -p /tmp' \
+  "'mktemp' --tmpdir /tmp")")"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "the anchored tokens must still flag real mktemp calls, got success: $out"
+elif [[ "$(echo "$out" | grep -c "PORTABILITY: ${f}:")" -eq 6 ]]; then
+  ok "the anchored tokens flag mktemp at a line start, after &&, in \$(), by path and quoted"
+else
+  fail "expected all 6 anchored mktemp positions flagged, got: $out"
+fi
+rm -f "$f"
+
+# --- operator-terminated sed -Ei / --in-place forms are active in the
+# SHIPPED list too (#1545): both tokens end at a control operator, redirection
+# or subshell close, and -- like the `sort -V` / `grep -P` / `echo -e` classes
+# after #1546 -- not at a quote. Each token's own reason for excluding one is
+# recorded in shell-portability-tokens.txt; `--sort=WORD` (#1530) is the one
+# token that still admits a quote. Proven here against the real token list
+# rather than only the isolated-token mechanism above -----------------------
+f="$(tmpsh "$(printf '%s\n' \
+  'x=$(sed -Ei)' \
+  'sed -Ei|cat' \
+  'sed -Ei; echo done' \
+  'x=$(sed --in-place)' \
+  'sed --in-place|cat' \
+  'sed --in-place; echo done')")"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "operator-terminated sed -Ei/--in-place should fail under the shipped list, got success: $out"
+elif [[ "$(echo "$out" | grep -c "PORTABILITY: ${f}:")" -eq 6 ]]; then
+  ok "the shipped list detects every operator-terminated sed -Ei/--in-place form"
+else
+  fail "expected all 6 operator-terminated forms flagged, got: $out"
 fi
 rm -f "$f"
 

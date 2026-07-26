@@ -90,7 +90,7 @@ run_hook_env() {
 # single executable path, not a command-with-args, so tests point it at a stub.
 make_sink() {
   local s
-  s="$(mktemp -p "$WORK" sink.XXXXXX)"
+  s="$(mktemp "$WORK/sink.XXXXXX")"
   {
     printf '#!/usr/bin/env bash\n'
     printf '%s\n' "$1"

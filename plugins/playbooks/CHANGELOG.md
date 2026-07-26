@@ -4,6 +4,19 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.5.2]
+
+### Fixed
+
+- **`boris` settings reference now points at the migrated documentation domain.** Anthropic moved
+  the Claude Code docs from `docs.claude.com/en/docs/claude-code/<slug>` to
+  `code.claude.com/docs/en/<slug>`; the settings link in `skills/boris/reference/autonomy.md`
+  still used the old host and survived only on a 301. Verified by fetching the old URL, observing
+  the 301, and confirming the target is the "Claude Code settings" page.
+  `skills/boris/vendor/SKILL.md` carries the same stale URL and is deliberately **not** changed —
+  it is the verbatim upstream baseline used for drift detection, so editing it would manufacture
+  false drift.
+
 ## [0.5.1]
 
 Runs the context-engineering rightsizing effort's criteria catalog

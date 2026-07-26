@@ -75,7 +75,7 @@ Why this works: stays below the rot zone while still getting most of the 1M bene
 
 Pair with proactive `/compact <hint>` when you feel bad-compact risk.
 
-Docs: [Claude Code settings](https://docs.claude.com/en/docs/claude-code/settings)
+Docs: [Claude Code settings](https://code.claude.com/docs/en/settings)
 Source: [@trq212 status 2044548257058328723](https://x.com/trq212/status/2044548257058328723)
 
 ## 65. Delegation over Guidance (Opus 4.7)

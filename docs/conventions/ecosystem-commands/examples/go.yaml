@@ -1,16 +1,111 @@
 # Example .claude/ecosystems/go.yaml — a consuming repo's Go command surface.
 # Contract: docs/conventions/ecosystem-commands/README.md (schema: ecosystem.schema.json).
-globs: ["*.go", "go.mod", "go.sum"]
+globs: ["*.go", "go.mod", "go.sum", "*.proto", "buf.gen.yaml", "buf.yaml", "buf.work.yaml", "buf.lock"]
 project-discovery: ["go.mod"]
 build-cmd: "go build ./..."
 test-cmd: "go test ./..."
 check-cmd: "golangci-lint run ./..."
 fix-cmd: "golangci-lint run --fix ./..."
 opt-in: ".golangci.yml, .golangci.yaml, .golangci.toml, or .golangci.json present (walked from the changed file up to the repo root) — otherwise golangci-lint applies its own unconfigured \"standard\" linter preset unconditionally"
-install-hint: "Install golangci-lint: https://golangci-lint.run/docs/welcome/install/ | Go toolchain: https://go.dev/dl/"
+install-hint: "Install golangci-lint: https://golangci-lint.run/docs/welcome/install/ | Go toolchain: https://go.dev/dl/ | Buf CLI (needed by the proto-gen-freshness gate below): https://buf.build/docs/cli/installation/"
 gates:
   - name: go-mod-tidy-drift
     cmd: "go mod tidy -diff"
     trigger-globs: ["go.mod", "go.sum", "*.go"]
     remediation: "Run go mod tidy and commit the updated go.mod/go.sum. (go mod tidy -diff requires Go 1.23+; an older toolchain rejects the flag, so the gate reports skip rather than drift.)"
+  # Illustrative only — no bundled default or example repo currently needs this gate (see the
+  # ecosystem-commands CHANGELOG 1.2.0 entry and #1361's Trigger: "revisit when a consumer needs a
+  # repo-wide gate ... or when a bundled default wants one"). Shown here purely to document the
+  # `run-from: repo-root` shape (README.md "Gate execution scope"): this ecosystem declares
+  # `project-discovery: ["go.mod"]`, so without `run-from: repo-root` a repo-wide check like
+  # protobuf-generated-code freshness would run once per discovered go.mod root instead of once
+  # from $REPO_ROOT — redundant at best, failing in roots that lack a buf.gen.yaml at worst.
+  # Every input that can change what `buf generate` produces gets an entry in this file's own
+  # `globs` above, not just this gate's `trigger-globs`, per the 1.1.1 reachability rule —
+  # trigger-globs alone never selects an ecosystem under auto-targeting, so without a `globs` entry
+  # a change touching only that file would never reach this gate outside `/toolchain:check go` or
+  # `check all`. The entries below are this example's application of that rule to buf's own
+  # configuration surface, which is what an example can know; editing any one alone can strand or
+  # orphan generated output:
+  #   - `*.proto` — the sources themselves.
+  #   - `buf.gen.yaml` — which plugins run and where they write.
+  #   - `buf.yaml` (v1 also `buf.work.yaml`) — the workspace `modules`/`includes`/`excludes` that
+  #     decide which Protobuf files generation discovers at all.
+  #   - `buf.lock` — the resolved external-dependency pins; `buf dep update` can change imported
+  #     descriptors and options with no local `.proto` edit at all.
+  # Refs: https://buf.build/docs/configuration/v2/buf-yaml/,
+  # https://buf.build/docs/configuration/v1/buf-work-yaml/, and
+  # https://buf.build/docs/configuration/v2/buf-lock/.
+  # A consuming repo must extend the list with its own generation inputs, which no example can
+  # enumerate for it. The common case is a `local:` plugin built from sources in this repo — buf
+  # documents `local` as a binary or command array, e.g. `local: ["go", "run", "./tools/pgen"]` —
+  # whose `*.go` sources change the generated output while matching none of the entries above. Add
+  # a glob for each such generator (`tools/pgen/**`), plus any template, options file, or other
+  # input the repo's own plugins read.
+  # Ref: https://buf.build/docs/configuration/v2/buf-gen-yaml/. The gate's
+  # `trigger-globs` below also lists the plugins' own generated-output patterns (`*.pb.go`,
+  # `*.pb.gw.go`), so a hand-edit that drifts a generated file from what `buf generate` would
+  # produce still fires this gate — unlike the buf inputs above, they need no separate `globs`
+  # entry: both already end in `.go`, so the ecosystem's own `*.go` glob already selects them.
+  # One `git status --porcelain` with a pathspec is the whole freshness check: it reports modified,
+  # newly generated, and orphaned output in a single command, staged or not, and omits .gitignore'd
+  # paths so a repo that deliberately ignores generated code still passes. A naive
+  # `buf generate && git diff --exit-code` catches almost none of that — `git diff` with no commit
+  # argument compares the working tree to the *index*, so staged output reports clean, and no diff
+  # form reports untracked paths at all. The check runs on BOTH sides of generation, because the
+  # two positions answer different questions:
+  #   * Before (`-uno`, tracked paths only) — the guard. `--clean` deletes "the directories, jar
+  #     files, or zip files that the plugins will write to" before generating, so generation
+  #     overwrites any uncommitted edit to a tracked output. Refusing to generate over one keeps a
+  #     freshness check from destroying work, and closes a false pass no post-generation diff form
+  #     can reach: once regeneration has reverted a hand-edit the worktree matches HEAD, and
+  #     `git diff <commit>` shows "the changes you have in your working tree relative to the named
+  #     <commit>" — never the index — so a staged bad entry survives every post-generation diff and
+  #     stays committable. Ref: https://git-scm.com/docs/git-diff. `-uno` scopes the guard to
+  #     tracked paths: untracked output is regenerated identically, so letting `--clean` delete it
+  #     loses nothing, and the ordinary "edited a .proto, forgot to regenerate" flow starts from a
+  #     clean tracked tree, passes the guard, and fails at the post-generation check as it should.
+  #   * After (all paths) — the freshness assertion. Regeneration surfaces stale committed output
+  #     as a modification and a new `.proto`'s output as an untracked path. An output orphaned by a
+  #     deleted or renamed `.proto` has no source left to regenerate it, so it surfaces only as
+  #     `--clean`'s deletion — and the `clean` field in buf.gen.yaml "defaults to false", so the
+  #     flag keeps the gate correct regardless of the consumer's buf.gen.yaml. Refs:
+  #     https://buf.build/docs/reference/cli/buf/generate/ and
+  #     https://buf.build/docs/configuration/v2/buf-gen-yaml/
+  # `--clean` carries a precondition this example cannot enforce, only state: it deletes whole
+  # targets ("the directories, jar files, or zip files that the plugins will write to"), never
+  # just the files matching the checks' pathspecs. What that requires depends on the target shape:
+  #   - a DIRECTORY `out` must hold nothing but generated output. A hand-maintained file inside
+  #     one — a README, a BUILD file, a scratch note — is deleted with the rest, and neither check
+  #     above reports it: the pathspec covers the plugins' output patterns, not the directory's
+  #     whole contents, and the out directories live in the consumer's buf.gen.yaml where no
+  #     example can name them.
+  #   - an ARCHIVE `out` (a .jar or .zip) is replaced wholesale and is generated by definition, so
+  #     it needs no dedication — but it must be named in FOUR places, not two. Both `git status`
+  #     pathspecs above, so `--clean`'s rewrite is detected; AND the top-level `globs` plus this
+  #     gate's `trigger-globs`, or auto-targeting never selects this ecosystem when the archive is
+  #     the only changed file. An archive matches no `*.go`/`*.proto` pattern, so a hand-edited or
+  #     stale one would otherwise be skipped in silence unless some other input changed alongside
+  #     it — the same reachability rule `*.pb.go` follows, which is why it appears in both lists.
+  # A repo that cannot dedicate a directory `out` must turn cleaning off in BOTH places: drop
+  # `--clean` here AND clear `clean` in its own buf.gen.yaml. The config field cleans on its own —
+  # "when set to true, `buf generate` deletes all directories, zip files, and/or jar files
+  # specified by the `out` field for each plugin before running code generation" — so dropping the
+  # flag alone still deletes the hand-maintained files this precondition is about, on exactly the
+  # repos that cannot satisfy it. Either way orphan detection goes with it — the deletion above is
+  # the only signal a sourceless output produces.
+  # The pathspec must cover every plugin buf.gen.yaml configures, not just protoc-gen-go's
+  # `*.pb.go` — a repo that also runs grpc-gateway writes `*.pb.gw.go`, and every other configured
+  # plugin writes its own extension again, so scoping to one plugin's output would leave --clean's
+  # deletion of the others undetected. This example covers `*.pb.go` and grpc-gateway's
+  # `*.pb.gw.go`; add one pathspec per additional plugin this repo's buf.gen.yaml configures. A git
+  # pathspec is not shell globbing — `*` matches `/` — so these reach output at any nesting depth.
+  # Both checks read the index without writing it, and neither prints filenames, so the
+  # `remediation` (surfaced on FAIL per the check skill's gate "Outcome" rule) names the listing
+  # command and tells the two failure points apart.
+  - name: proto-gen-freshness
+    cmd: "test -z \"$(git status --porcelain -uno -- '*.pb.go' '*.pb.gw.go')\" && buf generate --clean && test -z \"$(git status --porcelain -- '*.pb.go' '*.pb.gw.go')\""
+    trigger-globs: ["*.proto", "buf.gen.yaml", "buf.yaml", "buf.work.yaml", "buf.lock", "*.pb.go", "*.pb.gw.go"]
+    run-from: repo-root
+    remediation: "Two distinct failures. (1) Refused before generating: tracked generated output has uncommitted changes, and buf generate --clean would overwrite them — commit or discard them, then re-run. (2) Failed after generating: the committed output is stale — run buf generate --clean from the repo root and commit every resulting change to every buf.gen.yaml-configured plugin's output (this example's *.pb.go and grpc-gateway's *.pb.gw.go — extend to match this repo's plugins), modified, newly generated, and deleted (an output whose .proto is gone). `git status --short -- '*.pb.go' '*.pb.gw.go'` lists what either case is reporting, its first column the index and its second the working tree (extend the same way)."
 notes: "govulncheck is intentionally not a rung-4 default (per the epic brief's \"optional\" framing) — add it as a consumer-local gate via .claude/ecosystems/go.local.yaml if desired."

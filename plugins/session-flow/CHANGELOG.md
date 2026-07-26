@@ -1,5 +1,239 @@
 # Changelog — session-flow plugin
 
+## [0.17.14]
+
+### Fixed
+
+- **`orchestrate`'s nested-subagent sources were stale, but not in the direction the audit reported
+  (melodic-software/claude-code-plugins#1479 audit follow-up).** The audit's top finding claimed
+  `SKILL.md`'s "a configurable default of three" was factually wrong and that nesting is off by
+  default. Re-verification refutes that: the byte-exact changelog records v2.1.219 —
+  "Subagents can now spawn nested subagents up to depth 3 by default (was 1); set
+  `CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH=1` to disable nesting" — and the harness agrees (a non-fork
+  subagent one layer down held a fully-schema'd `Agent` tool on 2.1.220 with the variable unset).
+  The finding had been drawn from the `sub-agents` prose page, which still documents the superseded
+  v2.1.217–2.1.218 off-by-default state. `SKILL.md`'s claim stands; what changed is where it is
+  sourced from.
+  - `context/sources.md`'s imperative-5 block is rewritten to current text. Its previous quotes
+    ("a background subagent at depth five does not receive the Agent tool", "The limit is fixed and
+    not configurable") no longer appear in the page and are contradicted by the env var existing.
+    The block now carries version-pinned changelog quotes for the depth default, the current
+    tool-list gating sentence, all three separately-overridable caps with their defaults, and an
+    explicit drift note recording that the two official surfaces currently disagree and which one to
+    believe for what.
+  - `SKILL.md`'s depth paragraph re-attributes the depth-3 default to the changelog (which carries
+    it) rather than the `sub-agents` page (which currently contradicts it), pins each state to its
+    version, and adds a **confirm-nesting-from-behavior** rule: have a worker of the *same agent
+    definition* you plan to use as the intermediate tier attempt a trivial nested spawn and report
+    the outcome before committing a design to a second layer — a tree authored from either page
+    alone can be wrong in both directions; the gate is definition-specific, so a spawn from another
+    agent type proves nothing; and holding `Agent` is necessary but not sufficient, since the tool
+    can be listed while the spawn is still refused.
+    A refusal is then read rather than assumed: a depth rejection names depth, while a permission
+    refusal says nothing about the ceiling, because spawns are classifier-evaluated before launch
+    (v2.1.178).
+
+### Added
+
+- **A non-binding size anchor for imperative 7's small/medium/large.** The sizing had no numeric
+  reference at all, leaving it rationalizable either way. The Tiered-delegation section (which the
+  export brief omits, keeping the pasted brief model- and tool-agnostic) now cites the platform's
+  own numbers — the `/config` workflow size guideline's "fewer than 5 / 15 / 50 agents" and the
+  `Large workflow` flag above 25 — as a reference point, with an explicit instruction to say which
+  one you are overriding when your sizing and the anchor disagree by an order of magnitude.
+- **The priming addendum now reads the session's own effort level** via the documented
+  `${CLAUDE_EFFORT}` substitution, closing one of the two calibration factors imperative 7 named
+  with no consumable signal. It is the level a spawn inherits when neither the call nor the agent
+  definition sets one — a definition's own `effort` frontmatter overrides the session — which is
+  precisely the over-provisioning imperative 7 exists to stop. Priming-only and export-omitted, so
+  the pasted brief stays agnostic; the addendum also notes `ultracode` reports as `xhigh` and so
+  cannot reveal whether script-held workflow orchestration is active.
+- **`context/gotchas.md`** — the skill had no gotchas surface (a `skill-quality:check` warning). It
+  records four earned failure modes: the nesting ceiling outrunning the prose docs, a denied spawn
+  being misread as a depth answer, a clean worker return that is a wrong-target return, and priming
+  being mistaken for emitting. Routed from the Purpose section alongside `context/sources.md`, so it
+  actually enters working context — a spoke the hub never points at clears the static check without
+  changing behavior.
+- **Two eval cases covering decision-criteria quality, not just export mechanics.** The existing
+  five all tested formatting and emission; nothing exercised the judgments the skill is for.
+  `sizes-small-ask-single-agent` forces a size classification on a concrete small ask, and
+  `tiers-wide-fanout-cheaper-default` asserts the cheaper-tier default at wide fan-out with the
+  judgment-heavy stage kept as the explicit exception.
+
+## [0.17.13]
+
+### Added
+
+- **Handoff structure doc hardened from the upstream handoff-failure corpus audit
+  (melodic-software/claude-code-plugins#1477).** Two write-side rules added, both adopted because a
+  real failure mode upstream demonstrated the gap and nothing in the existing template guarded it:
+  - **Claim provenance.** A status claim may be stated plainly only when this session verified it;
+    anything inherited (a prior handoff's assertion, an issue label, a remembered state) carries an
+    explicit `UNVERIFIED (<source>)` marker — an inherited claim is a claim to falsify, not a fact
+    to forward. Closes the laundering gap where an unverified "not built yet" forwarded as fact
+    causes the resuming session to rebuild something that already exists. The existing
+    fresh-reads-this-turn checklist items governed only what the writing session could probe; they
+    said nothing about claims the session inherited and could not probe. Lives in `save-point.md` as
+    a BOTH-paths rule (mirroring the existing redaction pass) — `reference/structure.md` points to
+    it for the full-file path's body sections, and `skills/handoff/SKILL.md`'s prompt-only checklist
+    carries its own tick so an inline remaining-work bullet cannot forward an inherited claim
+    unmarked either.
+  - **Edge-case re-scan for Constraints that must hold.** Before closing the section, re-scan for
+    *but* / *except* / *unless* / "the exception is" / "the corner case" — those words mark
+    mid-discussion constraints that never rose to a top-line bullet, the category a resuming session
+    ships as a bug. The template forced the section to exist but had no recall step for constraints
+    buried inside accepted decisions. After an unexpected compaction the model-visible conversation
+    is the summarizer's output, not the original turns, so `reference/structure.md` now requires the
+    section to say explicitly whether it re-scanned the lossless on-disk transcript (`retro`'s
+    parser reads the same record) or is disclosing that pre-compaction turns went unscanned — never
+    presenting a post-compaction scan as complete without saying which.
+
+## [0.17.12]
+
+### Added
+
+- **The detached observer's distilled observations now carry enough structure for the headless
+  running-retro analysis to COMPUTE sequencing/batching/dependency claims, not just drop them.**
+  `summarize_record()` previously stripped every tool call down to its name and every tool result
+  down to a bare count, so `observer.py`'s headless `_analysis_prompt` — despite instructing the
+  analyzer to "group tool-use events by API message id" and check for a dependency before flagging a
+  missed-batching Efficiency finding — had no field it could actually compute either claim from. Two
+  additions close the gap: an assistant event now carries `mid` (a bounded correlation key derived
+  from the transcript's own API message id, when present) so events sharing one `mid` can be
+  recognized as one batched turn versus separate sequential turns — verified against real session
+  transcripts (of 6,352 tool-bearing message ids across 200 live sessions, 1,412 (~22%) spanned 2+
+  tool-bearing records, confirmed again as a positive control against this repo's own session
+  transcripts, 580/5,431 (~11%)), so `mid` — not record adjacency — is what makes batching computable
+  at all — and both assistant
+  (`calls[].in`) and user (`results[].out`) events now carry a bounded (80-char) preview of each tool
+  call's input/result, keyed by a bounded correlation id, so a later call's input can be checked
+  against an earlier call's output for a genuine dependency. Both fields are omitted (not padded) when
+  the underlying data isn't present, and ids are shortened to an 8-char correlation key rather than
+  persisting the full opaque id. This measurably grows the observations file on tool-heavy sessions:
+  re-measured against the final schema over 24 real session transcripts carrying 20+ tool-bearing
+  records each, distilled by this version and by the version it replaces, the observations grow
+  **61.9% in aggregate** (per-file mean 63.0%, median 61.4%, range 43.7–116.0%). The growth is
+  almost entirely the preview content itself, which is the point — a real, bounded,
+  single-analysis-call cost against a cheap model, not an unbounded one. Every field has a hard cap,
+  and the flags below are emitted only when they apply. Redundant/wasteful bytes (verbose ids, a
+  `tool_results` count now superseded by `len(results)`, JSON-dumping a tool-result content-block
+  list instead of extracting its text) were cut wherever doing so didn't reduce the analyzer's
+  actual computing capability.
+  Every bounded field pairs with an out-of-band flag when the preview is incomplete (`cut` on a
+  `calls`/`results` entry, `say_cut`/`human_cut` beside the narration), so a value cut short of a
+  dependency reads as unknown rather than as a clean absence that would license an
+  asserted-and-wrong finding. The flag is out-of-band rather than a trailing marker in the text
+  because an in-band marker can't be told apart from a value that genuinely ends in those characters
+  (a complete tool result reading `Processing complete...`), which would suppress computable
+  findings in the other direction. `cut` also covers a mixed content-block result — text alongside
+  an image or document block keeps only the text, so the preview is incomplete even though it fits
+  the limit. A `results` entry additionally carries `err` when the call failed, because a failed
+  call's own output preview is routinely empty and a later retry is control-dependent on having
+  seen that failure.
+  `_analysis_prompt` updated to reference the new fields and flags. Its dependency check is now five
+  explicit places rather than two, any one of which makes a sequential pair correctly sequential:
+  it compares the earlier call's own `calls[].in` against the later call's, since a side-effecting
+  call (`mkdir` before a `Write` into that directory) returns nothing and narrates nothing so a
+  result-only comparison read a required sequence as a missed batch; it treats a state-wide consumer
+  (a build, test, lint, typecheck, or VCS command) after a state mutation as dependent even though
+  neither input names a shared path, since `Edit foo.py` then `Bash pytest` is the most common
+  sequential pair in a coding session and the resource comparison structurally cannot see it, with an
+  undecidable mutation dropping rather than routing; and it treats a retry after an
+  `err` result as control-dependent — recognized by a shared resource, repeated arguments, or a
+  visible correction of the failed input (`git stats` → `git status`), but never by tool name alone,
+  since a failed `Read` of one file followed by a `Read` of another is two independent calls.
+  Where a failure sits in the pair and none of that evidence is legible, the pair is unknown rather
+  than independent and the claim is dropped — a failure between two calls is never license to report
+  a missed batch. A candidate pair must also sit inside one user turn — no
+  intervening `human` or `turn_boundary` event — before the dependency test runs at all, since two
+  calls answering different human prompts could never have been batched however independent they
+  are. That precondition needs the boundary to be visible, and keying it off extractable text left it
+  invisible in every session carrying no `stop_hook_summary` record at that point — a prompt encoded
+  as `content: ["next request"]` (a bare string, which retro's canonical `parse_transcript.py`
+  already counts as a human message) emitted no `human`, and an image- or document-only prompt yields
+  no readable narration at all, so calls answering prompts on either side became a candidate pair.
+  `summarize_record()` now reads a bare string as a human message like a `text` block, and marks the
+  boundary STRUCTURALLY: any user record carrying content that is not a `tool_result` is the human
+  speaking — text, a bare string, an image, a document, or a block type that does not exist yet —
+  while a pure tool-result record stays inside the turn, since marking those would split every
+  genuinely batched turn and suppress real findings. Its grouping rule no longer both asserts sequential
+  execution for a missing `mid` and calls
+  that case uncomputable — a missing grouping key is now uniformly uncomputable, never evidence of
+  sequential execution.
+  `tools` is unaffected and still carries the tool-call names a "delegation" finding needs (a Task/
+  Agent tool name), so delegation required no new field — the gap #1485 closes is sequencing/batching/
+  dependency only. The in-session checkpoint path (which reads the raw transcript directly) is
+  unaffected. Follow-up from #1473 (PR #1482) and Codex's review of it — filed as #1485, scoped to the
+  schema change deferred out of that PR. This supersedes the headless prompt's 0.17.5 caveat that
+  `summarize_record()` never preserves a message id: it now does, so the prompt's absent-key wording
+  is scoped to the per-record case (the raw record carried no id) rather than to the schema.
+
+## [0.17.11]
+
+### Fixed
+
+- **Two surfaces still described the pre-0.17.9 re-arm shape.** 0.17.9 made the loop re-arm one
+  counted, length-delimited entry per surviving loop, but `handoff`'s gotcha entry was not swept
+  with the rest — it still warned about "an active `/loop`" singular and called the re-arm a single
+  unstructured follow-up message, which is the shape the engine stopped emitting. It now names the
+  one-per-loop rule and the counted header, so the checklist, the engine doc, and the gotcha say the
+  same thing.
+- **The entry header no longer spells out an ungrammatical worked example.** `<L>` is a fixed
+  `lines` token deliberately — a parser should not need English plurals to find a boundary — but the
+  no-launch-signal fallback illustrated it as the literal `Re-arm 1 of 1 — 1 lines:`, putting
+  "1 lines" into terminal output an operator reads. The invariance is now stated once as a property
+  of the header, and both the engine doc and `find-handoff` reference the generic form, so the
+  fallback needs no example of its own and `1 lines` reads as well-formed rather than as drift.
+
+## [0.17.10]
+
+### Fixed
+
+- **`observer.py`'s `_pid_alive` Windows liveness check no longer assumes a fixed decoder for
+  `tasklist` output.** #1483/#1496 (0.17.7-era) hardcoded `encoding="utf-8"` with
+  `errors="replace"` on the `subprocess.run` call. `tasklist`'s piped output actually follows the
+  **console output code page**, which is not fixed — measured on one machine, the same command in
+  the same session returned UTF-8 bytes under `GetConsoleOutputCP=65001` and CP437 bytes under
+  `GetConsoleOutputCP=437` (two shells in one session genuinely disagreed), so a hardcoded `oem`
+  would have been wrong in the opposite direction just as often. Before #1496's `errors="replace"`,
+  a CP437 console plus a process name containing an undefined-in-cp1252 byte (e.g. `ü`) raised
+  `UnicodeDecodeError` inside `subprocess`'s reader thread, leaving `out.stdout` as `None` and
+  `str(pid) in out.stdout` raising out of `_pid_alive` — `errors="replace"` closed that crash path
+  but left the decoder assumption in place as a correctness smell (harmless today only because the
+  predicate matches ASCII digits, which mojibake in a process *name* cannot change). `_pid_alive`
+  now drops decoding entirely and matches `str(pid).encode("ascii")` against `tasklist`'s raw
+  `stdout` bytes, removing the code-page question from the call site altogether (#1512).
+
+## [0.17.9]
+
+### Fixed
+
+- **The multi-loop re-arm landed on the producer only, so recovery and the handoff checklists still
+  spoke of one loop.** 0.17.8 taught `save-point.md` to emit "one re-arm message per loop left
+  standing", but the surfaces that consume that output were not moved with it: `find-handoff`'s
+  capture step asked for "the re-arm instruction" and matched a single `send /loop …` shape, its
+  confirm gate surfaced the note "when one was found", and both of `handoff`'s enforcement
+  checklists still read "if a loop is active, a below-the-rails note". A handoff written with three
+  surviving loops therefore recovered one of them and dropped two after `/clear` — the producer-side
+  failure 0.17.8 fixed, reintroduced one layer down in the consumer, which is the same shape as the
+  two recovery defects already fixed in this series. The capture now keeps matching past the first
+  hit; the confirm gate surfaces all of them; the redaction invariant and the
+  *does NOT do* list are pluralized so they cannot be read as licensing a single-note recovery; and
+  `save-point.md`'s own detection contract names the recoverable unit as every re-arm message the
+  producer wrote, so the two sides state one rule.
+- **The re-arm entries are length-delimited, so an arbitrary multi-line loop prompt survives
+  recovery.** The producer quotes the original prompt verbatim and a `/loop` prompt can carry
+  newlines, so an entry is not reliably one physical line — and no content test can bound it.
+  Matching command wording cuts the first multi-line prompt in half and swallows every entry behind
+  it; a marker fares no better, since a verbatim prompt is allowed to contain whatever marker is
+  chosen and would then split its own command. Each entry is now headed
+  `Re-arm <i> of <n> — <L> lines:` with the body on exactly the next `<L>` lines, and the block is
+  emitted last in the message. Counting lines is the one boundary that cannot collide with what it
+  delimits. `<n>` is retained as a self-check rather than a scanner: `find-handoff` reports what it
+  recovered against what the producer said it wrote, instead of presenting a subset as the whole
+  set. `save-point.md`'s detection contract states the same boundary, so the stable contract an
+  agent reads cannot send it back to the wording match its consumer no longer performs.
+
 ## [0.17.8]
 
 ### Fixed

@@ -353,6 +353,66 @@ is_exclude_pathspec() {
   esac
 }
 
+# Alias re-expansion is this guard's only recursive path, and it BRANCHES: every
+# hop re-checks both alias spellings (`alias.<sub>` and `alias.<sub>.command`)
+# independently, so a chain where each hop defines both walks 2^depth analysis
+# paths — a benign 10-hop, 402-character command measured 5.4s, and a guard that
+# stalls stops guarding. Every recursion is admitted through this one gate, which
+# applies two bounds:
+#
+# MEMO — a verdict is a pure function of (analysis state, argv); every other input
+# is invocation-constant (the payload's command, the repository's config and object
+# format). A block is a process-wide `exit 2`, so a state reached a SECOND time
+# while this process still runs provably did not block the first time and cannot
+# decide differently now. Skipping the repeat is exact rather than a coverage
+# trade, and it is what collapses the common blowup — both spellings of a hop
+# expanding to the same thing — to one path per hop.
+#
+# BUDGET — memoization alone cannot bound a chain whose two spellings DIFFER: the
+# splice carries each path's own trailing text forward, so every argv is distinct
+# and the 2^depth walk survives (10 hops of `-c alias.aN='a(N+1) --xN'
+# -c alias.aN.command='a(N+1) --yN'` measured 5.7s). A total re-expansion budget
+# for the invocation caps the work, and exhausting it fails CLOSED — the guard
+# could not finish deciding, so it must not allow.
+#
+# The ceiling counts ANALYSES rather than seconds, because a wall clock is host-
+# and command-length-dependent. It is calibrated against the linear walk this guard
+# already accepts: a memoized traversal spends one analysis per hop, and
+# MAX_COMMAND_LEN admits chains of roughly 430 hops (a dual-spelling hop costs ~38
+# characters), so this ceiling caps a branching walk at strictly less work than the
+# longest non-branching chain the guard must already handle. It sits far above real
+# usage — a chain deeper than a couple of hops is already exotic, and every
+# legitimate command measured spends single digits.
+HOOK_ALIAS_WORK_MAX=128
+
+# Call as: alias_reexpand_admit <kind> <state-word>... — returns 1 when this exact
+# state was already analyzed. The kind tag keeps a `!` reparse STRING from ever
+# keying the same as a one-word argv, `%q` keeps a word containing a newline from
+# merging into its neighbour, and the seen-set's length prefixes its own words so
+# the set/argv boundary cannot shift. `printf -v` keeps the whole key build
+# fork-free — a `$(printf …)` per word would cost more than the walk it bounds.
+# shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
+alias_reexpand_admit() {
+  local kind="$1" key q w
+  shift
+  key="$kind"$'\n'"${#HOOK_ALIAS_SEEN[@]}"$'\n'
+  for w in ${HOOK_ALIAS_SEEN[@]+"${HOOK_ALIAS_SEEN[@]}"}; do
+    printf -v q '%q' "$w"
+    key+="$q"$'\n'
+  done
+  for w in "$@"; do
+    printf -v q '%q' "$w"
+    key+="$q"$'\n'
+  done
+  [[ -n "${HOOK_ALIAS_MEMO[$key]+x}" ]] && return 1
+  HOOK_ALIAS_MEMO["$key"]=1
+  ((++HOOK_ALIAS_WORK <= HOOK_ALIAS_WORK_MAX)) && return 0
+  echo "BLOCKED: checking this command's git alias chain needs more than $HOOK_ALIAS_WORK_MAX re-expansions — failing closed rather than stalling the guard." >&2
+  echo "Run the subcommand directly, shorten the alias chain, or set the guardrails block_dangerous_git_enabled option to false to bypass." >&2
+  emit_tel "blocked" "alias-traversal-cap"
+  exit 2
+}
+
 # Inspect one already-tokenized segment (its argv words passed as "$@"). Blocks
 # when the segment is a real git invocation carrying a default-blocked
 # irreversible form. Parsing spine lives in hook-utils.sh; only the form
@@ -395,11 +455,21 @@ check_segment() {
   # The SHAPE refusal must fire at EVERY recursion depth: a wrapping inline alias
   # can expand to `--config-env=alias.<sub>=<envvar>` defining the invoked sub
   # (`git -c alias.rh='--config-env=alias.foo=AV foo' rh`), which git runs. It is
-  # value-blind, cheap, and terminal, so it is NOT gated by HOOK_NO_ALIAS. Only the
-  # INLINE-alias re-expansion is one-level (HOOK_NO_ALIAS bounds the recursion —
-  # git does not re-expand the first word of an expansion as another alias).
-  local exp reparse a alias_rc
-  local -a expw=()
+  # value-blind, cheap, and terminal.
+  #
+  # git DOES chain aliases: when an expansion's first word is itself an alias git
+  # expands it again, until a non-alias subcommand is reached OR git detects a
+  # loop — a subcommand name it already expanded in this chain — and runs nothing.
+  # So the inline re-expansion recurses at EVERY hop, carrying the command-line
+  # -c/--config/--config-env globals into each hop (the splice starts at index 0
+  # through sub_idx, not gi+1, so no global between git and the subcommand is
+  # dropped). Recursion TERMINATES on HOOK_ALIAS_SEEN, a save/restore seen-set of
+  # resolved subcommand names: a repeat is git's own alias-loop stop (allow-safe),
+  # and finite distinct alias keys guarantee termination. Terminating is not the
+  # same as tractable — the walk branches per hop, and alias_reexpand_admit is what
+  # keeps its cost proportional to the chain's length.
+  local exp reparse a alias_rc s seen_hit=0
+  local -a expw=() saved_seen=() nextw=()
   hook::git_alias_expansion "$sub"
   alias_rc=$?
   if ((alias_rc == 2)); then
@@ -414,32 +484,57 @@ check_segment() {
     emit_tel "blocked" "config-env-alias"
     exit 2
   fi
-  if ((alias_rc == 0)) && ((${HOOK_NO_ALIAS:-0} == 0)); then
+  # git stops (runs nothing) if the resolved subcommand is one it already expanded
+  # in this chain, so skip the re-expansion on a repeat and let the plain scan
+  # decide. The set models git's IN-PROCESS alias-loop guard only: a `!` shell
+  # alias spawns a fresh git process whose loop guard starts empty, so its
+  # reparse below runs under an emptied set.
+  for s in ${HOOK_ALIAS_SEEN[@]+"${HOOK_ALIAS_SEEN[@]}"}; do
+    [[ "$s" == "$sub" ]] && {
+      seen_hit=1
+      break
+    }
+  done
+  if ((alias_rc == 0)) && ((seen_hit == 0)); then
     # Inline alias (-c/--config): each spelling's expansion is literally present. Re-check
     # EVERY spelling (plain and `.command`) independently so a benign expansion in one
-    # never suppresses a dangerous sibling in the other.
+    # never suppresses a dangerous sibling in the other. Save/restore the seen-set around
+    # the recursion so sibling segments and unwound hops start clean.
     # shellcheck disable=SC2154  # HOOK_GIT_ALIAS_EXPS is set by hook::git_alias_expansion
+    saved_seen=(${HOOK_ALIAS_SEEN[@]+"${HOOK_ALIAS_SEEN[@]}"})
+    HOOK_ALIAS_SEEN+=("$sub")
     for exp in ${HOOK_GIT_ALIAS_EXPS[@]+"${HOOK_GIT_ALIAS_EXPS[@]}"}; do
       [[ -n "$exp" ]] || continue
       if [[ "$exp" == '!'* ]]; then
         # Shell alias: git runs the expansion as a shell command with the
         # invocation's trailing args appended (positional), so append them
         # (shell-quoted) before re-parsing the whole string as a command.
+        # That command runs in a NEW git process whose alias-loop guard starts
+        # empty, so the reparse must not inherit this chain's seen-set: a body
+        # that re-invokes a name from the outer chain (`git -c
+        # alias.a='!git -c alias.a="reset --hard" a' a`) is re-expanded there,
+        # not stopped. Termination stays text-bounded — this guard resolves
+        # only inline aliases, and every definition reachable from the reparse
+        # is a strict substring of the parent segment's text.
         reparse="${exp#!}"
         for a in "${w[@]:sub_idx+1}"; do reparse+=" $(printf '%q' "$a")"; done
-        hook::bash_parse_segments "$reparse" check_segment
+        HOOK_ALIAS_SEEN=()
+        alias_reexpand_admit shell "$reparse" &&
+          hook::bash_parse_segments "$reparse" check_segment
+        HOOK_ALIAS_SEEN=(${saved_seen[@]+"${saved_seen[@]}"} "$sub")
       else
         # Git alias: its expansion is dequoted with shell quoting rules
         # (so `push "--force"` yields --force, not "--force"). Splice the
-        # dequoted words in place of the alias name and keep the trailing
-        # invocation args, which git appends to the expanded argv.
+        # dequoted words in place of the alias name, keeping every command-line
+        # global (indices 0..sub_idx) and the trailing invocation args, which
+        # git appends to the expanded argv.
         hook::env_s_split "$exp"
         expw=(${HOOK_ENV_S_WORDS[@]+"${HOOK_ENV_S_WORDS[@]}"})
-        HOOK_NO_ALIAS=1
-        check_segment "${w[@]:0:gi+1}" ${expw[@]+"${expw[@]}"} "${w[@]:sub_idx+1}"
-        HOOK_NO_ALIAS=0
+        nextw=("${w[@]:0:sub_idx}" ${expw[@]+"${expw[@]}"} "${w[@]:sub_idx+1}")
+        alias_reexpand_admit git "${nextw[@]}" && check_segment "${nextw[@]}"
       fi
     done
+    HOOK_ALIAS_SEEN=(${saved_seen[@]+"${saved_seen[@]}"})
   fi
 
   case "$sub" in
@@ -984,6 +1079,18 @@ case $? in
 1) exit 0 ;; # non-git PowerShell with an A2b-deferred construct
 *) COMMAND="$PS_SAFE_COMMAND" ;;
 esac
+
+# Resolved-subcommand names already expanded in the CURRENT alias chain — git's
+# own alias-loop guard. Initialized here (not in check_segment, which recurses
+# and would reset it) and save/restored around each recursion; a multi-command
+# line runs check_segment once per top-level segment, each starting from empty.
+HOOK_ALIAS_SEEN=()
+
+# The alias-traversal bounds (alias_reexpand_admit). Both are invocation-wide and
+# deliberately NOT save/restored: a state analyzed anywhere is analyzed, and the
+# budget bounds the whole command's work rather than one path's.
+declare -A HOOK_ALIAS_MEMO=()
+HOOK_ALIAS_WORK=0
 
 hook::bash_parse_segments "$COMMAND" check_segment
 

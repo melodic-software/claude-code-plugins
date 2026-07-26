@@ -56,10 +56,54 @@ check_exit() {
   fi
 }
 
+# Exit 2 on this path is overloaded: it is both the wrapper's own refusal AND
+# argparse's usage/unrecognized-argument error for the CLI it wraps. A
+# code-only assertion cannot distinguish "the wrapper held the boundary" from
+# "the wrapper let it through and argparse happened to also reject it" -- the
+# --allow-unpinned-head=true spelling is exactly that trap (#1522). This
+# helper asserts on the wrapper's own refusal text on stderr, not just the
+# exit code.
+check_wrapper_refusal() {
+  local label="$1"
+  shift
+  local stderr got
+  stderr="$(bash "$MERGE_WRAPPER" "$@" 2>&1 >/dev/null)"
+  got=$?
+  if [[ "$got" == "2" && "$stderr" == *"is not permitted through the wrapper"* ]]; then
+    echo "PASS: $label"
+  else
+    echo "FAIL: $label (want exit 2 + wrapper refusal text, got $got: $stderr)" >&2
+    FAILED=1
+  fi
+}
+
 # The wrapper refuses the interactive unpinned override so no allow-rule-covered
 # invocation can merge an unvetted head.
-check_exit "merge wrapper rejects --allow-unpinned-head" 2 \
-  bash "$MERGE_WRAPPER" "owner/repo#1" --merge --allow-unpinned-head
+check_wrapper_refusal "merge wrapper rejects --allow-unpinned-head" \
+  "owner/repo#1" --merge --allow-unpinned-head
+# The wrapper refuses a long-option prefix too (allow_abbrev on the CLI would
+# otherwise resolve it to the guarded flag behind the wrapper's back).
+check_wrapper_refusal "merge wrapper rejects --allow-unpinned-hea (prefix spelling)" \
+  "owner/repo#1" --merge --allow-unpinned-hea
+# The wrapper refuses the =value spelling of the flag and of a prefix of it --
+# the prefix comparison alone missed this because "--allow-unpinned-head=true"
+# is not itself a prefix of "--allow-unpinned-head" (#1522).
+check_wrapper_refusal "merge wrapper rejects --allow-unpinned-head=true (=value spelling)" \
+  "owner/repo#1" --merge --allow-unpinned-head=true
+check_wrapper_refusal "merge wrapper rejects --allow-unpinned=1 (=value prefix spelling)" \
+  "owner/repo#1" --merge --allow-unpinned=1
+check_wrapper_refusal "merge wrapper rejects --allow-unpinned-hea=1 (=value prefix spelling)" \
+  "owner/repo#1" --merge --allow-unpinned-hea=1
+# No over-refusal: sibling flags that share the --allow prefix, including with
+# an =value tail, still reach the fail-closed CLI rather than the wrapper.
+# --allowed-owners deliberately names an owner NOT in scope, so the owner-scope
+# refusal fires and the assertion holds without any network call.
+check_exit "merge wrapper does not over-refuse --allow-dependency" 3 \
+  bash "$MERGE_WRAPPER" "owner/repo#1" --allowed-owners someone-else --allow-dependency
+check_exit "merge wrapper does not over-refuse --allow-unprotected" 3 \
+  bash "$MERGE_WRAPPER" "owner/repo#1" --allowed-owners someone-else --allow-unprotected
+check_exit "merge wrapper does not over-refuse --allowed-owners=owner" 3 \
+  bash "$MERGE_WRAPPER" "owner/repo#1" --allowed-owners=someone-else
 # The wrapper reaches the fail-closed CLI when no allowlist is supplied.
 check_exit "merge wrapper reaches fail-closed CLI (no allowlist)" 3 \
   bash "$MERGE_WRAPPER" "owner/repo#1"

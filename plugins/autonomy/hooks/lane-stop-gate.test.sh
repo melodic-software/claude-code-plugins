@@ -126,14 +126,14 @@ DONE-ROTATE" false)" CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_SENTINEL="DONE-ROTATE")
 if is_block "$OUT"; then fail "custom sentinel → still blocked: $OUT"; else ok "custom sentinel honored → allowed"; fi
 
 # --- Case 12: jq absent → visible systemMessage notice + exit 0 (fail-open) --
-FAKEBIN="$(mktemp -d -p "$WORK" fakebin.XXXXXX)"
+FAKEBIN="$(mktemp -d "$WORK/fakebin.XXXXXX")"
 for t in bash dirname cat env printf mktemp mkdir find tr grep sed uname sleep git awk; do
   real_t="$(command -v "$t" 2>/dev/null)" || continue
   [[ -n "$real_t" ]] || continue
   printf '#!/bin/sh\nexec "%s" "$@"\n' "$real_t" >"$FAKEBIN/$t"
   chmod +x "$FAKEBIN/$t"
 done
-JQ_DATA="$(mktemp -d -p "$WORK" plugdata.XXXXXX)"
+JQ_DATA="$(mktemp -d "$WORK/plugdata.XXXXXX")"
 OUT_NOJQ="$(cd "$UNRELATED" && printf '{"session_id":"nojq-1","hook_event_name":"Stop","stop_hook_active":false}' |
   env -i PATH="$FAKEBIN" CLAUDE_PLUGIN_DATA="$JQ_DATA" \
     CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ENABLED=true bash "$HOOK" 2>/dev/null)"

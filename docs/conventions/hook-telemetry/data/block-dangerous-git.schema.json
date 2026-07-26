@@ -17,7 +17,7 @@
     },
     "form": {
       "type": "string",
-      "description": "The irreversible git form when blocked: \"push-force\" | \"reset-hard\" | \"clean-force\" | \"checkout-dot\" | \"restore-dot\" | \"checkout-force\", or \"too-long\" when the command exceeded the parse-length ceiling. Empty string when the command was allowed (status ok)."
+      "description": "The irreversible git form when blocked: \"push-force\" | \"reset-hard\" | \"clean-force\" | \"checkout-dot\" | \"restore-dot\" | \"checkout-force\", or \"too-long\" when the command exceeded the parse-length ceiling, or \"alias-traversal-cap\" when checking the command's git alias chain exceeded the re-expansion budget. Empty string when the command was allowed (status ok)."
     }
   }
 }

@@ -396,6 +396,32 @@ jobs:
       - name: Run silent-skip-gate tests
         run: bash scripts/check-silent-skips.test.sh
 
+  # #1547: a routine `git merge origin/main` silently dropped
+  # plugins/guardrails/.claude-plugin/plugin.json for ~14 minutes on a branch
+  # while .claude-plugin/marketplace.json still catalogued "guardrails" at that
+  # directory — no conflict markers, nothing to alert the author; an AI
+  # reviewer reading the diff caught it, not CI. check-jsonschema (the
+  # marketplace_schema/plugin_schema steps in `hygiene`) validates the SHAPE of
+  # a manifest that exists; it cannot see one that is simply absent. This gate
+  # asserts every catalog entry resolves to a present, name-matching plugin
+  # manifest, and (paired, lower severity) that every plugins/*/ directory is
+  # itself catalogued. Repo-wide and static, so it always runs (no docs-only or
+  # PR-diff scoping — a manifest going missing is not confined to a diff). The
+  # self-test runs first so a broken detector cannot mask a regression behind a
+  # green gate.
+  plugin-manifest-presence-gate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - name: Test the plugin-manifest-presence gate
+        run: bash scripts/check-plugin-manifest-presence.test.sh
+      - name: Check every catalog entry resolves to a present, name-matching plugin manifest
+        run: scripts/check-plugin-manifest-presence.sh
+
   # Every file under a skill's evals/fixtures/ must be consumed by a grader — an
   # eval files[] entry or a test assertion — so an ungraded suite cannot sit in
   # the tree reading as tested. The check is repo-wide and static; existing debt
@@ -715,6 +741,59 @@ jobs:
         if: steps.scope.outputs.docs_only == 'true'
         run: echo "Diff is within the docs-only allowlist (scripts/docs-only-paths.txt); the ai-briefing build suite cannot be affected — reporting success."
 
+  # The knowledge plugin's course-digest extraction pipeline is a Node package
+  # (typecheck + vitest suite) no other lane installs or runs — same shape as
+  # youtube-extraction, including the shared vendor/ packages pulled in as
+  # file: dependencies via the package's .npmrc install-links=true. Without
+  # this lane the suite (utils, the adapter contract, the dometrain/teachable
+  # adapters, clerk/teachable-sso auth, config, and the hotmart/mux players)
+  # runs locally only, so a future refactor could silently break it with
+  # nothing red in CI (#1507). Same never-skip, self-test-first, fail-closed
+  # docs-only gate as plugin-gate, miro-plugin, youtube-extraction and
+  # ai-briefing-build. (Scoping this lane to its own paths — skipping it on
+  # unrelated diffs — is the same separately-tracked optimization noted on
+  # miro-plugin.)
+  course-digest-extraction:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          # Full history so the PR base ref resolves for the docs-only diff.
+          fetch-depth: 0
+      - name: Test the docs-only detector
+        run: bash scripts/check-docs-only.test.sh
+      - name: Detect a docs-only diff
+        id: scope
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: scripts/check-docs-only.sh "origin/$BASE_REF"
+      - name: Set up Node
+        if: steps.scope.outputs.docs_only != 'true'
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .node-version
+          cache: npm
+          cache-dependency-path: plugins/knowledge/skills/course-digest/extraction/package-lock.json
+      - name: Install dependencies
+        if: steps.scope.outputs.docs_only != 'true'
+        run: npm ci
+        working-directory: plugins/knowledge/skills/course-digest/extraction
+      - name: Typecheck
+        if: steps.scope.outputs.docs_only != 'true'
+        run: npm run build
+        working-directory: plugins/knowledge/skills/course-digest/extraction
+      - name: Test
+        if: steps.scope.outputs.docs_only != 'true'
+        run: npm test
+        working-directory: plugins/knowledge/skills/course-digest/extraction
+      - name: Report not applicable to a docs-only diff
+        if: steps.scope.outputs.docs_only == 'true'
+        run: echo "Diff is within the docs-only allowlist (scripts/docs-only-paths.txt); the course-digest extraction suite cannot be affected — reporting success."
+
   # Skill-regression net: the only lane that invokes the skill-quality checker.
   # On a PR it runs the static contract gate (trigger-keyword preservation vs
   # the base ref, frontmatter, line caps, broken refs, evals presence) over each
@@ -847,6 +926,7 @@ jobs:
       - skill-leaf-name-gate
       - userconfig-argv-gate
       - silent-skip-gate
+      - plugin-manifest-presence-gate
       - orphaned-fixture-gate
       - changelog-parity-gate
       - contract-slice-prune-gate
@@ -854,6 +934,7 @@ jobs:
       - miro-plugin
       - youtube-extraction
       - ai-briefing-build
+      - course-digest-extraction
       - runner-policy
       - skill-quality-gate
       - portability-lint
