@@ -1567,6 +1567,56 @@ else
   fail "malformed directive after indented code block should FAIL (rc=$rc): $out"
 fi
 
+# 37g. Check 21: a backtick run whose info string carries a backtick is prose,
+#      not a fence opener (CommonMark) — a malformed directive after it is
+#      still scanned and still blocks.
+make_skill fe-backtick-info '---
+name: fe-backtick-info
+description: "Fresh-eyes fixture. Use when: '"'"'fe backtick info fixture'"'"'."
+---
+
+## Steps
+
+```markdown `
+Regular prose resumes here.
+
+<!-- fresh-eyes-exempt: bogus-class -- wrong class stays malformed -->
+
+## Gotchas
+
+None known.
+'
+out="$(run fe-backtick-info 2>&1)"
+rc=$?
+if [[ $rc -ne 0 ]] && grep -q 'malformed fresh-eyes-exempt directive' <<<"$out"; then
+  pass "backtick-in-info-string run does not open a fence (check 21)"
+else
+  fail "malformed directive after invalid backtick opener should FAIL (rc=$rc): $out"
+fi
+
+# 37h. Check 21: an embedded worker stem ("agentless") is not a whole-word
+#      worker token — the judgment line still WARNs.
+make_skill fe-agentless '---
+name: fe-agentless
+description: "Fresh-eyes fixture. Use when: '"'"'fe agentless fixture'"'"'."
+---
+
+## Steps
+
+Self-review the work in a fresh context using an agentless workflow.
+
+## Gotchas
+
+None known.
+'
+out="$(run fe-agentless 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q 'same-context judgment language with no' <<<"$out"; then
+  pass "embedded worker stem without a whole-word token still warns (check 21)"
+else
+  fail "agentless stem should not satisfy check 21 (rc=$rc): $out"
+fi
+
 # 37. Check 21: a skill with no judgment language emits nothing from check 21
 #     (good-skill re-run guards against detector overreach).
 out="$(run good-skill 2>&1)"

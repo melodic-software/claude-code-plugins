@@ -27,7 +27,10 @@ the matching line must also name the worker or dispatch — `agent|worker|adviso
 `verif|dispatch|delegat` — because a bare "in a fresh context" phrase assigns the judgment to no one;
 surfaced by external review on the Phase-1 PR.)* *(Amended 2026-07-23, Phase-1 review: worker
 token `verif` narrowed to `verifier` — the stem matched bare "verification" prose that dispatches
-no worker; surfaced by external review on the Phase-1 PR.)* Visible prose, not a marker: the
+no worker; surfaced by external review on the Phase-1 PR.)* *(Amended 2026-07-23, Phase-1 review
+round 3: worker terms match as whole words with explicit inflections — substring stems let
+"agentless" satisfy the worker requirement; surfaced by external review on the Phase-1 PR.)*
+Visible prose, not a marker: the
 wording IS the model's instruction, so it must be visible regardless — a parallel marker would be
 a second source of truth that drifts.
 

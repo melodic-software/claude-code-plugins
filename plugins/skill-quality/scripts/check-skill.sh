@@ -790,10 +790,19 @@ for fe_file in "${FRESH_EYES_FILES[@]}"; do
       fe_char = substr(fe_run, 1, 1)
       fe_len = 0
       while (substr(fe_run, fe_len + 1, 1) == fe_char) fe_len++
-      if (!fe_fence) { fe_fence = 1; fe_open_char = fe_char; fe_open_len = fe_len }
-      else if (fe_char == fe_open_char && fe_len >= fe_open_len \
-               && substr(fe_run, fe_len + 1) ~ /^[ \t]*$/) fe_fence = 0
-      next
+      fe_info = substr(fe_run, fe_len + 1)
+      if (fe_fence) {
+        if (fe_char == fe_open_char && fe_len >= fe_open_len \
+            && fe_info ~ /^[ \t]*$/) fe_fence = 0
+        next
+      }
+      # A backtick fence opener cannot carry backticks in its info string —
+      # such a line is ordinary prose, so it falls through to the scanners
+      # instead of opening a fence.
+      if (!(fe_char == "`" && index(fe_info, "`"))) {
+        fe_fence = 1; fe_open_char = fe_char; fe_open_len = fe_len
+        next
+      }
     }
     fe_fence { next }
     {
@@ -826,9 +835,11 @@ for fe_file in "${FRESH_EYES_FILES[@]}"; do
       }
       low = tolower(line)
       # Delegation wording needs a worker actually named on the line — bare
-      # "in a fresh context" prose assigns no one and does not declare.
+      # "in a fresh context" prose assigns no one and does not declare. Worker
+      # terms match as whole words with their inflections, so embedded stems
+      # ("agentless") cannot satisfy the requirement.
       if (low ~ /fresh[- ]context/ \
-          && low ~ /agent|worker|advisor|reviewer|verifier|dispatch|delegat/) {
+          && low ~ /(^|[^a-z0-9_])((sub-?)?agents?|workers?|advisors?|reviewers?|verifiers?|dispatch(es|ed|ing)?|delegat(e|es|ed|ing|ion|ions))([^a-z0-9_]|$)/) {
         word_n++; w[word_n] = NR
       }
       if (low ~ JR) { judge_n++; j[judge_n] = NR }
