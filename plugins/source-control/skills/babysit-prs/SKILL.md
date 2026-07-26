@@ -99,7 +99,7 @@ Autonomy is decomposed per action, not per run. Irreversibility governs the gate
 | --- | --- | --- | --- |
 | Discover, snapshot, report | yes | yes | yes, **all authors** |
 | Fix clear branch-owned CI or bot-review issues, commit, push | yes | yes | yes, and harder (research a fix before giving up) |
-| Dispatch a dedicated conflict-resolution worker (`git merge`, never rebase) | no — report (simple mechanical conflicts met while freshening a branch are still handled inline per [reference/loop.md](reference/loop.md)) | mechanical/textual conflicts only, escalate genuine ambiguity | mechanical/textual conflicts only, escalate genuine ambiguity |
+| Dispatch a dedicated conflict worker (`git merge`, never rebase; it resolves locally and never pushes — the orchestrator re-verifies and pushes, [reference/orchestration.md](reference/orchestration.md)) | no — report (simple mechanical conflicts met while freshening a branch are still handled inline per [reference/loop.md](reference/loop.md)) | mechanical/textual conflicts only, escalate genuine ambiguity | mechanical/textual conflicts only, escalate genuine ambiguity |
 | Resolve review threads | no — report | **pre-push-outdated bot threads only** | any thread **it has addressed** — bot, AI-review, or human |
 | Merge a PR | no — report readiness | only when the gate proves 100% ready | only when the gate proves 100% ready |
 | Mark a completed draft ready (`gh pr ready`) | no — report | no — report | yes, via its worker's completeness assessment |
@@ -111,7 +111,7 @@ design — it has no tier input — so it emits the same blocker string, `"merge
 dedicated conflict-resolution agent required"`, for every conflicting PR regardless of tier.
 That string names a capability that exists in this skill, not an instruction to invoke it. In
 the safe tier the table's `no — report` still governs: report the blocker exactly as stated
-and do not spawn the conflict worker. Only `worker` and `autopilot` read that same string as
+and dispatch no conflict worker. Only `worker` and `autopilot` read that same string as
 license to act.
 
 **Cross-tier invariants** — hold in every tier including autopilot: never a force-push (freshness is
@@ -213,25 +213,26 @@ home in [reference/safety.md](reference/safety.md). Both fail closed without `--
   [reference/orchestration.md](reference/orchestration.md)) governs this gate-completion step
   exactly as it governs a worker's turn — proving readiness is never a license to arm a watch.
 
-- **Thread resolution** — `source-control-babysit-resolve-thread owner/repo#N
-  --allowed-owners <watched-owners>` (lists by default; add `--resolve`). By default it touches
-  only bot-authored threads (structural `__typename == "Bot"` or the `[bot]` login suffix — no
-  hardcoded identity list) and never a human thread. In worker tier pass `--autonomous`, which
+- **Thread resolution** — `source-control-babysit-resolve-thread owner/repo#N --allowed-owners
+  <watched-owners> --extra-bot-logins <extra-bot-logins>` (lists by default; add `--resolve`). By
+  default it touches only bot-authored threads (structural `__typename == "Bot"` or the `[bot]`
+  login suffix — no hardcoded identity list) and never a human thread; `--extra-bot-logins` extends
+  that set with the configured non-structural bot accounts, and dropping it from any resolve-thread
+  form silently reclassifies their threads as human. In worker tier pass `--autonomous`, which
   resolves only threads GitHub marks `isOutdated`, each pinned via `--expected-comment-count` and
   `--expected-last-updated`. Those pins enforce comment-state only — they block a thread whose
-  comment count or latest comment-edit timestamp drifted after vetting. The worker must
-  additionally confine resolves to threads already outdated in the PRE-push snapshot
+  comment count or latest comment-edit timestamp drifted after vetting. The worker must additionally
+  confine resolves to threads already outdated in the PRE-push snapshot
   ([reference/orchestration.md](reference/orchestration.md)); that pre-push-outdated rule is agent
   discipline, not machine-enforced, so a thread a worker's own push merely displaced (`isOutdated`
   flipped while both comment pins still match) is still resolvable — the machine-enforced fix for
-  that displacement bypass is tracked in #571. In autopilot pass `--resolve --include-human` for threads the agent has addressed; the
-  script still cannot merge, reply, or dismiss reviews. Never treat exit code 0 alone as proof
-  a specific thread was resolved — always parse the per-thread JSON `action` field
-  (`resolved` vs `skipped-*` / `refused-stale-pin` / `resolve-failed`) and the
-  `resolvedCount`/`eligibleCount` summary before reporting or re-checking the merge gate.
-  `--resolve --thread-id` without matching `--expected-comment-count` and
-  `--expected-last-updated` (or an explicit `--allow-unpinned-thread` override) is refused
-  before anything is fetched or resolved.
+  that displacement bypass is tracked in #571. In autopilot pass `--resolve --include-human` for
+  threads the agent has addressed; the script still cannot merge, reply, or dismiss reviews. Never
+  treat exit code 0 alone as proof a specific thread was resolved — always parse the per-thread JSON
+  `action` field (`resolved` vs `skipped-*` / `refused-stale-pin` / `resolve-failed`) and the
+  `resolvedCount`/`eligibleCount` summary before reporting or re-checking the merge gate. `--resolve
+  --thread-id` without matching `--expected-comment-count` and `--expected-last-updated` (or an
+  explicit `--allow-unpinned-thread` override) is refused before anything is fetched or resolved.
 
 - **The agent** decides severity (is this security/P1?), whether a finding is genuinely
   addressed, what a label means, and every fix-vs-escalate call — never a script. Escalate a
@@ -275,7 +276,8 @@ draft too, even when the content is finished and green — see the worker contra
 Each per-PR worker owns its local lifecycle end to end: acquire that PR's worker lease and its
 own isolated worktree (find or create, never a shared checkout), check out and freshen the PR
 branch, make only clear branch-owned fixes, re-check the head SHA, push, clean up on merge
-(worktree + local branch), and release the lease. Worktree policy:
+(worktree + local branch), and release the lease — except a conflict worker, whose push the
+orchestrator performs ([reference/orchestration.md](reference/orchestration.md)). Worktree policy:
 [reference/worktrees.md](reference/worktrees.md).
 
 ## Effective configuration (substituted at load)
@@ -300,7 +302,7 @@ this block. Values reach scripts ONLY as explicit CLI flags (option environment 
 | `babysit_review_bot_logins` | `${user_config.babysit_review_bot_logins}` | `--review-bot-logins` (snapshot, request_review) | review-trigger module dormant |
 | `babysit_review_gate_context` | `${user_config.babysit_review_gate_context}` | `--review-gate-context` (snapshot) | gate treated as absent |
 | `babysit_ci_gateway_context` | `${user_config.babysit_ci_gateway_context}` | `--ci-gateway-context` (snapshot) | gateway check unused |
-| `babysit_extra_bot_logins` | `${user_config.babysit_extra_bot_logins}` | `--extra-bot-logins` (snapshot) | structural bot detection only |
+| `babysit_extra_bot_logins` | `${user_config.babysit_extra_bot_logins}` | `--extra-bot-logins` (snapshot, resolve-thread) | structural bot detection only |
 | `babysit_extra_dependency_manager_logins` | `${user_config.babysit_extra_dependency_manager_logins}` | `--extra-dependency-manager-logins` (merge gate) | built-in dependabot/renovate dependency-manager set only |
 | `babysit_approval_downgrade_logins` | `${user_config.babysit_approval_downgrade_logins}` | `--approval-downgrade-logins` (snapshot) | an approval carrying blocking-looking prose is downgraded to ignored structurally (every bot); a named login instead surfaces its own as material. Real APPROVED-state reviews and plain clean approvals are ignored regardless. |
 | `babysit_skip_downgrade_logins` | `${user_config.babysit_skip_downgrade_logins}` | `--skip-downgrade-logins` (snapshot) | downgrade heuristic dormant |
@@ -480,7 +482,7 @@ Failure patterns observed in real babysit sessions:
 
 - [reference/loop.md](reference/loop.md) — the safe-tier iteration loop (also the Python-free
   degrade path): discovery, checkout, freshness, checklist, and the §5.3 cadence contract.
-- [reference/orchestration.md](reference/orchestration.md) — fan-out gate (`needs_worker` arms), concurrency cap, leases, worker contract + prompt template, conflict resolution, cleanup.
+- [reference/orchestration.md](reference/orchestration.md) — fan-out gate (`needs_worker` arms), concurrency cap, leases, worker contract + prompt template, conflict resolution (the resolve/push split and the conflict-worker prompt delta), cleanup.
 - [reference/cadence.md](reference/cadence.md) — active/normal/quiet/idle cadence states,
   real-elapsed-time detection, bounded full-sweep interval, persisted counters.
 - [reference/freshness.md](reference/freshness.md) — guarded refresh for behind-base branches,

@@ -1,4 +1,4 @@
-"""Native worktree-pruner resolution: no ghq, main checkout from git metadata.
+"""Worktree-pruner resolution and reporting, hermetically.
 
 `repo_path` and `remove_worktree` are exercised against a real on-disk git
 repository with a linked worktree, so the whole path is hermetic -- no `gh`, and
@@ -68,6 +68,21 @@ def add_worktree(main: pathlib.Path, root: pathlib.Path, name: str) -> pathlib.P
     wt = root / name
     git("-C", str(main), "worktree", "add", "-q", str(wt), "-b", f"feat/{name}")
     return wt
+
+
+def run_main(root: pathlib.Path, state_dir: pathlib.Path, *extra: str) -> tuple[int, dict]:
+    argv = [
+        "prune_babysit_worktrees.py",
+        "--root",
+        str(root),
+        "--state-dir",
+        str(state_dir),
+        *extra,
+    ]
+    out = io.StringIO()
+    with mock.patch.object(sys, "argv", argv), contextlib.redirect_stdout(out):
+        code = prune.main()
+    return code, json.loads(out.getvalue())
 
 
 class RepoPathResolvesFromGitMetadata(unittest.TestCase):
@@ -574,6 +589,84 @@ class MainSelfHealsAnOrphanedWorktreeEntry(unittest.TestCase):
         [row] = report["worktrees"]
         self.assertEqual(row["action"], "drop_orphan")
         self.assertFalse(row["dropped"])
+
+
+class NonConformingDirectoriesAreReported(unittest.TestCase):
+    """#555: a directory the tool cannot map to a PR must never vanish.
+
+    An unmappable directory reaches no git or gh call, so the whole report is
+    assertable hermetically -- which is exactly the failure: before the fix a
+    root holding only such a directory produced an empty `worktrees` list, a
+    false all-clear for a worktree the caller then had to find by hand.
+    """
+
+    def test_iter_worktrees_pairs_recognized_and_unrecognized_directories(self) -> None:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as td:
+            root = pathlib.Path(td) / "root"
+            root.mkdir()
+            (root / "medley-1567").mkdir()
+            (root / "owner__repo__pr-1").mkdir()
+            (root / "loose-file.txt").write_text("not a worktree", encoding="utf-8")
+
+            entries = prune.iter_worktrees(root)
+
+        self.assertEqual(len(entries), 2)
+        self.assertIsInstance(entries[0], prune.UnrecognizedWorktree)
+        self.assertEqual(entries[0].path.name, "medley-1567")
+        self.assertIsInstance(entries[1], prune.Worktree)
+        self.assertEqual(entries[1].key, "owner/repo#1")
+
+    def test_main_reports_a_non_conforming_worktree_instead_of_nothing(self) -> None:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as td:
+            tmp = pathlib.Path(td)
+            main = make_repo(tmp)
+            root = tmp / "root"
+            wt = add_worktree(main, root, "medley-1567")
+
+            code, report = run_main(root, tmp / "state")
+
+            self.assertTrue(wt.exists())
+        self.assertEqual(code, 0)
+        self.assertEqual(
+            report["worktrees"],
+            [
+                {
+                    "path": str(wt),
+                    "action": "unrecognized",
+                    "reason": prune.UNRECOGNIZED_REASON,
+                    "removed": False,
+                }
+            ],
+        )
+
+    def test_apply_mode_reports_but_never_removes_an_unrecognized_worktree(self) -> None:
+        # The report-don't-remove invariant is what makes an unrecognized row safe
+        # to emit at all, and --apply is the only mode that can delete anything.
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as td:
+            tmp = pathlib.Path(td)
+            main = make_repo(tmp)
+            root = tmp / "root"
+            wt = add_worktree(main, root, "medley-1567")
+
+            code, report = run_main(root, tmp / "state", "--apply")
+
+            self.assertTrue(wt.exists())
+        self.assertEqual(code, 0)
+        self.assertEqual([row["action"] for row in report["worktrees"]], ["unrecognized"])
+        self.assertFalse(report["worktrees"][0]["removed"])
+
+    def test_scoped_pr_mode_still_reports_unrecognized_directories(self) -> None:
+        # Scoping to one PR narrows which PRs are acted on, never which
+        # directories are accounted for.
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as td:
+            root = pathlib.Path(td) / "root"
+            root.mkdir()
+            (root / "medley-1567").mkdir()
+
+            code, report = run_main(root, pathlib.Path(td) / "state", "--pr", "owner/repo#1")
+
+        self.assertEqual(code, 0)
+        self.assertEqual([row["action"] for row in report["worktrees"]], ["unrecognized"])
 
 
 if __name__ == "__main__":

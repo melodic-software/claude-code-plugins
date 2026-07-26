@@ -122,13 +122,26 @@ name narrowly:
    the operator to add the bare-name rule once to `~/.claude/settings.json`, and never relies on
    interpreter-wildcard `allowed-tools` for auto-mode-gated actions.
 
-## Known gap — step 1's plugin `bin/` is not delivered on Windows / Git Bash
+## Known gap — step 1's plugin `bin/` delivery is unreliable, not absent
 
-The plugin `bin/` half of step 1 is documented but does not hold on this platform, so a helper whose
-only permission story is bin/-on-PATH has **no** operative allow rule there. Behavior on macOS and
-Linux is unverified — probe there rather than reading a Windows-scoped heading as a clearance.
-Measured on Windows 11 / Git Bash, Claude Code **v2.1.219**, with the owning plugin installed at user
-scope and reported `enabled` by `claude plugin list`:
+The plugin `bin/` half of step 1 is documented, and it *does* get delivered — but only in some
+sessions, so a helper whose only permission story is bin/-on-PATH has no allow rule it can **depend**
+on. Delivery rides the per-session shell snapshot's final `export PATH=` line; when that line does
+not land, every enabled plugin's `bin/` goes with it, and a bare name that resolved last session is
+gone this one. A local snapshot survey found the line present-with-plugin-bins in some sessions and
+missing in others on the same machine, including sessions carrying the surveyed plugin's own `bin/`
+(full corpus and per-day breakdown on
+[#843](https://github.com/melodic-software/claude-code-plugins/issues/843); upstream mechanism and
+root cause in [anthropics/claude-code#68066](https://github.com/anthropics/claude-code/issues/68066),
+a macOS/zsh report whose own log shows healthy and degraded sessions minutes apart). Behavior on
+macOS and Linux is unverified at scale — probe there rather than reading this as platform-specific.
+
+**Per-session absence is what makes the bare name unusable — not permanent non-delivery.** An earlier
+revision of this section read the gap as categorical ("no plugin directory of any kind is on
+`PATH`"); that came from sampling only degraded sessions. The operational conclusion is unchanged and
+if anything firmer: an intermittent capability cannot carry a permission story. A degraded session
+measured on Windows 11 / Git Bash, Claude Code **v2.1.219**, with the owning plugin installed at user
+scope and reported `enabled` by `claude plugin list`, looks like this:
 
 ```console
 $ which source-control-babysit-merge ; echo $?
@@ -138,10 +151,10 @@ $ echo "$PATH" | tr ':' '\n' | grep -i plugins
                           # no plugin directory of any kind is on PATH
 ```
 
-The absence is **harness-wide, not a packaging defect in one plugin**: a second, unrelated installed
-plugin that also ships a `bin/` is equally absent from `PATH`. The files themselves are fine —
-committed `100755`, present in the install cache, correct shebangs. The feature also is not
-version-gated away: it predates the measured harness.
+When it degrades, it degrades **harness-wide, not as a packaging defect in one plugin**: a second,
+unrelated installed plugin that also ships a `bin/` is equally absent from `PATH` in the same
+session. The files themselves are fine — committed `100755`, present in the install cache, correct
+shebangs. The feature also is not version-gated away: it predates the measured harness.
 
 Two consequences for anyone writing a guarded helper today:
 
@@ -150,13 +163,16 @@ Two consequences for anyone writing a guarded helper today:
   but it is *not* exported to the Bash tool's own environment, so a raw shell expansion yields an
   empty string ([plugins-reference](https://code.claude.com/docs/en/plugins-reference), Environment
   variables).
-- **Expect the call to reach the classifier on every invocation.** `bash` is not one of the wrappers
-  Claude Code strips before matching, so a rule for a `bash <path> …` command has to name `bash` —
-  making it interpreter-led, i.e. anti-pattern 1. The documented drop categories clearly reach the
+- **Do not assume the operator can pre-approve the helper.** `bash` is not one of the wrappers Claude
+  Code strips before matching, so a rule for a `bash <path> …` command has to name `bash` — making it
+  interpreter-led, i.e. anti-pattern 1. The documented drop categories clearly reach the
   wildcarded-target form (`Bash(bash <path>*)`); whether they reach a fixed-path form
   (`Bash(bash <fixed-path>:*)`) is not stated, so that shape is an anti-pattern on convention grounds
-  rather than a confirmed drop. Either way, treat the call as reaching the classifier — do not assume
-  the operator can pre-approve the helper.
+  rather than a confirmed drop. What happens to an uncovered call is then the **permission mode's**
+  decision, not the allow rule's: a prompting mode issues a per-call prompt, while
+  [auto mode](https://code.claude.com/docs/en/permission-modes#eliminate-prompts-with-auto-mode)
+  routes it to the classifier, which may approve or deny without prompting. Design for both — never
+  document a prompt the operator will wait for in a session that will never issue one.
 
 Until the gap closes upstream, treat step 1's plugin-`bin/` bullet as the intended end state rather
 than a capability to build on, on this platform. Two substitutes look attractive and are not:

@@ -42,6 +42,15 @@ Lane names are free-form (`work`, `work-2`, `babysit`, `decide`, …); nothing i
 hardcoded. The set above mirrors the lanes this repo's telemetry conventions use,
 but any names work — `status`/`stop` only ever act on names present in this config.
 
+One constraint on the name, enforced at preflight: it is also the filename of the
+lane's launch-commit marker (#792,
+`<data-dir>/lanes/<repo-key>/<name>-launch-commit`), so it must be a single path
+component. A name containing `/` or `\`, or equal to `.` or `..`, exits `3` —
+without that check, `work` and `group/../work` would share one marker file and a
+targeted restart of either would corrupt the other's staleness probe. The
+`<repo-key>` component keeps same-named lanes in different repos apart, since the
+data directory is plugin-wide rather than per-repo.
+
 ## Prompt-storage seam (#480)
 
 `prompt_dir` defaulting to `.work` reflects today's reality: canonical prompts live

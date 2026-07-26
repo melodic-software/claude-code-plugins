@@ -3,7 +3,7 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.28.1]
+## [0.31.7]
 
 ### Fixed
 
@@ -41,6 +41,365 @@ All notable changes to the `source-control` plugin are documented here. Format f
   confirmed its contents safe to discard — is now reported `dropped: false` with
   `residual_directory: true` and a stderr warning rather than claiming a cleanup that did not
   happen at a deterministic path where a replacement worktree still cannot be created.
+
+## [0.31.6]
+
+### Fixed
+
+- **`babysit-prs` states the bare-name wrapper situation accurately (`#843`).** `safety.md` asserted
+  the bundled wrappers' bare names "are not on the Bash tool's `PATH`", and the two `bin/` wrapper
+  headers presented their bare-command allow-rule rationale as operative fact. Both were wrong, in
+  opposite directions. Two corrections, each tied to its source:
+  - **Bare-name resolution is unreliable, not absent.** A local shell-snapshot survey recorded on
+    `#843` found plugin `bin/` directories present on the Bash tool's `PATH` in some sessions and
+    missing in others on the same machine, including sessions carrying this plugin's own `bin/`. The
+    delivery path is the session snapshot's final `export PATH=` line; when it does not land, every
+    enabled plugin's `bin/` goes with it
+    ([anthropics/claude-code#68066](https://github.com/anthropics/claude-code/issues/68066), which
+    reports the same signature on macOS/zsh and supplies the mechanism — the Windows/Git-Bash
+    evidence is the local survey, not that issue). The earlier "never delivered here" reading came
+    from sampling only sessions in which it was missing.
+  - **A path invocation cannot match a bare-name allow rule.** Claude Code strips only a fixed
+    wrapper set before matching Bash rules (`timeout`, `time`, `nice`, `nohup`, `stdbuf`, `command`,
+    `builtin`, `noglob`, bare `xargs` — [permissions](https://code.claude.com/docs/en/permissions));
+    `bash` is not among them. So `Bash(source-control-babysit-merge:*)` does not cover the
+    `bash "…/bin/…"` form this skill uses, and what follows is the permission mode's call rather
+    than a misconfiguration: a mode that prompts issues a per-call prompt, while
+    [auto mode](https://code.claude.com/docs/en/permission-modes#eliminate-prompts-with-auto-mode)
+    issues none — it routes the uncovered call to its classifier, which may approve or deny it
+    silently, so an operator must read `/permissions` → **Recently denied** rather than wait for a
+    prompt. `safety.md` also records that
+    [`autoMode.classifyAllShell`](https://code.claude.com/docs/en/auto-mode-config#route-all-shell-commands-through-the-classifier)
+    suspends even narrow shell allow rules while auto mode is active.
+
+  Guidance is unchanged and was already correct: the `${CLAUDE_PLUGIN_ROOT}/bin/` path form is
+  canonical because it is the only form that runs in both `PATH` states. Only the justification
+  changed, and it mattered — a reader who checked on a session where the bare name *did* resolve
+  found the doc contradicting their own shell, and the documented reason to keep the path form
+  disappeared exactly when it looked safe to drop.
+
+## [0.31.5]
+
+### Fixed
+
+- **A readiness-gate classification is now a table CELL that OPENS with a disposition, matched
+  case-insensitively (#619).** Both the bash safe-tier degrade and the preferred Python classifier
+  (`babysit_classify.py`) matched the classification tokens exact-case only, anywhere in a
+  `|`-prefixed line. A worker reply that wrote a natural-language disposition like "Valid (defer)"
+  instead of the mandated all-caps `VALID` scored as unclassified, so the gate reported
+  `READINESS_BLOCKED reason=under-decomposed` even though the finding genuinely was classified.
+  Matching is now case-insensitive, and the token must open a table cell, optionally followed by an
+  annotation introduced by punctuation. That punctuation requirement is what separates the
+  disposition values `reference/review-discipline.md` documents — `VALID — fixing`, `VALID (defer)`,
+  `VALID — fix now` — from prose that merely starts with a disposition word. Scanning the whole line
+  instead credited `| CI check | result is valid |`, and accepting a bare space before the
+  annotation credited `| 2 | c2 | Valid cache entries are rejected | | |`; either miss lets an
+  unclassified finding past the under-decomposition gate. The decoration allowed before the token
+  and the character required after it exclude word characters rather than only letters, so `valid2`,
+  `2valid` and `VALID_TOKEN` no longer satisfy the token, and "invalid"/"INVALID" still does not
+  false-match "valid"/"VALID". One predicate drives both the classified count and the self-row
+  exclusion that keeps a classification row's own severity word from re-counting as a phantom
+  finding, so the two counts cannot drift apart. New convergence fixtures pin the bash degrade and
+  the Python classifier to the same counts on a lowercase disposition, both prose false positives, a
+  word-like continuation, and the documented annotated forms.
+
+## [0.31.4]
+
+### Fixed
+
+- **Headless reconfigure recipe now preserves install scope (#1406).** The `claude plugin
+  uninstall` → `claude plugin install ... --config` recipe in `skills/setup/SKILL.md` defaulted
+  both halves to `-s user`. When this plugin is installed at `project` or `local` scope, that
+  silently uninstalled a separate user-scope record while the effective project/local install kept
+  loading, and the reinstall landed at a scope that does not load. Both commands now carry
+  `-s <scope>`, sourced from what `claude plugin list` reports for this plugin — the same fix
+  already applied to `session-flow` and `rate-limit-guard` in #1393.
+  The recipe also now requires the reinstall to re-supply **every** key whose value should
+  stay non-default, not only the key being changed: uninstalling drops the stored
+  `pluginConfigs` entry, so an omitted key silently falls back to its manifest default.
+  Record the current values before uninstalling.
+
+## [0.31.3]
+
+### Changed
+
+- **`test_pr_queue_snapshot.py`'s Approve-with-nits integration test now pins the routing by
+  elimination (#578).** The test asserted only that `blocking` and `material` were empty, which does
+  not distinguish "routed to `ignored`" from "routed to a human bucket". It now also asserts
+  `human_blocking` and `human` are empty; since `collect_feedback` places every record in exactly one
+  bucket and `classify_pr` surfaces four, all four empty rules out every bucket the snapshot projects.
+  Elimination alone still could not tell "routed to `ignored`" from "dropped before reaching any
+  bucket", so the test now also calls `collect_feedback` directly on the same fixture — under the
+  same `FeedbackConfig` `classify_pr` passes down — and asserts the record is in `ignored` carrying
+  the `approval_verdict` downgrade marker, which pins the arrival branch rather than only the
+  destination. #578 asked for a direct assertion on `feedback["ignored"]`: that holds at the
+  `collect_feedback` layer, but not on the snapshot's `feedback` mapping, which deliberately does not
+  project `ignored`. Test-only; no behavior change.
+
+## [0.31.2]
+
+### Fixed
+
+- **`babysit-prs` worktree pruning no longer gives a false all-clear for a non-conforming directory
+  name (#555).** `prune_babysit_worktrees.py` derives each worktree's PR identity from its directory
+  name, and a directory that did not match `<owner>__<repo>__pr-<number>` was dropped before the
+  report was built — not kept, not removed, not an error, simply absent. A caller reading the JSON to
+  answer "is anything left to clean up?" saw an empty list while merged PRs' worktrees sat on disk,
+  and had to find and `git worktree remove` them by hand. Every directory under `<worktree-root>` now
+  appears in the report; an unmappable one is an explicit `action: unrecognized` row carrying its path
+  and the reason, in every mode including `--pr` — an unrecognized entry has no key to match a target
+  against, so leaving it to that filter would hide it from every scoped run (a recognized non-target
+  worktree is out of the caller's declared scope and still appears in an unscoped run). Unrecognized
+  entries are never removed — identity is a precondition for the PR-state and worker-lease checks
+  that authorize removal — and do not fail the run. `reference/worktrees.md` now states the naming
+  convention that was previously only implied by the helper's regex, plus what happens to a
+  directory that breaks it.
+
+## [0.31.1]
+
+### Fixed
+
+- **`babysit_resolve_thread.py`'s two `is_bot` call sites now thread `extra_bot_logins` through
+  (#637).** The bot-only classifier (`project_thread`'s `botOnly` computation) and the
+  `humanThreadsActed` reporting counter both called the shared `is_bot` without the caller's
+  `extra_bot_logins` config, unlike every other classifier call site (e.g. `actor_kind` in
+  `babysit_classify.py`). An operator who registered a non-structural bot account via
+  `babysit_extra_bot_logins` (no `[bot]` login suffix, API `__typename` reports `User`) had that
+  account's threads miscategorized at both sites — pre-existing relative to #534/#634, which
+  migrated these call sites to the shared classifier without introducing the omission. The script
+  now accepts `--extra-bot-logins` (same comma-separated shape as the snapshot wrapper) and passes
+  it to both sites; `babysit_extra_bot_logins`'s flag-delivery mapping in SKILL.md now lists
+  `resolve-thread` alongside `snapshot`. Because configuration reaches these scripts only through
+  CLI flags, the mapping alone would have left the flag unused: every exact resolver command form
+  the agent copies — the two pinned degradation commands in `reference/safety.md`, the Worker
+  Contract clause and the Worker Prompt Template in `reference/orchestration.md`, and the
+  thread-resolution bullet in SKILL.md — now carries `--extra-bot-logins <extra-bot-logins>`, and
+  `safety.md` states the rule so a future command form does not drop it again. The module docstring
+  argparse renders as `--help` no longer claims bot identity comes from API signals alone: it now
+  names `--extra-bot-logins` as the one operator-supplied exception, so someone auditing this
+  privileged helper reads the capability it actually has. Low severity — dormant unless an operator
+  has configured the userConfig key for a non-structurally-detected bot account.
+
+## [0.31.0]
+
+### Changed
+
+- **No babysit parser resolves a flag abbreviation any more, and the property is now the
+  directory's rather than two files' (`#1371`).** A permission grant states its condition as the
+  literal presence or absence of a flag in the command text — above all "no `--merge` means
+  check-only". Argparse's default prefix abbreviation lets `--mer` resolve to `--merge` while the
+  command text contains no such flag, so the written command and the resolved behavior diverge,
+  which is exactly what such a condition must be able to rule out. `#1354` closed this on
+  `babysit_merge.py` and `babysit_resolve_thread.py`; the remaining seven entry points —
+  `babysit_findings.py`, `manage_babysit_lease.py`, `manage_feedback_ledger.py`,
+  `pr_queue_snapshot.py`, `prune_babysit_worktrees.py`, `refresh_pr_branch.py`, and
+  `request_review.py` — still inherited the default. All nine now set `allow_abbrev=False`.
+
+  Hardening them one at a time is what let the gap persist, so the guard contract gains a gate over
+  the whole catalogue: every Python entry point is invoked with an unambiguous three-character
+  prefix of `--help` and must not exit 0. `--help` is registered on every parser, and it
+  short-circuits parsing — so an abbreviation that resolves exits 0 before required-argument
+  validation runs, while one that does not is a usage error. That makes the exit code a sufficient
+  discriminator without a per-CLI argument shape, and a companion test asserts the discrimination
+  against argparse itself rather than assuming it. Three characters because
+  `manage_babysit_lease.py` also registers `--heartbeat-interval-seconds`, so a shorter prefix is
+  ambiguous there and exits 2 regardless — the probe would have passed on that entry point while
+  proving nothing. A tenth entry point arriving with the default now fails CI instead of shipping.
+
+  Abbreviated invocations that previously worked are now usage errors, which is the point.
+
+## [0.30.0]
+
+### Added
+
+- **`babysit-readiness-gate.sh` emits a `READINESS_UNPROVEN` verdict instead of going silent
+  (`#787`).** Its header promised a machine-readable verdict on every check run, but the
+  invalid-argument (exit 3) and prerequisite-missing / fetch-failed (exit 4) paths wrote to stderr
+  only. A caller grepping stdout for a verdict therefore saw *nothing* on those paths — identical to
+  what it sees when the gate was never invoked at all, which is how a blocked gate could be reported
+  as readiness. Every *check* run now prints exactly one `READINESS_*` line;
+  `READINESS_UNPROVEN reason=<bad-args|identity-unresolved|prereq-missing|comments-unreadable|checklist-unreadable|fetch-failed> pr=<n>`
+  joins `READINESS_OK` and `READINESS_BLOCKED`. Exit codes are unchanged, so existing callers keyed
+  on them are unaffected.
+  `--help` is explicitly outside the contract — it prints usage and exits 0 with no verdict — and
+  the header no longer un-indents a `READINESS_*` token into its own help output, where a caller's
+  `^READINESS_` grep read documentation as a malformed verdict. The header is now printed by
+  derivation from the comment block rather than a hardcoded line range that silently truncated as
+  the header grew.
+- **Readiness is declared by quoting the gate's verdict verbatim (`#787`).** `babysit-prs`'s
+  iteration report (`reference/loop.md` §5.5) gains a per-PR **Gate verdict** line carrying the
+  gate's stdout as printed, or `not emitted — harness denied: <exact command>` when the harness
+  blocked the call. Since the gate always prints a verdict, a readiness claim with nothing to quote
+  is unproven on its face. This is the limit of what the gate can enforce and the reason the
+  requirement sits on the report: no script can report its own non-invocation.
+- **A verdict-less readiness claim is never backfilled from live `gh` state (`#787`).**
+  `mergeStateStatus`, the check rollup, and any other live state miss exactly the cross-checks the
+  gate runs (dependency author, unprotected base, self-login exemption, head match), so they are not
+  a substitute verdict. Codified in `skills/babysit-prs/reference/safety.md` "Lane-Script
+  Reachability" and in the loop's NEVER-do list. Pinned-Command Degradation continues to cover the
+  denied-*mutation* case; this covers the denied-*check* case, which has no ready-to-execute handoff
+  because nothing was proven ready.
+- **`babysit-prs` declares auto-mode reachability of its own scripts as a prerequisite (`#787`).**
+  A host permission classifier can deny the lane's bundled scripts — including the *read-only*
+  merge-readiness check, which mutates nothing — leaving the lane unable to gate-prove readiness.
+  That reachability is now a declared prerequisite alongside Python, stated with the difference that
+  matters: the paths that *prove readiness* have **no degrade tier**, because the Python-free path
+  also proves readiness with a bundled script and a verdict never produced cannot be handed to
+  anyone. A denied *mutation* is deliberately outside that narrowing — there the gate has already
+  proven the PR ready, so Pinned-Command Degradation still degrades it to an operator handoff. The
+  contract lives in `skills/babysit-prs/reference/safety.md` "Lane-Script
+  Reachability", which points at the host's auto-mode configuration reference for the permission
+  semantics rather than restating them, and names the operator's verification step
+  (`claude auto-mode config`). The section states its evidence plainly: `#787`'s own denial was of a
+  raw wildcarded-interpreter form that auto mode drops by design and that the `bin/`-path wrapper
+  has since superseded, so the prerequisite generalizes from `melodic-software/dotfiles#315` — where
+  `autoMode.classifyAllShell` suspended twelve purpose-built lane-script grants — rather than
+  reproducing that ticket.
+- **The disputed retry semantics of a classifier denial are flagged, not settled (`#455`).** The
+  Harness Permission Layer's "never retry a harness permission denial" rule is contested by `#455`,
+  which records a classifier denial whose retry succeeded. The new reachability section sits
+  directly beneath that rule and restates it, so a note now marks the question open and points at
+  `#455` — the restatement is inherited, not fresh confirmation.
+
+### Changed
+
+- **`setup`'s babysit `check` gained an executable lane-script reachability canary (`#787`).** So
+  the prerequisite surfaces before a cycle rather than mid-cycle. The probe runs the lane's mandated
+  invocation forms against non-mutating targets — **both** path prefixes
+  (`bash "${CLAUDE_PLUGIN_ROOT}/bin/source-control-babysit-merge" --help` and
+  `bash "${CLAUDE_PLUGIN_ROOT}/scripts/babysit-readiness-gate.sh" --help`, each exiting 0 without
+  network or GitHub access) — and treats a tool-call denial on either as a **FAILED** prerequisite.
+  Probing only the `bin/` wrapper would have certified a path the lane's own readiness verdict never
+  travels: an allow rule or classifier decision covering one prefix says nothing about the other.
+  A *pass*, though, is only reachability: the classifier decides per call, so a permitted `--help`
+  cannot certify the production argument shapes, and the probes stay `--help`-only on purpose
+  because the merge wrapper's read-only production shape is a live GitHub call a `check` run must
+  not make. The skill states that limit rather than over-claiming, and names what covers the
+  residual gap — a mid-cycle denial is already fail-honest through `READINESS_UNPROVEN` and the
+  §5.5 verbatim verdict quote above.
+  The earlier draft only reported settings surfaces as INFO, and instructed enumerating the scopes
+  the classifier reads — for which no executable path exists, since the managed scopes are not
+  ordinary readable settings files. That clause is dropped in favour of `claude auto-mode config`,
+  which prints the effective merged configuration across the scopes it can see; it stays INFO,
+  because settings cannot prove what a per-call classifier decides. Because `--settings` is a
+  launch-time global flag rather than a subcommand input, a bare probe spawned from a session
+  launched with one under-states the effective rules, so the skill now says to forward it (and to
+  report the probe as scope-incomplete when the scope came from an SDK object with no file to
+  re-supply). The probe still never writes settings.
+
+### Fixed
+
+- **A malformed comment payload no longer reads as readiness.** `babysit-readiness-gate.sh` fed its
+  counters straight from `--comments-json` (or the live fetch) with jq's stderr suppressed and its
+  exit status unchecked, so a snapshot that was truncated, hand-edited, or simply not a JSON array
+  produced zero findings and a `READINESS_OK findings=0` verdict — a ready claim derived from data
+  the gate never read, and the exact fail-open shape this release exists to close. The resolved
+  payload is now shape-checked once, the body extractions surface their own failures instead of
+  swallowing them, and every such path routes through `READINESS_UNPROVEN reason=comments-unreadable`
+  at exit 4. The check covers the ELEMENTS, not just the container: `type == "array"` alone still
+  admitted `[null]` and `[{}]`, whose missing fields the counters' own `.body // ""` coalesced to an
+  empty string — the same false-ready verdict reached through a well-formed container holding
+  elements the gate cannot read. Every element must now be an object carrying `author` and `body` as
+  strings, which is exactly how the counters consume them (`author` matched against the self list,
+  `body` grepped for severity markers); a non-string in either position is unreadable, not empty. An
+  empty array and an empty `body` string stay legitimate and still reach a verdict.
+- **A `<pr>` argument can no longer forge a verdict line.** Every `READINESS_*` line interpolates
+  the PR reference as `pr=%s`, and the value was stored unvalidated — so a positional argument
+  carrying a newline emitted *additional* lines into the machine-readable output. A caller reading
+  the first `READINESS_*` line could be handed a forged `READINESS_OK findings=0` ahead of the real
+  verdict, which turns the exactly-one-verdict contract into a forgery channel. `<pr>` is now
+  required to be digits at parse time, so a value that could break the line shape never reaches a
+  verdict at all.
+- **A snapshot read that fails partway is unreadable, not empty.** `--comments-json` was read with
+  `$(cat …)` and the exit status ignored, so a `cat` that emitted a syntactically valid prefix and
+  then hit an I/O error left the shape check validating that prefix. A file whose readable head is
+  `[]` passed as an empty array while the real findings sat in the part that never arrived. On the
+  Python-free degrade path that is `READINESS_OK findings=0` outright; with the refinement available
+  it was masked, because `babysit_findings.py` re-reads the file itself. The read status now routes
+  through `READINESS_UNPROVEN reason=comments-unreadable` before the payload is examined at all.
+- **A comment from a deleted GitHub account no longer makes the gate permanently unprovable.** The
+  element check required `.author` to be a string, but GitHub returns `author: null` for a comment
+  whose account was deleted and `fetch-all-pr-comments.sh` passes that through — so one such
+  comment anywhere on a PR rejected the whole live snapshot as unreadable. Fail-closed against the
+  wrong thing: the payload was fine. `.author` is now string-or-null while `.body` stays strictly a
+  string, and a *missing* `author` key is still malformed (`has("author")` is what separates them —
+  jq reports both an explicit null and an absent key as type `null`). A null author reads as
+  non-self on both counters, so the comment counts as a finding source exactly as an unrecognized
+  login would, and can never be credited as a self classification row.
+- **The §5.5 report template no longer offers an abbreviated verdict to paste.** It listed
+  `READINESS_UNPROVEN <reason>` as a shape to choose while the surrounding contract requires
+  quoting the gate's stdout verbatim — but the gate prints `reason=<reason> pr=<n>`, and the
+  OK/BLOCKED forms carry count fields the menu dropped. A worker following the template produced a
+  reconstruction, which carries none of the provenance the verdict contract rests on. The field now
+  requires the captured line exactly as printed.
+- **The guard contract's documented-command check now covers the reachability canary, and stops
+  rejecting `--help`.** `skills/setup/SKILL.md` and this changelog both spell out the canary
+  invocation, so the completeness gate correctly demanded `DOC_COMMAND_SOURCES` rows for them —
+  and then rejected the command, because accepted flags are read from the parser's usage block and
+  argparse renders the `--help` pair as `-h` there. `--help` is now added back on the evidence of
+  the check's own call: that invocation *is* `--help` and it exits 0, which is stronger proof of
+  acceptance than the usage text gives any other flag.
+- **An unreadable `--checklist` no longer reads as a clean one.** The R6 count ran
+  `grep -c … || true`, which collapses grep's two distinct nonzero statuses into one: 1 means "no
+  unticked box" — a clean checklist — while 2 means the file could not be read. Both produced an
+  empty count that normalized to zero, so a checklist lost to a permission or I/O error emitted
+  `READINESS_OK … checklist=clean`. Zero matches and zero readable lines are the same number and
+  only one of them is evidence. The read status is now captured: 1 stays clean, anything above it
+  is `READINESS_UNPROVEN reason=checklist-unreadable` at exit 4, alongside the payload fail-open
+  above.
+- **An identity-lookup failure is no longer reported as a bad argument.** With neither `--self` nor
+  `--extra-self` supplied and the supported `gh api user` default failing — expired auth, an
+  unreachable API, an offline snapshot replay — the arguments were valid but stdout said
+  `reason=bad-args`. Since §5.5 quotes that verdict verbatim, it pointed operators and automation at
+  flags that were already correct. The path now emits `reason=identity-unresolved`, keeping exit 3
+  so callers keyed on the code are unaffected.
+
+## [0.29.1]
+
+### Fixed
+
+- **The guard contract's wrapper-denial table is now bound in both directions.** `WRAPPER_DENIED_FLAGS`
+  records the flags a `bin/` wrapper refuses before Python runs, and a check already proved every
+  *listed* flag is one a `bash-wrapper` refusal row invokes the wrapper to demonstrate. Nothing
+  proved the converse: a new refusal row could demonstrate a second refused flag while the table
+  stayed silent about it, leaving that flag spellable in a documented command — the table would be a
+  subset of the wrapper's behavior while reading as a statement of it. Every bash-wrapper refusal
+  row's named flag must now be covered by the table. A companion assertion pins the premise the
+  separate wrapper check rests on: the merge parser *does* register `--allow-unpinned-head`, which is
+  exactly why a CLI-only check cannot see the wrapper's refusal — if that stops holding, the two
+  checks have collapsed into one and the narrowing is no longer load-bearing. The reverse check also
+  requires each bash-wrapper row to name a `--flag` in `error_contains`: that field is a tuple of
+  asserted output substrings with no invariant that any of them is a flag, so an empty tuple — or an
+  option recorded without its leading dashes — would have passed vacuously, leaving exactly the
+  omission the check exists to catch.
+
+## [0.29.0]
+
+### Changed
+
+- **Merge-conflict resolution splits the resolve from the push.** `babysit-prs` dispatched conflict
+  resolution to a dedicated subagent that also pushed the result. A dispatched subagent starts with
+  a fresh, isolated context window and never sees the parent conversation
+  (<https://code.claude.com/docs/en/sub-agents>), so a host runtime that grants mutation authority
+  only from the operator's own turn cannot observe that grant from inside one — such a push could
+  only ever be refused by that gate or route around it. The conflict worker now does the base fetch,
+  the head assertion, the `git merge` (never rebase), the marker resolution, the local merge commit,
+  and the affected-file verification, and returns one of `resolved` / `escalate` /
+  `verification-impossible` / `no-conflict` without touching GitHub. The orchestrator — which does
+  hold the operator's turn — pushes, fail-closed: only on `resolved`, only after matching the
+  worktree `HEAD` to the reported merge commit, requiring it to have two parents, re-asserting the
+  live PR head against its first parent, and re-running the affected-file verification in the
+  worktree itself; by refspec, never force. A conflict worker remains a worker for every other rule
+  — leases, concurrency cap, check-in — with resolving and not-pushing its only two differences.
+  Every prior invariant is preserved, now with an explicit owner. `reference/orchestration.md`
+  gains the Conflict-Worker and Orchestrator contracts plus a Conflict-Worker Prompt Delta (the
+  regular worker template forbids only *force*-pushing, so a conflict worker needs an affirmative
+  never-push instruction); an escalating conflict worker now preserves its partial resolution on a
+  SHA-qualified `conflict-wip/<pr-number>-<short-sha>` branch — created with hook-free plumbing,
+  never a hook bypass — and exits the merge only after that preservation, so it never strands an
+  unmergeable worktree and repeated escalations never collide; `reference/freshness.md` drops its drifting restatement for a pointer; `SKILL.md`,
+  `reference/safety.md`, and `babysit-loop`'s Subagents section state the new boundary. Pinned by
+  `test_skill_contract.py`.
 
 ## [0.28.0]
 

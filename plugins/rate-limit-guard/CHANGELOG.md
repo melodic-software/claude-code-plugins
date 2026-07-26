@@ -3,6 +3,49 @@
 All notable changes to the `rate-limit-guard` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.0]
+
+### Added
+
+- `scripts/statusline-shim.sh` — the durable statusline wiring target. The operator wires the shim
+  once; it resolves the newest installed `statusline-tee.sh` at run time (newest by mtime across
+  marketplaces under the effective `${CLAUDE_CONFIG_DIR:-~/.claude}` config root, skipping
+  transient `temp_*` cache clones), so plugin version bumps never require re-wiring. Transparent
+  in every path: no tee installed degrades to running the wrapped statusline alone, and a
+  wired-standalone shim prints one diagnostic line instead of leaving a blank bar.
+  Pure Bash builtins — no subprocess on the statusline path. Black-box test harness with 31
+  assertions, including the two-shim chaining case and a relocated `CLAUDE_CONFIG_DIR`.
+- **`setup apply`** — the skill is no longer check-only. `apply` installs the shim (byte-identical
+  copy to `~/.claude/rate-limit-guard/bin/statusline-shim.sh`, idempotent, inert until the operator
+  wires it) and writes nothing else; `settings.json` stays the operator's to edit.
+
+### Changed
+
+- **Wiring is now the shim, not the tee** (breaking for the printed wiring only; existing wiring
+  keeps working until the next update). `setup check` prints
+  `bash ~/.claude/rate-limit-guard/bin/statusline-shim.sh …`, gained an installed-shim state check,
+  and reclassifies a statusline wired to a version-pinned plugin-cache path as LEGACY wiring
+  regardless of whether that file currently exists — the old state only flagged a missing file.
+  Rationale: `${CLAUDE_PLUGIN_ROOT}` is version-pinned and the old version directory is pruned
+  ~14 days after an update, so cache-path wiring stops teeing at the next bump and then breaks the
+  operator's whole statusline (`bash <missing>` → 127).
+- `setup check` prints the sibling-composition wiring when `context-guard` is also installed, and
+  states the measured per-tee refresh cost (~0.6–0.9 s on Windows/Git Bash, spawn-bound).
+- `setup check` **unwraps recognized guard shims before composing the wiring it prints**, so a
+  statusline already wired through the sibling shim (or through this one) is not wrapped a
+  second time. Re-wrapping produced a chain running one tee twice — a duplicated write and
+  another 0.6–0.9 s on every refresh — whenever the plugins were configured in sequence or
+  `check` was simply re-run.
+- The **combined sibling wiring is gated on the sibling shim actually existing**. `context-guard`
+  being installed is not enough: its shim is written by its own `setup apply`, and printing a
+  command that names a missing file reintroduces the `bash <missing>` → 127 failure this whole
+  change exists to remove. When the shim is absent the single-shim form is printed instead,
+  with the sibling's `apply` named as the step that unlocks the combined form.
+- **Uninstall guidance is now ordered**: unwrap `statusLine` FIRST, then remove
+  `~/.claude/rate-limit-guard/`. The previous "either order" wording let an operator delete the shim
+  while the wiring still named it, which is the 127 failure again — and the shim's own fallback
+  cannot cover it, because the fallback lives in the deleted file.
+
 ## [0.2.1]
 
 ### Changed

@@ -1028,6 +1028,26 @@ DOC_COMMAND_SOURCES: tuple[DocCommandSource, ...] = (
         ),
         doc="skills/babysit-prs/reference/orchestration.md",
     ),
+    DocCommandSource(
+        id="setup.reachability-canary-commands",
+        claim=(
+            "skills/setup/SKILL.md spells out the permission canary an operator runs to "
+            "prove this lane's scripts are reachable at all. A canary naming a flag the "
+            "wrapper does not accept fails for the wrong reason and reads as a denial, "
+            "so its spelling is checked like any other copyable command."
+        ),
+        doc="skills/setup/SKILL.md",
+    ),
+    DocCommandSource(
+        id="changelog.canary-command-restatement",
+        claim=(
+            "CHANGELOG.md restates the canary invocation while describing it. A changelog "
+            "is read by operators reaching for the command, so it is covered rather than "
+            "exempted -- a restatement drifting from the parser is the same defect "
+            "wherever it lives."
+        ),
+        doc="CHANGELOG.md",
+    ),
 )
 
 
