@@ -99,7 +99,7 @@ Autonomy is decomposed per action, not per run. Irreversibility governs the gate
 | --- | --- | --- | --- |
 | Discover, snapshot, report | yes | yes | yes, **all authors** |
 | Fix clear branch-owned CI or bot-review issues, commit, push | yes | yes | yes, and harder (research a fix before giving up) |
-| Dispatch a dedicated conflict-resolution worker (`git merge`, never rebase) | no — report (simple mechanical conflicts met while freshening a branch are still handled inline per [reference/loop.md](reference/loop.md)) | mechanical/textual conflicts only, escalate genuine ambiguity | mechanical/textual conflicts only, escalate genuine ambiguity |
+| Dispatch a dedicated conflict worker (`git merge`, never rebase; it resolves locally and never pushes — the orchestrator re-verifies and pushes, [reference/orchestration.md](reference/orchestration.md)) | no — report (simple mechanical conflicts met while freshening a branch are still handled inline per [reference/loop.md](reference/loop.md)) | mechanical/textual conflicts only, escalate genuine ambiguity | mechanical/textual conflicts only, escalate genuine ambiguity |
 | Resolve review threads | no — report | **pre-push-outdated bot threads only** | any thread **it has addressed** — bot, AI-review, or human |
 | Merge a PR | no — report readiness | only when the gate proves 100% ready | only when the gate proves 100% ready |
 | Mark a completed draft ready (`gh pr ready`) | no — report | no — report | yes, via its worker's completeness assessment |
@@ -111,7 +111,7 @@ design — it has no tier input — so it emits the same blocker string, `"merge
 dedicated conflict-resolution agent required"`, for every conflicting PR regardless of tier.
 That string names a capability that exists in this skill, not an instruction to invoke it. In
 the safe tier the table's `no — report` still governs: report the blocker exactly as stated
-and do not spawn the conflict worker. Only `worker` and `autopilot` read that same string as
+and dispatch no conflict worker. Only `worker` and `autopilot` read that same string as
 license to act.
 
 **Cross-tier invariants** — hold in every tier including autopilot: never a force-push (freshness is
@@ -205,7 +205,7 @@ home in [reference/safety.md](reference/safety.md). Both fail closed without `--
   those extra bots are silently not held), refuses merge on an unprotected
   repo (zero required reviews and zero required contexts) for a non-self author absent
   `--allow-unprotected`, never uses `--admin`, and cannot resolve threads, reply, or
-  force-push. React to `blockers`; do not bypass the gate. A `ready:false` immediately following a `ready:true` on the same expected head is often GitHub's own mergeability recompute lag — re-run the read-only check once before treating it as a real block.
+  force-push. React to `blockers`; do not bypass the gate. A `ready:false` immediately following a `ready:true` on the same expected head is often GitHub's own mergeability recompute lag — re-run the read-only check once before treating it as a real block. **This gate's `ready` field is the sole authority for calling a PR merge-ready**, never the finding-classification gate's `READINESS_OK` ([reference/safety.md](reference/safety.md) "Two Gates, One Merge-Ready Authority").
 
 - **Once ready, stop.** When the gate proves a PR ready (safe mode) or its merge is deferred to
   a human (Pinned-Command Degradation, [reference/safety.md](reference/safety.md)), report that
@@ -275,7 +275,8 @@ draft too, even when the content is finished and green — see the worker contra
 Each per-PR worker owns its local lifecycle end to end: acquire that PR's worker lease and its
 own isolated worktree (find or create, never a shared checkout), check out and freshen the PR
 branch, make only clear branch-owned fixes, re-check the head SHA, push, clean up on merge
-(worktree + local branch), and release the lease. Worktree policy:
+(worktree + local branch), and release the lease — except a conflict worker, whose push the
+orchestrator performs ([reference/orchestration.md](reference/orchestration.md)). Worktree policy:
 [reference/worktrees.md](reference/worktrees.md).
 
 ## Effective configuration (substituted at load)
@@ -322,9 +323,9 @@ The snapshot engine and gates are Python (stdlib-only) under
 declared prerequisite for `worker` and `autopilot` (and for engine-backed safe runs): when it
 is absent, `worker`/`autopilot` STOP at entry with a concise remediation message naming the
 prerequisite, and the safe tier degrades gracefully to the Python-free loop in
-[reference/loop.md](reference/loop.md) — discovery via `gh pr list`, readiness via the
-plugin-scope gate script, cadence via the static ladder. Never block a safe iteration on the
-engine's absence.
+[reference/loop.md](reference/loop.md) — discovery via `gh pr list`, finding classification via the
+plugin-scope gate script, cadence via the static ladder. The merge gate is itself Python, so that path cannot assess
+merge-readiness at all: report it unchecked, never inferred from the classification gate. Never block a safe iteration on the engine's absence.
 
 ## Per-PR checklist (safe core — each PR, every iteration)
 
@@ -345,11 +346,10 @@ Execute for EACH PR discovered, oldest first. Detailed mechanics:
   per PR (§5.1.1)
 - [ ] **Steps A–F — Per-PR iteration checklist** (§5.1.3): terminal check, CI classification,
   fetch + extract findings, per-finding D1–D7.5 with verification gates
-  ([review-discipline](../../reference/review-discipline.md) §3), mechanical readiness gate
-  (`${CLAUDE_PLUGIN_ROOT}/scripts/babysit-readiness-gate.sh <N>` must exit `READINESS_OK`;
-  the configured extra self identities are `${user_config.babysit_self_logins}` — when that value
-  is non-empty and not a literal unexpanded token, append `--extra-self "<value>"`),
-  report
+  ([review-discipline](../../reference/review-discipline.md) §3), mechanical finding-classification gate
+  (`${CLAUDE_PLUGIN_ROOT}/scripts/babysit-readiness-gate.sh <N>` must exit `READINESS_OK` — proof the
+  findings were decomposed, never proof the PR is merge-ready; the configured extra self identities are
+  `${user_config.babysit_self_logins}` — when that value is non-empty and not a literal unexpanded token, append `--extra-self "<value>"`), report
 - [ ] **Step 5 — Commit + push** fixes to the PR branch (refspec; works from a detached HEAD); clean working tree; follow-up replies
   cite commit SHAs
 - [ ] **Step 6 — PR transition:** next-oldest PR needing attention (§5.1.6)
@@ -456,8 +456,9 @@ Recommend the exact next interval per [reference/loop.md](reference/loop.md) §5
 Failure patterns observed in real babysit sessions:
 
 - **Survey-without-classifying is the #1 failure.** An audited run classified 16 of ~32 findings
-  while reporting completion — prose "MANDATORY" alone under-decomposes. That is why readiness is
-  gated by `babysit-readiness-gate.sh` exit code, not by the model's claim
+  while reporting completion — prose "MANDATORY" alone under-decomposes. That is why finding
+  classification is gated by `babysit-readiness-gate.sh` exit code, not by the model's claim
+- **`READINESS_OK` is not merge-ready.** That gate is blind to branch rules, thread resolution, and required checks; only the merge gate's `ready` field can call a PR MERGE-READY. Reporting off the classification gate alone produced a false MERGE-READY report ([reference/safety.md](reference/safety.md) "Two Gates, One Merge-Ready Authority")
 - **Multi-finding comments glossed as one work item.** A single comment carrying N severity
   markers is N work items; ≥3 findings REQUIRE the extractor-subagent dispatch
   ([review-discipline](../../reference/review-discipline.md) §2)
@@ -480,7 +481,7 @@ Failure patterns observed in real babysit sessions:
 
 - [reference/loop.md](reference/loop.md) — the safe-tier iteration loop (also the Python-free
   degrade path): discovery, checkout, freshness, checklist, and the §5.3 cadence contract.
-- [reference/orchestration.md](reference/orchestration.md) — fan-out gate (`needs_worker` arms), concurrency cap, leases, worker contract + prompt template, conflict resolution, cleanup.
+- [reference/orchestration.md](reference/orchestration.md) — fan-out gate (`needs_worker` arms), concurrency cap, leases, worker contract + prompt template, conflict resolution (the resolve/push split and the conflict-worker prompt delta), cleanup.
 - [reference/cadence.md](reference/cadence.md) — active/normal/quiet/idle cadence states,
   real-elapsed-time detection, bounded full-sweep interval, persisted counters.
 - [reference/freshness.md](reference/freshness.md) — guarded refresh for behind-base branches,
@@ -489,8 +490,8 @@ Failure patterns observed in real babysit sessions:
 - [reference/review-trigger.md](reference/review-trigger.md) — generalized AI-review trigger +
   gate semantics; dormant when unconfigured.
 - [reference/worktrees.md](reference/worktrees.md) — ephemeral worktree policy and prune commands.
-- [reference/safety.md](reference/safety.md) — role boundaries, verify-before-escalate, the
-  harness permission layer (pinned-command degradation), stop-ask and never-do lists.
+- [reference/safety.md](reference/safety.md) — the two gates and which one owns merge-readiness, role
+  boundaries, verify-before-escalate, the harness permission layer (pinned-command degradation), stop-ask and never-do lists.
 - [reference/feedback.md](reference/feedback.md) — feedback classification, dispositions,
   advisory cap, bot-PR taxonomy, human-feedback policy.
 - [`${CLAUDE_PLUGIN_ROOT}/reference/review-discipline.md`](../../reference/review-discipline.md)

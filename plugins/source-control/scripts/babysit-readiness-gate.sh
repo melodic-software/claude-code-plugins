@@ -36,7 +36,15 @@
 #   unaddressed — R1+R5), OR when a --checklist file has any "- [ ]" (R6).
 #
 # This is a PURE PREDICATE — detection only, no GitHub writes. The skill runs
-# it before declaring readiness / scheduling the next wake.
+# it before completing an iteration / scheduling the next wake.
+#
+# NOT a merge-readiness check. This gate is blind to branch rules, review
+# decision, unresolved threads, required checks, and head match. Only the merge
+# gate (babysit_merge.py, via the source-control-babysit-merge wrapper) reports
+# whether the PR may be merged -- GitHub's own mergeability AND the plugin's own
+# policy holds (dependency-manager author, unprotected base, autopilot tier).
+# READINESS_OK is never evidence of that.
+# See skills/babysit-prs/reference/safety.md "Two Gates, One Merge-Ready Authority".
 #
 # Usage:
 #   babysit-readiness-gate.sh <pr>
@@ -67,6 +75,16 @@
 #      for the cause (owner/repo may be unresolved; see Repo resolution above)
 
 set -uo pipefail
+# Matches the `export PYTHONUTF8=1` convention the bin/ babysit wrappers already
+# apply before invoking babysit_python (source-control-babysit-merge,
+# source-control-babysit-resolve-thread). This gate is the third babysit_python
+# caller and the one that parses fetch-all-pr-comments.sh-shaped JSON (via
+# babysit_findings.py --comments-json), which commonly carries non-ASCII bytes
+# (bot badges, reaction emoji) from bot review comments — PEP 540 UTF-8 mode
+# keeps the interpreter's default I/O encoding independent of the Windows ANSI
+# code page (cp1252) for any code path that does not pin encoding="utf-8"
+# itself (#597).
+export PYTHONUTF8=1
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
@@ -77,7 +95,7 @@ SELF_CSV=""
 EXTRA_SELF_CSV=""
 
 usage() {
-  sed -n '2,65p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+  sed -n '2,67p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
   exit 0
 }
 

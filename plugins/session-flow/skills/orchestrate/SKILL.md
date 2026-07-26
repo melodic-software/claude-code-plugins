@@ -88,6 +88,58 @@ also reach orchestration surfaces a worker cannot: agent teams (lead-only) and d
 (main-session-only). The export modes omit this line because a pasted target cannot reach those
 surfaces.
 
+## Tiered delegation — the shape of a deep tree
+
+Imperative 5 says a worker may spawn workers and imperative 7 says size the tree to conditions.
+This section is the shape those two imply once a task is large enough to need more than one layer.
+It is guidance for the main session; the export brief omits it, because a pasted worker sits inside
+a tree rather than authoring one.
+
+**The top of the tree owns the loop, not the work.** Its context is the scarcest in the run —
+everything that enters it stays for the rest of the session. So it holds the objective, the
+stopping condition, and the decision about what to spawn next, and it delegates the rest. A top
+tier that reads findings, weighs them, and asks a follow-up question has converted a fan-out into a
+conversation, and the context it was protecting fills anyway.
+
+**Chatter belongs low.** Two workers resolving an ambiguity between themselves costs nothing at the
+top. The same exchange routed through the parent costs the parent's window twice and permanently.
+Push coordination to the lowest tier that can resolve it, and let each tier return a compressed
+verdict rather than its reasoning.
+
+**Spec what crosses a boundary, not just what to do.** Every spawn already needs an objective and
+an output format (imperative 2). In a multi-tier tree the output format IS the context-economy
+lever: name the identifiers, the verdict, and where the bulky payload was parked, so the tier above
+can act without re-reading the work. A return that narrates cannot be summarized after the fact —
+it has already been paid for.
+
+**Workers are ephemeral, and the deeper the tier the shorter the life.** A worker that finishes and
+stays alive keeps costing the tier above — notifications, status, re-acknowledgement — for zero
+additional output. Retire on completion. When the next grouping needs doing, spawn fresh rather than
+reusing a worker whose context now carries the last job. (The exception is imperative 4's long-lived
+worker across *related* subtasks, where cache reuse is the point — that is a deliberate trade, not
+the default.)
+
+**Treat a clean return as unverified, especially a suspiciously clean one.** An under-specified
+worker rarely stalls and asks; it substitutes the nearest plausible interpretation and reports
+success. Observed in this plugin's own development: a fan-out of eleven audit workers was given a
+brief missing a resource they needed. Ten located it themselves and closed the gap; one silently
+audited a different, similar artifact and returned a confident, well-formed, entirely
+wrong-target result. Nothing in its return distinguished it from the ten. This is why imperative 3's
+fresh-context verify is not optional at depth, and why a return payload benefits from naming its
+sources — provenance is the field that makes a wrong-target answer detectable from above.
+
+**Never author a tree that needs a specific depth.** The platform ceiling is configurable and has
+moved repeatedly — within a single week it went from a fixed five layers, to nesting off by
+default, to a configurable default of three
+([sub-agents](https://code.claude.com/docs/en/sub-agents),
+[changelog](https://code.claude.com/docs/en/changelog)). Depth, per-session spawn count, and
+concurrent-worker count are each separately capped and separately overridable
+(`CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH`, `CLAUDE_CODE_MAX_SUBAGENTS_PER_SESSION`,
+`CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS`); read the current values rather than assuming them, and
+design the tree so it degrades to a shallower one instead of failing. One shape constraint that is
+not a tunable: a fork inherits its parent's conversation but cannot spawn a further fork, so a fork
+is a leaf, never an intermediate tier.
+
 ## Export modes (handoff / worker) — paste-ready brief
 
 Only for a target that LEAVES the session. Emit the seven imperatives above between two full-width
