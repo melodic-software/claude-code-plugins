@@ -421,8 +421,17 @@ CTX="${CTX%"${CTX##*[![:space:]]}"}"
 # a disclosure that overruns it can be truncated or rejected by the channel
 # AFTER the file has already been rewritten — the one outcome this whole path
 # exists to prevent. The budget leaves headroom for JSON escaping, which can
-# expand a string well past its character count, and the trailing note names
-# the channel that still has the full list.
+# expand a string well past its character count.
+#
+# DEFENCE IN DEPTH, not the working bound: at MAX_REPORT=10 entries × 60-char
+# elided tokens the message tops out near 1,100 characters, so this ceiling does
+# not fire today and its branch is exercised only if one of those numbers moves.
+# It is kept because both of them are tunable and the documented channel cap is
+# not — raise MAX_REPORT or the elision width far enough and this is the only
+# thing standing between a rewrite and a rejected disclosure. Cutting on bytes
+# rather than characters is deliberate: it can split a multi-byte sequence, and
+# a mangled tail character is a strictly better failure than an over-long
+# message the channel drops whole.
 truncate_to() {
   local s="$1" n="$2"
   if ((${#s} > n)); then
