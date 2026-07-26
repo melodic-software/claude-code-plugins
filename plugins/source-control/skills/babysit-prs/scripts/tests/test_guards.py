@@ -583,7 +583,20 @@ class DocumentedCommandsMatchTheParsers(unittest.TestCase):
             # `error_contains`, not `argv`: a row's argv also carries the flags
             # that reached the wrapper legitimately, while the error names the
             # one the refusal is about.
-            for flag in (token for token in row.error_contains if token.startswith("--")):
+            flags = [token for token in row.error_contains if token.startswith("--")]
+            # `error_contains` is a tuple of asserted output substrings with no
+            # invariant that any of them is a flag, so a row with an empty tuple
+            # -- or one naming its rejected option without the leading dashes --
+            # would yield nothing and pass this check vacuously, leaving exactly
+            # the omission it exists to catch. A wrapper refusal is ABOUT a flag;
+            # a row that cannot name one cannot be bound, so demand it here.
+            self.assertTrue(
+                flags,
+                f"`{row.id}` is a bash-wrapper refusal whose error_contains names"
+                " no `--flag`, so nothing binds it to WRAPPER_DENIED_FLAGS; name"
+                " the refused option in error_contains",
+            )
+            for flag in flags:
                 with self.subTest(row=row.id, flag=flag):
                     self.assertTrue(
                         contract.wrapper_denies(row.entry_point, flag),

@@ -16,7 +16,11 @@ All notable changes to the `source-control` plugin are documented here. Format f
   row's named flag must now be covered by the table. A companion assertion pins the premise the
   separate wrapper check rests on: the merge parser *does* register `--allow-unpinned-head`, which is
   exactly why a CLI-only check cannot see the wrapper's refusal — if that stops holding, the two
-  checks have collapsed into one and the narrowing is no longer load-bearing.
+  checks have collapsed into one and the narrowing is no longer load-bearing. The reverse check also
+  requires each bash-wrapper row to name a `--flag` in `error_contains`: that field is a tuple of
+  asserted output substrings with no invariant that any of them is a flag, so an empty tuple — or an
+  option recorded without its leading dashes — would have passed vacuously, leaving exactly the
+  omission the check exists to catch.
 
 ## [0.29.0]
 
