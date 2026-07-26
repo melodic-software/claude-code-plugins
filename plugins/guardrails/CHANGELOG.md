@@ -9,6 +9,70 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
 
 - **Test scaffolding: migrated `mktemp -p` temp file/dir creation to the portable `mktemp "$DIR/template"` form.** BSD/macOS `mktemp` has no `-p` flag; the directory now rides in the positional TEMPLATE argument instead, which both GNU and BSD `mktemp` accept identically. Test-only — no hook behavior change. Part of #1527 (`block-dangerous-git.test.sh`, `block-hook-bypass.test.sh`, `block-no-verify.test.sh`, `cli-flag-verify.test.sh`, `flag-commit-pr-skill-bypass.test.sh`, `guardrails-test-helpers.sh`, `hardcoded-path-check.test.sh`, `secret-pattern-detection.test.sh`, `skill-reference-verify.test.sh`, `stale-path-verify.test.sh`, `workflow-resilience-check.test.sh`).
 
+### Fixed
+
+- **`stale-path-verify`: partial-`Edit` reconstruction adjudicated citations on
+  lines the edit never touched**, violating the diff-scope contract the hook
+  states it holds. The anchor match is `grep -F`, a substring match, so when the
+  whole `new_string` is a bare fragment the line anchor collapses onto the token
+  anchor it was introduced to replace: an `Edit` whose hunk is `docs` recovered
+  every line containing `docs` and reported a pre-existing stale citation among
+  them.
+
+  Reconstruction says it mirrors `skill-reference-verify`, and that sibling
+  already carries the gate this guard omitted: an anchor is used only when it
+  **occurs exactly once** in the file. Occurrences, not matching lines — two
+  occurrences on one physical line are a single `grep` hit, and a line-uniqueness
+  gate would adjudicate a citation sharing that line. Occurrences are counted by
+  walking start offsets with awk's `index()`, not with `grep -o`, because
+  `grep -o` emits only non-overlapping matches: an anchor of `docs/docs` against
+  `docs/docs/docs` starts at two offsets whose spans overlap, so `grep -o`
+  reports one and a self-overlapping anchor would pass the uniqueness gate it
+  should fail — recreating the very advisory the gate was added to prevent. The
+  anchor reaches awk through the environment rather than `-v`, since `-v`
+  processes escape sequences in the value and would silently transform an anchor
+  containing a backslash. Per the
+  [tools reference](https://code.claude.com/docs/en/tools-reference) an `Edit`'s
+  `old_string` "must appear exactly once", so a unique anchor pins the edit to
+  the line carrying it; a non-unique anchor cannot say which occurrence the edit
+  landed on and is dropped rather than guessed at. `replace_all: true` is read as
+  the one shape where repetition is the edit's own footprint rather than an
+  ambiguity, so uniqueness is not required there.
+
+  Partially addresses
+  [#1455](https://github.com/melodic-software/claude-code-plugins/issues/1455) —
+  its Face B (over-recovery at or above the four-character token floor). Face A,
+  the floor itself swallowing a sub-four-character replacement such as `js` →
+  `md`, is untouched and remains open.
+
+  **This narrows what the guard reports.** Dropping an ambiguous anchor can cost
+  a true positive when an edit lands in text that repeats verbatim elsewhere in
+  the file, so 0.17.0's measured firing envelope (0.20% of tracked markdown at
+  50% precision) no longer describes the guard exactly. For a detect-then-judge
+  advisory that is the right side of the trade — it is degraded far worse by
+  being wrong when it speaks than by staying quiet.
+- **`stale-path-verify`: an unstaged deletion was silently exempted.** The
+  sparse-checkout exemption tested `git ls-files --error-unmatch`, which reports
+  an index entry for an ordinary unstaged deletion exactly as it does for a
+  skip-worktree entry — it cannot tell the two apart. A genuine uncommitted
+  removal, which is the working-tree disappearance this guard exists to
+  adjudicate, was therefore skipped. The test is now the skip-worktree bit
+  itself: `ls-files -v` tags a sparse entry `S` — lowercase `s` when the
+  assume-unchanged bit is also set, since `-v` marks assume-unchanged by
+  lowercasing the letter — an unstaged deletion `H`, and an assume-unchanged
+  entry `h`. Only the skip-worktree letter, in either case, is exempted —
+  assume-unchanged promises a path is unmodified on disk, not absent from it, so
+  a deleted one is the same genuine disappearance as any other unstaged deletion.
+
+Both were raised in review on
+[#1432](https://github.com/melodic-software/claude-code-plugins/pull/1432) and
+merged before they were resolved. Four behavioral cases pin them, verified red
+against the 0.17.1 guard (`PASS=79 FAIL=4`) and green after; a fifth pins the
+combined skip-worktree + assume-unchanged tag, and a sixth pins the
+self-overlapping anchor described above — red against the `grep -o` counter
+(`PASS=86 FAIL=1`), green against the `index()` one. The suite reports
+`PASS=87 FAIL=0` at this snapshot.
+
 ## [0.17.1]
 
 ### Fixed
