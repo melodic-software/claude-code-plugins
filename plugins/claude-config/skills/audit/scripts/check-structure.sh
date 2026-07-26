@@ -61,25 +61,29 @@ emit_file_facts() {
   # path, or plain filesystem permissions all make open() fail here, and
   # reporting that as malformed config would be a false finding. Distinguish it
   # and report the file as not inspectable instead.
-  local content
-  if ! content="$(tr -d '\r' <"$path" 2>/dev/null)"; then
+  #
+  # `: <"$path"` opens the file and discards it — an open() probe that never
+  # reads a byte. Deliberately not `content=$(…)`: holding the file in a shell
+  # variable would put every credential in it into `set -x` trace output. File
+  # contents stay inside pipelines, where tracing prints the command only.
+  if ! : <"$path" 2>/dev/null; then
     printf 'Readable: no\n'
     printf 'Valid JSON: n/a\n'
     printf 'Top-level keys: n/a\n'
     printf 'Note: present but unreadable — not inspectable (deny rule, sandbox denyRead, or filesystem permissions). Not a malformed-config finding.\n'
     return 0
   fi
-  if ! printf '%s' "$content" | jq empty 2>/dev/null; then
+  if ! tr -d '\r' <"$path" | jq empty 2>/dev/null; then
     printf 'Valid JSON: no\n'
     return 1
   fi
   printf 'Valid JSON: yes\n'
   local keys
-  keys="$(printf '%s' "$content" | jq -r 'keys | length')"
+  keys="$(tr -d '\r' <"$path" | jq -r 'keys | length')"
   printf 'Top-level keys: %s\n' "$keys"
   case "$kind" in
   settings)
-    printf '%s' "$content" | jq -r '
+    tr -d '\r' <"$path" | jq -r '
         "Deny count: \((.permissions.deny // []) | length)",
         "Ask count: \((.permissions.ask // []) | length)",
         "Allow count: \((.permissions.allow // []) | length)",
@@ -89,7 +93,7 @@ emit_file_facts() {
       '
     ;;
   local)
-    printf '%s' "$content" | jq -r '
+    tr -d '\r' <"$path" | jq -r '
         "Env keys: \((.env // {} | keys | length))",
         "Deny count: \((.permissions.deny // []) | length)",
         "Ask count: \((.permissions.ask // []) | length)",
@@ -98,7 +102,7 @@ emit_file_facts() {
       '
     ;;
   mcp)
-    printf '%s' "$content" | jq -r '"MCP servers: \((.mcpServers // {} | keys | length))"'
+    tr -d '\r' <"$path" | jq -r '"MCP servers: \((.mcpServers // {} | keys | length))"'
     ;;
   *) ;;
   esac
