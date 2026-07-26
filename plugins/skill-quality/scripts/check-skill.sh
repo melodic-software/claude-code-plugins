@@ -798,6 +798,18 @@ for fe_file in "${FRESH_EYES_FILES[@]}"; do
         ;;
     esac
   done < <(awk -v P="$FRESH_EYES_PROXIMITY_LINES" -v JR="$FRESH_EYES_JUDGE_RE" '
+    # Position in s of the first backtick run of EXACTLY n characters, or 0.
+    # Escapes are deliberately ignored: a code span is literal, so a backslash
+    # inside one is content and cannot suppress the closer.
+    function fe_span_close(s, n,   base) {
+      base = 0
+      while (match(s, /`+/)) {
+        if (RLENGTH == n) return base + RSTART
+        base += RSTART + RLENGTH - 1
+        s = substr(s, RSTART + RLENGTH)
+      }
+      return 0
+    }
     { sub(/\r$/, "") }
     # Block-container prefixes come off before anything else looks at the line.
     # CommonMark parses `> ```markdown` and `- ```markdown` as fenced blocks, but
@@ -815,6 +827,24 @@ for fe_file in "${FRESH_EYES_FILES[@]}"; do
     # documentation example — the very failure this strip exists to prevent.
     {
       fe_raw = $0
+      # A container-nested fence dies with its container. CommonMark ends a fence
+      # inside a blockquote or list item when that container ends, but this fence
+      # state is a single global flag: without the reset an unclosed
+      # `> ```markdown` swallows every following top-level line, and a malformed
+      # directive in later prose silently PASSes.
+      if (fe_fence && fe_open_pre) {
+        if (fe_open_bq) {
+          # A blockquote marker must repeat on every line — a fenced block inside
+          # a quote takes no lazy continuation, and a blank line ends the quote.
+          if (fe_raw !~ /^ {0,3}>/) { fe_fence = 0; fe_open_pre = 0 }
+        } else {
+          # A list item continues by indentation to its content column: a blank
+          # line stays inside the item, a dedent ends it.
+          fe_ind = 0
+          while (substr(fe_raw, fe_ind + 1, 1) == " ") fe_ind++
+          if (fe_raw !~ /^[ \t]*$/ && fe_ind < fe_open_ind) { fe_fence = 0; fe_open_pre = 0 }
+        }
+      }
       if (!fe_fence || fe_open_pre) {
         do {
           fe_pre = $0
@@ -823,6 +853,8 @@ for fe_file in "${FRESH_EYES_FILES[@]}"; do
         } while ($0 != fe_pre)
       }
       fe_stripped = ($0 != fe_raw)
+      fe_bq = (fe_raw ~ /^ {0,3}>/)
+      fe_strip_len = length(fe_raw) - length($0)
     }
     # CommonMark fence matching: a fence closes only on a same-character run at
     # least as long as its opener with nothing but spaces after it — a nested
@@ -851,71 +883,75 @@ for fe_file in "${FRESH_EYES_FILES[@]}"; do
         # its closer expires here rather than blinding the first paragraph
         # after the fence closes.
         fe_fence = 1; fe_open_char = fe_char; fe_open_len = fe_len; sp_open = 0
-        fe_open_pre = fe_stripped
+        fe_open_pre = fe_stripped; fe_open_bq = fe_bq; fe_open_ind = fe_strip_len
         next
       }
     }
     fe_fence { next }
     {
       line = $0
-      # CommonMark backslash escapes render the escaped character literally, so
-      # it can never be markup. Three characters matter to this scanner and the
-      # set is complete for it: a backtick (a span delimiter — prose showing a
-      # directive between \` marks was masking it into a silent pass), a `<` (an
-      # escaped \<!-- is literal text, not an HTML comment, so it is no
-      # directive), and a backslash (so an escaped backslash cannot escape what
-      # follows it). Blank each escape pair to the SAME width so every offset the
-      # span masker computes below stays valid, consuming pairs left to right.
-      esc_out = ""
-      while (match(line, /\\[\\`<]/)) {
-        esc_out = esc_out substr(line, 1, RSTART - 1) "  "
-        line = substr(line, RSTART + 2)
-      }
-      line = esc_out line
       # A code span lives inside one paragraph, so a blank line expires a span
       # still waiting for its closer — otherwise one stray backtick would blind
       # the detectors for the rest of the file.
       if (line ~ /^[ \t]*$/) sp_open = 0
-      # A span opened on an earlier line: everything up to a run of EXACTLY the
-      # opener length is span content. With no such run the whole line is span
-      # content and never reaches the detectors.
+      # Escapes and code spans resolve in ONE left-to-right pass, because
+      # CommonMark couples them: backslash escapes are processed only OUTSIDE a
+      # span, and a span is literal inside — so a backslash before the closing
+      # run is content and the run still closes. Two independent passes cannot
+      # express that. An escape-blind span pass reads \` as a delimiter (masking
+      # a directive shown between escapes into a silent pass), while a global
+      # escape pre-pass destroys a legitimate closer after a literal backslash
+      # (`foo\` ) and carries the span on, masking whatever follows.
+      sp_keep = ""
+      # A span opened on an earlier line: spans may cross a newline, so scan for
+      # the closer first. With no run of exactly the opener length, the whole
+      # line is span content and never reaches the detectors.
       if (sp_open) {
-        sp_close = 0; sp_base = 0; sp_search = line
-        while (match(sp_search, /`+/)) {
-          if (RLENGTH == sp_open) { sp_close = sp_base + RSTART; break }
-          sp_base += RSTART + RLENGTH - 1
-          sp_search = substr(sp_search, RSTART + RLENGTH)
-        }
-        if (!sp_close) next
-        line = " " substr(line, sp_close + sp_open)
+        sp_at = fe_span_close(line, sp_open)
+        if (!sp_at) next
+        line = substr(line, sp_at + sp_open)
+        sp_keep = " "
         sp_open = 0
       }
-      # Inline code spans, CommonMark pairing: an opening backtick run pairs
-      # with the next run of EXACTLY the same length; a run with no matching
-      # closer is literal text. A naive /`[^`]*`/ would split a ``…`` span at
-      # its first two backticks and expose the span content to the detectors.
-      while (match(line, /`+/)) {
-        sp_start = RSTART; sp_len = RLENGTH
-        sp_rest = substr(line, sp_start + sp_len)
-        sp_close = 0; sp_base = 0; sp_search = sp_rest
-        while (match(sp_search, /`+/)) {
-          if (RLENGTH == sp_len) { sp_close = sp_base + RSTART; break }
-          sp_base += RSTART + RLENGTH - 1
-          sp_search = substr(sp_search, RSTART + RLENGTH)
+      while (1) {
+        if (!match(line, /[\\`]/)) { sp_keep = sp_keep line; break }
+        sp_p = RSTART
+        sp_keep = sp_keep substr(line, 1, sp_p - 1)
+        if (substr(line, sp_p, 1) == "\\") {
+          # Only the three characters this scanner keys on need escape handling,
+          # which makes the set complete for it: a backtick (a span delimiter), a
+          # `<` (an escaped \<!-- is literal text, so it is no directive), and a
+          # backslash (so an escaped backslash cannot escape what follows). Any
+          # other backslash is ordinary text and must survive, or prose like a
+          # Windows path would lose the character after it.
+          sp_next = substr(line, sp_p + 1, 1)
+          if (sp_next == "`" || sp_next == "<" || sp_next == "\\") {
+            sp_keep = sp_keep "  "
+            line = substr(line, sp_p + 2)
+          } else {
+            sp_keep = sp_keep "\\"
+            line = substr(line, sp_p + 1)
+          }
+          continue
         }
-        # No closer on this line: a span can cross a newline, so carry the
-        # opener length forward and treat the remainder as span content. The
-        # carry is optimistic — a run that never closes before the paragraph
-        # ends masks content CommonMark would call literal — but the tradeoff
-        # is deliberate: masking risks missing a declaration, while scanning
-        # risks a blocking failure on legitimate code-span text.
-        if (!sp_close) {
-          sp_open = sp_len
-          line = substr(line, 1, sp_start - 1)
-          break
-        }
-        line = substr(line, 1, sp_start - 1) " " substr(sp_rest, sp_close + sp_len)
+        # An opening backtick run pairs with the next run of EXACTLY the same
+        # length; a shorter or longer run inside is span content, so a naive
+        # /`[^`]*`/ would split a ``…`` span and expose its content.
+        sp_len = 0
+        while (substr(line, sp_p + sp_len, 1) == "`") sp_len++
+        line = substr(line, sp_p + sp_len)
+        sp_at = fe_span_close(line, sp_len)
+        # No closer on this line: the span may continue on the next one, so carry
+        # the opener length forward and drop the remainder as span content. The
+        # carry is optimistic — a run that never closes before the paragraph ends
+        # masks content CommonMark would call literal — but the tradeoff is
+        # deliberate: masking risks missing a declaration, whereas scanning risks
+        # a blocking failure on legitimate code-span text.
+        if (!sp_at) { sp_open = sp_len; break }
+        sp_keep = sp_keep " "
+        line = substr(line, sp_at + sp_len)
       }
+      line = sp_keep
       # Classify each directive on the line independently, bounded at its own
       # `-->`. Testing the whole line let a valid directive elsewhere on it lend
       # its class and reason to a malformed neighbour, so an unknown-class

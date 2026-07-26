@@ -71,11 +71,14 @@ Rows evaluate top-down; the first match wins per detection site.
   backtick in its info string is prose, not a fence. Blockquote and list-marker prefixes come off
   before fence matching, so a fence nested in a container (`> ~~~markdown`, `- ```markdown`) still
   suppresses its body — but only a fence whose own opener carried a prefix strips them inside the
-  fence, so a quoted run in an unprefixed fence's example cannot close it. Spans pair a backtick run
-  with the next run of exactly the same length (multi-backtick spans included). Backslash escapes
-  are honored for the three characters that matter here — an escaped backtick opens no span, an
-  escaped `\<` makes `\<!-- ... -->` literal text rather than a directive, and an escaped backslash
-  cannot escape what follows it.
+  fence, so a quoted run in an unprefixed fence's example cannot close it. A container-nested fence
+  also ends with its container (a blockquote when the `>` stops, a list item on a dedent), so an
+  unclosed one cannot swallow the rest of the file. Spans pair a backtick run with the next run of
+  exactly the same length (multi-backtick spans included). Escapes and spans resolve together,
+  because CommonMark couples them: outside a span, a backslash escape makes the next character
+  literal — an escaped backtick opens no span and an escaped `\<` makes `\<!-- ... -->` text rather
+  than a directive — while inside a span nothing is escaped, so a literal backslash before the
+  closing run does not stop it closing.
   A run with no closer on its own line carries forward, so a span may cross a newline; the carry
   expires at the next blank line or fence, because a CommonMark span cannot outlive its paragraph.
   Keep literal directive examples inside fences — a bare `<class>` placeholder in prose would FAIL

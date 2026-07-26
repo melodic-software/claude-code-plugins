@@ -95,9 +95,15 @@ Scan mechanics (all constraints normative for implementation):
   never entered fence mode, so a quoted example failed the skill on its own documentation. The strip
   applies in-fence only when the OPENER carried a prefix — otherwise a quoted run inside an
   unprefixed fence's own example would close it and leak the block, reintroducing the same failure
-  it fixes. Backslash escapes are also honored for the three characters this scanner keys on:
-  backtick, `<`, and backslash — an escaped backtick was masking a malformed directive into a silent
-  pass, and an escaped `\<!--` is literal text that was wrongly parsed as a directive.)* **Accepted gap:** indented code blocks are NOT
+  it fixes. A container-nested fence also ends with its container — a blockquote when the `>` stops,
+  a list item on a dedent — since the fence flag is global and an unclosed nested opener would
+  otherwise swallow every following top-level line. Backslash escapes and code spans resolve in ONE
+  left-to-right pass because CommonMark couples them: outside a span an escape makes the next
+  character literal (an escaped backtick was masking a malformed directive into a silent pass, and an
+  escaped `\<!--` is text that was wrongly parsed as a directive), while inside a span nothing is
+  escaped, so a literal backslash before the closing run does not stop it closing. Two independent
+  passes cannot express that coupling — the escape-blind pass misreads `\`` as a delimiter and the
+  escape-first pass destroys a legitimate closer.)* **Accepted gap:** indented code blocks are NOT
   suppressed — telling one apart from indented list-item continuation needs a block parser this
   scanner does not have, and guessing would silently drop declarations inside nested lists, the
   worse direction. The contract tells authors to fence literal examples.

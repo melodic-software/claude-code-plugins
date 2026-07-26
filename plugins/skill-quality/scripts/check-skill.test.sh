@@ -1857,6 +1857,89 @@ else
   fail "escaped \\<!-- should not parse as a directive (rc=$rc): $out"
 fi
 
+# 37q. Check 21: an UNCLOSED fence inside a blockquote ends with the blockquote,
+#      so a malformed directive in later top-level prose still blocks. Without
+#      the container reset the fence swallows the rest of the file and PASSes.
+make_skill fe-runaway-quoted-fence '---
+name: fe-runaway-quoted-fence
+description: "Fresh-eyes fixture. Use when: '"'"'fe runaway quoted fence fixture'"'"'."
+---
+
+## Steps
+
+> ```markdown
+> an unclosed fence inside a blockquote
+
+Top-level prose resumes here.
+
+<!-- fresh-eyes-exempt: bogus -- wrong class stays malformed -->
+
+## Gotchas
+
+None known.
+'
+out="$(run fe-runaway-quoted-fence 2>&1)"
+rc=$?
+if [[ $rc -ne 0 ]] && grep -q 'malformed fresh-eyes-exempt directive' <<<"$out"; then
+  pass "unclosed quoted fence ends with its blockquote (check 21)"
+else
+  fail "directive after a runaway quoted fence should FAIL (rc=$rc): $out"
+fi
+
+# 37r. Check 21: a fence opened by a list marker suppresses its indented body and
+#      still closes on the indented closer, and the item's end releases it.
+make_skill fe-list-fence '---
+name: fe-list-fence
+description: "Fresh-eyes fixture. Use when: '"'"'fe list fence fixture'"'"'."
+---
+
+## Steps
+
+- ```markdown
+  <!-- fresh-eyes-exempt: bogus -- suppressed inside the list fence -->
+  ```
+
+Top-level prose resumes.
+
+<!-- fresh-eyes-exempt: bogus2 -- wrong class stays malformed -->
+
+## Gotchas
+
+None known.
+'
+out="$(run fe-list-fence 2>&1)"
+rc=$?
+if [[ $rc -ne 0 ]] && grep -q 'malformed fresh-eyes-exempt directive (SKILL.md:14)' <<<"$out" \
+   && ! grep -q 'malformed fresh-eyes-exempt directive (SKILL.md:9)' <<<"$out"; then
+  pass "list-opened fence suppresses its body then releases (check 21)"
+else
+  fail "list fence body should be suppressed and the line-14 directive FAIL (rc=$rc): $out"
+fi
+
+# 37s. Check 21: escapes are not processed inside a code span, so a literal
+#      backslash before the closing run does not stop the run from closing —
+#      the directive AFTER the span is real and still blocks.
+make_skill fe-span-literal-backslash '---
+name: fe-span-literal-backslash
+description: "Fresh-eyes fixture. Use when: '"'"'fe span literal backslash fixture'"'"'."
+---
+
+## Steps
+
+Literal `foo\` then <!-- fresh-eyes-exempt: bogus -- wrong class stays malformed -->
+
+## Gotchas
+
+None known.
+'
+out="$(run fe-span-literal-backslash 2>&1)"
+rc=$?
+if [[ $rc -ne 0 ]] && grep -q 'malformed fresh-eyes-exempt directive' <<<"$out"; then
+  pass "a literal backslash does not suppress a span closer (check 21)"
+else
+  fail "directive after a backslash-ending span should FAIL (rc=$rc): $out"
+fi
+
 # 37. Check 21: a skill with no judgment language emits nothing from check 21
 #     (good-skill re-run guards against detector overreach).
 out="$(run good-skill 2>&1)"
