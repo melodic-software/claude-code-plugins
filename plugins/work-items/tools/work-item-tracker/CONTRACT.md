@@ -204,6 +204,13 @@ persisted in any durable artifact.
 | `7` | conflict / precondition (claim race, provider ceiling hit) |
 | `8` | provider unavailable (network, rate limit) |
 
+This table covers only codes the **script itself** returns. A harness-level denial of the Bash
+tool call that would have invoked the script (e.g. an auto-mode risk classifier refusing the
+invocation before the process starts) produces no exit code at all — the script never runs.
+Callers that branch on exit code (Step 0's reclaim loop is the current example — see
+`skills/work/SKILL.md` "Step 0") MUST treat that case separately from any code in this table, not
+coerce it into one. See work-loop finding #1381.
+
 ## Lease protocol
 
 Claim = **assignee (authenticated human user) + lease record**. The lease is a dedicated

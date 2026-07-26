@@ -3,6 +3,40 @@
 All notable changes to the `markdown-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.5]
+
+### Fixed
+
+- C1 fd1-leak detector in the hook contract test: the differential threshold
+  introduced in `0.6.2` (ported from `desktop-notification` `#751`) carried the same
+  latent defect — `THRESHOLD_MS` was derived as `SINK_SLEEP * 1000 / 2`, so widening
+  `SINK_SLEEP` widened the threshold proportionally and left the margin unchanged by
+  construction (`#448`, reopened after reproducing on clean `main`: delta=3697ms
+  false-fail with no leak present, in the `desktop-notification` copy this test was
+  ported from). `THRESHOLD_MS` now asserts the real invariant directly —
+  sink-sleep-minus-a-safety-margin, not half the sleep — and `SINK_SLEEP` widens from
+  6s to 8s (still under the 10s ceiling documented against EXIT-cleanup file-locking
+  on Windows) for more absolute separation between ambient noise and the leak signal.
+  The safety margin is sized so BOTH sides of the threshold clear the 2150ms of worst
+  observed no-leak noise, not just the noise side: a threshold too close to the leak
+  signal lets a load shift that inflates every baseline sample and then subsides
+  before the slow run subtract real leak signal out of the delta, and the detector
+  reports no leak. At `SINK_SLEEP`=8s and a 3000ms margin the threshold sits at
+  5000ms — 2850ms of noise-side margin, 3000ms of leak-side margin.
+  No behavior change for this plugin — the hook is untouched; test-only.
+
+## [0.6.4]
+
+### Fixed
+
+- **Headless reconfigure recipe now preserves install scope (#1406).** The `claude plugin
+  uninstall` → `claude plugin install ... --config` recipe in `skills/setup/SKILL.md` defaulted
+  both halves to `-s user`. When this plugin is installed at `project` or `local` scope, that
+  silently uninstalled a separate user-scope record while the effective project/local install kept
+  loading, and the reinstall landed at a scope that does not load. Both commands now carry
+  `-s <scope>`, sourced from what `claude plugin list` reports for this plugin — the same fix
+  already applied to `session-flow` and `rate-limit-guard` in #1393.
+
 ## [0.6.3]
 
 ### Fixed
