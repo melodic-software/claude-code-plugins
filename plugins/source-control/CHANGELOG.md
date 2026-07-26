@@ -24,17 +24,28 @@ All notable changes to the `source-control` plugin are documented here. Format f
 - **The widening lifts only the raise restriction.** An explicitly argued *lower* rung is applied
   after it, so `autopilot --merge human-only` merges nothing; the order is tracked rung → the
   `autopilot` raise → any explicitly argued lower rung → the C4/C5 ceiling.
-- **C5 is derived from the PR's own provenance, not the linked item's stamp.** A cross-repository
-  fork PR, or one authored outside the watched owners, is C5 even when the item it closes is
-  internally classified C2 or C3 — `work-classes.md` defines the class by input provenance, which
-  "dominates every other property". The rung partition derives that override from the cycle-start
-  snapshot before comparing any recorded class to the rung.
-- **Human blocking feedback and merge conflicts stay outside the dispatch.** A human
-  `CHANGES_REQUESTED` review, explicit human blocking language, or an unresolved inline human thread
-  remains a stop-and-ask condition per `reference/feedback.md`'s "Human Feedback" — the exception
-  does not amend it, and no dispatch is made. Conflicts route to the dedicated merge-only conflict
+- **The C4/C5 floor reads the pull request, not the linked item's stamp.** `work-classes.md` assigns
+  a class from the risk-property bundle, "not the task's surface description". C5 follows the code's
+  provenance — a cross-repository head or another external-contribution signal on the PR — so a fork
+  PR closing an internally classified C2/C3 issue is still C5; the partition never tests the author
+  login against `babysit_watched_owners`, which is a repository-owner allowlist rather than a
+  trusted-author list and would call every internally authored PR on an org-owned repo C5. C4
+  follows the diff's blast radius: a refactor, migration, or contract change is C4 however its item
+  is stamped, and a PR whose shape no longer matches its recorded class fails closed to escalation.
+- **Human blocking feedback, operator-parked items, and merge conflicts stay outside the dispatch.**
+  A human `CHANGES_REQUESTED` review, explicit human blocking language, or an unresolved inline
+  human thread remains a stop-and-ask condition per `reference/feedback.md`'s "Human Feedback" — the
+  exception does not amend it, and no dispatch is made. An item wearing the `needs-human` role label
+  without the machine escalation marker is operator-*parked*, belongs to the attended queue, and
+  never draws a dispatch on the label alone. Conflicts route to the dedicated merge-only conflict
   worker; the dispatch never rebases a PR branch, which would need the force-push forbidden
   cross-tier.
+- **The dispatch is leased and its tier is resolved, not named.** It acquires, heartbeats, and
+  releases the PR's own worker lease around itself — the guarded-mutation wrappers pin comment
+  state, they do not confer concurrency ownership — and a lease another worker holds means no
+  dispatch. Its capability tier resolves through the convention's tier binding rather than a
+  `fable`/`opus` family alias written into the lane, because the tiers are defined by capability
+  order and a family mapping rots across model generations.
 - **C4/C5 floor stated as unconditional across the merge surface.** No rung, no seam config, and no
   invocation argument — including this exception and including `full-autonomy` — ever grants merge
   authority over a `work-class: structural` (C4) or `work-class: untrusted-provenance` (C5) item.

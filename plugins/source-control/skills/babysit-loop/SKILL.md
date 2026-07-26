@@ -141,11 +141,13 @@ the config-resolution reference's "an invocation argument may select a lower (sa
 
 The deterministic gate is not weakened: checks, thread resolution, and mergeability still all have to
 pass. What changes is what happens to a PR that's otherwise eligible (C1-C3) but blocked on a
-`needs-human` label, an open non-human finding, or a contradictory/unresolved **bot** review thread:
-instead of falling through to Escalation, the cycle dispatches a **fresh frontier-tier subagent
-sharing no context with the PR's authoring or reviewing sessions** (per the convention's
-capability-tier independence rule) to resolve that specific blocker — through babysit-prs's own
-guarded-mutation path, never a raw/unguarded mutation.
+a **machine-escalated** `needs-human` item, an open non-human finding, or a contradictory/unresolved
+**bot** review thread: instead of falling through to Escalation, the cycle dispatches a **fresh
+frontier-tier subagent sharing no context with the PR's authoring or reviewing sessions** (per the
+convention's capability-tier independence rule) to resolve that specific blocker — under the PR's
+worker lease, through babysit-prs's own guarded-mutation path, never a raw/unguarded mutation. An
+operator-*parked* item wears the same label without the escalation marker and is never dispatched
+on; see Escalation below for the four blocker classes outside this dispatch.
 
 **Human blocking feedback is out of the dispatch's reach, unchanged.** A human
 `CHANGES_REQUESTED` review, explicit human blocking language, and an unresolved inline human thread
@@ -223,16 +225,21 @@ new intake arriving mid-cycle is reported, never chased.
    eligible set is empty — the explicit-`autopilot` widening does not apply without tracked
    adoption either (config-resolution.md, "Baseline activation is tracked adoption").
    **C4/C5 floor:** a PR that is C4 (structural) or C5 (untrusted-provenance) is NEVER in the
-   eligible set, at any rung, under any invocation argument — this is checked before, and
-   independent of, the rung comparison above. **C5 is a provenance test on the PR, not a lookup of
-   the linked item's stamp.** `work-classes.md` defines C5 as fork PRs, external contributions, and
-   unvetted repositories: the input's own provenance, which "dominates every other property". So
-   before comparing any recorded class to the rung, derive a C5 override from the cycle-start
-   snapshot itself — a head repository other than the base (`headRepositoryOwner` / `isCrossRepository`
-   on the PR), or an author outside the watched owners — and treat such a PR as C5 whatever its
-   close-linked item says. An external fork PR that closes an internally-classified C2 or C3 issue is
-   C5, because the class travels with the code's provenance, not with the issue it closes. C4 remains
-   the item-stamp test.
+   eligible set, at any rung, under any invocation argument — checked before, and independent of,
+   the rung comparison above. **Both are tests on the PR, not lookups of the linked item's stamp**:
+   `work-classes.md` assigns a class from the risk-property bundle — blast radius, reversibility,
+   provenance — and "the bundle — not the task's surface description — is what assigns a class".
+   - **C5 — the code's provenance.** Derive it from the cycle-start snapshot: a head repository
+     other than the base (`isCrossRepository`, `headRepositoryOwner`), or another
+     external-contribution signal on the PR itself. Never test the author login against
+     `babysit_watched_owners`: that key is a repository-owner allowlist, not a trusted-author list
+     (`babysit-prs/SKILL.md`, "Scope resolution"), so on an org-owned repository it would call
+     every internally authored PR C5. A fork PR closing an internally classified C2/C3 issue is
+     still C5 — the class travels with the code's provenance, not the issue it closes.
+   - **C4 — the diff's blast radius.** The stamp admits; the diff can still veto. A PR whose actual
+     change is a refactor, migration, or contract change is C4 however its item is stamped, and a
+     PR whose shape no longer matches its recorded class **fails closed** to escalation rather than
+     to the stamp.
 4. **Invoke the mechanic.** Every invocation uses babysit-prs's own `[mode] [scope]` grammar in
    its single-PR scope form (`owner/repo#N`) — the lane's own step-2 snapshot is the discovery
    surface, so no repo-wide invocation ever runs and a PR the lane withheld is never presented
@@ -244,8 +251,9 @@ new intake arriving mid-cycle is reported, never chased.
      merge-capable tier, one `/source-control:babysit-prs <tier> <owner/repo>#<N>` per PR;
      every other non-report-only PR is invoked at `safe` (fixes and reports; never resolves
      threads or merges). An empty eligible set means only `safe` per-PR invocations this cycle.
-     Under the explicit-`autopilot` widening, a merge-eligible PR still blocked on `needs-human`,
-     an open finding, or a contradictory thread gets the fresh-subagent resolution dispatch (see
+     Under the explicit-`autopilot` widening, a merge-eligible PR still blocked on a
+     machine-escalated `needs-human` item, an open finding, or a contradictory thread gets the
+     leased fresh-subagent resolution dispatch (see
      "Explicit-`autopilot` widening" above and Escalation below) ahead of its
      `/source-control:babysit-prs autopilot <owner/repo>#<N>` invocation, not instead of it.
    - **Dimension overrides bind by tier flooring, never narrative.** Before invoking, lower the
@@ -289,17 +297,28 @@ babysit escalations surface in the same attention view as worker escalations. Te
 report surface, never the escalation channel.
 
 **Pre-escalation resolution attempt, explicit-`autopilot` only.** Before a merge-eligible (C1-C3)
-PR is escalated for a `needs-human` label, an open machine-authored finding, or a
-contradictory/unresolved **bot** review thread, and only when this invocation typed the literal
-`autopilot` tier argument: dispatch a fresh frontier-tier subagent (`fable`/`opus` alias, per the
-convention's capability tiers) that shares no conversation context with whatever produced the PR or
-previously replied on the blocking thread. Brief it with the specific blocker, the PR, and the
-loop-lane convention's independence and frontier-tier requirements; it resolves through babysit-prs's
-own guarded-mutation path (never a raw mutation outside that skill's wrappers), replying to and
-resolving threads or fixing findings as the blocker requires.
+PR is escalated for a **machine-escalated** `needs-human` item, an open machine-authored finding, or
+a contradictory/unresolved **bot** review thread, and only when this invocation typed the literal
+`autopilot` tier argument: dispatch a fresh subagent at the **frontier tier resolved through the
+convention's capability-tier binding** (§3) — never a family alias written into this lane, because
+the tiers are defined by capability order and a family mapping rots — sharing no conversation
+context with whatever produced the PR or previously replied on the blocking thread. **It runs under
+the PR's worker lease**: acquire and heartbeat before it starts, release after, exactly as
+`babysit-prs` requires before any per-PR fix or worker assignment (`babysit-prs/reference/safety.md`
+and `babysit-prs/reference/orchestration.md`); the guarded wrappers pin comment state, not
+concurrency ownership, and a lease another worker already holds means no dispatch at all. Brief it
+with the blocker, the PR, and the convention's independence and frontier-tier requirements; it
+resolves through babysit-prs's own guarded-mutation path (never a raw mutation outside that skill's
+wrappers), replying to and resolving threads or fixing findings as the blocker requires.
 
-**Three blocker classes this dispatch never touches**, each because the invoked mechanic's own
+**Four blocker classes this dispatch never touches**, each because the invoked mechanic's own
 contract already owns them and this exception does not amend those contracts:
+
+- **Operator-parked items.** The `needs-human` role label marks machine-*escalated* and
+  operator-*parked* items alike; only the machine escalation marker distinguishes them (loop-lane
+  convention, "Escalation contract"). An item wearing the label without that marker belongs to the
+  attended queue, not this lane: no dispatch, escalate. Dispatching on the label alone would cross
+  into another lane's authority and answer an operator-owned question with an agent.
 
 - **Human blocking feedback.** A human `CHANGES_REQUESTED` review, explicit human blocking language,
   or an unresolved inline human thread stays a stop-and-ask condition until GitHub state resolves it
@@ -312,8 +331,8 @@ contract already owns them and this exception does not amend those contracts:
   **merge-only and never rebases** — rebasing a PR branch needs the force-push babysit-prs forbids
   cross-tier (`babysit-prs/SKILL.md` step 0.3). This dispatch never resolves a conflict itself and
   never rebases.
-- **C4/C5 PRs.** Already excluded at the rung partition (Cycle shape, step 3), including the
-  provenance-derived C5 override, and they escalate normally.
+- **C4/C5 PRs.** Already excluded at the rung partition (Cycle shape, step 3) — including the
+  provenance-derived C5 override and the diff-derived C4 veto — and they escalate normally.
 
 If the dispatch resolves the blocker, the PR proceeds to its normal `autopilot`-tier invocation and
 gate. If it cannot — including any case where the subagent itself is uncertain the resolution is

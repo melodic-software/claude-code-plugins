@@ -21,10 +21,17 @@ A change to the autonomy-ladder invariant is a major bump per this file's own ru
   lifts only the *raise* restriction: an explicitly argued lower rung is still honored after it, and
   C5 is derived from the PR's own provenance rather than the linked item's recorded class, so a fork
   PR closing an internally-classified C2/C3 item is outside the exception.
-- **Human blocking feedback and merge conflicts stay outside the dispatch.** A
-  `CHANGES_REQUESTED` review, explicit human blocking language, or an unresolved inline human thread
-  remains a stop-and-ask condition the exception does not amend; conflicts route to a lane's
-  merge-only conflict path, never a rebase.
+- **Human blocking feedback, operator-parked items, and merge conflicts stay outside the dispatch.**
+  A `CHANGES_REQUESTED` review, explicit human blocking language, or an unresolved inline human
+  thread remains a stop-and-ask condition the exception does not amend. An item wearing the §2 role
+  label *without* the machine escalation marker is operator-parked and belongs to the attended
+  queue, so the label alone never authorizes a dispatch. Conflicts route to a lane's merge-only
+  conflict path, never a rebase.
+- **The floor reads the pull request, and the dispatch holds its lease.** C5 follows the code's
+  provenance and C4 the diff's blast radius, both derived from the PR rather than the linked item's
+  stamp, with a class/diff mismatch failing closed; a repository-owner allowlist never substitutes
+  for the provenance test. The dispatch runs under the PR's own worker lease and resolves its
+  capability tier through §3's binding, never a family alias fixed in a lane.
 - **Capability tiers** — the explicit-`autopilot` exception's frontier-tier dispatch additionally
   requires context independence: no shared conversation history with whatever produced or previously
   reviewed the PR. A same-context or self-continuation dispatch does not satisfy the exception even at

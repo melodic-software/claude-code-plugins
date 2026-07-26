@@ -78,24 +78,33 @@ selecting a lower rung is honored after the widening, so an invocation naming bo
 explicit `human-only` merge rung merges nothing — the resolution order is tracked rung, then the
 `autopilot` raise, then any explicitly argued lower rung, then the C4/C5 ceiling.
 
-**C5 is a provenance test, not a stamp lookup.** A fork PR or external contribution is C5 by its own
-provenance, which "dominates every other property" — so it is outside this exception even when the
-item it closes is internally classified C2 or C3. A lane implementing the floor derives the C5
-override from the PR itself, before comparing any recorded class to the rung.
+**The C4/C5 floor tests the PR, not the item's stamp.** `work-classes.md` assigns a class from the
+risk-property bundle, "not the task's surface description", so a lane implementing the floor derives
+both from the pull request before comparing any recorded class to the rung. C5 follows the code's
+provenance — a cross-repository head or another external-contribution signal on the PR — which
+"dominates every other property", so a fork PR closing an internally classified C2/C3 item is still
+outside the exception; a repository-owner allowlist is not a trusted-author list and never stands in
+for that test. C4 follows the diff's blast radius: a refactor, migration, or contract change is C4
+however its item is stamped, and a PR whose shape no longer matches its recorded class fails closed
+to escalation.
 
-Every PR this exception reaches that is blocked on a `needs-human` label, a contradictory or
-security-relevant **machine-authored** review thread, or an open finding gets a **fresh frontier-tier
-subagent** dispatched to resolve the blocker — sharing no context with whatever produced the PR (§3)
-— before the deterministic merge gate runs; the gate itself is never bypassed or weakened by this
-exception, only the human-ratification step ahead of it is replaced by an independent agent's
-resolution for this single run.
+Every PR this exception reaches that is blocked on a **machine-escalated** `needs-human` item, a
+contradictory or security-relevant **machine-authored** review thread, or an open finding gets a
+**fresh frontier-tier subagent** dispatched to resolve the blocker — sharing no context with
+whatever produced the PR (§3), and holding the PR's own worker lease for the duration — before the
+deterministic merge gate runs; the gate itself is never bypassed or weakened by this exception, only
+the human-ratification step ahead of it is replaced by an independent agent's resolution for this
+single run. The tier is resolved through §3's capability-tier binding, never a family alias fixed in
+a lane.
 
 **What the dispatch never reaches.** Human blocking feedback — a `CHANGES_REQUESTED` review,
 explicit human blocking language, an unresolved inline human thread — remains a stop-and-ask
 condition that escalates and is never resolved past; this exception does not amend a lane's own
-human-feedback contract. Merge conflicts route to a lane's dedicated conflict-resolution path and
-integrate merge-only; this exception never authorizes rebasing a PR branch, which would need a
-force-push the lanes forbid.
+human-feedback contract. Nor does it reach an **operator-parked** item: §2's role label marks parked
+and machine-escalated items alike, and only the machine marker separates them, so an item without
+that marker stays the attended queue's and draws no dispatch. Merge conflicts route to a lane's
+dedicated conflict-resolution path and integrate merge-only; this exception never authorizes
+rebasing a PR branch, which would need a force-push the lanes forbid.
 
 ## 2. Escalation contract
 
