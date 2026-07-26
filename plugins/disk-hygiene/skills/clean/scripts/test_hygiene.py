@@ -2845,6 +2845,43 @@ class GuardTests(unittest.TestCase):
                     repr(command),
                 )
 
+    def test_engine_gate_gates_relative_engine_paths_after_an_in_command_cd(
+        self,
+    ) -> None:
+        """A relative marker path in an operator command is unknowable, so it gates.
+
+        The "provably a DIFFERENT file" escape resolves a token against the
+        GUARD's cwd. This branch is reached precisely because the command
+        carries an operator, and an operator can be a `cd`: by the time the
+        shell runs `cd <plugin-scripts>;./hygiene.py scan`, the relative path
+        means the bundled engine, while the guard would resolve it against
+        wherever it started — and if an unrelated `hygiene.py` sits there, the
+        escape "proves" a different file and defers while the real engine runs.
+
+        Evaluated from a decoy directory holding exactly such an unrelated
+        file, which is what makes the misproof possible.
+        """
+        with tempfile.TemporaryDirectory() as decoy:
+            (Path(decoy) / "hygiene.py").write_text(
+                "print('decoy')\n", encoding="utf-8"
+            )
+            scripts = str(SCRIPT_DIR).replace("\\", "/")
+            with chdir_context(decoy):
+                for command in (
+                    f"cd {scripts};./hygiene.py scan --help",
+                    f"cd {scripts} && ./hygiene.py apply --plan p --token t",
+                    f"cd {scripts} && python3 hygiene.py apply",
+                ):
+                    result = self.run_guard_engine_gate(
+                        command, "Bash", enabled=False
+                    )
+                    assert result is not None, command
+                    self.assertEqual(
+                        "deny",
+                        result["hookSpecificOutput"]["permissionDecision"],
+                        command,
+                    )
+
     def test_carries_marker_verdict_does_not_depend_on_the_host_platform(self) -> None:
         """`Path().name` is platform-flavoured; this predicate must not be.
 

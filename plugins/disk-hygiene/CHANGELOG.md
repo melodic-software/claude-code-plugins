@@ -29,6 +29,19 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
   apply`, `FOO=1 BAR=hygiene.py python3 "$BAR" apply`, `foo;hygiene.py`, `$(hygiene.py scan)`, and
   `true|hygiene.py` all still gate.
 
+  A relative marker path in an operator-carrying command is now treated as unknowable rather than
+  provable. The "provably a DIFFERENT file" escape resolves a token against the **guard's** working
+  directory, but that branch is reached precisely because the command carries an operator — and an
+  operator can be a `cd`. From a directory holding an unrelated `hygiene.py`,
+  `cd <plugin-scripts>;./hygiene.py scan` let the escape "prove" a different file and defer while
+  the shell ran the bundled engine. The escape now requires an absolute path. This also closes two
+  pre-existing fail-opens of the same shape (`cd <plugin-scripts> && ./hygiene.py apply` and its
+  bare-name spelling), which deferred before this release. **Behavior change worth noting:** a
+  consumer invoking its own `hygiene.py` by RELATIVE path inside an operator-carrying command
+  (`python3 ./hygiene.py --help && echo ok`) now gates where it previously deferred. That is the
+  fail-closed direction and it is deliberate — the guard cannot know which directory that path is
+  relative to; an absolute path still defers.
+
   Two further shapes are handled where the token alone is not enough. A Bash line continuation is
   removed before tokenizing, because the shell eats `\` + newline while reading the line and
   otherwise it stays welded to the filename as `hygiene.py\`, hiding a multi-line invocation of the

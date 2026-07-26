@@ -224,12 +224,16 @@ _ENGINE_MARKER = "hygiene.py"
 # ever EXPOSE the engine filename as its own token, never destroy an occurrence.
 # Over-splitting is safe in both directions — a shredded path merely fails the
 # identity check and falls through to the marker test, which gates.
-_MARKER_TOKEN_SPLIT = re.compile(r"[^A-Za-z0-9._\-/\\]+")
+_MARKER_TOKEN_SPLIT = re.compile(r"[^A-Za-z0-9._\-/\\:]+")
 # Bash removes a backslash-newline pair while reading the line, before it ever
 # splits words. Undo it first or the continuation stays welded to the filename
 # (`hygiene.py\`) and no token's basename is the marker.
 _LINE_CONTINUATION = re.compile(r"\\\r?\n")
-_PATH_SEPARATOR = re.compile(r"[/\\]")
+# `:` is kept inside a token but treated as a separator when the basename is
+# taken. Splitting tokens on it would sever the drive letter off a Windows
+# absolute path (`C:/x/hygiene.py` -> `C`, `/x/hygiene.py`), and the identity
+# and resolution checks downstream need the whole path to stay intact.
+_PATH_SEPARATOR = re.compile(r"[/\\:]")
 
 
 def _marker_tokens(command: str) -> list[str]:
@@ -340,12 +344,24 @@ def _engine_gate_relevant(command: str, tool_name: str = "Bash") -> bool:
         # Fail closed UNLESS every marker-carrying token is provably a
         # DIFFERENT existing file (a consumer's own hygiene.py in a compound
         # command) and no token is the bundled engine under any name.
+        #
+        # "Provably" requires an ABSOLUTE path. This branch exists because the
+        # command carries an operator, and an operator can be a `cd` — so a
+        # relative token resolves against the GUARD's cwd while the shell
+        # resolves it against whatever directory the command has moved to by
+        # then (`cd <plugin-scripts>;./hygiene.py scan`). Reading a relative
+        # path here can therefore "prove different file" against an unrelated
+        # same-named file and defer while the bundled engine actually runs.
+        # A relative path is not unproven-but-probably-fine; it is unknowable,
+        # and this guard fails closed on unknowable input.
         tokens = _marker_tokens(command)
         if any(_same_file_as_bundled(token) for token in tokens):
             return True
         marker_tokens = [token for token in tokens if _carries_marker(token)]
         if marker_tokens and all(
-            _script_path_key(token) is not None and not _samefile(token)
+            os.path.isabs(token)
+            and _script_path_key(token) is not None
+            and not _samefile(token)
             for token in marker_tokens
         ):
             return False
