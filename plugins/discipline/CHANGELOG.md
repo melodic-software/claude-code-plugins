@@ -73,8 +73,15 @@ Entries below `0.9.0` were released under the plugin's former name, `re-anchor`.
   the shared budget was unmodeled (`#1623`).** "Like the `-deep` siblings" resolved to "roughly
   a dozen", which is sized for cheap fresh-context subagents and exceeds
   `CLAUDE_CODE_MAX_TOOL_USE_CONCURRENCY` (documented default 10); it also silently dropped those
-  siblings' mid-run checkpointing. The cap is now an explicit four forks per wave, the shared
-  `CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS` (default 20) and
+  siblings' mid-run checkpointing.
+
+  The replacement is not a smaller cap but a different default: **prefer ONE wave.** Splitting is
+  what breaks the ledger independence step 3's dedup assumes — a fork inherits everything the
+  session holds at spawn, so wave 2 reads wave 1's findings — and the `-deep` siblings carry no
+  such invariant, which is why their number never belonged here. With the `never` tier excluded
+  and the situational tier gated, an in-scope set fits the documented parallelism budget. Where
+  it does not, the skill says to shrink the set before splitting, and to disclose the anchoring
+  when it splits anyway. The shared `CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS` (default 20) and
   `CLAUDE_CODE_MAX_SUBAGENTS_PER_SESSION` (default 200) budgets are modeled, and per-wave
   checkpointing is restored.
 

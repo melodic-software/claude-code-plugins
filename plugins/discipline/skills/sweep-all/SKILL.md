@@ -203,21 +203,37 @@ unchanged and bind every member.
    remedy in the audit is what gives step 3 the reporter→remedy data to key on;
    a ledger of bare violations would leave the dedup with nothing to preserve.
 
-   **Wave cap, budget, and what counts as a failure.** Dispatch in bounded
-   waves of at most FOUR forks — a number chosen for forks, not imported from
-   the `-deep` siblings, whose "roughly a dozen" is calibrated for cheap
-   fresh-context subagents and exceeds
-   `CLAUDE_CODE_MAX_TOOL_USE_CONCURRENCY` ("Maximum number of read-only tools
-   and subagents that can execute in parallel", documented default 10). The
-   sweep does not own that budget alone: every subagent spawned with the Agent
-   tool — forks included — counts toward
+   **Wave sizing, budget, and what counts as a failure.** Prefer ONE wave:
+   dispatch every in-scope member together, so no member's ledger is in the
+   transcript when another member spawns. That independence is load-bearing,
+   not decoration — step 3's dedup and step 4's ordering both assume the
+   ledgers were formed without seeing each other, and a fork inherits
+   everything the session holds at the moment it spawns. Splitting the fan-out
+   is what breaks it, so do not import the `-deep` siblings' "roughly a dozen"
+   wave: it is calibrated for cheap fresh-context subagents that carry no such
+   invariant.
+
+   One wave is usually possible. With the `never` tier excluded and the
+   situational tier relevance-gated, an in-scope set of eight or nine fits
+   inside `CLAUDE_CODE_MAX_TOOL_USE_CONCURRENCY` ("Maximum number of read-only
+   tools and subagents that can execute in parallel", documented default 10).
+   The sweep does not own that budget alone: every subagent spawned with the
+   Agent tool — forks included — also counts toward
    `CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS` (documented default 20) and
    `CLAUDE_CODE_MAX_SUBAGENTS_PER_SESSION` (documented default 200), shared
    with everything else the session is already running. Check what is already
-   in flight and shrink the wave rather than colliding with
-   `Concurrent subagent limit reached`, which the harness tells Claude not to
-   retry (<https://code.claude.com/docs/en/sub-agents>,
-   <https://code.claude.com/docs/en/env-vars>). Checkpoint the collected
+   in flight rather than colliding with `Concurrent subagent limit reached`,
+   which the harness tells Claude not to retry
+   (<https://code.claude.com/docs/en/sub-agents>,
+   <https://code.claude.com/docs/en/env-vars>).
+
+   Where the in-scope set does not fit, prefer shrinking it — gate the
+   situational tier harder — over splitting. If you must split, **say so in
+   the report**: every member in a later wave inherits the earlier waves'
+   ledgers and can be anchored by them, and a retried member additionally
+   inherits its own discarded response. That is a real weakening of the
+   independence the dedup relies on, and it is disclosed, not hidden.
+   Checkpoint the collected
    ledgers after each wave, as the `-deep` siblings do, so a crash mid-fan-out
    does not lose completed waves. Retry only a failed subset, once — and
    **failure includes a ledger returned without verified inheritance proof**,
