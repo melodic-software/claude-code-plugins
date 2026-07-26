@@ -214,12 +214,22 @@ not unchanged and the idempotence property is unfalsifiable by construction.
   artifact and not the other's, and 2.2 requires those two derived sets to be equal. The path is
   recorded whether or not a file exists there yet: the exclusion is about the path this run is about
   to write, not about what it found there.
-- **A redirect destination is accepted only if it is new, or is already an `audit-pass`-owned
-  report.** Recording the path unconditionally was right for the *exclusion* and wrong as a licence
-  to *write*: `--report-to CLAUDE.md` would overwrite an audited instruction surface with a JSON
-  report, with no `--fix` and no confirmation — a read-only invocation destroying target content —
-  and then exclude the corrupted path from every later run, so the damage hides itself. Anything else
-  at that path is refused, non-zero, naming the file; the run does not offer to overwrite, because
+- **A redirect destination is accepted only if it is an `audit-pass`-owned report, or a new path that
+  is not a recognized instruction surface.** Recording the path unconditionally was right for the
+  *exclusion* and wrong as a licence to *write*: `--report-to CLAUDE.md` would overwrite an audited
+  instruction surface with a JSON report, with no `--fix` and no confirmation — a read-only
+  invocation destroying target content — and then exclude the corrupted path from every later run, so
+  the damage hides itself.
+
+  **Non-existence does not make an instruction path safe, and testing only for existence missed
+  that.** `--report-to CLAUDE.md` where no `CLAUDE.md` exists yet *creates* one: Claude then loads
+  the JSON report as instructions, and the same rule that keeps the run from auditing its own
+  artifact hides it from every later scan. The pass would have manufactured a live, behavior-
+  affecting instruction surface and then made itself blind to it — worse than the overwrite case,
+  because there is no prior content whose loss would signal what happened. So a destination matching
+  a recognized instruction path is refused **whether or not it exists**, on name rather than on
+  content, since at creation time there is no content to judge. Anything else already at the path is
+  refused too, non-zero, naming the file; the run does not offer to overwrite, because
   the only surfaces this pass may write are its own. Ownership is decided by the artifact's own
   identifying header, never by filename or location, so a hand-placed file cannot claim it.
 
@@ -257,8 +267,14 @@ target.
 - A second applying run for the same state key **refuses and exits non-zero**, naming the holder's
   pid and start time. It does not wait — a pass over a large tree runs long, and a silent queue looks
   like a hang.
-- A lock whose recorded pid is not alive **and** whose timestamp is older than 30 minutes is stale
-  and is reclaimed, with the reclamation reported in the run output.
+- A lock is stale and is reclaimed — with the reclamation reported in the run output — when its
+  timestamp is older than 30 minutes **and** its holder is not alive, where *alive* means the
+  recorded pid **and its recorded start identity** both match. Process ids are reused, so a bare
+  liveness test on a crashed run's pid can answer "alive" about an unrelated long-lived process: the
+  conjunction then never fires and every later `--fix` for that state key refuses forever, with no
+  documented way out. Where the platform supplies no start identity, **age alone reclaims** and the
+  reclamation says so — an unreclaimable lock is the worse failure, and the lease's heartbeat is what
+  makes a merely-slow holder visible rather than assumed dead.
 
 ### The lease — how `--resume` tells a live run from an abandoned one
 
@@ -334,7 +350,7 @@ classification two implementations must reach identically or `--resume` is nonde
 | 3.1 | Two applying runs launched concurrently against one target: exactly one proceeds, the other exits non-zero naming the holder. |
 | 3.6 | `--resume` against a run whose lease was refreshed within the threshold exits non-zero naming the run id, and the live run's partial artifact is byte-identical afterwards. |
 | 3.7 | `--resume` against a run whose lease has not been refreshed past the threshold adopts the artifact, increments `owner_epoch`, and refreshes the lease itself. |
-| 3.8 | A holder whose lease was adopted while it was suspended aborts on its next heartbeat refresh or artifact append, writing nothing: the partial artifact contains records from exactly one writer per attempt ordinal. |
+| 3.8 | A holder whose lease was adopted while it was suspended writes nothing into the adopter's epoch file: any append it still makes lands in its own superseded epoch file, and the adopter's file contains records from exactly one writer per attempt ordinal. It aborts at its next heartbeat refresh, which bounds how long it keeps writing but is not what provides the isolation. |
 | 3.9 | A lease whose `heartbeat_at` is further in the future than one refresh interval is classified stale and is adoptable, with the skew reported — a forward clock jump cannot make an abandoned run permanently unresumable. |
 | 3.10 | A run that exits cleanly leaving a lane incomplete writes a `released` lease, and an immediately following `--resume` is accepted rather than refused as live. |
 | 3.11 | A fenced writer's appends land in `findings.partial.<its own epoch>.jsonl` and never in the adopter's; assembly reads only the highest epoch present, and superseded files are retained. |
@@ -701,18 +717,29 @@ detection-behavior input not covered by the digest is a defect in the digest.
   is: additions the accepted edit accounts for are expected, and a **non-attributable** addition is
   the real failure — that is spontaneous growth during a fix round, which is P3's concern arriving
   through the convergence door.
-  **Strictness is conditional, not universal:** `D(R2) ⊊ D(R1)` is required only when at least one
-  accepted fix targeted a derived-tier finding. A judged-tier fix need remove nothing from `D` —
-  rewriting an over-prescriptive instruction leaves the surface inventory, the exclusion set, the
-  shadowed definitions, and the raw script-candidate rows exactly as they were — so a blanket strict
-  subset would declare a perfectly good fix non-convergent, which is the wrong verdict on the
-  commonest fix there is. Conversely, a finding that vanishes without a fix is a defect in the check,
+  **Strictness is conditional and is stated as removal, not as a subset:** when at least one accepted
+  fix targeted a derived-tier finding, that finding must be **absent** from `D(R2)`. A judged-tier
+  fix need remove nothing from `D` — rewriting an over-prescriptive instruction leaves the surface
+  inventory, the exclusion set, the shadowed definitions, and the raw script-candidate rows exactly
+  as they were — so a blanket requirement would declare a perfectly good fix non-convergent, which is
+  the wrong verdict on the commonest fix there is.
+
+  **`D(R2) ⊊ D(R1)` was still the wrong shape even conditionally, because a proper subset forbids
+  additions that the attribution rule above explicitly permits.** Resolving a derived
+  shadowed-definition finding by renaming one of the two definitions removes the targeted finding
+  *and* adds that renamed definition's inventory identity — attributable, expected, and fatal to any
+  subset formulation. What convergence actually claims is that **the targeted findings are gone**,
+  which is a statement about specific findings rather than about set cardinality; additions are
+  already governed, one clause above, by attribution. Conversely, a finding that vanishes without a fix is a defect in the check,
   not a success. **Its detector is §4's fourth disposition**: every disappearance is accounted for as
   a fix, a successor, or an UNEXPLAINED DISAPPEARANCE that fails the self-check. Without that
   accounting P2 is a definition nothing can observe.
-- **P3 — no spontaneous growth.** Tree and catalog versions unchanged ⇒ `D(R2) ⊆ D(R1)`. The set may
-  grow only on a catalog version bump or a change to the tree — and a skill authored between runs is
-  a change to the tree.
+- **P3 — no spontaneous growth.** `R1` and `R2` **comparable** ⇒ `D(R2) ⊆ D(R1)`. The set may grow
+  only on a change to one of the comparability inputs — a detection or harness version bump, a moved
+  liveness basis, a different behavior flag, or a change to the tree, and a skill authored between
+  runs is a change to the tree. P3 stated its own shorter list ("tree and catalog versions") until
+  the comparability predicate was introduced; the enumeration is exactly the negation of
+  comparability, so it is cited rather than restated — restating it is what let P1 and P4a drift.
 - **P3a — the inventory is part of the gate.** A surface that silently drops out of scope between two
   runs **fails P1**. A silent scope regression is worse than a changed finding, because it looks like
   an improvement.

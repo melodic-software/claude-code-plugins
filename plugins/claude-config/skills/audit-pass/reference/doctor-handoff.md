@@ -12,8 +12,17 @@ An unattended run cannot answer that prompt, so driving it from this pass would 
 or push it toward answering a confirmation on the operator's behalf.
 
 **The handoff is therefore an operator instruction.** The pass finishes its own phases, then tells
-the operator to run `/doctor` themselves, and stops there. Nothing in this pass invokes it, waits on
-it, or parses its output as a lane result.
+the operator to run `/doctor` themselves. Nothing in this pass invokes it, waits on it, or drives it.
+
+**What it does not do is refuse the result the operator brings back.** "Never parses its output as a
+lane result" would make the `delegated` tier unreachable — the lane could never leave `open`, and
+this file's own promise that `/doctor`'s output lands in `delegated` would be unkeepable. The
+distinction that carries the weight is *who decides*, not *whether the pass reads*: the pass never
+invokes `/doctor`, never waits on it, and never answers a confirmation on the operator's behalf; when
+the operator returns its output through `--resume`, the pass records that output as the lane's
+findings and terminates the lane `handed-back`. An operator handing a result back **is** the operator
+acting, which is what the handoff exists for — treating their return as unreadable would strand the
+outcome this phase was built to capture.
 
 ## Presence, and what is actually verified
 

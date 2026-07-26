@@ -60,7 +60,11 @@ Parse `$ARGUMENTS`:
 - **`--resume`** — resume the most recent incomplete run for this target's state key.
 - **`--report-to <path>`** — redirect the report into the target tree. **The redirecting run adds
   that path to its own exclusion set before writing** — not only for later runs, or the two runs'
-  derived sets could not be equal — and says so in its output.
+  derived sets could not be equal — and says so in its output. The destination is accepted only if it
+  is an `audit-pass`-owned report or a new path that is **not a recognized instruction surface**;
+  anything else is refused non-zero, naming the file. Refused on name rather than on existence,
+  because `--report-to CLAUDE.md` against a repo that has none would *create* a live instruction
+  surface out of a JSON report and then hide it from every later scan.
 
 ## Phase 0 — Resolve, key, lock
 
