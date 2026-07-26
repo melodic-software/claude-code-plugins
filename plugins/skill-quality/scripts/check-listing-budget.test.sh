@@ -177,6 +177,30 @@ else
   fail "expected 2 eligible skills totalling 10 chars (the dmi:true skill excluded): $out"
 fi
 
+# 9b. The invocation-control flag is NORMALIZED before comparison. A bare
+#     string compare against "true" silently re-counts a skill whose
+#     description the harness excludes, because valid YAML can spell the same
+#     boolean several ways. Covered: a trailing `# comment` (a YAML comment
+#     requires preceding whitespace), surrounding whitespace, quoted forms,
+#     and ASCII case variants. A `false` carrying a comment must still be
+#     counted — that is what stops the normalization from over-matching.
+mkdir -p "$TMP/dmi-norm-root"
+make_skill "$TMP/dmi-norm-root" norm-inline-comment "12345" "" "true # manual-only"
+make_skill "$TMP/dmi-norm-root" norm-quoted "12345" "" '"true"'
+make_skill "$TMP/dmi-norm-root" norm-single-quoted "12345" "" "'true'"
+make_skill "$TMP/dmi-norm-root" norm-quoted-comment "12345" "" "'true'  # manual"
+make_skill "$TMP/dmi-norm-root" norm-upper "12345" "" "TRUE"
+make_skill "$TMP/dmi-norm-root" norm-title "12345" "" "True"
+make_skill "$TMP/dmi-norm-root" norm-trailing-space "12345" "" "true   "
+make_skill "$TMP/dmi-norm-root" norm-false-comment "12345" "" "false # still listed"
+make_skill "$TMP/dmi-norm-root" norm-eligible "67890"
+out="$(run "$TMP/dmi-norm-root" 2>&1)"
+if grep -q 'over 2 listing-eligible skill(s)' <<<"$out" && grep -q 'aggregate: 10 chars' <<<"$out"; then
+  pass "the invocation-control boolean is normalized (comment, quotes, case, whitespace)"
+else
+  fail "only norm-false-comment and norm-eligible should count (2 skills, 10 chars): $out"
+fi
+
 # 10. A nonnumeric override is an environment error (exit 2), never a silent
 #     awk coercion to zero (which fabricated a 0-char budget and a bogus
 #     overflow WARN while still exiting 0) and never an undocumented exit 1.

@@ -130,6 +130,31 @@ fi
 # shellcheck source=./skill-frontmatter.sh
 source "$SCRIPT_DIR/skill-frontmatter.sh"
 
+# Fold a frontmatter boolean to a bare lowercase token before comparing it.
+# `skill_frontmatter::field` returns the raw scalar, so an exact-string compare
+# against "true" misses spellings a YAML reader treats as the same boolean: a
+# trailing `# comment` (YAML requires whitespace before the `#`), surrounding
+# whitespace, and quoted or differently-cased forms. Missing one silently
+# re-counts a skill whose description the harness keeps out of context.
+# Deliberately NOT folded: YAML 1.1's `yes` / `on` aliases — the docs only ever
+# spell this field `true`, and treating a bare `yes` as the boolean risks
+# dropping a skill over a value the harness may read as a plain string.
+# Comment-stripping stays scoped to booleans and is never applied to
+# `description` / `when_to_use`, where a ` #` is content, not a comment.
+# A pragmatic normalizer for one known field, not a YAML parser.
+trim_ws() {
+  local v="$1"
+  v="${v#"${v%%[![:space:]]*}"}"
+  printf '%s' "${v%"${v##*[![:space:]]}"}"
+}
+
+normalize_bool() {
+  local v
+  v="$(trim_ws "$(sed -E 's/[[:space:]]+#.*$//' <<<"$1")")"
+  v="$(trim_ws "$(skill_frontmatter::strip_quotes "$v")")"
+  printf '%s' "$(tr '[:upper:]' '[:lower:]' <<<"$v")"
+}
+
 # Reject a nonnumeric override up front. Without this, `awk` coerces a typo to
 # 0 and the report exits 0 announcing a zero-character budget and a bogus
 # overflow, while the bash-arithmetic call sites die with an undocumented
@@ -231,7 +256,7 @@ for root in "${ROOTS[@]}"; do
     # `disable-model-invocation: true` keeps this skill's description out of
     # the model-visible listing entirely, so it spends none of the shared
     # budget — counting it would overstate the aggregate. See the header.
-    dmi="$(skill_frontmatter::strip_quotes "$(skill_frontmatter::field disable-model-invocation <<<"$fm")")"
+    dmi="$(normalize_bool "$(skill_frontmatter::field disable-model-invocation <<<"$fm")")"
     [[ "$dmi" == "true" ]] && continue
     desc="$(skill_frontmatter::strip_quotes "$(skill_frontmatter::field description <<<"$fm")")"
     wtu="$(skill_frontmatter::strip_quotes "$(skill_frontmatter::field when_to_use <<<"$fm")")"

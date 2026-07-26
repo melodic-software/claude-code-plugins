@@ -27,9 +27,19 @@ All notable changes to the `skill-quality` plugin are documented here. Format fo
   "removes the skill from Claude's context entirely" — such a skill spends none of the shared
   description budget, so counting it overstates the aggregate. A consumer's `skillOverrides` can
   free further descriptions via `"name-only"`, which repository content cannot reveal, so the
-  figure is an upper bound for anyone who sets it. On this marketplace the filter moves the reported
-  aggregate from 183 skills / 109,205 chars to 132 / 83,594 — still an order of magnitude over the
-  8000-char default, so the finding the check exists to surface is unchanged.
+  figure is an upper bound for anyone who sets it. On this marketplace the filter excludes 51 of the
+  183 `SKILL.md` files, leaving a reported **132 listing-eligible skills / 83,611 characters** as
+  measured at this commit — still an order of magnitude over the 8000-char default, so the finding
+  the check exists to surface is unchanged. (A figure without its commit goes stale: the population
+  itself moves, so re-measure rather than quoting this one forward.)
+
+  The flag is read through a normalizing comparison rather than an exact string match, since valid
+  YAML can spell the same boolean as `true # manual-only`, `"true"`, `TRUE`, or with surrounding
+  whitespace, and a bare `== "true"` silently re-counted every one of those. Comment-stripping is
+  scoped to the boolean and deliberately never applied to `description` / `when_to_use`, where a
+  whitespace-preceded `#` is content rather than a comment. YAML 1.1's `yes` / `on` aliases are not
+  folded — the documented spelling is `true`, and over-matching would risk dropping a skill over a
+  value the harness may read as a plain string.
 
   Input handling is fail-closed on operator error, while the budget verdict stays advisory: every
   numeric override is validated as a positive number and every explicit root must exist, both
