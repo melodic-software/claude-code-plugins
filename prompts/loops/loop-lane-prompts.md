@@ -830,6 +830,24 @@ with the operator's signature on them.
 >    populations: an autonomous-eligible item or a raw-intake item with
 >    trigger-shaped text belongs to its own lane, not here.
 >
+>    **A fired trigger is spent once, and only the newest one counts.**
+>    Acting on a trigger is not idempotent: the text stays in comment
+>    history, and a past date or a now-true condition stays permanently
+>    true. Record the action on the carrier in the same pass you take it — a
+>    comment on the item you reopened, and one on the closed source when you
+>    file a successor instead, naming that successor — because the record,
+>    not the reopening, is what spends the trigger. Skip it and a pass that
+>    stops between reopening and a disposition (cycle budget, a rate-limit
+>    pause, my attention) leaves the trigger live, so the next pass re-briefs
+>    the same row or files a second successor for the same source, again on
+>    every pass inside the 90-day window. A trigger is live only while no
+>    later comment of mine — one opening
+>    `*This <comment|item> was written by an AI agent on the operator's
+>    behalf …*` — postdates the comment carrying it. Where an item carries
+>    several, only the newest live trigger counts: the fresh trigger a
+>    Re-park records supersedes the one it just retired. Report a spent
+>    trigger with the action that retired it; never act on one twice.
+>
 > **Bounded queries only.** Every `gh issue list` call carries an explicit
 > `--limit` and computes `truncated: (length >= limit)`; a truncated count
 > is a floor, not a total — raise the limit and re-run until it reports
@@ -849,7 +867,12 @@ with the operator's signature on them.
 > candidate whatever else it carries, so the resolved human-gated role — not
 > the decision-pending label — is the only marker that actually parks
 > anything. Apply it in the same operation that exposes the item, never
-> role-less first and labelled after:
+> role-less first and labelled after — and in that same edit remove the
+> resolved autonomous-eligible role if the item carries it. Closing an item
+> never cleared its labels, so a carrier closed while autonomous-eligible
+> comes back still wearing that role, and an item wearing both canonical
+> roles is a contradiction every consumer reads differently: this is Flip's
+> clearing rule run in the opposite direction. Two surfaces:
 >
 > - population-2 rows carrying no human-gated role that the exclusions above
 >   did not remove — propose it as that row's FIRST action, ahead of the
@@ -1558,6 +1581,24 @@ to the template re-renders here too.
 >    populations: an autonomous-eligible item or a raw-intake item with
 >    trigger-shaped text belongs to its own lane, not here.
 >
+>    **A fired trigger is spent once, and only the newest one counts.**
+>    Acting on a trigger is not idempotent: the text stays in comment
+>    history, and a past date or a now-true condition stays permanently
+>    true. Record the action on the carrier in the same pass you take it — a
+>    comment on the item you reopened, and one on the closed source when you
+>    file a successor instead, naming that successor — because the record,
+>    not the reopening, is what spends the trigger. Skip it and a pass that
+>    stops between reopening and a disposition (cycle budget, a rate-limit
+>    pause, my attention) leaves the trigger live, so the next pass re-briefs
+>    the same row or files a second successor for the same source, again on
+>    every pass inside the 90-day window. A trigger is live only while no
+>    later comment of mine — one opening
+>    `*This <comment|item> was written by an AI agent on the operator's
+>    behalf …*` — postdates the comment carrying it. Where an item carries
+>    several, only the newest live trigger counts: the fresh trigger a
+>    Re-park records supersedes the one it just retired. Report a spent
+>    trigger with the action that retired it; never act on one twice.
+>
 > **Bounded queries only.** Every `gh issue list` call carries an explicit
 > `--limit` and computes `truncated: (length >= limit)`; a truncated count
 > is a floor, not a total — raise the limit and re-run until it reports
@@ -1577,7 +1618,12 @@ to the template re-renders here too.
 > candidate whatever else it carries, so the resolved human-gated role — not
 > the decision-pending label — is the only marker that actually parks
 > anything. Apply it in the same operation that exposes the item, never
-> role-less first and labelled after:
+> role-less first and labelled after — and in that same edit remove the
+> resolved autonomous-eligible role if the item carries it. Closing an item
+> never cleared its labels, so a carrier closed while autonomous-eligible
+> comes back still wearing that role, and an item wearing both canonical
+> roles is a contradiction every consumer reads differently: this is Flip's
+> clearing rule run in the opposite direction. Two surfaces:
 >
 > - population-2 rows carrying no human-gated role that the exclusions above
 >   did not remove — propose it as that row's FIRST action, ahead of the
