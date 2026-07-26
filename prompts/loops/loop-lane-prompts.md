@@ -5,24 +5,25 @@ template (3b) for the parked-decision states the standing lanes deliberately
 exclude. Fill the variables, paste a block. Nothing below is specific to one
 repository except the profile you fill in yourself.
 
-The table below names an owner for every open-item state the machinery
-produces — **including the states that are deliberately or currently
-unowned, so absence is visible instead of silent**. When a new state appears
-and no row claims it, that is a gap to fix here, not a population to ignore.
+The table below names every owner of every open-item state the machinery
+produces — **including the states that carry more than one owner, and the
+states that are deliberately or currently unowned, so contention and absence
+are both visible instead of silent**. When a new state appears and no row
+claims it, that is a gap to fix here, not a population to ignore.
 
 | Item state | Owner |
 |---|---|
-| Raw intake (unlabeled, or the raw marker) | 3 — Attended queue, `[intake]` |
+| Raw intake (unlabeled, or the raw marker) | 3 — Attended queue, `[intake]`, **jointly with** 1 — Worker lane, whose cycle step 2 sweeps the same population through `/work-items:triage` under autonomous mutation authority. Two owners, unserialized — see "Raw intake has two unserialized owners" under Known gaps |
 | Worker-escalated (marker kinds `escalated` and `routed-advisory`) | 3 — Attended queue, `[escalated]` |
 | C3 first-drain admissions (marker kind `ratify-c3`) | 3 — Attended queue, `[ratify]` |
 | Autonomous-eligible (role label, default `agent-ready`) | 1 — Worker lane |
 | Ordinary tracked item — priority/category labels, no raw marker, no canonical role (what `/work-items:track add` creates without `--agent-ready`; disjoint from the raw-intake row, which is the unlabeled/raw-marked state) | 1 — Worker lane. The frontier is open ∧ unblocked ∧ unassigned, and `list-frontier --autonomous` *excludes* the human-gated role rather than *requiring* the autonomous one — so a role-less item is already a tier-3 candidate |
 | Open PRs (drafts and `do-not-merge` included — evaluated, never force-merged) | 2 — Merge lane |
 | Parked human-gated (role label present, no escalation marker) | 3b — Parked-decision burn-down |
-| Decision-pending status label, where the repository declares one | 3b — Parked-decision burn-down |
+| Decision-pending status label, where the repository declares one | 3b — Parked-decision burn-down, but **jointly with 1 — Worker lane for as long as the item wears no human-gated role**: `list-frontier --autonomous` excludes the human-gated role and never reads the decision-pending label, so such an item is simultaneously an ordinary tier-3 frontier candidate (previous row). The label alone parks nothing, so 3b's first action on such a row is to propose normalizing it to the resolved human-gated role — see "Decision-pending alone does not park an item" under Known gaps |
 | Deferred-with-trigger decisions | 3b — trigger sweep (over 3b's own populations only) |
 | Wayfind HITL decision items (`wayfind: *` labels) | `/planning:wayfind work` — never 3b, never the worker lane |
-| Awaiting-reporter items (the repo's needs-info status), reporter silent | Dormant by design — reporter activity returns them to intake (row 1) |
+| Awaiting-reporter items (the repo's needs-info status), reporter silent | Dormant by design — reporter activity returns them to the raw-intake row |
 | Recurring-item creation on due date | The consuming repo's recurring-issues automation — **external**: a repo without that workflow has this state unowned; verify it exists |
 | Expired claims / leases | `/work-items:track audit`, run manually — **no scheduled sweep exists** |
 | Lane telemetry issues | Lane infrastructure — excluded from every population by construction |
@@ -795,7 +796,12 @@ with the operator's signature on them.
 > 2. Open items carrying the repository's decision-pending status label,
 >    where it declares one. Resolve it live
 >    (`gh label list --limit 200 | grep -i status`), never assume the
->    string; a repo without such a label has an empty population 2.
+>    string; a repo without such a label has an empty population 2. A row
+>    here wearing NO human-gated role is not parked at all from the worker
+>    lane's side: `list-frontier --autonomous` excludes the human-gated role
+>    and never reads the decision-pending label, so the standing worker can
+>    claim and execute the item before I have decided. The normalization
+>    step below the exclusions is what closes that window.
 > 3. Trigger sweep — **over populations 1 and 2 only**, plus decision
 >    comments on items closed in the last 90 days: any text naming a
 >    revisit trigger ("after <date> if …", "when <capability> exists").
@@ -821,6 +827,14 @@ with the operator's signature on them.
 > so a Flip here would silently hand a design decision to the worker lane;
 > route them to `/planning:wayfind work` instead); lane telemetry issues.
 >
+> **Normalize population 2 before briefing it.** For every population-2 row
+> that carries no human-gated role and was not excluded just above, propose
+> applying the resolved human-gated role as that row's FIRST action, ahead of
+> the decision itself: the role is what actually holds an item off the
+> autonomous frontier, and until it is applied the worker lane owns the item
+> as much as this session does. Flip clears both markers together afterward,
+> per the Flip rule below.
+>
 > Rank the inventory by impact: unblocks-other-work first, then
 > time-decaying decisions, then spend reduction, then the rest. Present the
 > ranked table with one-line summaries before working any row.
@@ -843,7 +857,10 @@ with the operator's signature on them.
 >
 > **Outcomes** (every answer written back as an issue comment — the
 > decision lives on the tracker, not in this session; comments you write on
-> my behalf end with:
+> my behalf OPEN with this line, as the first line before the body —
+> agent-authored tracker content is prefixed, never suffixed, so anything
+> reading the opening provenance marker classifies these comments the same
+> way it classifies the rest:
 > `*This comment was written by an AI agent on the operator's behalf
 > (parked-decision burn-down).*`):
 >
@@ -949,6 +966,26 @@ with the operator's signature on them.
   account identifier and is last-writer-wins. Rotate only at session
   boundaries, never mid-cycle, or a fresh account's healthy windows get
   fed to a lane running on an exhausted one.
+- **Decision-pending alone does not park an item.** `wit_filter_frontier`
+  takes the human-gated label as a parameter resolved from
+  `config.role_labels`; no equivalent binding exists for a repository's
+  decision-pending string, which is why 3b resolves that one live from
+  `gh label list`. The frontier cannot exclude a label it has no binding for,
+  so an item wearing only the decision-pending label stays selectable by the
+  worker lane. 3b's normalization step is a convention, not an enforcement:
+  until a decision-pending binding exists, nothing prevents a worker cycle
+  from claiming a classified item between one burn-down and the next.
+- **Raw intake has two unserialized owners.** The attended queue's `[intake]`
+  bucket and the worker lane's cycle-step-2 intake sweep both run
+  `/work-items:triage` over the same untriaged population, the worker's pass
+  with autonomous mutation authority. Neither triage's documented flow nor
+  that sweep contains a claim step for an intake row — the claim protocol
+  (assignee plus lease) covers executing a work item, not triaging one — so a
+  standing worker and an open attended queue can recommend from different
+  snapshots and race label and comment edits on the same item, last write
+  winning. Nothing serializes them: keep the attended queue's intake pass and
+  the worker lane's sweep off one repository at the same time, or accept the
+  race.
 - **C2 auto-merge may lack its promotion evidence.** The autonomy matrix
   specifies ≥20 autonomous C2 completions over ≥14 days with 100%
   deterministic-gate pass and 0 human-reverted merges before the C2
@@ -1433,7 +1470,12 @@ to the template re-renders here too.
 > 2. Open items carrying the repository's decision-pending status label,
 >    where it declares one. Resolve it live
 >    (`gh label list --limit 200 | grep -i status`), never assume the
->    string; a repo without such a label has an empty population 2.
+>    string; a repo without such a label has an empty population 2. A row
+>    here wearing NO human-gated role is not parked at all from the worker
+>    lane's side: `list-frontier --autonomous` excludes the human-gated role
+>    and never reads the decision-pending label, so the standing worker can
+>    claim and execute the item before I have decided. The normalization
+>    step below the exclusions is what closes that window.
 > 3. Trigger sweep — **over populations 1 and 2 only**, plus decision
 >    comments on items closed in the last 90 days: any text naming a
 >    revisit trigger ("after <date> if …", "when <capability> exists").
@@ -1459,6 +1501,14 @@ to the template re-renders here too.
 > so a Flip here would silently hand a design decision to the worker lane;
 > route them to `/planning:wayfind work` instead); lane telemetry issues.
 >
+> **Normalize population 2 before briefing it.** For every population-2 row
+> that carries no human-gated role and was not excluded just above, propose
+> applying the resolved human-gated role as that row's FIRST action, ahead of
+> the decision itself: the role is what actually holds an item off the
+> autonomous frontier, and until it is applied the worker lane owns the item
+> as much as this session does. Flip clears both markers together afterward,
+> per the Flip rule below.
+>
 > Rank the inventory by impact: unblocks-other-work first, then
 > time-decaying decisions, then spend reduction, then the rest. Present the
 > ranked table with one-line summaries before working any row.
@@ -1481,7 +1531,10 @@ to the template re-renders here too.
 >
 > **Outcomes** (every answer written back as an issue comment — the
 > decision lives on the tracker, not in this session; comments you write on
-> my behalf end with:
+> my behalf OPEN with this line, as the first line before the body —
+> agent-authored tracker content is prefixed, never suffixed, so anything
+> reading the opening provenance marker classifies these comments the same
+> way it classifies the rest:
 > `*This comment was written by an AI agent on the operator's behalf
 > (parked-decision burn-down).*`):
 >
