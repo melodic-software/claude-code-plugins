@@ -13,16 +13,20 @@ Replace every `{{...}}` occurrence in the block you are pasting.
 | `{{REPO}}` | Target repository, `owner/name` | `acme/widgets` |
 | `{{TIER}}` | babysit-prs tier: `safe`, `worker`, `autopilot` | `worker` |
 | `{{STOP}}` | `--drain` to finish and stop; omit to stand | `--drain` |
+| `{{MERGE}}` | Merge-rung cap for this run; safest default shown | `--merge human-only` |
 | `{{SHARD}}` | Attended terminal's bucket | `[ratify]` |
 | `{{RUNTIME_SURFACES}}` | Doc-shaped paths that are runtime | see profile |
 
 `{{TIER}}` widens discovery, fixing, threads, drafts, barriers, and
 escalation. *Standing* merge authority binds only from the target repo's
 tracked config (below). The skill carries one named exception — typing the
-literal `autopilot` keyword widens that invocation's merge rung to C3 — but
-it is not in force here: this repository's rung question was decided against
-raising (#1388, "Tier is not the rung" below), and every copy-block below
-carries `--merge human-only`, which the exception is explicitly floored by.
+literal `autopilot` keyword widens that invocation's merge rung to C3 in an
+already-adopted repository. `{{MERGE}}` is the cap that governs it: an
+explicitly argued lower rung is applied *after* the widening, so
+`--merge human-only` disables autonomous merging whatever `{{TIER}}` says.
+Leave `{{MERGE}}` at `--merge human-only` unless the target repository's rung
+question has been decided the other way — this repository's was decided
+against raising (#1388, "Tier is not the rung" below).
 
 ## Per-repository profile
 
@@ -476,15 +480,15 @@ wakeup ceiling for days rather than finishing.
 
 > **=== COPY FROM HERE ===**
 >
-> /loop /source-control:babysit-loop {{REPO}} {{TIER}} {{STOP}}
+> /loop /source-control:babysit-loop {{REPO}} {{TIER}} {{STOP}} {{MERGE}}
 >
 > Repository: `{{REPO}}`
 >
 > **Standing authorization.** Autonomous lane. Advance PRs, fix
 > branch-owned CI and review failures, resolve outdated bot threads, and
-> merge within whatever rung the repository's tracked config resolves. You
-> never claim backlog items and never author work-item PRs — that is the
-> worker lane's authority.
+> merge within whatever rung resolves after `{{MERGE}}` caps it — never
+> above. You never claim backlog items and never author work-item PRs —
+> that is the worker lane's authority.
 >
 > **PR ordering.** Ordering only, never eligibility — eligibility is the
 > skill's deterministic partition and nothing here overrides it. Within
@@ -790,11 +794,13 @@ overnight without me":
   merges recorded here to date. Reopen the question only by amending the
   guardrail contract first, never by flipping the seam alone.
 
-`full-autonomy` as a rung adds only C4 `structural` and C5
-`untrusted-provenance` on top of `c3-autonomous` — refactors, migrations,
-contract changes, and fork PRs. That is the category least suited to
-landing unattended, for near-zero throughput gain over c3, so `full-autonomy`
-is never the answer here.
+`full-autonomy` as a rung **adds nothing over `c3-autonomous`**. C4
+`structural` and C5 `untrusted-provenance` — refactors, migrations, contract
+changes, and fork PRs — are excluded unconditionally: no rung, no seam config,
+and no invocation argument reaches them, per the autonomy matrix's own
+"never promotes" cells. The rung name promises a category the floor withholds,
+so `full-autonomy` is never the answer here — it buys zero additional
+eligibility over c3 while reading as though it buys the riskiest kind.
 
 **But that ranking is not a recommendation to raise, and the question is
 settled.** The governing policy is `plugins/autonomy/reference/guardrails.md`'s

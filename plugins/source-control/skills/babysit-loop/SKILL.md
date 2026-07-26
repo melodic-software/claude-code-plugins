@@ -289,10 +289,14 @@ report surface, never the escalation channel.
 **Pre-escalation resolution attempt, explicit-`autopilot` only.** Before a merge-eligible (C1-C3)
 PR is escalated for a **machine-escalated** `needs-human` item, an open machine-authored finding, or
 a contradictory/unresolved **bot** review thread, and only when this invocation typed the literal
-`autopilot` tier argument: dispatch a fresh subagent at the **frontier tier resolved through the
-convention's capability-tier binding** (§3) — never a family alias written into this lane, because
-the tiers are defined by capability order and a family mapping rots — sharing no conversation
-context with whatever produced the PR or previously replied on the blocking thread. **It runs under
+`autopilot` tier argument: dispatch a fresh subagent at the **frontier tier** — §3's top tier row,
+requested by tier and resolved to a live-updating model alias through that section's "Runtime
+resolution is by model alias only", never a dated model ID and never a family name written into this
+lane as the tier's *definition*, since tiers are ordered by capability and a family mapping rots. If
+the run cannot establish which alias currently satisfies `frontier` it **escalates rather than
+dispatching** — inheriting the session's model, or a lower review-work model, forfeits the capability
+this dispatch stands on. The subagent shares no context with whatever produced the PR or previously
+replied on the blocking thread, and **runs under
 the PR's worker lease**: acquire and heartbeat before it starts, release after, exactly as
 `babysit-prs` requires before any per-PR fix or worker assignment (`babysit-prs/reference/safety.md`
 and `babysit-prs/reference/orchestration.md`); the guarded wrappers pin comment state, not

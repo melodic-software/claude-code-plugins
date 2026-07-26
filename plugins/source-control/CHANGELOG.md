@@ -55,9 +55,11 @@ All notable changes to the `source-control` plugin are documented here. Format f
 - **The dispatch is leased and its tier is resolved, not named.** It acquires, heartbeats, and
   releases the PR's own worker lease around itself — the guarded-mutation wrappers pin comment
   state, they do not confer concurrency ownership — and a lease another worker holds means no
-  dispatch. Its capability tier resolves through the convention's tier binding rather than a
-  `fable`/`opus` family alias written into the lane, because the tiers are defined by capability
-  order and a family mapping rots across model generations.
+  dispatch. Its capability tier is requested as the convention's §3 frontier row and resolved to a
+  live-updating model alias by that section's runtime-resolution rule, rather than a `fable`/`opus`
+  family alias written into the lane as the tier's definition; a run that cannot establish which
+  alias currently satisfies `frontier` escalates instead of dispatching, because inheriting the
+  session's model would forfeit the capability the dispatch stands on.
 - **C4/C5 floor stated as unconditional across the merge surface.** No rung, no seam config, and no
   invocation argument — including this exception and including `full-autonomy` — ever grants merge
   authority over a `work-class: structural` (C4) or `work-class: untrusted-provenance` (C5) item.
