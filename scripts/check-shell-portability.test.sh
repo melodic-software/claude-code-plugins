@@ -1202,6 +1202,114 @@ else
 fi
 rm -f "$f"
 
+# =============================================================================
+# Quote-aware command segmentation -- #1544 review round
+#
+# Each shape below was reproduced against the real gate before the segmenter
+# replaced the `[^;&|()\n]*` gap. Two were false positives; three were the
+# gate failing OPEN, the worse direction -- a GNU-only call reaching a BSD
+# userland unreported.
+# =============================================================================
+
+# --- `--` ends option parsing, so a flag-shaped word after it is an operand.
+f="$(tmpsh "$(printf '%s\n' \
+  'stat -- -c' \
+  'date -- -d' \
+  'date -c -- -d' \
+  'stat -- --format')")"
+if scan_paths "$REAL_TOKENS" "$f" >/dev/null 2>&1; then
+  ok "a flag-shaped operand after the -- end-of-options marker is not flagged"
+else
+  fail "-- must end option parsing for both date and stat"
+fi
+rm -f "$f"
+
+# --- ... but a real option BEFORE the -- still is one.
+f="$(tmpsh "stat -c '%s' -- \"\$f\"")"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "a real -c before -- should still fail, got success: $out"
+else
+  ok "a genuine option before -- is still detected"
+fi
+rm -f "$f"
+
+# --- an invocation wrapper still reaches the real BSD utility, so a ladder
+# through one is a genuine fallback. `command` is POSIX-specified; `env` and a
+# leading backslash reach the same utility.
+f="$(tmpsh "$(printf '%s\n' \
+  'stat -c "%s" "$f" || command stat -f "%z" "$f"' \
+  'stat -c "%s" "$f" || env stat -f "%z" "$f"')")"
+if scan_paths "$REAL_TOKENS" "$f" >/dev/null 2>&1; then
+  ok "a BSD fallback wrapped in command/env is recognized as a real ladder"
+else
+  fail "command- and env-wrapped stat -f fallbacks must not be flagged"
+fi
+rm -f "$f"
+
+# --- the guard binds to the matched invocation, not to the line. The FIRST
+# call here is unconditional and must flag even though a guarded ladder for a
+# different operand follows it on the same line.
+f="$(tmpsh "stat -c '%s' \"\$a\"; stat -c '%s' \"\$b\" || stat -f '%z' \"\$b\"")"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "an unguarded first call should fail, got success: $out"
+else
+  ok "a later guarded ladder no longer excuses an unguarded call before it"
+fi
+rm -f "$f"
+
+# --- the readlink/realpath ladder runs the other direction and must survive.
+f="$(tmpsh 'realpath "$1" 2>/dev/null || readlink -f "$1"')"
+if scan_paths "$REAL_TOKENS" "$f" >/dev/null 2>&1; then
+  ok "the realpath || readlink -f ladder is still auto-guarded after segmentation"
+else
+  fail "the backward-looking readlink guard must survive segmentation"
+fi
+rm -f "$f"
+
+# --- a separator inside quotes is a filename character, not a control
+# operator, so the gap must not stop there and lose the option after it.
+f="$(tmpsh "$(printf '%s\n' \
+  "stat 'name;part' -c '%s'" \
+  "date 'a;b' -d @0")")"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "an option after a quoted separator should fail, got success: $out"
+elif [[ "$(echo "$out" | grep -c "PORTABILITY: ${f}:")" -eq 2 ]]; then
+  ok "a quoted shell separator in an operand no longer hides the option after it"
+else
+  fail "expected both quoted-separator forms flagged, got: $out"
+fi
+rm -f "$f"
+
+# --- a quoted command word is still that command. The mktemp tokens already
+# admitted a closing quote; date and stat did not, so these were all missed.
+f="$(tmpsh "$(printf '%s\n' \
+  '"date" -d tomorrow' \
+  '"date" --date=now' \
+  "'stat' -c '%s' \"\$f\"" \
+  '"/usr/bin/stat" -c "%s" "$f"')")"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "quoted command words should fail, got success: $out"
+elif [[ "$(echo "$out" | grep -c "PORTABILITY: ${f}:")" -eq 4 ]]; then
+  ok "a quoted or path-qualified date/stat command word is detected"
+else
+  fail "expected all 4 quoted command-word forms flagged, got: $out"
+fi
+rm -f "$f"
+
+# --- segmentation must not disturb the classes that legitimately live INSIDE
+# string literals: matching runs on the original text, never on the mask.
+f="$(tmpsh "$(printf '%s\n' \
+  "grep -E '\\\\bword' file" \
+  'sort -V list')")"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "quoted GNU regex escapes should still fail, got success: $out"
+elif [[ "$(echo "$out" | grep -c "PORTABILITY: ${f}:")" -eq 2 ]]; then
+  ok "GNU escape classes inside string literals still match after masking"
+else
+  fail "expected the quoted-escape and sort -V forms flagged, got: $out"
+fi
+rm -f "$f"
+
 echo
 echo "PASS=$PASS FAIL=$FAIL"
 [[ "$FAIL" -eq 0 ]]
