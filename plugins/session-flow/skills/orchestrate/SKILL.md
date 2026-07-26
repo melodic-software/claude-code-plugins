@@ -155,10 +155,10 @@ is a leaf, never an intermediate tier.
 track it: as of 2026-07-26 the [sub-agents](https://code.claude.com/docs/en/sub-agents) page still
 describes the superseded off-by-default state while the changelog and the running harness both have
 nesting on — so a tree authored from either alone can be wrong in *both* directions (assuming depth
-you lack, or declining depth you have). The cheap check is behavioral: dispatch one worker and have
-it report whether it actually holds `Agent` before committing to a second layer. Read a denied
-spawn's error text first: a depth rejection names depth, but spawns are also permission-classified
-before launch, and that refusal says nothing about the ceiling. Quotes: `context/sources.md`.
+you lack, or declining depth you have). The cheap check is behavioral: have one worker attempt a
+trivial nested spawn and report the exact outcome — holding `Agent` is necessary, not sufficient.
+Read a refusal's text before concluding: a depth rejection names depth, while a permission refusal
+(spawns are classified before launch) says nothing about the ceiling. Quotes: `context/sources.md`.
 
 ## Export modes (handoff / worker) — paste-ready brief
 

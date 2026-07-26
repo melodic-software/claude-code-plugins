@@ -11,9 +11,11 @@ state while the changelog and the running harness both had nesting on — so a t
 either source alone could be wrong in **both** directions: assuming depth that is not there, or
 declining depth that is. The failure is silent in the second direction, which is why it survives.
 
-**Do this instead:** before committing a design to a second layer, dispatch one worker and have it
-report whether it actually holds the `Agent` tool. One cheap probe beats any citation.
-`context/sources.md` carries the verbatim quotes and the current divergence.
+**Do this instead:** before committing a design to a second layer, have one worker attempt a trivial
+nested spawn and report the exact outcome. Do not stop at "the `Agent` tool is listed" — listing is
+necessary and not sufficient, and a worker can hold the tool while the spawn is still refused. One
+cheap probe beats any citation. `context/sources.md` carries the verbatim quotes and the current
+divergence.
 
 ## A denied spawn is not a depth answer
 
