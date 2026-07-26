@@ -1,6 +1,6 @@
 # claude-config
 
-A Claude Code plugin bundling four audit skills for one cohesive capability: keeping a repo's Claude
+A Claude Code plugin bundling five audit skills for one cohesive capability: keeping a repo's Claude
 Code configuration healthy. Each skill answers a different question about the same surface:
 
 | Skill | Question it answers |
@@ -9,6 +9,7 @@ Code configuration healthy. Each skill answers a different question about the sa
 | `/claude-config:audit-automation-gaps` | Is the configured automation SET the right set — are there genuine gaps, judged against the enforcement hierarchy? |
 | `/claude-config:audit-permission-grants` | Are the permission GRANTS (`allowed-tools`, `permissions.allow`) portable and durable — do they survive auto mode, work across machines, and live where they can take effect? |
 | `/claude-config:audit-instructions` | Are the INSTRUCTIONS you wrote (CLAUDE.md, rules, skill bodies, agents, hooks, output styles) still earning their context cost against current model capability, or is prior-model scar tissue holding the model back? |
+| `/claude-config:audit-pass` | Can all of that run as ONE ordered, resumable pass over a named target — every scope inventoried before any check, one reconciled findings artifact, one human gate — instead of several separate runs whose results nobody reconciles? |
 
 The instruction/memory-layer *hygiene* question (is `CLAUDE.md` too long, well-placed, free of
 inferable content) is owned by the `audit` skill in the separate `claude-memory` plugin;
@@ -91,11 +92,42 @@ pass alone, so a scheduled hygiene routine can compose it on its own token budge
 /claude-config:audit-instructions conflicts    # the cross-surface conflict pass only
 ```
 
+### audit-pass
+
+Coordinates one pass rather than adding checks: every check is delegated to the plugin that owns it
+through a presence-gated invocation with a documented fallback. It supplies the run semantics that
+invoking those skills by hand does not — a three-scope inventory taken before any check runs (managed
+policy read-only, user scope routed as recommendations, project scope), an exclusion set derived at
+run time from the target's own shared-source registry, the `vendor/` rule, `git worktree list`, and
+the pass's own artifacts; content-derived finding identity that survives an unrelated edit above it;
+a `finding_id`-keyed suppression record with staleness reporting; per-lane persistence with resume;
+and one human gate per run. Findings report in three tiers — derived (exact equality across runs),
+judged (a stability tolerance whose violation fails the run's self-check), delegated. `/doctor` is an
+operator handoff, never a dispatch, because it is interactive.
+
+```shell
+/claude-config:audit-pass                    # read-only pass over the current repo
+/claude-config:audit-pass --opinion          # include the default-off OPINION-tier checks
+/claude-config:audit-pass --resume           # resume an interrupted run
+/claude-config:audit-pass --fix              # apply, per-finding confirmed, project scope only
+```
+
+The target is the active project root, and a `target` argument naming anything else is refused: the
+delegated skills accept no target of their own, so a run pointed elsewhere would report that path
+while every delegated finding came from the active project. Audit another repository by opening it
+as the project.
+
 ## Consumer conventions
 
 The skills read the consuming repo's own `CLAUDE.md` / `.claude/rules/` for project-specific policy:
 additional required permission patterns, documented reasons for disabled MCP servers, and a custom
 enforcement hierarchy. Nothing project-specific is baked into the plugin.
+
+`audit-pass` reads one tracked consumer-project file: the suppression record at
+`.claude/audit-pass.md`, layered per the marketplace's
+[config-cascade](../../docs/conventions/config-cascade/README.md) contract, with its keys owned by
+[finding-suppression](../../docs/conventions/finding-suppression/README.md). All layers absent is a
+valid state.
 
 ## Install
 
@@ -121,9 +153,11 @@ automatically. If you used `/claude-config-audit:memory-health`, install it expl
 
 ## Configuration
 
-No `userConfig`; no persistent plugin state. Network: `audit` fetches official docs pages and each
-registered marketplace's `marketplace.json` from `raw.githubusercontent.com` (read-only; a failed
-fetch degrades to SKIP).
+No `userConfig`. One tracked consumer-project file — `audit-pass`'s suppression record, above.
+Persistent plugin state: `audit-pass` writes its run reports and manifests under
+`${CLAUDE_PLUGIN_DATA}`, outside any target repository, so a run never writes into its own scan set.
+Network: `audit` fetches official docs pages and each registered marketplace's `marketplace.json`
+from `raw.githubusercontent.com` (read-only; a failed fetch degrades to SKIP).
 
 ## Requirements
 
