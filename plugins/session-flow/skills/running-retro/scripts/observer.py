@@ -832,8 +832,13 @@ grouping an assistant event's tool calls by its "mid" field (the transcript's ow
 message id): events sharing one "mid" ran as ONE batched turn; events with DIFFERENT \
 "mid"s ran as separate, sequential turns. An event with NO "mid" at all -- the raw record \
 carried no id -- is neither: that pair's ordering is UNCOMPUTABLE and the claim must be \
-dropped. A missing grouping key is never evidence of sequential execution. Derive a \
-delegation claim from the "tools" field, which carries each event's tool-call names: a \
+dropped. A missing grouping key is never evidence of sequential execution. Different "mid"s \
+alone do NOT make a missed-batching candidate: two calls separated by a user turn could \
+never have been batched, because the later request did not exist when the earlier call was \
+issued. Before applying the dependency test, require the pair to sit inside ONE user turn \
+-- no event carrying "human", and no event with "turn_boundary": true, anywhere between \
+them. A pair spanning a turn boundary is correctly sequential by construction; drop it \
+without testing. Derive a delegation claim from the "tools" field, which carries each event's tool-call names: a \
 subagent delegation appears there as a "Task"/"Agent" tool name. Derive an occurrence count \
 backing an "Emerging pattern" finding by actually counting matched occurrences. Before \
 routing a computed sequential/unbatched pair as a missed-batching Efficiency finding, check \

@@ -43,9 +43,12 @@
   it compares the earlier call's own `calls[].in` against the later call's, since a side-effecting
   call (`mkdir` before a `Write` into that directory) returns nothing and narrates nothing so a
   result-only comparison read a required sequence as a missed batch; and it treats a retry after an
-  `err` result as control-dependent. Its grouping rule no longer both asserts sequential execution
-  for a missing `mid` and calls that case uncomputable — a missing grouping key is now uniformly
-  uncomputable, never evidence of sequential execution.
+  `err` result as control-dependent. A candidate pair must also sit inside one user turn — no
+  intervening `human` or `turn_boundary` event — before the dependency test runs at all, since two
+  calls answering different human prompts could never have been batched however independent they
+  are. Its grouping rule no longer both asserts sequential execution for a missing `mid` and calls
+  that case uncomputable — a missing grouping key is now uniformly uncomputable, never evidence of
+  sequential execution.
   `tools` is unaffected and still carries the tool-call names a "delegation" finding needs (a Task/
   Agent tool name), so delegation required no new field — the gap #1485 closes is sequencing/batching/
   dependency only. The in-session checkpoint path (which reads the raw transcript directly) is

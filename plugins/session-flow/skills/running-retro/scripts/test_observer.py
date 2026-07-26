@@ -408,6 +408,20 @@ class AnalysisPrompt(unittest.TestCase):
         it uncomputable are contradictory instructions, see #1485 Codex review."""
         self.assertIn("never evidence of sequential execution", self.prompt)
 
+    def test_candidate_pair_confined_to_one_user_turn(self):
+        """Calls answering two different human prompts have different `mid`s but
+        could never have been batched -- the later request didn't exist yet. The
+        turn-boundary gate must run before the dependency test, see #1485 Codex
+        review. Both signals it names are real distilled fields."""
+        self.assertIn("ONE user turn", self.prompt)
+        self.assertIn('"turn_boundary": true', self.prompt)
+        boundary = observer.summarize_record(
+            {"type": "system", "subtype": "stop_hook_summary"})
+        self.assertTrue(boundary["turn_boundary"])
+        human = observer.summarize_record(
+            {"type": "user", "message": {"content": "do the next thing"}})
+        self.assertIn("human", human)
+
     def test_error_retry_treated_as_control_dependent(self):
         """An error-then-retry pair sits in two `mid` groups with no data
         dependency to find, so without an explicit rule it routes as a missed
