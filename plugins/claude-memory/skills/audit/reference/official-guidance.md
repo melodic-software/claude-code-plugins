@@ -222,7 +222,7 @@ Per [Steering Claude Code](https://claude.com/blog/steering-claude-code-skills-h
 
 | Method | Session start | After compaction | On-demand trigger |
 |--------|---------------|------------------|-------------------|
-| CLAUDE.md / AGENTS.md | Full load | Re-injected | — |
+| CLAUDE.md | Full load | Project-root re-injected; nested reload on demand | Nested: file read in that subdirectory |
 | Path-scoped rules | Matching paths only | Re-injected when paths match again | File read / edit |
 | Unscoped rules | Full load | Re-injected | — |
 | Skills | Name + description | Listing re-injected; body on invoke | `/skill` or model choice |
@@ -230,6 +230,11 @@ Per [Steering Claude Code](https://claude.com/blog/steering-claude-code-skills-h
 | Hooks | N/A (deterministic) | N/A | Every tool call |
 | Auto-memory MEMORY.md | First 200 lines / 25KB | Persists on disk | — |
 | Output style | If non-default | Persists for session | `/config` |
+
+`AGENTS.md` is deliberately absent from that table: the memory doc's `AGENTS.md` section states
+"Claude Code reads `CLAUDE.md`, not `AGENTS.md`", and prescribes an `@AGENTS.md` import or a symlink
+as the way to make one load. So an `AGENTS.md` loads only through a `CLAUDE.md` that references it,
+on that `CLAUDE.md`'s row — never as a surface of its own.
 
 ## No official scoring rubric
 

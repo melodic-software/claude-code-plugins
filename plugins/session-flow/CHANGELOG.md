@@ -1,5 +1,40 @@
 # Changelog — session-flow plugin
 
+## [0.17.4]
+
+### Fixed
+
+- **The running-retro detached observer's analysis subprocess no longer flashes a visible console
+  window on Windows, and no longer corrupts non-ASCII ledger entries into mojibake.** `observer.py`'s
+  `_run_analysis` called `subprocess.run` for the headless `claude -p` analysis pass with no
+  `creationflags` (unlike `arm_observer.py`'s own windowless `spawn_detached`, whose flag set was
+  never carried to this later call) and no explicit `encoding=`, so Windows decoded UTF-8 output with
+  the platform's cp1252 default. Both are now set explicitly: `CREATE_NO_WINDOW` on Windows only, and
+  `encoding="utf-8", errors="replace"` unconditionally — `errors="replace"` keeps a truncated/invalid
+  byte sequence from raising past the surrounding `TimeoutExpired`/`OSError` handling (#1472).
+
+## [0.17.3]
+
+### Fixed
+
+- **The shared concern-value parser no longer reads a declared key as absent over YAML key spacing.**
+  `parse-concern-value.sh` anchored on the exact regex `^<key>:`, so `memory_dir : .work` (YAML
+  permits whitespace before the `:`) and a root block mapping written at a uniform indent both
+  resolved to the caller's fallback — substituting a value the repo never chose for one it did.
+  Both shapes now resolve, matched at the document's own base indentation so a same-named key
+  nested under another mapping never answers for the root one — including when the root key is
+  present but deliberately empty. Synced from `lib/parse-concern-value.sh`; version bumped so installed
+  copies receive it.
+
+## [0.17.2]
+
+### Fixed
+
+- **Setup's headless reconfigure recipe no longer claims `-y` is CLI-required for a non-TTY
+  `uninstall`.** Verified against the live CLI (2.1.220) and current docs: `-y` only skips
+  `uninstall`'s `--prune` confirmation, and this recipe never passes `--prune` — so `-y` had no
+  effect and is no longer part of the recipe (#1410).
+
 ## [0.17.1]
 
 ### Changed

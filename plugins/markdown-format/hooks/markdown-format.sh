@@ -2,9 +2,11 @@
 # PostToolUse hook: auto-format and lint Markdown via markdownlint-cli2.
 # Triggered on Write|Edit of *.md and *.mdc (Cursor MDC = markdown + frontmatter).
 #
-# ADVISORY: always exits 0. markdownlint-cli2 --fix auto-format always applies;
-# unfixable markdownlint violations surface via additionalContext but never
-# block the edit. Uses the consuming repo's own markdownlint config — ships none.
+# ADVISORY: always exits 0 — unfixable markdownlint violations surface via
+# additionalContext but never block the edit. Uses the consuming repo's own
+# markdownlint config — ships none. When that configuration can execute code
+# (.cjs/.mjs config, or module-loading keys), the lint run itself is gated on
+# an explicit per-repo trust approval; see the trust gate below.
 
 set -uo pipefail
 
@@ -216,16 +218,19 @@ fi
 # documented same-directory precedence so a shadowed executable config does not
 # create a false warning.
 RISK_CONFIGS=()
+RISK_UNVERIFIABLE=0
+RISK_UNPINNABLE=0
 CONFIG_ROOT="$(cd "$REPO_ROOT" 2>/dev/null && pwd -P)" || CONFIG_ROOT="$REPO_ROOT"
 CONFIG_TARGET_DIR="$(cd "$(dirname "$FILE")" 2>/dev/null && pwd -P)" ||
   CONFIG_TARGET_DIR="$(dirname "$FILE")"
 collect_risky_configs() {
-  local cursor dir candidate config
+  local cursor dir candidate config risky
   local dirs=()
 
   cursor="$CONFIG_TARGET_DIR"
   while :; do
-    dirs=("$cursor" "${dirs[@]}")
+    # Guarded for bash 3.2 + `set -u`: expanding an empty array errs there.
+    if ((${#dirs[@]} > 0)); then dirs=("$cursor" "${dirs[@]}"); else dirs=("$cursor"); fi
     [[ "$cursor" == "$CONFIG_ROOT" ]] && break
     dir="$(dirname "$cursor")"
     [[ "$dir" != "$cursor" ]] || return 0
@@ -246,9 +251,65 @@ collect_risky_configs() {
     done
     if [[ -n "$config" ]]; then
       case "$config" in
-      *.cjs | *.mjs) RISK_CONFIGS+=("$config") ;;
+      *.cjs | *.mjs)
+        RISK_CONFIGS+=("$config")
+        # A module-loading key in an EXECUTABLE config names entries
+        # markdownlint-cli2 resolves ITSELF, so an entry can be any expression
+        # that produces a string — `path.join(...)`, `["./rules","x.cjs"]
+        # .join("/")`, a concatenation, a helper call, a value imported from
+        # elsewhere. That space cannot be enumerated by a text scan, and each
+        # attempt only moves the edge, so a JS config carrying one of these keys
+        # gets no approval route at all.
+        #
+        # A JS config WITHOUT these keys stays approvable: its only code loading
+        # is its own require/import calls, whose arguments unpinnable_js_specifier
+        # reads exactly. A repo that does name custom rules from a JS config must
+        # move those entries to a declarative config, where they are data this
+        # scan can read rather than an expression it must predict.
+        if grep -Eq 'customRules|markdownItPlugins|outputFormatters' "$config" 2>/dev/null; then
+          RISK_UNPINNABLE=1
+        fi
+        ;;
       *)
-        if grep -Eq "[\"']?(customRules|markdownItPlugins|outputFormatters)[\"']?[[:space:]]*:" "$config" 2>/dev/null; then
+        # A textual scan cannot see a module-loading key spelled through
+        # string escapes (JSONC "customRules") or YAML escape/tag
+        # machinery, and building a second parser here would only open a
+        # differential-parsing gap against the parser markdownlint-cli2
+        # actually uses. The predicate is instead a fail-closed
+        # over-approximation in two tiers. Tier one: the literal key words
+        # ANYWHERE in the file — no key-colon anchor, because YAML
+        # explicit-key syntax (`? customRules` with `:` on the next line)
+        # separates the key from its colon — mark the config code-loading.
+        # Tier two: any construct capable of synthesizing a spelling the
+        # scan cannot see (JSONC \uXXXX escapes; YAML \x/\u/\U escapes,
+        # escaped line joins, !! tags — a !!binary key decodes to arbitrary
+        # text) marks it UNVERIFIABLE: it gates AND refuses approval below,
+        # because text whose meaning cannot be read cannot be meaningfully
+        # reviewed. YAML anchors/aliases stay verifiable — an alias only
+        # reuses a node whose text is spelled literally elsewhere in the
+        # same file, where tier one sees it.
+        #
+        # The two tiers are INDEPENDENT tests, not a chain: a config can carry a
+        # literal key AND an escaped module VALUE
+        # (`"customRules": ["./rules.cjs"]`), and chaining them would let
+        # the tier-one match suppress the tier-two verdict — the collector would
+        # then hash the raw escaped spelling rather than the file markdownlint
+        # decodes it to and loads, leaving an approval valid across edits to it.
+        risky=0
+        if grep -Eq 'customRules|markdownItPlugins|outputFormatters' "$config" 2>/dev/null; then
+          risky=1
+        fi
+        if [[ "$config" == *.jsonc ]] &&
+          grep -Eq '\\u[0-9a-fA-F]{4}' "$config" 2>/dev/null; then
+          risky=1
+          RISK_UNVERIFIABLE=1
+        fi
+        if [[ "$config" == *.yaml ]] &&
+          grep -Eq '\\[xuU][0-9a-fA-F]|\\$|!![A-Za-z]' "$config" 2>/dev/null; then
+          risky=1
+          RISK_UNVERIFIABLE=1
+        fi
+        if ((risky == 1)); then
           RISK_CONFIGS+=("$config")
         fi
         ;;
@@ -275,18 +336,231 @@ collect_risky_configs() {
   done
 }
 
-# Return success only for the first observation of this repo + risky-config
-# content state. CLAUDE_PLUGIN_DATA is the official persistent plugin-state
-# location and survives plugin updates. If it is unavailable or unwritable
-# (for example, a direct development invocation), fail open by warning again;
-# never suppress a trust warning merely because its marker could not be saved.
-claim_trust_advisory() {
-  local state_base="${CLAUDE_PLUGIN_DATA:-}" state_dir signature config digest
-  [[ -n "$state_base" ]] || return 0
-  if command -v cygpath >/dev/null 2>&1 && [[ "$state_base" == [A-Za-z]:\\* ]]; then
-    state_base="$(cygpath -u "$state_base" 2>/dev/null)" || return 0
+# The approval signature must cover the code that would RUN, not only the
+# config that names it: a customRules/markdownItPlugins/outputFormatters
+# module — or a file require()d by an approved .cjs/.mjs config — can change
+# (e.g. on a branch switch) while the config text stays identical, and a
+# config-only signature would keep honoring the stale approval. Enumerating
+# the true module graph would mean executing Node resolution, which is the
+# very thing being gated, so approximate it conservatively from text: collect
+# every string literal in each risky config, resolve it against the config's
+# directory and the repo root, and for each hit inside this repository take
+# the file (or, for a directory, its package.json/index entry points, the
+# files Node's directory-require loads) into MODULE_FILES — then rescan each
+# collected file the same way, so a repo rule module's own relative requires
+# are covered transitively. Bounded at 64 scanned files; exceeding the bound
+# returns 1 and the caller fails closed. Bare package identifiers resolve to
+# node_modules, which the user installs explicitly — that separate trust
+# decision is not folded into this repository-content signature.
+# Bash 3.2-compatible throughout (macOS system bash): dedup state lives in
+# newline-delimited strings rather than associative arrays, and every array
+# expansion is guarded non-empty — `"${arr[@]}"` on an empty array is an
+# unbound-variable error under `set -u` before bash 4.4.
+
+# True when a JS source names code this text scan cannot pin to a file.
+#
+# Two independent tests, because neither alone covers the shape space.
+#
+# 1. PATH-BUILDING MACHINERY anywhere in the file. markdownlint-cli2 resolves
+#    `customRules`/`markdownItPlugins`/`outputFormatters` entries itself, so
+#    `customRules: [path.join(__dirname, "rules", "x.cjs")]` carries no loader
+#    call to anchor a pattern on — and the entries are conventionally written
+#    across several lines, so no line-scoped anchor could see the key and the
+#    expression together either. String concatenation and template
+#    interpolation assemble a specifier the same way and are refused with it.
+#    The `path` module is refused at its IMPORT rather than at its call sites,
+#    because a call site can be spelled through any alias — `p.join(...)`,
+#    `const { join } = require("path")` — while the import cannot: a file that
+#    pulls in `path` is building paths, and this scan cannot pin what it builds.
+#    Matching bare `.join(`/`.resolve(` instead would refuse every
+#    `array.join(",")` and `Promise.resolve`, which is collateral, not caution.
+#
+# 2. A LOADER RESIDUE. Delete every plainly-written loader call — `require("x")`
+#    / `import("x")` — from the text, then look for a loader token in what
+#    remains. A proximity pattern cannot decide this, because JavaScript
+#    permits a comment or newline at any token boundary, so
+#    `require/*c*/(path.join(...))` sits outside any fixed window; and counting
+#    occurrences cannot either, because `grep -o` consumes the boundary
+#    character a word-start guard needs and so undercounts a nested
+#    `require(require("x"))`. Deleting first leaves nothing to align: a loader
+#    the plain-form pattern did not consume is a loader whose argument this
+#    scan cannot read.
+#
+# Plus a string literal carrying a letter-capable escape (backslash-u/x/octal),
+# which Node decodes to a different path than the raw text resolved here — a
+# specifier can hide its real spelling that way.
+#
+# Every pattern is POSIX ERE: no `\b`, which is a GNU extension that BSD grep
+# (macOS system grep, the platform this file targets) may read as a literal `b`,
+# turning the whole predicate into a silent pass — the one failure direction
+# this function must not have. Word starts and ends are spelled as bracket
+# expressions instead, and the residue test uses `grep -q` rather than `-o` so
+# no boundary character is consumed.
+#
+# Deliberately over-approximating: a `path.join` used to read a data file,
+# `process.cwd()` in an unrelated call, or `__dirname` inside a string refuses
+# approval too. That is the fail-closed direction, and its cost is a skipped
+# lint run.
+unpinnable_js_specifier() {
+  local file="$1"
+  if grep -Eq \
+    -e "(require[[:space:]]*\([[:space:]]*|from[[:space:]]*)[\"'](node:)?path[\"']" \
+    -e 'path[[:space:]]*\.[[:space:]]*(join|resolve|normalize)[[:space:]]*\(' \
+    -e 'require[[:space:]]*\.[[:space:]]*resolve[[:space:]]*\(' \
+    -e 'import[[:space:]]*\.[[:space:]]*meta' \
+    -e 'process[[:space:]]*\.' \
+    -e '__dirname|__filename' \
+    -e '\$\{' \
+    -e "[\"'][[:space:]]*\+|\+[[:space:]]*[\"']" \
+    -e "[\"'][^\"']*\\\\[uxUX0-7]" \
+    "$file" 2>/dev/null; then
+    return 0
   fi
-  state_dir="${state_base%/}/trust-advisories"
+  sed -E "s/(require|import)[[:space:]]*\([[:space:]]*(\"[^\"]*\"|'[^']*')/ /g" "$file" 2>/dev/null |
+    grep -Eq "(^|[^A-Za-z0-9_\$])(require($|[^A-Za-z0-9_\$])|import[[:space:]]*\()"
+}
+
+MODULE_FILES=()
+collect_module_files() {
+  local item dir str tag base candidate resolved entry scanned=0
+  local queue=("$@")
+  local seen_scan=$'\n' seen_module=$'\n'
+  local quoted_string_re="\"[^\"]+\"|'[^']+'"
+  # YAML plain scalars carry no quotes, so `customRules: [./rules/local.cjs]`
+  # is invisible to the quoted-string scan and its module would never enter the
+  # signature. Path-shaped bare tokens are therefore harvested too. Restricted
+  # to tokens containing a `/` or `.` below, so an ordinary word (a key name, a
+  # rule id) is not tried as a path; over-collecting a token that resolves to
+  # nothing costs nothing, which is the same over-approximation the quoted scan
+  # already relies on.
+  local plain_token_re="[A-Za-z0-9_.@~/+-]+"
+
+  while ((${#queue[@]} > 0)); do
+    item="${queue[0]}"
+    if ((${#queue[@]} > 1)); then queue=("${queue[@]:1}"); else queue=(); fi
+    case "$seen_scan" in *$'\n'"$item"$'\n'*) continue ;; *) ;; esac
+    seen_scan+="$item"$'\n'
+    scanned=$((scanned + 1))
+    ((scanned <= 64)) || return 1
+    # A module specifier this text scan cannot read as written names code it
+    # cannot pin, so the state gets no approval at all: an approval whose
+    # signature omits the module would survive arbitrary edits to it.
+    # unpinnable_js_specifier answers that question for a JS source; a
+    # declarative config is judged by the separate key/escape tiers above.
+    case "$item" in
+    *.cjs | *.mjs | *.js)
+      if unpinnable_js_specifier "$item"; then
+        RISK_UNPINNABLE=1
+        return 1
+      fi
+      ;;
+    *) ;;
+    esac
+    dir="$(dirname "$item")"
+    while IFS= read -r str; do
+      # The stream carries both harvests, each tagged with its kind: Q keeps the
+      # quoted scan's exact prior behavior (strip the delimiters, try every
+      # token), P adds bare tokens and admits only path-shaped ones.
+      tag="${str:0:1}"
+      str="${str:1}"
+      if [[ "$tag" == Q ]]; then
+        str="${str#?}"
+        str="${str%?}"
+      else
+        case "$str" in */* | *.*) ;; *) continue ;; esac
+      fi
+      [[ -n "$str" && "$str" != *$'\n'* ]] || continue
+      for base in "$dir/$str" "$CONFIG_ROOT/$str"; do
+        # Node's CommonJS resolution tries the literal path, then the
+        # .cjs/.mjs/.js/.json/.node extension candidates, then a directory's
+        # package.json/index entry points — an extensionless
+        # require("./rules/local-rule") must still pin local-rule.cjs.
+        for candidate in "$base" "$base.cjs" "$base.mjs" "$base.js" "$base.json" "$base.node"; do
+          resolved=""
+          if [[ -f "$candidate" ]]; then
+            resolved="$(hook::physical_path "$candidate")"
+            # hook::physical_path degrades to the unchanged lexical path when no
+            # canonicalizer resolves it. A symlink whose physical path came back
+            # unchanged is the observable signature of that degradation — a
+            # symlink never canonicalizes to itself — and the boundary check
+            # below would then read an escaping symlink as in-repository and pin
+            # it by its lexical path, leaving the external target free to change
+            # under a live approval. Same test the membership scope above uses,
+            # and the same fail-closed answer.
+            if [[ -L "$candidate" && "$resolved" == "$candidate" ]]; then
+              RISK_UNPINNABLE=1
+              return 1
+            fi
+          elif [[ "$candidate" == "$base" && -d "$candidate" ]]; then
+            for entry in package.json index.js index.cjs index.mjs; do
+              if [[ -f "$candidate/$entry" ]]; then
+                queue+=("$(hook::physical_path "$candidate/$entry")")
+              fi
+            done
+            continue
+          else
+            continue
+          fi
+          case "$resolved" in
+          "$CONFIG_ROOT"/*) ;;
+          *)
+            # A repository path that RESOLVES outside the repository — a symlink
+            # aimed out of the tree, or a `../` escape — names code no signature
+            # over repository content can cover: the approval state is unchanged
+            # when the external target changes, or when the symlink is re-aimed
+            # at a different existing target, yet Node follows it and executes
+            # the new code. Hashing the external file instead would extend the
+            # signature beyond the repository the approval is scoped to, so the
+            # state is refused rather than signed. CONFIG_ROOT is itself a
+            # physical path (`pwd -P`), so this compares like with like and a
+            # symlinked checkout does not read as an escape.
+            RISK_UNPINNABLE=1
+            return 1
+            ;;
+          esac
+          case "$seen_module" in
+          *$'\n'"$resolved"$'\n'*) ;;
+          *)
+            seen_module+="$resolved"$'\n'
+            MODULE_FILES+=("$resolved")
+            queue+=("$resolved")
+            ;;
+          esac
+        done
+      done
+    done < <(
+      grep -oE "$quoted_string_re" "$item" 2>/dev/null | sed 's/^/Q/'
+      grep -oE "$plain_token_re" "$item" 2>/dev/null | sed 's/^/P/'
+    )
+  done
+  return 0
+}
+
+# Resolve the trust-approval marker directory for the current repo +
+# risky-config content state into TRUST_DIR. CLAUDE_PLUGIN_DATA is the
+# official persistent plugin-state location and survives plugin updates; the
+# signature is content-addressed over every risky config PLUS every resolved
+# code-loading input it references (see collect_module_files), so a change to
+# the configuration or to a referenced repository module yields a new
+# directory and revokes a prior approval. Returns 1 when the state base is
+# unavailable, a config or module cannot be digested, the module scan
+# overflows its bound, or the config was classified unverifiable — the caller
+# must fail CLOSED and skip the lint run: configuration that can execute code
+# and whose approval cannot be verified is never run. Named trust-approvals,
+# NOT trust-advisories: that directory's markers recorded only that a warning
+# had been shown, and reading them as approvals would silently grant trust.
+TRUST_DIR=""
+resolve_trust_dir() {
+  local state_base="${CLAUDE_PLUGIN_DATA:-}" signature config module digest
+  TRUST_DIR=""
+  [[ -n "$state_base" ]] || return 1
+  ((RISK_UNVERIFIABLE == 0)) || return 1
+  ((RISK_UNPINNABLE == 0)) || return 1
+  if command -v cygpath >/dev/null 2>&1 && [[ "$state_base" == [A-Za-z]:\\* ]]; then
+    state_base="$(cygpath -u "$state_base" 2>/dev/null)" || return 1
+  fi
+  MODULE_FILES=()
+  collect_module_files "${RISK_CONFIGS[@]}" || return 1
   signature=$(
     {
       printf '%s\n' "$REPO_ROOT"
@@ -294,23 +568,71 @@ claim_trust_advisory() {
         digest=$(git hash-object "$config" 2>/dev/null) || return 1
         printf '%s\t%s\n' "$config" "$digest"
       done
+      # Guarded for bash 3.2 + `set -u`: expanding an empty array errs there.
+      if ((${#MODULE_FILES[@]} > 0)); then
+        for module in "${MODULE_FILES[@]}"; do
+          digest=$(git hash-object "$module" 2>/dev/null) || return 1
+          printf 'module\t%s\t%s\n' "$module" "$digest"
+        done
+      fi
     } | git hash-object --stdin 2>/dev/null
-  ) || return 0
-  [[ -n "$signature" ]] || return 0
-  mkdir -p "$state_dir" 2>/dev/null || return 0
-  mkdir "$state_dir/$signature" 2>/dev/null
+  ) || return 1
+  [[ -n "$signature" ]] || return 1
+  TRUST_DIR="${state_base%/}/trust-approvals/$signature"
 }
 
 hook::ctx_reset
 collect_risky_configs
-if ((${#RISK_CONFIGS[@]} > 0)) && claim_trust_advisory; then
-  RISK_LIST=""
-  for config in "${RISK_CONFIGS[@]}"; do
-    config="${config#"$CONFIG_ROOT"/}"
-    RISK_LIST+="${RISK_LIST:+, }$config"
-  done
-  hook::ctx_append \
-    "markdown-format trust advisory: markdownlint-cli2 will load executable or module-loading repository configuration ($RISK_LIST). Formatting continues, but review these files and their installed dependencies before trusting this repository. This warning appears once per configuration state."
+# Trust gate: markdownlint-cli2's configuration contract loads .cjs/.mjs
+# config modules and customRules/markdownItPlugins/outputFormatters module
+# identifiers through Node's require/import machinery, so running the linter
+# under such configuration executes repository-supplied code. That must never
+# happen on the strength of a markdown edit alone: the lint run is skipped
+# until the user, having reviewed the configuration, records an explicit
+# approval of this exact configuration state. The skip is reported on both
+# channels once per session; the notice key carries the state signature so a
+# configuration change re-notices within the same session.
+if ((${#RISK_CONFIGS[@]} > 0)); then
+  resolve_trust_dir || TRUST_DIR=""
+  if [[ -z "$TRUST_DIR" || ! -d "$TRUST_DIR" ]]; then
+    RISK_LIST=""
+    for config in "${RISK_CONFIGS[@]}"; do
+      config="${config#"$CONFIG_ROOT"/}"
+      RISK_LIST+="${RISK_LIST:+, }$config"
+    done
+    if [[ -n "$TRUST_DIR" ]]; then
+      APPROVE_HINT="Review these files and their installed dependencies; to approve this exact configuration state and enable linting, run: mkdir -p '$TRUST_DIR' (any change to the configuration or a referenced repository module revokes the approval)."
+    elif ((RISK_UNVERIFIABLE == 1)); then
+      APPROVE_HINT="The configuration contains constructs (string escapes or tags) that defeat textual verification, so it cannot be reviewed as written and linting stays disabled for this repository."
+    elif ((RISK_UNPINNABLE == 1)); then
+      APPROVE_HINT="The configuration or a module it references names code through an expression this hook cannot pin to a file (a built path, a template, a concatenation, or a loader argument it cannot read), so the code that would execute cannot be bound to an approval and linting stays disabled for this repository."
+    else
+      APPROVE_HINT="Approval state is unavailable (CLAUDE_PLUGIN_DATA unset or unusable, or the configuration's referenced modules could not be tracked), so linting stays disabled for this repository."
+    fi
+    # Approvable states key the notice by signature; states with no approval
+    # route (unverifiable / untrackable / no store) have no signature, so key
+    # by the risky configs' content instead — otherwise every such state
+    # would share one key and only the first would ever notice in a session,
+    # while an unchanged state still dedupes.
+    if [[ -n "$TRUST_DIR" ]]; then
+      TRUST_NOTICE_KEY="markdown-format-trust-${TRUST_DIR##*/}"
+    else
+      TRUST_NOTICE_KEY="markdown-format-trust-noroute-$(
+        {
+          printf '%s\n' "$REPO_ROOT"
+          for config in "${RISK_CONFIGS[@]}"; do
+            git hash-object "$config" 2>/dev/null || printf 'undigested\n'
+          done
+        } | git hash-object --stdin 2>/dev/null || printf 'unkeyed'
+      )"
+    fi
+    if hook::notice_once "$TRUST_NOTICE_KEY" "$INPUT"; then
+      hook::emit_skip_notice PostToolUse \
+        "markdown-format trust gate: Markdown lint/format skipped — this repository's markdownlint configuration can execute repository-supplied code ($RISK_LIST). $APPROVE_HINT"
+    fi
+    emit_tel "skipped" '[]'
+    exit 0
+  fi
 fi
 
 if FIX_OUTPUT=$(cd "$REPO_ROOT" && "${MDLINT[@]}" --fix "$FILE" 2>&1); then
@@ -320,8 +642,8 @@ if FIX_OUTPUT=$(cd "$REPO_ROOT" && "${MDLINT[@]}" --fix "$FILE" 2>&1); then
   exit 0
 fi
 
-# Residual findings — append to any trust advisory, surface one JSON object via
-# additionalContext, then emit ok with findings.
+# Residual findings — surface one JSON object via additionalContext, then
+# emit ok with findings.
 # ctx_append receives all output lines (human-readable context for Claude Code).
 # FINDINGS_JSON is filtered to violation lines only — schema requires
 # "Unfixable markdownlint violations remaining after --fix, one per line";

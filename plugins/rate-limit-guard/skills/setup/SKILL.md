@@ -17,13 +17,13 @@ conformingly write:
   `/plugin configure rate-limit-guard` interactively, any time. Headless, `claude plugin install
   ... --config rate_limit_guard_enabled=false` seeds the value on a *fresh install only* and is
   ignored once installed, so a headless reconfigure is `claude plugin uninstall rate-limit-guard -s
-  <scope> -y` then `claude plugin install rate-limit-guard@<marketplace> -s <scope> --config
+  <scope>` then `claude plugin install rate-limit-guard@<marketplace> -s <scope> --config
   rate_limit_guard_enabled=<value>`. Both commands default to `-s user`, so pass the scope the
   plugin is *actually* installed at — `claude plugin list` reports it per plugin — and run from that
   project's directory when the scope is `project` or `local`; defaulting removes a separate user
-  record while the effective install stays in place. The `-y` is what the CLI requires of an
-  uninstall whose stdin or stdout is not a TTY, and is warranted only because the caller explicitly
-  asked to reconfigure.
+  record while the effective install stays in place. `-y` only skips `uninstall`'s `--prune`
+  confirmation; this recipe never passes `--prune`, so `-y` has no effect here and should not be
+  added.
 - **The statusline wiring**, which lives in the **user's own** `settings.json` — neither
   `userConfig` nor tracked project config, and a Claude Code settings surface setup must never
   mutate.

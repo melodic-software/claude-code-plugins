@@ -9,10 +9,11 @@ modules would cost more coupling than it buys cohesion.
 
 from __future__ import annotations
 
+import os
 import shutil
 import subprocess
 import sys
-from collections.abc import Collection
+from collections.abc import Collection, Mapping
 from contextlib import suppress
 from datetime import UTC, datetime
 from pathlib import Path
@@ -98,6 +99,7 @@ def run_command(
     timeout_seconds: float = DEFAULT_COMMAND_TIMEOUT_SECONDS,
     check: bool = True,
     cwd: str | Path | None = None,
+    env_overrides: Mapping[str, str] | None = None,
 ) -> subprocess.CompletedProcess[str]:
     """Run one allowlisted executable and capture its output.
 
@@ -106,6 +108,10 @@ def run_command(
     on PATH, and a timeout always raises. With `check` (the default) a nonzero
     exit raises with the captured stderr; callers that inspect the returncode
     themselves pass `check=False`.
+
+    `env_overrides` layers onto the inherited environment for this call only --
+    the seam a caller uses to pin a child's locale when it must read a decision
+    out of that child's human-readable output, which is otherwise translated.
     """
     if not argv:
         raise ValueError("argv must name an executable")
@@ -124,6 +130,7 @@ def run_command(
             encoding="utf-8",
             timeout=timeout_seconds,
             cwd=str(cwd) if cwd is not None else None,
+            env=({**os.environ, **env_overrides} if env_overrides else None),
         )
     except subprocess.TimeoutExpired as exc:
         raise RuntimeError(

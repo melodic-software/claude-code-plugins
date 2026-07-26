@@ -24,9 +24,16 @@
 #   run on a clean tree with CHECK_SKILL_BASE_REF pointing before the change
 #   (e.g. HEAD^ or a merge-base).
 #
+# NOT covered here: the SHARED listing budget (skillListingBudgetFraction) that
+# every loaded skill draws from together, a different cross-skill limit from
+# check 2's per-skill entry cap below. See the companion
+# check-listing-budget.sh for that aggregate report (always advisory).
+#
 # Checks:
 #   1. Frontmatter parses; name matches dir; description present
-#   2. description + when_to_use <= 1536 chars (listing-truncation guard)
+#   2. description + when_to_use <= 1536 chars (per-skill listing-entry cap;
+#      counts the literal " - " joiner the harness inserts when when_to_use is
+#      populated)
 #   3. Trigger-keyword preservation vs the base ref (skipped for new skills;
 #      a phrase moved verbatim to a sibling skill's listing text — one the
 #      sibling did not carry at the base ref — WARNs, since the marketplace
@@ -52,6 +59,10 @@
 #      (FAIL bash-only syntax + no shell:; WARN portable-looking but undeclared)
 #  20. `!`-injected commands carry a `|| <fallback>` (WARN; undocumented injection
 #      failure semantics — degrade to a known string, not a surprise)
+#  21. Fresh-eyes declaration conformance: same-context judgment language carries
+#      fresh-context delegation wording or a fresh-eyes-exempt directive nearby
+#      (WARN; heuristic); malformed/reason-less directives FAIL
+#      (spec: skills/check/reference/fresh-eyes-declarations.md)
 #
 # Notes (static, git-diff-based design):
 #   - Checks 3/8/9 diff the working tree against CHECK_SKILL_BASE_REF (default
@@ -218,17 +229,21 @@ fi
 
 # --- Check 2: description + when_to_use <= DESC_CHAR_CAP chars --------------
 # Cap is per-skill listing entry (description + when_to_use combined) — overflow
-# truncates the listing and degrades auto-invocation.
-
+# truncates the listing and degrades auto-invocation. The harness assembles the
+# entry as description + " - " + when_to_use — a literal 3-char joiner — so the
+# combined length must include it whenever when_to_use is populated, or this
+# check under-counts by 3 and can pass an entry that actually overflows.
+JOINER_LEN=0
 CUR_DESC="$(skill_frontmatter::strip_quotes "$(skill_frontmatter::field description <<<"$FRONTMATTER")")"
 CUR_WTU="$(skill_frontmatter::strip_quotes "$(skill_frontmatter::field when_to_use <<<"$FRONTMATTER")")"
 DESC_LEN=${#CUR_DESC}
 WTU_LEN=${#CUR_WTU}
-COMBINED_LEN=$((DESC_LEN + WTU_LEN))
+((WTU_LEN > 0)) && JOINER_LEN=3
+COMBINED_LEN=$((DESC_LEN + JOINER_LEN + WTU_LEN))
 if ((COMBINED_LEN > DESC_CHAR_CAP)); then
   err "description+when_to_use is $COMBINED_LEN chars (cap $DESC_CHAR_CAP — overflow truncates the listing)"
 elif ((WTU_LEN > 0)); then
-  note "description+when_to_use $COMBINED_LEN/$DESC_CHAR_CAP chars (desc $DESC_LEN + when_to_use $WTU_LEN)"
+  note "description+when_to_use $COMBINED_LEN/$DESC_CHAR_CAP chars (desc $DESC_LEN + joiner $JOINER_LEN + when_to_use $WTU_LEN)"
 else
   note "description length $DESC_LEN/$DESC_CHAR_CAP chars"
 fi
@@ -729,6 +744,340 @@ if ((${#INJECTIONS[@]} > 0)); then
     warn "$missing_fallback \`!\`-injected command(s) carry no \`|| <fallback>\` — injection failure/timeout/stderr semantics are undocumented, so an unguarded command can inline an error string into the prompt. Add a \`|| echo \"<fallback>\"\` (or shell-appropriate) continuation"
   fi
 fi
+
+# --- Check 21: fresh-eyes declaration conformance ---------------------------
+# Deterministic proxy for the fresh-eyes rule: a step whose output judges work
+# produced in the same context declares either fresh-context delegation or an
+# exemption directive IN THE SKILL'S OWN FILES. The judgment-language detector
+# is a curated heuristic (WARN-only); directive syntax errors FAIL. Contract
+# spec for authors: skills/check/reference/fresh-eyes-declarations.md.
+# Scan surface excludes vendor/ (byte-frozen per check 8 — findings would be
+# permanently unclearable) and evals/ (fixtures contain arbitrary prose).
+# Fenced blocks and inline code spans are ignored by both detectors so docs
+# can show literal examples (self-reference guard); a trailing \r is tolerated
+# per line (third-party checkouts without eol=lf normalization).
+FRESH_EYES_PROXIMITY_LINES=8
+# Lowercase POSIX ERE (matched against the lowercased, span-stripped line).
+# Seeded from the phrasing of the audited skills and their exempted steps;
+# curation policy (triggers + disposition ladder) lives in the reference page.
+# [[:space:]] instead of \t: awk -v escape processing differs across awks, a
+# POSIX class does not. (^|[^a-z]) boundary guards keep substrings quiet —
+# "upgrade your own", "underscore its own" must not read as grade/score.
+FRESH_EYES_JUDGE_RE='(^|[^a-z])self[- ](review|audit|assess|score|grade|verif)|(^|[^a-z])(review|verify|assess|grade|score|judge|critique)[a-z]*[[:space:]]+(your|its|their)[[:space:]]+own|(^|[^a-z])spot[- ]check|(^|[^a-z])outcome[[:space:]]+gate|(^|[^a-z])score[[:space:]]+each'
+
+FRESH_EYES_FILES=("$SKILL_MD")
+for spoke_dir in context templates reference references actions lanes catalog; do
+  [[ -d "$SKILL_DIR/$spoke_dir" ]] || continue
+  while IFS= read -r f; do
+    [[ -n "$f" ]] && FRESH_EYES_FILES+=("$f")
+  done < <(find "$SKILL_DIR/$spoke_dir" -type f -name '*.md' \
+    -not -path '*/vendor/*' -not -path '*/evals/*' 2>/dev/null | sort)
+done
+
+for fe_file in "${FRESH_EYES_FILES[@]}"; do
+  fe_rel="${fe_file#"$SKILL_DIR"/}"
+  [[ "$fe_file" == "$SKILL_MD" ]] && fe_rel="SKILL.md"
+  while IFS= read -r fe_line; do
+    fe_kind="${fe_line%% *}"
+    fe_ln="${fe_line#* }"
+    case "$fe_kind" in
+      DIRECTIVE_MALFORMED)
+        err "malformed fresh-eyes-exempt directive ($fe_rel:$fe_ln) — expected '<!-- fresh-eyes-exempt: <class> -- <reason> -->' with class deterministic-gate|external-input|deferred (spec: skill-quality plugin, skills/check/reference/fresh-eyes-declarations.md)"
+        ;;
+      DIRECTIVE_NOREASON)
+        err "fresh-eyes-exempt directive missing its '-- <reason>' ($fe_rel:$fe_ln) — justification is recorded at the suppression site (spec: skill-quality plugin, skills/check/reference/fresh-eyes-declarations.md)"
+        ;;
+      HIT_BOTH)
+        note "fresh-eyes: judgment language at $fe_rel:$fe_ln carries BOTH delegation wording and an exemption directive — contradictory declaration, hand-verify"
+        ;;
+      HIT_WORDING)
+        note "fresh-eyes: judgment language at $fe_rel:$fe_ln — fresh-context delegation declared nearby"
+        ;;
+      HIT_DIRECTIVE)
+        note "fresh-eyes: judgment language at $fe_rel:$fe_ln — exemption directive declared nearby"
+        ;;
+      HIT_NONE)
+        warn "same-context judgment language with no fresh-context delegation or exemption directive within $FRESH_EYES_PROXIMITY_LINES lines ($fe_rel:$fe_ln) — declaration may live in a referenced spoke — hand-verify (spec: skill-quality plugin, skills/check/reference/fresh-eyes-declarations.md)"
+        ;;
+      DIRECTIVE_STALE)
+        warn "stale fresh-eyes-exempt directive ($fe_rel:$fe_ln) — no judgment-language hit within $FRESH_EYES_PROXIMITY_LINES lines; the heuristic list, not the directive, may be the gap — verify before removing"
+        ;;
+      *)
+        # Scanner and dispatcher ship together; an unknown record is a bug here,
+        # never the audited skill's fault — fail loud, not silent.
+        err "check 21 internal error: unknown scan record '$fe_kind' ($fe_rel)"
+        ;;
+    esac
+  done < <(awk -v P="$FRESH_EYES_PROXIMITY_LINES" -v JR="$FRESH_EYES_JUDGE_RE" '
+    # Start of file counts as a paragraph break, so an indented block opening on
+    # line one is recognized as one.
+    BEGIN { fe_blank = 1 }
+    # Blockquote nesting depth of a raw line: the number of leading `>` markers,
+    # each optionally followed by one space, under the three-space indent cap.
+    function fe_depth_of(s,   d) {
+      d = 0
+      while (match(s, /^ {0,3}> ?/)) { d++; s = substr(s, RSTART + RLENGTH) }
+      return d
+    }
+    # Position in s of the first backtick run of EXACTLY n characters, or 0.
+    # Escapes are deliberately ignored: a code span is literal, so a backslash
+    # inside one is content and cannot suppress the closer.
+    function fe_span_close(s, n,   base) {
+      base = 0
+      while (match(s, /`+/)) {
+        if (RLENGTH == n) return base + RSTART
+        base += RSTART + RLENGTH - 1
+        s = substr(s, RSTART + RLENGTH)
+      }
+      return 0
+    }
+    { sub(/\r$/, "") }
+    # YAML frontmatter is not markdown, so nothing in it is a fence, a span, or a
+    # directive. Parsing it as markdown let a block-scalar description containing
+    # an example fence open `fe_fence` that the closing `---` never ended, which
+    # suppressed the whole body and passed the file silently. Skip the region and
+    # reset every structural carry at its terminator.
+    NR == 1 && /^---[ \t]*$/ { fe_fm = 1; next }
+    fe_fm {
+      if (/^---[ \t]*$/) {
+        fe_fm = 0
+        fe_fence = 0; fe_open_pre = 0; sp_open = 0; fe_icode = 0; fe_blank = 1
+      }
+      next
+    }
+    # Block-container prefixes come off before anything else looks at the line, so
+    # container content parses exactly like top-level content. Markers interleave
+    # (`> - ```), so strip until neither form matches.
+    #
+    # Inside a fence the strip applies only when the OPENER itself carried a
+    # prefix — otherwise a nested `> ``` ` in the quoted example a fence itself
+    # contains becomes a closer and leaks the block.
+    #
+    # NOTE: this awk program is a single-quoted shell string. An apostrophe in a
+    # comment here terminates it and breaks the script — keep prose apostrophe-free.
+    {
+      fe_raw = $0
+      # A container-nested fence dies with its container. CommonMark ends a fence
+      # inside a blockquote or list item when that container ends, but this fence
+      # state is a single global flag: without the reset an unclosed
+      # `> ```markdown` swallows every following top-level line, and a malformed
+      # directive in later prose silently PASSes.
+      if (fe_fence && fe_open_pre) {
+        if (fe_open_bq) {
+          # A blockquote marker must repeat on every line — a fenced block inside
+          # a quote takes no lazy continuation, and a blank line ends the quote.
+          # DEPTH matters, not mere presence: a fence opened at "> > " lives in the
+          # inner quote, so a later depth-1 line has left that quote and ends the
+          # fence even though it still carries a marker.
+          if (fe_depth_of(fe_raw) < fe_open_depth) { fe_fence = 0; fe_open_pre = 0 }
+        } else {
+          # A list item continues by indentation to its content column: a blank
+          # line stays inside the item, a dedent ends it.
+          fe_ind = 0
+          while (substr(fe_raw, fe_ind + 1, 1) == " ") fe_ind++
+          if (fe_raw !~ /^[ \t]*$/ && fe_ind < fe_open_ind) { fe_fence = 0; fe_open_pre = 0 }
+        }
+      }
+      if (!fe_fence || fe_open_pre) {
+        do {
+          fe_pre = $0
+          sub(/^ {0,3}> ?/, "", $0)
+          sub(/^ {0,3}([-*+]|[0-9]{1,9}[.)])[ \t]+/, "", $0)
+        } while ($0 != fe_pre)
+      }
+      fe_stripped = ($0 != fe_raw)
+      fe_bq_depth = fe_depth_of(fe_raw)
+      fe_strip_len = length(fe_raw) - length($0)
+    }
+    # Fence matching. What this scanner models, what it does not attempt, and what
+    # it does when it cannot tell are stated once in the Parsing contract section
+    # of skills/check/reference/fresh-eyes-declarations.md — that doc is the claim
+    # this code implements; do not restate it here.
+    /^ {0,3}(```+|~~~+)/ {
+      fe_run = $0
+      sub(/^ */, "", fe_run)
+      fe_char = substr(fe_run, 1, 1)
+      fe_len = 0
+      while (substr(fe_run, fe_len + 1, 1) == fe_char) fe_len++
+      fe_info = substr(fe_run, fe_len + 1)
+      # A fence line is markdown structure, never the blank line or indented run
+      # an indented code block needs, so it resets that tracking either way.
+      fe_icode = 0; fe_blank = 0
+      if (fe_fence) {
+        if (fe_char == fe_open_char && fe_len >= fe_open_len \
+            && fe_info ~ /^[ \t]*$/) fe_fence = 0
+        next
+      }
+      # A backtick fence opener cannot carry backticks in its info string —
+      # such a line is ordinary prose, so it falls through to the scanners
+      # instead of opening a fence.
+      if (!(fe_char == "`" && index(fe_info, "`"))) {
+        # A fence interrupts the paragraph, so any code span still waiting for
+        # its closer expires here rather than blinding the first paragraph
+        # after the fence closes.
+        fe_fence = 1; fe_open_char = fe_char; fe_open_len = fe_len; sp_open = 0
+        fe_open_pre = fe_stripped; fe_open_depth = fe_bq_depth
+        fe_open_bq = (fe_bq_depth > 0); fe_open_ind = fe_strip_len
+        next
+      }
+    }
+    fe_fence { next }
+    {
+      line = $0
+      # A code span lives inside one paragraph, so a blank line expires a span
+      # still waiting for its closer — otherwise one stray backtick would blind
+      # the detectors for the rest of the file.
+      if (line ~ /^[ \t]*$/) sp_open = 0
+      # Escapes and code spans resolve in ONE left-to-right pass because
+      # CommonMark couples them: escapes apply only outside a span, and a span is
+      # literal inside. Two independent passes cannot express that — either pass
+      # order breaks one of the two rules.
+      sp_keep = ""
+      # A span opened on an earlier line: spans may cross a newline, so scan for
+      # the closer first. With no run of exactly the opener length, the whole
+      # line is span content and never reaches the detectors.
+      if (sp_open) {
+        sp_at = fe_span_close(line, sp_open)
+        if (!sp_at) next
+        line = substr(line, sp_at + sp_open)
+        sp_keep = " "
+        sp_open = 0
+      }
+      while (1) {
+        if (!match(line, /[\\`]/)) { sp_keep = sp_keep line; break }
+        sp_p = RSTART
+        sp_keep = sp_keep substr(line, 1, sp_p - 1)
+        if (substr(line, sp_p, 1) == "\\") {
+          # Only the three characters this scanner keys on need escape handling,
+          # which makes the set complete for it. Any other backslash is ordinary
+          # text and must survive, or prose like a Windows path would lose the
+          # character after it.
+          sp_next = substr(line, sp_p + 1, 1)
+          if (sp_next == "`" || sp_next == "<" || sp_next == "\\") {
+            sp_keep = sp_keep "  "
+            line = substr(line, sp_p + 2)
+          } else {
+            sp_keep = sp_keep "\\"
+            line = substr(line, sp_p + 1)
+          }
+          continue
+        }
+        # An opening backtick run pairs with the next run of EXACTLY the same
+        # length; a shorter or longer run inside is span content, so a naive
+        # /`[^`]*`/ would split a ``…`` span and expose its content.
+        sp_len = 0
+        while (substr(line, sp_p + sp_len, 1) == "`") sp_len++
+        line = substr(line, sp_p + sp_len)
+        sp_at = fe_span_close(line, sp_len)
+        # No closer on this line: the span may continue on the next one, so carry
+        # the opener length forward and drop the remainder as span content. The
+        # carry is optimistic — a run that never closes before the paragraph ends
+        # masks content CommonMark would call literal — but the tradeoff is
+        # deliberate: masking risks missing a declaration, whereas scanning risks
+        # a blocking failure on legitimate code-span text.
+        if (!sp_at) { sp_open = sp_len; break }
+        sp_keep = sp_keep " "
+        line = substr(line, sp_at + sp_len)
+      }
+      line = sp_keep
+      # Structural ambiguity: a four-space-indented line here is either an
+      # indented code block or a list-item continuation, and telling those
+      # apart needs a block parser this scanner does not have. Rather than
+      # guess, it declines its HARD verdicts on such a line — see the parsing
+      # contract in skills/check/reference/fresh-eyes-declarations.md for the
+      # asymmetry that makes declining the safe direction.
+      if (line ~ /^[ \t]*$/) fe_blank = 1
+      else {
+        fe_ind2 = 0
+        if (line ~ /^\t/) fe_ind2 = 4
+        else while (substr(line, fe_ind2 + 1, 1) == " ") fe_ind2++
+        fe_icode = (fe_ind2 >= 4 && (fe_icode || fe_blank))
+        fe_blank = 0
+      }
+      # Classify each directive on the line independently, bounded at its own
+      # `-->`. Testing the whole line let a valid directive elsewhere on it lend
+      # its class and reason to a malformed neighbour, so an unknown-class
+      # suppression could hide beside a well-formed one and never FAIL.
+      dir_rest = line
+      # The directive name needs a terminator after it, or a prefix-only match
+      # reads an ordinary comment about `fresh-eyes-exemption` as a directive and
+      # FAILs the skill on prose.
+      while (match(dir_rest, /<!--[ \t]*fresh-eyes-exempt([ \t]|:|-->)/)) {
+        dir_one = substr(dir_rest, RSTART)
+        dir_rest = substr(dir_rest, RSTART + RLENGTH)
+        dir_end = index(dir_one, "-->")
+        if (dir_end) dir_one = substr(dir_one, 1, dir_end + 2)
+        dir_n++
+        d[dir_n] = NR
+        damb[dir_n] = fe_icode
+        if (dir_one ~ /<!--[ \t]*fresh-eyes-exempt:[ \t]*(deterministic-gate|external-input|deferred)[ \t]+--[ \t]+[^ \t].*-->/) {
+          dt[dir_n] = "valid"
+        } else if (dir_one ~ /<!--[ \t]*fresh-eyes-exempt:[ \t]*(deterministic-gate|external-input|deferred)[ \t]*(--[ \t]*)?-->/) {
+          dt[dir_n] = "noreason"
+        } else {
+          dt[dir_n] = "malformed"
+        }
+      }
+      # Form 1 is VISIBLE PROSE by contract, so an HTML comment cannot carry it:
+      # a hidden `<!-- dispatch this to a fresh-context agent -->` would be exactly
+      # the parallel marker Form 1 exists to rule out, and it was satisfying the
+      # delegation detector. Comments come off only AFTER the directives above are
+      # classified, since a directive IS a comment. An unterminated `<!--` drops
+      # the rest of its own line and no further — carrying comment state across
+      # lines would let one stray opener blind the detectors for the whole file.
+      cm_keep = ""
+      while ((cm_p = index(line, "<!--")) > 0) {
+        cm_keep = cm_keep substr(line, 1, cm_p - 1) " "
+        line = substr(line, cm_p + 4)
+        cm_e = index(line, "-->")
+        if (!cm_e) { line = ""; break }
+        line = substr(line, cm_e + 3)
+      }
+      line = cm_keep line
+      low = tolower(line)
+      # Delegation wording needs a worker actually named on the line — bare
+      # "in a fresh context" prose assigns no one and does not declare. Both
+      # halves match as whole words with their inflections, so embedded stems
+      # cannot satisfy the requirement: "agentless" is not a worker, and
+      # "Refresh context" is not the fresh-context wording.
+      if (low ~ /(^|[^a-z0-9_])fresh[- ]context([^a-z0-9_]|$)/ \
+          && low ~ /(^|[^a-z0-9_])((sub-?)?agents?|workers?|advisors?|reviewers?|verifiers?|dispatch(es|ed|ing)?|delegat(e|es|ed|ing|ion|ions))([^a-z0-9_]|$)/) {
+        word_n++; w[word_n] = NR
+      }
+      if (low ~ JR) { judge_n++; j[judge_n] = NR }
+    }
+    END {
+      # A directive whose structural context was ambiguous yields no hard
+      # verdict: both of these FAIL the skill, and failing an author on a
+      # parser artifact is worse than missing one malformed directive.
+      for (i = 1; i <= dir_n; i++) {
+        if (damb[i]) continue
+        if (dt[i] == "noreason") printf "DIRECTIVE_NOREASON %d\n", d[i]
+        else if (dt[i] == "malformed") printf "DIRECTIVE_MALFORMED %d\n", d[i]
+      }
+      for (i = 1; i <= judge_n; i++) {
+        hasw = 0; hasd = 0
+        for (k = 1; k <= word_n; k++) if (w[k] >= j[i] - P && w[k] <= j[i] + P) hasw = 1
+        # An ambiguous directive cannot satisfy a judgment step either: if the
+        # scanner is not confident it is live markdown, a literal example inside
+        # an indented code block would otherwise silence the WARN it deserves.
+        for (k = 1; k <= dir_n; k++) if (dt[k] == "valid" && !damb[k] && d[k] >= j[i] - P && d[k] <= j[i] + P) hasd = 1
+        if (hasw && hasd) printf "HIT_BOTH %d\n", j[i]
+        else if (hasw) printf "HIT_WORDING %d\n", j[i]
+        else if (hasd) printf "HIT_DIRECTIVE %d\n", j[i]
+        else printf "HIT_NONE %d\n", j[i]
+      }
+      for (i = 1; i <= dir_n; i++) {
+        # Ambiguous placement also withholds the stale WARN: the scanner is not
+        # confident the directive is live markdown, so it makes no claim either way.
+        if (dt[i] != "valid" || damb[i]) continue
+        used = 0
+        for (k = 1; k <= judge_n; k++) if (j[k] >= d[i] - P && j[k] <= d[i] + P) used = 1
+        if (!used) printf "DIRECTIVE_STALE %d\n", d[i]
+      }
+    }
+  ' "$fe_file")
+done
 
 # --- Summary ---------------------------------------------------------------
 

@@ -25,6 +25,8 @@ Claim a work item through the seam (assignee + lease record).
 
    Exit `6` (capability-unsupported, CONTRACT.md "Exit codes") means the bound provider declares `reclaim: false` (e.g. `local-markdown`, whose `claim` already race-checks the lease pre-write — CONTRACT.md "Adapter contract") — not an error; skip the stale-lease check and proceed straight to Claim.
 
+   A **harness denial of the `reclaim` call itself** takes the same posture. Under auto mode the permission classifier can refuse the Bash tool call before the script runs, so no exit code is produced (CONTRACT.md "Exit codes"; observed on `#1381`). Report it once, skip the stale-lease check, and proceed straight to Claim — never retry the denied call, and never self-widen permissions to work around it (`${CLAUDE_PLUGIN_ROOT}/reference/permission-preflight.md` "Why a preflight, not a fixer"). A live foreign lease is still caught: `claim` backs off with exit `7`.
+
 1. **Claim via the seam.** The `claim` verb runs the full race-safe, same-identity-aware protocol (assign `@me` → re-read → post lease comment → re-read leases → back off on a foreign earlier lease) and emits the claim object, or exits `7` on a lost race:
 
    ```bash
@@ -54,15 +56,41 @@ Claim a work item through the seam (assignee + lease record).
    if [[ "$BRANCH" =~ ^[a-z]+/(routine-issue-)?([0-9]+)- ]]; then
      CURRENT_N="${BASH_REMATCH[2]}"
    fi
+   # Resolve <base-ref> for the suggestions below from the remote's OWN default
+   # branch. Ask the REMOTE first: refs/remotes/origin/HEAD is a local cache that
+   # is never refreshed on its own, so a repo that renamed its default branch
+   # keeps answering with the old one. The cache is the offline fallback, not the
+   # authority. No literal default is guessed at either rung.
+   REMOTE_HEAD="$(git ls-remote --symref origin HEAD 2>/dev/null |
+     sed -n 's|^ref: refs/heads/\([^[:space:]]*\).*|\1|p' | head -n1)"
+   BASE_REF="${REMOTE_HEAD:+origin/$REMOTE_HEAD}"
+   [[ -n "$BASE_REF" ]] ||
+     BASE_REF="$(git symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null || true)"
+   # This name came from the REMOTE and is about to be pasted into the user's
+   # terminal. Git accepts branch names carrying shell metacharacters, so accept
+   # only the conservative charset a branch name normally uses — refuse the rest
+   # rather than escaping it.
+   [[ "$BASE_REF" =~ ^[A-Za-z0-9][A-Za-z0-9._/-]*$ ]] || BASE_REF=""
+   # ls-remote can name a branch this clone has never fetched (created or renamed
+   # since), so origin/<name> would not resolve and the emitted checkout would
+   # fail with "not a commit". Fetch it once; give up the base if it still misses.
+   if [[ -n "$BASE_REF" ]] && ! git rev-parse --verify --quiet "$BASE_REF^{commit}" >/dev/null; then
+     git fetch --quiet origin "+refs/heads/${BASE_REF#origin/}:refs/remotes/$BASE_REF" 2>/dev/null || true
+     git rev-parse --verify --quiet "$BASE_REF^{commit}" >/dev/null || BASE_REF=""
+   fi
    ```
+
+   `<base-ref>` below is a placeholder the agent substitutes with the resolved value, exactly as it substitutes `<type>` / `<N>` / `<slug>`. The emitted command runs in the USER's terminal, which never saw the agent's `BASE_REF` assignment — emitting the variable unexpanded would hand over an empty pathspec.
+
+   **`BASE_REF` empty** (offline, no `origin` remote, a remote with no HEAD, a name outside the accepted charset, or one that still does not resolve after a fetch) — do NOT substitute a guessed default branch, which is the failure this resolution exists to prevent. Emit the command with no start-point (`git checkout -b <type>/<N>-<slug>`, which branches from the current `HEAD`) and say the default branch could not be resolved, so the user can supply a base explicitly.
 
    - **`CURRENT_N` == claimed `<N>`** → acknowledge: "Already on `<current-branch>` — branch matches claimed #N. No rename needed." Skip prompt. Done.
    - **`CURRENT_N` is a different number** → multi-claim 3-option (below).
-   - **`CURRENT_N` empty** (no number on current branch) → present bare suggestion: "Suggest branch `<type>/<N>-<slug>`. Switch? (yes / no — orphan-PR path)". On `yes`, emit `git checkout -b <type>/<N>-<slug> origin/main` for the user. On `no`, continue on current branch — `/pull-request create` falls through to its interactive Closes-keyword prompt.
+   - **`CURRENT_N` empty** (no number on current branch) → present bare suggestion: "Suggest branch `<type>/<N>-<slug>`. Switch? (yes / no — orphan-PR path)". On `yes`, emit `git checkout -b <type>/<N>-<slug> <base-ref>` for the user. On `no`, continue on current branch — `/pull-request create` falls through to its interactive Closes-keyword prompt.
 
    **Multi-claim 3-option** — when on `<other-type>/<OTHER>-<other-slug>` and just claimed #N (different item):
 
-   1. **Switch to `<type>/<N>-<slug>`** — WARN: uncommitted work on the current branch must be committed or stashed first; the agent never runs `git stash` on a shared branch without confirming. Emit `git checkout -b <type>/<N>-<slug> origin/main` for the user.
+   1. **Switch to `<type>/<N>-<slug>`** — WARN: uncommitted work on the current branch must be committed or stashed first; the agent never runs `git stash` on a shared branch without confirming. Emit `git checkout -b <type>/<N>-<slug> <base-ref>` for the user.
    1. **Stay on current branch and cover both in one PR** — `/pull-request create` will inject `Closes #<OTHER>` + `Closes #<N>` at PR-time via its multi-issue prompt.
    1. **Skip** — decide later; continue on current branch without rename.
 
