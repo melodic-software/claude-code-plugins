@@ -574,6 +574,25 @@ scan_file() {
       if (match(head, /.*[;|&)]/)) head = substr(head, RSTART + RLENGTH)
       return head ~ ("(^|[[:space:]]|[(]|" BT ")![[:space:]]+" NEGOPEN PREFIXES "$")
     }
+    # A `$( )` or backquote frame hands the `||` the status of the matched call
+    # only when the frame IS what the enclosing command position runs — a plain
+    # `name=$(…)` assignment. Used as an ARGUMENT, the enclosing command decides:
+    # in `echo "$(stat -c …)" || stat -f …` the inner stat fails on BSD while
+    # echo still succeeds, so the `||` never fires and the fallback never runs
+    # (#1544). Same class as `x=$(stat -c …; true) || stat -f …`, reached through
+    # the enclosing command rather than through a later one inside the frame.
+    #
+    # The lookback stops at `[;|&)]` and deliberately KEEPS `(` visible, unlike
+    # is_negated(): that function asks what an outer `!` still governs and must
+    # see past a frame, this one asks what ENCLOSES the frame and must see it.
+    function status_swallowed(q, at,   head, before) {
+      head = substr(q, 1, at - 1)
+      if (match(head, /.*[;|&)]/)) head = substr(head, RSTART + RLENGTH)
+      if (!match(head, ".*(\\$\\(|" BT ")")) return 0
+      before = substr(head, 1, RLENGTH)
+      sub("(\\$\\(|" BT ")$", "", before)
+      return before !~ "^[[:space:]]*([A-Za-z_][A-Za-z0-9_]*=)?[[:space:]]*$"
+    }
     function is_guarded(q, p, at,   CMDPOS, SEG, PRE, NAME, QP, QL) {
       if (is_negated(q, at)) return 0
       # An opener after the `||` may be any spelling that makes the command
@@ -614,7 +633,12 @@ scan_file() {
       if (p ~ /readlink/) {
         return substr(q, 1, at + 7) ~ ("realpath" SEG CMDPOS NAME "readlink$")
       }
+      # Scoped to the stat ladder, which looks FORWARD from a call whose failure
+      # is what fires the `||`. The readlink guard looks BACKWARD from the last
+      # rung — reached only because a portable attempt already failed — so where
+      # its own status propagates to is not what that guard asks about.
       if (index(p, "stat")) {
+        if (status_swallowed(q, at)) return 0
         return substr(q, at) ~ ("^stat" PRE QP "(-" QL "c|--format|--printf)" SEG CMDPOS NAME "stat" PRE QP "-" QL "f")
       }
       return 0

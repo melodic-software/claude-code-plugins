@@ -2020,6 +2020,30 @@ else
 fi
 rm -f "$f"
 
+# --- a substitution frame hands the `||` the status of the call inside it only
+# when the frame is what the command position runs. Used as an ARGUMENT the
+# enclosing command decides, so the fallback never fires on the failing dialect.
+f="$(tmpsh "echo \"\$(stat -c '%s' \"\$f\")\" || stat -f '%z' \"\$f\"")"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "a substitution used as an argument should not guard, got success: $out"
+else
+  ok "a stat inside a substitution ARGUMENT does not reach the || that follows"
+fi
+rm -f "$f"
+
+# --- and the assignment shapes real code uses, where the status IS the call, keep
+# their guard — including with a redirection inside the frame.
+f="$(tmpsh "$(printf '%s\n' \
+  'x=$(stat -c "%s" "$f") || y=$(stat -f "%z" "$f")' \
+  'x=$(stat -c "%s" "$1" 2>&1) || y=$(stat -f "%z" "$1")' \
+  "size=\`stat -c '%s' \"\$f\"\` || size=\`stat -f '%z' \"\$f\"\`")")"
+if scan_paths "$REAL_TOKENS" "$f" >/dev/null 2>&1; then
+  ok "an assignment-wrapped ladder still propagates the status and stays guarded"
+else
+  fail "assignment-wrapped ladders must not be flagged: $(scan_paths "$REAL_TOKENS" "$f" 2>&1)"
+fi
+rm -f "$f"
+
 # --- `{` is a RESERVED WORD and opens a group only when a blank follows it, so
 # `|| {stat -f …` names a command `{stat` and runs no fallback at all. `(` is an
 # operator and needs no blank, so it keeps none.
