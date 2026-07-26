@@ -46,10 +46,14 @@
 # contiguous block directly above a hit) — comment-skip is for CONSTRUCT
 # matching only, never for annotation detection.
 #
-# This is a grep-level tripwire, not a semantic proof. Guard markers are
-# seeded for the two classes that need one today (readlink -f, sed -i's
-# empty-suffix idiom); a further class enables its own guard here, proven
-# against an `--all` audit first — see the token file's STAGED section.
+# This is a grep-level tripwire, not a semantic proof: it matches per
+# PHYSICAL line, so a command split across a backslash line-continuation, or
+# assembled into a variable before use, evades detection (tracked in #1513).
+# Guard markers are seeded for the one class that needs one today
+# (readlink -f, requiring an actual `||` fallback relationship with a
+# co-located realpath attempt — not mere co-location); a further class
+# enables its own guard here, proven against an `--all` audit first — see the
+# token file's STAGED section.
 #
 # Exit 0 = clean (or nothing in scope); 1 = one or more violations; 2 = usage /
 # environment error (fail closed — never a silent skip).
@@ -142,28 +146,35 @@ scan_file() {
     function is_annotated(l) { return l ~ /portability-ok:/ }
     function is_comment(l) { return l ~ /^[[:space:]]*#/ }
     # Same-line auto-guard: a portable BSD-side attempt already co-located on
-    # the hit line. Scoped to the two active shapes that need one today:
-    #   - readlink -f, guarded by a co-located realpath attempt — the shape
-    #     lib/hook-utils.sh already uses: `realpath ... || readlink -f ...`;
-    #   - sed -i, guarded by an explicit empty-suffix argument (a quoted empty
-    #     string immediately following -i) — the portable BSD-safe idiom this
-    #     class exists to encourage; without this guard the gate would flag
-    #     the CORRECT form.
-    # Takes the matched pattern text too, so the realpath guard applies only
+    # the hit line, ACTUALLY WIRED as the fallback (a `||` between the two
+    # calls) — not merely mentioned somewhere on the line. Scoped to the one
+    # active shape that needs one today: readlink -f, guarded by a co-located
+    # `realpath ... || readlink -f ...` fallback ladder (the shape
+    # lib/hook-utils.sh already uses). Requiring the literal `||` between the
+    # two (not just both substrings present) matters: `realpath "$1";
+    # readlink -f "$1"` runs the GNU-only call unconditionally right after a
+    # realpath attempt with no fallback relationship at all, and must still
+    # flag. Takes the matched pattern text too, so the guard applies only
     # when the readlink pattern itself matched — a line that merely mentions
     # "realpath" elsewhere must not blanket-excuse an unrelated hit on the
     # same line. A further class enables its own marker here when it is
     # activated (see the token file STAGED section) — this is deliberately
     # not a generic heuristic, the same posture check-skill-portability.sh
     # takes.
-    function is_guarded(l, p,    q1, q2, empty_suffix) {
-      if (p ~ /readlink/ && l ~ /realpath/) return 1
-      if (p ~ /sed\[/) {
-        q1 = sprintf("%c", 39) # single quote, kept out of the literal source
-        q2 = sprintf("%c", 34) # double quote, kept out of the literal source
-        empty_suffix = "-i[[:space:]]+(" q1 q1 "|" q2 q2 ")([[:space:]]|$)"
-        if (l ~ empty_suffix) return 1
-      }
+    #
+    # sed -i has NO guard. An earlier revision auto-guarded the space-
+    # separated empty-suffix idiom ("-i" followed by an empty quoted string
+    # as a SEPARATE argument), believing it to be the portable BSD-safe form
+    # — that was wrong, verified against a real GNU sed 4.9: that exact
+    # invocation exits 2, because GNU consumes the space-separated empty
+    # string as the sed SCRIPT argument, leaving the real script and the
+    # target file to be opened as filenames. It is BSD-only, not portable, so it
+    # correctly stays flagged. The actually dual-compatible spelling is an
+    # ATTACHED nonempty suffix (sed -i.bak ... && rm -f the backup after),
+    # which this token never matches (attached, no separating whitespace)
+    # and so is correctly never flagged.
+    function is_guarded(l, p) {
+      if (p ~ /readlink/ && l ~ /realpath[^|]*\|\|[^|]*readlink/) return 1
       return 0
     }
     # Pass 1: collect active ERE patterns from the token list.
