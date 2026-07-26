@@ -4,6 +4,29 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.9.6]
+
+### Fixed
+
+- **course-digest extraction: `npm ci` failed on a clean install (#1507).** The
+  `skills/course-digest/extraction` package pulls in the shared `@melodic/repo-analysis` and
+  `@melodic/video-digestion` vendor packages as `file:` dependencies, same as the sibling
+  `youtube-digest/extraction` package — but unlike that sibling, it shipped no `.npmrc` setting
+  `install-links=true`. Without it, `npm ci` failed with `EUSAGE` (`Missing:
+  @melodic/repo-analysis@0.1.0 from lock file`, `Missing: @melodic/video-digestion@0.1.0 from lock
+  file`) on a fresh install, even though the committed `package-lock.json` was otherwise in sync.
+  Added the missing `.npmrc`, matching `youtube-digest/extraction`'s. Discovered while wiring the
+  package's test suite into CI, which never ran `npm ci` from a clean state before.
+
+### Added
+
+- **course-digest extraction test suite now runs in CI (#1507).** The `vitest` suite under
+  `skills/course-digest/extraction` (`utils`, the adapter contract, the Dometrain/Teachable
+  adapters, Clerk/Teachable-SSO auth, config, and the Hotmart/Mux players — 91 tests across 10
+  files) had never been wired into `.github/workflows/ci.yml`; it only ever ran locally. Added a
+  `course-digest-extraction` CI job mirroring the existing `youtube-extraction` lane (typecheck +
+  `npm test`), gated behind the same docs-only scope guard as the repo's other Node lanes.
+
 ## [0.9.5]
 
 ### Fixed
