@@ -176,10 +176,19 @@ scan_file() {
       # wrapper), an invocation wrapper, or a leading backslash. None changes
       # WHICH command runs, so all are transparent both to the fallback guard
       # after a `||` and to the negation check before a `!`-prefixed call.
-      ASSIGN = "([A-Za-z_][A-Za-z0-9_]*=[^;|&[:space:]]*[[:space:]]+)*"
+      # A transparent prefix WORD: an environment assignment or a redirection.
+      # Neither changes which command the position runs — 2.9.1 lets a simple
+      # command carry redirections and assignments before its name — so both
+      # are transparent to the fallback guard after a `||` and to the negation
+      # check before a `!`-prefixed call. Matching only assignments let
+      # `! 2>/dev/null stat -c …` read as unnegated (#1544).
+      ASSIGN = "(([A-Za-z_][A-Za-z0-9_]*=[^;|&[:space:]]*|[0-9]*[<>][<>]?&?[^;|&[:space:]]*)[[:space:]]+)*"
       PREFIXES = ASSIGN "((command|env)[[:space:]]+)?" ASSIGN "(\\\\)?[[:space:]]*"
       # Characters a shell word may begin after, for the `#` comment test.
-      WORDSTART = " \t;&|(" BT
+      # `)` is among them because it is a control operator, so `(cmd)# …`
+      # comments out the rest of the record; omitting it left a commented-out
+      # `|| stat -f` structural and it was accepted as a real guard (#1544).
+      WORDSTART = " \t;&|()" BT
       # What may sit between a `!` and the command name it negates BEYOND the
       # PREFIXES above: an opener that starts a nested command context. A
       # substitution or subshell is a WORD of the negated pipeline, so the `!`
@@ -348,9 +357,17 @@ scan_file() {
         # Inside an expansion body every character is data — but a nested
         # `$(`/backquote above still reopens command text, so those branches
         # deliberately sit before this one.
+        #
+        # A quote inside the body still quotes: the word after `:-` is an
+        # ordinary word (2.6.2), so a `}` inside it is data and does NOT end
+        # the expansion. Closing at the first `}` regardless let
+        # `stat ${f:-"};part"} -c %s` end the expansion early, after which the
+        # literal `;` read as a command boundary and hid the `-c` (#1544).
         if (top == "V") {
           m = m "Q"
-          if (c == "}") st = substr(st, 1, length(st) - 1)
+          if (c == SQ) st = st "S"
+          else if (c == DQ) st = st "D"
+          else if (c == "}") st = substr(st, 1, length(st) - 1)
           continue
         }
         if (top == "D") {
@@ -565,7 +582,12 @@ scan_file() {
       # `NAME=` (no value, no trailing space) is the `x=$(stat …)` shape.
       # `|| (stat -f …)` and `|| { stat -f …; }` were forced into an exemption
       # although the group genuinely executes the BSD fallback (#1544).
-      CMDPOS = "\\|\\|[[:space:]]*([A-Za-z_][A-Za-z0-9_]*=)?(\\$\\(|" BT "|\\(|\\{)?[[:space:]]*" PREFIXES
+      #
+      # `{` is a RESERVED WORD and only opens a group when a blank follows it,
+      # so `|| {stat -f …` names a command `{stat` and runs no fallback at all;
+      # admitting it without the blank was a fail-open (#1544). `(` is an
+      # operator, needs no blank, and keeps none.
+      CMDPOS = "\\|\\|[[:space:]]*([A-Za-z_][A-Za-z0-9_]*=)?(\\$\\(|" BT "|\\(|\\{[[:space:]])?[[:space:]]*" PREFIXES
       SEG = "([^;|&]|[<>]&|&>|&&)*"
       # The fallback command word carries the same optional quote and path
       # spellings the token patterns already admit — quote removal invokes the

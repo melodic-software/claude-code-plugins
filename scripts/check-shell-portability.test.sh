@@ -2020,6 +2020,62 @@ else
 fi
 rm -f "$f"
 
+# --- `{` is a RESERVED WORD and opens a group only when a blank follows it, so
+# `|| {stat -f …` names a command `{stat` and runs no fallback at all. `(` is an
+# operator and needs no blank, so it keeps none.
+f="$(tmpsh "stat -c '%s' \"\$f\" || {stat -f '%z' \"\$f\"")"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "a brace with no following blank is not a group, got success: $out"
+else
+  ok "a { with no following blank does not open a fallback group"
+fi
+rm -f "$f"
+
+# --- a simple command may carry a redirection before its NAME, and that does
+# not change which command a `!` negates or a `||` runs.
+f="$(tmpsh '! 2>/dev/null stat -c "%s" "$f" || stat -f "%z" "$f"')"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "a negation behind a prefix redirection should fail, got success: $out"
+else
+  ok "a prefix redirection does not hide the negation before the command name"
+fi
+rm -f "$f"
+f="$(tmpsh "stat -c '%s' \"\$f\" || 2>/dev/null stat -f '%z' \"\$f\"")"
+if scan_paths "$REAL_TOKENS" "$f" >/dev/null 2>&1; then
+  ok "a prefix redirection on the fallback keeps it a real ladder"
+else
+  fail "the redirected fallback must stay guarded: $(scan_paths "$REAL_TOKENS" "$f" 2>&1)"
+fi
+rm -f "$f"
+
+# --- the word after `:-` is an ordinary word, so a `}` inside quotes there is
+# data and must not end the expansion early.
+f="$(tmpsh 'stat ${f:-"};part"} -c %s')"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "a quoted brace inside an expansion should not hide the option, got success: $out"
+else
+  ok "a quoted } inside a parameter expansion does not close it early"
+fi
+rm -f "$f"
+f="$(tmpsh 'x="${y:-$(stat -c %s "$f")}"')"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "a substitution inside an expansion must still be scanned, got success: $out"
+else
+  ok "a \$( ) inside a parameter expansion still reopens real command text"
+fi
+rm -f "$f"
+
+# --- `)` is a control operator, so a `#` straight after one opens a comment and
+# what follows is not shell code — including a `||` that would otherwise read as
+# a fallback ladder.
+f="$(tmpsh "(stat -c '%s' \"\$f\")# || stat -f '%z' \"\$f\"")"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "a comment after ) should not leave the || structural, got success: $out"
+else
+  ok "a # straight after a closing paren opens a comment"
+fi
+rm -f "$f"
+
 # --- admitting a group opener must not weaken what the guard demands INSIDE it:
 # the fallback still has to be the command the group runs first, not merely a
 # string it prints. `|| ( true; stat -f ... )` stays flagged too — reaching a
