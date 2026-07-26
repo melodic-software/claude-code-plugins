@@ -167,8 +167,14 @@ def _read_tail(transcript_path: str) -> str:
     size = path.stat().st_size
     with path.open("rb") as handle:
         if size > _MAX_TAIL_BYTES:
-            handle.seek(size - _MAX_TAIL_BYTES)
-            handle.readline()  # discard likely-truncated partial first line
+            offset = size - _MAX_TAIL_BYTES
+            # A newline immediately before the window means the window already
+            # starts on a record boundary; discarding then would throw away a
+            # whole record, which can be the only guard failure in the tail.
+            handle.seek(offset - 1)
+            starts_mid_record = handle.read(1) != b"\n"
+            if starts_mid_record:
+                handle.readline()  # discard the truncated partial first line
         raw = handle.read()
     return raw.decode("utf-8", errors="replace")
 

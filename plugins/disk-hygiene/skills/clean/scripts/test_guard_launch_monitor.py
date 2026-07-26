@@ -84,6 +84,15 @@ def _record(
     return json.dumps(payload)
 
 
+def _filler_line(nbytes: int) -> str:
+    """An ignorable ASCII JSONL record occupying exactly ``nbytes`` with its newline."""
+    prefix = '{"type": "other", "noise": "'
+    suffix = '"}'
+    padding = nbytes - 1 - len(prefix) - len(suffix)
+    assert padding >= 0, "nbytes too small to hold a record"
+    return prefix + "y" * padding + suffix
+
+
 class GuardLaunchMonitorTests(unittest.TestCase):
     def setUp(self) -> None:
         self.tmp = tempfile.TemporaryDirectory()
@@ -319,6 +328,32 @@ class GuardLaunchMonitorTests(unittest.TestCase):
         self.assertIsNotNone(message)
         self.assertIn("exitCode: 1", message)
         self.assertIn("durationMs: 17054", message)
+
+    def test_tail_window_starting_on_a_record_boundary_keeps_that_record(self) -> None:
+        """The retained window can begin exactly at a record's first byte.
+
+        Discarding unconditionally would drop a whole record there, and that
+        record can be the session's only guard failure.
+        """
+        failure = _record(exit_code=9, duration_ms=4242, stderr="boundary failure")
+        pad = _filler_line(monitor._MAX_TAIL_BYTES - len(failure) - 1)
+        head = [_filler_line(4096) for _ in range(4)]
+        # Written as bytes with explicit LF: the byte offsets are the fixture's
+        # whole point, and text mode would insert a platform line ending.
+        body = "\n".join(head + [failure, pad]) + "\n"
+        self.transcript_path.write_bytes(body.encode("utf-8"))
+
+        size = self.transcript_path.stat().st_size
+        self.assertEqual(
+            size - monitor._MAX_TAIL_BYTES,
+            sum(len(line) + 1 for line in head),
+            "fixture must place the window boundary exactly at the failure record",
+        )
+
+        message = self.run_monitor()
+        self.assertIsNotNone(message)
+        self.assertIn("exitCode: 9", message)
+        self.assertIn("durationMs: 4242", message)
 
     def test_non_attachment_records_are_ignored(self) -> None:
         self.write_transcript(

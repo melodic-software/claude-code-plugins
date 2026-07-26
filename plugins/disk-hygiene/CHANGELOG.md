@@ -28,7 +28,11 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
   sessions, and — because both hooks are wired with the same literal `python3` command — the
   interpreter-resolution fail-open documented in the README (the WindowsApps alias stub, or a
   missing/broken `python3`) takes the detector down with the guard, so that one vector stays
-  unreported until the detector gets a launcher independent of the guarded interpreter (#1504).
+  unreported until the detector gets a launcher independent of the guarded interpreter (#1504). The
+  bounded tail read discards its first line only when the retained window actually starts mid-record:
+  when `size - _MAX_TAIL_BYTES` lands exactly on a record's first byte, an unconditional discard threw
+  away a whole record — which can be the session's only guard failure, silencing the very report the
+  detector exists to make.
 
 ## [0.9.4]
 
