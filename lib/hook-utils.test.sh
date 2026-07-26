@@ -892,6 +892,8 @@ subject_is "trailing subscripted assignment bails to Bash" \
   "Bash" "TOKEN[0]=ghp_secret" "Bash"
 subject_is "trailing subscripted append assignment bails to Bash" \
   "Bash" "TOKEN[0]+=ghp_secret" "Bash"
+subject_is "trailing nested-subscript assignment bails to Bash" \
+  "Bash" "TOKEN[1+INDEX[0]]=ghp_secret" "Bash"
 
 # Preserved: a following real command wins the token, so the assignment prefix is
 # stripped and the command name is the subject.

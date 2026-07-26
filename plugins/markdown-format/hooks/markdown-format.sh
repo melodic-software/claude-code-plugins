@@ -338,17 +338,23 @@ collect_module_files() {
     seen_scan+="$item"$'\n'
     scanned=$((scanned + 1))
     ((scanned <= 64)) || return 1
-    # A computed module expression — require()/import() whose argument is not
-    # a single string literal, e.g. require(path.join(__dirname, ...)) — names
-    # code this text scan cannot pin. Fail closed: no approval for a state
-    # whose module graph cannot be content-addressed. Both shapes are covered:
-    # a non-quote character after the open paren, and an open paren ending the
-    # line (a wrapped argument). Scoped to JS sources; the same text inside a
-    # declarative config is data, not a loader call.
+    # A module specifier this text scan cannot read as written names code it
+    # cannot pin. Fail closed — no approval for a state whose module graph
+    # cannot be content-addressed — on either shape in a JS source: a computed
+    # require()/import() argument (non-quote character after the open paren,
+    # or an open paren ending the line for a wrapped argument), e.g.
+    # require(path.join(__dirname, ...)); and a string literal carrying a
+    # letter-capable escape sequence (backslash-u/x/octal), which Node
+    # decodes to a different path than the raw text this scan resolves — a
+    # specifier can hide its real spelling that way. Scoped to JS sources;
+    # the same text
+    # inside a declarative config is data, not a loader call, and the config
+    # tier already gates its own escapes.
     case "$item" in
     *.cjs | *.mjs | *.js)
       if grep -Eq "(require|import)[[:space:]]*\([[:space:]]*[^\"'[:space:])]" "$item" 2>/dev/null ||
-        grep -Eq "(require|import)[[:space:]]*\([[:space:]]*$" "$item" 2>/dev/null; then
+        grep -Eq "(require|import)[[:space:]]*\([[:space:]]*$" "$item" 2>/dev/null ||
+        grep -Eq "[\"'][^\"']*\\\\[uxUX0-7]" "$item" 2>/dev/null; then
         return 1
       fi
       ;;
@@ -469,12 +475,20 @@ if ((${#RISK_CONFIGS[@]} > 0)); then
     fi
     # Approvable states key the notice by signature; states with no approval
     # route (unverifiable / untrackable / no store) have no signature, so key
-    # by the risky-file list instead — otherwise every such state would share
-    # one key and only the first would ever notice in a session.
+    # by the risky configs' content instead — otherwise every such state
+    # would share one key and only the first would ever notice in a session,
+    # while an unchanged state still dedupes.
     if [[ -n "$TRUST_DIR" ]]; then
       TRUST_NOTICE_KEY="markdown-format-trust-${TRUST_DIR##*/}"
     else
-      TRUST_NOTICE_KEY="markdown-format-trust-norouten-$(printf '%s' "$RISK_LIST" | git hash-object --stdin 2>/dev/null || printf 'unkeyed')"
+      TRUST_NOTICE_KEY="markdown-format-trust-noroute-$(
+        {
+          printf '%s\n' "$REPO_ROOT"
+          for config in "${RISK_CONFIGS[@]}"; do
+            git hash-object "$config" 2>/dev/null || printf 'undigested\n'
+          done
+        } | git hash-object --stdin 2>/dev/null || printf 'unkeyed'
+      )"
     fi
     if hook::notice_once "$TRUST_NOTICE_KEY" "$INPUT"; then
       hook::emit_skip_notice PostToolUse \

@@ -701,6 +701,27 @@ else
 fi
 rm "$REPO/.markdownlint-cli2.cjs"
 
+# An escaped module specifier decodes to a different path than its raw text
+# (Node reads this one as ./rules.js), so it cannot be pinned: refuse approval.
+cat >"$REPO/.markdownlint-cli2.cjs" <<'CJS'
+module.exports = {
+  config: { "MD013": false },
+  customRules: [require("./r\u0075les.js")],
+  noBanner: true,
+  noProgress: true
+};
+CJS
+printf '# Executable config\n\nClean text.' >"$TRUST_FILE"
+OUT_TRUST_ESCSPEC="$(cd "$UNRELATED" && printf '{"tool_input":{"file_path":"%s"}}' "$TRUST_FILE" |
+  env -u CLAUDE_PROJECT_DIR CLAUDE_PLUGIN_DATA="$TRUST_DATA" CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true bash "$HOOK")"
+if printf '%s' "$OUT_TRUST_ESCSPEC" | jq -e '(.systemMessage | contains("trust gate")) and (.systemMessage | contains("mkdir -p") | not)' >/dev/null 2>&1 &&
+  ! has_final_newline "$TRUST_FILE"; then
+  ok "escaped module specifier gates and refuses approval"
+else
+  fail "escaped module specifier was not refused: $OUT_TRUST_ESCSPEC"
+fi
+rm "$REPO/.markdownlint-cli2.cjs"
+
 # The approval signature must cover the referenced module content, not only the
 # config text: after approving a config whose customRules names a repository
 # module, changing THAT MODULE (config untouched) must revoke the approval.

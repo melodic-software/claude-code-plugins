@@ -317,9 +317,11 @@ hook::extract_bash_subject() {
   # value — a possible credential — as the subject; bail to the bare "Bash"
   # subject as with a quoted value. All valid Bash assignment forms count:
   # NAME=value, append NAME+=value, and subscripted NAME[idx]=value /
-  # NAME[idx]+=value. This runs BEFORE the basename strip so a path-valued
-  # assignment (TOKEN=/a/b/secret) cannot lose its "=" first.
-  if [[ "$first_token" =~ ^[a-zA-Z_][a-zA-Z0-9_]*(\[[^]]*\])?\+?= ]]; then
+  # NAME[idx]+=value — the subscript matched greedily (`.*`) because Bash
+  # accepts nested subscripts like NAME[1+IDX[0]]=value, which a
+  # no-close-bracket class would miss. This runs BEFORE the basename strip so
+  # a path-valued assignment (TOKEN=/a/b/secret) cannot lose its "=" first.
+  if [[ "$first_token" =~ ^[a-zA-Z_][a-zA-Z0-9_]*(\[.*\])?\+?= ]]; then
     printf '%s' "$tool"
     return 0
   fi

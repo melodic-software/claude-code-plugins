@@ -31,9 +31,10 @@ All notable changes to the `markdown-format` plugin are documented here. Format 
   `!!` tags) mark the configuration unverifiable — gated with no approval
   route, since text whose meaning cannot be read cannot be reviewed. A
   computed module expression in an executable config or referenced module —
-  `require()`/`import()` whose argument is not a single string literal —
-  likewise refuses approval: a module graph the scan cannot pin is never
-  signed.
+  `require()`/`import()` whose argument is not a single string literal — or a
+  JS string literal carrying a letter-capable escape sequence (which decodes
+  to a different path than the raw text) likewise refuses approval: a module
+  graph the scan cannot pin is never signed.
   Previously the hook warned once and executed anyway, so a malicious
   repository's checked-in config could run arbitrary code on a routine
   markdown edit. Declarative rule-only configuration is unaffected. The edit
