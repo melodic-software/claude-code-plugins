@@ -22,8 +22,10 @@ All notable changes to the `review` plugin are documented here. Format follows
   roster is back to three plugins, carrying that gate plus an applicability gate — the same PR-only
   targeting makes the plugin undispatchable on a local branch with no open PR, which
   `run-everything` step 3 would otherwise invoke as an empty surface; and
-  `findings-normalization.md` carries the `code-review` parse contract again, which restores the
-  only referent for the Stage-1 "surfaces emitting no severity → DERIVE" rule; the README's
+  `findings-normalization.md` carries the `code-review` parse contract again — with the retrieval
+  step it needs, since the plugin posts its findings instead of returning them and the row would
+  otherwise have no Stage-0 input — which restores the only referent for the Stage-1 "surfaces
+  emitting no severity → DERIVE" rule; the README's
   optional-orchestrator roster names it again. The `pr-comment-gate-opt-in` eval covers the plugin
   alongside the other two mutating surfaces. Re-verified against the live marketplace manifest,
   upstream `plugins/code-review/commands/code-review.md`, and
