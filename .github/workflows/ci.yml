@@ -645,6 +645,55 @@ jobs:
         if: steps.scope.outputs.docs_only == 'true'
         run: echo "Diff is within the docs-only allowlist (scripts/docs-only-paths.txt); the youtube extraction suite cannot be affected — reporting success."
 
+  # ai-briefing's build/render pipeline is a Node package (native `node --test`
+  # suite) no other lane installs or runs — including test/url-policy.test.js,
+  # which asserts the SSRF gate (lib/url-policy.js) that decides which URLs the
+  # briefing validator is allowed to dereference: loopback/private/link-local/
+  # CGN/benchmarking/documentation/multicast rejection, DNS-gate-time A/AAAA
+  # resolution, and the IPv6 2000::/3 allowlist inversion. Without this lane
+  # that suite runs locally only, so a future refactor could silently break the
+  # predicate with nothing red in CI (#1488). Same never-skip, self-test-first,
+  # fail-closed docs-only gate as plugin-gate, miro-plugin and
+  # youtube-extraction. (Scoping this lane to its own paths — skipping it on
+  # unrelated diffs — is the same separately-tracked optimization noted on
+  # miro-plugin.)
+  ai-briefing-build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          # Full history so the PR base ref resolves for the docs-only diff.
+          fetch-depth: 0
+      - name: Test the docs-only detector
+        run: bash scripts/check-docs-only.test.sh
+      - name: Detect a docs-only diff
+        id: scope
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: scripts/check-docs-only.sh "origin/$BASE_REF"
+      - name: Set up Node
+        if: steps.scope.outputs.docs_only != 'true'
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .node-version
+          cache: npm
+          cache-dependency-path: plugins/ai-briefing/skills/generate/output/build/package-lock.json
+      - name: Install dependencies
+        if: steps.scope.outputs.docs_only != 'true'
+        run: npm ci
+        working-directory: plugins/ai-briefing/skills/generate/output/build
+      - name: Test
+        if: steps.scope.outputs.docs_only != 'true'
+        run: npm test
+        working-directory: plugins/ai-briefing/skills/generate/output/build
+      - name: Report not applicable to a docs-only diff
+        if: steps.scope.outputs.docs_only == 'true'
+        run: echo "Diff is within the docs-only allowlist (scripts/docs-only-paths.txt); the ai-briefing build suite cannot be affected — reporting success."
+
   # Skill-regression net: the only lane that invokes the skill-quality checker.
   # On a PR it runs the static contract gate (trigger-keyword preservation vs
   # the base ref, frontmatter, line caps, broken refs, evals presence) over each
@@ -757,6 +806,7 @@ jobs:
       - plugin-gate
       - miro-plugin
       - youtube-extraction
+      - ai-briefing-build
       - runner-policy
       - skill-quality-gate
       - portability-lint
