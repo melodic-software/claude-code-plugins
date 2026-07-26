@@ -365,15 +365,20 @@ for raw in "${RAW_TOKENS[@]}"; do
   # entry exists in two different situations and `--error-unmatch` cannot tell them
   # apart — it reports the entry either way:
   #
-  #   sparse checkout      `ls-files -v` tags the entry `S`; absent BY DESIGN.
+  #   sparse checkout      `ls-files -v` tags the entry `S` — or lowercase `s`
+  #                        when the assume-unchanged bit is ALSO set, since `-v`
+  #                        marks assume-unchanged by lowercasing the letter;
+  #                        either case carries the skip-worktree bit, so the
+  #                        path is absent BY DESIGN.
   #   unstaged deletion    tag stays `H` and `git status` shows ` D`; the path is
   #                        genuinely gone from the working tree, which is exactly
   #                        the disappearance this guard adjudicates.
   #
   # Exempting on presence alone therefore suppressed the finding for a real removal
-  # a user had not committed yet. Only `S` earns the exemption.
+  # a user had not committed yet. Only the skip-worktree letter, in either case,
+  # earns the exemption.
   ls_tag=$(git -C "$REPO_ROOT" ls-files -v -- ":(literal)${cand%/}" 2>/dev/null | tr -d '\r' | cut -c1)
-  [[ "$ls_tag" == "S" ]] && continue
+  [[ "$ls_tag" == [Ss] ]] && continue
 
   MISSING+=("$cand")
 done

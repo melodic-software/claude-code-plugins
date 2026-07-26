@@ -412,6 +412,18 @@ RC=$?
 assert_exit "assume-unchanged deletion → exit 0" 0 "$RC"
 assert_contains "assume-unchanged is not a sparse exemption → fires" "$OUT" \
   "STALE_PATH: docs/restored.md"
+
+# BOTH bits together: `ls-files -v` marks assume-unchanged by LOWERCASING the
+# letter, so a skip-worktree entry that is also assume-unchanged is tagged `s`,
+# not `S`. The skip-worktree bit is still set — the path is still absent by
+# design — so the exemption must hold; an exact-uppercase comparison would
+# misread the combination as a genuine deletion.
+git -C "$SPARSE" update-index --skip-worktree docs/restored.md >/dev/null 2>&1
+OUT=$(CLAUDE_PROJECT_DIR="$SPARSE" bash "$HOOK" \
+  <<<"$(write_json "$SPARSE_TARGET" 'Read `docs/restored.md` first.')" 2>&1)
+RC=$?
+assert_exit "skip-worktree + assume-unchanged → exit 0" 0 "$RC"
+assert_silent "lowercase s still carries the skip-worktree exemption → silent" "$OUT"
 git -C "$SPARSE" update-index --no-assume-unchanged docs/restored.md >/dev/null 2>&1
 
 git -C "$SPARSE" update-index --skip-worktree docs/restored.md >/dev/null 2>&1
