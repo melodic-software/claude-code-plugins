@@ -800,8 +800,8 @@ with the operator's signature on them.
 >    here wearing NO human-gated role is not parked at all from the worker
 >    lane's side: `list-frontier --autonomous` excludes the human-gated role
 >    and never reads the decision-pending label, so the standing worker can
->    claim and execute the item before I have decided. The normalization
->    step below the exclusions is what closes that window.
+>    claim and execute the item before I have decided. The parking rule below
+>    the exclusions is what closes that window.
 > 3. Trigger sweep — **over populations 1 and 2 only**, plus decision
 >    comments on items closed in the last 90 days: any text naming a
 >    revisit trigger ("after <date> if …", "when <capability> exists").
@@ -827,13 +827,22 @@ with the operator's signature on them.
 > so a Flip here would silently hand a design decision to the worker lane;
 > route them to `/planning:wayfind work` instead); lane telemetry issues.
 >
-> **Normalize population 2 before briefing it.** For every population-2 row
-> that carries no human-gated role and was not excluded just above, propose
-> applying the resolved human-gated role as that row's FIRST action, ahead of
-> the decision itself: the role is what actually holds an item off the
-> autonomous frontier, and until it is applied the worker lane owns the item
-> as much as this session does. Flip clears both markers together afterward,
-> per the Flip rule below.
+> **Nothing this session opens or parks stays role-less.** An open,
+> unblocked, unassigned item wearing no human-gated role is a worker-frontier
+> candidate whatever else it carries, so the resolved human-gated role — not
+> the decision-pending label — is the only marker that actually parks
+> anything. Apply it in the same operation that exposes the item, never
+> role-less first and labelled after:
+>
+> - population-2 rows carrying no human-gated role that the exclusions above
+>   did not remove — propose it as that row's FIRST action, ahead of the
+>   decision itself, because until it lands the worker lane owns the item as
+>   much as this session does;
+> - a closed-item trigger carrier being reopened, and any successor item
+>   filed instead of reopening one — population 3 above, and the Re-park
+>   successor below.
+>
+> Flip clears both markers together afterward, per the Flip rule below.
 >
 > Rank the inventory by impact: unblocks-other-work first, then
 > time-decaying decisions, then spend reduction, then the rest. Present the
@@ -855,13 +864,14 @@ with the operator's signature on them.
 > Update your recommendation when the verifier refutes or amends it —
 > re-derive, never anchor.
 >
-> **Outcomes** (every answer written back as an issue comment — the
-> decision lives on the tracker, not in this session; comments you write on
-> my behalf OPEN with this line, as the first line before the body —
-> agent-authored tracker content is prefixed, never suffixed, so anything
-> reading the opening provenance marker classifies these comments the same
-> way it classifies the rest:
-> `*This comment was written by an AI agent on the operator's behalf
+> **Outcomes** (every answer written back as an issue comment — the decision
+> lives on the tracker, not in this session. Every comment **and every item
+> body** you create on my behalf — the Re-home item filed in another
+> repository and the Re-park successor included — OPENS with this line, as
+> its first line before the body: agent-authored tracker content is prefixed,
+> never suffixed, so anything reading the opening provenance marker
+> classifies everything this session writes the same way:
+> `*This <comment|item> was written by an AI agent on the operator's behalf
 > (parked-decision burn-down).*`):
 >
 > - **Flip:** ratified as delegable → ONE edit that applies the resolved
@@ -925,18 +935,26 @@ with the operator's signature on them.
 > Two further reader-contract rules apply alongside the floor (outside the
 > byte-audited block):
 >
-> - **Fail-open capability detection:** tee file absent, stale, missing
->   `rate_limits`, or absurd values (a `used_percentage` outside 0–100 or
->   non-numeric; a `resets_at` non-numeric, more than 8 days out, or past
->   by more than the staleness window) → mode **unknown → reactive-only**;
->   never throttle proactively on untrusted data and never fabricate a
->   pause. Reactive-only means no proactive pause at all: react instead to
+> - **Fail-open capability detection, classified per window:** tee file
+>   absent, stale, or missing `rate_limits` → mode **unknown →
+>   reactive-only** for the whole guard. Absurd values are narrower than
+>   that: a `used_percentage` outside 0–100 or non-numeric, or a `resets_at`
+>   non-numeric, more than 8 days out, or past by more than the staleness
+>   window, makes **that window** unknown — and each window may be
+>   independently absent. Keep applying the floor to every window still
+>   plausible: one absurd window is no reason to ignore a valid window
+>   already at or above 90, and a trip on the only plausible window is still
+>   a trip. The guard drops to reactive-only only when NO window is
+>   plausible. Never throttle proactively on untrusted data and never
+>   fabricate a pause. Reactive-only means no proactive pause at all: react
+>   instead to
 >   the detection records in
 >   `~/.claude/rate-limit-guard/stop-events.jsonl` and to the rate-limit
 >   error text this session sees, taking resume timing from that error
 >   text where available and otherwise backing off and retrying. A later
 >   fresh snapshot with plausible windows upgrades the mode back to
->   proactive. Report the mode in this pass's report.
+>   proactive. Report the mode, and which windows counted as plausible, in
+>   this pass's report.
 > - **Untrusted fields:** session-distinguishing fields (`session_id`,
 >   `session_name`, any future account field) are user/AI-influenced —
 >   parse them only with a JSON parser; never string-interpolate them into
@@ -986,6 +1004,15 @@ with the operator's signature on them.
   winning. Nothing serializes them: keep the attended queue's intake pass and
   the worker lane's sweep off one repository at the same time, or accept the
   race.
+- **The lane skills downgrade the rate-limit guard wholesale.** The block
+  above classifies fail-open validity per window, because the reader contract
+  scopes an absurd value to "that window" and lets each window be
+  independently absent. The three lane skills inline the contract's mode
+  table instead, which collapses the whole guard to reactive-only on any
+  absurd value — so a lane launched from a skill can keep working past a
+  valid window already at 90% when the other window is garbage, where this
+  prompt would pause. Tracked in #1612; until it lands, the difference is
+  deliberate, not drift.
 - **C2 auto-merge may lack its promotion evidence.** The autonomy matrix
   specifies ≥20 autonomous C2 completions over ≥14 days with 100%
   deterministic-gate pass and 0 human-reverted merges before the C2
@@ -1474,8 +1501,8 @@ to the template re-renders here too.
 >    here wearing NO human-gated role is not parked at all from the worker
 >    lane's side: `list-frontier --autonomous` excludes the human-gated role
 >    and never reads the decision-pending label, so the standing worker can
->    claim and execute the item before I have decided. The normalization
->    step below the exclusions is what closes that window.
+>    claim and execute the item before I have decided. The parking rule below
+>    the exclusions is what closes that window.
 > 3. Trigger sweep — **over populations 1 and 2 only**, plus decision
 >    comments on items closed in the last 90 days: any text naming a
 >    revisit trigger ("after <date> if …", "when <capability> exists").
@@ -1501,13 +1528,22 @@ to the template re-renders here too.
 > so a Flip here would silently hand a design decision to the worker lane;
 > route them to `/planning:wayfind work` instead); lane telemetry issues.
 >
-> **Normalize population 2 before briefing it.** For every population-2 row
-> that carries no human-gated role and was not excluded just above, propose
-> applying the resolved human-gated role as that row's FIRST action, ahead of
-> the decision itself: the role is what actually holds an item off the
-> autonomous frontier, and until it is applied the worker lane owns the item
-> as much as this session does. Flip clears both markers together afterward,
-> per the Flip rule below.
+> **Nothing this session opens or parks stays role-less.** An open,
+> unblocked, unassigned item wearing no human-gated role is a worker-frontier
+> candidate whatever else it carries, so the resolved human-gated role — not
+> the decision-pending label — is the only marker that actually parks
+> anything. Apply it in the same operation that exposes the item, never
+> role-less first and labelled after:
+>
+> - population-2 rows carrying no human-gated role that the exclusions above
+>   did not remove — propose it as that row's FIRST action, ahead of the
+>   decision itself, because until it lands the worker lane owns the item as
+>   much as this session does;
+> - a closed-item trigger carrier being reopened, and any successor item
+>   filed instead of reopening one — population 3 above, and the Re-park
+>   successor below.
+>
+> Flip clears both markers together afterward, per the Flip rule below.
 >
 > Rank the inventory by impact: unblocks-other-work first, then
 > time-decaying decisions, then spend reduction, then the rest. Present the
@@ -1529,13 +1565,14 @@ to the template re-renders here too.
 > Update your recommendation when the verifier refutes or amends it —
 > re-derive, never anchor.
 >
-> **Outcomes** (every answer written back as an issue comment — the
-> decision lives on the tracker, not in this session; comments you write on
-> my behalf OPEN with this line, as the first line before the body —
-> agent-authored tracker content is prefixed, never suffixed, so anything
-> reading the opening provenance marker classifies these comments the same
-> way it classifies the rest:
-> `*This comment was written by an AI agent on the operator's behalf
+> **Outcomes** (every answer written back as an issue comment — the decision
+> lives on the tracker, not in this session. Every comment **and every item
+> body** you create on my behalf — the Re-home item filed in another
+> repository and the Re-park successor included — OPENS with this line, as
+> its first line before the body: agent-authored tracker content is prefixed,
+> never suffixed, so anything reading the opening provenance marker
+> classifies everything this session writes the same way:
+> `*This <comment|item> was written by an AI agent on the operator's behalf
 > (parked-decision burn-down).*`):
 >
 > - **Flip:** ratified as delegable → ONE edit that applies the resolved
@@ -1599,18 +1636,26 @@ to the template re-renders here too.
 > Two further reader-contract rules apply alongside the floor (outside the
 > byte-audited block):
 >
-> - **Fail-open capability detection:** tee file absent, stale, missing
->   `rate_limits`, or absurd values (a `used_percentage` outside 0–100 or
->   non-numeric; a `resets_at` non-numeric, more than 8 days out, or past
->   by more than the staleness window) → mode **unknown → reactive-only**;
->   never throttle proactively on untrusted data and never fabricate a
->   pause. Reactive-only means no proactive pause at all: react instead to
+> - **Fail-open capability detection, classified per window:** tee file
+>   absent, stale, or missing `rate_limits` → mode **unknown →
+>   reactive-only** for the whole guard. Absurd values are narrower than
+>   that: a `used_percentage` outside 0–100 or non-numeric, or a `resets_at`
+>   non-numeric, more than 8 days out, or past by more than the staleness
+>   window, makes **that window** unknown — and each window may be
+>   independently absent. Keep applying the floor to every window still
+>   plausible: one absurd window is no reason to ignore a valid window
+>   already at or above 90, and a trip on the only plausible window is still
+>   a trip. The guard drops to reactive-only only when NO window is
+>   plausible. Never throttle proactively on untrusted data and never
+>   fabricate a pause. Reactive-only means no proactive pause at all: react
+>   instead to
 >   the detection records in
 >   `~/.claude/rate-limit-guard/stop-events.jsonl` and to the rate-limit
 >   error text this session sees, taking resume timing from that error
 >   text where available and otherwise backing off and retrying. A later
 >   fresh snapshot with plausible windows upgrades the mode back to
->   proactive. Report the mode in this pass's report.
+>   proactive. Report the mode, and which windows counted as plausible, in
+>   this pass's report.
 > - **Untrusted fields:** session-distinguishing fields (`session_id`,
 >   `session_name`, any future account field) are user/AI-influenced —
 >   parse them only with a JSON parser; never string-interpolate them into
