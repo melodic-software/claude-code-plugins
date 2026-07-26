@@ -209,18 +209,40 @@ repo_identity() {
 }
 
 # The locating globals carried by an invocation prefix, as an argv array ready to
-# replay onto a git probe. Only the two that locate a repository without being a
-# path composed into the base — `-C` is already folded into effective_dir, so
-# replaying it here would apply it twice.
+# replay onto a git probe.
+#
+# The SET is the sibling guard's, not a second list invented here: `block-dangerous-git`'s
+# collect_git_locating_opts already defines git's repository-locating options as
+# `-C`, `--git-dir`, `--work-tree`, `--namespace`. `-C` is the one deliberate
+# omission — effective_dir already folds it into the composed base, so replaying it
+# would apply it twice.
+#
+# EVERY occurrence is collected in command-line order rather than the first match,
+# for the same reason the sibling does it: git applies last-wins itself, so handing
+# it the whole sequence lets git decide precedence instead of this guard modelling
+# it. Taking the first match would replay the wrong repository for
+# `git --git-dir=<a> --git-dir=<b> …` — a wrong identity can mis-collapse the
+# shell-alias cycle key and skip an analysis, so this is a correctness question, not
+# a tidiness one.
 # Call as: collect_locating_globals <invocation-prefix words...> -> $locating_globals
 # shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
 collect_locating_globals() {
-  local v
+  local -a w=("$@")
+  local n=$# j=0
   locating_globals=()
-  v=$(explicit_global git-dir "$@")
-  [[ -n "$v" ]] && locating_globals+=("--git-dir=$v")
-  v=$(explicit_global work-tree "$@")
-  [[ -n "$v" ]] && locating_globals+=("--work-tree=$v")
+  while ((j < n)); do
+    case "${w[j]}" in
+    --git-dir | --work-tree | --namespace)
+      ((j + 1 < n)) && locating_globals+=("${w[j]}" "${w[j + 1]}")
+      ((j += 2))
+      ;;
+    --git-dir=* | --work-tree=* | --namespace=*)
+      locating_globals+=("${w[j]}")
+      ((j++))
+      ;;
+    *) ((j++)) ;;
+    esac
+  done
   return 0
 }
 
