@@ -595,6 +595,27 @@ if out="$(scan_paths "$tok" "$f" 2>&1)"; then
 else
   ok "a stat -f fallback in a LATER command segment does not guard the GNU call"
 fi
+rm -f "$f"
+
+# --- a CONTROL & is a separator too: it backgrounds the GNU call and hands the
+# || to whatever follows, so in `... & true || stat -f ...` the || binds to
+# `true` and the BSD form never runs (#1544).
+f="$(tmpsh "stat -c '%s' \"\$f\" & true || stat -f '%z' \"\$f\"")"
+if out="$(scan_paths "$tok" "$f" 2>&1)"; then
+  fail "a stat -f reached across a background & should fail, got success: $out"
+else
+  ok "a backgrounding & also breaks the stat fallback relationship"
+fi
+rm -f "$f"
+
+# --- ...while `>&` and `&&` are NOT separators: a real ladder may redirect
+# with 2>&1, and `a && b || c` does still fall back to c when a fails.
+f="$(tmpsh 'size=$(stat -c "%s" "$1" 2>&1) || size=$(stat -f "%z" "$1")')"
+if scan_paths "$tok" "$f" >/dev/null 2>&1; then
+  ok "a 2>&1 redirection inside the ladder does not break the guard"
+else
+  fail "2>&1 must not be mistaken for a control &: $(scan_paths "$tok" "$f" 2>&1)"
+fi
 rm -f "$f" "$tok"
 
 tok="$(one_token_list 'readlink[[:space:]]+(-[A-Za-z]*f|--canonicalize)')"
@@ -603,6 +624,14 @@ if out="$(scan_paths "$tok" "$f" 2>&1)"; then
   fail "a readlink reached across a ; should fail, got success: $out"
 else
   ok "a realpath attempt in a LATER command segment does not guard readlink -f"
+fi
+rm -f "$f"
+
+f="$(tmpsh 'realpath -- "$1" & true || readlink -f -- "$1"')"
+if out="$(scan_paths "$tok" "$f" 2>&1)"; then
+  fail "a readlink reached across a background & should fail, got success: $out"
+else
+  ok "a backgrounding & also breaks the readlink fallback relationship"
 fi
 rm -f "$f" "$tok"
 
@@ -895,6 +924,36 @@ elif [[ "$(echo "$out" | grep -c "PORTABILITY: ${f}:")" -eq 6 ]]; then
   ok "attached -d, --date, --format and --printf spellings are all detected"
 else
   fail "expected all 6 spellings flagged, got: $out"
+fi
+rm -f "$f"
+
+# --- an attached -d argument may be a bare WORD, and `c` may sit inside a
+# short-option cluster (#1544). GNU documents a mandatory long-option argument
+# as mandatory for the short option too, so `date -u -dtomorrow +%Y` succeeds,
+# and `stat --help` documents `-L, --dereference` so `stat -Lc%s` succeeds.
+f="$(tmpsh "$(printf '%s\n' \
+  'date -dtomorrow +%s' \
+  'date -u -dyesterday' \
+  'stat -Lc%s "$file"' \
+  'stat -Lc '"'"'%s'"'"' "$file"')")"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "worded -d arguments and clustered -c should fail, got success: $out"
+elif [[ "$(echo "$out" | grep -c "PORTABILITY: ${f}:")" -eq 4 ]]; then
+  ok "a bare-word attached -d and a clustered -Lc are both detected"
+else
+  fail "expected all 4 forms flagged, got: $out"
+fi
+rm -f "$f"
+
+# --- ...but a LONGER flag whose name merely contains the letter must not be
+# read as that option. Both are real GNU flags that succeed in their own right.
+f="$(tmpsh "$(printf '%s\n' \
+  'date --debug +%s' \
+  'stat --dereference "$file"')")"
+if scan_paths "$REAL_TOKENS" "$f" >/dev/null 2>&1; then
+  ok "date --debug and stat --dereference are not read as -d / -c"
+else
+  fail "long flags must not match the short-option branch: $(scan_paths "$REAL_TOKENS" "$f" 2>&1)"
 fi
 rm -f "$f"
 

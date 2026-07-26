@@ -219,11 +219,16 @@ scan_file() {
     # separator. Without it the two calls need not be in the same command at
     # all: `stat -c %s "$f"; true || stat -f %z "$f"` runs the GNU-only call
     # unconditionally and reaches the || from a LATER command, so the BSD form
-    # is not its fallback (#1544). `;` and `|` are excluded; `)` and `&` are
-    # not, because a real ladder closes a $( ) and may redirect with 2>&1.
+    # is not its fallback (#1544). `;` and `|` are excluded, and so is a
+    # CONTROL `&`, which backgrounds the GNU call and hands the || to whatever
+    # follows: in `stat -c %s "$f" & true || stat -f %z "$f"` the || binds to
+    # `true`, so the BSD form never runs. A lone `&` is therefore rejected
+    # while `>&`/`<&` and `&&` are kept, since a real ladder may redirect with
+    # 2>&1 and `a && b || c` does still fall back to c when a fails. `)` stays
+    # admissible because a real ladder closes a $( ) before its ||.
     function is_guarded(l, p, CMDPOS, SEG) {
       CMDPOS = "\\|\\|[[:space:]]*([A-Za-z_][A-Za-z0-9_]*=)?(\\$\\()?[[:space:]]*"
-      SEG = "[^;|]*"
+      SEG = "([^;|&]|[<>]&|&&)*"
       if (p ~ /readlink/ && l ~ ("realpath" SEG CMDPOS "readlink")) return 1
       if (index(p, "stat[[:space:]]") && l ~ ("stat[[:space:]]+(-[A-Za-z]*c|--format|--printf)" SEG CMDPOS "stat[[:space:]]+-[A-Za-z]*f")) return 1
       return 0

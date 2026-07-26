@@ -176,10 +176,14 @@ readlink[[:space:]]+(-[A-Za-z]*f|--canonicalize)
 # space-separated, and `--date` is its documented long spelling: `date --help`
 # prints `-d, --date=STRING`, and `date -u -d@0` / `date -u --date=@0` both
 # print the same instant. A whitespace-or-EOL-only tail matched neither
-# spelling (#1544). The attached tail admits only characters that can START a
-# value, so a longer flag whose name merely begins with `d` is still not
-# mistaken for it.
-(^|[^A-Za-z0-9_-])date[[:space:]]+[^;&|()\n]*(-d([[:space:]]|$|[@"'$[:digit:]])|--date([[:space:]]|=))
+# spelling (#1544). The attached value is unrestricted, because GNU documents
+# that a mandatory long-option argument is mandatory for the short option too
+# and accepts a bare word: `date -u -dtomorrow +%Y` succeeds. What keeps a
+# LONGER flag from being read as `-d` is not the tail but the run before it,
+# which may not end in `-`: that is what stops `date --debug` (a real GNU flag,
+# `date --debug +%s` succeeds) from matching on the `-d` inside `--debug`,
+# while `date -d@0`, `date -u -dyesterday` and `date --utc -d @0` all still do.
+(^|[^A-Za-z0-9_-])date[[:space:]]+([^;&|()\n]*[^-;&|()\n])?(-d|--date([[:space:]]|=))
 
 # `stat -c` (GNU format string) — a GNU coreutils extension; BSD/macOS stat
 # uses `-f`. Requires whitespace immediately after `stat` so the token matches
@@ -206,7 +210,13 @@ readlink[[:space:]]+(-[A-Za-z]*f|--canonicalize)
 # prints `-c  --format=FORMAT` and `--printf=FORMAT   like --format, but
 # interpret backslash escapes`. Both succeed on GNU stat and neither exists in
 # the BSD/macOS dialect, so the class was enforceable under one spelling only.
-(^|[^A-Za-z0-9_-])stat[[:space:]]+[^;&|()\n]*(-c|--format|--printf)
+# `c` may also sit anywhere inside a short-option CLUSTER, as it already may in
+# the auto-guard: `stat --help` documents `-L, --dereference`, and
+# `stat -Lc%s "$file"` succeeds on GNU stat while staying BSD-incompatible, yet
+# a literal `-c` search missed it (#1544). The same not-ending-in-`-` run as
+# `date -d` above keeps a long flag out of the cluster branch, so
+# `stat --dereference` is not read as a `-…c` cluster.
+(^|[^A-Za-z0-9_-])stat[[:space:]]+([^;&|()\n]*[^-;&|()\n])?(-[A-Za-z]*c|--format|--printf)
 
 # --- STAGED (commented until enabled — see #1528 for the enable trigger) ---
 #
