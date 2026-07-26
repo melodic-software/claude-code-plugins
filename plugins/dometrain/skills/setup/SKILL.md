@@ -65,15 +65,21 @@ For a non-interactive install — CI, a fleet bootstrap, a scripted machine setu
 on the initial install instead of the interactive `/plugin` prompt:
 
 ```shell
-claude plugin install dometrain@melodic-software --config dometrain_api_key=<your-key>
+claude plugin install dometrain@<marketplace> -s <scope> --config dometrain_api_key=<your-key>
 ```
+
+`<marketplace>` is whichever marketplace this plugin was added from, and `<scope>` is the scope
+the install should land at — read both from `claude plugin list` rather than assuming them.
 
 **Fresh-install-only:** `--config` seeds a value only on a fresh install. Re-running it against
 an already-installed `dometrain` does not update the stored key. To rotate or clear the key
 later, use `/plugin configure dometrain` (interactive, any time) or uninstall then reinstall with
 a new `--config` value (headless) — never re-run `install --config` against an existing install
-expecting it to take effect. Full detail, including the command-line-exposure caveat, is in the
-README's [Rotating or clearing the key](../../README.md#rotating-or-clearing-the-key) section.
+expecting it to take effect. Carry the SAME `-s <scope>` through both halves of the
+uninstall/reinstall: defaulting either to `user` uninstalls a different record than the one that
+is loading, and reinstalls at a scope that does not load. Full detail, including the
+command-line-exposure caveat, is in the README's
+[Rotating or clearing the key](../../README.md#rotating-or-clearing-the-key) section.
 
 ## Output
 

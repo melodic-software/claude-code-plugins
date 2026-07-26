@@ -52,14 +52,19 @@ For a non-interactive install — CI, a fleet bootstrap, a scripted machine setu
 on the initial install instead of the interactive `/plugin` prompt:
 
 ```shell
-claude plugin install miro@melodic-software --config miro_api_token=<token>
+claude plugin install miro@<marketplace> -s <scope> --config miro_api_token=<token>
 ```
+
+`<marketplace>` is whichever marketplace this plugin was added from, and `<scope>` is the scope
+the install should land at — read both from `claude plugin list` rather than assuming them.
 
 **Fresh-install-only:** `--config` seeds a value only on a fresh install. Re-running it against
 an already-installed `miro` does not update the stored token. To rotate or clear the token later,
 use `/plugin configure miro` (interactive, any time) or uninstall then reinstall with a new
 `--config` value (headless) — never re-run `install --config` against an existing install
-expecting it to take effect.
+expecting it to take effect. Carry the SAME `-s <scope>` through both halves of the
+uninstall/reinstall: defaulting either to `user` uninstalls a different record than the one that
+is loading, and reinstalls at a scope that does not load.
 
 **Security note:** passing the token as a CLI argument records it in shell history
 (`.bash_history`, `.zsh_history`) and briefly exposes it in the process table
