@@ -19,8 +19,8 @@ Discovery writes **memory tier only** — working documents nothing downstream e
 
 | Artifact | Location |
 |---|---|
-| `EXPLORE.md` (+ `EXPLORE-<scope>.md` sidecars and overflow) | `<memory_dir>/<slug>/` (default `.work/<slug>/`) — never committed |
-| `RESEARCH.md` (+ `RESEARCH-<topic>.md` sidecars and overflow) | `<memory_dir>/<slug>/` — never committed |
+| `EXPLORE.md` (+ `EXPLORE-<section>.md` sidecars and overflow) | `<memory_dir>/<slug>/` (default `.work/<slug>/`) — never committed |
+| `RESEARCH.md` (+ `RESEARCH-<section>.md` sidecars and overflow) | `<memory_dir>/<slug>/` — never committed |
 
 Discovery never writes the contract tier; the `contract_tier` setting does not change where its
 artifacts land. The dispatched `discovery:explorer` / `discovery:researcher` agents, and a Tier-2

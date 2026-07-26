@@ -119,6 +119,35 @@ wide="$WORK/too-wide.md"
 } >"$wide"
 run 2 "row with too many columns fails closed" "$wide"
 
+# A marked box on a row with no depth criterion certifies nothing — there is no
+# statement of what covering that item meant. Criterion 11 reads exit 0 as proof
+# of coverage, so this must never be one.
+no_criterion="$WORK/no-criterion.md"
+{
+  printf '| # | Corpus item | Depth criterion | Done |\n'
+  printf '|---|-------------|-----------------|------|\n'
+  printf '| 1 | alpha |  | [x] |\n'
+} >"$no_criterion"
+run 2 "marked row with an empty depth criterion fails closed" "$no_criterion"
+
+no_item="$WORK/no-item.md"
+{
+  printf '| # | Corpus item | Depth criterion | Done |\n'
+  printf '|---|-------------|-----------------|------|\n'
+  printf '| 1 |  | criterion | [x] |\n'
+} >"$no_item"
+run 2 "marked row with an empty corpus item fails closed" "$no_item"
+
+# The same emptiness on an UNMARKED row is still ungradeable — a ledger cannot be
+# completed later against a criterion nobody wrote.
+unmarked_no_criterion="$WORK/unmarked-no-criterion.md"
+{
+  printf '| # | Corpus item | Depth criterion | Done |\n'
+  printf '|---|-------------|-----------------|------|\n'
+  printf '| 1 | alpha |  | [ ] |\n'
+} >"$unmarked_no_criterion"
+run 2 "unmarked row with an empty depth criterion fails closed" "$unmarked_no_criterion"
+
 junk_cell="$WORK/junk-cell.md"
 {
   printf '| # | Corpus item | Depth criterion | Done |\n'

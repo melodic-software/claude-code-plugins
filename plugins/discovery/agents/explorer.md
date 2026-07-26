@@ -88,14 +88,14 @@ Write into the memory slice, following the skill's 7-section output format:
 
 - **`EXPLORE.md` — always an index**, regardless of total size. It opens with a task restatement,
   carries a one-line abstract per sidecar, and a section → file + anchor table.
-- **Sidecars** — `EXPLORE-<scope>.md` beside the index, inside the same slice directory, each
-  carrying the machine-readable YAML header so a consumer can grep headers and read exactly one.
+- **Sidecars** — `EXPLORE-<section>.md` beside the index, inside the same slice directory, each
+  carrying the EXPLORE sidecar header (`verified: read | grep | inferred` plus repo-relative paths — not the research header's tiers and pools), so a consumer can grep headers and read exactly one.
 
 Sidecars never live outside the slice, and `EXPLORE.md` is always the entry point.
 
 **If an `EXPLORE.md` already exists in that slice for an unrelated task**, do not clobber it — losing
 a prior exploration to a filename collision is silent and unrecoverable. Do not rename your index to
-`EXPLORE-<scope>.md` either: that is the **sidecar** pattern, so your index would collide with your
+`EXPLORE-<section>.md` either: that is the **sidecar** pattern, so your index would collide with your
 own sidecars, and the payload below would still be naming a file you did not write. Instead write
 your whole artifact set — index and sidecars, under their normal names — into a sub-slice
 `<memory-slice path>/<scope-slug>/`, and put **that** path in `artifact:` and in

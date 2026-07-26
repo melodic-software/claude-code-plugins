@@ -88,7 +88,7 @@ Write into the memory slice, following the skill's Output Format and the plugin'
 
 - **`RESEARCH.md` — always an index**, regardless of total size. It opens with a task restatement,
   carries a one-line abstract per sidecar, and a section → file + anchor table.
-- **Sidecars** — `RESEARCH-<topic>.md` beside the index, inside the same slice directory, each
+- **Sidecars** — `RESEARCH-<section>.md` beside the index, inside the same slice directory, each
   carrying the machine-readable YAML header so a consumer can grep headers and read exactly one.
 - **`research-checklist.md`** — the coverage ledger, written in the skill's corpus-enumeration
   phase **before any query**, one row per corpus item with a per-item depth criterion fixed at

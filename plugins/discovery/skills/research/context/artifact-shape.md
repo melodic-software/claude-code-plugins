@@ -2,7 +2,7 @@
 
 The on-disk shape of a `/discovery:research` run's output. `SKILL.md` carries the mandate ("always
 an index"); this file carries the schema and the reasoning. `EXPLORE.md` follows the same shape with
-`EXPLORE-<scope>.md` sidecars.
+`EXPLORE-<section>.md` sidecars.
 
 ## Why an index at every size, not past a threshold
 
@@ -27,11 +27,18 @@ Always the entry point. A consumer handed that filename must get a readable docu
    opening anything.
 4. **Next-stage-handoff** — settled facts vs. open decisions for the planning step.
 
-## The sidecars — `RESEARCH-<topic>.md`
+## The sidecars — `RESEARCH-<section>.md`
 
 Siblings of the index, inside the same slice directory. Each carries the Output Format's content for
 one section, opening with a machine-readable YAML header so a consumer can grep headers rather than
-prose:
+prose.
+
+**The filename is keyed on the SECTION, not the topic or scope.** A run has exactly one topic and
+many sections, so a topic-keyed name gives every sidecar in the run the same filename: later sections
+silently overwrite earlier ones, or the worker invents an undocumented name and the index's
+section → file table stops resolving. Use the same stable kebab-case id that the header's `section`
+field carries, so the filename, the header, and the index anchor are one identifier rather than three
+that have to be kept in agreement.
 
 ```yaml
 ---
@@ -84,3 +91,42 @@ independently can choose the same one.
 A worktree that carries the index without its sidecars is strictly worse than a self-contained
 artifact, so any glob that ships `RESEARCH.md` must also ship `RESEARCH-*.md` and `*-checklist.md`.
 The topic-docs convention's `.worktreeinclude` recipe already does.
+
+## The `EXPLORE.md` sidecar header — a different evidence kind
+
+The index shape, the section-keyed filenames, the sub-slice rule, and both placement rules are
+identical for exploration. **The header is not**, and pointing an exploration run at the research
+header is a real defect rather than a shortcut: that header's fields are `confidence`, source
+`tier`, and publishing `pool`, which describe *external* evidence. Local exploration evidence is a
+repository path and whether the file was actually Read. A run handed the research header either
+fabricates URL and pool values it has none of, or improvises a shape no consumer can parse — and the
+fabrication is worse, because it launders "I grepped a filename" into the same field a fetched
+primary source would occupy.
+
+```yaml
+---
+topic: <topic-slug>
+section: <stable kebab-case id, matches the index anchor and the filename>
+abstract: <one line, mirrored verbatim into the index>
+dimension: codebase        # which of the six exploration dimensions produced this
+findings:
+  - finding: "<one-line finding>"
+    verified: read         # read | grep | inferred — see below
+    paths:                 # repo-relative, never absolute; the outcome gate checks this
+      - "src/payments/rounding.ts:112-140"
+produced_by: <phase or dimension id>
+---
+```
+
+**`verified` is the whole point of the header**, and it is the local analogue of the source tier:
+
+- **`read`** — the file was opened and the finding comes from its contents. The only value a
+  conclusion-driving claim may carry, per the outcome gate's Read-verified criterion.
+- **`grep`** — a search hit located it and nothing was opened. Discovery only. A `grep`-verified
+  finding is a lead, not a conclusion.
+- **`inferred`** — drawn from a filename, a directory layout, or a convention rather than from
+  content. Always suspect; name it so a reader can discount it.
+
+Keeping these three distinct is what lets a verifier grade "conclusion-driving claims are
+Read-verified, not inferred from a filename or grep hit" off the artifact instead of taking the
+run's word for it — the same job `sources[]` does for the research side.

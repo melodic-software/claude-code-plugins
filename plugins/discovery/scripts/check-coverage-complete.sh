@@ -108,6 +108,7 @@ function is_separator(line,   probe) {
 
   if (!header_seen) {
     for (i = 1; i <= ncell; i++) {
+      header_name[i] = cell[i]
       if (tolower(cell[i]) == "done") { done_col = i; header_cols = ncell }
     }
     if (done_col == 0) next   # a table without a Done column is not the ledger
@@ -127,6 +128,21 @@ function is_separator(line,   probe) {
   }
 
   rows++
+
+  # Every non-Done cell must carry something. A marked box on a row whose corpus
+  # item or depth criterion is blank certifies nothing — there is no statement of
+  # what "covered" meant for that item — and criterion 11 reads this exit status
+  # as proof of coverage, so accepting it would let a half-written ledger pass as
+  # a complete one. That is the failure this gate exists to refuse.
+  for (i = 1; i <= header_cols; i++) {
+    if (i == done_col) continue
+    if (cell[i] == "") {
+      printf "error: row %d has an empty %s cell — a marked row must say what covering it meant: %s\n", rows, header_name[i], line > "/dev/stderr"
+      fatal = 1
+      exit 2
+    }
+  }
+
   box = cell[done_col]
   if (box ~ /^\[[xX]\][ \t]*$/) {
     next
