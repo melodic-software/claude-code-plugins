@@ -64,7 +64,10 @@ Both were raised in review on
 [#1432](https://github.com/melodic-software/claude-code-plugins/pull/1432) and
 merged before they were resolved. Four behavioral cases pin them, verified red
 against the 0.17.1 guard (`PASS=79 FAIL=4`) and green after; a fifth pins the
-combined skip-worktree + assume-unchanged tag (`PASS=85 FAIL=0`).
+combined skip-worktree + assume-unchanged tag, and a sixth pins the
+self-overlapping anchor described above — red against the `grep -o` counter
+(`PASS=86 FAIL=1`), green against the `index()` one. The suite reports
+`PASS=87 FAIL=0` at this snapshot.
 
 ## [0.17.1]
 
