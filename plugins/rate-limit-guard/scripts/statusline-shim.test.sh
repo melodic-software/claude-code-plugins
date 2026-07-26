@@ -48,6 +48,14 @@ assert_contains() {
     fail "$what — [$hay] does not contain [$needle]"
   fi
 }
+assert_not_contains() {
+  local hay="$1" needle="$2" what="$3"
+  if [[ "$hay" != *"$needle"* ]]; then
+    ok "$what"
+  else
+    fail "$what — [$hay] unexpectedly contains [$needle]"
+  fi
+}
 
 WORK="$(mktemp -d)"
 cleanup() { rm -rf "$WORK"; }
@@ -86,6 +94,8 @@ EOF
 }
 
 # Runner: HOME-scoped invocation; remaining args are the wrapped command.
+# CLAUDE_CONFIG_DIR is cleared so an ambient relocated config dir on the
+# developer's machine cannot leak into the HOME-anchored cases.
 # Captures stdout, stderr, and the exit code.
 OUT=""
 ERR=""
@@ -94,7 +104,7 @@ run() {
   local home="$1"
   shift
   local errfile="$WORK/stderr.$$"
-  OUT="$(printf '%s' "$INPUT" | HOME="$home" bash "$SHIM" "$@" 2>"$errfile")"
+  OUT="$(printf '%s' "$INPUT" | env -u CLAUDE_CONFIG_DIR HOME="$home" bash "$SHIM" "$@" 2>"$errfile")"
   RC=$?
   ERR="$(cat "$errfile")"
   rm -f "$errfile"
@@ -165,7 +175,7 @@ assert_contains "$OUT" "standalone:v1" "no wrapped command hands standalone mode
 
 # --- 9. HOME unset: nothing to resolve, wrapped command unaffected ----------
 make_wrapped "$WORK/render-nohome.sh" 0
-OUT="$(printf '%s' "$INPUT" | env -u HOME bash "$SHIM" bash "$WORK/render-nohome.sh" 2>/dev/null)"
+OUT="$(printf '%s' "$INPUT" | env -u HOME -u CLAUDE_CONFIG_DIR bash "$SHIM" bash "$WORK/render-nohome.sh" 2>/dev/null)"
 RC=$?
 assert_contains "$OUT" "RENDER" "unset HOME degrades to the wrapped command"
 assert_eq "0" "$RC" "unset HOME preserves the wrapped exit code"
@@ -194,6 +204,41 @@ make_wrapped "$H6/render.sh" 0
 run "$H6" bash "$SIB" bash "$H6/render.sh"
 assert_contains "$ERR" "TEE:rlg" "chain: present tee still runs when the sibling tee is absent"
 assert_contains "$OUT" "RENDER" "chain: absent sibling tee does not break the statusline"
+
+# --- 12. relocated config dir: CLAUDE_CONFIG_DIR anchors the cache ----------
+# The documented multi-account setup (`CLAUDE_CONFIG_DIR=~/.claude-work claude`)
+# moves the plugin cache with it, so a $HOME-only shim would silently resolve
+# nothing forever after the operator wired it.
+H7="$WORK/h7"
+CFG="$WORK/cfg-relocated"
+# plant_tee lays its cache under <arg>/.claude, so planting into $WORK/reloc and
+# then renaming that .claude subtree gives a config dir at an arbitrary path —
+# exactly what CLAUDE_CONFIG_DIR names.
+plant_tee "$WORK/reloc" "some-marketplace" "rate-limit-guard" "0.1.0" "reloc" >/dev/null
+mv "$WORK/reloc/.claude" "$CFG"
+make_wrapped "$WORK/render-cfg.sh" 0
+errfile="$WORK/stderr.cfg"
+OUT="$(printf '%s' "$INPUT" | HOME="$H7" CLAUDE_CONFIG_DIR="$CFG" bash "$SHIM" bash "$WORK/render-cfg.sh" 2>"$errfile")"
+RC=$?
+ERR="$(cat "$errfile")"
+assert_contains "$ERR" "TEE:reloc" "CLAUDE_CONFIG_DIR anchors the cache when HOME holds no cache"
+assert_contains "$OUT" "RENDER" "relocated config dir stays transparent"
+assert_eq "0" "$RC" "relocated config dir preserves the wrapped exit code"
+
+# --- 13. CLAUDE_CONFIG_DIR wins over a cache under HOME ---------------------
+plant_tee "$H7" "some-marketplace" "rate-limit-guard" "0.1.0" "home" >/dev/null
+OUT="$(printf '%s' "$INPUT" | HOME="$H7" CLAUDE_CONFIG_DIR="$CFG" bash "$SHIM" bash "$WORK/render-cfg.sh" 2>"$errfile")"
+RC=$?
+ERR="$(cat "$errfile")"
+assert_contains "$ERR" "TEE:reloc" "an explicit CLAUDE_CONFIG_DIR overrides the HOME default"
+assert_not_contains "$ERR" "TEE:home" "the HOME cache is not consulted when CLAUDE_CONFIG_DIR is set"
+
+# --- 14. empty CLAUDE_CONFIG_DIR falls back to HOME -------------------------
+OUT="$(printf '%s' "$INPUT" | HOME="$H7" CLAUDE_CONFIG_DIR="" bash "$SHIM" bash "$WORK/render-cfg.sh" 2>"$errfile")"
+RC=$?
+ERR="$(cat "$errfile")"
+rm -f "$errfile"
+assert_contains "$ERR" "TEE:home" "an empty CLAUDE_CONFIG_DIR falls back to \$HOME/.claude"
 
 echo
 echo "passed: $PASS  failed: $FAIL"

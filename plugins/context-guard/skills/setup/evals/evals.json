@@ -43,11 +43,11 @@
       "id": 4,
       "name": "apply-preserves-unrecognized-keys-and-custom-bands",
       "prompt": "/context-guard:setup apply\n\nMy zones.json already exists with custom valid bands (40/70) and carries a custom display_color key my statusline reads.",
-      "expected_output": "Bare apply is repair-only: leaves the valid custom bands (40/70) untouched and reports them, preserves the unrecognized display_color key and its value (semantic preservation — lexical formatting may normalize), names 'apply reset' as the explicit route to the shipped defaults, and confirms a second identical apply would be a no-op.",
+      "expected_output": "Bare apply is repair-only: leaves the valid custom bands (40/70) untouched and reports them, preserves the unrecognized display_color key and its value (semantic preservation — lexical formatting may normalize), names 'apply defaults' as the explicit route to the shipped defaults, and confirms a second identical apply would be a no-op.",
       "files": [],
       "expectations": [
         "Writes only inside ~/.claude/context-guard/ — zones.json plus the shim — and nothing else (a fully valid zones file may mean no zones write at all)",
-        "Does NOT overwrite valid custom band values on a bare apply; names apply reset as the explicit reset mode",
+        "Does NOT overwrite valid custom band values on a bare apply; names apply defaults as the explicit shipped-defaults mode",
         "Preserves unrecognized keys rather than rewriting the file from the template",
         "States idempotency (second run = no content change)"
       ]
@@ -63,6 +63,31 @@
         "Installed shim is byte-identical to the shipped source, not a rewritten or templated variant",
         "Second identical apply reports no content change",
         "States that installing the shim starts nothing until the settings.json wiring is applied by the operator"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "composes-without-double-wrapping",
+      "prompt": "/context-guard:setup check\n\nMy statusLine command is already: bash ~/.claude/rate-limit-guard/bin/statusline-shim.sh ~/.claude/statusline/render.sh — I configured rate-limit-guard first. Both plugins are installed, but I have never run /context-guard:setup apply.",
+      "expected_output": "Recognizes the existing sibling-shim wrapper, unwraps it to the operator's own renderer before composing, and prints wiring that runs each tee exactly once. Because this plugin's own shim is not installed yet, it reports that and names apply as the remediation rather than printing wiring naming a file that does not exist.",
+      "files": [],
+      "expectations": [
+        "Treats ~/.claude/statusline/render.sh as the wrapped command — never re-wraps the full existing command, so the rate-limit-guard shim appears exactly once in the printed wiring",
+        "Never prints a combined form naming a shim path that is not installed; gates the combined wiring on the sibling shim existing, or directs the operator to run that plugin's apply first",
+        "Explains that a duplicated tee runs and writes on every refresh and adds another ~0.6-0.9 s per refresh",
+        "Still edits nothing — the wiring is printed for the operator to apply"
+      ]
+    },
+    {
+      "id": 7,
+      "name": "uninstall-order-unwrap-before-delete",
+      "prompt": "/context-guard:setup check\n\nHow do I back this out completely? I want to remove the plugin and everything it put on my machine.",
+      "expected_output": "Gives the two operator cleanup steps in a REQUIRED order: unwrap the statusLine command first, then delete ~/.claude/context-guard/.",
+      "files": [],
+      "expectations": [
+        "States the order explicitly and gives the reason: deleting the directory first leaves settings.json invoking a missing file, so bash exits 127 and the whole statusline goes down",
+        "Does not present the two steps as order-independent",
+        "Notes that uninstalling the plugin itself is safe on its own — the shim degrades to running the wrapped command"
       ]
     }
   ]

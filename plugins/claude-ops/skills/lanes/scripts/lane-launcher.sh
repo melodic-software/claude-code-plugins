@@ -9,8 +9,10 @@
 # `status`/`stop` read and manage those sessions through the CLI's own
 # background-session surface.
 #
-# Verified CLI surface (claude 2.1.215 — see the skill's Verification section):
-#   claude --bg -n <name> [--model M] [--effort E] "<prompt>"   launch, return now
+# Verified CLI surface (claude 2.1.215 — see the skill's Verification section;
+# --settings re-verified against the CLI reference, 2026-07-25):
+#   claude --bg -n <name> [--model M] [--effort E] [--settings JSON] "<prompt>"
+#                                                               launch, return now
 #   claude agents --json                                        list sessions
 #                                                               (pid, cwd, kind,
 #                                                               startedAt,
@@ -57,6 +59,10 @@
 #               relative to prompt_dir).
 #   model       optional; passed as --model.
 #   effort      optional; passed as --effort (low|medium|high|xhigh|max).
+#   settings    optional; a JSON OBJECT passed inline as --settings for that
+#               session only (e.g. a pluginConfigs override opting the lane into
+#               the autonomy plugin's lane-stop gate). Non-object values are
+#               rejected.
 #
 # Exit codes:
 #   0  ok
@@ -294,6 +300,10 @@ running_session_id() {
 # --- Per-lane field extraction ------------------------------------------------
 lane_field() { jq -r --argjson i "$1" --arg k "$2" '.lanes[$i][$k] // ""' "$CONFIG"; }
 
+# Structured (non-string) lane field, emitted as compact JSON; empty when unset.
+# Used for `settings`, whose value is a JSON object rather than a scalar.
+lane_json_field() { jq -c --argjson i "$1" --arg k "$2" '.lanes[$i][$k] // empty' "$CONFIG"; }
+
 # Absolute path to a lane's prompt file.
 lane_prompt_path() {
   local raw="$1" pdir="$2"
@@ -321,7 +331,7 @@ run() {
 # so restart can preflight these BEFORE stopping a running lane — a recoverable
 # prompt/effort error must not take a healthy session down and fail to relaunch it.
 validate_launch_inputs() {
-  local name="$1" effort="$2" prompt_path="$3"
+  local name="$1" effort="$2" prompt_path="$3" settings="${4:-}"
   if [[ ! -f "$prompt_path" ]]; then
     err "lane '$name': prompt file not found: $prompt_path — skipped"
     return 1
@@ -334,15 +344,23 @@ validate_launch_inputs() {
     err "lane '$name': invalid effort '$effort' (want: $VALID_EFFORTS) — skipped"
     return 1
   fi
+  # `settings` must be a JSON object — the launcher passes it verbatim to
+  # `claude --settings`, and a string/array/scalar would make the whole session
+  # fail to launch with an opaque CLI error instead of a per-lane skip here.
+  if [[ -n "$settings" ]] && ! jq -e 'type == "object"' <<<"$settings" >/dev/null 2>&1; then
+    err "lane '$name': settings must be a JSON object — skipped"
+    return 1
+  fi
 }
 
 launch_lane() {
-  local name="$1" model="$2" effort="$3" prompt_path="$4"
-  validate_launch_inputs "$name" "$effort" "$prompt_path" || return 1
+  local name="$1" model="$2" effort="$3" prompt_path="$4" settings="${5:-}"
+  validate_launch_inputs "$name" "$effort" "$prompt_path" "$settings" || return 1
 
   local -a cmd=(claude --bg -n "$name")
   [[ -n "$model" ]] && cmd+=(--model "$model")
   [[ -n "$effort" ]] && cmd+=(--effort "$effort")
+  [[ -n "$settings" ]] && cmd+=(--settings "$settings")
 
   if ((DRY_RUN)); then
     # Keep the seeded prompt out of the echoed command — show a size placeholder.
@@ -410,16 +428,17 @@ validate_target_lanes() {
 }
 
 # --- Lane iteration helper ----------------------------------------------------
-# Runs `callback <name> <model> <effort> <prompt_path>` for every lane, or only
-# the lanes named in TARGET_LANES. Target names are validated up front by
-# validate_target_lanes (called from main), so every name here is already known.
+# Runs `callback <name> <model> <effort> <prompt_path> <settings>` for every
+# lane, or only the lanes named in TARGET_LANES. Target names are validated up
+# front by validate_target_lanes (called from main), so every name here is
+# already known.
 for_each_lane() {
   local callback="$1" pdir
   pdir="$(resolve_prompt_dir)"
   local count
   count="$(jq -r '.lanes | length' "$CONFIG")"
 
-  local i name model effort prompt_path failures=0
+  local i name model effort prompt_path settings failures=0
   for ((i = 0; i < count; i++)); do
     name="$(lane_field "$i" name)"
     [[ -n "$name" ]] || {
@@ -432,30 +451,31 @@ for_each_lane() {
     model="$(lane_field "$i" model)"
     effort="$(lane_field "$i" effort)"
     prompt_path="$(lane_prompt_path "$(lane_field "$i" prompt)" "$pdir")"
+    settings="$(lane_json_field "$i" settings)"
     # A per-lane callback failure must not abort the sweep (other lanes still
     # get their turn) but must surface in the aggregate exit status.
-    "$callback" "$name" "$model" "$effort" "$prompt_path" || failures=1
+    "$callback" "$name" "$model" "$effort" "$prompt_path" "$settings" || failures=1
   done
   return "$failures"
 }
 
 # --- Actions ------------------------------------------------------------------
 _start_one() {
-  local name="$1" model="$2" effort="$3" prompt_path="$4" sid
+  local name="$1" model="$2" effort="$3" prompt_path="$4" settings="${5:-}" sid
   sid="$(running_session_id "$name")"
   if [[ -n "$sid" ]]; then
     info "  skip $name — already running ($sid)"
     return 0
   fi
-  info "  start $name${model:+ --model $model}${effort:+ --effort $effort}"
-  launch_lane "$name" "$model" "$effort" "$prompt_path"
+  info "  start $name${model:+ --model $model}${effort:+ --effort $effort}${settings:+ --settings <lane config>}"
+  launch_lane "$name" "$model" "$effort" "$prompt_path" "$settings"
 }
 
 _restart_one() {
-  local name="$1" model="$2" effort="$3" prompt_path="$4"
+  local name="$1" model="$2" effort="$3" prompt_path="$4" settings="${5:-}"
   # Preflight the launch inputs BEFORE stopping: a recoverable prompt/effort
   # error must not take down a healthy running lane we would then fail to relaunch.
-  validate_launch_inputs "$name" "$effort" "$prompt_path" || return 1
+  validate_launch_inputs "$name" "$effort" "$prompt_path" "$settings" || return 1
   stop_lane_if_running "$name"
   local s=$?
   # A genuine stop failure (not the benign "was not running", 2) means the old
@@ -465,8 +485,8 @@ _restart_one() {
     err "  $name — stop failed; not relaunching (would duplicate the session name)"
     return 1
   fi
-  info "  start $name${model:+ --model $model}${effort:+ --effort $effort}"
-  launch_lane "$name" "$model" "$effort" "$prompt_path"
+  info "  start $name${model:+ --model $model}${effort:+ --effort $effort}${settings:+ --settings <lane config>}"
+  launch_lane "$name" "$model" "$effort" "$prompt_path" "$settings"
 }
 
 _stop_one() {

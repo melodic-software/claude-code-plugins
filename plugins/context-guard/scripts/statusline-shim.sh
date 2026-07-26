@@ -4,7 +4,7 @@
 # whichever version of the tee is installed at the time it runs.
 #
 # WHY THIS EXISTS: ${CLAUDE_PLUGIN_ROOT} is version-pinned
-# (~/.claude/plugins/cache/<marketplace>/<plugin>/<version>/) and changes on
+# (<config-dir>/plugins/cache/<marketplace>/<plugin>/<version>/) and changes on
 # every plugin update, with the old directory lingering ~14 days before
 # cleanup (plugins reference, "Plugin cache and file access", fetched
 # 2026-07-24). Wiring that raw path into settings.json means the tee silently
@@ -25,6 +25,15 @@
 #   tee not found  → one-line notice        (the shim WAS the whole statusline,
 #     and no wrapped args                    so silence would leave a blank bar)
 # It never edits, never writes, and never touches the snapshot directory.
+#
+# CACHE ROOT: the cache lives under the EFFECTIVE configuration directory,
+# ${CLAUDE_CONFIG_DIR:-$HOME/.claude} — "Override the configuration directory
+# (default: ~/.claude). All settings, session history, and plugins are stored
+# under this path" (environment-variables reference,
+# https://code.claude.com/docs/en/env-vars, fetched 2026-07-25). Anchoring on
+# $HOME alone would resolve nothing for an operator running a relocated config
+# dir (the documented multi-account alias), so the shim would silently take the
+# no-tee path forever after they wired it.
 #
 # RESOLUTION: the newest installed tee by MTIME across marketplaces, which is
 # the most recently installed one — deliberately not a version sort, since
@@ -51,7 +60,7 @@ set -uo pipefail
 
 PLUGIN_NAME="context-guard"
 
-# shim-revision: 1
+# shim-revision: 2
 # Bumped whenever this file's content changes. The installed copy is a
 # BYTE-IDENTICAL copy of this file, so /context-guard:setup check compares the
 # two directly; the marker is for humans reading the installed copy.
@@ -59,10 +68,16 @@ PLUGIN_NAME="context-guard"
 RESOLVED=""
 
 resolve_tee() {
-  # HOME anchors the cache path; without it there is nothing to resolve.
-  [[ -n "${HOME:-}" ]] || return 0
+  # The effective config dir anchors the cache path. CLAUDE_CONFIG_DIR wins when
+  # set and non-empty; otherwise $HOME/.claude. With neither there is nothing to
+  # resolve.
+  local config_dir="${CLAUDE_CONFIG_DIR:-}"
+  if [[ -z "$config_dir" ]]; then
+    [[ -n "${HOME:-}" ]] || return 0
+    config_dir="$HOME/.claude"
+  fi
 
-  local cache="$HOME/.claude/plugins/cache"
+  local cache="$config_dir/plugins/cache"
   local cand mkt rest
   for cand in "$cache"/*/"$PLUGIN_NAME"/*/scripts/statusline-tee.sh; do
     # An unmatched glob expands to the literal pattern; -f rejects it.

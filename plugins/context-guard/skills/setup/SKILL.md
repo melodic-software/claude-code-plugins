@@ -1,20 +1,21 @@
 ---
 name: setup
 description: "Verify the context-guard plugin's wiring on this machine — jq, the installed statusline shim, statusline wiring (including legacy version-pinned plugin-cache paths), live-session snapshot freshness — print the exact statusline edit for the operator, and install the shim plus seed ~/.claude/context-guard/zones.json from the shipped defaults. Use when: 'set up context-guard', 'is the context tee working', 'wire the context statusline', a consumer reports zone unknown in a live session, or after a plugin update. Actions: check (read-only; never edits settings), apply (writes ONLY inside ~/.claude/context-guard/ — the shim and zones.json — on explicit request)."
-argument-hint: "check | apply [reset]"
+argument-hint: "check | apply [defaults]"
 user-invocable: true
 disable-model-invocation: true
 ---
 
 ## Purpose
 
-Setup with the narrow-write carve-out: every prerequisite is either a system tool (`jq`) or an edit
-to the **user's own** `settings.json`, and plugin setup must never mutate Claude Code user settings
-(`docs/PLUGIN-PHILOSOPHY.md`, "Setup is explicit and repeatable"). So `check` inspects, reports
-PASS/FAIL/INFO with one remediation line per FAIL, and **prints the exact statusline edit for the
-operator to apply by hand**. `apply` writes ONLY inside this plugin's own operator-home directory
-`~/.claude/context-guard/` — the statusline shim (`bin/statusline-shim.sh`) and the zones SSOT
-(`zones.json`) — and touches nothing else.
+Narrow-write setup, because this plugin's surface splits in two. The statusline wiring lives in the
+**user's own** `settings.json` and the `jq` prerequisite is a system tool: neither is something
+plugin setup may write, so `check` inspects, reports PASS/FAIL/INFO with one remediation line per
+FAIL, and **prints the exact statusline edit for the operator to apply by hand**. But this plugin
+also owns its operator-home directory `~/.claude/context-guard/` — the machine file `zones.json`,
+whose schema it defines and whose values the operator may edit, and the statusline shim
+`bin/statusline-shim.sh`, the durable path the operator's wiring names — and those owned writable
+artifacts are what oblige an `apply`. `apply` is scoped to that directory and touches nothing else.
 
 **Why the shim exists (the durable-wiring rule).** `${CLAUDE_PLUGIN_ROOT}` is version-pinned and
 changes on every plugin update, and the old version directory is pruned about 14 days later
@@ -102,8 +103,19 @@ zone bands, zones.json shape) are owned by
    wiring target is the SHIM's fixed path — never `${CLAUDE_PLUGIN_ROOT}`, which is version-pinned
    and belongs in no operator file:
 
-   Wrapping an existing statusline command (preserve the user's command verbatim as the trailing
-   arguments):
+   **Unwrap before you compose.** `<current statusline command>` below means the operator's OWN
+   renderer, never the raw effective `command` string. Before substituting, strip every leading
+   guard-shim invocation from that string — `bash <path>/context-guard/bin/statusline-shim.sh` and
+   `bash <path>/rate-limit-guard/bin/statusline-shim.sh`, in whatever order they appear — plus any
+   legacy `bash <plugin-cache>/…/statusline-tee.sh` prefix, and treat what remains as the renderer.
+   Substituting the raw string instead is what produces `context → rate → rate → renderer` when the
+   sibling plugin was configured first, or a doubled self-wrap on a re-run: each duplicated tee runs
+   and writes on EVERY refresh and costs another 0.6–0.9 s (below). Unwrapping also makes the
+   printed edit idempotent — re-running `check` on already-correct wiring prints the wiring it
+   already has.
+
+   Wrapping an existing statusline command (preserve the user's unwrapped command verbatim as the
+   trailing arguments):
 
    ```json
    {
@@ -146,8 +158,14 @@ zone bands, zones.json shape) are owned by
    confirm it reproduces the original command byte-for-byte.
 
    Sibling tees compose by nesting, each through its OWN shim — the tees are transparent wrappers,
-   so the innermost command still owns stdout and the exit code. Print this form when
-   `rate-limit-guard` is also installed:
+   so the innermost command still owns stdout and the exit code. Print this form only when
+   `rate-limit-guard` is installed AND its shim is already present at
+   `~/.claude/rate-limit-guard/bin/statusline-shim.sh`. The sibling shim is written by
+   `/rate-limit-guard:setup apply`, which the operator may not have run yet — naming a path that
+   does not exist reintroduces exactly the failure this wiring exists to remove, because `bash
+   <missing-path>` exits 127 before the operator's renderer ever runs. When the sibling plugin is
+   installed but its shim is absent, print the single-shim form above and say that
+   `/rate-limit-guard:setup apply` followed by a re-run of this check yields the combined wiring:
 
    ```json
    {
@@ -194,7 +212,7 @@ zone bands, zones.json shape) are owned by
 ## `apply` (writes ONLY inside `~/.claude/context-guard/`, on explicit request)
 
 Two files, both in this plugin's own operator-home directory. Every `apply` mode does BOTH; the
-`reset` argument affects only the zones bands.
+`defaults` argument affects only the zones bands.
 
 ### A. Install the statusline shim
 
@@ -235,7 +253,9 @@ file if they ever disagree):
      reported; recognized keys that are missing or invalid (non-numeric, inverted, out of range)
      are set to the shipped defaults. An operator's custom-but-valid thresholds are never
      overwritten by a bare `apply`.
-   - `apply reset`: set BOTH recognized band keys to the shipped defaults explicitly.
+   - `apply defaults`: set BOTH recognized band keys to the shipped defaults explicitly. This
+     converges forward to a known state; it is not teardown, and it never removes the file or any
+     key it does not recognize.
    - Both modes **preserve every unrecognized key semantically** — same keys, same JSON values —
      (the file is a shared SSOT the operator's own statusline may extend). Preservation is
      value-level, not lexical: a `jq` merge reserializes the document, so formatting and escape
@@ -256,9 +276,17 @@ decision).
 
 Uninstalling the plugin removes the cache directory, not the operator's files. Nothing breaks: the
 shim finds no tee and passes the wrapped statusline through unchanged (a wired-standalone shim
-prints one notice line instead). Removing `~/.claude/context-guard/` and unwrapping the
-`statusLine` command are the operator's two cleanup steps, in either order — report them together
-when asked how to back this out.
+prints one notice line instead). Two operator cleanup steps remain, and their ORDER matters —
+report both together, in this order, when asked how to back this out:
+
+1. **Unwrap the `statusLine` command first**, restoring the operator's own renderer (or removing
+   the field entirely if the shim was the whole statusline).
+2. **Then remove `~/.claude/context-guard/`.**
+
+Deleting the directory while the wiring still names the shim leaves `settings.json` invoking a
+missing file: `bash <missing-path>` exits 127 and takes the WHOLE statusline down — the exact
+failure the shim exists to prevent. The shim's own no-tee fallback cannot cover this, because the
+fallback lives in the file that was just deleted.
 
 ## What this skill does NOT do
 

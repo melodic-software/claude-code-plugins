@@ -32,9 +32,10 @@ resume on their own after the reset. Four parts:
 - **Fail-open capability detection.** Sessions whose auth exposes no `rate_limits` (API-key,
   enterprise) tee an honest snapshot without the key; consumers treat that as unknown and run
   reactive-only rather than throttling on fabricated data.
-- **Single account per machine.** The snapshot carries no account identifier (none exists in the
-  statusline schema today); a machine switching accounts mid-drain feeds wrong windows to running
-  lanes. The reader contract records this invariant; the wrapper automatically adopts any future
+- **Multi-account operation is a known gap, not a supported mode.** The snapshot carries no account
+  identifier (none exists in the statusline schema today), so a machine switching accounts mid-drain
+  feeds wrong windows to running lanes and the guard cannot detect it. The loop-lane convention §6
+  owns that framing; the reader contract cites it. The wrapper automatically adopts any future
   account-identifying field the schema grows.
 
 ## Install

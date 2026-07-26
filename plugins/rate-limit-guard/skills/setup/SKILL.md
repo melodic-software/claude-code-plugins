@@ -8,14 +8,36 @@ disable-model-invocation: true
 
 ## Purpose
 
-Setup with the narrow-write carve-out: every prerequisite this plugin has is either a system tool
-(`jq`), a native `userConfig` toggle whose reconfiguration route is `/plugin configure
-rate-limit-guard`, or an edit to the **user's own** `settings.json` — and plugin setup must never
-mutate Claude Code user settings (`docs/PLUGIN-PHILOSOPHY.md`, "Setup is explicit and repeatable").
+Narrow-write setup. This plugin's **configuration** surface is three kinds of thing setup cannot
+conformingly write:
+
+- **A system tool** (`jq`) — `check` probes it; installing it is the operator's.
+- **One native `userConfig` toggle** (`rate_limit_guard_enabled`), whose only stored home is the
+  `pluginConfigs` setup must never write. Reconfiguration routes through Claude Code's native flow:
+  `/plugin configure rate-limit-guard` interactively, any time. Headless, `claude plugin install
+  ... --config rate_limit_guard_enabled=false` seeds the value on a *fresh install only* and is
+  ignored once installed, so a headless reconfigure is `claude plugin uninstall rate-limit-guard -s
+  <scope> -y` then `claude plugin install rate-limit-guard@<marketplace> -s <scope> --config
+  rate_limit_guard_enabled=<value>`. Both commands default to `-s user`, so pass the scope the
+  plugin is *actually* installed at — `claude plugin list` reports it per plugin — and run from that
+  project's directory when the scope is `project` or `local`; defaulting removes a separate user
+  record while the effective install stays in place. The `-y` is what the CLI requires of an
+  uninstall whose stdin or stdout is not a TTY, and is warranted only because the caller explicitly
+  asked to reconfigure.
+- **The statusline wiring**, which lives in the **user's own** `settings.json` — neither
+  `userConfig` nor tracked project config, and a Claude Code settings surface setup must never
+  mutate.
+
 So `check` inspects, reports PASS/FAIL/INFO with one remediation line per FAIL, and **prints the
-exact statusline edit for the operator to apply by hand**. `apply` writes ONE file, inside this
-plugin's own operator-home directory: the statusline shim
-`~/.claude/rate-limit-guard/bin/statusline-shim.sh`.
+exact statusline edit for the operator to apply by hand** — fully resolved, marked as the
+operator's, and naming what re-invalidates it. Silence would not be the conforming response on an
+unwritable surface; a printed edit is.
+
+What obliges an `apply` is not configuration at all. The tee's and the hook's machine files under
+`~/.claude/rate-limit-guard/` remain runtime-owned plugin data, not an operator-editable surface —
+but the **statusline shim** `~/.claude/rate-limit-guard/bin/statusline-shim.sh` is an owned
+writable artifact this plugin must place, because it is the durable path the operator's own wiring
+names. `apply` writes that one file and nothing else.
 
 **Why the shim exists (the durable-wiring rule).** `${CLAUDE_PLUGIN_ROOT}` is version-pinned and
 changes on every plugin update, and the old version directory is pruned about 14 days later
@@ -95,8 +117,19 @@ owned by `${CLAUDE_PLUGIN_ROOT}/reference/reader-contract.md`.
    marked clearly as the operator's to apply. The wiring target is the SHIM's fixed path — never
    `${CLAUDE_PLUGIN_ROOT}`, which is version-pinned and belongs in no operator file:
 
-   Wrapping an existing statusline command (preserve the user's command verbatim as the trailing
-   arguments):
+   **Unwrap before you compose.** `<current statusline command>` below means the operator's OWN
+   renderer, never the raw effective `command` string. Before substituting, strip every leading
+   guard-shim invocation from that string — `bash <path>/rate-limit-guard/bin/statusline-shim.sh`
+   and `bash <path>/context-guard/bin/statusline-shim.sh`, in whatever order they appear — plus any
+   legacy `bash <plugin-cache>/…/statusline-tee.sh` prefix, and treat what remains as the renderer.
+   Substituting the raw string instead is what produces `context → rate → rate → renderer` when the
+   sibling plugin was configured first, or a doubled self-wrap on a re-run: each duplicated tee runs
+   and writes on EVERY refresh and costs another 0.6–0.9 s (below). Unwrapping also makes the
+   printed edit idempotent — re-running `check` on already-correct wiring prints the wiring it
+   already has.
+
+   Wrapping an existing statusline command (preserve the user's unwrapped command verbatim as the
+   trailing arguments):
 
    ```json
    {
@@ -139,8 +172,14 @@ owned by `${CLAUDE_PLUGIN_ROOT}/reference/reader-contract.md`.
    confirm it reproduces the original command byte-for-byte.
 
    Sibling tees compose by nesting, each through its OWN shim — the tees are transparent wrappers,
-   so the innermost command still owns stdout and the exit code. Print this form when
-   `context-guard` is also installed (its tee outermost, matching that plugin's setup skill):
+   so the innermost command still owns stdout and the exit code. Print this form (its tee outermost,
+   matching that plugin's setup skill) only when `context-guard` is installed AND its shim is
+   already present at `~/.claude/context-guard/bin/statusline-shim.sh`. The sibling shim is written
+   by `/context-guard:setup apply`, which the operator may not have run yet — naming a path that
+   does not exist reintroduces exactly the failure this wiring exists to remove, because `bash
+   <missing-path>` exits 127 before the operator's renderer ever runs. When the sibling plugin is
+   installed but its shim is absent, print the single-shim form above and say that
+   `/context-guard:setup apply` followed by a re-run of this check yields the combined wiring:
 
    ```json
    {
@@ -210,9 +249,17 @@ result (a no-op on Windows ACL volumes; the wiring invokes it through `bash` any
 
 Uninstalling the plugin removes the cache directory, not the operator's files. Nothing breaks: the
 shim finds no tee and passes the wrapped statusline through unchanged (a wired-standalone shim
-prints one notice line instead). Removing `~/.claude/rate-limit-guard/` and unwrapping the
-`statusLine` command are the operator's two cleanup steps, in either order — report them together
-when asked how to back this out.
+prints one notice line instead). Two operator cleanup steps remain, and their ORDER matters —
+report both together, in this order, when asked how to back this out:
+
+1. **Unwrap the `statusLine` command first**, restoring the operator's own renderer (or removing
+   the field entirely if the shim was the whole statusline).
+2. **Then remove `~/.claude/rate-limit-guard/`.**
+
+Deleting the directory while the wiring still names the shim leaves `settings.json` invoking a
+missing file: `bash <missing-path>` exits 127 and takes the WHOLE statusline down — the exact
+failure the shim exists to prevent. The shim's own no-tee fallback cannot cover this, because the
+fallback lives in the file that was just deleted.
 
 ## What this skill does NOT do
 
