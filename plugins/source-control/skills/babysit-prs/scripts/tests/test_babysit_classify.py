@@ -159,6 +159,26 @@ class ClassificationCountTests(unittest.TestCase):
         ]
         self.assertEqual(bc.count_classified(comments, self.SELF), 0)
 
+    def test_table_prose_containing_valid_is_not_a_classification(self) -> None:
+        """#619: case-folding is anchored to the disposition CELL. A table row
+        whose prose happens to contain "valid" (`| CI check | result is valid |`)
+        must not be credited -- folding case across the whole line would let a
+        second, genuinely unclassified finding past the readiness gate."""
+        comments = [
+            {
+                "author": "me[bot]",
+                "body": "| 1 | a | VALID | fixed |\n| CI check | result is valid |",
+            },
+        ]
+        self.assertEqual(bc.count_classified(comments, self.SELF), 1)
+
+    def test_decorated_disposition_cell_still_counts(self) -> None:
+        """The cell anchor permits leading non-letter decoration, so a bolded
+        `| **VALID** |` cell -- countable before #619 under the
+        anywhere-in-the-row match -- must not silently stop counting."""
+        comments = [{"author": "me[bot]", "body": "| 1 | a | **VALID** | fixed |"}]
+        self.assertEqual(bc.count_classified(comments, self.SELF), 1)
+
     def test_resolved_thread_classification_is_discounted(self) -> None:
         """Mirrors `count_findings`'s #465 discount: a classification row
         carried in a resolved thread is a lifetime artifact of an

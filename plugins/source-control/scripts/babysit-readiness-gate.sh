@@ -23,14 +23,16 @@
 #                comments — counted per match, not per line, so N findings on one
 #                line each count (else a multi-finding line under-counts and the
 #                gate false-passes)
-#   classified = TABLE ROWS (`|`-prefixed lines) carrying a classification
-#                token (VALID|INCORRECT|UNCERTAIN) across all SELF replies —
-#                one per line, so prose repetition never inflates the count.
-#                Word-boundary matched so "INVALID" does not count as "VALID",
-#                and CASE-INSENSITIVE so a natural-language disposition like
-#                "Valid (defer)" still counts, not only the mandated all-caps
-#                token (#619). Capped at findings so a surplus of rows cannot mask an
-#                unclassified finding (the Python path refines this to a
+#   classified = TABLE ROWS (`|`-prefixed lines) whose disposition CELL opens
+#                with a classification token (VALID|INCORRECT|UNCERTAIN),
+#                across all SELF replies — one per line, so prose repetition
+#                never inflates the count. Matched CASE-INSENSITIVELY so a
+#                natural-language disposition like "Valid (defer)" still counts,
+#                not only the mandated all-caps token (#619); anchored to the
+#                cell so ordinary table prose ("| CI check | result is valid |")
+#                does not score as a classification. "INVALID" still does not
+#                count as "VALID". Capped at findings so a surplus of rows cannot
+#                mask an unclassified finding (the Python path refines this to a
 #                per-surface credit — see the classifier-preference note below).
 #   BLOCK when findings > 0 AND classified < findings (under-decomposed /
 #   unaddressed — R1+R5), OR when a --checklist file has any "- [ ]" (R6).
@@ -95,7 +97,7 @@ SELF_CSV=""
 EXTRA_SELF_CSV=""
 
 usage() {
-  sed -n '2,67p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+  sed -n '2,69p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
   exit 0
 }
 
@@ -221,13 +223,33 @@ SEVERITY_BADGE_RE='/badge/P[0-3]-'
 # range, matching SEVERITY_BADGE_RE) so incidental [P4]+ text cannot inflate
 # the finding count into a false READINESS_BLOCKED.
 SEVERITY_PLAIN_RE='\[P[0-3]\]'
-# Case-insensitive (grep -i, applied at every use site below): a worker's
-# classification-table reply that writes a natural-language disposition like
-# "Valid (defer)" instead of the mandated all-caps VALID must still count, or
-# the gate reports a false READINESS_BLOCKED even though the finding genuinely
-# was classified (#619). Still whole-word (-w), so "invalid"/"INVALID" does not
-# false-match "valid"/"VALID" regardless of case.
-CLASSIFY_RE='VALID|INCORRECT|UNCERTAIN'
+# A disposition token OPENING a markdown table cell: a `|`, then only non-letter
+# decoration (whitespace, `**`, a checkmark emoji), then the token, then a
+# non-letter or end of line. Matched case-insensitively (grep -i at every use
+# site below): a worker's classification-table reply that writes a
+# natural-language disposition like "Valid (defer)" instead of the mandated
+# all-caps VALID must still count, or the gate reports a false
+# READINESS_BLOCKED even though the finding genuinely was classified (#619).
+#
+# Cell-ANCHORED, not anywhere-in-the-row: case-folding a token scanned across a
+# whole `|`-prefixed line makes ordinary table prose score as a disposition —
+# `| CI check | result is valid |` would credit a classification and let an
+# unclassified finding past the under-decomposition gate. The mandated table
+# (skills/babysit-prs/reference/loop.md §5.5) puts the bare disposition in its
+# own Classification cell, so requiring the token to open a cell keeps every
+# real disposition countable while refusing prose. `[^A-Za-z|]` cannot cross a
+# letter or a cell boundary, so "invalid"/"INVALID" still does not false-match
+# "valid"/"VALID" — which is also why no `-w` is needed (or meaningful: the
+# pattern opens on the non-word character `|`).
+#
+# `babysit_classify.py` carries the same pattern as `_CLASSIFY_CELL`; the
+# convergence fixtures at the bottom of babysit-readiness-gate.test.sh pin the
+# two to the same counts.
+CLASSIFY_CELL_RE='\|[^A-Za-z|]*(VALID|INCORRECT|UNCERTAIN)([^A-Za-z]|$)'
+# The same cell pattern with the `|`-prefixed row anchor prepended, so the rows
+# excluded from the finding corpus and the rows credited as classified cannot
+# drift apart.
+CLASSIFY_ROW_RE="^[[:space:]]*[|].*${CLASSIFY_CELL_RE}"
 
 # Findings are counted across ALL comment bodies, not just non-self ones: in an
 # interactive babysit run SELF_JSON includes the authenticated gh user, and a
@@ -248,12 +270,12 @@ self_bodies="$(printf '%s' "$COMMENTS" |
 # source severity word, which would otherwise mint a phantom finding
 # (findings=2 classified=1 → permanently blocked) — codex r3564159124.
 # Non-table self content (a maintainer authoring a genuine source finding)
-# still counts. The [^A-Za-z] guards keep e.g. "INVALID" rows countable.
+# still counts. The cell anchor keeps e.g. an "INVALID" cell countable.
 # Case-insensitive (-i) to match the classified count below: a lowercase/
 # natural-language classification row must be excluded here too, or it leaks
 # into the finding corpus and re-counts its own embedded severity word (#619).
 self_source_bodies="$(printf '%s\n' "$self_bodies" |
-  grep -viE '^[[:space:]]*\|.*[^A-Za-z](VALID|INCORRECT|UNCERTAIN)([^A-Za-z]|$)' || true)"
+  grep -viE "$CLASSIFY_ROW_RE" || true)"
 all_bodies="$non_self_bodies
 $self_source_bodies"
 
@@ -273,7 +295,7 @@ $self_source_bodies"
 sev_words=$(printf '%s\n' "$all_bodies" | grep -owE "$SEVERITY_WORDS_RE" | grep -c . || true)
 sev_badges=$(printf '%s\n' "$all_bodies" | grep -oE "$SEVERITY_BADGE_RE" | grep -c . || true)
 sev_plain=$(printf '%s\n' "$all_bodies" | grep -oE "$SEVERITY_PLAIN_RE" | grep -c . || true)
-classified=$(printf '%s\n' "$self_bodies" | grep -E '^[[:space:]]*\|' | grep -cwiE "$CLASSIFY_RE" || true)
+classified=$(printf '%s\n' "$self_bodies" | grep -E '^[[:space:]]*\|' | grep -ciE "$CLASSIFY_CELL_RE" || true)
 sev_words=${sev_words//[^0-9]/}
 sev_badges=${sev_badges//[^0-9]/}
 sev_plain=${sev_plain//[^0-9]/}

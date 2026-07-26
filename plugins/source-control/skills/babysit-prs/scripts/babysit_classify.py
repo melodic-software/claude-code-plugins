@@ -372,22 +372,34 @@ SEVERITY_BADGE_RE = re.compile(r"/badge/P[0-3]-")
 # a shields badge. Bounded to the documented P0-P3 range so incidental [P4]+
 # text cannot inflate the count into a false READINESS_BLOCKED.
 SEVERITY_PLAIN_RE = re.compile(r"\[P[0-3]\]")
+# A disposition token OPENING a markdown table cell: a `|`, then only non-letter
+# decoration (whitespace, `**`, a checkmark emoji), then the token, then a
+# non-letter.
+#
 # Case-insensitive (unlike SEVERITY_WORDS_RE above): a worker's classification
 # reply that writes a natural-language disposition like "Valid (defer)" instead
 # of the mandated all-caps VALID must still count as a classification, or the
 # readiness gate reports a false BLOCKED even though the finding genuinely was
-# classified (#619). Still whole-word (`\b`), so "invalid"/"INVALID" does not
-# false-match "valid"/"VALID" regardless of case.
-CLASSIFY_TOKEN_RE = re.compile(r"\b(?:VALID|INCORRECT|UNCERTAIN)\b", re.IGNORECASE)
-# A classification table row: a markdown `|`-prefixed line carrying a
-# classification token bounded by non-letters (so "INVALID" rows still count as
-# source content, not classifications). Case-insensitive for the same reason as
-# CLASSIFY_TOKEN_RE above -- this must match the SAME rows that count as
-# classified, or a lowercase/natural-language classification row leaks into the
-# finding corpus (`count_findings`) and re-counts its own embedded severity word.
-CLASSIFY_ROW_RE = re.compile(
-    r"^[ \t]*\|.*[^A-Za-z](?:VALID|INCORRECT|UNCERTAIN)(?:[^A-Za-z]|$)", re.IGNORECASE
-)
+# classified (#619).
+#
+# Cell-ANCHORED, not anywhere-in-the-row: case-folding a token scanned across a
+# whole `|`-prefixed line makes ordinary table prose score as a disposition --
+# `| CI check | result is valid |` would credit a classification and let an
+# unclassified finding past the under-decomposition gate. The mandated table
+# (loop.md §5.5) puts the bare disposition in its own Classification cell, so
+# requiring the token to open a cell keeps every real disposition countable
+# while refusing prose. The `[^A-Za-z|]*` run cannot cross a letter or a cell
+# boundary, so "invalid"/"INVALID" still does not false-match "valid"/"VALID".
+_CLASSIFY_CELL = r"\|[^A-Za-z|]*(?:VALID|INCORRECT|UNCERTAIN)(?![A-Za-z])"
+CLASSIFY_TOKEN_RE = re.compile(_CLASSIFY_CELL, re.IGNORECASE)
+# A classification table row: a `|`-prefixed line whose disposition cell carries
+# a classification token. Built by concatenating the row anchor onto the SAME
+# cell pattern `CLASSIFY_TOKEN_RE` uses, so the rows excluded from the finding
+# corpus (`count_findings`) and the rows credited as classified
+# (`count_classified`) cannot drift apart -- a row counted as a classification
+# but not stripped would re-count its own embedded severity word as a phantom
+# finding.
+CLASSIFY_ROW_RE = re.compile(r"^[ \t]*(?=\|).*" + _CLASSIFY_CELL, re.IGNORECASE)
 PIPE_ROW_RE = re.compile(r"^[ \t]*\|")
 
 

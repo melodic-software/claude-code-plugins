@@ -269,6 +269,33 @@ r=$(run_gate "$F")
 assert_contains "lowercase classification token -> classified=1" "$r" "classified=1"
 assert_contains "lowercase classification token -> READINESS_OK" "$r" "READINESS_OK"
 
+# --- Case: table PROSE containing "valid" is NOT a classification (#619) -----
+# The discriminating case for anchoring case-folding to the disposition cell:
+# two findings, ONE real disposition row, and an unrelated self-authored table
+# row whose prose happens to contain the word "valid". Folding case across the
+# whole line would credit that prose row, report classified=2, and let the
+# second, genuinely unclassified finding past the under-decomposition gate —
+# codex on #1347. The cell anchor must score it classified=1 and BLOCK.
+F=$(mkjson prose-valid-not-classification '[
+  {author:"claude[bot]", body:"### 1. [CRITICAL] a\n### 2. [CRITICAL] b"},
+  {author:"me[bot]", body:"| 1 | a | VALID | fixed |\n| CI check | result is valid |"}
+]')
+r=$(run_gate "$F")
+assert_contains "table prose is not a classification -> classified=1" "$r" "classified=1"
+assert_contains "table prose is not a classification -> BLOCKED" "$r" "READINESS_BLOCKED reason=under-decomposed"
+
+# --- Case: a decorated disposition cell still counts (#619) -----------------
+# The cell anchor permits leading non-letter decoration, so a bolded
+# `| **VALID** |` cell — countable before this change under the
+# anywhere-in-the-row match — must not silently stop counting.
+F=$(mkjson bold-classify '[
+  {author:"claude[bot]", body:"### 1. [CRITICAL] a"},
+  {author:"me[bot]", body:"| 1 | a | **VALID** | fixed |"}
+]')
+r=$(run_gate "$F")
+assert_contains "bolded disposition cell -> classified=1" "$r" "classified=1"
+assert_contains "bolded disposition cell -> READINESS_OK" "$r" "READINESS_OK"
+
 # --- Case: lowercase "invalid" in a self row still does NOT count as valid ---
 # Case-insensitive matching must stay whole-word: "invalid" must not false-match
 # "valid" merely because casing is no longer significant.
@@ -487,6 +514,15 @@ F=$(mkjson conv-lowercase '[
   {author:"me[bot]", body:"| 1 | a | Valid (defer) | x |"}
 ]')
 converge "lowercase-classify" "$F"
+# Table prose carrying "valid" (#619): case-folding is anchored to the
+# disposition cell in both paths, so neither may credit a prose row as a
+# classification — a divergence here would let the safe-tier degrade pass a PR
+# the engine-backed tier blocks (or the reverse).
+F=$(mkjson conv-prose-valid '[
+  {author:"claude[bot]", body:"CRITICAL a\nCRITICAL b"},
+  {author:"me[bot]", body:"| 1 | a | VALID | x |\n| CI check | result is valid |"}
+]')
+converge "prose-valid-not-classification" "$F"
 
 # --- Case: live fetch failure emits an actionable owner/repo diagnostic ------
 # Run WITHOUT --comments-json from a cwd `gh repo view` cannot resolve: the gate's
