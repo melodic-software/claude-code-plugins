@@ -1,5 +1,65 @@
 # Changelog — session-flow plugin
 
+## [0.17.14]
+
+### Fixed
+
+- **`orchestrate`'s nested-subagent sources were stale, but not in the direction the audit reported
+  (melodic-software/claude-code-plugins#1479 audit follow-up).** The audit's top finding claimed
+  `SKILL.md`'s "a configurable default of three" was factually wrong and that nesting is off by
+  default. Re-verification refutes that: the byte-exact changelog records v2.1.219 —
+  "Subagents can now spawn nested subagents up to depth 3 by default (was 1); set
+  `CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH=1` to disable nesting" — and the harness agrees (a non-fork
+  subagent one layer down held a fully-schema'd `Agent` tool on 2.1.220 with the variable unset).
+  The finding had been drawn from the `sub-agents` prose page, which still documents the superseded
+  v2.1.217–2.1.218 off-by-default state. `SKILL.md`'s claim stands; what changed is where it is
+  sourced from.
+  - `context/sources.md`'s imperative-5 block is rewritten to current text. Its previous quotes
+    ("a background subagent at depth five does not receive the Agent tool", "The limit is fixed and
+    not configurable") no longer appear in the page and are contradicted by the env var existing.
+    The block now carries version-pinned changelog quotes for the depth default, the current
+    tool-list gating sentence, all three separately-overridable caps with their defaults, and an
+    explicit drift note recording that the two official surfaces currently disagree and which one to
+    believe for what.
+  - `SKILL.md`'s depth paragraph re-attributes the depth-3 default to the changelog (which carries
+    it) rather than the `sub-agents` page (which currently contradicts it), pins each state to its
+    version, and adds a **confirm-nesting-from-behavior** rule: have a worker of the *same agent
+    definition* you plan to use as the intermediate tier attempt a trivial nested spawn and report
+    the outcome before committing a design to a second layer — a tree authored from either page
+    alone can be wrong in both directions; the gate is definition-specific, so a spawn from another
+    agent type proves nothing; and holding `Agent` is necessary but not sufficient, since the tool
+    can be listed while the spawn is still refused.
+    A refusal is then read rather than assumed: a depth rejection names depth, while a permission
+    refusal says nothing about the ceiling, because spawns are classifier-evaluated before launch
+    (v2.1.178).
+
+### Added
+
+- **A non-binding size anchor for imperative 7's small/medium/large.** The sizing had no numeric
+  reference at all, leaving it rationalizable either way. The Tiered-delegation section (which the
+  export brief omits, keeping the pasted brief model- and tool-agnostic) now cites the platform's
+  own numbers — the `/config` workflow size guideline's "fewer than 5 / 15 / 50 agents" and the
+  `Large workflow` flag above 25 — as a reference point, with an explicit instruction to say which
+  one you are overriding when your sizing and the anchor disagree by an order of magnitude.
+- **The priming addendum now reads the session's own effort level** via the documented
+  `${CLAUDE_EFFORT}` substitution, closing one of the two calibration factors imperative 7 named
+  with no consumable signal. It is the level a spawn inherits when neither the call nor the agent
+  definition sets one — a definition's own `effort` frontmatter overrides the session — which is
+  precisely the over-provisioning imperative 7 exists to stop. Priming-only and export-omitted, so
+  the pasted brief stays agnostic; the addendum also notes `ultracode` reports as `xhigh` and so
+  cannot reveal whether script-held workflow orchestration is active.
+- **`context/gotchas.md`** — the skill had no gotchas surface (a `skill-quality:check` warning). It
+  records four earned failure modes: the nesting ceiling outrunning the prose docs, a denied spawn
+  being misread as a depth answer, a clean worker return that is a wrong-target return, and priming
+  being mistaken for emitting. Routed from the Purpose section alongside `context/sources.md`, so it
+  actually enters working context — a spoke the hub never points at clears the static check without
+  changing behavior.
+- **Two eval cases covering decision-criteria quality, not just export mechanics.** The existing
+  five all tested formatting and emission; nothing exercised the judgments the skill is for.
+  `sizes-small-ask-single-agent` forces a size classification on a concrete small ask, and
+  `tiers-wide-fanout-cheaper-default` asserts the cheaper-tier default at wide fan-out with the
+  judgment-heavy stage kept as the explicit exception.
+
 ## [0.17.13]
 
 ### Added

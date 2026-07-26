@@ -19,8 +19,8 @@ the session and therefore inherit none of its context: a spawned subagent/teamma
 you will `/clear` into, or a non-Claude-Code tool. Export is model- and tool-agnostic by
 construction — nothing in the pasted text depends on a specific model, env var, or repo file.
 
-The official sources and quotes behind each imperative: `context/sources.md` (read only when
-judging a coverage question or extending the skill).
+Sources and quotes behind each imperative: `context/sources.md`; observed failure modes:
+`context/gotchas.md`. Read gotchas before authoring a nested tree or trusting a worker's return.
 
 ## Actions
 
@@ -85,8 +85,12 @@ never label a claim "known" / "from memory" / "obvious".
 
 **Priming addendum (current session only).** As the main session — not a spawned worker — you may
 also reach orchestration surfaces a worker cannot: agent teams (lead-only) and dynamic workflows
-(main-session-only). The export modes omit this line because a pasted target cannot reach those
-surfaces.
+(main-session-only). This session's reasoning effort is `${CLAUDE_EFFORT}` — feed it into imperative
+7's tier calibration: it is the level a spawn inherits when neither the call nor the agent
+definition sets one (a definition's own `effort` overrides the session), so its gap from what a
+subtask needs IS the over-provisioning imperative 7 exists to stop. (`ultracode` reports as
+`xhigh`, so it cannot reveal script-held orchestration.) Export modes omit this addendum — a
+pasted target reaches none of those surfaces, and the substitution would travel as dead text.
 
 ## Tiered delegation — the shape of a deep tree
 
@@ -94,6 +98,14 @@ Imperative 5 says a worker may spawn workers and imperative 7 says size the tree
 This section is the shape those two imply once a task is large enough to need more than one layer.
 It is guidance for the main session; the export brief omits it, because a pasted worker sits inside
 a tree rather than authoring one.
+
+**A rough anchor for small/medium/large.** Imperative 7's sizing is non-numeric, which leaves it
+rationalizable either way. Not thresholds to enforce — the judgment still runs on context
+boundaries, not head-count — but the platform's own numbers anchor it: the workflow size guideline
+aims at fewer than 5 agents for `small`, 15 for `medium`, 50 for `large`, and flags a run above 25
+as `Large workflow` ([workflows](https://code.claude.com/docs/en/workflows), fetched 2026-07-26). So
+fewer than 5 is small, 5–14 medium, and anything tripping that warning is a size to justify out
+loud — and an order-of-magnitude disagreement with this anchor is one to name, not skip.
 
 **The top of the tree owns the loop, not the work.** Its context is the scarcest in the run —
 everything that enters it stays for the rest of the session. So it holds the objective, the
@@ -129,16 +141,24 @@ fresh-context verify is not optional at depth, and why a return payload benefits
 sources — provenance is the field that makes a wrong-target answer detectable from above.
 
 **Never author a tree that needs a specific depth.** The platform ceiling is configurable and has
-moved repeatedly — within a single week it went from a fixed five layers, to nesting off by
-default, to a configurable default of three
-([sub-agents](https://code.claude.com/docs/en/sub-agents),
-[changelog](https://code.claude.com/docs/en/changelog)). Depth, per-session spawn count, and
+moved repeatedly — a fixed five layers (v2.1.172), then nesting off by default (v2.1.217), then a
+configurable default of three (v2.1.219), all inside seven weeks
+([changelog](https://code.claude.com/docs/en/changelog)). Depth, per-session spawn count, and
 concurrent-worker count are each separately capped and separately overridable
 (`CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH`, `CLAUDE_CODE_MAX_SUBAGENTS_PER_SESSION`,
 `CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS`); read the current values rather than assuming them, and
 design the tree so it degrades to a shallower one instead of failing. One shape constraint that is
 not a tunable: a fork inherits its parent's conversation but cannot spawn a further fork, so a fork
 is a leaf, never an intermediate tier.
+
+**Confirm nesting from behavior, not from one page.** The ceiling moves faster than the prose docs
+track it: on 2026-07-26 the [sub-agents](https://code.claude.com/docs/en/sub-agents) page still
+described the superseded off-by-default state while the changelog and the harness had nesting on, so
+a tree authored from either alone can be wrong in *both* directions. The cheap check is behavioral:
+have a worker of the SAME definition you plan to use as the intermediate tier attempt a trivial
+nested spawn and report the outcome. The gate is definition-specific, so another agent type proves
+nothing, and holding `Agent` is necessary but not sufficient. Read a refusal: a depth rejection
+names depth; a permission refusal (classified pre-launch) does not. Quotes: `context/sources.md`.
 
 ## Export modes (handoff / worker) — paste-ready brief
 
