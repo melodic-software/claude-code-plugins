@@ -39,7 +39,11 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   `CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT` through the shared library but never declared the option,
   so consumers had no supported way to set it — `actionlint` and `claude-ops` both declare it.
   Declaring it exposes the same knob here. The effective default when a consumer sets nothing remains
-  the shell-level `:-2` fallback inside `hook-utils.sh`.
+  the shell-level `:-2` fallback inside `hook-utils.sh`. A configured value the running shell's
+  `read -t` will not accept — including a fractional value on a Bash release that has no fractional
+  timeouts — falls back to that default instead of failing every read, and `0` is rejected outright
+  because it would make `read` return without consuming anything. Acceptance is settled by probing
+  the running shell rather than a Bash version table.
 
 ## [0.17.3]
 

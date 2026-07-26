@@ -1042,6 +1042,50 @@ else
 fi
 rm -f "$bs_big_file" "$bs_payload_file" "$bs_rc_file" "$bs_out_file"
 
+# --- Test 18f: hook::buffer_stdin — an unusable stdin_read_timeout ------------
+# stdin_read_timeout is consumer-configurable and reaches `read -t` directly, so
+# an unusable value is a silent DISABLE, not a tuning mistake: `read` rejects a
+# bad spec with rc 1 (which the loop reads as EOF → empty payload → every caller
+# skips) and prints a usage error on stderr on every hook invocation. `0` is
+# worse — `read -t 0` returns success having consumed nothing, which spins the
+# loop until the harness kills the hook. Both must degrade to the default and
+# still deliver the payload. The `0` case doubles as the loop-termination test:
+# before the guard it hung outright, so a regression here shows up as this suite
+# never finishing.
+for bs_bad in "abc" "0" "-1" "1e3" ""; do
+  bs_rc_file="$(mktemp)"
+  bs_out_file="$(mktemp)"
+  bs_err_file="$(mktemp)"
+  printf '{"ok":true}' | {
+    CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT="$bs_bad" hook::buffer_stdin \
+      >"$bs_out_file" 2>"$bs_err_file"
+    echo "$?" >"$bs_rc_file"
+  }
+  bs_rc=$(cat "$bs_rc_file")
+  if [[ "$bs_rc" == "0" ]] && [[ "$(cat "$bs_out_file")" == '{"ok":true}' ]] &&
+    [[ ! -s "$bs_err_file" ]]; then
+    ok "buffer_stdin: unusable stdin_read_timeout '$bs_bad' → default, payload intact, no stderr"
+  else
+    fail "buffer_stdin bad timeout '$bs_bad': rc=$bs_rc out=$(cat "$bs_out_file") err=$(cat "$bs_err_file")"
+  fi
+  rm -f "$bs_rc_file" "$bs_out_file" "$bs_err_file"
+done
+
+# A VALID non-default value must still be honored — the guard must not collapse
+# every setting to the default. 0.5 s against a producer that stalls for 3 s.
+bs_rc_file="$(mktemp)"
+{ printf '{"incomplete":'; sleep 3; } | {
+  CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT=0.5 hook::buffer_stdin >/dev/null 2>&1
+  echo "$?" >"$bs_rc_file"
+}
+bs_rc=$(cat "$bs_rc_file")
+if [[ "$bs_rc" == "2" ]]; then
+  ok "buffer_stdin: a valid non-default stdin_read_timeout is honored, not overridden"
+else
+  fail "buffer_stdin valid non-default timeout: rc=$bs_rc (expected 2)"
+fi
+rm -f "$bs_rc_file"
+
 # --- Test 19: hook::emit_telemetry — EPOCHREALTIME-absent (Bash < 5.0) skip ---
 # On Bash < 5.0 EPOCHREALTIME is unset, so the caller's `start=${EPOCHREALTIME:-}`
 # snapshot is empty. emit_telemetry must then skip fail-open (return 0, emit no

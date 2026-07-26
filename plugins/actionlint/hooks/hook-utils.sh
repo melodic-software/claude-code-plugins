@@ -295,9 +295,40 @@ hook::json_complete() {
   jq -e . >/dev/null 2>&1 <<<"$1"
 }
 
+# Resolve the read timeout to a value THIS shell's `read -t` will actually
+# accept, falling back to the documented default of 2 otherwise.
+#
+# The configured value reaches `read -t` directly, and an unusable one is not a
+# tuning mistake — it is a silent disable. `read` rejects a bad spec with rc 1
+# plus a usage error on stderr for EVERY hook invocation; the buffer loop reads
+# rc 1 as EOF, produces an empty payload, and every caller skips. `0` is worse
+# still: it makes `read` return immediately having consumed nothing, which would
+# spin the loop.
+#
+# Acceptance is settled by PROBING this shell rather than consulting a version
+# table: which spellings `read -t` accepts varies across the Bash releases these
+# hooks support (fractional values are not universally available, and the
+# upstream changelog does not date their introduction), so asking the running
+# shell is exact where a version check would be a guess. Reading /dev/null hits
+# EOF immediately, so a valid timeout produces no stderr at all. The probe is
+# skipped for the default, which is known-good everywhere.
+hook::resolve_read_timeout() {
+  local t="${CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT:-2}"
+  if [[ "$t" != "2" ]]; then
+    local probe
+    # shellcheck disable=SC2034 # `discard` is the read target; only stderr matters
+    probe=$(read -r -t "$t" discard </dev/null 2>&1)
+    if ! [[ "$t" =~ ^[0-9]+(\.[0-9]+)?$ ]] || [[ "$t" =~ ^0+(\.0+)?$ ]] || [[ -n "$probe" ]]; then
+      t=2
+    fi
+  fi
+  printf '%s' "$t"
+}
+
 hook::buffer_stdin() {
   local input="" chunk="" read_rc=0 stalled=0
-  local read_timeout="${CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT:-2}"
+  local read_timeout
+  read_timeout=$(hook::resolve_read_timeout)
   local -a read_opts=(-r -t "$read_timeout")
   if hook::read_supports_nchars; then
     read_opts+=(-N 65536)
@@ -311,7 +342,14 @@ hook::buffer_stdin() {
     IFS= read "${read_opts[@]}" chunk || read_rc=$?
     input+="$chunk"
     if ((read_rc == 0)); then
-      continue # a full chunk (or a delimiter) — more may still be coming
+      # A full chunk (or a delimiter) — more may still be coming. A SUCCESSFUL
+      # read that consumed nothing, however, cannot make progress, so continuing
+      # would spin: break instead. hook::resolve_read_timeout already excludes
+      # the only known way to reach that (`read -t 0`, which returns success
+      # without consuming); this keeps loop termination a structural property
+      # rather than a consequence of validation staying correct.
+      [[ -n "$chunk" ]] || break
+      continue
     fi
     if ((read_rc > 128)); then
       # Timed out. Bytes in this window mean the producer is alive: keep them

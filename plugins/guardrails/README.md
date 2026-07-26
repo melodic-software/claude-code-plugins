@@ -136,7 +136,9 @@ One further option tunes the hooks' shared plumbing rather than a single guard:
   is never cut off while it is still coming; it fires only when the pipe goes
   silent for that long, at which point a blocking guard fails **closed**
   (`exit 2` with a `BLOCKED:` reason) rather than letting an unscanned tool call
-  through. You should not need to change it.
+  through. A value this shell's `read -t` will not accept — or `0`, which would
+  make the read consume nothing — falls back to the default rather than
+  disabling the guards. You should not need to change it.
 
 ## Consumer seams
 
