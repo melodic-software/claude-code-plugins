@@ -186,7 +186,7 @@ Work items:
 - `grep -E "selects the executing model" .work/opus-5-prompting-interview/model-conditional-mechanisms-research.md | grep -c "https://code.claude.com"` returns ≥1 (corrected claim + live citation on the same row).
 - Work-item-1 check output recorded in the phase notes (managed-path result).
 
-### Phase 2: playbooks model-adaptation refresh [TODO]
+### Phase 2: playbooks model-adaptation refresh [DONE]
 
 Review: code-design
 
