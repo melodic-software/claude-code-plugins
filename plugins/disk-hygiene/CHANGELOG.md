@@ -29,12 +29,20 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
   apply`, `FOO=1 BAR=hygiene.py python3 "$BAR" apply`, `foo;hygiene.py`, `$(hygiene.py scan)`, and
   `true|hygiene.py` all still gate.
 
+  Two further shapes are handled where the token alone is not enough. A Bash line continuation is
+  removed before tokenizing, because the shell eats `\` + newline while reading the line and
+  otherwise it stays welded to the filename as `hygiene.py\`, hiding a multi-line invocation of the
+  real engine. And the basename is taken by splitting on both separators rather than with
+  `Path().name`, which is platform-flavoured: `PureWindowsPath("/x/hygiene.py\")` yields
+  `hygiene.py` while `PurePosixPath` keeps the backslash, so a `Path`-based predicate would gate on
+  Windows and fail open on Linux.
+
   Copy-evasion coverage is untouched because it never routed through the marker: a link to the
   engine under any other name gates by `os.path.samefile` identity, and a byte copy remains the
   accepted residual the function's docstring already names. Verified as a differential against the
   pre-change guard over 36 command shapes — every engine, wrapper, assignment, concatenation,
-  substitution, pipe, backtick, redirect, and mention case holds its prior verdict; the only
-  movement is the two `test_hygiene.py` shapes, from deny to defer.
+  substitution, pipe, backtick, redirect, continuation, and mention case holds its prior verdict or
+  is newly gated; the only movement toward deferral is the two `test_hygiene.py` shapes.
 
 ## [0.9.7]
 

@@ -225,11 +225,17 @@ _ENGINE_MARKER = "hygiene.py"
 # Over-splitting is safe in both directions — a shredded path merely fails the
 # identity check and falls through to the marker test, which gates.
 _MARKER_TOKEN_SPLIT = re.compile(r"[^A-Za-z0-9._\-/\\]+")
+# Bash removes a backslash-newline pair while reading the line, before it ever
+# splits words. Undo it first or the continuation stays welded to the filename
+# (`hygiene.py\`) and no token's basename is the marker.
+_LINE_CONTINUATION = re.compile(r"\\\r?\n")
+_PATH_SEPARATOR = re.compile(r"[/\\]")
 
 
 def _marker_tokens(command: str) -> list[str]:
     """Candidate filename tokens: maximal runs of path-legal characters."""
-    return [token for token in _MARKER_TOKEN_SPLIT.split(command) if token]
+    unfolded = _LINE_CONTINUATION.sub("", command)
+    return [token for token in _MARKER_TOKEN_SPLIT.split(unfolded) if token]
 
 
 def _carries_marker(word: str) -> bool:
@@ -238,10 +244,18 @@ def _carries_marker(word: str) -> bool:
     `test_hygiene.py` and `myhygiene.py` are different files whose names happen
     to contain the marker; a bare-substring test reads them as this engine and
     gates unrelated work (#1611) — including the plugin's own test suite. This
-    is the same basename equality the literal branch below already applies, so
-    the two paths now agree on what "is the engine" means.
+    is the same basename equality the literal branch applies, so the two paths
+    agree on what "is the engine" means.
+
+    The basename is taken by splitting on BOTH separators rather than with
+    ``Path().name``, which is platform-flavoured: ``PureWindowsPath`` treats a
+    trailing backslash as a separator and ``PurePosixPath`` does not, so
+    ``/x/hygiene.py\\`` matches on Windows and misses on Linux. A guard whose
+    verdict depends on where it runs is a guard that passes its tests on the
+    author's machine and fails open in CI.
     """
-    return Path(word.casefold()).name == _ENGINE_MARKER
+    name = _PATH_SEPARATOR.split(word.casefold().rstrip("/\\"))[-1]
+    return name == _ENGINE_MARKER
 
 
 def _engine_gate_relevant(command: str, tool_name: str = "Bash") -> bool:

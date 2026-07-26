@@ -2825,6 +2825,50 @@ class GuardTests(unittest.TestCase):
                     command,
                 )
 
+    def test_engine_gate_catches_engine_across_a_line_continuation(self) -> None:
+        """Bash eats `\\`+newline before word splitting; the gate must too.
+
+        Otherwise the continuation stays welded to the filename as
+        `hygiene.py\\`, no token's basename is the marker, and a multi-line
+        invocation of the real engine slips the kill switch.
+        """
+        with chdir_context(SCRIPT_DIR):
+            for command in (
+                "python3 hygiene.py\\\n apply --plan p --token t",
+                "python3 hygiene.py\\\r\n apply --plan p --token t",
+            ):
+                result = self.run_guard_engine_gate(command, "Bash", enabled=False)
+                assert result is not None, repr(command)
+                self.assertEqual(
+                    "deny",
+                    result["hookSpecificOutput"]["permissionDecision"],
+                    repr(command),
+                )
+
+    def test_carries_marker_verdict_does_not_depend_on_the_host_platform(self) -> None:
+        """`Path().name` is platform-flavoured; this predicate must not be.
+
+        `PureWindowsPath("/x/hygiene.py\\").name` is `hygiene.py` while
+        `PurePosixPath(...)` keeps the backslash, so a `Path`-based basename
+        makes the guard gate on Windows and fail open on Linux — a divergence
+        that passes on a developer's machine and un-gates CI. Asserted directly
+        on the predicate so the case is checked identically on every host.
+        """
+        for token in (
+            "/x/hygiene.py",
+            "/x/hygiene.py\\",
+            "C:\\x\\hygiene.py",
+            "hygiene.py",
+        ):
+            self.assertTrue(guard._carries_marker(token), token)
+        for token in (
+            "/x/test_hygiene.py",
+            "/x/myhygiene.py",
+            "hygiene.pyc",
+            "hygiene.py.bak",
+        ):
+            self.assertFalse(guard._carries_marker(token), token)
+
     def test_engine_gate_catches_wrapper_launchers_of_the_bundled_engine(self) -> None:
         """env / sh -c wrappers around the absolute engine path must gate (P1 review)."""
         script = SCRIPT_DIR / "hygiene.py"
