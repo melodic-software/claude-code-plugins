@@ -67,6 +67,29 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
       command ceiling admits). It sits far above real usage; every legitimate
       command measured spends single digits. Exhausting it blocks: the guard
       could not finish deciding, so it must not allow.
+  - **A persisted `!` alias chain that DESCENDS through nested repositories is no
+    longer mistaken for a self-cycle** (`block-noncanonical-commit`; review
+    finding on the fix above). One alias text can mean a different hop in every
+    repository it appears in: with `alias.a = !git -C child a` in a repository
+    *and* in its child, plus `alias.a = commit --allow-empty -m bypass` in the
+    grandchild, real git descends twice and creates the non-canonical commit —
+    but the cycle key was the name and expansion only, so the second hop read as
+    a repeat, the walk stopped, and the guard returned 0 (verified fail-open).
+    The effective repository is now part of that key, and it is COMPOSED across
+    each `!` reparse rather than restarting from the payload cwd, because a `!`
+    body runs as a new git invocation from the repository the outer one resolved
+    — so a relative `-C` inside it stacks. Termination is unchanged where it came
+    from the set: a body with no `-C` leaves the directory alone, so
+    `a = !git a` and mutually referential pairs still stop on the first repeat.
+    A body naming the directory it is already in (`-C .`) would otherwise mint a
+    fresh key per hop, so composed directories are lexically normalized (`.` and
+    `x/..` cancelled, fork-free) and collapse to a repeat instead of walking
+    (measured 34.6s before, 0.8s after). Known residual: git runs a `!` body from
+    the repository's TOP LEVEL, so a relative `-C` in a body invoked from a
+    subdirectory composes one level deeper here than git would; alias resolution
+    is unaffected, and this guard resolves no other path either (see the `cd`
+    gap). `block-dangerous-git` is not affected — it resolves inline aliases
+    only, with no persisted lookup and no shell-alias seen-set.
 
   Guard-local change only (no `hook-utils.sh` change, no cross-plugin sync).
   Test matrices extended in both guards with two- and three-hop chains, the
@@ -76,10 +99,13 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   (blocked / `-F -` allowed), 20-hop dual-spelling chains under a hard wall-clock
   ceiling (safe terminal allowed, dangerous terminal still blocked — the collapse
   costs no coverage), a 60-hop single-spelling chain (allowed: the budget bounds
-  branching, not depth), a divergent-spelling chain (blocked on the budget), and
-  benign controls (safe multi-hop chain allowed; alias cycle, self- and mutually
-  referential persisted shell aliases terminate and allow without hanging).
-  Closes #964.
+  branching, not depth), a divergent-spelling chain (blocked on the budget), a
+  three-level nested-repository fixture whose grandchild `commit -m` must block
+  (with its canonical twin allowed), a `-C .` self-reference that must normalize
+  to a cycle (with a twin proving a real `commit -m` behind a `-C .` hop still
+  blocks), and benign controls (safe multi-hop chain allowed; alias cycle, self-
+  and mutually referential persisted shell aliases terminate and allow without
+  hanging). Closes #964.
 
 ## [0.16.1]
 

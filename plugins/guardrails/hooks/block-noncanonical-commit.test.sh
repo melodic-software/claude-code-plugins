@@ -449,6 +449,67 @@ out=$(bash "$HOOK" <<<"$(command_json "git commit -m 'feat: x'")" 2>&1)
 assert_contains "block message names -F -" "$out" '-F -'
 assert_contains "block message names the skill" "$out" '/commit'
 
+# --- persisted `!` hops across NESTED repositories ----------------------------
+# One persisted alias text can mean a different hop in each repository it appears
+# in: `alias.a = !git -C child a` in a repo AND its child descends one level
+# further every time. Keying the shell-alias cycle set on the name and expansion
+# alone read the second hop as a self-cycle, so the grandchild's `commit -m` was
+# never analyzed while real git committed there. The effective repository is part
+# of that key now, and it is composed across `!` reparses rather than restarting
+# from the payload cwd.
+NESTED="$TEST_TMPDIR/nested"
+nested_repo() {
+  mkdir -p "$1"
+  (cd "$1" && git init -q . && git config user.email t@e.st && git config user.name t) >/dev/null 2>&1
+}
+nested_repo "$NESTED/a"
+nested_repo "$NESTED/a/child"
+nested_repo "$NESTED/a/child/child"
+nested_repo "$NESTED/b"
+nested_repo "$NESTED/b/child"
+nested_repo "$NESTED/b/child/child"
+nested_repo "$NESTED/dot"
+
+if [[ -d "$NESTED/a/.git" && -d "$NESTED/a/child/child/.git" ]]; then
+  # Descent to a NON-canonical commit must block; the canonical twin must not.
+  git -C "$NESTED/a" config alias.a '!git -C child a'
+  git -C "$NESTED/a/child" config alias.a '!git -C child a'
+  git -C "$NESTED/a/child/child" config alias.a 'commit --allow-empty -m bypass'
+  git -C "$NESTED/b" config alias.a '!git -C child a'
+  git -C "$NESTED/b/child" config alias.a '!git -C child a'
+  git -C "$NESTED/b/child/child" config alias.a 'commit -F -'
+  # `-C .` names the directory it already is. Lexical normalization collapses it
+  # so the cycle key repeats and the walk stops at once — allow-safe, because real
+  # git forks such a chain forever and never reaches a subcommand. Without the
+  # normalization this minted a fresh key per hop and ran for 34s.
+  git -C "$NESTED/dot" config alias.selfdot '!git -C . selfdot'
+  git -C "$NESTED/dot" config alias.viadot '!git -C . realcommit'
+  git -C "$NESTED/dot" config alias.realcommit 'commit --allow-empty -m bypass'
+  # The INLINE `!` site composes the directory too, and a `!` body is reparsed as
+  # its own command — the outer `-c` globals do not ride along — so the hop it
+  # descends into resolves against PERSISTED config in the child. That crosses
+  # inline -> persisted at a directory boundary, which neither branch's own cases
+  # reach on their own.
+  git -C "$NESTED/a/child" config alias.z2 'commit --allow-empty -m bypass'
+  git -C "$NESTED/b/child" config alias.z2 'commit -F -'
+
+  for spec in \
+    "a|git a|2|nested descent reaches the grandchild commit -m" \
+    "b|git a|0|nested descent to a canonical grandchild commit" \
+    "dot|git selfdot|0|-C . self-reference normalizes to a cycle" \
+    "dot|git viadot|2|-C . hop still reaches a real commit -m" \
+    "a|git -c alias.z='!git -C child z2' z|2|inline ! descends into a persisted commit -m" \
+    "b|git -c alias.z='!git -C child z2' z|0|inline ! descends into a canonical commit"; do
+    IFS='|' read -r sub cmd want label <<<"$spec"
+    MSYS_NO_PATHCONV=1 jq -n --arg c "$cmd" --arg d "$NESTED/$sub" \
+      '{tool_name:"Bash",tool_input:{command:$c},cwd:$d}' |
+      timeout 30 bash "$HOOK" >/dev/null 2>&1
+    rc=$?
+    ((rc == 124)) && bad "$label: exceeded the 30s ceiling (walk not bounded)" && continue
+    assert_exit "$label" "$want" "$rc"
+  done
+fi
+
 # --- PowerShell tool coverage ------------------------------------------------
 # The canonical PowerShell commit form (a here-string piped to `git commit -F -`)
 # must be allowed exactly as the Bash `-F -` form is; a `-m` PowerShell commit
