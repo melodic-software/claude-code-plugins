@@ -860,6 +860,55 @@ else
 fi
 rm -f "$tel19" "$sink19"
 
+# --- hook::extract_bash_subject: privacy-safe subject reduction --------------
+# The subject is emitted verbatim into hook-events.jsonl and any wired
+# HOOK_TELEMETRY_SINK, so it must never carry an assignment VALUE (a credential).
+subject_is() {
+  local desc="$1" tool="$2" cmd="$3" want="$4" got
+  got=$(hook::extract_bash_subject "$tool" "$cmd")
+  if [[ "$got" == "$want" ]]; then
+    ok "extract_bash_subject: $desc"
+  else
+    fail "extract_bash_subject ($desc): want [$want] got [$got]"
+  fi
+}
+
+# Leak case (the fix): a command whose LAST token is an unquoted assignment must
+# NOT emit the value — it bails to the bare "Bash" subject.
+subject_is "bare trailing assignment bails to Bash" \
+  "Bash" "TOKEN=ghp_realtokenvalue" "Bash"
+# A path-valued trailing assignment must bail BEFORE the basename strip, or the
+# value's basename would leak (TOKEN=/a/b/secret -> "secret").
+subject_is "path-valued trailing assignment bails (no basename leak)" \
+  "Bash" "TOKEN=/a/b/secret" "Bash"
+# Multiple assignments with no following command are all value — bail.
+subject_is "trailing multi-assignment bails to Bash" \
+  "Bash" "VAR=x TOKEN=secret" "Bash"
+# Every valid Bash assignment form counts: append and subscripted assignments
+# carry the value just the same.
+subject_is "trailing append assignment bails to Bash" \
+  "Bash" "TOKEN+=ghp_secret" "Bash"
+subject_is "trailing subscripted assignment bails to Bash" \
+  "Bash" "TOKEN[0]=ghp_secret" "Bash"
+subject_is "trailing subscripted append assignment bails to Bash" \
+  "Bash" "TOKEN[0]+=ghp_secret" "Bash"
+subject_is "trailing nested-subscript assignment bails to Bash" \
+  "Bash" "TOKEN[1+INDEX[0]]=ghp_secret" "Bash"
+
+# Preserved: a following real command wins the token, so the assignment prefix is
+# stripped and the command name is the subject.
+subject_is "leading assignment prefix then a command yields the command" \
+  "Bash" "VAR=x realcmd --flag arg" "Bash:realcmd"
+# Preserved: a quoted assignment value still hits the quote-bail.
+subject_is "quoted assignment value bails to Bash" \
+  "Bash" 'TOKEN="a b" curl https://x' "Bash"
+# Preserved: an ordinary command yields its basename subject, no tail.
+subject_is "ordinary command yields basename subject" \
+  "Bash" "/usr/bin/git status --short" "Bash:git"
+# Preserved: a non-Bash tool returns its name unchanged.
+subject_is "non-Bash tool returns the tool name" \
+  "Write" "irrelevant" "Write"
+
 echo
 echo "PASS=$PASS FAIL=$FAIL"
 [[ $FAIL -eq 0 ]]
