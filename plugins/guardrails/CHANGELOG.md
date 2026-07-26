@@ -120,6 +120,15 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
     nothing (measured: 0 git subprocesses; the `-C .` chain stops after 4, not the
     128 traversal budget; a 20-hop inline chain still forks 0).
 
+    `.` and `..` both need special handling only if the guard resolves paths
+    itself, and it no longer does. Every `.` spelling (`.`, `./././.`) resolves to
+    one identity, so a self-rewriting chain stops on the cycle key without a
+    `.`-cancelling pass. `..` is left to git as well rather than refused outright:
+    refusing every `..` path would be cheap and fork-free, but it false-blocks a
+    legitimate `git -C sub/.. commit -F -`, which is now a regression case
+    alongside its `commit -m` twin — asking git separates the two, blanket refusal
+    cannot.
+
     Behavior change to note: an aliased git command invoked where git cannot
     resolve a work tree now blocks instead of proceeding on a guessed directory.
     A commit could not have succeeded there anyway.
@@ -139,8 +148,10 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   blocks), a `!` body invoked from a SUBDIRECTORY that must resolve from the outer
   repository's top level (canonical twin allowed), a symlinked-parent `-C link/..`
   fixture gated on the platform actually resolving through the symlink (asserted on
-  POSIX, skipped loudly on Windows, where git is itself textual), and benign
-  controls (safe multi-hop chain allowed; alias cycle, self-
+  POSIX, skipped loudly on Windows, where git is itself textual), `-C ./././.`
+  collapsing to a cycle without a `.`-cancelling pass, `-C sub/..` reaching a
+  `commit -m` (blocked) beside its canonical twin (allowed, which is why `..` is
+  not refused outright), and benign controls (safe multi-hop chain allowed; alias cycle, self-
   and mutually referential persisted shell aliases terminate and allow without
   hanging). Closes #964.
 

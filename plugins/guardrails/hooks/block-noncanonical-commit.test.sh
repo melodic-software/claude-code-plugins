@@ -575,6 +575,44 @@ else
   PASS=$((PASS + 1))
 fi
 
+# --- `.` and `..` in composed `-C` paths --------------------------------------
+# These are regression cases for the shapes a LEXICAL normalizer used to handle,
+# and they pin why there is no longer one. Since composed paths go to git verbatim
+# and identity comes from `rev-parse --show-toplevel`:
+#   - every `.` spelling (`.`, `./././.`) resolves to the same repository, so the
+#     cycle key repeats and a self-rewriting chain stops without a `.`-cancelling
+#     pass of our own;
+#   - `..` needs no special handling either. Cancelling it lexically was a bypass
+#     (a symlinked component makes it wrong), but REFUSING every `..` path would
+#     false-block the canonical case below, which is legitimate and must stay
+#     allowed. Asking git distinguishes the two.
+DOTS="$TEST_TMPDIR/dots"
+nested_repo "$DOTS"
+mkdir -p "$DOTS/sub"
+
+if [[ -d "$DOTS/.git" ]]; then
+  git -C "$DOTS" config alias.selfdeep '!git -C ./././. selfdeep'
+  git -C "$DOTS" config alias.livedot '!git -C . realdot'
+  git -C "$DOTS" config alias.realdot 'commit --allow-empty -m bypass'
+  git -C "$DOTS" config alias.up '!git -C sub/.. realup'
+  git -C "$DOTS" config alias.realup 'commit --allow-empty -m bypass'
+  git -C "$DOTS" config alias.upcanon '!git -C sub/.. canonup'
+  git -C "$DOTS" config alias.canonup 'commit -F -'
+  for spec in \
+    "git selfdeep|0|-C ./././. collapses to a cycle (no . cancelling needed)" \
+    "git livedot|2|-C . hop still reaches a real commit -m" \
+    "git up|2|-C sub/.. reaches commit -m (not lexically shortcut)" \
+    "git upcanon|0|-C sub/.. canonical commit stays allowed (no blanket .. refusal)"; do
+    IFS='|' read -r cmd want label <<<"$spec"
+    MSYS_NO_PATHCONV=1 jq -n --arg c "$cmd" --arg d "$DOTS" \
+      '{tool_name:"Bash",tool_input:{command:$c},cwd:$d}' |
+      timeout 30 bash "$HOOK" >/dev/null 2>&1
+    rc=$?
+    ((rc == 124)) && bad "$label: exceeded the 30s ceiling" && continue
+    assert_exit "$label" "$want" "$rc"
+  done
+fi
+
 # --- PowerShell tool coverage ------------------------------------------------
 # The canonical PowerShell commit form (a here-string piped to `git commit -F -`)
 # must be allowed exactly as the Bash `-F -` form is; a `-m` PowerShell commit
