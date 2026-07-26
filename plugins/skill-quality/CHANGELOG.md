@@ -32,9 +32,22 @@ All notable changes to the `skill-quality` plugin are documented here. Format fo
   classified independently (a malformed one cannot borrow a valid neighbour's class), and
   delegation wording only counts when the same line names the worker or dispatch as a whole
   word — embedded stems satisfy neither half ("agentless" is no worker, "Refresh context" is
-  not the fresh-context wording). Indented code blocks are deliberately NOT suppressed:
-  separating them from indented list-item continuation needs a block parser, and guessing
-  would silently drop declarations inside nested lists — authors fence literal examples.
+  not the fresh-context wording).
+- **Check 21 ships a stated parsing contract**
+  (`skills/check/reference/fresh-eyes-declarations.md`, "Parsing contract"). It enumerates the
+  markdown constructs the scanner models, names the ones it does not attempt (indented code
+  blocks, mixed container stacks, paragraph-interrupting headings, multi-line HTML comments,
+  reference definitions and link syntax), and states what happens when structure cannot be
+  resolved. The scanner is a hand-written `awk` structure pass, not a CommonMark implementation,
+  because the check has to run with nothing but a POSIX shell and `awk`; the contract makes that
+  a bounded claim instead of an implicit promise to parse everything.
+- **Structurally ambiguous placement withholds the hard verdicts.** A four-space-indented
+  directive is either indented code or a list-item continuation, and the scanner cannot tell, so
+  it emits neither `DIRECTIVE_MALFORMED` nor `DIRECTIVE_NOREASON` there (nor the stale WARN)
+  rather than failing an author on a parser artifact. The judgment path still runs. The asymmetry
+  is the whole argument: those two verdicts are hard FAILs, while the judgment verdicts are WARNs
+  where a miss costs one nudge. This posture is specific to check 21 — it must not be carried into
+  a gate whose verdict is a security decision.
 
 ### Fixed
 

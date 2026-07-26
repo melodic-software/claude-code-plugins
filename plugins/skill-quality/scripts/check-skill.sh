@@ -798,6 +798,9 @@ for fe_file in "${FRESH_EYES_FILES[@]}"; do
         ;;
     esac
   done < <(awk -v P="$FRESH_EYES_PROXIMITY_LINES" -v JR="$FRESH_EYES_JUDGE_RE" '
+    # Start of file counts as a paragraph break, so an indented block opening on
+    # line one is recognized as one.
+    BEGIN { fe_blank = 1 }
     # Blockquote nesting depth of a raw line: the number of leading `>` markers,
     # each optionally followed by one space, under the three-space indent cap.
     function fe_depth_of(s,   d) {
@@ -818,20 +821,16 @@ for fe_file in "${FRESH_EYES_FILES[@]}"; do
       return 0
     }
     { sub(/\r$/, "") }
-    # Block-container prefixes come off before anything else looks at the line.
-    # CommonMark parses `> ```markdown` and `- ```markdown` as fenced blocks, but
-    # a matcher anchored on the bare line never enters fence mode for either, so
-    # a quoted or listed example leaked into the detectors and failed the skill on
-    # its own documentation. Stripping the markers makes container content parse
-    # exactly like top-level content: the fence opens, `fe_fence` swallows the
-    # body whatever its indentation, and the same-length closer still closes.
-    # Markers interleave (`> - ```), so strip until neither form matches.
+    # Block-container prefixes come off before anything else looks at the line, so
+    # container content parses exactly like top-level content. Markers interleave
+    # (`> - ```), so strip until neither form matches.
     #
     # Inside a fence the strip applies only when the OPENER itself carried a
-    # prefix. An unprefixed fence must not be closed by a run inside its own
-    # quoted example: stripping there turns a nested `> ``` ` into a closer,
-    # leaks the rest of the block to the detectors, and FAILs the skill on a
-    # documentation example — the very failure this strip exists to prevent.
+    # prefix — otherwise a nested `> ``` ` in the quoted example a fence itself
+    # contains becomes a closer and leaks the block.
+    #
+    # NOTE: this awk program is a single-quoted shell string. An apostrophe in a
+    # comment here terminates it and breaks the script — keep prose apostrophe-free.
     {
       fe_raw = $0
       # A container-nested fence dies with its container. CommonMark ends a fence
@@ -866,13 +865,10 @@ for fe_file in "${FRESH_EYES_FILES[@]}"; do
       fe_bq_depth = fe_depth_of(fe_raw)
       fe_strip_len = length(fe_raw) - length($0)
     }
-    # CommonMark fence matching: a fence closes only on a same-character run at
-    # least as long as its opener with nothing but spaces after it — a nested
-    # run of the OTHER character, a shorter run, or a run carrying an info
-    # string (```yaml) is fence content, never a toggle. A generic boolean
-    # toggle would desync on such examples and leak them into the scanners.
-    # Opener/closer indentation caps at three spaces — four or more makes an
-    # indented code block, not a fence, so a deeper-indented run never toggles.
+    # Fence matching. What this scanner models, what it does not attempt, and what
+    # it does when it cannot tell are stated once in the Parsing contract section
+    # of skills/check/reference/fresh-eyes-declarations.md — that doc is the claim
+    # this code implements; do not restate it here.
     /^ {0,3}(```+|~~~+)/ {
       fe_run = $0
       sub(/^ */, "", fe_run)
@@ -880,6 +876,9 @@ for fe_file in "${FRESH_EYES_FILES[@]}"; do
       fe_len = 0
       while (substr(fe_run, fe_len + 1, 1) == fe_char) fe_len++
       fe_info = substr(fe_run, fe_len + 1)
+      # A fence line is markdown structure, never the blank line or indented run
+      # an indented code block needs, so it resets that tracking either way.
+      fe_icode = 0; fe_blank = 0
       if (fe_fence) {
         if (fe_char == fe_open_char && fe_len >= fe_open_len \
             && fe_info ~ /^[ \t]*$/) fe_fence = 0
@@ -905,14 +904,10 @@ for fe_file in "${FRESH_EYES_FILES[@]}"; do
       # still waiting for its closer — otherwise one stray backtick would blind
       # the detectors for the rest of the file.
       if (line ~ /^[ \t]*$/) sp_open = 0
-      # Escapes and code spans resolve in ONE left-to-right pass, because
-      # CommonMark couples them: backslash escapes are processed only OUTSIDE a
-      # span, and a span is literal inside — so a backslash before the closing
-      # run is content and the run still closes. Two independent passes cannot
-      # express that. An escape-blind span pass reads \` as a delimiter (masking
-      # a directive shown between escapes into a silent pass), while a global
-      # escape pre-pass destroys a legitimate closer after a literal backslash
-      # (`foo\` ) and carries the span on, masking whatever follows.
+      # Escapes and code spans resolve in ONE left-to-right pass because
+      # CommonMark couples them: escapes apply only outside a span, and a span is
+      # literal inside. Two independent passes cannot express that — either pass
+      # order breaks one of the two rules.
       sp_keep = ""
       # A span opened on an earlier line: spans may cross a newline, so scan for
       # the closer first. With no run of exactly the opener length, the whole
@@ -930,11 +925,9 @@ for fe_file in "${FRESH_EYES_FILES[@]}"; do
         sp_keep = sp_keep substr(line, 1, sp_p - 1)
         if (substr(line, sp_p, 1) == "\\") {
           # Only the three characters this scanner keys on need escape handling,
-          # which makes the set complete for it: a backtick (a span delimiter), a
-          # `<` (an escaped \<!-- is literal text, so it is no directive), and a
-          # backslash (so an escaped backslash cannot escape what follows). Any
-          # other backslash is ordinary text and must survive, or prose like a
-          # Windows path would lose the character after it.
+          # which makes the set complete for it. Any other backslash is ordinary
+          # text and must survive, or prose like a Windows path would lose the
+          # character after it.
           sp_next = substr(line, sp_p + 1, 1)
           if (sp_next == "`" || sp_next == "<" || sp_next == "\\") {
             sp_keep = sp_keep "  "
@@ -963,6 +956,20 @@ for fe_file in "${FRESH_EYES_FILES[@]}"; do
         line = substr(line, sp_at + sp_len)
       }
       line = sp_keep
+      # Structural ambiguity: a four-space-indented line here is either an
+      # indented code block or a list-item continuation, and telling those
+      # apart needs a block parser this scanner does not have. Rather than
+      # guess, it declines its HARD verdicts on such a line — see the parsing
+      # contract in skills/check/reference/fresh-eyes-declarations.md for the
+      # asymmetry that makes declining the safe direction.
+      if (line ~ /^[ \t]*$/) fe_blank = 1
+      else {
+        fe_ind2 = 0
+        if (line ~ /^\t/) fe_ind2 = 4
+        else while (substr(line, fe_ind2 + 1, 1) == " ") fe_ind2++
+        fe_icode = (fe_ind2 >= 4 && (fe_icode || fe_blank))
+        fe_blank = 0
+      }
       # Classify each directive on the line independently, bounded at its own
       # `-->`. Testing the whole line let a valid directive elsewhere on it lend
       # its class and reason to a malformed neighbour, so an unknown-class
@@ -975,6 +982,7 @@ for fe_file in "${FRESH_EYES_FILES[@]}"; do
         if (dir_end) dir_one = substr(dir_one, 1, dir_end + 2)
         dir_n++
         d[dir_n] = NR
+        damb[dir_n] = fe_icode
         if (dir_one ~ /<!--[ \t]*fresh-eyes-exempt:[ \t]*(deterministic-gate|external-input|deferred)[ \t]+--[ \t]+[^ \t].*-->/) {
           dt[dir_n] = "valid"
         } else if (dir_one ~ /<!--[ \t]*fresh-eyes-exempt:[ \t]*(deterministic-gate|external-input|deferred)[ \t]*(--[ \t]*)?-->/) {
@@ -1012,7 +1020,11 @@ for fe_file in "${FRESH_EYES_FILES[@]}"; do
       if (low ~ JR) { judge_n++; j[judge_n] = NR }
     }
     END {
+      # A directive whose structural context was ambiguous yields no hard
+      # verdict: both of these FAIL the skill, and failing an author on a
+      # parser artifact is worse than missing one malformed directive.
       for (i = 1; i <= dir_n; i++) {
+        if (damb[i]) continue
         if (dt[i] == "noreason") printf "DIRECTIVE_NOREASON %d\n", d[i]
         else if (dt[i] == "malformed") printf "DIRECTIVE_MALFORMED %d\n", d[i]
       }
@@ -1026,7 +1038,9 @@ for fe_file in "${FRESH_EYES_FILES[@]}"; do
         else printf "HIT_NONE %d\n", j[i]
       }
       for (i = 1; i <= dir_n; i++) {
-        if (dt[i] != "valid") continue
+        # Ambiguous placement also withholds the stale WARN: the scanner is not
+        # confident the directive is live markdown, so it makes no claim either way.
+        if (dt[i] != "valid" || damb[i]) continue
         used = 0
         for (k = 1; k <= judge_n; k++) if (j[k] >= d[i] - P && j[k] <= d[i] + P) used = 1
         if (!used) printf "DIRECTIVE_STALE %d\n", d[i]

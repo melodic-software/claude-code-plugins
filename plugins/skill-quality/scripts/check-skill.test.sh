@@ -1940,9 +1940,41 @@ else
   fail "directive after a backslash-ending span should FAIL (rc=$rc): $out"
 fi
 
+# 37v. Check 21: a directive at four-space indent is structurally ambiguous —
+#      indented code block or list continuation, the scanner cannot tell — so it
+#      declines the hard verdict rather than FAILing an author on a parser
+#      artifact. See the parsing contract in reference/fresh-eyes-declarations.md.
+make_skill fe-indented-ambiguous '---
+name: fe-indented-ambiguous
+description: "Fresh-eyes fixture. Use when: '"'"'fe indented ambiguous fixture'"'"'."
+---
+
+## Steps
+
+An indented block holding a literal directive:
+
+    <!-- fresh-eyes-exempt: bogus -- indented, so no hard verdict -->
+
+Prose resumes.
+
+## Gotchas
+
+None known.
+'
+out="$(run fe-indented-ambiguous 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && ! grep -q 'fresh-eyes-exempt directive' <<<"$out"; then
+  pass "four-space-indented directive yields no hard verdict (check 21)"
+else
+  fail "ambiguous indented directive should not FAIL (rc=$rc): $out"
+fi
+
 # 37t. Check 21: a fence opened at blockquote depth two ends when the lines fall
 #      back to depth one — the inner quote is over, so a directive there is real.
-#      Depth, not mere marker presence, decides.
+#      Depth, not mere marker presence, decides. No blank line between: a blank
+#      line would end the quote on its own and make this pass without the depth
+#      comparison, which is exactly how the first version of this fixture was
+#      non-discriminating.
 make_skill fe-quote-depth '---
 name: fe-quote-depth
 description: "Fresh-eyes fixture. Use when: '"'"'fe quote depth fixture'"'"'."
@@ -1952,7 +1984,6 @@ description: "Fresh-eyes fixture. Use when: '"'"'fe quote depth fixture'"'"'."
 
 > > ~~~markdown
 > > a fence opened at depth two
-
 > <!-- fresh-eyes-exempt: bogus -- wrong class stays malformed -->
 
 ## Gotchas

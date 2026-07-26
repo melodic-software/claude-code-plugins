@@ -68,30 +68,8 @@ Rows evaluate top-down; the first match wins per detection site.
   `evals/` are excluded (vendored content is byte-frozen; evals fixtures contain arbitrary prose).
   Plugin-level shared files outside the skill directory are NOT scanned — anchor your declaration
   in the skill's own files even when the judgment mechanics live in a shared spoke.
-- **Fence- and span-aware:** fenced code blocks and inline code spans are ignored by both
-  detectors, so docs (like this page) can show literal examples. Fences follow CommonMark
-  matching: a closer is a same-character run at least as long as its opener with only spaces
-  after it — an info-string line inside a fence never closes it, and a backtick opener carrying a
-  backtick in its info string is prose, not a fence. Blockquote and list-marker prefixes come off
-  before fence matching, so a fence nested in a container (`> ~~~markdown`, `- ```markdown`) still
-  suppresses its body — but only a fence whose own opener carried a prefix strips them inside the
-  fence, so a quoted run in an unprefixed fence's example cannot close it. A container-nested fence
-  also ends with its container (a blockquote when the quote DEPTH drops below the opener's, a list
-  item on a dedent), so an unclosed one cannot swallow the rest of the file. Spans pair a backtick run with the next run of
-  exactly the same length (multi-backtick spans included). Escapes and spans resolve together,
-  because CommonMark couples them: outside a span, a backslash escape makes the next character
-  literal — an escaped backtick opens no span and an escaped `\<` makes `\<!-- ... -->` text rather
-  than a directive — while inside a span nothing is escaped, so a literal backslash before the
-  closing run does not stop it closing.
-  A run with no closer on its own line carries forward, so a span may cross a newline; the carry
-  expires at the next blank line or fence, because a CommonMark span cannot outlive its paragraph.
-  Keep literal directive examples inside fences — a bare `<class>` placeholder in prose would FAIL
-  as an unknown class.
-- **Known gap — indented code blocks are NOT suppressed.** A four-space-indented literal directive
-  is still parsed and still FAILs. Distinguishing an indented code block from indented list-item
-  continuation needs a block parser the scanner does not have, and guessing would silently drop
-  declarations inside nested lists — the worse failure. Put literal examples in fences, not
-  indented blocks.
+- **Markdown structure:** see the parsing contract below. Keep literal directive examples inside
+  fences — a bare `<class>` placeholder in live prose would FAIL as an unknown class.
 - **Every directive on a line is classified on its own**, bounded at its own `-->`, so a malformed
   directive cannot borrow a valid neighbour's class or reason to escape the FAIL.
 - **Proximity is per-file and line-based** (`FRESH_EYES_PROXIMITY_LINES` in `check-skill.sh`). A
@@ -102,3 +80,76 @@ Rows evaluate top-down; the first match wins per detection site.
   confirmed false hit, a valid exemption directive reading stale, or a fleet regression.
   Disposition ladder for any WARN during triage: false hit → regex fix; genuine hit → delegate or
   add a directive; declaration-in-spoke gap → hand-verified note, no code change.
+
+## Parsing contract
+
+Check 21 runs on a contributor's machine with nothing but a POSIX shell and `awk`, so its markdown
+handling is a hand-written structure pass, not a CommonMark implementation. This section is the
+scanner's **bounded claim**: what it models, what it does not attempt, and what it does when it
+cannot tell. A finding against this check is measured against this list, not against full CommonMark.
+
+### Modeled
+
+- **Fenced code blocks**, backtick and tilde. A closer is a same-character run at least as long as
+  the opener with only whitespace after it; opener and closer indentation cap at three spaces.
+- **Info strings.** An info-string line inside a fence is content, never a closer. A backtick opener
+  whose info string contains a backtick is prose, not a fence (CommonMark forbids it).
+- **Container-nested fences.** Blockquote and list-marker prefixes are stripped before fence
+  matching, so `> ~~~markdown` and `- ```markdown` open fences. Only a fence whose own opener carried
+  a prefix strips prefixes inside the fence, so a quoted run cannot close an unprefixed fence.
+- **Container termination.** A nested fence ends with its container: a blockquote when the quote
+  depth drops below the opener's, a list item on a dedent below the opener's content column.
+- **Inline code spans**, pairing a backtick run with the next run of exactly equal length, including
+  multi-backtick spans and spans that cross a newline (the carry expires at the next blank line or
+  fence, since a span cannot outlive its paragraph).
+- **Backslash escapes**, resolved in the same pass as spans because CommonMark couples them: outside
+  a span an escape makes the next character literal, so `` \` `` opens no span and `\<!-- ... -->` is
+  text rather than a directive; inside a span nothing is escaped, so a literal backslash before the
+  closing run does not stop it closing.
+- **Multiple directives on one line**, each classified independently and bounded at its own `-->`.
+- **Whole-word wording boundaries** on both halves of Form 1, so `agentless` names no worker and
+  `Refresh context` is not the fresh-context wording.
+- **Single-line HTML comments**, stripped before the Form 1 detector so hidden wording cannot declare.
+
+### Not attempted
+
+Each of these is a real construct the scanner does not model. All are recorded here rather than
+patched, because the list of constructs CommonMark permits is unbounded and chasing it is what this
+contract exists to stop:
+
+- **Indented code blocks.** A four-space-indented line is either indented code or a list item's
+  continuation; separating them needs a block parser. Such a line is treated as ambiguous — see
+  *Ambiguity* below.
+- **Mixed container stacks.** Only blockquote depth and a single list-marker column are tracked, so a
+  fence opened at `> - ~~~markdown` is not released when the inner list ends while the quote
+  continues.
+- **Paragraph-interrupting block constructs.** A pending cross-line span carry expires at a blank
+  line or a fence, but not at an ATX heading, thematic break, or table that also interrupts the
+  paragraph in CommonMark.
+- **Multi-line HTML comments.** Comment state is not carried across lines: an unterminated `<!--`
+  discards the rest of its own line only, so a comment body on a later line is read as prose.
+- **Reference definitions, HTML blocks, setext headings, and link/image syntax** are not interpreted
+  at all; they are scanned as ordinary prose.
+
+### Ambiguity — the scanner declines rather than guesses
+
+The two verdict families are asymmetric, and the whole posture follows from that:
+
+- `DIRECTIVE_MALFORMED` and `DIRECTIVE_NOREASON` are hard **FAIL**s. A false positive here blocks a
+  legitimate skill author on a parser artifact.
+- `HIT_WORDING` / `HIT_NONE` / `HIT_DIRECTIVE` and the stale-directive notice are **WARN**s or notes.
+  A miss there costs one nudge.
+
+So where the structure pass reaches a configuration it cannot resolve, it **withholds the hard
+verdicts** for directives on that line — and withholds the stale WARN too, since it is not confident
+the directive is live markdown. The judgment path continues to run. Today this fires on the
+indented-code case above; the mechanism could extend to a resolved cross-line span carry and to an
+unterminated comment, and deliberately does not, because both occur throughout ordinary prose and
+suppressing them would widen the blind spot far past anything observed.
+
+Where an unmodeled construct instead causes content to be **skipped** — an unclosed fence or span
+carry swallowing lines — no verdict forms at all. That is already the safe direction, and it is worth
+being exact: suppression prevents wrong FAILs; it is not what makes a skipped line harmless.
+
+**This posture is specific to check 21**, whose verdicts are authoring nudges. Do not carry it into a
+gate whose verdict is a security decision, where a miss is a bypass and fail-closed is correct.

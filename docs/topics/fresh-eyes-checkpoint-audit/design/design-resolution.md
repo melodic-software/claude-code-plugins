@@ -111,7 +111,21 @@ Scan mechanics (all constraints normative for implementation):
   delimiter and the escape-first pass destroys a legitimate closer.)* **Accepted gap:** indented code blocks are NOT
   suppressed — telling one apart from indented list-item continuation needs a block parser this
   scanner does not have, and guessing would silently drop declarations inside nested lists, the
-  worse direction. The contract tells authors to fence literal examples.
+  worse direction. *(Superseded 2026-07-26: rather than guess, the scanner now declines its HARD
+verdicts on a four-space-indented line — see the stated parsing contract. Not deciding dissolves the
+gap that could not be decided.)*
+- **Stated parsing contract, and ambiguity declines rather than guesses** (added 2026-07-26). The
+  scanner enumerates the markdown constructs it models and names the ones it does not attempt, so a
+  finding is measured against a bounded claim instead of full CommonMark. Where structure cannot be
+  resolved it withholds `DIRECTIVE_MALFORMED` / `DIRECTIVE_NOREASON` and the stale WARN; the judgment
+  path still runs. Rationale is the verdict asymmetry: those two FAIL the skill, so a false positive
+  blocks a legitimate author on a parser artifact, whereas a missed judgment WARN costs one nudge.
+  Six consecutive review rounds each found a distinct CommonMark edge case in this hand-written
+  structure pass, and several were defects in the previous round's own fix; the unbounded surface, not
+  any individual case, was the root cause. A real markdown parser was rejected deliberately: the check
+  must run with nothing but a POSIX shell and `awk`. **Scope note:** this under-claim posture belongs
+  to check 21, whose verdicts are authoring nudges. A gate whose verdict is a security decision stays
+  fail-closed, because there a miss is a bypass.
 - **One classification per directive, not per line** (amended 2026-07-25, Phase-1 review round 4):
   each `<!-- fresh-eyes-exempt ... -->` occurrence is classified independently, bounded at its own
   terminator. Classifying the whole line let a well-formed directive lend its class and reason to a
