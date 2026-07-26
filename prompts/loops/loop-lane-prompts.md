@@ -835,18 +835,30 @@ with the operator's signature on them.
 >    history, and a past date or a now-true condition stays permanently
 >    true. Record the action on the carrier in the same pass you take it — a
 >    comment on the item you reopened, and one on the closed source when you
->    file a successor instead, naming that successor — because the record,
->    not the reopening, is what spends the trigger. Skip it and a pass that
->    stops between reopening and a disposition (cycle budget, a rate-limit
->    pause, my attention) leaves the trigger live, so the next pass re-briefs
->    the same row or files a second successor for the same source, again on
->    every pass inside the 90-day window. A trigger is live only while no
->    later comment of mine — one opening
->    `*This <comment|item> was written by an AI agent on the operator's
->    behalf …*` — postdates the comment carrying it. Where an item carries
->    several, only the newest live trigger counts: the fresh trigger a
->    Re-park records supersedes the one it just retired. Report a spent
->    trigger with the action that retired it; never act on one twice.
+>    file a successor instead — carrying, on the line after the provenance
+>    line,
+>    `<!-- work-items:trigger-consumed kind=reopened|successor item=<number> -->`
+>    and naming the successor where there is one. That record, not the
+>    reopening, is what spends the trigger, and it has to be
+>    action-specific: the provenance line rides on every comment I have you
+>    write, so keying off that alone would let an unrelated clarification
+>    retire a trigger nobody acted on and strand its decision for good.
+>    Trust the record by the same author-and-kind test population 1 applies
+>    to escalation markers; an untrusted or malformed one leaves the trigger
+>    live, because a re-fire is recoverable and a suppressed revisit is not.
+>    Skip the record entirely and a pass that stops after acting (cycle
+>    budget, a rate-limit pause, my attention) leaves the trigger live too,
+>    so the next pass re-briefs the same row on every pass inside the 90-day
+>    window.
+>
+>    Filing a successor is two calls — create the item, then record it — and
+>    a pass can die between them, which no wording makes atomic. So before
+>    filing one, look for a successor that already backlinks this source and
+>    this trigger: where one exists, adopt it and post the missing record
+>    instead of filing a second. Where an item carries several triggers, only
+>    the newest live one counts — the fresh trigger a Re-park records
+>    supersedes the one it just retired. Report a spent trigger with the
+>    action that retired it; never act on one twice.
 >
 > **Bounded queries only.** Every `gh issue list` call carries an explicit
 > `--limit` and computes `truncated: (length >= limit)`; a truncated count
@@ -881,6 +893,18 @@ with the operator's signature on them.
 > - a closed-item trigger carrier being reopened, and any successor item
 >   filed instead of reopening one — population 3 above, and the Re-park
 >   successor below.
+>
+> Then converge what is already broken: any inventoried row ALREADY wearing
+> both canonical roles gets the resolved autonomous-eligible role removed and
+> keeps the human-gated one, independently of whatever outcome that row
+> reaches. Nothing else repairs those — the population-2 first action fires
+> only where no human-gated role is present, and Re-park clears neither
+> marker by design — so a row that arrived contradictory from an earlier
+> template or another writer would stay contradictory forever. Converging
+> toward human-gated is the same direction the worker lane converges: while
+> neither machine-marked path is satisfied, the item's correct role IS
+> human-gated. It is idempotent, so a row already in the right state needs no
+> edit and no comment.
 >
 > Flip clears both markers together afterward, per the Flip rule below.
 >
@@ -1586,18 +1610,30 @@ to the template re-renders here too.
 >    history, and a past date or a now-true condition stays permanently
 >    true. Record the action on the carrier in the same pass you take it — a
 >    comment on the item you reopened, and one on the closed source when you
->    file a successor instead, naming that successor — because the record,
->    not the reopening, is what spends the trigger. Skip it and a pass that
->    stops between reopening and a disposition (cycle budget, a rate-limit
->    pause, my attention) leaves the trigger live, so the next pass re-briefs
->    the same row or files a second successor for the same source, again on
->    every pass inside the 90-day window. A trigger is live only while no
->    later comment of mine — one opening
->    `*This <comment|item> was written by an AI agent on the operator's
->    behalf …*` — postdates the comment carrying it. Where an item carries
->    several, only the newest live trigger counts: the fresh trigger a
->    Re-park records supersedes the one it just retired. Report a spent
->    trigger with the action that retired it; never act on one twice.
+>    file a successor instead — carrying, on the line after the provenance
+>    line,
+>    `<!-- work-items:trigger-consumed kind=reopened|successor item=<number> -->`
+>    and naming the successor where there is one. That record, not the
+>    reopening, is what spends the trigger, and it has to be
+>    action-specific: the provenance line rides on every comment I have you
+>    write, so keying off that alone would let an unrelated clarification
+>    retire a trigger nobody acted on and strand its decision for good.
+>    Trust the record by the same author-and-kind test population 1 applies
+>    to escalation markers; an untrusted or malformed one leaves the trigger
+>    live, because a re-fire is recoverable and a suppressed revisit is not.
+>    Skip the record entirely and a pass that stops after acting (cycle
+>    budget, a rate-limit pause, my attention) leaves the trigger live too,
+>    so the next pass re-briefs the same row on every pass inside the 90-day
+>    window.
+>
+>    Filing a successor is two calls — create the item, then record it — and
+>    a pass can die between them, which no wording makes atomic. So before
+>    filing one, look for a successor that already backlinks this source and
+>    this trigger: where one exists, adopt it and post the missing record
+>    instead of filing a second. Where an item carries several triggers, only
+>    the newest live one counts — the fresh trigger a Re-park records
+>    supersedes the one it just retired. Report a spent trigger with the
+>    action that retired it; never act on one twice.
 >
 > **Bounded queries only.** Every `gh issue list` call carries an explicit
 > `--limit` and computes `truncated: (length >= limit)`; a truncated count
@@ -1632,6 +1668,18 @@ to the template re-renders here too.
 > - a closed-item trigger carrier being reopened, and any successor item
 >   filed instead of reopening one — population 3 above, and the Re-park
 >   successor below.
+>
+> Then converge what is already broken: any inventoried row ALREADY wearing
+> both canonical roles gets the resolved autonomous-eligible role removed and
+> keeps the human-gated one, independently of whatever outcome that row
+> reaches. Nothing else repairs those — the population-2 first action fires
+> only where no human-gated role is present, and Re-park clears neither
+> marker by design — so a row that arrived contradictory from an earlier
+> template or another writer would stay contradictory forever. Converging
+> toward human-gated is the same direction the worker lane converges: while
+> neither machine-marked path is satisfied, the item's correct role IS
+> human-gated. It is idempotent, so a row already in the right state needs no
+> edit and no comment.
 >
 > Flip clears both markers together afterward, per the Flip rule below.
 >
