@@ -263,6 +263,14 @@ existing "Frozen historical records" rule already excludes. See `triage.md`
   discrimination, no engine requirement. Forms 4 and 5 use the same consume-the-delimiter shape.
   A consumed trailing character is not part of the reference: replace only the matched
   `<old>@<slug>` span and leave it in place.
+- **Consuming a delimiter has ONE cost, and the survey pays it, not the pattern.** The consumed
+  character is often the LEADING delimiter of the very next occurrence, so a rescan that resumes
+  after the whole match silently drops the second of two ADJACENT references. This affects every
+  consume-the-delimiter form here — 3, 13, 15, and both delimiter-anchored Form 14 alternatives —
+  so the remedy belongs in one place rather than in each regex: `audit.md` Phase 2 advances the
+  rescan cursor to the end of the CAPTURED `<old>` span. Do not try to fix this by dropping the
+  consumed terminator; without it the boundary is unenforced and `<old>@slug` matches inside
+  `<old>@slug.com` again.
 - **False-positives:** otherwise rare. For the first alternative, the enclosing management verb
   supplies the disambiguation bare-token position lacks — prose does not accidentally say
   "/plugin configure" before an English verb. If a consuming marketplace ever allows dots in a

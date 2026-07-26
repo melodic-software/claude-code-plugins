@@ -86,6 +86,14 @@
   keeps it from becoming a mass-rewrite vector. A YAML block-mapping catalog key stays a
   documented gap: it opens with nothing, so the only pattern reaching it would match every nested
   YAML key.
+- **The rescan cursor advances to the end of the captured token, not the end of the match.**
+  Forms 3, 13, 15 and both delimiter-anchored Form 14 alternatives CONSUME a trailing delimiter
+  rather than asserting it, because ripgrep's default engine rejects look-around — and that
+  delimiter is often the LEADING one the next occurrence needs. On
+  `{"name":"<old>","id":"<old>"}` a global rescan therefore emitted only the first declaration
+  and the second survived as suppressed residue. Fixed once in the survey rather than in each
+  regex; dropping the terminator is not an option, since without it the qualified-id form matches
+  inside an email domain again.
 - **Skip spans are remapped as edits apply.** A span recorded before Phase 5 does not survive the
   edit: `<old>` and `<new>` differ in length, so rewriting an accepted occurrence shifts every
   later occurrence on that line and the stored skip no longer subtracts — the non-terminating

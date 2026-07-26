@@ -57,6 +57,29 @@ ALL occurrences of the form's pattern and emit one record per occurrence:
 `{file, line, start, end, pattern_form, snippet}`. A line with two `<old>` occurrences produces
 two records.
 
+**Advance the rescan cursor to the end of the CAPTURED `<old>` span, not the end of the match.**
+Several forms deliberately CONSUME a trailing delimiter instead of using a lookahead, because
+ripgrep's default engine rejects look-around — Forms 3, 13, 15 and both delimiter-anchored Form 14
+alternatives all do. That consumed delimiter is frequently the LEADING delimiter the next
+occurrence needs, so a rescan that resumes after the whole match eats the boundary and emits only
+the first of two adjacent references. Verified: on `{"name":"<old>","id":"<old>"}` a global
+`rg -o` returns ONE match, `{"name":"<old>",`, because the first match consumed the comma the `id`
+member needed; resuming at the end of the captured token instead returns both. Insert
+`"version":"1"` between them and both appear either way — the collision is specifically
+ADJACENCY, which is exactly what a compact manifest produces. Form 2 still finds the lost token,
+but under container mode that is suppressed residue, so the sweep can report completion with the
+second declaration stale.
+
+Two details that make the cursor rule correct rather than merely different:
+
+- **Advance a cursor; do not slice the string.** Re-running the pattern against a substring makes
+  `^` match at the cursor, which would admit a member with no delimiter in front of it. Keep `^`
+  bound to the real start of line or block.
+- **The cursor is the captured token's end, not the match's start + 1.** Advancing by one
+  character re-finds the same occurrence through a different alternative and doubles the record;
+  the captured span is the unit of identity everywhere else in this pipeline, so it is the unit
+  here too.
+
 **Rescan the returned BLOCK, not a line, for the multiline forms.** For Form 7 and Form 14's
 Setext alternative the unit Grep returns is a multi-line block, and the pattern only matches
 against that whole block — feeding it one line at a time reproduces NOTHING, so the rescan emits

@@ -185,7 +185,8 @@
       "expectations": [
         "No look-around is used, so the form works on the default engine the skill instructs",
         "The trailing terminator is consumed rather than asserted",
-        "A consumed delimiter is not rewritten as part of the reference"
+        "A consumed delimiter is not rewritten as part of the reference",
+        "The cost of consuming is named and located in the survey's rescan cursor, not fixed by dropping the terminator"
       ]
     },
     {
@@ -493,6 +494,19 @@
         "Only the explicit override is described as short-circuiting",
         "The ordering is explained as check order, not verdict precedence",
         "The named failure is container mode suppressing an identifier's actionable references"
+      ]
+    },
+    {
+      "id": 41,
+      "name": "adjacent-declarations-both-emit-occurrence-records",
+      "prompt": "Rename `docs-hygiene` to `doc-care`. A compact manifest reads {\"name\":\"docs-hygiene\",\"id\":\"docs-hygiene\"}. Are both declarations reported?",
+      "expected_output": "Yes, but only because the rescan advances its cursor to the end of the captured token rather than the end of the match. Form 14's delimiter-anchored alternatives CONSUME a trailing delimiter instead of asserting it, since ripgrep's default engine rejects look-around -- and here the comma the first match consumes is exactly the leading delimiter the `id` member needs, so a global rescan resuming after the whole match returns only `{\"name\":\"docs-hygiene\",` and the second declaration never gets an occurrence record. Form 2 still finds the token, but container mode classifies it as suppressed residue, so the sweep could declare completion with `id` stale. The collision is specifically ADJACENCY: insert a sibling member between them and both are emitted either way. The remedy is in the survey rather than in each regex, because every consume-the-delimiter form shares it, and dropping the terminator is not an option -- without it the boundary is unenforced and the qualified-id form matches inside an email domain again.",
+      "files": [],
+      "expectations": [
+        "Both adjacent declarations produce occurrence records",
+        "The cause is identified as the first match consuming the delimiter the second needs",
+        "The remedy is the survey's cursor rule, not removing the consumed terminator",
+        "The rescan advances a cursor rather than slicing, so `^` is not re-anchored mid-line"
       ]
     }
   ]
