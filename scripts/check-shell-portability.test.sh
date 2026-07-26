@@ -1720,6 +1720,191 @@ else
 fi
 rm -f "$f"
 
+# =============================================================================
+# Word structure the physical line hides -- #1544
+#
+# Three shapes where the run of characters the token gaps walk is not the run
+# the SHELL reads: an operand that is a whole command substitution, a separator
+# living inside a parameter expansion, and a command split across a
+# backslash-newline. Each let a real GNU-only option go unreported. A fourth is
+# the option WORD itself carrying quotes, which quote removal strips before the
+# utility ever sees argv.
+# =============================================================================
+
+# --- an option after a command-substitution OPERAND still belongs to the
+# command that owns it: GNU stat and date both accept options after operands,
+# and the token gap stopped at the `(` before reaching the flag.
+f="$(tmpsh "$(printf '%s\n' \
+  'stat "$(get_file)" -c %s' \
+  'date "$(get_when)" -d tomorrow' \
+  'stat "$(dirname "$(x)")" -c %s')")"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "an option after a substitution operand should fail, got success: $out"
+elif [[ "$(echo "$out" | grep -c "PORTABILITY: ${f}:")" -eq 3 ]]; then
+  ok "an option after a command-substitution operand is detected, nesting included"
+else
+  fail "expected all 3 substitution-operand forms flagged, got: $out"
+fi
+rm -f "$f"
+
+# --- ...while a ladder whose BSD side lives INSIDE a substitution is still a
+# real fallback. The collapsed view cannot see it, so the guard must keep
+# reading the uncollapsed line.
+f="$(tmpsh "$(printf '%s\n' \
+  'stat -c %s "$f" || x=$(stat -f %z "$f")' \
+  'x=$(stat -c %s "$f") || x=$(stat -f %z "$f")')")"
+if scan_paths "$REAL_TOKENS" "$f" >/dev/null 2>&1; then
+  ok "a ladder whose BSD side sits inside a substitution stays guarded"
+else
+  fail "the guard must read the uncollapsed line: $(scan_paths "$REAL_TOKENS" "$f" 2>&1)"
+fi
+rm -f "$f"
+
+# --- a separator inside an unquoted PARAMETER EXPANSION is data, not a control
+# operator, so it must not cut the command short of its own option.
+f="$(tmpsh "$(printf '%s\n' \
+  'stat ${file:-name;part} -c %s' \
+  'date ${when:-a;b} -d tomorrow')")"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "a separator inside an expansion should not hide the option, got success: $out"
+elif [[ "$(echo "$out" | grep -c "PORTABILITY: ${f}:")" -eq 2 ]]; then
+  ok "a separator inside a parameter expansion no longer ends the command"
+else
+  fail "expected both expansion forms flagged, got: $out"
+fi
+rm -f "$f"
+
+# --- ...without swallowing a REAL separator that merely follows an expansion.
+f="$(tmpsh "$(printf '%s\n' \
+  'stat "${file}"; tool -c x' \
+  'date "${when}"; test -d "$dir"')")"
+if scan_paths "$REAL_TOKENS" "$f" >/dev/null 2>&1; then
+  ok "a separator after an expansion still bounds the command"
+else
+  fail "an expansion must not neutralize the operator after it: $(scan_paths "$REAL_TOKENS" "$f" 2>&1)"
+fi
+rm -f "$f"
+
+# --- ...and a substitution nested INSIDE an expansion is still command text.
+f="$(tmpsh 'x="${y:-$(stat -c %s "$f")}"')"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "a stat -c inside an expansion default should fail, got success: $out"
+else
+  ok "a substitution nested in a parameter expansion is still scanned"
+fi
+rm -f "$f"
+
+# --- quote removal hands the utility its documented option, so a QUOTED option
+# word is the same GNU-only call. The negatives that keep a `-c`/`-d` from
+# being read out of an operand (`stat "$file-c"`, `date --debug`) are asserted
+# above and unchanged.
+f="$(tmpsh "$(printf '%s\n' \
+  'date "-d" tomorrow +%s' \
+  'date -"d" tomorrow +%s' \
+  'stat "-c" %s "$f"' \
+  'stat -"c" %s "$f"')")"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "quoted option words should fail, got success: $out"
+elif [[ "$(echo "$out" | grep -c "PORTABILITY: ${f}:")" -eq 4 ]]; then
+  ok "a quoted date/stat option word is detected"
+else
+  fail "expected all 4 quoted option-word forms flagged, got: $out"
+fi
+rm -f "$f"
+
+# --- ...and the auto-guard reads a quoted flag as the same option, on BOTH
+# sides of the ladder. Admitting the quoted spelling in the token without
+# admitting it here reported every quoted-flag ladder as unguarded.
+f="$(tmpsh "$(printf '%s\n' \
+  'stat "-c" %s "$f" || stat -f %z "$f"' \
+  'stat -"c" %s "$f" || stat -f %z "$f"' \
+  'stat -c %s "$f" || stat "-f" %z "$f"' \
+  'stat -c %s "$f" || stat -"f" %z "$f"')")"
+if scan_paths "$REAL_TOKENS" "$f" >/dev/null 2>&1; then
+  ok "a quoted flag on either side of the ladder is still a real fallback"
+else
+  fail "a quoted-flag ladder must stay guarded: $(scan_paths "$REAL_TOKENS" "$f" 2>&1)"
+fi
+rm -f "$f"
+
+# --- a backslash-continued invocation is ONE command: the shell removes
+# `\<newline>` before tokenizing, so the option on the continuation line is the
+# command's own. Reported at the FIRST physical line, which is what keeps a
+# continuation from shifting the numbering of everything after it.
+f="$(tmpsh "$(printf '%s\n' \
+  "date \\" \
+  '  -d tomorrow +%s' \
+  "stat \\" \
+  '  -c %s "$f"' \
+  'grep -P pattern file')")"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "a continued GNU-only invocation should fail, got success: $out"
+elif [[ "$(echo "$out" | grep -c "PORTABILITY: ${f}:")" -eq 3 ]] &&
+  echo "$out" | grep -q "PORTABILITY: ${f}:1:" &&
+  echo "$out" | grep -q "PORTABILITY: ${f}:3:" &&
+  echo "$out" | grep -q "PORTABILITY: ${f}:5:"; then
+  ok "a backslash-continued invocation is matched as one command at its first line"
+else
+  fail "expected hits at lines 1, 3 and 5, got: $out"
+fi
+rm -f "$f"
+
+# --- a file whose LAST line ends in a continuation still has one command left
+# to report -- the buffer has to be flushed, not dropped.
+f="$(tmpsh "$(printf '%s\n' \
+  "date \\" \
+  "  -d @0 \\")")"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "a trailing continued command should fail, got success: $out"
+elif echo "$out" | grep -q "PORTABILITY: ${f}:1:"; then
+  ok "a continuation left open at end of file is still scanned"
+else
+  fail "expected the buffered command reported at line 1, got: $out"
+fi
+rm -f "$f"
+
+# --- a COMMENT never continues: `#` runs to the newline, so a trailing
+# backslash there must not swallow the command below it into the comment.
+f="$(tmpsh "$(printf '%s\n' \
+  "# explains date -d below \\" \
+  'date -d tomorrow +%s')")"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "the command under a backslash-ended comment should fail, got success: $out"
+elif [[ "$(echo "$out" | grep -c "PORTABILITY: ${f}:")" -eq 1 ]] &&
+  echo "$out" | grep -q "PORTABILITY: ${f}:2:"; then
+  ok "a trailing backslash in a comment does not continue into the next line"
+else
+  fail "expected exactly the line-2 call reported, got: $out"
+fi
+rm -f "$f"
+
+# --- an ESCAPED backslash at end of line quotes the backslash, not the
+# newline, so the next line is its own command.
+f="$(tmpsh "$(printf '%s\n' \
+  "printf '%s' a\\\\" \
+  'date -d @0')")"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "the standalone date -d should fail, got success: $out"
+elif [[ "$(echo "$out" | grep -c "PORTABILITY: ${f}:")" -eq 1 ]] &&
+  echo "$out" | grep -q "PORTABILITY: ${f}:2:"; then
+  ok "an escaped backslash at end of line is not a line continuation"
+else
+  fail "expected exactly the line-2 call reported, got: $out"
+fi
+rm -f "$f"
+
+# --- a `portability-ok:` marker anywhere in the joined command excuses it: the
+# annotation belongs to the logical line, not to one physical fragment.
+f="$(tmpsh "$(printf '%s\n' \
+  "date \\" \
+  '  -d @0 # portability-ok: dual-dialect helper')")"
+if scan_paths "$REAL_TOKENS" "$f" >/dev/null 2>&1; then
+  ok "an annotation on a continuation line excuses the whole logical command"
+else
+  fail "the marker must apply to the joined command: $(scan_paths "$REAL_TOKENS" "$f" 2>&1)"
+fi
+rm -f "$f"
+
 echo
 echo "PASS=$PASS FAIL=$FAIL"
 [[ "$FAIL" -eq 0 ]]

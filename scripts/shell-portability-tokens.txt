@@ -287,7 +287,16 @@ readlink[[:space:]]+(-[A-Za-z]*f|--canonicalize)
 # `d` may also sit anywhere in a CLUSTER, at the argument-taking end: GNU lists
 # `-u, --utc` alongside `-d, --date=STRING` and `date -ud tomorrow +%Y`
 # succeeds, so the branch is `-[A-Za-z]*d` rather than a literal `-d`.
-(^|[^A-Za-z0-9_-])date['"]?[[:space:]]+([^;&|()`\n]*[[:space:]])?(-[A-Za-z]*d|--date([[:space:]]|=))
+# The OPTION WORD may itself carry quotes, exactly as the command word above
+# already may (#1544). Quote removal happens before the utility sees argv, so
+# `date "-d" tomorrow`, `date -"d" tomorrow` and `date "-ud" tomorrow` all hand
+# GNU date the documented `-d` option, yet a bare hyphen-then-letters branch
+# matched none of them. Quotes are admitted both BEFORE the hyphen and
+# INTERLEAVED with the cluster letters, the same interleaving the `grep -P`
+# token above documents for its own cluster. What still keeps a `-c`/`-d` from
+# being read out of an OPERAND is unchanged: the run before the hyphen must end
+# in whitespace, so `stat "$file-c"` and `date "$x-d"` stay clean.
+(^|[^A-Za-z0-9_-])date['"]?[[:space:]]+([^;&|()`\n]*[[:space:]])?['"]*(-[A-Za-z'"]*d|--date([[:space:]]|=))
 
 # `stat -c` (GNU format string) — a GNU coreutils extension; BSD/macOS stat
 # uses `-f`. Requires whitespace immediately after `stat` so the token matches
@@ -329,7 +338,9 @@ readlink[[:space:]]+(-[A-Za-z]*f|--canonicalize)
 # argument rather than sitting inside one (#1544): `stat foo-c` and
 # `stat "$file-c"` pass no option at all and were being reported, and the same
 # anchor keeps `stat --dereference` out of the cluster branch.
-(^|[^A-Za-z0-9_-])stat['"]?[[:space:]]+([^;&|()`\n]*[[:space:]])?(-[A-Za-z]*c|--format|--printf)
+# Same quoted-option-word admission as `date -d` above (#1544): `stat "-c" %s`
+# and `stat -"c" %s` both reach GNU stat as `-c` after quote removal.
+(^|[^A-Za-z0-9_-])stat['"]?[[:space:]]+([^;&|()`\n]*[[:space:]])?['"]*(-[A-Za-z'"]*c|--format|--printf)
 # `mktemp -p` (parent-directory flag) — a GNU coreutils extension; BSD/macOS
 # mktemp has no `-p`. The portable replacement embeds the directory in the
 # positional TEMPLATE argument instead (`mktemp "$DIR/prefix.XXXXXX"`), which
