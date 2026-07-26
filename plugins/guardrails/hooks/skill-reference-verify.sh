@@ -159,9 +159,13 @@ emit_refs() {
 # Recover bounded context: the edit is already applied by PostToolUse time, so
 # pull from disk only the lines the hunk's OWN TEXT appears in, scan those, and
 # keep only references whose plugin or skill segment contains one of the hunk's
-# word tokens. Two filters compose to hold the diff-scope contract: the line must
-# be one this hunk's text landed in, and the reported reference must contain
-# edited text.
+# word tokens. What line-anchoring actually guarantees: it can only ever select a
+# STRICT SUBSET of what token-anchoring alone would, and the edited line is always
+# in that subset — never a wider net. It degrades to plain token-anchoring in the
+# limiting case where the whole hunk IS a single short token (a bare `host`
+# substitution carries no more positional information than the token itself), so
+# the token filter stays a real second gate, not a formality, on the candidate
+# that survives.
 reconstruct_partial_edit() {
   [[ "$TOOL" == "Edit" && -f "$FILE" ]] || return 0
   # The token filter reads the hunk with any COMPLETE reference removed first. A
