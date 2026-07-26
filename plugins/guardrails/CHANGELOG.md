@@ -158,9 +158,21 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
     with a reverted working attempt and the four findings that landed against it as
     a map of what a real fix must handle.
 
-    Behavior change to note: an aliased git command invoked where git cannot
-    resolve a work tree now blocks instead of proceeding on a guessed directory.
-    A commit could not have succeeded there anyway.
+    Identity is a **best-available answer, not a gate**: when git cannot resolve a
+    work tree the walk continues with the literal composed directory, which is the
+    behavior this guard already had. An interim revision failed CLOSED there and was
+    dropped, because it never earned its place — its own justification was that a
+    commit could not have succeeded there anyway (so it protected against nothing),
+    while it produced three separate false positives, each refusing a VALID
+    canonical commit reached through a repository the OUTER probe could not see:
+    `--git-dir`/`--work-tree` on the invocation, then `-C` inside the body. The class
+    it was added for is open either way — the persisted-alias lookup still drops the
+    locating globals, here and on `main` alike
+    ([#1501](https://github.com/melodic-software/claude-code-plugins/issues/1501)).
+    Deferring resolution to the nested invocation is the real fix and is tracked as
+    its own design question
+    ([#1500](https://github.com/melodic-software/claude-code-plugins/issues/1500))
+    rather than bolted on at this depth.
 
   Guard-local change only (no `hook-utils.sh` change, no cross-plugin sync).
   Test matrices extended in both guards with two- and three-hop chains, the

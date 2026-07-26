@@ -129,25 +129,26 @@ allowed() {
 # probe needs `--work-tree` through the same shape.
 # Call as: explicit_global <option-name-without-dashes> <invocation-prefix words...>
 # shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
+# The LAST occurrence wins, as git itself does — scanning does not stop at the
+# first match. A repeated `--git-dir` otherwise aimed the sequencer probe at the
+# wrong git dir, which decides an exemption.
 explicit_global() {
   local opt="--$1"
   shift
-  local i n=$# arg
+  local i n=$# arg found=""
   local -a a=("$@")
   for ((i = 0; i < n; i++)); do
     arg="${a[i]}"
     case "$arg" in
     "$opt")
-      ((i + 1 < n)) && printf '%s' "${a[i + 1]}"
-      return 0
+      ((i + 1 < n)) && found="${a[i + 1]}"
+      ((i++))
       ;;
-    "$opt"=*)
-      printf '%s' "${arg#"$opt"=}"
-      return 0
-      ;;
+    "$opt"=*) found="${arg#"$opt"=}" ;;
     *) ;;
     esac
   done
+  printf '%s' "$found"
 }
 
 # Value of an explicit `--git-dir` (attached or separated), empty when absent.
@@ -336,19 +337,19 @@ persisted_alias() {
   HOOK_PERSISTED_ALIAS="${_persisted_alias[$key]}"
 }
 
-# Fail closed when git cannot say which repository a `!` body will run in. Only
-# the alias-walk reaches here — a plain `git commit -F -` resolves no path and can
-# never trip it — so the cost is narrow: an aliased git command invoked where there
-# is no work tree (or no such directory) now blocks instead of being waved through
-# on a guessed directory. A commit could not have succeeded there anyway, and a
-# guard that cannot determine where a command executes must not allow it.
-# shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
-block_unresolvable_dir() {
-  echo "BLOCKED: cannot determine which repository this git alias would run in ('$1' is not a work tree git can resolve) — failing closed rather than guessing." >&2
-  echo "Run the subcommand directly, invoke it from inside the intended repository, or set the guardrails block_noncanonical_commit_enabled option to false to bypass." >&2
-  emit_tel "blocked" "unresolvable-alias-dir"
-  exit 2
-}
+# Identity is a BEST-AVAILABLE answer, not a gate. When git cannot resolve a work
+# tree the walk continues with the literal composed directory instead of refusing
+# the command, which is main's behavior on this path.
+#
+# An earlier revision failed CLOSED here. It was dropped because it never earned its
+# place: its justification was that "a commit could not have succeeded there anyway"
+# — which, if true, means it protected against nothing — while it produced three
+# separate false positives, each refusing a VALID canonical commit reached through a
+# repository the OUTER probe could not see (`--git-dir`/`--work-tree` on the
+# invocation, then `-C` inside the body). The class it was added for is still open
+# regardless: the persisted-alias lookup drops the locating globals on both this
+# guard and main. Deferring resolution to the nested invocation is the real fix and
+# is tracked as its own design question rather than bolted on here.
 
 # Alias re-expansion is this guard's only recursive path, and it BRANCHES: every
 # hop re-checks both alias spellings (`alias.<sub>` and `alias.<sub>.command`)
@@ -515,7 +516,7 @@ check_segment() {
           [[ -n "$seg_dir" ]] || seg_dir="$(effective_dir "${w[@]:0:sub_idx}")"
           collect_locating_globals "${w[@]:0:sub_idx}"
           repo_identity "$seg_dir" ${locating_globals[@]+"${locating_globals[@]}"} ||
-            block_unresolvable_dir "$seg_dir"
+            HOOK_REPO_IDENTITY="$seg_dir"
           HOOK_ALIAS_SEEN=()
           HOOK_EFFECTIVE_BASE="$HOOK_REPO_IDENTITY"
           alias_reexpand_admit shell "$reparse" &&
@@ -567,7 +568,7 @@ check_segment() {
           local pkey pseen_hit=0
           collect_locating_globals "${w[@]:0:sub_idx}"
           repo_identity "$seg_dir" ${locating_globals[@]+"${locating_globals[@]}"} ||
-            block_unresolvable_dir "$seg_dir"
+            HOOK_REPO_IDENTITY="$seg_dir"
           pkey="$HOOK_REPO_IDENTITY"$'\n'"$sub="$'\n'"$pexp"
           for s in ${HOOK_SHELL_ALIAS_SEEN[@]+"${HOOK_SHELL_ALIAS_SEEN[@]}"}; do
             [[ "$s" == "$pkey" ]] && {
