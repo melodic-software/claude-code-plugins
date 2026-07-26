@@ -405,6 +405,20 @@ if git clone -q --no-local --depth 1 "$REPO" "$SHALLOW_REPO" >/dev/null 2>&1 &&
   OUT=$(CLAUDE_PROJECT_DIR="$SHALLOW_REPO" bash "$HOOK" \
     <<<"$(write_json "$SHALLOW_TARGET" 'The spoke is `plugins/re-anchor/context/re-anchor-audit-correct.md`.')" 2>&1)
   assert_silent "shallow clone → notice is once per session, not per write" "$OUT"
+
+  # The notice is once-per-session but telemetry is per-run, and a sink reading
+  # `ok` here would record an un-run check as a healthy one — the same
+  # looks-healthy-while-inert failure the visible notice exists to prevent.
+  SHALLOW_TEL="$(mktemp -p "$TEST_TMPDIR")"
+  SHALLOW_SINK="$(make_sink "cat >\"$SHALLOW_TEL\"")"
+  CLAUDE_PROJECT_DIR="$SHALLOW_REPO" HOOK_TELEMETRY_SINK="$SHALLOW_SINK" \
+    bash "$HOOK" <<<"$(write_json "$SHALLOW_TARGET" 'The spoke is `plugins/re-anchor/context/re-anchor-audit-correct.md`.')" >/dev/null 2>&1 || true
+  if wait_for_sink "$SHALLOW_TEL"; then
+    assert_contains "shallow clone → telemetry status skipped, not ok" \
+      "$(jq -r '.status' "$SHALLOW_TEL")" "skipped"
+  else
+    bad "shallow clone: no telemetry envelope written"
+  fi
 else
   bad "shallow clone: fixture could not be built"
 fi

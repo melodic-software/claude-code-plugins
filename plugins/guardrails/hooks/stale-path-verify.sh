@@ -364,7 +364,12 @@ emit_tel() {
   data=$(jq -n --arg file "$file_rel" --argjson findings "$findings_json" \
     '{tool:"",file:$file,findings:$findings}' 2>/dev/null) ||
     data='{"tool":"","file":"","findings":[]}'
-  hook::emit_telemetry "stale-path-verify" "PostToolUse" "ok" "$start" "$data" "$REPO_ROOT"
+  # $1 is the envelope status, defaulting to a completed check. The degradation
+  # branches pass `skipped`: they run when the deleted-path oracle was unavailable,
+  # and reporting `ok` there would make a sink read an un-run check as a healthy
+  # one — the truncated-history failure looking exactly like a clean scan is the
+  # thing this guard already refuses to do on the user-visible path.
+  hook::emit_telemetry "stale-path-verify" "PostToolUse" "${1:-ok}" "$start" "$data" "$REPO_ROOT"
 }
 
 if ((SHALLOW)) && ((ABSENT)); then
@@ -372,7 +377,7 @@ if ((SHALLOW)) && ((ABSENT)); then
     hook::emit_skip_notice PostToolUse \
       "stale-path-verify: this clone is shallow, so the deleted-path history it reads is truncated and the guard cannot adjudicate. Run \`git fetch --unshallow\` to restore it."
   fi
-  emit_tel
+  emit_tel skipped
   exit 0
 fi
 
@@ -381,7 +386,7 @@ if ((WALK_FAILED)) && ((ABSENT)); then
     hook::emit_skip_notice PostToolUse \
       "stale-path-verify: the deleted-path history walk exited nonzero, so the set it reads is incomplete and the guard cannot adjudicate. Run \`git log --diff-filter=D --name-only\` to see why — a partial clone missing objects offline and a damaged object store are the usual causes."
   fi
-  emit_tel
+  emit_tel skipped
   exit 0
 fi
 

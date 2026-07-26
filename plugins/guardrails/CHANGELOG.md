@@ -97,6 +97,18 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   guards" and "four advisory guards", and the kill-switch table omitted
   `block-convention-violation` and `skill-reference-verify` while both were
   wired and toggleable.
+- The guard is registered as a hook-telemetry producer:
+  `docs/conventions/hook-telemetry/data/stale-path-verify.schema.json` publishes
+  its `data` payload and the convention's implementer table carries the row.
+  Under the convention's discovery contract a sink treats a hook with no
+  matching schema as unknown and ignores its `data`, so an unpublished producer
+  emits telemetry nothing can consume (review-caught).
+- The two degradation branches emit telemetry `status: skipped` rather than
+  `ok`. They run precisely when the deleted-path oracle was unavailable, so
+  reporting `ok` made a sink read an un-run check as a healthy one — the same
+  looks-healthy-while-inert failure the visible prerequisite notice exists to
+  prevent, reintroduced on the observability surface. A behavioral case pins the
+  shallow-clone branch's status (review-caught).
 
 ## [0.16.3]
 
