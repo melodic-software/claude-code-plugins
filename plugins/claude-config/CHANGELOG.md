@@ -3,6 +3,44 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.14.0]
+
+### Added
+
+- **"Scope of a Read deny" in `audit`'s `reference/required-permissions.md`.** The
+  `sensitive-file-deny` table recommended `Read(./.env)` / `Read(./secrets/**)` /
+  `Read(./.claude/settings.local.json)` with no statement of what a `Read` deny actually reaches, so a
+  reader came away believing the file was protected. The new subsection splits covered from not
+  covered against current official docs: the rule reaches the built-in file tools (Read, Grep, Glob,
+  LSP), `@file` mentions, IDE selection context, Edit on the same path, **and the file commands Claude
+  Code recognizes inside a Bash command such as `cat`, `head`, `tail`, and `sed`** — but *not* an
+  arbitrary subprocess that opens the path itself, which is how a `python -c` or `node -e` one-liner
+  reads a denied file with no deny firing. Remedies are ranked rather than listed: the sandbox
+  (`sandbox.filesystem.denyRead`, `sandbox.credentials.files` with `"mode": "deny"`) is the documented
+  OS-level enforcement path, carrying the platform limit that it does not run on native Windows; a
+  `PreToolUse` hook on `Bash|PowerShell` is explicitly a speed bump, not a boundary, because it
+  inspects the same evadable command string; and where no OS-level boundary exists the durable control
+  is keeping the secret out of the session's reach at all. Enumerating shell readers as `Bash(cat *)`
+  deny globs is named as a non-remedy, since upstream documents argument-constraining Bash patterns as
+  fragile. Two facts are flagged unverified rather than asserted: whether PowerShell-tool reads
+  (`Get-Content`, `type`) are covered at all, and the full membership of the recognized-command set,
+  which upstream gives with "such as".
+- **Eval 7 on the `audit` skill (`read-deny-scope-not-overstated`).** Asks whether present deny
+  patterns mean the secrets are protected; expects the scope split, the ranked remedies, and no
+  `Bash(cat *)` enumeration.
+
+### Changed
+
+- **Category B now reports the secret-file Read denies with their scope.** `SKILL.md`'s "Required
+  permission patterns" section routes the finding write-up through the new subsection, in both
+  directions — a present baseline is not reported as proof the file is unreachable.
+- **`context/procedures.md` no longer implies its own `settings.local.json` recipes escape the
+  baseline deny.** It now states that the safety is in what gets emitted, not what gets opened:
+  `check-structure.sh` reads the file from a subprocess and is safe because it emits counts only,
+  while the supplemental `cat … | jq` recipes are blocked in a project carrying the recommended deny —
+  correctly so. Routing around that block with an interpreter one-liner is prohibited; the audit
+  reports the file as not inspectable under the project's own rule instead.
+
 ## [0.13.0]
 
 ### Added

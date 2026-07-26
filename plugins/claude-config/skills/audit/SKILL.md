@@ -205,6 +205,13 @@ concrete list is in [reference/required-permissions.md](reference/required-permi
 with a stricter posture declare their additional required patterns in their own rules files — when the
 consuming repo documents such a list, include it in the Category B check.
 
+Report the secret-file Read denies with their scope, not as protection: a `Read(...)` deny covers the
+built-in file tools and the Bash file commands Claude Code recognizes, but not a subprocess that opens
+the path itself. "Scope of a Read deny" in
+[reference/required-permissions.md](reference/required-permissions.md) carries the covered /
+not-covered split, the ranked remedies, and the platform limit — carry it into the finding rather than
+implying the file is unreachable.
+
 CC settings schema, MCP server shape, hook event names, and permission glob syntax are upstream
 invariants documented at [code.claude.com/docs/en/settings](https://code.claude.com/docs/en/settings)
 and audited via the Phase 3 live doc fetch rather than asserted as fixed patterns here.

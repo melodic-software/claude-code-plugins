@@ -8,6 +8,16 @@ secrets (Phase 1), and which findings the skill may auto-fix vs which need judgm
 Treat the file as secret-bearing regardless of deny rules. Run `check-structure.sh` first;
 supplemental jq: below.
 
+The safety here is *what gets emitted*, not what gets opened. `check-structure.sh` opens the file from
+inside a subprocess, which a `Read(...)` deny does not cover — it is safe because it emits counts and
+never values. The `cat … | jq` recipes below go the other way: `cat` is a file command Claude Code
+recognizes in Bash, so a project carrying the baseline `Read(./.claude/settings.local.json)` deny will
+block them. That is the correct outcome — do not route around it with an interpreter one-liner
+(`python -c`, `node -e`) to dump content the sanctioned script will not emit. Take the counts
+`check-structure.sh` gives you, and where a check genuinely needs more, report it as not inspectable
+under the project's own deny rule. See "Scope of a Read deny" in
+[reference/required-permissions.md](../reference/required-permissions.md).
+
 ```bash
 # Key inventory (no values)
 cat .claude/settings.local.json | tr -d '\r' | jq 'keys'

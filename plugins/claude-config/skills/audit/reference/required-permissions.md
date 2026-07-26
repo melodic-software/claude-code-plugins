@@ -31,6 +31,63 @@ tree.
 | `Read(**/*.pem)` | Block reading PEM certificate/key files anywhere in tree |
 | `Read(**/id_rsa)` | Block reading SSH private keys |
 
+### Scope of a Read deny — what it covers, and what it does not
+
+These entries are a guardrail against routine access, not a containment boundary. Category B checks
+that the rules are present; presence is not evidence the file is unreachable. Say so whenever the
+category is reported, in either direction. Verified 2026-07-26 against
+[permissions](https://code.claude.com/docs/en/permissions#read-and-edit),
+[sandboxing](https://code.claude.com/docs/en/sandboxing), and
+[tools reference](https://code.claude.com/docs/en/tools-reference#powershell-tool).
+
+**Covered.** A `Read(...)` deny applies to the built-in file tools (Read, Grep, Glob, LSP), to
+`@file` mentions in a prompt, to the selection and open-file context a connected IDE shares, to the
+Edit tool on the same path (CC v2.1.208+), and — per the permissions page — to *file commands Claude
+Code recognizes inside a Bash command, such as `cat`, `head`, `tail`, and `sed`*. The obvious
+"`cat` it instead" fallback is therefore blocked.
+
+**Not covered.** The same page: the rules "don't apply to arbitrary subprocesses that read or write
+files indirectly, like a Python or Node script that opens files itself." A `python -c`, a `node -e`,
+or any script that opens the path reads a `Read`-denied file with no deny firing. That is the real
+gap, and it is reached *routinely* — an agent blocked on `Read` reaches for an interpreter one-liner
+as an ordinary next step, not as an attack. This plugin's own `scripts/check-structure.sh` is an
+instance: it opens `settings.local.json` from inside a subprocess, and its safety comes from emitting
+only counts, never from the deny rule.
+
+**Do not try to close the gap with `Bash(...)` deny globs.** The permissions page warns that "Bash
+permission patterns that try to constrain command arguments are fragile", and the set of programs
+that can open a file is unbounded. Enumerating readers relocates the false confidence instead of
+removing it. Never propose a `Bash(cat *)`-style enumeration as the remedy here.
+
+**The documented enforcement path is the sandbox**, which the OS enforces on every Bash command and
+its child processes: `sandbox.filesystem.denyRead`, or `sandbox.credentials.files` entries with
+`"mode": "deny"`. Read/Edit deny rules and `sandbox.filesystem` paths merge into the final sandbox
+boundary. The sandbox's default read policy still allows credential files such as `~/.aws/credentials`
+and `~/.ssh/` unless they are listed.
+
+**Platform limit — check before recommending it.** The sandbox runs on macOS, Linux, and WSL2; native
+Windows is not supported, and the PowerShell tool lists "On Windows, sandboxing is not supported"
+among its preview limitations. On a native-Windows workstation the OS-level remedy is unavailable, so
+do not offer it there as the fix.
+
+**A `PreToolUse` hook on `Bash|PowerShell` is a speed bump, not a boundary.** It can inspect the
+command string and deny the call, and a hook exiting 2 blocks the call before permission rules are
+evaluated. But it inspects that same command string, so it inherits the evasion surface of a Bash
+deny glob. Rank it below the sandbox and never describe it as protection.
+
+**Residual risk, stated plainly.** Where no OS-level boundary is available, a deny glob cannot keep a
+secret from a session that has shell execution. The durable control is to put the secret out of the
+session's reach — outside the working directory and `additionalDirectories`, in an OS credential
+store or a secrets manager, injected at use time rather than sitting in a readable file. Keep the
+deny rules above; do not report them as proof the file is protected.
+
+**Unverified — flag it rather than asserting either way.** No fetched page states whether reads
+through the **PowerShell tool** (`Get-Content`, `type`) are covered: the permissions page scopes the
+recognized-command coverage to commands "in Bash", and the tools reference lists `Read(...)` as
+applying to "Read, Grep, Glob, LSP". Treat PowerShell reads as uncovered until upstream says
+otherwise. The recognized-command list is also introduced with "such as" and is not exhaustive, so
+`grep`, `jq`, `strings`, and shell redirects are unconfirmed in both directions.
+
 ## destructive-bash-deny (Bash deny)
 
 Bash deny patterns for destructive git operations — the universal baseline.
