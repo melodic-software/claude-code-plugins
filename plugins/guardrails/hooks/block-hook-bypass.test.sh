@@ -398,7 +398,7 @@ run "kill switch off → no-op despite cat > file" "cat > foo.txt" 0 \
   CLAUDE_PLUGIN_OPTION_BLOCK_HOOK_BYPASS_ENABLED=false
 
 # --- Telemetry: block emits a `blocked` envelope ----------------------------
-TEL="$(mktemp -p "$TEST_TMPDIR")"
+TEL="$(mktemp "$TEST_TMPDIR/tmp.XXXXXXXXXX")"
 SINK="$(make_sink "cat >\"$TEL\"")"
 env HOOK_TELEMETRY_SINK="$SINK" CLAUDE_PROJECT_DIR="$TEST_TMPDIR" \
   bash "$HOOK" <<<"$(command_json 'cat > foo.txt')" >/dev/null 2>&1 || true
@@ -459,7 +459,7 @@ run_pwsh "PS: sc start service (sc.exe, allowed)" "sc start W32Time" 0
 # quoted-writer-call parity.
 run_pwsh "PS: write alias (Write-Output) > file (blocked)" "write secret > creds.txt" 2
 run_pwsh "PS: module-qualified Set-Content (blocked)" \
-  "Microsoft.PowerShell.Management\\Set-Content -Path f.txt -Value x" 2
+  "Microsoft.PowerShell.Management\\Set-Content -Path f.txt -Value x" 2 # portability-ok: PowerShell module-qualified command string in a test fixture, not a regex/sed construct
 run_pwsh "PS: parenthesized literal > file (blocked)" "('secret') > creds.txt" 2
 run_pwsh "PS: parenthesized Write-Output > file (blocked)" "(Write-Output secret) > creds.txt" 2
 run_pwsh "PS: parenthesized tool output > file (allowed — producer is the tool)" \
@@ -469,7 +469,7 @@ run_pwsh "PS: & 'Set-Content' quoted writer call (blocked)" \
 run_pwsh "PS: & 'Invoke-Expression' quoted (blocked)" \
   "& 'Invoke-Expression' 'Set-Content f x'" 2
 run_pwsh "PS: & quoted non-writer program path (allowed)" \
-  "& 'C:\\tools\\build.exe' arg" 0
+  "& 'C:\\tools\\build.exe' arg" 0 # portability-ok: Windows path string in a test fixture, not a regex/sed construct
 # Review round 5: expression-valued producers and computed call targets.
 run_pwsh "PS: numeric expression > file (blocked)" "36 > out.txt" 2
 run_pwsh "PS: cast expression > file (blocked)" "[char]65 > out.txt" 2
@@ -596,9 +596,9 @@ run_pwsh "PS: & '\$x' single-quoted literal target (allowed)" \
 
 # Review round 8: module-qualified producer heads.
 run_pwsh "PS: module-qualified Write-Output > file (blocked)" \
-  "Microsoft.PowerShell.Utility\\Write-Output secret > f.txt" 2
+  "Microsoft.PowerShell.Utility\\Write-Output secret > f.txt" 2 # portability-ok: PowerShell module-qualified command string in a test fixture, not a regex/sed construct
 run_pwsh "PS: module-qualified Write-Error 2> file (blocked)" \
-  "Microsoft.PowerShell.Utility\\Write-Error secret 2> f.txt" 2
+  "Microsoft.PowerShell.Utility\\Write-Error secret 2> f.txt" 2 # portability-ok: PowerShell module-qualified command string in a test fixture, not a regex/sed construct
 
 # The block message is shell-agnostic (no 'Bash' assumption).
 psout=$(bash "$HOOK" <<<"$(pwsh_command_json "Set-Content f.txt 'x'")" 2>&1)

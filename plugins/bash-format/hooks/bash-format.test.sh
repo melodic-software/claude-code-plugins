@@ -49,7 +49,7 @@ trap cleanup EXIT
 # single executable path, not a command-with-args, so tests point it at a stub.
 make_sink() {
   local s
-  s="$(mktemp -p "$WORK" sink.XXXXXX)"
+  s="$(mktemp "$WORK/sink.XXXXXX")"
   {
     printf '#!/usr/bin/env bash\n'
     printf '%s\n' "$1"
@@ -285,7 +285,7 @@ fi
 # the plain-`-w` fallback must still format. A stub shfmt that REJECTS
 # --apply-ignore (simulating < 3.8) but formats on plain -w proves the fallback
 # runs. Independent of the host's real shfmt: the stub is prepended to PATH.
-STUBDIR="$(mktemp -d -p "$WORK" shfmtstub.XXXXXX)"
+STUBDIR="$(mktemp -d "$WORK/shfmtstub.XXXXXX")"
 cat >"$STUBDIR/shfmt" <<'STUB'
 #!/usr/bin/env bash
 # Simulate shfmt < 3.8: --apply-ignore is an unknown flag -> fail, no format.
@@ -370,7 +370,7 @@ rm -f "$TELC"
 # --- Missing-tool visibility (dim-9 doctrine) --------------------------------
 # Fake-bin dir of exec wrappers so individual tools can be removed from PATH
 # without losing the coreutils the hook and the notice dedup need.
-FAKEBIN="$(mktemp -d -p "$WORK" fakebin.XXXXXX)"
+FAKEBIN="$(mktemp -d "$WORK/fakebin.XXXXXX")"
 for t in bash jq git dirname basename cat env printf mktemp mkdir find tr awk grep sed uname sleep cygpath realpath readlink shellcheck shfmt; do
   real_t="$(command -v "$t" 2>/dev/null)" || continue
   [[ -n "$real_t" ]] || continue
@@ -380,7 +380,7 @@ done
 
 # ShellCheck absent -> visible once-per-session notice on both channels.
 rm -f "$FAKEBIN/shellcheck" "$FAKEBIN/shfmt"
-SC_DATA="$(mktemp -d -p "$WORK" plugdata.XXXXXX)"
+SC_DATA="$(mktemp -d "$WORK/plugdata.XXXXXX")"
 run_no_tools() {
   (
     cd "$UNRELATED" || return 1
@@ -419,7 +419,7 @@ indent_style = space
 indent_size = 2
 EOF
 printf '#!/bin/bash\ncd /tmp\necho done\n' >"$REPO_MIX/finding.sh"
-MIX_DATA="$(mktemp -d -p "$WORK" plugdata.XXXXXX)"
+MIX_DATA="$(mktemp -d "$WORK/plugdata.XXXXXX")"
 OUT_MIX=$(
   cd "$UNRELATED" || exit 1
   printf '{"session_id":"test-mix-1","tool_input":{"file_path":"%s"},"tool_name":"Write"}' "$REPO_MIX/finding.sh" |
@@ -445,7 +445,7 @@ fi
 
 # jq-absent -> visible once-per-session notice (input parsing gate).
 rm -f "$FAKEBIN/jq"
-JQ_DATA="$(mktemp -d -p "$WORK" plugdata.XXXXXX)"
+JQ_DATA="$(mktemp -d "$WORK/plugdata.XXXXXX")"
 OUT_NOJQ=$(
   cd "$UNRELATED" || exit 1
   printf '{"session_id":"test-nojq-1","tool_input":{"file_path":"%s"},"tool_name":"Write"}' "$REPO/clean.sh" |
@@ -460,7 +460,7 @@ else
 fi
 # Out-of-scope edit (a .md file) with jq absent -> fully silent: the jq-free
 # applicability pre-filter must run before the jq gate.
-JQ_DATA2="$(mktemp -d -p "$WORK" plugdata.XXXXXX)"
+JQ_DATA2="$(mktemp -d "$WORK/plugdata.XXXXXX")"
 OUT_OOS=$(
   cd "$UNRELATED" || exit 1
   printf '{"session_id":"test-oos-1","tool_input":{"file_path":"%s"},"tool_name":"Write"}' "$REPO/README.md" |

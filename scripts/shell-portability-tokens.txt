@@ -150,6 +150,15 @@ sed[^\n]*-i[[:space:]]+[^[:space:]]
 # (e.g. two unconditional statements in sequence) still flags.
 readlink[[:space:]]+(-[A-Za-z]*f|--canonicalize)
 
+# `mktemp -p` (parent-directory flag) — a GNU coreutils extension; BSD/macOS
+# mktemp has no `-p`. The portable replacement embeds the directory in the
+# positional TEMPLATE argument instead (`mktemp "$DIR/prefix.XXXXXX"`), which
+# both dialects accept identically — see #1527, which migrated the corpus's
+# shared hook-test-scaffolding sites off `-p` before this class went active.
+# `p` may appear anywhere in a combined short-option cluster (`-dp`, `-pd`),
+# not only as a standalone `-p`.
+mktemp[^\n]*[[:space:]]-[A-Za-z]*p[A-Za-z]*([[:space:]]|$)
+
 # --- STAGED (commented until enabled — see #1510 for the enable trigger) ---
 #
 # Before enabling ANY staged class below:
@@ -171,10 +180,3 @@ readlink[[:space:]]+(-[A-Za-z]*f|--canonicalize)
 #     have no BSD fallback at all — real, currently-unfixed gaps a member
 #     issue should own before this class gates new touches to those files.
 # stat[^\n]*[[:space:]]-c
-#
-#   - `mktemp -p`: ~20 sites today, all shared test-scaffolding
-#     (`mktemp -p "$WORK" sink.XXXXXX`), none with a BSD-portable counterpart
-#     (BSD mktemp has no `-p`; the portable form is `mktemp
-#     "$WORK/sink.XXXXXX"` or `TMPDIR="$WORK" mktemp sink.XXXXXX`) — a real
-#     migration effort, not a one-line guard.
-# mktemp[^\n]*[[:space:]]-p([[:space:]]|$)

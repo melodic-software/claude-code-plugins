@@ -409,7 +409,7 @@ if git clone -q --no-local --depth 1 "$REPO" "$SHALLOW_REPO" >/dev/null 2>&1 &&
   # The notice is once-per-session but telemetry is per-run, and a sink reading
   # `ok` here would record an un-run check as a healthy one — the same
   # looks-healthy-while-inert failure the visible notice exists to prevent.
-  SHALLOW_TEL="$(mktemp -p "$TEST_TMPDIR")"
+  SHALLOW_TEL="$(mktemp "$TEST_TMPDIR/tmp.XXXXXXXXXX")"
   SHALLOW_SINK="$(make_sink "cat >\"$SHALLOW_TEL\"")"
   CLAUDE_PROJECT_DIR="$SHALLOW_REPO" HOOK_TELEMETRY_SINK="$SHALLOW_SINK" \
     bash "$HOOK" <<<"$(write_json "$SHALLOW_TARGET" 'The spoke is `plugins/re-anchor/context/re-anchor-audit-correct.md`.')" >/dev/null 2>&1 || true
@@ -520,7 +520,7 @@ assert_absent "history walk does not read --all" "$HOOK_SRC" 'log --all'
 
 # ============================ TELEMETRY =====================================
 
-TEL="$(mktemp -p "$TEST_TMPDIR")"
+TEL="$(mktemp "$TEST_TMPDIR/tmp.XXXXXXXXXX")"
 SINK="$(make_sink "cat >\"$TEL\"")"
 CLAUDE_PROJECT_DIR="$REPO" HOOK_TELEMETRY_SINK="$SINK" \
   bash "$HOOK" <<<"$(write_json "$TARGET" 'Cite `plugins/re-anchor/context/re-anchor-audit-correct.md`.')" >/dev/null 2>&1 || true

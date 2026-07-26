@@ -682,10 +682,10 @@ else
   fail "markdown-format.sh must stay clean under the shipped token list, got: $out"
 fi
 
-# --- staged (commented) classes stay inactive under the shipped list -------
-f="$(tmpsh 'x=$(date -d "$s" +%s); y=$(stat -c%s "$f"); t=$(mktemp -p "$d")')"
+# --- remaining staged (commented) classes stay inactive under the shipped list
+f="$(tmpsh 'x=$(date -d "$s" +%s); y=$(stat -c%s "$f")')"
 if scan_paths "$REAL_TOKENS" "$f" >/dev/null 2>&1; then
-  ok "staged classes (date -d, stat -c, mktemp -p) are inactive in the shipped list"
+  ok "remaining staged classes (date -d, stat -c) are inactive in the shipped list"
 else
   fail "shipped list should only enforce the active classes"
 fi
@@ -708,6 +708,31 @@ elif [[ "$(echo "$out" | grep -c "PORTABILITY: ${f}:")" -eq 5 ]] &&
   ok "the shipped list detects every sort long form and spares git tag --sort=<key>"
 else
   fail "expected hits on lines 1-5 only, got: $out"
+fi
+rm -f "$f"
+
+# --- mktemp -p is now ACTIVE (#1527) ----------------------------------------
+f="$(tmpsh 't=$(mktemp -p "$d")')"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "shipped list should flag mktemp -p now that it is active: $out"
+else
+  ok "shipped list flags mktemp -p (active class, #1527)"
+fi
+rm -f "$f"
+
+f="$(tmpsh 't=$(mktemp -dp "$d" tmp.XXXXXX)'; )"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "shipped list should flag mktemp -dp combined cluster: $out"
+else
+  ok "shipped list flags mktemp -dp combined short-option cluster"
+fi
+rm -f "$f"
+
+f="$(tmpsh 't=$(mktemp "$d/tmp.XXXXXX")'; )"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  ok "the portable mktemp \"\$DIR/template\" form (no -p) is not flagged"
+else
+  fail "the portable mktemp form should not be flagged, got: $out"
 fi
 rm -f "$f"
 

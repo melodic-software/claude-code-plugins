@@ -51,7 +51,7 @@ file="$2"
 
 # MD004 fix: the consumer fixture requires dash list markers.
 if grep -q '^\* ' "$file"; then
-  sed -i 's/^\* /- /' "$file"
+  sed -i 's/^\* /- /' "$file" # portability-ok: pre-existing markdownlint-cli2 stub fixture, unsuffixed sed -i predates #1527's mktemp -p scope; tracked in #1540
 fi
 
 # MD047 fix: add a final newline while preserving an existing CRLF style.
@@ -95,7 +95,7 @@ export PATH
 # so tests point it at a stub script. Stubs live under $WORK so the trap reaps them.
 make_sink() {
   local s
-  s="$(mktemp -p "$WORK" sink.XXXXXX)"
+  s="$(mktemp "$WORK/sink.XXXXXX")"
   {
     printf '#!/usr/bin/env bash\n'
     printf '%s\n' "$1"
@@ -475,7 +475,7 @@ fi
 if [[ "$ESCAPE_LINK_CREATED" == true ]]; then
   # Fresh CLAUDE_PLUGIN_DATA: the skip notice is once-per-session, so an
   # inherited data dir with a prior marker would suppress it and fail the assert.
-  PD_ESCAPE="$(mktemp -d -p "$WORK" pd.XXXXXX)"
+  PD_ESCAPE="$(mktemp -d "$WORK/pd.XXXXXX")"
   OUT_ESCAPE="$(cd "$UNRELATED" && printf '{"tool_input":{"file_path":"%s"}}' "$FA" |
     env -u CLAUDE_PROJECT_DIR BASH_ENV="$NO_MDLINT_ENV" CLAUDE_PLUGIN_DATA="$PD_ESCAPE" CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true bash "$HOOK")"
   RC_ESCAPE=$?
@@ -501,7 +501,7 @@ fi
 # --- Missing markdownlint: visible advisory, never npx ----------------------
 # With neither PATH nor a contained local binary available, the hook must not
 # invoke the package runner (which could fetch from the network).
-PD_NO_MDLINT="$(mktemp -d -p "$WORK" pd.XXXXXX)"
+PD_NO_MDLINT="$(mktemp -d "$WORK/pd.XXXXXX")"
 OUT_NO_MDLINT="$(cd "$UNRELATED" && printf '{"tool_input":{"file_path":"%s"}}' "$FA" |
   env -u CLAUDE_PROJECT_DIR BASH_ENV="$NO_MDLINT_ENV" CLAUDE_PLUGIN_DATA="$PD_NO_MDLINT" CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true bash "$HOOK")"
 RC_NO_MDLINT=$?
@@ -523,7 +523,7 @@ command() {
   builtin command "$@"
 }
 EOF
-PD_NO_JQ="$(mktemp -d -p "$WORK" pd.XXXXXX)"
+PD_NO_JQ="$(mktemp -d "$WORK/pd.XXXXXX")"
 OUT_NO_JQ="$(cd "$UNRELATED" && printf '{"tool_input":{"file_path":"%s"}}' "$FA" |
   env -u CLAUDE_PROJECT_DIR BASH_ENV="$NO_JQ_ENV" CLAUDE_PLUGIN_DATA="$PD_NO_JQ" CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true bash "$HOOK")"
 RC_NO_JQ=$?

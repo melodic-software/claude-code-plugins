@@ -3,6 +3,12 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.17.2]
+
+### Changed
+
+- **Test scaffolding: migrated `mktemp -p` temp file/dir creation to the portable `mktemp "$DIR/template"` form.** BSD/macOS `mktemp` has no `-p` flag; the directory now rides in the positional TEMPLATE argument instead, which both GNU and BSD `mktemp` accept identically. Test-only — no hook behavior change. Part of #1527 (`block-dangerous-git.test.sh`, `block-hook-bypass.test.sh`, `block-no-verify.test.sh`, `cli-flag-verify.test.sh`, `flag-commit-pr-skill-bypass.test.sh`, `guardrails-test-helpers.sh`, `hardcoded-path-check.test.sh`, `secret-pattern-detection.test.sh`, `skill-reference-verify.test.sh`, `stale-path-verify.test.sh`, `workflow-resilience-check.test.sh`).
+
 ## [0.17.1]
 
 ### Fixed
