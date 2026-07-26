@@ -123,28 +123,38 @@ allowed() {
 # conflict resolution driven at another repo via `-C` reads the WRONG repo's
 # state — the sequencer probe and the alias lookup would both answer for the
 # session cwd instead of the repo actually being committed to.
-# Value of an explicit `--git-dir` (attached or separated), empty when absent.
-# A commit driven with --git-dir concludes a sequencer in THAT git dir, so
-# probing the cwd's state would refuse to exempt a real in-progress merge.
+# Value of a named git global (attached `--opt=v` or separated `--opt v`), empty
+# when absent. One extractor for every locating global rather than a loop per
+# option — `explicit_git_dir` below is the original caller, and the alias-identity
+# probe needs `--work-tree` through the same shape.
+# Call as: explicit_global <option-name-without-dashes> <invocation-prefix words...>
 # shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
-explicit_git_dir() {
+explicit_global() {
+  local opt="--$1"
+  shift
   local i n=$# arg
   local -a a=("$@")
   for ((i = 0; i < n; i++)); do
     arg="${a[i]}"
     case "$arg" in
-    --git-dir)
+    "$opt")
       ((i + 1 < n)) && printf '%s' "${a[i + 1]}"
       return 0
       ;;
-    --git-dir=*)
-      printf '%s' "${arg#--git-dir=}"
+    "$opt"=*)
+      printf '%s' "${arg#"$opt"=}"
       return 0
       ;;
     *) ;;
     esac
   done
 }
+
+# Value of an explicit `--git-dir` (attached or separated), empty when absent.
+# A commit driven with --git-dir concludes a sequencer in THAT git dir, so
+# probing the cwd's state would refuse to exempt a real in-progress merge.
+# shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
+explicit_git_dir() { explicit_global git-dir "$@"; }
 
 # Canonical identity of the repository a composed `-C` path lands in, as GIT
 # resolves it. This guard does not model git's path semantics anywhere — it asks
@@ -165,24 +175,53 @@ explicit_git_dir() {
 # repository all collapse to a single identity, which is what lets the
 # shell-alias cycle key below detect a repeat instead of walking forever.
 #
-# Empty means git could not answer — no such directory, or no work tree. Callers
-# on the alias-walk path FAIL CLOSED on empty: a guard that cannot determine
+# The invocation's LOCATING globals are replayed onto the probe, not just its `-C`.
+# `--git-dir` and `--work-tree` locate a repository as surely as `-C` does (git's
+# own usage lists both as globals before `<command>`), so asking without them
+# answered "no work tree" for a perfectly locatable one: `git --git-dir=<r>/.git
+# --work-tree=<r> -c alias.a='!git commit -F -' a` run outside a tree resolved to
+# nothing and the fail-closed path refused a VALID canonical commit. Replaying them
+# keeps the ask-git property — `git --git-dir=X --work-tree=Y rev-parse
+# --show-toplevel` is still git's own answer, not a reconstruction of one.
+#
+# Empty means git could not answer — no such directory, or genuinely no work tree.
+# Callers on the alias-walk path FAIL CLOSED on empty: a guard that cannot determine
 # which repository a command will execute in must not allow it. Nothing off that
 # path calls this, so an ordinary `git commit -F -` never pays a fork.
 #
-# Cached per literal path (the fork is the expensive step, and a static guard
-# never moves a repository mid-analysis). Published in a global and assigned by a
-# PLAIN call, never `$(…)`: a command substitution would run it in a subshell and
+# Cached per (path + replayed globals), since the same path under a different
+# --git-dir is a different question. The fork is the expensive step and a static
+# guard never moves a repository mid-analysis. Published in a global and assigned by
+# a PLAIN call, never `$(…)`: a command substitution would run it in a subshell and
 # discard the cache.
+# Call as: repo_identity <dir> [locating-global...]
 declare -A _repo_identity=()
 HOOK_REPO_IDENTITY=""
 # shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
 repo_identity() {
-  local dir="$1"
-  [[ -n "${_repo_identity[$dir]+x}" ]] ||
-    _repo_identity["$dir"]=$(git -C "$dir" rev-parse --show-toplevel 2>/dev/null | tr -d '\r')
-  HOOK_REPO_IDENTITY="${_repo_identity[$dir]}"
+  local dir="$1" key
+  shift
+  key="$dir"$'\n'"$*"
+  [[ -n "${_repo_identity[$key]+x}" ]] ||
+    _repo_identity["$key"]=$(git -C "$dir" "$@" rev-parse --show-toplevel 2>/dev/null | tr -d '\r')
+  HOOK_REPO_IDENTITY="${_repo_identity[$key]}"
   [[ -n "$HOOK_REPO_IDENTITY" ]]
+}
+
+# The locating globals carried by an invocation prefix, as an argv array ready to
+# replay onto a git probe. Only the two that locate a repository without being a
+# path composed into the base — `-C` is already folded into effective_dir, so
+# replaying it here would apply it twice.
+# Call as: collect_locating_globals <invocation-prefix words...> -> $locating_globals
+# shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
+collect_locating_globals() {
+  local v
+  locating_globals=()
+  v=$(explicit_global git-dir "$@")
+  [[ -n "$v" ]] && locating_globals+=("--git-dir=$v")
+  v=$(explicit_global work-tree "$@")
+  [[ -n "$v" ]] && locating_globals+=("--work-tree=$v")
+  return 0
 }
 
 # The base is HOOK_EFFECTIVE_BASE, not the payload cwd directly, because a `!`
@@ -361,6 +400,8 @@ check_segment() {
   # only where a path is actually needed — a segment carrying no alias and no
   # commit must not pay effective_dir's subshell.
   local seg_dir=""
+  # Locating globals this invocation carries, replayed onto the identity probe.
+  local -a locating_globals=()
 
   # A shell -c wrapper (`bash -lc 'git commit -m x'`) executes its operand as a
   # full shell command — re-parse it with the same tokenizer.
@@ -450,7 +491,9 @@ check_segment() {
           reparse="${exp#!}"
           for a in "${w[@]:sub_idx+1}"; do reparse+=" $(printf '%q' "$a")"; done
           [[ -n "$seg_dir" ]] || seg_dir="$(effective_dir "${w[@]:0:sub_idx}")"
-          repo_identity "$seg_dir" || block_unresolvable_dir "$seg_dir"
+          collect_locating_globals "${w[@]:0:sub_idx}"
+          repo_identity "$seg_dir" ${locating_globals[@]+"${locating_globals[@]}"} ||
+            block_unresolvable_dir "$seg_dir"
           HOOK_ALIAS_SEEN=()
           HOOK_EFFECTIVE_BASE="$HOOK_REPO_IDENTITY"
           alias_reexpand_admit shell "$reparse" &&
@@ -500,7 +543,9 @@ check_segment() {
           # the directory forever (`-C .`) never repeats a key, so termination
           # there rests on the fail-closed traversal budget, not on this set.
           local pkey pseen_hit=0
-          repo_identity "$seg_dir" || block_unresolvable_dir "$seg_dir"
+          collect_locating_globals "${w[@]:0:sub_idx}"
+          repo_identity "$seg_dir" ${locating_globals[@]+"${locating_globals[@]}"} ||
+            block_unresolvable_dir "$seg_dir"
           pkey="$HOOK_REPO_IDENTITY"$'\n'"$sub="$'\n'"$pexp"
           for s in ${HOOK_SHELL_ALIAS_SEEN[@]+"${HOOK_SHELL_ALIAS_SEEN[@]}"}; do
             [[ "$s" == "$pkey" ]] && {

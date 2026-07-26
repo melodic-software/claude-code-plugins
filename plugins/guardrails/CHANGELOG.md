@@ -118,6 +118,17 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
     nothing (measured: 0 git subprocesses; the `-C .` chain stops after 4, not the
     128 traversal budget; a 20-hop inline chain still forks 0).
 
+    The invocation's LOCATING globals are replayed onto that probe, not just its
+    `-C`. `--git-dir` and `--work-tree` locate a repository as surely as `-C` does
+    (git's own usage lists both as globals before `<command>`), and asking without
+    them answered "no work tree" for a perfectly locatable one — so
+    `git --git-dir=<r>/.git --work-tree=<r> -c alias.a='!git commit -F -' a` run
+    outside a tree had a **valid canonical commit refused**. The replay keeps the
+    ask-git property intact: `git --git-dir=X --work-tree=Y rev-parse
+    --show-toplevel` is still git's answer, not a reconstruction of one. Its `-m`
+    twin is pinned too, so the replay did not simply switch the fail-closed branch
+    off.
+
     `.` and `..` both need special handling only if the guard resolves paths
     itself, and it no longer does. Every `.` spelling (`.`, `./././.`) resolves to
     one identity, so a self-rewriting chain stops on the cycle key without a

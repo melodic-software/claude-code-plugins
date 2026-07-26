@@ -644,6 +644,32 @@ if [[ -d "$TRAIL/cur/.git" && -d "$TRAIL/safe/.git" ]]; then
   done
 fi
 
+# --- locating globals are replayed onto the identity probe --------------------
+# `--git-dir` and `--work-tree` locate a repository as surely as `-C` does. Asking
+# git for the alias's repository identity WITHOUT replaying them answered "no work
+# tree" for a perfectly locatable one, and the fail-closed path then refused a valid
+# canonical commit. The blocked twin proves the replay did not just switch the
+# fail-closed branch off.
+GLOB="$TEST_TMPDIR/globals"
+mkdir -p "$GLOB/outside"
+nested_repo "$GLOB/repo"
+
+if [[ -d "$GLOB/repo/.git" ]]; then
+  for spec in \
+    "!git commit -F -|0|--git-dir/--work-tree: canonical commit through a ! alias is allowed" \
+    "!git commit -m x|2|--git-dir/--work-tree: -m commit through a ! alias still blocks"; do
+    IFS='|' read -r body want label <<<"$spec"
+    MSYS_NO_PATHCONV=1 jq -n \
+      --arg c "git --git-dir=$GLOB/repo/.git --work-tree=$GLOB/repo -c alias.a='$body' a" \
+      --arg d "$GLOB/outside" \
+      '{tool_name:"Bash",tool_input:{command:$c},cwd:$d}' |
+      timeout 30 bash "$HOOK" >/dev/null 2>&1
+    rc=$?
+    ((rc == 124)) && bad "$label: exceeded the 30s ceiling" && continue
+    assert_exit "$label" "$want" "$rc"
+  done
+fi
+
 # --- PowerShell tool coverage ------------------------------------------------
 # The canonical PowerShell commit form (a here-string piped to `git commit -F -`)
 # must be allowed exactly as the Bash `-F -` form is; a `-m` PowerShell commit
