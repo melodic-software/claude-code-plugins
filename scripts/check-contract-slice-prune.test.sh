@@ -285,6 +285,29 @@ commit_work "$repo"
 if run_diff "$repo" >/dev/null; then fail "a trailing ' #' comment must not become part of the root"; else ok "a trailing comment is still stripped"; fi
 rm -rf "$repo"
 
+# --- YAML key spacing must not read contract_dir as absent -------------------
+# Reading a declared root as absent silently reverts the gate to the default
+# root, so the configured one goes unpoliced while the gate reports success.
+repo="$(mk_repo)"
+mkdir -p "$repo/.claude"
+printf 'contract_dir : docs/slices\n' >"$repo/.claude/topic-docs.yaml"
+(cd "$repo" && git_q add -A && git_q commit -m concern && git_q checkout base && git_q merge work && git_q checkout work)
+mkdir -p "$repo/docs/slices/newslug"
+printf 'plan\n' >"$repo/docs/slices/newslug/PLAN.md"
+commit_work "$repo"
+if run_diff "$repo" >/dev/null; then fail "a space before the colon must not hide contract_dir"; else ok "contract_dir resolves with a space before the colon"; fi
+rm -rf "$repo"
+
+repo="$(mk_repo)"
+mkdir -p "$repo/.claude"
+printf '  contract_dir: docs/slices\n  memory_dir: .work\n' >"$repo/.claude/topic-docs.yaml"
+(cd "$repo" && git_q add -A && git_q commit -m concern && git_q checkout base && git_q merge work && git_q checkout work)
+mkdir -p "$repo/docs/slices/newslug"
+printf 'plan\n' >"$repo/docs/slices/newslug/PLAN.md"
+commit_work "$repo"
+if run_diff "$repo" >/dev/null; then fail "an indented root mapping must not hide contract_dir"; else ok "contract_dir resolves in an indented root mapping"; fi
+rm -rf "$repo"
+
 # --- nested roots: the MOST SPECIFIC root owns a path -----------------------
 # Relocating contract_dir beneath a grandfathered slice used to let the outer
 # root match first, naming the exempt slug 'legacy' for every path inside the

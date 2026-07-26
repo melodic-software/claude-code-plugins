@@ -103,7 +103,16 @@ strip_value() {
 resolved=""
 if [[ -f "$concern_file" ]]; then
   # sed anchors on the literal key; keys are `[a-z_]+` identifiers, no metachars.
-  raw_line=$(sed -n "s/^${key}:[[:space:]]*//p" "$concern_file" | head -1)
+  # YAML permits whitespace before the `:` (`memory_dir : .work`) and permits a
+  # root block mapping to sit at a uniform indent, so neither shape may be read
+  # as "key absent" — a consumer that silently took its fallback over a key the
+  # file really declares would act on a value the repo never chose. An
+  # unindented key is preferred, so a nested key of the same name cannot outrank
+  # the top-level one.
+  raw_line=$(sed -n "s/^${key}[[:space:]]*:[[:space:]]*//p" "$concern_file" | head -1)
+  if [[ -z "$raw_line" ]]; then
+    raw_line=$(sed -n "s/^[[:space:]]\{1,\}${key}[[:space:]]*:[[:space:]]*//p" "$concern_file" | head -1)
+  fi
   if [[ -n "$raw_line" ]]; then
     resolved=$(strip_value "$raw_line")
   fi
