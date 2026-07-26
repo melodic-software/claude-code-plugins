@@ -214,10 +214,18 @@ scan_file() {
     # Keyed on index() of the pattern core rather than an anchored ^stat[
     # match, so a token that grows a leading word boundary still selects its
     # own guard.
-    function is_guarded(l, p, CMDPOS) {
+    #
+    # SEG is the run between the GNU call and that ||, and stops at a command
+    # separator. Without it the two calls need not be in the same command at
+    # all: `stat -c %s "$f"; true || stat -f %z "$f"` runs the GNU-only call
+    # unconditionally and reaches the || from a LATER command, so the BSD form
+    # is not its fallback (#1544). `;` and `|` are excluded; `)` and `&` are
+    # not, because a real ladder closes a $( ) and may redirect with 2>&1.
+    function is_guarded(l, p, CMDPOS, SEG) {
       CMDPOS = "\\|\\|[[:space:]]*([A-Za-z_][A-Za-z0-9_]*=)?(\\$\\()?[[:space:]]*"
-      if (p ~ /readlink/ && l ~ ("realpath[^|]*" CMDPOS "readlink")) return 1
-      if (index(p, "stat[[:space:]]") && l ~ ("stat[[:space:]]+-[A-Za-z]*c[^|]*" CMDPOS "stat[[:space:]]+-[A-Za-z]*f")) return 1
+      SEG = "[^;|]*"
+      if (p ~ /readlink/ && l ~ ("realpath" SEG CMDPOS "readlink")) return 1
+      if (index(p, "stat[[:space:]]") && l ~ ("stat[[:space:]]+(-[A-Za-z]*c|--format|--printf)" SEG CMDPOS "stat[[:space:]]+-[A-Za-z]*f")) return 1
       return 0
     }
     # Pass 1: collect active ERE patterns from the token list.

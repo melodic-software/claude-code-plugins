@@ -172,7 +172,14 @@ readlink[[:space:]]+(-[A-Za-z]*f|--canonicalize)
 # `update -d /tmp` were both reported, since "date" is a tail substring of
 # "validate" and "update". `/` is deliberately outside the excluded class, so
 # a path-qualified `/usr/bin/date -d @0` still matches.
-(^|[^A-Za-z0-9_-])date[[:space:]]+[^;&|()\n]*-d([[:space:]]|$)
+# `-d` takes a MANDATORY argument, so GNU getopt accepts it ATTACHED as well as
+# space-separated, and `--date` is its documented long spelling: `date --help`
+# prints `-d, --date=STRING`, and `date -u -d@0` / `date -u --date=@0` both
+# print the same instant. A whitespace-or-EOL-only tail matched neither
+# spelling (#1544). The attached tail admits only characters that can START a
+# value, so a longer flag whose name merely begins with `d` is still not
+# mistaken for it.
+(^|[^A-Za-z0-9_-])date[[:space:]]+[^;&|()\n]*(-d([[:space:]]|$|[@"'$[:digit:]])|--date([[:space:]]|=))
 
 # `stat -c` (GNU format string) — a GNU coreutils extension; BSD/macOS stat
 # uses `-f`. Requires whitespace immediately after `stat` so the token matches
@@ -194,7 +201,12 @@ readlink[[:space:]]+(-[A-Za-z]*f|--canonicalize)
 # Same leading word boundary as `date -d` above (#1544). Trailing whitespace
 # after `stat` already excluded a word STARTING with it ("status"), but not one
 # ENDING with it: `mystat -c foo` was reported.
-(^|[^A-Za-z0-9_-])stat[[:space:]]+[^;&|()\n]*-c
+# `--format` and `--printf` are the long spellings of the same GNU-only
+# capability and were missed while only `-c` was listed (#1544): `stat --help`
+# prints `-c  --format=FORMAT` and `--printf=FORMAT   like --format, but
+# interpret backslash escapes`. Both succeed on GNU stat and neither exists in
+# the BSD/macOS dialect, so the class was enforceable under one spelling only.
+(^|[^A-Za-z0-9_-])stat[[:space:]]+[^;&|()\n]*(-c|--format|--printf)
 
 # --- STAGED (commented until enabled — see #1528 for the enable trigger) ---
 #

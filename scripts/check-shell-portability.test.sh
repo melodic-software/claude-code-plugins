@@ -583,6 +583,27 @@ if scan_paths "$tok" "$f" >/dev/null 2>&1; then
 else
   fail "the assignment-wrapped stat -f fallback ladder must not be flagged"
 fi
+rm -f "$f"
+
+# --- the guard must also stop at a command SEPARATOR. With another command
+# between the GNU call and the ||, the || belongs to that later command, so the
+# BSD form is not the GNU call's fallback and the unconditional GNU-only
+# invocation must still flag (#1544).
+f="$(tmpsh "stat -c '%s' \"\$f\"; true || stat -f '%z' \"\$f\"")"
+if out="$(scan_paths "$tok" "$f" 2>&1)"; then
+  fail "a stat -f reached across a ; should fail, got success: $out"
+else
+  ok "a stat -f fallback in a LATER command segment does not guard the GNU call"
+fi
+rm -f "$f" "$tok"
+
+tok="$(one_token_list 'readlink[[:space:]]+(-[A-Za-z]*f|--canonicalize)')"
+f="$(tmpsh 'realpath -- "$1"; true || readlink -f -- "$1"')"
+if out="$(scan_paths "$tok" "$f" 2>&1)"; then
+  fail "a readlink reached across a ; should fail, got success: $out"
+else
+  ok "a realpath attempt in a LATER command segment does not guard readlink -f"
+fi
 rm -f "$f" "$tok"
 
 # --- "stat" as a mere prefix of an identifier ("status") followed later by an
@@ -853,6 +874,27 @@ if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
   fail "a path-qualified date -d should still fail, got success: $out"
 else
   ok "the leading boundary still admits a path-qualified /usr/bin/date -d"
+fi
+rm -f "$f"
+
+# --- -d takes a mandatory argument, so GNU accepts it ATTACHED, and --date is
+# its documented long spelling (`date --help`: `-d, --date=STRING`). A
+# whitespace-or-EOL-only tail matched neither (#1544). Likewise stat's
+# --format/--printf are the long spellings of -c (`stat --help`:
+# `-c  --format=FORMAT`), so the class was enforceable under one spelling only.
+f="$(tmpsh "$(printf '%s\n' \
+  'date -d@0' \
+  'date -d"$s" +%s' \
+  'date --date=@0' \
+  'date --date @0' \
+  'stat --format=%s "$file"' \
+  'stat --printf=%s "$file"')")"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "attached and long date/stat spellings should fail, got success: $out"
+elif [[ "$(echo "$out" | grep -c "PORTABILITY: ${f}:")" -eq 6 ]]; then
+  ok "attached -d, --date, --format and --printf spellings are all detected"
+else
+  fail "expected all 6 spellings flagged, got: $out"
 fi
 rm -f "$f"
 
