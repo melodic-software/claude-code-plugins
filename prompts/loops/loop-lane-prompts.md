@@ -1032,15 +1032,6 @@ with the operator's signature on them.
   winning. Nothing serializes them: keep the attended queue's intake pass and
   the worker lane's sweep off one repository at the same time, or accept the
   race.
-- **The lane skills downgrade the rate-limit guard wholesale.** The block
-  above classifies fail-open validity per window, because the reader contract
-  scopes an absurd value to "that window" and lets each window be
-  independently absent. The three lane skills inline the contract's mode
-  table instead, which collapses the whole guard to reactive-only on any
-  absurd value — so a lane launched from a skill can keep working past a
-  valid window already at 90% when the other window is garbage, where this
-  prompt would pause. Tracked in #1612; until it lands, the difference is
-  deliberate, not drift.
 - **C2 auto-merge may lack its promotion evidence.** The autonomy matrix
   specifies ≥20 autonomous C2 completions over ≥14 days with 100%
   deterministic-gate pass and 0 human-reverted merges before the C2
