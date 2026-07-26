@@ -49,7 +49,33 @@ def now_ts() -> str:
 
 
 _PREVIEW_LIMIT = 80  # bounded per-call arg/result preview -- see _preview()
-_TRUNC_MARKER = "…"  # trailing marker on a cut preview -- see _preview()
+_TRUNC_MARKER = "..."  # trailing marker on a cut preview -- see _preview(). ASCII
+# on purpose: this string round-trips through the headless analysis run's stdin
+# (`subprocess.run(..., input=prompt, text=True)`, no explicit `encoding=` on
+# this call today), which encodes with the platform's default text encoding --
+# a non-ASCII marker would risk a `UnicodeEncodeError` outside the retained
+# `except (TimeoutExpired, OSError)` handling on a code page that can't
+# represent it.
+_ID_TAIL_LEN = 8  # bounded id correlation key -- see _short_id()
+
+
+def _short_id(value: object) -> object:
+    """Bounded tail of an opaque id (an API message id or tool-call id), for
+    cross-event correlation (`mid` grouping, `calls[].id` <-> `results[].id`)
+    without persisting the full verbatim id.
+
+    These ids are high-entropy random strings (e.g. `msg_014Jvov2xG...`,
+    `toolu_01AbCdEf...`), not sequential or guessable, so an 8-char tail is
+    still effectively collision-free within one session's observation stream
+    while cutting the per-id cost roughly 3-4x -- verified against real
+    transcripts (see PR #1497's measurement). `None` passes through unchanged
+    (nothing to shorten, and `mid`'s absence must stay distinguishable from a
+    real id -- see summarize_record()'s docstring).
+    """
+    if value is None:
+        return None
+    s = str(value)
+    return s[-_ID_TAIL_LEN:] if len(s) > _ID_TAIL_LEN else s
 
 
 def _preview(value: object, limit: int = _PREVIEW_LIMIT) -> str:
@@ -58,8 +84,15 @@ def _preview(value: object, limit: int = _PREVIEW_LIMIT) -> str:
     Token-cheap by design, matching this module's other truncated fields (`say`,
     `human`): never the full value, just enough of it for a headless dependency
     check (does a later call's input reference an earlier call's result) without
-    paying full transcript token cost. A dict/list is compacted to JSON first so
-    the preview keeps recognizable keys/values (e.g. a `file_path`) instead of
+    paying full transcript token cost.
+
+    A content-block list (a real transcript's `tool_result.content` is a list
+    of blocks about as often as a plain string -- verified against real
+    transcripts) has its `text` blocks joined, so the preview spends its
+    budget on the actual result text rather than JSON-dumping the block
+    wrapper structure (`[{"type":"text","text":...}]`). A dict, or a list with
+    no text blocks (e.g. an image block), falls back to compact JSON so the
+    preview keeps recognizable keys/values (e.g. a `file_path`) instead of
     Python's `repr` spacing.
 
     A cut preview ends in `_TRUNC_MARKER` -- a silent slice would make a
@@ -73,17 +106,27 @@ def _preview(value: object, limit: int = _PREVIEW_LIMIT) -> str:
         return ""
     if isinstance(value, str):
         s = value
-    elif isinstance(value, (dict, list)):
-        try:
-            s = json.dumps(value, separators=(",", ":"), default=str)
-        except (TypeError, ValueError):
-            s = str(value)
+    elif isinstance(value, list):
+        texts = [b.get("text", "") for b in value
+                if isinstance(b, dict) and b.get("type") == "text"]
+        s = " ".join(t for t in texts if t)
+        if not s.strip():
+            s = _compact_json(value)
+    elif isinstance(value, dict):
+        s = _compact_json(value)
     else:
         s = str(value)
     s = s.strip()
     if len(s) <= limit:
         return s
     return s[:max(limit - len(_TRUNC_MARKER), 0)] + _TRUNC_MARKER
+
+
+def _compact_json(value: object) -> str:
+    try:
+        return json.dumps(value, separators=(",", ":"), default=str)
+    except (TypeError, ValueError):
+        return str(value)
 
 
 def summarize_record(rec: dict) -> dict:
@@ -96,18 +139,27 @@ def summarize_record(rec: dict) -> dict:
     the analysis run.
 
     Two fields exist ONLY to let a headless analysis run (which never sees the
-    raw transcript) COMPUTE structural claims instead of asserting them:
-      - `mid`: the assistant record's own API message id, when the raw record
-        carries one. Tool-use events sharing one `mid` came from the SAME
-        assistant turn (their calls were batched into one API call); events
-        with different `mid`s (or no `mid` at all -- some records don't carry
-        one) ran as separate, sequential turns.
+    raw transcript) COMPUTE structural claims instead of asserting them --
+    verified against real transcripts (a message id is always present in the
+    schema; a SINGLE API message frequently spans MULTIPLE transcript records,
+    so grouping by `mid` alone, not by record adjacency, is what makes
+    batching/sequencing computable at all):
+      - `mid`: a bounded correlation key derived from the assistant record's
+        own API message id (see `_short_id`), when the raw record carries one.
+        Tool-use events sharing one `mid` came from the SAME assistant turn
+        (their calls were batched into one API call, however many transcript
+        records that turn spans); events with different `mid`s -- or no `mid`
+        at all, which happens when the raw record didn't carry one -- ran as
+        separate, sequential turns.
       - `calls` / `results`: a bounded preview of each tool call's input and
-        each tool result's output, keyed by the call's own id (`tool_use_id`
-        on the result), so a later call's input can be checked against an
-        earlier call's output for a genuine data dependency before a
-        sequential/unbatched pair is flagged as a missed-batching Efficiency
-        finding.
+        each tool result's output, keyed by the call's own bounded id (the
+        result's key is its `tool_use_id`), so a later call's input can be
+        checked against an earlier call's output for a genuine data dependency
+        before a sequential/unbatched pair is flagged as a missed-batching
+        Efficiency finding. `tool_results` (a bare count) is intentionally
+        NOT also emitted -- `len(results)` already carries it, and doubling
+        the count into two fields is dead cost the token-cheap contract can't
+        justify.
     """
     t = rec.get("type")
     out: dict = {"t": t, "ts": rec.get("timestamp")}
@@ -120,9 +172,10 @@ def summarize_record(rec: dict) -> dict:
                         if isinstance(c, dict) and c.get("type") == "text")
         if tool_uses:
             out["tools"] = [c.get("name") for c in tool_uses]
-            out["calls"] = [{"id": c.get("id"), "in": _preview(c.get("input"))}
+            out["calls"] = [{"id": _short_id(c.get("id")),
+                             "in": _preview(c.get("input"))}
                             for c in tool_uses]
-            mid = msg.get("id")
+            mid = _short_id(msg.get("id"))
             if mid is not None:
                 out["mid"] = mid
         if text.strip():
@@ -140,8 +193,7 @@ def summarize_record(rec: dict) -> dict:
             humans = [c.get("text", "") for c in content
                       if isinstance(c, dict) and c.get("type") == "text"]
             if tool_results:
-                out["tool_results"] = len(tool_results)
-                out["results"] = [{"id": c.get("tool_use_id"),
+                out["results"] = [{"id": _short_id(c.get("tool_use_id")),
                                    "out": _preview(c.get("content"))}
                                   for c in tool_results]
             if humans and any(h.strip() for h in humans):
@@ -711,8 +763,9 @@ to identify which prior call each result belongs to) for a data dependency (a la
 input referencing an earlier call's output), and read the surrounding "say" narration for an \
 evident control/resource/side-effect dependency (e.g. a directory created before a file is \
 written into it). A pair that was genuinely dependent was correctly sequential, not a missed \
-batch. A "calls[].in" or "results[].out" preview ending in "…" was CUT, not empty -- a value \
-past character 80 may still be there; treat a truncated preview as an UNKNOWN dependency \
+batch. A "calls[].in" or "results[].out" preview ending in "{_TRUNC_MARKER}" was CUT, not \
+empty -- a value past character {_PREVIEW_LIMIT} may still be there; treat a truncated \
+preview as an UNKNOWN dependency \
 check, never as a clean "no match" that licenses the missed-batching finding. Drop a \
 structural claim you cannot compute this way (grouping key absent, or the only preview that \
 could show a dependency was truncated) rather than asserting it uncomputed -- an \

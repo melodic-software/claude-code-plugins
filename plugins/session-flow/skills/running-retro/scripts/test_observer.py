@@ -57,9 +57,13 @@ class Distillation(unittest.TestCase):
         self.assertEqual(out["tools"], ["Bash"])
         self.assertEqual(out["stop_reason"], "tool_use")
         self.assertLessEqual(len(out["say"]), 160)
-        # Grouping key + bounded per-call preview -- see summarize_record()'s docstring.
-        self.assertEqual(out["mid"], "msg_01ABC")
-        self.assertEqual(out["calls"], [{"id": "call_1", "in": '{"command":"ls"}'}])
+        # Grouping key + bounded per-call preview -- see summarize_record()'s
+        # docstring. Both ids go through _short_id(), so compare against it
+        # rather than the raw value ("call_1" is <= _ID_TAIL_LEN so it happens
+        # to pass through unchanged; "msg_01ABC" does not).
+        self.assertEqual(out["mid"], observer._short_id("msg_01ABC"))
+        self.assertEqual(out["calls"],
+                         [{"id": observer._short_id("call_1"), "in": '{"command":"ls"}'}])
 
     def test_assistant_no_tools_omits_grouping_fields(self):
         """A text-only turn has nothing to group/preview -- no mid/calls noise."""
@@ -77,10 +81,11 @@ class Distillation(unittest.TestCase):
         self.assertNotIn("mid", out)
         self.assertIn("calls", out)
 
-    def test_assistant_two_batched_calls_share_one_record(self):
-        """Two tool_use blocks in ONE assistant record (one API message) is exactly
-        what "batched" means -- both calls carry the SAME mid, reconstructable by
-        grouping the distilled events on that field alone, without the raw transcript."""
+    def test_assistant_two_tool_uses_in_one_record_share_one_mid(self):
+        """Two tool_use blocks in ONE assistant record is a schema-level case the
+        code must still handle correctly, even though a scan of real transcripts
+        for #1485 found zero examples of it in practice (see test below for the
+        pattern that IS common) -- both calls carry the SAME mid regardless."""
         out = observer.summarize_record({"type": "assistant", "message": {
             "id": "msg_batch", "content": [
                 {"type": "tool_use", "id": "call_1", "name": "Read",
@@ -89,8 +94,25 @@ class Distillation(unittest.TestCase):
                  "input": {"file_path": "b.py"}},
             ]}})
         self.assertEqual(out["tools"], ["Read", "Read"])
-        self.assertEqual([c["id"] for c in out["calls"]], ["call_1", "call_2"])
-        self.assertEqual(out["mid"], "msg_batch")
+        self.assertEqual([c["id"] for c in out["calls"]],
+                         [observer._short_id("call_1"), observer._short_id("call_2")])
+        self.assertEqual(out["mid"], observer._short_id("msg_batch"))
+
+    def test_assistant_one_message_spans_multiple_records_shares_one_mid(self):
+        """The pattern real transcripts actually exhibit (verified for #1485 against
+        150+ live session transcripts): a SINGLE API message is frequently split
+        across MULTIPLE consecutive assistant records (e.g. a text-only record then
+        a tool_use record), never multiple tool_use blocks in one record. `mid` is
+        what makes these recognizable as the same turn -- record adjacency alone
+        is NOT reliable, since other records (tool results) interleave."""
+        r1 = observer.summarize_record({"type": "assistant", "message": {
+            "id": "msg_shared", "content": [{"type": "text", "text": "checking..."}]}})
+        r2 = observer.summarize_record({"type": "assistant", "message": {
+            "id": "msg_shared", "content": [
+                {"type": "tool_use", "id": "call_1", "name": "Read",
+                 "input": {"file_path": "a.py"}}]}})
+        self.assertNotIn("mid", r1)  # no tool_use in r1 -> nothing to group
+        self.assertEqual(r2["mid"], observer._short_id("msg_shared"))
 
     def test_user_and_system(self):
         u = observer.summarize_record({"type": "user", "message": {
@@ -98,13 +120,22 @@ class Distillation(unittest.TestCase):
                         "content": "file contents here"},
                        {"type": "tool_result", "tool_use_id": "call_2",
                         "content": "more content"}]}})
-        self.assertEqual(u["tool_results"], 2)
+        self.assertNotIn("tool_results", u)  # superseded by len(results) -- see docstring
         self.assertEqual(u["results"], [
-            {"id": "call_1", "out": "file contents here"},
-            {"id": "call_2", "out": "more content"},
+            {"id": observer._short_id("call_1"), "out": "file contents here"},
+            {"id": observer._short_id("call_2"), "out": "more content"},
         ])
         s = observer.summarize_record({"type": "system", "subtype": "stop_hook_summary"})
         self.assertTrue(s["turn_boundary"])
+
+    def test_user_tool_result_content_as_block_list(self):
+        """A real transcript's tool_result.content is a list of content blocks
+        about as often as a plain string (verified for #1485) -- the preview
+        must extract the text, not JSON-dump the block wrapper structure."""
+        u = observer.summarize_record({"type": "user", "message": {
+            "content": [{"type": "tool_result", "tool_use_id": "call_1",
+                        "content": [{"type": "text", "text": "the actual result text"}]}]}})
+        self.assertEqual(u["results"][0]["out"], "the actual result text")
 
     def test_user_no_tool_results_omits_results_field(self):
         u = observer.summarize_record({"type": "user", "message": {
@@ -161,6 +192,21 @@ class Distillation(unittest.TestCase):
         self.assertEqual(observer._preview({"a": 1}), '{"a":1}')
         self.assertLessEqual(len(observer._preview("y" * 500, limit=10)), 10)
 
+    def test_preview_extracts_text_from_content_block_list(self):
+        """A real tool_result.content is a list of blocks about as often as a
+        plain string (verified for #1485) -- the text must be extracted, not
+        the block wrapper JSON-dumped, or the preview budget is spent on
+        `{"type":"text","text":...}` syntax instead of the actual content."""
+        self.assertEqual(
+            observer._preview([{"type": "text", "text": "hello world"}]),
+            "hello world")
+
+    def test_preview_list_with_no_text_blocks_falls_back_to_json(self):
+        """A block list with nothing extractable (e.g. only an image block)
+        still gets SOME preview rather than an empty string."""
+        preview = observer._preview([{"type": "image", "source": "x"}])
+        self.assertIn("image", preview)
+
     def test_preview_untruncated_value_has_no_marker(self):
         self.assertEqual(observer._preview("short"), "short")
         self.assertFalse(observer._preview("short").endswith(observer._TRUNC_MARKER))
@@ -176,11 +222,40 @@ class Distillation(unittest.TestCase):
     def test_mid_preserved_for_falsy_but_not_none_id(self):
         """`mid` must be omitted only when the record truly carries none -- a
         `mid: 0` (an integer id format) or `mid: ""` must NOT be dropped by an
-        `if mid:` truthy guard, see #1485 code review finding #1."""
+        `if mid:` truthy guard, see #1485 code review finding #1. `_short_id`
+        stringifies (`0` -> `"0"`), so compare against the same helper."""
         out = observer.summarize_record({"type": "assistant", "message": {
             "id": 0, "content": [{"type": "tool_use", "id": "call_1", "name": "Bash"}]}})
         self.assertIn("mid", out)
-        self.assertEqual(out["mid"], 0)
+        self.assertEqual(out["mid"], observer._short_id(0))
+
+
+class ShortId(unittest.TestCase):
+    """`_short_id` trades the full verbatim id for a bounded correlation key --
+    measured against a real transcript for #1485 to cut the new fields' token
+    cost roughly in half without losing the ability to match a result back to
+    the call that produced it (see summarize_record()'s docstring)."""
+
+    def test_none_passes_through(self):
+        self.assertIsNone(observer._short_id(None))
+
+    def test_short_value_unchanged(self):
+        self.assertEqual(observer._short_id("call_1"), "call_1")
+
+    def test_long_value_truncated_to_tail(self):
+        full = "msg_014Jvov2xG6zPgLAhpByQwaC"
+        short = observer._short_id(full)
+        self.assertEqual(len(short), observer._ID_TAIL_LEN)
+        self.assertTrue(full.endswith(short))
+
+    def test_deterministic_for_correlation(self):
+        """The SAME full id must always shorten to the SAME short id, or a
+        call's `calls[].id` could never be matched to its `results[].id`."""
+        full = "toolu_01AbCdEfGhIjKlMnOpQrSt"
+        self.assertEqual(observer._short_id(full), observer._short_id(full))
+
+    def test_non_string_stringified(self):
+        self.assertEqual(observer._short_id(0), "0")
 
 
 class AnalysisPrompt(unittest.TestCase):

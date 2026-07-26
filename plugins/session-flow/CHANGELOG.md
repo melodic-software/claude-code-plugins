@@ -10,16 +10,29 @@
   down to a bare count, so `observer.py`'s headless `_analysis_prompt` — despite instructing the
   analyzer to "group tool-use events by API message id" and check for a dependency before flagging a
   missed-batching Efficiency finding — had no field it could actually compute either claim from. Two
-  additions close the gap: an assistant event now carries `mid` (the transcript's own API message id,
-  when present) so events sharing one `mid` can be recognized as one batched turn versus separate
-  sequential turns, and both assistant (`calls[].in`) and user (`results[].out`) events now carry a
-  bounded (80-char) preview of each tool call's input/result, keyed by the call's own id, so a later
-  call's input can be checked against an earlier call's output for a genuine dependency. Both fields
-  are omitted (not padded) when the underlying data isn't present, keeping the token-cheap
-  distillation's cost bound intact. `_analysis_prompt` updated to reference the new fields; the
-  in-session checkpoint path (which reads the raw transcript directly) is unaffected. Follow-up from
-  #1473 (PR #1482) and Codex's review of it — filed as #1485, scoped to the schema change deferred out
-  of that PR.
+  additions close the gap: an assistant event now carries `mid` (a bounded correlation key derived
+  from the transcript's own API message id, when present) so events sharing one `mid` can be
+  recognized as one batched turn versus separate sequential turns — verified against 150+ real
+  session transcripts, which showed a single API message routinely spans multiple transcript records,
+  so `mid` (not record adjacency) is what makes this computable at all — and both assistant
+  (`calls[].in`) and user (`results[].out`) events now carry a bounded (80-char) preview of each tool
+  call's input/result, keyed by a bounded correlation id, so a later call's input can be checked
+  against an earlier call's output for a genuine dependency. Both fields are omitted (not padded) when
+  the underlying data isn't present, and ids are shortened to an 8-char correlation key rather than
+  persisting the full opaque id. This measurably grows the observations file on tool-heavy sessions
+  (roughly 70-150% larger against real transcripts, driven almost entirely by the preview content
+  itself, which is the point) — a real, bounded, single-analysis-call cost against a cheap model, not
+  an unbounded one; redundant/wasteful bytes (verbose ids, a `tool_results` count now superseded by
+  `len(results)`, JSON-dumping a tool-result content-block list instead of extracting its text) were
+  cut wherever doing so didn't reduce the analyzer's actual computing capability.
+  `_analysis_prompt` updated to reference the new fields, including a rule that a preview ending in
+  the truncation marker must be treated as an unknown dependency check, never a clean absence — a cut
+  preview that happened to hide a real dependency must not license an asserted-and-wrong finding.
+  `tools` is unaffected and still carries the tool-call names a "delegation" finding needs (a Task/
+  Agent tool name), so delegation required no new field — the gap #1485 closes is sequencing/batching/
+  dependency only. The in-session checkpoint path (which reads the raw transcript directly) is
+  unaffected. Follow-up from #1473 (PR #1482) and Codex's review of it — filed as #1485, scoped to the
+  schema change deferred out of that PR.
 
 ## [0.17.3]
 
