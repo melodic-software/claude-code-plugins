@@ -3,6 +3,33 @@
 All notable changes to the `skill-quality` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.0]
+
+### Added
+
+- **`listing-budget` action + `check-listing-budget.sh`: reports the SHARED skill-listing budget,
+  the aggregate limit nothing in the gate previously checked (#1404).** `check-skill.sh` check 2 only
+  ever guarded the per-skill entry cap (`skillListingMaxDescChars`, 1536 chars); the shared budget
+  every loaded skill draws from together (`skillListingBudgetFraction`, default 1% of the model's
+  context window) had no check at all — measured evidence found the aggregate overflowing by a large
+  multiple with no gate ever reporting it. The new script pools one or more skills roots into one
+  aggregate estimate against a documented, overridable default (8000 chars — the harness's own
+  `SLASH_COMMAND_TOOL_CHAR_BUDGET` fallback) and reports the biggest contributors on overflow. It is
+  always advisory (exit 0) since the live budget depends on a model's context window and a consumer's
+  own settings, neither of which a static check can observe — never hardcode
+  `skillListingBudgetFraction`'s documented default as a resolved live value; `/doctor` is the
+  authoritative source per machine. Wired into this repo's `skill-quality-gate` CI job as a report-only
+  step pooling every plugin's `skills/` root into one marketplace-wide aggregate.
+
+### Fixed
+
+- **Check 2 now counts the description/when_to_use joiner (#1404).** The harness assembles a skill's
+  listing entry as `description` + `" - "` + `when_to_use` — a literal 3-character joiner. Check 2
+  summed only `len(description) + len(when_to_use)`, under-counting by 3 whenever `when_to_use` is
+  populated, so an entry sitting exactly at the boundary could pass a cap it had actually crossed. Not
+  currently binding at present description lengths in this repo, but wrong in exactly the direction
+  the listing-budget work is about.
+
 ## [0.10.2]
 
 ### Fixed

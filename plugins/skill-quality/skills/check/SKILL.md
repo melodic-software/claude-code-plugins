@@ -1,7 +1,7 @@
 ---
 name: check
-description: "Skill-authoring QA for Claude Code skills. Use when: 'check this skill', 'skill quality', 'lint my skill', 'is this SKILL.md valid', 'validate skill frontmatter', 'check skill before publishing', 'validate evals.json', or before shipping a skill or plugin. Actions: `check [<skill-name>]` runs a twenty-check static contract gate (frontmatter, listing-budget cap, trigger-keyword preservation vs HEAD, line caps, broken internal refs, markdownlint, gotchas surface, evals presence, precompute opportunity, injection shell-declaration) and reports PASS/FAIL with warnings; `validate-evals [<skill-name>]` checks a skill's evals/evals.json against the bundled schema. Not for: writing new skills, or running model-graded evals."
-argument-hint: "[check|validate-evals] [<skill-name>] — omit the action for check; omit the skill name to run over every skill"
+description: "Skill-authoring QA for Claude Code skills. Use when: 'check this skill', 'skill quality', 'lint my skill', 'is this SKILL.md valid', 'validate skill frontmatter', 'check skill before publishing', 'validate evals.json', 'shared listing budget', 'is the skill listing overflowing', or before shipping a skill or plugin. Actions: `check [<skill-name>]` runs a twenty-check static contract gate (frontmatter, per-skill listing-entry cap, trigger-keyword preservation vs HEAD, line caps, broken internal refs, markdownlint, gotchas surface, evals presence, precompute opportunity, injection shell-declaration) and reports PASS/FAIL with warnings; `validate-evals [<skill-name>]` checks a skill's evals/evals.json against the bundled schema; `listing-budget [<root> ...]` reports the SHARED aggregate listing-budget estimate across every skill under the resolved root(s) — advisory only, never blocks. Not for: writing new skills, or running model-graded evals."
+argument-hint: "[check|validate-evals|listing-budget] [<skill-name-or-root> ...] — omit the action for check; omit the name/root to run over every skill under the resolved root"
 user-invocable: true
 disable-model-invocation: false
 shell: bash
@@ -12,8 +12,10 @@ shell: bash
 Static, deterministic quality gate for skill authoring. The `check` action runs the bundled
 `check-skill.sh` — twenty checks with no model invocation, so results are reproducible in CI or a
 pre-commit hook. The `validate-evals` action checks a skill's `<skill>/evals/evals.json` against the bundled
-JSON schema. Catches the failure that static analysis catches best: a rewrite silently dropping a
-`description` trigger phrase, which degrades auto-invocation.
+JSON schema. The `listing-budget` action runs `check-listing-budget.sh` — a separate, always-advisory
+report on the SHARED listing budget every loaded skill draws from together (a different, cross-skill
+limit from `check`'s per-skill entry cap). Catches the failure that static analysis catches best: a
+rewrite silently dropping a `description` trigger phrase, which degrades auto-invocation.
 
 ## Skills-directory resolution
 
@@ -59,6 +61,10 @@ Parse `$ARGUMENTS`:
 - **`check`** *(no name)* — run the gate over every skill under the resolved root.
 - **`validate-evals <skill-name>`** — validate one skill's `<skill>/evals/evals.json` against the schema.
 - **`validate-evals`** *(no name)* — validate every skill's `<skill>/evals/evals.json` that exists.
+- **`listing-budget`** *(no root)* — report the shared listing-budget estimate over every skill under
+  the resolved root.
+- **`listing-budget <root> [<root> ...]`** — pool every skill under each given root into ONE shared
+  aggregate (e.g. every plugin's skills dir in a marketplace repo).
 
 ## Action: check
 
@@ -96,6 +102,27 @@ that line before editing, since it may be an illustrative example path rather th
    and a non-empty `evals` array are required; each case requires `id` and `prompt`; a rich-form case
    may add `name` (kebab-case), `expected_output`, `files`, and one of `assertions` / `expectations`.
 4. Report each violation with its JSON path, or confirm the file conforms.
+
+## Action: listing-budget
+
+1. Resolve the root(s): explicit `<root> ...` arguments if given; otherwise the same
+   skills-root resolution as `check` (above).
+2. Run:
+
+   ```shell
+   bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-listing-budget.sh" [<root> ...]
+   ```
+
+3. Report the printed aggregate, the budget it was compared against (and whether that budget is the
+   documented default or a reconstructed override — see the script's own header), and the biggest
+   contributors when it overflows.
+
+This is a **different, cross-skill limit** from `check`'s per-skill entry cap (`description` +
+`when_to_use` <= 1536 chars): the shared budget every loaded skill draws from together
+(`skillListingBudgetFraction`, default 1% of the model's context window). It is always advisory —
+exit 0 regardless of overflow — because the live budget depends on the model's context window and a
+consumer's own settings, neither of which this static check can observe. Point `/doctor` at the live
+session for the authoritative resolved cost.
 
 ## Gotchas
 
@@ -139,3 +166,10 @@ that line before editing, since it may be an illustrative example path rather th
   defect — like a check-5 ref, hand-verify the block before converting it. It reads only fenced shell
   blocks (not prose "run `git status` first") and stays silent whenever the skill already uses any `!`
   injection, so it under-reports by design; a clean run is not proof there is no precompute opportunity.
+- `listing-budget` never asserts a resolved live value (context window and `skillListingBudgetFraction`
+  are both consumer settings this static check cannot observe) — it reports against a documented,
+  overridable default and always exits 0. A clean report is a signal to investigate against `/doctor`
+  in a live session, not a guarantee nothing is dropped there. In this marketplace's own repo, each
+  plugin owns its own `plugins/<plugin>/skills/` root, so gating the whole marketplace means pooling
+  every plugin's root into one call (`check-listing-budget.sh plugins/*/skills`) rather than running it
+  once per plugin in isolation — the repo's `check-changed-skills.sh` CI gate does this on every run.
