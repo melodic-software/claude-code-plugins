@@ -1,5 +1,32 @@
 # Changelog — discovery plugin
 
+## [0.9.1]
+
+### Fixed
+
+- **Nested-spawn availability claims described a state that lasted two releases.** Four places
+  asserted that the harness "filters `Agent` out of every non-fork subagent unless
+  `CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH` is set" — true only for Claude Code 2.1.217–2.1.218.
+  Verified 2026-07-26 against the byte-exact release changelog: nesting shipped at a fixed five
+  layers (v2.1.172 — "Sub-agents can now spawn their own sub-agents (up to 5 levels deep)"), went off
+  by default (v2.1.217), and returned at v2.1.219 — "Subagents can now spawn nested subagents up to
+  depth 3 by default (was 1); set `CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH=1` to disable nesting."
+  Confirmed behaviorally on 2.1.220: a non-fork `general-purpose` subagent held a fully-schema'd
+  `Agent` tool with the variable unset. Note the polarity flip the stale wording hides — the variable
+  now *lowers* the ceiling as readily as it raises one, so "absent" no longer implies "off."
+  - `agents/explorer.md`, `agents/researcher.md` — the necessary-not-sufficient framing and the
+    check-the-tool-is-actually-there instruction were already right and are kept; only the reason
+    changes, plus a new caution that a denied spawn is a permission verdict rather than a depth one
+    (spawns are classifier-evaluated before launch).
+  - `skills/setup/SKILL.md` — the dispatch-capability row no longer recommends setting the variable
+    on the assumption that absent means off. It now reports the value against the version and names
+    which window each reading belongs to.
+  - `skills/research-deep/SKILL.md` — two spots restated as availability that must be observed
+    rather than derived. The claim that `Agent` "errors even inside a fork" is replaced by the
+    invariant that actually holds: a fork cannot spawn a further fork.
+- Load-bearing behavioral claims here are now version-pinned, so the next default move is visible as
+  drift instead of reading as settled fact.
+
 ## [0.9.0]
 
 ### Removed
