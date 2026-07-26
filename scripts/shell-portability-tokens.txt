@@ -62,8 +62,14 @@ echo[[:space:]]+-[a-zA-Z]*e[a-zA-Z]*([[:space:]]|$)
 
 # `sort -V` (natural/version sort) — a GNU coreutils extension; BSD sort has no
 # `-V`. `V` may appear anywhere in a combined short-option cluster (`-Vr`),
-# not only as the cluster's last letter.
+# not only as the cluster's last letter. `--version-sort` and `--sort=version`
+# are GNU's documented long-form spellings of the same option (man7.org
+# sort(1): "-V, --version-sort" and "--sort=WORD ... version -V") — unambiguous
+# literal strings, so (like --perl-regexp above) no command-context prefix is
+# needed.
 sort[^\n]*[[:space:]]-[A-Za-z]*V[A-Za-z]*([[:space:]]|$)
+--version-sort
+--sort=version
 
 # `sed -i` with no suffix argument attached — GNU treats the suffix as
 # optional; BSD sed requires one immediately after `-i` (even an explicit

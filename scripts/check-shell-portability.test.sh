@@ -184,6 +184,25 @@ else
 fi
 rm -f "$f" "$tok"
 
+# --- sort -V's long-form spellings: --version-sort and --sort=version ------
+tok="$(one_token_list '--version-sort')"
+f="$(tmpsh 'sort --version-sort "$file"')"
+if out="$(scan_paths "$tok" "$f" 2>&1)"; then
+  fail "sort --version-sort should fail, got success: $out"
+else
+  ok "sort --version-sort (long form) is detected"
+fi
+rm -f "$f" "$tok"
+
+tok="$(one_token_list '--sort=version')"
+f="$(tmpsh 'sort --sort=version "$file"')"
+if out="$(scan_paths "$tok" "$f" 2>&1)"; then
+  fail "sort --sort=version should fail, got success: $out"
+else
+  ok "sort --sort=version (long form) is detected"
+fi
+rm -f "$f" "$tok"
+
 # =============================================================================
 # sed -i without a backup-suffix argument
 # =============================================================================
