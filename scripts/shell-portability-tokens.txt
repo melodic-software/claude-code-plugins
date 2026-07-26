@@ -64,16 +64,85 @@
 
 # `grep -P` (PCRE mode) — absent in BSD grep, and in some GNU builds compiled
 # without PCRE support. `P` may appear anywhere in a combined short-option
-# cluster (`-riP`, `-nP`), not only as the cluster's last letter.
-grep[^\n]*[[:space:]]-[A-Za-z]*P[A-Za-z]*([[:space:]]|$)
+# cluster (`-riP`, `-nP`), not only as the cluster's last letter. Boundary
+# after the cluster is every character that can actually END a shell word —
+# whitespace, a control operator, a redirection, a subshell close — or end of
+# line, so an operator-terminated form with no trailing whitespace
+# (`x=$(grep -P ...)`, `grep -P ...|head`, `grep -P ...; echo`) is still
+# detected; a whitespace-only boundary silently missed those (#1537).
+#
+# Quotes and backticks are deliberately NOT in this class, unlike the
+# `--sort=WORD` boundary below (#1546). After a SHORT-OPTION CLUSTER a quote is
+# an OPENING delimiter, not a terminator: the shell concatenates it into the
+# same word, so `grep -P"x"` passes the single argument `-Px` and never enables
+# `-P` at all. Verified on bash: `echo -e"mail"` prints the literal `-email`,
+# and `echo -e"mail\tX"` prints `-email\tX` with no escape interpretation.
+# Flagging those is a false positive on portable code. Accepted narrowing: a
+# genuine GNU use terminated by a CLOSING quote (`alias g='grep -P'`) is no
+# longer matched — an ERE cannot tell an opening delimiter from a closing one,
+# and a gate that rejects correct code gets switched off, which costs more than
+# this residue. `--sort=WORD` keeps quotes because there the quote follows the
+# option's VALUE and is unambiguously closing.
+#
+# `<` and `>` terminate a word only when they open a REDIRECTION. `<(` and `>(`
+# open a process substitution, which the shell concatenates into the current
+# word exactly as a quote does (#1546): bash expands `echo -e<(printf x)` to
+# the single argument `-e/dev/fd/63` and prints it literally, so `-e` is never
+# passed. `[<>]([^(]|$)` therefore keeps the redirection boundary
+# (`grep -P ... <file`) while excluding the process-substitution one. Every
+# boundary below that admits `<`/`>` carries the same shape.
+#
+# What a quoted continuation does depends on what is INSIDE it, so the rule is
+# not "ignore every quote" (#1546). Quote removal splices the content straight
+# into the word, and for a flag that takes no argument the result is a longer
+# OPTION CLUSTER rather than a value:
+#   - an EMPTY pair, however many — spliced away entirely, so the bare flag is
+#     what runs: `printf '[%s]\n' -P'''' pattern` prints `[-P]` then `[pattern]`.
+#   - option LETTERS — a valid longer cluster with the GNU flag still set:
+#     `grep -P"x"` runs as `grep -Px`, and `grep -P"i" '\d'` matches a digit
+#     where the same grep without `-P` does not; `sort -V"r"` reverse
+#     version-sorts.
+#   - anything else — not a cluster at all, and not portable code either:
+#     `grep -P"attern"` and `sort -V"ersion"` both abort with `unknown option`,
+#     so there is no GNU-only behaviour to report and nothing working to break.
+# `(['"][A-Za-z]*['"])*` admits the first two, and being starred it accepts
+# repeated pairs. `echo` is the exception and narrows the class to its own
+# cluster letters — see its token below.
+#
+# Cluster letters and quoted chunks INTERLEAVE, so the continuation is one
+# alternation rather than a letter run followed by a quote run (#1546). Quote
+# removal produces a single word either way, and a plain letter after a pair
+# is as much part of the cluster as one before it: `grep -P"x"i` runs as
+# `grep -Pxi` (verified: it matches `\d` where the same grep without `-P` does
+# not), `sort -V"r"f` reverse version-sorts, and `echo -e"n"E` is consumed
+# whole as the `-enE` option cluster.
+#
+# The scan gap stops at a shell command separator, exactly as the `mktemp -p`
+# token below does (#1546): a physical line is not a command, so `[^\n]*` let
+# a LATER command's option-shaped word be attributed to this one — with `|`
+# and `;` now in the boundary, `grep foo /dev/null; printf '%s\n' -P|cat` was
+# reported even though the `-P` is printf's data.
+grep[^;&|\n]*[[:space:]]-[A-Za-z]*P([A-Za-z]|['"][A-Za-z]*['"])*([[:space:]|&;()]|[<>]([^(]|$)|$)
 --perl-regexp
 
 # `echo -e` — POSIX leaves echo's flag handling unspecified; BSD/macOS sh/bash
 # builtin `echo` treats `-e` as a literal argument, not an escape-interpretation
 # flag. `printf '%b\n'` (or a literal `$'...'` ANSI-C string) is the portable
 # replacement. `e` may appear anywhere in echo's short-option cluster
-# (bash advertises `echo [-neE]`), not only as a standalone `-e`.
-echo[[:space:]]+-[a-zA-Z]*e[a-zA-Z]*([[:space:]]|$)
+# (bash advertises `echo [-neE]`), not only as a standalone `-e`. Same
+# operator-terminated boundary as `grep -P` above (#1537): `x=$(echo -e ...)`,
+# `echo -e ...|cat`, `echo -e ...; echo` are detected, not only the
+# whitespace-terminated form.
+# echo is the exception to the quoted-continuation class above: bash advertises
+# `echo [-neE]`, so only those letters extend the cluster — QUOTED OR NOT
+# (#1546). A letter outside that set makes the word an unrecognized option
+# rather than a longer cluster, and bash then just prints it: `echo -em`,
+# `echo -me` and `echo -e"n"mail` all emit the option word literally, so every
+# one of them is working portable code that must stay unflagged. `echo -e"n"`
+# and `echo -ne` do emit a real tab. Unlike grep and sort — which abort on an
+# unrecognized cluster, leaving nothing working to break — a too-liberal class
+# here rejects code that runs correctly on both dialects.
+echo[[:space:]]+-[neE]*e([neE]|['"][neE]*['"])*([[:space:]|&;()]|[<>]([^(]|$)|$)
 
 # `sort -V` (natural/version sort) — a GNU coreutils extension; BSD sort has no
 # `-V`. `V` may appear anywhere in a combined short-option cluster (`-Vr`),
@@ -92,10 +161,16 @@ echo[[:space:]]+-[a-zA-Z]*e[a-zA-Z]*([[:space:]]|$)
 # matched, while a longer word like `version:refname` still is not. WORD is a
 # MANDATORY argument, so GNU's getopt_long takes it attached after `=` or as
 # the next argv element, and the shell may hand it over quoted — every one of
-# those spellings is the same GNU-only operation.
-sort[^\n]*[[:space:]]-[A-Za-z]*V[A-Za-z]*([[:space:]]|$)
+# those spellings is the same GNU-only operation. The short-flag cluster
+# pattern below carries the identical operator-terminated boundary: it
+# originally accepted only trailing whitespace or end of line, missing
+# `x=$(sort -V)` / `sort -V|head -n1` / `sort -V; echo done` — the same class
+# of false negative the `--sort=WORD` boundary above was built to avoid, now
+# widened to match it (#1537, found while auditing #1530's own new token for
+# the same defect).
+sort[^;&|\n]*[[:space:]]-[A-Za-z]*V([A-Za-z]|['"][A-Za-z]*['"])*([[:space:]|&;()]|[<>]([^(]|$)|$)
 --version-sort
-sort[^\n]*[[:space:]]--sort(=|[[:space:]]+)['"]?version([[:space:]|&;()<>'"`]|$)
+sort[^;&|\n]*[[:space:]]--sort(=|[[:space:]]+)['"]?version([[:space:]|&;()'"`]|[<>]([^(]|$)|$)
 
 # `sed -i` with no suffix argument attached — GNU treats the suffix as
 # optional; BSD sed requires one immediately after `-i`. This intentionally
