@@ -48,11 +48,14 @@ Entries below `0.9.0` were released under the plugin's former name, `re-anchor`.
   "skip both filters and receive the main conversation's exact tool pool"
   (<https://code.claude.com/docs/en/sub-agents>), so every audit fork holds Write, Edit, and
   Bash and is only *asked* not to use them — and the declared delta's safety argument rested on
-  that property. The skill now says so plainly, and adds the documented containment: each fork
-  is dispatched with `isolation: "worktree"`, so a fork that writes anyway lands its edits
-  outside the user's checkout. Stated as containment, not a guarantee — a fork's Bash can still
-  reach the network, `~/.claude`, and paths outside the checkout, and the docs state nothing
-  about non-git projects or a session already inside a worktree.
+  that property. The skill now says so plainly and **verifies** rather than claims: it records
+  the working tree's state before dispatch and compares it after collecting the ledgers.
+
+  `isolation: "worktree"` was considered as containment and **rejected**, with the reasoning
+  recorded in the skill so it is not re-proposed: a git worktree is created from a commit, so
+  isolated forks would not see the uncommitted work in flight — usually the very thing under
+  audit — and isolation would not bound a write addressed by an absolute path, of which
+  inherited history is full. It trades real audit fidelity for partial containment.
 
 - **`sweep-all`: the wave cap imported a number calibrated for a different kind of subagent, and
   the shared budget was unmodeled (`#1623`).** "Like the `-deep` siblings" resolved to "roughly
@@ -77,8 +80,10 @@ Entries below `0.9.0` were released under the plugin's former name, `re-anchor`.
   absence. (Asserting undocumented behavior as fact is precisely what this plugin's flagship
   corrector exists to catch.)
 
+### Added
+
 - **`sweep-all` evals: two entries for paths every existing eval assumed away** — the
-  fork-unavailable degrade, and the fork tool pool being contained rather than enforced.
+  failed-canary degrade, and the fork tool pool being verified rather than enforced.
 
 ## [0.9.0]
 
