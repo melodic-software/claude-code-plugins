@@ -1,6 +1,6 @@
 ---
 name: babysit-loop
-description: "Run one repository's pull-request queue as the merge lane of the loop-lane three-session topology: a self-paced standing or drain loop that invokes /source-control:babysit-prs each cycle at the resolved autonomy tier, layered with an activity grace window, do-not-merge respect, escalation, and lane telemetry. Merge authority is human-only until the target repo's tracked config adopts the lane; the adopted baseline is human merge for everything except gate-proven C2-mechanical PRs, and standing merge-rung raises bind only from the tracked config seam. One named exception: an invocation whose own argument line carries BOTH the 'autopilot' tier keyword AND the dedicated raise argument '--merge c3-this-run' (never a config value, never model-supplied) widens that single invocation's merge authority up to C3, with a fresh independent frontier-tier subagent resolving needs-human/thread/finding blockers first — C4-structural and C5-untrusted-provenance stay unconditionally human-merge regardless, and 'autopilot' alone leaves merge authority at the tracked rung. Use when: 'babysit loop', 'run the babysit loop', 'stand up the merge lane', 'babysit the PR queue continuously', 'drain the PR queue', 'keep merges flowing'. Required argument: <owner/repo>. Launch via /loop (self-paced). Sibling skills: /source-control:babysit-prs (the single-pass tiered mechanic), /source-control:pull-request (single-PR lifecycle)."
+description: "Run one repository's pull-request queue as the merge lane of the loop-lane three-session topology: a self-paced standing or drain loop that invokes /source-control:babysit-prs each cycle at the resolved autonomy tier, layered with an activity grace window, do-not-merge respect, escalation, and lane telemetry. Merge authority is human-only until the target repo's tracked config adopts the lane; the adopted baseline is human merge for everything except gate-proven C2-mechanical PRs, and standing merge-rung raises bind only from the tracked config seam. One named exception: an invocation whose own argument line carries BOTH the 'autopilot' tier keyword AND the dedicated raise argument '--merge c3-this-run' (never a config value, never model-supplied, never inferred from a drain/merge phrasing) widens that single invocation's merge authority up to C3, with a fresh independent frontier-tier subagent resolving needs-human/thread/finding blockers first — C4-structural and C5-untrusted-provenance stay unconditionally human-merge regardless, and 'autopilot' alone leaves merge authority at the tracked rung. Use when: 'babysit loop', 'run the babysit loop', 'stand up the merge lane', 'babysit the PR queue continuously', 'drain the PR queue', 'keep merges flowing'. Required argument: <owner/repo>. Launch via /loop (self-paced). Sibling skills: /source-control:babysit-prs (the single-pass tiered mechanic), /source-control:pull-request (single-PR lifecycle)."
 argument-hint: "<owner/repo> [safe|worker|autopilot] [--drain] [--strip-do-not-merge] [--<dimension> <value>] · repo is required; default: standing mode at the configured tier"
 user-invocable: true
 disable-model-invocation: false
@@ -438,14 +438,14 @@ pause end.
 
 ## Subagents
 
-A conflict or blocker needing dedicated resolution is dispatched through babysit-prs's own fan-out
-and its Merge Conflict Resolution contract — the dispatched conflict worker never pushes; the
-dispatching context does. This loop adds two lane rules, per the convention: the subagent runs at
-the **frontier capability tier** (order-defined, resolved at runtime by model alias only, never a
-hard-coded model ID), and every dispatch prompt carries the subagent discipline preamble — when the
-`discipline` plugin is installed, invoke its sweep (sweep-all, use-your-skills, do-your-research);
-when absent, inline the equivalent standing instructions (verify claims against authoritative
-sources, prefer installed skills, re-check against active conventions), per the convention.
+Dedicated resolution dispatches through babysit-prs's own fan-out. A merge conflict routes through
+its Merge Conflict Resolution contract, under which the dispatched conflict worker never pushes —
+the dispatching context does; every other blocker worker, the pre-escalation resolver included,
+runs the regular per-PR worker lifecycle and lands its own commit and refspec push (Escalation
+above). This loop adds two lane rules, per the convention: the subagent runs at the **frontier
+capability tier** (order-defined, resolved at runtime by model alias only, never a hard-coded
+model ID), and every dispatch prompt carries the subagent discipline preamble — when the
+`discipline` plugin is installed, invoke its sweep (sweep-all, use-your-skills, do-your-research); when absent, inline the equivalent standing instructions (verify claims against authoritative sources, prefer installed skills, re-check against active conventions), per the convention.
 
 The explicit-`autopilot` pre-escalation dispatch (Escalation, above) adds one further requirement:
 **context independence**, per the convention's §3 — the dispatched subagent must share no
