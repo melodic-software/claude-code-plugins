@@ -102,6 +102,28 @@ fleet safe to sweep: a repo that vanished after the dry-run applies idempotently
 (its manifest paths are already gone); a repo that appeared is not in the plan, so
 it is never touched. Do not re-enumerate at apply — pass the plan back.
 
+Apply also validates the plan against the requested `--tier` before touching disk:
+the plan must have been built for the same tier. A plan whose records the tier does
+not authorize — a `build` REPO record (which folds caches) under `--tier caches`, a
+`caches` record under `build`, or a `GITDIR` record under a non-git tier — is
+refused atomically (usage error, nothing removed, no apply banner) so the `--tier`
+flag can never under-report the scope of what a swapped or stale plan removes.
+
+The check runs in both directions. `all` authorizes both record kinds, so a
+narrower plan would clear every per-record test and then run only part of the tier
+— a `build` plan (no `GITDIR` records) applied with `--tier all` would skip every
+prune, a `git` plan (no `REPO` records) would skip every build removal. A non-empty
+plan applied with `--tier all` must therefore carry both kinds, or it is refused
+the same way. An empty plan plans nothing for either kind and stays a no-op.
+
+Only a structurally well-formed record satisfies that both-kinds requirement — a
+`GITDIR` line naming no representative worktree, or a `REPO` line naming no
+manifest, names no target and so cannot stand in for the tier half it belongs to.
+A malformed record is a different error class from a wrong-tier plan: the plan is
+not refused wholesale, but the record fails closed per-record at apply (structural
+corruption, exit 1, counted in `failed=` and never in `gitdirs=`) rather than being
+reported as a store that vanished after the dry-run.
+
 ### Per-repo outcome
 
 Each repo emits `Repo:` / `Outcome:` / `Reason:`. Outcomes: `would-clean`

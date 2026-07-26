@@ -87,6 +87,6 @@ commits (or discards) it through their own normal git workflow.
 
 ## Non-interactive execution
 
-Any `uninstall` needs `-y` when stdin/stdout isn't a TTY (required by the CLI itself). This only
-applies once Step 3's confirm has already been obtained through the interactive flow above — never
-add `-y` to bypass Step 3's per-plugin confirm.
+`-y` only skips `uninstall`'s `--prune` confirmation — it has no effect otherwise, and this action's
+`uninstall` calls never pass `--prune`. Do not add `-y` here: Step 3's per-plugin confirm is the
+required gate, and `-y` would only ever bypass a different (unused) prompt, never that one.

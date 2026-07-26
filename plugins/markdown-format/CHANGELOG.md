@@ -3,6 +3,115 @@
 All notable changes to the `markdown-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.0]
+
+### Security
+
+- **Code-loading markdownlint configuration is now gated on explicit approval.**
+  When the discovered configuration can execute repository-supplied code
+  (`.cjs`/`.mjs` config files, or `customRules`/`markdownItPlugins`/
+  `outputFormatters` module identifiers), the hook no longer runs
+  `markdownlint-cli2` after a one-time non-blocking advisory — it skips the
+  lint run, with a visible once-per-session notice on both channels, until the
+  user approves that exact configuration-content state by creating the marker
+  directory named in the notice (under `${CLAUDE_PLUGIN_DATA}/trust-approvals`).
+  The approval signature is content-addressed over the configuration AND every
+  repository file its string literals — plus, since a YAML plain scalar carries
+  no quotes, its path-shaped bare tokens — resolve to, through Node's CommonJS
+  resolution candidates (`.cjs`/`.mjs`/`.js`/`.json`/`.node` extensions and
+  directory `package.json`/`index.*` entry points), transitively, bounded — so a
+  change to the configuration or to a referenced repository module — e.g. a
+  branch switch swapping rule-module bytes under an unchanged config — revokes
+  the approval; the gate fails closed when `CLAUDE_PLUGIN_DATA` is unavailable
+  or the module scan overflows its bound. A reference that RESOLVES outside the
+  repository — a symlink aimed out of the tree, or a `../` escape — refuses
+  approval rather than being skipped: no signature over repository content can
+  cover it, so re-aiming the symlink at a different existing external target
+  would otherwise leave the approval valid while Node follows the new one. On a
+  host with no canonicalizer the resolution degrades to the lexical path, which
+  would read an escaping symlink as in-repository; a symlink whose physical path
+  came back unchanged is the signature of that degradation and refuses approval
+  too — the same fail-closed answer the membership scope already gives. Module-key detection in declarative
+  configs is a fail-closed textual over-approximation rather than a second
+  parser (which would only open a differential-parsing gap against
+  markdownlint-cli2's own parser): the literal key words anywhere in the file
+  gate as code-loading, and constructs able to synthesize a hidden spelling
+  (JSONC `\uXXXX` escapes; YAML `\x`/`\u`/`\U` escapes, escaped line joins,
+  `!!` tags) mark the configuration unverifiable — gated with no approval
+  route, since text whose meaning cannot be read cannot be reviewed. Those two
+  tiers are independent tests rather than a chain, so a config carrying a literal
+  key AND an escaped module value still reaches the escape verdict instead of
+  having it suppressed by the key match.
+
+  **An executable (`.cjs`/`.mjs`) config that declares one of the module-loading
+  keys now gets no approval route at all** — a deliberate narrowing.
+  markdownlint-cli2 resolves those entries itself, so an entry may be any
+  expression producing a string (`path.join(...)`,
+  `["./rules","x.cjs"].join("/")`, a concatenation, a helper call, a value
+  imported from elsewhere), and no text scan can enumerate that space. A repo
+  that names custom rules from a JS config must move those entries to a
+  declarative config, where they are data this scan reads exactly rather than an
+  expression it would have to predict; an executable config that declares none of
+  those keys stays approvable as before. A module specifier the scan cannot pin to
+  a file likewise refuses approval, because a
+  signature that omits the module would keep honoring an approval across
+  arbitrary edits to it: any path-building machinery in a JS source
+  (an import of the `path` module — refused at the import, because a call site
+  can be spelled through any alias while the import cannot; `require.resolve`,
+  `import.meta`, `__dirname`/`__filename`, `process.*`, template
+  interpolation, string concatenation), a
+  loader whose argument is not a plain quoted specifier, and a string literal
+  carrying a letter-capable escape sequence (which Node decodes to a different
+  path than the raw text). Detection is file-wide rather than anchored on a
+  loader call: markdownlint-cli2 resolves `customRules` entries itself, so
+  `customRules: [path.join(__dirname, "rules", "x.cjs")]` — or
+  `[process.env.RULE]` — carries no loader token at all, and JavaScript permits
+  a comment or newline at any token boundary, so `require/*c*/(…)` sits outside
+  any fixed window. The loader test deletes every plainly-written call first and
+  then looks for a loader token in the residue, which needs no window. Every
+  pattern is POSIX ERE — no `\b`, whose GNU-only meaning would turn the whole
+  predicate into a silent pass under the macOS system grep this hook supports.
+  Previously the hook warned once and executed anyway, so a malicious
+  repository's checked-in config could run arbitrary code on a routine
+  markdown edit. Declarative rule-only configuration is unaffected. The edit
+  itself is still never blocked — the hook always exits 0.
+
+### Fixed
+
+- **Shared `hook-utils.sh`: a bare or trailing unquoted `NAME=value` Bash
+  command no longer leaks the assignment value into the privacy-safe
+  telemetry/audit subject.** `hook::extract_bash_subject` stripped a leading
+  `VAR=value` prefix only when a following command word consumed it, so a
+  command whose LAST token was an unquoted assignment (e.g. `TOKEN=ghp_…`)
+  survived to the subject and emitted `Bash:TOKEN=ghp_…` into
+  `hook-events.jsonl` and any wired `HOOK_TELEMETRY_SINK`. A resolved token
+  still shaped like a shell assignment now bails to the bare `Bash` subject,
+  matching the existing quoted-value bail (`VAR=x cmd` still reduces to
+  `Bash:cmd`). Synced from `lib/hook-utils.sh`; the subject is
+  telemetry/audit-only, so no guard or formatter block/allow behavior changes.
+
+## [0.6.5]
+
+### Fixed
+
+- C1 fd1-leak detector in the hook contract test: the differential threshold
+  introduced in `0.6.2` (ported from `desktop-notification` `#751`) carried the same
+  latent defect — `THRESHOLD_MS` was derived as `SINK_SLEEP * 1000 / 2`, so widening
+  `SINK_SLEEP` widened the threshold proportionally and left the margin unchanged by
+  construction (`#448`, reopened after reproducing on clean `main`: delta=3697ms
+  false-fail with no leak present, in the `desktop-notification` copy this test was
+  ported from). `THRESHOLD_MS` now asserts the real invariant directly —
+  sink-sleep-minus-a-safety-margin, not half the sleep — and `SINK_SLEEP` widens from
+  6s to 8s (still under the 10s ceiling documented against EXIT-cleanup file-locking
+  on Windows) for more absolute separation between ambient noise and the leak signal.
+  The safety margin is sized so BOTH sides of the threshold clear the 2150ms of worst
+  observed no-leak noise, not just the noise side: a threshold too close to the leak
+  signal lets a load shift that inflates every baseline sample and then subsides
+  before the slow run subtract real leak signal out of the delta, and the detector
+  reports no leak. At `SINK_SLEEP`=8s and a 3000ms margin the threshold sits at
+  5000ms — 2850ms of noise-side margin, 3000ms of leak-side margin.
+  No behavior change for this plugin — the hook is untouched; test-only.
+
 ## [0.6.4]
 
 ### Fixed

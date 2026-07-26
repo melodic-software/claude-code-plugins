@@ -5,6 +5,7 @@ import path from "node:path";
 import fs from "node:fs";
 import { fileURLToPath } from "node:url";
 import { loadSlidesData, meetingsDir } from "./lib/paths.js";
+import { isAllowedUrlScheme } from "./lib/url-policy.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const { meta, theme, slides } = await loadSlidesData();
@@ -317,7 +318,7 @@ function buildNews(s, slide) {
     });
 
     // ALL URLs — each as separate hyperlinked line
-    const urls = b.urls ?? [];
+    const urls = (b.urls ?? []).filter(isAllowedUrlScheme);
     const urlBlock = urls.flatMap((u, j) => [
       ...(j > 0 ? [{ text: "\n", options: { fontSize: 4 } }] : []),
       { text: u, options: { fontFace: FONT_BODY, fontSize: 8.5, color: theme.accent, hyperlink: { url: u } } },
@@ -383,7 +384,7 @@ function buildCondensed(s, slide) {
       valign: "top",
     });
 
-    const urls = b.urls ?? [];
+    const urls = (b.urls ?? []).filter(isAllowedUrlScheme);
     if (urls.length > 0) {
       const urlText = urls.flatMap((u, j) => [
         ...(j > 0 ? [{ text: "\n", options: { fontSize: 3 } }] : []),

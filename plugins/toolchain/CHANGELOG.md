@@ -3,6 +3,37 @@
 All notable changes to the `toolchain` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.0]
+
+### Added
+
+- **`gates[].run-from` execution-scope override for `/toolchain:check`.** A CI-parity gate declared
+  under a `project-discovery` ecosystem (`go`, `python`, `typescript`) previously always ran once per
+  discovered project root — correct for a per-project gate (`go-mod-tidy-drift`) but wrong for a
+  repo-wide gate (protobuf generation, schema freshness), which ran redundantly or failed in roots
+  lacking its config. `run-from: repo-root` forces a single run from `$REPO_ROOT` instead; omitting
+  the key preserves current per-project behavior exactly. A gate that still runs multiple times now
+  reports one aggregated outcome line per gate name (`FAIL` if any invocation failed), with each
+  failing invocation's output labeled by its execution root. Follows the ecosystem-commands
+  convention bump to 1.2.0. Closes #1361, deferred from #1020. Under `run-from: repo-root`,
+  `<files>` expands to the full ecosystem-scoped changed-files set and `<project-dir>` is undefined —
+  a gate `cmd` using it there is reported as a `FAIL` naming the unresolvable placeholder, never
+  guessed at.
+
+## [0.10.2]
+
+### Changed
+
+- **`/toolchain:check` §2 Reachability bullet now states the settled cross-ecosystem-trigger
+  pattern.** A gate's `trigger-globs` narrows a run *within* its already-affected ecosystem and never
+  selects an ecosystem under auto-targeting — that subordinate model was already the implemented
+  behavior (#1020) but was left as an open design question in the schema and skill docs. Decided by
+  #1339: the docs now state explicitly that a consumer with a cross-ecosystem gate trigger (e.g. a Go
+  gate keyed off `*.proto`) adds the trigger pattern to the ecosystem's own `globs` to make it
+  auto-targeting-visible. Docs-only; no runtime behavior change; `ecosystem.schema.json`'s
+  `trigger-globs` description bumped to convention v1.1.1 in lockstep (docs/conventions/
+  ecosystem-commands/CHANGELOG.md).
+
 ## [0.10.1]
 
 ### Fixed

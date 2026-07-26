@@ -4,10 +4,11 @@
     {
       "id": 1,
       "name": "infers-candidates-and-interviews-per-item",
-      "prompt": "/work-items:setup apply",
-      "expected_output": "Reads any existing .github/recurring-schedule.json and summarizes it, then infers candidate recurring items from what the repo actually contains (dependency manifests, lint/formatter config, CI workflows, security-sensitive surfaces) each with a recommended cadence, and interviews one item at a time with recommended field values marked before moving on. It does not invent items the repo gives no signal for, and writes only what the user accepts.",
+      "prompt": "/work-items:setup apply --seed-schedule",
+      "expected_output": "The explicit --seed-schedule argument opts in to the seeding pass, so it runs in full without asking again: it reads any existing .github/recurring-schedule.json and summarizes it, then infers candidate recurring items from what the repo actually contains (dependency manifests, lint/formatter config, CI workflows, security-sensitive surfaces) each with a recommended cadence, and interviews one item at a time with recommended field values marked before moving on. It does not invent items the repo gives no signal for, and writes only what the user accepts.",
       "files": [],
       "expectations": [
+        "Treats the explicit --seed-schedule argument as the opt-in and runs the seeding pass without re-offering it",
         "Reads and summarizes an existing .github/recurring-schedule.json before proposing changes",
         "Infers candidate items from concrete repo signals (manifests, lint config, CI workflows, security surfaces) with recommended cadences",
         "Interviews one item at a time with recommended values, rather than writing blind",
@@ -17,7 +18,7 @@
     {
       "id": 2,
       "name": "idempotent-preserves-existing-item-dates",
-      "prompt": "/work-items:setup apply",
+      "prompt": "/work-items:setup apply\n\n(.work-item-tracker.json is already bound, and .github/recurring-schedule.json already carries three items with last_checked/next_due dates — one of them already overdue.)",
       "expected_output": "Re-running against an existing schedule preserves each existing item's last_checked and next_due as-is — setup seeds but performs no maintenance, so it never advances the cadence clock — recomputing next_due only when the user explicitly reschedules or changes cadence, and never resetting last_checked to today. New items seed last_checked to today and next_due to today plus the cadence's day count. Blindly resetting an overdue item's dates (which would drop it from the due/work tiers) is avoided.",
       "files": [],
       "expectations": [
@@ -30,7 +31,7 @@
     {
       "id": 3,
       "name": "writes-tracked-config-ensures-label-unique-keys",
-      "prompt": "/work-items:setup apply\n\nSeed a sensible recurring schedule for this repo.",
+      "prompt": "/work-items:setup apply\n\nSeed a sensible recurring schedule for this repo.\n\n(First-time bind: no .work-item-tracker.json exists and .github/recurring-schedule.json is absent.)",
       "expected_output": "Writes the accepted items to the consumer's tracked .github/recurring-schedule.json (project-root anchored, {\"items\": [ ... ]} root), verifying every final id AND every final title is unique across the array and stopping to prompt on any collision rather than writing a duplicate. It ensures the load-bearing recurring label exists via the bound provider (recommending creation, not treating it as optional) and never writes into the plugin directory or plugin data directory.",
       "files": [],
       "expectations": [
@@ -43,7 +44,7 @@
     {
       "id": 4,
       "name": "reconciles-renamed-or-dropped-row-open-item",
-      "prompt": "/work-items:setup apply",
+      "prompt": "/work-items:setup apply\n\n(.work-item-tracker.json is already bound, and .github/recurring-schedule.json already carries several items; over the interview the user renames one row's id and title and drops another.)",
       "expected_output": "When an existing schedule row is renamed or dropped, it looks up that row's open [Maintenance] item under the OLD title, filtering provider search results to an exact [Maintenance] {old title} match (never a mere prefix/substring). A renamed row's item is retitled to the new title (or closed if retiring); a dropped row's item is closed with a note. A rename or drop with no exact-match open item needs no reconciliation.",
       "files": [],
       "expectations": [
@@ -51,6 +52,58 @@
         "Filters provider search to an exact [Maintenance] {old title} match, never a prefix or substring match",
         "Retitles the item for a renamed row and closes it (with a note) for a dropped row",
         "Performs no reconciliation when no exact-match open item exists"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "first-bind-writes-skeleton-only-without-opt-in",
+      "prompt": "/work-items:setup apply\n\n(First-time bind: no .work-item-tracker.json exists and .github/recurring-schedule.json is absent. An interactive user is present and answers \"skip\" to the seeding offer.)",
+      "expected_output": "On a first-time bind with no schedule rows, a bare apply writes only the minimum viable config: the provider binding, the canonical role-label pass, and the empty {\"items\": []} skeleton that stops due/recheck/work degrading to \"no recurring schedule configured\". It offers seeding exactly once as a single yes/no with skip marked RECOMMENDED; on skip it runs no candidate inference and no per-item interview, and says the schedule can be bulk-seeded later by re-running apply or apply --seed-schedule. The role-label pass still runs — it is a numbered step of apply's flow anchored right after the bind, not a tail-end offer after the schedule interview — and with zero schedule rows a missing recurring-maintenance label is reported as informational rather than gating the bind.",
+      "files": [],
+      "expectations": [
+        "Writes only the provider binding, the role-label pass, and the empty {\"items\": []} schedule skeleton",
+        "Runs no candidate inference and no per-item interview when the seeding offer is skipped",
+        "Offers seeding once as a single yes/no with skip marked RECOMMENDED, and points at apply --seed-schedule for bulk-seeding later",
+        "Still runs the role-label pass as a numbered step anchored after the bind, treating a missing recurring-maintenance label as informational when the schedule carries zero rows"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "unattended-first-bind-applies-skip-default-silently",
+      "prompt": "/work-items:setup apply\n\n(First-time bind: no .work-item-tracker.json exists and .github/recurring-schedule.json is absent. gh is installed and authenticated. This runs unattended — there is no interactive user to answer any question.)",
+      "expected_output": "With no interactive user, none of apply's questions are presented and it never blocks on one — not the provider/config interview, not the role-label remap offer, not the seeding offer. Each resolves to its RECOMMENDED answer silently: the binding is github with lease_ttl_hours 24 (safe here because gh is installed and authenticated), the role-label pass keeps the defaults and so writes no config.role_labels, and seeding is skipped, leaving the empty {\"items\": []} skeleton. It runs no candidate inference and no per-item interview, and it does not substitute invented answers for the interview it skipped. It names which defaults it took, and reports that the schedule can be seeded later by re-running apply --seed-schedule, or a bare apply and accepting the offer, with a user present.",
+      "files": [],
+      "expectations": [
+        "Presents none of apply's questions and blocks on none of them when no interactive user is available — the bind and role-label passes included, not only the seeding offer",
+        "Resolves each decision to its RECOMMENDED answer silently: github + lease_ttl_hours 24, role labels kept at their defaults (no config.role_labels written), seeding skipped",
+        "Runs no candidate inference and no per-item interview, and invents no answers in place of the skipped interview",
+        "Names the defaults it took, and points at apply --seed-schedule (or a bare apply and accepting the offer) for opting in to seeding later, with a user present"
+      ]
+    },
+    {
+      "id": 7,
+      "name": "unattended-bind-stops-when-no-safe-provider-default",
+      "prompt": "/work-items:setup apply\n\n(First-time bind: no .work-item-tracker.json exists. gh is not installed. This runs unattended — there is no interactive user to answer any question.)",
+      "expected_output": "The unattended default resolves a decision only when its RECOMMENDED answer is safe. Here it is not: github is recommended but requires gh, and local-markdown and jira need storage_dir / config.jira values that have no defaults and cannot be inferred — so no provider can be chosen safely. It stops and reports that the tracker binding needs a provider decision, naming the command to run with a user present, rather than guessing a provider or inventing config. It writes no .work-item-tracker.json, because an invented binding would make every seam verb resolve a provider the repo never chose.",
+      "files": [],
+      "expectations": [
+        "Does not guess a provider or invent config when no RECOMMENDED answer is safe",
+        "Writes no .work-item-tracker.json rather than binding a provider the repo did not choose",
+        "Reports the blocker by name and gives the command to resolve it with a user present",
+        "Distinguishes this from the seeding offer, which does have a safe default and is skipped silently"
+      ]
+    },
+    {
+      "id": 8,
+      "name": "unattended-rerun-preserves-existing-provider-binding",
+      "prompt": "/work-items:setup apply\n\n(.work-item-tracker.json is already bound to local-markdown with config.storage_dir set, and .github/recurring-schedule.json is absent. gh is installed and authenticated. This runs unattended — there is no interactive user to answer any question.)",
+      "expected_output": "The unattended provider default applies only where there is no binding to preserve. Here one exists and is valid, so the read-first recommendation — keep it — is the RECOMMENDED answer the unattended rule resolves to silently: the repo stays on local-markdown with its existing config, and nothing is rewritten. A working gh does not make github the answer, because re-binding is a switch-providers decision no default can stand in for, and switching would point every later seam verb at an item store the repo never chose. The run continues past the bind: the role-label pass keeps its defaults, seeding is skipped, and the empty {\"items\": []} skeleton is written.",
+      "files": [],
+      "expectations": [
+        "Preserves the existing local-markdown provider and its config rather than re-binding",
+        "Does not bind github merely because gh is installed and authenticated, when a valid binding already exists",
+        "Scopes the unattended github default to the case where no binding is present",
+        "Still completes the remaining passes silently: role labels kept at their defaults, seeding skipped, empty {\"items\": []} skeleton written"
       ]
     }
   ]

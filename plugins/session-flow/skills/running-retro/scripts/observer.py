@@ -460,12 +460,34 @@ class Observer:
         # so nested tooling can also tell this is the observer's own analysis.
         env = dict(os.environ, SESSION_FLOW_OBSERVER_ANALYSIS="1")
         self.log(f"firing analysis: {self.model} over {self.obs_path.name}")
+        run_kwargs: dict = {}
+        if os.name == "nt":
+            # CREATE_NO_WINDOW -- the observer process itself is already spawned
+            # windowless (arm_observer.py's spawn_detached), but that flag set was
+            # never carried to this later, in-process subprocess.run call, so a
+            # console window flashed on the desktop for the run's duration. This
+            # is a waited (not detached) child, so only suppress the window --
+            # no DETACHED_PROCESS/CREATE_NEW_PROCESS_GROUP, which are for escaping
+            # the parent's process tree, not needed here.
+            run_kwargs["creationflags"] = 0x08000000
         try:
             # Own short timeout, NOT max_secs -- otherwise the observer could live
             # up to ~2x its documented absolute lifetime cap. The measured run is
             # ~20-40s; this bounds a stuck run to minutes.
+            #
+            # encoding="utf-8" is explicit because `claude -p --output-format
+            # json` always writes UTF-8, but Python's default text encoding for
+            # subprocess capture is the platform code page -- cp1252 on Windows --
+            # which corrupts non-ASCII output (mojibake) into the ledger.
+            # errors="replace" (rather than the default "strict") keeps a
+            # truncated/invalid byte sequence -- e.g. multi-byte UTF-8 split at
+            # a timeout boundary during decode -- from raising UnicodeDecodeError
+            # out of this try block, which is caught only for
+            # TimeoutExpired/OSError; an uncaught decode error would skip the
+            # designed "return False -> retain observations" fallback entirely.
             proc = subprocess.run(cmd, input=prompt, capture_output=True, text=True,
-                                  env=env, timeout=self.analysis_timeout_secs)
+                                  encoding="utf-8", errors="replace", env=env,
+                                  timeout=self.analysis_timeout_secs, **run_kwargs)
         except (subprocess.TimeoutExpired, OSError) as e:
             self.log(f"analysis run failed: {e}")
             return False
@@ -547,8 +569,11 @@ def _pid_alive(pid: int) -> bool:
     if pid <= 0:
         return False
     if os.name == "nt":
+        # encoding= must be explicit -- Python's default text-mode decoding is
+        # the platform code page, not UTF-8 (same class of defect as #1472).
         out = subprocess.run(["tasklist", "/FI", f"PID eq {pid}", "/NH"],
-                            capture_output=True, text=True)
+                            capture_output=True, text=True,
+                            encoding="utf-8", errors="replace")
         return str(pid) in out.stdout
     try:
         os.kill(pid, 0)
@@ -637,6 +662,27 @@ it lands in a durable, portable ledger, so it is critical: sweep every finding, 
 quoted snippet for secrets, tokens, credentials, connection strings, and PII, replacing \
 each with a shape marker.
 
+Compute, don't assert, any structural claim (mandatory -- you have no delegation prompt to \
+fall back on): a finding describing transcript/tool-call structure -- \
+sequencing, batching, delegation, or an occurrence count -- MUST be computed from the \
+distilled observations before you write it, never asserted from a narrative impression of \
+the read. Derive an ordering or batching claim (e.g. "ran sequentially," "no subagent \
+delegation") by grouping tool-use events by API message id and inspecting the grouping. \
+Note: the distilled observations you have here may not carry a message-id field at all -- \
+if it's absent, that claim is uncomputable from what you have, not a license to assert it \
+from impression. Derive an occurrence count backing an "Emerging pattern" finding by \
+actually counting matched occurrences. If the observations don't carry what's needed to \
+compute a structural claim, drop the claim rather than assert it uncomputed -- an \
+asserted-and-wrong structural claim routes as if verified and is worse than a missed \
+finding. A correctly computed sequencing fact is not by itself proof of a missed batching \
+opportunity: calls that ran separately may be genuinely dependent, which makes the \
+sequencing correct, not a miss. Dependence isn't limited to a later call's input consuming \
+an earlier call's result -- a control, resource, or side-effect dependency (a directory \
+created before a file is written into it, an edit made before a test that exercises it \
+runs) is just as real a reason the calls had to be sequential. Before routing an \
+Efficiency finding for unbatched/sequential calls, check for any of these -- data, \
+control, resource, or side-effect -- dependency between them.
+
 Inputs (absolute):
 - Distilled observations (pre-filtered event stream, one JSON event per line): {observations}
 - Session id: {session_id}
@@ -644,8 +690,11 @@ Inputs (absolute):
 Do: Read the observations; produce the compact "Checkpoint findings" block exactly as \
 {checkpoint} specifies (metrics line, findings table with category + suggested route, \
 subjective-state assessment noted as unavailable for an autonomous run, new-skill \
-candidates); run the mandatory redaction pass. Return ONLY that block -- no preamble, no \
-echo of the observations."""
+candidates); compute rather than assert any structural claim (sequencing, batching, \
+delegation, occurrence counts), dropping it if it can't be computed from the observations, \
+and checking for a data, control, resource, or side-effect dependency before routing a \
+computed sequential claim as a missed-batching Efficiency finding; run the mandatory \
+redaction pass. Return ONLY that block -- no preamble, no echo of the observations."""
 
 
 def build_parser() -> argparse.ArgumentParser:

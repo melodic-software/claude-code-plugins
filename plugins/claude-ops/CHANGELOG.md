@@ -3,6 +3,34 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.21.3]
+
+### Fixed
+
+- **Shared `hook-utils.sh`: a bare or trailing unquoted `NAME=value` Bash
+  command no longer leaks the assignment value into the privacy-safe
+  telemetry/audit subject.** `hook::extract_bash_subject` stripped a leading
+  `VAR=value` prefix only when a following command word consumed it, so a
+  command whose LAST token was an unquoted assignment (e.g. `TOKEN=ghp_…`)
+  survived to the subject and emitted `Bash:TOKEN=ghp_…` into
+  `hook-events.jsonl` and any wired `HOOK_TELEMETRY_SINK`. This plugin's
+  `permission-denied-audit` and `tool-failure-audit` hooks compute their
+  subject through this helper, so the leak was reachable here. A resolved token
+  still shaped like a shell assignment now bails to the bare `Bash` subject,
+  matching the existing quoted-value bail (`VAR=x cmd` still reduces to
+  `Bash:cmd`). Synced from `lib/hook-utils.sh`; the subject is
+  telemetry/audit-only, so no audit hook's outcome changes.
+
+## [0.21.2]
+
+### Fixed
+
+- **`plugins` skill's `converge.md` no longer overstates when `uninstall` needs `-y`.** It claimed
+  any non-TTY `uninstall` requires `-y` "by the CLI itself." Verified against the live CLI (2.1.220)
+  and current docs: `-y` only skips `uninstall`'s `--prune` confirmation, and this action's
+  `uninstall` calls never pass `--prune` — so `-y` was never warranted here and adding it would only
+  ever bypass a different, unused prompt, not Step 3's per-plugin confirm (#1410).
+
 ## [0.21.1]
 
 ### Fixed

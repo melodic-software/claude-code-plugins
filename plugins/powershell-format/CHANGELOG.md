@@ -3,6 +3,85 @@
 All notable changes to the `powershell-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.0]
+
+### Security
+
+- **Code-loading analyzer settings are now gated on explicit approval.** A
+  `PSScriptAnalyzerSettings.psd1` that declares `CustomRulePath` makes
+  PSScriptAnalyzer load and execute repository-supplied rule modules during
+  analysis, so the hook no longer runs the formatter/analyzer under such a
+  settings file automatically: it skips the run — with a visible
+  once-per-session notice on both channels — until the user approves that exact
+  settings-and-rule-module content state by creating the marker directory named
+  in the notice (under `${CLAUDE_PLUGIN_DATA}/trust-approvals`). The approval
+  signature is content-addressed over the settings file AND every file
+  reachable under each declared `CustomRulePath` entry (recursively for
+  directories), plus every repository file those files reference by string
+  literal (transitively, bounded — a leaf module's dot-sourced or imported
+  dependencies execute with it; `$PSScriptRoot` and `$PSCommandPath` are
+  expanded wherever they appear in the reference, not only as a leading prefix,
+  so the standard interpolated dependency form pins instead of dropping out of
+  the signature), so a change to
+  the settings or to any referenced rule module —
+  e.g. a branch switch swapping module bytes under an unchanged settings file —
+  revokes the approval. The gate fails closed when `CLAUDE_PLUGIN_DATA` is
+  unavailable, and also when a `CustomRulePath` entry does not resolve to
+  hashable content: an unpinnable state offers no approval route at all.
+  A load whose TARGET cannot be pinned to a file is refused the same way — a
+  variable, an env lookup, a composed expression such as
+  `. (Join-Path $PSScriptRoot "deps" "helper.ps1")`, or an interpolated string
+  holding any other variable. That verdict comes from PowerShell's own parser
+  (`Parser::ParseInput`, examining every `.`/`&` invocation and
+  `Import-Module`/`Add-Type`/`Invoke-Expression`-class command) rather than from
+  a text pattern, so it cannot be evaded by quoting or comment placement and
+  needs no file-extension guessing — the extensionless
+  `Import-Module "$root/MyModule"` form is caught without one. A loader fed by a
+  PIPELINE is refused too: it takes its source from the upstream element rather
+  than from its own arguments, so `Get-Content (Join-Path $PSScriptRoot deps
+  helper.ps1) -Raw | Invoke-Expression` would otherwise present nothing but a
+  constant command name to inspect. A target the
+  parser accepts is pinned from the parser too, not left to the quoted-literal
+  scan: PowerShell does not require quotes around a command argument, so
+  `. $PSScriptRoot\helper.ps1` would otherwise be judged pinnable and then never
+  pinned. `using module <path>` and `using assembly <path>` are collected as well
+  — both are `UsingStatementAst` nodes rather than commands, so neither the
+  command walk nor a text scan would see them, and an assembly directive loads a
+  repository DLL exactly as a module directive loads a `.psm1`. An assembly the
+  parser cannot load is reported as a parse error, which already refuses
+  approval, so both directions are closed: loadable is pinned, unloadable is
+  unverifiable. `using namespace` and `using type` name no repository file and are
+  left alone. An extensionless reference resolves through
+  PowerShell module resolution, so the `.psd1`/`.psm1`/`.ps1`/`.dll` candidates
+  and both directory layouts — `MyModule/MyModule.psd1` and the versioned
+  `MyModule/<version>/MyModule.psd1` — are all pinned rather than only an exact
+  leaf. An inline script block is exempt because it is part of the
+  already-hashed file, and a composed load nested inside it is still judged on
+  its own.
+  Detection uses PowerShell's restricted data-file parser
+  (`Import-PowerShellDataFile`), not a textual scan, so quoting/escape
+  obfuscation of the key cannot evade it — and a settings file the restricted
+  parser rejects stays gated rather than run, since it cannot be proven
+  code-free. Previously the hook ran the analyzer unconditionally, so a
+  malicious repository's checked-in settings could execute arbitrary PowerShell
+  on a routine `.ps1`/`.psm1`/`.psd1` edit. Settings without `CustomRulePath`
+  are unaffected. The edit itself is still never blocked — the hook always
+  exits 0.
+
+### Fixed
+
+- **Shared `hook-utils.sh`: a bare or trailing unquoted `NAME=value` Bash
+  command no longer leaks the assignment value into the privacy-safe
+  telemetry/audit subject.** `hook::extract_bash_subject` stripped a leading
+  `VAR=value` prefix only when a following command word consumed it, so a
+  command whose LAST token was an unquoted assignment (e.g. `TOKEN=ghp_…`)
+  survived to the subject and emitted `Bash:TOKEN=ghp_…` into
+  `hook-events.jsonl` and any wired `HOOK_TELEMETRY_SINK`. A resolved token
+  still shaped like a shell assignment now bails to the bare `Bash` subject,
+  matching the existing quoted-value bail (`VAR=x cmd` still reduces to
+  `Bash:cmd`). Synced from `lib/hook-utils.sh`; the subject is
+  telemetry/audit-only, so no guard or formatter block/allow behavior changes.
+
 ## [0.5.2]
 
 ### Fixed

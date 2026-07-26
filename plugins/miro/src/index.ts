@@ -13,7 +13,7 @@ import { registerStickyNoteTools } from "./tools/sticky-notes.js";
 import { registerTagTools } from "./tools/tags.js";
 
 const server = new McpServer(
-  { name: "miro-mcp", version: "0.2.1" },
+  { name: "miro-mcp", version: "0.2.2" },
   {
     instructions:
       "Miro board management for visual collaboration. " +

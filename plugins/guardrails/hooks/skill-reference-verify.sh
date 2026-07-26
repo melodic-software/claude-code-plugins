@@ -5,7 +5,7 @@
 #
 # Catches subagent / training-recall hallucinations — a slash-command reference
 # written AS a capability that does not exist, or one left behind by a rename.
-# Sibling of cli-flag-verify and asserted-path-verify: same defect class, third
+# Sibling of cli-flag-verify and stale-path-verify: same defect class, third
 # oracle.
 #
 # ENFORCEABILITY TIER: Detect-then-judge — ADVISORY PLUS A HUMAN VERDICT, never
@@ -66,8 +66,18 @@ esac
 # Diff-scope: verify only the content THIS tool call wrote, never re-read the
 # whole file from disk.
 TOOL=$(printf '%s' "$INPUT" | jq -r '.tool_name // empty' 2>/dev/null | tr -d '\r')
+# Edit's `replace_all` (documented at
+# https://code.claude.com/docs/en/tools-reference — Edit requires `old_string` to
+# occur exactly once, and `replace_all: true` is how Claude edits every occurrence
+# instead). Reconstruction needs it: with `replace_all` the same `new_string`
+# lands in several places on purpose, so several matches are the edit's own
+# footprint rather than an ambiguity. Absent or false on every ordinary Edit.
+REPLACE_ALL=false
 case "$TOOL" in
-Edit) SCAN_CONTENT=$(printf '%s' "$INPUT" | jq -r '.tool_input.new_string // empty' 2>/dev/null | tr -d '\r') ;;
+Edit)
+  SCAN_CONTENT=$(printf '%s' "$INPUT" | jq -r '.tool_input.new_string // empty' 2>/dev/null | tr -d '\r')
+  REPLACE_ALL=$(printf '%s' "$INPUT" | jq -r '(.tool_input.replace_all // false) | tostring' 2>/dev/null | tr -d '\r')
+  ;;
 Write) SCAN_CONTENT=$(printf '%s' "$INPUT" | jq -r '.tool_input.content // empty' 2>/dev/null | tr -d '\r') ;;
 *) exit 0 ;;
 esac
@@ -147,41 +157,93 @@ emit_refs() {
     sed -nE 's|^(/[a-z][a-z0-9-]*:[a-z][a-z0-9-]*)([[:space:]].*)?$|\1|p'
 }
 
-# Partial-replacement context reconstruction (Edit only), mirroring
-# cli-flag-verify's reconstruct_partial_edit.
+# Partial-replacement context reconstruction (Edit only). The same shape lives in
+# stale-path-verify and cli-flag-verify; stale-path-verify was fixed for this
+# defect class by 65b4f67c (#1432) and this one goes one step further with the
+# uniqueness requirement below, so the three are not yet identical.
 #
 # An Edit may replace an arbitrary substring: swapping `setup` for `ghost` inside
 # an existing `/alpha:setup` leaves `/alpha:ghost` on disk, but the hunk is the
 # bare word `ghost` and carries no command for emit_refs to find, so a
 # newly-broken reference would be silently missed.
 #
-# Recover bounded context: the edit is already applied by PostToolUse time, so pull
-# from disk only the lines carrying one of the hunk's word tokens, scan those, and
-# keep only references whose plugin or skill segment appears in the hunk. That
-# token filter is what preserves the diff-scope contract — a pre-existing unrelated
-# reference sharing one of those lines never fires. The anchor is the token, not
-# the line, since a bare-word hunk carries no positional information.
+# Recover bounded context: the edit is already applied by PostToolUse time, so
+# pull from disk only the lines the hunk's OWN TEXT UNIQUELY locates, scan those,
+# and keep only references whose plugin or skill segment contains one of the
+# hunk's word tokens. Two gates, and the first is where diff-scope actually lives:
+#
+#   1. LOCATE by the hunk's own lines, and only where a line OCCURS exactly once
+#      in the file. Every line of new_string is on disk verbatim, so a unique
+#      occurrence IS where the edit landed. Anything repeated cannot say which
+#      copy that was, so it is dropped rather than unioned. Occurrences, not
+#      matching lines — two copies on one physical line are a single grep hit and
+#      would otherwise slip through. Exception: under `replace_all` every
+#      occurrence is a place this call edited, so all are kept.
+#   2. FILTER the references found there by the hunk's word tokens.
+#
+# Gate 2 alone is not sufficient and was never the guarantee: a token short
+# enough to occur in unrelated prose is also short enough to be a substring of an
+# untouched skill segment, so it would pass the reference through. Uniqueness at
+# gate 1 is what keeps the guard inside the diff.
+#
+# What this does NOT claim: the `replace_all` branch keeps every occurrence,
+# including one that pre-existed the edit and merely happens to read the same —
+# nothing in the payload separates those. Reconstruction is a best effort under an
+# advisory guard, not a proof that every reported line was written by this call.
 reconstruct_partial_edit() {
   [[ "$TOOL" == "Edit" && -f "$FILE" ]] || return 0
-  # Anchor tokens come from the hunk with any COMPLETE reference removed first.
-  # A complete reference is already handled by the direct scan, and leaving it in
-  # would contribute its own plugin name as an anchor — `alpha` then matches every
-  # reference to that plugin, including untouched ones on neighbouring lines, which
-  # breaks diff-scope. What remains is the genuinely bare edited text.
+  # The token filter reads the hunk with any COMPLETE reference removed first. A
+  # complete reference is already handled by the direct scan, and leaving it in
+  # would contribute its own plugin name as a token — `alpha` then passes every
+  # reference to that plugin. What remains is the genuinely bare edited text.
   local residue
   residue=$(printf '%s' "$SCAN_CONTENT" | sed -E 's#/[a-z][a-z0-9-]*:[a-z][a-z0-9-]*##g')
-  # Minimum anchor length. A substring match on a very short token matches almost
+  # Minimum token length. A substring match on a very short token matches almost
   # any segment — stripping a reference out of `Run `/alpha:x` now.` leaves the
-  # fragment `un`, which substring-matches `untouched-ghost` on an untouched line
-  # and breaks diff-scope. 4 characters is the shortest command segment worth
-  # anchoring on; below that the token carries no locating power.
+  # fragment `un`, which substring-matches `untouched-ghost`. 4 characters is the
+  # shortest command segment worth filtering on; below that the token carries no
+  # filtering power.
   local -a toks=()
   mapfile -t toks < <(printf '%s' "$residue" | grep -oE '[a-z][a-z0-9-]{3,}' 2>/dev/null | sort -u)
   ((${#toks[@]})) || return 0
-  local tok lines ctx=""
-  for tok in "${toks[@]}"; do
-    lines=$(grep -F -- "$tok" "$FILE" 2>/dev/null)
-    [[ -n "$lines" ]] && ctx+="$lines"$'\n'
+  # Lines are located by the hunk's own lines, never by its tokens. Every line of
+  # new_string is on disk verbatim, so it matches the line the edit landed in; a
+  # token, being shorter, also matches lines the edit never touched — a bare
+  # `legacy` in unrelated prose pulls in every `/alpha:*-legacy` reference on any
+  # line, and an untouched broken one among them would fire.
+  local -a anchors=()
+  mapfile -t anchors < <(printf '%s' "$SCAN_CONTENT" | grep -vE '^[[:space:]]*$' 2>/dev/null)
+  ((${#anchors[@]})) || return 0
+  # An anchor is used ONLY when it OCCURS exactly once in the file — occurrences,
+  # not matching lines. Counting lines is not enough: two occurrences on one
+  # physical line are one grep hit, and that is a real shape — inserting `legacy`
+  # into a line that already carries an untouched `` `/alpha:ghost-legacy` ``
+  # leaves the anchor twice on that line, and reporting the reference would be an
+  # advisory about text this call never wrote. Occurrence uniqueness subsumes line
+  # uniqueness (one occurrence can only be on one line), so it is the only gate.
+  #
+  # A non-unique anchor cannot say WHICH occurrence the edit landed on, so it is
+  # dropped rather than unioned. Cost: a missed advisory when an edit lands in
+  # text that repeats verbatim elsewhere in the file. For a detect-then-judge
+  # guard that is the right side of the trade — it is degraded far worse by being
+  # wrong when it speaks than by staying quiet.
+  local anchor occ ctx=""
+  local -a hits=()
+  for anchor in "${anchors[@]}"; do
+    mapfile -t hits < <(grep -F -- "$anchor" "$FILE" 2>/dev/null)
+    ((${#hits[@]})) || continue
+    # `replace_all` is the one case where repetition is expected rather than
+    # ambiguous: every occurrence is a place THIS call edited, so all of them are
+    # in scope and uniqueness must not be required. Accepted narrowing — a line
+    # that independently contained `new_string` and was never touched is kept too,
+    # since nothing in the payload distinguishes it from an edited one.
+    if [[ "$REPLACE_ALL" == "true" ]]; then
+      for occ in "${hits[@]}"; do ctx+="$occ"$'\n'; done
+      continue
+    fi
+    occ=$(grep -o -F -- "$anchor" "$FILE" 2>/dev/null | grep -c .)
+    ((occ == 1)) || continue
+    ctx+="${hits[0]}"$'\n'
   done
   [[ -n "$ctx" ]] || return 0
   local saved="$SCAN_CONTENT"

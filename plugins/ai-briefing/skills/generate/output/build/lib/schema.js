@@ -1,8 +1,14 @@
 // Zod schema for slides-data.js exports. Validates shape after emit, and as
 // part of validate.js gates. Catches accidental drift in slide-type fields.
 import { z } from "zod";
+import { isAllowedUrlScheme } from "./url-policy.js";
 
-const Url = z.string().url();
+// A source URL must parse AND carry an allowlisted scheme. `.url()` alone accepts
+// javascript:/data:/file: (WHATWG-parseable), so the refine is what rejects them —
+// a dangerous or unlisted scheme anywhere in the deck fails validation loudly.
+const Url = z.string().url().refine(isAllowedUrlScheme, {
+  message: "URL scheme not allowed — only http, https, mailto, and tel are accepted",
+});
 const Hex6 = z.string().regex(/^[0-9A-Fa-f]{6}$/);
 
 const Bullet = z.object({
