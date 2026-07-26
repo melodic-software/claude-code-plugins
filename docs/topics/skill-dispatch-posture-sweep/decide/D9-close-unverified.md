@@ -110,7 +110,7 @@ where this pass found its strongest challenge, and where it also found six clean
 
 **3 challenged · 29 upheld.** A fourth challenge (`debugging:debug`) was drafted and **withdrawn**
 after checking PLAN.md — see the withdrawal note in §3. Of the 29 upheld, **5 carry a stated reason
-that is wrong, void, or mis-ordered** under the ratified rules, and **2 gain phase-level carve-outs**.
+that is wrong, void, or misordered** under the ratified rules, and **2 gain phase-level carve-outs**.
 
 Blocker map across all 32 (scripted token scan, then confirmed by reading — prose mentions
 discarded): real `Workflow` dependence in 2 rows, `Task*` in 4, `ScheduleWakeup` in 1, plan-mode
@@ -374,7 +374,7 @@ Listed to show the read-only-action pattern was applied with a threshold, not me
 
 ---
 
-## 5. Stated reasons that are wrong, void, or mis-ordered (verdict right)
+## 5. Stated reasons that are wrong, void, or misordered (verdict right)
 
 Reported so the justifications get repaired, not the verdicts flipped. All four rest on the ratified
 rules.
