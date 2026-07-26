@@ -45,7 +45,33 @@
 #   --dry-run          print the commands that would run; mutate nothing
 #   --agents-json FILE read the session list from FILE instead of
 #                      `claude agents --json` (offline / scripted / test reuse)
+#   --data-dir DIR     base dir for the per-lane launch-commit marker (below);
+#                      default: $CLAUDE_PLUGIN_DATA env var if set, else
+#                      ~/.claude/plugins/data/claude-ops. NOTE: CLAUDE_PLUGIN_DATA
+#                      is exported to hook/MCP/LSP subprocesses but NOT to a
+#                      script a skill shells out to via the Bash tool (Claude
+#                      Code plugins-reference, "Environment variables") — the
+#                      lanes skill's SKILL.md passes --data-dir explicitly with
+#                      the inline-substituted value so a real Claude Code
+#                      session resolves the correct marketplace-qualified
+#                      directory; this env-var/fallback path only kicks in for
+#                      a direct/manual invocation (tests, a hand-run shell).
 #   --help
+#
+# Launch-commit marker (#792):
+#   After the pre-launch `git pull` (start/restart), the repo HEAD is captured
+#   once and, for every lane actually (re)started this run, written to
+#   `<data-dir>/lanes/<repo-key>/<lane>-launch-commit` (bare 40/64-hex SHA +
+#   newline; <repo-key> digests the canonical repo path, so same-named lanes in
+#   different repos never share a marker — recompute it by hand with
+#   `printf '%s' "$(git rev-parse --show-toplevel)" | git hash-object --stdin`) —
+#   the `<lane-launch-commit>` context/refresh.md's staleness probe reads. A
+#   lane skipped by `start` (already running) keeps its existing marker
+#   untouched. Best-effort: a write failure (or an unresolvable HEAD) warns on
+#   stderr but never fails an already-launched session — and removes any marker
+#   the PREVIOUS launch left, so the probe skips rather than trusting a commit
+#   this session never launched at. The lane name is the marker's filename, so
+#   config preflight rejects a name that is not a single path component.
 #
 # Config resolution (first hit wins):
 #   --config FILE  →  $CLAUDE_OPS_LANES_CONFIG  →  <repo>/.work/lanes.json
@@ -80,6 +106,8 @@ NO_PULL=0
 NO_UPDATE=0
 DRY_RUN=0
 AGENTS_JSON_FILE=""
+DATA_DIR_OVERRIDE=""
+LAUNCH_COMMIT=""
 declare -a TARGET_LANES=()
 
 # --- Small emitters -----------------------------------------------------------
@@ -136,6 +164,12 @@ parse_args() {
       shift
       ;;
     --agents-json=*) AGENTS_JSON_FILE="${1#*=}" ;;
+    --data-dir)
+      check_optarg "$1" "${2:-}" || exit 3
+      DATA_DIR_OVERRIDE="$2"
+      shift
+      ;;
+    --data-dir=*) DATA_DIR_OVERRIDE="${1#*=}" ;;
     -h | --help)
       usage
       exit 0
@@ -231,6 +265,23 @@ resolve_config() {
     err "lane config has duplicate lane names: $dupes (names must be unique): $CONFIG"
     exit 3
   }
+  # The name is also a path component: it keys the per-lane launch-commit marker
+  # at <data-dir>/lanes/<name>-launch-commit (#792). A name carrying a path
+  # separator (or `.`/`..`) would escape that directory and let two distinct
+  # lanes — say `work` and `group/../work` — share one marker file, so a
+  # targeted restart of one would make the other's staleness probe read a launch
+  # commit it never launched at. Reject rather than silently encode, so the
+  # documented marker path stays literally true for every accepted name.
+  local traversal
+  traversal="$(jq -r '
+    [ .lanes[].name
+      | select(. != null)
+      | select(test("[/\\\\]") or . == "." or . == "..") ] | join(", ")' "$CONFIG")"
+  [[ -z "$traversal" ]] || {
+    err "lane config has lane names that are not usable as a path component: $traversal"
+    err "  (a name must not contain '/' or '\\', or be '.' or '..'): $CONFIG"
+    exit 3
+  }
 }
 
 # The one prompt-storage seam — repoint here when a durable prompt home exists.
@@ -241,6 +292,94 @@ resolve_prompt_dir() {
   /* | [A-Za-z]:[\\/]*) printf '%s' "$d" ;; # absolute (POSIX or Windows drive)
   *) printf '%s' "$REPO/$d" ;;
   esac
+}
+
+# --- Launch-commit marker (#792) ----------------------------------------------
+# Base data dir: --data-dir, else $CLAUDE_PLUGIN_DATA, else the same
+# ~/.claude/plugins/data/claude-ops fallback check-all.sh uses for a machine
+# where the harness does not export CLAUDE_PLUGIN_DATA (e.g. a direct script
+# invocation outside a Claude Code session, as in the test suite).
+resolve_data_dir() {
+  local base="${DATA_DIR_OVERRIDE:-${CLAUDE_PLUGIN_DATA:-$HOME/.claude/plugins/data/claude-ops}}"
+  printf '%s/lanes' "${base%/}"
+}
+
+# The data dir is plugin-wide, but a lane name is only unique WITHIN one repo:
+# this launcher manages lanes in any repo `--repo` points at, and `work` is a
+# conventional name everywhere. Without a repo component, starting `work` in
+# repo B would overwrite repo A's marker, and A's probe would then diff against
+# a SHA from an unrelated history — usually an "invalid revision" error, at best
+# a silently wrong answer.
+#
+# Two properties the key must have, both learned the hard way:
+#   * Injective. A character-folding scheme (e.g. `tr -c 'A-Za-z0-9_-' '-'`)
+#     collapses `/repos/foo-bar` and `/repos/foo/bar` onto one key, which is the
+#     very collision this component exists to prevent. `git hash-object` over
+#     the exact path string cannot.
+#   * Derived from the CANONICAL path. `--repo` may name a symlink, which
+#     `resolve_repo` preserves; context/refresh.md's probe independently asks
+#     git for the toplevel. Both sides therefore key on `git rev-parse
+#     --show-toplevel` — git reports the physical, symlink-resolved working
+#     tree — so the probe always looks where the launcher wrote.
+# Falls back to $REPO only when the directory is not a git repo at all, where
+# the probe could not run anyway. Computed once per run.
+REPO_MARKER_KEY=""
+repo_marker_key() {
+  if [[ -z "$REPO_MARKER_KEY" ]]; then
+    local top
+    top="$(git -C "$REPO" rev-parse --show-toplevel 2>/dev/null)" || top=""
+    [[ -n "$top" ]] || top="$REPO"
+    REPO_MARKER_KEY="$(printf '%s' "$top" | git hash-object --stdin 2>/dev/null)"
+    [[ -n "$REPO_MARKER_KEY" ]] || REPO_MARKER_KEY="unkeyed"
+  fi
+  printf '%s' "$REPO_MARKER_KEY"
+}
+
+launch_commit_marker_path() {
+  printf '%s/%s/%s-launch-commit' "$(resolve_data_dir)" "$(repo_marker_key)" "$1"
+}
+
+# Captures the repo HEAD once per start/restart invocation (after the
+# pre-launch pull, if any ran). A hex-only `git rev-parse HEAD` value carries
+# no injection risk; empty on failure (detached-HEAD-less/unresolvable repo),
+# which downstream write_launch_commit_marker treats as "skip, don't write".
+capture_launch_commit() {
+  LAUNCH_COMMIT="$(git -C "$REPO" rev-parse HEAD 2>/dev/null)" || LAUNCH_COMMIT=""
+}
+
+# A launch that cannot record its own commit must not leave the PREVIOUS
+# launch's marker on disk: the refresh probe would read that older commit as
+# this session's launch point and keep reporting merges the session already
+# consumed — indefinitely, since nothing later rewrites it. Removing it degrades
+# the probe to its honest "no marker → skip" branch instead. Best-effort like
+# the write itself: a failed removal only warns.
+invalidate_launch_commit_marker() {
+  local path="$1"
+  [[ -e "$path" ]] || return 0
+  if rm -f "$path" 2>/dev/null; then
+    err "  removed the previous launch's marker so the staleness probe skips rather than trusts it: $path"
+  else
+    err "  stale launch-commit marker could not be removed — the staleness probe will read an obsolete commit: $path"
+  fi
+}
+
+# Writes the captured launch commit to <data-dir>/lanes/<name>-launch-commit.
+# Best-effort and always returns 0: a marker write failure must never fail a
+# lane that has already (or would already) launch — only warn on stderr. The
+# caller passes the already-resolved marker path (launch_lane resolves it
+# once per lane).
+write_launch_commit_marker() {
+  local path="$1"
+  if [[ -z "$LAUNCH_COMMIT" ]]; then
+    err "launch-commit marker skipped for $path: repo HEAD could not be resolved"
+    invalidate_launch_commit_marker "$path"
+    return 0
+  fi
+  if ! mkdir -p "$(dirname "$path")" 2>/dev/null || ! printf '%s\n' "$LAUNCH_COMMIT" >"$path" 2>/dev/null; then
+    err "launch-commit marker write failed: $path"
+    invalidate_launch_commit_marker "$path"
+  fi
+  return 0
 }
 
 # --- Session list (real CLI or fixture) --------------------------------------
@@ -362,6 +501,9 @@ launch_lane() {
   [[ -n "$effort" ]] && cmd+=(--effort "$effort")
   [[ -n "$settings" ]] && cmd+=(--settings "$settings")
 
+  local marker_path
+  marker_path="$(launch_commit_marker_path "$name")"
+
   if ((DRY_RUN)); then
     # Keep the seeded prompt out of the echoed command — show a size placeholder.
     local bytes
@@ -369,13 +511,16 @@ launch_lane() {
     printf 'DRY-RUN:'
     printf ' %q' "${cmd[@]}"
     printf ' %q\n' "<prompt: $prompt_path (${bytes}B)>"
+    printf 'DRY-RUN: write launch-commit marker %s <- %s\n' "$marker_path" "${LAUNCH_COMMIT:-<unresolved>}"
     return 0
   fi
 
   local prompt
   prompt="$(cat "$prompt_path")"
   cmd+=("$prompt")
-  (cd "$REPO" && "${cmd[@]}")
+  (cd "$REPO" && "${cmd[@]}") || return 1
+  # Best-effort: a marker write failure must not fail an already-launched lane.
+  write_launch_commit_marker "$marker_path"
 }
 
 # Returns: 0 stopped OK · 2 was not running · other = `claude stop` failed
@@ -397,6 +542,12 @@ refresh_repo_and_plugins() {
     info "git pull --ff-only ($REPO)"
     run git -C "$REPO" pull --ff-only || rc=1
   fi
+  # Capture HEAD for the launch-commit marker (#792) regardless of --no-pull —
+  # a skipped pull still leaves a well-defined HEAD to record. A pure read
+  # (`git rev-parse HEAD`), so it runs under --dry-run too: dry-run's `run`
+  # wrapper never actually pulled, so this reports the pre-existing HEAD in
+  # the preview line below without writing anything to disk.
+  capture_launch_commit
   if ((NO_UPDATE)); then
     info "skip plugin marketplace update (--no-update)"
   else
