@@ -57,6 +57,11 @@ printf 'You are the decide lane.\n' >"$REPO/.work/decide.md"
 
 CONFIG="$REPO/.work/lanes.json"
 
+# Launch-commit markers are namespaced by repo (#792 review): the data dir is
+# plugin-wide, but `work` is a conventional lane name in every repo. Mirrors
+# the launcher's own repo_marker_key.
+REPO_KEY="$(printf '%s' "$REPO" | tr -c 'A-Za-z0-9_-' '-')"
+
 # agents --json fixture: "work" running as a background session, others absent.
 AGENTS_RUNNING="$TMP/agents-running.json"
 cat >"$AGENTS_RUNNING" <<'JSON'
@@ -462,7 +467,7 @@ assert_not_contains "restart unknown lane does not update the marketplace" "$log
 
 # ============================================================================
 # #792 — launch-commit marker: start (real dispatch) writes
-# <data-dir>/lanes/<name>-launch-commit for every lane it actually launches,
+# <data-dir>/lanes/<repo-key>/<name>-launch-commit for every lane it actually launches,
 # holding the captured `git rev-parse HEAD` SHA.
 # ============================================================================
 DATA_DIR="$TMP/data"
@@ -470,34 +475,34 @@ DATA_DIR="$TMP/data"
 out="$(run_launcher start --repo "$REPO" --config "$CONFIG" --agents-json "$AGENTS_EMPTY" --data-dir "$DATA_DIR" 2>&1)"
 rc=$?
 assert_eq "marker: start with all lanes launching exits 0" 0 "$rc"
-marker="$(cat "$DATA_DIR/lanes/work-launch-commit" 2>/dev/null)"
+marker="$(cat "$DATA_DIR/lanes/$REPO_KEY/work-launch-commit" 2>/dev/null)"
 assert_eq "marker: work marker holds the stubbed HEAD sha" "deadbeefcafefeedfacefeeddeadbeefcafefeed" "$marker"
-marker="$(cat "$DATA_DIR/lanes/babysit-launch-commit" 2>/dev/null)"
+marker="$(cat "$DATA_DIR/lanes/$REPO_KEY/babysit-launch-commit" 2>/dev/null)"
 assert_eq "marker: babysit marker holds the stubbed HEAD sha" "deadbeefcafefeedfacefeeddeadbeefcafefeed" "$marker"
 
 # A lane `start` SKIPS (already running) must not get a fresh/overwritten
 # marker — only lanes actually (re)launched this run are recorded.
 DATA_DIR2="$TMP/data2"
-mkdir -p "$DATA_DIR2/lanes"
-printf 'pre-existing-sha\n' >"$DATA_DIR2/lanes/work-launch-commit"
+mkdir -p "$DATA_DIR2/lanes/$REPO_KEY"
+printf 'pre-existing-sha\n' >"$DATA_DIR2/lanes/$REPO_KEY/work-launch-commit"
 out="$(run_launcher start --repo "$REPO" --config "$CONFIG" --agents-json "$AGENTS_RUNNING" --data-dir "$DATA_DIR2" 2>&1)"
-marker="$(cat "$DATA_DIR2/lanes/work-launch-commit" 2>/dev/null)"
+marker="$(cat "$DATA_DIR2/lanes/$REPO_KEY/work-launch-commit" 2>/dev/null)"
 assert_eq "marker: skipped (already-running) lane keeps its existing marker" "pre-existing-sha" "$marker"
-marker="$(cat "$DATA_DIR2/lanes/babysit-launch-commit" 2>/dev/null)"
+marker="$(cat "$DATA_DIR2/lanes/$REPO_KEY/babysit-launch-commit" 2>/dev/null)"
 assert_eq "marker: a lane that DID launch this run still gets one" "deadbeefcafefeedfacefeeddeadbeefcafefeed" "$marker"
 
 # restart re-records the marker for the restarted lane.
 DATA_DIR3="$TMP/data3"
 out="$(run_launcher restart work --repo "$REPO" --config "$CONFIG" --agents-json "$AGENTS_RUNNING" --data-dir "$DATA_DIR3" 2>&1)"
-marker="$(cat "$DATA_DIR3/lanes/work-launch-commit" 2>/dev/null)"
+marker="$(cat "$DATA_DIR3/lanes/$REPO_KEY/work-launch-commit" 2>/dev/null)"
 assert_eq "marker: restart records the marker for the relaunched lane" "deadbeefcafefeedfacefeeddeadbeefcafefeed" "$marker"
 
 # --dry-run mutates nothing: no marker file is written, but the preview names
 # the would-be marker path and the resolved HEAD.
 DATA_DIR4="$TMP/data4"
 out="$(run_launcher start --repo "$REPO" --config "$CONFIG" --agents-json "$AGENTS_EMPTY" --data-dir "$DATA_DIR4" --dry-run 2>&1)"
-assert_contains "marker: dry-run previews the marker write" "$out" "DRY-RUN: write launch-commit marker $DATA_DIR4/lanes/work-launch-commit <- deadbeefcafefeedfacefeeddeadbeefcafefeed"
-if [[ -e "$DATA_DIR4/lanes/work-launch-commit" ]]; then notwritten=1; else notwritten=0; fi
+assert_contains "marker: dry-run previews the marker write" "$out" "DRY-RUN: write launch-commit marker $DATA_DIR4/lanes/$REPO_KEY/work-launch-commit <- deadbeefcafefeedfacefeeddeadbeefcafefeed"
+if [[ -e "$DATA_DIR4/lanes/$REPO_KEY/work-launch-commit" ]]; then notwritten=1; else notwritten=0; fi
 assert_eq "marker: dry-run writes no file" 0 "$notwritten"
 
 # An unresolvable HEAD (git rev-parse fails) skips the write with a warning on
@@ -507,26 +512,26 @@ out="$(STUB_GIT_REVPARSE_RC=1 run_launcher start --repo "$REPO" --config "$CONFI
 rc=$?
 assert_eq "marker: unresolvable HEAD still exits 0 (best-effort)" 0 "$rc"
 assert_contains "marker: unresolvable HEAD warns on skip" "$out" "launch-commit marker skipped"
-if [[ -e "$DATA_DIR5/lanes/work-launch-commit" ]]; then notwritten=1; else notwritten=0; fi
+if [[ -e "$DATA_DIR5/lanes/$REPO_KEY/work-launch-commit" ]]; then notwritten=1; else notwritten=0; fi
 assert_eq "marker: unresolvable HEAD writes no file" 0 "$notwritten"
 
 # …and when a PREVIOUS launch left a marker, an unrecordable relaunch must
 # remove it rather than let the probe read that older commit as this session's
 # launch point.
 DATA_DIR5B="$TMP/data5b"
-mkdir -p "$DATA_DIR5B/lanes"
-printf 'previouslaunchsha\n' >"$DATA_DIR5B/lanes/work-launch-commit"
+mkdir -p "$DATA_DIR5B/lanes/$REPO_KEY"
+printf 'previouslaunchsha\n' >"$DATA_DIR5B/lanes/$REPO_KEY/work-launch-commit"
 out="$(STUB_GIT_REVPARSE_RC=1 run_launcher restart work --repo "$REPO" --config "$CONFIG" --agents-json "$AGENTS_RUNNING" --data-dir "$DATA_DIR5B" 2>&1)"
 rc=$?
 assert_eq "marker: unrecordable relaunch still exits 0 (best-effort)" 0 "$rc"
-if [[ -e "$DATA_DIR5B/lanes/work-launch-commit" ]]; then stale=1; else stale=0; fi
+if [[ -e "$DATA_DIR5B/lanes/$REPO_KEY/work-launch-commit" ]]; then stale=1; else stale=0; fi
 assert_eq "marker: unrecordable relaunch invalidates the previous launch's marker" 0 "$stale"
 assert_contains "marker: invalidation is announced on stderr" "$out" "removed the previous launch's marker"
 
 # A write failure (marker path occupied by a directory) is the other
 # unrecordable path: same invalidation, same best-effort exit.
 DATA_DIR5C="$TMP/data5c"
-mkdir -p "$DATA_DIR5C/lanes/work-launch-commit"
+mkdir -p "$DATA_DIR5C/lanes/$REPO_KEY/work-launch-commit"
 out="$(run_launcher restart work --repo "$REPO" --config "$CONFIG" --agents-json "$AGENTS_RUNNING" --data-dir "$DATA_DIR5C" 2>&1)"
 rc=$?
 assert_eq "marker: failed write still exits 0 (best-effort)" 0 "$rc"
@@ -535,17 +540,33 @@ assert_contains "marker: failed write warns" "$out" "launch-commit marker write 
 # --dry-run must never touch an existing marker, even when HEAD is unresolvable:
 # it returns before the marker write/invalidate path entirely.
 DATA_DIR5D="$TMP/data5d"
-mkdir -p "$DATA_DIR5D/lanes"
-printf 'previouslaunchsha\n' >"$DATA_DIR5D/lanes/work-launch-commit"
+mkdir -p "$DATA_DIR5D/lanes/$REPO_KEY"
+printf 'previouslaunchsha\n' >"$DATA_DIR5D/lanes/$REPO_KEY/work-launch-commit"
 out="$(STUB_GIT_REVPARSE_RC=1 run_launcher restart work --repo "$REPO" --config "$CONFIG" --agents-json "$AGENTS_RUNNING" --data-dir "$DATA_DIR5D" --dry-run 2>&1)"
-marker="$(cat "$DATA_DIR5D/lanes/work-launch-commit" 2>/dev/null)"
+marker="$(cat "$DATA_DIR5D/lanes/$REPO_KEY/work-launch-commit" 2>/dev/null)"
 assert_eq "marker: dry-run leaves an existing marker untouched" "previouslaunchsha" "$marker"
 
 # CLAUDE_PLUGIN_DATA env var is honored when --data-dir is not passed.
 DATA_DIR6="$TMP/data6"
 out="$(CLAUDE_PLUGIN_DATA="$DATA_DIR6" run_launcher start --repo "$REPO" --config "$CONFIG" --agents-json "$AGENTS_EMPTY" 2>&1)"
-marker="$(cat "$DATA_DIR6/lanes/work-launch-commit" 2>/dev/null)"
+marker="$(cat "$DATA_DIR6/lanes/$REPO_KEY/work-launch-commit" 2>/dev/null)"
 assert_eq "marker: falls back to \$CLAUDE_PLUGIN_DATA when --data-dir is unset" "deadbeefcafefeedfacefeeddeadbeefcafefeed" "$marker"
+
+# The data dir is plugin-wide, so a second repo running the same conventional
+# lane name must not overwrite the first repo's marker.
+REPO_B="$TMP/repo-b"
+mkdir -p "$REPO_B/.work"
+cp "$REPO/.work/lanes.json" "$REPO_B/.work/lanes.json"
+cp "$REPO/.work/work.md" "$REPO/.work/babysit.md" "$REPO/.work/decide.md" "$REPO_B/.work/"
+REPO_B_KEY="$(printf '%s' "$REPO_B" | tr -c 'A-Za-z0-9_-' '-')"
+DATA_DIR7="$TMP/data7"
+mkdir -p "$DATA_DIR7/lanes/$REPO_KEY"
+printf 'repo-a-sha\n' >"$DATA_DIR7/lanes/$REPO_KEY/work-launch-commit"
+out="$(run_launcher start --repo "$REPO_B" --config "$REPO_B/.work/lanes.json" --agents-json "$AGENTS_EMPTY" --data-dir "$DATA_DIR7" 2>&1)"
+marker="$(cat "$DATA_DIR7/lanes/$REPO_KEY/work-launch-commit" 2>/dev/null)"
+assert_eq "marker: launching 'work' in another repo leaves repo A's marker intact" "repo-a-sha" "$marker"
+marker="$(cat "$DATA_DIR7/lanes/$REPO_B_KEY/work-launch-commit" 2>/dev/null)"
+assert_eq "marker: the other repo gets its own namespaced marker" "deadbeefcafefeedfacefeeddeadbeefcafefeed" "$marker"
 
 # ============================================================================
 echo

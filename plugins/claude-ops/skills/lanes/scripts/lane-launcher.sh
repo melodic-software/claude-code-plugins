@@ -61,7 +61,9 @@
 # Launch-commit marker (#792):
 #   After the pre-launch `git pull` (start/restart), the repo HEAD is captured
 #   once and, for every lane actually (re)started this run, written to
-#   `<data-dir>/lanes/<lane>-launch-commit` (bare 40/64-hex SHA + newline) —
+#   `<data-dir>/lanes/<repo-key>/<lane>-launch-commit` (bare 40/64-hex SHA +
+#   newline; <repo-key> is the resolved repo path folded to [A-Za-z0-9_-], so
+#   same-named lanes in different repos never share a marker) —
 #   the `<lane-launch-commit>` context/refresh.md's staleness probe reads. A
 #   lane skipped by `start` (already running) keeps its existing marker
 #   untouched. Best-effort: a write failure (or an unresolvable HEAD) warns on
@@ -301,8 +303,23 @@ resolve_data_dir() {
   printf '%s/lanes' "${base%/}"
 }
 
+# The data dir is plugin-wide, but a lane name is only unique WITHIN one repo:
+# this launcher manages lanes in any repo `--repo` points at, and `work` is a
+# conventional name everywhere. Without a repo component, starting `work` in
+# repo B would overwrite repo A's marker, and A's probe would then diff against
+# a SHA from an unrelated history — usually an "invalid revision" error, at best
+# a silently wrong answer. Key on the resolved absolute repo path, with every
+# character outside [A-Za-z0-9_-] folded to `-` (the same shape Claude Code uses
+# for its own per-project directories). The marker is already documented as
+# per-machine, so a per-machine path is the right identity; folding is not
+# injective for paths differing only in separator-vs-dash, which no real pair of
+# checkouts is.
+repo_marker_key() {
+  printf '%s' "$REPO" | tr -c 'A-Za-z0-9_-' '-'
+}
+
 launch_commit_marker_path() {
-  printf '%s/%s-launch-commit' "$(resolve_data_dir)" "$1"
+  printf '%s/%s/%s-launch-commit' "$(resolve_data_dir)" "$(repo_marker_key)" "$1"
 }
 
 # Captures the repo HEAD once per start/restart invocation (after the

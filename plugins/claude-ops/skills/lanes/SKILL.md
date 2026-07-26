@@ -130,8 +130,10 @@ refresh mechanism — the same `restart` that clears context bloat (#496). Detec
 unconsumed self-fix with a read-only git probe against the repo's default branch,
 then restart that lane at its next cycle boundary. The probe reads the launch
 commit `lane-launcher.sh` records per lane at `start`/`restart`
-(`${CLAUDE_PLUGIN_DATA}/lanes/<lane>-launch-commit`, #792) — no manual fill-in
-needed. Full reasoning, the probe, and the cadence live in
+(`${CLAUDE_PLUGIN_DATA}/lanes/<repo-key>/<lane>-launch-commit`, #792 — the data
+directory is plugin-wide, so `<repo-key>` keeps a conventional `work` lane in
+two different checkouts from sharing one marker) — no manual fill-in needed.
+Full reasoning, the probe, and the cadence live in
 [context/refresh.md](context/refresh.md) — read it before answering "why is my
 merged fix not live in the lane?" or setting a restart frequency.
 

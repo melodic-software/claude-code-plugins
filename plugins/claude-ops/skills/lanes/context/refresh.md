@@ -50,11 +50,14 @@ default="$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null || echo
 # data_dir: paste the `data_dir=…` line SKILL.md's "Mid-session staleness &
 # restart cadence" section carries — it is the ONLY place the real directory is
 # resolvable (see the paragraph below). Do not substitute an env var here.
+# Markers are namespaced by repo: the data dir is plugin-wide, but `work` is a
+# conventional lane name in every repo this launcher manages.
+repo_key="$(printf '%s' "$(git rev-parse --show-toplevel)" | tr -c 'A-Za-z0-9_-' '-')"
 # the commit lane-launcher.sh recorded when this lane last (re)started (#792)
 # tr -d '\r': strip a Windows CRLF read hazard on any captured value (the
 # repo's standing convention — see the CHANGELOG's #1176/F2 note) before it
 # reaches the git log range below.
-lane_launch_commit="$(cat "$data_dir/lanes/<lane>-launch-commit" 2>/dev/null | tr -d '\r')"
+lane_launch_commit="$(cat "$data_dir/lanes/$repo_key/<lane>-launch-commit" 2>/dev/null | tr -d '\r')"
 # merged changes to the claude-ops plugin the running lane has NOT consumed
 [[ -n "$lane_launch_commit" ]] && git log --oneline "${lane_launch_commit}..${default}" -- plugins/claude-ops/
 ```
@@ -75,14 +78,18 @@ content — carries the substituted `data_dir=` assignment; take it from there.
 
 `<lane-launch-commit>` (substitute the lane's own name for `<lane>` above) is the
 repo HEAD `lane-launcher.sh` captured when `lanes start`/`restart` last (re)started
-that lane — written to `<data-dir>/lanes/<lane>-launch-commit` right after the
-launch's pre-launch pull, for every lane actually (re)started that run (`start`
-leaves the marker untouched for a lane it skipped as already-running; a
+that lane — written to `<data-dir>/lanes/<repo-key>/<lane>-launch-commit` right
+after the launch's pre-launch pull, for every lane actually (re)started that run
+(`start` leaves the marker untouched for a lane it skipped as already-running; a
 (re)start that cannot record its own commit deletes the previous launch's marker
 rather than leaving it to be misread as this session's launch point). The lane
 name is the marker's filename, so config preflight rejects a lane name that is
 not a single path component — the path above is literally true for every
-accepted name. An empty `lane_launch_commit` means no marker exists for that
+accepted name. `<repo-key>` namespaces the marker by repo, because the data
+directory is plugin-wide while a lane name is only unique within one repo: a
+conventional `work` lane in two checkouts would otherwise share one marker and
+each probe would diff against the other repo's unrelated history. An empty
+`lane_launch_commit` means no marker exists for that
 lane (never started/restarted through `lane-launcher.sh` on this machine, or the
 last (re)start could not record one) — the probe has nothing to diff against and
 is skipped rather than run against a resolved-empty range. Any probe output = an

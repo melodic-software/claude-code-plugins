@@ -52,6 +52,15 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
     either would make the other's probe read a launch commit it never launched
     at. Rejecting rather than encoding keeps the documented
     `<data-dir>/lanes/<lane>-launch-commit` path literally true.
+  - The marker path is namespaced by repo
+    (`<data-dir>/lanes/<repo-key>/<lane>-launch-commit`). The data directory is
+    plugin-wide but a lane name is only unique within one repo, so a
+    conventional `work` lane in two checkouts would otherwise share a marker and
+    each repo's probe would diff against the other's unrelated history — usually
+    an invalid-revision error, at best a silently wrong answer. `<repo-key>` is
+    the resolved absolute repo path with every character outside `[A-Za-z0-9_-]`
+    folded to `-`, the same shape Claude Code uses for its own per-project
+    directories.
   - A (re)start that cannot record its own commit (unresolvable HEAD, or a failed
     write) now removes any marker the previous launch left. Leaving it made the
     probe treat that older commit as the new session's launch point and report
