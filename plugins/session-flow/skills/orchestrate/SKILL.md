@@ -156,9 +156,9 @@ track it: as of 2026-07-26 the [sub-agents](https://code.claude.com/docs/en/sub-
 describes the superseded off-by-default state while the changelog and the running harness both have
 nesting on — so a tree authored from either alone can be wrong in *both* directions (assuming depth
 you lack, or declining depth you have). The cheap check is behavioral: dispatch one worker and have
-it report whether it actually holds `Agent` before committing to a second layer. A denied spawn is
-not a depth answer — spawns are permission-classified before launch. Verbatim quotes and the
-divergence: `context/sources.md`.
+it report whether it actually holds `Agent` before committing to a second layer. Read a denied
+spawn's error text first: a depth rejection names depth, but spawns are also permission-classified
+before launch, and that refusal says nothing about the ceiling. Quotes: `context/sources.md`.
 
 ## Export modes (handoff / worker) — paste-ready brief
 

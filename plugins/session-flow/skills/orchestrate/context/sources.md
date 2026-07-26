@@ -98,7 +98,8 @@ before citing either.
 - **A permission gate can deny a spawn before depth is ever consulted.** Changelog v2.1.178
   *(verbatim, verified 2026-07-26)*: "Improved auto mode: subagent spawns are now evaluated by the
   classifier before launch, closing a gap where a subagent could request a blocked action without
-  review." So a failed spawn is not evidence about the depth ceiling.
+  review." So a failed spawn needs its error text read before it counts as evidence about depth: a
+  depth rejection names depth, a permission refusal names permission.
 
 **Drift note — the prose page lags the changelog by one release (surfaced 2026-07-26 under
 imperative 6).** The sub-agents page still describes the v2.1.217–2.1.218 state *(verbatim)*: "By
