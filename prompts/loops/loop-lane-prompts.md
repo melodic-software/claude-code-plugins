@@ -1,8 +1,30 @@
 # Loop-lane launch prompts
 
-Reusable templates for the three-lane topology. Fill the variables, paste a
-block. Nothing below is specific to one repository except the profile you
-fill in yourself.
+Reusable templates for the three-lane topology, plus one on-demand attended
+template (3b) for the parked-decision states the standing lanes deliberately
+exclude. Fill the variables, paste a block. Nothing below is specific to one
+repository except the profile you fill in yourself.
+
+The table below names an owner for every open-item state the machinery
+produces — **including the states that are deliberately or currently
+unowned, so absence is visible instead of silent**. When a new state appears
+and no row claims it, that is a gap to fix here, not a population to ignore.
+
+| Item state | Owner |
+|---|---|
+| Raw intake (unlabeled, or the raw marker) | 3 — Attended queue, `[intake]` |
+| Worker-escalated (marker kinds `escalated` and `routed-advisory`) | 3 — Attended queue, `[escalated]` |
+| C3 first-drain admissions (marker kind `ratify-c3`) | 3 — Attended queue, `[ratify]` |
+| Autonomous-eligible (role label, default `agent-ready`) | 1 — Worker lane |
+| Open PRs (drafts and `do-not-merge` included — evaluated, never force-merged) | 2 — Merge lane |
+| Parked human-gated (role label present, no escalation marker) | 3b — Parked-decision burn-down |
+| Decision-pending status label, where the repository declares one | 3b — Parked-decision burn-down |
+| Deferred-with-trigger decisions | 3b — trigger sweep (over 3b's own populations only) |
+| Wayfind HITL decision items (`wayfind: *` labels) | `/planning:wayfind work` — never 3b, never the worker lane |
+| Awaiting-reporter items (the repo's needs-info status), reporter silent | Dormant by design — reporter activity returns them to intake (row 1) |
+| Recurring-item creation on due date | The consuming repo's recurring-issues automation — **external**: a repo without that workflow has this state unowned; verify it exists |
+| Expired claims / leases | `/work-items:track audit`, run manually — **no scheduled sweep exists** |
+| Lane telemetry issues | Lane infrastructure — excluded from every population by construction |
 
 ## Variables
 
@@ -16,6 +38,10 @@ Replace every `{{...}}` occurrence in the block you are pasting.
 | `{{MERGE}}` | Merge-rung cap for this run; safest default shown | `--merge human-only` |
 | `{{SHARD}}` | Attended terminal's bucket | `[ratify]` |
 | `{{RUNTIME_SURFACES}}` | Doc-shaped paths that are runtime | see profile |
+
+Template 3b takes only `{{REPO}}` and `{{RUNTIME_SURFACES}}` — `{{SHARD}}`,
+`{{TIER}}`, `{{MERGE}}`, and `{{STOP}}` do not apply to it (attended, no
+shard, never merges).
 
 `{{TIER}}` widens discovery, fixing, threads, drafts, barriers, and
 escalation. *Standing* merge authority binds only from the target repo's
@@ -698,6 +724,183 @@ letting one "primary" shard write it records a partial pass as the whole.
 
 ---
 
+## 3b — Parked-decision burn-down (attended, on demand)
+
+The attended queue's attention view is deliberately narrow: a human-gated
+label **without** a machine escalation-marker comment is a parked item, not
+an escalation, and never lists. That protects real worker questions from
+being buried — and it means parked decisions, decision-pending items, and
+decisions deferred with a named revisit trigger belong to no standing lane.
+Left alone they rot; a fired trigger looks exactly like a dormant one. This
+template is the deliberate act that owns them.
+
+**When to run it:** after the attended queue drains (same session is fine —
+the queue's rows always take precedence), or as its own session. **One
+burn-down terminal per repository.** There is no sharding here and none
+would help: every row needs the operator's judgment, and the operator is
+the serial resource — a second terminal splits their attention without
+adding decision bandwidth.
+
+**Launch from a checkout of `{{REPO}}`** — role labels and the tracker
+binding resolve from the working directory, exactly as for the attended
+queue. Running inside an already-open attended-queue session reuses that
+session's worktree; running as its own session while any other lane is up
+on the same machine needs its own worktree, per the
+never-share-a-working-directory rule above.
+
+**This block invokes no skill.** Unlike the three lane templates, nothing
+below loads the tracker seam, the label taxonomy, or the guard floor for
+you — which is why the block inlines the role-resolution rule, the
+disclaimer form, the work-class contract, and the rate-limit floor instead
+of citing them.
+
+**Verification is the load-bearing step.** In the live session this
+template codifies, independent fresh-context verifiers refuted two of five
+recommendations outright and materially amended two more before the
+operator ratified anything — including one direction whose cited code had
+been removed from HEAD four days earlier, and one whose line citations had
+drifted while being inherited from an adjacent issue's body. Recommending
+from item text without live verification would have shipped both errors
+with the operator's signature on them.
+
+> **=== COPY FROM HERE ===**
+>
+> Repository: `{{REPO}}`
+> Runtime surfaces in this repo: `{{RUNTIME_SURFACES}}`
+>
+> I am present. This is the parked-decision burn-down, not the attended
+> queue: the population is the parked-decision states the attention view
+> deliberately excludes — and nothing else. This prompt invokes no skill,
+> so every contract you need is stated here. Recommend, then wait for my
+> direction before mutating.
+>
+> **Build the inventory first (read broadly). Three populations:**
+>
+> 1. Open items wearing the human-gated role label with NO machine
+>    escalation-marker comment (first comment line starting
+>    `<!-- work-items:escalation`). Resolve the role string from
+>    `.work-item-tracker.json` `config.role_labels["human-gated"]`
+>    (default `needs-human`) — three-way, never two: an absent file or
+>    absent entry falls back to that default WITH a loud warning; a
+>    present-but-malformed binding (invalid JSON, non-string or empty
+>    value) is a configuration error — stop and report it, never fall back
+>    silently. Checking for the marker requires fetching each candidate's
+>    comments — page them fully.
+> 2. Open items carrying the repository's decision-pending status label,
+>    where it declares one. Resolve it live
+>    (`gh label list --limit 200 | grep -i status`), never assume the
+>    string; a repo without such a label has an empty population 2.
+> 3. Trigger sweep — **over populations 1 and 2 only**, plus decision
+>    comments on items closed in the last 90 days: any text naming a
+>    revisit trigger ("after <date> if …", "when <capability> exists").
+>    Evaluate every trigger against today, live, never from memory. A
+>    fired trigger on an OPEN item joins the queue; a fired trigger on a
+>    CLOSED item reopens it or files a successor open item (never mutate a
+>    closed item's labels in place); a dormant trigger is reported with
+>    its trigger restated. The sweep never reaches into other lanes'
+>    populations: an autonomous-eligible item or a raw-intake item with
+>    trigger-shaped text belongs to its own lane, not here.
+>
+> **Bounded queries only.** Every `gh issue list` call carries an explicit
+> `--limit` and computes `truncated: (length >= limit)`; a truncated count
+> is a floor, not a total — raise the limit and re-run until it reports
+> false before treating any population as fully enumerated (the profile
+> section's counting discipline applies here verbatim).
+>
+> **Exclusions — never mutate from this session:** attention-view rows
+> (`[escalated]`, `[ratify]`, `[intake]` — the attended queue owns them; a
+> parked item that acquires an escalation marker mid-run has left this
+> population); items carrying any `wayfind: *` label (wayfind owns their
+> mode — the human-gated label IS the mode marker on a wayfind HITL item,
+> so a Flip here would silently hand a design decision to the worker lane;
+> route them to `/planning:wayfind work` instead); lane telemetry issues.
+>
+> Rank the inventory by impact: unblocks-other-work first, then
+> time-decaying decisions, then spend reduction, then the rest. Present the
+> ranked table with one-line summaries before working any row.
+>
+> **Per item, one at a time — brief before asking:** restate (1) number +
+> one-line title, (2) the decision being asked, (3) the consequence of each
+> option you present, then recommend with the RECOMMENDED option marked and
+> listed first.
+>
+> **Verify before I ratify.** For any recommendation that is policy-shaped,
+> cross-repo, or structural, spawn a fresh-context verifier agent BEFORE
+> asking me to ratify: it re-derives the answer blind to your rationale,
+> attacks the recommendation, and verifies every file:line citation and
+> cross-issue claim live at HEAD — never from the item's own text, which
+> inherits stale citations from adjacent issues. Only trivially reversible
+> calls skip verification. Pipeline it: present the next item's brief while
+> the previous item's verifier runs; batch ratifications as verdicts land.
+> Update your recommendation when the verifier refutes or amends it —
+> re-derive, never anchor.
+>
+> **Outcomes** (every answer written back as an issue comment — the
+> decision lives on the tracker, not in this session; comments you write on
+> my behalf end with:
+> `*This comment was written by an AI agent on the operator's behalf
+> (parked-decision burn-down).*`):
+>
+> - **Flip:** ratified as delegable → apply the autonomous-eligible role
+>   and remove the human-gated role in the same edit.
+> - **Decide and close:** the item existed to carry a decision → record it,
+>   close.
+> - **Retarget:** the verified state contradicts the item's premise →
+>   rewrite the work list in a comment, then flip or re-park as ratified.
+> - **Re-home:** the root cause lives in another repository per the org's
+>   ownership rules → file there, close here with the link.
+> - **Re-park (open items only):** still blocked → keep the human-gated
+>   role and record a NAMED trigger ("revisit when/after …"), so the next
+>   burn-down's trigger sweep finds it instead of a human's memory. A
+>   decision that must sleep longer than it can stay open gets a successor
+>   item, not a comment on a closed one — the closed-item sweep only looks
+>   back 90 days.
+>
+> **Work classes: you propose, I apply — labels and body trailers alike.**
+> Never write a `work-class:` label or a `Work-class: C<n>` body trailer
+> yourself — not even to transcribe a class I already ratified; both are
+> agent-writable admission surfaces the merge lane reads. Resolve the live
+> label strings first (`gh label list --limit 200 | grep -i work-class`,
+> mapping C1–C5 onto the members in ascending risk order), then hand me the
+> exact command to paste. If no label axis exists, say so once and keep
+> working — classes still record via operator-pasted body trailers. Never
+> route a `work-class:` label through `/work-items:track`. Fail toward the
+> higher class; `mechanical` is narrow (deterministic, trivially reversible
+> maintenance), and nothing on the `Runtime surfaces` line is mechanical no
+> matter how doc-shaped it looks.
+>
+> **Rate-limit floor** (inlined verbatim per the loop-lane convention;
+> provenance: the `rate-limit-guard` reader contract):
+>
+> - **Tee file (fixed path):** `~/.claude/rate-limit-guard/rate-limits.json`
+> - **Pause threshold (fixed):** pause when **either** window reports
+>   `used_percentage >= 90`
+> - **Pause end:** the **tripped** window's `resets_at`; when **both**
+>   windows trip, the **later** `resets_at`
+> - **Staleness rule:** a snapshot whose `captured_at` is older than **10
+>   minutes** is stale — treat the windows as **unknown** (reactive-only)
+>   for that decision; a `resets_at` already latched from a fresh snapshot
+>   stays valid through the pause (no refresh happens while paused). While
+>   paused, a consumer **must** arm a session Monitor on the tee file and
+>   re-evaluate on every write — the file carries **no account-identifier
+>   field**, so a write is the only signal that the windows changed under
+>   you (account switch, another session's refresh).
+> - **Drain-then-pause:** on a trip, finish in-flight work, stop claiming
+>   new work, pause until the pause end, and report; a hard stop happens
+>   only on explicit user request.
+>
+> For this attended prompt, "stop claiming new work" means: finish the row
+> in hand (including its in-flight verifier), then stop pulling rows and
+> report the pause — I may explicitly choose to continue. Verifier spawns
+> consume the same windows; pause spawning them too.
+>
+> **No telemetry upsert.** The sentinel-marked comment belongs to the
+> attended queue proper; put this pass's report in the session.
+>
+> **=== COPY TO HERE ===**
+
+---
+
 ## Known gaps that outlive any one repository
 
 - **No relaunch owner.** Nothing restarts a stopped lane; a cycle-budget
@@ -1144,5 +1347,157 @@ terminals mutating the same row.
 >
 > Never route a `work-class:` label through `/work-items:track` — that
 > path validates against a taxonomy that does not yet carry the axis.
+>
+> **=== COPY TO HERE ===**
+
+### Parked-decision burn-down — melo-desk-001, after the queue drains
+
+Same terminal and worktree as the attended queue when run inside that
+session; its own worktree when run standalone. This is the 3b template with
+the two variables filled — it must stay a verbatim render of 3b, so a fix
+to the template re-renders here too.
+
+> **=== COPY FROM HERE ===**
+>
+> Repository: `melodic-software/claude-code-plugins`
+> Runtime surfaces in this repo: **every tracked markdown file**
+> (`git ls-files '*.md'`) — the plugin tree is the bulk of it (`SKILL.md`,
+> `agents/*.md`, `commands/*.md`, and every `reference/**`, `references/**`,
+> `context/**`, `templates/**` file at any depth), but it is not the edge:
+> `.claude/source-control.md` supplies the merge lane's rung, and root
+> `CLAUDE.md` / `AGENTS.md` supply operating rules every agent loads. No
+> filename is exempt by convention either: this repo's
+> `tools/work-item-tracker/adapters/github/README.md` is the GitHub adapter's
+> operations reference, so even a README edit here can change lane behavior.
+> Treat a path as runtime unless you can show nothing loads it.
+>
+> I am present. This is the parked-decision burn-down, not the attended
+> queue: the population is the parked-decision states the attention view
+> deliberately excludes — and nothing else. This prompt invokes no skill,
+> so every contract you need is stated here. Recommend, then wait for my
+> direction before mutating.
+>
+> **Build the inventory first (read broadly). Three populations:**
+>
+> 1. Open items wearing the human-gated role label with NO machine
+>    escalation-marker comment (first comment line starting
+>    `<!-- work-items:escalation`). Resolve the role string from
+>    `.work-item-tracker.json` `config.role_labels["human-gated"]`
+>    (default `needs-human`) — three-way, never two: an absent file or
+>    absent entry falls back to that default WITH a loud warning; a
+>    present-but-malformed binding (invalid JSON, non-string or empty
+>    value) is a configuration error — stop and report it, never fall back
+>    silently. Checking for the marker requires fetching each candidate's
+>    comments — page them fully.
+> 2. Open items carrying the repository's decision-pending status label,
+>    where it declares one. Resolve it live
+>    (`gh label list --limit 200 | grep -i status`), never assume the
+>    string; a repo without such a label has an empty population 2.
+> 3. Trigger sweep — **over populations 1 and 2 only**, plus decision
+>    comments on items closed in the last 90 days: any text naming a
+>    revisit trigger ("after <date> if …", "when <capability> exists").
+>    Evaluate every trigger against today, live, never from memory. A
+>    fired trigger on an OPEN item joins the queue; a fired trigger on a
+>    CLOSED item reopens it or files a successor open item (never mutate a
+>    closed item's labels in place); a dormant trigger is reported with
+>    its trigger restated. The sweep never reaches into other lanes'
+>    populations: an autonomous-eligible item or a raw-intake item with
+>    trigger-shaped text belongs to its own lane, not here.
+>
+> **Bounded queries only.** Every `gh issue list` call carries an explicit
+> `--limit` and computes `truncated: (length >= limit)`; a truncated count
+> is a floor, not a total — raise the limit and re-run until it reports
+> false before treating any population as fully enumerated (the profile
+> section's counting discipline applies here verbatim).
+>
+> **Exclusions — never mutate from this session:** attention-view rows
+> (`[escalated]`, `[ratify]`, `[intake]` — the attended queue owns them; a
+> parked item that acquires an escalation marker mid-run has left this
+> population); items carrying any `wayfind: *` label (wayfind owns their
+> mode — the human-gated label IS the mode marker on a wayfind HITL item,
+> so a Flip here would silently hand a design decision to the worker lane;
+> route them to `/planning:wayfind work` instead); lane telemetry issues.
+>
+> Rank the inventory by impact: unblocks-other-work first, then
+> time-decaying decisions, then spend reduction, then the rest. Present the
+> ranked table with one-line summaries before working any row.
+>
+> **Per item, one at a time — brief before asking:** restate (1) number +
+> one-line title, (2) the decision being asked, (3) the consequence of each
+> option you present, then recommend with the RECOMMENDED option marked and
+> listed first.
+>
+> **Verify before I ratify.** For any recommendation that is policy-shaped,
+> cross-repo, or structural, spawn a fresh-context verifier agent BEFORE
+> asking me to ratify: it re-derives the answer blind to your rationale,
+> attacks the recommendation, and verifies every file:line citation and
+> cross-issue claim live at HEAD — never from the item's own text, which
+> inherits stale citations from adjacent issues. Only trivially reversible
+> calls skip verification. Pipeline it: present the next item's brief while
+> the previous item's verifier runs; batch ratifications as verdicts land.
+> Update your recommendation when the verifier refutes or amends it —
+> re-derive, never anchor.
+>
+> **Outcomes** (every answer written back as an issue comment — the
+> decision lives on the tracker, not in this session; comments you write on
+> my behalf end with:
+> `*This comment was written by an AI agent on the operator's behalf
+> (parked-decision burn-down).*`):
+>
+> - **Flip:** ratified as delegable → apply the autonomous-eligible role
+>   and remove the human-gated role in the same edit.
+> - **Decide and close:** the item existed to carry a decision → record it,
+>   close.
+> - **Retarget:** the verified state contradicts the item's premise →
+>   rewrite the work list in a comment, then flip or re-park as ratified.
+> - **Re-home:** the root cause lives in another repository per the org's
+>   ownership rules → file there, close here with the link.
+> - **Re-park (open items only):** still blocked → keep the human-gated
+>   role and record a NAMED trigger ("revisit when/after …"), so the next
+>   burn-down's trigger sweep finds it instead of a human's memory. A
+>   decision that must sleep longer than it can stay open gets a successor
+>   item, not a comment on a closed one — the closed-item sweep only looks
+>   back 90 days.
+>
+> **Work classes: you propose, I apply — labels and body trailers alike.**
+> Never write a `work-class:` label or a `Work-class: C<n>` body trailer
+> yourself — not even to transcribe a class I already ratified; both are
+> agent-writable admission surfaces the merge lane reads. Resolve the live
+> label strings first (`gh label list --limit 200 | grep -i work-class`,
+> mapping C1–C5 onto the members in ascending risk order), then hand me the
+> exact command to paste. If no label axis exists, say so once and keep
+> working — classes still record via operator-pasted body trailers. Never
+> route a `work-class:` label through `/work-items:track`. Fail toward the
+> higher class; `mechanical` is narrow (deterministic, trivially reversible
+> maintenance), and nothing on the `Runtime surfaces` line is mechanical no
+> matter how doc-shaped it looks.
+>
+> **Rate-limit floor** (inlined verbatim per the loop-lane convention;
+> provenance: the `rate-limit-guard` reader contract):
+>
+> - **Tee file (fixed path):** `~/.claude/rate-limit-guard/rate-limits.json`
+> - **Pause threshold (fixed):** pause when **either** window reports
+>   `used_percentage >= 90`
+> - **Pause end:** the **tripped** window's `resets_at`; when **both**
+>   windows trip, the **later** `resets_at`
+> - **Staleness rule:** a snapshot whose `captured_at` is older than **10
+>   minutes** is stale — treat the windows as **unknown** (reactive-only)
+>   for that decision; a `resets_at` already latched from a fresh snapshot
+>   stays valid through the pause (no refresh happens while paused). While
+>   paused, a consumer **must** arm a session Monitor on the tee file and
+>   re-evaluate on every write — the file carries **no account-identifier
+>   field**, so a write is the only signal that the windows changed under
+>   you (account switch, another session's refresh).
+> - **Drain-then-pause:** on a trip, finish in-flight work, stop claiming
+>   new work, pause until the pause end, and report; a hard stop happens
+>   only on explicit user request.
+>
+> For this attended prompt, "stop claiming new work" means: finish the row
+> in hand (including its in-flight verifier), then stop pulling rows and
+> report the pause — I may explicitly choose to continue. Verifier spawns
+> consume the same windows; pause spawning them too.
+>
+> **No telemetry upsert.** The sentinel-marked comment belongs to the
+> attended queue proper; put this pass's report in the session.
 >
 > **=== COPY TO HERE ===**
