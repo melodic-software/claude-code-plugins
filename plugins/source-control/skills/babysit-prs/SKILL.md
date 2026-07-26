@@ -233,11 +233,10 @@ home in [reference/safety.md](reference/safety.md). Both fail closed without `--
   `--expected-last-updated` (or an explicit `--allow-unpinned-thread` override) is refused
   before anything is fetched or resolved.
 
-- **The agent** decides severity (is this security/P1?), whether a finding is genuinely
-  addressed, what a label means, and every fix-vs-escalate call — never a script. Escalate a
-  security/P1 thread instead of resolving it, even in autopilot. One named exception — the
-  `source-control:babysit-loop` explicit-`autopilot` pre-escalation resolver dispatch, and only as a
-  fresh context independent of the PR and the thread — scoped in `safety.md`, "Security/P1 escalation".
+- **The agent** decides severity (is this security/P1?), whether a finding is genuinely addressed,
+  what a label means, and every fix-vs-escalate call — never a script. Escalate a security/P1
+  thread instead of resolving it, even in autopilot. One named exception — the
+  `source-control:babysit-loop` explicit-`autopilot` resolver dispatch — is scoped in `safety.md`.
 
 ## Fan out: one fresh worker per PR that needs one, per cycle
 
