@@ -5,7 +5,7 @@
 #
 # Catches subagent / training-recall hallucinations — a slash-command reference
 # written AS a capability that does not exist, or one left behind by a rename.
-# Sibling of cli-flag-verify and asserted-path-verify: same defect class, third
+# Sibling of cli-flag-verify and stale-path-verify: same defect class, third
 # oracle.
 #
 # ENFORCEABILITY TIER: Detect-then-judge — ADVISORY PLUS A HUMAN VERDICT, never

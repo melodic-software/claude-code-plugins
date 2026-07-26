@@ -151,8 +151,9 @@ assert_contains "renamed-away path fires (--no-renames in effect)" "$OUT" \
 
 # ============================ MUST STAY QUIET ===============================
 #
-# One case per false-positive class measured on the corpus sweep. Each fires
-# against the pre-rescope first-segment gate and must be silent here.
+# One case per false-positive class measured on the corpus sweep. Each is a
+# citation whose leading directory DOES exist here, so a gate keyed on path shape
+# rather than provenance adjudicates it; the provenance gate must not.
 
 # Cause 1 (72% of findings): consumer-project config a marketplace documents but
 # never carries. `.claude/` exists locally, which is exactly why shape-based
@@ -174,14 +175,13 @@ assert_silent "forward-looking path never committed → silent" "$OUT"
 OUT=$(run 'For instance `docs/example.md` would do.')
 assert_silent "illustrative placeholder → silent" "$OUT"
 
-# Cause 5: a markdown link written as literal example text inside backticks. The
-# old guard ran its link extractor over raw content, so the destination inside the
-# span was pulled out and adjudicated as a link.
+# Cause 5: a code span holding markdown link syntax is example text, not a link.
+# Its destination must never be extracted as one.
 OUT=$(run 'Write it as `[the guide](docs/gone.md)` in prose.')
 assert_silent "link literal inside a code span → silent" "$OUT"
 
-# Link destinations are out of scope entirely — even one naming a genuinely
-# removed file, which is the strongest case the old extractor had.
+# Link destinations are out of scope entirely — including one naming a genuinely
+# removed file, which is the case a destination extractor would most want.
 OUT=$(run 'See [the guide](docs/gone.md) for details.')
 assert_silent "link destination to a removed file → silent (links out of scope)" "$OUT"
 
