@@ -102,8 +102,13 @@ Path: `<plugin-data-dir>/evidence/<session_id>/<target-slug>/<run-nonce>/`
 - **Resume rule (must survive compaction):** to find the packet after context loss, re-derive the
   path deterministically — session id (`${CLAUDE_SESSION_ID}`), target slug (re-sanitize the
   argument), latest nonce (lexically greatest directory). Never rely on remembering the path.
-  When reading a packet back, accept `audit-notes.md` **or** a legacy `findings.md` — packets
-  written before this rename still carry the old name, and the resume path must not miss them.
+  When reading a packet back, do **not** look for one hardcoded findings filename. Read
+  `evidence.md` first and use the filename it records, because the rename fallback below can put
+  the grounded findings under a name this rule could not have predicted. Absent such a record,
+  accept `audit-notes.md` (current), `audit-data.md` (the documented fallback), or a legacy
+  `findings.md` — packets written before the rename still carry the old name, and the resume path
+  must not miss any of them. Treat every non-empty file in the packet directory as in-scope rather
+  than concluding the findings are gone.
 - Contract-lock notes (step 4) are written INTO the packet (`contract.md`), not left in
   compactable conversation context.
 

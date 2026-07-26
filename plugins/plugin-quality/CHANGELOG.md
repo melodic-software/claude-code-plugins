@@ -5,6 +5,22 @@ All notable changes to the `plugin-quality` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.1] - 2026-07-26
+
+### Fixed
+
+- **The compaction resume rule could not find the packet's findings file after the rename fallback
+  fired (#1592).** 0.2.0 documented a fallback that writes the grounded findings to `audit-data.md`
+  when the subagent report-file guardrail also rejects `audit-notes.md`, but the resume rule
+  accepted only `audit-notes.md` or a legacy `findings.md`. A compaction after that fallback
+  therefore dropped the findings file from the deterministic recovery path — the exact loss the
+  packet exists to prevent — even though the substitution had been recorded in `evidence.md`.
+
+  The rule no longer looks for one hardcoded filename. It reads the name recorded in `evidence.md`
+  first, falls back to all three known names (`audit-notes.md`, `audit-data.md`, legacy
+  `findings.md`), and treats every non-empty file in the packet directory as in-scope rather than
+  concluding the findings are gone. Raised in review on #1569; the fix missed that PR's merge.
+
 ## [0.2.0] - 2026-07-26
 
 ### Changed
