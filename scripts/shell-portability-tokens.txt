@@ -161,7 +161,13 @@ readlink[[:space:]]+(-[A-Za-z]*f|--canonicalize)
 # across separate statements, not co-located on one line, so it is excused via
 # a `portability-ok:` annotation at each site rather than a same-line guard
 # (#1510).
-date[[:space:]]+[^\n]*-d([[:space:]]|$)
+# The gap between `date` and `-d` excludes shell command separators (#1544): a
+# physical line is not a command, so `[^\n]*` walked past `;`/`&`/`|` and
+# attributed a LATER command's flag to `date` — `date +%s; test -d "$dir"` was
+# reported even though `date` never received `-d`. Scoping the gap to `date`'s
+# own command segment keeps `date -d @0`, `x=$(date -d @0)` and
+# `date --utc -d @0` matched while that shape is not.
+date[[:space:]]+[^;&|()\n]*-d([[:space:]]|$)
 
 # `stat -c` (GNU format string) — a GNU coreutils extension; BSD/macOS stat
 # uses `-f`. Requires whitespace immediately after `stat` so the token matches
@@ -175,7 +181,12 @@ date[[:space:]]+[^\n]*-d([[:space:]]|$)
 # sites have no BSD fallback but are excused via `portability-ok:` — that
 # plugin's scripts are Windows-only (Git Bash + PowerShell + LOCALAPPDATA), so
 # a BSD fallback there would be dead code (#1510).
-stat[[:space:]]+[^\n]*-c
+# Same command-segment scoping as `date -d` above (#1544): `[^\n]*` crossed
+# shell separators and attributed a later command's `-c` to `stat`, so
+# `stat "$file"; tool -c x` was reported. The auto-guard still sees the
+# co-located BSD fallback, since `stat -c ... || stat -f ...` matches on the
+# first segment and the guard inspects the whole line.
+stat[[:space:]]+[^;&|()\n]*-c
 
 # --- STAGED (commented until enabled — see #1528 for the enable trigger) ---
 #
