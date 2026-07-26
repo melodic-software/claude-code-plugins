@@ -235,7 +235,21 @@ reconstruct_partial_edit() {
       for occ in "${hits[@]}"; do ctx+="$occ"$'\n'; done
       continue
     fi
-    occ=$(grep -o -F -- "$anchor" "$FILE" 2>/dev/null | grep -c .)
+    # Count anchor STARTS, including overlapping ones. `grep -o` emits only
+    # non-overlapping matches, so a self-overlapping anchor undercounts: with
+    # anchor `docs/docs` against `docs/docs/docs`, starts exist at offsets 0 and
+    # 5, but the two spans overlap and `grep -o` reports 1 — the anchor passes a
+    # uniqueness gate it should fail, and reconstruction then scans a line it
+    # cannot attribute, recreating the false STALE_PATH this gate exists to
+    # prevent. `index()` walks every start position, overlapping or not.
+    # The anchor crosses into awk via the environment, not `-v`: `-v` processes
+    # escape sequences in the value, so an anchor containing a backslash would
+    # be silently transformed before the comparison.
+    occ=$(HOOK_ANCHOR="$anchor" awk '
+      BEGIN { a = ENVIRON["HOOK_ANCHOR"]; n = 0 }
+      { p = 1; while ((i = index(substr($0, p), a)) > 0) { n++; p = p + i } }
+      END { print n }
+    ' "$FILE" 2>/dev/null)
     ((occ == 1)) || continue
     ctx+="${hits[0]}"$'\n'
   done

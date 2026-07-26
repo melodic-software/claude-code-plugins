@@ -192,6 +192,18 @@ RC=$?
 assert_exit "anchor occurring twice on one line → exit 0" 0 "$RC"
 assert_silent "two occurrences on a single line are ambiguous, not unique" "$OUT"
 
+# SELF-OVERLAPPING anchor. `grep -o` emits only non-overlapping matches, so
+# `docs/docs` against `docs/docs/docs` reports one hit while starts exist at two
+# offsets. A counter built on `grep -o` calls that unique and adjudicates the
+# untouched citation sharing the line — the exact false advisory occurrence
+# uniqueness was added to prevent. Counting starts with index() catches it.
+OVERLAP="$REPO/overlap.md"
+printf 'The docs/docs/docs tree still cites `docs/gone.md` today.\n' >"$OVERLAP"
+OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" <<<"$(edit_json "$OVERLAP" 'docs/docs')" 2>&1)
+RC=$?
+assert_exit "self-overlapping anchor → exit 0" 0 "$RC"
+assert_silent "self-overlapping anchor is ambiguous, not unique" "$OUT"
+
 # `replace_all` is the one shape where repetition is EXPECTED, not ambiguous:
 # every occurrence is a place this call edited, so uniqueness must not be required
 # or the guard goes silent on a genuine multi-site staleness. Built inline rather

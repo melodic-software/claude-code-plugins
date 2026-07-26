@@ -19,7 +19,15 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   already carries the gate this guard omitted: an anchor is used only when it
   **occurs exactly once** in the file. Occurrences, not matching lines — two
   occurrences on one physical line are a single `grep` hit, and a line-uniqueness
-  gate would adjudicate a citation sharing that line. Per the
+  gate would adjudicate a citation sharing that line. Occurrences are counted by
+  walking start offsets with awk's `index()`, not with `grep -o`, because
+  `grep -o` emits only non-overlapping matches: an anchor of `docs/docs` against
+  `docs/docs/docs` starts at two offsets whose spans overlap, so `grep -o`
+  reports one and a self-overlapping anchor would pass the uniqueness gate it
+  should fail — recreating the very advisory the gate was added to prevent. The
+  anchor reaches awk through the environment rather than `-v`, since `-v`
+  processes escape sequences in the value and would silently transform an anchor
+  containing a backslash. Per the
   [tools reference](https://code.claude.com/docs/en/tools-reference) an `Edit`'s
   `old_string` "must appear exactly once", so a unique anchor pins the edit to
   the line carrying it; a non-unique anchor cannot say which occurrence the edit
