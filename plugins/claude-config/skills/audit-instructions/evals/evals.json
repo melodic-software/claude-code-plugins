@@ -79,12 +79,12 @@
       "id": 7,
       "name": "memory-layer-conflict-routes-to-c6",
       "prompt": "/claude-config:audit-instructions my CLAUDE.md says \"always run the full test suite before committing\" and .claude/rules/testing.md says \"never run the full suite locally, let CI do it\". Which one is wrong?",
-      "expected_output": "Recognizes that both sides of the contradiction sit inside the memory layer (CLAUDE.md and a rules file), which is check C6 Consistency in the claude-memory plugin's audit skill, not check I15 here. Routes the finding there when claude-memory is installed so one finding is emitted rather than two, and when it is not installed states that memory-layer contradictions go unchecked and names claude-memory:audit as the skill that performs them, without performing the review itself.",
+      "expected_output": "Recognizes that both sides of the contradiction sit inside the memory layer (CLAUDE.md and a rules file), which is check C6 Consistency in the claude-memory plugin's audit skill, not check I15 here. Routes the finding there when claude-memory is installed — reporting the pair as an observation and pointing at /claude-memory:audit rather than grading it — so one finding is emitted rather than two. When claude-memory is NOT installed it keeps the pair as an I15 finding instead, per the fallback contract in conflict-criteria.md, so a real contradiction is never silently dropped just because the incumbent is absent.",
       "files": [],
       "expectations": [
-        "Identifies both sides as memory-layer surfaces and does NOT emit an I15 conflict finding for them",
+        "Identifies both sides as root-level project memory surfaces and, when claude-memory is installed, does NOT emit an I15 conflict finding for them",
         "Routes the contradiction to the claude-memory plugin's audit skill check C6 when that plugin is installed",
-        "When claude-memory is not installed, states that memory-layer contradictions go unchecked and names claude-memory:audit, rather than silently skipping or performing the review here"
+        "When claude-memory is NOT installed, emits the I15 fallback finding for the pair rather than reporting it unchecked — the routing exists to avoid duplicate findings, not to drop the only one"
       ]
     },
     {

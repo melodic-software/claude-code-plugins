@@ -99,6 +99,22 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   independently (an evaluator told to return JSON only against a main-session Markdown-output rule).
   The pass now compares the act the hook blocks, under its event and `matcher`. This also closes the
   `UNVERIFIED` residency row that told the reader to fetch the hooks page.
+- **Auto memory and a plugin-supplied active output style join the read-only inventory.** Both are
+  resident every session and neither was reachable: auto memory was excluded outright for routing,
+  yet `conflict-criteria.md` assigns every pair involving it to I15 *because* `claude-memory`'s C6
+  does not read `MEMORY.md` — so the pair was audited by neither skill. And the user- and
+  project-scope output-style scans cannot reach the plugin cache, while a plugin style with
+  `force-for-plugin` applies "automatically whenever the plugin is enabled, without requiring users
+  to select it", overriding the user's `outputStyle`
+  ([output-styles](https://code.claude.com/docs/en/output-styles)) — so the *active* style could be
+  absent from the corpus entirely. Phase A now inventories the loaded part of `MEMORY.md` at the
+  effective auto-memory location and the one style that resolves active, both read-only, with
+  ownership and routing unchanged.
+- **Eval 7 required dropping a real contradiction when `claude-memory` is absent.** It expected the
+  run to report memory-layer contradictions as unchecked and name the sibling skill, but
+  `conflict-criteria.md`'s fallback contract keeps the pair as an I15 finding when that plugin is not
+  installed. The routing exists to avoid two findings for one pair, not to lose the only one; the
+  eval now requires the fallback.
 - **Eval 13 required the wrong reason for refusing an agent-definition import split.** It rewarded
   saying that an `@path` in an agent definition loads at launch, which the catalog's own I13 says is
   false — `@` carries no import meaning outside the memory-layer surfaces, so the referenced file

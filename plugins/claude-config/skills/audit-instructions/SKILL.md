@@ -128,6 +128,15 @@ to compare against them even though no proposed edit may ever touch them. Read-o
 nothing about ownership: these surfaces still produce no proposal of their own, and a finding
 involving one still carries the no-change representation and its routing recommendation.
 
+- **Auto memory** — the `MEMORY.md` entrypoint at the effective auto-memory location (the
+  `autoMemoryDirectory` setting where one is resolved, otherwise
+  `~/.claude/projects/<project>/memory/`). It loads into every session, and
+  [reference/conflict-criteria.md](reference/conflict-criteria.md) assigns every pair involving it to
+  I15 precisely because `claude-memory`'s C6 does not read it — so excluding it outright would leave
+  a `MEMORY.md`-versus-`CLAUDE.md` contradiction audited by neither skill. Only the content that
+  actually loads is compared (the first 200 lines or 25KB); topic files beside it are read on demand
+  and are not resident. Ownership is unchanged: `claude-memory` still owns auto memory, and a finding
+  here routes there rather than editing it.
 - **Org-managed policy** — the managed-policy `CLAUDE.md`, any `claudeMd` value in managed settings,
   and prompt-type hook text configured in managed settings. All three are live instruction text, and
   a managed hook contradicting a project skill is exactly the conflict I15 explicitly owns; that
@@ -136,9 +145,19 @@ involving one still carries the no-change representation and its routing recomme
 - **Upstream-owned instruction text that is nonetheless live** — skill bodies and agent definitions
   from the cache of an **enabled** plugin, `type: "prompt"` handler text in an enabled plugin's
   `hooks/hooks.json` (a plugin is a supported hook location and `prompt` a supported handler type, so
-  that text is as live as a settings-configured hook), and any managed materialization. Enablement is
-  the same gate for all three: a disabled plugin's cache stays on disk while none of its components
-  load, so resolve effective `enabledPlugins` across settings scopes first and inventory only the
+  that text is as live as a settings-configured hook), **the active output style when a plugin
+  supplies it**, and any managed materialization. The output-style case is easy to miss because the
+  user- and project-scope scans cannot reach the plugin cache: plugins ship styles in an
+  `output-styles/` directory, and a plugin style with `force-for-plugin` applies "automatically
+  whenever the plugin is enabled, without requiring users to select it", overriding the user's
+  `outputStyle` setting ([output-styles](https://code.claude.com/docs/en/output-styles)). Resolve
+  which style is actually active — a `force-for-plugin` style from the enabled set first, else the
+  `outputStyle` value, which may itself name a plugin-supplied style — and inventory that one. Only
+  the active style is resident, so the others stay out of the corpus. Enablement is
+  the same gate for every plugin-sourced surface here: a disabled plugin's cache stays on disk while
+  none of its components load — including a `force-for-plugin` style, which applies only while its
+  plugin is enabled — so resolve effective `enabledPlugins` across settings scopes first and
+  inventory only the
   plugins that resolve enabled — a cached body from a disabled plugin would put text Claude cannot
   load into the comparison corpus. Enablement alone is not enough to pick a directory: the cache can
   hold several versions of one plugin, and a plugin may be installed at more than one scope, so
