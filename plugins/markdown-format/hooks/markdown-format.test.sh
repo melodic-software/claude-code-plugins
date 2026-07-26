@@ -534,14 +534,21 @@ else
   fail "missing jq warning absent: $OUT_NO_JQ"
 fi
 
-# --- Repository-config trust boundary: visible once per risky state ---------
-# Use the official persistent plugin-data surface so separate hook processes
-# share the acknowledgement marker. A config-content change must produce a new
-# state signature and therefore a fresh warning.
+# --- Repository-config trust gate: risky config blocks lint until approved ---
+# Uses the official persistent plugin-data surface so separate hook processes
+# share the approval marker. A code-loading configuration must SKIP the lint
+# run — with a visible notice on both channels — until the user records an
+# explicit approval for that exact configuration-content state; any config
+# change must revoke the approval. Blocking is observed through MD047: the
+# fixture lacks a final newline, so a lint run is exactly "newline appended".
 TRUST_DATA="$WORK/plugin-data"
 ORIGINAL_CONFIG="$REPO/.markdownlint-cli2.jsonc"
 SAVED_CONFIG="$WORK/original-markdownlint-cli2.jsonc"
 mv "$ORIGINAL_CONFIG" "$SAVED_CONFIG"
+
+has_final_newline() {
+  [[ "$(tail -c 1 "$1" | od -An -tx1 | tr -d ' \n')" == "0a" ]]
+}
 
 cat >"$REPO/.markdownlint-cli2.cjs" <<'CJS'
 module.exports = {
@@ -556,33 +563,61 @@ printf '# Executable config\n\nClean text.' >"$TRUST_FILE"
 OUT_TRUST_1="$(cd "$UNRELATED" && printf '{"tool_input":{"file_path":"%s"}}' "$TRUST_FILE" |
   env -u CLAUDE_PROJECT_DIR CLAUDE_PLUGIN_DATA="$TRUST_DATA" CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true bash "$HOOK")"
 RC_TRUST_1=$?
-if [[ $RC_TRUST_1 -eq 0 ]]; then ok "executable config advisory exits 0"; else fail "executable config advisory exit $RC_TRUST_1"; fi
-if printf '%s' "$OUT_TRUST_1" | jq -e '.hookSpecificOutput.additionalContext | contains("trust advisory") and contains(".markdownlint-cli2.cjs")' >/dev/null 2>&1; then
-  ok "executable .cjs config emits visible trust advisory"
+if [[ $RC_TRUST_1 -eq 0 ]]; then ok "unapproved executable config exits 0 (advisory)"; else fail "unapproved executable config exit $RC_TRUST_1"; fi
+if printf '%s' "$OUT_TRUST_1" | jq -e '(.hookSpecificOutput.additionalContext | contains("trust gate") and contains(".markdownlint-cli2.cjs")) and (.systemMessage | contains("trust gate"))' >/dev/null 2>&1; then
+  ok "executable .cjs config emits visible trust-gate notice on both channels"
 else
-  fail "executable .cjs trust advisory absent: $OUT_TRUST_1"
+  fail "executable .cjs trust-gate notice absent: $OUT_TRUST_1"
 fi
-if [[ "$(tail -c 1 "$TRUST_FILE" | od -An -tx1 | tr -d ' \n')" == "0a" ]]; then
-  ok "trust advisory does not block markdownlint --fix"
+if ! has_final_newline "$TRUST_FILE"; then
+  ok "unapproved executable config blocks markdownlint --fix"
 else
-  fail "trust advisory blocked markdownlint --fix"
+  fail "unapproved executable config still ran markdownlint --fix"
 fi
 
+# Same state, same session: the notice dedupes, but the lint run stays blocked.
 OUT_TRUST_2="$(cd "$UNRELATED" && printf '{"tool_input":{"file_path":"%s"}}' "$TRUST_FILE" |
   env -u CLAUDE_PROJECT_DIR CLAUDE_PLUGIN_DATA="$TRUST_DATA" CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true bash "$HOOK")"
 if [[ -z "$OUT_TRUST_2" ]]; then
-  ok "unchanged executable config warning appears only once"
+  ok "unchanged unapproved state notices only once per session"
 else
-  fail "unchanged executable config warned again: $OUT_TRUST_2"
+  fail "unchanged unapproved state noticed again: $OUT_TRUST_2"
+fi
+if ! has_final_newline "$TRUST_FILE"; then
+  ok "repeat edit stays blocked while unapproved"
+else
+  fail "repeat edit ran markdownlint --fix while unapproved"
 fi
 
-printf '\n// reviewed configuration revision\n' >>"$REPO/.markdownlint-cli2.cjs"
+# The notice's approval instruction must name a marker under this plugin-data
+# store; creating that marker is the explicit opt-in that enables the lint run.
+TRUST_MARKER="$(printf '%s' "$OUT_TRUST_1" | jq -r '.systemMessage' | sed -n "s/.*mkdir -p '\([^']*\)'.*/\1/p")"
+if [[ -n "$TRUST_MARKER" && "$TRUST_MARKER" == "$TRUST_DATA"/* ]]; then
+  ok "trust-gate notice carries an approval marker under CLAUDE_PLUGIN_DATA"
+else
+  fail "trust-gate approval marker missing or misplaced: $OUT_TRUST_1"
+fi
+mkdir -p "$TRUST_MARKER"
 OUT_TRUST_3="$(cd "$UNRELATED" && printf '{"tool_input":{"file_path":"%s"}}' "$TRUST_FILE" |
   env -u CLAUDE_PROJECT_DIR CLAUDE_PLUGIN_DATA="$TRUST_DATA" CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true bash "$HOOK")"
-if printf '%s' "$OUT_TRUST_3" | jq -e '.hookSpecificOutput.additionalContext | contains("trust advisory")' >/dev/null 2>&1; then
-  ok "changed executable config state warns again"
+RC_TRUST_3=$?
+if [[ $RC_TRUST_3 -eq 0 && -z "$OUT_TRUST_3" ]] && has_final_newline "$TRUST_FILE"; then
+  ok "approved configuration state lints again (fix applied, no notice)"
 else
-  fail "changed executable config state did not warn: $OUT_TRUST_3"
+  fail "approved configuration state did not lint (rc=$RC_TRUST_3 out=$OUT_TRUST_3)"
+fi
+
+# A config-content change produces a new state signature: the approval is
+# revoked, and the gate blocks — and notices, despite the same session — again.
+printf '\n// unreviewed configuration revision\n' >>"$REPO/.markdownlint-cli2.cjs"
+printf '# Executable config\n\nClean text.' >"$TRUST_FILE"
+OUT_TRUST_4="$(cd "$UNRELATED" && printf '{"tool_input":{"file_path":"%s"}}' "$TRUST_FILE" |
+  env -u CLAUDE_PROJECT_DIR CLAUDE_PLUGIN_DATA="$TRUST_DATA" CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true bash "$HOOK")"
+if printf '%s' "$OUT_TRUST_4" | jq -e '.hookSpecificOutput.additionalContext | contains("trust gate")' >/dev/null 2>&1 &&
+  ! has_final_newline "$TRUST_FILE"; then
+  ok "changed executable config state revokes approval and blocks again"
+else
+  fail "changed executable config state was not re-gated: $OUT_TRUST_4"
 fi
 
 # Declarative CLI2 configuration still loads modules when these official keys
@@ -601,21 +636,448 @@ cat >"$ORIGINAL_CONFIG" <<'JSONC'
 JSONC
 OUT_TRUST_MODULES="$(cd "$UNRELATED" && printf '{"tool_input":{"file_path":"%s"}}' "$TRUST_FILE" |
   env -u CLAUDE_PROJECT_DIR CLAUDE_PLUGIN_DATA="$TRUST_DATA" CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true bash "$HOOK")"
-if printf '%s' "$OUT_TRUST_MODULES" | jq -e '.hookSpecificOutput.additionalContext | contains("trust advisory") and contains(".markdownlint-cli2.jsonc")' >/dev/null 2>&1; then
-  ok "module-loading config keys emit visible trust advisory"
+if printf '%s' "$OUT_TRUST_MODULES" | jq -e '.hookSpecificOutput.additionalContext | contains("trust gate") and contains(".markdownlint-cli2.jsonc")' >/dev/null 2>&1 &&
+  ! has_final_newline "$TRUST_FILE"; then
+  ok "module-loading config keys are gated with a visible notice"
 else
-  fail "module-loading config trust advisory absent: $OUT_TRUST_MODULES"
+  fail "module-loading config keys were not gated: $OUT_TRUST_MODULES"
+fi
+
+# Fail closed: with no CLAUDE_PLUGIN_DATA an approval can be neither recorded
+# nor verified, so a risky config must still skip the lint run (and notice
+# every time — the once-per-session gate fails open toward visibility when it
+# has no marker store).
+OUT_TRUST_NOSTATE="$(cd "$UNRELATED" && printf '{"tool_input":{"file_path":"%s"}}' "$TRUST_FILE" |
+  env -u CLAUDE_PROJECT_DIR -u CLAUDE_PLUGIN_DATA CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true bash "$HOOK")"
+if printf '%s' "$OUT_TRUST_NOSTATE" | jq -e '.systemMessage | contains("trust gate")' >/dev/null 2>&1 &&
+  ! has_final_newline "$TRUST_FILE"; then
+  ok "risky config without a plugin-data store fails closed"
+else
+  fail "risky config without a plugin-data store did not fail closed: $OUT_TRUST_NOSTATE"
+fi
+
+# A module-loading key spelled through a JSONC string escape must not slip past
+# the textual key scan: the config is unverifiable as written, so it gates AND
+# refuses approval (no marker instruction is offered).
+cat >"$ORIGINAL_CONFIG" <<'JSONC'
+{
+  "config": { "MD013": false },
+  "custom\u0052ules": [],
+  "noBanner": true,
+  "noProgress": true
+}
+JSONC
+printf '# Executable config\n\nClean text.' >"$TRUST_FILE"
+OUT_TRUST_ESCAPE="$(cd "$UNRELATED" && printf '{"tool_input":{"file_path":"%s"}}' "$TRUST_FILE" |
+  env -u CLAUDE_PROJECT_DIR CLAUDE_PLUGIN_DATA="$TRUST_DATA" CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true bash "$HOOK")"
+if printf '%s' "$OUT_TRUST_ESCAPE" | jq -e '(.systemMessage | contains("trust gate") and contains("defeat textual verification")) and (.systemMessage | contains("mkdir -p") | not)' >/dev/null 2>&1 &&
+  ! has_final_newline "$TRUST_FILE"; then
+  ok "escape-obfuscated module key gates and refuses approval"
+else
+  fail "escape-obfuscated module key was not gated unverifiable: $OUT_TRUST_ESCAPE"
+fi
+
+# A computed module expression (require whose argument is not a single string
+# literal) cannot be pinned by the text scan, so the state must refuse approval
+# outright rather than sign a module graph it cannot see.
+rm -f "$ORIGINAL_CONFIG"
+cat >"$REPO/.markdownlint-cli2.cjs" <<'CJS'
+const path = require("path");
+module.exports = {
+  config: { "MD013": false },
+  customRules: [require(path.join(__dirname, "rules", "local.cjs"))],
+  noBanner: true,
+  noProgress: true
+};
+CJS
+printf '# Executable config\n\nClean text.' >"$TRUST_FILE"
+OUT_TRUST_COMPUTED="$(cd "$UNRELATED" && printf '{"tool_input":{"file_path":"%s"}}' "$TRUST_FILE" |
+  env -u CLAUDE_PROJECT_DIR CLAUDE_PLUGIN_DATA="$TRUST_DATA" CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true bash "$HOOK")"
+if printf '%s' "$OUT_TRUST_COMPUTED" | jq -e '(.systemMessage | contains("trust gate")) and (.systemMessage | contains("mkdir -p") | not)' >/dev/null 2>&1 &&
+  ! has_final_newline "$TRUST_FILE"; then
+  ok "computed require expression gates and refuses approval"
+else
+  fail "computed require expression was not refused: $OUT_TRUST_COMPUTED"
+fi
+rm "$REPO/.markdownlint-cli2.cjs"
+
+# An escaped module specifier decodes to a different path than its raw text
+# (Node reads this one as ./rules.js), so it cannot be pinned: refuse approval.
+cat >"$REPO/.markdownlint-cli2.cjs" <<'CJS'
+module.exports = {
+  config: { "MD013": false },
+  customRules: [require("./r\u0075les.js")],
+  noBanner: true,
+  noProgress: true
+};
+CJS
+printf '# Executable config\n\nClean text.' >"$TRUST_FILE"
+OUT_TRUST_ESCSPEC="$(cd "$UNRELATED" && printf '{"tool_input":{"file_path":"%s"}}' "$TRUST_FILE" |
+  env -u CLAUDE_PROJECT_DIR CLAUDE_PLUGIN_DATA="$TRUST_DATA" CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true bash "$HOOK")"
+if printf '%s' "$OUT_TRUST_ESCSPEC" | jq -e '(.systemMessage | contains("trust gate")) and (.systemMessage | contains("mkdir -p") | not)' >/dev/null 2>&1 &&
+  ! has_final_newline "$TRUST_FILE"; then
+  ok "escaped module specifier gates and refuses approval"
+else
+  fail "escaped module specifier was not refused: $OUT_TRUST_ESCSPEC"
+fi
+rm "$REPO/.markdownlint-cli2.cjs"
+
+# An EXECUTABLE config that carries a module-loading key gets no approval route,
+# whatever the entry looks like: markdownlint-cli2 resolves those entries itself,
+# so the entry may be any string-producing expression and no text scan can
+# enumerate that space. Both a plain literal and an array-built path are refused
+# here — the literal case is the capability this deliberately gives up, and the
+# array case is what no per-shape pattern could have caught.
+mkdir -p "$REPO/rules"
+cat >"$REPO/rules/local.cjs" <<'CJS'
+module.exports = { names: ["local"], description: "noop", tags: [], function: () => {} };
+CJS
+for shape in literal arrayjoin; do
+  case "$shape" in
+  literal)
+    cat >"$REPO/.markdownlint-cli2.cjs" <<'CJS'
+module.exports = {
+  config: { "MD013": false },
+  customRules: ["./rules/local.cjs"],
+  noBanner: true,
+  noProgress: true
+};
+CJS
+    ;;
+  arrayjoin)
+    cat >"$REPO/.markdownlint-cli2.cjs" <<'CJS'
+module.exports = {
+  config: { "MD013": false },
+  customRules: [["./rules", "local.cjs"].join("/")],
+  noBanner: true,
+  noProgress: true
+};
+CJS
+    ;;
+  *) fail "unknown JS-config shape: $shape" ;;
+  esac
+  printf '# Executable config
+
+Clean text.' >"$TRUST_FILE"
+  OUT_JSKEY="$(cd "$UNRELATED" && printf '{"session_id":"jskey-%s","tool_input":{"file_path":"%s"}}' "$shape" "$TRUST_FILE" |
+    env -u CLAUDE_PROJECT_DIR CLAUDE_PLUGIN_DATA="$TRUST_DATA" CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true bash "$HOOK")"
+  if printf '%s' "$OUT_JSKEY" | jq -e '(.systemMessage | contains("trust gate") and contains("cannot pin")) and (.systemMessage | contains("mkdir -p") | not)' >/dev/null 2>&1 &&
+    ! has_final_newline "$TRUST_FILE"; then
+    ok "module-loading key in an executable config ($shape) refuses approval"
+  else
+    fail "module-loading key in an executable config ($shape) was not refused: $OUT_JSKEY"
+  fi
+  rm "$REPO/.markdownlint-cli2.cjs"
+done
+
+# A declarative config can carry BOTH a literal module key AND an escaped module
+# VALUE. The escape verdict must still fire: chained as an else-branch, the key
+# match suppressed it and the collector hashed the raw escaped spelling instead
+# of the file markdownlint decodes it to and loads.
+# The escape is assembled from a backslash variable (unquoted heredoc) so the
+# fixture's intent survives authoring: the file must hold the six characters
+# backslash-u-0-0-6-1, which JSONC decodes to the letter "a".
+BS=$'\\'
+cat >"$ORIGINAL_CONFIG" <<JSONC
+{
+  "config": { "MD013": false },
+  "customRules": ["./rules/loc${BS}u0061l.cjs"],
+  "noBanner": true,
+  "noProgress": true
+}
+JSONC
+printf '# Executable config\n\nClean text.' >"$TRUST_FILE"
+OUT_BOTH="$(cd "$UNRELATED" && printf '{"session_id":"key-and-escape","tool_input":{"file_path":"%s"}}' "$TRUST_FILE" |
+  env -u CLAUDE_PROJECT_DIR CLAUDE_PLUGIN_DATA="$TRUST_DATA" CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true bash "$HOOK")"
+if printf '%s' "$OUT_BOTH" | jq -e '(.systemMessage | contains("trust gate") and contains("defeat textual verification")) and (.systemMessage | contains("mkdir -p") | not)' >/dev/null 2>&1 &&
+  ! has_final_newline "$TRUST_FILE"; then
+  ok "literal key plus escaped module value still reaches the escape verdict"
+else
+  fail "literal key suppressed the escape verdict: $OUT_BOTH"
+fi
+rm -f "$ORIGINAL_CONFIG"
+rm -rf "$REPO/rules"
+
+# The evasions a loader-proximity pattern cannot see. Each must still refuse
+# approval, and each defeats a `require`-adjacency window on its own:
+#   comment    a JS comment between the loader name and its open paren
+#   nocall     markdownlint-cli2 resolves customRules itself, so an assembled
+#              specifier needs no loader token in the file at all
+#   concat     string concatenation assembles the specifier
+#   bare       a computed specifier reached through a variable, with a comment
+#              separating it from the loader
+#   envkey     the specifier comes straight from the environment: no loader call
+#              and no path helper, so only the process.* token sees it
+#   alias      path reached through an alias and a destructured import, with no
+#              __dirname, process, template or concatenation to fall back on, so
+#              only refusing the path IMPORT sees it
+for evasion in comment nocall concat bare envkey alias; do
+  case "$evasion" in
+  comment)
+    cat >"$REPO/.markdownlint-cli2.cjs" <<'CJS'
+const path = require("node:path");
+module.exports = {
+  config: { "MD013": false },
+  customRules: [require/*sneak*/(path.join(__dirname, "rules", "local.cjs"))],
+  noBanner: true,
+  noProgress: true
+};
+CJS
+    ;;
+  nocall)
+    cat >"$REPO/.markdownlint-cli2.cjs" <<'CJS'
+const path = require("node:path");
+module.exports = {
+  config: { "MD013": false },
+  customRules: [
+    path.join(__dirname, "rules", "local.cjs")
+  ],
+  noBanner: true,
+  noProgress: true
+};
+CJS
+    ;;
+  concat)
+    cat >"$REPO/.markdownlint-cli2.cjs" <<'CJS'
+const dir = "./rules";
+module.exports = {
+  config: { "MD013": false },
+  customRules: [dir + "/local.cjs"],
+  noBanner: true,
+  noProgress: true
+};
+CJS
+    ;;
+  bare)
+    cat >"$REPO/.markdownlint-cli2.cjs" <<'CJS'
+const which = process.env.MDLINT_RULE_MODULE;
+module.exports = {
+  config: { "MD013": false },
+  customRules: [require /* pick */ (which)],
+  noBanner: true,
+  noProgress: true
+};
+CJS
+    ;;
+  envkey)
+    cat >"$REPO/.markdownlint-cli2.cjs" <<'CJS'
+module.exports = {
+  config: { "MD013": false },
+  customRules: [process.env.MDLINT_RULE_MODULE],
+  noBanner: true,
+  noProgress: true
+};
+CJS
+    ;;
+  alias)
+    cat >"$REPO/.markdownlint-cli2.cjs" <<'CJS'
+const { join, resolve } = require("path");
+const base = resolve("rules");
+module.exports = {
+  config: { "MD013": false },
+  customRules: [join(base, "local.cjs")],
+  noBanner: true,
+  noProgress: true
+};
+CJS
+    ;;
+  *) fail "unknown evasion fixture: $evasion" ;;
+  esac
+  printf '# Executable config\n\nClean text.' >"$TRUST_FILE"
+  OUT_EVADE="$(cd "$UNRELATED" && printf '{"session_id":"evade-%s","tool_input":{"file_path":"%s"}}' "$evasion" "$TRUST_FILE" |
+    env -u CLAUDE_PROJECT_DIR CLAUDE_PLUGIN_DATA="$TRUST_DATA" CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true bash "$HOOK")"
+  if printf '%s' "$OUT_EVADE" | jq -e '(.systemMessage | contains("trust gate") and contains("cannot pin")) and (.systemMessage | contains("mkdir -p") | not)' >/dev/null 2>&1 &&
+    ! has_final_newline "$TRUST_FILE"; then
+    ok "unpinnable specifier ($evasion) gates and refuses approval"
+  else
+    fail "unpinnable specifier ($evasion) was not refused: $OUT_EVADE"
+  fi
+  rm "$REPO/.markdownlint-cli2.cjs"
+done
+
+# The approval signature must cover the referenced module content, not only the
+# config text: after approving a config whose customRules names a repository
+# module, changing THAT MODULE (config untouched) must revoke the approval.
+mkdir -p "$REPO/rules"
+cat >"$REPO/rules/local-rule.cjs" <<'CJS'
+module.exports = { names: ["local-rule"], description: "noop", tags: [], function: () => {} };
+CJS
+cat >"$ORIGINAL_CONFIG" <<'JSONC'
+{
+  "config": { "MD013": false },
+  "customRules": ["./rules/local-rule.cjs"],
+  "noBanner": true,
+  "noProgress": true
+}
+JSONC
+printf '# Executable config\n\nClean text.' >"$TRUST_FILE"
+OUT_TRUST_MOD1="$(cd "$UNRELATED" && printf '{"tool_input":{"file_path":"%s"}}' "$TRUST_FILE" |
+  env -u CLAUDE_PROJECT_DIR CLAUDE_PLUGIN_DATA="$TRUST_DATA" CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true bash "$HOOK")"
+MOD_MARKER="$(printf '%s' "$OUT_TRUST_MOD1" | jq -r '.systemMessage' | sed -n "s/.*mkdir -p '\([^']*\)'.*/\1/p")"
+if [[ -n "$MOD_MARKER" && "$MOD_MARKER" == "$TRUST_DATA"/* ]] && ! has_final_newline "$TRUST_FILE"; then
+  ok "module-referencing config gates with an approval marker"
+else
+  fail "module-referencing config not gated with marker: $OUT_TRUST_MOD1"
+fi
+mkdir -p "$MOD_MARKER"
+OUT_TRUST_MOD2="$(cd "$UNRELATED" && printf '{"tool_input":{"file_path":"%s"}}' "$TRUST_FILE" |
+  env -u CLAUDE_PROJECT_DIR CLAUDE_PLUGIN_DATA="$TRUST_DATA" CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true bash "$HOOK")"
+if [[ -z "$OUT_TRUST_MOD2" ]] && has_final_newline "$TRUST_FILE"; then
+  ok "approved config+module state lints"
+else
+  fail "approved config+module state did not lint: $OUT_TRUST_MOD2"
+fi
+printf '\n// unreviewed rule revision\n' >>"$REPO/rules/local-rule.cjs"
+printf '# Executable config\n\nClean text.' >"$TRUST_FILE"
+OUT_TRUST_MOD3="$(cd "$UNRELATED" && printf '{"tool_input":{"file_path":"%s"}}' "$TRUST_FILE" |
+  env -u CLAUDE_PROJECT_DIR CLAUDE_PLUGIN_DATA="$TRUST_DATA" CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true bash "$HOOK")"
+if printf '%s' "$OUT_TRUST_MOD3" | jq -e '.hookSpecificOutput.additionalContext | contains("trust gate")' >/dev/null 2>&1 &&
+  ! has_final_newline "$TRUST_FILE"; then
+  ok "changed referenced module revokes approval and blocks again"
+else
+  fail "changed referenced module did not revoke approval: $OUT_TRUST_MOD3"
+fi
+# An EXTENSIONLESS module reference resolves through Node's CommonJS extension
+# candidates, so it must pin the same module file: approving a config that says
+# "./rules/local-rule" and then changing local-rule.cjs must revoke.
+cat >"$ORIGINAL_CONFIG" <<'JSONC'
+{
+  "config": { "MD013": false },
+  "customRules": ["./rules/local-rule"],
+  "noBanner": true,
+  "noProgress": true
+}
+JSONC
+printf '# Executable config\n\nClean text.' >"$TRUST_FILE"
+OUT_TRUST_EXT1="$(cd "$UNRELATED" && printf '{"tool_input":{"file_path":"%s"}}' "$TRUST_FILE" |
+  env -u CLAUDE_PROJECT_DIR CLAUDE_PLUGIN_DATA="$TRUST_DATA" CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true bash "$HOOK")"
+EXT_MARKER="$(printf '%s' "$OUT_TRUST_EXT1" | jq -r '.systemMessage' | sed -n "s/.*mkdir -p '\([^']*\)'.*/\1/p")"
+mkdir -p "$EXT_MARKER"
+printf '\n// another unreviewed rule revision\n' >>"$REPO/rules/local-rule.cjs"
+printf '# Executable config\n\nClean text.' >"$TRUST_FILE"
+OUT_TRUST_EXT2="$(cd "$UNRELATED" && printf '{"tool_input":{"file_path":"%s"}}' "$TRUST_FILE" |
+  env -u CLAUDE_PROJECT_DIR CLAUDE_PLUGIN_DATA="$TRUST_DATA" CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true bash "$HOOK")"
+if [[ -n "$EXT_MARKER" ]] && printf '%s' "$OUT_TRUST_EXT2" | jq -e '.hookSpecificOutput.additionalContext | contains("trust gate")' >/dev/null 2>&1 &&
+  ! has_final_newline "$TRUST_FILE"; then
+  ok "extensionless module reference is pinned; module change revokes approval"
+else
+  fail "extensionless module reference not pinned: m=$EXT_MARKER out=$OUT_TRUST_EXT2"
+fi
+rm -rf "$REPO/rules"
+
+# A YAML plain scalar carries no quotes, so the quoted-string scan never saw
+# `customRules: [./rules/local.cjs]` and the module stayed out of the signature:
+# the config-only marker approved, then changing the rule file kept it valid.
+# Approve, then change ONLY the rule module: the approval must be revoked.
+mkdir -p "$REPO/rules"
+cat >"$REPO/rules/plain.cjs" <<'CJS'
+module.exports = { names: ["plain"], description: "noop", tags: [], function: () => {} };
+CJS
+rm -f "$ORIGINAL_CONFIG"
+cat >"$REPO/.markdownlint-cli2.yaml" <<'YAML'
+config:
+  MD013: false
+customRules: [./rules/plain.cjs]
+noBanner: true
+noProgress: true
+YAML
+printf '# Executable config
+
+Clean text.' >"$TRUST_FILE"
+OUT_YAML1="$(cd "$UNRELATED" && printf '{"session_id":"yaml-plain-a","tool_input":{"file_path":"%s"}}' "$TRUST_FILE" |
+  env -u CLAUDE_PROJECT_DIR CLAUDE_PLUGIN_DATA="$TRUST_DATA" CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true bash "$HOOK")"
+Y_MARKER="$(printf '%s' "$OUT_YAML1" | jq -r '.systemMessage' | sed -n "s/.*mkdir -p '\([^']*\)'.*/\1/p")"
+mkdir -p "$Y_MARKER"
+printf '
+// unreviewed rule revision
+' >>"$REPO/rules/plain.cjs"
+printf '# Executable config
+
+Clean text.' >"$TRUST_FILE"
+OUT_YAML2="$(cd "$UNRELATED" && printf '{"session_id":"yaml-plain-b","tool_input":{"file_path":"%s"}}' "$TRUST_FILE" |
+  env -u CLAUDE_PROJECT_DIR CLAUDE_PLUGIN_DATA="$TRUST_DATA" CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true bash "$HOOK")"
+if [[ -n "$Y_MARKER" ]] && printf '%s' "$OUT_YAML2" | jq -e '.hookSpecificOutput.additionalContext | contains("trust gate")' >/dev/null 2>&1 &&
+  ! has_final_newline "$TRUST_FILE"; then
+  ok "unquoted YAML module path is pinned; module change revokes approval"
+else
+  fail "unquoted YAML module path not pinned: m=$Y_MARKER out=$OUT_YAML2"
+fi
+rm -f "$REPO/.markdownlint-cli2.yaml"
+rm -rf "$REPO/rules"
+
+# The same escape without needing symlink support: a `../` reference reaching a
+# file outside the repository. Runs on every host, so the branch stays covered
+# where the symlink fixture below has to skip.
+mkdir -p "$WORK/outside-repo"
+printf '%s
+' 'module.exports = { names: ["a"], description: "x", tags: [], function: () => {} };' >"$WORK/outside-repo/ext.cjs"
+cat >"$ORIGINAL_CONFIG" <<'JSONC'
+{
+  "config": { "MD013": false },
+  "customRules": ["../outside-repo/ext.cjs"],
+  "noBanner": true,
+  "noProgress": true
+}
+JSONC
+printf '# Executable config
+
+Clean text.' >"$TRUST_FILE"
+OUT_ESCAPE_REL="$(cd "$UNRELATED" && printf '{"session_id":"dotdot-escape","tool_input":{"file_path":"%s"}}' "$TRUST_FILE" |
+  env -u CLAUDE_PROJECT_DIR CLAUDE_PLUGIN_DATA="$TRUST_DATA" CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true bash "$HOOK")"
+if printf '%s' "$OUT_ESCAPE_REL" | jq -e '(.systemMessage | contains("trust gate") and contains("cannot pin")) and (.systemMessage | contains("mkdir -p") | not)' >/dev/null 2>&1 &&
+  ! has_final_newline "$TRUST_FILE"; then
+  ok "module reference escaping the repository refuses approval"
+else
+  fail "out-of-repository module reference was not refused: $OUT_ESCAPE_REL"
+fi
+rm -f "$ORIGINAL_CONFIG"
+rm -rf "$WORK/outside-repo"
+
+# A repository module symlink whose target resolves OUTSIDE the repository names
+# code no repository-content signature can cover: re-aiming the symlink at a
+# different existing external target leaves the signature identical while Node
+# follows the new one. Such a state must refuse approval rather than sign it.
+if OUTSIDE_DIR="$(mktemp -d)" &&
+  printf '%s
+' 'module.exports = { names: ["a"], description: "x", tags: [], function: () => {} };' >"$OUTSIDE_DIR/ext.cjs" &&
+  mkdir -p "$REPO/rules" &&
+  ln -s "$OUTSIDE_DIR/ext.cjs" "$REPO/rules/escaping.cjs" 2>/dev/null &&
+  [[ -L "$REPO/rules/escaping.cjs" ]]; then
+  cat >"$ORIGINAL_CONFIG" <<'JSONC'
+{
+  "config": { "MD013": false },
+  "customRules": ["./rules/escaping.cjs"],
+  "noBanner": true,
+  "noProgress": true
+}
+JSONC
+  printf '# Executable config
+
+Clean text.' >"$TRUST_FILE"
+  OUT_ESCAPE_LINK="$(cd "$UNRELATED" && printf '{"session_id":"symlink-escape","tool_input":{"file_path":"%s"}}' "$TRUST_FILE" |
+    env -u CLAUDE_PROJECT_DIR CLAUDE_PLUGIN_DATA="$TRUST_DATA" CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true bash "$HOOK")"
+  if printf '%s' "$OUT_ESCAPE_LINK" | jq -e '(.systemMessage | contains("trust gate") and contains("cannot pin")) and (.systemMessage | contains("mkdir -p") | not)' >/dev/null 2>&1 &&
+    ! has_final_newline "$TRUST_FILE"; then
+    ok "module symlink resolving outside the repository refuses approval"
+  else
+    fail "out-of-repository module symlink was not refused: $OUT_ESCAPE_LINK"
+  fi
+  rm -f "$ORIGINAL_CONFIG"
+  rm -rf "$REPO/rules" "$OUTSIDE_DIR"
+else
+  echo "SKIP: host cannot create real symlinks for the escape fixture"
+  rm -rf "$REPO/rules" "${OUTSIDE_DIR:-}"
 fi
 
 # Negative control: a declarative rule-only config is not executable and loads
-# no modules, so it must not produce trust-warning noise.
+# no modules, so linting proceeds immediately with no gate noise.
 mv "$SAVED_CONFIG" "$ORIGINAL_CONFIG"
 OUT_TRUST_SAFE="$(cd "$UNRELATED" && printf '{"tool_input":{"file_path":"%s"}}' "$TRUST_FILE" |
   env -u CLAUDE_PROJECT_DIR CLAUDE_PLUGIN_DATA="$TRUST_DATA" CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true bash "$HOOK")"
-if [[ -z "$OUT_TRUST_SAFE" ]]; then
-  ok "rule-only declarative config emits no trust advisory"
+if [[ -z "$OUT_TRUST_SAFE" ]] && has_final_newline "$TRUST_FILE"; then
+  ok "rule-only declarative config lints with no trust gate"
 else
-  fail "rule-only declarative config emitted advisory: $OUT_TRUST_SAFE"
+  fail "rule-only declarative config gated or noisy: $OUT_TRUST_SAFE"
 fi
 
 # --- Kill switch: disabled hook is a no-op ----------------------------------
@@ -789,8 +1251,32 @@ rm -f "$FAIL_SINK_FILE"
 # file on Windows. A baseline run (fast sink, no sleep) captures the SAME ambient
 # overhead as the slow run under the SAME capture; subtracting it cancels the
 # overhead and isolates the leak signal. Under a leak the delta is ~SINK_SLEEP;
-# with no leak it is ~0 (± scheduling jitter). Threshold is half the sleep:
-# comfortably above jitter, comfortably below the leak signal.
+# with no leak it is ~0 (± scheduling jitter).
+#
+# THRESHOLD_MS asserts the actual invariant — "did not wait for the sink" —
+# as sleep-minus-a-safety-margin, NOT half the sleep. Halving discarded margin
+# for no gain and was proven too tight empirically (#448 reopen): a clean-main
+# false-fail measured delta=3697ms against the old 3000ms/half-sleep threshold,
+# and load-generated measurements up to ~2150ms (30 concurrent suite runs on
+# Windows Git Bash) confirm noise alone can approach that old threshold.
+#
+# The threshold has TWO margins and both must clear that 2150ms worst observed
+# noise, because the detector can fail in either direction:
+#
+#   noise side  threshold - max_noise      a no-leak run must stay BELOW it
+#   leak  side  leak_signal - threshold    a leaking run must stay ABOVE it
+#
+# The leak side is the one a too-HIGH threshold breaks, and it is not covered by
+# the min-of-N baseline below: that protects against ONE unlucky baseline sample,
+# not against a load shift that inflates ALL of them and then subsides before the
+# slow run. Baselines 2s+ slower than the slow run's own overhead subtract real
+# leak signal out of the delta, so a leak whose delta lands between the threshold
+# and SINK_SLEEP passes silently. SINK_SLEEP=8s with SAFETY_MARGIN_MS=3000 puts
+# the threshold at 5000ms, roughly midway between the signal and the noise:
+# 2850ms of noise-side margin and 3000ms of leak-side margin, both above the
+# 2150ms worst case measured. Recorded measurements bracket it — a deliberately
+# reintroduced leak measured delta=8065ms (detected), while 40 runs under 30x
+# concurrent load peaked at ~1555ms with no leak (passed).
 #
 # The baseline is the MINIMUM of several fast runs, not a single sample. A lone
 # baseline that happened to be descheduled longer than the slow run would shrink
@@ -801,7 +1287,8 @@ rm -f "$FAIL_SINK_FILE"
 # sample with no leak — only re-fails a green run (fail-safe, re-runnable), so
 # just the baseline needs min-of-N; the slow run stays single (each slow sample
 # costs SINK_SLEEP).
-SINK_SLEEP=6
+SINK_SLEEP=8
+SAFETY_MARGIN_MS=3000
 BASE_SAMPLES=3
 BASE_SINK="$(make_sink "cat >/dev/null")"
 SLOW_SINK="$(make_sink "cat >/dev/null; sleep $SINK_SLEEP")"
@@ -832,7 +1319,7 @@ _TS1=$EPOCHREALTIME
 SLOW_MS=$(epoch_delta_ms "$_TS0" "$_TS1")
 
 DELTA_MS=$((SLOW_MS - BASE_MS))
-THRESHOLD_MS=$((SINK_SLEEP * 1000 / 2))
+THRESHOLD_MS=$((SINK_SLEEP * 1000 - SAFETY_MARGIN_MS))
 echo "  (C1 fd1-leak: base=${BASE_MS}ms (min of ${BASE_SAMPLES}) slow=${SLOW_MS}ms delta=${DELTA_MS}ms, threshold <${THRESHOLD_MS}ms, sink sleeps ${SINK_SLEEP}s)"
 if [[ $RC_SLOW -eq 0 ]]; then ok "telemetry/slow-sink: hook exit 0"; else fail "telemetry/slow-sink: hook exit $RC_SLOW"; fi
 if [[ $DELTA_MS -lt $THRESHOLD_MS ]]; then

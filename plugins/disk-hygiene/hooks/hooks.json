@@ -20,6 +20,23 @@
           }
         ]
       }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/guard_launch_monitor.py",
+              "--data-root",
+              "${CLAUDE_PLUGIN_DATA}"
+            ],
+            "timeout": 20,
+            "statusMessage": "Checking for silent destructive-guard failures..."
+          }
+        ]
+      }
     ]
   }
 }

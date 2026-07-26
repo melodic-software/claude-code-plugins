@@ -1,6 +1,7 @@
 // Section grouping and HTML fragment generation for single-file HTML deck.
 
 import { formatUrlDisplay } from "./lib/url-display.js";
+import { isAllowedUrlScheme } from "./lib/url-policy.js";
 
 export const escape = (s) =>
   String(s ?? "")
@@ -197,7 +198,7 @@ function renderNewsSection(sectionKey, sectionSlides, providerLogoSvg) {
       <h3 class="tier-heading">${heading}</h3>
       <ul class="news-list ${tier === "high" ? "" : "compact"}">
         ${bullets.map((b) => {
-          const urls = b.urls || [];
+          const urls = (b.urls || []).filter(isAllowedUrlScheme);
           const dateStr = b.date ? new Date(b.date).toISOString().slice(0, 10) : "";
           return `
         <li class="news-item">

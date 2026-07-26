@@ -18,6 +18,8 @@
 #      - miro-plugin: reads only plugins/miro/**;
 #      - youtube-extraction: reads only plugins/knowledge/skills/youtube-digest/**
 #        and plugins/knowledge/vendor/**;
+#      - ai-briefing-build: reads only
+#        plugins/ai-briefing/skills/generate/output/build/**;
 #      - hygiene's path-scoped subset — actionlint + the workflow
 #        check-jsonschema (read .github/workflows/**), and the marketplace /
 #        plugin / dependabot check-jsonschema steps (read

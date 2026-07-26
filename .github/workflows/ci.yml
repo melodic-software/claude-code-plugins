@@ -28,11 +28,14 @@ jobs:
   # churn.
   # Docs-linting lane. Markdownlint / typos / editorconfig / gitleaks /
   # eol-renormalize / comment-hygiene / machine-specific-paths read the changed
-  # docs themselves and run on every diff. actionlint and the four
-  # check-jsonschema steps read fixed, path-scoped inputs (.github/workflows/**
-  # and the named manifests) that a diff confined to the docs-only allowlist
-  # (scripts/docs-only-paths.txt) cannot touch, so on such a diff they report an
-  # honest evaluated-and-not-applicable success. ShellCheck and exec-bit are NOT
+  # docs themselves and run on every diff. actionlint, the four
+  # check-jsonschema steps, and the manifest duplicate-key detector (which
+  # reads the exact same manifest files as the schema steps, just via
+  # object_pairs_hook instead of a schema — see #1498) read fixed, path-scoped
+  # inputs (.github/workflows/** and the named manifests) that a diff confined
+  # to the docs-only allowlist (scripts/docs-only-paths.txt) cannot touch, so
+  # on such a diff they report an honest evaluated-and-not-applicable success.
+  # ShellCheck and exec-bit are NOT
   # gated: both scan the whole repo extension- and directory-agnostically
   # (ShellCheck lints every tracked *.sh/*.bash, exec-bit flags every tracked
   # shebang file recorded 100644), so a shell/shebang file added under an
@@ -122,6 +125,23 @@ jobs:
         with:
           schemafile: https://json.schemastore.org/claude-code-plugin-manifest.json
           files: plugins/*/.claude-plugin/plugin.json
+
+      # JSON Schema validates the ALREADY-PARSED document, so it structurally
+      # cannot see a duplicate object key -- by the time a schema runs, the
+      # earlier member is already gone (every JSON parser resolves a repeated
+      # key last-wins). #1492 shipped plugins/skill-quality/.claude-plugin/
+      # plugin.json with two "version" members through this exact schema step
+      # green. scripts/check-manifest-duplicate-keys.py reads the raw
+      # key/value pairs via object_pairs_hook, BEFORE that collapse, so it
+      # catches what the schema step next to it cannot. See #1498.
+      - name: Test the manifest duplicate-key detector
+        run: bash scripts/check-manifest-duplicate-keys.test.sh
+      - name: Detect duplicate keys in plugin/marketplace manifests
+        id: duplicate_keys
+        if: steps.scope.outputs.docs_only != 'true'
+        continue-on-error: true
+        run: python3 scripts/check-manifest-duplicate-keys.py
+
       - name: Validate dependabot.yml
         id: dependabot_schema
         if: steps.scope.outputs.docs_only != 'true'
@@ -190,7 +210,7 @@ jobs:
 
       - name: Report docs-irrelevant checks not applicable to a docs-only diff
         if: steps.scope.outputs.docs_only == 'true'
-        run: echo "Diff is within the docs-only allowlist (scripts/docs-only-paths.txt); the path-scoped linters (actionlint, check-jsonschema x4) cannot be affected — reporting success for them. ShellCheck and exec-bit scan the whole repo and stay unconditional."
+        run: echo "Diff is within the docs-only allowlist (scripts/docs-only-paths.txt); the path-scoped linters (actionlint, check-jsonschema x4, the manifest duplicate-key detector) cannot be affected — reporting success for them. ShellCheck and exec-bit scan the whole repo and stay unconditional."
 
       - name: Test hygiene result aggregation
         run: scripts/aggregate-hygiene-results.sh --self-test
@@ -217,6 +237,7 @@ jobs:
             actionlint=${{ steps.scope.outputs.docs_only == 'true' && 'success' || steps.actionlint.outcome }}
             marketplace-schema=${{ steps.scope.outputs.docs_only == 'true' && 'success' || steps.marketplace_schema.outcome }}
             plugin-schema=${{ steps.scope.outputs.docs_only == 'true' && 'success' || steps.plugin_schema.outcome }}
+            manifest-duplicate-keys=${{ steps.scope.outputs.docs_only == 'true' && 'success' || steps.duplicate_keys.outcome }}
             dependabot-schema=${{ steps.scope.outputs.docs_only == 'true' && 'success' || steps.dependabot_schema.outcome }}
             workflow-schema=${{ steps.scope.outputs.docs_only == 'true' && 'success' || steps.workflow_schema.outcome }}
             exec-bit=${{ steps.exec_bit.outcome }}
@@ -645,6 +666,55 @@ jobs:
         if: steps.scope.outputs.docs_only == 'true'
         run: echo "Diff is within the docs-only allowlist (scripts/docs-only-paths.txt); the youtube extraction suite cannot be affected — reporting success."
 
+  # ai-briefing's build/render pipeline is a Node package (native `node --test`
+  # suite) no other lane installs or runs — including test/url-policy.test.js,
+  # which asserts the SSRF gate (lib/url-policy.js) that decides which URLs the
+  # briefing validator is allowed to dereference: loopback/private/link-local/
+  # CGN/benchmarking/documentation/multicast rejection, DNS-gate-time A/AAAA
+  # resolution, and the IPv6 2000::/3 allowlist inversion. Without this lane
+  # that suite runs locally only, so a future refactor could silently break the
+  # predicate with nothing red in CI (#1488). Same never-skip, self-test-first,
+  # fail-closed docs-only gate as plugin-gate, miro-plugin and
+  # youtube-extraction. (Scoping this lane to its own paths — skipping it on
+  # unrelated diffs — is the same separately-tracked optimization noted on
+  # miro-plugin.)
+  ai-briefing-build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          # Full history so the PR base ref resolves for the docs-only diff.
+          fetch-depth: 0
+      - name: Test the docs-only detector
+        run: bash scripts/check-docs-only.test.sh
+      - name: Detect a docs-only diff
+        id: scope
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: scripts/check-docs-only.sh "origin/$BASE_REF"
+      - name: Set up Node
+        if: steps.scope.outputs.docs_only != 'true'
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .node-version
+          cache: npm
+          cache-dependency-path: plugins/ai-briefing/skills/generate/output/build/package-lock.json
+      - name: Install dependencies
+        if: steps.scope.outputs.docs_only != 'true'
+        run: npm ci
+        working-directory: plugins/ai-briefing/skills/generate/output/build
+      - name: Test
+        if: steps.scope.outputs.docs_only != 'true'
+        run: npm test
+        working-directory: plugins/ai-briefing/skills/generate/output/build
+      - name: Report not applicable to a docs-only diff
+        if: steps.scope.outputs.docs_only == 'true'
+        run: echo "Diff is within the docs-only allowlist (scripts/docs-only-paths.txt); the ai-briefing build suite cannot be affected — reporting success."
+
   # Skill-regression net: the only lane that invokes the skill-quality checker.
   # On a PR it runs the static contract gate (trigger-keyword preservation vs
   # the base ref, frontmatter, line caps, broken refs, evals presence) over each
@@ -679,6 +749,15 @@ jobs:
         with:
           schemafile: plugins/skill-quality/reference/evals.schema.json
           files: plugins/*/skills/*/evals/evals.json
+      - name: Test the shared listing-budget reporter
+        run: bash plugins/skill-quality/scripts/check-listing-budget.test.sh
+      # Report-only (always exit 0 — see the script's own header): pools every
+      # plugin's skills root into ONE shared aggregate, the shape a consumer who
+      # installs the whole marketplace actually experiences. Runs on every
+      # event, unlike the PR-diff-gated step above, since the aggregate is a
+      # whole-repo property, not a per-change one.
+      - name: Report the shared skill-listing budget across every plugin
+        run: bash plugins/skill-quality/scripts/check-listing-budget.sh plugins/*/skills
 
   # Portability lint: skills declared ecosystem/forge/tracker-agnostic must not
   # ship bare hardcoded stack/forge/branch/tracker defaults — the coupling class
@@ -748,6 +827,7 @@ jobs:
       - plugin-gate
       - miro-plugin
       - youtube-extraction
+      - ai-briefing-build
       - runner-policy
       - skill-quality-gate
       - portability-lint

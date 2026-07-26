@@ -5,7 +5,8 @@
 # PSScriptAnalyzer's formatting (alias expansion), surfaces residual findings via
 # additionalContext (advisory, exit 0), honors the kill switch, gates on a
 # consumer PSScriptAnalyzerSettings.psd1 (present -> run, absent -> leave bytes
-# untouched), degrades cleanly when the PSScriptAnalyzer module is unavailable,
+# untouched), trust-gates a CustomRulePath-declaring settings state on explicit
+# approval, degrades cleanly when the PSScriptAnalyzer module is unavailable,
 # and emits a schema-valid telemetry envelope.
 #
 # Self-contained: builds throwaway git repos with runtime-generated fixtures. The
@@ -350,11 +351,14 @@ else
   fail "ANSI file -> bytes changed"
 fi
 
-# --- Case 10: relative CustomRulePath resolves from the settings dir ----------
-# PSScriptAnalyzer resolves a relative CustomRulePath from the current
-# PowerShell location; the hook runs from an unrelated cwd, so it must anchor
-# at the settings directory first. Without that anchor this repo's analysis
-# throws (rule path not found) -> tool break; with it, the format applies.
+# --- Case 10: CustomRulePath trust gate + relative rule path resolution ------
+# A settings file that declares CustomRulePath makes PSScriptAnalyzer load and
+# execute repository-supplied rule modules, so the hook must SKIP the run —
+# with a visible notice on both channels — until the user approves that exact
+# settings-content state; any settings change must revoke the approval. Once
+# approved, the run must succeed from an unrelated cwd, proving the hook
+# anchors relative CustomRulePath resolution at the settings directory
+# (without that anchor this repo's analysis throws -> tool break).
 REPO_CRP="$WORK/customrule"
 new_repo "$REPO_CRP" NO_SETTINGS
 mkdir -p "$REPO_CRP/rules"
@@ -380,13 +384,357 @@ cat >"$REPO_CRP/PSScriptAnalyzerSettings.psd1" <<'EOF'
 }
 EOF
 printf "%s\n" "get-childitem -Path '.'" >"$REPO_CRP/crp.ps1"
-OUT=$(run_hook "$REPO_CRP/crp.ps1")
-RC=$?
-if [[ $RC -eq 0 && -z "$OUT" ]]; then ok "CustomRulePath -> exit 0, no tool break"; else fail "CustomRulePath (rc=$RC out=$OUT)"; fi
-if grep -q 'Get-ChildItem' "$REPO_CRP/crp.ps1"; then
-  ok "CustomRulePath -> relative rule path resolved, formatter ran"
+CRP_DATA="$WORK/crp-plugin-data"
+
+OUT_GATE_1=$(run_hook_env "$REPO_CRP/crp.ps1" CLAUDE_PLUGIN_DATA="$CRP_DATA" CLAUDE_PLUGIN_OPTION_POWERSHELL_FORMAT_ENABLED=true)
+RC_GATE_1=$?
+if [[ $RC_GATE_1 -eq 0 ]]; then ok "unapproved CustomRulePath -> exit 0 (advisory)"; else fail "unapproved CustomRulePath exit $RC_GATE_1"; fi
+if printf '%s' "$OUT_GATE_1" | jq -e '(.hookSpecificOutput.additionalContext | contains("trust gate") and contains("CustomRulePath")) and (.systemMessage | contains("trust gate"))' >/dev/null 2>&1; then
+  ok "unapproved CustomRulePath -> trust-gate notice on both channels"
 else
-  fail "CustomRulePath -> formatter did not run: $(cat "$REPO_CRP/crp.ps1")"
+  fail "trust-gate notice absent: $OUT_GATE_1"
+fi
+if grep -q 'get-childitem' "$REPO_CRP/crp.ps1"; then
+  ok "unapproved CustomRulePath -> analyzer blocked (file untouched)"
+else
+  fail "unapproved CustomRulePath still ran the analyzer: $(cat "$REPO_CRP/crp.ps1")"
+fi
+
+# Same state, same session: the notice dedupes, but the run stays blocked.
+OUT_GATE_2=$(run_hook_env "$REPO_CRP/crp.ps1" CLAUDE_PLUGIN_DATA="$CRP_DATA" CLAUDE_PLUGIN_OPTION_POWERSHELL_FORMAT_ENABLED=true)
+if [[ -z "$OUT_GATE_2" ]] && grep -q 'get-childitem' "$REPO_CRP/crp.ps1"; then
+  ok "unchanged unapproved state notices once, stays blocked"
+else
+  fail "unchanged unapproved state (out=$OUT_GATE_2 file=$(cat "$REPO_CRP/crp.ps1"))"
+fi
+
+# The notice's approval instruction must name a marker under this plugin-data
+# store; creating that marker is the explicit opt-in that enables the run.
+CRP_MARKER="$(printf '%s' "$OUT_GATE_1" | jq -r '.systemMessage' | sed -n "s/.*mkdir -p '\([^']*\)'.*/\1/p")"
+if [[ -n "$CRP_MARKER" && "$CRP_MARKER" == "$CRP_DATA"/* ]]; then
+  ok "trust-gate notice carries an approval marker under CLAUDE_PLUGIN_DATA"
+else
+  fail "trust-gate approval marker missing or misplaced: $OUT_GATE_1"
+fi
+mkdir -p "$CRP_MARKER"
+OUT_GATE_3=$(run_hook_env "$REPO_CRP/crp.ps1" CLAUDE_PLUGIN_DATA="$CRP_DATA" CLAUDE_PLUGIN_OPTION_POWERSHELL_FORMAT_ENABLED=true)
+RC_GATE_3=$?
+if [[ $RC_GATE_3 -eq 0 && -z "$OUT_GATE_3" ]]; then ok "approved CustomRulePath -> exit 0, no tool break, no notice"; else fail "approved CustomRulePath (rc=$RC_GATE_3 out=$OUT_GATE_3)"; fi
+if grep -q 'Get-ChildItem' "$REPO_CRP/crp.ps1"; then
+  ok "approved CustomRulePath -> relative rule path resolved, formatter ran"
+else
+  fail "approved CustomRulePath -> formatter did not run: $(cat "$REPO_CRP/crp.ps1")"
+fi
+
+# A settings-content change produces a new state signature: the approval is
+# revoked, and the gate blocks — and notices, despite the same session — again.
+printf '%s\n' '# unreviewed settings revision' >>"$REPO_CRP/PSScriptAnalyzerSettings.psd1"
+printf "%s\n" "get-childitem -Path '.'" >"$REPO_CRP/crp2.ps1"
+OUT_GATE_4=$(run_hook_env "$REPO_CRP/crp2.ps1" CLAUDE_PLUGIN_DATA="$CRP_DATA" CLAUDE_PLUGIN_OPTION_POWERSHELL_FORMAT_ENABLED=true)
+if printf '%s' "$OUT_GATE_4" | jq -e '.hookSpecificOutput.additionalContext | contains("trust gate")' >/dev/null 2>&1 &&
+  grep -q 'get-childitem' "$REPO_CRP/crp2.ps1"; then
+  ok "changed settings state revokes approval and blocks again"
+else
+  fail "changed settings state was not re-gated: $OUT_GATE_4"
+fi
+
+# The approval signature must cover the rule-module content, not only the
+# settings text: after approving a settings state, changing a referenced rule
+# module (settings untouched) must revoke the approval — e.g. a branch switch
+# swapping the module bytes under an unchanged settings file.
+CRP_MARKER_2="$(printf '%s' "$OUT_GATE_4" | jq -r '.systemMessage' | sed -n "s/.*mkdir -p '\([^']*\)'.*/\1/p")"
+mkdir -p "$CRP_MARKER_2"
+printf "%s\n" "get-childitem -Path '.'" >"$REPO_CRP/crp2b.ps1"
+OUT_GATE_M1=$(run_hook_env "$REPO_CRP/crp2b.ps1" CLAUDE_PLUGIN_DATA="$CRP_DATA" CLAUDE_PLUGIN_OPTION_POWERSHELL_FORMAT_ENABLED=true)
+if [[ -z "$OUT_GATE_M1" ]] && grep -q 'Get-ChildItem' "$REPO_CRP/crp2b.ps1"; then
+  ok "re-approved settings+module state analyzes again"
+else
+  fail "re-approved settings+module state did not analyze: $OUT_GATE_M1 $(cat "$REPO_CRP/crp2b.ps1")"
+fi
+printf '%s\n' '# unreviewed rule-module revision' >>"$REPO_CRP/rules/CleanRules.psm1"
+printf "%s\n" "get-childitem -Path '.'" >"$REPO_CRP/crp3.ps1"
+OUT_GATE_M2=$(run_hook_env "$REPO_CRP/crp3.ps1" CLAUDE_PLUGIN_DATA="$CRP_DATA" CLAUDE_PLUGIN_OPTION_POWERSHELL_FORMAT_ENABLED=true)
+if printf '%s' "$OUT_GATE_M2" | jq -e '.hookSpecificOutput.additionalContext | contains("trust gate")' >/dev/null 2>&1 &&
+  grep -q 'get-childitem' "$REPO_CRP/crp3.ps1"; then
+  ok "changed rule module revokes approval and blocks again"
+else
+  fail "changed rule module was not re-gated: $OUT_GATE_M2 $(cat "$REPO_CRP/crp3.ps1")"
+fi
+
+# Transitive dependency: a file the rule module references by string literal is
+# part of the code that runs, so it is pinned too — changing ONLY that file
+# (settings and declared module untouched) must revoke the approval.
+cat >>"$REPO_CRP/rules/CleanRules.psm1" <<'EOF'
+$rulesHelper = './helper.ps1'
+EOF
+printf '%s\n' '# helper v1' >"$REPO_CRP/rules/helper.ps1"
+printf "%s\n" "get-childitem -Path '.'" >"$REPO_CRP/crp4.ps1"
+OUT_GATE_T1=$(run_hook_env "$REPO_CRP/crp4.ps1" CLAUDE_PLUGIN_DATA="$CRP_DATA" CLAUDE_PLUGIN_OPTION_POWERSHELL_FORMAT_ENABLED=true)
+T_MARKER="$(printf '%s' "$OUT_GATE_T1" | jq -r '.systemMessage' | sed -n "s/.*mkdir -p '\([^']*\)'.*/\1/p")"
+mkdir -p "$T_MARKER"
+OUT_GATE_T2=$(run_hook_env "$REPO_CRP/crp4.ps1" CLAUDE_PLUGIN_DATA="$CRP_DATA" CLAUDE_PLUGIN_OPTION_POWERSHELL_FORMAT_ENABLED=true)
+if [[ -n "$T_MARKER" && -z "$OUT_GATE_T2" ]] && grep -q 'Get-ChildItem' "$REPO_CRP/crp4.ps1"; then
+  ok "approved state including transitive helper analyzes"
+else
+  fail "approved transitive state did not analyze: m=$T_MARKER out=$OUT_GATE_T2 $(cat "$REPO_CRP/crp4.ps1")"
+fi
+printf '%s\n' '# unreviewed helper revision' >>"$REPO_CRP/rules/helper.ps1"
+printf "%s\n" "get-childitem -Path '.'" >"$REPO_CRP/crp5.ps1"
+OUT_GATE_T3=$(run_hook_env "$REPO_CRP/crp5.ps1" CLAUDE_PLUGIN_DATA="$CRP_DATA" CLAUDE_PLUGIN_OPTION_POWERSHELL_FORMAT_ENABLED=true)
+if printf '%s' "$OUT_GATE_T3" | jq -e '.hookSpecificOutput.additionalContext | contains("trust gate")' >/dev/null 2>&1 &&
+  grep -q 'get-childitem' "$REPO_CRP/crp5.ps1"; then
+  ok "changed transitive helper revokes approval and blocks again"
+else
+  fail "changed transitive helper was not re-gated: $OUT_GATE_T3 $(cat "$REPO_CRP/crp5.ps1")"
+fi
+
+# The standard self-relative dependency form `. "$PSScriptRoot/x.ps1"` resolves
+# against the module's own directory, so the scan must pin it there: changing
+# only that helper must revoke the approval.
+cat >>"$REPO_CRP/rules/CleanRules.psm1" <<'EOF'
+. "$PSScriptRoot/helper2.ps1"
+EOF
+printf '%s\n' 'function Get-CrpHelperTwo { return 2 }' >"$REPO_CRP/rules/helper2.ps1"
+printf "%s\n" "get-childitem -Path '.'" >"$REPO_CRP/crp6.ps1"
+OUT_GATE_P1=$(run_hook_env "$REPO_CRP/crp6.ps1" CLAUDE_PLUGIN_DATA="$CRP_DATA" CLAUDE_PLUGIN_OPTION_POWERSHELL_FORMAT_ENABLED=true)
+P_MARKER="$(printf '%s' "$OUT_GATE_P1" | jq -r '.systemMessage' | sed -n "s/.*mkdir -p '\([^']*\)'.*/\1/p")"
+mkdir -p "$P_MARKER"
+OUT_GATE_P2=$(run_hook_env "$REPO_CRP/crp6.ps1" CLAUDE_PLUGIN_DATA="$CRP_DATA" CLAUDE_PLUGIN_OPTION_POWERSHELL_FORMAT_ENABLED=true)
+if [[ -n "$P_MARKER" && -z "$OUT_GATE_P2" ]] && grep -q 'Get-ChildItem' "$REPO_CRP/crp6.ps1"; then
+  ok "approved state including PSScriptRoot-relative helper analyzes"
+else
+  fail "approved PSScriptRoot-relative state did not analyze: m=$P_MARKER out=$OUT_GATE_P2 $(cat "$REPO_CRP/crp6.ps1")"
+fi
+printf '%s\n' '# unreviewed helper2 revision' >>"$REPO_CRP/rules/helper2.ps1"
+printf "%s\n" "get-childitem -Path '.'" >"$REPO_CRP/crp7.ps1"
+OUT_GATE_P3=$(run_hook_env "$REPO_CRP/crp7.ps1" CLAUDE_PLUGIN_DATA="$CRP_DATA" CLAUDE_PLUGIN_OPTION_POWERSHELL_FORMAT_ENABLED=true)
+if printf '%s' "$OUT_GATE_P3" | jq -e '.hookSpecificOutput.additionalContext | contains("trust gate")' >/dev/null 2>&1 &&
+  grep -q 'get-childitem' "$REPO_CRP/crp7.ps1"; then
+  ok "changed PSScriptRoot-relative helper revokes approval and blocks again"
+else
+  fail "changed PSScriptRoot-relative helper was not re-gated: $OUT_GATE_P3 $(cat "$REPO_CRP/crp7.ps1")"
+fi
+
+# $PSScriptRoot mid-string, not just as a prefix: still pinned, so changing only
+# that helper revokes the approval.
+cat >>"$REPO_CRP/rules/CleanRules.psm1" <<'EOF'
+. "$PSScriptRoot/../rules/helper3.ps1"
+EOF
+printf '%s\n' 'function Get-CrpHelperThree { return 3 }' >"$REPO_CRP/rules/helper3.ps1"
+printf "%s\n" "get-childitem -Path '.'" >"$REPO_CRP/crp8.ps1"
+OUT_GATE_R1=$(run_hook_env "$REPO_CRP/crp8.ps1" CLAUDE_PLUGIN_DATA="$CRP_DATA" CLAUDE_PLUGIN_OPTION_POWERSHELL_FORMAT_ENABLED=true)
+R_MARKER="$(printf '%s' "$OUT_GATE_R1" | jq -r '.systemMessage' | sed -n "s/.*mkdir -p '\([^']*\)'.*/\1/p")"
+mkdir -p "$R_MARKER"
+printf '%s\n' '# unreviewed helper3 revision' >>"$REPO_CRP/rules/helper3.ps1"
+printf "%s\n" "get-childitem -Path '.'" >"$REPO_CRP/crp9.ps1"
+OUT_GATE_R2=$(run_hook_env "$REPO_CRP/crp9.ps1" CLAUDE_PLUGIN_DATA="$CRP_DATA" CLAUDE_PLUGIN_OPTION_POWERSHELL_FORMAT_ENABLED=true)
+if [[ -n "$R_MARKER" ]] && printf '%s' "$OUT_GATE_R2" | jq -e '.hookSpecificOutput.additionalContext | contains("trust gate")' >/dev/null 2>&1 &&
+  grep -q 'get-childitem' "$REPO_CRP/crp9.ps1"; then
+  ok "non-prefix \$PSScriptRoot reference is pinned; helper change revokes"
+else
+  fail "non-prefix \$PSScriptRoot reference not pinned: m=$R_MARKER out=$OUT_GATE_R2 $(cat "$REPO_CRP/crp9.ps1")"
+fi
+
+# PowerShell does not require quotes around a command argument, so an UNQUOTED
+# load target is invisible to a quoted-literal scan. The parser reports it, so it
+# must be pinned from there: changing only that helper revokes the approval.
+# Without this the target would be judged pinnable and then never pinned.
+cat >>"$REPO_CRP/rules/CleanRules.psm1" <<'EOF'
+. $PSScriptRoot\helper4.ps1
+EOF
+printf '%s\n' 'function Get-CrpHelperFour { return 4 }' >"$REPO_CRP/rules/helper4.ps1"
+printf "%s\n" "get-childitem -Path '.'" >"$REPO_CRP/crp10.ps1"
+OUT_GATE_Q1=$(run_hook_env "$REPO_CRP/crp10.ps1" CLAUDE_PLUGIN_DATA="$CRP_DATA" CLAUDE_PLUGIN_OPTION_POWERSHELL_FORMAT_ENABLED=true)
+Q_MARKER="$(printf '%s' "$OUT_GATE_Q1" | jq -r '.systemMessage' | sed -n "s/.*mkdir -p '\([^']*\)'.*/\1/p")"
+mkdir -p "$Q_MARKER"
+printf '%s\n' '# unreviewed helper4 revision' >>"$REPO_CRP/rules/helper4.ps1"
+printf "%s\n" "get-childitem -Path '.'" >"$REPO_CRP/crp11.ps1"
+OUT_GATE_Q2=$(run_hook_env "$REPO_CRP/crp11.ps1" CLAUDE_PLUGIN_DATA="$CRP_DATA" CLAUDE_PLUGIN_OPTION_POWERSHELL_FORMAT_ENABLED=true)
+if [[ -n "$Q_MARKER" ]] && printf '%s' "$OUT_GATE_Q2" | jq -e '.hookSpecificOutput.additionalContext | contains("trust gate")' >/dev/null 2>&1 &&
+  grep -q 'get-childitem' "$REPO_CRP/crp11.ps1"; then
+  ok "unquoted load target is pinned; helper change revokes approval"
+else
+  fail "unquoted load target not pinned: m=$Q_MARKER out=$OUT_GATE_Q2 $(cat "$REPO_CRP/crp11.ps1")"
+fi
+
+# Two load shapes the collector must reach, both hosted in a module the rule
+# module names by literal rather than appended to the rule module itself:
+# `using` statements must LEAD their file, and hosting the fixtures separately
+# also keeps PSScriptAnalyzer's own load of the rule module free of side effects
+# while still exercising the scan (the collector pins the host by literal, then
+# scans it).
+#   using module   a UsingStatementAst rather than a command, and needing no
+#                  quotes, so neither the command walk nor the text scan sees
+#                  it.
+#                  `using namespace` names no repository file and must stay
+#                  approvable, so it rides along as the negative control.
+#   extensionless  Import-Module resolves through PowerShell module resolution,
+#                  so pinning only an exact leaf would miss the file that runs:
+#                  a sibling LeafMod.psm1, and a DirMod directory whose
+#                  DirMod.psd1 is the manifest PowerShell loads.
+mkdir -p "$REPO_CRP/rules/deps" "$REPO_CRP/rules/DirMod"
+printf '%s\n' 'function Get-CrpUsingDep { return 5 }' >"$REPO_CRP/rules/deps/UsingDep.psm1"
+printf '%s\n' '@{ ModuleVersion = "1.0" }' >"$REPO_CRP/rules/DirMod/DirMod.psd1"
+printf '%s\n' 'function Get-CrpLeafMod { return 6 }' >"$REPO_CRP/rules/LeafMod.psm1"
+cat >"$REPO_CRP/rules/LoadHost.psm1" <<'EOF'
+using namespace System.Collections
+using module ./deps/UsingDep.psm1
+Import-Module "$PSScriptRoot/LeafMod"
+Import-Module "$PSScriptRoot/DirMod"
+function Get-CrpLoadHost { return 7 }
+EOF
+cat >>"$REPO_CRP/rules/CleanRules.psm1" <<'EOF'
+$loadHost = './LoadHost.psm1'
+EOF
+n=0
+for target in \
+  "$REPO_CRP/rules/deps/UsingDep.psm1" \
+  "$REPO_CRP/rules/LeafMod.psm1" \
+  "$REPO_CRP/rules/DirMod/DirMod.psd1"; do
+  n=$((n + 1))
+  # A distinct session per invocation: consecutive iterations begin in the state
+  # the previous one ended in, so a shared session would dedupe the notice and
+  # the marker extraction would read an empty payload as a missing gate.
+  printf "%s\n" "get-childitem -Path '.'" >"$REPO_CRP/crp-ext$n-a.ps1"
+  OUT_EXT1="$(cd "$UNRELATED" && printf '{"session_id":"dep-%s-a","tool_input":{"file_path":"%s"},"tool_name":"Write"}' "$n" "$REPO_CRP/crp-ext$n-a.ps1" |
+    env -u CLAUDE_PROJECT_DIR CLAUDE_PLUGIN_DATA="$CRP_DATA" CLAUDE_PLUGIN_OPTION_POWERSHELL_FORMAT_ENABLED=true bash "$HOOK")"
+  E_MARKER="$(printf '%s' "$OUT_EXT1" | jq -r '.systemMessage' | sed -n "s/.*mkdir -p '\([^']*\)'.*/\1/p")"
+  mkdir -p "$E_MARKER"
+  printf '%s\n' '# unreviewed dependency revision' >>"$target"
+  printf "%s\n" "get-childitem -Path '.'" >"$REPO_CRP/crp-ext$n-b.ps1"
+  OUT_EXT2="$(cd "$UNRELATED" && printf '{"session_id":"dep-%s-b","tool_input":{"file_path":"%s"},"tool_name":"Write"}' "$n" "$REPO_CRP/crp-ext$n-b.ps1" |
+    env -u CLAUDE_PROJECT_DIR CLAUDE_PLUGIN_DATA="$CRP_DATA" CLAUDE_PLUGIN_OPTION_POWERSHELL_FORMAT_ENABLED=true bash "$HOOK")"
+  if [[ -n "$E_MARKER" ]] && printf '%s' "$OUT_EXT2" | jq -e '.hookSpecificOutput.additionalContext | contains("trust gate")' >/dev/null 2>&1 &&
+    grep -q 'get-childitem' "$REPO_CRP/crp-ext$n-b.ps1"; then
+    ok "host-module dependency $(basename "$target") is pinned; its change revokes"
+  else
+    fail "host-module dependency $target not pinned: m=$E_MARKER out=$OUT_EXT2"
+  fi
+done
+
+# `using assembly <path>` loads a repository DLL, so its path is collected like a
+# `using module` path. Where the assembly cannot actually be loaded the parser
+# reports it as a parse error, which the gate already treats as unverifiable, so
+# BOTH directions are closed: a loadable assembly is pinned, an unloadable one
+# refuses approval. This asserts the unloadable direction, the one a fixture can
+# create portably (a real assembly would need a compiler at test time).
+cp "$REPO_CRP/rules/LoadHost.psm1" "$WORK/LoadHost.psm1.bak"
+printf '%s\n' 'not-a-real-assembly' >"$REPO_CRP/rules/deps/UsingAsm.dll"
+{
+  printf '%s\n' 'using assembly ./deps/UsingAsm.dll'
+  cat "$WORK/LoadHost.psm1.bak"
+} >"$REPO_CRP/rules/LoadHost.psm1"
+printf "%s\n" "get-childitem -Path '.'" >"$REPO_CRP/crp-asm.ps1"
+OUT_ASM="$(cd "$UNRELATED" && printf '{"session_id":"using-assembly","tool_input":{"file_path":"%s"},"tool_name":"Write"}' "$REPO_CRP/crp-asm.ps1" |
+  env -u CLAUDE_PROJECT_DIR CLAUDE_PLUGIN_DATA="$CRP_DATA" CLAUDE_PLUGIN_OPTION_POWERSHELL_FORMAT_ENABLED=true bash "$HOOK")"
+if printf '%s' "$OUT_ASM" | jq -e '(.systemMessage | contains("trust gate")) and (.systemMessage | contains("mkdir -p") | not)' >/dev/null 2>&1 &&
+  grep -q 'get-childitem' "$REPO_CRP/crp-asm.ps1"; then
+  ok "using assembly naming an unloadable DLL refuses approval"
+else
+  fail "using assembly was not refused: $OUT_ASM"
+fi
+cp "$WORK/LoadHost.psm1.bak" "$REPO_CRP/rules/LoadHost.psm1"
+rm -f "$REPO_CRP/rules/deps/UsingAsm.dll"
+
+# A load target the scan cannot resolve to a file cannot be bound to any
+# approval, so each of these must gate AND refuse approval (no mkdir hint)
+# rather than sign a signature that omits the code that would execute. Each
+# form defeats a text-pattern or prefix-expansion approach on its own:
+#   composed   . (Join-Path $PSScriptRoot "deps" "helper.ps1") — the literals
+#              are scanned separately and neither resolves beside the module
+#   envvar     the target comes from the environment
+#   othervar   an interpolated string holding a variable that is not expandable
+#   bareimport Import-Module with no extension, so extension matching cannot see it
+#   lookalike  a DIFFERENT variable whose name merely starts with PSScriptRoot,
+#              which an unbounded expansion would rewrite and then call pinnable
+#   pipeline   the loader takes its source from the UPSTREAM pipeline element,
+#              so its own arguments are just a constant command name
+for form in composed envvar othervar bareimport lookalike pipeline; do
+  cp "$REPO_CRP/rules/CleanRules.psm1" "$WORK/CleanRules.psm1.bak"
+  case "$form" in
+  composed)
+    mkdir -p "$REPO_CRP/rules/deps"
+    printf '%s\n' 'function Get-CrpDep { return 4 }' >"$REPO_CRP/rules/deps/helper.ps1"
+    cat >>"$REPO_CRP/rules/CleanRules.psm1" <<'EOF'
+. (Join-Path $PSScriptRoot "deps" "helper.ps1")
+EOF
+    ;;
+  envvar)
+    cat >>"$REPO_CRP/rules/CleanRules.psm1" <<'EOF'
+Import-Module $env:PSSA_EXTRA_RULES
+EOF
+    ;;
+  othervar)
+    cat >>"$REPO_CRP/rules/CleanRules.psm1" <<'EOF'
+$rulesHome = $env:PSSA_RULES_HOME
+. "$rulesHome/helper.ps1"
+EOF
+    ;;
+  bareimport)
+    cat >>"$REPO_CRP/rules/CleanRules.psm1" <<'EOF'
+$modRoot = $env:PSSA_MOD_ROOT
+Import-Module "$modRoot/MyModule"
+EOF
+    ;;
+  lookalike)
+    cat >>"$REPO_CRP/rules/CleanRules.psm1" <<'EOF'
+$PSScriptRootFoo = $env:PSSA_ALT_ROOT
+. "$PSScriptRootFoo/helper.ps1"
+EOF
+    ;;
+  pipeline)
+    cat >>"$REPO_CRP/rules/CleanRules.psm1" <<'EOF'
+Get-Content (Join-Path $PSScriptRoot "deps" "PipeSrc.ps1") -Raw | Invoke-Expression
+EOF
+    ;;
+  *) fail "unknown unpinnable fixture: $form" ;;
+  esac
+  printf "%s\n" "get-childitem -Path '.'" >"$REPO_CRP/crp-$form.ps1"
+  # A distinct session per form: every unpinnable state shares one notice key
+  # (it carries no signature), so a single session would dedupe all but the
+  # first and the assertion would read an empty payload as a missing gate.
+  OUT_UNPIN="$(cd "$UNRELATED" && printf '{"session_id":"unpin-%s","tool_input":{"file_path":"%s"},"tool_name":"Write"}' "$form" "$REPO_CRP/crp-$form.ps1" |
+    env -u CLAUDE_PROJECT_DIR CLAUDE_PLUGIN_DATA="$CRP_DATA" CLAUDE_PLUGIN_OPTION_POWERSHELL_FORMAT_ENABLED=true bash "$HOOK")"
+  if printf '%s' "$OUT_UNPIN" | jq -e '(.systemMessage | contains("trust gate") and contains("cannot pin")) and (.systemMessage | contains("mkdir -p") | not)' >/dev/null 2>&1 &&
+    grep -q 'get-childitem' "$REPO_CRP/crp-$form.ps1"; then
+    ok "unpinnable load target ($form) gates and refuses approval"
+  else
+    fail "unpinnable load target ($form) was not refused: $OUT_UNPIN $(cat "$REPO_CRP/crp-$form.ps1")"
+  fi
+  cp "$WORK/CleanRules.psm1.bak" "$REPO_CRP/rules/CleanRules.psm1"
+done
+rm -rf "$REPO_CRP/rules/deps"
+
+# Fail closed: with no CLAUDE_PLUGIN_DATA an approval can be neither recorded
+# nor verified, so a CustomRulePath settings state must still skip the run (and
+# notice every time — the once-per-session gate fails open toward visibility
+# when it has no marker store).
+OUT_GATE_5=$(run_hook_env "$REPO_CRP/crp2.ps1" -u CLAUDE_PLUGIN_DATA CLAUDE_PLUGIN_OPTION_POWERSHELL_FORMAT_ENABLED=true)
+if printf '%s' "$OUT_GATE_5" | jq -e '.systemMessage | contains("trust gate")' >/dev/null 2>&1 &&
+  grep -q 'get-childitem' "$REPO_CRP/crp2.ps1"; then
+  ok "CustomRulePath without a plugin-data store fails closed"
+else
+  fail "CustomRulePath without a plugin-data store did not fail closed: $OUT_GATE_5"
+fi
+
+# Textual-scan evasion: key detection uses PowerShell's restricted data-file
+# parser, so a backtick-escaped double-quoted key ("CustomRule`Path" evaluates
+# to CustomRulePath) must still gate — a grep for the literal key would miss it.
+REPO_ESC="$WORK/customrule-escaped"
+new_repo "$REPO_ESC" NO_SETTINGS
+cat >"$REPO_ESC/PSScriptAnalyzerSettings.psd1" <<'EOF'
+@{
+    "CustomRule`Path" = './rules/CleanRules.psm1'
+    IncludeRules = @('PSUseCorrectCasing')
+}
+EOF
+printf "%s\n" "get-childitem -Path '.'" >"$REPO_ESC/esc.ps1"
+OUT_GATE_6=$(run_hook_env "$REPO_ESC/esc.ps1" CLAUDE_PLUGIN_DATA="$CRP_DATA" CLAUDE_PLUGIN_OPTION_POWERSHELL_FORMAT_ENABLED=true)
+if printf '%s' "$OUT_GATE_6" | jq -e '.systemMessage | contains("trust gate")' >/dev/null 2>&1 &&
+  grep -q 'get-childitem' "$REPO_ESC/esc.ps1"; then
+  ok "escaped CustomRulePath key still gates (restricted-parser detection)"
+else
+  fail "escaped CustomRulePath key evaded the gate: $OUT_GATE_6"
 fi
 
 # ============================================================================

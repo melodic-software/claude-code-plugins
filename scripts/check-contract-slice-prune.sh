@@ -53,6 +53,9 @@
 # docs/topics and leave the real root unchecked. Also read from the base
 # revision, for the same self-exemption reason: relocating contract_dir in the
 # same PR that adds a slice under the old root would otherwise dodge the gate.
+# The value is parsed by lib/parse-concern-value.sh (quote- and hash-aware) and
+# then lexically canonicalized, because a root the gate cannot match is a root
+# the gate does not police.
 #
 # Fail-closed: an unresolvable base ref, a diff that cannot be computed, or a
 # concern file present but unreadable exits non-zero rather than passing
@@ -64,6 +67,7 @@ cd "$(dirname "${BASH_SOURCE[0]}")/.." || exit 2
 
 CONCERN_FILE=".claude/topic-docs.yaml"
 BASELINE="${CONTRACT_SLICE_BASELINE:-scripts/contract-slice-baseline.txt}"
+PARSE_CONCERN_VALUE="lib/parse-concern-value.sh"
 
 # Read a repo path at <rev>, or from the working tree when rev is empty.
 # Prints nothing and returns 1 when the path does not exist there.
@@ -78,23 +82,57 @@ read_at_rev() {
 }
 
 # contract_dir from the concern file at <rev>, falling back to the documented
-# default. Minimal scalar parse: the key is documented as a plain unquoted
-# scalar with an optional trailing comment.
+# default. The parse is delegated to lib/parse-concern-value.sh — the repo's
+# single source of truth for reading a topic-docs concern scalar — rather than
+# re-forked here: a hand-rolled `s/#.*$//` truncates a legitimate scalar at an
+# ADJACENT hash (`docs/a#b` -> `docs/a`), which would silently leave the real
+# root unpoliced. That helper takes a file, so a revision's content is
+# materialized to a temp file first.
 resolve_contract_dir() {
-  local rev="$1" content value
+  local rev="$1" content tmp value
   if ! content="$(read_at_rev "$rev" "$CONCERN_FILE")"; then
     printf 'docs/topics'
     return 0
   fi
-  value="$(printf '%s\n' "$content" |
-    sed -n 's/^[[:space:]]*contract_dir[[:space:]]*:[[:space:]]*//p' |
-    head -n1 |
-    sed 's/[[:space:]]*#.*$//; s/^["'"'"']//; s/["'"'"']$//; s/[[:space:]]*$//')"
-  if [[ -z "$value" ]]; then
-    printf 'docs/topics'
-    return 0
+  if [[ ! -f "$PARSE_CONCERN_VALUE" ]]; then
+    echo "check-contract-slice-prune: $PARSE_CONCERN_VALUE is missing; refusing to parse $CONCERN_FILE with a weaker inline fork." >&2
+    exit 2
   fi
+  if ! tmp="$(mktemp)"; then
+    echo "check-contract-slice-prune: could not create a temp file to parse $CONCERN_FILE." >&2
+    exit 2
+  fi
+  printf '%s\n' "$content" >"$tmp"
+  value="$(bash "$PARSE_CONCERN_VALUE" "$tmp" contract_dir 'docs/topics')"
+  rm -f "$tmp"
   printf '%s' "$value"
+}
+
+# Lexically canonicalize a repo-relative path: drop `.` segments, resolve `..`
+# against the preceding one, collapse repeated and trailing slashes. Git emits
+# diff paths already in this form, so a configured root carrying reducible
+# segments (`./docs/topics`, `docs/x/../topics`) would never match one and the
+# real root would go unpoliced. Purely lexical — the root need not exist yet.
+# Returns 1 for an absolute path or one that escapes the repo root.
+canonicalize_repo_path() {
+  local raw="$1" seg
+  [[ "$raw" == /* ]] && return 1
+  local -a out=()
+  while IFS= read -r seg; do
+    case "$seg" in
+    '' | '.') continue ;;
+    '..')
+      ((${#out[@]})) || return 1
+      out=(${out[@]+"${out[@]:0:${#out[@]}-1}"})
+      ;;
+    *) out+=("$seg") ;;
+    esac
+  done < <(printf '%s\n' "${raw//\//$'\n'}")
+  local joined="" part
+  for part in ${out[@]+"${out[@]}"}; do
+    joined="${joined:+$joined/}$part"
+  done
+  printf '%s' "$joined"
 }
 
 mode="${1:-}"
@@ -133,8 +171,12 @@ fi
 # Identical values collapse to one.
 declare -a CONTRACT_DIRS=()
 add_contract_dir() {
-  local dir="${1%/}"
-  [[ -z "$dir" || "$dir" == "." || "$dir" == "/" ]] && {
+  local dir
+  if ! dir="$(canonicalize_repo_path "$1")"; then
+    echo "check-contract-slice-prune: resolved contract_dir ('$1') is absolute or escapes the repo root; refusing to run." >&2
+    exit 2
+  fi
+  [[ -z "$dir" ]] && {
     echo "check-contract-slice-prune: resolved contract_dir is root-equivalent ('$1'); refusing to run." >&2
     exit 2
   }
@@ -173,19 +215,29 @@ fi
 
 # Map a repo path to the slice slug that owns it, or empty if the path is under
 # no contract root. "docs/topics/foo/design/x.md" -> "foo".
+#
+# The two policed roots can NEST — a PR may relocate contract_dir underneath the
+# base root (docs/topics -> docs/topics/legacy). Returning the first match would
+# then name the inner root's own directory as the slug, so a baselined outer
+# slug would exempt every new slice inside the relocated root. The MOST SPECIFIC
+# (longest) matching root owns the path; roots are canonical and non-empty, so
+# longest-prefix is unambiguous.
 slug_of() {
-  local path="$1" dir rest
+  local path="$1" dir best="" rest
   for dir in "${CONTRACT_DIRS[@]}"; do
     case "$path" in
     "$dir"/*)
-      rest="${path#"$dir"/}"
-      printf '%s' "${rest%%/*}"
-      return 0
+      ((${#dir} > ${#best})) && best="$dir"
       ;;
     *) ;; # not under this root; try the next
     esac
   done
-  printf ''
+  if [[ -z "$best" ]]; then
+    printf ''
+    return 0
+  fi
+  rest="${path#"$best"/}"
+  printf '%s' "${rest%%/*}"
 }
 
 if [[ "$mode" == "--check" ]]; then

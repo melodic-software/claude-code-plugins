@@ -58,9 +58,10 @@ restores the FAIL semantics.
    is the opt-out and is **by design, not a defect** — the plugin is inert until a repo adopts
    a settings file. Report whether one exists and its location. When one exists, surface the
    README **Trust model**: the settings file is executed-adjacent configuration — a
-   `CustomRulePath` it declares is loaded and run during analysis on every edit — so it
-   carries the same trust as build/CI configuration. Do not enable this plugin against an
-   untrusted working tree.
+   `CustomRulePath` it declares would load and run repository-supplied rule modules during
+   analysis, so the hook gates such a settings state on an explicit per-content trust
+   approval (marker under `${CLAUDE_PLUGIN_DATA}/trust-approvals`; any settings change
+   revokes it). It carries the same trust as build/CI configuration.
 6. **Hook toggle** — report the effective `powershell_format_enabled` value:
    `${user_config.powershell_format_enabled}` (unexpanded or empty means default `true`; any
    value other than `true` disables the hook).

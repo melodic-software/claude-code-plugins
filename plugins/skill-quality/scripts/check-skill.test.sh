@@ -1267,6 +1267,877 @@ else
   fail "prose #! code span should not trip the injection checks (rc=$rc): $out"
 fi
 
+# 29. Check 21: malformed fresh-eyes-exempt directive FAILs.
+make_skill fe-malformed '---
+name: fe-malformed
+description: "Fresh-eyes fixture. Use when: '"'"'fe malformed fixture'"'"'."
+---
+
+## Steps
+
+<!-- fresh-eyes-exempt deterministic-gate no colon -->
+
+## Gotchas
+
+None known.
+'
+out="$(run fe-malformed 2>&1)"
+rc=$?
+if [[ $rc -eq 1 ]] && grep -q 'malformed fresh-eyes-exempt' <<<"$out"; then
+  pass "malformed fresh-eyes directive fails (check 21)"
+else
+  fail "malformed fresh-eyes directive should FAIL (rc=$rc): $out"
+fi
+
+# 30. Check 21: unknown exemption class FAILs.
+make_skill fe-unknown-class '---
+name: fe-unknown-class
+description: "Fresh-eyes fixture. Use when: '"'"'fe unknown class fixture'"'"'."
+---
+
+## Steps
+
+<!-- fresh-eyes-exempt: because-i-said-so -- not a real class -->
+
+## Gotchas
+
+None known.
+'
+out="$(run fe-unknown-class 2>&1)"
+rc=$?
+if [[ $rc -eq 1 ]] && grep -q 'malformed fresh-eyes-exempt' <<<"$out"; then
+  pass "unknown fresh-eyes class fails (check 21)"
+else
+  fail "unknown fresh-eyes class should FAIL (rc=$rc): $out"
+fi
+
+# 31. Check 21: directive missing its reason FAILs.
+make_skill fe-no-reason '---
+name: fe-no-reason
+description: "Fresh-eyes fixture. Use when: '"'"'fe no reason fixture'"'"'."
+---
+
+## Steps
+
+Score each item against the rubric.
+<!-- fresh-eyes-exempt: deterministic-gate -->
+
+## Gotchas
+
+None known.
+'
+out="$(run fe-no-reason 2>&1)"
+rc=$?
+if [[ $rc -eq 1 ]] && grep -q "missing its '-- <reason>'" <<<"$out"; then
+  pass "reason-less fresh-eyes directive fails (check 21)"
+else
+  fail "reason-less fresh-eyes directive should FAIL (rc=$rc): $out"
+fi
+
+# 32. Check 21: undeclared judgment language WARNs (skill still passes).
+make_skill fe-undeclared '---
+name: fe-undeclared
+description: "Fresh-eyes fixture. Use when: '"'"'fe undeclared fixture'"'"'."
+---
+
+## Steps
+
+Self-review the diff before presenting it.
+
+## Gotchas
+
+None known.
+'
+out="$(run fe-undeclared 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q 'same-context judgment language with no fresh-context delegation' <<<"$out"; then
+  pass "undeclared judgment language warns (check 21)"
+else
+  fail "undeclared judgment language should WARN and pass (rc=$rc): $out"
+fi
+
+# 33. Check 21: valid directive with no judgment-language hit nearby WARNs stale.
+make_skill fe-stale '---
+name: fe-stale
+description: "Fresh-eyes fixture. Use when: '"'"'fe stale fixture'"'"'."
+---
+
+## Steps
+
+<!-- fresh-eyes-exempt: external-input -- triage of another author'"'"'s report -->
+
+Nothing here reads like a judgment step.
+
+## Gotchas
+
+None known.
+'
+out="$(run fe-stale 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q 'stale fresh-eyes-exempt directive' <<<"$out"; then
+  pass "stale fresh-eyes directive warns (check 21)"
+else
+  fail "stale fresh-eyes directive should WARN and pass (rc=$rc): $out"
+fi
+
+# 34. Check 21: delegation prose satisfies proximity — both spellings.
+make_skill fe-delegated '---
+name: fe-delegated
+description: "Fresh-eyes fixture. Use when: '"'"'fe delegated fixture'"'"'."
+---
+
+## Steps
+
+Self-review the plan by dispatching a fresh-context subagent with the artifact.
+Later, score each finding via a fresh context worker, artifact-not-story.
+
+## Gotchas
+
+None known.
+'
+out="$(run fe-delegated 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && ! grep -q 'same-context judgment language with no' <<<"$out" \
+  && ! grep -q 'stale fresh-eyes-exempt' <<<"$out"; then
+  pass "fresh-context delegation prose passes both spellings (check 21)"
+else
+  fail "delegation prose should satisfy check 21 (rc=$rc): $out"
+fi
+
+# 35. Check 21: valid exemption directive near judgment language passes clean.
+make_skill fe-exempt-valid '---
+name: fe-exempt-valid
+description: "Fresh-eyes fixture. Use when: '"'"'fe exempt valid fixture'"'"'."
+---
+
+## Steps
+
+<!-- fresh-eyes-exempt: deterministic-gate -- the test script'"'"'s exit code is the verdict -->
+Verify its own output by running the test suite and score each case.
+
+## Gotchas
+
+None known.
+'
+out="$(run fe-exempt-valid 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && ! grep -q 'same-context judgment language with no' <<<"$out" \
+  && ! grep -q 'stale fresh-eyes-exempt' <<<"$out"; then
+  pass "valid exemption directive near judgment language passes (check 21)"
+else
+  fail "valid exemption directive should satisfy check 21 (rc=$rc): $out"
+fi
+
+# 36. Check 21: literal directive examples and judgment phrases inside code
+#     fences and inline spans are ignored (self-reference guard).
+make_skill fe-fenced '---
+name: fe-fenced
+description: "Fresh-eyes fixture. Use when: '"'"'fe fenced fixture'"'"'."
+---
+
+## Docs
+
+The directive form, shown literally:
+
+```markdown
+<!-- fresh-eyes-exempt: bogus-class -- fenced example never scanned -->
+Self-review your own work here.
+```
+
+Inline span mention: `self-review` stays unscanned.
+
+## Gotchas
+
+None known.
+'
+out="$(run fe-fenced 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && ! grep -qE 'fresh-eyes-exempt|same-context judgment' <<<"$out"; then
+  pass "fenced/inline-span fresh-eyes content is not scanned (check 21)"
+else
+  fail "fenced fresh-eyes content should be ignored (rc=$rc): $out"
+fi
+
+# 37a. Check 21: judgment language with BOTH delegation wording and a valid
+#      directive in window passes with the contradictory-declaration INFO.
+make_skill fe-contradictory '---
+name: fe-contradictory
+description: "Fresh-eyes fixture. Use when: '"'"'fe contradictory fixture'"'"'."
+---
+
+## Steps
+
+<!-- fresh-eyes-exempt: deterministic-gate -- the suite exit code is the verdict -->
+Self-review the output, then dispatch a fresh-context subagent for the verdict.
+
+## Gotchas
+
+None known.
+'
+out="$(run fe-contradictory 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q 'contradictory declaration' <<<"$out"; then
+  pass "both wording and directive in window notes contradictory (check 21)"
+else
+  fail "both-declared case should pass with contradictory INFO (rc=$rc): $out"
+fi
+
+# 37b. Check 21: an info-string fence line inside an open fence is content, not
+#      a closer — the literal directive after it stays fenced (CommonMark:
+#      closers allow only trailing spaces).
+make_skill fe-fence-info '---
+name: fe-fence-info
+description: "Fresh-eyes fixture. Use when: '"'"'fe fence info fixture'"'"'."
+---
+
+## Docs
+
+```
+```yaml
+<!-- fresh-eyes-exempt: bogus-class -- info-string line must not close the fence -->
+```
+
+## Gotchas
+
+None known.
+'
+out="$(run fe-fence-info 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && ! grep -q 'fresh-eyes-exempt' <<<"$out"; then
+  pass "info-string fence line does not close the fence (check 21)"
+else
+  fail "info-string fence line should not desync the fence guard (rc=$rc): $out"
+fi
+
+# 37c. Check 21: a multi-backtick inline span hides its content (CommonMark
+#      exact-length pairing — a naive single-backtick stripper would expose it).
+make_skill fe-span-double '---
+name: fe-span-double
+description: "Fresh-eyes fixture. Use when: '"'"'fe span double fixture'"'"'."
+---
+
+## Docs
+
+Span form: `` <!-- fresh-eyes-exempt: bogus-class -- literal --> `` stays unscanned.
+
+## Gotchas
+
+None known.
+'
+out="$(run fe-span-double 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && ! grep -q 'fresh-eyes-exempt directive' <<<"$out"; then
+  pass "double-backtick span content is not scanned (check 21)"
+else
+  fail "double-backtick span should hide the literal directive (rc=$rc): $out"
+fi
+
+# 37d. Check 21: bare fresh-context wording naming no worker does not declare —
+#      the judgment line still WARNs.
+make_skill fe-bare-wording '---
+name: fe-bare-wording
+description: "Fresh-eyes fixture. Use when: '"'"'fe bare wording fixture'"'"'."
+---
+
+## Steps
+
+Self-review the work in a fresh context before presenting it.
+
+## Gotchas
+
+None known.
+'
+out="$(run fe-bare-wording 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q 'same-context judgment language with no' <<<"$out"; then
+  pass "bare fresh-context wording without a worker still warns (check 21)"
+else
+  fail "worker-less fresh-context wording should not satisfy check 21 (rc=$rc): $out"
+fi
+
+# 37e. Check 21: an unrelated verification word next to fresh-context wording
+#      names no worker — the judgment line still WARNs.
+make_skill fe-verification-word '---
+name: fe-verification-word
+description: "Fresh-eyes fixture. Use when: '"'"'fe verification word fixture'"'"'."
+---
+
+## Steps
+
+Self-review the work in a fresh context before verification.
+
+## Gotchas
+
+None known.
+'
+out="$(run fe-verification-word 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q 'same-context judgment language with no' <<<"$out"; then
+  pass "verification wording without a worker still warns (check 21)"
+else
+  fail "verification-word bypass should not satisfy check 21 (rc=$rc): $out"
+fi
+
+# 37f. Check 21: a four-space-indented backtick run is an indented code block,
+#      not a fence opener (CommonMark) — a malformed directive after it is
+#      still scanned and still blocks.
+make_skill fe-indented-fence '---
+name: fe-indented-fence
+description: "Fresh-eyes fixture. Use when: '"'"'fe indented fence fixture'"'"'."
+---
+
+## Steps
+
+    ```
+Regular prose resumes here.
+
+<!-- fresh-eyes-exempt: bogus-class -- wrong class stays malformed -->
+
+## Gotchas
+
+None known.
+'
+out="$(run fe-indented-fence 2>&1)"
+rc=$?
+if [[ $rc -ne 0 ]] && grep -q 'malformed fresh-eyes-exempt directive' <<<"$out"; then
+  pass "indented backtick run does not open a fence (check 21)"
+else
+  fail "malformed directive after indented code block should FAIL (rc=$rc): $out"
+fi
+
+# 37g. Check 21: a backtick run whose info string carries a backtick is prose,
+#      not a fence opener (CommonMark) — a malformed directive after it is
+#      still scanned and still blocks.
+make_skill fe-backtick-info '---
+name: fe-backtick-info
+description: "Fresh-eyes fixture. Use when: '"'"'fe backtick info fixture'"'"'."
+---
+
+## Steps
+
+```markdown `
+Regular prose resumes here.
+
+<!-- fresh-eyes-exempt: bogus-class -- wrong class stays malformed -->
+
+## Gotchas
+
+None known.
+'
+out="$(run fe-backtick-info 2>&1)"
+rc=$?
+if [[ $rc -ne 0 ]] && grep -q 'malformed fresh-eyes-exempt directive' <<<"$out"; then
+  pass "backtick-in-info-string run does not open a fence (check 21)"
+else
+  fail "malformed directive after invalid backtick opener should FAIL (rc=$rc): $out"
+fi
+
+# 37h. Check 21: an embedded worker stem ("agentless") is not a whole-word
+#      worker token — the judgment line still WARNs.
+make_skill fe-agentless '---
+name: fe-agentless
+description: "Fresh-eyes fixture. Use when: '"'"'fe agentless fixture'"'"'."
+---
+
+## Steps
+
+Self-review the work in a fresh context using an agentless workflow.
+
+## Gotchas
+
+None known.
+'
+out="$(run fe-agentless 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q 'same-context judgment language with no' <<<"$out"; then
+  pass "embedded worker stem without a whole-word token still warns (check 21)"
+else
+  fail "agentless stem should not satisfy check 21 (rc=$rc): $out"
+fi
+
+# 37i. Check 21: a code span that crosses a newline keeps masking its content on
+#      the following line — a literal directive inside it must not be parsed.
+make_skill fe-span-crossline '---
+name: fe-span-crossline
+description: "Fresh-eyes fixture. Use when: '"'"'fe crossline span fixture'"'"'."
+---
+
+## Steps
+
+A literal directive inside a span that crosses a line: `<!-- fresh-eyes-exempt: bogus-class -- literal
+example -->` and the prose continues here.
+
+## Gotchas
+
+None known.
+'
+out="$(run fe-span-crossline 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && ! grep -q 'malformed fresh-eyes-exempt directive' <<<"$out"; then
+  pass "code span crossing a line boundary still masks its content (check 21)"
+else
+  fail "cross-line span content should not be parsed as a directive (rc=$rc): $out"
+fi
+
+# 37j. Check 21: the cross-line carry expires at the paragraph break, so one
+#      stray unclosed backtick cannot blind the scanner for the rest of the file.
+make_skill fe-span-stray '---
+name: fe-span-stray
+description: "Fresh-eyes fixture. Use when: '"'"'fe stray backtick fixture'"'"'."
+---
+
+## Steps
+
+A stray unclosed backtick ` ends this paragraph.
+
+<!-- fresh-eyes-exempt: bogus-class -- wrong class stays malformed -->
+
+## Gotchas
+
+None known.
+'
+out="$(run fe-span-stray 2>&1)"
+rc=$?
+if [[ $rc -ne 0 ]] && grep -q 'malformed fresh-eyes-exempt directive' <<<"$out"; then
+  pass "stray-backtick span carry expires at the paragraph break (check 21)"
+else
+  fail "directive after a stray-backtick paragraph should still FAIL (rc=$rc): $out"
+fi
+
+# 37k. Check 21: a fence nested in a blockquote is still a fence — its literal
+#      directive example must not be parsed. Tildes, so the cross-line span
+#      carry cannot mask the body incidentally and pass the test for free.
+make_skill fe-quoted-fence '---
+name: fe-quoted-fence
+description: "Fresh-eyes fixture. Use when: '"'"'fe quoted fence fixture'"'"'."
+---
+
+## Steps
+
+Quoted example:
+
+> ~~~markdown
+> <!-- fresh-eyes-exempt: bogus -- example -->
+> ~~~
+
+Prose resumes here.
+
+## Gotchas
+
+None known.
+'
+out="$(run fe-quoted-fence 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && ! grep -q 'malformed fresh-eyes-exempt directive' <<<"$out"; then
+  pass "blockquoted fence still suppresses its content (check 21)"
+else
+  fail "directive inside a blockquoted fence should not be parsed (rc=$rc): $out"
+fi
+
+# 37l. Check 21: backslash-escaped backticks render literally, so they open no
+#      code span and the directive between them is a real malformed directive.
+make_skill fe-escaped-span '---
+name: fe-escaped-span
+description: "Fresh-eyes fixture. Use when: '"'"'fe escaped span fixture'"'"'."
+---
+
+## Steps
+
+Prose showing \`<!-- fresh-eyes-exempt: bogus -- reason -->\` between escaped backticks.
+
+## Gotchas
+
+None known.
+'
+out="$(run fe-escaped-span 2>&1)"
+rc=$?
+if [[ $rc -ne 0 ]] && grep -q 'malformed fresh-eyes-exempt directive' <<<"$out"; then
+  pass "escaped backticks open no code span (check 21)"
+else
+  fail "directive between escaped backticks should FAIL (rc=$rc): $out"
+fi
+
+# 37m. Check 21: each directive on a shared line is classified on its own, so a
+#      malformed one cannot hide beside a valid one.
+make_skill fe-two-directives '---
+name: fe-two-directives
+description: "Fresh-eyes fixture. Use when: '"'"'fe two directives fixture'"'"'."
+---
+
+## Steps
+
+Self-review the output.
+
+<!-- fresh-eyes-exempt: bogus -- unknown class --> <!-- fresh-eyes-exempt: deferred -- tracked -->
+
+## Gotchas
+
+None known.
+'
+out="$(run fe-two-directives 2>&1)"
+rc=$?
+if [[ $rc -ne 0 ]] && grep -q 'malformed fresh-eyes-exempt directive' <<<"$out"; then
+  pass "malformed directive beside a valid one still FAILs (check 21)"
+else
+  fail "shared-line malformed directive should FAIL (rc=$rc): $out"
+fi
+
+# 37n. Check 21: "Refresh context" is not the fresh-context wording — the
+#      judgment line still WARNs even though a worker term appears.
+make_skill fe-refresh-context '---
+name: fe-refresh-context
+description: "Fresh-eyes fixture. Use when: '"'"'fe refresh context fixture'"'"'."
+---
+
+## Steps
+
+Refresh context with agent output, then self-review your work.
+
+## Gotchas
+
+None known.
+'
+out="$(run fe-refresh-context 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q 'same-context judgment language with no' <<<"$out"; then
+  pass "Refresh-context prose does not declare delegation (check 21)"
+else
+  fail "\"Refresh context\" should not satisfy check 21 (rc=$rc): $out"
+fi
+
+# 37o. Check 21: container-prefix stripping must not close a fence from inside
+#      its own quoted example. The inner runs are the SAME length as the opener,
+#      so a strip applied in-fence would treat "> ```" as the closer and leak the
+#      rest of the block to the detectors.
+make_skill fe-nested-quoted-fence '---
+name: fe-nested-quoted-fence
+description: "Fresh-eyes fixture. Use when: '"'"'fe nested quoted fence fixture'"'"'."
+---
+
+## Steps
+
+```markdown
+> ```
+> <!-- fresh-eyes-exempt: bogus -- x -->
+> ```
+```
+
+## Gotchas
+
+None known.
+'
+out="$(run fe-nested-quoted-fence 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && ! grep -q 'malformed fresh-eyes-exempt directive' <<<"$out"; then
+  pass "quoted runs inside an unprefixed fence do not close it (check 21)"
+else
+  fail "nested quoted fence content should stay suppressed (rc=$rc): $out"
+fi
+
+# 37p. Check 21: an escaped \< renders literally, so \<!-- ... --> is text, not
+#      an HTML comment, and therefore not a directive at all.
+make_skill fe-escaped-angle '---
+name: fe-escaped-angle
+description: "Fresh-eyes fixture. Use when: '"'"'fe escaped angle fixture'"'"'."
+---
+
+## Steps
+
+Escaped angle bracket renders literally: \<!-- fresh-eyes-exempt: bogus -- z -->
+
+## Gotchas
+
+None known.
+'
+out="$(run fe-escaped-angle 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && ! grep -q 'fresh-eyes-exempt directive' <<<"$out"; then
+  pass "escaped angle bracket is not a directive (check 21)"
+else
+  fail "escaped \\<!-- should not parse as a directive (rc=$rc): $out"
+fi
+
+# 37q. Check 21: an UNCLOSED fence inside a blockquote ends with the blockquote,
+#      so a malformed directive in later top-level prose still blocks. Without
+#      the container reset the fence swallows the rest of the file and PASSes.
+make_skill fe-runaway-quoted-fence '---
+name: fe-runaway-quoted-fence
+description: "Fresh-eyes fixture. Use when: '"'"'fe runaway quoted fence fixture'"'"'."
+---
+
+## Steps
+
+> ```markdown
+> an unclosed fence inside a blockquote
+
+Top-level prose resumes here.
+
+<!-- fresh-eyes-exempt: bogus -- wrong class stays malformed -->
+
+## Gotchas
+
+None known.
+'
+out="$(run fe-runaway-quoted-fence 2>&1)"
+rc=$?
+if [[ $rc -ne 0 ]] && grep -q 'malformed fresh-eyes-exempt directive' <<<"$out"; then
+  pass "unclosed quoted fence ends with its blockquote (check 21)"
+else
+  fail "directive after a runaway quoted fence should FAIL (rc=$rc): $out"
+fi
+
+# 37r. Check 21: a fence opened by a list marker suppresses its indented body and
+#      still closes on the indented closer, and the item's end releases it.
+make_skill fe-list-fence '---
+name: fe-list-fence
+description: "Fresh-eyes fixture. Use when: '"'"'fe list fence fixture'"'"'."
+---
+
+## Steps
+
+- ```markdown
+  <!-- fresh-eyes-exempt: bogus -- suppressed inside the list fence -->
+  ```
+
+Top-level prose resumes.
+
+<!-- fresh-eyes-exempt: bogus2 -- wrong class stays malformed -->
+
+## Gotchas
+
+None known.
+'
+out="$(run fe-list-fence 2>&1)"
+rc=$?
+if [[ $rc -ne 0 ]] && grep -q 'malformed fresh-eyes-exempt directive (SKILL.md:14)' <<<"$out" \
+   && ! grep -q 'malformed fresh-eyes-exempt directive (SKILL.md:9)' <<<"$out"; then
+  pass "list-opened fence suppresses its body then releases (check 21)"
+else
+  fail "list fence body should be suppressed and the line-14 directive FAIL (rc=$rc): $out"
+fi
+
+# 37s. Check 21: escapes are not processed inside a code span, so a literal
+#      backslash before the closing run does not stop the run from closing —
+#      the directive AFTER the span is real and still blocks.
+make_skill fe-span-literal-backslash '---
+name: fe-span-literal-backslash
+description: "Fresh-eyes fixture. Use when: '"'"'fe span literal backslash fixture'"'"'."
+---
+
+## Steps
+
+Literal `foo\` then <!-- fresh-eyes-exempt: bogus -- wrong class stays malformed -->
+
+## Gotchas
+
+None known.
+'
+out="$(run fe-span-literal-backslash 2>&1)"
+rc=$?
+if [[ $rc -ne 0 ]] && grep -q 'malformed fresh-eyes-exempt directive' <<<"$out"; then
+  pass "a literal backslash does not suppress a span closer (check 21)"
+else
+  fail "directive after a backslash-ending span should FAIL (rc=$rc): $out"
+fi
+
+# 37v. Check 21: a directive at four-space indent is structurally ambiguous —
+#      indented code block or list continuation, the scanner cannot tell — so it
+#      declines the hard verdict rather than FAILing an author on a parser
+#      artifact. See the parsing contract in reference/fresh-eyes-declarations.md.
+make_skill fe-indented-ambiguous '---
+name: fe-indented-ambiguous
+description: "Fresh-eyes fixture. Use when: '"'"'fe indented ambiguous fixture'"'"'."
+---
+
+## Steps
+
+An indented block holding a literal directive:
+
+    <!-- fresh-eyes-exempt: bogus -- indented, so no hard verdict -->
+
+Prose resumes.
+
+## Gotchas
+
+None known.
+'
+out="$(run fe-indented-ambiguous 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && ! grep -q 'fresh-eyes-exempt directive' <<<"$out"; then
+  pass "four-space-indented directive yields no hard verdict (check 21)"
+else
+  fail "ambiguous indented directive should not FAIL (rc=$rc): $out"
+fi
+
+# 37t. Check 21: a fence opened at blockquote depth two ends when the lines fall
+#      back to depth one — the inner quote is over, so a directive there is real.
+#      Depth, not mere marker presence, decides. No blank line between: a blank
+#      line would end the quote on its own and make this pass without the depth
+#      comparison, which is exactly how the first version of this fixture was
+#      non-discriminating.
+make_skill fe-quote-depth '---
+name: fe-quote-depth
+description: "Fresh-eyes fixture. Use when: '"'"'fe quote depth fixture'"'"'."
+---
+
+## Steps
+
+> > ~~~markdown
+> > a fence opened at depth two
+> <!-- fresh-eyes-exempt: bogus -- wrong class stays malformed -->
+
+## Gotchas
+
+None known.
+'
+out="$(run fe-quote-depth 2>&1)"
+rc=$?
+if [[ $rc -ne 0 ]] && grep -q 'malformed fresh-eyes-exempt directive' <<<"$out"; then
+  pass "depth-two fence ends when the inner quote does (check 21)"
+else
+  fail "directive at lower quote depth should FAIL (rc=$rc): $out"
+fi
+
+# 37u. Check 21: Form 1 is visible prose by contract, so delegation wording hidden
+#      in an HTML comment declares nothing and the judgment line still WARNs.
+make_skill fe-comment-wording '---
+name: fe-comment-wording
+description: "Fresh-eyes fixture. Use when: '"'"'fe comment wording fixture'"'"'."
+---
+
+## Steps
+
+<!-- dispatch this to a fresh-context agent -->
+
+Self-review your own work.
+
+## Gotchas
+
+None known.
+'
+out="$(run fe-comment-wording 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q 'same-context judgment language with no' <<<"$out"; then
+  pass "delegation wording in an HTML comment does not declare (check 21)"
+else
+  fail "commented wording should not satisfy check 21 (rc=$rc): $out"
+fi
+
+# 37w. Check 21: the directive name needs a terminator. An ordinary comment about
+#      "fresh-eyes-exemption" shares the prefix but is not a directive, and a
+#      prefix-only match FAILed the skill on prose.
+make_skill fe-name-prefix '---
+name: fe-name-prefix
+description: "Fresh-eyes fixture. Use when: '"'"'fe name prefix fixture'"'"'."
+---
+
+## Steps
+
+Prose: <!-- fresh-eyes-exemption is explained here -->
+
+## Gotchas
+
+None known.
+'
+out="$(run fe-name-prefix 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && ! grep -q 'fresh-eyes-exempt directive' <<<"$out"; then
+  pass "a longer name sharing the directive prefix is not a directive (check 21)"
+else
+  fail "fresh-eyes-exemption prose should not parse as a directive (rc=$rc): $out"
+fi
+
+# 37x. Check 21: an ambiguous directive cannot satisfy a judgment step either. A
+#      literal exemption inside an indented example must not silence the WARN.
+make_skill fe-ambiguous-proximity '---
+name: fe-ambiguous-proximity
+description: "Fresh-eyes fixture. Use when: '"'"'fe ambiguous proximity fixture'"'"'."
+---
+
+## Steps
+
+Self-review your own work.
+
+An indented example:
+
+    <!-- fresh-eyes-exempt: deferred -- literal example, not a live exemption -->
+
+## Gotchas
+
+None known.
+'
+out="$(run fe-ambiguous-proximity 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q 'same-context judgment language with no' <<<"$out"; then
+  pass "an ambiguous directive does not satisfy a judgment step (check 21)"
+else
+  fail "indented literal exemption should not silence the WARN (rc=$rc): $out"
+fi
+
+# 37y. Check 21: YAML frontmatter is not markdown. A block-scalar description
+#      carrying an example fence opened a fence that the closing --- never ended,
+#      which swallowed the whole body and passed the file silently.
+make_skill fe-frontmatter-fence '---
+name: fe-frontmatter-fence
+description: >-
+  Fresh-eyes fixture carrying an example fence. Use when: '"'"'fe frontmatter fence fixture'"'"'.
+  ```text
+  and prose after it.
+---
+
+## Steps
+
+<!-- fresh-eyes-exempt: bogus -- wrong class stays malformed -->
+
+## Gotchas
+
+None known.
+'
+out="$(run fe-frontmatter-fence 2>&1)"
+rc=$?
+if [[ $rc -ne 0 ]] && grep -q 'malformed fresh-eyes-exempt directive' <<<"$out"; then
+  pass "a fence inside frontmatter does not suppress the body (check 21)"
+else
+  fail "directive after a frontmatter fence should FAIL (rc=$rc): $out"
+fi
+
+# 37. Check 21: a skill with no judgment language emits nothing from check 21
+#     (good-skill re-run guards against detector overreach).
+out="$(run good-skill 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && ! grep -qE 'fresh-eyes|same-context judgment' <<<"$out"; then
+  pass "no judgment language stays silent (check 21)"
+else
+  fail "check 21 should stay silent on good-skill (rc=$rc): $out"
+fi
+
+# 29. Check 2 counts the 3-char " - " joiner: desc(1500) + wtu(34) = 1534,
+#     under the 1536 cap WITHOUT the joiner (the pre-fix bug would pass this),
+#     but + the 3-char joiner = 1537 — one char over. FAILing here proves
+#     item 2's fix (check-skill.sh:227) at the exact boundary, not merely an
+#     already-overflowing entry that would fail either way.
+desc_1500="$(printf 'd%.0s' $(seq 1 1500))"
+wtu_34="$(printf 'w%.0s' $(seq 1 34))"
+make_skill joiner-boundary "---
+name: joiner-boundary
+description: \"$desc_1500\"
+when_to_use: \"$wtu_34\"
+---
+
+## Purpose
+
+Boundary fixture: desc(1500) + wtu(34) = 1534 (would pass check 2 if the
+joiner were omitted, per the pre-fix bug); + the 3-char joiner = 1537, one
+char over the 1536 cap.
+"
+out="$(run joiner-boundary 2>&1)"
+rc=$?
+if [[ $rc -eq 1 ]] && grep -q 'description+when_to_use is 1537 chars (cap 1536' <<<"$out"; then
+  pass "check 2 counts the joiner: a desc+wtu sum at the cap without it now fails at 1537"
+else
+  fail "check 2 should count the 3-char joiner and fail at 1537/1536 (rc=$rc): $out"
+fi
+
 if [[ $fails -ne 0 ]]; then
   printf '%d assertion(s) failed\n' "$fails" >&2
   exit 1

@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "ai-briefing",
-  "version": "0.6.2",
+  "version": "0.6.3",
   "description": "Build source-backed AI-industry briefings from official vendor publications, configured RSS/Atom feeds, GitHub releases, reputable secondary reporting, and user-supplied URLs. Deduplicate, rank, and present results as markdown or optional HTML/PPTX decks, with repository-owned profile, audience, and brand configuration. Automated X/Twitter collection is disabled; Playwright is used only for deterministic local rendering.",
   "author": {
     "name": "Melodic Software",

@@ -3,6 +3,182 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.31.8]
+
+### Fixed
+
+- **`prune_babysit_worktrees.py` hardened against orphaned worktree state (#816).** Two related gaps
+  observed at queue-start prune: (1) a worktree directory left behind by a lock-blocked
+  `git worktree remove` (its administrative record dropped, the directory itself surviving — most
+  commonly on Windows) made every subsequent prune run error `fatal: not a git repository` on that
+  entry instead of self-healing; (2) the lock-blocked removal itself silently left the residual
+  directory with no signal. `git_status` failures now distinguish "this path is no longer a valid git
+  repository" (`is_missing_repo_error`) from every other failure: an orphaned entry drops its stale
+  worker-lease record (the lease-only case with no matching directory stays `manage_babysit_lease.py
+  reap`'s job, unchanged) and removes the residual directory only when it is empty
+  (`drop_orphaned_worktree` / `remove_empty_orphan_directory`, root-contained, never touching an
+  orphan's contents since git never confirmed it safe to discard), reported via a new
+  `drop_orphan` row action rather than flipping the run's exit code. Self-healing is gated on
+  `--apply` like every other mutation the script performs — the flagless run stays the documented
+  always-safe report, naming the orphan with `dropped: false` and leaving it on disk.
+  `remove_worktree` now
+  verifies the directory actually left disk after a *successful* `git worktree remove`
+  (`attempt_directory_removal`, safe to fully delete since git already confirmed removability) and
+  reports a still-locked directory via `residual_directory` plus a stderr warning instead of leaving
+  a silent orphan for a future run to stumble over. The stale-lease drop is scoped to leases that are
+  actually stale: when `--lease-token` matched the caller's own unexpired hold, the record survives
+  the orphan cleanup (`preserve_lease`), because the documented scoped form prunes while that lease
+  is still held and releases it in the next step (`reference/orchestration.md` "Cleanup") — unlinking
+  it here turned a successful cleanup into a `lease does not exist` release failure and dropped
+  ownership early. Orphan detection no longer rests on `fatal: not a git repository` alone: `git -C
+  <path>` runs *as if git had started in that directory*
+  ([git-scm.com](https://git-scm.com/docs/git#Documentation/git.txt--Cltpathgt)), so when the
+  worktree root itself sits inside another checkout, ordinary upward discovery answers `git status`
+  from that ancestor and the orphan reads as healthy — an open PR's entry then sticks as `keep_open`
+  and a closed one errors in `git worktree remove`, leaving the directory forever.
+  `is_orphaned_entry` compares `rev-parse --show-toplevel` against the candidate path, so an
+  ancestor's answer is an orphan too. A non-empty orphan — never force-deleted, since git never
+  confirmed its contents safe to discard — is now reported `dropped: false` with
+  `residual_directory: true` and a stderr warning rather than claiming a cleanup that did not
+  happen at a deterministic path where a replacement worktree still cannot be created.
+  - **A removed orphan directory no longer implies a reusable path.** When an entry orphans because
+    its `.git` pointer was corrupted, the owning repository still holds the
+    `$GIT_DIR/worktrees/<name>` record, so a later `git worktree add` at the same deterministic path
+    fails with "missing but already registered" — a directory removal alone was never the self-heal
+    it reported. Each dropped orphan now carries `registration_pruned`: `pruned` when the entry's own
+    `gitdir:` pointer named its repository and the record was cleared there,
+    `skipped` while the directory survives, and `unresolved` when the pointer is gone. Recovering
+    ownership is the only thing that clears the uncertainty — an ancestor checkout answering for the
+    path proves nothing, because a real linked worktree nested under another checkout resolves to
+    that ancestor once its pointer is lost while its owning repository still holds a prunable record
+    — so "never registered" and "registered, pointer gone" both stay `unresolved` rather than being
+    assumed apart. Anything but `pruned` also sets `stale_registration` and warns on stderr naming
+    `git worktree prune`. `dropped` keeps its existing directory-scoped meaning.
+  - **A lone dangling `.git` gitfile no longer counts as directory contents.** The emptiness check
+    that guards orphan removal treated the pointer file as user work, so the one orphan whose owner
+    *is* knowable — pointer readable, contents gone — always reported `directory_removed: false` and
+    never reached the prune, making the recoverable self-heal unreachable exactly where it works. A
+    sole `.git` **file** is now unlinked as the bookkeeping it is; a `.git` **directory** is still
+    never touched, since that is a standalone repository rather than a linked worktree's pointer.
+    The pointer is **restored** when the subsequent `rmdir` fails — it is the only record of the
+    owning repository, so discarding it on a lock would turn a retryable failure into a permanent
+    `unresolved` for every later run.
+  - **A bare-clone hub's registration is recoverable too.** The owning repository is derived from the
+    record's own `worktrees/<name>` structure rather than from a `.git`-named ancestor, so a hub
+    whose common directory is `hub.git` — a layout `repo_path` already supports — no longer resolves
+    to nothing and goes unpruned.
+  - **`pruned` is now verified, not inferred from the exit status.** `git worktree prune`
+    deliberately keeps a **locked** record and still exits 0, so a locked orphan reported a completed
+    repair while the path kept rejecting `git worktree add`. The verdict now comes from re-reading
+    `git worktree list --porcelain` and confirming the entry is gone, comparing resolved paths (git
+    prints POSIX separators and long filenames; the caller's path may carry native separators and a
+    Windows 8.3 short name for the same directory).
+  - **The registration cleanup is targeted, so a scoped run cannot drop an unrelated record.**
+    `git worktree prune` takes no path and drops *every* prunable record in the repository, so a
+    `--pr <one PR> --apply` cleanup also discarded the administrative record of any other worktree
+    whose directory happened to be missing at that moment — an unmounted share, a removable drive, a
+    checkout mid-restore — despite it being outside the requested scope. Reproduced on git
+    2.55.0.windows.3: register two worktrees, delete both directories, prune on behalf of one, and
+    both records vanish. The record is now cleared with `git worktree remove <path>`, which names its
+    one target and behaves identically from a standard clone and a bare hub. Deliberate consequence:
+    unrelated stale records are no longer swept up as a side effect — clearing those stays
+    `git worktree prune`'s job, run by the operator or by `git gc`, not a decision a single-PR
+    cleanup makes. The verification-by-`worktree list` rule above is what keeps the swap honest in
+    both directions, since `remove` exits nonzero both for a locked record (correctly `failed`) and
+    for a record that is already gone (correctly `pruned`). `--force` is never passed, and a
+    still-present directory returns `skipped` rather than being handed to a command that — unlike
+    `prune` — would delete its contents.
+  - **A corrupted pointer is an orphan, not a hard error.** git answers a malformed `.git` with
+    `fatal: invalid gitfile format`, not the missing-repository wording, so the detector re-raised
+    and every run reported `action: error` for that entry instead of healing it — despite a
+    corrupted pointer being one of the states this change exists to clear. The marker set now covers
+    it (verified against git's actual C-locale output for a deleted, dangling, and malformed
+    pointer) while still re-raising every unrelated git failure.
+  - **Orphan detection no longer depends on the operator's locale.** `worktree_toplevel` recognized a
+    missing repository by matching git's English `not a git repository` text. Git translates its
+    diagnostics, so on a localized machine every orphan surfaced as an unrelated error and never
+    reached the self-healing path. That probe now pins `LC_ALL=C` (and clears `LANGUAGE`, which
+    outranks it for GNU gettext) through a new `env_overrides` parameter on the shared
+    `run_command` seam, so the marker is only ever matched against output whose wording is
+    guaranteed.
+
+## [0.31.7]
+
+### Fixed
+
+- **`babysit-prs`'s one-verdict-per-run claim now scopes out the help form (#1434).**
+  `reference/safety.md`'s Lane-Script Reachability section said `babysit-readiness-gate.sh` emits
+  exactly one `READINESS_*` line on stdout on every run, failure paths included — but
+  `skills/setup/SKILL.md`'s reachability canary runs the gate with `--help`, which prints usage and
+  exits 0 with no verdict. That form was always the intended non-mutating canary target, and `#787`
+  already carried this exemption in the script's own header; `safety.md`'s wording was never updated
+  to say so, leaving a reader to treat the canary as a contract violation. Narrowed the claim to
+  every run that attempts a check and named the help form as the stated exemption — both `--help`
+  and its `-h` alias, which the script's argument parser handles in one branch, so naming only the
+  long form would have left the identical short-form invocation reading as a contract violation.
+  Documentation only; no script behavior change.
+
+## [0.31.6]
+
+### Fixed
+
+- **`babysit-prs` states the bare-name wrapper situation accurately (`#843`).** `safety.md` asserted
+  the bundled wrappers' bare names "are not on the Bash tool's `PATH`", and the two `bin/` wrapper
+  headers presented their bare-command allow-rule rationale as operative fact. Both were wrong, in
+  opposite directions. Two corrections, each tied to its source:
+  - **Bare-name resolution is unreliable, not absent.** A local shell-snapshot survey recorded on
+    `#843` found plugin `bin/` directories present on the Bash tool's `PATH` in some sessions and
+    missing in others on the same machine, including sessions carrying this plugin's own `bin/`. The
+    delivery path is the session snapshot's final `export PATH=` line; when it does not land, every
+    enabled plugin's `bin/` goes with it
+    ([anthropics/claude-code#68066](https://github.com/anthropics/claude-code/issues/68066), which
+    reports the same signature on macOS/zsh and supplies the mechanism — the Windows/Git-Bash
+    evidence is the local survey, not that issue). The earlier "never delivered here" reading came
+    from sampling only sessions in which it was missing.
+  - **A path invocation cannot match a bare-name allow rule.** Claude Code strips only a fixed
+    wrapper set before matching Bash rules (`timeout`, `time`, `nice`, `nohup`, `stdbuf`, `command`,
+    `builtin`, `noglob`, bare `xargs` — [permissions](https://code.claude.com/docs/en/permissions));
+    `bash` is not among them. So `Bash(source-control-babysit-merge:*)` does not cover the
+    `bash "…/bin/…"` form this skill uses, and what follows is the permission mode's call rather
+    than a misconfiguration: a mode that prompts issues a per-call prompt, while
+    [auto mode](https://code.claude.com/docs/en/permission-modes#eliminate-prompts-with-auto-mode)
+    issues none — it routes the uncovered call to its classifier, which may approve or deny it
+    silently, so an operator must read `/permissions` → **Recently denied** rather than wait for a
+    prompt. `safety.md` also records that
+    [`autoMode.classifyAllShell`](https://code.claude.com/docs/en/auto-mode-config#route-all-shell-commands-through-the-classifier)
+    suspends even narrow shell allow rules while auto mode is active.
+
+  Guidance is unchanged and was already correct: the `${CLAUDE_PLUGIN_ROOT}/bin/` path form is
+  canonical because it is the only form that runs in both `PATH` states. Only the justification
+  changed, and it mattered — a reader who checked on a session where the bare name *did* resolve
+  found the doc contradicting their own shell, and the documented reason to keep the path form
+  disappeared exactly when it looked safe to drop.
+
+## [0.31.5]
+
+### Fixed
+
+- **A readiness-gate classification is now a table CELL that OPENS with a disposition, matched
+  case-insensitively (#619).** Both the bash safe-tier degrade and the preferred Python classifier
+  (`babysit_classify.py`) matched the classification tokens exact-case only, anywhere in a
+  `|`-prefixed line. A worker reply that wrote a natural-language disposition like "Valid (defer)"
+  instead of the mandated all-caps `VALID` scored as unclassified, so the gate reported
+  `READINESS_BLOCKED reason=under-decomposed` even though the finding genuinely was classified.
+  Matching is now case-insensitive, and the token must open a table cell, optionally followed by an
+  annotation introduced by punctuation. That punctuation requirement is what separates the
+  disposition values `reference/review-discipline.md` documents — `VALID — fixing`, `VALID (defer)`,
+  `VALID — fix now` — from prose that merely starts with a disposition word. Scanning the whole line
+  instead credited `| CI check | result is valid |`, and accepting a bare space before the
+  annotation credited `| 2 | c2 | Valid cache entries are rejected | | |`; either miss lets an
+  unclassified finding past the under-decomposition gate. The decoration allowed before the token
+  and the character required after it exclude word characters rather than only letters, so `valid2`,
+  `2valid` and `VALID_TOKEN` no longer satisfy the token, and "invalid"/"INVALID" still does not
+  false-match "valid"/"VALID". One predicate drives both the classified count and the self-row
+  exclusion that keeps a classification row's own severity word from re-counting as a phantom
+  finding, so the two counts cannot drift apart. New convergence fixtures pin the bash degrade and
+  the Python classifier to the same counts on a lowercase disposition, both prose false positives, a
+  word-like continuation, and the documented annotated forms.
+
 ## [0.31.4]
 
 ### Fixed

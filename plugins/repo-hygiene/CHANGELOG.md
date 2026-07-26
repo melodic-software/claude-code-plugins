@@ -23,6 +23,32 @@ All notable changes to the `repo-hygiene` plugin are documented here. Format fol
   --include-caches` build-tier flow (`SKILL.md` §3) must repeat
   `--include-caches` on the `--apply --manifest <path>` step too, or the
   folded-in `caches` entries are rejected instead of removed.
+- **`clean-batch.sh --apply` now validates the batch plan against the requested
+  `--tier` before touching disk.** The apply-time `--tier` was informational only —
+  dispatch keyed purely on each plan line's `REPO`/`GITDIR` kind — so a stale or
+  swapped plan executed its full gated content while the banner named a narrower
+  tier (e.g. a `--tier build` dry-run plan applied with `--tier caches` removed both
+  `bin/` and `.pytest_cache/` while printing `Tier: caches`). Apply now pre-scans the
+  plan and refuses it atomically (usage error, nothing removed, no apply banner) when
+  a record the requested tier does not authorize is present: a `build`-class REPO
+  record under `--tier caches`, a `caches` record under `build`, or a `GITDIR` record
+  under a non-git tier. The removal set is unchanged (every path was still gated at
+  plan creation); the fix closes the scope-misrepresentation between the `--tier` flag
+  and what apply actually removes. The check is bidirectional: because `--tier all`
+  authorizes both record kinds, a narrower plan would pass every per-record test and
+  then run only half the tier (a `build` plan skipping every prune, a `git` plan
+  skipping every build removal), so a non-empty plan applied with `--tier all` must
+  carry both a `REPO` and a `GITDIR` record. An empty plan stays a no-op. Presence
+  is satisfied only by a structurally well-formed record: a truncated `GITDIR` line
+  naming no representative worktree (or a `REPO` line naming no manifest) names no
+  target, so counting it would let a narrower plan clear the `all` requirement and
+  then print `Tier: all` with `gitdirs=1` while performing no Git cleanup at all.
+  Such a record now also fails closed per-record at apply — reported as `malformed
+  plan record`, counted in `failed=` and never in `gitdirs=`, instead of being
+  reported as a store that vanished after the dry-run. **Caller-visible:** a plan
+  carrying a malformed record of the kind the `all` tier still needs is now refused
+  atomically (exit 2, nothing removed) where it previously applied its other half
+  and exited 1. (#1081)
 
 ## [0.7.1]
 
