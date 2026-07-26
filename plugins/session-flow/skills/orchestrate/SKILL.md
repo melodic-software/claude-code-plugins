@@ -85,8 +85,12 @@ never label a claim "known" / "from memory" / "obvious".
 
 **Priming addendum (current session only).** As the main session — not a spawned worker — you may
 also reach orchestration surfaces a worker cannot: agent teams (lead-only) and dynamic workflows
-(main-session-only). The export modes omit this line because a pasted target cannot reach those
-surfaces.
+(main-session-only). This session's reasoning effort is `${CLAUDE_EFFORT}` — feed it into imperative
+7's per-worker tier calibration rather than guessing: it is the level every unspecified spawn
+inherits, so its gap from what a subtask needs IS the over-provisioning imperative 7 exists to stop.
+(`ultracode` reports as `xhigh`, so it cannot tell you whether script-held orchestration is active.)
+The export modes omit this whole addendum — a pasted target reaches none of those surfaces, and the
+substitution would travel as dead literal text.
 
 ## Tiered delegation — the shape of a deep tree
 
@@ -94,6 +98,14 @@ Imperative 5 says a worker may spawn workers and imperative 7 says size the tree
 This section is the shape those two imply once a task is large enough to need more than one layer.
 It is guidance for the main session; the export brief omits it, because a pasted worker sits inside
 a tree rather than authoring one.
+
+**A rough anchor for small/medium/large.** Imperative 7's sizing is non-numeric, which leaves it
+rationalizable either way. Not thresholds to enforce — the judgment still runs on context
+boundaries, not head-count — but the platform's own numbers anchor it: the workflow size guideline
+aims at fewer than 5 agents for `small`, 15 for `medium`, 50 for `large`, and flags a run above 25
+as `Large workflow` ([workflows](https://code.claude.com/docs/en/workflows), fetched 2026-07-26). So
+single digits is small, low double digits medium, anything tripping that warning is a size to
+justify out loud — and an order-of-magnitude disagreement with this anchor is one to name, not skip.
 
 **The top of the tree owns the loop, not the work.** Its context is the scarcest in the run —
 everything that enters it stays for the rest of the session. So it holds the objective, the
@@ -129,16 +141,24 @@ fresh-context verify is not optional at depth, and why a return payload benefits
 sources — provenance is the field that makes a wrong-target answer detectable from above.
 
 **Never author a tree that needs a specific depth.** The platform ceiling is configurable and has
-moved repeatedly — within a single week it went from a fixed five layers, to nesting off by
-default, to a configurable default of three
-([sub-agents](https://code.claude.com/docs/en/sub-agents),
-[changelog](https://code.claude.com/docs/en/changelog)). Depth, per-session spawn count, and
+moved repeatedly — a fixed five layers (v2.1.172), then nesting off by default (v2.1.217), then a
+configurable default of three (v2.1.219), all inside seven weeks
+([changelog](https://code.claude.com/docs/en/changelog)). Depth, per-session spawn count, and
 concurrent-worker count are each separately capped and separately overridable
 (`CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH`, `CLAUDE_CODE_MAX_SUBAGENTS_PER_SESSION`,
 `CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS`); read the current values rather than assuming them, and
 design the tree so it degrades to a shallower one instead of failing. One shape constraint that is
 not a tunable: a fork inherits its parent's conversation but cannot spawn a further fork, so a fork
 is a leaf, never an intermediate tier.
+
+**Confirm nesting from behavior, not from one page.** The ceiling moves faster than the prose docs
+track it: as of 2026-07-26 the [sub-agents](https://code.claude.com/docs/en/sub-agents) page still
+describes the superseded off-by-default state while the changelog and the running harness both have
+nesting on — so a tree authored from either alone can be wrong in *both* directions (assuming depth
+you lack, or declining depth you have). The cheap check is behavioral: dispatch one worker and have
+it report whether it actually holds `Agent` before committing to a second layer. A denied spawn is
+not a depth answer — spawns are permission-classified before launch. Verbatim quotes and the
+divergence: `context/sources.md`.
 
 ## Export modes (handoff / worker) — paste-ready brief
 

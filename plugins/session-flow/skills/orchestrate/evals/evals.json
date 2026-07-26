@@ -60,6 +60,32 @@
         "It primes the current session (or emits the brief) rather than executing orchestration work",
         "The response makes clear the orchestration actions happen as the primed session hits decision boundaries, not from this skill call"
       ]
+    },
+    {
+      "id": 6,
+      "name": "sizes-small-ask-single-agent",
+      "prompt": "Orchestrate. The task: rename one helper function and update its four call sites in a single TypeScript file, then run the unit tests.",
+      "expected_output": "A primed session applies imperative 1's fan-out threshold and imperative 7's sizing and classifies this as SMALL: it stays single-agent. The work is sequential, shares one context, and is a single feature-sized edit — none of the three delegation triggers (would flood context / genuinely independent paths / tool-restricted specialist) fires. If any delegation is proposed at all it is at most a separate fresh-context verifier for the final state (imperative 3), never a fan-out of workers across the call sites.",
+      "files": [],
+      "expectations": [
+        "The stated plan keeps the edit itself single-agent rather than fanning out across the call sites or splitting edit-from-test",
+        "The sizing is identified as small (or the equivalent judgment is stated explicitly), not medium or large",
+        "The reasoning names a real threshold — shared context / sequential steps / no independent paths / cost multiplier — rather than asserting a size with no criterion",
+        "It does NOT split one feature across agents"
+      ]
+    },
+    {
+      "id": 7,
+      "name": "tiers-wide-fanout-cheaper-default",
+      "prompt": "Orchestrate. I need to audit about thirty independent config files for one specific misconfiguration, then have someone adjudicate the findings that conflict.",
+      "expected_output": "A primed session classifies this as a large, genuinely-independent surface that earns a wide fan-out, and applies imperative 7's tiering: past a wide fan-out the CHEAPER model/effort tier becomes the default the extraction fleet inherits, because volume multiplies every notch of over-provisioning. The adjudication stage is the standing exception — a judgment-heavy stage that keeps the parent tier. Every spawn still gets an explicit model tier (imperative 2), because an unspecified one silently inherits the parent session's.",
+      "files": [],
+      "expectations": [
+        "The per-file scanning fleet is explicitly assigned a cheaper tier (cheaper model, lower effort, or both) rather than inheriting the parent's",
+        "The adjudication/judgment stage is called out as keeping the stronger tier, as a deliberate per-stage exception",
+        "Model tier is stated as an explicit spawn decision rather than left unspecified",
+        "The sizing is identified as large / wide fan-out rather than kept single-agent"
+      ]
     }
   ]
 }

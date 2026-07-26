@@ -69,19 +69,52 @@ under-delegating model too.
 
 ## Imperative 5 — NESTED SUBAGENTS
 
-Verbatim, verified against <https://code.claude.com/docs/en/sub-agents> ("Spawn nested subagents",
-min-version 2.1.172):
+Re-verified 2026-07-26 against two official surfaces that **currently disagree with each other** —
+the prose page <https://code.claude.com/docs/en/sub-agents> ("Let subagents spawn their own
+subagents") and the release changelog <https://code.claude.com/docs/en/changelog> (raw markdown at
+`changelog.md`, which is byte-exact where the rendered page summarizes). Read the drift note below
+before citing either.
 
-- Shipped, **not** experimental: "As of Claude Code v2.1.172, a subagent can spawn its own
-  subagents."
-- Gating: "listing `Agent` in `tools` lets that subagent spawn nested subagents"; "If `Agent` is
-  omitted … the agent cannot spawn any subagents."
-- Depth: foreground "can spawn at any depth … self-limiting"; background "a background subagent at
-  depth five does not receive the Agent tool and cannot spawn further. The limit is fixed and not
-  configurable."
+- Shipped, **not** experimental. Changelog v2.1.172 *(verbatim, verified 2026-07-26)*:
+  "Sub-agents can now spawn their own sub-agents (up to 5 levels deep)."
+- **Current default depth is 3, and it is configurable.** Changelog v2.1.219 *(verbatim, verified
+  2026-07-26)*: "Subagents can now spawn nested subagents up to depth 3 by default (was 1); set
+  `CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH=1` to disable nesting." The immediately preceding state was
+  the opposite — changelog v2.1.217 *(verbatim, verified 2026-07-26)*: "Changed subagents to no
+  longer spawn nested subagents by default; set `CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH` to allow
+  deeper nesting."
+- Gating by tool list — necessary, not sufficient *(verbatim, verified 2026-07-26 — sub-agents
+  page)*: "In a subagent definition, listing `Agent` in `tools` lets that subagent spawn subagents
+  of its own once you allow nested spawning, but any type list inside the parentheses is ignored."
+  To stop one spawning while nesting is on, "omit `Agent` from its `tools` list or add it to
+  `disallowedTools`."
+- Three separate caps, each with its own variable *(verbatim, verified 2026-07-26 — sub-agents
+  page)*: "this one caps the total spawned over a session, the concurrent subagent limit stops
+  Claude from spawning more while too many are running, and the depth limit caps how deeply
+  subagents nest." Defaults: "at most 200 subagents per session"
+  (`CLAUDE_CODE_MAX_SUBAGENTS_PER_SESSION`, v2.1.212+) and "when 20 subagents are running in a
+  session, spawning another with the Agent tool fails with `Concurrent subagent limit reached`"
+  (`CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS`, v2.1.217+). "A fork can't spawn further forks."
+- **A permission gate can deny a spawn before depth is ever consulted.** Changelog v2.1.178
+  *(verbatim, verified 2026-07-26)*: "Improved auto mode: subagent spawns are now evaluated by the
+  classifier before launch, closing a gap where a subagent could request a blocked action without
+  review." So a failed spawn is not evidence about the depth ceiling.
+
+**Drift note — the prose page lags the changelog by one release (surfaced 2026-07-26 under
+imperative 6).** The sub-agents page still describes the v2.1.217–2.1.218 state *(verbatim)*: "By
+default, a subagent can't spawn subagents of its own… While nesting is off, Claude Code withholds
+the `Agent` tool from every subagent except a fork." It has not absorbed v2.1.219. Direct
+observation on Claude Code **2.1.220** matches the changelog rather than the page: a non-fork
+`general-purpose` subagent one layer below a subagent held a fully-schema'd `Agent` tool with
+`CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH` unset in its environment — which the page's account forbids.
+The exact live ceiling was **not** pinned (the probe that would have measured it was denied by the
+auto-mode classifier, a different gate). Treat the changelog as current for the default, the page as
+current for the env-var mechanism and cap semantics, and re-check both once the page catches up.
 
 The brief's "never author a tree that needs a specific or deep nesting level" is justified by
-reliability degradation with depth plus the platform caps above.
+reliability degradation with depth, by the caps above, and — most of all — by the fact that the
+default moved three times in seven weeks (fixed 5 → off → configurable 3). That volatility is the
+argument, not any one of the values.
 
 ## Imperative 6 — SURFACE DRIFT
 
