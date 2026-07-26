@@ -72,7 +72,7 @@ falsely complete.
 **Then advance the rescan cursor to the end of the LAST enumerated `<old>` span, not the end of
 the match.**
 Several forms deliberately CONSUME a trailing delimiter instead of using a lookahead, because
-ripgrep's default engine rejects look-around — Forms 3, 13, 15 and both delimiter-anchored Form 14
+ripgrep's default engine rejects look-around — Forms 1, 3, 13, 15 and both delimiter-anchored Form 14
 alternatives all do. That consumed delimiter is frequently the LEADING delimiter the next
 occurrence needs, so a rescan that resumes after the whole match eats the boundary and emits only
 the first of two adjacent references. Verified: on `{"name":"<old>","id":"<old>"}` a global

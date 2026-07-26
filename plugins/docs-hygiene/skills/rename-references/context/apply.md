@@ -206,7 +206,9 @@ Edit tool's read-before-write guard catches files modified by another session. I
 
 ### Word-boundary trap
 
-Bare-token Form 2 uses `\b<old>\b` — `confirm` does NOT match in `confirmation`. Slash-token Form 1 uses `\B/<old>\b` — `/confirm` matches but not `path/confirm` (slash is path separator, not skill prefix).
+Bare-token Form 2 uses `\b<old>\b` — `confirm` does NOT match in `confirmation`. Slash-token Form 1 uses `\B/<old>([^\w-]|$)` — `/confirm` matches but not `path/confirm` (slash is path separator, not skill prefix).
+
+**A word boundary is NOT enough on the trailing side.** `\b` treats a hyphen as a boundary, so `\B/<old>\b` matched `/confirm-changes` as well as `/confirm` — and Form 1 auto-applies. Slash-command and container names are kebab-case, so this fires constantly in practice; the consumed `([^\w-]|$)` terminator is what rules it out. Forms 3, 13, 14 and 15 exclude an adjacent hyphen for exactly the same reason.
 
 ### Frontmatter multi-line
 

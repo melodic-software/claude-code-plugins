@@ -545,6 +545,32 @@
         "Skips and container-mode residue are reported on separate lines",
         "The zero-stragglers line is explained as true but insufficient on its own"
       ]
+    },
+    {
+      "id": 45,
+      "name": "slash-token-does-not-match-hyphenated-command",
+      "prompt": "Rename the `context` plugin to `context-tools`. The repo documents an unrelated `/context-guard` command. Is it safe to auto-apply the Certain bucket?",
+      "expected_output": "Yes, now that Form 1's trailing boundary excludes a hyphen. A bare `\\b` treats a hyphen as a word boundary, so `\\B/<old>\\b` matched `/context-guard` as a `context` reference -- and Form 1 is on container mode's Certain allowlist, so the default auto-apply path would have rewritten another command's name to `/context-tools-guard`. The consumed `([^\\w-]|$)` terminator rules it out, the same shape Forms 13 and 15 use for the same reason. Discrimination is otherwise unchanged: `/context`, the namespaced `/context:sub` (a colon is a valid terminator) and `see /context.` still match, while `/context-guard`, `/contextual` and `path/context` do not. The consumed character is not part of the reference and is left in place, and Form 1 now participates in the survey's rescan-cursor rule like the other consume-the-delimiter forms.",
+      "files": [],
+      "expectations": [
+        "`/context-guard` is not matched as a `context` reference",
+        "A namespaced `/context:sub` invocation still matches",
+        "The danger is tied to Form 1 being auto-applied rather than merely reported",
+        "The consumed terminator is not rewritten as part of the reference"
+      ]
+    },
+    {
+      "id": 46,
+      "name": "manifest-declaration-with-inline-comment-is-matched",
+      "prompt": "Rename `docs-hygiene` to `doc-care`. The manifest documents its own field: name: docs-hygiene # package name. And the TOML one reads name = \"docs-hygiene\"  # package name.",
+      "expected_output": "Both match. The declaration alternatives accept a trailing comment, because an end anchor otherwise rejected the whole line while filesystem evidence still selected container mode for the manifest -- leaving the registration unmatched and suppressed as residue while apply mode reported completion. The whitespace before the YAML `#` is required rather than decorative: YAML starts a comment only when `#` follows whitespace, so `name: docs-hygiene#x` is the single scalar `docs-hygiene#x` and must NOT match. The TOML alternative allows optional whitespace instead, because its value is quoted and the closing quote already ends the string unambiguously. JSON is excluded from this entirely, having no comment syntax.",
+      "files": [],
+      "expectations": [
+        "A YAML declaration with a trailing comment is matched",
+        "A TOML declaration with a trailing comment is matched",
+        "`name: <old>#x` is NOT matched, because YAML requires whitespace before a comment",
+        "JSON is excluded, with the absence of comment syntax given as the reason"
+      ]
     }
   ]
 }

@@ -1,5 +1,23 @@
 # Changelog — docs-hygiene plugin
 
+## [0.9.1]
+
+### Fixed
+
+- **Form 1's trailing boundary excludes a hyphen.** `\b` treats a hyphen as a word boundary, so
+  `\B/<old>\b` matched `/context-guard` when renaming `context` — and Form 1 is Certain and sits
+  on container mode's Certain allowlist, so an unrelated command went through the default
+  auto-apply path and was rewritten. Slash-command and container names are kebab-case, so this
+  fires constantly rather than rarely. Now uses the same consumed `([^\w-]|$)` terminator as
+  Forms 13 and 15; a namespaced `/<old>:sub` still matches, a colon being a valid terminator.
+- **Manifest declarations may carry an inline comment.** `name: <old> # package name` and
+  `name = "<old>"  # package name` are ordinary self-documenting manifests, and the end-anchored
+  declaration alternatives rejected the whole line — while filesystem evidence still selected
+  container mode, so the registration went unmatched and was suppressed as residue while apply
+  mode reported completion. The YAML form requires whitespace before `#`, since YAML starts a
+  comment only after whitespace and `name: <old>#x` is a single scalar; TOML allows optional
+  whitespace, its value being quoted. JSON is excluded, having no comment syntax.
+
 ## [0.9.0]
 
 ### Fixed
