@@ -275,6 +275,56 @@ persisted_alias() {
   HOOK_PERSISTED_ALIAS="${_persisted_alias[$key]}"
 }
 
+# A `!` body is a shell command list, and a `cd` in it relocates every command
+# AFTER it — which is how `alias.a = !cd child && git a` reached a nested
+# repository's own `a` while the guard analyzed the outer one and skipped the hop as
+# a cycle. This is the compound-`cd` residual the file has always documented, shown
+# to be live rather than theoretical.
+#
+# It is handled where a shell handles it: as a per-segment side effect, in segment
+# order, using the tokenizer that already splits the body. No shell modelling is
+# added — a `cd` segment simply moves the base that later segments compose against,
+# and git still answers what that base means (repo_identity / `git -C`).
+#
+# Only a single LITERAL operand is followed. `cd` with no operand ($HOME), `cd -`,
+# `pushd`/`popd`/`chdir`, and any operand carrying expansion (`$`, backtick, `~`,
+# glob) name a destination this static guard cannot know without running shell.
+# Inside a `!` reparse those FAIL CLOSED, because an unanalyzable relocation is
+# exactly what hid the bypass. At top level the base is left unchanged instead —
+# the same accuracy the guard has always had there, so `cd $DIR && git commit -F -`
+# in an ordinary script does not start blocking. Enumerating shell builtins is a
+# list that never ends, so the rule is "one literal `cd` resolved, everything else
+# unanalyzable" rather than a longer catalogue.
+# shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
+segment_is_chdir() {
+  case "${1:-}" in
+  cd | pushd | popd | chdir) return 0 ;;
+  *) return 1 ;;
+  esac
+}
+
+# Call as: apply_chdir <segment word>... — updates HOOK_EFFECTIVE_BASE, or blocks
+# when the destination is unanalyzable and we are inside a `!` reparse.
+# shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
+apply_chdir() {
+  local verb="$1" target="${2:-}" base
+  if [[ "$verb" == "cd" && $# -eq 2 && "$target" != "-" ]] &&
+    [[ "$target" != *['$`~*?[']* ]]; then
+    if [[ "$target" == /* || "$target" =~ ^[A-Za-z]:[\/] ]]; then
+      HOOK_EFFECTIVE_BASE="$target"
+    else
+      base="${HOOK_EFFECTIVE_BASE:-${HOOK_CWD:-${CLAUDE_PROJECT_DIR:-.}}}"
+      HOOK_EFFECTIVE_BASE="$base/$target"
+    fi
+    return 0
+  fi
+  ((HOOK_IN_SHELL_REPARSE)) || return 0
+  echo "BLOCKED: a git alias's shell body changes directory to a destination this guard cannot determine ('$*') — failing closed rather than analyzing the wrong repository." >&2
+  echo "Use a literal path in the alias body, run the subcommand directly, or set the guardrails block_noncanonical_commit_enabled option to false to bypass." >&2
+  emit_tel "blocked" "unanalyzable-chdir"
+  exit 2
+}
+
 # Fail closed when git cannot say which repository a `!` body will run in. Only
 # the alias-walk reaches here — a plain `git commit -F -` resolves no path and can
 # never trip it — so the cost is narrow: an aliased git command invoked where there
@@ -362,6 +412,13 @@ check_segment() {
   # commit must not pay effective_dir's subshell.
   local seg_dir=""
 
+  # A `cd` relocates the segments that follow it in the same command list, so it is
+  # applied before anything else and this segment carries no git invocation.
+  if segment_is_chdir "${1:-}"; then
+    apply_chdir "$@"
+    return 0
+  fi
+
   # A shell -c wrapper (`bash -lc 'git commit -m x'`) executes its operand as a
   # full shell command — re-parse it with the same tokenizer.
   if hook::shell_c_operand "$@"; then
@@ -396,7 +453,7 @@ check_segment() {
   # finite distinct alias keys guarantee termination. Terminating is not the same as
   # tractable — the walk branches per hop, and alias_reexpand_admit is what keeps
   # its cost proportional to the chain's length.
-  local exp reparse a alias_rc s seen_hit=0 saved_base=""
+  local exp reparse a alias_rc s seen_hit=0 saved_base="" saved_reparse_flag=0
   local -a expw=() saved_seen=() saved_shell_seen=() nextw=()
   hook::git_alias_expansion "$sub"
   alias_rc=$?
@@ -453,8 +510,11 @@ check_segment() {
           repo_identity "$seg_dir" || block_unresolvable_dir "$seg_dir"
           HOOK_ALIAS_SEEN=()
           HOOK_EFFECTIVE_BASE="$HOOK_REPO_IDENTITY"
+          saved_reparse_flag=$HOOK_IN_SHELL_REPARSE
+          HOOK_IN_SHELL_REPARSE=1
           alias_reexpand_admit shell "$reparse" &&
             hook::bash_parse_segments "$reparse" check_segment
+          HOOK_IN_SHELL_REPARSE=$saved_reparse_flag
           HOOK_EFFECTIVE_BASE="$saved_base"
           HOOK_ALIAS_SEEN=(${saved_seen[@]+"${saved_seen[@]}"} "$sub")
         else
@@ -515,8 +575,11 @@ check_segment() {
             for pa in "${w[@]:sub_idx+1}"; do preparse+=" $(printf '%q' "$pa")"; done
             HOOK_ALIAS_SEEN=()
             HOOK_EFFECTIVE_BASE="$HOOK_REPO_IDENTITY"
+            saved_reparse_flag=$HOOK_IN_SHELL_REPARSE
+            HOOK_IN_SHELL_REPARSE=1
             alias_reexpand_admit shell "$preparse" &&
               hook::bash_parse_segments "$preparse" check_segment
+            HOOK_IN_SHELL_REPARSE=$saved_reparse_flag
             HOOK_EFFECTIVE_BASE="$saved_base"
             HOOK_ALIAS_SEEN=(${saved_seen[@]+"${saved_seen[@]}"} "$sub")
           fi
@@ -628,6 +691,10 @@ HOOK_SHELL_ALIAS_SEEN=()
 # level, then each `!` reparse's own repository as the walk descends (effective_dir).
 # Save/restored alongside the seen-sets, so sibling segments start from the cwd.
 HOOK_EFFECTIVE_BASE="${HOOK_CWD:-${CLAUDE_PROJECT_DIR:-.}}"
+
+# 1 while re-parsing a `!` shell-alias body, where an unanalyzable `cd` fails closed.
+# 0 at top level, where the base is simply left unchanged (see apply_chdir).
+HOOK_IN_SHELL_REPARSE=0
 
 # The alias-traversal bounds (alias_reexpand_admit). Both are invocation-wide and
 # deliberately NOT save/restored: a state analyzed anywhere is analyzed, and the
