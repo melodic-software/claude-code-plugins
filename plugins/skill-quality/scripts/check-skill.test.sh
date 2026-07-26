@@ -1940,6 +1940,58 @@ else
   fail "directive after a backslash-ending span should FAIL (rc=$rc): $out"
 fi
 
+# 37t. Check 21: a fence opened at blockquote depth two ends when the lines fall
+#      back to depth one — the inner quote is over, so a directive there is real.
+#      Depth, not mere marker presence, decides.
+make_skill fe-quote-depth '---
+name: fe-quote-depth
+description: "Fresh-eyes fixture. Use when: '"'"'fe quote depth fixture'"'"'."
+---
+
+## Steps
+
+> > ~~~markdown
+> > a fence opened at depth two
+
+> <!-- fresh-eyes-exempt: bogus -- wrong class stays malformed -->
+
+## Gotchas
+
+None known.
+'
+out="$(run fe-quote-depth 2>&1)"
+rc=$?
+if [[ $rc -ne 0 ]] && grep -q 'malformed fresh-eyes-exempt directive' <<<"$out"; then
+  pass "depth-two fence ends when the inner quote does (check 21)"
+else
+  fail "directive at lower quote depth should FAIL (rc=$rc): $out"
+fi
+
+# 37u. Check 21: Form 1 is visible prose by contract, so delegation wording hidden
+#      in an HTML comment declares nothing and the judgment line still WARNs.
+make_skill fe-comment-wording '---
+name: fe-comment-wording
+description: "Fresh-eyes fixture. Use when: '"'"'fe comment wording fixture'"'"'."
+---
+
+## Steps
+
+<!-- dispatch this to a fresh-context agent -->
+
+Self-review your own work.
+
+## Gotchas
+
+None known.
+'
+out="$(run fe-comment-wording 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q 'same-context judgment language with no' <<<"$out"; then
+  pass "delegation wording in an HTML comment does not declare (check 21)"
+else
+  fail "commented wording should not satisfy check 21 (rc=$rc): $out"
+fi
+
 # 37. Check 21: a skill with no judgment language emits nothing from check 21
 #     (good-skill re-run guards against detector overreach).
 out="$(run good-skill 2>&1)"

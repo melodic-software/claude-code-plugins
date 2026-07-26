@@ -21,7 +21,8 @@ All notable changes to the `skill-quality` plugin are documented here. Format fo
   at three spaces; blockquote and list-marker prefixes are stripped first, so a
   container-nested fence still suppresses its body, while only a prefixed opener strips
   them in-fence so a quoted run cannot close an unprefixed fence, and a nested fence ends
-  with its container so an unclosed one cannot swallow the rest of the file), spans pair
+  with its container — blockquote DEPTH, not mere marker presence — so an unclosed one
+  cannot swallow the rest of the file), spans pair
   backtick runs of exactly equal length and carry an unclosed opener across line boundaries
   to the end of the paragraph (multi-backtick and multi-line spans hide their content).
   Escapes and spans resolve in one pass because CommonMark couples them: outside a span a

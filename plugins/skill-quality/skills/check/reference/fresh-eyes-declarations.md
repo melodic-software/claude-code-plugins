@@ -19,6 +19,10 @@ The step's own text says the judgment goes to a fresh-context worker, matching t
 fresh[- ]context
 ```
 
+The wording must be **visible prose**: an HTML comment is stripped before this detector runs, so a
+hidden `<!-- dispatch this to a fresh-context agent -->` declares nothing — it would be exactly the
+parallel marker Form 1 exists to rule out.
+
 Both `fresh-context` and `fresh context` are canonical — and the same line must NAME the worker or
 the dispatch as a whole word (with inflections): `agent(s)`/`subagent(s)`, `worker(s)`,
 `advisor(s)`, `reviewer(s)`, `verifier(s)`, `dispatch(es|ed|ing)`, `delegate(s|d)`/`delegating`/
@@ -72,8 +76,8 @@ Rows evaluate top-down; the first match wins per detection site.
   before fence matching, so a fence nested in a container (`> ~~~markdown`, `- ```markdown`) still
   suppresses its body — but only a fence whose own opener carried a prefix strips them inside the
   fence, so a quoted run in an unprefixed fence's example cannot close it. A container-nested fence
-  also ends with its container (a blockquote when the `>` stops, a list item on a dedent), so an
-  unclosed one cannot swallow the rest of the file. Spans pair a backtick run with the next run of
+  also ends with its container (a blockquote when the quote DEPTH drops below the opener's, a list
+  item on a dedent), so an unclosed one cannot swallow the rest of the file. Spans pair a backtick run with the next run of
   exactly the same length (multi-backtick spans included). Escapes and spans resolve together,
   because CommonMark couples them: outside a span, a backslash escape makes the next character
   literal — an escaped backtick opens no span and an escaped `\<` makes `\<!-- ... -->` text rather

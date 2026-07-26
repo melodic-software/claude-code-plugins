@@ -798,6 +798,13 @@ for fe_file in "${FRESH_EYES_FILES[@]}"; do
         ;;
     esac
   done < <(awk -v P="$FRESH_EYES_PROXIMITY_LINES" -v JR="$FRESH_EYES_JUDGE_RE" '
+    # Blockquote nesting depth of a raw line: the number of leading `>` markers,
+    # each optionally followed by one space, under the three-space indent cap.
+    function fe_depth_of(s,   d) {
+      d = 0
+      while (match(s, /^ {0,3}> ?/)) { d++; s = substr(s, RSTART + RLENGTH) }
+      return d
+    }
     # Position in s of the first backtick run of EXACTLY n characters, or 0.
     # Escapes are deliberately ignored: a code span is literal, so a backslash
     # inside one is content and cannot suppress the closer.
@@ -836,7 +843,10 @@ for fe_file in "${FRESH_EYES_FILES[@]}"; do
         if (fe_open_bq) {
           # A blockquote marker must repeat on every line — a fenced block inside
           # a quote takes no lazy continuation, and a blank line ends the quote.
-          if (fe_raw !~ /^ {0,3}>/) { fe_fence = 0; fe_open_pre = 0 }
+          # DEPTH matters, not mere presence: a fence opened at "> > " lives in the
+          # inner quote, so a later depth-1 line has left that quote and ends the
+          # fence even though it still carries a marker.
+          if (fe_depth_of(fe_raw) < fe_open_depth) { fe_fence = 0; fe_open_pre = 0 }
         } else {
           # A list item continues by indentation to its content column: a blank
           # line stays inside the item, a dedent ends it.
@@ -853,7 +863,7 @@ for fe_file in "${FRESH_EYES_FILES[@]}"; do
         } while ($0 != fe_pre)
       }
       fe_stripped = ($0 != fe_raw)
-      fe_bq = (fe_raw ~ /^ {0,3}>/)
+      fe_bq_depth = fe_depth_of(fe_raw)
       fe_strip_len = length(fe_raw) - length($0)
     }
     # CommonMark fence matching: a fence closes only on a same-character run at
@@ -883,7 +893,8 @@ for fe_file in "${FRESH_EYES_FILES[@]}"; do
         # its closer expires here rather than blinding the first paragraph
         # after the fence closes.
         fe_fence = 1; fe_open_char = fe_char; fe_open_len = fe_len; sp_open = 0
-        fe_open_pre = fe_stripped; fe_open_bq = fe_bq; fe_open_ind = fe_strip_len
+        fe_open_pre = fe_stripped; fe_open_depth = fe_bq_depth
+        fe_open_bq = (fe_bq_depth > 0); fe_open_ind = fe_strip_len
         next
       }
     }
@@ -972,6 +983,22 @@ for fe_file in "${FRESH_EYES_FILES[@]}"; do
           dt[dir_n] = "malformed"
         }
       }
+      # Form 1 is VISIBLE PROSE by contract, so an HTML comment cannot carry it:
+      # a hidden `<!-- dispatch this to a fresh-context agent -->` would be exactly
+      # the parallel marker Form 1 exists to rule out, and it was satisfying the
+      # delegation detector. Comments come off only AFTER the directives above are
+      # classified, since a directive IS a comment. An unterminated `<!--` drops
+      # the rest of its own line and no further — carrying comment state across
+      # lines would let one stray opener blind the detectors for the whole file.
+      cm_keep = ""
+      while ((cm_p = index(line, "<!--")) > 0) {
+        cm_keep = cm_keep substr(line, 1, cm_p - 1) " "
+        line = substr(line, cm_p + 4)
+        cm_e = index(line, "-->")
+        if (!cm_e) { line = ""; break }
+        line = substr(line, cm_e + 3)
+      }
+      line = cm_keep line
       low = tolower(line)
       # Delegation wording needs a worker actually named on the line — bare
       # "in a fresh context" prose assigns no one and does not declare. Both
