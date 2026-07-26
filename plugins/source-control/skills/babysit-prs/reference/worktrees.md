@@ -1,13 +1,14 @@
 # Worktrees
 
 Babysit PR worktrees are ephemeral scratch, not durable state. They live under `<worktree-root>`,
-one per PR — find the existing worktree for a PR or create it; never share a checkout between
-workers, and never place a worktree inside another checkout. Durable state belongs in GitHub,
-committed PR branches, and `<state-dir>`. Angle-bracket slots (`<worktree-root>`, `<state-dir>`)
-are filled from the effective-configuration block in this skill's `SKILL.md`, which renders every
-key's resolved value and its unset fallback; `<worktree-root>` defaults to the `worktrees`
-subdirectory of the plugin data directory, and `<state-dir>` is its `state/babysit-prs`
-subdirectory.
+one per PR, each directory named `<owner>__<repo>__pr-<number>` (e.g.
+`melodic-software__claude-code-plugins__pr-377`) — find the existing worktree for a PR or create it
+under that name; never share a checkout between workers, and never place a worktree inside another
+checkout. Durable state belongs in GitHub, committed PR branches, and `<state-dir>`. Angle-bracket
+slots (`<worktree-root>`, `<state-dir>`) are filled from the effective-configuration block in this
+skill's `SKILL.md`, which renders every key's resolved value and its unset fallback;
+`<worktree-root>` defaults to the `worktrees` subdirectory of the plugin data directory, and
+`<state-dir>` is its `state/babysit-prs` subdirectory.
 
 This file is the canonical, sole source for the babysit ephemeral-worktree convention — the
 plugin owns it, not any external prose doc. Rooting these worktrees outside every repository's
@@ -17,6 +18,10 @@ back under a discoverable tree reintroduces that pollution.
 
 ## Policy
 
+- The directory name carries the PR identity the cleanup helper acts on, so the naming convention
+  above is required, not cosmetic. A directory under `<worktree-root>` whose name does not match it
+  is reported as an `unrecognized` row — never removed, never silently omitted — and has to be
+  resolved by hand: confirm the PR state, then `git worktree remove` it.
 - At the start of a queue run holding the queue lease, remove only unleased clean babysit
   worktrees for merged or closed PRs. Snapshot and single-PR modes never run global cleanup.
 - After a PR result is integrated, keep its worker lease held while removing only that PR's clean

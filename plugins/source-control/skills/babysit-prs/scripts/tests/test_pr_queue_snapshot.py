@@ -23,6 +23,7 @@ from unittest import mock
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 
 import babysit_delta as delta  # noqa: E402
+import babysit_feedback as feedback  # noqa: E402
 import babysit_gh as gh  # noqa: E402
 import pr_queue_snapshot as snapshot  # noqa: E402
 
@@ -275,6 +276,26 @@ class ApproveWithNitsClassification(unittest.TestCase):
         self.assertEqual(result["feedback"]["blocking"], [])
         self.assertEqual(result["new_feedback"]["blocking"], [])
         self.assertEqual(result["feedback"]["material"], [])
+        # classify_pr surfaces four buckets and collect_feedback puts every record
+        # in exactly one, so all four empty means this review was routed to
+        # `ignored` -- the bucket the snapshot shape does not project.
+        self.assertEqual(result["feedback"]["human_blocking"], [])
+        self.assertEqual(result["feedback"]["human"], [])
+        # Four-empty alone cannot distinguish "routed to `ignored`" from "dropped
+        # without reaching any bucket", and no sibling test covers this branch --
+        # they exit at CHANGES_REQUESTED and at the blocking-severity fallthrough.
+        # Assert the bucket at its own layer, under the same FeedbackConfig
+        # classify_pr passes down, so the two cannot drift apart.
+        buckets = feedback.collect_feedback(
+            _pr_with_claude_review(APPROVE_WITH_NITS_BODY),
+            None,
+            {},
+            self._CONFIG.feedback,
+        )
+        self.assertEqual(len(buckets["ignored"]), 1)
+        # Pins the arrival branch, not just the destination: the approval-verdict
+        # downgrade, never the catch-all fallthrough that also lands in `ignored`.
+        self.assertEqual(buckets["ignored"][0]["downgrade"], "approval_verdict")
         self.assertNotIn(
             "1 blocking bot feedback item(s)", result["blockers"]
         )

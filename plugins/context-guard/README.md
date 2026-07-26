@@ -2,8 +2,12 @@
 
 A Claude Code plugin that makes each session's context-window usage observable to any session or
 tool that needs it — so long-running workflows can route heavy work away from a degraded context
-**before** quality slips, instead of guessing. Three parts:
+**before** quality slips, instead of guessing. Four parts:
 
+- **Statusline shim** (`scripts/statusline-shim.sh`) — the durable wiring target. Installed once to
+  `~/.claude/context-guard/bin/`, it resolves whichever tee version is installed at run time, so a
+  plugin update never requires re-wiring and an uninstall degrades to your statusline running
+  alone. Pure Bash builtins: it adds no measurable time to a refresh.
 - **Statusline tee** (`scripts/statusline-tee.sh`) — a transparent wrapper around your statusline
   command. Each refresh it atomically writes `captured_at`, `session_id`, and the session's
   `context_window` object (copied verbatim from the statusline stdin) to the per-session path
@@ -49,12 +53,22 @@ tool that needs it — so long-running workflows can route heavy work away from 
 /plugin install context-guard@melodic-software
 ```
 
-The tee needs one operator step: run `/context-guard:setup check`, which verifies prerequisites
-and prints the exact `settings.json` statusline edit (wrapping your existing command, or
-standalone) for you to apply — the plugin never edits your settings itself. `check` also detects
-stale wiring after a plugin update (the cache path changes) even when the old file still exists.
-`/context-guard:setup apply` seeds or refreshes `zones.json` from the shipped defaults on explicit
-request — the one file the plugin owns the schema of.
+The tee needs two operator steps, both one-time:
+
+1. `/context-guard:setup apply` — installs the statusline shim to
+   `~/.claude/context-guard/bin/statusline-shim.sh` (and seeds/refreshes `zones.json`). The shim is
+   inert until step 2.
+2. `/context-guard:setup check` — verifies prerequisites and prints the exact `settings.json`
+   statusline edit (wrapping your existing command, or standalone) for you to apply. The plugin
+   never edits your settings itself.
+
+You wire the **shim**, not the tee, and that wiring is permanent: `${CLAUDE_PLUGIN_ROOT}` is
+version-pinned and the old version directory is pruned ~14 days after an update, so a statusline
+wired straight to `<plugin-root>/scripts/statusline-tee.sh` silently stops teeing on the next
+version bump and then takes the whole statusline down when the path disappears. The shim resolves
+the newest installed tee at run time, so plugin updates need no re-wiring, and it passes your
+statusline through unchanged when no tee is installed (including after uninstall). `check` still
+flags legacy version-pinned wiring if you have it.
 
 ## Requirements
 
@@ -65,6 +79,11 @@ zone resolver, and the standalone statusline. The snapshot updates only while an
 session refreshes the statusline; `context_window` fields can be `null` early in a session and
 right after `/compact`, per the
 [statusline reference](https://code.claude.com/docs/en/statusline) — readers own null handling.
+
+Cost: the tee adds roughly 0.6–0.9 s per statusline refresh on Windows/Git Bash (process-spawn
+bound — `jq` and `date`), and correspondingly less on native POSIX shells. The statusline is not on
+the input path, so this is display latency, not typing latency; `refreshInterval` in your settings
+governs how often it runs.
 
 ## Configuration
 

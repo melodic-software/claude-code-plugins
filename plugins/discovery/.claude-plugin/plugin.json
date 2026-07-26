@@ -1,8 +1,8 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "discovery",
-  "version": "0.8.5",
-  "description": "Structured discovery before changes: explore the local codebase (inline or in an isolated forked subagent) and run disciplined multi-source external research with source tiers, falsification, and recency gates — persisting EXPLORE.md / RESEARCH.md handoff artifacts.",
+  "version": "0.9.0",
+  "description": "Structured discovery before changes: explore the local codebase and run disciplined multi-source external research, both dispatching a purpose-built subagent by default so the reading stays out of the main conversation — with source tiers, falsification, recency gates, and a corpus-coverage ledger — persisting EXPLORE.md / RESEARCH.md index-plus-sidecar handoff artifacts.",
   "author": {
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
@@ -15,6 +15,8 @@
     "codebase",
     "investigation",
     "sources",
+    "subagent",
+    "agents",
     "skill"
   ]
 }

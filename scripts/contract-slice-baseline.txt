@@ -1,0 +1,44 @@
+# Grandfathered contract slices — the docs/topics/<slug>/ directories that
+# reached main before check-contract-slice-prune.sh existed, and which this gate
+# must not red-line. One slice SLUG per line, matched as the first path segment
+# under the contract dir (comments and blank lines ignored). A listed slug
+# exempts every path beneath it from --check-diff.
+#
+# This is a snapshot of the debt at the moment the gate landed (#1417), so a NEW
+# slice matches no line and is red-lined rather than grandfathered. That is the
+# whole point: the gate stops the bleed immediately, while the existing 19 are
+# graduated and pruned one at a time under #1419.
+#
+# --check-diff reads this file from the BASE revision, so adding a line here in
+# the same PR that adds the slice exempts nothing. An entry only takes effect
+# once it is already on the base branch.
+#
+# Stale-guarded: --check fails on an entry whose slice no longer exists, so an
+# exemption cannot outlive its debt, and a future slice cannot silently inherit
+# a grandfathered slug. Delete the line in the same PR that prunes the slice.
+#
+# Do NOT add a slug here to get a slice past the gate. The exemption exists for
+# work that predates enforcement; new work prunes before merge, as the
+# convention has always required.
+#
+# Done when this file lists no slugs and docs/topics/ is empty on main (#1419).
+
+ai-adoption-ladder
+autonomy-ignition
+babysit-prs-migration
+boris-video-absorption
+commit-convention-well-known-path
+context-engineering-claude-5
+dometrain-mcp
+fable-field-guide-audit
+fresh-eyes-checkpoint-audit
+github-plugin-candidates
+handoff-bg-cutover
+interview-batch-rounds
+ladder-climb-roadmap
+loop-engineering-codification
+plugin-audit-port
+plugin-fleet-sync-skill
+plugin-organization
+shadowed-skill-renames
+underspecification
