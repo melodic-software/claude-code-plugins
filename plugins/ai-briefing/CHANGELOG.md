@@ -26,11 +26,23 @@ All notable changes to the `ai-briefing` plugin are documented here. Format foll
   documentation TEST-NETs, IETF protocol assignments, multicast, and reserved
   (127/8, 10/8, 100.64/10, 172.16/12, 192.168/16, 169.254/16, 0/8, 192.0.0/24,
   192.0.2/24, 198.18/15, 198.51.100/24, 203.0.113/24, 224/4, 240/4,
-  `localhost`/`*.localhost`; IPv6 `::`/`::1`/`fc00::/7`/`fe80::/10`/`ff00::/8`/
-  `100::/64`/`64:ff9b:1::/48`/`2001::/23`/`2001:db8::/32`/`2002::/16`/
-  `3fff::/20`/`5f00::/16`, plus IPv4-mapped and NAT64 `64:ff9b::/96` forms
-  judged by their embedded IPv4 address), relying on
-  WHATWG URL canonicalization of decimal/hex/octal/integer IPv4. A DNS-name
+  `localhost`/`*.localhost`), relying on WHATWG URL canonicalization of
+  decimal/hex/octal/integer IPv4. IPv6 is judged by ALLOWLIST rather than by an
+  enumerated deny list: only globally reachable unicast space (`2000::/3`)
+  survives, and the IANA IPv6 Special-Purpose Address Registry's non-global
+  blocks inside it are carved back out (`2001::/23` IETF protocol assignments —
+  Teredo, benchmarking `2001:2::/48`, ORCHIDv2, AMT and the anycast singletons —
+  plus `2001:db8::/32` and `3fff::/20` documentation and `2002::/16` 6to4, which
+  wraps an arbitrary IPv4 tunnel endpoint). So `::`/`::1`, `fc00::/7`,
+  `fe80::/10`, `ff00::/8`, `100::/64`, `100:0:0:1::/64`, `5f00::/16` and every
+  unassigned or newly registered block are refused by default rather than read
+  as public — closing the class of bypass a deny list reopens each time a
+  prefix nobody enumerated turns out to be routable. RFC 8215's local-use
+  translation prefix `64:ff9b:1::/48` is refused outright, while IPv4-mapped and
+  NAT64 `64:ff9b::/96` forms are judged by their embedded IPv4 address. Literal
+  parsing also accepts RFC 4291 form 3 (a trailing dotted quad), which a
+  resolver can answer with and which reading as hex silently mis-parsed
+  (`192.168.1.1` as `0x192`). A DNS-name
   host is additionally resolved at gate time (every A/AAAA record) and refused
   when ANY resolved address is non-global, so a hostname whose record points
   at, e.g., the cloud metadata address is never handed to the checker; an

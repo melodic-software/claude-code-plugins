@@ -55,15 +55,36 @@ function isPrivateIPv4(host) {
 	);
 }
 
-// Expand a WHATWG-canonical IPv6 literal (brackets already stripped) to its eight
-// 16-bit groups, or null when it is not a well-formed address.
+const hextetRe = /^[0-9a-f]{1,4}$/i;
+
+// Expand an IPv6 literal (brackets already stripped) to its eight 16-bit groups,
+// or null when it is not a well-formed address. Accepts RFC 4291 form 3 — a
+// trailing dotted quad standing for the last two groups — because the DNS
+// resolver feeding this gate can answer in that form, and reading the quad as
+// hex would silently mis-parse the address (`192.168.1.1` as 0x192).
 function expandIPv6(address) {
 	const halves = address.split("::");
 	if (halves.length > 2) return null;
-	const parse = (part) =>
-		part === "" ? [] : part.split(":").map((h) => parseInt(h, 16));
+	const parse = (part) => {
+		if (part === "") return [];
+		const tokens = part.split(":");
+		let trailing = [];
+		if (tokens[tokens.length - 1].includes(".")) {
+			const octets = tokens.pop().split(".").map(Number);
+			if (
+				octets.length !== 4 ||
+				octets.some((n) => !Number.isInteger(n) || n < 0 || n > 255)
+			) {
+				return null;
+			}
+			trailing = [(octets[0] << 8) | octets[1], (octets[2] << 8) | octets[3]];
+		}
+		if (!tokens.every((h) => hextetRe.test(h))) return null;
+		return [...tokens.map((h) => parseInt(h, 16)), ...trailing];
+	};
 	const head = parse(halves[0]);
 	const tail = halves.length === 2 ? parse(halves[1]) : [];
+	if (head === null || tail === null) return null;
 	const groups =
 		halves.length === 2
 			? [...head, ...Array(8 - head.length - tail.length).fill(0), ...tail]
@@ -77,21 +98,20 @@ function expandIPv6(address) {
 	return groups;
 }
 
+// Non-global IPv6, derived from the IANA IPv6 Special-Purpose Address Registry.
+// The test is an ALLOWLIST inversion: only globally reachable unicast space
+// (2000::/3) survives, and the registry's non-global blocks inside 2000::/3 are
+// carved back out. An enumerated deny list keeps reopening one class of bypass —
+// every prefix nobody listed reads as public, so each newly noticed block is
+// another fix — whereas this shape defaults an unlisted, unassigned, or newly
+// registered block to refused.
 function isPrivateIPv6(address) {
 	const g = expandIPv6(address);
 	if (!g) return false;
-	if (g.every((h) => h === 0)) return true; // :: unspecified
-	if (g.slice(0, 7).every((h) => h === 0) && g[7] === 1) return true; // ::1 loopback
-	if ((g[0] & 0xfe00) === 0xfc00) return true; // fc00::/7 unique-local
-	if ((g[0] & 0xffc0) === 0xfe80) return true; // fe80::/10 link-local
-	if ((g[0] & 0xff00) === 0xff00) return true; // ff00::/8 multicast
-	if (g[0] === 0x0100 && g[1] === 0 && g[2] === 0 && g[3] === 0) return true; // 100::/64 discard-only
-	if (g[0] === 0x0064 && g[1] === 0xff9b && g[2] === 0x0001) return true; // 64:ff9b:1::/48 local-use NAT64 (RFC 8215)
-	if (g[0] === 0x2001 && (g[1] & 0xfe00) === 0) return true; // 2001::/23 IETF special-purpose (Teredo, benchmarking 2001:2::/48, ORCHID, ...)
-	if (g[0] === 0x2001 && g[1] === 0x0db8) return true; // 2001:db8::/32 documentation
-	if (g[0] === 0x2002) return true; // 2002::/16 6to4 (deprecated; not globally reachable per IANA)
-	if (g[0] === 0x3fff && (g[1] & 0xf000) === 0) return true; // 3fff::/20 documentation (RFC 9637)
-	if (g[0] === 0x5f00) return true; // 5f00::/16 SRv6 SIDs (RFC 9602)
+
+	// The prefixes that carry an IPv4 address are judged by that address: the v6
+	// wrapper is only as global as the v4 target it names, so a NAT64 literal
+	// wrapping the cloud metadata address is refused like the bare v4 form.
 	const embedsIPv4 =
 		(g.slice(0, 5).every((h) => h === 0) && g[5] === 0xffff) || // ::ffff:a.b.c.d IPv4-mapped
 		(g[0] === 0x0064 &&
@@ -101,6 +121,26 @@ function isPrivateIPv6(address) {
 		const v4 = `${g[6] >> 8}.${g[6] & 0xff}.${g[7] >> 8}.${g[7] & 0xff}`;
 		return isPrivateIPv4(v4);
 	}
+
+	// RFC 8215 reserves 64:ff9b:1::/48 for translation local to a single domain
+	// and permits inter-domain use only under RFC 6052 section 3.2, so the whole
+	// prefix is refused rather than unwrapped: its suffix is not a fixed-width v4
+	// address, and an internal network routing it is precisely the SSRF target
+	// this gate exists to keep out.
+	if (g[0] === 0x0064 && g[1] === 0xff9b && g[2] === 0x0001) return true;
+
+	// Outside 2000::/3: `::` unspecified, `::1` loopback, 100::/64 discard-only,
+	// 100:0:0:1::/64 dummy prefix (RFC 9780), 5f00::/16 SRv6 SIDs, fc00::/7
+	// unique-local, fe80::/10 link-local, ff00::/8 multicast, and every block
+	// IANA has not allocated for global unicast.
+	if ((g[0] & 0xe000) !== 0x2000) return true;
+
+	// The non-global blocks that sit inside 2000::/3.
+	if (g[0] === 0x2001 && (g[1] & 0xfe00) === 0) return true; // 2001::/23 IETF special-purpose (Teredo, benchmarking 2001:2::/48, ORCHID, ...)
+	if (g[0] === 0x2001 && g[1] === 0x0db8) return true; // 2001:db8::/32 documentation
+	if (g[0] === 0x2002) return true; // 2002::/16 6to4 — wraps an arbitrary IPv4 tunnel endpoint
+	if (g[0] === 0x3fff && (g[1] & 0xf000) === 0) return true; // 3fff::/20 documentation (RFC 9637)
+
 	return false;
 }
 

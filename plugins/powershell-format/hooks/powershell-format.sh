@@ -299,30 +299,96 @@ PSSA_OUTPUT=$(PSSA_FILE="$PSSA_FILE_ARG" PSSA_SETTINGS="$PSSA_SETTINGS_ARG" \
                 Write-Output "PSSA_TRUST UNVERIFIABLE"
                 exit 6
             }
+            # Refuse a load whose target cannot be pinned to a file. The literal
+            # scan below reads quoted text only, so a COMPOSED target - a
+            # variable, an env lookup, or an expression such as
+            # . (Join-Path $PSScriptRoot "deps" "helper.ps1") - names a
+            # dependency that never enters the signature, and an approval would
+            # then survive arbitrary edits to it. The PowerShell parser decides
+            # pinnability exactly: the target must be a constant string, or an
+            # interpolated string whose every variable this scan can expand.
+            # Unlike a text pattern it cannot be evaded by quoting or comment
+            # placement, and it needs no file-extension guessing, so the
+            # extensionless Import-Module "$root/MyModule" form is caught too.
+            # Scoped to PowerShell source because the collector also pins
+            # non-code data files, which the parser would reject wholesale.
+            if ($cur -match "\.ps(m|d)?1$") {
+                $perrs = $null
+                $fileAst = [System.Management.Automation.Language.Parser]::ParseInput(
+                    $text, [ref]$null, [ref]$perrs)
+                if ($null -eq $fileAst -or ($null -ne $perrs -and $perrs.Count -gt 0)) {
+                    Write-Output "PSSA_TRUST UNVERIFIABLE"
+                    exit 6
+                }
+                # Named code-loading commands. The dot-source and call-operator
+                # forms need no name match: InvocationOperator identifies them,
+                # and their element 0 IS the target, so it is checked too.
+                $loaders = @("Import-Module", "ipmo", "Add-Type", "New-Module",
+                    "Invoke-Expression", "iex", "Import-PowerShellDataFile")
+                $cmdAsts = $fileAst.FindAll({
+                        param($n) $n -is [System.Management.Automation.Language.CommandAst]
+                    }, $true)
+                foreach ($cmdAst in $cmdAsts) {
+                    $cmdName = $cmdAst.GetCommandName()
+                    $isLoad = $cmdAst.InvocationOperator -ne
+                        [System.Management.Automation.Language.TokenKind]::Unknown
+                    if (-not $isLoad) {
+                        $isLoad = [string]::IsNullOrEmpty($cmdName) -or
+                            $loaders -contains $cmdName
+                    }
+                    if (-not $isLoad) { continue }
+                    foreach ($el in $cmdAst.CommandElements) {
+                        if ($el -is [System.Management.Automation.Language.CommandParameterAst]) { continue }
+                        if ($el -is [System.Management.Automation.Language.StringConstantExpressionAst]) { continue }
+                        # An inline script block is part of the text already
+                        # hashed here; FindAll recursed into it, so a composed
+                        # load nested inside is still judged on its own.
+                        if ($el -is [System.Management.Automation.Language.ScriptBlockExpressionAst]) { continue }
+                        $pinnable = $false
+                        if ($el -is [System.Management.Automation.Language.ExpandableStringExpressionAst]) {
+                            $probe = [regex]::Replace($el.Value, "(?i)\`$\{?PSScriptRoot\}?", "x")
+                            $probe = [regex]::Replace($probe, "(?i)\`$\{?PSCommandPath\}?", "x")
+                            $pinnable = -not $probe.Contains("`$")
+                        }
+                        if (-not $pinnable) {
+                            Write-Output "PSSA_TRUST UNPINNABLE"
+                            exit 6
+                        }
+                    }
+                }
+            }
             foreach ($hit in [regex]::Matches($text, $litPattern)) {
                 $lit = if ($hit.Groups[1].Success) { $hit.Groups[1].Value } else { $hit.Groups[2].Value }
                 if ([string]::IsNullOrWhiteSpace($lit) -or $lit.Contains("`n")) { continue }
-                # Expand the standard self-relative prefix: a dot-source like
-                # . "$PSScriptRoot/helper.ps1" resolves against the containing
-                # module directory, so the scan must resolve it the same way
-                # or the helper would silently escape the signature.
-                $psr = [char]36 + "PSScriptRoot"
-                if ($lit.StartsWith("$psr/") -or $lit.StartsWith("$psr\")) {
-                    $lit = $curDir + $lit.Substring($psr.Length)
-                } elseif ($lit.StartsWith("`${" + "PSScriptRoot}/") -or $lit.StartsWith("`${" + "PSScriptRoot}\")) {
-                    $lit = $curDir + $lit.Substring(("`${" + "PSScriptRoot}").Length)
+                # Expand the automatic variables whose values are known here, so
+                # the standard interpolated dependency - . "$PSScriptRoot/x.ps1"
+                # - resolves. Without it Join-Path would read PSScriptRoot as a
+                # directory name and the helper would escape the signature.
+                # Substituted anywhere in the string, not just as a prefix; a
+                # variable that remains was already refused as UNPINNABLE above.
+                # The raw literal is kept as a candidate too, so a file whose
+                # name genuinely contains the text still resolves.
+                $cands = @($lit)
+                if ($lit.Contains("`$")) {
+                    $expanded = [regex]::Replace(
+                        $lit, "(?i)\`$\{?PSScriptRoot\}?", $curDir.Replace("`$", "`$`$"))
+                    $expanded = [regex]::Replace(
+                        $expanded, "(?i)\`$\{?PSCommandPath\}?", $cur.Replace("`$", "`$`$"))
+                    if ($expanded -ne $lit) { $cands += $expanded }
                 }
-                foreach ($baseDir in @($curDir, $settingsDir)) {
-                    $cand = $lit
-                    try {
-                        if (-not [System.IO.Path]::IsPathRooted($cand)) {
-                            $cand = Join-Path $baseDir $cand
-                        }
-                        if (Test-Path -LiteralPath $cand -PathType Leaf) {
-                            $full = Convert-Path -LiteralPath $cand
-                            if ($seen.Add($full)) { $allFiles.Add($full); $scanQueue.Enqueue($full) }
-                        }
-                    } catch { continue }
+                foreach ($cand0 in $cands) {
+                    foreach ($baseDir in @($curDir, $settingsDir)) {
+                        $cand = $cand0
+                        try {
+                            if (-not [System.IO.Path]::IsPathRooted($cand)) {
+                                $cand = Join-Path $baseDir $cand
+                            }
+                            if (Test-Path -LiteralPath $cand -PathType Leaf) {
+                                $full = Convert-Path -LiteralPath $cand
+                                if ($seen.Add($full)) { $allFiles.Add($full); $scanQueue.Enqueue($full) }
+                            }
+                        } catch { continue }
+                    }
                 }
             }
         }
@@ -490,9 +556,11 @@ case $PWSH_EXIT in
   # analysis stays disabled rather than trusted. The pwsh block reports the
   # verdict as a structured PSSA_TRUST line: "GATE <marker-name>" (approvable —
   # the marker directory is rebuilt here from CLAUDE_PLUGIN_DATA in shell path
-  # form so the mkdir hint runs as printed), "NOSTORE" (no state base), or
+  # form so the mkdir hint runs as printed), "NOSTORE" (no state base),
   # "UNVERIFIABLE" (settings unparsable, a CustomRulePath entry unresolvable,
-  # or rule content undigestable).
+  # or rule content undigestable), or "UNPINNABLE" (a rule module loads code
+  # through a target that cannot be resolved to a file, so no approval can
+  # bind to what would execute).
   SETTINGS_REL="$SETTINGS_FOUND"
   [[ -n "$root" ]] && SETTINGS_REL="${SETTINGS_FOUND#"$root"/}"
   TRUST_VERDICT=""
@@ -506,6 +574,7 @@ case $PWSH_EXIT in
       ;;
     "PSSA_TRUST NOSTORE") TRUST_VERDICT="NOSTORE" ;;
     "PSSA_TRUST UNVERIFIABLE") TRUST_VERDICT="UNVERIFIABLE" ;;
+    "PSSA_TRUST UNPINNABLE") TRUST_VERDICT="UNPINNABLE" ;;
     *) ;;
     esac
   done <<<"$PSSA_OUTPUT"
@@ -523,6 +592,9 @@ case $PWSH_EXIT in
   elif [[ "$TRUST_VERDICT" == "UNVERIFIABLE" ]]; then
     APPROVE_HINT="The settings state cannot be verified (settings unparsable by the restricted data parser, or a declared CustomRulePath entry does not resolve to hashable content), so analysis stays disabled for this repository."
     NOTICE_KEY="powershell-format-trust-unverifiable"
+  elif [[ "$TRUST_VERDICT" == "UNPINNABLE" ]]; then
+    APPROVE_HINT="A rule module loads code through a target this hook cannot pin to a file (a variable, an env lookup, a composed expression, or an interpolated string it cannot expand), so the code that would execute cannot be bound to an approval and analysis stays disabled for this repository."
+    NOTICE_KEY="powershell-format-trust-unpinnable"
   else
     APPROVE_HINT="Approval state is unavailable (CLAUDE_PLUGIN_DATA unset or unusable), so analysis stays disabled for this repository."
     NOTICE_KEY="powershell-format-trust-nostore"

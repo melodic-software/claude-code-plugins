@@ -515,6 +515,80 @@ else
   fail "changed PSScriptRoot-relative helper was not re-gated: $OUT_GATE_P3 $(cat "$REPO_CRP/crp7.ps1")"
 fi
 
+# $PSScriptRoot mid-string, not just as a prefix: still pinned, so changing only
+# that helper revokes the approval.
+cat >>"$REPO_CRP/rules/CleanRules.psm1" <<'EOF'
+. "$PSScriptRoot/../rules/helper3.ps1"
+EOF
+printf '%s\n' 'function Get-CrpHelperThree { return 3 }' >"$REPO_CRP/rules/helper3.ps1"
+printf "%s\n" "get-childitem -Path '.'" >"$REPO_CRP/crp8.ps1"
+OUT_GATE_R1=$(run_hook_env "$REPO_CRP/crp8.ps1" CLAUDE_PLUGIN_DATA="$CRP_DATA" CLAUDE_PLUGIN_OPTION_POWERSHELL_FORMAT_ENABLED=true)
+R_MARKER="$(printf '%s' "$OUT_GATE_R1" | jq -r '.systemMessage' | sed -n "s/.*mkdir -p '\([^']*\)'.*/\1/p")"
+mkdir -p "$R_MARKER"
+printf '%s\n' '# unreviewed helper3 revision' >>"$REPO_CRP/rules/helper3.ps1"
+printf "%s\n" "get-childitem -Path '.'" >"$REPO_CRP/crp9.ps1"
+OUT_GATE_R2=$(run_hook_env "$REPO_CRP/crp9.ps1" CLAUDE_PLUGIN_DATA="$CRP_DATA" CLAUDE_PLUGIN_OPTION_POWERSHELL_FORMAT_ENABLED=true)
+if [[ -n "$R_MARKER" ]] && printf '%s' "$OUT_GATE_R2" | jq -e '.hookSpecificOutput.additionalContext | contains("trust gate")' >/dev/null 2>&1 &&
+  grep -q 'get-childitem' "$REPO_CRP/crp9.ps1"; then
+  ok "non-prefix \$PSScriptRoot reference is pinned; helper change revokes"
+else
+  fail "non-prefix \$PSScriptRoot reference not pinned: m=$R_MARKER out=$OUT_GATE_R2 $(cat "$REPO_CRP/crp9.ps1")"
+fi
+
+# A load target the scan cannot resolve to a file cannot be bound to any
+# approval, so each of these must gate AND refuse approval (no mkdir hint)
+# rather than sign a signature that omits the code that would execute. Each
+# form defeats a text-pattern or prefix-expansion approach on its own:
+#   composed   . (Join-Path $PSScriptRoot "deps" "helper.ps1") — the literals
+#              are scanned separately and neither resolves beside the module
+#   envvar     the target comes from the environment
+#   othervar   an interpolated string holding a variable that is not expandable
+#   bareimport Import-Module with no extension, so extension matching cannot see it
+for form in composed envvar othervar bareimport; do
+  cp "$REPO_CRP/rules/CleanRules.psm1" "$WORK/CleanRules.psm1.bak"
+  case "$form" in
+  composed)
+    mkdir -p "$REPO_CRP/rules/deps"
+    printf '%s\n' 'function Get-CrpDep { return 4 }' >"$REPO_CRP/rules/deps/helper.ps1"
+    cat >>"$REPO_CRP/rules/CleanRules.psm1" <<'EOF'
+. (Join-Path $PSScriptRoot "deps" "helper.ps1")
+EOF
+    ;;
+  envvar)
+    cat >>"$REPO_CRP/rules/CleanRules.psm1" <<'EOF'
+Import-Module $env:PSSA_EXTRA_RULES
+EOF
+    ;;
+  othervar)
+    cat >>"$REPO_CRP/rules/CleanRules.psm1" <<'EOF'
+$rulesHome = $env:PSSA_RULES_HOME
+. "$rulesHome/helper.ps1"
+EOF
+    ;;
+  bareimport)
+    cat >>"$REPO_CRP/rules/CleanRules.psm1" <<'EOF'
+$modRoot = $env:PSSA_MOD_ROOT
+Import-Module "$modRoot/MyModule"
+EOF
+    ;;
+  *) fail "unknown unpinnable fixture: $form" ;;
+  esac
+  printf "%s\n" "get-childitem -Path '.'" >"$REPO_CRP/crp-$form.ps1"
+  # A distinct session per form: every unpinnable state shares one notice key
+  # (it carries no signature), so a single session would dedupe all but the
+  # first and the assertion would read an empty payload as a missing gate.
+  OUT_UNPIN="$(cd "$UNRELATED" && printf '{"session_id":"unpin-%s","tool_input":{"file_path":"%s"},"tool_name":"Write"}' "$form" "$REPO_CRP/crp-$form.ps1" |
+    env -u CLAUDE_PROJECT_DIR CLAUDE_PLUGIN_DATA="$CRP_DATA" CLAUDE_PLUGIN_OPTION_POWERSHELL_FORMAT_ENABLED=true bash "$HOOK")"
+  if printf '%s' "$OUT_UNPIN" | jq -e '(.systemMessage | contains("trust gate") and contains("cannot pin")) and (.systemMessage | contains("mkdir -p") | not)' >/dev/null 2>&1 &&
+    grep -q 'get-childitem' "$REPO_CRP/crp-$form.ps1"; then
+    ok "unpinnable load target ($form) gates and refuses approval"
+  else
+    fail "unpinnable load target ($form) was not refused: $OUT_UNPIN $(cat "$REPO_CRP/crp-$form.ps1")"
+  fi
+  cp "$WORK/CleanRules.psm1.bak" "$REPO_CRP/rules/CleanRules.psm1"
+done
+rm -rf "$REPO_CRP/rules/deps"
+
 # Fail closed: with no CLAUDE_PLUGIN_DATA an approval can be neither recorded
 # nor verified, so a CustomRulePath settings state must still skip the run (and
 # notice every time — the once-per-session gate fails open toward visibility

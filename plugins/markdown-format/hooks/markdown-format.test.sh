@@ -722,6 +722,88 @@ else
 fi
 rm "$REPO/.markdownlint-cli2.cjs"
 
+# The evasions a loader-proximity pattern cannot see. Each must still refuse
+# approval, and each defeats a `require`-adjacency window on its own:
+#   comment    a JS comment between the loader name and its open paren
+#   nocall     markdownlint-cli2 resolves customRules itself, so an assembled
+#              specifier needs no loader token in the file at all
+#   concat     string concatenation assembles the specifier
+#   bare       a computed specifier reached through a variable, with a comment
+#              separating it from the loader
+#   envkey     the specifier comes straight from the environment: no loader call
+#              and no path helper, so only the process.* token sees it
+for evasion in comment nocall concat bare envkey; do
+  case "$evasion" in
+  comment)
+    cat >"$REPO/.markdownlint-cli2.cjs" <<'CJS'
+const path = require("node:path");
+module.exports = {
+  config: { "MD013": false },
+  customRules: [require/*sneak*/(path.join(__dirname, "rules", "local.cjs"))],
+  noBanner: true,
+  noProgress: true
+};
+CJS
+    ;;
+  nocall)
+    cat >"$REPO/.markdownlint-cli2.cjs" <<'CJS'
+const path = require("node:path");
+module.exports = {
+  config: { "MD013": false },
+  customRules: [
+    path.join(__dirname, "rules", "local.cjs")
+  ],
+  noBanner: true,
+  noProgress: true
+};
+CJS
+    ;;
+  concat)
+    cat >"$REPO/.markdownlint-cli2.cjs" <<'CJS'
+const dir = "./rules";
+module.exports = {
+  config: { "MD013": false },
+  customRules: [dir + "/local.cjs"],
+  noBanner: true,
+  noProgress: true
+};
+CJS
+    ;;
+  bare)
+    cat >"$REPO/.markdownlint-cli2.cjs" <<'CJS'
+const which = process.env.MDLINT_RULE_MODULE;
+module.exports = {
+  config: { "MD013": false },
+  customRules: [require /* pick */ (which)],
+  noBanner: true,
+  noProgress: true
+};
+CJS
+    ;;
+  envkey)
+    cat >"$REPO/.markdownlint-cli2.cjs" <<'CJS'
+module.exports = {
+  config: { "MD013": false },
+  customRules: [process.env.MDLINT_RULE_MODULE],
+  noBanner: true,
+  noProgress: true
+};
+CJS
+    ;;
+  *) fail "unknown evasion fixture: $evasion" ;;
+  esac
+  printf '# Executable config\n\nClean text.' >"$TRUST_FILE"
+  OUT_EVADE="$(cd "$UNRELATED" && printf '{"session_id":"evade-%s","tool_input":{"file_path":"%s"}}' "$evasion" "$TRUST_FILE" |
+    env -u CLAUDE_PROJECT_DIR CLAUDE_PLUGIN_DATA="$TRUST_DATA" CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true bash "$HOOK")"
+  if printf '%s' "$OUT_EVADE" | jq -e '(.systemMessage | contains("trust gate") and contains("cannot pin")) and (.systemMessage | contains("mkdir -p") | not)' >/dev/null 2>&1 &&
+    ! has_final_newline "$TRUST_FILE"; then
+    ok "unpinnable specifier ($evasion) gates and refuses approval"
+  else
+    fail "unpinnable specifier ($evasion) was not refused: $OUT_EVADE"
+  fi
+  rm "$REPO/.markdownlint-cli2.cjs"
+done
+
 # The approval signature must cover the referenced module content, not only the
 # config text: after approving a config whose customRules names a repository
 # module, changing THAT MODULE (config untouched) must revoke the approval.

@@ -19,13 +19,26 @@ All notable changes to the `powershell-format` plugin are documented here. Forma
   reachable under each declared `CustomRulePath` entry (recursively for
   directories), plus every repository file those files reference by string
   literal (transitively, bounded — a leaf module's dot-sourced or imported
-  dependencies execute with it; the standard `$PSScriptRoot/...` self-relative
-  prefix is expanded against the containing module directory), so a change to
+  dependencies execute with it; `$PSScriptRoot` and `$PSCommandPath` are
+  expanded wherever they appear in the reference, not only as a leading prefix,
+  so the standard interpolated dependency form pins instead of dropping out of
+  the signature), so a change to
   the settings or to any referenced rule module —
   e.g. a branch switch swapping module bytes under an unchanged settings file —
   revokes the approval. The gate fails closed when `CLAUDE_PLUGIN_DATA` is
   unavailable, and also when a `CustomRulePath` entry does not resolve to
   hashable content: an unpinnable state offers no approval route at all.
+  A load whose TARGET cannot be pinned to a file is refused the same way — a
+  variable, an env lookup, a composed expression such as
+  `. (Join-Path $PSScriptRoot "deps" "helper.ps1")`, or an interpolated string
+  holding any other variable. That verdict comes from PowerShell's own parser
+  (`Parser::ParseInput`, examining every `.`/`&` invocation and
+  `Import-Module`/`Add-Type`/`Invoke-Expression`-class command) rather than from
+  a text pattern, so it cannot be evaded by quoting or comment placement and
+  needs no file-extension guessing — the extensionless
+  `Import-Module "$root/MyModule"` form is caught without one. An inline script
+  block is exempt because it is part of the already-hashed file, and a composed
+  load nested inside it is still judged on its own.
   Detection uses PowerShell's restricted data-file parser
   (`Import-PowerShellDataFile`), not a textual scan, so quoting/escape
   obfuscation of the key cannot evade it — and a settings file the restricted

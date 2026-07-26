@@ -83,8 +83,62 @@ test("shouldSkipLinkCheck skips shared-address and other non-global blocks", asy
 	}
 });
 
+// The IPv6 predicate allowlists global unicast (2000::/3) rather than
+// enumerating a deny list, so a block nobody listed is refused by default
+// instead of read as public.
+test("shouldSkipLinkCheck skips IPv6 outside global unicast space", async () => {
+	for (const link of [
+		"http://[4000::1]/", // unassigned
+		"http://[1000::1]/", // unassigned
+		"http://[8000::1]/", // unassigned
+		"http://[c000::1]/", // unassigned
+		"http://[100:0:0:1::1]/", // dummy IPv6 prefix (RFC 9780)
+		"http://[64:ff9b:2::1]/", // unassigned, just above the local-use NAT64 block
+		"http://[1fff:ffff:ffff:ffff:ffff:ffff:ffff:ffff]/", // just below 2000::/3
+		"http://[4000::]/", // just above it
+	]) {
+		assert.equal(await shouldSkipLinkCheck(link), true, link);
+	}
+});
+
+test("shouldSkipLinkCheck covers the whole 2001::/23 special-purpose block", async () => {
+	for (const link of [
+		"http://[2001:1::1]/", // Port Control Protocol anycast
+		"http://[2001:3::1]/", // AMT
+		"http://[2001:4:112::1]/", // AS112-v6
+		"http://[2001:10::1]/", // deprecated ORCHID
+		"http://[2001:20::1]/", // ORCHIDv2
+		"http://[2001:30::1]/", // drone remote ID
+		"http://[2001:1ff:ffff:ffff:ffff:ffff:ffff:ffff]/", // top of the block
+	]) {
+		assert.equal(await shouldSkipLinkCheck(link), true, link);
+	}
+	// 2001:200:: is the first global-unicast address above the block.
+	assert.equal(await shouldSkipLinkCheck("http://[2001:200::1]/"), false);
+});
+
 // Stub resolvers so tests never touch real DNS.
 const resolvesPublic = async () => [{ address: "93.184.216.34", family: 4 }];
+
+test("shouldSkipLinkCheck reads resolver answers in RFC 4291 dotted-quad form", async () => {
+	// node:dns can answer with the IPv4-mapped dotted form; parsing the quad as
+	// hex reads 192.168.1.1 as 0x192, so the record would fall through as public.
+	for (const address of ["::ffff:192.168.1.1", "::ffff:169.254.169.254"]) {
+		assert.equal(
+			await shouldSkipLinkCheck("http://name.example/", async () => [
+				{ address, family: 6 },
+			]),
+			true,
+			address,
+		);
+	}
+	assert.equal(
+		await shouldSkipLinkCheck("http://name.example/", async () => [
+			{ address: "::ffff:93.184.216.34", family: 6 },
+		]),
+		false,
+	);
+});
 
 test("shouldSkipLinkCheck skips hostnames resolving to non-global addresses", async () => {
 	const cases = [
@@ -138,7 +192,7 @@ test("shouldSkipLinkCheck still checks ordinary public hosts", async () => {
 		"https://223.255.255.254/", // top of unicast space, below multicast
 		"https://[2001:db7::1]/", // just below the 2001:db8::/32 documentation block
 		"https://[2001:200::1]/", // just above the 2001::/23 special-purpose block
-		"https://[64:ff9b:2::1]/", // just above the 64:ff9b:1::/48 local-use NAT64 block
+		"https://[2003::1]/", // just above the 2002::/16 6to4 block
 	]) {
 		assert.equal(await shouldSkipLinkCheck(link, resolvesPublic), false, link);
 	}

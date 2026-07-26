@@ -219,6 +219,7 @@ fi
 # create a false warning.
 RISK_CONFIGS=()
 RISK_UNVERIFIABLE=0
+RISK_UNPINNABLE=0
 CONFIG_ROOT="$(cd "$REPO_ROOT" 2>/dev/null && pwd -P)" || CONFIG_ROOT="$REPO_ROOT"
 CONFIG_TARGET_DIR="$(cd "$(dirname "$FILE")" 2>/dev/null && pwd -P)" ||
   CONFIG_TARGET_DIR="$(dirname "$FILE")"
@@ -324,6 +325,63 @@ collect_risky_configs() {
 # newline-delimited strings rather than associative arrays, and every array
 # expansion is guarded non-empty — `"${arr[@]}"` on an empty array is an
 # unbound-variable error under `set -u` before bash 4.4.
+
+# True when a JS source names code this text scan cannot pin to a file.
+#
+# Two independent tests, because neither alone covers the shape space.
+#
+# 1. PATH-BUILDING MACHINERY anywhere in the file. markdownlint-cli2 resolves
+#    `customRules`/`markdownItPlugins`/`outputFormatters` entries itself, so
+#    `customRules: [path.join(__dirname, "rules", "x.cjs")]` carries no loader
+#    call to anchor a pattern on — and the entries are conventionally written
+#    across several lines, so no line-scoped anchor could see the key and the
+#    expression together either. String concatenation and template
+#    interpolation assemble a specifier the same way and are refused with it.
+#
+# 2. A LOADER RESIDUE. Delete every plainly-written loader call — `require("x")`
+#    / `import("x")` — from the text, then look for a loader token in what
+#    remains. A proximity pattern cannot decide this, because JavaScript
+#    permits a comment or newline at any token boundary, so
+#    `require/*c*/(path.join(...))` sits outside any fixed window; and counting
+#    occurrences cannot either, because `grep -o` consumes the boundary
+#    character a word-start guard needs and so undercounts a nested
+#    `require(require("x"))`. Deleting first leaves nothing to align: a loader
+#    the plain-form pattern did not consume is a loader whose argument this
+#    scan cannot read.
+#
+# Plus a string literal carrying a letter-capable escape (backslash-u/x/octal),
+# which Node decodes to a different path than the raw text resolved here — a
+# specifier can hide its real spelling that way.
+#
+# Every pattern is POSIX ERE: no `\b`, which is a GNU extension that BSD grep
+# (macOS system grep, the platform this file targets) may read as a literal `b`,
+# turning the whole predicate into a silent pass — the one failure direction
+# this function must not have. Word starts and ends are spelled as bracket
+# expressions instead, and the residue test uses `grep -q` rather than `-o` so
+# no boundary character is consumed.
+#
+# Deliberately over-approximating: a `path.join` used to read a data file,
+# `process.cwd()` in an unrelated call, or `__dirname` inside a string refuses
+# approval too. That is the fail-closed direction, and its cost is a skipped
+# lint run.
+unpinnable_js_specifier() {
+  local file="$1"
+  if grep -Eq \
+    -e 'path[[:space:]]*\.[[:space:]]*(join|resolve|normalize)[[:space:]]*\(' \
+    -e 'require[[:space:]]*\.[[:space:]]*resolve[[:space:]]*\(' \
+    -e 'import[[:space:]]*\.[[:space:]]*meta' \
+    -e 'process[[:space:]]*\.' \
+    -e '__dirname|__filename' \
+    -e '\$\{' \
+    -e "[\"'][[:space:]]*\+|\+[[:space:]]*[\"']" \
+    -e "[\"'][^\"']*\\\\[uxUX0-7]" \
+    "$file" 2>/dev/null; then
+    return 0
+  fi
+  sed -E "s/(require|import)[[:space:]]*\([[:space:]]*(\"[^\"]*\"|'[^']*')/ /g" "$file" 2>/dev/null |
+    grep -Eq "(^|[^A-Za-z0-9_\$])(require($|[^A-Za-z0-9_\$])|import[[:space:]]*\()"
+}
+
 MODULE_FILES=()
 collect_module_files() {
   local item dir str base candidate resolved entry scanned=0
@@ -339,22 +397,14 @@ collect_module_files() {
     scanned=$((scanned + 1))
     ((scanned <= 64)) || return 1
     # A module specifier this text scan cannot read as written names code it
-    # cannot pin. Fail closed — no approval for a state whose module graph
-    # cannot be content-addressed — on either shape in a JS source: a computed
-    # require()/import() argument (non-quote character after the open paren,
-    # or an open paren ending the line for a wrapped argument), e.g.
-    # require(path.join(__dirname, ...)); and a string literal carrying a
-    # letter-capable escape sequence (backslash-u/x/octal), which Node
-    # decodes to a different path than the raw text this scan resolves — a
-    # specifier can hide its real spelling that way. Scoped to JS sources;
-    # the same text
-    # inside a declarative config is data, not a loader call, and the config
-    # tier already gates its own escapes.
+    # cannot pin, so the state gets no approval at all: an approval whose
+    # signature omits the module would survive arbitrary edits to it.
+    # unpinnable_js_specifier answers that question for a JS source; a
+    # declarative config is judged by the separate key/escape tiers above.
     case "$item" in
     *.cjs | *.mjs | *.js)
-      if grep -Eq "(require|import)[[:space:]]*\([[:space:]]*[^\"'[:space:])]" "$item" 2>/dev/null ||
-        grep -Eq "(require|import)[[:space:]]*\([[:space:]]*$" "$item" 2>/dev/null ||
-        grep -Eq "[\"'][^\"']*\\\\[uxUX0-7]" "$item" 2>/dev/null; then
+      if unpinnable_js_specifier "$item"; then
+        RISK_UNPINNABLE=1
         return 1
       fi
       ;;
@@ -470,6 +520,8 @@ if ((${#RISK_CONFIGS[@]} > 0)); then
       APPROVE_HINT="Review these files and their installed dependencies; to approve this exact configuration state and enable linting, run: mkdir -p '$TRUST_DIR' (any change to the configuration or a referenced repository module revokes the approval)."
     elif ((RISK_UNVERIFIABLE == 1)); then
       APPROVE_HINT="The configuration contains constructs (string escapes or tags) that defeat textual verification, so it cannot be reviewed as written and linting stays disabled for this repository."
+    elif ((RISK_UNPINNABLE == 1)); then
+      APPROVE_HINT="The configuration or a module it references names code through an expression this hook cannot pin to a file (a built path, a template, a concatenation, or a loader argument it cannot read), so the code that would execute cannot be bound to an approval and linting stays disabled for this repository."
     else
       APPROVE_HINT="Approval state is unavailable (CLAUDE_PLUGIN_DATA unset or unusable, or the configuration's referenced modules could not be tracked), so linting stays disabled for this repository."
     fi

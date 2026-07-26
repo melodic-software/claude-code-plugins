@@ -29,12 +29,23 @@ All notable changes to the `markdown-format` plugin are documented here. Format 
   gate as code-loading, and constructs able to synthesize a hidden spelling
   (JSONC `\uXXXX` escapes; YAML `\x`/`\u`/`\U` escapes, escaped line joins,
   `!!` tags) mark the configuration unverifiable — gated with no approval
-  route, since text whose meaning cannot be read cannot be reviewed. A
-  computed module expression in an executable config or referenced module —
-  `require()`/`import()` whose argument is not a single string literal — or a
-  JS string literal carrying a letter-capable escape sequence (which decodes
-  to a different path than the raw text) likewise refuses approval: a module
-  graph the scan cannot pin is never signed.
+  route, since text whose meaning cannot be read cannot be reviewed. A module
+  specifier the scan cannot pin to a file likewise refuses approval, because a
+  signature that omits the module would keep honoring an approval across
+  arbitrary edits to it: any path-building machinery in a JS source
+  (`path.join`/`path.resolve`, `require.resolve`, `import.meta`, `__dirname`/
+  `__filename`, `process.*`, template interpolation, string concatenation), a
+  loader whose argument is not a plain quoted specifier, and a string literal
+  carrying a letter-capable escape sequence (which Node decodes to a different
+  path than the raw text). Detection is file-wide rather than anchored on a
+  loader call: markdownlint-cli2 resolves `customRules` entries itself, so
+  `customRules: [path.join(__dirname, "rules", "x.cjs")]` — or
+  `[process.env.RULE]` — carries no loader token at all, and JavaScript permits
+  a comment or newline at any token boundary, so `require/*c*/(…)` sits outside
+  any fixed window. The loader test deletes every plainly-written call first and
+  then looks for a loader token in the residue, which needs no window. Every
+  pattern is POSIX ERE — no `\b`, whose GNU-only meaning would turn the whole
+  predicate into a silent pass under the macOS system grep this hook supports.
   Previously the hook warned once and executed anyway, so a malicious
   repository's checked-in config could run arbitrary code on a routine
   markdown edit. Declarative rule-only configuration is unaffected. The edit
