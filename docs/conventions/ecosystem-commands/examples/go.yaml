@@ -20,14 +20,13 @@ gates:
   # `project-discovery: ["go.mod"]`, so without `run-from: repo-root` a repo-wide check like
   # protobuf-generated-code freshness would run once per discovered go.mod root instead of once
   # from $REPO_ROOT — redundant at best, failing in roots that lack a buf.gen.yaml at worst.
-  # Every input that can change what `buf generate` produces is added to this file's own `globs`
-  # above (not just this gate's `trigger-globs`) per the 1.1.1 reachability rule — trigger-globs
-  # alone never selects an ecosystem under auto-targeting, so without a `globs` entry a change
-  # touching only that file would never reach this gate outside `/toolchain:check go` or
-  # `check all`. The rule is "every input that can change what generation produces", and the entries
-  # below are this example's application of it — buf's own configuration surface, which is what an
-  # example can know. Editing any one alone can strand or orphan generated output, so each needs its
-  # own `globs` entry:
+  # Every input that can change what `buf generate` produces gets an entry in this file's own
+  # `globs` above, not just this gate's `trigger-globs`, per the 1.1.1 reachability rule —
+  # trigger-globs alone never selects an ecosystem under auto-targeting, so without a `globs` entry
+  # a change touching only that file would never reach this gate outside `/toolchain:check go` or
+  # `check all`. The entries below are this example's application of that rule to buf's own
+  # configuration surface, which is what an example can know; editing any one alone can strand or
+  # orphan generated output:
   #   - `*.proto` — the sources themselves.
   #   - `buf.gen.yaml` — which plugins run and where they write.
   #   - `buf.yaml` (v1 also `buf.work.yaml`) — the workspace `modules`/`includes`/`excludes` that
@@ -40,9 +39,9 @@ gates:
   # A consuming repo must extend the list with its own generation inputs, which no example can
   # enumerate for it. The common case is a `local:` plugin built from sources in this repo — buf
   # documents `local` as a binary or command array, e.g. `local: ["go", "run", "./tools/pgen"]` —
-  # whose `*.go` sources change the generated output while matching none of the globs below. Add a
-  # pathspec for each such generator (`tools/pgen/**`), plus any template, options file, or
-  # environment input the repo's own plugins read.
+  # whose `*.go` sources change the generated output while matching none of the entries above. Add
+  # a glob for each such generator (`tools/pgen/**`), plus any template, options file, or other
+  # input the repo's own plugins read.
   # Ref: https://buf.build/docs/configuration/v2/buf-gen-yaml/. The gate's
   # `trigger-globs` below also lists the plugins' own generated-output patterns (`*.pb.go`,
   # `*.pb.gw.go`), so a hand-edit that drifts a generated file from what `buf generate` would
