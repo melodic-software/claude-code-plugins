@@ -51,8 +51,8 @@ unless bounded with `--max-depth` or confirmed with `--confirmed-large-scan`.
   value could not be read. The guard now enforces this independently: it resolves the same
   `disk_hygiene_enabled` toggle by reading it straight from your user `settings.json` (the read is
   shared with this probe, and the settings file is located from the tamper-resistant
-  `${CLAUDE_PLUGIN_ROOT}` — not the environment), so in audit-only mode it denies every mutation lane
-  outright — the Bash engine `apply` and the PowerShell deletion belt alike. Running the probe still
+  `${CLAUDE_PLUGIN_ROOT}` — not the environment), so in audit-only mode it denies both mutation lanes
+  it gates outright — the Bash engine `apply` and the PowerShell deletion belt alike. Running the probe still
   matters so you can state the configured value accurately and stop before proposing work the guard
   would deny; the guard is the backstop, not the sole enforcer. The hook runs in shell-free exec form and reports its absolute Python
   interpreter and the authorized `--data-root` value in denial guidance. Use that exact interpreter
@@ -336,8 +336,9 @@ sparse files, hard links, compression, and delayed allocation affect it.
   (`CLAUDE_TOOL_NAME` does not exist).
 - The PowerShell lane is the inverse tradeoff: it stays open for read-only support work (git, gh,
   metadata probes) and instead hard-denies engine invocations and turns known deletion spellings
-  into a final human permission prompt. It is a raised bar, not a fail-closed lane; the engine's
-  own containment and the Bash lane remain the deletion authority.
+  into a final human permission prompt. It is a raised bar, not a fail-closed lane — move, rename,
+  overwrite, and volume-format spellings are not flagged at all (`reference/safety-model.md`); the
+  engine's own containment and the Bash lane remain the deletion authority.
 - The guard rejects `~` anywhere in a Bash command as a shell-expansion character, which includes
   Windows 8.3 short names (`SOMEUS~1`). Always pass long-form paths; the guard's own disclosures
   are already long-form.

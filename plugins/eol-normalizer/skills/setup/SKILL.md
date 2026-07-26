@@ -65,9 +65,14 @@ tool, so `apply` installs nothing and writes nothing — it only points:
 - missing `jq` / Bash / git: platform install instructions from the README Requirements
   section; this skill never installs system packages.
 - toggle off: direct to `/plugin configure eol-normalizer` (interactive, any
-  time). Headless: `--config` only applies on a fresh install (ignored once installed), so reconfigure via `claude plugin uninstall eol-normalizer` then
-  `claude plugin install eol-normalizer@<marketplace> --config eol_normalizer_enabled=true`;
-  this skill never writes user settings or `pluginConfigs`.
+  time). Headless: `--config` only applies on a fresh install (ignored once installed), so
+  reconfigure via `claude plugin uninstall eol-normalizer -s <scope>` then
+  `claude plugin install eol-normalizer@<marketplace> -s <scope> --config eol_normalizer_enabled=true`;
+  this skill never writes user settings or `pluginConfigs`. Both commands default to `-s user` —
+  pass the scope `claude plugin list` reports for this plugin, and run from that project's
+  directory for a `project`/`local` scope. Defaulting instead uninstalls a separate user-scope
+  record while the effective install stays in place, so the reinstall lands at a scope that
+  does not load.
 - no `eol=` policy: this is the opt-out, not a defect. Point at the repository's own
   `.gitattributes` as the place to declare policy; this skill never writes `.gitattributes`,
   because that would impose a repo-wide line-ending policy the plugin has no mandate to

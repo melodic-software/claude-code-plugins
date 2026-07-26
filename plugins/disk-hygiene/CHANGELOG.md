@@ -3,6 +3,86 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.4]
+
+### Fixed
+
+- **Headless reconfigure recipe now preserves install scope (#1406).** The `claude plugin
+  uninstall` → `claude plugin install ... --config` recipe in `skills/setup/SKILL.md` defaulted
+  both halves to `-s user`. When this plugin is installed at `project` or `local` scope, that
+  silently uninstalled a separate user-scope record while the effective project/local install kept
+  loading, and the reinstall landed at a scope that does not load. Both commands now carry
+  `-s <scope>`, sourced from what `claude plugin list` reports for this plugin — the same fix
+  already applied to `session-flow` and `rate-limit-guard` in #1393.
+
+## [0.9.3]
+
+### Fixed
+
+- **`setup check` now detects the Windows Store `python3` alias stub that fails the guard open
+  (#1110).** The `clean` destructive-action guard hook launches the literal command `python3`. On
+  stock Windows that name resolves to a zero-length `WindowsApps\python3.exe` App Execution Alias — a
+  reparse stub that opens the Microsoft Store instead of running an interpreter, so the guard process
+  never starts. A PreToolUse hook blocks a tool call only by emitting exit code 2 or a `deny` decision;
+  a guard that never runs emits neither, so Claude Code lets the destructive Bash/PowerShell command
+  proceed ungated. This recurs the 0.6.3 fail-open shape (hook launch failure treated as non-blocking)
+  through a new vector — the guard's launch name resolving to the Store stub rather than a real
+  interpreter. `setup check` now runs a bundled inspect-only probe
+  (`skills/setup/scripts/python3_alias_probe.py`, covered by `test_python3_alias_probe.py`) that
+  classifies the `python3` resolution — zero length under a `WindowsApps` path component is the stub —
+  without executing it, and orders the check so nothing (including the version-floor probe itself)
+  executes the bare name `python3` until that verdict is `ok`: the probe is launched via an
+  already-proven interpreter (`py -3`, `python`, or an absolute path), with a direct PowerShell
+  inspection of the resolved path as the interpreter-less fallback. The check fails closed on every
+  verdict except `ok`: the stub and an
+  unreadable-identity (`indeterminate`) verdict both FAIL with remediation (disable the App execution
+  alias, or put real Python ahead of WindowsApps on `PATH`), and an absent `python3` folds into the
+  floor's missing-interpreter FAIL. The disabled-toggle FAIL→INFO downgrade is exempted for every
+  step-1 failure: audit-only mode is enforced by the guard, both guard surfaces launch the
+  literal name `python3`, and a guard that never runs can neither read nor enforce the configured
+  `false`. So every non-`ok` verdict (`store-alias-stub`, `indeterminate`, `not-found`) stays fatal;
+  so does a nominally `ok` resolution whose version probe then fails to launch at all — a corrupt
+  or zero-length binary outside `WindowsApps`, a broken shim, a permission error; and so does an
+  interpreter that starts but reports a version below the floor, because launching the version probe
+  proves only that something executes, not that it can run the guard's own source (Python 3.6, for
+  example, rejects the guard's `from __future__ import annotations` and exits without a deny, which
+  PreToolUse treats as non-blocking). The suite's test wrapper
+  applies the same inspection to its own interpreter candidates before executing them. The README
+  requirements section documents the vector.
+
+## [0.9.2]
+
+### Fixed
+
+- **The anchored target root is validated by object identity, so benign directory churn no longer
+  aborts an approved run (#384).** Preview and apply held the target root to full stat identity
+  (`st_mtime_ns` and `st_size` included), but a directory's mtime and size flip whenever any direct
+  child is added or removed. Human approval sits between scan and apply, so any unrelated write into
+  a live target — a home or an active project root, the common case — flipped the root's mtime and
+  aborted the run with "anchored target changed since the snapshot," forcing a full rescan. Both
+  sites now use the stable device/inode/type identity that directory candidates and `handoff-verify`
+  already use; a replaced root still refuses. The check was never wrong-deleting, only over-refusing.
+
+### Changed
+
+- **`resolve_snapshot_target` no longer takes `strict_root_stat`.** With one root-identity standard
+  across preview, apply, and `handoff-verify`, the parameter that selected between them is gone and
+  the single refusal reads "target root was replaced since the snapshot."
+
+## [0.9.1]
+
+### Changed
+
+- **The PowerShell lane's documented coverage now names what it does not flag (#386).**
+  `reference/safety-model.md` and the clean skill's PowerShell gotcha described the lane as gating
+  "known deletion spellings" without stating that destructive non-deletion spellings — `Move-Item`,
+  `Rename-Item`, overwriting writers (`Set-Content`/`Out-File`/`>`/`New-Item -Force`), and
+  `Format-Volume`/`Clear-Disk` — reach the tool with no guard verdict, audit-only mode included. The
+  gap is now disclosed where the security model is stated, naming the consumer's permission policy as
+  its only backstop — the manual handoff's per-path approval covers the paths selected for removal, so
+  it does not reach what these spellings collaterally destroy. Docs only; the guard's behavior is
+  unchanged and closing the gap is tracked in #387.
+
 ## [0.9.0]
 
 ### Fixed

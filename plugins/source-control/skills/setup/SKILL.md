@@ -1,6 +1,6 @@
 ---
 name: setup
-description: "Configure the source-control plugin. check (read-only): report the effective commit-subject / PR-title convention merged across its user-global, team, and personal-overlay layers, and the babysit-prs userConfig surface (effective config, branch-protection posture, Windows long paths). apply: interview the repo and write the convention config to a chosen layer, and walk the sanctioned babysit reconfigure paths. Use when: 'set up source-control', 'configure commit convention', 'source-control setup', 'what commit format does this repo use', 'set my personal commit convention', 'override the team convention locally', 'configure babysit', 'check babysit config', or /commit, /pull-request, or /babysit-prs report missing configuration. Actions: check (read-only verification, default) | apply (write the convention config; document the babysit config paths). Re-runnable and safe."
+description: "Configure the source-control plugin. check (read-only): report the effective commit-subject / PR-title convention merged across its user-global, team, and personal-overlay layers, and the babysit-prs userConfig surface (effective config, branch-protection posture, Windows long paths, lane-script permission reachability). apply: interview the repo and write the convention config to a chosen layer, and walk the sanctioned babysit reconfigure paths. Use when: 'set up source-control', 'configure commit convention', 'source-control setup', 'what commit format does this repo use', 'set my personal commit convention', 'override the team convention locally', 'configure babysit', 'check babysit config', or /commit, /pull-request, or /babysit-prs report missing configuration. Actions: check (read-only verification, default) | apply (write the convention config; document the babysit config paths). Re-runnable and safe."
 argument-hint: "check | apply [layer=user|team|local] [subject_pattern=<anchored-regex | 'Conventional Commits'>]"
 user-invocable: true
 disable-model-invocation: true
@@ -131,6 +131,71 @@ diagnostics:
    `HKLM\SYSTEM\CurrentControlSet\Control\FileSystem`); report each as enabled/disabled with the
    remediation (`git config --global core.longpaths true`; the OS value needs an elevated change, so
    report it — never attempt it). Skip this probe silently on non-Windows.
+4. **Lane-script reachability under the host permission layer.** The babysit lane declares its own
+   bundled scripts — engine, gates, and guarded wrappers — invocable without a per-call permission
+   denial as a prerequisite, and for the paths that prove readiness it declares no degrade tier
+   (`babysit-prs` "Engine and degrade"; the contract, including why a denied mutation degrades
+   while a denied check cannot, is `skills/babysit-prs/reference/safety.md` "Lane-Script
+   Reachability"). Probe it here so the operator learns of a gap before a cycle stalls on it, in
+   two parts:
+   - **Canary (the load-bearing half).** Run the lane's mandated invocation forms against
+     non-mutating targets — **both** of them, because they live under different path prefixes:
+
+     ```bash
+     bash "${CLAUDE_PLUGIN_ROOT}/bin/source-control-babysit-merge" --help
+     bash "${CLAUDE_PLUGIN_ROOT}/scripts/babysit-readiness-gate.sh" --help
+     ```
+
+     These are the exact spellings the lane uses for every merge and for every readiness
+     declaration, with `--help` so each prints usage and exits 0 without touching the network or
+     GitHub. Probe both: an allow rule or classifier decision covering the `bin/` wrapper says
+     nothing about the `scripts/` helper, so a canary that ran only the first would certify a
+     path the lane's readiness verdict never travels — and the readiness gate has no degrade tier
+     at all. A **tool-call denial on either is a FAILED prerequisite**, not an INFO note. The
+     reason is fail-closed posture, not logical certainty: the classifier decides per call, so a
+     denied `--help` does not *prove* the production shapes are denied any more than a permitted
+     one proves they are allowed. What it does establish is that the mandated spelling reaches the
+     classifier and can lose there — and the cheapest, most obviously harmless shape is the one
+     least likely to be denied while the heavier ones pass. A prerequisite check whose weakest
+     probe was refused must report FAILED rather than assume the untested shapes fare better.
+     Name which form was denied, say plainly that the production shapes were not probed, report
+     the denial verbatim with the remediation below, and never retry it or re-spell it as a raw
+     interpreter invocation to get past the denial — that form is exactly what the wrapper exists
+     to replace.
+
+     **A pass is reachability, not a guarantee — report it as such.** A permitted `--help` proves
+     the mandated spelling exists and that a call to it got through; it does *not* prove the
+     production shapes (`owner/repo#N --allowed-owners …`, `<N> --extra-self …`) will be
+     permitted, because the classifier decides per call, at call time. That per-call property cuts
+     both ways: it leaves a pass provisional, and it is why the FAILED verdict above is a
+     fail-closed choice rather than a proof. The probes stay `--help`-only
+     deliberately: the merge wrapper's read-only production shape is a live GitHub call, so a
+     representative probe would make a `check` run start touching the fleet it was asked to
+     inspect — which the plugin's `babysit-wrapper-help` shell test exists to keep from
+     regressing. The
+     residual gap is covered rather than hidden: a denial that lands mid-cycle instead is
+     fail-honest by the mechanism this section rests on — the gate prints `READINESS_UNPROVEN`,
+     or nothing at all when the call never happened, and
+     `skills/babysit-prs/reference/loop.md` §5.5 requires the per-PR **Gate verdict** line to
+     quote that stdout verbatim, so an unproven readiness surfaces in the report instead of
+     being absorbed. The canary is the proactive convenience; the quoted verdict is the
+     enforcement.
+   - **Effective configuration (context for the canary).** Run `claude auto-mode config` and report
+     whether its effective rules cover this plugin's bundled scripts. It prints the merged result
+     across the scopes the classifier reads `autoMode` from — user settings and managed settings —
+     so read that output rather than hunting for the underlying files; the managed scopes are not
+     locally readable as ordinary settings files. **Forward the launch-time scope when there is
+     one.** `--settings` is a global flag consumed at launch, not an input the subcommand accepts,
+     so a bare `claude auto-mode config` spawned from a session that was itself launched with
+     `--settings <file>` reports without that scope and under-states the effective rules. Probe
+     with `claude --settings <file> auto-mode config` in that case, and say which form was used;
+     when the scope came from an Agent SDK settings object with no file to re-supply, report the
+     probe as scope-incomplete rather than as the effective configuration. A missing or
+     narrow-looking block is INFO, never FAIL on its own: settings cannot prove reachability,
+     because a host safety classifier decides per call, at call time. Pair it with the
+     [auto-mode configuration reference](https://code.claude.com/docs/en/auto-mode-config).
+
+   The remediation is always the operator's to apply — never write settings from this skill.
 
 ## `apply` (idempotent)
 
@@ -178,10 +243,20 @@ sanctioned paths:
 - **Interactive:** `/plugin configure source-control` (or the `/plugin` dialog → source-control →
   configure), any time — Claude Code prompts per key using the manifest's types and defaults.
 - **Headless / CI:** `--config` only applies on a fresh install (ignored once installed), so
-  reconfiguring headless means `claude plugin uninstall source-control` then reinstalling with the
-  new values: `claude plugin install source-control@<marketplace> --config KEY=VALUE` (repeatable per
-  key). Multi-value keys (`babysit_watched_owners`, `babysit_self_logins`, `babysit_review_bot_logins`,
-  `babysit_extra_bot_logins`) are supplied comma-joined.
+  reconfiguring headless means `claude plugin uninstall source-control -s <scope>` then
+  reinstalling with the new values:
+  `claude plugin install source-control@<marketplace> -s <scope> --config KEY=VALUE` (repeatable
+  per key). Multi-value keys (`babysit_watched_owners`, `babysit_self_logins`,
+  `babysit_review_bot_logins`, `babysit_extra_bot_logins`) are supplied comma-joined. Both
+  commands default to `-s user` — pass the scope `claude plugin list` reports for this plugin,
+  and run from that project's directory for a `project`/`local` scope. Defaulting instead
+  uninstalls a separate user-scope record while the effective install stays in place, so the
+  reinstall lands at a scope that does not load. Uninstalling also drops the stored
+  `pluginConfigs` entry, so the reinstall must re-supply **every** key whose value should stay
+  non-default, not only the key being changed — this plugin declares twenty-nine, so a reinstall
+  that passes one silently resets the babysit fleet's owners, logins, tiers, caps, and worktree
+  roots to their manifest defaults. Record the current values before uninstalling; afterwards
+  there is nothing left to read them from.
 
 Reconfiguring `userConfig` does not reach the already-running session — after either path, the new
 values become visible only in a fresh session. Do not re-run the babysit `check` in the same session

@@ -270,5 +270,50 @@ class FetchReviewThreadsTests(unittest.TestCase):
             gh.fetch_review_threads("owner/repo", 1, comments_first=101)
 
 
+class RestHydrateReviewsTests(unittest.TestCase):
+    """`rest_hydrate_reviews` (#683): the untyped `latestReviews` `gh pr view
+    --json` supplies must not survive hydration once the fully-typed REST
+    `reviews` list has replaced `pr["reviews"]` -- otherwise the same bot
+    actor's `latestReviews` copy (no `__typename`, no `[bot]` login suffix)
+    still leaks into `latest_reviews_by_author`'s merge and misclassifies as
+    human.
+    """
+
+    def test_reviews_replaced_and_latest_reviews_dropped(self) -> None:
+        rest_rows = [
+            {
+                "id": 1,
+                "user": {"login": "chatgpt-codex-connector[bot]", "type": "Bot"},
+                "state": "COMMENTED",
+                "body": "Codex review",
+                "submitted_at": "2026-07-20T15:57:46Z",
+                "commit_id": "abc123",
+            }
+        ]
+        pr = {
+            "reviews": [],
+            "latestReviews": [
+                {"author": {"login": "chatgpt-codex-connector"}, "id": "",
+                 "state": "COMMENTED", "submittedAt": "2026-07-20T15:57:46Z",
+                 "body": "Codex review", "commit": {"oid": ""}}
+            ],
+        }
+        with mock.patch.object(gh, "gh_json", return_value=rest_rows):
+            gh.rest_hydrate_reviews(pr, "owner/repo", 1)
+        self.assertNotIn("latestReviews", pr)
+        self.assertEqual(len(pr["reviews"]), 1)
+        self.assertEqual(pr["reviews"][0]["author"]["__typename"], "Bot")
+        self.assertEqual(
+            pr["reviews"][0]["author"]["login"], "chatgpt-codex-connector[bot]"
+        )
+
+    def test_missing_latest_reviews_key_does_not_raise(self) -> None:
+        pr = {"reviews": []}
+        with mock.patch.object(gh, "gh_json", return_value=[]):
+            gh.rest_hydrate_reviews(pr, "owner/repo", 1)
+        self.assertNotIn("latestReviews", pr)
+        self.assertEqual(pr["reviews"], [])
+
+
 if __name__ == "__main__":
     unittest.main()

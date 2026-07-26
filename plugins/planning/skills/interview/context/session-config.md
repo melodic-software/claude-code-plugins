@@ -2,10 +2,14 @@
 
 Reference detail for the `## Session-config recommendation (model, effort, advisor)`
 section of `SKILL.md`.
-Read on demand when forming the recommendation at the interview's stop/handoff
-boundary. The interview already reads task complexity and ambiguity to drive its
-rounds; this turns that read into a recommendation for how the **downstream
-execution session** should be configured.
+Read on demand when forming the recommendation — at the stop/handoff boundary for an
+engineering session, or at the early post-survey surface (and again at the stop
+boundary) for a general/terminal session. The interview already reads task complexity
+and ambiguity to drive its rounds; this turns that read into a recommendation for how
+the session that carries the work forward should be configured — the **downstream
+execution session** an engineering session hands off to, or, when the session is
+terminal with no downstream consumer (a general decision, per SKILL.md Step 5), the
+**current/next session**, applied now.
 
 ## Two orthogonal knobs
 
@@ -78,12 +82,32 @@ capability (reading the live effort/advisor state) that does not exist.
 Complexity and ambiguity apply to engineering and general sessions alike — a hard
 general decision can warrant the top model just as a subtle refactor can. Surface the
 recommendation for both; it is orthogonal to the engineering/general domain split and
-to the `me`/`auto`/`lock` action.
+to the `me`/`auto`/`lock` action. Framing differs by what the session hands off to
+(SKILL.md Step 5): an engineering session's recommendation configures the
+**downstream execution session** it hands off to. A general session is **terminal** —
+nothing downstream exists — so its recommendation configures the **current or next
+session**, applied now (`/model` for the model, the effort setting for effort,
+`/advisor` for the advisor), not a session that will never exist.
+
+**Timing differs with the consumer.** The engineering recommendation configures a
+session that has not started yet, so the stop/handoff boundary is early enough. A
+general session's consumer is the session already running the interview — a
+recommendation first emitted at the stop boundary lands after the work it was derived
+from is complete. Surface a first read early, right after the Step 1 survey
+classifies the domain as general, whenever the survey's complexity/ambiguity signals
+warrant a config change — applied then, it improves the substantive rounds
+themselves. Refresh it at the stop boundary as config for the current/next session.
+When the config was raised only at the end, or the user declined a mid-session
+change, offer to re-evaluate the reached understanding under the raised config
+instead of leaving the recommendation purely prospective.
 
 ## Inverse direction — mid-task
 
-The same two signals run mid-task, not only at the interview boundary. If execution
-starts showing **confidently-wrong-despite-context** (raise the model) or
-**under-exploration / under-verification** (raise effort), surface "this may be too
-complex for the current model/effort" and recommend the upgrade with the same
-knob-picking logic — rather than grinding on under a config the task has outgrown.
+The same two signals matter mid-task, not only at the interview boundary — but the
+interview terminates at handoff (SKILL.md Step 5) and nothing wires this context into
+whatever session executes next. Hand it to the **user** as a watch-for at handoff,
+not as an instruction to an executing actor: tell them that if execution starts
+showing **confidently-wrong-despite-context** (a signal to raise the model) or
+**under-exploration / under-verification** (a signal to raise effort), that is their
+cue to raise the corresponding knob — same knob-picking logic as above — rather than
+grinding on under a config the task has outgrown.

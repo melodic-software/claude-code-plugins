@@ -34,6 +34,7 @@ fail() {
   FAILED=$((FAILED + 1))
 }
 assert_eq() { if [[ "$3" == "$2" ]]; then pass "$1"; else fail "$1" "$2" "$3"; fi; }
+assert_not_eq() { if [[ "$3" != "$2" ]]; then pass "$1"; else fail "$1" "anything but: $2" "$3"; fi; }
 assert_contains() { if [[ "$2" == *"$3"* ]]; then pass "$1"; else fail "$1" "contains: $3" "$2"; fi; }
 assert_not_contains() { if [[ "$2" != *"$3"* ]]; then pass "$1"; else fail "$1" "absent: $3" "$2"; fi; }
 
@@ -45,7 +46,8 @@ cat >"$REPO/.work/lanes.json" <<'JSON'
   "prompt_dir": ".work",
   "lanes": [
     { "name": "work",    "prompt": "work.md",    "model": "opus",   "effort": "high" },
-    { "name": "babysit", "prompt": "babysit.md", "model": "sonnet", "effort": "medium" },
+    { "name": "babysit", "prompt": "babysit.md", "model": "sonnet", "effort": "medium",
+      "settings": { "pluginConfigs": { "autonomy@test-marketplace": { "options": { "lane_stop_gate_enabled": true } } } } },
     { "name": "decide",  "prompt": "decide.md" }
   ]
 }
@@ -101,13 +103,37 @@ if [[ "\$1" == "stop" ]]; then exit "\${STUB_CLAUDE_STOP_RC:-0}"; fi
 # STUB_CLAUDE_UPDATE_RC to exercise the refresh-failure abort path.
 if [[ "\$1" == "plugin" ]]; then exit "\${STUB_CLAUDE_UPDATE_RC:-0}"; fi
 STUB
+REAL_GIT="$(command -v git)"
 cat >"$STUB_BIN/git" <<STUB
 #!/usr/bin/env bash
 printf 'git %s\n' "\$*" >>"$CLAUDE_LOG"
 # A test can force a failed \`git pull\` via STUB_GIT_PULL_RC to exercise the
-# refresh-failure abort path. git is only ever invoked for pull here (repos are
-# passed via --repo), so matching on the pull subcommand is sufficient.
-case "\$*" in *pull*) exit "\${STUB_GIT_PULL_RC:-0}" ;; esac
+# refresh-failure abort path. git is invoked for pull, rev-parse, and
+# hash-object here (repos are passed via --repo), so matching on those
+# subcommands is sufficient.
+#
+# hash-object delegates to the real git: the marker's repo key is a genuine
+# digest, and stubbing it would let a broken keying scheme pass. --show-toplevel
+# stands in for a real checkout (the fixture repos are plain directories, not
+# git repos) by echoing the -C directory; STUB_GIT_TOPLEVEL overrides it with a
+# different path, standing in for the canonicalization real git performs when
+# --repo names a symlink. STUB_GIT_REVPARSE_RC deliberately does NOT apply here:
+# an unresolvable HEAD says nothing about the working tree's location.
+case "\$*" in
+*pull*) exit "\${STUB_GIT_PULL_RC:-0}" ;;
+*hash-object*) exec "$REAL_GIT" "\$@" ;;
+*--show-toplevel*)
+  if [[ -n "\${STUB_GIT_TOPLEVEL:-}" ]]; then printf '%s\n' "\$STUB_GIT_TOPLEVEL"; exit 0; fi
+  [[ "\$1" == "-C" ]] || exit 1
+  printf '%s\n' "\$2"
+  exit 0
+  ;;
+*rev-parse*)
+  [[ "\${STUB_GIT_REVPARSE_RC:-0}" != 0 ]] && exit "\${STUB_GIT_REVPARSE_RC}"
+  printf '%s\n' "\${STUB_GIT_REVPARSE_SHA:-deadbeefcafefeedfacefeeddeadbeefcafefeed}"
+  exit 0
+  ;;
+esac
 STUB
 chmod +x "$STUB_BIN/claude" "$STUB_BIN/git"
 
@@ -116,6 +142,14 @@ chmod +x "$STUB_BIN/claude" "$STUB_BIN/git"
 # inspect the log reset it first. Real git is never needed — repos are passed
 # via --repo, so resolve_repo never shells out.
 export PATH="$STUB_BIN:$PATH"
+
+# Launch-commit markers are namespaced by repo (#792 review): the data dir is
+# plugin-wide, but `work` is a conventional lane name in every repo. Mirrors the
+# launcher's own repo_marker_key — a digest of the canonical repo path, not a
+# character fold, so two paths differing only in a folded character keep
+# distinct keys.
+marker_repo_key() { printf '%s' "$1" | git hash-object --stdin; }
+REPO_KEY="$(marker_repo_key "$REPO")"
 
 run_launcher() { bash "$SCRIPT" "$@"; }
 
@@ -148,6 +182,27 @@ rc=$?
 assert_eq "duplicate lane names exit 3" 3 "$rc"
 assert_contains "duplicate lane names named in message" "$out" "duplicate lane names: work"
 
+# The lane name is also the launch-commit marker's filename (#792), so a name
+# that is not a single path component would let two distinct lanes share one
+# marker (`work` vs `group/../work`) or escape the data dir entirely.
+for bad_name in 'group/../work' 'back\slash' '.' '..'; do
+  jq -n --arg n "$bad_name" \
+    '{lanes: [{name: $n, prompt: "work.md"}, {name: "other", prompt: "babysit.md"}]}' \
+    >"$TMP/traversal.json"
+  out="$(run_launcher start --repo "$REPO" --config "$TMP/traversal.json" --agents-json "$AGENTS_EMPTY" --dry-run 2>&1)"
+  rc=$?
+  assert_eq "lane name '$bad_name' is rejected with exit 3" 3 "$rc"
+  assert_contains "lane name '$bad_name' is named in the message" "$out" "$bad_name"
+done
+
+# …but a name with any other punctuation stays free-form and is accepted.
+cat >"$TMP/ok-name.json" <<'JSON'
+{ "lanes": [ { "name": "work.2 (alt)", "prompt": "work.md" } ] }
+JSON
+out="$(run_launcher start --repo "$REPO" --config "$TMP/ok-name.json" --agents-json "$AGENTS_EMPTY" --dry-run 2>&1)"
+rc=$?
+assert_eq "a free-form lane name without path separators is accepted" 0 "$rc"
+
 # ============================================================================
 # status
 # ============================================================================
@@ -171,6 +226,26 @@ assert_contains "start seeds prompt as placeholder" "$out" "<prompt:"
 assert_not_contains "start hides prompt body" "$out" "You are the babysit lane"
 assert_contains "start launches decide (no model/effort)" "$out" "claude --bg -n decide"
 assert_not_contains "decide has no model flag" "$out" "-n decide --model"
+assert_contains "start passes babysit settings inline" "$out" "--settings"
+assert_contains "start settings carry the lane config object" "$out" "lane_stop_gate_enabled"
+assert_not_contains "work has no settings flag" "$out" "-n work --settings"
+
+# per-lane settings must be a JSON object — a non-object skips that lane only
+cat >"$TMP/badsettings.json" <<'JSON'
+{
+  "prompt_dir": ".work",
+  "lanes": [
+    { "name": "work",   "prompt": "work.md", "settings": "not-an-object" },
+    { "name": "decide", "prompt": "decide.md" }
+  ]
+}
+JSON
+outbad="$(run_launcher start --repo "$REPO" --config "$TMP/badsettings.json" --agents-json "$AGENTS_EMPTY" --dry-run --no-pull --no-update 2>&1)"
+rcbad=$?
+assert_contains "non-object settings skips the lane with an error" "$outbad" "settings must be a JSON object"
+assert_not_contains "non-object settings lane not launched" "$outbad" "claude --bg -n work"
+assert_contains "other lanes still launch past a bad-settings lane" "$outbad" "claude --bg -n decide"
+assert_eq "bad settings surfaces a non-zero exit" 1 "$rcbad"
 
 # refresh step present by default; suppressible
 assert_contains "start pulls by default" "$out" "git -C $REPO pull --ff-only"
@@ -409,6 +484,129 @@ assert_eq "restart unknown lane exits 3" 3 "$rc"
 assert_contains "restart unknown lane message" "$out" "unknown lane 'does-not-exist'"
 assert_not_contains "restart unknown lane does not pull" "$log" "pull --ff-only"
 assert_not_contains "restart unknown lane does not update the marketplace" "$log" "plugin marketplace update"
+
+# ============================================================================
+# #792 — launch-commit marker: start (real dispatch) writes
+# <data-dir>/lanes/<repo-key>/<name>-launch-commit for every lane it actually launches,
+# holding the captured `git rev-parse HEAD` SHA.
+# ============================================================================
+DATA_DIR="$TMP/data"
+: >"$CLAUDE_LOG"
+out="$(run_launcher start --repo "$REPO" --config "$CONFIG" --agents-json "$AGENTS_EMPTY" --data-dir "$DATA_DIR" 2>&1)"
+rc=$?
+assert_eq "marker: start with all lanes launching exits 0" 0 "$rc"
+marker="$(cat "$DATA_DIR/lanes/$REPO_KEY/work-launch-commit" 2>/dev/null)"
+assert_eq "marker: work marker holds the stubbed HEAD sha" "deadbeefcafefeedfacefeeddeadbeefcafefeed" "$marker"
+marker="$(cat "$DATA_DIR/lanes/$REPO_KEY/babysit-launch-commit" 2>/dev/null)"
+assert_eq "marker: babysit marker holds the stubbed HEAD sha" "deadbeefcafefeedfacefeeddeadbeefcafefeed" "$marker"
+
+# A lane `start` SKIPS (already running) must not get a fresh/overwritten
+# marker — only lanes actually (re)launched this run are recorded.
+DATA_DIR2="$TMP/data2"
+mkdir -p "$DATA_DIR2/lanes/$REPO_KEY"
+printf 'pre-existing-sha\n' >"$DATA_DIR2/lanes/$REPO_KEY/work-launch-commit"
+out="$(run_launcher start --repo "$REPO" --config "$CONFIG" --agents-json "$AGENTS_RUNNING" --data-dir "$DATA_DIR2" 2>&1)"
+marker="$(cat "$DATA_DIR2/lanes/$REPO_KEY/work-launch-commit" 2>/dev/null)"
+assert_eq "marker: skipped (already-running) lane keeps its existing marker" "pre-existing-sha" "$marker"
+marker="$(cat "$DATA_DIR2/lanes/$REPO_KEY/babysit-launch-commit" 2>/dev/null)"
+assert_eq "marker: a lane that DID launch this run still gets one" "deadbeefcafefeedfacefeeddeadbeefcafefeed" "$marker"
+
+# restart re-records the marker for the restarted lane.
+DATA_DIR3="$TMP/data3"
+out="$(run_launcher restart work --repo "$REPO" --config "$CONFIG" --agents-json "$AGENTS_RUNNING" --data-dir "$DATA_DIR3" 2>&1)"
+marker="$(cat "$DATA_DIR3/lanes/$REPO_KEY/work-launch-commit" 2>/dev/null)"
+assert_eq "marker: restart records the marker for the relaunched lane" "deadbeefcafefeedfacefeeddeadbeefcafefeed" "$marker"
+
+# --dry-run mutates nothing: no marker file is written, but the preview names
+# the would-be marker path and the resolved HEAD.
+DATA_DIR4="$TMP/data4"
+out="$(run_launcher start --repo "$REPO" --config "$CONFIG" --agents-json "$AGENTS_EMPTY" --data-dir "$DATA_DIR4" --dry-run 2>&1)"
+assert_contains "marker: dry-run previews the marker write" "$out" "DRY-RUN: write launch-commit marker $DATA_DIR4/lanes/$REPO_KEY/work-launch-commit <- deadbeefcafefeedfacefeeddeadbeefcafefeed"
+if [[ -e "$DATA_DIR4/lanes/$REPO_KEY/work-launch-commit" ]]; then notwritten=1; else notwritten=0; fi
+assert_eq "marker: dry-run writes no file" 0 "$notwritten"
+
+# An unresolvable HEAD (git rev-parse fails) skips the write with a warning on
+# stderr but must NOT fail the lane launch itself (best-effort).
+DATA_DIR5="$TMP/data5"
+out="$(STUB_GIT_REVPARSE_RC=1 run_launcher start --repo "$REPO" --config "$CONFIG" --agents-json "$AGENTS_EMPTY" --data-dir "$DATA_DIR5" 2>&1)"
+rc=$?
+assert_eq "marker: unresolvable HEAD still exits 0 (best-effort)" 0 "$rc"
+assert_contains "marker: unresolvable HEAD warns on skip" "$out" "launch-commit marker skipped"
+if [[ -e "$DATA_DIR5/lanes/$REPO_KEY/work-launch-commit" ]]; then notwritten=1; else notwritten=0; fi
+assert_eq "marker: unresolvable HEAD writes no file" 0 "$notwritten"
+
+# …and when a PREVIOUS launch left a marker, an unrecordable relaunch must
+# remove it rather than let the probe read that older commit as this session's
+# launch point.
+DATA_DIR5B="$TMP/data5b"
+mkdir -p "$DATA_DIR5B/lanes/$REPO_KEY"
+printf 'previouslaunchsha\n' >"$DATA_DIR5B/lanes/$REPO_KEY/work-launch-commit"
+out="$(STUB_GIT_REVPARSE_RC=1 run_launcher restart work --repo "$REPO" --config "$CONFIG" --agents-json "$AGENTS_RUNNING" --data-dir "$DATA_DIR5B" 2>&1)"
+rc=$?
+assert_eq "marker: unrecordable relaunch still exits 0 (best-effort)" 0 "$rc"
+if [[ -e "$DATA_DIR5B/lanes/$REPO_KEY/work-launch-commit" ]]; then stale=1; else stale=0; fi
+assert_eq "marker: unrecordable relaunch invalidates the previous launch's marker" 0 "$stale"
+assert_contains "marker: invalidation is announced on stderr" "$out" "removed the previous launch's marker"
+
+# A write failure (marker path occupied by a directory) is the other
+# unrecordable path: same invalidation, same best-effort exit.
+DATA_DIR5C="$TMP/data5c"
+mkdir -p "$DATA_DIR5C/lanes/$REPO_KEY/work-launch-commit"
+out="$(run_launcher restart work --repo "$REPO" --config "$CONFIG" --agents-json "$AGENTS_RUNNING" --data-dir "$DATA_DIR5C" 2>&1)"
+rc=$?
+assert_eq "marker: failed write still exits 0 (best-effort)" 0 "$rc"
+assert_contains "marker: failed write warns" "$out" "launch-commit marker write failed"
+
+# --dry-run must never touch an existing marker, even when HEAD is unresolvable:
+# it returns before the marker write/invalidate path entirely.
+DATA_DIR5D="$TMP/data5d"
+mkdir -p "$DATA_DIR5D/lanes/$REPO_KEY"
+printf 'previouslaunchsha\n' >"$DATA_DIR5D/lanes/$REPO_KEY/work-launch-commit"
+out="$(STUB_GIT_REVPARSE_RC=1 run_launcher restart work --repo "$REPO" --config "$CONFIG" --agents-json "$AGENTS_RUNNING" --data-dir "$DATA_DIR5D" --dry-run 2>&1)"
+marker="$(cat "$DATA_DIR5D/lanes/$REPO_KEY/work-launch-commit" 2>/dev/null)"
+assert_eq "marker: dry-run leaves an existing marker untouched" "previouslaunchsha" "$marker"
+
+# CLAUDE_PLUGIN_DATA env var is honored when --data-dir is not passed.
+DATA_DIR6="$TMP/data6"
+out="$(CLAUDE_PLUGIN_DATA="$DATA_DIR6" run_launcher start --repo "$REPO" --config "$CONFIG" --agents-json "$AGENTS_EMPTY" 2>&1)"
+marker="$(cat "$DATA_DIR6/lanes/$REPO_KEY/work-launch-commit" 2>/dev/null)"
+assert_eq "marker: falls back to \$CLAUDE_PLUGIN_DATA when --data-dir is unset" "deadbeefcafefeedfacefeeddeadbeefcafefeed" "$marker"
+
+# The data dir is plugin-wide, so a second repo running the same conventional
+# lane name must not overwrite the first repo's marker.
+REPO_B="$TMP/repo-b"
+mkdir -p "$REPO_B/.work"
+cp "$REPO/.work/lanes.json" "$REPO_B/.work/lanes.json"
+cp "$REPO/.work/work.md" "$REPO/.work/babysit.md" "$REPO/.work/decide.md" "$REPO_B/.work/"
+REPO_B_KEY="$(marker_repo_key "$REPO_B")"
+DATA_DIR7="$TMP/data7"
+mkdir -p "$DATA_DIR7/lanes/$REPO_KEY"
+printf 'repo-a-sha\n' >"$DATA_DIR7/lanes/$REPO_KEY/work-launch-commit"
+out="$(run_launcher start --repo "$REPO_B" --config "$REPO_B/.work/lanes.json" --agents-json "$AGENTS_EMPTY" --data-dir "$DATA_DIR7" 2>&1)"
+marker="$(cat "$DATA_DIR7/lanes/$REPO_KEY/work-launch-commit" 2>/dev/null)"
+assert_eq "marker: launching 'work' in another repo leaves repo A's marker intact" "repo-a-sha" "$marker"
+marker="$(cat "$DATA_DIR7/lanes/$REPO_B_KEY/work-launch-commit" 2>/dev/null)"
+assert_eq "marker: the other repo gets its own namespaced marker" "deadbeefcafefeedfacefeeddeadbeefcafefeed" "$marker"
+
+# The repo key must be injective. A character fold (`tr -c 'A-Za-z0-9_-' '-'`)
+# collapses these two real, distinct checkout paths onto one key — the exact
+# collision the repo namespace exists to prevent.
+fold_key_a="$(printf '%s' "$TMP/repos/foo-bar" | git hash-object --stdin)"
+fold_key_b="$(printf '%s' "$TMP/repos/foo/bar" | git hash-object --stdin)"
+assert_not_eq "marker: repo key does not collide across fold-equivalent paths" \
+  "$fold_key_a" "$fold_key_b"
+
+# The key must come from git's canonical toplevel, not the --repo argument
+# verbatim: when --repo names a symlink, git resolves it and the documented
+# probe (which asks git directly) would otherwise look under a different key.
+# STUB_GIT_TOPLEVEL stands in for that resolution.
+DATA_DIR8="$TMP/data8"
+CANONICAL="$TMP/canonical-repo"
+out="$(STUB_GIT_TOPLEVEL="$CANONICAL" run_launcher start --repo "$REPO" --config "$CONFIG" --agents-json "$AGENTS_EMPTY" --data-dir "$DATA_DIR8" 2>&1)"
+marker="$(cat "$DATA_DIR8/lanes/$(marker_repo_key "$CANONICAL")/work-launch-commit" 2>/dev/null)"
+assert_eq "marker: keys on git's canonical toplevel, not the --repo argument" "deadbeefcafefeedfacefeeddeadbeefcafefeed" "$marker"
+if [[ -e "$DATA_DIR8/lanes/$REPO_KEY/work-launch-commit" ]]; then usedarg=1; else usedarg=0; fi
+assert_eq "marker: nothing is written under the un-canonicalized --repo key" 0 "$usedarg"
 
 # ============================================================================
 echo
