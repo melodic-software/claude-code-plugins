@@ -87,8 +87,13 @@ gates:
   #     the only changed file. An archive matches no `*.go`/`*.proto` pattern, so a hand-edited or
   #     stale one would otherwise be skipped in silence unless some other input changed alongside
   #     it — the same reachability rule `*.pb.go` follows, which is why it appears in both lists.
-  # A repo that cannot dedicate a directory `out` must drop `--clean`, and loses orphan detection
-  # with it — the deletion above is the only signal a sourceless output produces.
+  # A repo that cannot dedicate a directory `out` must turn cleaning off in BOTH places: drop
+  # `--clean` here AND clear `clean` in its own buf.gen.yaml. The config field cleans on its own —
+  # "when set to true, `buf generate` deletes all directories, zip files, and/or jar files
+  # specified by the `out` field for each plugin before running code generation" — so dropping the
+  # flag alone still deletes the hand-maintained files this precondition is about, on exactly the
+  # repos that cannot satisfy it. Either way orphan detection goes with it — the deletion above is
+  # the only signal a sourceless output produces.
   # The pathspec must cover every plugin buf.gen.yaml configures, not just protoc-gen-go's
   # `*.pb.go` — a repo that also runs grpc-gateway writes `*.pb.gw.go`, and every other configured
   # plugin writes its own extension again, so scoping to one plugin's output would leave --clean's
