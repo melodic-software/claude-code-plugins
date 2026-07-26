@@ -35,6 +35,23 @@ is the reason the envelope is safe to make mandatory.
    prerequisite.
 3. **Apply project fit.** The consuming project's conventions and stated direction live with the
    parent; a fresh worker has no access to them.
+4. **Write both results back into the artifact.** This is the obligation easiest to drop, and
+   dropping it silently negates the artifact's central promise — that a fresh session can resume
+   reading the artifact alone. The producer returns `verification: pending` *because it may not
+   self-grade*, not because the question is permanently open; a parent that verifies and then leaves
+   the index saying `pending` has produced an artifact that permanently understates what is known,
+   and a later reader cannot tell an unverified run from a verified one whose result went unrecorded.
+
+   Concretely, once the sibling verifier returns and project fit is applied, the parent updates the
+   index's outcome-gate result: `verification: pending` becomes the verifier's verdict, the verifier
+   rows carry pass or the criterion that failed, and project fit is recorded as its own finding
+   against the consuming project's conventions. A FAIL on a verifier row sends the run back to the
+   phase that row names — the gate's own routing — rather than shipping an artifact annotated with
+   its own failure.
+
+   The verifier writes nothing itself. It never saw the run, it holds no envelope, and giving a
+   second worker write access to the same slice reintroduces exactly the one-writer-per-slice problem
+   the sub-slice rule exists to prevent. It returns a verdict; the parent persists it.
 
 ## Preload liveness — why a sentinel at all
 

@@ -109,7 +109,7 @@ reports "already configured".
 
 A tracked `.claude/topic-docs.yaml` carrying the chosen values, plus a one-line summary of what was
 written and how to re-run this setup to reconfigure. Note in the summary that the concern file governs
-where every discovery skill (`/discovery:explore`, `/discovery:research`, and their `-deep` variants)
+where every discovery skill (`/discovery:explore`, `/discovery:research`, `/discovery:research-deep`, and the agents they dispatch)
 lands handoff artifacts.
 
 ## Gotchas
@@ -129,7 +129,7 @@ lands handoff artifacts.
 ## What this skill does NOT do
 
 - Run an exploration or research pass — that is the plugin's discovery skills (`/discovery:explore`,
-  `/discovery:research`, and their `-deep` variants).
+  `/discovery:research`, and `/discovery:research-deep`).
 - Write machine-local state — configuration lives in the consumer's tracked concern file, never in the
   plugin directory or the plugin data directory (`${CLAUDE_PLUGIN_DATA}` is for caches and generated
   state only).
