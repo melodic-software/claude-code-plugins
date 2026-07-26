@@ -230,15 +230,19 @@ unchanged and bind every member.
    Where the in-scope set does not fit, prefer shrinking it — gate the
    situational tier harder — over splitting. If you must split, **say so in
    the report**: every member in a later wave inherits the earlier waves'
-   ledgers and can be anchored by them, and a retried member additionally
-   inherits its own discarded response. That is a real weakening of the
-   independence the dedup relies on, and it is disclosed, not hidden.
-   Checkpoint the collected
-   ledgers after each wave, as the `-deep` siblings do, so a crash mid-fan-out
-   does not lose completed waves. Retry only a failed subset, once — and
-   **failure includes a ledger returned without verified inheritance proof**,
-   not only an errored dispatch: a fabricated ledger is the exposure the retry
-   rule exists for. A member still unproven after its one retry is reported
+   ledgers and can be anchored by them. That is a real weakening of the
+   independence the dedup relies on, and it is disclosed, not hidden. Only a
+   split fan-out needs the `-deep` siblings' per-wave checkpointing of the
+   collected ledgers; a single wave has no partial state to lose.
+
+   **Retry, and what counts as a failure.** Retry only a failed subset, once —
+   and **failure includes a ledger returned without verified inheritance
+   proof**, not only an errored dispatch: a fabricated ledger is the exposure
+   the retry rule exists for. A retry is always anchored, one wave or many: it
+   spawns after other members' ledgers have landed, so it inherits them. Say
+   so for each retried member, and weigh it — where the batch can afford it,
+   re-running the whole pass clean is worth more than one anchored ledger. A
+   member still unproven after its one retry is reported
    open, and the verified ledgers are kept and corrected — see the preflight's
    mid-fan-out rule; only a failed canary collapses the pass to the digest.
 2. **Collect** every ledger.
