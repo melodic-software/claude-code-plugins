@@ -3,6 +3,31 @@
 All notable changes to the `ai-briefing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.4]
+
+### Changed
+
+- **The IPv4 registry-completeness claim now carries its snapshot date.** `0.6.3`
+  asserted the non-global IPv4 list is complete against the IANA IPv4
+  Special-Purpose Address Registry without saying when that was checked. It is a
+  point-in-time claim IANA can invalidate by adding a row, so both the code
+  comment and the entry above now state the fetch date (2026-07-26). No predicate
+  change — a reader can now tell how old the guarantee is.
+
+### Added
+
+- **A test that fails if the link-reachability predicate is bypassed.** Nothing in
+  the suite distinguished "checked and passed" from "skipped everything and
+  passed": every case asserted the predicate's own verdict, so a predicate that
+  resolved to something merely truthy, or answered the same way for every input,
+  would have looked identical to a working one. The new case asserts the resolved
+  values are STRICT booleans and that they differ by input, so an always-skip
+  regression fails here instead of passing silently.
+
+  Note the residual: this suite does not run in CI (`ci.yml`'s only `npm test`
+  steps cover `plugins/miro` and the youtube extraction directory), so the
+  assertion guards local runs only until that gap is closed.
+
 ## [0.6.3]
 
 ### Security

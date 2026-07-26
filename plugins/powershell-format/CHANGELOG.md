@@ -3,6 +3,24 @@
 All notable changes to the `powershell-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.1]
+
+### Security
+
+- **`Invoke-Expression` is refused in every form, and a module-qualified loader
+  name is normalized before the loader test.** Two ways a load escaped `0.6.0`'s
+  approval signature:
+  - `iex '. "$PSScriptRoot/helper.ps1"'` — the argument is CODE, not a path, so
+    queuing it as a candidate resolved nothing and the file the evaluated string
+    dot-sources never entered the signature. Binding it would mean recursively
+    parsing evaluated text, so `Invoke-Expression`/`iex` now refuses approval
+    outright; a linter rule has no reason to evaluate text.
+  - `Microsoft.PowerShell.Core\Import-Module ./deps/helper.psm1` — `GetCommandName`
+    returns the qualified spelling, which an exact-name membership test did not
+    recognize as the loader it resolves to, and the path is unquoted so the text
+    scan missed it too. The bare name after the last qualifier separator is now
+    what the loader and evaluator tests see.
+
 ## [0.6.0]
 
 ### Security

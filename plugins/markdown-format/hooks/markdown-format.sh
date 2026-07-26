@@ -224,7 +224,7 @@ CONFIG_ROOT="$(cd "$REPO_ROOT" 2>/dev/null && pwd -P)" || CONFIG_ROOT="$REPO_ROO
 CONFIG_TARGET_DIR="$(cd "$(dirname "$FILE")" 2>/dev/null && pwd -P)" ||
   CONFIG_TARGET_DIR="$(dirname "$FILE")"
 collect_risky_configs() {
-  local cursor dir candidate config risky
+  local cursor dir candidate config risky quoted_escape_re
   local dirs=()
 
   cursor="$CONFIG_TARGET_DIR"
@@ -295,17 +295,28 @@ collect_risky_configs() {
         # the tier-one match suppress the tier-two verdict — the collector would
         # then hash the raw escaped spelling rather than the file markdownlint
         # decodes it to and loads, leaving an approval valid across edits to it.
+        # Tier two matches ANY backslash inside a double-quoted scalar rather
+        # than an enumerated escape list. Both grammars decode more than
+        # `\uXXXX`: JSON also defines `\/`, which decodes to a plain `/`, and
+        # YAML adds `\x`/`\U` plus a dozen more. Enumerating them is the same
+        # unbounded shape that kept reopening the specifier findings, and the
+        # only property that matters is whether the raw text this scan resolves
+        # can differ from the path the parser decodes — a backslash is exactly
+        # that signal, whatever follows it.
         risky=0
         if grep -Eq 'customRules|markdownItPlugins|outputFormatters' "$config" 2>/dev/null; then
           risky=1
         fi
-        if [[ "$config" == *.jsonc ]] &&
-          grep -Eq '\\u[0-9a-fA-F]{4}' "$config" 2>/dev/null; then
+        # ANSI-C quoting for the pattern: a trailing escaped backslash in a
+        # single-quoted string reads as an attempted quote escape.
+        quoted_escape_re=$'"[^"]*\\\\'
+        if [[ "$config" == *.jsonc || "$config" == *.yaml ]] &&
+          grep -Eq "$quoted_escape_re" "$config" 2>/dev/null; then
           risky=1
           RISK_UNVERIFIABLE=1
         fi
         if [[ "$config" == *.yaml ]] &&
-          grep -Eq '\\[xuU][0-9a-fA-F]|\\$|!![A-Za-z]' "$config" 2>/dev/null; then
+          grep -Eq '\\$|!![A-Za-z]' "$config" 2>/dev/null; then
           risky=1
           RISK_UNVERIFIABLE=1
         fi

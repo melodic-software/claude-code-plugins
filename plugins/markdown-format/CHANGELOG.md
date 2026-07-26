@@ -3,6 +3,22 @@
 All notable changes to the `markdown-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.1]
+
+### Security
+
+- **A backslash anywhere in a quoted module value now refuses approval, in both
+  declarative grammars.** `0.7.0`'s escape tier matched only `\uXXXX` in JSONC and
+  an enumerated `\x`/`\u`/`\U` list in YAML, so `"./rules\/local.cjs"` slipped
+  past: JSON defines `\/`, which decodes to a plain `/`, and YAML defines a dozen
+  more escapes. The collector then hashed the raw backslash-bearing spelling
+  rather than the file markdownlint decodes it to and loads, so an approval stayed
+  valid while that rule module was edited. Enumerating escapes is the same
+  unbounded shape that kept reopening the specifier findings; the only property
+  that matters is whether the raw text this scan resolves can differ from the
+  decoded path, and a backslash is exactly that signal whatever follows it.
+  Declarative configs with no backslash in a quoted value are unaffected.
+
 ## [0.7.0]
 
 ### Security

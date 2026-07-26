@@ -649,7 +649,11 @@ rm -f "$REPO_CRP/rules/deps/UsingAsm.dll"
 #              which an unbounded expansion would rewrite and then call pinnable
 #   pipeline   the loader takes its source from the UPSTREAM pipeline element,
 #              so its own arguments are just a constant command name
-for form in composed envvar othervar bareimport lookalike pipeline; do
+#   evaluated  Invoke-Expression with a CONSTANT string: the argument is code,
+#              not a path, and the code it evaluates loads a file of its own
+#   qualified  a module-qualified loader name, which an exact-name membership
+#              test does not recognize as the loader it resolves to
+for form in composed envvar othervar bareimport lookalike pipeline evaluated qualified; do
   cp "$REPO_CRP/rules/CleanRules.psm1" "$WORK/CleanRules.psm1.bak"
   case "$form" in
   composed)
@@ -685,6 +689,16 @@ EOF
   pipeline)
     cat >>"$REPO_CRP/rules/CleanRules.psm1" <<'EOF'
 Get-Content (Join-Path $PSScriptRoot "deps" "PipeSrc.ps1") -Raw | Invoke-Expression
+EOF
+    ;;
+  evaluated)
+    cat >>"$REPO_CRP/rules/CleanRules.psm1" <<'EOF'
+Invoke-Expression (Get-Content -Raw ./deps/EvalSrc.ps1)
+EOF
+    ;;
+  qualified)
+    cat >>"$REPO_CRP/rules/CleanRules.psm1" <<'EOF'
+Microsoft.PowerShell.Core\Import-Module $env:PSSA_QUALIFIED_MOD
 EOF
     ;;
   *) fail "unknown unpinnable fixture: $form" ;;

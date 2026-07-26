@@ -34,7 +34,8 @@ function isCitationOnlyHost(hostname) {
 // global unicast is not one prefix — it is 1.0.0.0 through 223.255.255.255 minus
 // the carve-outs — so the two ends are handled by range (`a === 0`, `a >= 224`)
 // and the middle needs the registry's blocks enumerated either way. The list is
-// complete against the registry; the only rows omitted are those the registry
+// complete against the registry as fetched 2026-07-26 — a point-in-time claim,
+// since IANA can add a row; the only rows omitted are those the registry
 // marks globally reachable (the AS112, AMT, PCP and TURN anycast assignments).
 function isPrivateIPv4(host) {
 	const octets = host.split(".").map(Number);

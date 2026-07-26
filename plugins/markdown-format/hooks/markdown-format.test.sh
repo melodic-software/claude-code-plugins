@@ -965,6 +965,44 @@ else
 fi
 rm -rf "$REPO/rules"
 
+# A backslash inside a quoted scalar means the raw text this scan resolves can
+# differ from the path the parser decodes: JSON defines \\/ (a plain slash) and
+# YAML adds a dozen more. Both grammars must refuse approval, whatever the
+# escape is, and whether or not a literal risky key is also present.
+BS2=$'\\'
+for grammar in jsonc yaml; do
+  rm -f "$ORIGINAL_CONFIG" "$REPO/.markdownlint-cli2.yaml"
+  case "$grammar" in
+  jsonc)
+    target="$ORIGINAL_CONFIG"
+    cat >"$target" <<JSONC
+{
+  "customRules": ["./rules${BS2}/local.cjs"],
+  "noBanner": true
+}
+JSONC
+    ;;
+  yaml)
+    target="$REPO/.markdownlint-cli2.yaml"
+    cat >"$target" <<YAML
+customRules: ["./rules${BS2}/local.cjs"]
+noBanner: true
+YAML
+    ;;
+  *) fail "unknown grammar: $grammar" ;;
+  esac
+  printf '# Executable config\n\nClean text.' >"$TRUST_FILE"
+  OUT_ESC="$(cd "$UNRELATED" && printf '{"session_id":"esc-%s","tool_input":{"file_path":"%s"}}' "$grammar" "$TRUST_FILE" |
+    env -u CLAUDE_PROJECT_DIR CLAUDE_PLUGIN_DATA="$TRUST_DATA" CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true bash "$HOOK")"
+  if printf '%s' "$OUT_ESC" | jq -e '(.systemMessage | contains("defeat textual verification")) and (.systemMessage | contains("mkdir -p") | not)' >/dev/null 2>&1 &&
+    ! has_final_newline "$TRUST_FILE"; then
+    ok "escaped module value in $grammar refuses approval"
+  else
+    fail "escaped $grammar module value was not refused: $OUT_ESC"
+  fi
+  rm -f "$target"
+done
+
 # A YAML plain scalar carries no quotes, so the quoted-string scan never saw
 # `customRules: [./rules/local.cjs]` and the module stayed out of the signature:
 # the config-only marker approved, then changing the rule file kept it valid.
