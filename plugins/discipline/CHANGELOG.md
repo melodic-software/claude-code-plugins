@@ -5,6 +5,81 @@ All notable changes to the `discipline` plugin are documented here. Format follo
 
 Entries below `0.9.0` were released under the plugin's former name, `re-anchor`.
 
+## [0.10.0]
+
+### Fixed
+
+- **`sweep-all`: the fork stop-rule was inert — nothing defined how to evaluate its guard
+  (`#1621`).** The runbook said "if forks are unavailable, report that the inheriting audit
+  fan-out cannot run and stop," but no part of the plugin defined how to determine that.
+  A rule whose guard cannot be evaluated is inert, not merely under-specified: the path that
+  actually ran was the blind one — non-inheriting subagents fabricating ledgers from their
+  system prompt, merged at step 3 and **written to the working tree** at step 4. Observed, not
+  hypothetical: a real full-batch run dispatched eight forks, all eight came back with no
+  inherited conversation, and only two subagents' refusal to invent a ledger stopped eight
+  fabrications from being merged.
+
+  A **preflight** now runs before the fan-out, in two stages. Stage 1 is a zero-dispatch paired
+  tool-schema read, and it deliberately **never gates**: fork mode "removes the
+  `run_in_background` parameter from the `Agent` tool"
+  (<https://code.claude.com/docs/en/sub-agents>) while `CLAUDE_CODE_DISABLE_BACKGROUND_TASKS`
+  removes it from "Bash and subagent tools" (<https://code.claude.com/docs/en/env-vars>), so
+  the pair discriminates those two causes — but the docs tie removal to the env-var path only
+  and say nothing about the server-side rollout, so no branch is conclusive and shipping it as
+  a gate would silently downgrade a working sweep. Stage 2 is the decider: an inheritance-proof
+  canary folded into the lowest-ranked member's real audit, so it costs nothing the batch would
+  not have spent. The runbook specifies the proof question's *properties* rather than a fixed
+  question, and the main thread **fails closed** — absent, ambiguous, or unverifiable proof
+  counts as not inherited.
+
+- **`sweep-all`: the degraded mode existed only in `setup`, a file a sweep never loads
+  (`#1621`).** `setup` declared "where it is off, only the session-start posture digest runs"
+  while `sweep-all` declared "report and stop" — two contracts for one condition, and the
+  better one where the sweep could not read it, so the operator got nothing at all. The
+  degraded pass now lives in `sweep-all` (posture digest, the reason and the signal that
+  established it, and the direct-invocation path), and `setup` points at it instead of
+  restating it. This **refutes** the framing the audit was commissioned with: the brief asserted
+  no degraded mode existed and proposed a three-rung fallback ladder — a degraded mode was
+  already the plugin's declared position, and the ladder (audits weaker than the ones the skill
+  halts to avoid) is deliberately **not** built.
+
+- **`sweep-all`: "make NO writes" was presented as though the harness enforced it (`#1622`).**
+  It cannot. A named subagent's tools can be narrowed with `tools` / `disallowedTools`; forks
+  "skip both filters and receive the main conversation's exact tool pool"
+  (<https://code.claude.com/docs/en/sub-agents>), so every audit fork holds Write, Edit, and
+  Bash and is only *asked* not to use them — and the declared delta's safety argument rested on
+  that property. The skill now says so plainly, and adds the documented containment: each fork
+  is dispatched with `isolation: "worktree"`, so a fork that writes anyway lands its edits
+  outside the user's checkout. Stated as containment, not a guarantee — a fork's Bash can still
+  reach the network, `~/.claude`, and paths outside the checkout, and the docs state nothing
+  about non-git projects or a session already inside a worktree.
+
+- **`sweep-all`: the wave cap imported a number calibrated for a different kind of subagent, and
+  the shared budget was unmodeled (`#1623`).** "Like the `-deep` siblings" resolved to "roughly
+  a dozen", which is sized for cheap fresh-context subagents and exceeds
+  `CLAUDE_CODE_MAX_TOOL_USE_CONCURRENCY` (documented default 10); it also silently dropped those
+  siblings' mid-run checkpointing. The cap is now an explicit four forks per wave, the shared
+  `CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS` (default 20) and
+  `CLAUDE_CODE_MAX_SUBAGENTS_PER_SESSION` (default 200) budgets are modeled, and per-wave
+  checkpointing is restored.
+
+- **`sweep-all`: the retry rule never defined failure (`#1621`).** "Retry only a failed subset,
+  once" did not cover the actual exposure — a fabricated ledger is not an errored dispatch.
+  Failure now explicitly includes a ledger returned without verified inheritance proof.
+
+### Changed
+
+- **`sweep-all`: the undocumented fork-off fallback is now labelled as an observation.** The
+  runbook asserted that requesting the `fork` type with fork mode off "falls back to a fresh
+  general-purpose subagent" as though it were documented harness behavior. It appears on no
+  current official page. It is now flagged observed-not-documented, and the preflight no longer
+  depends on it — it proves inheritance positively instead of predicting the shape of its
+  absence. (Asserting undocumented behavior as fact is precisely what this plugin's flagship
+  corrector exists to catch.)
+
+- **`sweep-all` evals: two entries for paths every existing eval assumed away** — the
+  fork-unavailable degrade, and the fork tool pool being contained rather than enforced.
+
 ## [0.9.0]
 
 ### Changed

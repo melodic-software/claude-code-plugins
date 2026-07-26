@@ -54,6 +54,78 @@ always-run, `demote` drops a core corrector to relevance-gated. Report the
 net effect when an overlay changes the resolved set. Zero-config = tiers
 exactly as the correctors declare them.
 
+## Preflight: prove the fan-out can inherit (before step 1)
+
+The batched pass is only meaningful if its subagents actually inherit this
+conversation — establish that before dispatching, never by assuming it. A
+subagent with no history fabricates a ledger from its system prompt; step 3
+merges it and step 4 **writes its remedies to the working tree**. That is the
+failure this preflight exists to prevent: a correctness pass whose failure mode
+is confident, invented corrections applied to real files.
+
+**Stage 1 — read your own tool schemas. Zero dispatch, diagnostic only.** Two
+documented sentences pair up: fork mode "removes the `run_in_background`
+parameter from the `Agent` tool", while `CLAUDE_CODE_DISABLE_BACKGROUND_TASKS`
+set to `1` removes it from "Bash and subagent tools"
+(<https://code.claude.com/docs/en/sub-agents>,
+<https://code.claude.com/docs/en/env-vars>). So `Agent` still carrying it means
+fork mode is not env-var-enabled; `Agent` lacking it **while `Bash` keeps it**
+excludes the disabled-background-tasks cause and leaves fork mode as the
+remaining documented explanation; both lacking it says nothing about fork mode.
+**This stage never gates** — the docs tie the removal to the env-var path and
+say nothing about what the server-side rollout does to the parameter, so no
+branch is conclusive in either direction. It explains what stage 2 finds; it
+never replaces stage 2 and never aborts on its own.
+
+**Stage 2 — an inheritance-proof canary. The decider, at no extra cost.** Fold
+it into the first member's real audit: dispatch the lowest-ranked in-scope
+corrector's fork ALONE, ahead of the first wave, and gate the rest of the
+fan-out on it. Nothing is spent that the batch would not have spent anyway.
+
+Every fork — canary and members alike — answers one inheritance-proof question
+FIRST, before any audit content, and stops and says so plainly if it cannot.
+Conversations differ, so specify the question's *properties*, not a fixed
+question. All three are required:
+
+- **Its answer exists only in this conversation's history** — not in a file, not
+  in a `CLAUDE.md` (a non-fork subagent still receives the whole CLAUDE.md
+  hierarchy and your delegation message), not derivable from this plugin.
+- **The dispatch prompt neither contains nor paraphrases the answer** — else a
+  non-inheriting subagent answers it from the prompt alone.
+- **It keys on ordinary inherited material** — a prior user turn or tool result.
+  Out-of-band or host-injected content is not reliably inherited (observed once
+  in a fork-enabled session: an out-of-band advisor result was absent from a
+  fork's inherited transcript — not documented behavior, and a proof keyed on it
+  would have read as a false negative).
+
+**Verify on the main thread, and fail closed.** Check the answer against what
+this context knows. Absent, ambiguous, or unverifiable proof counts as NOT
+inherited — a plausible-looking answer is not a pass, because fabrication is the
+exposure being defended against. Verified → keep the canary's ledger (it is a
+real member audit) and fan the rest out. Unproven → degrade; never re-dispatch
+the batch blind.
+
+**A failed preflight degrades; it does not stop empty-handed.** Run the
+session-start posture digest (mode 1) — no fan-out, no cost — and report that
+the inheriting audit fan-out could not run, which signal established that, and
+that every corrector remains available for direct invocation, one at a time,
+each running the shared loop in THIS context with no fork at all. That is the
+same position `setup` reports as the full-batch prerequisite; this runbook is
+where it executes. The batch does **not** sequence the correctors itself as a
+substitute — that recreates the salience dilution the declared delta below
+exists to prevent, and yields audits weaker than the ones it declined to run.
+
+**What is gated, and what is not documented.** `CLAUDE_CODE_FORK_SUBAGENT` set
+to `1` enables fork-spawning and `0` disables it "overriding any server-side
+rollout", and a staged rollout can enable it without the variable
+(<https://code.claude.com/docs/en/env-vars>,
+<https://code.claude.com/docs/en/sub-agents>). What the harness does when the
+`fork` type is requested while fork mode is OFF is **not documented on any
+current page** — observed once, in the failed full-batch run this preflight
+comes from, as subagents returning with no inherited conversation. Treat it as
+an observation, not a contract; the preflight does not rest on it, proving
+inheritance positively rather than predicting the shape of its absence.
+
 ## The batched pass — a declared delta from the shared loop
 
 Recorded here as a **declared delta** per the shared method doc's
@@ -69,17 +141,18 @@ context recreates the salience dilution this plugin exists to fix, and a
 merged pass lets order matter. The shared method's Non-negotiables are
 unchanged and bind every member.
 
-1. **Fan out, audit-only.** For each in-scope corrector, dispatch a
+1. **Fan out, audit-only** — after the preflight above has proved inheritance.
+   For each in-scope corrector, dispatch a
    conversation-inheriting **fork** subagent — the Agent tool's
    `subagent_type: "fork"`, which inherits the full conversation history the
    audit must read. A fresh/typed subagent receives no history, and a
    skill-level `context: fork` also discards it — neither can audit this
-   conversation. Fork-spawning is a rollout-gated capability
-   (`CLAUDE_CODE_FORK_SUBAGENT`); where it is off, requesting the `fork` type
-   falls back to a fresh general-purpose subagent that cannot see the
-   conversation — so if forks are unavailable, report that the inheriting
-   audit fan-out cannot run and stop, rather than auditing blind. Instruct
-   each fork: load exactly this ONE corrector's
+   conversation. Pass `isolation: "worktree"` on each dispatch, so a fork that
+   writes despite the instruction below lands its edits in a separate git
+   worktree rather than the user's checkout — containment for a rule the
+   harness cannot enforce (see Gotchas). Instruct
+   each fork: answer the preflight's inheritance-proof question first, then
+   load exactly this ONE corrector's
    `SKILL.md`, run shared-loop steps 1–2 only (re-anchor + self-audit), make
    NO writes, and return a findings ledger. Each ledger entry carries the
    concrete located finding AND the remedy this corrector would apply for it
@@ -87,8 +160,27 @@ unchanged and bind every member.
    fork still writes nothing), or an honest "clean". Capturing the proposed
    remedy in the audit is what gives step 3 the reporter→remedy data to key on;
    a ledger of bare violations would leave the dedup with nothing to preserve.
-   Cap concurrency in bounded waves like the `-deep`
-   siblings; retry only a failed subset, once.
+
+   **Wave cap, budget, and what counts as a failure.** Dispatch in bounded
+   waves of at most FOUR forks — a number chosen for forks, not imported from
+   the `-deep` siblings, whose "roughly a dozen" is calibrated for cheap
+   fresh-context subagents and exceeds
+   `CLAUDE_CODE_MAX_TOOL_USE_CONCURRENCY` ("Maximum number of read-only tools
+   and subagents that can execute in parallel", documented default 10). The
+   sweep does not own that budget alone: every subagent spawned with the Agent
+   tool — forks included — counts toward
+   `CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS` (documented default 20) and
+   `CLAUDE_CODE_MAX_SUBAGENTS_PER_SESSION` (documented default 200), shared
+   with everything else the session is already running. Check what is already
+   in flight and shrink the wave rather than colliding with
+   `Concurrent subagent limit reached`, which the harness tells Claude not to
+   retry (<https://code.claude.com/docs/en/sub-agents>,
+   <https://code.claude.com/docs/en/env-vars>). Checkpoint the collected
+   ledgers after each wave, as the `-deep` siblings do, so a crash mid-fan-out
+   does not lose completed waves. Retry only a failed subset, once — and
+   **failure includes a ledger returned without verified inheritance proof**,
+   not only an errored dispatch: a fabricated ledger is the exposure the retry
+   rule exists for. A second unproven return degrades per the preflight.
 2. **Collect** every ledger.
 3. **Dedup by root cause.** Before correcting, group ledger entries across
    correctors that name the SAME underlying finding — distinct disciplines
@@ -184,6 +276,21 @@ relevance-gated. Report the net effect whenever the overlay changes the set.
 - **Audit in the forks, correct on the main thread.** Parallel forks that
   wrote would race and re-dilute salience; the value is one ordered
   correction pass.
+- **The forks' no-writes rule is trusted, not enforced — say so.** A named
+  subagent's tool access can be narrowed with `tools` / `disallowedTools`; a
+  fork's cannot. Forks "skip both filters and receive the main conversation's
+  exact tool pool", and a fork's system prompt and tools are "Same as main
+  session" (<https://code.claude.com/docs/en/sub-agents>). So every audit fork
+  holds Write, Edit, and Bash and is only *asked* not to use them. Dispatching
+  with `isolation: "worktree"` contains file edits to a separate worktree
+  instead of the checkout — real containment, not a guarantee: it does not
+  stop a fork's Bash from reaching the network, the user's `~/.claude`, or
+  paths outside the checkout, and the docs state nothing about how it behaves
+  in a non-git project or in a session already inside a worktree. Never
+  present the audit fan-out's read-only posture as harness-enforced.
+- **The preflight is the guard, not an optimization.** Skipping it does not
+  make the sweep cheaper — it makes every ledger unfalsifiable, and step 4
+  writes those ledgers' remedies to the working tree.
 - **Forks run at the parent model's cost.** An Agent-tool fork ignores a model
   override and inherits the whole conversation, so each in-scope corrector's
   audit runs at the parent model over the full transcript; the wave cap bounds

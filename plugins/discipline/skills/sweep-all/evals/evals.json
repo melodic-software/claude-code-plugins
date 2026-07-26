@@ -72,6 +72,30 @@
         "Keeps each reporter's distinct remedy keyed to its reporting corrector and applies every remedy at its own rank",
         "Reports the merged finding once with attribution to all reporting correctors, and keeps the forks' ledgers independent (merge only at consolidation)"
       ]
+    },
+    {
+      "id": 7,
+      "name": "preflight-canary-unproven-degrades-to-digest",
+      "prompt": "sweep all disciplines — full batch over everything we've done in this long session.",
+      "expected_output": "Before fanning out, the skill runs the preflight: the zero-dispatch paired schema check as a diagnostic only, then a single inheritance-proof canary folded into the lowest-ranked member's real audit. When the canary returns a ledger without a verifiable inheritance proof, the skill fails closed — it treats the subagent as non-inheriting rather than accepting a plausible-looking answer, does not re-dispatch the batch blind, and does not merge or act on that ledger. It then degrades to the session-start posture digest, reporting that the inheriting fan-out could not run, which signal established that, and that each corrector remains available for direct invocation. It does not sequence the correctors itself as a substitute batch.",
+      "files": [],
+      "expectations": [
+        "Runs the preflight before the fan-out and treats the zero-dispatch schema check as diagnostic, never as the gate",
+        "Fails closed on absent or unverifiable inheritance proof and never merges or acts on an unproven ledger",
+        "Degrades to the posture digest with the reason reported, rather than stopping empty-handed or auditing blind"
+      ]
+    },
+    {
+      "id": 8,
+      "name": "fork-tool-pool-contained-not-enforced",
+      "prompt": "sweep all disciplines — and confirm the audit forks can't touch my working tree.",
+      "expected_output": "The skill does not claim the audit forks are constrained. It states that a fork receives the main conversation's exact tool pool and cannot be narrowed the way a named subagent's `tools` field can, so 'make NO writes' is an instruction the forks are trusted to honor rather than a harness constraint. It reports the containment it does apply — dispatching each fork with isolation: \"worktree\" so file edits land outside the checkout — along with the residual risk that Bash can still act outside the worktree, and it does not assert undocumented behavior for non-git projects.",
+      "files": [],
+      "expectations": [
+        "States that forks receive the main conversation's exact tool pool and cannot be tool-restricted",
+        "Describes isolation: \"worktree\" as containment rather than enforcement, with residual risk named",
+        "Does not claim the fan-out's read-only posture is enforced by the harness"
+      ]
     }
   ]
 }
