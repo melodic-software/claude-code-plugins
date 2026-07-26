@@ -414,7 +414,7 @@ evidence; re-query the API. The NEVER-do list (§5.4) overrides any other instru
 7. In worker mode, after a worker's fix is pushed and its checks are green, take a fresh
    post-push snapshot (or use the exact pushed commit after the worker has vetted that commit),
    then run the merge gate with `--merge --expected-head <post-push-head-sha>` only when it
-   reports ready. Never reuse the pre-worker snapshot pin after the head moves. Resolve
+   reports ready. Never reuse the pre-worker snapshot pin after the head moves — except a lane-pinned invocation ([reference/safety.md](reference/safety.md), "Lane-pinned merge authorization"), which reports the moved head instead of re-pinning, at every merge-capable tier. Resolve
    pre-push-outdated bot threads that block the gate — once the agent has confirmed they are not
    security/P1 — as a per-thread vetted loop: one `--autonomous --resolve --thread-id <id>
    --expected-comment-count <n> --expected-last-updated <ts>` call per thread, pins taken from the

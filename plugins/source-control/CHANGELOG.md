@@ -38,12 +38,18 @@ All notable changes to the `source-control` plugin are documented here. Format f
   trusted-author list and would call every internally authored PR on an org-owned repo C5. C4
   follows the diff's blast radius: a refactor, migration, or contract change is C4 however its item
   is stamped, and a PR whose shape no longer matches its recorded class fails closed to escalation.
-- **Human blocking feedback, operator-parked items, and merge conflicts stay outside the dispatch.**
-  A human `CHANGES_REQUESTED` review, explicit human blocking language, or an unresolved inline
+- **Human blocking feedback, operator-parked items, and merge conflicts stay outside the dispatch —
+  and outside the merge-capable set.** A human `CHANGES_REQUESTED` review, explicit human blocking
+  language, or an unresolved inline
   human thread remains a stop-and-ask condition per `reference/feedback.md`'s "Human Feedback" — the
-  exception does not amend it, and no dispatch is made. An item wearing the `needs-human` role label
-  without the machine escalation marker is operator-*parked*, belongs to the attended queue, and
-  never draws a dispatch on the label alone. Conflicts route to the dedicated merge-only conflict
+  exception does not amend it, no dispatch is made, and the rung partition withholds the PR from
+  the merge-capable set entirely (routed to `safe`), because a merge-capable tier's own runbook
+  widens thread scope to human threads and the base merge gate does not inspect ordinary human
+  blocking comments. An item wearing the `needs-human` role label
+  without the machine escalation marker is operator-*parked*, belongs to the attended queue, never
+  draws a dispatch on the label alone, and its PR is likewise withheld from the merge-capable set —
+  the merge gate does not inspect the linked item's labels. Conflicts route to the dedicated
+  merge-only conflict
   worker; the dispatch never rebases a PR branch, which would need the force-push forbidden
   cross-tier.
 - **Edit-capable resolution runs the per-PR worker lifecycle, and the partition reruns after it.**

@@ -338,8 +338,9 @@ auto-mode safety classifier and blocks the call before the wrapper runs.
 
 ### Lane-pinned merge authorization: report, don't re-pin
 
-A single-PR merge-capable invocation dispatched by `source-control:babysit-loop`'s rung partition
-carries the lane's **partitioned head SHA** as its merge authorization: the merge gate's
+A single-PR merge-capable invocation dispatched by `source-control:babysit-loop`'s rung partition —
+at **any** merge-capable tier, worker and autopilot alike — carries the lane's **partitioned head
+SHA** as its merge authorization, supplied in the invocation brief: the merge gate's
 `--expected-head` is that partitioned head, never a fresher head this invocation picked itself. The
 lane's partition class-checked exactly that head's diff (work class C2/C3 against the C4/C5 floor),
 and this skill's merge gate does not class-check — so a worker push that moves the head off the pin
