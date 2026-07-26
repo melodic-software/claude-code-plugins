@@ -47,8 +47,10 @@ Read-only, pure git — resolve the default branch rather than assuming `main`:
 git fetch origin -q
 # default branch of this repo — never hardcode main/master
 default="$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null || echo origin/main)"
+# data_dir: paste the `data_dir=…` line SKILL.md's "Mid-session staleness &
+# restart cadence" section carries — it is the ONLY place the real directory is
+# resolvable (see the paragraph below). Do not substitute an env var here.
 # the commit lane-launcher.sh recorded when this lane last (re)started (#792)
-data_dir="${CLAUDE_PLUGIN_DATA:-$HOME/.claude/plugins/data/claude-ops}"
 # tr -d '\r': strip a Windows CRLF read hazard on any captured value (the
 # repo's standing convention — see the CHANGELOG's #1176/F2 note) before it
 # reaches the git log range below.
@@ -57,16 +59,34 @@ lane_launch_commit="$(cat "$data_dir/lanes/<lane>-launch-commit" 2>/dev/null | t
 [[ -n "$lane_launch_commit" ]] && git log --oneline "${lane_launch_commit}..${default}" -- plugins/claude-ops/
 ```
 
+**`data_dir` comes from SKILL.md, not from the environment.** Per current
+[plugins-reference](https://code.claude.com/docs/en/plugins-reference#environment-variables),
+`${CLAUDE_PLUGIN_DATA}` is exported as a real environment variable only to hook
+processes and MCP/LSP server subprocesses; for a plugin's **skill and agent
+content** it instead resolves by inline substitution "anywhere the placeholder
+appears". Both facts cut against resolving it here: this reference file is read
+raw rather than rendered as skill content (so a placeholder written here would
+not substitute), and the probe runs through the Bash tool (so the env var is
+unset there). An env-var-with-fallback expression would therefore have silently
+resolved to the unqualified `~/.claude/plugins/data/claude-ops` guess, missed
+the marketplace-qualified directory Claude Code actually uses, read no marker,
+and skipped the staleness check without saying so. SKILL.md — which *is* skill
+content — carries the substituted `data_dir=` assignment; take it from there.
+
 `<lane-launch-commit>` (substitute the lane's own name for `<lane>` above) is the
 repo HEAD `lane-launcher.sh` captured when `lanes start`/`restart` last (re)started
 that lane — written to `<data-dir>/lanes/<lane>-launch-commit` right after the
 launch's pre-launch pull, for every lane actually (re)started that run (`start`
-leaves the marker untouched for a lane it skipped as already-running). An empty
-`lane_launch_commit` means no marker exists yet for that lane (never
-started/restarted through `lane-launcher.sh` on this machine) — the probe has
-nothing to diff against and is skipped rather than run against a resolved-empty
-range. Any probe output = an unconsumed merge. Swap the pathspec for whichever
-installed plugin a lane runs.
+leaves the marker untouched for a lane it skipped as already-running; a
+(re)start that cannot record its own commit deletes the previous launch's marker
+rather than leaving it to be misread as this session's launch point). The lane
+name is the marker's filename, so config preflight rejects a lane name that is
+not a single path component — the path above is literally true for every
+accepted name. An empty `lane_launch_commit` means no marker exists for that
+lane (never started/restarted through `lane-launcher.sh` on this machine, or the
+last (re)start could not record one) — the probe has nothing to diff against and
+is skipped rather than run against a resolved-empty range. Any probe output = an
+unconsumed merge. Swap the pathspec for whichever installed plugin a lane runs.
 
 **Not an injection vector today, but treat it as untrusted if that ever changes.**
 `lane-launcher.sh` writes `lane_launch_commit` from `git rev-parse HEAD` only — a

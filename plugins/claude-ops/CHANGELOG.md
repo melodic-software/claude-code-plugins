@@ -30,11 +30,33 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   file instead of the unfillable placeholder, with an explicit hex-only-input
   note for anyone who later sources the value from something other than `git
   rev-parse`, and a `tr -d '\r'` strip on the marker read (the repo's standing
-  CRLF-hazard convention for any captured Windows value). 12 new regression
-  cases in `lane-launcher.test.sh` cover the capture/write, the
+  CRLF-hazard convention for any captured Windows value). New regression cases
+  in `lane-launcher.test.sh` cover the capture/write, the
   skip-if-already-running case, `--dry-run` (preview only, no write),
   unresolvable-HEAD (best-effort, no failure), and the `$CLAUDE_PLUGIN_DATA`
   fallback.
+  - The probe's `data_dir` is sourced from `SKILL.md`, which is the only surface
+    where it resolves. Per
+    [plugins-reference](https://code.claude.com/docs/en/plugins-reference#environment-variables),
+    `${CLAUDE_PLUGIN_DATA}` substitutes inline in *skill and agent content* but is
+    exported as a real environment variable only to hook and MCP/LSP subprocesses
+    — and `context/refresh.md` is read raw rather than rendered as skill content.
+    An env-var-with-fallback expression there would have silently resolved to the
+    unqualified `~/.claude/plugins/data/claude-ops` guess, read no marker, and
+    skipped the staleness check without saying so. `SKILL.md` now carries the
+    substituted `data_dir=` assignment and `context/refresh.md` points at it.
+  - A lane name is now validated as a single path component at config preflight
+    (exit `3` on `/`, `\`, `.`, or `..`). The name is the marker's filename, so
+    without that check two distinct configured lanes — `work` and
+    `group/../work` — would share one marker file and a targeted restart of
+    either would make the other's probe read a launch commit it never launched
+    at. Rejecting rather than encoding keeps the documented
+    `<data-dir>/lanes/<lane>-launch-commit` path literally true.
+  - A (re)start that cannot record its own commit (unresolvable HEAD, or a failed
+    write) now removes any marker the previous launch left. Leaving it made the
+    probe treat that older commit as the new session's launch point and report
+    already-consumed merges indefinitely; removing it degrades the probe to its
+    honest "no marker → skip" branch. `--dry-run` still touches nothing.
 
 ## [0.20.0]
 

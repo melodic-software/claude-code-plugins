@@ -65,7 +65,10 @@
 #   the `<lane-launch-commit>` context/refresh.md's staleness probe reads. A
 #   lane skipped by `start` (already running) keeps its existing marker
 #   untouched. Best-effort: a write failure (or an unresolvable HEAD) warns on
-#   stderr but never fails an already-launched session.
+#   stderr but never fails an already-launched session — and removes any marker
+#   the PREVIOUS launch left, so the probe skips rather than trusting a commit
+#   this session never launched at. The lane name is the marker's filename, so
+#   config preflight rejects a name that is not a single path component.
 #
 # Config resolution (first hit wins):
 #   --config FILE  →  $CLAUDE_OPS_LANES_CONFIG  →  <repo>/.work/lanes.json
@@ -259,6 +262,23 @@ resolve_config() {
     err "lane config has duplicate lane names: $dupes (names must be unique): $CONFIG"
     exit 3
   }
+  # The name is also a path component: it keys the per-lane launch-commit marker
+  # at <data-dir>/lanes/<name>-launch-commit (#792). A name carrying a path
+  # separator (or `.`/`..`) would escape that directory and let two distinct
+  # lanes — say `work` and `group/../work` — share one marker file, so a
+  # targeted restart of one would make the other's staleness probe read a launch
+  # commit it never launched at. Reject rather than silently encode, so the
+  # documented marker path stays literally true for every accepted name.
+  local traversal
+  traversal="$(jq -r '
+    [ .lanes[].name
+      | select(. != null)
+      | select(test("[/\\\\]") or . == "." or . == "..") ] | join(", ")' "$CONFIG")"
+  [[ -z "$traversal" ]] || {
+    err "lane config has lane names that are not usable as a path component: $traversal"
+    err "  (a name must not contain '/' or '\\', or be '.' or '..'): $CONFIG"
+    exit 3
+  }
 }
 
 # The one prompt-storage seam — repoint here when a durable prompt home exists.
@@ -293,6 +313,22 @@ capture_launch_commit() {
   LAUNCH_COMMIT="$(git -C "$REPO" rev-parse HEAD 2>/dev/null)" || LAUNCH_COMMIT=""
 }
 
+# A launch that cannot record its own commit must not leave the PREVIOUS
+# launch's marker on disk: the refresh probe would read that older commit as
+# this session's launch point and keep reporting merges the session already
+# consumed — indefinitely, since nothing later rewrites it. Removing it degrades
+# the probe to its honest "no marker → skip" branch instead. Best-effort like
+# the write itself: a failed removal only warns.
+invalidate_launch_commit_marker() {
+  local path="$1"
+  [[ -e "$path" ]] || return 0
+  if rm -f "$path" 2>/dev/null; then
+    err "  removed the previous launch's marker so the staleness probe skips rather than trusts it: $path"
+  else
+    err "  stale launch-commit marker could not be removed — the staleness probe will read an obsolete commit: $path"
+  fi
+}
+
 # Writes the captured launch commit to <data-dir>/lanes/<name>-launch-commit.
 # Best-effort and always returns 0: a marker write failure must never fail a
 # lane that has already (or would already) launch — only warn on stderr. The
@@ -302,10 +338,12 @@ write_launch_commit_marker() {
   local path="$1"
   if [[ -z "$LAUNCH_COMMIT" ]]; then
     err "launch-commit marker skipped for $path: repo HEAD could not be resolved"
+    invalidate_launch_commit_marker "$path"
     return 0
   fi
   if ! mkdir -p "$(dirname "$path")" 2>/dev/null || ! printf '%s\n' "$LAUNCH_COMMIT" >"$path" 2>/dev/null; then
     err "launch-commit marker write failed: $path"
+    invalidate_launch_commit_marker "$path"
   fi
   return 0
 }

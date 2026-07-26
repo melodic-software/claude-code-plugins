@@ -157,6 +157,27 @@ rc=$?
 assert_eq "duplicate lane names exit 3" 3 "$rc"
 assert_contains "duplicate lane names named in message" "$out" "duplicate lane names: work"
 
+# The lane name is also the launch-commit marker's filename (#792), so a name
+# that is not a single path component would let two distinct lanes share one
+# marker (`work` vs `group/../work`) or escape the data dir entirely.
+for bad_name in 'group/../work' 'back\slash' '.' '..'; do
+  jq -n --arg n "$bad_name" \
+    '{lanes: [{name: $n, prompt: "work.md"}, {name: "other", prompt: "babysit.md"}]}' \
+    >"$TMP/traversal.json"
+  out="$(run_launcher start --repo "$REPO" --config "$TMP/traversal.json" --agents-json "$AGENTS_EMPTY" --dry-run 2>&1)"
+  rc=$?
+  assert_eq "lane name '$bad_name' is rejected with exit 3" 3 "$rc"
+  assert_contains "lane name '$bad_name' is named in the message" "$out" "$bad_name"
+done
+
+# …but a name with any other punctuation stays free-form and is accepted.
+cat >"$TMP/ok-name.json" <<'JSON'
+{ "lanes": [ { "name": "work.2 (alt)", "prompt": "work.md" } ] }
+JSON
+out="$(run_launcher start --repo "$REPO" --config "$TMP/ok-name.json" --agents-json "$AGENTS_EMPTY" --dry-run 2>&1)"
+rc=$?
+assert_eq "a free-form lane name without path separators is accepted" 0 "$rc"
+
 # ============================================================================
 # status
 # ============================================================================
@@ -488,6 +509,37 @@ assert_eq "marker: unresolvable HEAD still exits 0 (best-effort)" 0 "$rc"
 assert_contains "marker: unresolvable HEAD warns on skip" "$out" "launch-commit marker skipped"
 if [[ -e "$DATA_DIR5/lanes/work-launch-commit" ]]; then notwritten=1; else notwritten=0; fi
 assert_eq "marker: unresolvable HEAD writes no file" 0 "$notwritten"
+
+# …and when a PREVIOUS launch left a marker, an unrecordable relaunch must
+# remove it rather than let the probe read that older commit as this session's
+# launch point.
+DATA_DIR5B="$TMP/data5b"
+mkdir -p "$DATA_DIR5B/lanes"
+printf 'previouslaunchsha\n' >"$DATA_DIR5B/lanes/work-launch-commit"
+out="$(STUB_GIT_REVPARSE_RC=1 run_launcher restart work --repo "$REPO" --config "$CONFIG" --agents-json "$AGENTS_RUNNING" --data-dir "$DATA_DIR5B" 2>&1)"
+rc=$?
+assert_eq "marker: unrecordable relaunch still exits 0 (best-effort)" 0 "$rc"
+if [[ -e "$DATA_DIR5B/lanes/work-launch-commit" ]]; then stale=1; else stale=0; fi
+assert_eq "marker: unrecordable relaunch invalidates the previous launch's marker" 0 "$stale"
+assert_contains "marker: invalidation is announced on stderr" "$out" "removed the previous launch's marker"
+
+# A write failure (marker path occupied by a directory) is the other
+# unrecordable path: same invalidation, same best-effort exit.
+DATA_DIR5C="$TMP/data5c"
+mkdir -p "$DATA_DIR5C/lanes/work-launch-commit"
+out="$(run_launcher restart work --repo "$REPO" --config "$CONFIG" --agents-json "$AGENTS_RUNNING" --data-dir "$DATA_DIR5C" 2>&1)"
+rc=$?
+assert_eq "marker: failed write still exits 0 (best-effort)" 0 "$rc"
+assert_contains "marker: failed write warns" "$out" "launch-commit marker write failed"
+
+# --dry-run must never touch an existing marker, even when HEAD is unresolvable:
+# it returns before the marker write/invalidate path entirely.
+DATA_DIR5D="$TMP/data5d"
+mkdir -p "$DATA_DIR5D/lanes"
+printf 'previouslaunchsha\n' >"$DATA_DIR5D/lanes/work-launch-commit"
+out="$(STUB_GIT_REVPARSE_RC=1 run_launcher restart work --repo "$REPO" --config "$CONFIG" --agents-json "$AGENTS_RUNNING" --data-dir "$DATA_DIR5D" --dry-run 2>&1)"
+marker="$(cat "$DATA_DIR5D/lanes/work-launch-commit" 2>/dev/null)"
+assert_eq "marker: dry-run leaves an existing marker untouched" "previouslaunchsha" "$marker"
 
 # CLAUDE_PLUGIN_DATA env var is honored when --data-dir is not passed.
 DATA_DIR6="$TMP/data6"

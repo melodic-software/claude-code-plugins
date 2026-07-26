@@ -135,6 +135,23 @@ needed. Full reasoning, the probe, and the cadence live in
 [context/refresh.md](context/refresh.md) — read it before answering "why is my
 merged fix not live in the lane?" or setting a restart frequency.
 
+**Carry this line into that probe** — it is the `data_dir` assignment
+`context/refresh.md` deliberately leaves unresolved, because only skill content
+(this file) substitutes the placeholder:
+
+```bash
+data_dir="${CLAUDE_PLUGIN_DATA}"
+```
+
+Copy it as it renders **here**, already substituted to an absolute path. Writing
+the placeholder — or a `${CLAUDE_PLUGIN_DATA:-…}` env fallback — inside
+`context/refresh.md` would not work: that file is read raw, and per
+[plugins-reference](https://code.claude.com/docs/en/plugins-reference#environment-variables)
+`CLAUDE_PLUGIN_DATA` reaches only hook and MCP/LSP subprocesses as a real
+environment variable, never a script the Bash tool runs. The probe would then
+read the unqualified `~/.claude/plugins/data/claude-ops` guess, find no marker,
+and skip the staleness check silently.
+
 ## Verified CLI surface
 
 The launcher shells out only to primitives confirmed on this machine's `claude`
@@ -169,7 +186,12 @@ only for a configured lane name.
   on a different machine has no marker there yet. A write failure only warns —
   it never fails an already-launched (or already-stopped-and-relaunched) lane —
   so a missing marker means "never started here via `lane-launcher.sh`", not
-  "launcher broken".
+  "launcher broken". A (re)start that *cannot* record its commit also deletes
+  any marker the previous launch left, so "missing" always beats a stale commit
+  the probe would otherwise trust.
+- **A lane name must be a single path component.** It is the marker's filename,
+  so config preflight exits `3` on a name containing `/` or `\`, or equal to `.`
+  or `..` — otherwise two distinct lanes could share one marker.
 
 ## Per-cycle deterministic scripts (#538)
 
