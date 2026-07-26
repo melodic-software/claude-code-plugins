@@ -3,7 +3,7 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.28.1]
+## [0.29.2]
 
 ### Fixed
 
@@ -25,6 +25,53 @@ All notable changes to the `source-control` plugin are documented here. Format f
   `safety.md` states the rule so a future command form does not drop it again. Low severity —
   dormant unless an operator has configured the userConfig key for a non-structurally-detected bot
   account.
+
+## [0.29.1]
+
+### Fixed
+
+- **The guard contract's wrapper-denial table is now bound in both directions.** `WRAPPER_DENIED_FLAGS`
+  records the flags a `bin/` wrapper refuses before Python runs, and a check already proved every
+  *listed* flag is one a `bash-wrapper` refusal row invokes the wrapper to demonstrate. Nothing
+  proved the converse: a new refusal row could demonstrate a second refused flag while the table
+  stayed silent about it, leaving that flag spellable in a documented command — the table would be a
+  subset of the wrapper's behavior while reading as a statement of it. Every bash-wrapper refusal
+  row's named flag must now be covered by the table. A companion assertion pins the premise the
+  separate wrapper check rests on: the merge parser *does* register `--allow-unpinned-head`, which is
+  exactly why a CLI-only check cannot see the wrapper's refusal — if that stops holding, the two
+  checks have collapsed into one and the narrowing is no longer load-bearing. The reverse check also
+  requires each bash-wrapper row to name a `--flag` in `error_contains`: that field is a tuple of
+  asserted output substrings with no invariant that any of them is a flag, so an empty tuple — or an
+  option recorded without its leading dashes — would have passed vacuously, leaving exactly the
+  omission the check exists to catch.
+
+## [0.29.0]
+
+### Changed
+
+- **Merge-conflict resolution splits the resolve from the push.** `babysit-prs` dispatched conflict
+  resolution to a dedicated subagent that also pushed the result. A dispatched subagent starts with
+  a fresh, isolated context window and never sees the parent conversation
+  (<https://code.claude.com/docs/en/sub-agents>), so a host runtime that grants mutation authority
+  only from the operator's own turn cannot observe that grant from inside one — such a push could
+  only ever be refused by that gate or route around it. The conflict worker now does the base fetch,
+  the head assertion, the `git merge` (never rebase), the marker resolution, the local merge commit,
+  and the affected-file verification, and returns one of `resolved` / `escalate` /
+  `verification-impossible` / `no-conflict` without touching GitHub. The orchestrator — which does
+  hold the operator's turn — pushes, fail-closed: only on `resolved`, only after matching the
+  worktree `HEAD` to the reported merge commit, requiring it to have two parents, re-asserting the
+  live PR head against its first parent, and re-running the affected-file verification in the
+  worktree itself; by refspec, never force. A conflict worker remains a worker for every other rule
+  — leases, concurrency cap, check-in — with resolving and not-pushing its only two differences.
+  Every prior invariant is preserved, now with an explicit owner. `reference/orchestration.md`
+  gains the Conflict-Worker and Orchestrator contracts plus a Conflict-Worker Prompt Delta (the
+  regular worker template forbids only *force*-pushing, so a conflict worker needs an affirmative
+  never-push instruction); an escalating conflict worker now preserves its partial resolution on a
+  SHA-qualified `conflict-wip/<pr-number>-<short-sha>` branch — created with hook-free plumbing,
+  never a hook bypass — and exits the merge only after that preservation, so it never strands an
+  unmergeable worktree and repeated escalations never collide; `reference/freshness.md` drops its drifting restatement for a pointer; `SKILL.md`,
+  `reference/safety.md`, and `babysit-loop`'s Subagents section state the new boundary. Pinned by
+  `test_skill_contract.py`.
 
 ## [0.28.0]
 
