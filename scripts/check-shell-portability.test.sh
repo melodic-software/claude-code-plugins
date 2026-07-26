@@ -1040,6 +1040,41 @@ else
 fi
 rm -f "$f"
 
+# --- a P credited to -e/-f's OWN ARGUMENT is not a live -P flag (#1546):
+# `-e`/`-f` take a mandatory value attached directly after the letter, so a
+# `P` right after either is that option's PATTERN/FILE, not a fresh flag.
+# Verified on bash: `grep -eP probe.txt` matches the literal pattern "P" (no
+# PCRE activation), and `grep -fP probe.txt` fails trying to open a pattern
+# file named "P" -- neither run enables -P. A bare `grep -P` with no
+# preceding argument-taking letter must still be flagged (no regression) ----
+f="$(tmpsh "$(printf '%s\n' \
+  'grep -eP|cat' \
+  'grep -fP|cat' \
+  'grep -P|cat')")"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "grep -P|cat (line 3, no preceding argument-taking letter) should still fail, got success: $out"
+elif [[ "$(echo "$out" | grep -c "PORTABILITY: ${f}:")" -eq 1 ]] &&
+  echo "$out" | grep -q "PORTABILITY: ${f}:3:"; then
+  ok "grep -eP/-fP are not flagged (P is the option's argument); bare grep -P still is"
+else
+  fail "expected only line 3 (bare grep -P) flagged, got: $out"
+fi
+rm -f "$f"
+
+# --- a P BEFORE -e/-f in the cluster is unaffected -- it is a live flag, and
+# -e/-f still take their own argument from whatever follows (#1546) ---------
+f="$(tmpsh "$(printf '%s\n' \
+  'grep -Pe pattern file|cat' \
+  'grep -EP pattern file|cat')")"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "grep -Pe / -EP (P precedes or is unaffected by e/E) should fail, got success: $out"
+elif [[ "$(echo "$out" | grep -c "PORTABILITY: ${f}:")" -eq 2 ]]; then
+  ok "grep -Pe and -EP (P not consumed as an argument) are still detected"
+else
+  fail "expected both lines flagged, got: $out"
+fi
+rm -f "$f"
+
 # --- mktemp -p is now ACTIVE (#1527) ----------------------------------------
 f="$(tmpsh 't=$(mktemp -p "$d")')"
 if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then

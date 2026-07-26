@@ -122,7 +122,28 @@
 # a LATER command's option-shaped word be attributed to this one — with `|`
 # and `;` now in the boundary, `grep foo /dev/null; printf '%s\n' -P|cat` was
 # reported even though the `-P` is printf's data.
-grep[^;&|\n]*[[:space:]]-[A-Za-z]*P([A-Za-z]|['"][A-Za-z]*['"])*([[:space:]|&;()]|[<>]([^(]|$)|$)
+#
+# A `P` credited to an ARGUMENT-TAKING option earlier in the same cluster is
+# not a flag at all — it is that option's value (#1546). GNU grep --help
+# documents `-e, --regexp=PATTERNS` and `-f, --file=FILE` as taking a
+# mandatory value attached directly after the letter, and GNU getopt's
+# short-cluster rule stops scanning for further flags there: `grep -eP|cat`
+# passes the single argument "P" as `-e`'s PATTERN, and `grep -fP|cat` reads
+# "P" as `-f`'s FILE — neither enables `-P`. Verified on bash: `grep -eP
+# probe.txt` matches the literal pattern "P" (no PCRE), and `grep -fP
+# probe.txt` fails with "P: No such file or directory" (tried to open a
+# pattern file named "P"), while `grep -P '\d' <<<a1b` genuinely activates
+# PCRE mode. Every other grep short option that takes a value (`-m`, `-d`,
+# `-D`, `-A`, `-B`, `-C`) requires a numeric or enumerated argument, so a bare
+# `P` right after one is not a valid value either way and is not working code
+# to protect (same "nothing working to break" reasoning as the quoted-splice
+# paragraph above) — only `e` and `f` take an arbitrary string, so only they
+# are excluded from the letters PRECEDING `P`. A `P` that appears BEFORE `e`
+# or `f` in the cluster is unaffected and still a live flag (`grep -Pe
+# pattern` sets `-P` first, then `-e` takes its own argument next). Uppercase
+# `E`/`F` (`--extended-regexp`/`--fixed-strings`) take no argument and still
+# count as ordinary flags ahead of `P`.
+grep[^;&|\n]*[[:space:]]-[A-Za-dg-z]*P([A-Za-z]|['"][A-Za-z]*['"])*([[:space:]|&;()]|[<>]([^(]|$)|$)
 --perl-regexp
 
 # `echo -e` — POSIX leaves echo's flag handling unspecified; BSD/macOS sh/bash
