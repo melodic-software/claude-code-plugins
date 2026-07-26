@@ -199,8 +199,8 @@ FRONTMATTER="$(skill_frontmatter::extract <"$SKILL_MD")"
 if [[ -z "$FRONTMATTER" ]]; then
   err "no YAML frontmatter block found (expected content between two '---' fences)"
 else
-  grep -qE '^name:[[:space:]]*\S' <<<"$FRONTMATTER" || err "frontmatter missing 'name:'"
-  grep -qE '^description:[[:space:]]*\S' <<<"$FRONTMATTER" || err "frontmatter missing 'description:'"
+  grep -qE '^name:[[:space:]]*[^[:space:]]' <<<"$FRONTMATTER" || err "frontmatter missing 'name:'"
+  grep -qE '^description:[[:space:]]*[^[:space:]]' <<<"$FRONTMATTER" || err "frontmatter missing 'description:'"
 
   # The directory name is what Claude Code namespaces the skill by, so a
   # divergent frontmatter name silently relocates the invocation the doctrine
@@ -372,9 +372,9 @@ elif command -v npx >/dev/null 2>&1; then
   # rather than a hard FAIL on an otherwise valid skill.
   if ML_OUT="$(npx --no-install markdownlint-cli2 "$SKILL_MD" 2>&1)"; then
     note "markdownlint clean"
-  elif grep -qE '^\S+:[0-9]+' <<<"$ML_OUT"; then
+  elif grep -qE '^[^[:space:]]+:[0-9]+' <<<"$ML_OUT"; then
     err "markdownlint failed:
-$(printf '%s\n' "$ML_OUT" | grep -E '^\S+:[0-9]+' | head -10)"
+$(printf '%s\n' "$ML_OUT" | grep -E '^[^[:space:]]+:[0-9]+' | head -10)"
   else
     warn "markdownlint-cli2 unavailable (not installed / not resolvable) — markdownlint check skipped"
   fi
@@ -471,7 +471,7 @@ fi
 
 # --- Check 14: action-router shape without evals ------------------------------
 
-if grep -qE '^##+[[:space:]]+Actions?\b' "$SKILL_MD" && [[ ! -f "$SKILL_DIR/evals/evals.json" ]]; then
+if grep -qE '^##+[[:space:]]+Actions?($|[^A-Za-z0-9_])' "$SKILL_MD" && [[ ! -f "$SKILL_DIR/evals/evals.json" ]]; then
   warn "action-router-shaped skill with no evals/evals.json — check whether the skill warrants triggering evals"
 fi
 
@@ -494,7 +494,9 @@ fi
 if [[ -d "$SKILL_DIR/vendor" ]]; then
   SYNCED_VAL="$(awk '/^metadata:/{m=1;next} m && /^[a-zA-Z]/{m=0} m && /^[[:space:]]+synced:/{print $2;exit}' <<<"$FRONTMATTER" | tr -d '"' | tr -d "'")"
   if [[ "$SYNCED_VAL" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]; then
-    if SYNCED_EPOCH="$(date -u -d "$SYNCED_VAL" +%s 2>/dev/null)"; then
+    # portability-ok: GNU-first, BSD fallback co-located (#1510) — was a real,
+    # previously-unguarded gap: this check silently no-op'd on BSD/macOS.
+    if SYNCED_EPOCH="$(date -u -d "$SYNCED_VAL" +%s 2>/dev/null || date -u -j -f '%Y-%m-%d' "$SYNCED_VAL" +%s 2>/dev/null)"; then
       AGE_DAYS=$((($(date -u +%s) - SYNCED_EPOCH) / 86400))
       if ((AGE_DAYS > SYNCED_MAX_AGE_DAYS)); then
         warn "vendor last synced $AGE_DAYS days ago (> $SYNCED_MAX_AGE_DAYS) — run the skill's update action"
@@ -710,7 +712,7 @@ if ((${#INJECTIONS[@]} > 0)); then
   # them, so a pipe there is not a clean break.
   # shellcheck disable=SC2016  # single quotes deliberate: \| and $ are literal ERE, not shell expansion
   bash_only_re='/dev/null|(^|[[:space:]])command[[:space:]]+-v([[:space:]]|$)|\|[[:space:]]*(head|tail|grep|sed|awk|cut|tr|wc|xargs|rev|nl|fold|paste|comm|join|column|uniq)([[:space:]]|$)'
-  if grep -qE '^shell:[[:space:]]*\S' <<<"$FRONTMATTER"; then
+  if grep -qE '^shell:[[:space:]]*[^[:space:]]' <<<"$FRONTMATTER"; then
     note "shell: declared — dynamic-context injection portability is the author's explicit choice"
   else
     bash_only_hit=""

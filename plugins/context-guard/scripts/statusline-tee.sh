@@ -144,6 +144,7 @@ tee_snapshot() {
   # in conservative mode. Lexical ISO compare; failure to compute the
   # ceiling disables the guard (write proceeds — fail toward freshness).
   local guard_ceiling
+  # portability-ok: GNU-first, BSD fallback on the continuation line below (#1510)
   guard_ceiling=$(date -u -d '+5 minutes' '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null ||
     date -u -v '+5M' '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null) || guard_ceiling=""
 

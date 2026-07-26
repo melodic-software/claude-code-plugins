@@ -5,6 +5,21 @@ All notable changes to the `context-guard` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.1]
+
+### Changed
+
+- **`context-zone.sh`/`statusline-tee.sh` (and their test files) annotated
+  for the shell-portability-lint gate's newly-active `date -d` class
+  (#1510).** These scripts' GNU-first/BSD-fallback `date -d ... || date -j
+  ...` chains are correct dual-dialect code; most span a line break so the
+  gate's same-line auto-guard doesn't recognize them. Each site now carries
+  a `portability-ok:` annotation. Also fixed a real gate false positive: the
+  gate's `sed -i` class (already active) flagged `context-zone.test.sh`'s
+  unsuffixed `sed -i` fallback probe, whose actual portability comes from
+  its `perl -pi -e` fallback, not the auto-recognized empty-suffix idiom —
+  annotated. No behavior change.
+
 ## [0.3.0]
 
 ### Added

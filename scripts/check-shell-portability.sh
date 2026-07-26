@@ -169,20 +169,26 @@ scan_file() {
     function is_comment(l) { return l ~ /^[[:space:]]*#/ }
     # Same-line auto-guard: a portable BSD-side attempt already co-located on
     # the hit line, ACTUALLY WIRED as the fallback (a `||` between the two
-    # calls) — not merely mentioned somewhere on the line. Scoped to the one
-    # active shape that needs one today: readlink -f, guarded by a co-located
-    # `realpath ... || readlink -f ...` fallback ladder (the shape
-    # lib/hook-utils.sh already uses). Requiring the literal `||` between the
-    # two (not just both substrings present) matters: `realpath "$1";
-    # readlink -f "$1"` runs the GNU-only call unconditionally right after a
-    # realpath attempt with no fallback relationship at all, and must still
-    # flag. Takes the matched pattern text too, so the guard applies only
-    # when the readlink pattern itself matched — a line that merely mentions
-    # "realpath" elsewhere must not blanket-excuse an unrelated hit on the
-    # same line. A further class enables its own marker here when it is
-    # activated (see the token file STAGED section) — this is deliberately
-    # not a generic heuristic, the same posture check-skill-portability.sh
-    # takes.
+    # calls) — not merely mentioned somewhere on the line. Scoped to the two
+    # active shapes that need one today:
+    #   - readlink -f, guarded by a co-located `realpath ... || readlink -f
+    #     ...` fallback ladder (the shape lib/hook-utils.sh already uses).
+    #     Requiring the literal `||` between the two (not just both
+    #     substrings present) matters: `realpath "$1"; readlink -f "$1"` runs
+    #     the GNU-only call unconditionally right after a realpath attempt
+    #     with no fallback relationship at all, and must still flag.
+    #   - stat -c, guarded by a co-located `stat -c ... || stat -f ...`
+    #     fallback ladder (the shape
+    #     plugins/repo-hygiene/skills/clean/scripts/remove-path.sh dev_of()
+    #     already uses) — same `||`-required rigor as the readlink guard
+    #     (#1510).
+    # Takes the matched pattern text too, so each guard applies only when its
+    # own pattern matched — a line that merely mentions "realpath" or
+    # "stat -f" elsewhere must not blanket-excuse a different active
+    # pattern's hit on the same line. A further class enables its own marker
+    # here when it is activated (see the token file STAGED section) — this is
+    # deliberately not a generic heuristic, the same posture
+    # check-skill-portability.sh takes.
     #
     # sed -i has NO guard. An earlier revision auto-guarded the space-
     # separated empty-suffix idiom ("-i" followed by an empty quoted string
@@ -197,6 +203,7 @@ scan_file() {
     # and so is correctly never flagged.
     function is_guarded(l, p) {
       if (p ~ /readlink/ && l ~ /realpath[^|]*\|\|[^|]*readlink/) return 1
+      if (p ~ /^stat\[/ && l ~ /stat[[:space:]]+-[A-Za-z]*c[^|]*\|\|[^|]*stat[[:space:]]+-[A-Za-z]*f/) return 1
       return 0
     }
     # Pass 1: collect active ERE patterns from the token list.

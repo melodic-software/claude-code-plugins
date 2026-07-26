@@ -3,6 +3,19 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.25.4]
+
+### Changed
+
+- **`lib/lease.sh`/`lib/lease.test.sh` annotated for the shell-portability-lint
+  gate's newly-active `date -d` class (#1510).** `wit_iso_to_epoch`'s
+  BSD-first/GNU-fallback ladder is correct dual-dialect code, split across a
+  `||`-continued line the gate's same-line auto-guard doesn't recognize, so
+  it now carries a `portability-ok:` annotation (restructured to drop an
+  unnecessary trailing `\` so the annotation could sit on its own line
+  without breaking the `||` chain — no behavior change). The test file's
+  same-line `date -d ... || date -u -r ...` fallback is annotated directly.
+
 ## [0.25.3]
 
 ### Changed
