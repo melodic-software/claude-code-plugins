@@ -86,8 +86,12 @@ function isPrivateIPv6(address) {
 	if ((g[0] & 0xffc0) === 0xfe80) return true; // fe80::/10 link-local
 	if ((g[0] & 0xff00) === 0xff00) return true; // ff00::/8 multicast
 	if (g[0] === 0x0100 && g[1] === 0 && g[2] === 0 && g[3] === 0) return true; // 100::/64 discard-only
+	if (g[0] === 0x0064 && g[1] === 0xff9b && g[2] === 0x0001) return true; // 64:ff9b:1::/48 local-use NAT64 (RFC 8215)
+	if (g[0] === 0x2001 && (g[1] & 0xfe00) === 0) return true; // 2001::/23 IETF special-purpose (Teredo, benchmarking 2001:2::/48, ORCHID, ...)
 	if (g[0] === 0x2001 && g[1] === 0x0db8) return true; // 2001:db8::/32 documentation
+	if (g[0] === 0x2002) return true; // 2002::/16 6to4 (deprecated; not globally reachable per IANA)
 	if (g[0] === 0x3fff && (g[1] & 0xf000) === 0) return true; // 3fff::/20 documentation (RFC 9637)
+	if (g[0] === 0x5f00) return true; // 5f00::/16 SRv6 SIDs (RFC 9602)
 	const embedsIPv4 =
 		(g.slice(0, 5).every((h) => h === 0) && g[5] === 0xffff) || // ::ffff:a.b.c.d IPv4-mapped
 		(g[0] === 0x0064 &&

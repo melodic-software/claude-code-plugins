@@ -27,8 +27,9 @@ All notable changes to the `ai-briefing` plugin are documented here. Format foll
   (127/8, 10/8, 100.64/10, 172.16/12, 192.168/16, 169.254/16, 0/8, 192.0.0/24,
   192.0.2/24, 198.18/15, 198.51.100/24, 203.0.113/24, 224/4, 240/4,
   `localhost`/`*.localhost`; IPv6 `::`/`::1`/`fc00::/7`/`fe80::/10`/`ff00::/8`/
-  `100::/64`/`2001:db8::/32`/`3fff::/20`, plus IPv4-mapped and NAT64
-  `64:ff9b::/96` forms judged by their embedded IPv4 address), relying on
+  `100::/64`/`64:ff9b:1::/48`/`2001::/23`/`2001:db8::/32`/`2002::/16`/
+  `3fff::/20`/`5f00::/16`, plus IPv4-mapped and NAT64 `64:ff9b::/96` forms
+  judged by their embedded IPv4 address), relying on
   WHATWG URL canonicalization of decimal/hex/octal/integer IPv4. A DNS-name
   host is additionally resolved at gate time (every A/AAAA record) and refused
   when ANY resolved address is non-global, so a hostname whose record points

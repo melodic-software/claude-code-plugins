@@ -302,6 +302,16 @@ PSSA_OUTPUT=$(PSSA_FILE="$PSSA_FILE_ARG" PSSA_SETTINGS="$PSSA_SETTINGS_ARG" \
             foreach ($hit in [regex]::Matches($text, $litPattern)) {
                 $lit = if ($hit.Groups[1].Success) { $hit.Groups[1].Value } else { $hit.Groups[2].Value }
                 if ([string]::IsNullOrWhiteSpace($lit) -or $lit.Contains("`n")) { continue }
+                # Expand the standard self-relative prefix: a dot-source like
+                # . "$PSScriptRoot/helper.ps1" resolves against the containing
+                # module directory, so the scan must resolve it the same way
+                # or the helper would silently escape the signature.
+                $psr = [char]36 + "PSScriptRoot"
+                if ($lit.StartsWith("$psr/") -or $lit.StartsWith("$psr\")) {
+                    $lit = $curDir + $lit.Substring($psr.Length)
+                } elseif ($lit.StartsWith("`${" + "PSScriptRoot}/") -or $lit.StartsWith("`${" + "PSScriptRoot}\")) {
+                    $lit = $curDir + $lit.Substring(("`${" + "PSScriptRoot}").Length)
+                }
                 foreach ($baseDir in @($curDir, $settingsDir)) {
                     $cand = $lit
                     try {

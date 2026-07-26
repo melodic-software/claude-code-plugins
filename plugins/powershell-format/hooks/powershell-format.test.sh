@@ -488,6 +488,33 @@ else
   fail "changed transitive helper was not re-gated: $OUT_GATE_T3 $(cat "$REPO_CRP/crp5.ps1")"
 fi
 
+# The standard self-relative dependency form `. "$PSScriptRoot/x.ps1"` resolves
+# against the module's own directory, so the scan must pin it there: changing
+# only that helper must revoke the approval.
+cat >>"$REPO_CRP/rules/CleanRules.psm1" <<'EOF'
+. "$PSScriptRoot/helper2.ps1"
+EOF
+printf '%s\n' 'function Get-CrpHelperTwo { return 2 }' >"$REPO_CRP/rules/helper2.ps1"
+printf "%s\n" "get-childitem -Path '.'" >"$REPO_CRP/crp6.ps1"
+OUT_GATE_P1=$(run_hook_env "$REPO_CRP/crp6.ps1" CLAUDE_PLUGIN_DATA="$CRP_DATA" CLAUDE_PLUGIN_OPTION_POWERSHELL_FORMAT_ENABLED=true)
+P_MARKER="$(printf '%s' "$OUT_GATE_P1" | jq -r '.systemMessage' | sed -n "s/.*mkdir -p '\([^']*\)'.*/\1/p")"
+mkdir -p "$P_MARKER"
+OUT_GATE_P2=$(run_hook_env "$REPO_CRP/crp6.ps1" CLAUDE_PLUGIN_DATA="$CRP_DATA" CLAUDE_PLUGIN_OPTION_POWERSHELL_FORMAT_ENABLED=true)
+if [[ -n "$P_MARKER" && -z "$OUT_GATE_P2" ]] && grep -q 'Get-ChildItem' "$REPO_CRP/crp6.ps1"; then
+  ok "approved state including PSScriptRoot-relative helper analyzes"
+else
+  fail "approved PSScriptRoot-relative state did not analyze: m=$P_MARKER out=$OUT_GATE_P2 $(cat "$REPO_CRP/crp6.ps1")"
+fi
+printf '%s\n' '# unreviewed helper2 revision' >>"$REPO_CRP/rules/helper2.ps1"
+printf "%s\n" "get-childitem -Path '.'" >"$REPO_CRP/crp7.ps1"
+OUT_GATE_P3=$(run_hook_env "$REPO_CRP/crp7.ps1" CLAUDE_PLUGIN_DATA="$CRP_DATA" CLAUDE_PLUGIN_OPTION_POWERSHELL_FORMAT_ENABLED=true)
+if printf '%s' "$OUT_GATE_P3" | jq -e '.hookSpecificOutput.additionalContext | contains("trust gate")' >/dev/null 2>&1 &&
+  grep -q 'get-childitem' "$REPO_CRP/crp7.ps1"; then
+  ok "changed PSScriptRoot-relative helper revokes approval and blocks again"
+else
+  fail "changed PSScriptRoot-relative helper was not re-gated: $OUT_GATE_P3 $(cat "$REPO_CRP/crp7.ps1")"
+fi
+
 # Fail closed: with no CLAUDE_PLUGIN_DATA an approval can be neither recorded
 # nor verified, so a CustomRulePath settings state must still skip the run (and
 # notice every time — the once-per-session gate fails open toward visibility

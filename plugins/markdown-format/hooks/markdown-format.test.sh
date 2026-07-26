@@ -677,6 +677,30 @@ else
   fail "escape-obfuscated module key was not gated unverifiable: $OUT_TRUST_ESCAPE"
 fi
 
+# A computed module expression (require whose argument is not a single string
+# literal) cannot be pinned by the text scan, so the state must refuse approval
+# outright rather than sign a module graph it cannot see.
+rm -f "$ORIGINAL_CONFIG"
+cat >"$REPO/.markdownlint-cli2.cjs" <<'CJS'
+const path = require("path");
+module.exports = {
+  config: { "MD013": false },
+  customRules: [require(path.join(__dirname, "rules", "local.cjs"))],
+  noBanner: true,
+  noProgress: true
+};
+CJS
+printf '# Executable config\n\nClean text.' >"$TRUST_FILE"
+OUT_TRUST_COMPUTED="$(cd "$UNRELATED" && printf '{"tool_input":{"file_path":"%s"}}' "$TRUST_FILE" |
+  env -u CLAUDE_PROJECT_DIR CLAUDE_PLUGIN_DATA="$TRUST_DATA" CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true bash "$HOOK")"
+if printf '%s' "$OUT_TRUST_COMPUTED" | jq -e '(.systemMessage | contains("trust gate")) and (.systemMessage | contains("mkdir -p") | not)' >/dev/null 2>&1 &&
+  ! has_final_newline "$TRUST_FILE"; then
+  ok "computed require expression gates and refuses approval"
+else
+  fail "computed require expression was not refused: $OUT_TRUST_COMPUTED"
+fi
+rm "$REPO/.markdownlint-cli2.cjs"
+
 # The approval signature must cover the referenced module content, not only the
 # config text: after approving a config whose customRules names a repository
 # module, changing THAT MODULE (config untouched) must revoke the approval.

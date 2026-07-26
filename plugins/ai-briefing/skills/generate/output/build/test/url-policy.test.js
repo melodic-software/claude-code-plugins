@@ -70,8 +70,13 @@ test("shouldSkipLinkCheck skips shared-address and other non-global blocks", asy
 		"http://[::ffff:100.64.0.1]/", // IPv4-mapped shared address space
 		"http://[64:ff9b::a00:1]/", // NAT64 prefix embedding 10.0.0.1
 		"http://[100::1]/", // discard-only
+		"http://[64:ff9b:1::1]/", // local-use NAT64 (RFC 8215)
+		"http://[2001:2::1]/", // benchmarking, inside 2001::/23 special-purpose
+		"http://[2001::1]/", // Teredo, inside 2001::/23 special-purpose
 		"http://[2001:db8::1]/", // documentation
+		"http://[2002:5db8:d822::1]/", // 6to4
 		"http://[3fff::1]/", // documentation (RFC 9637)
+		"http://[5f00::1]/", // SRv6 SIDs (RFC 9602)
 		"http://[ff02::1]/", // multicast
 	]) {
 		assert.equal(await shouldSkipLinkCheck(link), true, link);
@@ -132,6 +137,8 @@ test("shouldSkipLinkCheck still checks ordinary public hosts", async () => {
 		"https://198.20.0.1/", // just above it
 		"https://223.255.255.254/", // top of unicast space, below multicast
 		"https://[2001:db7::1]/", // just below the 2001:db8::/32 documentation block
+		"https://[2001:200::1]/", // just above the 2001::/23 special-purpose block
+		"https://[64:ff9b:2::1]/", // just above the 64:ff9b:1::/48 local-use NAT64 block
 	]) {
 		assert.equal(await shouldSkipLinkCheck(link, resolvesPublic), false, link);
 	}

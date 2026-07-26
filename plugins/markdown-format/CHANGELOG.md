@@ -29,7 +29,11 @@ All notable changes to the `markdown-format` plugin are documented here. Format 
   gate as code-loading, and constructs able to synthesize a hidden spelling
   (JSONC `\uXXXX` escapes; YAML `\x`/`\u`/`\U` escapes, escaped line joins,
   `!!` tags) mark the configuration unverifiable — gated with no approval
-  route, since text whose meaning cannot be read cannot be reviewed.
+  route, since text whose meaning cannot be read cannot be reviewed. A
+  computed module expression in an executable config or referenced module —
+  `require()`/`import()` whose argument is not a single string literal —
+  likewise refuses approval: a module graph the scan cannot pin is never
+  signed.
   Previously the hook warned once and executed anyway, so a malicious
   repository's checked-in config could run arbitrary code on a routine
   markdown edit. Declarative rule-only configuration is unaffected. The edit

@@ -19,8 +19,9 @@ All notable changes to the `powershell-format` plugin are documented here. Forma
   reachable under each declared `CustomRulePath` entry (recursively for
   directories), plus every repository file those files reference by string
   literal (transitively, bounded — a leaf module's dot-sourced or imported
-  dependencies execute with it), so a change to the settings or to any
-  referenced rule module —
+  dependencies execute with it; the standard `$PSScriptRoot/...` self-relative
+  prefix is expanded against the containing module directory), so a change to
+  the settings or to any referenced rule module —
   e.g. a branch switch swapping module bytes under an unchanged settings file —
   revokes the approval. The gate fails closed when `CLAUDE_PLUGIN_DATA` is
   unavailable, and also when a `CustomRulePath` entry does not resolve to

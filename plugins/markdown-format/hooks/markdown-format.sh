@@ -338,6 +338,22 @@ collect_module_files() {
     seen_scan+="$item"$'\n'
     scanned=$((scanned + 1))
     ((scanned <= 64)) || return 1
+    # A computed module expression — require()/import() whose argument is not
+    # a single string literal, e.g. require(path.join(__dirname, ...)) — names
+    # code this text scan cannot pin. Fail closed: no approval for a state
+    # whose module graph cannot be content-addressed. Both shapes are covered:
+    # a non-quote character after the open paren, and an open paren ending the
+    # line (a wrapped argument). Scoped to JS sources; the same text inside a
+    # declarative config is data, not a loader call.
+    case "$item" in
+    *.cjs | *.mjs | *.js)
+      if grep -Eq "(require|import)[[:space:]]*\([[:space:]]*[^\"'[:space:])]" "$item" 2>/dev/null ||
+        grep -Eq "(require|import)[[:space:]]*\([[:space:]]*$" "$item" 2>/dev/null; then
+        return 1
+      fi
+      ;;
+    *) ;;
+    esac
     dir="$(dirname "$item")"
     while IFS= read -r str; do
       str="${str#?}"
@@ -451,7 +467,16 @@ if ((${#RISK_CONFIGS[@]} > 0)); then
     else
       APPROVE_HINT="Approval state is unavailable (CLAUDE_PLUGIN_DATA unset or unusable, or the configuration's referenced modules could not be tracked), so linting stays disabled for this repository."
     fi
-    if hook::notice_once "markdown-format-trust-${TRUST_DIR##*/}" "$INPUT"; then
+    # Approvable states key the notice by signature; states with no approval
+    # route (unverifiable / untrackable / no store) have no signature, so key
+    # by the risky-file list instead — otherwise every such state would share
+    # one key and only the first would ever notice in a session.
+    if [[ -n "$TRUST_DIR" ]]; then
+      TRUST_NOTICE_KEY="markdown-format-trust-${TRUST_DIR##*/}"
+    else
+      TRUST_NOTICE_KEY="markdown-format-trust-norouten-$(printf '%s' "$RISK_LIST" | git hash-object --stdin 2>/dev/null || printf 'unkeyed')"
+    fi
+    if hook::notice_once "$TRUST_NOTICE_KEY" "$INPUT"; then
       hook::emit_skip_notice PostToolUse \
         "markdown-format trust gate: Markdown lint/format skipped — this repository's markdownlint configuration can execute repository-supplied code ($RISK_LIST). $APPROVE_HINT"
     fi
