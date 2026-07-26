@@ -151,17 +151,24 @@ diagnostics:
      GitHub. Probe both: an allow rule or classifier decision covering the `bin/` wrapper says
      nothing about the `scripts/` helper, so a canary that ran only the first would certify a
      path the lane's readiness verdict never travels — and the readiness gate has no degrade tier
-     at all. A **tool-call denial on either is a FAILED prerequisite**, not an INFO note: a
-     mandated form is unreachable in this environment, so no tier can gate-prove readiness. Name
-     which form was denied, report the denial verbatim with the remediation below, and never
-     retry it or re-spell it as a raw interpreter invocation to get past the denial — that form
-     is exactly what the wrapper exists to replace.
+     at all. A **tool-call denial on either is a FAILED prerequisite**, not an INFO note. The
+     reason is fail-closed posture, not logical certainty: the classifier decides per call, so a
+     denied `--help` does not *prove* the production shapes are denied any more than a permitted
+     one proves they are allowed. What it does establish is that the mandated spelling reaches the
+     classifier and can lose there — and the cheapest, most obviously harmless shape is the one
+     least likely to be denied while the heavier ones pass. A prerequisite check whose weakest
+     probe was refused must report FAILED rather than assume the untested shapes fare better.
+     Name which form was denied, say plainly that the production shapes were not probed, report
+     the denial verbatim with the remediation below, and never retry it or re-spell it as a raw
+     interpreter invocation to get past the denial — that form is exactly what the wrapper exists
+     to replace.
 
      **A pass is reachability, not a guarantee — report it as such.** A permitted `--help` proves
      the mandated spelling exists and that a call to it got through; it does *not* prove the
      production shapes (`owner/repo#N --allowed-owners …`, `<N> --extra-self …`) will be
-     permitted, because the classifier decides per call, at call time — the same property that
-     makes a denial here conclusive leaves a pass provisional. The probes stay `--help`-only
+     permitted, because the classifier decides per call, at call time. That per-call property cuts
+     both ways: it leaves a pass provisional, and it is why the FAILED verdict above is a
+     fail-closed choice rather than a proof. The probes stay `--help`-only
      deliberately: the merge wrapper's read-only production shape is a live GitHub call, so a
      representative probe would make a `check` run start touching the fleet it was asked to
      inspect — which the plugin's `babysit-wrapper-help` shell test exists to keep from
