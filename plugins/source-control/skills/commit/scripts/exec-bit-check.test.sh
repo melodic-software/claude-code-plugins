@@ -287,5 +287,84 @@ assert_silent "an empty staged set reports nothing" "$empty"
 bash "$HELPER" --repo-dir "$repo9" --list >/dev/null 2>&1
 assert_exit "an empty staged set exits 0" 0 "$?"
 
+# --- Case group 10: runs from a subdirectory ----------------------------------
+#
+# The regression this guards: `git diff --cached --name-status` emits
+# repo-root-relative paths while a `git ls-files` pathspec resolves against the
+# cwd. Run from a subdirectory those disagree, every lookup misses, and the
+# check silently reports NO offenders — a fail-open backstop.
+
+repo10="$(mkrepo)"
+(
+  cd "$repo10" || exit 1
+  mkdir -p sub/nested
+  printf '#!/usr/bin/env bash\necho deep\n' >sub/nested/deep.sh
+  printf '#!/usr/bin/env bash\necho top\n' >toplevel.sh
+  git add sub/nested/deep.sh toplevel.sh
+) >/dev/null 2>&1
+
+from_sub="$(cd "$repo10/sub" && bash "$HELPER" --list 2>/dev/null)"
+assert_contains "run from a subdirectory still sees the root-level offender" "$from_sub" "toplevel.sh"
+assert_contains "run from a subdirectory still sees the nested offender" "$from_sub" "sub/nested/deep.sh"
+
+sub_probe="$(cd "$repo10/sub" && bash "$HELPER" --probe 2>/dev/null)"
+assert_contains "probe from a subdirectory reports both offenders" "$sub_probe" "2 staged shebang file(s)"
+
+# A caller's pathspec is relative to the CALLER's cwd, so it must be re-anchored
+# before the directory change or a scoped --fix silently matches nothing.
+(cd "$repo10/sub" && bash "$HELPER" --fix -- nested/deep.sh) >/dev/null 2>&1
+assert_eq "a cwd-relative pathspec from a subdirectory is re-anchored and fixed" \
+  "100755" "$(staged_mode "$repo10" sub/nested/deep.sh)"
+assert_eq "the re-anchored --fix did not touch the out-of-scope path" \
+  "100644" "$(staged_mode "$repo10" toplevel.sh)"
+
+# --- Case group 11: a worktree symlink is refused, never chmod-ed -------------
+#
+# A path staged as a regular 100644 blob but replaced in the worktree by a
+# symlink: `-e` follows the link, so an unguarded chmod would make the link's
+# TARGET executable — a file that can sit entirely outside the repository.
+
+repo11="$(mkrepo)"
+sym_ok=1
+(
+  cd "$repo11" || exit 1
+  printf '#!/usr/bin/env bash\necho real\n' >swapped.sh
+  git add swapped.sh
+  mkdir -p outside
+  printf 'not a script\n' >outside/victim.txt
+  rm -f swapped.sh
+  ln -s outside/victim.txt swapped.sh
+) >/dev/null 2>&1 || sym_ok=0
+
+if [[ "$sym_ok" -eq 1 ]] && [[ -L "$repo11/swapped.sh" ]]; then
+  sym_out="$(bash "$HELPER" --repo-dir "$repo11" --fix -- swapped.sh 2>&1)"
+  sym_rc=$?
+  assert_exit "a worktree symlink over a staged regular file fails --fix" 4 "$sym_rc"
+  assert_contains "the refusal names the symlink mismatch" "$sym_out" "worktree entry is a symlink"
+  if [[ -x "$repo11/outside/victim.txt" ]]; then
+    fail "the symlink target must not become executable" "not executable" "executable"
+  else
+    pass "the symlink target was not made executable"
+  fi
+else
+  skip_case "symlinks unsupported on this platform"
+fi
+
+# --- Case group 12: NUL-delimited list mode -----------------------------------
+
+repo12="$(mkrepo)"
+(
+  cd "$repo12" || exit 1
+  printf '#!/usr/bin/env bash\necho one\n' >one.sh
+  printf '#!/usr/bin/env bash\necho two\n' >two.sh
+  git add one.sh two.sh
+) >/dev/null 2>&1
+
+nul_count="$(bash "$HELPER" --repo-dir "$repo12" --list0 2>/dev/null | tr -dc '\0' | wc -c | tr -d ' \r')"
+assert_eq "--list0 emits one NUL terminator per offender" "2" "$nul_count"
+
+bash "$HELPER" --repo-dir "$repo12" --list0 >/dev/null 2>&1
+assert_exit "--list0 exits 0" 0 "$?"
+
 printf '\n%d case(s), %d failure(s)\n' "$CASE_NUM" "$FAILED"
 [[ $FAILED -eq 0 ]] || exit 1

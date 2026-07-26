@@ -15,16 +15,25 @@ Unstaged: !`git status --short 2>/dev/null | head -20 || echo "clean"`
 Recent commits: !`git log --oneline -5 2>/dev/null || echo "no commits"`
 Exec-bit backstop: !`bash "${CLAUDE_PLUGIN_ROOT}/skills/commit/scripts/exec-bit-check.sh" --probe 2>/dev/null || echo "unavailable — run the check manually"`
 Config layer (user-global): !`test -f "$HOME/.claude/source-control.md" && echo present || echo absent`
-Config layer (tracked team): !`git ls-files --error-unmatch .claude/source-control.md >/dev/null 2>&1 && echo "present (tracked)" || { test -f .claude/source-control.md && echo "present but UNTRACKED — not a config layer" || echo absent; }`
-Config layer (personal overlay): !`test -f .claude/source-control.local.md && echo present || echo absent`
+Config layer (tracked team): !`R="$(git rev-parse --show-toplevel 2>/dev/null)" && git -C "$R" ls-files --error-unmatch .claude/source-control.md >/dev/null 2>&1 && echo "present (tracked)" || { test -n "${R:-}" && test -f "$R/.claude/source-control.md" && echo "present but UNTRACKED — not a config layer" || echo absent; }`
+Config layer (personal overlay): !`R="$(git rev-parse --show-toplevel 2>/dev/null)" && test -n "$R" && test -f "$R/.claude/source-control.local.md" && echo present || echo absent`
 
 **Both probes are snapshots taken at invocation, not substitutes for the checks.** The exec-bit
 line only sees what was already staged when the skill loaded; anything staged in step 2 below is
-invisible to it, so step 5 re-runs the script for real. The config-layer lines report **presence**,
+invisible to it, so step 4 re-runs the script for real. The config-layer lines report **presence**,
 not merged content — read the layers that are present and merge them per key. A tracked-team layer
 reported `present but UNTRACKED` is deliberately not a layer: resolution requires the team file to
 be git-tracked, so an untracked or gitignored file at that well-known path must not drive the
 convention.
+
+**Every probe anchors at the repository root** (`git rev-parse --show-toplevel`), never at the
+session's current directory. A session started in a subdirectory would otherwise look for
+`<cwd>/.claude/` and report both repo-scoped layers absent — silently dropping the team convention
+and `trailer_policy`, and producing a commit with the wrong subject shape or attribution. This
+matches the root-resolution requirement
+[`${CLAUDE_PLUGIN_ROOT}/reference/config-resolution.md`](../../reference/config-resolution.md)
+already states for resolution itself; the probes must not disagree with it. `exec-bit-check.sh`
+anchors itself the same way.
 
 ## Per-commit checklist
 

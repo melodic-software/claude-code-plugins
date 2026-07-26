@@ -13,8 +13,25 @@ All notable changes to the `source-control` plugin are documented here. Format f
   catching it. Two tiers now sit under it. A pre-computed probe line at the TOP of the skill —
   inside the documented 5,000-token compaction re-attach window — reports staged newly-added shebang
   files still at `100644`; and `skills/commit/scripts/exec-bit-check.sh` (`--list` / `--probe` /
-  `--fix`, with a 37-case `.test.sh`) makes the per-commit step a command with an exit code. Both,
+  `--fix`, with a 44-case `.test.sh`) makes the per-commit step a command with an exit code. Both,
   because the probe is only a snapshot at invocation and cannot see files staged later in the flow.
+
+  Hardened in review before merge, all found by the PR reviewer on #1590:
+
+  - **Every mode anchors at the repository root.** `git diff --cached --name-status` emits
+    repo-root-relative paths while a `git ls-files` pathspec resolves against the cwd; run from a
+    subdirectory those disagreed, every lookup missed, and the check reported no offenders even when
+    they existed — a fail-open backstop. Caller pathspecs are re-anchored via `--show-prefix` before
+    the directory change so a scoped `--fix` from a subdirectory still matches. The skill's
+    config-layer probes anchor the same way, matching the root-resolution rule
+    `reference/config-resolution.md` already states; unanchored, a session started in a
+    subdirectory silently dropped the team convention and `trailer_policy`.
+  - **A worktree symlink over a staged regular file is refused, not chmod-ed.** `-e` follows a
+    symlink, so an unguarded `chmod +x` would have made the link's target executable — a file that
+    can sit entirely outside the repository. The `-L` test now runs before `-e`.
+  - **`--list0`** (NUL-delimited) added for pathnames containing a newline, which would otherwise
+    break `--list`'s one-record-per-line contract; `--list` and `--probe` shell-quote such a path so
+    the ambiguity is visible rather than silent.
 
   `--fix` **requires an explicit scope** — `-- <path>...` or a deliberate `--all` — and exits 2
   otherwise, changing nothing. It mutates index entries, and the staged set can hold a concurrent

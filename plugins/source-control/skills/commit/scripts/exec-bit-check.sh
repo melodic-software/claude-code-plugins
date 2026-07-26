@@ -37,15 +37,21 @@
 # filemode=true repos, the update-index for what actually gets committed.
 #
 # Usage:
-#   exec-bit-check.sh [--list | --probe | --fix] [--repo-dir <dir>] [-- <path>...]
+#   exec-bit-check.sh [--list | --list0 | --probe | --fix] [--repo-dir <dir>] [-- <path>...]
 #
 # Modes (default --list):
 #   --list    machine-readable: one offending path per line; empty = nothing to do
+#   --list0   NUL-delimited — unambiguous for a pathname containing a newline
 #   --probe   one human line for the skill's pre-computed context ("none" when clean)
-#   --fix     apply the worktree-then-index fix to every path --list would report
+#   --fix     apply the worktree-then-index fix; requires an explicit scope
+#             ('-- <path>...' or --all), since it mutates index entries
+#
+# Every mode anchors at the repository ROOT, so running from a subdirectory
+# behaves identically; caller pathspecs are re-anchored from the caller's cwd
+# first, before the directory change.
 #
 # Exit codes:
-#   0  ran successfully (--list/--probe always exit 0, findings or not;
+#   0  ran successfully (--list/--list0/--probe always exit 0, findings or not;
 #      --fix exits 0 when every offending path was fixed)
 #   2  usage error
 #   3  not a git repository, or git unavailable
@@ -63,6 +69,9 @@ Usage:
 
 Modes (default --list):
   --list             One offending path per line. Empty output = nothing to do.
+                     A path containing a newline is shell-quoted (%q) to keep
+                     one record per line; use --list0 for full unambiguity.
+  --list0            NUL-delimited paths — the unambiguous machine-readable form.
   --probe            Single-line summary for pre-computed skill context.
   --fix              chmod +x the worktree file, then git update-index --chmod=+x.
                      Requires an explicit scope: '-- <path>...' or --all.
@@ -86,6 +95,7 @@ paths=()
 while [[ "$#" -gt 0 ]]; do
   case "$1" in
   --list) mode=list ;;
+  --list0) mode=list0 ;;
   --probe) mode=probe ;;
   --fix) mode=fix ;;
   --all) all=1 ;;
@@ -134,6 +144,35 @@ git rev-parse --is-inside-work-tree >/dev/null 2>&1 || {
   echo "$PROG: not inside a git work tree" >&2
   exit 3
 }
+
+# Anchor everything at the repository root. `git diff --cached --name-status`
+# always emits paths relative to the REPOSITORY ROOT, but a `git ls-files`
+# pathspec is interpreted relative to the CURRENT DIRECTORY. Run from a
+# subdirectory, those two disagree: every ls-files lookup misses, `stage_line`
+# comes back empty, and the check silently reports no offenders even when
+# staged non-executable shebang files exist. A fail-open backstop is worse than
+# no backstop, so the mismatch is removed rather than worked around.
+#
+# Caller pathspecs are relative to the caller's cwd, so re-anchor them with
+# `--show-prefix` BEFORE changing directory, or a scoped `--fix` would silently
+# match nothing. An absolute path and a `:`-prefixed magic pathspec are already
+# unambiguous and are left alone.
+repo_prefix="$(git rev-parse --show-prefix 2>/dev/null)"
+repo_top="$(git rev-parse --show-toplevel 2>/dev/null)"
+if [[ -n "$repo_prefix" ]] && [[ "${#paths[@]}" -gt 0 ]]; then
+  for _i in "${!paths[@]}"; do
+    case "${paths[$_i]}" in
+    /* | :*) ;;
+    *) paths[_i]="$repo_prefix${paths[_i]}" ;;
+    esac
+  done
+fi
+if [[ -n "$repo_top" ]]; then
+  cd -- "$repo_top" 2>/dev/null || {
+    echo "$PROG: cannot enter repository root '$repo_top'" >&2
+    exit 3
+  }
+fi
 
 # --fix MUTATES index entries, so it refuses an unscoped run. The whole staged
 # set can include another concurrent session's staged work, and silently
@@ -198,8 +237,23 @@ count=${#offenders[@]}
 
 case "$mode" in
 list)
+  # Newline-delimited, so a pathname legally containing a newline would print as
+  # two records and break the one-path-per-line contract. Use --list0 when a
+  # caller must distinguish that case; %q makes the ambiguity visible here
+  # rather than silent.
   for path in ${offenders+"${offenders[@]}"}; do
-    printf '%s\n' "$path"
+    case "$path" in
+    *$'\n'*) printf '%q\n' "$path" ;;
+    *) printf '%s\n' "$path" ;;
+    esac
+  done
+  exit 0
+  ;;
+list0)
+  # NUL-delimited: the only unambiguous machine-readable form, since NUL is the
+  # one byte a git pathname cannot contain. Pair with `read -r -d ''`.
+  for path in ${offenders+"${offenders[@]}"}; do
+    printf '%s\0' "$path"
   done
   exit 0
   ;;
@@ -209,7 +263,13 @@ probe)
   else
     printf '%s staged shebang file(s) still at mode 100644:' "$count"
     for path in "${offenders[@]}"; do
-      printf ' %s' "$path"
+      # %q for any path carrying a newline (or other control byte): --probe is
+      # injected into skill context as ONE line, and a raw newline would split
+      # a single offender into what reads as several.
+      case "$path" in
+      *$'\n'*) printf ' %q' "$path" ;;
+      *) printf ' %s' "$path" ;;
+      esac
     done
     printf '\n'
   fi
@@ -226,7 +286,19 @@ fix)
     # absent from disk (added, then removed without staging the removal); the
     # index fix is still correct and still worth applying, so that case warns
     # rather than aborting.
-    if [[ -e "$path" ]]; then
+    #
+    # -L is tested BEFORE -e, and this ordering is load-bearing: `-e` FOLLOWS a
+    # symlink, so a path staged as a regular 100644 blob but replaced in the
+    # worktree by a symlink would pass `-e` and hand `chmod +x` the link's
+    # TARGET — a file that may sit entirely outside the repository. The staged
+    # entry says regular file, so this is a worktree/index disagreement, not a
+    # symlink to skip: refuse the path loudly rather than making an unrelated
+    # file executable.
+    if [[ -L "$path" ]]; then
+      echo "$PROG: refusing '$path': staged as a regular file but the worktree entry is a symlink" >&2
+      failed=1
+      continue
+    elif [[ -e "$path" ]]; then
       chmod +x -- "$path" 2>/dev/null || {
         echo "$PROG: chmod +x failed for '$path'" >&2
         failed=1
