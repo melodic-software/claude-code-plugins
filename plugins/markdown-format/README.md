@@ -12,10 +12,19 @@ imposes no rules of its own.
 ## Behavior
 
 - **Auto-fix on edit.** Fixable violations (final newline, list-marker style,
-  trailing spaces, …) are corrected in place.
+  trailing spaces, …) are corrected in place, and the count of fixes written is
+  reported to Claude and to you — a run that changed your file never passes
+  unannounced. `markdownlint-cli2` reports no per-fix detail, so neither can
+  this hook; the count is what there is.
 - **Advisory, never blocking.** The hook always exits `0`. Unfixable findings are
   reported via `additionalContext`; they never reject the edit. Make a commit
   hook or CI your hard gate.
+- **Bounded reporting.** Every run reports the total finding count and the rules
+  that dominate it. Individual violation lines are capped (20 by default,
+  `markdown_format_max_findings`), and an unchanged finding set on a re-edited
+  file reports its summary without repeating the detail. The linter's own banner
+  lines never enter the report. A rule firing in bulk is a signal to configure
+  that rule once in your markdownlint config, not to re-read it on every edit.
 - **Config from the consumer.** `markdownlint-cli2` discovers config
   (`.markdownlint-cli2.jsonc`, `.markdownlint.json`, …) per edited file, from
   the file's directory up through its parents — so a nested config governs its
@@ -90,13 +99,14 @@ The rules themselves are never configured here — the plugin's only rule source
 the markdownlint config already in your repository, which it reads automatically.
 To change the rules, edit your repo's markdownlint config.
 
-One `userConfig` option tunes the hook itself:
+Two `userConfig` options tune the hook itself:
 
 | Option | Type | Default | Effect |
 |--------|------|---------|--------|
 | `markdown_format_enabled` | boolean | `true` | Toggle the markdown-format hook; set `false` for a clean no-op. |
+| `markdown_format_max_findings` | number | `20` | How many individual violations are listed per run. The total count and the leading rule codes are always reported regardless. `0` = unlimited. |
 
-Set it interactively with `/plugin configure markdown-format`, or headless on
+Set them interactively with `/plugin configure markdown-format`, or headless on
 the install command:
 
 ```shell

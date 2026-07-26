@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "markdown-format",
-  "version": "0.7.2",
+  "version": "0.8.1",
   "description": "Auto-format and lint Markdown on edit via markdownlint-cli2, using the consuming repo's own markdownlint config.",
   "author": {
     "name": "Melodic Software",
@@ -21,6 +21,13 @@
       "title": "markdown-format hook",
       "description": "Auto-format and lint Markdown on Write/Edit of .md/.mdc files",
       "default": true
+    },
+    "markdown_format_max_findings": {
+      "type": "number",
+      "title": "Max findings reported per run",
+      "description": "How many individual markdownlint violations are listed per run. The total count and the leading rule codes are always reported regardless. 0 = unlimited.",
+      "default": 20,
+      "min": 0
     }
   }
 }
