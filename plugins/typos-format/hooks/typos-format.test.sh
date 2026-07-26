@@ -129,14 +129,28 @@ cat >"$STUB_BIN/typos" <<'STUB'
 set -uo pipefail
 write=0
 target=""
+skip_next=0
 for arg in "$@"; do
+  if ((skip_next == 1)); then
+    skip_next=0
+    continue
+  fi
   case "$arg" in
   --write-changes) write=1 ;;
-  --force-exclude | --format | json) ;;
+  --format) skip_next=1 ;;
+  --format=*) ;;
+  -*) ;;
   *) target="$arg" ;;
   esac
 done
 [[ -n "$target" && -f "$target" ]] || exit 0
+
+# STUB_BREAK: exit 2 with EMPTY output on the write pass — a typos break
+# mid-write. Read as "nothing residual" it would classify every scanned finding
+# as applied, disclosing rewrites that never happened.
+if ((write == 1)) && [[ -n "${STUB_BREAK:-}" ]]; then
+  exit 2
+fi
 
 residual=0
 out=""
@@ -296,6 +310,27 @@ else
   fail "stub/cap: count/remainder missing: $CTX_MANY"
 fi
 
+# --- A broken write pass must not be read as "everything was applied" --------
+printf 'this has teh typo and wnat too\n' >"$STUB_REPO/break.txt" # spellchecker:disable-line
+OUT_BR=$(run_stub "$STUB_REPO/break.txt" STUB_BREAK=1)
+RC_BR=$?
+CTX_BR=$(printf '%s' "$OUT_BR" | jq -r '.hookSpecificOutput.additionalContext // empty' 2>/dev/null)
+if [[ $RC_BR -eq 0 ]] && printf '%s' "$CTX_BR" | grep -q 'tool break'; then
+  ok "stub/write-break: exit 2 with empty output is reported as a tool break"
+else
+  fail "stub/write-break: not reported as a tool break (rc=$RC_BR): $CTX_BR"
+fi
+if printf '%s' "$CTX_BR" | grep -q 'REWROTE'; then
+  fail "stub/write-break: claimed rewrites after a broken write: $CTX_BR"
+else
+  ok "stub/write-break: no rewrite is claimed when the write never completed"
+fi
+if [[ -z "$(printf '%s' "$OUT_BR" | jq -r '.systemMessage // empty' 2>/dev/null)" ]]; then
+  ok "stub/write-break: no user-channel mutation notice for a write that broke"
+else
+  fail "stub/write-break: emitted a mutation notice for a broken write"
+fi
+
 # --- Telemetry carries the applied rewrites ----------------------------------
 printf 'this has teh typo and a disallowme term\n' >"$STUB_REPO/tel-applied.txt" # spellchecker:disable-line
 TELA="$(mktemp)"
@@ -312,6 +347,14 @@ if [[ -s "$TELA" ]]; then
     ok "stub/telemetry: data.applied records the replacement"
   else
     fail "stub/telemetry: data.applied.correction wrong: $(jq -c '.data.applied' "$TELA")"
+  fi
+  # `line` is required by the data schema and is the only field that must be a
+  # JSON number rather than a string — a quoted line number would validate as
+  # neither the schema's integer nor anything a sink can sort on.
+  if jq -e '.data.applied[0].line | type == "number" and . >= 1' "$TELA" >/dev/null 2>&1; then
+    ok "stub/telemetry: data.applied.line is a positive number, as the schema requires"
+  else
+    fail "stub/telemetry: data.applied.line wrong: $(jq -c '.data.applied' "$TELA")"
   fi
   if [[ "$(jq -r '.data.findings[0].typo' "$TELA")" == "disallowme" ]]; then
     ok "stub/telemetry: data.findings still carries residual findings only"

@@ -248,7 +248,13 @@ RESIDUAL_OUTPUT="$SCAN_OUTPUT"
 if [[ "$WRITE_CHANGES" != "false" ]]; then
   WRITE_OUTPUT=$(cd "$RUN_DIR" && "$TYPOS_BIN" --write-changes --force-exclude --format json "$TYPOS_ARG" 2>&1)
   WRITE_RC=$?
-  if [[ $WRITE_RC -ne 0 && $WRITE_RC -ne 2 ]]; then
+  # The write pass is guarded exactly as the scan pass is, and for a sharper
+  # reason: an exit 2 with no output is a typos break mid-write, and reading it
+  # as "no residual findings" would classify EVERY scanned finding as applied —
+  # reporting rewrites that never happened, on the very channel this hook exists
+  # to make trustworthy. Any code other than 0-with-no-findings or
+  # 2-with-findings is a tool break, not a judgment.
+  if [[ $WRITE_RC -ne 0 ]] && [[ $WRITE_RC -ne 2 || -z "$WRITE_OUTPUT" ]]; then
     emit_tool_break "$WRITE_OUTPUT"
   fi
   RESIDUAL_OUTPUT="$WRITE_OUTPUT"
@@ -270,21 +276,34 @@ done <<<"$RESIDUAL_OUTPUT"
 APPLIED_LINES=""
 APPLIED_INLINE=""
 APPLIED_COUNT=0
-APPLIED_JSON="[]"
+APPLIED_OBJS=""
 RESIDUAL_LINES=""
 RESIDUAL_COUNT=0
-FINDINGS_JSON="[]"
+FINDING_OBJS=""
 
+# One jq per scanned finding extracts every field at once, and each classified
+# object is APPENDED to a newline-delimited buffer that a single `jq -s` folds
+# into an array at the end. Re-reading and rewriting an accumulating array once
+# per finding would be quadratic in a hook that fires on every edit; the
+# telemetry arrays are uncapped, so that cost is paid on the whole finding set,
+# not on the ten lines the report shows.
 while IFS= read -r line; do
   [[ -n "$line" ]] || continue
-  obj=$(printf '%s' "$line" | jq -c 'select(.type == "typo")' 2>/dev/null) || continue
-  [[ -n "$obj" ]] || continue
-  typo=$(printf '%s' "$obj" | jq -r '.typo // empty' 2>/dev/null)
+  fields=$(printf '%s' "$line" |
+    jq -r 'select(.type == "typo") | [(.line_num // 0), (.typo // ""), (.corrections[0] // ""), (.corrections | tojson)] | @tsv' 2>/dev/null) || continue
+  [[ -n "$fields" ]] || continue
+  IFS=$'\t' read -r line_num typo first_correction corrections <<<"$fields"
   [[ -n "$typo" ]] || continue
-  line_num=$(printf '%s' "$obj" | jq -r '.line_num // 0' 2>/dev/null)
-  corrections=$(printf '%s' "$obj" | jq -c '.corrections // null' 2>/dev/null)
-  first_correction=$(printf '%s' "$obj" | jq -r '.corrections[0] // empty' 2>/dev/null)
+  [[ -n "$corrections" ]] || corrections="null"
 
+  # A quoted expansion inside a `case` pattern is matched LITERALLY — POSIX
+  # requires quoted pattern characters not to act as pattern specials, and this
+  # was verified here against bash 5.3 for `*`, `?` and `[…]` in both
+  # directions. So a token carrying a glob metacharacter cannot widen this
+  # match, and no separate escaping pass is needed. Do not "fix" this into an
+  # unquoted expansion or a `grep -F` pipeline: `grep -F` splits a pattern on
+  # newlines, and this key is newline-delimited on both sides, which would
+  # match an empty pattern against everything.
   case "$RESIDUAL_KEYS" in
   *$'\n'"$line_num"$'\t'"$typo"$'\n'*)
     # Survived the write (or nothing was written) — advisory only.
@@ -296,8 +315,9 @@ while IFS= read -r line; do
         RESIDUAL_LINES+="  \"$typo\" (line $line_num) should be \"$first_correction\" — if intentional, add it to extend-words / extend-identifiers in your typos config."$'\n'
       fi
     fi
-    parsed=$(printf '%s' "$obj" | jq -c --arg typo "$typo" --argjson corrections "$corrections" '{typo:$typo,corrections:$corrections}' 2>/dev/null) || continue
-    FINDINGS_JSON=$(printf '%s' "$FINDINGS_JSON" | jq -c --argjson f "$parsed" '. + [$f]' 2>/dev/null) || true
+    parsed=$(jq -c -n --arg typo "$typo" --argjson corrections "$corrections" \
+      '{typo:$typo,corrections:$corrections}' 2>/dev/null) || continue
+    FINDING_OBJS+="$parsed"$'\n'
     ;;
   *)
     # Present before the write, gone after it: this hook rewrote it.
@@ -306,12 +326,21 @@ while IFS= read -r line; do
       APPLIED_LINES+="  \"$typo\" -> \"$first_correction\" (line $line_num)"$'\n'
       APPLIED_INLINE+="${APPLIED_INLINE:+; }\"$typo\" -> \"$first_correction\" (line $line_num)"
     fi
-    parsed=$(jq -n --arg typo "$typo" --arg correction "$first_correction" --argjson line "${line_num:-0}" \
+    parsed=$(jq -c -n --arg typo "$typo" --arg correction "$first_correction" --argjson line "${line_num:-0}" \
       '{typo:$typo,correction:$correction,line:$line}' 2>/dev/null) || continue
-    APPLIED_JSON=$(printf '%s' "$APPLIED_JSON" | jq -c --argjson a "$parsed" '. + [$a]' 2>/dev/null) || true
+    APPLIED_OBJS+="$parsed"$'\n'
     ;;
   esac
 done <<<"$SCAN_OUTPUT"
+
+FINDINGS_JSON="[]"
+if [[ -n "$FINDING_OBJS" ]]; then
+  FINDINGS_JSON=$(printf '%s' "$FINDING_OBJS" | jq -c -s . 2>/dev/null) || FINDINGS_JSON="[]"
+fi
+APPLIED_JSON="[]"
+if [[ -n "$APPLIED_OBJS" ]]; then
+  APPLIED_JSON=$(printf '%s' "$APPLIED_OBJS" | jq -c -s . 2>/dev/null) || APPLIED_JSON="[]"
+fi
 
 # Compose ONE stdout document. Claude Code parses a hook's entire stdout as a
 # single JSON document, so the agent-channel context and the user-channel

@@ -55,6 +55,13 @@ All notable changes to the `typos-format` plugin are documented here. Format fol
   that actually have findings — measured at roughly 80 ms on a 68 KB file,
   against the handler's 15-second timeout. The read-only pass runs first, so a
   run killed at the timeout between the two passes has modified nothing.
+  Both passes are guarded identically: an exit 2 with no output is a typos break,
+  not an empty residual set, so a write that broke mid-run is reported as a tool
+  break instead of being read as "every finding was applied".
+- Telemetry arrays are folded once at the end rather than re-serialized per
+  finding, so a file with many findings costs a linear number of subprocesses
+  rather than a quadratic one. The disclosure is capped; the telemetry arrays
+  are not, so that cost is paid over the whole finding set.
 
 ## [0.3.4]
 
