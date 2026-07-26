@@ -141,6 +141,34 @@ else
 fi
 printf 'alpha\t./plugins/alpha\nbeta\t./plugins/beta\n' | write_marketplace # restore
 
+# --- 6c. Equivalent spellings of the SAME registered directory must not be
+#     reported as unregistered. A trailing slash, a doubled slash and a "."
+#     segment all resolve and glob to one directory, so the forward check
+#     accepts them; before canonicalization the inverse check keyed on the
+#     raw string and reported the very directory the catalog registers.
+printf 'alpha\t./plugins/alpha/\nbeta\tplugins/./beta\n' | write_marketplace
+out="$(run)"
+rc=$?
+if [[ $rc -eq 0 ]]; then
+  pass "trailing-slash and dot-segment spellings of a registered directory stay green"
+else
+  fail "equivalent source spellings should pass (rc=$rc): $out"
+fi
+printf 'alpha\t./plugins/alpha\nbeta\t./plugins/beta\n' | write_marketplace # restore
+
+# --- 6d. ...and canonicalization must not launder a traversal: dot segments
+#     and doubled slashes wrapped around a ".." still have to reach the
+#     out-of-tree guard, never be resolved away into a benign-looking path.
+printf 'alpha\t./plugins/alpha\nbeta\t./plugins/beta\nevil\t./plugins/.//../../etc/\n' | write_marketplace
+out="$(run)"
+rc=$?
+if [[ $rc -eq 1 ]] && grep -q 'UNSAFE CATALOG SOURCE' <<<"$out" && grep -q 'evil' <<<"$out"; then
+  pass "dot segments around a '..' do not launder a path-escaping source"
+else
+  fail "obfuscated path-escaping source should fail (rc=$rc): $out"
+fi
+printf 'alpha\t./plugins/alpha\nbeta\t./plugins/beta\n' | write_marketplace # restore
+
 # --- 7. Back to green after every fixture is restored/removed. -------------
 out="$(run)"
 rc=$?

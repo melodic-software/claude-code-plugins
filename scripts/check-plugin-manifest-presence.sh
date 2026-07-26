@@ -54,13 +54,41 @@ errors=0
 # MISSING failure.
 entries="$(jq -r '.plugins[] | [.name, .source] | @tsv' "$MARKETPLACE" | tr -d '\r')"
 
-# Sources actually seen in the catalog, keyed by the normalized (leading
-# "./" stripped) relative path -- used by the inverse check below.
+# Canonical spelling of a repo-relative path, so the forward and inverse
+# checks key on the same string for every equivalent way of writing one
+# directory. `./plugins/alpha/`, `plugins//alpha` and `plugins/./alpha` all
+# resolve and glob identically on the filesystem, so a catalog entry spelled
+# any of those ways used to register a key the inverse check's
+# `"$PLUGINS_ROOT"/*/` expansion ('plugins/alpha') could never match, and the
+# gate reported a correctly-registered directory as UNREGISTERED.
+#
+# Empty and "." segments are dropped; ".." is deliberately KEPT VERBATIM. This
+# function must never resolve a parent reference -- doing so would launder
+# 'plugins/../../etc' into 'etc' and walk it straight past the out-of-tree
+# guard below, which is why normalization runs BEFORE that guard rather than
+# after it. A leading "/" is preserved for the same reason: the guard has to
+# still see an absolute path as absolute.
+normalize_rel_path() {
+  local raw="$1" out="" seg prefix=""
+  local -a parts=()
+  [[ "$raw" == /* ]] && prefix=/
+  IFS=/ read -r -a parts <<<"$raw"
+  for seg in ${parts[@]+"${parts[@]}"}; do
+    [[ -n "$seg" && "$seg" != "." ]] || continue
+    out="${out:+$out/}$seg"
+  done
+  # "." rather than "" when every segment was dropped, so a root-level plugin
+  # (source ".", "./") keeps resolving to the repository root.
+  printf '%s' "${prefix}${out:-.}"
+}
+
+# Sources actually seen in the catalog, keyed by the canonical relative path
+# -- used by the inverse check below.
 declare -A catalog_sources=()
 
 while IFS=$'\t' read -r name source; do
   [[ -n "$name" ]] || continue
-  rel="${source#./}"
+  rel="$(normalize_rel_path "$source")"
 
   # Trust boundary: "source" is catalog data, not free-form input -- but a
   # marketplace entry is still something a PR diff could carry, so treat it
@@ -118,7 +146,10 @@ done <<<"$entries"
 if [[ -d "$PLUGINS_ROOT" ]]; then
   for plugin_dir in "$PLUGINS_ROOT"/*/; do
     [[ -d "$plugin_dir" ]] || continue
-    rel="${plugin_dir%/}"
+    # Same canonicalization as the catalog side, so the two key on one
+    # spelling even when PLUGINS_ROOT itself is given with a trailing or
+    # doubled slash.
+    rel="$(normalize_rel_path "$plugin_dir")"
     if [[ -z "${catalog_sources[$rel]:-}" ]]; then
       printf "UNREGISTERED PLUGIN DIRECTORY: '%s' exists but no %s entry names it as its source.\n" "$rel" "$MARKETPLACE" >&2
       errors=$((errors + 1))
