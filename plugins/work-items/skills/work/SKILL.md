@@ -80,6 +80,21 @@ TRACKER="${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/work-item-tracker.sh"
 
 Exit `6` (capability-unsupported, CONTRACT.md "Exit codes") means the bound provider declares `reclaim: false` (e.g. `local-markdown`, whose `claim` already race-checks the lease pre-write — CONTRACT.md "Adapter contract") — not an error; skip this step entirely (assigned-item enumeration + per-id reclaim) and proceed to Selection Priority.
 
+**Classifier denial of the reclaim call (distinct from any script exit code).** An auto-mode risk
+classifier can refuse the `reclaim` Bash tool call itself, before the script runs — no exit code is
+produced (CONTRACT.md "Exit codes"). This is a known, observed op-side condition (work-loop
+self-observation #1381: the sibling `claim` verb on the same script, invoked moments later, was NOT
+blocked — the asymmetry could not be explained by `permissions.allow`/`deny` coverage, since neither
+verb carries an explicit rule in the fleet's permission floor at the time of writing). Do not retry
+the denied call, do not treat it as a hard failure, and do not attempt to self-widen permissions to
+work around it (the classifier blocks an agent broadening its own grants — see
+`${CLAUDE_PLUGIN_ROOT}/reference/permission-preflight.md` "Why a preflight, not a fixer"). Report
+it once for the cycle (not once per id), skip this step entirely, and proceed to Selection
+Priority — the same posture as
+exit `6`. Stale leases from crashed/abandoned sessions will accumulate under this condition until an
+operator resolves the classifier gap; that degradation is expected and non-blocking, not a reason to
+stop the lane.
+
 ## Selection Priority
 
 `/work-items:work` evaluates these tiers top-down, only falling through to the next tier when the current one yields no candidates. Tiers flagged last-resort are skipped if any prior tier already yielded a candidate.

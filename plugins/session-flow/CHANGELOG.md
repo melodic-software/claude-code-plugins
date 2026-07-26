@@ -1,6 +1,6 @@
 # Changelog — session-flow plugin
 
-## [0.17.2]
+## [0.17.4]
 
 ### Fixed
 
@@ -22,6 +22,28 @@
   `/goal` line would just become inert prompt text); the rule instead has the reader send `/goal
   <condition>` as a separate follow-up message. `handoff/SKILL.md`'s two enforcement checklists and
   `handoff/context/gotchas.md` are updated to match.
+
+## [0.17.3]
+
+### Fixed
+
+- **The shared concern-value parser no longer reads a declared key as absent over YAML key spacing.**
+  `parse-concern-value.sh` anchored on the exact regex `^<key>:`, so `memory_dir : .work` (YAML
+  permits whitespace before the `:`) and a root block mapping written at a uniform indent both
+  resolved to the caller's fallback — substituting a value the repo never chose for one it did.
+  Both shapes now resolve, matched at the document's own base indentation so a same-named key
+  nested under another mapping never answers for the root one — including when the root key is
+  present but deliberately empty. Synced from `lib/parse-concern-value.sh`; version bumped so installed
+  copies receive it.
+
+## [0.17.2]
+
+### Fixed
+
+- **Setup's headless reconfigure recipe no longer claims `-y` is CLI-required for a non-TTY
+  `uninstall`.** Verified against the live CLI (2.1.220) and current docs: `-y` only skips
+  `uninstall`'s `--prune` confirmation, and this recipe never passes `--prune` — so `-y` had no
+  effect and is no longer part of the recipe (#1410).
 
 ## [0.17.1]
 
