@@ -3,7 +3,7 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.21.4]
+## [0.21.5]
 
 ### Changed
 
@@ -16,6 +16,11 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   fallback in an `else` branch or a separate statement) but not
   same-line-guardable, so each `date -d` call site now carries a
   `portability-ok:` annotation documenting why. No behavior change.
+
+## [0.21.4]
+
+### Changed
+
 - **Test scaffolding: migrated `mktemp -p` temp file/dir creation to the portable `mktemp "$DIR/template"` form.** BSD/macOS `mktemp` has no `-p` flag; the directory now rides in the positional TEMPLATE argument instead, which both GNU and BSD `mktemp` accept identically. Test-only — no hook behavior change. Part of #1527 (`claude-ops-test-helpers.sh`).
 
 ## [0.21.3]
