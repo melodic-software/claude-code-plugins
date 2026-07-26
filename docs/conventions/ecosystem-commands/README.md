@@ -130,6 +130,13 @@ lack its config at worst. Under `run-from: repo-root`, a `cmd` using the `<files
 the full ecosystem-scoped changed-files set (the same base definition the placeholder table above
 gives), not one project's subset — there is no single project root left to scope it to.
 
+For the same reason, `<project-dir>` is **undefined** under `run-from: repo-root`: a single run has
+no one project root to bind it to, and both plausible fallbacks — picking a root arbitrarily, or
+iterating them — contradict the single-run guarantee the key exists to give. A gate `cmd` that uses
+`<project-dir>` while declaring `run-from: repo-root` is a configuration error; a resolver reports it
+as a failure naming the gate and the unresolvable placeholder rather than guessing an expansion. Such
+a gate is per-project by construction and belongs on the `ecosystem` default.
+
 `run-from` is canonical-verb metadata, not a context binding: like `anchor`
 and `project-discovery` (which already fix a gate's default execution location per repo), it is a
 repo-invariant fact about *this* gate's `cmd` that every execution surface must agree on, not a

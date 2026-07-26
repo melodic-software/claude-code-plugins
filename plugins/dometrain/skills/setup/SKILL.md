@@ -41,7 +41,8 @@ Official contracts:
 2. When the plugin is disabled (no `dometrain`-scoped tool was ever attempted), direct the user to
    enable it through the `/plugin` interface or `claude plugin enable dometrain`. Claude Code's
    native prompt collects the required key. Do not run either command for the user and do not
-   hand-edit `pluginConfigs`.
+   hand-edit `pluginConfigs`. For a non-interactive install (CI, a fleet bootstrap, a scripted
+   machine setup), point to the headless path below instead.
 3. When the plugin is enabled and a `dometrain`-scoped tool resolves (via direct tool-list
    presence or a successful `ToolSearch` match), report **connected**: the server started and the
    key was supplied. Do not claim the key has valid API access beyond that — a connection-layer
@@ -57,6 +58,56 @@ Official contracts:
      doesn't have.
    - After the user reconfigures the key, require `/reload-plugins` or a new session before
      rechecking tool availability.
+
+## Headless installation
+
+For a non-interactive install — CI, a fleet bootstrap, a scripted machine setup — seed the key
+on the initial install instead of the interactive `/plugin` prompt. Three steps, all required:
+
+```shell
+claude plugin marketplace add <source>
+claude plugin install dometrain@<marketplace> -s <scope> --config dometrain_api_key=<your-key>
+claude plugin enable dometrain -s <scope>
+```
+
+Both placeholders are bootstrap inputs, not lookups: before the first install there is no record
+to read them from. `<marketplace>` is the name the catalog registers under when it is added, and
+`<scope>` is the scope the bootstrap chooses — `user`, `project`, or `local`; `install` defaults
+to `user` when the flag is omitted. Use the same `<scope>` in every command of the sequence.
+
+**The enable step is not optional.** This plugin ships `defaultEnabled: false`, so it installs
+DISABLED — the install seeds the key but leaves the MCP server, and therefore every `dometrain`
+tool, unavailable until it is enabled ([Default enablement](https://code.claude.com/docs/en/plugins-reference#default-enablement),
+which also notes `claude plugin enable` auto-detects the scope when `-s` is omitted; passing it
+explicitly keeps the sequence deterministic in CI). A bootstrap that stops after `install` looks
+successful and delivers no tools.
+
+**Fresh-install-only:** `--config` seeds a value only on a fresh install. Re-running it against
+an already-installed `dometrain` does not update the stored key. To rotate or clear the key
+later, use `/plugin configure dometrain` (interactive, any time), or headlessly:
+
+```shell
+claude plugin list                                          # read the CURRENT scope for dometrain
+claude plugin uninstall dometrain -s <scope> -y
+claude plugin install dometrain@<marketplace> -s <scope> --config dometrain_api_key=<new-key>
+claude plugin enable dometrain -s <scope>
+```
+
+Never re-run `install --config` against an existing install expecting it to take effect. Read the
+scope from `claude plugin list` and carry that SAME `-s <scope>` through all three commands — they
+default to `user`, so omitting it against a `project`- or `local`-scope install removes a
+different record than the one that is loading and reinstalls at a scope that does not load,
+leaving the old key in use. For a `project`- or `local`-scope install, run every command from
+that project directory, since those scopes resolve against the current project.
+
+`-y` on the uninstall is required whenever stdin or stdout is not a TTY — without it a rotation
+run from CI stops at the confirmation prompt with the plugin already uninstalled. The reinstall
+needs its own `enable` for the same reason the initial bootstrap does: uninstalling can drop the
+`enabledPlugins` entry, and a fresh install of a `defaultEnabled: false` plugin lands disabled, so
+a rotation that ends at `install` completes with the new key stored and no tools available.
+
+Full detail, including the command-line-exposure caveat, is in the README's
+[Rotating or clearing the key](../../README.md#rotating-or-clearing-the-key) section.
 
 ## Output
 
