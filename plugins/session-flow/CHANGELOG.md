@@ -27,19 +27,24 @@
   an unbounded one; redundant/wasteful bytes (verbose ids, a `tool_results` count now superseded by
   `len(results)`, JSON-dumping a tool-result content-block list instead of extracting its text) were
   cut wherever doing so didn't reduce the analyzer's actual computing capability.
-  Every bounded field pairs with an out-of-band cut flag when it was truncated (`cut` on a
+  Every bounded field pairs with an out-of-band flag when the preview is incomplete (`cut` on a
   `calls`/`results` entry, `say_cut`/`human_cut` beside the narration), so a value cut short of a
   dependency reads as unknown rather than as a clean absence that would license an
   asserted-and-wrong finding. The flag is out-of-band rather than a trailing marker in the text
   because an in-band marker can't be told apart from a value that genuinely ends in those characters
   (a complete tool result reading `Processing complete...`), which would suppress computable
-  findings in the other direction.
-  `_analysis_prompt` updated to reference the new fields and the cut flags. Its dependency check now
-  compares the earlier call's own `calls[].in` against the later call's, not only the later input
-  against earlier results and narration: a side-effecting call (`mkdir` before a `Write` into that
-  directory) returns nothing and narrates nothing, so a result-only comparison read a required
-  sequence as a missed batch. Its grouping rule no longer both asserts sequential execution for a
-  missing `mid` and calls that case uncomputable — a missing grouping key is now uniformly
+  findings in the other direction. `cut` also covers a mixed content-block result — text alongside
+  an image or document block keeps only the text, so the preview is incomplete even though it fits
+  the limit. A `results` entry additionally carries `err` when the call failed, because a failed
+  call's own output preview is routinely empty and a later retry is control-dependent on having
+  seen that failure.
+  `_analysis_prompt` updated to reference the new fields and flags. Its dependency check is now four
+  explicit places rather than two, any one of which makes a sequential pair correctly sequential:
+  it compares the earlier call's own `calls[].in` against the later call's, since a side-effecting
+  call (`mkdir` before a `Write` into that directory) returns nothing and narrates nothing so a
+  result-only comparison read a required sequence as a missed batch; and it treats a retry after an
+  `err` result as control-dependent. Its grouping rule no longer both asserts sequential execution
+  for a missing `mid` and calls that case uncomputable — a missing grouping key is now uniformly
   uncomputable, never evidence of sequential execution.
   `tools` is unaffected and still carries the tool-call names a "delegation" finding needs (a Task/
   Agent tool name), so delegation required no new field — the gap #1485 closes is sequencing/batching/

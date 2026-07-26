@@ -101,7 +101,10 @@ def _preview(value: object, limit: int = _PREVIEW_LIMIT) -> tuple[str, bool]:
     wrapper structure (`[{"type":"text","text":...}]`). A dict, or a list with
     no text blocks (e.g. an image block), falls back to compact JSON so the
     preview keeps recognizable keys/values (e.g. a `file_path`) instead of
-    Python's `repr` spacing.
+    Python's `repr` spacing. A MIXED list -- text alongside an image or
+    document block -- keeps only the text and so is reported cut even when it
+    fits the limit: the omitted block could be the one carrying the dependency,
+    and a preview that dropped content is not a complete one.
 
     The cut flag is what lets the analysis prompt tell "no dependency in this
     value" from "the dependency may be past the preview" and drop the claim
@@ -110,19 +113,24 @@ def _preview(value: object, limit: int = _PREVIEW_LIMIT) -> tuple[str, bool]:
     """
     if value is None:
         return "", False
+    dropped_blocks = False
     if isinstance(value, str):
         s = value
     elif isinstance(value, list):
         texts = [b.get("text", "") for b in value
                 if isinstance(b, dict) and b.get("type") == "text"]
         s = " ".join(t for t in texts if t)
-        if not s.strip():
+        if s.strip():
+            dropped_blocks = any(not (isinstance(b, dict) and b.get("type") == "text")
+                                 for b in value)
+        else:
             s = _compact_json(value)
     elif isinstance(value, dict):
         s = _compact_json(value)
     else:
         s = str(value)
-    return _bounded(s.strip(), limit)
+    text, cut = _bounded(s.strip(), limit)
+    return text, cut or dropped_blocks
 
 
 def _compact_json(value: object) -> str:
@@ -138,6 +146,19 @@ def _call_entry(short_id: object, key: str, value: object) -> dict:
     entry = {"id": short_id, key: text}
     if cut:
         entry["cut"] = True
+    return entry
+
+
+def _result_entry(block: dict) -> dict:
+    """One `results` entry: the call entry plus `err` when the call FAILED.
+
+    A failed call's own output is often empty or generic, so the failure is
+    invisible in the preview alone -- and a later call that retries it is
+    control-dependent on having seen the error, not an unbatched sibling.
+    """
+    entry = _call_entry(_short_id(block.get("tool_use_id")), "out", block.get("content"))
+    if block.get("is_error"):
+        entry["err"] = True
     return entry
 
 
@@ -183,11 +204,14 @@ def summarize_record(rec: dict) -> dict:
         the count into two fields is dead cost the token-cheap contract can't
         justify.
 
-    Every bounded field pairs with an out-of-band cut flag when it was
-    truncated -- `cut` on a `calls`/`results` entry, `say_cut`/`human_cut`
+    Every bounded field pairs with an out-of-band cut flag when the preview is
+    incomplete -- `cut` on a `calls`/`results` entry, `say_cut`/`human_cut`
     beside the narration -- so the analysis prompt can tell "the dependency
-    isn't there" from "the dependency may be past the cut". The flag is
-    omitted, never set false, when nothing was cut.
+    isn't there" from "the dependency may be past the cut". A `results` entry
+    additionally carries `err` when the call FAILED, since a retry after a
+    failure is control-dependent on it while the failed call's own output
+    preview is routinely empty. Each flag is omitted, never set false, when it
+    does not apply.
     """
     t = rec.get("type")
     out: dict = {"t": t, "ts": rec.get("timestamp")}
@@ -220,9 +244,7 @@ def summarize_record(rec: dict) -> dict:
             humans = [c.get("text", "") for c in content
                       if isinstance(c, dict) and c.get("type") == "text"]
             if tool_results:
-                out["results"] = [
-                    _call_entry(_short_id(c.get("tool_use_id")), "out", c.get("content"))
-                    for c in tool_results]
+                out["results"] = [_result_entry(c) for c in tool_results]
             if humans and any(h.strip() for h in humans):
                 _set_narration(out, "human", " ".join(humans).strip())
     elif t == "system":
@@ -815,7 +837,7 @@ delegation claim from the "tools" field, which carries each event's tool-call na
 subagent delegation appears there as a "Task"/"Agent" tool name. Derive an occurrence count \
 backing an "Emerging pattern" finding by actually counting matched occurrences. Before \
 routing a computed sequential/unbatched pair as a missed-batching Efficiency finding, check \
-for a genuine dependency between the calls, in all three of these places -- any one of them \
+for a genuine dependency between the calls, in all four of these places -- any one of them \
 is enough to make the pair correctly sequential: (a) DATA -- compare the later assistant \
 event's "calls[].in" preview against the "results[].out" previews of the user events \
 between them (matched by the result's "id" to the EARLIER call's own "calls[].id", to \
@@ -824,17 +846,23 @@ output; (b) RESOURCE/SIDE-EFFECT -- compare the EARLIER call's own "calls[].in" 
 against the later call's "calls[].in", for a resource the earlier call creates or mutates \
 that the later one names (a shared path, directory, file, or url). A side-effecting call \
 often returns nothing and narrates nothing, so its result preview is empty and (a) alone \
-would read the pair as independent; (c) NARRATION -- read the surrounding "say" text for an \
-evident control, resource, or side-effect dependency (an edit made before a test that \
-exercises it runs). A correctly computed sequencing fact is not by itself proof of a missed \
-batching opportunity: a pair that was genuinely dependent was correctly sequential, not a \
-miss. Any preview or narration whose own event carries a cut flag was CUT, not empty -- a \
-"calls"/"results" entry with "cut": true holds only the first {_PREVIEW_LIMIT} characters \
-of that value, and an event with "say_cut": true or "human_cut": true holds only the first \
-{_NARRATION_LIMIT} characters of that narration; the rest may carry the dependency. Treat \
-every check that rests on a cut value as an UNKNOWN dependency check, never as a clean "no \
-match" that licenses the missed-batching finding. Absence of a cut flag means the value is \
-complete -- judge only by the flag, never by how a preview happens to end. When you cannot \
+would read the pair as independent; (c) FAILURE/RETRY -- a "results" entry with "err": true \
+marks a call that FAILED. A later call repeating that tool or naming the same resource is a \
+retry: it could only be chosen after the failure was seen, so it is control-dependent and \
+correctly sequential, never a missed batch. A failed call's "out" preview is routinely \
+empty or generic, so (a) shows nothing for exactly the pairs this covers; (d) NARRATION -- \
+read the surrounding "say" text for an evident control, resource, or side-effect dependency \
+(an edit made before a test that exercises it runs). A correctly computed sequencing fact \
+is not by itself proof of a missed batching opportunity: a pair that was genuinely \
+dependent was correctly sequential, not a miss. Any preview or narration whose own event \
+carries a cut flag is INCOMPLETE, not empty -- a "calls"/"results" entry with "cut": true \
+holds at most the first {_PREVIEW_LIMIT} characters of that value (and, for a tool result \
+that mixed text with an image or document block, only the text), and an event with \
+"say_cut": true or "human_cut": true holds only the first {_NARRATION_LIMIT} characters of \
+that narration; what is missing may carry the dependency. Treat every check that rests on a \
+cut value as an UNKNOWN dependency check, never as a clean "no match" that licenses the \
+missed-batching finding. Absence of a cut flag means the value is complete -- judge only by \
+the flag, never by how a preview happens to end. When you cannot \
 compute a structural claim from these fields -- grouping key absent, occurrences not \
 actually countable, or every value that could show a dependency was cut -- drop the claim \
 rather than assert it uncomputed: an asserted-and-wrong structural claim routes as if \

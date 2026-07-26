@@ -248,6 +248,40 @@ class Distillation(unittest.TestCase):
         self.assertEqual(u["results"][0]["out"], "Processing complete...")
         self.assertNotIn("cut", u["results"][0])
 
+    def test_failed_tool_result_carries_err_flag(self):
+        """A failed call's own output is routinely empty or generic, so without
+        `err` a retry reads as an independent unbatched sibling rather than a
+        call that could only be chosen after the failure, see #1485 Codex
+        review."""
+        u = observer.summarize_record({"type": "user", "message": {
+            "content": [
+                {"type": "tool_result", "tool_use_id": "call_1", "content": "",
+                 "is_error": True},
+                {"type": "tool_result", "tool_use_id": "call_2", "content": "ok"},
+            ]}})
+        self.assertTrue(u["results"][0]["err"])
+        self.assertNotIn("err", u["results"][1])
+
+    def test_mixed_block_result_reported_incomplete(self):
+        """Text alongside an image block keeps only the text -- the omitted
+        block could carry the dependency, so the preview is not complete even
+        though it fits the limit, see #1485 Codex review."""
+        u = observer.summarize_record({"type": "user", "message": {
+            "content": [{"type": "tool_result", "tool_use_id": "call_1", "content": [
+                {"type": "text", "text": "see attached"},
+                {"type": "image", "source": "x"},
+            ]}]}})
+        self.assertEqual(u["results"][0]["out"], "see attached")
+        self.assertTrue(u["results"][0]["cut"])
+
+    def test_text_only_block_list_not_reported_incomplete(self):
+        """The mixed-block rule must not fire on an all-text block list."""
+        u = observer.summarize_record({"type": "user", "message": {
+            "content": [{"type": "tool_result", "tool_use_id": "call_1", "content": [
+                {"type": "text", "text": "a"}, {"type": "text", "text": "b"},
+            ]}]}})
+        self.assertNotIn("cut", u["results"][0])
+
     def test_narration_cut_flag(self):
         """The dependency check reads `say` for a control/resource/side-effect
         dependency, so a silently cut narration would read as showing none."""
@@ -373,6 +407,14 @@ class AnalysisPrompt(unittest.TestCase):
         the same clause asserting sequential execution and the drop rule calling
         it uncomputable are contradictory instructions, see #1485 Codex review."""
         self.assertIn("never evidence of sequential execution", self.prompt)
+
+    def test_error_retry_treated_as_control_dependent(self):
+        """An error-then-retry pair sits in two `mid` groups with no data
+        dependency to find, so without an explicit rule it routes as a missed
+        batch, see #1485 Codex review."""
+        self.assertIn('"err": true', self.prompt)
+        self.assertIn("retry", self.prompt)
+        self.assertIn("control-dependent", self.prompt)
 
     def test_resource_dependency_compares_call_inputs(self):
         """A side-effecting call (`mkdir /tmp/out` before `Write /tmp/out/x.md`)
