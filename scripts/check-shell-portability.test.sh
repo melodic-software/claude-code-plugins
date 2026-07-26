@@ -310,7 +310,7 @@ rm -f "$f" "$tok"
 # cluster), and --in-place (GNU long form) — #1513
 # =============================================================================
 
-tok="$(one_token_list '(^|[^[:alnum:]_])sed([[:space:]][^\n]*)?[[:space:]]-[A-Za-z]*E[A-Za-z]*i([[:space:]]|$)')"
+tok="$(one_token_list '(^|[^[:alnum:]_])sed([[:space:]][^\n]*)?[[:space:]]-[A-Za-z]*E[A-Za-z]*i([[:space:]|&;()<>]|$)')"
 
 f="$(tmpsh "sed -Ei 's/foo/bar/' \"\$file\"")"
 if out="$(scan_paths "$tok" "$f" 2>&1)"; then
@@ -397,9 +397,28 @@ if scan_paths "$tok" "$f" >/dev/null 2>&1; then
 else
   fail "used=\"\$(grep -Ei ...)\" must not fire -- 'sed' inside an identifier is not a sed command"
 fi
-rm -f "$f" "$tok"
+rm -f "$f"
 
-tok="$(one_token_list '(^|[^[:alnum:]_])sed([[:space:]][^\n]*)?[[:space:]]--in-place([[:space:]]|=|$)')"
+# --- operator-terminated forms: no trailing whitespace before a control
+# operator, redirection, subshell close or quote must still be detected
+# (#1545 — the boundary originally accepted only whitespace or end of line,
+# the same class of false negative #1537 fixed for sort -V/grep -P/echo -e) -
+while IFS= read -r case; do
+  f="$(tmpsh "$case")"
+  if out="$(scan_paths "$tok" "$f" 2>&1)"; then
+    fail "[$case] should fail, got success: $out"
+  else
+    ok "[$case] is detected"
+  fi
+  rm -f "$f"
+done <<'CASES'
+x=$(sed -Ei)
+sed -Ei|cat
+sed -Ei; echo done
+CASES
+rm -f "$tok"
+
+tok="$(one_token_list '(^|[^[:alnum:]_])sed([[:space:]][^\n]*)?[[:space:]]--in-place([[:space:]|&;()<>]|=|$)')"
 
 f="$(tmpsh "sed --in-place 's/foo/bar/' \"\$file\"")"
 if out="$(scan_paths "$tok" "$f" 2>&1)"; then
@@ -425,7 +444,23 @@ if scan_paths "$tok" "$f" >/dev/null 2>&1; then
 else
   fail "--in-place must be scoped to a sed invocation -- an unrelated option arm must not fire"
 fi
-rm -f "$f" "$tok"
+rm -f "$f"
+
+# --- operator-terminated forms (#1545) --------------------------------------
+while IFS= read -r case; do
+  f="$(tmpsh "$case")"
+  if out="$(scan_paths "$tok" "$f" 2>&1)"; then
+    fail "[$case] should fail, got success: $out"
+  else
+    ok "[$case] is detected"
+  fi
+  rm -f "$f"
+done <<'CASES'
+x=$(sed --in-place)
+sed --in-place|cat
+sed --in-place; echo done
+CASES
+rm -f "$tok"
 
 # =============================================================================
 # readlink -f / --canonicalize, auto-guarded by a co-located realpath attempt
@@ -708,6 +743,25 @@ elif [[ "$(echo "$out" | grep -c "PORTABILITY: ${f}:")" -eq 5 ]] &&
   ok "the shipped list detects every sort long form and spares git tag --sort=<key>"
 else
   fail "expected hits on lines 1-5 only, got: $out"
+fi
+rm -f "$f"
+
+# --- operator-terminated sed -Ei / --in-place forms are active in the
+# SHIPPED list too (#1545): both tokens widened to the same boundary
+# `--sort=WORD` (#1530) and `sort -V`/`grep -P`/`echo -e` (#1537) already use,
+# proven here against the real token list rather than only the isolated-token
+# mechanism above -------------------------------------------------------------
+f="$(tmpsh "$(printf '%s\n' \
+  'x=$(sed -Ei)' \
+  'sed -Ei|cat' \
+  'x=$(sed --in-place)' \
+  'sed --in-place|cat')")"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "operator-terminated sed -Ei/--in-place should fail under the shipped list, got success: $out"
+elif [[ "$(echo "$out" | grep -c "PORTABILITY: ${f}:")" -eq 4 ]]; then
+  ok "the shipped list detects every operator-terminated sed -Ei/--in-place form"
+else
+  fail "expected all 4 operator-terminated forms flagged, got: $out"
 fi
 rm -f "$f"
 
