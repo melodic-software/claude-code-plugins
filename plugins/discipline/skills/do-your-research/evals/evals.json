@@ -1,0 +1,67 @@
+{
+  "skill_name": "do-your-research",
+  "evals": [
+    {
+      "id": 1,
+      "name": "mid-session-audit-corrects-unbacked-claim",
+      "prompt": "Earlier you told me the default connection timeout for this client is 30 seconds and that the config file lives at config/app.yaml — you didn't check either. do your research.",
+      "expected_output": "The skill re-anchors research discipline as active, audits recent turns, names the two unverified concrete specifics as located findings (the 30s default, the config path), and corrects forward this turn by verifying each against the live environment or an authoritative source rather than restating them from memory.",
+      "files": [],
+      "expectations": [
+        "Re-anchors the research/verification discipline as active for the rest of the task before auditing",
+        "Names the unverified default and the unverified path as concrete, located findings — not a generic apology",
+        "Corrects forward by actually verifying each specific (live environment or authoritative source) this turn, or flags it as unverifiable",
+        "Does not simply re-assert the remembered values as if confirmed"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "conversation-start-sets-posture-no-fabrication",
+      "prompt": "/discipline:do-your-research",
+      "expected_output": "Fired at turn one with nothing to audit, the skill does only the re-anchor step: it acknowledges research discipline as active for the session and stops, without manufacturing findings about work that does not exist yet.",
+      "files": [],
+      "expectations": [
+        "Acknowledges the discipline as active for the session",
+        "Does NOT invent violations or audit findings when there is no prior work to audit",
+        "Stops after the re-anchor rather than producing a corrective report"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "audits-premature-solution-and-training-data-recall",
+      "prompt": "Let's just use Redis for the rate limiter — that's the standard choice, I know it from experience. do your research.",
+      "expected_output": "The skill re-anchors research discipline, then audits the recent turn for two discipline breaks: a solution reached before the problem was framed, and a claim ('the standard choice', 'I know it from experience') resting on training-data recall rather than a verified source. It corrects forward this turn by naming the actual problem before the solution and treating the recalled 'standard' as unverified until confirmed against an authoritative source, rather than proceeding on the assumption.",
+      "files": [],
+      "expectations": [
+        "Names the solution-before-problem-framing as a located finding and re-derives from the actual problem being solved",
+        "Flags 'the standard choice' / 'from experience' as training-data recall that is unverified until a source or the live environment backs it",
+        "Corrects forward this turn rather than merely noting the issues or proceeding on the assumption"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "clean-audit-returns-clean",
+      "prompt": "do your research — I want to make sure we've been rigorous. (Every claim this session was already fetched from official docs and cited.)",
+      "expected_output": "The audit finds nothing to correct and says so plainly. Firing the skill is treated as a re-anchor, not an accusation — it does not manufacture findings to look diligent, and it does not reprint the discipline's rules in place of governing by them.",
+      "files": [],
+      "expectations": [
+        "Reports an honest 'nothing to correct' when the work already conforms",
+        "Does not fabricate findings to appear thorough",
+        "Does not paste or restate the discipline's rule text as its output"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "fact-check-trigger-routes-to-research-discipline",
+      "prompt": "You said the CLI flag is --parallel and the free tier allows 100 requests a day. Fact-check that.",
+      "expected_output": "Reads 'fact-check' as a trigger for research discipline, re-anchors it, names the two unverified specifics (the flag name, the free-tier limit) as located findings, and corrects forward this turn by verifying each against an authoritative source or the live environment rather than restating them from memory. A single-question fact-check stays in this inline tier rather than escalating to the deep fan-out.",
+      "files": [],
+      "expectations": [
+        "Treats the 'fact-check' request as research/verification discipline and re-anchors it",
+        "Names the unverified flag and the unverified limit as concrete, located findings",
+        "Verifies each against an authoritative source or the live environment this turn, or flags it unverifiable",
+        "Stays inline for a small fact-check rather than escalating to do-your-research-deep"
+      ]
+    }
+  ]
+}

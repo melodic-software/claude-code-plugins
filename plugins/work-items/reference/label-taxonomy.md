@@ -17,7 +17,7 @@ These axes work in any repo and don't change per team. Do not snapshot their mem
 |------|-----------|-----------------|
 | Type | native Issue Type (org) · `type:` label (personal/non-org) | The kind of issue: `Bug` (broken vs. intent), `Feature` (new capability), `Task` (any other tracked work — maintenance, refactor, tests, docs, audits, chores). Commit-type granularity (`fix`/`feat`/`chore`/`docs`/`refactor`/`test`/`build`/`perf`) stays at the commit layer, not the issue axis. |
 | Priority | `priority:` | Urgency. Members from the live set. |
-| Status | `status:` | Exception and gate flags only (e.g. `needs-info`, `needs-decision`, `ready`, `needs-triage`). Members from the live set. **Claim is not a status label** — it is assignee + lease (see the seam claim protocol). **Blocked is not a status label** — it is a native `blocked-by` dependency edge. |
+| Status | `status:` | Exception and gate flags only (e.g. `needs-info`, `needs-decision`, `ready`). Members from the live set. `needs-triage` is dual-axis — a repo may file it under Status (`status:needs-triage`) or Priority (`priority:needs-triage`); see [`../skills/triage/SKILL.md`](../skills/triage/SKILL.md) "Scope: raw intake only". **Claim is not a status label** — it is assignee + lease (see the seam claim protocol). **Blocked is not a status label** — it is a native `blocked-by` dependency edge. |
 | Meta | (none) | Tool-owned flat markers the automation sets: `automated`, `good-first-issue`, `migrated`, `stale`, plus the three canonical-role labels (defaults `agent-ready`, `needs-human`, `recurring` — see "Canonical roles" below). |
 | Cadence | `cadence:` | Recurrence period for maintenance items. Members from the live set. |
 
@@ -79,3 +79,16 @@ When a project-specific axis has no labels in the consuming repo, actions simply
 truth, route changes to that owner and keep actions read-only. Otherwise, creating a label requires
 the user's explicit authorization and the repository's documented contribution process; discovery
 and validation alone never imply write permission.
+
+## Skill-private routing markers
+
+Not every label a work-items action encounters is general classification — some are another
+skill's own routing state on its own items, and this plugin is **read-only** on them. The current
+example is the `wayfind: *` axis: declared by the consuming repo's label-as-code source of truth,
+but applied and removed only by `/planning:wayfind`, on its own map sub-issues, at sub-issue
+creation ("Never create labels ad hoc from this skill" — `/planning:wayfind` `SKILL.md` "Create or
+extend the map issue"). No work-items skill applies, strips, or requires a `wayfind:` value on the
+items it manages; it respects whatever role label (e.g. `needs-human`) a wayfind HITL item already
+carries, the same as any other item's role label. Members and semantics belong to the declaring
+repo and `/planning:wayfind` — resolved decision: `melodic-software/github-iac#179` — so they are
+referenced here, not restated.

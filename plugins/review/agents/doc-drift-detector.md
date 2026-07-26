@@ -69,7 +69,7 @@ admissible first) — this agent is report-only and never deletes.
 
 **Org override.** This pre-check is a portable-baseline default. When the
 consuming repository declares its own documentation-existence convention,
-resolve and defer to it via `/re-anchor:follow-our-standards`'s resolution
+resolve and defer to it via `/discipline:follow-our-standards`'s resolution
 ladder (repo-declared source → repo's own conventions → this portable
 baseline) instead of the default above.
 

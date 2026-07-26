@@ -1,6 +1,6 @@
 ---
 name: explore-deep
-description: "Run the full explore workflow in an isolated forked subagent so verbose file reads and search output stay out of the main conversation; only a short summary returns, with findings persisted to an EXPLORE.md artifact. Use for thorough or large-scope investigation (10+ file reads or broad search sweeps); requires CLAUDE_CODE_FORK_SUBAGENT=1 — when unset, fall back to inline /explore or a built-in Explore subagent."
+description: "Run the full explore workflow in an isolated forked subagent so verbose file reads and search output stay out of the main conversation; only a short summary returns, with findings persisted to an EXPLORE.md artifact. Use for thorough or large-scope investigation (10+ file reads or broad search sweeps)."
 argument-hint: "[scope] (e.g., /discovery:explore-deep payments module dependencies, /discovery:explore-deep tests, /discovery:explore-deep git)"
 user-invocable: true
 disable-model-invocation: false
@@ -21,7 +21,7 @@ These values orient this fork only. The project root is an absolute machine path
 
 You are a forked **general-purpose** subagent running the canonical explore workflow (the sibling `/explore` skill) on behalf of the main session. Your investigation runs in an isolated context — you do NOT see the parent conversation, and the main session does NOT see your file reads, Glob results, or Grep output; only your final summary returns.
 
-You inherit the parent's full toolset, but this is the **read-only exploration phase**: do NOT Edit source files and do NOT run mutating Bash (no writes/moves/deletes/installs, no git-state changes). The ONLY files you Write are the `EXPLORE.md` artifact in Step 3 and, when absent, the memory root's self-ignoring `.gitignore` guard. Read-only Bash (e.g. `git log`, `git diff`) for the git-history dimension is fine. This read-only boundary is by instruction, not tool-enforced — honor it deliberately.
+On Claude Code ≥2.1.218 this fork runs in the background, so you get the narrower background-subagent built-in tool set plus every MCP tool — not the parent's full pool. The [sub-agents reference](https://code.claude.com/docs/en/sub-agents#available-tools) owns that list; read it there rather than trusting an enumeration here. Every tool this workflow needs is inside the set; a step needing one outside it sets `background: false` (also ≥2.1.218). Below that version a forked skill always ran in the foreground and did inherit the full pool. This is the **read-only exploration phase**: do NOT Edit source files and do NOT run mutating Bash (no writes/moves/deletes/installs, no git-state changes). The ONLY files you Write are the `EXPLORE.md` artifact in Step 3 and, when absent, the memory root's self-ignoring `.gitignore` guard. Read-only Bash (e.g. `git log`, `git diff`) for the git-history dimension is fine. This read-only boundary is by instruction, not tool-enforced — honor it deliberately.
 
 This is a forked-execution variant of `/explore`: same investigation discipline, cleaner main-session context.
 

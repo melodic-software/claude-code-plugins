@@ -3,6 +3,235 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.25.0]
+
+### Added
+
+- **Brief-before-ask requirement in the interactive gates (`#1202`).** `triage`'s interactive
+  direction gate (both the initial recommendation and each step-4 interview question) and
+  `attend-queue`'s row-working loop (`[intake]`, `[escalated]`, `[ratify]` rows) now require
+  restating, before any operator-facing decision question, (1) which item, (2) the decision being
+  asked, and (3) the consequence of each option **presented** — an open-ended question, which has no
+  option set to enumerate, states what the answer will determine instead of being narrowed into a
+  closed list to satisfy the restatement. Previously an operator could be asked to decide with only
+  option labels and no restated item context, forcing them to halt the pass and ask "what issue are
+  you looking at."
+
+## [0.24.7]
+
+### Fixed
+
+- **`work-loop`'s first-drain C3 ratification gate no longer posts a duplicate `kind=ratify-c3`
+  queue comment on every cycle (`#1348`).** An item whose ratification was recorded directly in
+  the issue body (an `attended triage <date>, operator-ratified` line) — even one already
+  corrected once by a same-day comment restoring it to the frontier — collected a fresh queue
+  comment each pass, reproducing the noise the correction had already cleaned up (observed on
+  `#815`, `#816`, `#965`). The gate now separates the two queue actions: the `kind=ratify-c3`
+  comment is posted **at most once ever** (keyed on a marker comment authored by the tracker
+  seam's configured write identity — a marker pasted by any other commenter is untrusted
+  provenance and never suppresses the queue event), while the role labels converge idempotently on
+  the item's correct state rather than being counted as a repeated event: human-gated applied and
+  autonomous-eligible cleared in the same edit, mirroring `attend-queue`'s
+  never-flip-without-clearing rule. The comment is written before the labels are touched, and a
+  failed comment write leaves the labels alone — an item parked human-gated with no marker sits
+  outside both `list-frontier --autonomous` and `attend-queue`'s `[ratify]` view, which nothing
+  could repair.
+
+  Body prose is context for the operator, never dispatch authority. Free-form issue bodies are
+  editable by any author or agent and the work-class table already routes untrusted provenance to
+  human-gated, so a body marker is now surfaced in the queue comment — letting the operator
+  confirm and record it machine-marked in one step — instead of admitting the item. Dispatch
+  still requires the `/work-items:attend-queue` ratification reply or `first_drain_complete`. The
+  human-gated label is deliberately kept while machine ratification is absent: `attend-queue`
+  lists a `[ratify]` row only for an item carrying that label plus the marker, so stripping it
+  would make the item invisible to the operator and unratifiable. The autonomous-eligible role
+  label is likewise **not** ratification evidence — unattended `/work-items:triage` applies it to
+  every briefed delegable item.
+
+## [0.24.6]
+
+### Documentation
+
+- **`wayfind: *` is now documented as a read-only, skill-private routing axis (`#1255`).** Neither
+  the label taxonomy reference nor the shared tracker-seam gotchas said anything about the
+  `wayfind: *` labels a triage lane can encounter — a silence a lane meeting them had no basis to
+  read as "hands off." `reference/label-taxonomy.md` gains a "Skill-private routing markers"
+  section and `reference/tracker-seam.md`'s Gotchas gain a matching entry: both point at
+  `/planning:wayfind` (sole writer, on its own map sub-issues) and the resolving decision
+  (`melodic-software/github-iac#179`) rather than restating the member list. No work-items skill
+  applies, strips, or requires a `wayfind:` value on the items it manages — behavior is unchanged,
+  this closes a documentation gap.
+
+## [0.24.5]
+
+### Fixed
+
+- **`triage` no longer routes to `priority: pN-*` labels that exist in no governed repository
+  (`#1253`).** The live governed priority axis across the fleet is `priority: critical` / `high` /
+  `medium` / `low` / `needs-triage` — the `p0-critical`…`p3-low` scheme `triage`'s priority-label
+  step, `track add`'s filing default, and `dogfood-filing.md` named inline appeared in zero
+  repositories, so an autonomous triage pass that followed the skill literally failed applying a
+  nonexistent label. `triage`, `track add`, and `dogfood-filing.md` now resolve the live `priority:`
+  label set from the bound adapter at action entry (consistent with every other "members from the
+  live set" axis in `label-taxonomy.md`) instead of naming members inline; where prose still shows a
+  concrete value it is marked as an illustrative example, not a routing instruction. The
+  triage-assessed default (mid-urgency tier) vs. `track add` filing default (lowest-urgency tier, an
+  untriaged-signal floor) distinction is preserved.
+
+## [0.24.4]
+
+### Documentation
+
+- **GitHub adapter: force UTF-8 wherever a body edit leaves the UTF-8-safe pipeline (`#1037`).**
+  A new cross-cutting gotcha in `tools/work-item-tracker/adapters/github/README.md` records that the
+  `gh` transports do not transcode, and requires an explicit UTF-8 encoding on both sides of any
+  ad-hoc read or write of a fetched body. No behavior change.
+
+## [0.24.3]
+
+### Fixed
+
+- **Two `discipline`-rename token-sweep misses corrected: `reference/pipeline-shape.md` and
+  `skills/work-loop/SKILL.md` (`#1328`).** The `re-anchor` -> `discipline` plugin rename (`#1276`)
+  rewrote the tokens on these lines but left stale `re-anchor` prose beside them — "re-anchor slot"
+  / "re-anchor set" in `pipeline-shape.md:52`, "presence-gated re-anchor sweep" in
+  `work-loop/SKILL.md:176`. Both now read `discipline`, matching the sibling sites the same rename
+  commit already updated (`docs/conventions/loop-lane/README.md`,
+  `plugins/source-control/skills/babysit-loop/SKILL.md`).
+
+## [0.24.2]
+
+### Fixed
+
+- **`e2e-probe.sh` now creates and filters the declared `wayfind: research` / `wayfind: task`
+  labels (colon-space), not the colon-no-space `wayfind:research` / `wayfind:task` the probe
+  previously used (`#1256`).** The colon-no-space form is a string that production never emits —
+  it never exercised a label value containing a space, the exact case that makes these labels
+  non-trivial (an unquoted `label:wayfind: research` search qualifier returns zero results
+  silently rather than erroring). A static regression test now guards both the correct literal and
+  the forbidden one directly against the probe's source.
+
+## [0.24.1]
+
+### Documentation
+
+- `tools/work-item-tracker/tests/lib.sh` now points at
+  `docs/conventions/shell-test-helpers/README.md`, the repo's owner doc recording that per-plugin
+  shell assert-helper duplication and per-script exit-code taxonomies are deliberate, not drift. No
+  behavior change.
+
+## [0.24.0]
+
+### Changed
+
+- **`work`'s autonomous concurrency cap is now wired to real enforcement (`#573`).** When
+  `${user_config.work_dispatch_concurrency_cap}` resolves to a value, the orchestrator threads it into
+  the delegated `/implementation:implement-dispatch` dispatch as that skill's new `--wave-cap <N>`
+  ceiling; a surviving placeholder (unset) passes no `--wave-cap`, so implement-dispatch applies its
+  own internal 3–5 wave default. The cap previously changed nothing.
+
+### Removed
+
+- **`work_cycle_batch_cap` is removed from `userConfig` (`#573`).** `work` selects and executes exactly
+  one item per invocation, so it has no cycle to bound — the scalar had no honest in-skill enforcement
+  point and bound nothing. The autonomous per-cycle item budget already lives, and is enforced, in the
+  driving loop as the `work-loop` lane's adaptive item cap (`work_loop_item_cap_*`); a future,
+  demonstrated need for a distinct loop-side batch budget would reopen as a `/loop`-side concern rather
+  than an inert knob.
+
+## [0.23.0]
+
+### Changed
+
+- **`work`'s autonomous execute step now specifies the full orchestrator-dispatch lifecycle (`#572`),**
+  resolving the previously-deferred seam across branch/worktree provisioning, PR-creation ownership,
+  and fix re-dispatch:
+  - **Provisioning is worker-side.** The dispatched worker materializes its own out-of-tree worktree
+    as its first step and works it via `git -C` without entering it — the orchestrator never invokes
+    `/source-control:worktree create`, whose `EnterWorktree` terminal would transition the
+    orchestrator's session. The worker commits, pushes, and brings the branch current with the default
+    branch before returning the worktree path + branch name; a worker that cannot provision parks and
+    escalates.
+  - **PR creation is orchestrator-owned.** After the worker returns and the pre-PR diff gate passes,
+    the orchestrator (never the worker) opens the PR via the new `/source-control:pull-request create
+    --pushed` PR-only entry; the worker scope-fence forbids PR creation. Detection of a consuming
+    project's own PR stage lives in the orchestrator (invoke-vs-defer).
+  - **Branch-owned fixes (failing CI, review findings) re-dispatch a fresh scope-fenced subagent into
+    the same persisted worktree** — the worktree is the state carrier across dispatches and persists
+    through the PR lifecycle, cleaned up only by whoever merges, never by this lane.
+  - `work-loop`'s former interim `#572` workaround is reframed as this now-canonical behavior it
+    inherits from `work`.
+
+## [0.22.1]
+
+### Fixed
+
+- **Permission preflight no longer reports a false `additionalDirectories` gap for a tilde-form
+  grant.** `normalize_path` folded backslashes and Windows drive letters but never expanded a
+  leading `~`, so a `permissions.additionalDirectories` entry written in `~/…` form never matched
+  the absolute worktree root the harness derives from that same home — the preflight wrongly emitted
+  its `(c)` gap even though the grant was live. `normalize_path` now expands a leading `~` (`~` alone,
+  or `~/…` / `~\…` — both separators, since a Windows entry may use a backslash) to the user home
+  (`HOME`, then `USERPROFILE`) before folding, so tilde-form entries compare equal to the absolute
+  probed root. A trailing separator on the home (including `HOME=/`) is stripped before the join so
+  it cannot produce a non-collapsing `//`. Regression cases cover the forward- and backslash-separator
+  matches, the trailing-separator home, the outside-home non-match, and unchanged non-tilde behavior.
+
+## [0.22.0]
+
+### Added
+
+- **Two loop-lane skills: `work-loop` and `attend-queue`.** The work-items adopters of the
+  loop-lane convention (`docs/conventions/loop-lane/` in the marketplace repository). `work-loop`
+  is the worker lane — a self-paced drain loop that sweeps raw intake through `triage`'s
+  autonomous lane each cycle, admits items through a fail-closed work-class gate (C2 autonomous;
+  C3 bug-fix-shaped autonomous behind a first-drain ratification queue; C3 feature-shaped, C4, C5,
+  and unclassified human-gated; plus a path/topic hard gate over SHA pins, checksum recomputation,
+  and consumer CLAUDE.md ground-rule surfaces, and a bot-authored-advisory default to human-gated),
+  executes admitted items via `work` under an adaptive item cap (start 2, +1 after 3 clean,
+  ceiling 3, -1 on dirty, floor 1; frontier-tier items at concurrency 1 with ceiling 2; no ramp
+  while a rate-limit warning is latched), provisions worktrees explicitly before dispatch as the
+  `#572` workaround, and exits on the seam-frontier-empty plus GraphQL close-linkage condition or
+  the convention's drain-terminal state. `attend-queue` is the attended lane — one merged
+  attention view of worker-escalated items (human-gated role + machine-marked escalation comment),
+  first-drain C3 ratifications, and untriaged intake (composing `triage`'s attention view),
+  driving decisions via `/planning:interview` (presence-gated), writing answers back as issue
+  comments, and flipping unblocked items to the autonomous-eligible role in a single edit. Both
+  lanes hold shared loop-layer concerns by citation to the loop-lane convention, inline the
+  rate-limit guard's operable floor byte-identically per its inline-floor rule, and inline the
+  `claude-ops`-compatible sentinel telemetry upsert (an installed plugin cannot invoke a sibling
+  plugin's scripts).
+- **`work` gains an autonomous invocation path.** When invoked by a loop lane or another
+  unattended context, the Step 3 confirmation prompt is not presented: the invoker names the
+  already-admitted item id and states its admission gate passed, the auto-confirmation is recorded
+  in the item's claim comment, and every later step — including the seam claim as the atomic
+  acquisition point — is unchanged. Attended invocations keep the interactive prompt.
+- **GitHub adapter "Open linked PRs" operation is draft-aware.** The GraphQL selection now
+  requests `isDraft` and the operation documents two reductions: the default (drafts count — a
+  draft closing PR is still in-flight work for `work`'s frontier exclusion) and a non-draft
+  reduction for `work-loop`'s drain-exit evaluation, which must not treat a draft as satisfying
+  the exit (review-caught).
+- **Four `userConfig` keys for the work-loop adaptive cap bounds:** `work_loop_item_cap_start`
+  (default 2), `work_loop_item_cap_ceiling` (default 3), `work_loop_item_cap_floor` (default 1),
+  and `work_loop_frontier_item_cap_ceiling` (default 2). Enforcement is the loop body's own
+  arithmetic; the composed budget with `/implementation:implement-dispatch`'s per-item wave cap
+  remains interim pending `#573`.
+
+## [0.21.4]
+
+### Changed
+
+- **Raw-intake marker canonicalized as dual-axis across `triage` docs and evals (`#818`).** The live
+  raw marker is applied on whichever axis a consuming repo files it under — `priority:needs-triage`
+  or `status:needs-triage` — but `SKILL.md`'s Triage-states table and Attention-view buckets,
+  `reference/dogfood-filing.md`'s filing step, `reference/label-taxonomy.md` and
+  `reference/tracker-seam.md`'s axis-grammar tables, and two triage evals described or asserted it
+  as status-axis-only. All now match the dual-axis wording the "Scope: raw intake only" section
+  already carries (`#802`): a consuming repo may file the raw marker under either axis, and both are
+  canonical. On the Priority axis the marker is passed as the `track add` `--priority` value (a
+  single-label group), replacing the `priority:p3-low` filing default rather than adding a second
+  `priority:` label.
+
 ## [0.21.3]
 
 ### Fixed

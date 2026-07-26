@@ -1,0 +1,41 @@
+{
+  "skill_name": "setup",
+  "evals": [
+    {
+      "id": 1,
+      "name": "check-reports-overlay-and-routes-reconfig-natively",
+      "prompt": "re-anchor setup",
+      "expected_output": "The check action reads the three rendered ${user_config.batch_*} values and reports the effective posture-batch overlay (excluded / promoted / demoted correctors and the net effect, or that the tiers run as declared when all unset). It routes any reconfiguration to /plugin configure discipline and never edits settings.json or pluginConfigs. No apply action is offered.",
+      "files": [],
+      "expectations": [
+        "Reports the effective batch overlay from the userConfig values, read-only",
+        "Routes reconfiguration to the native /plugin configure discipline flow, never hand-editing pluginConfigs",
+        "Offers no apply action (userConfig-only carve-out)"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "unexpanded-token-treated-as-unset",
+      "prompt": "re-anchor setup check",
+      "expected_output": "When an option was never configured and its ${user_config.…} token survives literally (a zero-config or headless install), the check treats it as unset — no overlay from that key — and does not parse the literal placeholder as a corrector name. Both an empty value and a surviving literal placeholder read as unset.",
+      "files": [],
+      "expectations": [
+        "Treats a surviving literal ${user_config.…} token as unset, not a value",
+        "Does not parse the literal placeholder as a corrector name",
+        "Treats an empty value and an unexpanded token identically (unset)"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "validates-names-against-installed-correctors",
+      "prompt": "re-anchor setup check (batch_exclude = point-dont-copy, notaskill)",
+      "expected_output": "The check globs the installed corrector directories and validates each overlaid name. It reports point-dont-copy as a valid exclusion and flags notaskill as a FAIL (matches no installed corrector), with remediation to fix the value through the plugin configuration prompt. It flags contradictions (a name both excluded and promoted/demoted) and no-op promotes/demotes.",
+      "files": [],
+      "expectations": [
+        "Validates overlay names against the globbed installed correctors",
+        "Flags an unknown corrector name as a FAIL with native-reconfiguration remediation",
+        "Reports contradictions and no-op promote/demote entries"
+      ]
+    }
+  ]
+}

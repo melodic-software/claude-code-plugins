@@ -3,6 +3,257 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.16.0]
+
+### Added
+
+- `block-dangerous-git` distinguishes the `--force-with-lease` forms instead of
+  treating them all as safe, under a new `push-lease-unsafe` form token. A lease
+  passes only when its expectation is one git cannot re-resolve to something
+  newer while the push runs; everything else is blocked, in the two kinds
+  [git-push(1)](https://git-scm.com/docs/git-push) itself treats differently.
+  - **No expected value** — bare `--force-with-lease` and
+    `--force-with-lease=<refname>` lease against the remote-tracking ref, which
+    git warns "interacts very badly with anything that implicitly runs
+    `git fetch`" and is "trivially defeated if some background process is
+    updating refs in the background". Blocked unless `--force-if-includes`
+    (git 2.30+) is present, which git documents as the mitigation for exactly
+    these forms.
+  - **A movable `--force-with-lease=<refname>:<expect>`** — `origin/main`,
+    `HEAD`, a tag, an *abbreviated* object id (per
+    [gitrevisions](https://git-scm.com/docs/gitrevisions), git resolves a short
+    hex word as a ref before trying it as an object-id prefix, so a tag named
+    `dead` beats the object whose id starts `dead`), or hex of the wrong width
+    for the repository's hash format. Blocked unconditionally: git declares
+    `--force-if-includes` a "no-op" alongside an explicit `:<expect>`, so
+    nothing mitigates this form.
+
+  What passes: `<expect>` an object id of **the pushed repository's own hash
+  width** (40 hex under SHA-1, 64 under SHA-256, read once from
+  `git rev-parse --show-object-format`; undeterminable fails closed), or the
+  empty string, which asserts the ref must not exist. The other width is not
+  accepted: git ignores a ref whose name is full-width hex for its own format,
+  but a 64-hex name in a SHA-1 repository — or a 40-hex one under SHA-256 — is
+  an ordinary ref git resolves at push time, so it moves like any other name.
+  git's repository-locating globals (`-C`, `--git-dir`, `--work-tree`,
+  `--namespace`) are replayed onto that probe, so `git -C <sha256-repo> push`
+  from a SHA-1 directory is judged by the target. git scopes
+  a pin to its own ref, so a bare fallback alongside a pinned entry still governs
+  every other ref being updated. Where one ref carries several lease entries git
+  consults the first and ignores the rest, and the guard follows that same
+  first-match rule rather than latching on any later spelling. A trailing
+  `--no-force-with-lease` cancels every previous lease. Unique-prefix
+  abbreviations (`--force-w`, `--force-i`) are handled; a push dry-run still
+  disarms the check, and after `--` the words are operands rather than flags.
+
+## [0.15.1]
+
+### Fixed
+
+- **PreToolUse blocking guards were declared with `timeout: 10`/`15` — 40-60x below the platform's
+  own documented `command`-hook default of 600s for `PreToolUse` (only `UserPromptSubmit` (30) and
+  `MessageDisplay` (10) lower it; `PreToolUse` does not — <https://code.claude.com/docs/en/hooks>,
+  fetched 2026-07-25) — causing the harness to kill them before completion under real machine load
+  and let the guarded tool call proceed with no `permissionDecision` from that guard.** Measured at
+  86.1% of PreToolUse runs killed at the declared timeout across 3,923 runs on one machine
+  (melodic-software/claude-code-plugins#1345). Confirmed against this session's own local
+  `~/.claude/projects/*/*.jsonl` transcript: a `hook_cancelled` attachment for
+  `block-convention-violation.sh` (`timedOut: true`, `durationMs: 10184` against `timeoutMs: 10000`)
+  was immediately followed by the guarded Bash tool call executing and returning a real result — the
+  guard's verdict was silently lost, not merely slow. Standalone timing of all seven affected guards
+  in this repo (no concurrent hook load) completed in well under 1.5s each, and the source contains no
+  network calls or unbounded loops — confirming the guards are not inherently slow; the declared
+  timeout was simply provisioned far below what the platform allows and below what real (contended)
+  runs need. `timeout` raised from 10/15 to **60** (10-40x more headroom over the every real duration
+  sample this investigation captured, while staying well short of the 600s platform default so a
+  genuinely hung process is still bounded) for the seven **blocking** PreToolUse guards:
+  `secret-pattern-detection`, `hardcoded-path-check`, `block-no-verify`, `block-dangerous-git`,
+  `block-hook-bypass`, `block-noncanonical-commit`, `block-convention-violation`. The two **advisory**
+  PreToolUse hooks (`flag-commit-pr-skill-bypass`, `workflow-resilience-check`, which never block
+  regardless of outcome) and the PostToolUse hooks are unchanged — a missed advisory notice is not the
+  fail-open security defect this fix addresses. This mitigation narrows the timeout-driven fail-open
+  window; it does not remove it — a harness-killed hook process cannot itself report a decision, and
+  what should happen to the guarded tool call when a *blocking* guard is killed (deny by default vs.
+  today's silent fallback) is a harness-level policy question outside a plugin's control, tracked
+  separately.
+
+## [0.15.0]
+
+### Added
+
+- `skill-reference-verify` (advisory, PostToolUse Write|Edit): flags a
+  `/plugin:skill` reference in markdown that does not resolve. Gated twice — it
+  does nothing outside a marketplace repo, and within one it only adjudicates a
+  plugin that repo's own manifests own. Resolution goes through manifest `name`
+  and skill frontmatter `name`; a renamed skill's DIRECTORY name is deliberately
+  not an alias, since treating it as one would suppress exactly the stale
+  pre-rename references this guard exists to catch. The reference is the leading
+  command token of a code span, so argument-bearing invocations
+  (`/plugin:skill --apply`) are scanned. `CHANGELOG.md` is excluded as an
+  append-only historical record: a rename entry must keep naming the old command.
+  Declared **detect-then-judge**, not deterministic — globbing a plugins tree is
+  exact only where the reference is locally owned, so the finding is a prompt for
+  a human verdict and never an auto-fix.
+- A README enforceability-tier section stating each guard's oracle class, so the
+  detect-then-judge guard cannot be read as deterministic.
+
+### Fixed
+
+- README guard counts were stale before this change: the prose said "nine safety
+  guards" and the table omitted `block-convention-violation` while ten were
+  wired. Counts are now measured against the manifest's toggle set, and the
+  missing row is present.
+
+### Not shipped
+
+- An `asserted-path-verify` guard was built alongside this one and withdrawn on
+  measurement. Swept across all 975 tracked markdown files it fired on 23.7% of
+  them — roughly one in four writes — producing 389 findings with **zero** true
+  positives. 72% were consumer-project config paths (`.claude/**` and similar)
+  that a doc describes for a CONSUMING repo and that correctly do not exist in a
+  marketplace; its first-segment gate passed only because this repo happens to
+  carry same-named top-level directories. Fixing the three dominant causes still
+  left ~4% firing at zero true positives, so a repo-root filesystem test is the
+  wrong oracle for a repo whose docs are largely about other repos' trees. The
+  measurement is attached to its follow-up issue for rescoping rather than
+  discarded.
+
+## [0.14.3]
+
+### Documentation
+
+- `hooks/guardrails-test-helpers.sh` now points at
+  `docs/conventions/shell-test-helpers/README.md`, the repo's owner doc recording that per-plugin
+  shell assert-helper duplication and per-script exit-code taxonomies are deliberate, not drift. No
+  behavior change.
+
+## [0.14.2]
+
+### Fixed
+
+- **`block-hook-bypass` no longer lets an interpreter-producer write bypass the gate under the PowerShell
+  tool (live-reproduced bypass).** The PowerShell branch classified only PowerShell cmdlet/redirect write
+  forms (`ps::write_bypass`) and then `exit 0`ed **before** the shell-agnostic scans, so
+  `python3 -c "open('x','w')…"` — the identical command the Bash lane blocks — executed unguarded when
+  issued through the PowerShell tool. Reproduced end-to-end: same command, Bash → blocked, PowerShell →
+  file written. The interpreter rule now also runs on the PowerShell lane. The **Bash** lane keeps its
+  precise `python3 -c` scan (its `strip_literals` is genuinely quote-aware and Bash has no `<# #>` block
+  comments or `&{}` script blocks) and additionally recognizes a **path-qualified** interpreter
+  (`/usr/bin/python3 -c`, `.exe`), anchored on the `python3` basename so `notpython3` stays inert.
+- **The PowerShell lane deliberately DIVERGES from the Bash lane and uses a fail-closed sink instead of a
+  precise scan.** PowerShell is not faithfully bash-tokenizable, and a precise regex/normalize stack could
+  not keep up — successive review rounds each surfaced a fresh evasion (path-qualified target, `&{python3}`
+  script block, quoted-`#` comment truncation, with `<# #>` block comments and `-ArgumentList`
+  arg-splitting still open). Following the repo's SINK DOCTRINE (`ps::classify_git_command` /
+  `ps::might_invoke_git`), the lane now blocks on the mangle-resistant **co-occurrence** of (a) a raw write
+  indicator (`_py_write`) and (b) a python3 interpreter token **plus** a `-c` inline-code flag, both seen
+  on the quote-intact, backtick-recovered command (`ps::might_write_via_python3`). This uniformly closes
+  the quoted / path-qualified / brace-glued / backtick-obfuscated / block-comment / arg-split forms. `-c`
+  is **required** (position-independent), so a legitimate script or module run (`python3 build.py`,
+  `python3 -m tool …`) that merely touches an `open(`-like path is **not** blocked; a **computed** flag
+  (`python3 ('-'+'c') …`, `-ArgumentList ('-'+'c'),…`) is caught by fail-closing on a non-tokenizable arg
+  subexpression (`ps::has_special_constructs`) when no literal `-c` is present, and a computed launcher
+  TARGET that hides the interpreter name (`Start-Process -FilePath ('py'+'thon3') …`, `saps $exe …`) fails
+  closed: any launcher present together with an unquoted computed construct (`$`/`(`) blocks, regardless of
+  how the target is bound or how many options precede it (`-FilePath ('py'+'thon3')`, `-FilePath:$p`,
+  `-NoNewWindow -FilePath $exe`) — while a literal non-python launcher (`Start-Process notepad …`) carries
+  no such construct and stays allowed. A `-c` concatenated with an adjacent variable/subexpression
+  (`python3 -c$code`, `python3 -c(…)`), which PowerShell joins into one `-c<source>` argument, is treated
+  as a computed inline-code flag and fails closed (a longer literal flag like `-config` is not `-c`). A call
+  operator / dot-source of a DOUBLE-quoted interpolated target (`& "$env:PYTHON_BIN" …`, `& "$(…)" …`) runs a
+  computed interpreter and fails closed; a SINGLE-quoted target does not interpolate (`& '$x'` is a literal
+  name) and stays allowed. **Accepted behavior
+  change (fail-closed):** a command that only *mentions* `python3 … -c` + a write indicator in prose, a
+  line/block comment, or a quoted string now **over-blocks** (three prior allow-fixtures flipped to
+  expect-block); here-string mentions stay inert (blanked first, like the git lane). **Accepted residual:**
+  a stdin heredoc (`python3 - <<PY … PY`, no `-c`) is uncovered, as it is today. Regression fixtures cover
+  real `open(`/`pathlib` writes, every evasion form (path-qualified, script block, block comment,
+  arg-split — MUST block), the flipped mention cases (MUST block), and script/module runs + read-only
+  `os.path.normpath` + non-python quoted exe + here-string mention (MUST stay quiet). This was the
+  in-comment "deferred to A2b" gap.
+
+## [0.14.1]
+
+### Fixed
+
+- **`block-hook-bypass` `python-write` no longer false-positives on read-only `os.path.*path(` helpers
+  (#1178).** The `_py_write` write indicator's `path[[:space:]]*\(` was an unanchored substring: it
+  matched `path(` as the suffix of a longer identifier, so a pure path-arithmetic command
+  (`python3 -c "…os.path.normpath(os.path.join(a,b))…"`) — and every other `os.path.*path(` helper
+  (`abspath`, `realpath`, `relpath`, `commonpath`) — was blocked as a file-write bypass despite writing
+  nothing. The `pathlib` / `path(` indicators are now identifier-boundary anchored so they still catch
+  the write-capable `pathlib.Path(` producer while clearing the read-only helpers. Real writes stay
+  blocked (`.write_text(`/`open('f','w')` match independently). Regression fixtures for each `*path(`
+  helper (MUST-stay-quiet) plus a `pathlib.Path().write_text` (MUST-block) added to
+  `block-hook-bypass.test.sh`.
+
+## [0.14.0]
+
+### Changed
+
+- **Vendored convention resolver probes the well-known default neutral path (#163434).** The synced
+  copy of `lib/resolve-convention-pattern.sh` now resolves the neutral convention SSOT by a fixed
+  3-rung precedence: an explicit `## convention_source` pointer, else the well-known default path
+  `docs/conventions/source-control/commit-convention.yml` when present, else the team markdown-H2.
+  The CC-layer content gate enforces the same pattern the drafting side drafts against, with no
+  pointer required in the common case. Back-compat: absent both a pointer and the well-known file,
+  enforcement resolves from the markdown-H2 exactly as before.
+
+## [0.13.0]
+
+### Added
+
+- **Vendored convention resolver understands the neutral convention SSOT (#1141).** The synced copy
+  of `lib/resolve-convention-pattern.sh` now honors a team-tracked `## convention_source` pointer to
+  a repo-relative flat-scalar YAML file: machine keys resolve from that file when it declares them
+  (markdown-H2 fallback per key), the `Conventional Commits` keyword and the `pr_title_pattern`
+  deferral marker work identically on both surfaces, a non-`posix-ere` `dialect:` declaration
+  disables enforcement with a diagnostic, and a declared-but-broken pointer (absolute/backslash/`..`
+  path, missing file) fails closed to no-enforcement rather than silently re-reading markdown values
+  a migration may have retired. Policy floor unchanged: the pointer is honored from the team file
+  only. Seam contract: `docs/conventions/commit-convention/README.md`.
+
+## [0.12.3]
+
+### Fixed
+
+- **`hardcoded-path-check` skips when the project dir is not a git working
+  tree (#1094, residual of #1038).** Claude Code sets `CLAUDE_PROJECT_DIR` for
+  any directory — a home-directory session being the common case — and there
+  the scope guard passed while every per-file exemption rung was unreachable:
+  the `.claude` carve-outs don't cover machine-local plugin config
+  (`~/.claude/<plugin>.conf`), and `git check-ignore` errors outside a work
+  tree, leaving only the global kill switch. The scope guard now also skips
+  when `git rev-parse --is-inside-work-tree` does not report a working tree
+  (same rationale as the #1039 no-project skip: hardcoded paths only harm
+  portable repo artifacts, and a non-worktree project dir has none). Bare
+  repos skip too. README scoping bullet updated; tests pin the skip, the
+  unchanged real-work-tree behavior, and the carve-outs now exercised inside
+  real work trees.
+
+## [0.12.2]
+
+### Fixed
+
+- **Machine-path bodies: right boundary is now the segment class, not a
+  mandatory trailing separator (#1093).** The old bodies required a separator
+  AFTER the child segment, which inverted detection both ways: a real bare
+  path value at end of line (`root = <drive>:/Dev/GitHub`) was MISSED, while
+  prose satisfied the requirement anyway — the space-permitting segment class
+  greedily consumed words until a later slash on the same line, flagging a
+  comment as "Windows repo path detected" while the actual violations passed
+  clean. All five bodies in `machine-path-patterns.sh` now exclude whitespace
+  and the double quote from the child-segment class and drop the trailing
+  separator: bare values at a natural boundary (EOL, whitespace, quote) are
+  detected, prose spans cannot match, and a bare ROOT with no child segment
+  (`C:/Dev`, `/home`) still never matches. The driver's `/Users/Shared`
+  exclusion covers the new bare form. 15 regression cases added (bare values
+  in all five shapes, greedy-prose and root-plus-whitespace negatives, bare
+  `Shared`). Synced-component note: the same pattern change lands upstream in
+  `melodic-software/standards` `components/path-detection/` — the local and
+  upstream copies must stay byte-identical or the next standards sync reverts
+  this fix.
+
 ## [0.12.1]
 
 ### Fixed

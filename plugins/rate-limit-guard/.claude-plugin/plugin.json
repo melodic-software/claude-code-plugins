@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
+  "name": "rate-limit-guard",
+  "version": "0.2.1",
+  "description": "Shared rate-limit guard for loop lanes: a statusline wrapper tees the subscription rate-limit windows to a fixed machine-scope file, a StopFailure hook records rate-limit stops reactively, and a reader contract fixes how consuming sessions pause and resume.",
+  "author": {
+    "name": "Melodic Software",
+    "email": "info@melodicsoftware.com"
+  },
+  "license": "MIT",
+  "keywords": [
+    "rate-limit",
+    "statusline",
+    "tee",
+    "loop-lane",
+    "stopfailure",
+    "hook"
+  ],
+  "userConfig": {
+    "rate_limit_guard_enabled": {
+      "type": "boolean",
+      "title": "rate-limit-guard hook kill switch",
+      "description": "Master switch for the StopFailure detection hook",
+      "default": true
+    }
+  }
+}

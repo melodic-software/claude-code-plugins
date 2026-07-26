@@ -184,7 +184,8 @@ Match GitHub's issue-closing keyword set (`close`/`closes`/`closed`/`fix`/`fixes
 
 For `/work-items:work` selection — report whether item `<N>` already has an open PR targeting it
 for closure, so a candidate whose work is in flight is dropped from the pickable frontier rather
-than re-picked. The authoritative signal is **GitHub's own computed close-linkage**, not a text
+than re-picked — and, with the draft-aware reduction below, for `/work-items:work-loop`'s
+drain-exit evaluation. The authoritative signal is **GitHub's own computed close-linkage**, not a text
 match over the PR body: the GraphQL `Issue.closedByPullRequestsReferences` connection returns
 exactly the PRs GitHub links as closing this issue — the same linkage GitHub renders in the
 issue sidebar and acts on for merge-time auto-close. Keep only the `OPEN`-state nodes: a `MERGED`
@@ -198,7 +199,7 @@ open_pr_pages=$(gh api graphql --paginate \
     repository(owner:$owner, name:$repo) {
       issue(number:$n) {
         closedByPullRequestsReferences(first:100, after:$endCursor, includeClosedPrs:false) {
-          nodes { number state }
+          nodes { number state isDraft }
           pageInfo { hasNextPage endCursor }
         }
       }
@@ -210,7 +211,19 @@ open_pr_pages=$(gh api graphql --paginate \
 if printf '%s\n' "$open_pr_pages" | tr -d '\r' | grep -qx true; then echo true; else echo false; fi
 ```
 
-On success emits `true` when at least one **open** PR closes `#<N>`, `false` otherwise. **On query
+On success emits `true` when at least one **open** PR closes `#<N>`, `false` otherwise. The query
+requests `isDraft` so each consumer applies the draft policy its decision needs. The default
+reduction above deliberately **counts drafts**: for the in-flight exclusion, a draft closing PR is
+still work in flight, and re-picking its issue would be exactly the double-dispatch this operation
+prevents. The drain-exit evaluation in `/work-items:work-loop` instead requires an open
+**non-draft** closing PR — for that consumer, reduce with
+
+```bash
+--jq '[.data.repository.issue.closedByPullRequestsReferences.nodes[] | select(.state=="OPEN" and (.isDraft | not))] | any'
+```
+
+which emits `true` only when a ready (non-draft) open PR closes `#<N>`; every other note in this
+section (failure semantics, pagination, `\r` handling) applies to both reductions unchanged. **On query
 failure it emits no boolean and exits non-zero — a failed in-flight check is not `false`.** The
 GraphQL call is captured first and its exit status checked before any reduction: if
 `gh api graphql --paginate` fails (expired token, rate limit, or a network error on a later cursor
@@ -310,6 +323,27 @@ items", the `--add-label`-vs-`--label` rule under "Edit labels / assignees"). Cr
 
 - **Windows `\r`.** Git Bash adds `\r` to `gh` output through `jq`/`--jq`; end every parsing
   pipeline with `| tr -d '\r'`.
+- **Keep body edits inside the UTF-8-safe pipeline; force UTF-8 anywhere they leave it.**
+  `--json`/`--jq`, `gh api`, the bash `>` redirect, and `--body-file` pass the encoding through
+  untouched, so the read-modify-write shapes above never transcode. That is an encoding guarantee,
+  not a byte-for-byte one: the shapes above normalize line endings and trailing whitespace on
+  purpose (`tr -d '\r'` drops CRs; `$(cat …)` strips trailing newlines, and the `printf '%s\n'`
+  puts exactly one back). Corruption enters when an **ad-hoc** step decodes
+  those bytes with a tool whose default is a legacy code page: the body's UTF-8 is read as Windows
+  ANSI and re-encoded, putting every non-ASCII character at risk — the observed case is em-dash
+  U+2014 arriving back as U+00E2 U+20AC U+201D — and that corrupted copy is then written over the
+  good one. Nothing reports it; every command still exits 0. Two Windows defaults decode this way:
+  Python's `open()` with no `encoding=` (the locale encoding, i.e. the ANSI code page —
+  [PEP 686](https://peps.python.org/pep-0686/) makes UTF-8 the default only in 3.15+) and Windows
+  PowerShell 5.1's `Get-Content` (PowerShell 6+ already defaults to `utf8NoBOM`). Do not reason
+  from the version you happen to be on — state the encoding on both sides of any ad-hoc step,
+  read *and* write. Python reads with `open(path, encoding='utf-8')` or
+  `open(path, 'rb').read().decode('utf-8')` and writes back with
+  `open(path, 'w', encoding='utf-8')` (or run under `PYTHONUTF8=1`, which covers both sides).
+  Windows PowerShell 5.1 reads with `Get-Content -Raw -Encoding utf8` — without `-Raw` you get a
+  line array, not the one string the write below takes — and writes back with
+  `[IO.File]::WriteAllText($p, $s, (New-Object Text.UTF8Encoding $false))`, because there
+  `-Encoding utf8` prepends a BOM and `utf8NoBOM` does not exist (PowerShell 6+ has both).
 - **Rate limits** (verify current values via GitHub REST docs): batch bulk creates to respect
   the secondary content-generation limit — e.g. 30 items per batch with short pauses.
 - **Issue Forms auto-labeling** fires only on web-form creation, not `gh issue create` — apply

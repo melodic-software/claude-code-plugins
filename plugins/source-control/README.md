@@ -57,8 +57,10 @@ Tiered, self-pacing fleet loop over your own open PRs (designed for
   owner (or the configured watched owners), checks each out, keeps the
   branch fresh, processes every review finding individually with
   GitHub-verified evidence per the plugin-scope shared review discipline,
-  mechanically gated by the bundled `babysit-readiness-gate.sh`. Never
-  resolves threads, never merges — readiness is reported. Runs Python-free.
+  finding classification mechanically gated by the bundled
+  `babysit-readiness-gate.sh`. Never resolves threads, never merges — an
+  engine-backed run reports merge-readiness from a read-only merge-gate
+  run; the Python-free degrade has no merge gate and reports it unchecked.
 - **worker** (explicit keyword) — everything safe does, plus auto-resolving
   pre-push-outdated bot threads and merging PRs a deterministic gate proves
   100% ready (`mergeStateStatus == CLEAN` plus explicit cross-checks, with
@@ -174,6 +176,9 @@ repo's owner.
 | `worktree_stale_days` | number | 14 (staleness threshold for `/worktree status`) |
 | `fetch_logs_max_bytes` | number | 52428800 (CI-log ZIP size cap for `fetch-logs`) |
 | `branch_issue_pattern` | string | built-in `<type>/<N>-<slug>` (and `routine-issue-<N>`) branch-to-issue grammar; set an ERE (last capture group = the numeric GitHub issue number) for a scheme that places the number differently, e.g. `^[^/]+/([0-9]+)-` (`alice/1234-slug`) or `-([0-9]+)$` (`feat/add-widget-1234`) |
+| `setup_inference_window` | string | `1 year` (`git log --since` window for `/setup`'s commit-history convention inference; any git-approxidate) |
+| `setup_inference_recency_days` | number | 90 (recent-vs-older split boundary in the inference report) |
+| `setup_inference_min_commits` | number | 50 (below this many classifiable subjects, inference widens to full history and reports low confidence) |
 
 The commit-subject / PR-title convention is separate: run
 **`/source-control:setup`** to interview your repo and write the
@@ -186,7 +191,7 @@ Remaining optional environment variables:
 |---|---|---|
 | `FETCH_LOGS_SCRATCH` / `FETCH_LOGS_REPO` | `fetch-logs` | Scratch dir and repo override |
 
-The plugin-scope readiness gate accepts extra posting identities via its
+The plugin-scope finding-classification gate accepts extra posting identities via its
 `--extra-self` flag (fed from `babysit_self_logins`), added to your
 `gh api user` login; its `--self` flag still provides a full override.
 

@@ -117,7 +117,7 @@ from the tracker binding's `config.role_labels` (defaults `agent-ready` / `needs
 |------|-----------|-------|-----------------|
 | Type | native Issue Type (org) · `type:` label (personal) | universal | `Bug` / `Feature` / `Task` — the kind of issue; commit-type granularity stays at the commit layer |
 | Priority | `priority:` | universal | urgency — members from the live set |
-| Status | `status:` | universal | exception + gate flags only (`needs-info`, `needs-decision`, `ready`, `needs-triage`); claim = assignee + lease, blocked = native edge (neither is a label) |
+| Status | `status:` | universal | exception + gate flags only (`needs-info`, `needs-decision`, `ready`); claim = assignee + lease, blocked = native edge (neither is a label). `needs-triage` is dual-axis (`status:` or `priority:`, whichever the repo files under) — see [`${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md`](${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md) |
 | Meta | (none) | universal | `automated`, `good-first-issue`, `migrated`, `stale`, plus the canonical-role labels (defaults `agent-ready`, `needs-human`, `recurring`) |
 | Area | `area:` | repo-specific | the consuming repo's architecture surface — see [`${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md`](${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md) |
 | Category | `category:` | repo-specific | the consuming repo's domain categorization — see [`${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md`](${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md) |
@@ -208,6 +208,11 @@ bound adapter's operations reference — for GitHub, `${CLAUDE_PLUGIN_ROOT}/tool
   out-of-scope concept file), re-read it from disk — another session may have written since it was
   last in context — and append or merge into what's there rather than rewriting the whole file from
   memory.
+- **`wayfind: *` is another skill's routing state, not classification to apply.** A lane that
+  meets a `wayfind: *` label on an item under evaluation (triage or otherwise) is read-only on
+  it — never apply, strip, or require a `wayfind:` value; it is written only by `/planning:wayfind`
+  on its own map sub-issues (`${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md` "Skill-private
+  routing markers").
 
 ## What these skills do NOT do
 

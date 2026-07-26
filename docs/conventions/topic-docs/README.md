@@ -354,6 +354,7 @@ relationship to the contract is fully stated by their table row.
 | Plugin | Writes | Tier(s) | Binding |
 |---|---|---|---|
 | discovery | `EXPLORE.md`, `RESEARCH.md` | memory | delta doc |
+| architecture | `deepening-candidates-<timestamp>.md` (per-lens candidate ledgers) | memory | delta doc |
 | planning | `PRD.md`, `PLAN.md` (Brief), `design/`, opt-in brainstorm persist | contract + memory | delta doc |
 | implementation | `PLAN.md` (Plan/progress), `DEVIATIONS.md`, status summaries | contract + memory | delta doc |
 | verification | `verification/` manifest; baselines, raw captures | contract + memory | delta doc |
@@ -364,6 +365,45 @@ relationship to the contract is fully stated by their table row.
 | knowledge | ingest trees — **formal carve-out**: its work root resolves through its own `library_dir` seam, not `memory_dir`; slug conformance is form-only (charset/reserved names), and its nested `<epic>/<slug>/` sub-slices are sanctioned | memory (carved out) | by reference — the carve-out above is its entire delta |
 | claude-ops | telemetry | machine state | by reference — machine state resolves no contract paths |
 | docs-hygiene | (reader) audit-noise detector recognizes these shapes | — | by reference — reads shapes, writes nothing |
+
+### Implementers restate the rules; they do not share a source
+
+A binding *cites* this contract; an implementer's `setup` skill
+*restates* it. That is deliberate — `SKILL.md` is the instruction
+surface a session loads, and it cannot defer at runtime to a document
+the consuming repo does not have.
+
+So identical prose across two setup skills is a coincidence of scope,
+not a shared artifact. `discovery`'s and `verification`'s setup skills
+agree byte-for-byte across most of their bodies
+([discovery](../../../plugins/discovery/skills/setup/SKILL.md),
+[verification](../../../plugins/verification/skills/setup/SKILL.md))
+because their setup scope is identical today. `planning` states the same
+rules in its own prose and already diverges on two: it declines the
+memory-root `.gitignore` write (which the self-ignore guard above
+assigns to the session's first memory-tier write, not to setup) and
+accepts the schema-valid empty mapping `{}` where the other two demand
+an explicit key. That spread is the expected steady state, not drift.
+
+The shared text is therefore deliberately **not** hoisted into a file
+registered in
+[`scripts/cross-plugin-source-registry.txt`](../../../scripts/cross-plugin-source-registry.txt).
+The rules it renders already have owners — this contract and the plugin
+philosophy's setup contract — so a shared skill fragment would be a
+second owner for them, against the convention registry's
+one-owner-per-concern rule. Registration would also turn byte-identity
+into a gate, failing CI on the next legitimate divergence of exactly the
+kind `planning` already shows.
+
+**What would reopen it:** a canonical source under [`lib/`](../../../lib/)
+with a dedicated `scripts/sync-*.sh` — the mechanism `lib/hook-utils.sh`
+established and the [shell test-helpers doc](../shell-test-helpers/README.md)
+names as this marketplace's sanctioned way to share source across
+plugins. Under that shape the copies have a single owner again,
+extraction is the smaller change, and registration follows it. Short of
+that, a setup step that stops being derivable from this contract or the
+philosophy's setup contract belongs in an owner doc first — never in two
+skills at once.
 
 ## Versioning
 

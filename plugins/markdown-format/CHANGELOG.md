@@ -3,6 +3,39 @@
 All notable changes to the `markdown-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.3]
+
+### Fixed
+
+- **Out-of-tree Markdown is no longer linted when `CLAUDE_PROJECT_DIR` is
+  unset.** In an autonomous session whose working directory is not a repository,
+  `CLAUDE_PROJECT_DIR` is unset and the hook previously linted the `.md`
+  wherever it lived — including a lane's temporary comment-body composed outside
+  any repository (e.g. for `gh issue comment --body-file`), firing repo-doc rules
+  (MD041, MD013) that do not apply to it. The hook now falls back to
+  git-working-tree membership when `CLAUDE_PROJECT_DIR` is unset: a file under no
+  git working tree is skipped, while a repository file edited in such a session
+  is still linted. Membership is decided on the physical path (symlinks
+  resolved), matching the set-`CLAUDE_PROJECT_DIR` guard, so an in-repository
+  symlink to an out-of-tree file cannot pull the external target into `--fix`.
+  Where no canonicalizer is available the membership test fails closed: a
+  symlink whose physical path could not be resolved is skipped rather than
+  admitted on its lexical parent. The membership probe also clears Git's
+  repository-selection and discovery environment variables, so an inherited
+  `GIT_DIR`/`GIT_WORK_TREE` cannot answer for a directory that is not in a
+  working tree. Behavior when `CLAUDE_PROJECT_DIR` is set is unchanged.
+
+## [0.6.2]
+
+### Changed
+
+- Test-only: the C1 fd1-inheritance-leak detector in the hook contract test now measures the
+  slow-sink cost *differentially* — a baseline (fast sink, min of several runs) subtracted from
+  the slow-sink run — instead of asserting a fixed 2000ms wall-clock bound. The fixed bound sat
+  inside the machine- and load-dependent spawn-overhead band (already ~1.5s per hook on Windows
+  Git Bash, higher under parallel suites) and would false-fail with no leak present. No behavior
+  change for this plugin — the hook is untouched; shipped so the test stays reliable under load.
+
 ## [0.6.1]
 
 ### Changed

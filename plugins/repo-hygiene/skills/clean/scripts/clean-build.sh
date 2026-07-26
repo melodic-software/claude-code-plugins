@@ -32,6 +32,9 @@ Manifest flow (single walk paid once):
                          `Summary: planned=N bytes=K`.
   --apply --manifest P   consumes manifest P (re-stat guard, no re-walk); resume
                          = re-run the same command (already-gone entries skipped).
+                         `caches` lines in P are accepted only when
+                         --include-caches is also passed; otherwise rejected
+                         (wrong tier), even if P was produced elsewhere.
   --apply                without --manifest builds the manifest then applies it.
   --manifest P           on --dry-run writes to P instead of a mktemp path.
 
@@ -80,6 +83,15 @@ fi
 
 cd "$REPO_ROOT" || exit 1
 
+# Allowed manifest classes for this tier's apply gate — must track INCLUDE_CACHES
+# on BOTH apply paths (resume-from-manifest below and the normal walk further
+# down), never a fixed "build caches": otherwise a build-only apply (no
+# --include-caches) would still accept `caches` lines from a caller-supplied or
+# stale manifest and remove cache targets, defeating clean_apply_manifest's
+# wrong-tier guard on this documented --manifest surface.
+ALLOWED_CLASSES="build"
+[[ "$INCLUDE_CACHES" -eq 1 ]] && ALLOWED_CLASSES="build caches"
+
 # No build-system clean driver (e.g. `dotnet clean`): the universal bin/obj/…
 # removal below already deletes everything such a driver would, and running one
 # first is pure overhead (full MSBuild evaluation, minutes on a large solution)
@@ -92,7 +104,7 @@ if [[ "$DRY_RUN" -eq 0 && -n "$MANIFEST_ARG" ]]; then
     echo "clean-build.sh: manifest not readable: $MANIFEST_ARG" >&2
     exit 1
   fi
-  clean_apply_manifest "$REPO_ROOT" "$MANIFEST_ARG" "build caches"
+  clean_apply_manifest "$REPO_ROOT" "$MANIFEST_ARG" "$ALLOWED_CLASSES"
   printf 'Summary: removed=%s failed=%s bytes=%s\n' \
     "$CLEAN_REMOVED_COUNT" "$CLEAN_FAILED_COUNT" "$CLEAN_REMOVED_BYTES"
   [[ "$CLEAN_FAILED_COUNT" -eq 0 ]] || exit 1
@@ -117,7 +129,7 @@ if [[ "$DRY_RUN" -eq 1 ]]; then
   exit 0
 fi
 
-clean_apply_manifest "$REPO_ROOT" "$MANIFEST" "build caches"
+clean_apply_manifest "$REPO_ROOT" "$MANIFEST" "$ALLOWED_CLASSES"
 printf 'Summary: removed=%s failed=%s bytes=%s\n' \
   "$CLEAN_REMOVED_COUNT" "$CLEAN_FAILED_COUNT" "$CLEAN_REMOVED_BYTES"
 [[ "$CLEAN_FAILED_COUNT" -eq 0 ]] || exit 1

@@ -45,12 +45,12 @@
     {
       "id": 4,
       "name": "triage-outcome-clears-the-raw-intake-marker",
-      "prompt": "/work-items:triage 42 — #42 is an external bug report currently tagged status:needs-triage; you have verified it and are ready to brief it for autonomous pickup",
+      "prompt": "/work-items:triage 42 — #42 is an external bug report currently tagged status:needs-triage (this repo files the raw marker on the status axis); you have verified it and are ready to brief it for autonomous pickup",
       "expected_output": "Applying the briefed-and-delegable outcome removes status:needs-triage as part of the same edit that applies the brief labels plus the autonomous-eligible role label — normalization replaces the raw marker rather than stacking status:ready and the role label on top of it. Notes that leaving status:needs-triage alongside a briefed/ready or role label is a contradiction the open-only attention view reads as still-raw and would re-triage every cycle.",
       "files": [],
       "expectations": [
-        "Clears the raw-intake marker (`status:needs-triage`) in the same edit that applies the outcome's labels — treats the outcome as a transition off raw, not an addition on top of it",
-        "Applies the resulting state (brief + `status:ready` + autonomous-eligible role label) without leaving `status:needs-triage` attached",
+        "Clears the raw-intake marker (here `status:needs-triage`) in the same edit that applies the outcome's labels — treats the outcome as a transition off raw, not an addition on top of it",
+        "Applies the resulting state (brief + `status:ready` + autonomous-eligible role label) without leaving the raw marker (`status:needs-triage`) attached",
         "States the closing invariant: an open item carries no raw marker alongside a briefed/ready or role label — that contradiction re-selects the item in the attention view every cycle",
         "Recognizes that a close outcome instead drops the item from the open-only attention frontier, making the raw marker moot"
       ]
@@ -58,12 +58,12 @@
     {
       "id": 5,
       "name": "triage-needs-info-outcome-clears-the-raw-intake-marker",
-      "prompt": "/work-items:triage 42 — #42 is an external bug report currently tagged status:needs-triage; the description is too thin to reproduce and you are marking it needs-info",
+      "prompt": "/work-items:triage 42 — #42 is an external bug report currently tagged status:needs-triage (this repo files the raw marker on the status axis); the description is too thin to reproduce and you are marking it needs-info",
       "expected_output": "Applying the needs-info outcome removes status:needs-triage in the same edit that applies status:needs-info plus the structured needs-info comment — the open item is left carrying status:needs-info alone, never stacked on the raw marker. Notes that this does not orphan the item: the attention view re-selects it through the needs-info-with-reporter-activity bucket on the reporter's reply, which is the desired re-entry point, rather than through the raw-marker bucket every cycle.",
       "files": [],
       "expectations": [
-        "Clears the raw-intake marker (`status:needs-triage`) in the same edit that applies `status:needs-info` — the needs-info outcome is a transition off raw, not an addition on top of it",
-        "Leaves the open item carrying `status:needs-info` alone, without `status:needs-triage` still attached",
+        "Clears the raw-intake marker (here `status:needs-triage`) in the same edit that applies `status:needs-info` — the needs-info outcome is a transition off raw, not an addition on top of it",
+        "Leaves the open item carrying `status:needs-info` alone, without the raw marker (`status:needs-triage`) still attached",
         "Recognizes that clearing the raw marker does not orphan the item — it re-enters the attention view through the needs-info-with-reporter-activity bucket on reporter reply, not the raw-marker bucket",
         "Distinguishes this desired re-entry (needs-info bucket on re-engagement) from the silent-loop re-selection that a leftover raw marker would cause every cycle"
       ]
@@ -79,6 +79,32 @@
         "Does NOT wait for explicit user direction — that gate is the interactive-session default, not the autonomous-lane path; blocking here would deadlock the lane",
         "Prefixes every comment and item it creates with the AI disclaimer during the autonomous session",
         "Routes the label/comment writes through the bound adapter's mechanics and any item creation through the seam `create-item` — no inline provider commands"
+      ]
+    },
+    {
+      "id": 7,
+      "name": "triage-briefs-before-presenting-the-recommendation",
+      "prompt": "/work-items:triage 64 — running interactively with a human operator present. #64 is titled \"Export job silently skips rows with a null tenant id\" and is filed as an enhancement request whose description is vague on scope. You have completed step 2's category and target-state assessment and are at the direction gate, before verification; your assessment is that the target state is needs-info (the scope is undecided), with briefed-as-delegable the alternative if the operator would rather you pick a scope yourself.",
+      "expected_output": "Restates which item is under discussion (#64 plus its one-line title), the decision being asked (which target state to apply), and the consequence of each presented option — needs-info parks the item pending the reporter, briefed-as-delegable admits it to the delegable lane on an agent-chosen scope — and only then presents the recommendation and waits for the operator's explicit direction. Nothing is mutated before that direction arrives.",
+      "files": [],
+      "expectations": [
+        "Restates the item identity (number + one-line title) before presenting the recommendation, not after",
+        "States the decision being asked and the consequence of each presented option before asking for direction",
+        "Does not compress away the restatement even though the session is running under a terse output style",
+        "Still waits for the operator's explicit direction before mutating anything — the restatement precedes the question, it does not replace the wait"
+      ]
+    },
+    {
+      "id": 8,
+      "name": "triage-briefs-before-each-interview-question",
+      "prompt": "/work-items:triage 64 — running interactively with a human operator present. #64 is an enhancement request titled \"Export job silently skips rows with a null tenant id\", so the open question is scope, not fact. You already briefed and presented your step-2 recommendation and the operator has replied: \"go ahead, park it as needs-info and ask the reporter what you need.\" You are now at step 4 with the scope still undecided, so a follow-up scoping question for the reporter is the next step.",
+      "expected_output": "Even though the operator has already been briefed once this pass and has just given direction, the follow-up scoping question carries its own restatement: which item it concerns (#64 plus its title), the decision the question resolves, and — because \"what scope do you actually need?\" is open-ended rather than a closed option set — what the answer will determine, rather than a manufactured list of options to enumerate consequences for. The question is posted as an item comment and the item is marked status:needs-info.",
+      "files": [],
+      "expectations": [
+        "Restates the item identity and the decision the question resolves before posting the follow-up scoping question, not only before the earlier recommendation",
+        "For the open-ended scoping question, states what the answer will determine instead of inventing a closed option set to enumerate consequences for",
+        "Does not treat the earlier brief in the same pass as license to skip this one",
+        "Posts the question as an item comment and marks status:needs-info rather than answering the scope question itself"
       ]
     }
   ]

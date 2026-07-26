@@ -5,6 +5,10 @@
 # and runs the script's --all mode from a fixture root, exactly as the
 # silent-skip suite does. Two cases run against the REAL corpus to prove the
 # bare-vs-guarded discrimination on live files, not only synthetic ones.
+#
+# Bespoke PASS/FAIL counters by design, not drift: this is repo tooling, not a
+# plugin, so no plugin assertion library applies here — see
+# docs/conventions/shell-test-helpers/README.md.
 # shellcheck disable=SC2016  # fixture bodies are literal skill content in single quotes; expansion is never wanted
 set -uo pipefail
 
@@ -135,6 +139,26 @@ elif echo "$out" | grep -q ":4:" && ! echo "$out" | grep -q ":2:"; then
   ok "annotation covers line 2 only and does not leak past intervening code"
 else
   fail "expected line 4 flagged and line 2 clean, got: $out"
+fi
+rm -f "$f"
+
+# --- a content line with an inline HTML comment does not act as a comment --
+# line for pending_annot carry-forward purposes (#611): only a genuine
+# block-level `<!--` comment line (opening at start-of-line, modulo leading
+# whitespace) may extend an annotation to the next line. Line 2 below has a
+# hardcoded token AND an inline `<!--` marker that is NOT itself a
+# portability-ok annotation — under the pre-fix bug this made is_comment()
+# true for line 2, which left pending_annot carried over from line 1 instead
+# of resetting it, wrongly excusing line 3's unannotated hit too.
+f="$(tmpfile '<!-- portability-ok: covers only line 2 -->
+diff against origin/main here <!-- unrelated inline note, not an annotation -->
+diff against origin/main again, unannotated')"
+if out="$(scan_paths "$f" 2>&1)"; then
+  fail "content line with inline HTML comment must not carry annotation to line 3, got success: $out"
+elif echo "$out" | grep -q ":3:" && ! echo "$out" | grep -q ":2:"; then
+  ok "content line with inline HTML comment does not extend pending_annot to the next line"
+else
+  fail "expected line 3 flagged and line 2 excused (annotated above), got: $out"
 fi
 rm -f "$f"
 

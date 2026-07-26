@@ -92,9 +92,8 @@ This file covers only the guarded refresh above (`branch_freshness.state == "beh
 reported as `BEHIND` directly or recovered from a `BLOCKED` status via the compare fallback) — a
 `202`-async update request with no conflict yet realized. It does not cover resolving an actual
 merge conflict once one appears on the branch (from a refresh, a base change, or a worker's own
-fix attempt). For that, see `orchestration.md`'s Merge Conflict Resolution section: a dedicated,
-fresh worker, `git merge` never `git rebase`, understand both sides' intent before touching
-markers, verify with tests before pushing, and escalate genuine semantic ambiguity.
+fix attempt). That contract — who resolves, who pushes, and every invariant either side must hold
+— lives in one place: `orchestration.md`'s Merge Conflict Resolution section.
 
 Official references:
 

@@ -1,5 +1,25 @@
 # Changelog — docs-hygiene plugin
 
+## [0.8.7]
+
+### Fixed
+
+- `audit-derivability` fork-mechanism disambiguation now reads in one voice: the Hard Rules bullet
+  adopts the "is the opposite" phrasing already used by the spot-test bullet, `context/rubric.md`,
+  and `evals/evals.json`, replacing its divergent "is unrelated". The Gotchas self-grade bullet,
+  previously the one bare "non-fork subagent" site, now names the Agent tool's `fork` subagent type
+  as the forbidden mechanism — matching what `evals/evals.json` already grades on — without
+  repeating the full `context: fork` explanation.
+
+## [0.8.6]
+
+### Fixed
+
+- `audit-derivability` Hard Rules "never by a fork" now names the Agent tool's `fork` subagent
+  type inline and distinguishes it from a skill's own `context: fork` frontmatter (which starts
+  blank), matching the disambiguation already in the spot-test bullet — the Hard Rules section is
+  now self-contained for a reader landing there first.
+
 ## [0.8.5]
 
 ### Fixed

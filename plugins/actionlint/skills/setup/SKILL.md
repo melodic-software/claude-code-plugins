@@ -10,8 +10,9 @@ disable-model-invocation: true
 
 Thin check-centric setup per the uniform contract: `check` inspects and reports, `apply`
 resolves. This plugin owns no consumer-project configuration — actionlint auto-discovers its
-own optional config from the repository, and the only tunable is the native `userConfig`
-toggle. Every prerequisite is a `PATH` binary the plugin never bundles, and the plugin never
+own optional config from the repository, and the tunables are the native `userConfig`
+options (the `actionlint_enabled` toggle and `stdin_read_timeout`). Every prerequisite is a
+`PATH` binary the plugin never bundles, and the plugin never
 installs system packages, so `apply` is guidance-only with **no write path** — it never
 modifies the repository, user settings, or the plugin cache.
 
@@ -44,6 +45,9 @@ restores the FAIL semantics.
 5. **Hook toggle** — report the effective `actionlint_enabled` value:
    `${user_config.actionlint_enabled}` (unexpanded or empty means default `true`; any value
    other than `true` disables the hook).
+5b. **Stdin read timeout** — INFO: report the effective `stdin_read_timeout` value:
+   `${user_config.stdin_read_timeout}` (unexpanded or empty means default `2` seconds,
+   minimum `1`; bounds reading the hook payload before failing open).
 6. **Hook registration** — INFO: confirm the plugin is enabled for this project
    (`/plugin` → Installed) rather than parsing settings files.
 
@@ -55,14 +59,36 @@ Run `check`, then for each FAIL point at the resolution — this skill installs 
   (the [actionlint install guide](https://github.com/rhysd/actionlint/blob/main/docs/install.md)).
 - missing `jq` / Bash: platform install instructions from the README Requirements section.
 - toggle off: direct to `/plugin configure actionlint` (interactive, any
-  time). Headless: `--config` only applies on a fresh install (ignored once installed), so reconfigure via `claude plugin uninstall actionlint` then
-  `claude plugin install actionlint@<marketplace> --config actionlint_enabled=true`;
+  time). Headless: current official docs document `--config` only as a
+  `claude plugin install` flag that sets manifest-declared options; its
+  behavior against an already-installed plugin is undocumented, and in
+  practice the reliable headless path is `claude plugin uninstall actionlint`
+  then `claude plugin install actionlint@<marketplace> --config actionlint_enabled=true`;
   this skill never writes user settings or `pluginConfigs`.
 
 After pointing at a remediation, re-run the relevant `check` probe and report its actual
 result — never claim resolved on the reader's report that they installed something.
 
 Re-running `apply` after everything passes changes nothing and reports "already configured".
+
+## Gotchas
+
+- **A userConfig knob is reachable natively only if the manifest declares it.** Per current
+  docs, `claude plugin install --config <key=value>` sets options "declared in the plugin's
+  manifest" — an undeclared key silently cannot be set through native config surfaces (a raw
+  settings `env` block still works). That is why `stdin_read_timeout` is declared in this
+  plugin's manifest even though the shared hook lib supplies its default; hook plugins reusing
+  the shared lib should declare it too (claude-ops set the precedent).
+- **`--config` post-install behavior is undocumented.** The docs describe it only as an
+  install-time flag; do not assume re-running install re-applies config on an installed
+  plugin — the verified headless path is uninstall-then-install (see `apply` above).
+- **`-shellcheck=` / `-pyflakes=` are deliberate, and the deadlock claim is a local
+  observation.** The hook disables actionlint's external run-block linters primarily for
+  edit-time latency; the additional "ShellCheck deadlocks on large blocks under the Windows
+  subprocess IPC path in actionlint 1.7.x" rationale is the hook author's own reproduction —
+  no matching upstream rhysd/actionlint issue as of 2026-07-23. The latency rationale alone
+  justifies the flags for an advisory edit-time hook; deep run-block linting belongs in a
+  commit hook or CI.
 
 ## What this skill does NOT do
 
