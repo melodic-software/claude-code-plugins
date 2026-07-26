@@ -18,19 +18,22 @@ change the output while matching none of the globs.
 Its `trigger-globs` (those five, plus `*.pb.go` and `*.pb.gw.go`) additionally list the plugins'
 own generated-output patterns, so a hand-edit that drifts a generated file from what `buf generate`
 would produce still fires the gate — those two need no separate `globs` entry since they already end
-in `.go`. Its freshness `cmd` runs `buf generate --clean` and chains `git diff HEAD --exit-code`,
-`git diff --cached --exit-code`, and `git ls-files --others --exclude-standard`, each scoped to every
-buf.gen.yaml-configured plugin's output (`*.pb.go` and grpc-gateway's `*.pb.gw.go` in this example,
-extended per additional plugin), so the example demonstrates a gate that actually catches stale
-generated code: a bare `git diff` compares only against the index (a staged regeneration reports
-clean) and never reports untracked paths at all (a newly generated output false-passes); `git diff
-HEAD` compares the working tree to the last commit and never inspects the index, so it closes the
-staged-regeneration case but needs the `--cached` companion to catch a hand-edit staged in the index
-whose working-tree copy `--clean` has since overwritten; and without `--clean` — whose `buf.gen.yaml`
-counterpart [defaults to `false`](https://buf.build/docs/configuration/v2/buf-gen-yaml/) — an output
-orphaned by a deleted `.proto` is left in place and passes every git check. The comment also records
-what no regenerate-and-diff gate can catch: an unstaged hand-edit to a generated file is overwritten
-by `--clean` before any check reads it. The example's `install-hint` gains the Buf CLI alongside
+in `.go`. Its freshness `cmd` brackets `buf generate --clean` with one `git status --porcelain`
+scoped to every buf.gen.yaml-configured plugin's output (`*.pb.go` and grpc-gateway's `*.pb.gw.go`
+in this example, extended per additional plugin), so the example demonstrates a gate that actually
+catches stale generated code without destroying any. The post-generation check reports modified,
+newly generated, and orphaned output in one command, staged or not — a bare `git diff` compares only
+against the index (a staged regeneration reports clean) and never reports untracked paths at all,
+and without `--clean` — whose `buf.gen.yaml` counterpart
+[defaults to `false`](https://buf.build/docs/configuration/v2/buf-gen-yaml/) — an output orphaned by
+a deleted `.proto` is left in place and passes every git check. The pre-generation check (`-uno`,
+tracked paths only) is the guard: `--clean` deletes the plugins' output directories, so generation
+would otherwise overwrite an uncommitted hand-edit, and once regeneration has reverted one the
+worktree matches HEAD while the staged entry survives — [`git diff <commit>` compares the working
+tree, never the index](https://git-scm.com/docs/git-diff) — a false pass no post-generation diff
+form can reach. Untracked output stays outside the guard, since regeneration reproduces it
+identically, so the ordinary "forgot to regenerate" flow still fails at the post-generation check
+rather than the guard. The example's `install-hint` gains the Buf CLI alongside
 golangci-lint and the Go toolchain: `install-hint` is per-ecosystem, so a tool-presence skip on the
 new gate would otherwise reuse a hint that cannot install the executable it is missing.
 Deferred from melodic-software/claude-code-plugins#1361 via #1462 (a
