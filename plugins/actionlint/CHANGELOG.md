@@ -3,6 +3,73 @@
 All notable changes to the `actionlint` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.1]
+
+### Fixed
+
+- **Headless reconfigure recipe now preserves install scope (#1406).** The `claude plugin
+  uninstall` → `claude plugin install ... --config` recipe in `skills/setup/SKILL.md` defaulted
+  both halves to `-s user`. When this plugin is installed at `project` or `local` scope, that
+  silently uninstalled a separate user-scope record while the effective project/local install kept
+  loading, and the reinstall landed at a scope that does not load. Both commands now carry
+  `-s <scope>`, sourced from what `claude plugin list` reports for this plugin — the same fix
+  already applied to `session-flow` and `rate-limit-guard` in #1393.
+  The recipe also now requires the reinstall to re-supply **every** key whose value should
+  stay non-default, not only the key being changed: uninstalling drops the stored
+  `pluginConfigs` entry, so an omitted key silently falls back to its manifest default.
+  Record the current values before uninstalling.
+
+## [0.7.0]
+
+### Added
+
+- **`stdin_read_timeout` declared in userConfig (#1134).** The shared hook lib reads
+  `CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT`, but per current docs `--config <key=value>` sets
+  only options "declared in the plugin's manifest" and `/plugin configure` offers declared
+  options — so the knob was unreachable through native config surfaces for this plugin. Declared
+  now (type/default/floor mirroring the claude-ops precedent); other hook plugins reusing the
+  shared lib should declare it the same way. Decision recorded in the setup skill's new Gotchas.
+- **`skills/setup` Gotchas surface (#1134).** Records the manifest-declaration requirement, the
+  undocumented post-install `--config` behavior, and attributes the `-shellcheck=` deadlock
+  rationale as the hook author's own observation (no matching upstream rhysd/actionlint issue as
+  of 2026-07-23; the edit-time latency rationale stands on its own). Clears the skill-quality
+  no-Gotchas WARN.
+
+### Changed
+
+- **Setup skill no longer asserts the undocumented `--config` fresh-install claim (#1134).**
+  "only applies on a fresh install (ignored once installed)" appears nowhere in current official
+  docs; the guidance now cites what the docs do say (`--config` is a `claude plugin install`
+  flag for manifest-declared options), marks post-install behavior undocumented, and keeps the
+  verified uninstall-then-install headless path.
+
+## [0.6.0]
+
+### Fixed
+
+- **Membership guard removed — 8.3 short-form paths no longer silently skip the lint (#1133).**
+  The hook parsed `file_path` through the shared lib's `hook::read_file_path`, whose
+  `CLAUDE_PROJECT_DIR` membership guard compares realpath-normalized forms; GNU `realpath` under
+  Git Bash does not expand Windows 8.3 short names, so a short-form `file_path` (the shape Claude
+  Code's own scratchpad paths take) failed the prefix match and the hook exited silently — no
+  lint, no notice, no telemetry. For an advisory PostToolUse linter the guard protects nothing
+  (the tool already ran; the hook cannot block), so every false-negative is pure coverage loss.
+  The hook now parses the path itself (existence check retained; the workflow-location filters
+  still bound what gets linted); the synced shared lib is untouched for consumers that need the
+  guard. Regression tests: a deliberately mismatched `CLAUDE_PROJECT_DIR` still lints, and a
+  short-prefix 8.3 path still lints where the volume generates short names.
+- **A failed `cd`/actionlint launch no longer reads as a clean pass (#1133).** The lint invocation
+  discarded its exit status; a failed `cd` (or an actionlint exit ≥ 2 — invalid CLI, fatal, launch
+  failure) produced empty output and fell through to the clean-workflow branch, emitting telemetry
+  `status:"ok", findings:[]` indistinguishable from a real pass. Both now emit `status:"error"`
+  (captured output as `data.findings`) and stay silent on the advisory channels. Covered by a
+  stubbed exit-3 actionlint test.
+- **`data.file` can no longer leak an absolute path (#1133).** When the repo-root prefix strip did
+  not match (mount/symlink mismatch), the telemetry `data.file` silently carried the absolute
+  path, violating the schema's repo-relative contract; it now degrades to the basename.
+- **Test gap closed: `-pyflakes=` regression fixture (#1133).** Only `-shellcheck=` was exercised;
+  a `shell: python` run-block fixture now pins the pyflakes integration off.
+
 ## [0.5.2]
 
 ### Fixed

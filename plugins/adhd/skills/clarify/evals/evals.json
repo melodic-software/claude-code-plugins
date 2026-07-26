@@ -64,6 +64,29 @@
         "Includes a glossary defining session-local jargon in plain words",
         "Defines the shorthand without lowering the altitude of the underlying concept"
       ]
+    },
+    {
+      "id": 6,
+      "name": "trivial-target-escape-hatch-instead-of-full-apparatus",
+      "prompt": "[The previous assistant response was three short lines confirming a file was saved, with no decisions in it.] /adhd:clarify",
+      "expected_output": "Recognizes the resolved target holds fewer than ~2 decisions and takes the escape hatch: one line saying there is nothing dense to clarify in that message, plus a question asking what the reader actually wanted clarified. Does not render a decision table, glossary, or omissions note for a trivial target.",
+      "files": [],
+      "expectations": [
+        "Does not run the full table/glossary/omissions apparatus on a trivial target",
+        "States in one line that the target has nothing dense to clarify",
+        "Asks what the reader actually intended to clarify"
+      ]
+    },
+    {
+      "id": 7,
+      "name": "cold-start-asks-for-target-instead-of-inventing-one",
+      "prompt": "make this clear",
+      "expected_output": "With no prior assistant message in the session, does not invent a target or clarify the user's own three-word request: asks what to clarify.",
+      "files": [],
+      "expectations": [
+        "Does not invent or guess a target artifact",
+        "Asks the user what to clarify"
+      ]
     }
   ]
 }

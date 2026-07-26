@@ -127,13 +127,16 @@ Applying that precedence, the grammar of an invocation is `/<namespace>:<skill>`
   first (`design`, `design-handoff`, `implement`, `implement-dispatch`) so prefix typeahead and
   sorted listings group the family. A standalone skill keeps natural English order (`batch-simplify`, `quality-gate`).
   A structural variant earns a new sibling name; a depth/intensity variant takes an argument, never
-  a sibling. **Execution tier counts as structural:** a variant that changes execution *topology* — an
-  isolated forked subagent (`context: fork`) or a heavier dispatch tier (workflow engine, forked
-  subagent, or inline fallback) — is fixed in frontmatter and cannot be a runtime argument, so it earns
-  a sibling. `discovery`'s `explore-deep` (a `context: fork` variant of `explore`) and `research-deep`
-  (a dispatch variant of `research`) are siblings on this axis; the `-deep` suffix names that isolation
-  tier, not a depth knob on the same execution path — a true effort knob on one execution path still
-  takes an argument.
+  a sibling. **Execution tier counts as structural when the tier is genuinely not reachable from the
+  base skill's execution path:** `discovery`'s `research-deep` is a sibling because its heaviest tier
+  needs the `Workflow` tool and its multi-topic path needs the `Agent` tool, neither of which a
+  dispatched context can reach — so the tier cannot be selected at runtime by `research` itself. The
+  `-deep` suffix names that isolation tier, not a depth knob on the same execution path; a true effort
+  knob on one execution path still takes an argument.
+  **The converse is equally binding: a tier the base skill CAN reach at runtime does not earn a
+  sibling.** `discovery` retired `explore-deep` for exactly this reason — once `/discovery:explore`
+  dispatched a named agent by default, the `-deep` variant was a second door onto an execution path
+  the base skill already had, and the test is same-execution-path vs. a genuinely second one.
 - **A vendor-CLI plugin that decomposes names its skills after the vendor's own CLI verbs.** When a
   tool-scoped plugin splits into multiple skills, it mirrors that CLI's verb vocabulary —
   `/playwright:test` would mirror `npx playwright test`; a firecrawl decomposition would use
@@ -241,7 +244,7 @@ one increment past the precedent). Behavioral gaps the docs leave open are resol
      (profile axis) — the two compose (`.claude/<concern>/<profile-name>/`). Reference adopter:
      [`ai-briefing`](ai-briefing-design.md).
    - **Resolution + override semantics, overlay naming, and the recommended consumer `.gitignore`
-     line** are owned by [`docs/conventions/consumer-config-layering/`](conventions/consumer-config-layering/README.md)
+     line** are owned by [`docs/conventions/config-cascade/`](conventions/config-cascade/README.md)
      — the layering axis is cross-cutting, so it is contracted once there rather than restated per
      seam. A surface declares its own keys and schema here or in its own owner doc, and points there
      for how its layers merge.
@@ -800,6 +803,294 @@ Reviewed at `0.1.0`; a version bump adding a new trust surface re-triggers this 
 conform; 5 bounded to two justified, non-telemetry channels; 6 dual third-party surfaces both
 gated (credential scope + human-reviewed sync).
 
+### Review record — `context-guard` (ACCEPT, 2026-07-24)
+
+Reviewed at `0.1.0`; a version bump adding a new trust surface re-triggers this review.
+
+- **Code execution (1).** No hooks. Two bash scripts, neither wired to any event:
+  `statusline-tee.sh` runs only when the OPERATOR wires it into their own `settings.json`
+  statusline (the setup skill prints the edit, never applies it), and `context-zone.sh` runs only
+  on explicit invocation. Both reviewed: no `eval`, no `curl | sh`, no outbound network; the one
+  untrusted input that reaches the filesystem (`session_id` from statusline stdin) is sanitized to
+  `[A-Za-z0-9_-]` before filename use; `captured_at` is format-gated to strict ISO-8601 UTC before
+  being passed to `date -d`; no snapshot value is passed to `eval`, `sh -c`, or any code
+  executor. Every failure path is transparent (wrapped statusline output
+  and exit code unchanged). No kill-switch `userConfig` needed — nothing runs unless the operator
+  wires it, and unwiring is the same one-line edit.
+- **MCP servers (2).** None.
+- **Consumer config (3).** No `userConfig`. The one machine file the plugin owns
+  (`~/.claude/context-guard/zones.json`) is written only by the setup skill's explicit `apply`.
+- **Cache isolation (4).** Skills reference bundled files via `${CLAUDE_PLUGIN_ROOT}`; no `../`
+  reach-outs. Writes go only to `~/.claude/context-guard/` — the operator-home carve-out —
+  deliberately outside `${CLAUDE_PLUGIN_DATA}` because the directory is a documented cross-plugin
+  artifact seam (per-session snapshots + zones SSOT) that sibling-plugin sessions read by path;
+  `${CLAUDE_PLUGIN_DATA}` resolves per-plugin-identity and would hide the seam. Same accepted
+  pattern as `rate-limit-guard`.
+- **Data egress (5).** None. No network, no telemetry. Snapshot data (context-window token
+  counts + session id) never leaves the machine. Residual local-integrity limitation, stated
+  honestly: the contract dir's `chmod 700` is best-effort — a no-op on filesystems without POSIX
+  modes (Windows ACL volumes under Git Bash), where another local user could read or forge
+  snapshots. The reader contract therefore forbids consumers from attaching security decisions to
+  zone words (routing hints only), and the resolver format-gates `captured_at` and requires the
+  embedded session id to match, so forgery cannot ride a lenient parser.
+- **Provenance & third-party trust (6).** First-party (Melodic Software authored), MIT, no
+  third-party delegation.
+- **Main-thread / PATH (7).** None; no `settings.json` `agent`, no `bin/`.
+
+**Verdict: ACCEPT** — surfaces 2/5/6/7 absent; 1 bounded to operator-wired transparent scripts
+with sanitized untrusted input; 3 empty; 4 conforms under the documented operator-home seam
+carve-out.
+
+### Delta review — statusline shim (`context-guard` 0.2.0, `rate-limit-guard` 0.2.0, ACCEPT, 2026-07-24)
+
+Triggered by the review record's own rule: both plugins' `setup apply` now writes an EXECUTABLE
+(`bin/statusline-shim.sh`) into the plugin's operator-home directory, where `apply` previously
+wrote only data (`zones.json`) or nothing at all. Reviewed as a delta; the base records stand.
+
+- **Code execution (1).** The write is a byte-identical copy of a reviewed, tested, bundled script
+  — no generation, no templating, no operator-supplied content, so nothing enters it that was not
+  already in the plugin. Critically, **the copy is inert until the operator wires it**: it is not
+  on `PATH`, not a hook, and not referenced by any Claude Code surface, so the base record's
+  justification for having no kill switch — "nothing runs unless the operator wires it, and
+  unwiring is the same one-line edit" — survives verbatim. The shim itself has no untrusted input
+  (its only inputs are its own argv and the cache directory listing), performs no filesystem
+  writes, and `exec`s either the resolved tee or the wrapped command. The resolution glob skips
+  transient `temp_*` marketplace directories; the residual case — two distinct marketplaces both
+  shipping a plugin of the same name — resolves to the most recently installed one and is
+  documented in the script.
+- **Consumer config (3).** Unchanged. The shim is not configurable and reads no config.
+- **Cache isolation (4).** The write stays inside the same operator-home carve-out already accepted
+  for these plugins (`~/.claude/context-guard/`, `~/.claude/rate-limit-guard/`); each plugin's
+  `apply` is explicitly forbidden from writing into the sibling's directory. `${CLAUDE_PLUGIN_DATA}`
+  was considered and rejected as the shim's home: it is deleted on uninstall, which would leave a
+  wired statusline pointing at a missing file — the exact 127-exit failure this change removes —
+  and its per-plugin-identity path would hardcode the marketplace name into the operator's
+  settings.
+- **Main-thread / PATH (7).** Still none. `bin/` here is a plugin-owned operator-home subdirectory,
+  NOT the plugin `bin/` component that joins the Bash tool's `PATH` (which stays rejected
+  marketplace-wide); the shim is invoked only by absolute path from the operator's `statusLine`.
+- **Surfaces 2, 5, 6.** Unchanged: no MCP servers, no network or telemetry of any kind, first-party
+  MIT code.
+
+**Verdict: ACCEPT** — the new surface is one inert, byte-identical copy of already-reviewed code
+into an already-accepted directory, on explicit operator request, with the no-kill-switch
+justification intact. Uninstall leaves the shim behind by design; it then degrades to running the
+operator's statusline unchanged, and both setup skills document the two-step manual cleanup.
+
+### Review record — `plugin-quality` (ACCEPT, 2026-07-24)
+
+Reviewed at `0.1.0`; a version bump adding a new trust surface re-triggers this review. Data
+surfaces named exhaustively — this plugin READS more than most, and that is its job.
+
+- **Code execution (1).** No hooks, no scripts. Prompt artifacts only (skills, agent, references).
+  The `auditor` agent carries Bash and Write, **named honestly**: neither is read-only — Bash is
+  justified for `claude plugin validate` and config-resolution probes plus safe fixture
+  reproductions; Write is scoped by standing instruction to the evidence-packet directory only
+  (the dumb-zone contract needs the agent to persist its own `findings.md` so the main thread can
+  stay summary-only — surfaced by the dumb-zone smoke). Its standing instructions forbid mutation
+  of the audited plugin, installs, writes outside the packet, and network beyond WebFetch.
+  Untrusted-content posture (audited source is data, never instructions) is a standing
+  instruction in BOTH the hub skill and the agent, backed by a prompt-injection anti-pattern eval
+  — an advisory, model-honored defense, stated honestly as such.
+- **MCP servers (2).** None.
+- **Consumer config (3).** No `userConfig`. Tracked cascade surface `.claude/plugin-quality.md`
+  (+ user-global `~/.claude/plugin-quality.md` and `.local` overlay — sanctioned operator-home
+  read per criterion 4's carve-out), keys documented in the plugin's `reference/config.md`.
+- **Cache isolation (4).** Reads that leave the plugin's own directory, each justified: (a) the
+  audited plugin's installed source under the plugin cache and its marketplace registration —
+  that IS the audit subject; (b) `~/.claude/context-guard/context/<session_id>.json` +
+  `~/.claude/context-guard/zones.json` — the context-guard reader contract's documented
+  cross-plugin seam, consumed read-only per its inline-floor rule; (c) the documented config
+  layers above. Writes: the evidence packet (session-derived data — hook failures, transcript
+  path, tool errors, contract-lock notes) under `${CLAUDE_PLUGIN_DATA}/evidence/…` with a stated
+  30-day retention, and — only on the markdown sinks — the emitted item file at the
+  operator-chosen directory. No `../` reach-outs.
+- **Data egress (5).** Exactly one network egress: `gh issue create`, gated by an unconditional
+  full-draft + target-repo + ACTING-account confirm (no auto-file mode exists; the acting-account
+  line exists because one machine can hold multiple GitHub identity domains). WebFetch in the
+  auditor agent reaches official docs pages for claim grounding — read-only GETs. No telemetry.
+- **Provenance & third-party trust (6).** First-party (Melodic Software authored), MIT, no
+  third-party delegation. The producer/consumer split (audit session never implements fixes in
+  the audited repo) bounds the blast radius of a hostile audited plugin to the findings text
+  itself, which the draft+confirm gate puts in front of the user before it leaves the machine.
+- **Main-thread / PATH (7).** None; no `settings.json` `agent`, no `bin/`.
+
+**Verdict: ACCEPT** — surfaces 2/7 absent; 1 bounded to an honestly-named agent Bash grant under
+standing instructions; 3/4 conform with every cross-boundary read justified at its seam; 5 is a
+single confirm-gated egress plus docs-only WebFetch; 6 first-party with the split as containment.
+
+### Review record — `x` (ACCEPT, 2026-07-24)
+
+Reviewed at `0.1.0`; a version bump adding a new trust surface re-triggers this review. This is a
+**third-party trust delegation** — the plugin's entire function is routing a URL through converters
+operated by others — so surfaces 5 and 6 carry the weight here.
+
+- **Code execution (1). Present — remediated, and the remediation is instruction-level.** No hooks,
+  no scripts, no `bin/`; no `eval`, no `curl … | sh`. But the skill does interpolate untrusted input
+  into a shell command line: the X URL becomes part of a `curl` request body. A first review draft
+  claimed this was not shell interpolation of untrusted input; that claim was **false** and is
+  retracted here. An adversarial pass demonstrated the breakout against a real `argv` dump — a URL
+  containing an apostrophe terminates the body's quoting and contributes new `argv` words,
+  yielding a second unconstrained URL and an `-o` arbitrary-write flag in the receiving process.
+  Because `disable-model-invocation` is `false` and the description carries a research trigger, the
+  URL can arrive from attacker-authored web content, closing an indirect-injection chain into a
+  shell argument.
+
+  Remediation: a mandatory gate ahead of step 1 anchors the input against post/article patterns,
+  **refuses** on no match, and on match discards the input entirely and rebuilds the URL from
+  captures restricted to `[A-Za-z0-9_]` and `[0-9]` — classes that cannot express a quote, space, or
+  metacharacter. Only handle and id are captured: scheme, host, and query string are all discarded
+  and re-emitted canonically, so the accepted input set (`http`/`https`, either case, `x.com` or
+  `twitter.com`, optionally `www.` or `mobile.`) is wider than the emitted set, which is always one
+  `https://x.com/…` URL. Widening what is *accepted* therefore does not widen what is *sent*. Rebuild-from-captures, not escaping, so the emitted command is quote-safe by
+  construction. Every URL re-enters the gate, including ones offered at step 3 or surfaced by
+  fetched content. Stated honestly: **the gate is model-honored, not runtime-enforced.** It is the
+  primary defense, not a guarantee.
+
+  No kill-switch `userConfig` needed: nothing runs unless the skill is invoked, and scope-level
+  `enabledPlugins` is the off switch.
+
+- **Tool pre-approval — no shell grant, and the prompt must stay legible.** An earlier draft
+  pre-approved `Bash(curl … https://xtomd.com/api/*)` and a PowerShell mirror. **Removed.** A prefix
+  rule cannot express "and no further flags": the trailing wildcard admits every appended argument,
+  so the grant would have suppressed the prompt on exactly the injected command above. The
+  permissions documentation warns against argument-constraining Bash patterns for this reason. The
+  network call now prompts, showing the operator the exact command — the only runtime-enforced layer
+  available without shipping a hook.
+
+  Review then found that this backstop is only as good as what the prompt *displays*, and that an
+  intermediate Windows design had quietly destroyed it. To dodge a PowerShell quoting-portability
+  problem, the request had been moved into a curl config file; the prompt then showed
+  `curl.exe -q -K <file>`, hiding the destination URL, the `data` reference, any `output` directive,
+  and redirect behavior inside a model-authored file no operator approves. Should attacker-authored
+  content push the model off the gate, the operator would see nothing dangerous — the control failing
+  exactly when it is needed.
+
+  Resolved by **declaring a narrower platform boundary rather than keeping an uninspectable path**:
+  the skill ships one bash invocation, requiring Git Bash on Windows, with no PowerShell variant. Every
+  PowerShell-portable form either breaks across `$PSNativeCommandArgumentPassing` modes or moves
+  request detail out of the prompt. A stated prerequisite is the honest cost; an approval the operator
+  cannot read is not. This is the cross-platform contract's declared-narrower-scope allowance, taken
+  deliberately and recorded at the coupling site.
+
+  `allowed-tools` retains only `WebFetch(domain:threadreaderapp.com)`, which involves no shell. A
+  validating `PreToolUse` hook is the stronger control and is **deferred**, with re-introducing a
+  shell grant as its trigger.
+- **MCP servers (2).** None. The user's stated growth path includes a future MCP surface; that would
+  be a new trust surface and re-triggers this review at that version.
+- **Consumer config (3).** No `userConfig`. No credential exists to store — both providers are
+  unauthenticated.
+- **Cache isolation (4). One bounded write per invocation.** A first draft claimed "no file reads or
+  writes at all"; that was **wrong** — the skill instructs redirecting the response to a file and
+  reading the slice needed, which is a write plus a read carrying third-party content. Retracted and
+  corrected: the redirect target is constrained to `${CLAUDE_PLUGIN_DATA}`, explicitly never an
+  agent-chosen absolute path and never a path derived from fetched content. Review then found the
+  redirect had been written as conditional on the response being a long article — unevaluable, since
+  an X Article is routinely shared as an ordinary `/status/` link, which would have left the concrete
+  documented command streaming an unbounded body to stdout. The redirect is now unconditional, so
+  the write happens on every invocation rather than on an unknowable subset, and the file is deleted
+  on every exit path. A later round found the spool path was double-quoted, which does not contain
+  it: bash expands `$name`, runs a backtick or `$(…)` substitution, and consumes a backslash inside
+  double quotes. Verified against a directory named ``lit$name-`whoami`.txt`` — the variable expanded
+  and the substitution executed. The path is now single-quoted at every shell site. Note the
+  asymmetry with
+  criterion 1: the *URL* is safe by construction because it is rebuilt from quote-free capture
+  classes, but the *plugin-data path* comes from the environment, so it carries whatever the
+  consumer's home directory contains and must be escaped rather than trusted. No `${CLAUDE_PLUGIN_ROOT}` references beyond the skill body, no
+  consumer-repository reads, no `../` reach-outs.
+- **Data egress (5). Present and accepted — conditional on the criterion-1 gate.** Per invocation
+  the machine emits one datum: the gate's *rebuilt* URL `https://x.com/<handle>/status/<id>`, to
+  `xtomd.com` (step 1) and, only on a chain fragment, `threadreaderapp.com` (step 2). No
+  credentials — neither endpoint takes auth. No repository content, no conversation text, no
+  telemetry.
+
+  A first draft asserted this unconditionally; that was **false as built**, because the pre-gate
+  request body was attacker-steerable (criterion 1) and could carry `@file` contents or reach an
+  attacker-chosen host. The claim is sound only downstream of the gate, and is recorded that way.
+
+  Two residuals stated rather than glossed: rebuilding drops the query string, so `?s=`/`?t=` share
+  tracking tokens are **not** transmitted — but the URL itself still identifies both the post and
+  the reader's interest in it, and neither vendor publishes a retention policy, so assume every
+  submitted URL is logged indefinitely. `--proto '=https'`, `--max-time`, and `--max-filesize` bound
+  the transport; no `-L`, so no redirect-driven egress. The byte cap is best-effort rather than
+  absolute — before curl 8.4.0 `--max-filesize` does not stop an unknown-length response, so a
+  chunked reply can exceed it and `--max-time` is the bound that always holds. When either bound does
+  fire it aborts rather than truncating cleanly, and review found the skill would have read the
+  wreckage: verified against curl 8.19.0, an over-cap transfer prints `200` on stdout while exiting
+  `63`, leaving a partial spool whose Markdown prefix passes every content check. The exit status is
+  now the first gate, ahead of the HTTP code and the body, and a nonzero exit deletes the spool
+  unread. Two further rounds closed the remaining paths by which third-party bytes reach the session:
+  success requires exactly `200`, since a non-followed `3xx` completes with exit `0` and a plaintext
+  body that no Markdown check can reject; and the spool is read to a **fixed 256 KB cumulative
+  ceiling** rather than unconditionally to EOF, because bounded slices cap each tool result but never
+  their sum, so a response near the 5 MB cap could exhaust the session before the result was
+  reported. The ceiling is a constant rather than a per-invocation budget, since an instruction to
+  "set a budget" is satisfied by choosing the response's own size. Both were reachable by a hostile
+  or malfunctioning converter, which is the threat this criterion assumes.
+
+  A P1 in the same round corrected an over-application of the escaping above: the shell quoting had
+  been extended to the `Read` tool, whose argument is a literal filesystem path that no shell parses.
+  Quotes there become part of the filename, so every successful fetch would have failed to open its
+  own spool. Escaped at the shell sites, raw at `Read` — one path, two renderings.
+
+  Those bounds are only enforceable because `-q` leads the invocation. Review surfaced that curl
+  reads a default `.curlrc` "even when `--config` is used", skipping it only when `--disable` "is
+  used as the first parameter on the command line" (curl's own manual, verified against the local
+  binary). A consumer's ambient `.curlrc` setting `location` would otherwise re-enable redirect
+  following and silently defeat the no-redirect egress claim — an environment-supplied bypass of a
+  control this record asserts. The finding predates the removal of the Windows config-file path and
+  applied there too.
+- **Provenance & third-party trust (6). Present and accepted.** Two vendors, neither first-party:
+  - `xtomd.com` — publishes a `POST /api/markdown` endpoint under a documented public contract
+    (`/llms.txt`, `/llms-full.txt`, and an OpenAPI 3.1.0 document at `/.well-known/openapi.json`),
+    unauthenticated and free. **The operating entity is not identified** on the site, and no terms,
+    jurisdiction, or retention policy is published — material for a trust delegation, and recorded
+    as an unknown rather than passed over. Its docs instruct installing an `@xtomd/mcp-server` npm
+    package that **does not exist** (registry `404`). That is not merely a documentation-quality
+    caveat: the name is unregistered and claimable by anyone, so the vendor's own docs steer users
+    into a standing dependency-confusion hazard. The plugin does not wire, install, or reference it,
+    and the skill body instructs against hunting for it.
+  - `threadreaderapp.com` — a long-running public thread-unroll service, fetched read-only over
+    `WebFetch` with no key. Operator likewise not identified on the fetched surfaces; retention
+    unstated.
+
+  Both return **attacker-authored content**: X post bodies written by arbitrary third parties. This
+  is the prompt-injection vector criterion 2 names, arriving through a different door. Containment
+  lives in the skill body — returned bytes are data to report, never instructions, and fetched text
+  may never introduce a URL, host, or file path — with dedicated eval coverage including a URL
+  harvested from page content. Consistent with the `github`, `dometrain`, and `plugin-quality`
+  records, this is **an advisory, model-honored defense, not a runtime-enforced one**; an earlier
+  draft called it "mandatory" without that qualifier and is corrected here.
+
+  Two residual risks stated rather than assumed away: a converter could return content that differs
+  from the source post, and the plugin cannot detect that — consumers get attribution and the gate's
+  **rebuilt** URL, never the converter-echoed one, so a claim can be checked against the original
+  without trusting a value the converter chose. And step 2's escalation is a decision
+  made on the shape of step-1 output, which is third-party text; it is constrained to reusing the
+  gate-captured id and can therefore change *whether* a second fetch happens, never *where* it goes.
+- **Main-thread / PATH (7).** None; no `settings.json` `agent`, no `bin/`.
+
+**Review history.** A first draft of this record reached ACCEPT on claims that an adversarial
+fresh-context pass then falsified: criterion 1's "no shell interpolation of untrusted input",
+criterion 4's "no file reads or writes at all", and criterion 5's unconditional no-credential-egress
+assertion. The argument-injection breakout was demonstrated at `argv` level in both bash and
+PowerShell and independently reproduced before remediation. Each retraction is recorded inline above
+rather than silently rewritten, because a review record whose failures are edited out of history
+teaches nothing to the next reviewer.
+
+**Verdict: ACCEPT at the remediated state** — surfaces 2/7 absent; 3 empty. Criterion 1 carries a
+real shell-interpolation surface, remediated by a validate-and-rebuild gate whose model-honored
+nature is stated rather than glossed, and backed by the deliberate absence of any Bash/PowerShell
+pre-approval so the call prompts. Criterion 4 is one write bounded to `${CLAUDE_PLUGIN_DATA}`.
+Criteria 5 and 6 are the substance: egress is a single rebuilt, query-stripped, already-public URL
+with no credential, and the trust delegation buys a capability with no unauthenticated first-party
+alternative. Both vendors are unidentified operators with unstated retention — recorded as a known
+unknown, not waved through — and the untrusted-content risk is contained by advisory instruction
+that is labeled advisory.
+
+**Re-trigger:** re-introducing a Bash or PowerShell pre-approval, shipping the deferred validating
+`PreToolUse` hook, or adding an MCP surface each re-opens this review.
+
 ## Local development loop
 
 For a plugin that already ships here, iterate against your local clone without re-publishing and
@@ -1138,3 +1429,49 @@ with a revisit trigger. (Contrast the "Deferred surfaces" record above, where th
 - **Checker hardening** (block-scalar description unfolding, an unquoted-`Use when:` warning, a
   `CHECK_SKILL_BASE_REF` post-commit audit ref for the git-backed checks, and a line-1 frontmatter-fence
   requirement): the one worker-executable slice — **landed** with this record.
+
+## Convention-seam ratification & the shared-identity limitation — decision record (2026-07-23)
+
+Recorded from the #1187 audit (triggered when the operator did not recall ratifying the
+`consumer-config-layering` → `config-cascade` seam). All 12 `docs/conventions/*` seams are
+**PR-introduced** across the repo's whole history (established from git history), so none was silently
+accreted. In-doc issue/PR citation is the intended ratification signal but is **inconsistent** across
+the surfaces today — some seams cite their ratifying issue in the README/CHANGELOG (`config-cascade`'s
+exception class → #649), others (`hook-precision`, `seam-phrasing`) carry no in-doc reference, so an
+operator auditing from the durable convention surface alone cannot always find it. Converging every
+seam on an in-doc citation is a follow-up, not asserted here as already-true.
+
+**The limitation, stated precisely — two provenance layers, only one collapses.** Distinguish:
+
+- **Git commit metadata** (author, committer, `Co-Authored-By` trailers) **does** carry a distinct
+  identity — this very record's commit is authored by `Codex <codex@openai.com>`; other agents commit
+  under their own identity (e.g. a `Co-Authored-By: Claude …` trailer). So at the commit layer, agent
+  work is often *visible*. But it is **soft, not proof**: an agent can set its git author to anything,
+  so absence of an agent identity does not prove a human authored it.
+- **GitHub gh-account actions** — PR author, PR review, merge, and the account a commit is *attributed
+  to* — **all collapse to `kyle-sexton`** (the account `gh` is scoped to), whether the human or an
+  agent-as-Kyle acted. At *this* layer no in-repo signal distinguishes human ratification from agent
+  accretion.
+
+So the gap is specifically at the **GitHub-account / review-and-merge layer**, which is exactly where
+"ratification" is recorded — and it is a **repo-wide property**, not a defect of any one seam.
+
+**Decision — decline forgery-prone gates; they are theater.** A `CODEOWNERS` rule or a `human-ratified`
+label requiring a `kyle-sexton` review does **not** distinguish anything at the account layer: an agent
+satisfies the same gate under the same identity. Commit signing already runs (`required_signatures`)
+but under the shared key, so it does not separate either, and commit-author metadata is spoofable as
+above. Standing up such a gate would manufacture *false* assurance — worse than naming the limitation.
+So none is added.
+
+**The only real distinguisher (flagged, not imposed).** Cryptographic separation requires an identity
+agents do **not** hold — a distinct human-only GitHub account and/or a signing key kept off the agent
+runners, with branch protection requiring that identity's review on `docs/conventions/**`. That is an
+infrastructure change with real operator cost. **Revisit trigger:** the operator wants provable human
+ratification, or a second human contributor joins (at which point identity separation exists naturally).
+
+**Interim posture.** Ratification stays **trust-based and visible**: a convention-seam change **should
+cite** a ratifying issue/PR in-doc (the norm going forward — converging existing seams on it is the
+follow-up above), and the operator's explicit engagement on that thread (as in the #163434 session) is
+the ratification signal. The audit trail — issue, review comments, commit-author metadata where it
+carries an agent identity, and this record — is the durable account, in place of an account-layer
+assurance the shared GitHub identity cannot provide.

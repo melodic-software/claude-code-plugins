@@ -1,5 +1,14 @@
 # Changelog — ecosystem-commands convention
 
+## 1.1.1 — 2026-07-25
+
+Clarification, no schema shape change: the gate `trigger-globs` description now states explicitly
+that it never selects an ecosystem under auto-targeting — it only narrows a run *within* an already-
+affected ecosystem (matched against the full changed-file set) — and names the supported pattern for
+a cross-ecosystem trigger (add the pattern to the ecosystem's own `globs`). Settled by decision on
+melodic-software/claude-code-plugins#1339; ratifies the subordinate model `/toolchain:check` already
+implements, no runtime behavior change.
+
 ## 1.1.0 — 2026-07-15
 
 Additive: optional `tool-pin` key — pinned tool versions keyed by tool name. When present, resolvers

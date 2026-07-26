@@ -9,7 +9,7 @@ no work of its own.
 
 | Skill | Invoke | What it provides |
 |---|---|---|
-| `boris` | `/playbooks:boris` | Boris Cherny's Claude Code workflow tips (howborisusesclaudecode.com) — 107 tips across 95 sections on parallel sessions, planning, CLAUDE.md, skills, hooks, permissions, autonomy, and orchestration, routed through a hub + topic reference files. |
+| `boris` | `/playbooks:boris` | Boris Cherny's Claude Code workflow tips (howborisusesclaudecode.com) — 127 tips across 115 sections on parallel sessions, planning, CLAUDE.md, skills, hooks, permissions, autonomy, orchestration, loops, and context engineering, routed through a hub + topic reference files. |
 | `skill-authoring` | `/playbooks:skill-authoring` | Anthropic's internal skill-authoring playbook — 9 skill categories and 9 authoring tips (gotchas sections, progressive disclosure, description-as-trigger, first-run setup, persistent storage, effort-aware behavior, helper scripts, on-demand hooks) plus distribution guidance. |
 | `fable-5` | `/playbooks:fable-5` | Claude Fable 5's operating doctrine — twelve trigger-routed chapters of introspected standing instructions (calibration, reasoning moves, problem framing, planning, debugging, execution, orchestration, verification, communication, recovery, context economy, trust boundaries) plus an Opus-adaptation chapter. Bare arms the session; `full` preloads every chapter; a chapter name reads one. |
 | `update` | `/playbooks:update` | Maintainer-facing drift-check and upstream sync for the vendored packs. `--check` (default) reports drift read-only; `--apply` refreshes the vendored baselines. Not for consumers. |

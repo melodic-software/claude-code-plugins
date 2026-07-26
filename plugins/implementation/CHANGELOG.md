@@ -3,6 +3,56 @@
 All notable changes to the `implementation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.2]
+
+### Changed
+
+- **`implement`: the phase-boundary handoff step no longer restates `session-flow`'s save-point
+  section list.** It carried a reordered, partial copy of that taxonomy which had already drifted
+  from the owner doc. When `session-flow` is installed the step now defers to
+  `/session-flow:handoff`, which owns the format. Without it, this skill owns the fallback shape, so
+  the step states it directly: the note must stand on its own — what shipped, the decisions made and
+  why, the approaches tried and ruled out, the files modified, anything already applied that must
+  not be repeated, and the ordered remainder — plus the two items specific to a phase boundary, the
+  sanity-check evidence and the next-phase pointer. The fallback is unchanged in substance; what
+  changed is that it is now stated as this skill's own contract rather than as a copy of another
+  plugin's section names.
+
+## [0.9.1]
+
+### Changed
+
+- `/implementation:implement` now makes its existing project-policy precedence explicit across the
+  central cadence and its feature and bugfix mode contexts: TDD remains the fallback when the
+  consumer is silent, while a testing-cadence instruction in the consumer's `CLAUDE.md` or rules
+  overrides the fallback. The README documents a concrete tests-after opt-out; no user-scoped
+  `userConfig` option was added. Closes #406.
+
+## [0.9.0]
+
+### Added
+
+- **`implement-dispatch` gains an optional `--wave-cap <N>` argument that overrides the internal 3–5
+  concurrent-wave default (`#573`).** The parameter is the single enforcement point for a
+  caller-configured concurrency ceiling: passed, it caps concurrent dispatch waves at `N`; omitted, the
+  internal 3–5 default stands, so existing callers are unaffected. `/work-items:work` threads its
+  `work_dispatch_concurrency_cap` here (and passes nothing when the key is unset), wiring the
+  previously-inert config to real enforcement. A fractional argument is floored to whole waves and a
+  value below 1 is treated as 1, since a wave is discrete.
+
+## [0.8.0]
+
+### Added
+
+- **`implement-dispatch`'s brief-composition step now covers worker-side worktree provisioning for the
+  autonomous lane (`#572`).** When provisioning is worker-side — the autonomous work-lane, where the
+  orchestrator cannot invoke `/source-control:worktree create` without transitioning its own session —
+  the brief makes materializing the isolated worktree the worker's first step (the non-entering
+  creation seam, or a plain `git worktree add`, worked via `git -C` without entering), and instructs
+  the worker to bring the branch current with the default branch, commit, push, and return the
+  worktree path + branch so the orchestrator can open the PR against the pushed branch. The
+  interactive default — the brief supplies a pre-existing worktree path — is unchanged.
+
 ## [0.7.8]
 
 ### Changed

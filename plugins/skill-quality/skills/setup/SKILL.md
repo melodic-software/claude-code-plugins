@@ -43,9 +43,12 @@ verify-and-route:
   the personal `skills_root` should point there. Reconfigure through the path below, then rerun `check`.
 - **Reconfiguring the personal option:** `/plugin configure skill-quality` (interactive, any time).
   Headless: `--config` only applies on a fresh install (ignored once installed), so reconfigure via
-  `claude plugin uninstall skill-quality` then
-  `claude plugin install skill-quality@<marketplace> --config skills_root=<dir>`; this skill never
-  writes user settings or `pluginConfigs`.
+  `claude plugin uninstall skill-quality -s <scope>` then
+  `claude plugin install skill-quality@<marketplace> -s <scope> --config skills_root=<dir>`. Both
+  commands default to `-s user` — pass the scope `claude plugin list` reports for this plugin, and
+  run from that project's directory for a `project`/`local` scope. Defaulting instead uninstalls a
+  separate user-scope record while the effective install stays in place, so the reinstall lands at
+  a scope that does not load. This skill never writes user settings or `pluginConfigs`.
 - **One-run override (no persistence):** for a single run against a different root, the checker also
   honors the `CHECK_SKILL_SKILLS_ROOT` environment variable; do not persist that variable on the user's
   behalf.

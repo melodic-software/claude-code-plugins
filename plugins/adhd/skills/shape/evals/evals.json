@@ -60,6 +60,31 @@
         "No forbidden preamble opener",
         "No forbidden closing pleasantry or post-answer recap"
       ]
+    },
+    {
+      "id": 6,
+      "name": "conflicting-shaper-active-surfaces-conflict-before-applying",
+      "prompt": "[Session context contains a hook-injected standing instruction: 'CAVEMAN MODE ACTIVE — drop articles and filler to save tokens; respond terse like smart caveman.'] /adhd:shape",
+      "expected_output": "Detects the active terse-for-tokens output shaper in session context and surfaces the conflict before applying: names the conflicting source (caveman), states the two disciplines pull in opposite directions on the same output-shape axis, and asks the user to pick one for the session instead of silently applying both.",
+      "files": [],
+      "expectations": [
+        "Surfaces the conflict before applying the shaping rules, rather than silently activating alongside the terse shaper",
+        "Names the conflicting source found in session context",
+        "Asks the user to choose one discipline for the session",
+        "Does not claim it can mechanically disable the other shaper (advisory only)"
+      ]
+    },
+    {
+      "id": 7,
+      "name": "off-switch-stops-the-standing-posture",
+      "prompt": "[Earlier this session /adhd:shape was invoked and responses have been shaped since.] stop shaping. Now, what does the N+1 query problem mean for our ORM setup?",
+      "expected_output": "Treats 'stop shaping' as the documented off-switch: reverts to normal unshaped output for the rest of the session and answers the ORM question as an ordinary full response, without applying the action-first/numbered/capped-list rules, and without demanding a re-invocation ritual beyond the plain phrase.",
+      "files": [],
+      "expectations": [
+        "Recognizes 'stop shaping' (or 'normal output') as ending the standing posture",
+        "The subsequent answer is ordinary unshaped prose, not the shaped format",
+        "Does not continue applying the shaping rules after the off-switch"
+      ]
     }
   ]
 }

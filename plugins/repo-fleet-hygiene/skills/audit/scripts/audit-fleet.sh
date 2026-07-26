@@ -63,7 +63,7 @@ git_probe_allowed() {
       return
     fi
     if [[ $# -eq 6 && "$4" == "--null" && "$5" == "--get-all" ]]; then
-      [[ "$6" == "fleet.root" || "$6" == "fleet.repo" ]]
+      [[ "$6" == "fleet.root" || "$6" == "fleet.repo" || "$6" == "fleet.ackUnavailable" ]]
       return
     fi
     if [[ $# -eq 6 && "$4" == "--get-regexp" && "$5" == "-z" ]]; then
@@ -142,9 +142,14 @@ gh_probe_allowed() {
     [[ $# -eq 4 && "$2" == "status" && "$3" == "--hostname" && "$4" == "github.com" ]]
     ;;
   api)
+    # Exactly two read-only endpoints: the repository identity probe and the authenticated-login
+    # probe for the report header. Both are GET with a fixed template; nothing else is admitted.
     [[ $# -eq 8 && "$2" =~ ^repos/[^/[:cntrl:][:space:]]+/[^/[:cntrl:][:space:]]+$ &&
       "$3" == "--hostname" && "$4" == "github.com" && "$5" == "--method" && "$6" == "GET" &&
-      "$7" == "--template" && "$8" == '{{printf "%s\t%s" .full_name .default_branch}}' ]]
+      "$7" == "--template" && "$8" == '{{printf "%s\t%s" .full_name .default_branch}}' ]] ||
+      [[ $# -eq 8 && "$2" == "user" &&
+        "$3" == "--hostname" && "$4" == "github.com" && "$5" == "--method" && "$6" == "GET" &&
+        "$7" == "--template" && "$8" == '{{.login}}' ]]
     ;;
   pr)
     [[ "${2:-}" == "list" && "${3:-}" == "--repo" &&
@@ -336,6 +341,12 @@ resolve_input_path() {
   fi
 }
 
+# Entries before these counts came from the command line; entries appended from config below sit
+# at or past them. The failure unit differs by origin: a CLI typo should stop the run, but a
+# config-sourced path that has since been deleted degrades per-entry (stale-config-entry UNKNOWN)
+# so removing five repos right after an audit cannot abort every subsequent fleet run.
+CLI_ROOT_COUNT=${#ROOT_ARGS[@]}
+CLI_REPO_COUNT=${#REPO_ARGS[@]}
 if [[ -n "$CONFIG_FILE" ]]; then
   while IFS= read -r -d '' value; do
     [[ -n "$value" ]] && ROOT_ARGS+=("$(resolve_input_path "$value" "$CONFIG_DIR")")
@@ -345,8 +356,38 @@ if [[ -n "$CONFIG_FILE" ]]; then
   done < <(run_git_probe config --file "$CONFIG_FILE" --null --get-all fleet.repo 2>/dev/null || true)
 fi
 
+# Acknowledged known-inaccessible GitHub identities (fleet.ackUnavailable,
+# repeatable). An acknowledgment only demotes a 404/403
+# github-identity-unavailable finding to ACKNOWLEDGED prominence — it never
+# suppresses the finding, never touches non-404/403 failures, and never
+# affects evidence from a successful API response.
+ACK_KEYS=()
+if [[ -n "$CONFIG_FILE" ]]; then
+  while IFS= read -r -d '' value; do
+    [[ -n "$value" ]] || continue
+    ack_key="$(lower "$value")"
+    [[ "$ack_key" =~ ^github\.com/[^/[:cntrl:][:space:]]+/[^/[:cntrl:][:space:]]+$ ]] ||
+      fail "invalid fleet.ackUnavailable value (expected github.com/owner/repository): $value"
+    ACK_KEYS+=("$ack_key")
+  done < <(run_git_probe config --file "$CONFIG_FILE" --null --get-all fleet.ackUnavailable 2>/dev/null || true)
+fi
+
+is_acked() {
+  local key a
+  key="$(lower "$1")"
+  for a in "${ACK_KEYS[@]:-}"; do
+    [[ -n "$a" && "$a" == "$key" ]] && return 0
+  done
+  return 1
+}
+
 if [[ ${#ROOT_ARGS[@]} -eq 0 && ${#REPO_ARGS[@]} -eq 0 ]]; then
   REPO_ARGS+=("${CLAUDE_PROJECT_DIR:-$PWD}")
+  # The implicit current-project default is CLI-equivalent, not config-sourced: it is appended
+  # after CLI_REPO_COUNT was captured, so count it there or the zero-configuration audit from a
+  # non-Git directory would degrade to a stale-config-entry (with an empty source) instead of
+  # hard-failing like the explicit-path case it stands in for.
+  CLI_REPO_COUNT=$((CLI_REPO_COUNT + 1))
 fi
 
 path_key() {
@@ -361,13 +402,33 @@ path_key() {
 
 TARGETS=()
 TARGET_COMMON_KEYS=()
+# Stale config-sourced entries collected during argument processing; the report header has not
+# printed yet, so they are emitted as per-entry UNKNOWN findings once it has.
+STALE_CONFIG_PATHS=()
+STALE_CONFIG_REASONS=()
+# add_target <path> <origin>: origin "cli" hard-fails on an invalid path (a typo should stop the
+# run); origin "config" records a stale-config-entry and continues (the entry, not the run, is
+# the failure unit for a tracked fleet config). Invalid config SYNTAX still hard-fails upstream.
 add_target() {
-  local candidate="$1" top common common_key existing
-  [[ -d "$candidate" ]] || fail "repository directory not found: $candidate"
-  top="$(run_git_probe -C "$candidate" rev-parse --show-toplevel 2>/dev/null | tr -d '\r')" ||
-    fail "not a Git working tree: $candidate"
-  common="$(run_git_probe -C "$candidate" rev-parse --path-format=absolute --git-common-dir 2>/dev/null | tr -d '\r')" ||
-    fail "cannot resolve Git common directory: $candidate"
+  local candidate="$1" origin="${2:-cli}" top common common_key existing
+  if [[ ! -d "$candidate" ]]; then
+    [[ "$origin" == "config" ]] || fail "repository directory not found: $candidate"
+    STALE_CONFIG_PATHS+=("$candidate")
+    STALE_CONFIG_REASONS+=("configured fleet.repo path is not a directory")
+    return 0
+  fi
+  top="$(run_git_probe -C "$candidate" rev-parse --show-toplevel 2>/dev/null | tr -d '\r')" || {
+    [[ "$origin" == "config" ]] || fail "not a Git working tree: $candidate"
+    STALE_CONFIG_PATHS+=("$candidate")
+    STALE_CONFIG_REASONS+=("configured fleet.repo path is not a Git working tree")
+    return 0
+  }
+  common="$(run_git_probe -C "$candidate" rev-parse --path-format=absolute --git-common-dir 2>/dev/null | tr -d '\r')" || {
+    [[ "$origin" == "config" ]] || fail "cannot resolve Git common directory: $candidate"
+    STALE_CONFIG_PATHS+=("$candidate")
+    STALE_CONFIG_REASONS+=("cannot resolve the Git common directory for the configured path")
+    return 0
+  }
   common_key="$(path_key "$common")"
   for existing in "${TARGET_COMMON_KEYS[@]:-}"; do
     [[ "$existing" == "$common_key" ]] && return 0
@@ -376,8 +437,16 @@ add_target() {
   TARGET_COMMON_KEYS+=("$common_key")
 }
 
+repo_index=0
 for repo in "${REPO_ARGS[@]:-}"; do
-  [[ -n "$repo" ]] && add_target "$repo"
+  if [[ -n "$repo" ]]; then
+    if [[ "$repo_index" -lt "$CLI_REPO_COUNT" ]]; then
+      add_target "$repo" cli
+    else
+      add_target "$repo" config
+    fi
+  fi
+  repo_index=$((repo_index + 1))
 done
 
 discover_repositories() {
@@ -398,17 +467,53 @@ discover_repositories() {
   done
 }
 
+ROOT_LABELS=()
+ROOT_COUNTS=()
+root_index=0
 for root in "${ROOT_ARGS[@]:-}"; do
-  [[ -n "$root" ]] || continue
-  [[ -d "$root" ]] || fail "discovery root not found: $root"
+  [[ -n "$root" ]] || {
+    root_index=$((root_index + 1))
+    continue
+  }
+  if [[ ! -d "$root" ]]; then
+    # Same per-entry degradation as add_target: a configured root that has since been deleted
+    # is a stale-config-entry finding, not a run abort; a CLI --root typo still stops the run.
+    [[ "$root_index" -ge "$CLI_ROOT_COUNT" ]] || fail "discovery root not found: $root"
+    STALE_CONFIG_PATHS+=("$root")
+    STALE_CONFIG_REASONS+=("configured fleet.root path is not a directory")
+    root_index=$((root_index + 1))
+    continue
+  fi
+  root_index=$((root_index + 1))
+  # Per-root visibility: attribute newly discovered repositories to this root so a root that
+  # contributed none is still reported. Deduplication credits a repo shared by nested/overlapping
+  # roots to the first root that reaches it, keeping sum(root counts) + explicit --repo == discovered.
+  root_before=${#TARGETS[@]}
   discover_repositories "$root" 0
+  ROOT_LABELS+=("$root")
+  ROOT_COUNTS+=($((${#TARGETS[@]} - root_before)))
 done
 
-[[ ${#TARGETS[@]} -gt 0 ]] || fail "no Git working trees found in the requested scope"
+# An all-stale config (every entry deleted since the last run) must still produce a report whose
+# stale-config-entry findings tell the user what to remediate -- hard-fail only when there is
+# neither a target to audit nor a stale entry to report.
+if [[ ${#TARGETS[@]} -eq 0 && ${#STALE_CONFIG_PATHS[@]} -eq 0 ]]; then
+  fail "no Git working trees found in the requested scope"
+fi
 
 GH_READY=false
 if command -v gh >/dev/null 2>&1 && run_bounded_gh auth status --hostname github.com >/dev/null 2>&1; then
   GH_READY=true
+fi
+
+# Which gh account produced the GitHub evidence changes how UNKNOWN findings read (a dozen HTTP
+# 404s under
+# the wrong login is expected, under the right one it is a real signal), so the header names it.
+# Best-effort: any probe failure keeps the plain header line. This is the cheap subset of the
+# tracked per-domain-gh-auth request (multiple accounts per host) — see the plugin backlog.
+GH_ACCOUNT=""
+if [[ "$GH_READY" == "true" ]]; then
+  GH_ACCOUNT="$(run_bounded_gh api user --hostname github.com --method GET --template '{{.login}}' 2>/dev/null | tr -d '\r\n')" || GH_ACCOUNT=""
 fi
 
 select_remote() {
@@ -524,14 +629,23 @@ FINDINGS_HIGH=0
 FINDINGS_MEDIUM=0
 FINDINGS_LOW=0
 FINDINGS_UNKNOWN=0
+FINDINGS_ACKED=0
 REPOS_AUDITED=0
+# Per-repo GitHub identity observations for the cross-repo duplicate-checkout pass after the loop.
+IDENT_KEYS=()
+IDENT_PATHS=()
+# Per-repository finding tally, reset by analyze_repo: a section that ends with zero findings
+# emits an explicit "Findings: none" marker so clean output is distinguishable from truncation.
+REPO_FINDING_COUNT=0
 
 emit_finding() {
   local confidence="$1" kind="$2" target="$3" evidence="$4" disposition="$5" handoff="$6"
+  REPO_FINDING_COUNT=$((REPO_FINDING_COUNT + 1))
   case "$confidence" in
   HIGH) FINDINGS_HIGH=$((FINDINGS_HIGH + 1)) ;;
   MEDIUM) FINDINGS_MEDIUM=$((FINDINGS_MEDIUM + 1)) ;;
   LOW) FINDINGS_LOW=$((FINDINGS_LOW + 1)) ;;
+  ACKNOWLEDGED) FINDINGS_ACKED=$((FINDINGS_ACKED + 1)) ;;
   *) FINDINGS_UNKNOWN=$((FINDINGS_UNKNOWN + 1)) ;;
   esac
   print_field Finding "$kind"
@@ -553,8 +667,12 @@ analyze_repo() {
   local ref_record branch_status=1 branch_inventory_valid=true
   local remote_ref_record remote_branch_status=1 remote_branch_short remote_branch_known
   local repo_pr_rows="" exact_pr_rows="" repo_pr_available=false protected=false
+  local remote_inventory_failed=false
   local -a WT_PATHS=() WT_BRANCHES=() WT_PRUNABLE=() WT_LOCKED=()
-  local -a BRANCH_NAMES=() BRANCH_TIPS=() REMOTE_BRANCH_NAMES=()
+  local -a BRANCH_NAMES=() BRANCH_TIPS=() REMOTE_BRANCH_NAMES=() REMOTE_BRANCH_TIPS=()
+  local -a PRIVACY_GATED_BRANCHES=()
+  local remote_tip push_state ri
+  REPO_FINDING_COUNT=0
 
   select_remote "$discovered" && {
     discovered_remote="$SELECTED_REMOTE"
@@ -616,10 +734,29 @@ analyze_repo() {
           "GitHub REST resolved the configured remote identity to canonical full_name $expected_actual" \
           "Human-reviewed remote update" "Review git remote set-url for $discovered_remote in $discovered"
       fi
+    elif [[ "$expected_reason" == *"HTTP 404"* || "$expected_reason" == *"HTTP 403"* ]] && is_acked "$discovered_key"; then
+      # Acked demotion applies ONLY to the foreseeable-inaccessible statuses;
+      # any other failure (network, timeout, malformed response) keeps full
+      # UNKNOWN prominence with its real reason even for an acked identity.
+      emit_finding ACKNOWLEDGED github-identity-unavailable "$discovered_key" \
+        "$expected_reason; acknowledged known-inaccessible via fleet.ackUnavailable" \
+        "Acknowledged; no GitHub evidence combined" \
+        "Remove the fleet.ackUnavailable entry to restore UNKNOWN prominence"
     else
       emit_finding UNKNOWN github-identity-unavailable "$discovered_key" "$expected_reason" \
         "Do not infer moved, deleted, or clean" "Restore GitHub access/authentication and rerun"
     fi
+  fi
+
+  # Duplicate-checkout keys use the GitHub-canonicalized identity when resolution succeeded, so an
+  # old checkout whose remote still says old/repo pairs with a fresh clone of new/repo; the parsed
+  # remote is only the fallback when canonical resolution is unavailable.
+  if [[ -n "$github_repo" ]]; then
+    IDENT_KEYS+=("github.com/$(lower "$github_repo")")
+    IDENT_PATHS+=("$discovered")
+  elif [[ -n "$discovered_key" ]]; then
+    IDENT_KEYS+=("$(lower "$discovered_key")")
+    IDENT_PATHS+=("$discovered")
   fi
 
   if [[ "$canonical" != "$discovered" ]]; then
@@ -798,12 +935,16 @@ analyze_repo() {
       fi
       [[ "$remote_ref_record" == *$'\t'* ]] || continue
       remote_branch_short="${remote_ref_record%%$'\t'*}"
+      remote_tip="${remote_ref_record#*$'\t'}"
       # refs/remotes/<remote>/ also yields a bare "<remote>" entry (the symbolic HEAD pointer to
       # the remote's default branch, e.g. refs/remotes/origin/HEAD -> refname:short "origin") --
       # require the literal "<remote>/" prefix so that entry is excluded, not misread as a branch.
       if [[ "$remote_branch_short" == "$canonical_remote/"* ]]; then
         remote_branch_short="${remote_branch_short#"$canonical_remote"/}"
-        [[ -n "$remote_branch_short" ]] && REMOTE_BRANCH_NAMES+=("$remote_branch_short")
+        if [[ -n "$remote_branch_short" ]]; then
+          REMOTE_BRANCH_NAMES+=("$remote_branch_short")
+          REMOTE_BRANCH_TIPS+=("$remote_tip")
+        fi
       fi
     done < <(
       run_git_probe -C "$canonical" for-each-ref \
@@ -813,8 +954,12 @@ analyze_repo() {
     if [[ "$remote_branch_status" != "0" ]]; then
       # The producer may have emitted and appended some records before failing partway through;
       # discard them so a partial remote-ref inventory can never make remote_branch_known true
-      # below and drive the exact --head fallback query on stale/incomplete evidence.
+      # below and drive the exact --head fallback query on stale/incomplete evidence. The failure
+      # flag keeps the per-branch privacy-gap aggregate quiet: this repo-wide finding already says
+      # every exact lookup is skipped, so repeating it per branch would double-report.
       REMOTE_BRANCH_NAMES=()
+      REMOTE_BRANCH_TIPS=()
+      remote_inventory_failed=true
       emit_finding UNKNOWN remote-branch-inventory-unavailable "$canonical" \
         "git for-each-ref for refs/remotes/$canonical_remote/ failed" \
         "Exact per-branch GitHub lookups are skipped for every branch in this repository" \
@@ -862,13 +1007,23 @@ analyze_repo() {
           break
         fi
       done <<<"$repo_pr_rows"
-      # The batch is an optimization, not an evidence boundary. An exact repository+head fallback
-      # prevents an older local branch from becoming a false negative outside the recent-PR window.
-      # Only send a branch name GitHub can already see: --head transmits it verbatim to github.com,
-      # so a purely local branch (never pushed) must never reach this query at all.
+      # The batch is an optimization, not an evidence boundary: an exact repository+head fallback
+      # catches a merged PR outside the recent-created batch window -- but only for a branch still
+      # present in the local remote-tracking inventory. After the common merge flow (head branch
+      # auto-deleted by GitHub, then a prune fetch) that ref is gone and the privacy gate below
+      # skips this lookup, so the gap is reported as merge-evidence-privacy-gated rather than
+      # passing silently. Only send a branch name GitHub can already see: --head transmits it
+      # verbatim to github.com, so a purely local branch (never pushed) must never reach this
+      # query at all. Deferred (revisit if the gap keeps biting): widening proof-of-prior-push
+      # via branch.<name>.merge/.remote config, and paginating the batch window.
       if [[ -z "$pr_match" ]]; then
         remote_branch_known=false
-        for remote_branch_short in "${REMOTE_BRANCH_NAMES[@]}"; do
+        # ":-" guard: expanding an empty array under set -u is a fatal unbound-variable error on
+        # bash <= 4.3 (fixed in 4.4; macOS system bash is 3.2), and analyze_repo runs in the main
+        # shell -- one
+        # repo with zero remote-tracking refs would abort the whole fleet report without it.
+        for remote_branch_short in "${REMOTE_BRANCH_NAMES[@]:-}"; do
+          [[ -n "$remote_branch_short" ]] || continue
           [[ "$remote_branch_short" == "$branch" ]] && {
             remote_branch_known=true
             break
@@ -891,6 +1046,12 @@ analyze_repo() {
               "exact repository-and-head merged-PR query failed" "Do not infer branch merge state" \
               "Restore GitHub access/authentication and rerun"
           fi
+        elif [[ "$protected" == "false" && -z "$pr_any" && "$remote_inventory_failed" == "false" ]]; then
+          # Privacy gate engaged with zero batch evidence: this branch cannot be checked against
+          # GitHub without transmitting a name the remote may not carry. Collect it so the gap is
+          # reported once per repository below -- a silent miss here is exactly the merged-then-
+          # auto-deleted-then-pruned branch disappearing from the report.
+          PRIVACY_GATED_BRANCHES+=("$branch")
         fi
       fi
     fi
@@ -909,8 +1070,24 @@ analyze_repo() {
       fi
     elif [[ -n "$pr_any" && "$branch" != "$default_branch" ]]; then
       IFS='|' read -r pr_num pr_oid pr_merged pr_url <<<"$pr_any"
+      # Whether the drift commits were ever pushed changes the risk profile of cleanup, so the
+      # evidence names the push state from the already-collected remote-tracking inventory --
+      # purely local, no network. A remote-tracking ref only records what the remote advertised
+      # at the LAST FETCH (the branch may have been deleted or force-pushed since), so the
+      # evidence is framed as cached local observation, never as current remote reachability.
+      if [[ "$remote_inventory_failed" == "true" || -z "$canonical_remote" ]]; then
+        push_state="remote-tracking inventory unavailable, push state unknown"
+      else
+        push_state="local tip not on the last-fetched remote-tracking ref (drift commits may never have been pushed)"
+        for ((ri = 0; ri < ${#REMOTE_BRANCH_NAMES[@]}; ri++)); do
+          if [[ "${REMOTE_BRANCH_NAMES[$ri]}" == "$branch" && "${REMOTE_BRANCH_TIPS[$ri]}" == "$tip" ]]; then
+            push_state="local tip matches the last-fetched remote-tracking ref (pushed as of the last fetch; verify current remote state before relying on recoverability)"
+            break
+          fi
+        done
+      fi
       emit_finding MEDIUM merged-pr-tip-drift "$canonical :: $branch" \
-        "GitHub PR #$pr_num MERGED at headRefOid $pr_oid, but current local tip is $tip" \
+        "GitHub PR #$pr_num MERGED at headRefOid $pr_oid, but current local tip is $tip; $push_state" \
         "Manual review; not a cleanup candidate" "Inspect commits added after PR #$pr_num"
     elif [[ "$protected" == "false" && "$attached" == "false" && -n "$canonical_remote" && -n "$default_branch" ]]; then
       run_git_probe -C "$canonical" merge-base --is-ancestor "$tip" \
@@ -928,6 +1105,23 @@ analyze_repo() {
     fi
   done
 
+  # One aggregate line per repository (not per branch) keeps a fleet full of local-only branches
+  # from drowning the report while still honoring the no-silent-caps ethos: every skipped exact
+  # lookup is named. The branch names appear only in this local report, never in a GitHub query.
+  if [[ "${#PRIVACY_GATED_BRANCHES[@]}" -gt 0 ]]; then
+    emit_finding UNKNOWN merge-evidence-privacy-gated "$canonical" \
+      "exact merged-PR lookup skipped for ${#PRIVACY_GATED_BRANCHES[@]} branch(es) absent from the local remote-tracking inventory: ${PRIVACY_GATED_BRANCHES[*]}" \
+      "Merged state unverified; a merged branch whose remote ref was auto-deleted and pruned reports no merged finding" \
+      "Push or re-fetch the branch to restore remote evidence, or verify manually on GitHub, then rerun"
+  fi
+
+  # A clean section previously ended after its header fields with no marker -- indistinguishable
+  # from truncated output. Say so explicitly, with the same terminator finding blocks use.
+  if [[ "$REPO_FINDING_COUNT" -eq 0 ]]; then
+    printf 'Findings: none\n'
+    printf '%s\n' '---'
+  fi
+
   REPOS_AUDITED=$((REPOS_AUDITED + 1))
 }
 
@@ -938,13 +1132,62 @@ if [[ -n "$CONFIG_FILE" ]]; then
 else
   print_field Config "none (no explicit, project, or user-global config; current-project scope)"
 fi
-printf 'GitHub evidence: %s\n' "$([[ "$GH_READY" == "true" ]] && echo available || echo unavailable)"
+if [[ "$GH_READY" == "true" && -n "$GH_ACCOUNT" ]]; then
+  printf 'GitHub evidence: available (account: '
+  display_value "$GH_ACCOUNT"
+  printf ')\n'
+else
+  printf 'GitHub evidence: %s\n' "$([[ "$GH_READY" == "true" ]] && echo available || echo unavailable)"
+fi
 printf 'Repositories discovered: %s\n' "${#TARGETS[@]}"
+for ((root_index = 0; root_index < ${#ROOT_LABELS[@]}; root_index++)); do
+  printf 'Root '
+  display_value "${ROOT_LABELS[$root_index]}"
+  printf ': %s repositories\n' "${ROOT_COUNTS[$root_index]}"
+done
+
+# Config-sourced entries that failed per-entry validation during argument processing (the header
+# had not printed yet); each is a visible finding, never a silent skip.
+for ((stale_index = 0; stale_index < ${#STALE_CONFIG_PATHS[@]}; stale_index++)); do
+  printf '\n'
+  emit_finding UNKNOWN stale-config-entry "${STALE_CONFIG_PATHS[$stale_index]}" \
+    "${STALE_CONFIG_REASONS[$stale_index]} (source: $CONFIG_FILE)" \
+    "Entry skipped; the rest of the fleet was audited" \
+    "Remove or correct the entry via /repo-fleet-hygiene:setup apply, or restore the path, then rerun"
+done
 
 for target in "${TARGETS[@]}"; do
   analyze_repo "$target"
 done
 
-printf '\nSummary: repositories=%s high=%s medium=%s low=%s unknown=%s\n' \
-  "$REPOS_AUDITED" "$FINDINGS_HIGH" "$FINDINGS_MEDIUM" "$FINDINGS_LOW" "$FINDINGS_UNKNOWN"
+# Cross-repository view: multiple independent checkouts of the same normalized GitHub identity are
+# each audited on their own local state (correct), but the coincidence itself gets one LOW
+# informational line per identity -- never more, since same-identity clones legitimately diverge.
+DUP_REPORTED=()
+for ((di = 0; di < ${#IDENT_KEYS[@]}; di++)); do
+  dup_key="${IDENT_KEYS[$di]}"
+  dup_seen=false
+  for dup_prev in "${DUP_REPORTED[@]:-}"; do
+    [[ -n "$dup_prev" && "$dup_prev" == "$dup_key" ]] && {
+      dup_seen=true
+      break
+    }
+  done
+  [[ "$dup_seen" == "true" ]] && continue
+  DUP_REPORTED+=("$dup_key")
+  DUP_PATHS=()
+  for ((dj = 0; dj < ${#IDENT_KEYS[@]}; dj++)); do
+    [[ "${IDENT_KEYS[$dj]}" == "$dup_key" ]] && DUP_PATHS+=("${IDENT_PATHS[$dj]}")
+  done
+  if [[ "${#DUP_PATHS[@]}" -ge 2 ]]; then
+    printf '\n'
+    emit_finding LOW duplicate-checkout "$dup_key" \
+      "${#DUP_PATHS[@]} distinct checkouts resolve to the same GitHub identity: ${DUP_PATHS[*]}" \
+      "Informational only; same-identity clones have independent local state" \
+      "Consolidate manually if unintended; no automated action"
+  fi
+done
+
+printf '\nSummary: repositories=%s high=%s medium=%s low=%s unknown=%s acknowledged=%s\n' \
+  "$REPOS_AUDITED" "$FINDINGS_HIGH" "$FINDINGS_MEDIUM" "$FINDINGS_LOW" "$FINDINGS_UNKNOWN" "$FINDINGS_ACKED"
 printf 'Mutation count: 0\n'

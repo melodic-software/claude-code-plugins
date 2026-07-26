@@ -3,6 +3,214 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.21.2]
+
+### Fixed
+
+- **`plugins` skill's `converge.md` no longer overstates when `uninstall` needs `-y`.** It claimed
+  any non-TTY `uninstall` requires `-y` "by the CLI itself." Verified against the live CLI (2.1.220)
+  and current docs: `-y` only skips `uninstall`'s `--prune` confirmation, and this action's
+  `uninstall` calls never pass `--prune` — so `-y` was never warranted here and adding it would only
+  ever bypass a different, unused prompt, not Step 3's per-plugin confirm (#1410).
+
+## [0.21.1]
+
+### Fixed
+
+- **Headless reconfigure recipe now preserves install scope (#1406).** The `claude plugin
+  uninstall` → `claude plugin install ... --config` recipe in `skills/setup/SKILL.md` defaulted
+  both halves to `-s user`. When this plugin is installed at `project` or `local` scope, that
+  silently uninstalled a separate user-scope record while the effective project/local install kept
+  loading, and the reinstall landed at a scope that does not load. Both commands now carry
+  `-s <scope>`, sourced from what `claude plugin list` reports for this plugin — the same fix
+  already applied to `session-flow` and `rate-limit-guard` in #1393.
+  The recipe also now requires the reinstall to re-supply **every** key whose value should
+  stay non-default, not only the key being changed: uninstalling drops the stored
+  `pluginConfigs` entry, so an omitted key silently falls back to its manifest default.
+  Record the current values before uninstalling.
+
+## [0.21.0]
+
+### Added
+
+- **`lanes` skill: `lane-launcher.sh` now captures and persists the launch commit
+  (`#792`).** `context/refresh.md`'s git staleness probe referenced a
+  `<lane-launch-commit>` placeholder with no producer — the repo HEAD when
+  `lanes start`/`restart` last ran was advisory-only, with no automated way to
+  retrieve it. `lane-launcher.sh` now captures `git rev-parse HEAD` right after
+  the pre-launch pull (a pure read, so it also previews correctly under
+  `--dry-run`) and writes it, for every lane actually (re)started that run, to
+  `<data-dir>/lanes/<lane>-launch-commit` — a lane `start` skips as
+  already-running keeps its existing marker untouched. New `--data-dir DIR`
+  option (default: the `$CLAUDE_PLUGIN_DATA` env var if set, else
+  `~/.claude/plugins/data/claude-ops`, matching `check-all.sh`'s convention).
+  `SKILL.md`'s invocation now passes `--data-dir "${CLAUDE_PLUGIN_DATA}"`
+  explicitly — per current
+  [plugins-reference](https://code.claude.com/docs/en/plugins-reference#environment-variables),
+  `CLAUDE_PLUGIN_DATA` is exported as a real env var only to hook/MCP/LSP
+  subprocesses, not to a script a skill shells out to via the Bash tool, so a
+  script-internal fallback alone would silently miss the marketplace-qualified
+  data directory in a real session. The write is best-effort: a failure (or an
+  unresolvable HEAD) warns on stderr but never fails an already-launched lane.
+  `context/refresh.md` and `SKILL.md` now point the probe at the real marker
+  file instead of the unfillable placeholder, with an explicit hex-only-input
+  note for anyone who later sources the value from something other than `git
+  rev-parse`, and a `tr -d '\r'` strip on the marker read (the repo's standing
+  CRLF-hazard convention for any captured Windows value). New regression cases
+  in `lane-launcher.test.sh` cover the capture/write, the
+  skip-if-already-running case, `--dry-run` (preview only, no write),
+  unresolvable-HEAD (best-effort, no failure), and the `$CLAUDE_PLUGIN_DATA`
+  fallback.
+  - The probe's `data_dir` is sourced from `SKILL.md`, which is the only surface
+    where it resolves. Per
+    [plugins-reference](https://code.claude.com/docs/en/plugins-reference#environment-variables),
+    `${CLAUDE_PLUGIN_DATA}` substitutes inline in *skill and agent content* but is
+    exported as a real environment variable only to hook and MCP/LSP subprocesses
+    — and `context/refresh.md` is read raw rather than rendered as skill content.
+    An env-var-with-fallback expression there would have silently resolved to the
+    unqualified `~/.claude/plugins/data/claude-ops` guess, read no marker, and
+    skipped the staleness check without saying so. `SKILL.md` now carries the
+    substituted `data_dir=` assignment and `context/refresh.md` points at it.
+  - A lane name is now validated as a single path component at config preflight
+    (exit `3` on `/`, `\`, `.`, or `..`). The name is the marker's filename, so
+    without that check two distinct configured lanes — `work` and
+    `group/../work` — would share one marker file and a targeted restart of
+    either would make the other's probe read a launch commit it never launched
+    at. Rejecting rather than encoding keeps the documented
+    `<data-dir>/lanes/<lane>-launch-commit` path literally true.
+  - The marker path is namespaced by repo
+    (`<data-dir>/lanes/<repo-key>/<lane>-launch-commit`). The data directory is
+    plugin-wide but a lane name is only unique within one repo, so a
+    conventional `work` lane in two checkouts would otherwise share a marker and
+    each repo's probe would diff against the other's unrelated history — usually
+    an invalid-revision error, at best a silently wrong answer. `<repo-key>` is
+    `git hash-object` over `git rev-parse --show-toplevel`: a digest rather than
+    a character fold, because folding collapses two real checkout paths like
+    `/repos/foo-bar` and `/repos/foo/bar` onto one key, and git's canonical
+    (symlink-resolved) toplevel rather than the `--repo` argument, because the
+    documented probe asks git directly and both sides must land on the same key.
+    Print the key for a checkout with
+    `printf '%s' "$(git rev-parse --show-toplevel)" | git hash-object --stdin`.
+  - A (re)start that cannot record its own commit (unresolvable HEAD, or a failed
+    write) now removes any marker the previous launch left. Leaving it made the
+    probe treat that older commit as the new session's launch point and report
+    already-consumed merges indefinitely; removing it degrades the probe to its
+    honest "no marker → skip" branch. `--dry-run` still touches nothing.
+
+## [0.20.0]
+
+### Added
+
+- **`lanes`: per-lane `settings` passthrough, wiring the autonomy lane-stop gate into the shipped
+  launch flow (#535 review follow-up).** The autonomy plugin's `Stop`-hook lane-stop gate is
+  default-OFF and documents a per-session opt-in via `claude --settings`, but the lane launcher —
+  the repository's shipped standing-lane flow — built only `claude --bg -n … [--model] [--effort]`
+  and never supplied that override, so no launched lane ever received the gate or its operator
+  notification. The lane config now takes an optional per-lane `settings` JSON object that the
+  launcher passes verbatim as `--settings` (session-only, never persisted) on `start`/`restart`,
+  validated as an object at preflight so a malformed value skips the lane instead of failing the
+  launch with an opaque CLI error. Generic by design: any session-only settings override rides the
+  same field; the gate opt-in (`pluginConfigs` → `autonomy@<marketplace>` → `options`) is the
+  motivating example documented in `context/config.md`.
+
+## [0.19.3]
+
+### Fixed
+
+- **`plugins` skill: `fleet-state.sh` no longer crashes with `Argument list too long` against a
+  large-catalog marketplace (`#1336`).** Every `jq --argjson <name> "$value"` call site carrying a
+  catalog/installed/enabled-scale JSON payload embedded that value as a literal command-line
+  argument; for a marketplace catalog large enough (confirmed against a real 273-plugin catalog,
+  reproduced here with a synthetic 500-plugin fixture), the serialized JSON exceeded the
+  platform/shell's argv-length ceiling and `jq` failed before emitting anything — silently dropping
+  that marketplace from `sync`/`audit`/`converge`. Confirmed on Windows Git Bash/MSYS `jq`, but the
+  underlying argv-length ceiling is a real limit on every platform, just reached sooner there.
+  Every affected call site now routes its payload through a temp file via `jq --slurpfile` instead
+  of `--argjson`, so catalog size never determines whether a marketplace can be synced. Only the
+  fixed-size boolean `--argjson` uses (`au`/`ci`/`autoUpdate`) remain untouched. Covered by a new
+  large-catalog case in `fleet-state.test.sh` (asserts no argv-length crash and full,
+  non-truncated output) plus a static guard locking the remaining `--argjson` count to booleans
+  only.
+  - Temp files created for `--slurpfile` routing live in one per-run directory removed by an EXIT
+    trap; each call site invokes the writer inside a `$(...)` subshell, so files are not tracked in
+    an array (a subshell-local append would vanish on return) — the whole directory is the cleanup
+    unit instead.
+  - A malformed source file (e.g. `settings.json`) used to make the affected `--argjson` fail loud
+    immediately; `--slurpfile` instead tolerates a genuinely empty payload as "zero JSON values"
+    and would have silently degraded the report to `null` fields. The writer now emits a
+    deliberately-invalid token for an empty payload so jq's own parser still errors at the call
+    site, preserving the prior fail-loud behavior. Covered by a new malformed-`user_settings.json`
+    case in `fleet-state.test.sh`.
+
+## [0.19.2]
+
+### Documentation
+
+- `hooks/claude-ops-test-helpers.sh` now points at
+  `docs/conventions/shell-test-helpers/README.md`, the repo's owner doc recording that per-plugin
+  shell assert-helper duplication and per-script exit-code taxonomies are deliberate, not drift. No
+  behavior change.
+
+## [0.19.1]
+
+### Fixed
+
+- **`plugins` skill: the default (no-`--marketplace`) path no longer breaks after a mid-session
+  version bump of claude-ops itself (`#1176`, audit finding F1).** `fleet-state.sh`'s
+  `resolve_default_marketplace` exact-matched the running plugin root against the version-pinned
+  `installPath` in `installed_plugins.json`; any time the session's loaded version differed from the
+  installed one — a marketplace `autoUpdate` shortly after session start, or `sync`'s own Step-3
+  self-update — the join found nothing and the skill's primary invocation form failed with "could not
+  resolve the default marketplace". Added a version-agnostic fallback that matches the version-stripped
+  `…/cache/<marketplace>/<plugin>` prefix (exact match still tried first; marketplace stays
+  distinguishable), plus a clearer error that prints the searched root and names the version-skew cause.
+  Covered by a new version-skew case in `fleet-state.test.sh`.
+
+### Changed
+
+- **`context/gotchas.md`: generalized the CRLF gotcha (audit finding F2).** The trailing-`\r` hazard
+  is not `jq`-only — any captured Windows value (`python` `print`, PowerShell interop, `git config`,
+  a CRLF file read) can corrupt a constructed `claude plugin` id so the CLI reports
+  `Plugin "<name>" not found` with the full id passed (marketplace suffix silently corrupted). Rescoped
+  the entry to "any captured value", documented the collision with the bare-name symptom, and
+  cross-referenced the two.
+- **`plugins` SKILL.md: corrected the `install_new` render contract (audit finding F3).** An unset
+  `${user_config.install_new}` renders the literal placeholder (the manifest `default` is not
+  substituted for an unset key; verified against CC 2.1.218) — the common default-config case. The doc
+  now reads that literal placeholder as the expected unset state → use the default `ask` without
+  flagging it as an invalid value; only an explicitly-set unsupported value is the invalid case.
+
+## [0.19.0]
+
+### Added
+
+- **`skill_usage_scope` userConfig — the skill-usage store's home is now scope-selectable
+  (`repo` | `user` | `data-dir`), and the repo scope keeps `git status` clean via a
+  machine-local `.git/info/exclude` entry (`#1151`).** Previously the store was forced into
+  every consuming repo's tree (`.claude/observability/skill-usage.jsonl` as untracked
+  `git status` noise) and the `skill_usage_dir` containment validation made user/machine
+  scope unreachable by config — containment as a ceiling instead of a default. Now: `repo`
+  (default, unchanged location) resolves the contained `skill_usage_dir` subpath under the
+  repo root and idempotently adds the store dir to `.git/info/exclude` (machine-local; never
+  `.gitignore` or tracked files; tracked content is unaffected by ignore semantics; opt out
+  with the new `skill_usage_git_exclude=false` for teams that deliberately commit the
+  telemetry); `user` resolves the same contained subpath under `$HOME` — one cross-repo
+  operator store; `data-dir` writes `${CLAUDE_PLUGIN_DATA}/skill-usage/<repo-slug>` —
+  plugin-owned, update-safe, keyed by repo. Unknown scope values fall back to `repo` with a
+  one-time advisory (prose-validated; the manifest schema has no enum type). Store rows gain
+  `project` (project-root basename, display) and `project_id` (basename + 8-char digest of
+  the physical path — same-basename checkouts stay distinguishable) so cross-repo scopes
+  keep repo identity; the data-dir key uses the same collision-resistant slug, and the
+  exclude line is segment-normalized (a configured `./x` or `x//y` still matches) and
+  glob-escaped (`*` `?` `[` in a configured dir write a literal exclude pattern, not a
+  glob that over-matches sibling dirs). A `skill_usage_dir=.` (repo-root) store excludes
+  the store file (`/skill-usage.jsonl`) rather than the whole tree.
+  **Default-flip decision (recorded):** the default deliberately stays `repo` — the store
+  sits beside `hook-events.jsonl` per the observability skill's project-local posture (that
+  skill reads only `hook-events.jsonl` and the OTEL store, so colocation is convention, not
+  a read dependency), the exclude entry removes the status noise that motivated the change,
+  and flipping would silently relocate existing consumers' data.
+
 ## [0.18.3]
 
 ### Security

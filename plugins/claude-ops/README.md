@@ -34,8 +34,10 @@ boolean (default **on**; see [Per-hook kill switches](#per-hook-kill-switches)).
 The six pure emitters are a no-op until a consumer wires a sink (below);
 `skill-usage-audit` is the exception — both its producers also write the shared
 `skill-usage.jsonl` second store unconditionally (disable the whole feature with
-`skill_usage_audit_enabled=false`, or relocate the store with the
-`skill_usage_dir` option).
+`skill_usage_audit_enabled=false`; pick the store's home with `skill_usage_scope`
+and `skill_usage_dir`). In the default repo scope the store dir is kept out of
+`git status` via an idempotent machine-local `.git/info/exclude` entry
+(`skill_usage_git_exclude=false` opts out for teams that commit the telemetry).
 
 `skill-usage-audit` is captured by two disjoint producers so both invocation
 paths are measured: the model-invoked `Skill` tool (`PostToolUse`) and the
@@ -141,10 +143,17 @@ your own repository's context:
   hooks emit it; every source degrades gracefully when absent.
 - **Persistent state** defaults to the plugin's own per-machine data directory
   (`${CLAUDE_PLUGIN_DATA}`): the known-issues registry
-  (`registry.json`), `check-all` output, and `--write` observability reports.
-  By default nothing is written into your repository. Opt in for the registry
-  via the `registry_dir` option (see Configuration) to keep it git-tracked and
-  team-shared inside your repo instead.
+  (`registry.json`), `check-all` output, `--write` observability reports, and
+  the `lanes` skill's per-lane launch-commit markers
+  (`${CLAUDE_PLUGIN_DATA}/lanes/<repo-key>/<lane>-launch-commit`, overridable
+  via `lane-launcher.sh --data-dir`). `<repo-key>` namespaces markers by
+  repository — the data directory is plugin-wide, while a lane name like `work`
+  is only unique within one checkout. It is a digest of the repository's
+  canonical path; print the one for a given checkout with
+  `printf '%s' "$(git rev-parse --show-toplevel)" | git hash-object --stdin`. By default nothing is written into your
+  repository. Opt in for the registry via the `registry_dir` option (see
+  Configuration) to keep it git-tracked and team-shared inside your repo
+  instead.
 - **Work-item and docs integration.** Where the skills propose follow-up work
   items or cross-reference quirks/workaround docs, they use whatever tracker
   and docs your project has (e.g. `gh issue create`, your `CLAUDE.md` /
@@ -181,10 +190,28 @@ options tune the skills:
   Absolute, drive-qualified, UNC, traversal, and escaping-symlink paths are
   invalid; known-issues operations must stop and direct you to reconfigure
   rather than write outside the project.
-- **`skill_usage_dir`** (string, optional) — project-relative directory where
-  `skill-usage-audit` writes its `skill-usage.jsonl` second store (the
+- **`skill_usage_scope`** (string, optional) — where the `skill-usage-audit`
+  second store lives. `repo` (default) keeps it in the project tree, with a
+  machine-local `.git/info/exclude` entry so `git status` stays clean; `user`
+  resolves the same `skill_usage_dir` subpath under `$HOME` for one cross-repo
+  operator store (rows carry `project` + collision-resistant `project_id`
+  fields); `data-dir` writes
+  `${CLAUDE_PLUGIN_DATA}/skill-usage/<repo-slug>` — plugin-owned, update-safe,
+  never in any repo tree. Prose-validated (no `enum` in the manifest schema);
+  an unknown value falls back to `repo` with a one-time advisory. The default
+  stays `repo` deliberately: the store sits beside `hook-events.jsonl`, matching
+  the observability posture that telemetry is project-local, and the exclude
+  entry removes the status noise that motivated the scope knob.
+- **`skill_usage_git_exclude`** (boolean, default `true`) — repo scope only:
+  idempotently exclude the store dir via `.git/info/exclude` (never touches
+  `.gitignore` or tracked files). Set `false` when your team deliberately
+  commits the telemetry.
+- **`skill_usage_dir`** (string, optional) — contained relative directory,
+  resolved under the scope root (repo scope: repo root; user scope: `$HOME`),
+  where `skill-usage-audit` writes its `skill-usage.jsonl` second store (the
   "measuring skills" record, separate from the telemetry envelope); leave unset
-  to use `.claude/observability`. The same containment rules apply. An invalid
+  to use `.claude/observability`. The same containment rules apply in every
+  scope; the `data-dir` scope ignores it. An invalid
   value produces a visible advisory and skips the second-store write; telemetry
   through an independently configured sink can still proceed.
 

@@ -54,7 +54,7 @@ each stage's context is tight and purpose-built, and compaction is rarely reache
 ## /handoff: the escape hatch
 
 Mid-stage, if context grows heavy or quality degrades, invoke `/handoff` to snapshot the current
-state (what's done, decisions, what was tried and ruled out, next steps) and `/clear`. Multiple
+state and `/clear` — that skill owns which sections a save-point carries. Multiple
 save-points accumulate; timestamps keep them ordered.
 
 ## Trade-offs

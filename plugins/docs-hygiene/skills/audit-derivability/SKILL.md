@@ -108,7 +108,7 @@ After the ledger, OFFER to route actionable verdicts (delete / convert-to-pointe
 - **Read-only.** No `Edit`, no `Write`, no mutating `Bash`. The author applies every deletion and rewrite. Deletion is the highest-stakes doc edit; the classifier only recommends.
 - **Never derivability alone.** A `delete` verdict requires all of: derivable, low re-derivation cost, no owned facts. Any owned non-derivable fact forces `keep-owns-facts`.
 - **Cache verdicts carry a drift-control condition or they demote.** No regeneration path and no recheck trigger → not a cache, demote to pointer/delete.
-- **Load-bearing or contested deletions are spot-tested by a fresh, non-fork subagent** — never confirmed from this (contaminated) context, never by a fork.
+- **Load-bearing or contested deletions are spot-tested by a fresh, non-fork subagent** — never confirmed from this (contaminated) context, never by the Agent tool's `fork` subagent type (a skill's own `context: fork` frontmatter is the opposite: it starts blank).
 - **Audience named in every verdict.** Agent-facing and human-facing docs clear different deletion bars.
 - **Owned facts are salvaged before anything is deleted.** When a doc is mostly derivable but owns a fact, the verdict is keep + route-the-remainder, never delete-and-lose.
 - **Output deterministic.** Filenames sort lexically; no timestamps in output.
@@ -116,7 +116,7 @@ After the ledger, OFFER to route actionable verdicts (delete / convert-to-pointe
 ## Gotchas
 
 - **Derivable is not a verdict.** "An agent could re-derive this" alone never justifies `delete` — check re-derivation cost, drift risk, and fact ownership first. The most common misfire is deleting a mostly-derivable doc that owned one buried rationale line.
-- **The self-grade trap.** After reading a doc you know its answers, so it always *looks* re-derivable. Never confirm a load-bearing deletion from this context — delegate to a fresh, non-fork subagent that has not seen the doc.
+- **The self-grade trap.** After reading a doc you know its answers, so it always *looks* re-derivable. Never confirm a load-bearing deletion from this context — delegate to a fresh, non-fork subagent that has not seen the doc, never the Agent tool's `fork` subagent type.
 - **Cache without drift control is not a cache.** `keep-as-derivation-cache` with no regeneration path and no recheck trigger is an unmaintained copy; demote it.
 - **Code-derivable ≠ duplicates-another-doc.** A doc restating *another doc* is `/docs-hygiene:extract-ssot`, not a `delete` here. Derivability is re-derivation from code/config/structure.
 - **Audience changes the verdict.** The same restatement can be dead weight on an agent surface and worth keeping for humans. Do not carry one surface's verdict to the other.

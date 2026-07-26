@@ -1,0 +1,94 @@
+{
+  "skill_name": "setup",
+  "evals": [
+    {
+      "id": 1,
+      "name": "checks-without-touching-settings",
+      "prompt": "/context-guard:setup check",
+      "expected_output": "Reports jq presence, the installed shim state, the statusline wiring state (including legacy version-pinned plugin-cache wiring), live-session snapshot freshness against the 10-minute staleness rule, and the zones.json state; prints the exact settings.json statusline edit for the operator; edits nothing.",
+      "files": [],
+      "expectations": [
+        "Reads settings.json only; never writes settings, pluginConfigs, or the snapshot directory",
+        "Reports PASS/FAIL/INFO with one remediation line per FAIL",
+        "Prints the settings.json edit naming the shim's fixed ~/.claude/context-guard/bin/ path, never a version-pinned plugin-cache path",
+        "Surfaces the dotfiles-tracking reminder for the operator-owned edit"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "flags-legacy-version-pinned-wiring",
+      "prompt": "/context-guard:setup check\n\nMy settings.json statusLine command is: bash \"~/.claude/plugins/cache/melodic-software/context-guard/0.1.0/scripts/statusline-tee.sh\" ~/.claude/statusline/render.sh — and that file exists right now.",
+      "expected_output": "Names the wiring as legacy version-pinned even though the file exists today: it stops teeing at the next version bump and breaks the whole statusline once the old version directory is pruned. Prints the shim wiring as the fix, with apply first if the shim is not installed.",
+      "files": [],
+      "expectations": [
+        "Does not treat current file existence as evidence the wiring is healthy",
+        "Names both failure modes: silent tee stop on version bump, and statusline breakage after the ~14-day prune",
+        "Prints the shim-based replacement wiring and sequences apply before the settings edit when the shim is absent",
+        "Does not apply the settings edit itself"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "reads-null-fields-as-expected-state",
+      "prompt": "/context-guard:setup check\n\nThe live session's snapshot is fresh but used_percentage is null.",
+      "expected_output": "Reports the fresh-but-null snapshot as INFO — a documented early-session or post-/compact statusline state in which the resolver correctly answers unknown — not as a failure to fix.",
+      "files": [],
+      "expectations": [
+        "Classifies null used_percentage / current_usage on a fresh snapshot as documented fail-open behavior",
+        "Does not tell the operator to rewire or reinstall anything for it",
+        "Cites the reader contract as the owner of the fail-open rule"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "apply-preserves-unrecognized-keys-and-custom-bands",
+      "prompt": "/context-guard:setup apply\n\nMy zones.json already exists with custom valid bands (40/70) and carries a custom display_color key my statusline reads.",
+      "expected_output": "Bare apply is repair-only: leaves the valid custom bands (40/70) untouched and reports them, preserves the unrecognized display_color key and its value (semantic preservation — lexical formatting may normalize), names 'apply defaults' as the explicit route to the shipped defaults, and confirms a second identical apply would be a no-op.",
+      "files": [],
+      "expectations": [
+        "Writes only inside ~/.claude/context-guard/ — zones.json plus the shim — and nothing else (a fully valid zones file may mean no zones write at all)",
+        "Does NOT overwrite valid custom band values on a bare apply; names apply defaults as the explicit shipped-defaults mode",
+        "Preserves unrecognized keys rather than rewriting the file from the template",
+        "States idempotency (second run = no content change)"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "apply-installs-shim-byte-identically-and-idempotently",
+      "prompt": "/context-guard:setup apply",
+      "expected_output": "Copies the shipped statusline-shim.sh byte-identically to ~/.claude/context-guard/bin/statusline-shim.sh alongside the zones.json seed/repair, reports each write (or reports no change on a second identical run), states that the shim is inert until the operator wires it, and prints the wiring edit as the next step.",
+      "files": [],
+      "expectations": [
+        "Writes only inside ~/.claude/context-guard/ — never settings.json, the snapshot directory, or the sibling rate-limit-guard directory",
+        "Installed shim is byte-identical to the shipped source, not a rewritten or templated variant",
+        "Second identical apply reports no content change",
+        "States that installing the shim starts nothing until the settings.json wiring is applied by the operator"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "composes-without-double-wrapping",
+      "prompt": "/context-guard:setup check\n\nMy statusLine command is already: bash ~/.claude/rate-limit-guard/bin/statusline-shim.sh ~/.claude/statusline/render.sh — I configured rate-limit-guard first. Both plugins are installed, but I have never run /context-guard:setup apply.",
+      "expected_output": "Recognizes the existing sibling-shim wrapper, unwraps it to the operator's own renderer before composing, and prints wiring that runs each tee exactly once. Because this plugin's own shim is not installed yet, it reports that and names apply as the remediation rather than printing wiring naming a file that does not exist.",
+      "files": [],
+      "expectations": [
+        "Treats ~/.claude/statusline/render.sh as the wrapped command — never re-wraps the full existing command, so the rate-limit-guard shim appears exactly once in the printed wiring",
+        "Never prints a combined form naming a shim path that is not installed; gates the combined wiring on the sibling shim existing, or directs the operator to run that plugin's apply first",
+        "Explains that a duplicated tee runs and writes on every refresh and adds another ~0.6-0.9 s per refresh",
+        "Still edits nothing — the wiring is printed for the operator to apply"
+      ]
+    },
+    {
+      "id": 7,
+      "name": "uninstall-order-unwrap-before-delete",
+      "prompt": "/context-guard:setup check\n\nHow do I back this out completely? I want to remove the plugin and everything it put on my machine.",
+      "expected_output": "Gives the two operator cleanup steps in a REQUIRED order: unwrap the statusLine command first, then delete ~/.claude/context-guard/.",
+      "files": [],
+      "expectations": [
+        "States the order explicitly and gives the reason: deleting the directory first leaves settings.json invoking a missing file, so bash exits 127 and the whole statusline goes down",
+        "Does not present the two steps as order-independent",
+        "Notes that uninstalling the plugin itself is safe on its own — the shim degrades to running the wrapped command"
+      ]
+    }
+  ]
+}

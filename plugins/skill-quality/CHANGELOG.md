@@ -3,7 +3,7 @@
 All notable changes to the `skill-quality` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.10.0]
+## [0.11.0]
 
 ### Added
 
@@ -16,15 +16,73 @@ All notable changes to the `skill-quality` plugin are documented here. Format fo
   inline-code-span-aware (literal examples in docs never trip them) and tolerate CRLF.
   Contract spec for authors: `skills/check/reference/fresh-eyes-declarations.md`; the
   heuristic list's curation policy lives there too. Fence matching follows CommonMark
-  (an info-string line inside a fence is content, not a closer), spans pair backtick
-  runs of exactly equal length (multi-backtick spans hide their content), and
-  delegation wording only counts when the line also names the worker or dispatch.
+  (an info-string line inside a fence is content, not a closer; a backtick opener
+  carrying a backtick in its info string is prose, not a fence; opener indentation caps
+  at three spaces), spans pair backtick runs of exactly equal length and carry an
+  unclosed opener across line boundaries to the end of the paragraph (multi-backtick and
+  multi-line spans hide their content), and delegation wording only counts when the same
+  line names the worker or dispatch as a whole word — an embedded stem ("agentless") does
+  not.
 
 ### Fixed
 
 - README check-count references were stale (still "eighteen"/"seventeen" after checks
   19–20 shipped); counts now derive from the current twenty-one and the checks list
   includes the injection-portability and fresh-eyes rows.
+
+## [0.10.2]
+
+### Fixed
+
+- **Headless reconfigure recipe now preserves install scope (#1406).** The `claude plugin
+  uninstall` → `claude plugin install ... --config` recipe in `skills/setup/SKILL.md` defaulted
+  both halves to `-s user`. When this plugin is installed at `project` or `local` scope, that
+  silently uninstalled a separate user-scope record while the effective project/local install kept
+  loading, and the reinstall landed at a scope that does not load. Both commands now carry
+  `-s <scope>`, sourced from what `claude plugin list` reports for this plugin — the same fix
+  already applied to `session-flow` and `rate-limit-guard` in #1393.
+
+## [0.10.1]
+
+### Documentation
+
+- **`check` gotcha: markdownlint (check 6) defers to the consuming repo's markdownlint config —
+  run the checker from inside that repo (`#1153`).** Running the gate from outside the target
+  repo, or against a marketplace-installed skill in the plugin cache (which carries no config),
+  applies markdownlint DEFAULTS, so rules a repo deliberately disables (commonly `MD013`
+  line-length, `MD041` first-line-heading, `MD060` table-pipe) fire as spurious failures on a
+  skill that passes in-repo. This is the usual cause of a "shipped marketplace skill fails the
+  marketplace's own gate" report — a wrong-config artifact, not a regression. The note also
+  records the deliberate decision the report asked for: **injection blocks are not special-cased**
+  — a declared `shell:` block with long lines is `MD013`-subject like any other content, and
+  whether it fails is the consumer's markdownlint config's call (this gate never overrides it) —
+  and documents this marketplace's own CI division of labor (the skill-quality gate skips
+  markdownlint; the hygiene lane lints all repo markdown, SKILL.md included, under the repo
+  config). No behavior change; the CI gate over changed skills already exists.
+
+## [0.10.0]
+
+### Changed
+
+- **`check` gives actionable guidance for a marketplace-installed skill instead of a bare
+  "not found" (`#1152`).** A `plugin:skill` argument (e.g. `source-control:setup`) — the common
+  case when gating an installed skill — now prints exactly how to run the gate against the
+  install: point `CHECK_SKILL_SKILLS_ROOT` at the cache skills dir, with the note that the cache
+  is a **copy, not a git checkout**, so the git-backed checks (3 trigger-preservation, 8 vendor,
+  9 stale-metadata) correctly no-op there (a "new skill / skipped" result is expected). A missing
+  bare name now names the `CHECK_SKILL_SKILLS_ROOT` remedy too. SKILL.md documents the
+  installed-skill resolution path.
+
+  **Scope note — the originating report (`#1152`) is partly falsified.** It claimed the plugin
+  cache "IS a git checkout of the marketplace repo, so HEAD exists" and asked to wire check 3 to
+  it. Primary-source evidence contradicts this: Claude Code *copies* marketplace plugins into
+  `~/.claude/plugins/cache` (docs: "rather than using them in-place"), and the on-disk cache
+  carries no `.git`. Check 3's "new skill / skipped" on a cache path is therefore **correct
+  behavior, not a bug** — there is no rewrite baseline in a copy — and is not "fixed." The cache
+  sub-layout (`<marketplace>/<plugin>/<version>`) is also undocumented and version-dir-churning,
+  so the checker deliberately does **not** reverse-engineer it to auto-resolve a `plugin:skill`
+  name; the target root stays operator-provided. First-class installed-skill resolution is left
+  as a tracked follow-up.
 
 ## [0.9.0]
 

@@ -31,12 +31,24 @@ table, one remediation line per FAIL. Do not modify anything.
    - empty or unexpanded: INFO — the registry uses `${CLAUDE_PLUGIN_DATA}` (the zero-config default).
    - a configured value: validate containment (below). PASS when contained — it resolves from the
      project root. FAIL when uncontained.
-2. **`skill_usage_dir`** — report the effective skill-usage-log destination:
-   - empty or unexpanded: INFO — the log uses `.claude/observability` (the zero-config default).
-   - a configured value: validate containment. PASS when contained; FAIL when uncontained.
-3. **Containment** — a configured value must be a contained, project-relative path. FAIL any
+2. **`skill_usage_dir` + `skill_usage_scope`** — report the effective skill-usage-log destination:
+   - scope empty, unexpanded, or `repo`: the store resolves under the project root; empty
+     `skill_usage_dir` is INFO — the log uses `.claude/observability` (the zero-config default), kept
+     out of `git status` by a machine-local `.git/info/exclude` entry unless
+     `${user_config.skill_usage_git_exclude}` renders `false`.
+   - scope `user`: INFO — the same contained subpath resolves under `$HOME` (default
+     `~/.claude/observability`), one cross-repo store.
+   - scope `data-dir`: INFO — the store is plugin-owned at
+     `${CLAUDE_PLUGIN_DATA}/skill-usage/<repo-slug>`; `skill_usage_dir` is ignored.
+   - any other scope value: FAIL — the hooks fall back to `repo` with a one-time advisory; remediate
+     to a valid value (`repo` | `user` | `data-dir`).
+   - a configured `skill_usage_dir` (repo/user scopes): validate containment under the scope root.
+     PASS when contained; FAIL when uncontained.
+3. **Containment** — a configured value must be a contained relative path under its base (the project
+   root for `registry_dir` and repo-scope `skill_usage_dir`; `$HOME` for user-scope
+   `skill_usage_dir`). FAIL any
    POSIX/rooted path, Windows drive-qualified or drive-relative path, UNC path, any `..` segment with
-   either separator, and any existing symlink path that resolves outside the project. Do not normalize
+   either separator, and any existing symlink path that resolves outside that base. Do not normalize
    an invalid value into acceptance, and do not run any operation that would use an invalid destination.
 4. **Personal-vs-project** — INFO: both options are personal, user-scoped preferences, not tracked team
    policy. Note the per-machine-vs-repository-resident tradeoff so the reader can choose in `apply`.
@@ -55,9 +67,19 @@ verify-and-route:
   `.claude/observability`). State the tradeoff and let the reader pick — do not prompt.
 - **Reconfiguring a personal option:** `/plugin configure claude-ops` (interactive, any time).
   Headless: `--config` only applies on a fresh install (ignored once installed), so reconfigure via
-  `claude plugin uninstall claude-ops` then
-  `claude plugin install claude-ops@<marketplace> --config registry_dir=<path>`; this skill never
-  writes user settings or `pluginConfigs`.
+  `claude plugin uninstall claude-ops -s <scope>` then
+  `claude plugin install claude-ops@<marketplace> -s <scope> --config registry_dir=<path>`; this
+  skill never writes user settings or `pluginConfigs`. Both commands default to `-s user` — pass
+  the scope `claude plugin list` reports for this plugin, and run from that project's directory
+  for a `project`/`local` scope. Defaulting instead uninstalls a separate user-scope record while
+  the effective install stays in place, so the reinstall lands at a scope that does not load.
+  Uninstalling also drops the stored `pluginConfigs` entry, so the reinstall must re-supply
+  **every** key whose value should stay non-default — this plugin declares fourteen, and a
+  reinstall that passes only `registry_dir` silently resets the other thirteen (the seven
+  `*_audit_enabled` toggles, `instructions_loaded_audit_log_session_start`, `install_new`,
+  `skill_usage_dir`, `skill_usage_git_exclude`, `skill_usage_scope`, `stdin_read_timeout`) to
+  their manifest defaults. Record the current values before uninstalling; afterwards there is
+  nothing left to read them from.
 
 After any reconfiguration, rerun `check` and report both observed effective destinations — never claim
 an unobserved change. Re-running `apply` when both destinations are contained (or defaulted) changes

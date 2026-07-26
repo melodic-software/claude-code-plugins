@@ -34,6 +34,23 @@ CHECK_SKILL_SKILLS_ROOT="${user_config.skills_root}" \
 
 When it is unset, invoke the script plain — it falls back to `${CLAUDE_PROJECT_DIR}/.claude/skills`.
 
+**Gating a marketplace-installed skill.** A `plugin:skill` name (e.g. `source-control:setup`) is
+NOT auto-resolved: the checker resolves a bare skill name under one root and deliberately does not
+reverse-engineer Claude Code's plugin-cache layout to locate an install. That layout is internal —
+only the cache's existence is documented, the `<marketplace>/<plugin>/<version>` nesting is not, and
+the version dir changes on every update
+([plugins-reference](https://code.claude.com/docs/en/plugins-reference)). To gate an installed skill,
+point the root at its installed skills dir explicitly:
+
+```shell
+CHECK_SKILL_SKILLS_ROOT=~/.claude/plugins/cache/<marketplace>/<plugin>/<version>/skills \
+  bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-skill.sh" <skill-leaf-name>
+```
+
+The cache is a **copy, not a git checkout**, so the git-backed checks (3 trigger-preservation, 8
+vendor byte-identity, 9 stale-metadata) no-op against it — a "new skill / skipped" result is
+expected there, not a defect. Passing a `plugin:skill` name unresolved prints this exact guidance.
+
 ## Arguments
 
 Parse `$ARGUMENTS`:
@@ -88,6 +105,19 @@ that line before editing, since it may be an illustrative example path rather th
   exits 2 (env error).
 - `check-skill.sh` runs `npx markdownlint-cli2` for check 6; when `npx` is absent that check downgrades
   to a WARN rather than failing, so a run on a machine without Node still gates on the other twenty.
+- **Check 6 defers to the repo's markdownlint config — run it from inside that repo.** `markdownlint-cli2`
+  discovers the nearest `.markdownlint-cli2.jsonc` from its working directory. Run the checker from
+  *outside* the target repo (or against a marketplace-installed skill in the plugin cache, which has no
+  config) and markdownlint applies its DEFAULTS — so rules a repo deliberately disables (commonly
+  `MD013` line-length for injection blocks and tables, `MD041` first-line-heading for a frontmatter/H2
+  start, `MD060` table-pipe style) fire as spurious failures on a skill that passes in-repo. This is the
+  usual cause of a "shipped marketplace skill fails the marketplace's own gate" report: it is a
+  wrong-config artifact, not a real regression. **Injection blocks are not special-cased** — a declared
+  `shell:` block with long lines is MD013-subject like any other content; whether it fails is entirely the
+  consumer's markdownlint config's call (disable `MD013`, or wrap the lines), never something this gate
+  overrides. In this marketplace's own CI the division of labor is explicit: the skill-quality gate skips
+  markdownlint (`CHECK_SKILL_SKIP_MARKDOWNLINT=1` in the repo's `check-changed-skills.sh` gate) and the
+  hygiene lane lints all repo markdown, SKILL.md included, under the repo config.
 - Trigger-keyword preservation compares the working tree against `HEAD` by default, so a brand-new skill
   (no committed version) skips check 3 — that is expected, not a silent pass. For a post-commit audit
   (where `HEAD` == the working tree hides an already-committed change), set `CHECK_SKILL_BASE_REF` to a

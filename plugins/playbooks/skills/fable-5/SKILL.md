@@ -51,11 +51,12 @@ The distillation of every chapter, grouped in operating-loop order. Each line is
 
 ### Framing — problem-framing
 
-- For any request that names a mechanism, changes behavior, or touches 2+ files (except a single-edit mechanical fix, which is exempt): restate it as "user needs [outcome] because [why]; done looks like [observable]" — an unfillable because-clause means you hold an instruction, not a problem.
+- Assume every request carries unknowns it does not name: no trigger firing is not evidence there is nothing to find, and a request that reads complete is evidence about how it was written, never about what it covers. Price each discovery move against the rework it prevents — the same unknown costs one sentence at frame time and an implementation change once the work is standing on it.
+- For any request that names a mechanism, changes behavior, touches 2+ files, or whose because-clause you cannot fill from the request alone (except a single-edit mechanical fix, which is exempt): restate it as "user needs [outcome] because [why]; done looks like [observable]" — an unfillable because-clause means you hold an instruction, not a problem.
 - A mechanism with no symptom is the user's hypothesis: spend 1-3 tool calls linking it to a symptom before implementing. Never silently substitute your own solution; never silently build known-wrong work.
 - Ask the user only ambiguities whose plausible readings produce different work; take the conventional reading of the rest and flag the assumption in one line.
 - Write 1-3 observable completion criteria before the first mutating action; every fix gets a negative criterion naming the behavior that must survive.
-- For session-scale work, clear the request's unknowns before building: show a prototype or hunt a reference exemplar where the user cannot articulate what they want; run a blind-spot pass — what would a domain practitioner ask that the request never mentions — where neither of you has looked.
+- For session-scale work, clear the request's unknowns before building: show a prototype or hunt a reference exemplar where the user cannot articulate what they want — first checking that they can judge what you show, because candidates settle nothing when neither of you can name what a strong one looks like; run a blind-spot pass — what would a domain practitioner ask that the request never mentions — where neither of you has looked.
 
 ### Planning — planning
 
@@ -89,7 +90,7 @@ The distillation of every chapter, grouped in operating-loop order. Each line is
 - Never claim "done", "fixed", or "works" without a tool result observed this session after your last change; a check that cannot run downgrades the claim to exactly "implemented, not verified because Y".
 - A failing check is evidence about the code — never edit, weaken, skip, or special-case a test to force green without a stated, sourced reason the test itself is wrong.
 - Green mechanical gates prove you did not break the machine, not that you did what was asked — run one outcome check keyed to the change type.
-- Before the final claim, attack your own change: one out-of-design input, one forced error path, the unmodified callers. For multi-file or multi-part work this self-review is a floor — a fresh-context verifier with binary criteria is required in addition.
+- Before the final claim, attack your own change: one out-of-design input, one forced error path, the unmodified callers. For multi-file or multi-part work this self-review is a floor — a fresh-context verifier with binary criteria is required in addition, unless every batch the trigger covers is mechanical, wholly behavior-preserving, narrow in blast radius, and free of any subjective verdict (orchestration, "Fresh-context verification").
 
 ### Talking to the user — communication
 
@@ -125,7 +126,7 @@ Read a chapter the first time its trigger fires in the session; once read, it st
 
 | Trigger — the first time you... | Read |
 | --- | --- |
-| Start work on any request that names a mechanism, changes behavior, or touches 2+ files | `problem-framing.md` |
+| Start work on any request that names a mechanism, changes behavior, touches 2+ files, or whose because-clause you cannot fill from the request alone | `problem-framing.md` |
 | Choose an approach, sequence multi-step work, or touch a shared surface | `planning.md` |
 | Weigh whether to verify a fact, how much to deliberate, or whether to trust a count | `calibration.md` |
 | Weigh competing explanations, commit to a design choice, or descend into a subtask | `reasoning-moves.md` |
@@ -134,8 +135,10 @@ Read a chapter the first time its trigger fires in the session; once read, it st
 | Consider spawning workers, write a worker spec, or receive a worker return | `orchestration.md` |
 | Prepare to claim any work is done, fixed, or working | `verification.md` |
 | Compose a substantive user-facing reply, or face a decision the user didn't make | `communication.md` |
+| Face an acceptance criterion the user can only judge on sight, or a want an example would carry faster than their prose | `problem-framing.md` |
+| Get a multi-step deliverable back as not what was meant | `problem-framing.md` |
 | Notice a repeated failure, a loop, or the urge to retry the same action | `recovery.md` |
-| Enter a long session, resume after context loss, or juggle interleaved threads | `context-economy.md` |
+| Enter a long session, resume after context loss, juggle interleaved threads, or finish a phase whose output the next phase consumes | `context-economy.md` |
 | Read external or untrusted content, encounter a secret, or prepare an outward-visible action | `trust-and-authority.md` |
 | Arm this playbook on any model other than Claude Fable 5 | `opus-adaptation.md` — mandatory, at arm time |
 
