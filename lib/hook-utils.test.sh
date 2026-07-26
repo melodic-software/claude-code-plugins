@@ -872,7 +872,7 @@ bs_time_late_eof() { # $1 = shell prelude; prints elapsed ms (empty if untimed)
   local t_file
   t_file="$(mktemp)"
   { printf '{"complete":true}'; sleep 3; } | {
-    CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT=0.4 bash -c '
+    CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT=1.2 bash -c '
       source "$1"
       eval "$2"
       printf "%s\n" "${EPOCHREALTIME:-0}"
@@ -896,10 +896,10 @@ if [[ -z "$bs_fast" || -z "$bs_slow" ]]; then
   else
     ok "buffer_stdin: late-EOF window count not timed (EPOCHREALTIME absent, Bash < 5.0)"
   fi
-elif ((bs_fast < bs_slow - 200)); then
-  ok "buffer_stdin: late-EOF costs one window, not two (${bs_fast} ms vs ${bs_slow} ms re-arming)"
+elif ((bs_fast < bs_slow - 400)); then
+  ok "buffer_stdin: late-EOF stops at the payload, not the bound (${bs_fast} ms vs ${bs_slow} ms)"
 else
-  fail "buffer_stdin late-EOF: ${bs_fast} ms vs ${bs_slow} ms re-arming — expected >200 ms faster"
+  fail "buffer_stdin late-EOF: ${bs_fast} ms vs ${bs_slow} ms reading on — expected >400 ms faster"
 fi
 rm -f "$bs_rc_file" "$bs_out_file"
 
@@ -1085,6 +1085,58 @@ else
   fail "buffer_stdin valid non-default timeout: rc=$bs_rc (expected 2)"
 fi
 rm -f "$bs_rc_file"
+
+# --- Test 18g: hook::buffer_stdin — a stall lands near ONE bound, not two -----
+# `read -t` reports only that its window expired, never WHEN inside it the last
+# byte arrived. Armed as a single window, a producer that emits bytes early and
+# then goes quiet is not declared stalled until the SECOND window expires —
+# almost twice the configured bound. Reading the bound in slices caps that
+# overshoot at one slice. Asserted by comparison against a variant with the slice
+# count forced to 1 (the unsliced behavior), both timed back to back so runner
+# load cancels out. The override is asserted to actually engage first — a
+# silently ineffective override would make this a vacuous pass, which has already
+# happened twice on this branch.
+bs_time_stall() { # $1 = shell prelude; prints elapsed ms (empty if untimed)
+  local t_file
+  t_file="$(mktemp)"
+  # Bytes land immediately, then the pipe goes quiet well past two bounds.
+  { printf '{"partial":'; sleep 4; } | {
+    CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT=1.2 bash -c '
+      source "$1"
+      eval "$2"
+      printf "%s\n" "${EPOCHREALTIME:-0}"
+      hook::buffer_stdin >/dev/null 2>&1
+      printf "%s\n" "${EPOCHREALTIME:-0}"
+    ' _ "$HOOK_DIR/hook-utils.sh" "$1" >"$t_file"
+  }
+  awk 'NR==1 {s=$0} NR==2 {e=$0}
+       END { if (s == 0 || e == 0 || NR < 2) print ""; else printf "%.0f", (e - s) * 1000 }' \
+    "$t_file"
+  rm -f "$t_file"
+}
+# shellcheck disable=SC2016 # $1 is the overriding function's own positional, not this shell's
+bs_unsliced='hook::resolve_read_slice() { printf "%s 1" "$1"; }'
+bs_slices=$(bash -c 'source "$1"; hook::resolve_read_slice 1.2' _ "$HOOK_DIR/hook-utils.sh")
+bs_slices_forced=$(bash -c 'source "$1"; '"$bs_unsliced"'; hook::resolve_read_slice 1.2' \
+  _ "$HOOK_DIR/hook-utils.sh")
+if [[ "$bs_slices" == "0.300 4" ]] && [[ "$bs_slices_forced" == "1.2 1" ]]; then
+  ok "buffer_stdin: slice resolution splits the bound, and the unsliced override engages"
+else
+  fail "slice resolution: got '$bs_slices' / forced '$bs_slices_forced'; cases below are vacuous"
+fi
+bs_sliced_ms=$(bs_time_stall "")
+bs_unsliced_ms=$(bs_time_stall "$bs_unsliced")
+if [[ -z "$bs_sliced_ms" || -z "$bs_unsliced_ms" ]]; then
+  if [[ -n "${EPOCHREALTIME:-}" ]]; then
+    fail "stall timing harness produced no measurement (sliced='$bs_sliced_ms' unsliced='$bs_unsliced_ms')"
+  else
+    ok "buffer_stdin: stall overshoot not timed (EPOCHREALTIME absent, Bash < 5.0)"
+  fi
+elif ((bs_sliced_ms < bs_unsliced_ms - 400)); then
+  ok "buffer_stdin: stall declared near one bound, not two (${bs_sliced_ms} ms vs ${bs_unsliced_ms} ms unsliced)"
+else
+  fail "buffer_stdin stall overshoot: ${bs_sliced_ms} ms vs ${bs_unsliced_ms} ms unsliced — expected >400 ms faster"
+fi
 
 # --- Test 19: hook::emit_telemetry — EPOCHREALTIME-absent (Bash < 5.0) skip ---
 # On Bash < 5.0 EPOCHREALTIME is unset, so the caller's `start=${EPOCHREALTIME:-}`

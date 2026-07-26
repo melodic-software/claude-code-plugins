@@ -245,16 +245,26 @@ hook::repo_root() {
 #   * The read is chunked. `read -N` lets bash satisfy it in blocks instead of
 #     byte-at-a-time: 50 KB drops from ~2100 ms to ~20 ms, 200 KB from ~6800 ms
 #     to ~85 ms.
-#   * The timer re-arms on progress. `read -t` is a deadline for the WHOLE
-#     requested read, not an inactivity timer, so a producer that keeps
-#     delivering but slower than one chunk per window would still trip it. `read`
-#     assigns whatever it did receive even when it times out, so a timed-out read
-#     that returned bytes is progress, not a stall: the loop keeps that partial
-#     chunk and arms a fresh window. Only a window that delivers nothing at all
-#     is a stall. Re-arming is skipped once the buffer already parses as whole
-#     JSON, so the late-EOF case costs ONE window, not two — that is the floor,
-#     since a producer holding the pipe open cannot be distinguished from a slow
-#     one until a window expires.
+#   * The timer measures inactivity, not the read. `read -t` is a deadline for
+#     the WHOLE requested read, so a producer that keeps delivering but slower
+#     than one chunk per window would still trip it. `read` assigns whatever it
+#     did receive even when it times out, so any byte counts as progress: the
+#     loop keeps that partial chunk and reads on. Only the absence of bytes for a
+#     whole stdin_read_timeout is a stall.
+#   * The bound is read in HOOK_STDIN_READ_SLICES slices. `read -t` reports only
+#     that its window expired, never WHEN inside it the last byte arrived, so a
+#     bound armed as one window would declare a stall anywhere between one and
+#     TWO bounds after the pipe actually went quiet. Slicing bounds that
+#     overshoot: with four slices a stall lands within a quarter-bound of the
+#     configured interval. That residual quarter is the honest limit of the
+#     approximation, and it errs toward waiting — never toward declaring a live
+#     producer dead. On a shell whose `read -t` rejects the fractional slice the
+#     count degrades to 1, i.e. the unsliced one-to-two-bound behavior.
+#
+# Reading on is skipped once the buffer already parses as whole JSON, so the
+# late-EOF case costs ONE slice past the payload rather than the rest of the
+# bound — a producer holding the pipe open cannot be distinguished from a slow
+# one until a window expires, so some wait there is the floor.
 #
 # The trade this makes: a producer trickling bytes indefinitely is never cut off
 # here. That is deliberate — the harness already caps a `command` hook at 600 s
@@ -325,11 +335,43 @@ hook::resolve_read_timeout() {
   printf '%s' "$t"
 }
 
+# How many slices the idle bound is divided into. `read -t` reports only that a
+# window expired, never WHEN inside it the last byte arrived, so a bound armed as
+# one window declares a stall anywhere between one and two bounds after the pipe
+# actually went quiet. Asking more often shrinks that: with N slices, a stall is
+# declared within one slice of the configured interval. Four is the compromise —
+# it cuts worst-case overshoot from 100% of the bound to 25% while keeping the
+# idle path to four cheap builtin reads.
+HOOK_STDIN_READ_SLICES=4
+
+# Resolve the per-read slice for an already-resolved timeout, printing
+# "<slice> <count>". Falls back to "<timeout> 1" — exactly the unsliced
+# behavior — when this shell's `read -t` will not accept the fractional slice,
+# which is the pre-4.1/no-fractional-timeout case the delimiter-read branch
+# already covers. Probed, not version-tested, for the same reason as
+# hook::resolve_read_timeout.
+hook::resolve_read_slice() {
+  local t="$1" slice
+  slice=$(awk -v t="$t" -v n="$HOOK_STDIN_READ_SLICES" \
+    'BEGIN { printf "%.3f", t / n }' 2>/dev/null) || slice=""
+  if [[ -n "$slice" && "$slice" =~ ^[0-9]+\.[0-9]+$ ]] && ! [[ "$slice" =~ ^0+\.0+$ ]]; then
+    local probe
+    # shellcheck disable=SC2034 # `discard` is the read target; only stderr matters
+    probe=$(read -r -t "$slice" discard </dev/null 2>&1)
+    if [[ -z "$probe" ]]; then
+      printf '%s %s' "$slice" "$HOOK_STDIN_READ_SLICES"
+      return 0
+    fi
+  fi
+  printf '%s 1' "$t"
+}
+
 hook::buffer_stdin() {
-  local input="" chunk="" read_rc=0 stalled=0
-  local read_timeout
+  local input="" chunk="" read_rc=0 stalled=0 idle_slices=0
+  local read_timeout read_slice slice_count
   read_timeout=$(hook::resolve_read_timeout)
-  local -a read_opts=(-r -t "$read_timeout")
+  read -r read_slice slice_count < <(hook::resolve_read_slice "$read_timeout")
+  local -a read_opts=(-r -t "$read_slice")
   if hook::read_supports_nchars; then
     read_opts+=(-N 65536)
   else
@@ -341,6 +383,9 @@ hook::buffer_stdin() {
     # shellcheck disable=SC2162 # -r is in read_opts; shellcheck cannot see through the array
     IFS= read "${read_opts[@]}" chunk || read_rc=$?
     input+="$chunk"
+    # Any byte at all resets the idle count — that, not the read's exit status,
+    # is what makes this an idle timer rather than a per-read deadline.
+    [[ -n "$chunk" ]] && idle_slices=0
     if ((read_rc == 0)); then
       # A full chunk (or a delimiter) — more may still be coming. A SUCCESSFUL
       # read that consumed nothing, however, cannot make progress, so continuing
@@ -352,20 +397,23 @@ hook::buffer_stdin() {
       continue
     fi
     if ((read_rc > 128)); then
-      # Timed out. Bytes in this window mean the producer is alive: keep them
-      # and re-arm. An empty window is the stall this guard exists to catch.
+      # A slice expired. Bytes in it mean the producer is alive: keep them and
+      # read on. Only slice_count CONSECUTIVE empty slices — one whole
+      # stdin_read_timeout with nothing arriving — is the stall this guard
+      # exists to catch, which is why the count is not reset here.
       if [[ -n "$chunk" ]]; then
         # ... but stop immediately if what we already hold is a whole JSON
         # document. That is the Win32 late-EOF case — the payload arrived, the
-        # pipe just never closed — and re-arming there would spend a second full
-        # window waiting for an EOF that is not coming, doubling the delay this
-        # function is supposed to bound.
+        # pipe just never closed — and reading on there would spend the rest of
+        # the bound waiting for an EOF that is not coming.
         hook::json_complete "${input//$'\r'/}" && break
         continue
       fi
+      ((idle_slices++))
+      ((idle_slices >= slice_count)) || continue
       stalled=1
     fi
-    break # EOF (rc 1), an empty timed-out window, or a read error
+    break # EOF (rc 1), a full idle bound with no bytes, or a read error
   done
   input=$(printf '%s' "$input" | tr -d '\r')
   [[ -n "$input" ]] || return 1

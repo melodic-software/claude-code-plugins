@@ -20,11 +20,15 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   The read is now chunked (`read -N`), which bash satisfies with block reads, and the bound became a
   true **idle** bound: `read -t` is a deadline for the whole requested read rather than an inactivity
   timer, so a timed-out read that nevertheless returned bytes is now treated as progress — its
-  partial chunk is kept and a fresh window is armed. Only a window that delivers nothing at all is a
-  stall, and that still fails closed with rc 2 exactly as before. Re-arming stops once the buffer
-  already parses as whole JSON, so the Win32 late-EOF case (payload complete, pipe simply never
-  closed) settles in one window instead of two. Measured: 50 KB drops from ~2100 ms to ~20 ms,
-  200 KB from ~6800 ms to ~85 ms.
+  partial chunk is kept and the read continues. Only the absence of bytes for a whole
+  `stdin_read_timeout` is a stall, and that still fails closed with rc 2 exactly as before. The bound
+  is read in four slices, because `read -t` reports only that its window expired and never when
+  inside it the last byte arrived — armed as one window, a stall would be declared anywhere between
+  one and *two* bounds after the pipe went quiet. Slicing caps that overshoot at a quarter-bound;
+  that residual quarter is the limit of the approximation and always errs toward waiting. Reading on
+  stops once the buffer already parses as whole JSON, so the Win32 late-EOF case (payload complete,
+  pipe simply never closed) settles at the payload rather than at the bound. Measured: 50 KB drops
+  from ~2100 ms to ~20 ms, 200 KB from ~6800 ms to ~85 ms.
   `read -N` is Bash 4.1+, and these hooks support Bash 3.2+ (macOS system bash), so the pre-4.1 path
   falls back to the delimiter read inside the same re-arming loop — same guard and rationale as
   `context-guard`'s `statusline-tee.sh`.
