@@ -72,6 +72,15 @@ gates:
   #     flag keeps the gate correct regardless of the consumer's buf.gen.yaml. Refs:
   #     https://buf.build/docs/reference/cli/buf/generate/ and
   #     https://buf.build/docs/configuration/v2/buf-gen-yaml/
+  # `--clean` carries a precondition this example cannot enforce, only state: it deletes whole
+  # directories ("the directories, jar files, or zip files that the plugins will write to"), so
+  # every `out` in buf.gen.yaml must point at a directory holding nothing but generated output. A
+  # hand-maintained file inside one — a README, a BUILD file, a scratch note — is deleted with the
+  # rest, and neither check above reports it: the pathspec covers the plugins' output patterns, not
+  # the directories' whole contents, and the out directories live in the consumer's buf.gen.yaml
+  # where no example can name them. A repo that cannot dedicate its `out` directories must drop
+  # `--clean`, and loses orphan detection with it — the deletion above is the only signal a
+  # sourceless output produces.
   # The pathspec must cover every plugin buf.gen.yaml configures, not just protoc-gen-go's
   # `*.pb.go` — a repo that also runs grpc-gateway writes `*.pb.gw.go`, and every other configured
   # plugin writes its own extension again, so scoping to one plugin's output would leave --clean's

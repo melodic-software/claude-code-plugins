@@ -33,7 +33,11 @@ worktree matches HEAD while the staged entry survives — [`git diff <commit>` c
 tree, never the index](https://git-scm.com/docs/git-diff) — a false pass no post-generation diff
 form can reach. Untracked output stays outside the guard, since regeneration reproduces it
 identically, so the ordinary "forgot to regenerate" flow still fails at the post-generation check
-rather than the guard. The example's `install-hint` gains the Buf CLI alongside
+rather than the guard. The comment also states `--clean`'s own precondition, which the example can
+state but not enforce: it deletes whole output directories, so every `out` must be dedicated to
+generated output — a hand-maintained file inside one is deleted with the rest and no pathspec the
+example can write would report it, and a repo that cannot dedicate its `out` directories has to
+drop `--clean` and give up orphan detection. The example's `install-hint` gains the Buf CLI beside
 golangci-lint and the Go toolchain: `install-hint` is per-ecosystem, so a tool-presence skip on the
 new gate would otherwise reuse a hint that cannot install the executable it is missing.
 Deferred from melodic-software/claude-code-plugins#1361 via #1462 (a
