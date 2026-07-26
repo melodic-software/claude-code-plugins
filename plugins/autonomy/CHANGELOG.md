@@ -6,6 +6,22 @@ All notable changes to the `autonomy` plugin are documented here. Format follows
 Versions 0.1.0–0.7.0 predate this file (introduced with 0.7.1); their history lives in the
 merged work-package PRs (#333, #343, #356, #372, #377, #600, #676).
 
+## [0.11.1]
+
+### Fixed
+
+- **Shared `hook-utils.sh`: a bare or trailing unquoted `NAME=value` Bash
+  command no longer leaks the assignment value into the privacy-safe
+  telemetry/audit subject.** `hook::extract_bash_subject` stripped a leading
+  `VAR=value` prefix only when a following command word consumed it, so a
+  command whose LAST token was an unquoted assignment (e.g. `TOKEN=ghp_…`)
+  survived to the subject and emitted `Bash:TOKEN=ghp_…` into
+  `hook-events.jsonl` and any wired `HOOK_TELEMETRY_SINK`. A resolved token
+  still shaped like a shell assignment now bails to the bare `Bash` subject,
+  matching the existing quoted-value bail (`VAR=x cmd` still reduces to
+  `Bash:cmd`). Synced from `lib/hook-utils.sh`; the subject is
+  telemetry/audit-only, so no hook block/allow behavior changes.
+
 ## [0.11.0]
 
 ### Added
