@@ -75,6 +75,8 @@ Microsoft's defaults are right for autonomous E2E work. Don't add `PLAYWRIGHT_MC
 | Console level | `info` | Actionable errors/warnings without debug noise |
 | Viewport | 1280×720 | Standard laptop — matches most users' view |
 
+**One exception — video recording.** The video frame size is derived from the viewport at browser-context creation, then fitted into an 800×800 box, so a bare `video-start` records at 800×450 no matter what you do afterwards; `resize` does not change it. Recording at any other size takes two matched levers — `PLAYWRIGHT_MCP_VIEWPORT_SIZE=<W>x<H>` prefixed on the `open` command *plus* `video-start --size "<W>x<H>"`. That is a per-command prefix, not a project-settings entry, so it does not contradict the guidance above. Details and measured outcomes: [reference/tracing-and-video.md](reference/tracing-and-video.md).
+
 The full env var / config file schema lives in Microsoft's upstream README at `$(npm root -g)/@playwright/cli/README.md` — not duplicated here.
 
 ## Actions
