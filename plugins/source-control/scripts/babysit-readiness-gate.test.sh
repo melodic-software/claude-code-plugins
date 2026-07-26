@@ -614,6 +614,58 @@ for wellformed in '[]' '[{"author":"me[bot]","body":""}]'; do
     "$wellformed_out" "READINESS_OK findings=0"
 done
 
+# A snapshot read that FAILS after emitting a syntactically valid prefix must be
+# unreadable, not empty. `cat` can print a valid head and then hit an I/O error;
+# ignoring its status left the shape check validating that prefix, so a file
+# whose readable head is `[]` passed as an empty array while the real findings
+# sat in the part that never arrived — READINESS_OK findings=0 over a truncated
+# read. Injected with a cat stub for the same portability reason as the grep
+# stub above: no file state reproduces a mid-read failure everywhere.
+BADCAT_BIN="$TEST_TMPDIR/bin-badcat"
+mkdir -p "$BADCAT_BIN"
+REAL_CAT=$(command -v cat)
+cat >"$BADCAT_BIN/cat" <<STUB
+#!/usr/bin/env bash
+case "\$*" in
+  *truncated-read.json*)
+    printf '[]'
+    exit 1
+    ;;
+esac
+exec "$REAL_CAT" "\$@"
+STUB
+chmod +x "$BADCAT_BIN/cat"
+CKT="$TEST_TMPDIR/truncated-read.json"
+printf '%s' '[{"author":"claude[bot]","body":"[P1] real"}]' >"$CKT"
+truncated_out=$(PATH="$BADCAT_BIN:$PATH" bash "$GATE" 327 --comments-json "$CKT" --self 'me[bot]' 2>/dev/null)
+truncated_rc=$(
+  PATH="$BADCAT_BIN:$PATH" bash "$GATE" 327 --comments-json "$CKT" --self 'me[bot]' >/dev/null 2>&1
+  echo $?
+)
+assert_contains "failed snapshot read carries UNPROVEN" "$truncated_out" \
+  "READINESS_UNPROVEN reason=comments-unreadable"
+assert_not_contains "failed snapshot read never claims READINESS_OK" "$truncated_out" \
+  "READINESS_OK"
+assert_exit "failed snapshot read exit 4" 4 "$truncated_rc"
+# The same read on the Python-free degrade path, which is where the fail-open is
+# outright rather than merely latent: the bash counters read the truncated `[]`
+# and report zero, and without the read-status check nothing else contradicts
+# them. (With the refinement available, babysit_findings.py re-reads the file and
+# recovers the finding, so the full path masked this as BLOCKED rather than OK.)
+bashonly_out=$(BABYSIT_READINESS_BASH_ONLY=1 PATH="$BADCAT_BIN:$PATH" \
+  bash "$GATE" 329 --comments-json "$CKT" --self 'me[bot]' 2>/dev/null)
+assert_contains "failed snapshot read is UNPROVEN on the degrade path too" \
+  "$bashonly_out" "READINESS_UNPROVEN reason=comments-unreadable"
+assert_not_contains "failed snapshot read never reads as zero findings" \
+  "$bashonly_out" "READINESS_OK findings=0"
+# The stub must not be a blanket cat failure, or the assertions above would hold
+# for the wrong reason: the same PATH with a readable snapshot still verdicts.
+CKR="$TEST_TMPDIR/readable-read.json"
+printf '%s' '[{"author":"me[bot]","body":"no findings"}]' >"$CKR"
+readable_out=$(PATH="$BADCAT_BIN:$PATH" bash "$GATE" 328 --comments-json "$CKR" --self 'me[bot]' 2>/dev/null)
+assert_not_contains "badcat stub leaves a readable snapshot alone" "$readable_out" \
+  "READINESS_UNPROVEN"
+
 # A null `.author` is a real GitHub shape, not a malformed one: a comment whose
 # account was deleted comes back that way and fetch-all-pr-comments.sh passes it
 # through. Rejecting it would leave any PR carrying such a comment permanently

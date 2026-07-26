@@ -98,6 +98,13 @@ All notable changes to the `source-control` plugin are documented here. Format f
   strings, which is exactly how the counters consume them (`author` matched against the self list,
   `body` grepped for severity markers); a non-string in either position is unreadable, not empty. An
   empty array and an empty `body` string stay legitimate and still reach a verdict.
+- **A snapshot read that fails partway is unreadable, not empty.** `--comments-json` was read with
+  `$(cat …)` and the exit status ignored, so a `cat` that emitted a syntactically valid prefix and
+  then hit an I/O error left the shape check validating that prefix. A file whose readable head is
+  `[]` passed as an empty array while the real findings sat in the part that never arrived. On the
+  Python-free degrade path that is `READINESS_OK findings=0` outright; with the refinement available
+  it was masked, because `babysit_findings.py` re-reads the file itself. The read status now routes
+  through `READINESS_UNPROVEN reason=comments-unreadable` before the payload is examined at all.
 - **A comment from a deleted GitHub account no longer makes the gate permanently unprovable.** The
   element check required `.author` to be a string, but GitHub returns `author: null` for a comment
   whose account was deleted and `fetch-all-pr-comments.sh` passes that through — so one such

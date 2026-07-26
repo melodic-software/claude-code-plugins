@@ -206,7 +206,16 @@ if [[ -n "$COMMENTS_JSON" ]]; then
     printf 'babysit-readiness-gate: --comments-json file not found: %s\n' "$COMMENTS_JSON" >&2
     unproven bad-args 3
   fi
-  COMMENTS="$(cat "$COMMENTS_JSON")"
+  # The read status is part of the payload's validity, not a detail below it.
+  # `cat` can emit a syntactically valid PREFIX and then fail — a truncating I/O
+  # error mid-file — and the shape check downstream would then validate that
+  # prefix and accept it: a snapshot whose readable head happens to be `[]`
+  # would pass as an empty array while the real `[P1]` findings sat in the part
+  # that never arrived. A partial read is unreadable, not empty.
+  COMMENTS="$(cat "$COMMENTS_JSON")" || {
+    printf 'babysit-readiness-gate: could not read --comments-json file: %s\n' "$COMMENTS_JSON" >&2
+    unproven comments-unreadable 4
+  }
 else
   COMMENTS="$(bash "$SCRIPT_DIR/fetch-all-pr-comments.sh" "$PR_NUMBER")" || {
     printf 'babysit-readiness-gate: could not fetch comments for PR %s (fetch-all-pr-comments error above).\n' "$PR_NUMBER" >&2
