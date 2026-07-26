@@ -25,9 +25,12 @@ All notable changes to the `source-control` plugin are documented here. Format f
   after it, so `autopilot --merge human-only` merges nothing; the order is tracked rung → the
   `autopilot` raise → any explicitly argued lower rung → the C4/C5 ceiling.
 - **The C4/C5 floor reads the pull request, not the linked item's stamp.** `work-classes.md` assigns
-  a class from the risk-property bundle, "not the task's surface description". C5 follows the code's
-  provenance — a cross-repository head or another external-contribution signal on the PR — so a fork
-  PR closing an internally classified C2/C3 issue is still C5; the partition never tests the author
+  a class from the risk-property bundle, "not the task's surface description". C5 is two executable
+  snapshot tests, either marking C5 and each failing closed when its field is unavailable: a
+  cross-repository head (`isCrossRepository` / `headRepositoryOwner`), or an `authorAssociation`
+  other than `OWNER`/`MEMBER` — catching the outside collaborator whose base-repository branch
+  passes the fork test while still being an external contribution. A fork PR closing an internally
+  classified C2/C3 issue is still C5; the partition never tests the author
   login against `babysit_watched_owners`, which is a repository-owner allowlist rather than a
   trusted-author list and would call every internally authored PR on an org-owned repo C5. C4
   follows the diff's blast radius: a refactor, migration, or contract change is C4 however its item
@@ -48,6 +51,14 @@ All notable changes to the `source-control` plugin are documented here. Format f
   provenance, C4-diff, and rung partition rerun before the merge-capable invocation, so a resolution
   that expanded a C2/C3 change into a refactor or contract change leaves the eligible set rather
   than merging under a stale classification.
+- **Partition eligibility is pinned to the head SHA it examined — for every push, not only the
+  resolver's.** The merge-capable invocation carries the partitioned head as its merge gate's
+  `--expected-head`; a normal worker fix-push (babysit-prs Autopilot steps 1–2) moves the head off
+  the pin, the pinned gate's head-match refusal blocks the merge deterministically, and the
+  invocation reports the new head instead of re-pinning (babysit-prs gains the matching named
+  "Lane-pinned merge authorization" exception in `reference/safety.md`). The lane reruns the
+  partition on the post-push head and only a still-eligible PR gets a fresh merge-capable
+  invocation pinned to it — no head merges that the partition did not class-check.
 - **The widening lasts the invocation that typed it, not one cycle.** Every `/loop` wakeup
   re-invokes the same prompt in the same session and carries the same explicit authorization, so the
   rung does not silently drop after the first cycle and no operator input is awaited that a loop
@@ -66,6 +77,7 @@ All notable changes to the `source-control` plugin are documented here. Format f
   This was already the autonomy matrix's promotion contract ("never promotes"); `babysit-loop`,
   `reference/config-resolution.md`, and the convention now say so explicitly rather than leaving it
   to be inferred from a rung name.
+
 ## [0.31.8]
 
 ### Fixed

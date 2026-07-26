@@ -182,8 +182,10 @@ new intake arriving mid-cycle is reported, never chased.
 
 1. **Re-anchor.** Re-read the durable loop state block from the telemetry comment (conversation
    context is compaction-lossy — the comment is the source of truth for the counters); classify
-   guard mode against the floor below; take the cycle-start snapshot: open PRs with head SHAs and
-   last-activity timestamps, and — in drain mode — open issues.
+   guard mode against the floor below; take the cycle-start snapshot: open PRs with head SHAs,
+   last-activity timestamps, and the provenance fields the rung partition consumes
+   (`isCrossRepository`, `headRepositoryOwner`, `authorAssociation`), and — in drain mode — open
+   issues.
 2. **Grace-window overlay.** From the snapshot, mark every PR whose head moved or that received
    comments within the grace window (default 30 minutes), and every draft carrying a WIP signal (a
    work-in-progress title marker, a do-not-merge label, or non-green checks). Marked PRs are
@@ -219,9 +221,16 @@ new intake arriving mid-cycle is reported, never chased.
    the rung comparison above. **Both are tests on the PR, not lookups of the linked item's stamp**:
    `work-classes.md` assigns a class from the risk-property bundle — blast radius, reversibility,
    provenance — and "the bundle — not the task's surface description — is what assigns a class".
-   - **C5 — the code's provenance.** Derive it from the cycle-start snapshot: a head repository
-     other than the base (`isCrossRepository`, `headRepositoryOwner`), or another
-     external-contribution signal on the PR itself. Never test the author login against
+   - **C5 — the code's provenance.** Two tests on the cycle-start snapshot, either one marking the
+     PR C5, each failing closed to C5 when its field is missing or unreadable. **Fork test:** the
+     head repository is not the base (`isCrossRepository: true`, or `headRepositoryOwner` differing
+     from the base owner). **Trust test:** the PR's provider-computed `authorAssociation` is
+     anything other than `OWNER` or `MEMBER` — `COLLABORATOR` is an outside collaborator, whose
+     push to a base-repository branch has `isCrossRepository: false` and so passes the fork test
+     while being exactly the same-repository external contribution the governing C5 definition
+     includes; `CONTRIBUTOR`, `NONE`, and every other value are likewise external. Vague
+     "other signals" are not a test: these two fields are the executable surface, and absence of
+     either is C5, never a pass. Never test the author login against
      `babysit_watched_owners`: that key is a repository-owner allowlist, not a trusted-author list
      (`babysit-prs/SKILL.md`, "Scope resolution"), so on an org-owned repository it would call
      every internally authored PR C5. A fork PR closing an internally classified C2/C3 issue is
@@ -230,6 +239,17 @@ new intake arriving mid-cycle is reported, never chased.
      change is a refactor, migration, or contract change is C4 however its item is stamped, and a
      PR whose shape no longer matches its recorded class **fails closed** to escalation rather than
      to the stamp.
+   - **The verdict authorizes a head SHA, not the PR.** This partition class-checked the snapshot
+     head's diff, so eligibility is pinned to that SHA: the merge-capable invocation carries the
+     partitioned head as its merge gate's `--expected-head` pin, and the gate's head-match refusal
+     (`babysit-prs/SKILL.md`, "Guarded mutations") is what makes the binding deterministic rather
+     than narrative. Any worker push — an ordinary CI or review-finding fix (babysit-prs Autopilot
+     steps 1–2), not only the pre-escalation resolver's — moves the head off the pin; the pinned
+     gate then refuses the merge, and the invocation ends by reporting the new head instead of
+     re-pinning (babysit-prs Autopilot step 3's lane-pin exception). The lane re-snapshots, reruns
+     this partition — provenance, C4-diff, rung — on the post-push head, and only a PR still in
+     the eligible set gets a fresh merge-capable invocation pinned to the new head. No head merges
+     under this lane that this partition did not class-check.
 4. **Invoke the mechanic.** Every invocation uses babysit-prs's own `[mode] [scope]` grammar in
    its single-PR scope form (`owner/repo#N`) — the lane's own step-2 snapshot is the discovery
    surface, so no repo-wide invocation ever runs and a PR the lane withheld is never presented
@@ -335,7 +355,10 @@ If the dispatch resolves the blocker, **re-snapshot the PR and rerun step 3's pr
 rung partition before** its normal `autopilot`-tier invocation and gate — the first partition read
 the cycle-start diff, and a resolution that pushed code can have turned a C2/C3 change into a
 refactor, migration, or contract change that the downstream merge gate does not class-check. A PR
-that leaves the eligible set on that second partition escalates instead of merging. If the dispatch
+that leaves the eligible set on that second partition escalates instead of merging. This is the
+same head-pinning rule the normal worker's own final push obeys (Cycle shape, step 3, "The verdict
+authorizes a head SHA, not the PR"): resolver dispatch and merge-capable worker alike move the
+head, and both routes converge on a partition of the exact head that merges. If the dispatch
 cannot resolve the blocker — including any case where the subagent itself is uncertain the
 resolution is correct — the PR escalates exactly as it would without this exception; this dispatch
 adds one resolution attempt, it never removes the escalation path or lowers the gate's bar.

@@ -156,8 +156,9 @@ a human. Per PR, in its own fresh worker, autopilot:
    `source-control-babysit-merge` gate once it proves the PR ready. The exact command — and the
    `--autopilot-merge-tier` flags the enabled tier layers on so an enabled config never merges
    via the base path — is the single home in [reference/safety.md](reference/safety.md). Never
-   reuse the pre-worker snapshot pin after a push. The gate is never bypassed; if a PR cannot be
-   made ready, autopilot reports that one PR and moves on.
+   reuse the pre-worker snapshot pin after a push — except a lane-pinned invocation ([reference/safety.md](reference/safety.md),
+   "Lane-pinned merge authorization"), which reports the moved head instead of re-pinning. The
+   gate is never bypassed; if a PR cannot be made ready, autopilot reports that one PR and moves on.
 
 "Every PR" means every PR: the orchestrator's own priority judgment is never grounds to leave
 a queue member untouched. The only permitted exclusions are the deterministic ones — lease

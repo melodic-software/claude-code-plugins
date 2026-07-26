@@ -30,7 +30,12 @@ A change to the autonomy-ladder invariant is a major bump per this file's own ru
 - **The floor reads the pull request, and the dispatch holds its lease.** C5 follows the code's
   provenance and C4 the diff's blast radius, both derived from the PR rather than the linked item's
   stamp, with a class/diff mismatch failing closed; a repository-owner allowlist never substitutes
-  for the provenance test. The dispatch runs under the PR's own worker lease and resolves its
+  for the provenance test. The provenance test is executable, not a vibe: a cross-repository head,
+  or an author the provider does not attest as an owner or member of the base repository — an
+  outside collaborator on a base-repository branch is external despite a same-repository head — and
+  an unavailable signal fails closed to C5. The floor's verdict attaches to the exact head SHA it
+  examined: any later push, the resolver's or the merge-capable worker's own, re-derives the
+  verdict before any merge. The dispatch runs under the PR's own worker lease and resolves its
   capability tier through §3's binding, never a family alias fixed in a lane.
 - **Capability tiers** — the explicit-`autopilot` exception's frontier-tier dispatch additionally
   requires context independence: no shared conversation history with whatever produced or previously

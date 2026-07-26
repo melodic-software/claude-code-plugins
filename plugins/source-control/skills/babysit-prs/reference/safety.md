@@ -336,6 +336,20 @@ auto-mode safety classifier and blocks the call before the wrapper runs.
   Treat a thread as cleared only when its own entry shows `"action": "resolved"`, and a merge as
   performed only when the merge output's `action` field says so.
 
+### Lane-pinned merge authorization: report, don't re-pin
+
+A single-PR merge-capable invocation dispatched by `source-control:babysit-loop`'s rung partition
+carries the lane's **partitioned head SHA** as its merge authorization: the merge gate's
+`--expected-head` is that partitioned head, never a fresher head this invocation picked itself. The
+lane's partition class-checked exactly that head's diff (work class C2/C3 against the C4/C5 floor),
+and this skill's merge gate does not class-check — so a worker push that moves the head off the pin
+is not a cue to re-pin, it is the end of this invocation's merge authority. The pinned gate's
+head-match refusal enforces the boundary deterministically; the invocation reports the new head and
+stops, and the lane reruns its partition on the post-push diff before any merge-capable
+re-invocation (`babysit-loop/SKILL.md`, Cycle shape step 3, "The verdict authorizes a head SHA, not
+the PR"). Every other invocation of this skill re-pins to the vetted post-push head exactly as
+Autopilot step 3 describes.
+
 ### Security/P1 escalation: the one named exception
 
 Escalating a security/P1 thread instead of resolving it holds in every tier, autopilot included.

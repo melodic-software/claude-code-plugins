@@ -81,12 +81,16 @@ explicit `human-only` merge rung merges nothing — the resolution order is trac
 **The C4/C5 floor tests the PR, not the item's stamp.** `work-classes.md` assigns a class from the
 risk-property bundle, "not the task's surface description", so a lane implementing the floor derives
 both from the pull request before comparing any recorded class to the rung. C5 follows the code's
-provenance — a cross-repository head or another external-contribution signal on the PR — which
+provenance — a cross-repository head, or an author the provider does not attest as an owner or
+member of the base repository (an outside collaborator pushing a base-repository branch is external
+despite a same-repository head; a missing or unreadable signal fails closed to C5) — which
 "dominates every other property", so a fork PR closing an internally classified C2/C3 item is still
 outside the exception; a repository-owner allowlist is not a trusted-author list and never stands in
 for that test. C4 follows the diff's blast radius: a refactor, migration, or contract change is C4
 however its item is stamped, and a PR whose shape no longer matches its recorded class fails closed
-to escalation.
+to escalation. The floor's verdict attaches to the exact head SHA it examined: any push after the
+verdict — the pre-escalation resolver's or the merge-capable worker's own fix alike — re-derives
+the verdict on the new head before any merge, so no head merges that the floor never examined.
 
 Every PR this exception reaches that is blocked on a **machine-escalated** `needs-human` item, a
 contradictory or security-relevant **machine-authored** review thread, or an open finding gets a
