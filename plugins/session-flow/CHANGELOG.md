@@ -51,7 +51,9 @@
 - **`context/gotchas.md`** — the skill had no gotchas surface (a `skill-quality:check` warning). It
   records four earned failure modes: the nesting ceiling outrunning the prose docs, a denied spawn
   being misread as a depth answer, a clean worker return that is a wrong-target return, and priming
-  being mistaken for emitting.
+  being mistaken for emitting. Routed from the Purpose section alongside `context/sources.md`, so it
+  actually enters working context — a spoke the hub never points at clears the static check without
+  changing behavior.
 - **Two eval cases covering decision-criteria quality, not just export mechanics.** The existing
   five all tested formatting and emission; nothing exercised the judgments the skill is for.
   `sizes-small-ask-single-agent` forces a size classification on a concrete small ask, and

@@ -19,8 +19,8 @@ the session and therefore inherit none of its context: a spawned subagent/teamma
 you will `/clear` into, or a non-Claude-Code tool. Export is model- and tool-agnostic by
 construction — nothing in the pasted text depends on a specific model, env var, or repo file.
 
-The official sources and quotes behind each imperative: `context/sources.md` (read only when
-judging a coverage question or extending the skill).
+Sources and quotes behind each imperative: `context/sources.md`; observed failure modes:
+`context/gotchas.md`. Read gotchas before authoring a nested tree or trusting a worker's return.
 
 ## Actions
 
