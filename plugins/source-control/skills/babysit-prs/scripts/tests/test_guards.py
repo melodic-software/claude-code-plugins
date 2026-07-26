@@ -488,6 +488,9 @@ class DocumentedCommandsMatchTheParsers(unittest.TestCase):
         would pass. Argparse renders the usage block from the registered option
         strings and nothing else, so it -- not the description, not the help
         text -- is the registry. It runs from `usage:` to the first blank line.
+
+        `--help` is the one registered long option usage never renders, so it is
+        added back on the evidence of this call itself.
         """
         proc = subprocess.run(
             [sys.executable, str(contract.plugin_path(cli)), "--help"],
@@ -501,9 +504,13 @@ class DocumentedCommandsMatchTheParsers(unittest.TestCase):
         )
         usage = proc.stdout.split("usage:", 1)[1].split("\n\n", 1)[0]
         flags = set(re.findall(r"(?<![\w-])--[a-z0-9][a-z0-9-]*", usage))
-        # `--help` is deliberately absent: argparse renders it as `-h` in usage.
         self.assertTrue(flags, f"{cli} usage block parsed to no long options")
-        return flags
+        # `--help` never appears in usage -- argparse renders the pair as `-h`.
+        # Its evidence is this call: the invocation above IS `--help` and it
+        # exited 0, which is a stronger proof of acceptance than the usage text
+        # gives for any other flag. Omitting it would reject the reachability
+        # canary, whose whole point is an argument-shape-only invocation.
+        return flags | {"--help"}
 
     def test_prose_only_flags_are_not_read_as_accepted(self) -> None:
         # The regression this parse exists to prevent, pinned: `--admin` appears
@@ -646,6 +653,46 @@ class GeneratedDocIsCurrent(unittest.TestCase):
             "reference/guard-contract.md is stale -- regenerate it with"
             " `python tests/guard_contract.py --emit`",
         )
+
+
+class SetupReachabilityCanaryContract(unittest.TestCase):
+    """The setup skill's #787 probe invokes a real wrapper as a permission canary.
+
+    Its whole value is that a denial there is a FAILED prerequisite rather than an
+    INFO note -- which only holds if the target is provably harmless and stays
+    pinned to the form the lane actually mandates. The wrapper's own exit-0,
+    no-network behaviour is exercised in bash by
+    plugins/source-control/scripts/babysit-wrapper-help.test.sh; what is pinned
+    here is that the skill still names that exact invocation.
+    """
+
+    SETUP = contract.plugin_path("skills/setup/SKILL.md")
+
+    def test_setup_skill_pins_the_canary_and_fails_on_denial(self):
+        setup = " ".join(self.SETUP.read_text(encoding="utf-8").split())
+
+        self.assertIn(
+            'bash "${CLAUDE_PLUGIN_ROOT}/bin/source-control-babysit-merge" --help',
+            setup,
+        )
+        # Both path prefixes are canaries: an allow rule or classifier decision
+        # covering bin/ says nothing about scripts/, and the readiness gate is
+        # the path the lane's own verdict travels.
+        self.assertIn(
+            'bash "${CLAUDE_PLUGIN_ROOT}/scripts/babysit-readiness-gate.sh" --help',
+            setup,
+        )
+        self.assertIn("denial on either is a FAILED prerequisite", setup)
+        # A pass is asymmetric with a denial: the classifier decides per call, so
+        # a permitted --help cannot certify the production shapes. The skill must
+        # keep saying so, and must keep naming the mechanism that covers the gap.
+        self.assertIn("A pass is reachability, not a guarantee", setup)
+        self.assertIn("READINESS_UNPROVEN", setup)
+        self.assertIn("quote that stdout verbatim", setup)
+        # The dropped scope-enumeration clause must not creep back: managed
+        # settings are not locally readable, so it had no executable path.
+        self.assertNotIn("not a project's `.claude/` settings", setup)
+        self.assertIn("claude auto-mode config", setup)
 
 
 if __name__ == "__main__":
