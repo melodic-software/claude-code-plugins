@@ -397,6 +397,23 @@ RC=$?
 assert_exit "unstaged deletion → exit 0" 0 "$RC"
 assert_contains "unstaged deletion is not a sparse exemption → fires" "$OUT" \
   "STALE_PATH: docs/restored.md"
+
+# assume-unchanged (`ls-files -v` tag `h`) is deliberately NOT exempted. It is a
+# stat-skipping performance promise about a path the user keeps on disk, not a
+# declaration that the path is absent by design, so a deleted one is a real
+# working-tree disappearance — the same shape as the unstaged deletion above.
+# Exempting `h` would reinstate the suppression this change removes, for a
+# narrower set. #1509's acceptance text names the variant alongside
+# skip-worktree; only `S` earns the exemption, and this case pins that.
+git -C "$SPARSE" update-index --assume-unchanged docs/restored.md >/dev/null 2>&1
+OUT=$(CLAUDE_PROJECT_DIR="$SPARSE" bash "$HOOK" \
+  <<<"$(write_json "$SPARSE_TARGET" 'Read `docs/restored.md` first.')" 2>&1)
+RC=$?
+assert_exit "assume-unchanged deletion → exit 0" 0 "$RC"
+assert_contains "assume-unchanged is not a sparse exemption → fires" "$OUT" \
+  "STALE_PATH: docs/restored.md"
+git -C "$SPARSE" update-index --no-assume-unchanged docs/restored.md >/dev/null 2>&1
+
 git -C "$SPARSE" update-index --skip-worktree docs/restored.md >/dev/null 2>&1
 
 # The index check must not swallow a genuine removal. Same repo, same absence from
