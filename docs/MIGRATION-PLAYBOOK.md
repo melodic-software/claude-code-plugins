@@ -841,6 +841,42 @@ Reviewed at `0.1.0`; a version bump adding a new trust surface re-triggers this 
 with sanitized untrusted input; 3 empty; 4 conforms under the documented operator-home seam
 carve-out.
 
+### Delta review — statusline shim (`context-guard` 0.2.0, `rate-limit-guard` 0.2.0, ACCEPT, 2026-07-24)
+
+Triggered by the review record's own rule: both plugins' `setup apply` now writes an EXECUTABLE
+(`bin/statusline-shim.sh`) into the plugin's operator-home directory, where `apply` previously
+wrote only data (`zones.json`) or nothing at all. Reviewed as a delta; the base records stand.
+
+- **Code execution (1).** The write is a byte-identical copy of a reviewed, tested, bundled script
+  — no generation, no templating, no operator-supplied content, so nothing enters it that was not
+  already in the plugin. Critically, **the copy is inert until the operator wires it**: it is not
+  on `PATH`, not a hook, and not referenced by any Claude Code surface, so the base record's
+  justification for having no kill switch — "nothing runs unless the operator wires it, and
+  unwiring is the same one-line edit" — survives verbatim. The shim itself has no untrusted input
+  (its only inputs are its own argv and the cache directory listing), performs no filesystem
+  writes, and `exec`s either the resolved tee or the wrapped command. The resolution glob skips
+  transient `temp_*` marketplace directories; the residual case — two distinct marketplaces both
+  shipping a plugin of the same name — resolves to the most recently installed one and is
+  documented in the script.
+- **Consumer config (3).** Unchanged. The shim is not configurable and reads no config.
+- **Cache isolation (4).** The write stays inside the same operator-home carve-out already accepted
+  for these plugins (`~/.claude/context-guard/`, `~/.claude/rate-limit-guard/`); each plugin's
+  `apply` is explicitly forbidden from writing into the sibling's directory. `${CLAUDE_PLUGIN_DATA}`
+  was considered and rejected as the shim's home: it is deleted on uninstall, which would leave a
+  wired statusline pointing at a missing file — the exact 127-exit failure this change removes —
+  and its per-plugin-identity path would hardcode the marketplace name into the operator's
+  settings.
+- **Main-thread / PATH (7).** Still none. `bin/` here is a plugin-owned operator-home subdirectory,
+  NOT the plugin `bin/` component that joins the Bash tool's `PATH` (which stays rejected
+  marketplace-wide); the shim is invoked only by absolute path from the operator's `statusLine`.
+- **Surfaces 2, 5, 6.** Unchanged: no MCP servers, no network or telemetry of any kind, first-party
+  MIT code.
+
+**Verdict: ACCEPT** — the new surface is one inert, byte-identical copy of already-reviewed code
+into an already-accepted directory, on explicit operator request, with the no-kill-switch
+justification intact. Uninstall leaves the shim behind by design; it then degrades to running the
+operator's statusline unchanged, and both setup skills document the two-step manual cleanup.
+
 ### Review record — `plugin-quality` (ACCEPT, 2026-07-24)
 
 Reviewed at `0.1.0`; a version bump adding a new trust surface re-triggers this review. Data
