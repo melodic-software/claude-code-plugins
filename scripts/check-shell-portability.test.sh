@@ -403,6 +403,42 @@ else
 fi
 rm -f "$f"
 
+# --- a cluster letter AFTER a quoted pair is still part of the same word, so
+# letters and quoted chunks interleave rather than the letters having to come
+# first (#1546). Verified on bash: `grep -P"a"i '\d'` matches a digit where a
+# -P-less grep does not, `sort -V"r"f` reverse version-sorts, and
+# `echo -e"n"E 'a\tb'` consumes the whole word as the `-enE` option cluster
+# (nothing of it is printed).
+f="$(tmpsh "$(printf '%s\n' \
+  'grep -P"x"i pattern file' \
+  "grep -P'x'i pattern file" \
+  'sort -V"r"f file' \
+  "echo -e\"n\"E 'a\\tb'")")"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "a cluster letter after a quoted pair should be flagged, got success: $out"
+elif [[ "$(echo "$out" | grep -c "PORTABILITY: ${f}:")" -eq 4 ]]; then
+  ok "cluster letters and quoted chunks interleave in either order"
+else
+  fail "expected all 4 interleaved forms flagged, got: $out"
+fi
+rm -f "$f"
+
+# --- ...and the option scan stops at a shell command separator (#1546), the
+# same rule the mktemp -p token carries: a physical line is not a command, so
+# with `|` and `;` in the boundary a LATER command's option-shaped argument
+# was being attributed to an earlier grep/sort.
+f="$(tmpsh "$(printf '%s\n' \
+  "grep foo /dev/null; printf '%s\\n' -P|cat" \
+  "sort /dev/null; printf '%s\\n' -V|cat" \
+  "grep foo /dev/null && printf '%s\\n' -P" \
+  "sort /dev/null && printf '%s\\n' --sort=version")")"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  ok "a later command's -P/-V/--sort argument is not attributed to grep/sort"
+else
+  fail "the option scan must stop at a command separator, got: $out"
+fi
+rm -f "$f"
+
 # --- a process substitution attached to an option word is the same shape as an
 # attached quote, not a redirection (#1546): the shell concatenates `<(`/`>(`
 # into the current word, so bash runs `echo -e<(printf x)` as the single
