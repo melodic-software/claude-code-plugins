@@ -2023,6 +2023,84 @@ else
   fail "commented wording should not satisfy check 21 (rc=$rc): $out"
 fi
 
+# 37w. Check 21: the directive name needs a terminator. An ordinary comment about
+#      "fresh-eyes-exemption" shares the prefix but is not a directive, and a
+#      prefix-only match FAILed the skill on prose.
+make_skill fe-name-prefix '---
+name: fe-name-prefix
+description: "Fresh-eyes fixture. Use when: '"'"'fe name prefix fixture'"'"'."
+---
+
+## Steps
+
+Prose: <!-- fresh-eyes-exemption is explained here -->
+
+## Gotchas
+
+None known.
+'
+out="$(run fe-name-prefix 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && ! grep -q 'fresh-eyes-exempt directive' <<<"$out"; then
+  pass "a longer name sharing the directive prefix is not a directive (check 21)"
+else
+  fail "fresh-eyes-exemption prose should not parse as a directive (rc=$rc): $out"
+fi
+
+# 37x. Check 21: an ambiguous directive cannot satisfy a judgment step either. A
+#      literal exemption inside an indented example must not silence the WARN.
+make_skill fe-ambiguous-proximity '---
+name: fe-ambiguous-proximity
+description: "Fresh-eyes fixture. Use when: '"'"'fe ambiguous proximity fixture'"'"'."
+---
+
+## Steps
+
+Self-review your own work.
+
+An indented example:
+
+    <!-- fresh-eyes-exempt: deferred -- literal example, not a live exemption -->
+
+## Gotchas
+
+None known.
+'
+out="$(run fe-ambiguous-proximity 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q 'same-context judgment language with no' <<<"$out"; then
+  pass "an ambiguous directive does not satisfy a judgment step (check 21)"
+else
+  fail "indented literal exemption should not silence the WARN (rc=$rc): $out"
+fi
+
+# 37y. Check 21: YAML frontmatter is not markdown. A block-scalar description
+#      carrying an example fence opened a fence that the closing --- never ended,
+#      which swallowed the whole body and passed the file silently.
+make_skill fe-frontmatter-fence '---
+name: fe-frontmatter-fence
+description: >-
+  Fresh-eyes fixture carrying an example fence. Use when: '"'"'fe frontmatter fence fixture'"'"'.
+  ```text
+  and prose after it.
+---
+
+## Steps
+
+<!-- fresh-eyes-exempt: bogus -- wrong class stays malformed -->
+
+## Gotchas
+
+None known.
+'
+out="$(run fe-frontmatter-fence 2>&1)"
+rc=$?
+if [[ $rc -ne 0 ]] && grep -q 'malformed fresh-eyes-exempt directive' <<<"$out"; then
+  pass "a fence inside frontmatter does not suppress the body (check 21)"
+else
+  fail "directive after a frontmatter fence should FAIL (rc=$rc): $out"
+fi
+
 # 37. Check 21: a skill with no judgment language emits nothing from check 21
 #     (good-skill re-run guards against detector overreach).
 out="$(run good-skill 2>&1)"

@@ -46,11 +46,23 @@ All notable changes to the `skill-quality` plugin are documented here. Format fo
   it emits neither `DIRECTIVE_MALFORMED` nor `DIRECTIVE_NOREASON` there (nor the stale WARN)
   rather than failing an author on a parser artifact. The judgment path still runs. The asymmetry
   is the whole argument: those two verdicts are hard FAILs, while the judgment verdicts are WARNs
-  where a miss costs one nudge. This posture is specific to check 21 — it must not be carried into
+  where a miss costs one nudge. Ambiguity cuts both ways: such a directive also cannot satisfy a
+  nearby judgment step, so a literal exemption inside an indented example does not silence the
+  warning that step deserves. This posture is specific to check 21 — it must not be carried into
   a gate whose verdict is a security decision.
 
 ### Fixed
 
+- **The directive name requires a terminator.** A prefix-only match read an ordinary comment about
+  a longer identifier (`<!-- fresh-eyes-exemption is explained here -->`) as a directive and FAILed
+  the skill on prose. The name must now be followed by `:`, whitespace, or `-->`.
+- **YAML frontmatter is no longer parsed as markdown.** A block-scalar `description` carrying an
+  example fence opened a fence that the closing `---` never ended, so the whole body was suppressed
+  and the file passed silently with its judgment language and any malformed directive unexamined.
+  The region is skipped and every structural carry resets at its terminator. Skipping it also drops
+  four spurious judgment hits measured across this marketplace — all in a `description` field, which
+  is listing metadata rather than a procedural step, so three advisory WARNs and one note go with
+  them. No skill's pass/fail verdict changes.
 - README check-count references were stale (still "eighteen"/"seventeen" after checks
   19–20 shipped); counts now derive from the current twenty-one and the checks list
   includes the injection-portability and fresh-eyes rows.

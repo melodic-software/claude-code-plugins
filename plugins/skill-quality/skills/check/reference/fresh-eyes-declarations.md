@@ -107,6 +107,10 @@ cannot tell. A finding against this check is measured against this list, not aga
   text rather than a directive; inside a span nothing is escaped, so a literal backslash before the
   closing run does not stop it closing.
 - **Multiple directives on one line**, each classified independently and bounded at its own `-->`.
+  The name must be followed by `:`, whitespace, or `-->`, so an ordinary comment about a longer
+  identifier such as `fresh-eyes-exemption` is not read as a directive.
+- **YAML frontmatter is skipped**, not parsed as markdown: nothing in it is a fence, a span, or a
+  directive, and every structural carry resets at its closing `---`.
 - **Whole-word wording boundaries** on both halves of Form 1, so `agentless` names no worker and
   `Refresh context` is not the fresh-context wording.
 - **Single-line HTML comments**, stripped before the Form 1 detector so hidden wording cannot declare.
@@ -141,8 +145,10 @@ The two verdict families are asymmetric, and the whole posture follows from that
   A miss there costs one nudge.
 
 So where the structure pass reaches a configuration it cannot resolve, it **withholds the hard
-verdicts** for directives on that line — and withholds the stale WARN too, since it is not confident
-the directive is live markdown. The judgment path continues to run. Today this fires on the
+verdicts** for directives on that line. It also withholds the stale WARN, and refuses to let such a
+directive satisfy a nearby judgment step — the same lack of confidence cuts both ways, so a literal
+exemption inside an indented example cannot silence the warning that step deserves. The judgment
+detector itself continues to run. Today this fires on the
 indented-code case above; the mechanism could extend to a resolved cross-line span carry and to an
 unterminated comment, and deliberately does not, because both occur throughout ordinary prose and
 suppressing them would widen the blind spot far past anything observed.

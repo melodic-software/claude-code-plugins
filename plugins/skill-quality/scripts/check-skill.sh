@@ -832,6 +832,19 @@ for fe_file in "${FRESH_EYES_FILES[@]}"; do
       return 0
     }
     { sub(/\r$/, "") }
+    # YAML frontmatter is not markdown, so nothing in it is a fence, a span, or a
+    # directive. Parsing it as markdown let a block-scalar description containing
+    # an example fence open `fe_fence` that the closing `---` never ended, which
+    # suppressed the whole body and passed the file silently. Skip the region and
+    # reset every structural carry at its terminator.
+    NR == 1 && /^---[ \t]*$/ { fe_fm = 1; next }
+    fe_fm {
+      if (/^---[ \t]*$/) {
+        fe_fm = 0
+        fe_fence = 0; fe_open_pre = 0; sp_open = 0; fe_icode = 0; fe_blank = 1
+      }
+      next
+    }
     # Block-container prefixes come off before anything else looks at the line, so
     # container content parses exactly like top-level content. Markers interleave
     # (`> - ```), so strip until neither form matches.
@@ -986,7 +999,10 @@ for fe_file in "${FRESH_EYES_FILES[@]}"; do
       # its class and reason to a malformed neighbour, so an unknown-class
       # suppression could hide beside a well-formed one and never FAIL.
       dir_rest = line
-      while (match(dir_rest, /<!--[ \t]*fresh-eyes-exempt/)) {
+      # The directive name needs a terminator after it, or a prefix-only match
+      # reads an ordinary comment about `fresh-eyes-exemption` as a directive and
+      # FAILs the skill on prose.
+      while (match(dir_rest, /<!--[ \t]*fresh-eyes-exempt([ \t]|:|-->)/)) {
         dir_one = substr(dir_rest, RSTART)
         dir_rest = substr(dir_rest, RSTART + RLENGTH)
         dir_end = index(dir_one, "-->")
@@ -1042,7 +1058,10 @@ for fe_file in "${FRESH_EYES_FILES[@]}"; do
       for (i = 1; i <= judge_n; i++) {
         hasw = 0; hasd = 0
         for (k = 1; k <= word_n; k++) if (w[k] >= j[i] - P && w[k] <= j[i] + P) hasw = 1
-        for (k = 1; k <= dir_n; k++) if (dt[k] == "valid" && d[k] >= j[i] - P && d[k] <= j[i] + P) hasd = 1
+        # An ambiguous directive cannot satisfy a judgment step either: if the
+        # scanner is not confident it is live markdown, a literal example inside
+        # an indented code block would otherwise silence the WARN it deserves.
+        for (k = 1; k <= dir_n; k++) if (dt[k] == "valid" && !damb[k] && d[k] >= j[i] - P && d[k] <= j[i] + P) hasd = 1
         if (hasw && hasd) printf "HIT_BOTH %d\n", j[i]
         else if (hasw) printf "HIT_WORDING %d\n", j[i]
         else if (hasd) printf "HIT_DIRECTIVE %d\n", j[i]
