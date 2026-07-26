@@ -125,12 +125,12 @@ else
 fi
 rm -f "$f"
 
-# --- P need not be the LAST letter in the flag cluster ("grep -Pn") --------
-f="$(tmpsh 'grep -Pn "\\d+" "$file"')"
+# --- P need not be the LAST letter in the flag cluster --------------------
+f="$(tmpsh 'grep -Pn "\\d+" "$file"')" # spellchecker:disable-line
 if scan_paths "$tok" "$f" >/dev/null 2>&1; then
-  fail "grep -Pn (P not last in the cluster) should fail"
+  fail "grep -Pn (P not last in the cluster) should fail" # spellchecker:disable-line
 else
-  ok "grep -Pn (P not last in the cluster) is detected"
+  ok "grep -Pn (P not last in the cluster) is detected" # spellchecker:disable-line
 fi
 rm -f "$f"
 

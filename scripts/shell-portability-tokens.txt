@@ -49,7 +49,7 @@
 
 # `grep -P` (PCRE mode) — absent in BSD grep, and in some GNU builds compiled
 # without PCRE support. `P` may appear anywhere in a combined short-option
-# cluster (`-riP`, `-Pn`, `-nP`), not only as the cluster's last letter.
+# cluster (`-riP`, `-nP`), not only as the cluster's last letter.
 grep[^\n]*[[:space:]]-[A-Za-z]*P[A-Za-z]*([[:space:]]|$)
 --perl-regexp
 
