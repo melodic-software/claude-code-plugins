@@ -2,9 +2,9 @@
 
 A Claude Code plugin that fixes spelling typos the moment you edit any file.
 On every `Write` or `Edit` it runs [typos](https://github.com/crate-ci/typos)'s
-`--write-changes`, then surfaces any residual (unfixable) findings back to
-Claude as advisory context — including remediation guidance for allowlisting
-a false positive.
+`--write-changes`, reports every correction it applied, and surfaces any
+residual (unfixable) findings back to Claude as advisory context — including
+remediation guidance for allowlisting a false positive.
 
 It ships no rules of its own and runs unconditionally, using typos' built-in
 spelling dictionary. If your repository has its own typos configuration
@@ -24,11 +24,21 @@ opt-in required.
   typos is language-agnostic — it runs on any edited file.
 - **Fix in place.** `typos --write-changes` applies every correction it has
   confidence in. Residual findings — an entry with no known correction (e.g.
-  a blank-correction `extend-words` entry marking a term "disallowed") —
-  surface as advisory context, never auto-applied.
-- **Remediation guidance included.** Every residual finding's advisory text
-  points at the fix: add the term to `extend-words` / `extend-identifiers`
+  a blank-correction `extend-words` entry marking a term "disallowed"), or one
+  with more than one candidate correction — surface as advisory context, never
+  auto-applied.
+- **Every applied rewrite is disclosed.** A correction changes the content of
+  your file, so the hook reports each one it applied — the word, its
+  replacement, and the line — to Claude *and* to you, capped at ten per run
+  with a count of the remainder. Nothing this hook writes is silent.
+- **Remediation guidance included.** Both an applied rewrite and a residual
+  finding carry the fix: add the term to `extend-words` / `extend-identifiers`
   (or an `extend-ignore-re` pattern) in your typos config if it's intentional.
+  This matters most on the *applied* path — the dictionary has no memory of
+  your repair, so a word you correct by hand is rewritten again on the next
+  edit until the allowlist entry exists.
+- **Report-only mode available.** Set `typos_format_write_changes` to `false`
+  and the hook reports what typos found without ever modifying a file.
 - **Respects your excludes.** The hook passes `--force-exclude`, so a path
   your config's `[files] exclude`/`extend-exclude` excludes (generated or
   vendored code, intentional-misspelling fixtures) is left untouched even
@@ -82,13 +92,14 @@ config already in your repository, which the plugin reads automatically. To
 change the rules (allowlist a false positive, ignore a pattern), edit that
 file.
 
-One `userConfig` option tunes the hook itself:
+Two `userConfig` options tune the hook itself:
 
 | Option | Default | Effect |
 |--------|---------|--------|
 | `typos_format_enabled` | `true` | Kill switch — set `false` for a clean no-op. |
+| `typos_format_write_changes` | `true` | Set `false` for report-only: findings are reported, no file is modified. |
 
-Set it interactively with `/plugin configure typos-format`, or headless on the
+Set them interactively with `/plugin configure typos-format`, or headless on the
 install command:
 
 ```shell
