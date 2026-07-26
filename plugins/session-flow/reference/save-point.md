@@ -157,6 +157,21 @@ dashed lines `` instruction line — the primary key for a prompt-only handoff, 
 and (3) the `Prior session: <UUID>` line, which — together with the `type: handoff` frontmatter
 ([`structure.md`](structure.md)) — pins the session chain; it is emitted by the file-mode shape
 but is not required of prompt-only output, so consumers treat it as corroboration, never a
-required key. Changing this prompt/marker format is a
+required key.
+
+**The recoverable unit is the rails prompt PLUS the below-rail `/loop` re-arm note.** Every other
+element of a resume prompt sits between the rails, so recovering the copy region recovers the whole
+contract — `/goal` included, since it is the first line inside the block. The `/loop` re-arm is the
+one exception, and not by choice: a command is recognized only at a message's start
+(<https://code.claude.com/docs/en/commands>), so the re-arm must be its own message and therefore
+lives below the bottom rail, outside the copy region. A recovery that surfaces only the block
+between the rails hands back a continuation that runs once and drops the recurring behavior — the
+exact failure the re-arm rule exists to prevent, reintroduced one layer down. So the re-arm note
+that directly follows the bottom rail is part of what a recovery must surface, not commentary it may
+discard. It is recovered as a **shape-matched, bounded** element — the note's own wording anchored to
+the bottom rail, never "whatever follows the rail" — and it carries the operator's original prompt
+verbatim, so the same redaction pass applies to it as to everything else surfaced from a transcript.
+
+Changing this prompt/marker format is a
 **knowing** break of that contract, not a cosmetic edit; update `find-handoff`'s detection in the
 same change.

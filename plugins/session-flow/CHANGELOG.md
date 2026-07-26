@@ -27,6 +27,18 @@
   (<https://code.claude.com/docs/en/commands>), so each is its own message: `/goal` keeps the first
   line between the rails, `/loop` follows separately. `handoff/SKILL.md`'s two enforcement
   checklists and `handoff/context/gotchas.md` are updated to match.
+- **Lost-handoff recovery dropped that same `/loop` re-arm.** The re-arm note is the one piece of a
+  resume prompt that cannot sit between the rails — a command is recognized only at a message's
+  start (<https://code.claude.com/docs/en/commands>), so it is a separate follow-up message and its
+  instruction lives below the bottom rail. `find-handoff` recovered only the block between the
+  rails, so an operator who ran `/clear` before copying and then recovered the handoff got the
+  continuation back and the loop not at all — the very failure the re-arm rule exists to prevent,
+  reintroduced one layer down. `save-point.md`'s detection contract now defines the recoverable
+  resume prompt as the rails block PLUS the below-rail re-arm note, and `find-handoff` captures it
+  (shape-matched and anchored to the bottom rail, on both file and prompt-only modes) and surfaces
+  it at the confirm gate. The capture is deliberately not a detection key — it is read only from an
+  already-qualified candidate, so it admits no new false positives — and it runs through the same
+  redaction pass as everything else, since it quotes the operator's original loop prompt verbatim.
 
 ## [0.17.3]
 

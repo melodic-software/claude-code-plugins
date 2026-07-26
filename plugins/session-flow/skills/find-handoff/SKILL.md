@@ -45,6 +45,15 @@ pre-clear content sits in a sibling — never in the current session's own file.
    `Prior session:` line, but the producer's prompt-only checklist does not require it, so its
    absence never disqualifies a prompt-only candidate.
 
+**The resume prompt this skill recovers is the rails block PLUS the below-rail `/loop` re-arm
+note** (save-point.md "Detection contract"). Everything else the producer arms lives between the
+rails and is recovered with the block — `/goal` included. The `/loop` re-arm cannot: a command is
+recognized only at a message's start, so the producer emits it as a separate follow-up message and
+places its instruction below the bottom rail. Recovering only the copy region would therefore hand
+back a continuation that runs once and silently drops the loop — the same failure the producer's
+re-arm rule exists to prevent. The note is a fourth, **conditional** signal: present only when the
+lost session was running under `/loop`, so its absence disqualifies nothing.
+
 ## The recovery ladder — read-only throughout
 
 1. **Known-location glob first (no transcript needed).** Resolve `<memory_dir>/handoffs/` for the
@@ -140,6 +149,19 @@ pre-clear content sits in a sibling — never in the current session's own file.
      never disqualifies an earlier manual block in the same transcript. A delivered block is not a
      lost handoff (its work is already running — `claude agents` lists it); exclude it and keep
      scanning.
+   - **Capture the below-rail `/loop` re-arm note — both modes.** Once a candidate qualifies on the
+     signals above, also take the re-arm instruction the producer emits directly after the bottom
+     rail (`send /loop [<interval>] <original prompt> as a separate message`, or its
+     no-launch-signal variant `if a loop was active, re-arm it with …`). Anchor it to the bottom
+     rail and match the note's own wording — never "the lines after the rail", which would widen
+     this skill into the raw-transcript dump it forbids. **This is a capture, never a detection
+     key:** it is taken only from an already-qualified candidate, so it cannot admit a candidate
+     the rails markers rejected. Absent note → the session was not looping; surface nothing extra.
+     **Do not add the note's placeholder tokens to the template-rejection list.** Unlike the rails
+     template, the producer *really does* emit `<interval>` and `<the prompt you originally
+     launched it with>` verbatim on its no-launch-signal branch (save-point.md "Loop-aware
+     re-arm"), so rejecting on them would discard a genuine note; a transcript that merely read
+     `save-point.md` is already rejected by the existing rails-template filter.
    - **Un-escape before surfacing.** Each transcript message is ONE physical JSONL line with its
      text JSON-string-escaped (`\n` for newlines, `\"` for quotes, `\\` for backslashes). A raw grep
      hit is that escaped blob — decode it back to plain text (JSON-unescape the matched string)
@@ -150,7 +172,10 @@ pre-clear content sits in a sibling — never in the current session's own file.
 4. **Confirm before resuming — hard gate.** Surface the found handoff's **metadata only**: the
    recovered file path (or the original `Read @…` directive as found), topic, date, and the
    `session_id` chain (file mode) or the inline resume prompt (prompt-only mode) — the path is the
-   thing being recovered, and the operator cannot verify the candidate without it. Ask
+   thing being recovered, and the operator cannot verify the candidate without it. **Surface the
+   captured `/loop` re-arm note with it, on both modes, when one was found**, and say plainly that
+   re-arming is a separate follow-up message sent after the continuation is under way — dropping it
+   here loses the loop just as surely as never recovering the prompt. Ask
    for an explicit yes/no and **stop**. Do not read the file's body, `/clear`, or execute the
    resume prompt before the operator confirms. Resuming the **wrong** handoff is worse than
    recovering none.
@@ -183,7 +208,10 @@ pre-clear content sits in a sibling — never in the current session's own file.
   `/session-flow:keep-going`), which acts normally — the read-only guarantee covers the recovery,
   not the resumed work.
 - **Redaction-aware.** Transcripts and handoff files can contain secrets. Quote **only** the resume
-  prompt and the handoff metadata — **never** dump raw transcript content. Apply the same
+  prompt — the rails block plus the below-rail `/loop` re-arm note — and the handoff metadata;
+  **never** dump raw transcript content. The re-arm note is no exception: it quotes the operator's
+  original loop prompt verbatim, which can carry a token, so it goes through the same pass as
+  everything else rather than riding along unscanned. Apply the same
   shape-marker redaction the producer uses (`save-point.md` "Redaction pass"): replace any
   secret / token / credential / connection string / PII with a shape marker (`<REDACTED: API key>`),
   never the value. A value acceptable in-session is not acceptable to re-surface from a transcript.
@@ -205,7 +233,8 @@ pre-clear content sits in a sibling — never in the current session's own file.
 - **Writes nothing during recovery** — no files, no memory, no `/clear`, no resume execution
   before the confirm gate. Post-confirmation work belongs to the selected resume path, not to this
   skill's recovery ladder.
-- **Does not dump raw transcript content** — surfaces only the resume prompt + metadata, redacted.
+- **Does not dump raw transcript content** — surfaces only the resume prompt (rails block plus the
+  below-rail `/loop` re-arm note) + metadata, redacted.
 - **Does not auto-resume** — the confirm-before-resume gate is mandatory; wrong-handoff resumption
   is worse than none.
 - **Does not scan unbounded** — the transcript scan is mtime-sorted and capped; it never grep-walks
@@ -243,6 +272,12 @@ pre-clear content sits in a sibling — never in the current session's own file.
   file lived.
 - **Prompt-only handoffs have no file at all.** Do not error on a missing file — the resume content
   is inline between the rails in the transcript, and that is the recovery.
+- **The `/loop` re-arm sits OUTSIDE the rails, and recovering only the block loses it.** Every
+  other armed thing — `/goal` included — is inside the copy region, so it comes back for free; the
+  loop re-arm cannot be, because a command is only recognized at a message's start and the re-arm
+  has to be its own message. Recover the note anchored to the bottom rail and surface it at the
+  confirm gate, or the recovered continuation runs exactly once and the recurring behavior dies
+  silently — which is the failure the producer's re-arm rule was written to stop.
 - **A background-launch save-point is not a lost handoff.** `continue-in-background` uses the same
   save-point engine, so its file looks identical — but its rails prompt was delivered, to the
   launched agent, and resuming it manually duplicates work already running in the background.
