@@ -22,6 +22,30 @@ So the operative grants live **operator-side**, and the loop-start step only **d
 the gap once, up front. It never edits settings, and never retries a permission/classifier denial
 into broader grants (the never-self-retry posture — a denial is a stop, not a signal to widen).
 
+## A denial this preflight cannot catch: the Step 0 `reclaim` asymmetry
+
+`preflight.sh` only probes `permissions.allow`/`deny` **coverage** for a fixed git/gh verb set — it
+does not, and should not, probe the tracker script's `claim`/`reclaim` verbs (see "The allow floor"
+below for why a hand-maintained tracker-path rule doesn't fit that model). Work-loop self-observation
+`#1381` recorded a denial this preflight has no way to surface: the seam `reclaim` verb was refused
+by the auto-mode classifier while the sibling `claim` verb on the same script, invoked moments
+later, was NOT — and at the time of writing, **neither** verb carries an explicit
+`permissions.allow`/`deny` rule in the fleet's floor (`standards`
+`components/claude-permissions/claude-permissions.json`). The asymmetry is therefore not an
+allow-list coverage gap of the kind this doc otherwise describes; it reads as the classifier's own
+heuristic judgment on the two commands.
+
+Whether adding an explicit allow rule for the `reclaim` invocation would bypass that judgment is an
+**open, unverified question** as of this writing — official docs describe `permissions.allow` rules
+bypassing the classifier by default (`autoMode.classifyAllShell: false`), but also describe rules
+matching "arbitrary-code-execution patterns" as routed through the classifier regardless, without
+defining that pattern set precisely enough to say which side a script invocation (`work-item-tracker.sh
+reclaim <id>`) falls on. Do not write a rule into the standards floor on the strength of this doc
+alone; confirm the carve-out first. `/work-items:work`'s Step 0 treats a classifier denial of
+`reclaim` as a non-blocking, report-once-and-skip condition (see `skills/work/SKILL.md` "Step 0") —
+that is the current mitigation; a permission-rule fix, if one applies, still lives operator-side per
+the pattern above.
+
 ## The allow floor — point at the standards component
 
 Do not hand-maintain an allowlist here. The fleet's reviewed permission floor is the
