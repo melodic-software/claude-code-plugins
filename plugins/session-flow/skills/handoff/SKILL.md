@@ -123,6 +123,8 @@ ambiguous.
   unrelated-task handoffs
 - [ ] Every body section the structure doc defines is present — walked from that doc this turn, not
   written from memory; a section with nothing to report says so explicitly rather than being omitted
+- [ ] Claim provenance applied — inherited status marked `UNVERIFIED (<source>)`, not stated as
+  plain fact (engine doc, "Claim provenance")
 - [ ] Redaction pass swept the file AND the prompt (secrets/tokens/credentials/PII replaced with
   shape markers)
 - [ ] TaskList captured with literal recreate calls in the environment section, from a live
@@ -136,6 +138,8 @@ ambiguous.
 **Prompt-only path:**
 
 - [ ] Prompt-only justified (all auto-detect criteria hold, OR `prompt` explicitly passed)
+- [ ] Claim provenance applied to every inline remaining-work bullet — inherited status marked
+  `UNVERIFIED (<source>)`, not stated as plain fact (engine doc, "Claim provenance")
 - [ ] Redaction pass swept the prompt (secrets/tokens/credentials/PII replaced with shape markers)
 - [ ] Self-contained resume prompt between dashed rails — remaining-work bullets inline
 - [ ] Copy instruction above the rails; `/goal` first line if a goal is active; a below-the-rails
