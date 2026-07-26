@@ -3993,6 +3993,64 @@ class GuardTests(unittest.TestCase):
         self.assertNotEqual(120, proc.returncode)
         self.assertIn("could not be written to stdout", stderr)
 
+    def test_stderr_fd_closed_outright_still_denies_at_exit_2_in_a_real_process(
+        self,
+    ) -> None:
+        """#1526's literal trigger: fd 2 *closed*, not merely broken.
+
+        `_write_diagnostic`'s fallback (`_discard_stream`) opens the null
+        device and `dup2`s it onto the broken fd. When fd 2 is closed
+        outright rather than left open with a dead reader, `os.open` can
+        return fd 2 itself (POSIX allocates the lowest free descriptor),
+        making the `dup2` a no-op -- and the `finally: os.close(null_fd)`
+        that follows then re-closes fd 2, undoing the very repair it just
+        made. Against the pre-#1524 module tail (`raise SystemExit(main())`),
+        the interpreter's own shutdown flush then hits that closed fd and
+        CPython rewrites the exit status to 120: non-blocking under
+        PreToolUse, so the destructive command would run even though the
+        guard had decided to deny it (#1526, reproduced against merged
+        `efb6c271`).
+
+        This module's tail no longer depends on `_discard_stream` actually
+        repairing the fd for the exit code to survive: every path now ends in
+        `os._exit`, which skips the interpreter's normal shutdown flush --
+        the mechanism `120` comes from -- entirely. So the #1526 trigger is
+        closed as a structural side effect of the #1524 fix, not by touching
+        `_discard_stream` itself (which still has the self-undoing dup2/close
+        pattern described above; nothing downstream depends on it working).
+        """
+        env = dict(os.environ)
+        script = str(SCRIPT_DIR / "destructive_guard.py")
+        # Runs *inside* the subprocess: close fd 2 outright (not merely break
+        # its reader) before the guard module executes, then run it as
+        # `__main__` so the module tail under test actually runs.
+        child = "\n".join(
+            [
+                "import os, runpy, sys",
+                "os.close(2)",
+                f"sys.argv = [{script!r}]",
+                "runpy.run_path(sys.argv[0], run_name='__main__')",
+            ]
+        )
+        proc = subprocess.Popen(
+            [self.python_command(), "-c", child],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            env=env,
+        )
+        # A JSON array, not an object: `payload.get(...)` raises
+        # `AttributeError`, which main()'s inner
+        # `except (KeyError, TypeError, ValueError, json.JSONDecodeError)`
+        # does not catch -- it reaches the outer `except BaseException`,
+        # which is the exit-2 diagnostic path `_write_diagnostic` (and so
+        # `_discard_stream`) sits on.
+        out, _err = proc.communicate(input=json.dumps([]), timeout=30)
+        self.assertEqual(2, proc.returncode)
+        self.assertNotEqual(120, proc.returncode)
+        self.assertEqual("", out)
+
     def test_main_arms_watchdog_at_resolved_deadline_and_cancels_on_return(
         self,
     ) -> None:
