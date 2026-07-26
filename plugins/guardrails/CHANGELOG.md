@@ -3,6 +3,74 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.17.0]
+
+### Added
+
+- `stale-path-verify` — a twelfth guard, advisory on `PostToolUse` `Write|Edit`
+  of markdown. It flags a repo-relative path cited in an inline code span that
+  this repository's own history shows was **deleted** and that is gone from the
+  working tree.
+
+  This ships the rescope of the `asserted-path-verify` guard withdrawn at
+  0.16.0 (see that release's *Not shipped*), resolving
+  [#1314](https://github.com/melodic-software/claude-code-plugins/issues/1314).
+  The withdrawn guard tested **absence** behind a first-segment gate, inferring
+  that a path was a claim about this tree because its leading directory existed
+  here. That inference is invalid: `docs/`, `scripts/`, `lib/` and `.claude/`
+  are conventional names shared by every repo that uses them, so the gate
+  selected for path *shape* rather than repo *ownership*. Swept across all 975
+  tracked markdown files it fired on 23.7% of them at **zero** precision.
+
+  The gate is now **provenance**: the exact repo-relative path must appear in
+  `git log HEAD --no-renames --diff-filter=D --name-only`. Absence proves
+  nothing on its own — it becomes evidence only against a baseline of presence,
+  and history is the only thing that can establish one.
+  - `--no-renames` is mandatory. Under git's default rename detection a moved
+    file is recorded as `R` and `--name-only` prints only the *new* path, so the
+    stale path never enters the set and the guard silently drops to zero
+    findings. A behavioral test case pins it.
+  - `HEAD`, not `--all`: a path that only ever existed on an abandoned branch is
+    not a stale mainline citation.
+  - The history walk is built lazily, only after a cited path has already failed
+    the working-tree existence test, so the overwhelmingly common quiet path
+    never pays for it.
+  - A shallow clone truncates that history, which would leave the guard inert
+    while appearing healthy, so it emits a visible prerequisite notice naming
+    `git fetch --unshallow` instead.
+- Markdown **link destinations are out of scope**; only inline code spans are
+  scanned. On-disk link integrity belongs to the repo's offline link checker,
+  and under the provenance oracle no link-kind candidate contributed a finding.
+  Dropping them removes the document-directory base, `../` canonicalization,
+  percent-decoding and lexical normalization — a large share of the withdrawn
+  guard's complexity, none of it earning signal.
+- `CHANGELOG.md` writes are excluded, mirroring `skill-reference-verify`: an
+  append-only historical record documents exactly the removed paths this oracle
+  selects for.
+- A finding names the surviving file when exactly one tracked path now carries
+  the cited basename. Basename matching is far too weak to trigger on — `README.md`
+  and `SKILL.md` match hundreds of paths — but once history has established the
+  path was removed, a unique match is very likely where it went.
+
+### Changed
+
+- The guard is declared **detect-then-judge**, not deterministic. Its oracle is
+  mechanical, but the conclusion is not: a doc may cite a removed path
+  deliberately, as a deletion or completion record, and that citation is correct
+  exactly as written.
+- This is a **charter change, not a tightening**. The withdrawn guard claimed to
+  catch hallucinated paths; a provenance gate structurally cannot. An invented
+  path was never in the repository, so it never enters the deleted-path set and
+  the guard stays silent by construction. Separating "asserted about *this* tree"
+  from "documented about a *consumer's* tree" needs a signal a repo-root oracle
+  does not have — both are absent locally and conventionally shaped — so that
+  class is deliberately deferred until one exists.
+- README guard counts and the per-hook kill-switch table are re-measured against
+  the wired hook set rather than carried forward: the prose said "eleven safety
+  guards" and "four advisory guards", and the kill-switch table omitted
+  `block-convention-violation` and `skill-reference-verify` while both were
+  wired and toggleable.
+
 ## [0.16.0]
 
 ### Added
