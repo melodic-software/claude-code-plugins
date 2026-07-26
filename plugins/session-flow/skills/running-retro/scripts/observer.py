@@ -852,14 +852,17 @@ against the later call's "calls[].in", for a resource the earlier call creates o
 that the later one names (a shared path, directory, file, or url). A side-effecting call \
 often returns nothing and narrates nothing, so its result preview is empty and (a) alone \
 would read the pair as independent; (c) FAILURE/RETRY -- a "results" entry with "err": true \
-marks a call that FAILED. A later call is a RETRY of it only when their "calls[].in" \
-previews name the SAME resource or repeat the same arguments. The same tool name alone is \
-NOT evidence of a retry: a failed "Read" of one file followed by a "Read" of a different \
-file is two independent calls, and treating them as control-dependent would suppress a \
-genuine finding. A real retry could only be chosen once the failure was seen, so it is \
-control-dependent and correctly sequential, never a missed batch. A failed call's "out" \
-preview is routinely empty or generic, so (a) shows nothing for exactly the pairs this \
-covers; (d) NARRATION -- \
+marks a call that FAILED. A later call is a RETRY of it when their "calls[].in" previews \
+name the SAME resource, repeat the same arguments, or the later input is a visible \
+CORRECTION of the failed one -- the same command or argument shape with a small edit, e.g. \
+"git stats" then "git status". The same tool name alone is NOT evidence: a failed "Read" of \
+one file followed by a "Read" of a different file is two independent calls, and treating \
+them as control-dependent would suppress a genuine finding. A real retry could only be \
+chosen once the failure was seen, so it is control-dependent and correctly sequential, \
+never a missed batch. Where a failure sits in the pair and NONE of that evidence is legible \
+(a failed call's "out" preview is routinely empty or generic, so (a) shows nothing for \
+exactly these pairs), the pair is UNKNOWN, not independent -- drop the claim. A failure \
+between two calls is never license to report a missed batch; (d) NARRATION -- \
 read the surrounding "say" text for an evident control, resource, or side-effect dependency \
 (an edit made before a test that exercises it runs). A correctly computed sequencing fact \
 is not by itself proof of a missed batching opportunity: a pair that was genuinely \

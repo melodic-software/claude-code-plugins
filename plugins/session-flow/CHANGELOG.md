@@ -43,10 +43,12 @@
   it compares the earlier call's own `calls[].in` against the later call's, since a side-effecting
   call (`mkdir` before a `Write` into that directory) returns nothing and narrates nothing so a
   result-only comparison read a required sequence as a missed batch; and it treats a retry after an
-  `err` result as control-dependent — but only when the two calls' input previews name the same
-  resource or repeat the same arguments, since the same tool name alone (a failed `Read` of one file
-  followed by a `Read` of another) is two independent calls and suppressing that pair would cost a
-  genuine finding. A candidate pair must also sit inside one user turn — no
+  `err` result as control-dependent — recognized by a shared resource, repeated arguments, or a
+  visible correction of the failed input (`git stats` → `git status`), but never by tool name alone,
+  since a failed `Read` of one file followed by a `Read` of another is two independent calls.
+  Where a failure sits in the pair and none of that evidence is legible, the pair is unknown rather
+  than independent and the claim is dropped — a failure between two calls is never license to report
+  a missed batch. A candidate pair must also sit inside one user turn — no
   intervening `human` or `turn_boundary` event — before the dependency test runs at all, since two
   calls answering different human prompts could never have been batched however independent they
   are. Its grouping rule no longer both asserts sequential execution for a missing `mid` and calls

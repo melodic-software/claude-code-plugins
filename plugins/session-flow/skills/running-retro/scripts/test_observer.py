@@ -432,8 +432,14 @@ class AnalysisPrompt(unittest.TestCase):
         # Tool-name equality alone is not a retry -- a failed Read of one file
         # followed by a Read of another is two independent calls, and calling
         # that control-dependent suppresses a genuine finding (#1485 review).
-        self.assertIn("NOT evidence of a retry", self.prompt)
-        self.assertIn("SAME resource or repeat the same arguments", self.prompt)
+        self.assertIn("NOT evidence", self.prompt)
+        # ...but a corrected-argument retry (`git stats` -> `git status`) names
+        # no shared resource and repeats no argument, so requiring either would
+        # swing the rule too far the other way (#1485 review).
+        self.assertIn("CORRECTION", self.prompt)
+        # Neither over-suppress nor over-report: an illegible pair around a
+        # failure is unknown, and unknown means drop.
+        self.assertIn("UNKNOWN, not independent", self.prompt)
 
     def test_resource_dependency_compares_call_inputs(self):
         """A side-effecting call (`mkdir /tmp/out` before `Write /tmp/out/x.md`)
