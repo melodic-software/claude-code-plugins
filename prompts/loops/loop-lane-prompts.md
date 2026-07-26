@@ -852,10 +852,13 @@ with the operator's signature on them.
 >    window.
 >
 >    Filing a successor is two calls — create the item, then record it — and
->    a pass can die between them, which no wording makes atomic. So before
->    filing one, look for a successor that already backlinks this source and
->    this trigger: where one exists, adopt it and post the missing record
->    instead of filing a second. Where an item carries several triggers, only
+>    a pass can die between them, which no wording makes atomic. So the
+>    successor's body names its source item and quotes the trigger it
+>    inherits, written into the body AT creation and never added afterward:
+>    when the source-side record is the call that went missing, that backlink
+>    is the only thing a later pass can find. Before filing a successor, look
+>    for one that already backlinks this source and this trigger; where one
+>    exists, adopt it and post the missing record instead of filing a second. Where an item carries several triggers, only
 >    the newest live one counts — the fresh trigger a Re-park records
 >    supersedes the one it just retired. Report a spent trigger with the
 >    action that retired it; never act on one twice.
@@ -1627,10 +1630,13 @@ to the template re-renders here too.
 >    window.
 >
 >    Filing a successor is two calls — create the item, then record it — and
->    a pass can die between them, which no wording makes atomic. So before
->    filing one, look for a successor that already backlinks this source and
->    this trigger: where one exists, adopt it and post the missing record
->    instead of filing a second. Where an item carries several triggers, only
+>    a pass can die between them, which no wording makes atomic. So the
+>    successor's body names its source item and quotes the trigger it
+>    inherits, written into the body AT creation and never added afterward:
+>    when the source-side record is the call that went missing, that backlink
+>    is the only thing a later pass can find. Before filing a successor, look
+>    for one that already backlinks this source and this trigger; where one
+>    exists, adopt it and post the missing record instead of filing a second. Where an item carries several triggers, only
 >    the newest live one counts — the fresh trigger a Re-park records
 >    supersedes the one it just retired. Report a spent trigger with the
 >    action that retired it; never act on one twice.
