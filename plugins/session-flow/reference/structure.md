@@ -40,12 +40,11 @@ disclosure governs the ORDER facts are met in, never whether they survive. Secti
 exist specifically for what a summarizer discards first — rationale, negative knowledge, and
 hard-won facts — because those read as "old" while being the most expensive to rediscover.
 
-**Provenance: verified this session, or marked.** A status claim earns plain statement only when
-this session verified it — a command run, a file read, an output observed. Anything inherited — a
-prior handoff's assertion, an issue label, a remembered state — is written with an explicit
-`UNVERIFIED (<source>)` marker, because the resuming session treats an unmarked claim as fact and
-builds on it: an inherited claim is a claim to falsify, not a fact to forward. The met/unmet marks
-in Completion criteria carry the same rule.
+**Provenance: verified this session, or marked.** [`save-point.md`](save-point.md)'s "Claim
+provenance" rule governs every body section here (and, per that rule, prompt-only's inline bullets
+too): plain statement only for what this session itself verified, an explicit
+`UNVERIFIED (<source>)` marker on anything inherited. The met/unmet marks in Completion criteria
+carry the same rule.
 
 ### Resumption brief
 
@@ -82,9 +81,29 @@ consequence of violating it.
 
 Only things that would actually break something. A preference is a decision — section 7.
 
-Before closing the section, re-scan the conversation for *but*, *except*, *unless*, "the exception
-is", "the corner case" — those words mark constraints that emerged mid-discussion and never rose to
-a top-line bullet, and an omitted one is exactly what the resuming session ships as a bug.
+Before closing the section, re-scan for *but*, *except*, *unless*, "the exception is", "the corner
+case" — those words mark constraints that emerged mid-discussion and never rose to a top-line
+bullet, and an omitted one is exactly what the resuming session ships as a bug.
+
+**Compaction changes what "the conversation" is.** Detect it from a concrete signal — a compaction
+notice or summary turn actually present in this conversation — never inferred from the history
+merely feeling short or discontinuous. (The citing skill's "When to invoke" — "last turn had an
+unexpected compaction" — names the common case that brings a session here, but compaction can also
+happen mid-session without being the reason `/handoff` was invoked, so check for the signal itself,
+not the invocation reason.) Once that signal is present, the model-visible conversation is the
+summarizer's output, not the original turns, and a scan of what remains cannot find a caveat the
+summarizer already dropped. Exactly one of the following must be true when the section closes, and
+the section must say which — silence on this point reads as the first, so it is never a third
+option:
+
+- The re-scan read the lossless on-disk transcript instead of, or in addition to, the model-visible
+  conversation — it stays lossless across compaction (the same record `retro`'s parser reads:
+  `${CLAUDE_PLUGIN_ROOT}/skills/retro/scripts/parse_transcript.py`, paths resolved per retro's
+  "Paths"; `/session-flow:running-retro`'s "2. Resolve inputs for the subagent" is a worked example
+  of reading it without flooding the current context with the raw record).
+- It did not, and the section states so explicitly: "Re-scanned the visible conversation only; a
+  compaction occurred this session, so pre-compaction turns were NOT re-scanned for buried
+  constraints."
 
 ```markdown
 - The public `IOrderReader` signature is frozen — three downstream repos compile against it.
