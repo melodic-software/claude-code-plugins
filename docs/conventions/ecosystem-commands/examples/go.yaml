@@ -24,18 +24,26 @@ gates:
   # above (not just this gate's `trigger-globs`) per the 1.1.1 reachability rule — trigger-globs
   # alone never selects an ecosystem under auto-targeting, so without a `globs` entry a change
   # touching only that file would never reach this gate outside `/toolchain:check go` or
-  # `check all`. Apply that rule to buf's whole documented input surface, not a favourite subset —
-  # the sources plus every file that changes what generation sees or emits:
+  # `check all`. The rule is "every input that can change what generation produces", and the entries
+  # below are this example's application of it — buf's own configuration surface, which is what an
+  # example can know. Editing any one alone can strand or orphan generated output, so each needs its
+  # own `globs` entry:
   #   - `*.proto` — the sources themselves.
   #   - `buf.gen.yaml` — which plugins run and where they write.
   #   - `buf.yaml` (v1 also `buf.work.yaml`) — the workspace `modules`/`includes`/`excludes` that
   #     decide which Protobuf files generation discovers at all.
   #   - `buf.lock` — the resolved external-dependency pins; `buf dep update` can change imported
   #     descriptors and options with no local `.proto` edit at all.
-  # Editing any one of them alone can strand or orphan generated output, so each needs its own
-  # `globs` entry. Refs: https://buf.build/docs/configuration/v2/buf-yaml/,
+  # Refs: https://buf.build/docs/configuration/v2/buf-yaml/,
   # https://buf.build/docs/configuration/v1/buf-work-yaml/, and
-  # https://buf.build/docs/configuration/v2/buf-lock/. The gate's
+  # https://buf.build/docs/configuration/v2/buf-lock/.
+  # A consuming repo must extend the list with its own generation inputs, which no example can
+  # enumerate for it. The common case is a `local:` plugin built from sources in this repo — buf
+  # documents `local` as a binary or command array, e.g. `local: ["go", "run", "./tools/pgen"]` —
+  # whose `*.go` sources change the generated output while matching none of the globs below. Add a
+  # pathspec for each such generator (`tools/pgen/**`), plus any template, options file, or
+  # environment input the repo's own plugins read.
+  # Ref: https://buf.build/docs/configuration/v2/buf-gen-yaml/. The gate's
   # `trigger-globs` below also lists the plugins' own generated-output patterns (`*.pb.go`,
   # `*.pb.gw.go`), so a hand-edit that drifts a generated file from what `buf generate` would
   # produce still fires this gate — unlike the buf inputs above, they need no separate `globs`

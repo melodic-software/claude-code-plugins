@@ -7,11 +7,14 @@ Docs-only, no schema shape change: `examples/go.yaml` gains a clearly-commented 
 default or example repo needs it yet, so it is documentation, not a functioning gate. Every input
 that can change what `buf generate` produces is also added to the file's own `globs`, per the 1.1.1
 reachability rule, so the worked example is actually reachable under auto-targeting rather than
-silently unfired — buf's whole documented input surface rather than a subset: `*.proto` (the
-sources), `buf.gen.yaml` (which plugins run and where they write), `buf.yaml` and v1's
-`buf.work.yaml` (the workspace `modules`/`includes`/`excludes` that decide which Protobuf files
-generation discovers at all), and `buf.lock` (the resolved dependency pins — `buf dep update` can
-change imported descriptors and options with no local `.proto` edit at all).
+silently unfired: `*.proto` (the sources), `buf.gen.yaml` (which plugins run and where they write),
+`buf.yaml` and v1's `buf.work.yaml` (the workspace `modules`/`includes`/`excludes` that decide which
+Protobuf files generation discovers at all), and `buf.lock` (the resolved dependency pins — `buf dep
+update` can change imported descriptors and options with no local `.proto` edit at all). That is
+buf's own configuration surface, which is what an example can know; the comment states the rule the
+list applies and tells a consuming repo to extend it with the generation inputs no example can
+enumerate — most commonly a `local:` plugin built from sources in the same repo, whose `*.go` files
+change the output while matching none of the globs.
 Its `trigger-globs` (those five, plus `*.pb.go` and `*.pb.gw.go`) additionally list the plugins'
 own generated-output patterns, so a hand-edit that drifts a generated file from what `buf generate`
 would produce still fires the gate — those two need no separate `globs` entry since they already end
