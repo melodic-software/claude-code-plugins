@@ -3,6 +3,46 @@
 All notable changes to the `markdown-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.2]
+
+### Fixed
+
+- **Carriage returns are normalized once at the source instead of twice at the
+  end.** `0.8.1` stripped `CTX` and `SYSMSG` after they were composed, leaving
+  `findings_raw` — which becomes `data.findings` — reading the raw linter output.
+  A review called that a live leak on the telemetry channel; on Windows it is
+  not, and the behavior turns out to be platform-specific. That array is built by
+  piping into `jq -R`, and against a Windows jq build the carriage returns are
+  already gone by the time jq emits. That is not established for the Linux jq
+  this repository's CI runs, which has no text/binary mode distinction — there
+  the normalization may be exactly what keeps the array clean. Which is the
+  argument for normalizing at the source rather than downstream: a payload should
+  not depend on which platform's stdio implementation is reading it, and one
+  strip replaces four that would each have to be remembered when a fifth consumer
+  appears. One consequence worth naming: the delta digest is hashed over
+  `findings_raw`, so every digest recorded before this version invalidates once
+  and produces one extra full-detail report per file. Self-correcting, and not a
+  regression.
+- **The carriage-return test could not fail — twice, for two different reasons.**
+  It grepped the report for `\r` while the stub that produced that report emitted
+  plain LF, so it passed identically whether the stripping code existed or was
+  reverted. A test that asserts a behavior and cannot fail is worse than no test:
+  it reads as coverage. The stub now emits real CRLF under `STUB_CRLF`. The
+  first rewrite of the assertion was **still** vacuous on three of its four
+  channels: on Git Bash, reading a value back through `printf | jq -r | $(…)`
+  normalizes CRLF pairs away, and every CR here sits at end of line — so a
+  decoded-value check structurally cannot see them. Only the fix-count line,
+  whose CR is mid-string, was visible. The assertion now inspects the
+  two-character `\r` escape in the raw emitted document instead, which is the
+  bytes the hook actually produces. Both rewrites were confirmed by
+  revert-probe rather than by reasoning.
+- **The `+N more rule(s)` suffix had no positive test.** Only the negative case
+  existed, and the stub could emit at most two distinct rule codes, so the
+  overflow path this feature was named for was structurally unreachable from the
+  suite. The stub now spreads findings across a configurable number of rule
+  codes, and the suffix is asserted with its count alongside the unchanged
+  top-five histogram.
+
 ## [0.8.1]
 
 ### Fixed

@@ -1459,21 +1459,54 @@ cat >"$NOISY_BIN/markdownlint-cli2" <<'NOISY'
 set -uo pipefail
 file="${2:-}"
 [[ -n "$file" && -f "$file" ]] || exit 2
+
+# markdownlint-cli2 is a Node process, and on Windows its stdout is
+# CRLF-terminated. STUB_CRLF reproduces that, because a stub that only ever
+# emits LF makes any "no carriage returns in the report" assertion pass whether
+# the hook strips them or not.
+emit() {
+  if [[ -n "${STUB_CRLF:-}" ]]; then
+    printf '%s\r\n' "$1"
+  else
+    printf '%s\n' "$1"
+  fi
+}
+
 # Banner lines markdownlint-cli2 always prints. None of them says anything
 # about the edited file; the hook must keep them out of the report.
-echo "markdownlint-cli2 v0.23.1 (markdownlint v0.41.1)"
-echo "Finding: $file !**/node_modules/** !**/.venv/** !**/bin/** !**/obj/**"
-echo "Linting: 1 file"
-[[ -n "${STUB_FIX_COUNT:-}" ]] && echo "Attempted: $STUB_FIX_COUNT fixes in 1 file"
+emit "markdownlint-cli2 v0.23.1 (markdownlint v0.41.1)"
+emit "Finding: $file !**/node_modules/** !**/.venv/** !**/bin/** !**/obj/**"
+emit "Linting: 1 file"
+[[ -n "${STUB_FIX_COUNT:-}" ]] && emit "Attempted: $STUB_FIX_COUNT fixes in 1 file"
 n="${STUB_FINDINGS:-0}"
 ((n > 0)) || exit 0
-echo "Summary: $n issues in 1 file"
+emit "Summary: $n issues in 1 file"
+
+# STUB_RULE_KINDS spreads the findings across that many DISTINCT rule codes.
+# The default of 2 keeps every existing case's histogram unchanged; raising it
+# past the histogram's top-five cut is the only way to reach the overflow
+# suffix, which no fixture could otherwise trigger.
+kinds="${STUB_RULE_KINDS:-2}"
+codes="MD013 MD032 MD022 MD031 MD040 MD041 MD047 MD009"
+set -- $codes
+# Fail loudly rather than expanding an out-of-range positional parameter, which
+# under `set -u` is a fatal unbound-variable abort several frames from the cause.
+if ((kinds > $#)); then
+  echo "stub: STUB_RULE_KINDS=$kinds exceeds the $# rule codes this stub knows" >&2
+  exit 2
+fi
 i=1
 while ((i <= n)); do
-  if ((i <= n - 2)); then
-    echo "$file:$i:81 error MD013/line-length Line length [Expected: 80]"
+  if ((kinds <= 2)); then
+    if ((i <= n - 2)); then
+      emit "$file:$i:81 error MD013/line-length Line length [Expected: 80]"
+    else
+      emit "$file:$i:1 error MD032/blanks-around-lists Lists should be surrounded by blank lines"
+    fi
   else
-    echo "$file:$i:1 error MD032/blanks-around-lists Lists should be surrounded by blank lines"
+    idx=$((i % kinds + 1))
+    eval "code=\${$idx}"
+    emit "$file:$i:1 error $code/stub-rule Stub rule violation"
   fi
   i=$((i + 1))
 done
@@ -1583,10 +1616,81 @@ if printf '%s' "$CTX_SCALE" | grep -q '601 markdownlint finding'; then
 else
   fail "bounded/scale: count wrong or missing at 601 findings: $CTX_SCALE"
 fi
-if printf '%s' "$CTX_SCALE" | grep -q $'\r'; then
-  fail "bounded/scale: carriage returns leaked into the report text"
+
+# --- Carriage returns: on EVERY channel, against a stub that emits them ------
+# markdownlint-cli2 is a Node process with CRLF stdout on Windows. A stub that
+# only ever emits LF makes any of this vacuous, so STUB_CRLF makes it emit the
+# real thing. The strip must also cover the telemetry findings array, not just
+# the rendered report: that array is built from the same output and goes to a
+# different consumer.
+#
+# The assertion looks for the two-character JSON escape `\r` in the RAW emitted
+# document, NOT for a real CR in a jq-decoded value. That is not fussiness: on
+# Git Bash, reading a value back through `printf | jq -r | $(…)` normalizes CRLF
+# pairs away, so a decoded-value check silently cannot see exactly the CRs this
+# is about — every CR here sits at end-of-line. Verified by revert-probe: with
+# the fix removed, the decoded-value form still passed while the raw-escape form
+# fails. Testing the bytes the hook actually emits is the only honest check.
+crlf_escaped() { case "$1" in *'\r'*) return 0 ;; *) return 1 ;; esac; }
+
+FCR="$REPO/crlf.md"
+printf '# CRLF\n\nbody\n' >"$FCR"
+TELCR="$(mktemp)"
+SINKCR="$(make_sink "cat >\"$TELCR\"")"
+OUT_CR=$(run_noisy "$FCR" STUB_FINDINGS=4 STUB_FIX_COUNT=3 STUB_CRLF=1 HOOK_TELEMETRY_SINK="$SINKCR")
+wait_for_sink "$TELCR"
+CTX_RAW=$(printf '%s' "$OUT_CR" | jq -c '.hookSpecificOutput.additionalContext // ""' 2>/dev/null)
+SYS_RAW=$(printf '%s' "$OUT_CR" | jq -c '.systemMessage // ""' 2>/dev/null)
+if crlf_escaped "$CTX_RAW"; then
+  fail "bounded/crlf: carriage returns leaked into additionalContext"
 else
-  ok "bounded/scale: report text carries no stray carriage returns"
+  ok "bounded/crlf: additionalContext carries no carriage returns (stub emitted CRLF)"
+fi
+if crlf_escaped "$SYS_RAW"; then
+  fail "bounded/crlf: carriage returns leaked into systemMessage"
+else
+  ok "bounded/crlf: systemMessage carries no carriage returns"
+fi
+# This one is labelled because its discriminating power is PLATFORM-DEPENDENT,
+# and an assertion whose strength varies by host must say so rather than be
+# taken for uniform coverage. `findings_raw` reaches the envelope through a pipe
+# into `jq -R`. Measured on a Windows jq build: with the hook's normalization
+# removed, the two assertions above fail while this one still passes — the CRs
+# are already gone by the time jq emits, so there was nothing here to catch.
+# That is NOT established for the Linux jq this repo's CI runs, which has no
+# text/binary mode distinction and is documented not to strip a trailing CR from
+# CRLF input; there this assertion may genuinely discriminate. Kept either way:
+# on Linux it guards, on Windows it documents.
+TEL_FINDINGS_RAW=$(jq -c '.data.findings' "$TELCR" 2>/dev/null)
+if [[ -n "$TEL_FINDINGS_RAW" ]] && ! crlf_escaped "$TEL_FINDINGS_RAW"; then
+  ok "bounded/crlf: telemetry data.findings carries no carriage returns (discriminating power is platform-dependent)"
+else
+  fail "bounded/crlf: carriage returns leaked into data.findings: $TEL_FINDINGS_RAW"
+fi
+if [[ "$(jq '.data.findings | length' "$TELCR" 2>/dev/null)" -eq 4 ]]; then
+  ok "bounded/crlf: CRLF output is still parsed into the right number of findings"
+else
+  fail "bounded/crlf: CRLF parsing lost findings: $TEL_FINDINGS_RAW"
+fi
+rm -f "$TELCR"
+
+# --- The histogram overflow suffix, positively -------------------------------
+# The negative case (no suffix at two rule kinds) already exists. Nothing
+# exercised the suffix itself, because the stub could only ever emit two rule
+# codes — so the behavior in this feature's headline was unverified.
+FRULES="$REPO/manyrules.md"
+printf '# Rules\n\nbody\n' >"$FRULES"
+OUT_RK=$(run_noisy "$FRULES" STUB_FINDINGS=40 STUB_RULE_KINDS=8)
+CTX_RK=$(printf '%s' "$OUT_RK" | jq -r '.hookSpecificOutput.additionalContext // empty' 2>/dev/null)
+if printf '%s' "$CTX_RK" | grep -q '+3 more rule(s)'; then
+  ok "bounded/rules: eight rule kinds report the three the histogram omitted"
+else
+  fail "bounded/rules: overflow suffix missing or miscounted: $CTX_RK"
+fi
+if [[ "$(printf '%s' "$CTX_RK" | grep -oE 'MD[0-9]+ x[0-9]+' | wc -l)" -eq 5 ]]; then
+  ok "bounded/rules: the histogram still names exactly its top five"
+else
+  fail "bounded/rules: histogram entry count wrong: $CTX_RK"
 fi
 
 # --- The cap is configurable, and 0 means unlimited -------------------------
