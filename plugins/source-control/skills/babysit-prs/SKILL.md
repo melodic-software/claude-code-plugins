@@ -213,28 +213,26 @@ home in [reference/safety.md](reference/safety.md). Both fail closed without `--
   [reference/orchestration.md](reference/orchestration.md)) governs this gate-completion step
   exactly as it governs a worker's turn — proving readiness is never a license to arm a watch.
 
-- **Thread resolution** — `source-control-babysit-resolve-thread owner/repo#N
-  --allowed-owners <watched-owners> --extra-bot-logins <extra-bot-logins>` (lists by default; add
-  `--resolve`). By default it touches
-  only bot-authored threads (structural `__typename == "Bot"` or the `[bot]` login suffix — no
-  hardcoded identity list) and never a human thread; `--extra-bot-logins` extends that set with the
-  configured non-structural bot accounts, and dropping it from any resolve-thread form silently
-  reclassifies their threads as human. In worker tier pass `--autonomous`, which
+- **Thread resolution** — `source-control-babysit-resolve-thread owner/repo#N --allowed-owners
+  <watched-owners> --extra-bot-logins <extra-bot-logins>` (lists by default; add `--resolve`). By
+  default it touches only bot-authored threads (structural `__typename == "Bot"` or the `[bot]`
+  login suffix — no hardcoded identity list) and never a human thread; `--extra-bot-logins` extends
+  that set with the configured non-structural bot accounts, and dropping it from any resolve-thread
+  form silently reclassifies their threads as human. In worker tier pass `--autonomous`, which
   resolves only threads GitHub marks `isOutdated`, each pinned via `--expected-comment-count` and
   `--expected-last-updated`. Those pins enforce comment-state only — they block a thread whose
-  comment count or latest comment-edit timestamp drifted after vetting. The worker must
-  additionally confine resolves to threads already outdated in the PRE-push snapshot
+  comment count or latest comment-edit timestamp drifted after vetting. The worker must additionally
+  confine resolves to threads already outdated in the PRE-push snapshot
   ([reference/orchestration.md](reference/orchestration.md)); that pre-push-outdated rule is agent
   discipline, not machine-enforced, so a thread a worker's own push merely displaced (`isOutdated`
   flipped while both comment pins still match) is still resolvable — the machine-enforced fix for
-  that displacement bypass is tracked in #571. In autopilot pass `--resolve --include-human` for threads the agent has addressed; the
-  script still cannot merge, reply, or dismiss reviews. Never treat exit code 0 alone as proof
-  a specific thread was resolved — always parse the per-thread JSON `action` field
-  (`resolved` vs `skipped-*` / `refused-stale-pin` / `resolve-failed`) and the
-  `resolvedCount`/`eligibleCount` summary before reporting or re-checking the merge gate.
-  `--resolve --thread-id` without matching `--expected-comment-count` and
-  `--expected-last-updated` (or an explicit `--allow-unpinned-thread` override) is refused
-  before anything is fetched or resolved.
+  that displacement bypass is tracked in #571. In autopilot pass `--resolve --include-human` for
+  threads the agent has addressed; the script still cannot merge, reply, or dismiss reviews. Never
+  treat exit code 0 alone as proof a specific thread was resolved — always parse the per-thread JSON
+  `action` field (`resolved` vs `skipped-*` / `refused-stale-pin` / `resolve-failed`) and the
+  `resolvedCount`/`eligibleCount` summary before reporting or re-checking the merge gate. `--resolve
+  --thread-id` without matching `--expected-comment-count` and `--expected-last-updated` (or an
+  explicit `--allow-unpinned-thread` override) is refused before anything is fetched or resolved.
 
 - **The agent** decides severity (is this security/P1?), whether a finding is genuinely
   addressed, what a label means, and every fix-vs-escalate call — never a script. Escalate a
