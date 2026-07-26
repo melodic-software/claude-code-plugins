@@ -460,12 +460,34 @@ class Observer:
         # so nested tooling can also tell this is the observer's own analysis.
         env = dict(os.environ, SESSION_FLOW_OBSERVER_ANALYSIS="1")
         self.log(f"firing analysis: {self.model} over {self.obs_path.name}")
+        run_kwargs: dict = {}
+        if os.name == "nt":
+            # CREATE_NO_WINDOW -- the observer process itself is already spawned
+            # windowless (arm_observer.py's spawn_detached), but that flag set was
+            # never carried to this later, in-process subprocess.run call, so a
+            # console window flashed on the desktop for the run's duration. This
+            # is a waited (not detached) child, so only suppress the window --
+            # no DETACHED_PROCESS/CREATE_NEW_PROCESS_GROUP, which are for escaping
+            # the parent's process tree, not needed here.
+            run_kwargs["creationflags"] = 0x08000000
         try:
             # Own short timeout, NOT max_secs -- otherwise the observer could live
             # up to ~2x its documented absolute lifetime cap. The measured run is
             # ~20-40s; this bounds a stuck run to minutes.
+            #
+            # encoding="utf-8" is explicit because `claude -p --output-format
+            # json` always writes UTF-8, but Python's default text encoding for
+            # subprocess capture is the platform code page -- cp1252 on Windows --
+            # which corrupts non-ASCII output (mojibake) into the ledger.
+            # errors="replace" (rather than the default "strict") keeps a
+            # truncated/invalid byte sequence -- e.g. multi-byte UTF-8 split at
+            # a timeout boundary during decode -- from raising UnicodeDecodeError
+            # out of this try block, which is caught only for
+            # TimeoutExpired/OSError; an uncaught decode error would skip the
+            # designed "return False -> retain observations" fallback entirely.
             proc = subprocess.run(cmd, input=prompt, capture_output=True, text=True,
-                                  env=env, timeout=self.analysis_timeout_secs)
+                                  encoding="utf-8", errors="replace", env=env,
+                                  timeout=self.analysis_timeout_secs, **run_kwargs)
         except (subprocess.TimeoutExpired, OSError) as e:
             self.log(f"analysis run failed: {e}")
             return False
