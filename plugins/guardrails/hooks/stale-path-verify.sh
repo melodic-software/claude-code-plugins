@@ -92,8 +92,13 @@ emit_tokens() {
 normalize_candidate() {
   local t="$1"
 
-  # A code span can hold a whole command; take only single-token spans. A path
-  # candidate never contains whitespace.
+  # A code span can hold a whole command; take only single-token spans. NOT
+  # because a path cannot contain whitespace — git permits spaces in pathnames —
+  # but because a whitespace-bearing span is far likelier to be a command than a
+  # path, and reading one as a path adjudicates its arguments: the suite pins
+  # `cp docs/gone.md docs/real.md` staying quiet even though it names a genuinely
+  # deleted path. The cost is that a spaced deleted path is never adjudicated;
+  # admitting one needs a discriminator against command spans, tracked in #1452.
   [[ "$t" =~ [[:space:]] ]] && return 0
 
   # Strip a trailing line/range citation suffix — this repo cites
