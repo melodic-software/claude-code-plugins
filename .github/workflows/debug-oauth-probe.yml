@@ -1,5 +1,7 @@
 name: debug-oauth-probe
-on: workflow_dispatch
+on:
+  push:
+    branches: [debug/oauth-probe]
 permissions: {}
 jobs:
   probe:
