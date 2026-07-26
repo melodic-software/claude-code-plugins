@@ -330,7 +330,7 @@ assert_contains "2valid is not a classification -> BLOCKED" "$r" "READINESS_BLOC
 # --- Case: a BRACKETED aside is stripped like a parenthesised one (#619) ----
 # Pins the `[^]]` bracket expression in the aside-stripping pattern: a `]` as
 # the first character of a bracket expression is POSIX-literal, but an awk that
-# mis-parsed it would silently strip nothing — and every paren-only test would
+# misparsed it would silently strip nothing — and every paren-only test would
 # still pass, so only this case can catch it.
 F=$(mkjson bracket-aside '[
   {author:"claude[bot]", body:"### 1. [CRITICAL] a"},
