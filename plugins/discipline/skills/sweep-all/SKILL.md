@@ -242,11 +242,13 @@ unchanged and bind every member.
    **Retry, and what counts as a failure.** Retry only a failed subset, once —
    and **failure includes a ledger returned without verified inheritance
    proof**, not only an errored dispatch: a fabricated ledger is the exposure
-   the retry rule exists for. A retry is always anchored, one wave or many: it
-   spawns after other members' ledgers have landed, so it inherits them. Say
-   so for each retried member, and weigh it — where the batch can afford it,
-   re-running the whole pass clean is worth more than one anchored ledger. A
-   member still unproven after its one retry is reported
+   the retry rule exists for. A retry is anchored by construction, one wave or
+   many: it spawns after other members' ledgers have landed, so it inherits
+   them. There is no un-anchored rerun available inside this conversation —
+   re-running the whole pass would inherit MORE, not less, since every ledger
+   is already in the transcript any new fork copies. So do not offer a clean
+   rerun; report each retried member's ledger as anchored and weigh it as such.
+   A member still unproven after its one retry is reported
    open, and the verified ledgers are kept and corrected — see the preflight's
    mid-fan-out rule; only a failed canary collapses the pass to the digest.
 2. **Collect** every ledger.
