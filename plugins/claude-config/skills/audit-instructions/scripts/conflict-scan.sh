@@ -1,0 +1,260 @@
+#!/usr/bin/env bash
+# conflict-scan.sh — advisory deterministic pre-scan for the audit-instructions
+# skill's cross-surface conflict pass (reference/conflict-criteria.md).
+#
+# Emits CANDIDATE PAIRS: two lines in two DIFFERENT files that name the same
+# entity with opposed polarity — one mandating it, one prohibiting it.
+#
+#   entity    a CamelCase identifier (AskUserQuestion, WebFetch, PreToolUse).
+#             Derived by shape, never from a hardcoded tool list, so a tool the
+#             scan has never heard of is still covered. The tradeoff is recall
+#             over precision, not strictly better: CamelCase proper nouns
+#             (GitHub, PowerShell, GraphQL) match the same shape and dominate a
+#             repo-wide run. Entity triage is the lane's first refinement step.
+#   mandate   the line requires the entity (must/always/mandatory/required/use)
+#   prohibit  the line forbids it (the I6 token set, shared with instruction-scan.sh)
+#
+# Only the four gates a text scan can actually decide are applied here:
+# distinct files, same entity, opposed polarity, and the config-gate filter.
+# The remaining gates — whether the two lines constrain the same observable, and
+# whether a realistic prompt fires both — are not greppable and belong to the
+# model lane. This scan therefore narrows a quadratic search space to a review
+# queue; it never reports a conflict.
+#
+# Advisory: prints candidate rows, ALWAYS exits 0 (candidates never fail a run).
+# Requires awk and sort; exits 2 when either is absent.
+#
+# Rows are `fileA:lineA|fileB:lineB|entity|flags`, sorted and de-duplicated.
+# `flags` is `-`, or a `+`-joined list drawn from:
+#   exception-A / exception-B   that side carries an exception clause (unless,
+#                               except, only when). The clause may or may not
+#                               reach the other surface — that is gate 4, and
+#                               the lane adjudicates it rather than the scan.
+#
+# A line whose entity mention is conditioned by an explicit user-config opt-in
+# is SUPPRESSED, not flagged: an opt-in gate is arbitration, so the pair is
+# resolved and is not a candidate.
+#
+# Nonexistent path arguments are skipped, not errors. Fewer than two readable
+# files can produce no pair, which is a valid clean result.
+#
+# Usage:
+#   conflict-scan.sh FILE...            # one candidate-pair row per match; exit 0
+#   conflict-scan.sh --count FILE...    # integer candidate-pair count only; exit 0
+#   conflict-scan.sh --help
+
+set -uo pipefail
+
+usage() {
+  cat <<'EOF'
+conflict-scan.sh — mark cross-surface conflict candidate PAIRS in given files.
+
+Usage: conflict-scan.sh [--count|--help] FILE...
+
+  FILE...    print one candidate row (fileA:lineA|fileB:lineB|entity|flags); exit 0
+  --count    print the integer candidate-pair count only; exit 0
+  --help     this message
+
+Advisory — always exits 0 (candidates never fail the run). Requires awk and
+sort (exit 2 when either is absent). Seeds the mechanical tier of the
+audit-instructions cross-surface conflict pass; the lane refines every candidate
+against reference/conflict-criteria.md. A pair is a candidate, never a finding.
+EOF
+}
+
+case "${1:-}" in
+  -h | --help)
+    usage
+    exit 0
+    ;;
+  *) ;;
+esac
+
+# Check the tools this script actually executes. `mapfile < <(… | sort -u)`
+# swallows a failure inside the process substitution, so a missing `awk` or
+# `sort` would otherwise yield an empty row set and a clean-looking report —
+# converting an absent prerequisite into a false "no conflicts found".
+for tool in awk sort; do
+  if ! command -v "$tool" >/dev/null 2>&1; then
+    echo "ERROR: $tool required" >&2
+    exit 2
+  fi
+done
+
+mode="report"
+if [[ "${1:-}" == "--count" ]]; then
+  mode="count"
+  shift
+fi
+
+# --- Detection patterns ------------------------------------------------------
+# Classification runs inside a single awk pass rather than a grep per mention:
+# an instruction tree yields tens of thousands of mentions, and a subprocess per
+# mention does not finish. Patterns are therefore written in awk ERE against a
+# space-padded, lowercased window, so `[^a-z]` supplies the word boundary that
+# POSIX awk has no `\b` for.
+#
+# Entity shape, case-SENSITIVE and matched on the raw line: a CamelCase
+# identifier anywhere, or a single capitalized word INSIDE BACKTICKS. The second
+# alternative is what reaches single-word tools (`Bash`, `Read`, `Edit`), which
+# CamelCase alone cannot match; requiring the backticks is what keeps every
+# sentence-initial capitalized word out. Backticks are stripped from the entity
+# name, so a backticked and a bare mention of one tool pair with each other.
+# The backtick is built separately rather than written literally: inside a
+# single-quoted pattern shellcheck reads it as an unexpanded command
+# substitution (SC2016), and escaping it inside double quotes is worse to read.
+BACKTICK=$(printf '\140')
+ENTITY_ERE="[A-Z][a-z]+([A-Z][a-z]*)+|${BACKTICK}[A-Z][a-z]+${BACKTICK}"
+# Prohibition tokens — the I6 set, kept semantically identical to
+# instruction-scan.sh so the two scans classify a line's polarity the same way.
+PROHIBIT_ERE='[^a-z](never|do not|don[^a-z]?t|must ?not|mustn[^a-z]?t|should ?not|shouldn[^a-z]?t)[^a-z]'
+# Mandate tokens. Checked only after prohibition, so "never use X" is a
+# prohibition rather than an ambiguous both-polarity line.
+MANDATE_ERE='[^a-z](must|always|mandator(y|ily)|require[ds]?|shall|use|present|ask)[^a-z]'
+# Exception clauses — flagged, not suppressed. Whether the exception reaches the
+# other surface is gate 4, which the lane decides.
+EXCEPTION_ERE='[^a-z](unless|except|only when|only if|other than)[^a-z]'
+# Explicit user-config opt-in gates — SUPPRESSED. An opt-in is arbitration, so
+# the pair is already resolved. Generic by shape, not a per-plugin allowlist.
+# Suppression additionally requires a CONDITIONAL marker, because naming an
+# opt-in is not the same as being gated on one: "never use `X` for opt-in
+# prompts" describes the subject and must still be classified as a prohibition.
+GATED_ERE='(user_config|user config|[^a-z]opt-?in[^a-z]|[^a-z]opted in[^a-z])'
+CONDITIONAL_ERE='[^a-z](only when|only if|unless|requires?|gated|enabled|is on|when set)[^a-z]'
+# Clause boundary — where a polarity window stops. See the window construction
+# below for why contrastive conjunctions are listed rather than any comma.
+# The comma is OPTIONAL for the unambiguous contrastives ("always use X but
+# never use Y" reads the same as ", but") and REQUIRED for `while`, which is a
+# temporal conjunction as often as a contrastive one ("use X while the flag is
+# set" must not split).
+BOUNDARY_ERE='([.;!?] |[^a-z],? *(but|whereas|though|although|yet)[^a-z]|, while[^a-z])'
+
+# Polarity is read from a window around each entity mention, not from the whole
+# line. A prose line often carries a prohibition about one object and names an
+# unrelated entity elsewhere ("never offer them for `git branch -d` … via
+# `AskUserQuestion`"); whole-line classification reads that as a conflict. The
+# window keeps the polarity token in the same clause as the entity it governs.
+WINDOW_CHARS="${CONFLICT_SCAN_WINDOW:-60}"
+
+# Pairing is bucketed by entity, so the cross product is taken only within one
+# entity's mandate and prohibit lists — never across the whole corpus.
+mapfile -t rows < <(
+  for file in "$@"; do
+    [[ -f "$file" ]] && printf '%s\n' "$file"
+  done | awk -v w="$WINDOW_CHARS" -v entpat="$ENTITY_ERE" -v prohibit="$PROHIBIT_ERE" \
+    -v mandate="$MANDATE_ERE" -v exception="$EXCEPTION_ERE" -v gated="$GATED_ERE" \
+    -v conditional="$CONDITIONAL_ERE" -v bnd="$BOUNDARY_ERE" '
+    function classify(file, lineno, ent, prewindow, postwindow, window,   pol, exc, key) {
+      # Every test here reads `window`, which the caller builds from the
+      # sentence-bounded halves plus the mention itself. Nothing classifies an
+      # entity from a neighbouring sentence: a gate, a polarity token or an
+      # exception clause governs the entity only if it shares a sentence with it.
+      #
+      # An opt-in gate arbitrates the pair away, but only when it reads as a
+      # condition rather than as the subject being described.
+      if (window ~ gated && window ~ conditional) return
+      # A prohibition governing the entity sits either before it ("never use X")
+      # or after it ("X must not be used"), inside the same sentence either way.
+      # Beyond a sentence break a prohibition almost always governs a different
+      # object ("… via `X` once. Do not gate per repo").
+      if (prewindow ~ prohibit || postwindow ~ prohibit) pol = "prohibit"
+      else if (window ~ mandate) pol = "mandate"
+      else return
+      exc = (window ~ exception) ? "yes" : "no"
+      key = pol SUBSEP ent SUBSEP file SUBSEP lineno SUBSEP exc
+      if (key in seen) return
+      seen[key] = 1
+      n = ++count[pol, ent]
+      rec[pol, ent, n] = file SUBSEP lineno SUBSEP exc
+      if (!(ent in entities)) entities[ent] = 1
+    }
+    {
+      # Filenames arrive on stdin so one awk process reads every file.
+      file = $0
+      while ((getline line < file) > 0) {
+        lineno++
+        gsub(/\t/, " ", line)
+        pad = " " tolower(line) " "
+        rest = line
+        base = 0
+        while (match(rest, entpat)) {
+          # RSTART/RLENGTH are global and any later match() clobbers them, so the
+          # loop advance is computed from copies taken before anything else runs.
+          mstart = RSTART
+          mlen = RLENGTH
+          s = base + mstart
+          e = s + mlen - 1
+          ent = substr(rest, mstart, mlen)
+          gsub(/`/, "", ent)
+          ws = s - w
+          if (ws < 1) ws = 1
+          # Both windows stop at a boundary so only a polarity token in the SAME
+          # clause as the entity classifies it: trailing text at its FIRST
+          # boundary, leading text after its LAST.
+          #
+          # A boundary is either a sentence-ending mark followed by a space, or a
+          # CONTRASTIVE conjunction with an optional preceding comma. The space
+          # matters: a bare mark also occurs inside tokens this corpus is full of
+          # (a dotted config path, a version number). The contrastive list matters
+          # too, and is deliberately not "any comma": one sentence can carry two
+          # entities at opposite polarity ("always use X but never use Y"), while
+          # ordinary comma-separated prose keeps its polarity throughout, so
+          # cutting on every comma would drop the token that governs the entity.
+          post = substr(pad, e + 2, w)
+          if (match(post, bnd)) post = substr(post, 1, RSTART - 1)
+          pre = substr(pad, ws + 1, s - ws)
+          precut = 0
+          preoff = 0
+          pretail = pre
+          while (match(pretail, bnd)) {
+            preoff += RSTART + RLENGTH - 1
+            precut = preoff
+            pretail = substr(pretail, RSTART + RLENGTH)
+          }
+          if (precut > 0) pre = substr(pre, precut + 1)
+          # The full window is rebuilt from the bounded halves plus the mention,
+          # so mandate, gate and exception tests see the same sentence the
+          # polarity tests do rather than the raw span.
+          classify(file, lineno, ent, \
+            " " pre " ", \
+            " " post " ", \
+            " " pre " " tolower(ent) " " post " ")
+          base = e
+          rest = substr(rest, mstart + mlen)
+        }
+      }
+      close(file)
+      lineno = 0
+    }
+    END {
+      for (ent in entities) {
+        for (i = 1; i <= count["mandate", ent]; i++) {
+          split(rec["mandate", ent, i], a, SUBSEP)
+          for (j = 1; j <= count["prohibit", ent]; j++) {
+            split(rec["prohibit", ent, j], b, SUBSEP)
+            # Cross-surface by definition: a pair inside one file is not a
+            # finding here.
+            if (a[1] == b[1]) continue
+            flags = ""
+            if (a[3] == "yes") flags = "exception-A"
+            if (b[3] == "yes") flags = (flags == "") ? "exception-B" : flags "+exception-B"
+            if (flags == "") flags = "-"
+            print a[1] ":" a[2] "|" b[1] ":" b[2] "|" ent "|" flags
+          }
+        }
+      }
+    }
+  ' | sort -u
+)
+
+if [[ "$mode" == "count" ]]; then
+  printf '%s\n' "${#rows[@]}"
+  exit 0
+fi
+
+if [[ "${#rows[@]}" -eq 0 ]]; then
+  echo "No conflict candidates found."
+else
+  printf '%s\n' "${rows[@]}"
+fi
+exit 0

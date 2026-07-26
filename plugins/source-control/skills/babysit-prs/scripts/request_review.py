@@ -590,7 +590,7 @@ def run_locked(
 
 def main() -> int:
     configure_stdio()
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=False)
     parser.add_argument("--pr", required=True, help="PR URL or owner/repo#number")
     parser.add_argument(
         "--expected-head-sha",
