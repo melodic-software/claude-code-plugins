@@ -13,8 +13,11 @@ All notable changes to the `work-items` plugin are documented here. Format follo
   `develop`, the user was handed a command that either fails or silently bases the work on the wrong
   ref. The existing-branch check now resolves `BASE_REF` from `refs/remotes/origin/HEAD`
   (detection-first), falling back to the literal only for a clone that has no `origin/HEAD`, and
-  both suggestions emit `"$BASE_REF"`. Surfaced by `portability-lint`, which reads the whole file
-  once the file is touched.
+  both suggestions emit `<base-ref>` — a placeholder the agent substitutes with the resolved value,
+  like `<type>` / `<N>` / `<slug>` beside it. Emitting the shell variable itself would have shipped
+  a broken command: the suggestion is pasted into the USER's terminal, which never saw the agent's
+  assignment, so `"$BASE_REF"` would expand to an empty pathspec. Surfaced by `portability-lint`,
+  which reads the whole file once the file is touched.
 
 ## [0.25.1]
 

@@ -56,18 +56,21 @@ Claim a work item through the seam (assignee + lease record).
    if [[ "$BRANCH" =~ ^[a-z]+/(routine-issue-)?([0-9]+)- ]]; then
      CURRENT_N="${BASH_REMATCH[2]}"
    fi
-   # Base every suggested branch on the remote's OWN default branch; the literal
-   # is the last-resort fallback for a clone with no origin/HEAD, not the assumption.
+   # Resolve <base-ref> for the suggestions below from the remote's OWN default
+   # branch; the literal is the last-resort fallback for a clone with no
+   # origin/HEAD, not the assumption.
    BASE_REF="$(git symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null)" || BASE_REF="origin/main"
    ```
 
+   `<base-ref>` below is a placeholder the agent substitutes with the resolved value, exactly as it substitutes `<type>` / `<N>` / `<slug>`. The emitted command runs in the USER's terminal, which never saw the agent's `BASE_REF` assignment — emitting the variable unexpanded would hand over an empty pathspec.
+
    - **`CURRENT_N` == claimed `<N>`** → acknowledge: "Already on `<current-branch>` — branch matches claimed #N. No rename needed." Skip prompt. Done.
    - **`CURRENT_N` is a different number** → multi-claim 3-option (below).
-   - **`CURRENT_N` empty** (no number on current branch) → present bare suggestion: "Suggest branch `<type>/<N>-<slug>`. Switch? (yes / no — orphan-PR path)". On `yes`, emit `git checkout -b <type>/<N>-<slug> "$BASE_REF"` for the user. On `no`, continue on current branch — `/pull-request create` falls through to its interactive Closes-keyword prompt.
+   - **`CURRENT_N` empty** (no number on current branch) → present bare suggestion: "Suggest branch `<type>/<N>-<slug>`. Switch? (yes / no — orphan-PR path)". On `yes`, emit `git checkout -b <type>/<N>-<slug> <base-ref>` for the user. On `no`, continue on current branch — `/pull-request create` falls through to its interactive Closes-keyword prompt.
 
    **Multi-claim 3-option** — when on `<other-type>/<OTHER>-<other-slug>` and just claimed #N (different item):
 
-   1. **Switch to `<type>/<N>-<slug>`** — WARN: uncommitted work on the current branch must be committed or stashed first; the agent never runs `git stash` on a shared branch without confirming. Emit `git checkout -b <type>/<N>-<slug> "$BASE_REF"` for the user.
+   1. **Switch to `<type>/<N>-<slug>`** — WARN: uncommitted work on the current branch must be committed or stashed first; the agent never runs `git stash` on a shared branch without confirming. Emit `git checkout -b <type>/<N>-<slug> <base-ref>` for the user.
    1. **Stay on current branch and cover both in one PR** — `/pull-request create` will inject `Closes #<OTHER>` + `Closes #<N>` at PR-time via its multi-issue prompt.
    1. **Skip** — decide later; continue on current branch without rename.
 
