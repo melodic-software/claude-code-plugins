@@ -128,12 +128,10 @@ raise → the unconditional C4/C5 ceiling (config-resolution reference, "The exc
 raise restriction only").
 
 The deterministic gate is not weakened: checks, thread resolution, and mergeability still all have
-to pass. What changes: an otherwise-eligible (C1-C3) PR blocked on a **machine-escalated**
-`needs-human` item, an open non-human finding, or a contradictory/unresolved **bot** thread draws
-one fresh frontier-tier resolution dispatch before falling through — the full dispatch contract,
-its lease and independence requirements, and the four blocker classes it never touches are owned by
-Escalation below. An unresolved or uncertain blocker, or a C4/C5 PR, still escalates exactly as it
-would without the exception — this widens *who tries first*, never what the gate requires.
+to pass. What changes is only *who tries first* on a blocked but otherwise-eligible PR — one fresh
+frontier-tier resolution dispatch before it falls through, scoped by Escalation below and owned in
+full by [reference/pre-escalation-dispatch.md](reference/pre-escalation-dispatch.md). A C4/C5 PR,
+and any blocker left unresolved or uncertain, escalates exactly as it would without the exception.
 
 **Always-on safety knobs** — never configurable off, whatever the tier or rung: the activity grace
 window (width configurable, existence not), babysit-prs's head-move yield and expected-head
@@ -290,61 +288,23 @@ writer (the same one-directional pattern as the `claude-ops:lane-telemetry` sent
 babysit escalations surface in the same attention view as worker escalations. Telemetry is the
 report surface, never the escalation channel.
 
-**Pre-escalation resolution attempt, explicit-`autopilot` only.** Before a merge-eligible (C1-C3)
-PR is escalated for a **machine-escalated** `needs-human` item, an open machine-authored finding, or
-a contradictory/unresolved **bot** review thread, and only when this invocation's own argument line
-typed both the literal `autopilot` tier argument and `--merge c3-this-run` (the widening pair
-above): dispatch a fresh subagent at the **frontier tier** — §3's top tier row, requested by tier
-and resolved to a live-updating model alias through that section's "Runtime resolution is by model
-alias only", never a dated model ID and never a family name written into this lane as the tier's
-*definition* (tiers are ordered by capability; a family mapping rots). A run that cannot establish
-which alias currently satisfies `frontier` **escalates rather than dispatching** — inheriting the
-session's model, or a lower review-work model, forfeits the capability this dispatch stands on. The
-subagent shares no context with whatever produced the PR or previously replied on the blocking
-thread, and **runs under the PR's worker lease**: acquire and heartbeat before it starts, release
-after, exactly as `babysit-prs` requires before any per-PR fix or worker assignment
-(`babysit-prs/reference/safety.md` and `babysit-prs/reference/orchestration.md`); the guarded wrappers pin comment
-state, not concurrency ownership, and a lease another worker already holds means no dispatch at
-all. Brief it with the blocker, the PR, and the convention's independence and frontier-tier
-requirements; it replies and resolves threads through babysit-prs's guarded-mutation path, never a
-raw mutation.
-**A blocker needing a code change runs the full per-PR worker lifecycle** — isolated PR worktree,
-HEAD asserted at the live PR head, commit and refspec push (`babysit-prs/reference/safety.md`) — not
-the wrappers alone, which implement merge and thread resolution and create no worktree; a lane
-launched from a neutral directory has no usable tree without it.
-
-**Four blocker classes this dispatch never touches**, each because the invoked mechanic's own
-contract already owns them and this exception does not amend those contracts:
-
-- **Operator-parked items.** The `needs-human` role label marks machine-*escalated* and
-  operator-*parked* items alike; only the machine escalation marker distinguishes them (loop-lane
-  convention, "Escalation contract"). An item wearing the label without that marker belongs to the
-  attended queue, not this lane: no dispatch, and step 3 withholds the PR from the merge-capable
-  set — dispatching on the label alone would answer an operator-owned question with an agent.
-- **Human blocking feedback.** A human `CHANGES_REQUESTED` review, explicit human blocking
-  language, or an unresolved inline human thread stays a stop-and-ask condition until GitHub state
-  resolves it — escalate, never fix or resolve past it (`babysit-prs/reference/feedback.md`,
-  "Human Feedback"). No dispatch is made, and step 3 withholds the PR from the merge-capable
-  set. The one exception `babysit-prs` gained in this change is
-  scoped to security/P1 escalation and to that dispatch path alone (`babysit-prs/reference/safety.md`,
-  "Security/P1 escalation"); it does not widen to human blocks.
-- **Merge conflicts.** These route to the dedicated fresh conflict-resolution worker
-  (`babysit-prs/reference/orchestration.md`, Merge Conflict Resolution), which integrates
-  **merge-only and never rebases** — rebasing a PR branch needs the force-push babysit-prs forbids
-  cross-tier. This dispatch never resolves a conflict itself and never rebases.
-- **C4/C5 PRs.** Already excluded at the rung partition (Cycle shape, step 3) — including the
-  provenance-derived C5 override and the diff-derived C4 veto — and they escalate normally.
-
-If the dispatch resolves the blocker, **re-snapshot the PR and rerun step 3's provenance, C4-diff and
-rung partition before** its normal `autopilot`-tier invocation and gate — the first partition read
-the cycle-start diff, and a resolution that pushed code can have turned a C2/C3 change into a
-refactor, migration, or contract change that the downstream merge gate does not class-check. A PR
-that leaves the eligible set on that second partition escalates instead of merging. The normal
-worker's own final push obeys the same head-pinning rule (Cycle shape, step 3, "The verdict
-authorizes a head SHA, not the PR"). If the dispatch cannot resolve the blocker — including any
-case where the subagent itself is uncertain the resolution is correct — the PR escalates exactly
-as it would without this exception; this dispatch adds one resolution attempt, it never removes
-the escalation path or lowers the gate's bar.
+**Pre-escalation resolution attempt, explicit-`autopilot` only.** When — and only when — this
+invocation's own argument line typed both the literal `autopilot` tier argument and
+`--merge c3-this-run` (the widening pair above), a merge-eligible (C1-C3) PR blocked on a
+**machine-escalated** `needs-human` item, an open machine-authored finding, or a
+contradictory/unresolved **bot** review thread draws one fresh **frontier-tier** subagent dispatch —
+context-independent, and run under the PR's worker lease — before it escalates. **Four blocker
+classes it never touches**, each owned by a contract this exception does not amend:
+operator-*parked* items (the role label without the machine escalation marker — the attended queue's,
+and step 3 withholds the PR), human blocking feedback (stop-and-ask until GitHub state resolves it,
+also withheld at step 3), merge conflicts (the dedicated merge-only conflict worker), and C4/C5 PRs
+(already excluded at the rung partition). A resolution that lands re-runs step 3's provenance,
+C4-diff and rung partition before any merge-capable invocation; an unresolved *or uncertain* blocker
+escalates exactly as it would without the exception. This widens *who tries first*, never what the
+gate requires. The full contract — frontier-tier resolution and its escalate-rather-than-dispatch
+rule, the lease and independence requirements, each blocker class's rationale, the code-change
+worker lifecycle, and the re-partition rule — is owned by
+[reference/pre-escalation-dispatch.md](reference/pre-escalation-dispatch.md).
 
 ## Telemetry and durable loop state
 
