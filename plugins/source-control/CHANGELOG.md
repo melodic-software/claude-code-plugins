@@ -41,6 +41,25 @@ All notable changes to the `source-control` plugin are documented here. Format f
   confirmed its contents safe to discard — is now reported `dropped: false` with
   `residual_directory: true` and a stderr warning rather than claiming a cleanup that did not
   happen at a deterministic path where a replacement worktree still cannot be created.
+  - **A removed orphan directory no longer implies a reusable path.** When an entry orphans because
+    its `.git` pointer was corrupted, the owning repository still holds the
+    `$GIT_DIR/worktrees/<name>` record, so a later `git worktree add` at the same deterministic path
+    fails with "missing but already registered" — a directory removal alone was never the self-heal
+    it reported. Each dropped orphan now carries `registration_pruned`: `pruned` when the entry's own
+    `gitdir:` pointer named its repository and `git worktree prune` cleared the record there,
+    `not-applicable` when git answers for an ancestor checkout so no record for the path can exist,
+    `skipped` while the directory survives, and `unresolved` when the pointer is gone — a deleted
+    pointer leaves a record behind while a directory that was never a worktree never had one, and
+    the two are indistinguishable at the path, so the state is reported rather than assumed. Anything
+    but `pruned`/`not-applicable` also sets `stale_registration` and warns on stderr naming
+    `git worktree prune`. `dropped` keeps its existing directory-scoped meaning.
+  - **Orphan detection no longer depends on the operator's locale.** `worktree_toplevel` recognized a
+    missing repository by matching git's English `not a git repository` text. Git translates its
+    diagnostics, so on a localized machine every orphan surfaced as an unrelated error and never
+    reached the self-healing path. That probe now pins `LC_ALL=C` (and clears `LANGUAGE`, which
+    outranks it for GNU gettext) through a new `env_overrides` parameter on the shared
+    `run_command` seam, so the marker is only ever matched against output whose wording is
+    guaranteed.
 
 ## [0.31.6]
 

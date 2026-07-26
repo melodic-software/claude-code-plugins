@@ -59,8 +59,18 @@ class UnrecognizedWorktree:
     reason: str
 
 
-def run(argv: list[str], *, check: bool = True) -> subprocess.CompletedProcess[str]:
-    return run_command(argv, allowed_executables=ALLOWED_EXECUTABLES, check=check)
+def run(
+    argv: list[str],
+    *,
+    check: bool = True,
+    env_overrides: dict[str, str] | None = None,
+) -> subprocess.CompletedProcess[str]:
+    return run_command(
+        argv,
+        allowed_executables=ALLOWED_EXECUTABLES,
+        check=check,
+        env_overrides=env_overrides,
+    )
 
 
 def resolve_root(value: str | None) -> Path:
@@ -149,7 +159,10 @@ def worktree_toplevel(path: Path) -> Path | None:
     ancestor of it".
     """
     try:
-        proc = run(["git", "-C", str(path), "rev-parse", "--show-toplevel"])
+        proc = run(
+            ["git", "-C", str(path), "rev-parse", "--show-toplevel"],
+            env_overrides=C_LOCALE_ENV,
+        )
     except RuntimeError as exc:
         if is_missing_repo_error(exc):
             return None
@@ -180,6 +193,12 @@ def is_missing_repo_error(exc: Exception) -> bool:
     Distinguishes an orphaned worktree entry from every other git failure
     (permission errors, network issues for `gh`, etc.), which must still
     surface as a real error rather than being silently swallowed.
+
+    Only sound for a failure produced under `C_LOCALE_ENV`. Git translates its
+    diagnostics, so on a localized machine the untranslated marker would never
+    match and every orphan would surface as an unrelated error instead of
+    reaching the self-healing path -- the caller pins the locale rather than
+    hoping the operator's is English.
     """
     return NOT_A_GIT_REPO_MARKER in str(exc).lower()
 
@@ -226,6 +245,53 @@ def remove_empty_orphan_directory(path: Path, root: Path) -> bool:
     except OSError:
         pass
     return not path.exists()
+
+
+def registered_repo_from_gitdir_pointer(path: Path) -> Path | None:
+    """The repository a linked worktree's own `.git` pointer names, if readable.
+
+    A linked worktree's `.git` is a file holding
+    `gitdir: <repo>/.git/worktrees/<name>`. That record path is the only thing
+    at an orphaned entry that still names its owning repository, so it is what
+    a stale-record cleanup has to read. Returns None when the pointer is gone
+    or unreadable -- the case nothing local can resolve.
+    """
+    pointer = path / ".git"
+    try:
+        if not pointer.is_file():
+            return None
+        text = pointer.read_text(encoding="utf-8", errors="replace").strip()
+    except OSError:
+        return None
+    prefix = "gitdir:"
+    if not text.lower().startswith(prefix):
+        return None
+    recorded = Path(text[len(prefix) :].strip())
+    if not recorded.is_absolute():
+        recorded = (path / recorded).resolve()
+    # `<repo>/.git/worktrees/<name>` -> the checkout git commands run from.
+    for parent in recorded.parents:
+        if parent.name == ".git":
+            return parent.parent
+    return None
+
+
+def prune_repo_worktree_records(repo: Path) -> str:
+    """Clear stale `$GIT_DIR/worktrees/` records in `repo`; `pruned` or `failed`.
+
+    Removing an orphan's directory is only half the cleanup. When the entry
+    orphaned because its `.git` pointer was corrupted, the repository still
+    holds the registration, and `git worktree add` at the same deterministic
+    path then fails with "missing but already registered worktree" -- so a bare
+    directory removal is not the self-heal it looks like. `git worktree prune`
+    is git's own command for dropping records whose directory is gone, which is
+    why the caller removes the directory first and prunes second.
+    """
+    try:
+        run(["git", "-C", str(repo), "worktree", "prune"])
+    except (RuntimeError, OSError):
+        return "failed"
+    return "pruned"
 
 
 def pr_state(worktree: Worktree) -> dict[str, str]:
@@ -304,8 +370,44 @@ def drop_orphaned_worktree(
     if not preserve_lease and lease_path.exists():
         lease_path.unlink(missing_ok=True)
         info["lease_dropped"] = True
-    info["directory_removed"] = remove_empty_orphan_directory(worktree.path, root)
+    # Read the owning repository off the pointer BEFORE the directory goes --
+    # afterwards nothing at that path names it any more.
+    registered_repo = registered_repo_from_gitdir_pointer(worktree.path)
+    never_registered = worktree_toplevel(worktree.path) is not None
+    removed = remove_empty_orphan_directory(worktree.path, root)
+    info["directory_removed"] = removed
+    info["registration_pruned"] = orphan_registration_state(
+        registered_repo, never_registered=never_registered, directory_removed=removed
+    )
     return info
+
+
+def orphan_registration_state(
+    registered_repo: Path | None, *, never_registered: bool, directory_removed: bool
+) -> str:
+    """How the owning repository's worktree record ended up, for the report.
+
+    Four outcomes, because "the directory is gone" and "the path is reusable"
+    are different claims and only the second needs a repository:
+
+    - `skipped` -- the directory survives, so there is nothing to prune yet;
+      `git worktree prune` only drops records whose directory is missing.
+    - `not-applicable` -- git answers for an ancestor checkout, so this path
+      was never its own worktree and no record for it can exist.
+    - `pruned` / `failed` -- the entry's own `gitdir:` pointer named its
+      repository and the prune there succeeded or did not.
+    - `unresolved` -- the pointer is gone, so whether a stale record survives
+      is not knowable from here. Reported rather than assumed either way: a
+      deleted pointer leaves a record behind, while a directory that was never
+      a worktree never had one, and the two are indistinguishable at this path.
+    """
+    if not directory_removed:
+        return "skipped"
+    if never_registered:
+        return "not-applicable"
+    if registered_repo is None:
+        return "unresolved"
+    return prune_repo_worktree_records(registered_repo)
 
 
 def active_worker_lease(
@@ -432,6 +534,7 @@ def main() -> int:
                         # there. Report that as unfinished, in the same
                         # `residual_directory` vocabulary `remove_worktree`
                         # uses for its own surviving directory.
+                        registration = orphan_info["registration_pruned"]
                         row["dropped"] = bool(orphan_info["directory_removed"])
                         if not row["dropped"]:
                             row["residual_directory"] = True
@@ -439,6 +542,23 @@ def main() -> int:
                                 "WARNING: orphaned worktree directory is not "
                                 f"empty and was left in place for {worktree.key} "
                                 f"(inspect and clear it by hand): {worktree.path}",
+                                file=sys.stderr,
+                            )
+                        elif registration not in ("pruned", "not-applicable"):
+                            # The directory is gone but the owning repository's
+                            # record was not confirmed cleared, so the path may
+                            # still reject `git worktree add` as "missing but
+                            # already registered". Say so instead of letting
+                            # `dropped: true` read as a completed self-heal.
+                            row["stale_registration"] = True
+                            print(
+                                "WARNING: removed the orphaned directory for "
+                                f"{worktree.key}, but its owning repository's "
+                                f"worktree record was not cleared ({registration})"
+                                " -- a replacement worktree at that path can "
+                                "still fail as 'missing but already registered'."
+                                " Run `git worktree prune` in the checkout for "
+                                f"{worktree.full_repo}: {worktree.path}",
                                 file=sys.stderr,
                             )
                     else:

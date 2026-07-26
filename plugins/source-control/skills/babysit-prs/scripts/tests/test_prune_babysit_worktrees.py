@@ -304,6 +304,75 @@ class RemoveEmptyOrphanDirectoryTests(unittest.TestCase):
             self.assertTrue(outside.exists())
 
 
+class StaleWorktreeRegistrationTests(unittest.TestCase):
+    """A worktree orphaned by a corrupted `.git` pointer leaves the owning
+    repository's `$GIT_DIR/worktrees/` record behind, so removing the directory
+    alone is not a self-heal: `git worktree add` at the same deterministic path
+    then fails as "missing but already registered". The record path is readable
+    off the entry's own pointer, which is what makes the prune possible."""
+
+    def test_prunes_the_owning_repositorys_record_via_the_gitdir_pointer(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as td:
+            tmp = pathlib.Path(td)
+            main = make_repo(tmp)
+            root = tmp / "root"
+            wt = add_worktree(main, root, "owner__repo__pr-7")
+            worktree = prune.Worktree(
+                path=wt, owner="owner", repo="repo", number=7
+            )
+            # Corrupt the entry into an orphan the way #816 describes: the
+            # administrative record survives, the checkout's own contents do
+            # not. The `.git` pointer is deliberately left intact -- it is the
+            # only thing still naming the owning repository.
+            for child in wt.iterdir():
+                if child.name != ".git":
+                    child.unlink()
+            recorded = prune.registered_repo_from_gitdir_pointer(wt)
+            self.assertEqual(recorded, main.resolve())
+            wt.joinpath(".git").unlink()
+
+            state_dir = tmp / "state"
+            lease_path = leases.lease_path(state_dir, "worker", worktree.key)
+            info = prune.orphan_registration_state(
+                recorded, never_registered=False, directory_removed=True
+            )
+            self.assertEqual(info, "pruned")
+            self.assertNotIn(
+                str(wt), git("-C", str(main), "worktree", "list", "--porcelain")
+            )
+            self.assertFalse(lease_path.exists())
+
+    def test_reports_unresolved_when_the_pointer_is_gone(self) -> None:
+        # A bare directory and a deleted-pointer orphan are indistinguishable
+        # at the path, so the state is reported rather than assumed either way.
+        self.assertEqual(
+            prune.orphan_registration_state(
+                None, never_registered=False, directory_removed=True
+            ),
+            "unresolved",
+        )
+
+    def test_reports_not_applicable_when_git_answers_for_an_ancestor(self) -> None:
+        # The path was never its own worktree, so no record for it can exist.
+        self.assertEqual(
+            prune.orphan_registration_state(
+                None, never_registered=True, directory_removed=True
+            ),
+            "not-applicable",
+        )
+
+    def test_skips_the_prune_while_the_directory_survives(self) -> None:
+        # `git worktree prune` only drops records whose directory is missing.
+        self.assertEqual(
+            prune.orphan_registration_state(
+                None, never_registered=False, directory_removed=False
+            ),
+            "skipped",
+        )
+
+
 class DropOrphanedWorktreeTests(unittest.TestCase):
     def test_drops_the_lease_record_and_removes_the_empty_directory(self) -> None:
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as td:
@@ -325,7 +394,12 @@ class DropOrphanedWorktreeTests(unittest.TestCase):
             )
 
         self.assertEqual(
-            info, {"lease_dropped": True, "directory_removed": True}
+            info,
+            {
+                "lease_dropped": True,
+                "directory_removed": True,
+                "registration_pruned": "unresolved",
+            },
         )
         self.assertFalse(lease_path.exists())
         self.assertFalse(orphan_dir.exists())
@@ -347,7 +421,12 @@ class DropOrphanedWorktreeTests(unittest.TestCase):
             )
 
         self.assertEqual(
-            info, {"lease_dropped": False, "directory_removed": True}
+            info,
+            {
+                "lease_dropped": False,
+                "directory_removed": True,
+                "registration_pruned": "unresolved",
+            },
         )
 
     def test_keeps_the_caller_s_own_live_lease_while_dropping_the_orphan(
@@ -375,7 +454,12 @@ class DropOrphanedWorktreeTests(unittest.TestCase):
             )
 
             self.assertEqual(
-                info, {"lease_dropped": False, "directory_removed": True}
+                info,
+                {
+                    "lease_dropped": False,
+                    "directory_removed": True,
+                    "registration_pruned": "unresolved",
+                },
             )
             self.assertTrue(lease_path.exists())
             self.assertFalse(orphan_dir.exists())
