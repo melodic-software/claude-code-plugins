@@ -367,6 +367,35 @@ else
 fi
 rm -f "$f"
 
+# --- the segment scan stops at a command SEPARATOR, but a command
+# SUBSTITUTION in an earlier argument is not one: the outer command continues
+# past the closing paren, so excluding `(`/`)` from the gap hid a live GNU-only
+# option later on the same command (#1546).
+f="$(tmpsh "$(printf '%s\n' \
+  'grep -e "$(printf pattern)" -P file' \
+  'sort -k "$(printf 1)" -V file' \
+  'sort -k "$(printf 1)" --sort=version file')")"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "an option after a command substitution should fail, got success: $out"
+elif [[ "$(echo "$out" | grep -c "PORTABILITY: ${f}:")" -eq 3 ]]; then
+  ok "the scan continues past a command substitution to a later GNU-only option"
+else
+  fail "expected all 3 post-substitution options flagged, got: $out"
+fi
+rm -f "$f"
+
+# --- ...while a real separator still stops it, so the #1546 false positive
+# that motivated scoping the gap stays fixed.
+f="$(tmpsh "$(printf '%s\n' \
+  "grep foo /dev/null; printf '%s\\\\n' -P|cat" \
+  "sort /dev/null; printf '%s\\\\n' -V|cat")")"
+if scan_paths "$REAL_TOKENS" "$f" >/dev/null 2>&1; then
+  ok "a later command's option-shaped argument is still not attributed backwards"
+else
+  fail "the separator scoping must still hold: $(scan_paths "$REAL_TOKENS" "$f" 2>&1)"
+fi
+rm -f "$f"
+
 # --- an EMPTY quote pair is the one quoted form that must still match (#1546).
 # Quote removal deletes it, so the flag really is passed: on bash,
 # `printf '[%s]\n' -P'' pattern` prints `[-P]` then `[pattern]`, `grep -P'' '\d'`
