@@ -38,6 +38,13 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   - A shallow clone truncates that history, which would leave the guard inert
     while appearing healthy, so it emits a visible prerequisite notice naming
     `git fetch --unshallow` instead.
+- An `Edit` that replaces a bare substring **inside** an existing code span is
+  reconstructed from disk, mirroring `skill-reference-verify`. The surrounding
+  backticks are pre-existing and never enter `new_string`, so the hunk holds no
+  complete span to scan and a newly-stale citation would otherwise be missed
+  entirely. Only the lines carrying one of the hunk's word tokens are read back,
+  and only candidates containing such a token are adjudicated, so diff-scope
+  holds: an untouched citation sharing a recovered line does not fire.
 - Markdown **link destinations are out of scope**; only inline code spans are
   scanned. On-disk link integrity belongs to the repo's offline link checker,
   and under the provenance oracle no link-kind candidate contributed a finding.

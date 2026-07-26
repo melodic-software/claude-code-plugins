@@ -142,6 +142,66 @@ normalize_candidate() {
   printf '%s' "$t"
 }
 
+# Partial-replacement context reconstruction (Edit only), mirroring
+# skill-reference-verify's reconstruct_partial_edit.
+#
+# An Edit may replace an arbitrary substring: swapping `gone` for `real` inside an
+# existing `docs/gone.md` span leaves `docs/real.md` on disk, but the hunk is the
+# bare word `real` with no backtick pair around it, so emit_tokens finds no span
+# and a newly-stale citation would be silently missed. Write needs none of this —
+# its content is the whole file, already fully scanned.
+#
+# Recover bounded context: the edit is already applied by PostToolUse time, so pull
+# from disk only the lines carrying one of the hunk's word tokens, scan those, and
+# keep only candidates containing one of those tokens. That token filter is what
+# preserves the diff-scope contract — a pre-existing unrelated citation sharing one
+# of those lines never fires. The anchor is the token, not the line, since a
+# bare-word hunk carries no positional information.
+reconstruct_partial_edit() {
+  [[ "$TOOL" == "Edit" && -f "$FILE" ]] || return 0
+  # Anchor tokens come from the hunk with any COMPLETE code span removed first. A
+  # complete span is already handled by the direct scan, and leaving it in would
+  # contribute its own path segments as anchors — `docs` then matches every
+  # citation under that directory, including untouched ones on neighbouring lines,
+  # which breaks diff-scope. What remains is the genuinely bare edited text.
+  local residue
+  # shellcheck disable=SC2016  # backticks are literal ERE data, not expansions
+  residue=$(printf '%s' "$SCAN_CONTENT" | sed -E 's/`[^`]*`//g')
+  # Minimum anchor length. A substring match on a very short token matches almost
+  # any path segment, so below 4 characters the token carries no locating power.
+  # Path separators are deliberately NOT in the token charset: a prose fragment
+  # like `and/or` would then anchor on a slash and match far more candidates than
+  # a bare word does.
+  local -a toks=()
+  mapfile -t toks < <(printf '%s' "$residue" | grep -oE '[A-Za-z0-9][A-Za-z0-9._-]{3,}' 2>/dev/null | sort -u)
+  ((${#toks[@]})) || return 0
+  local tok lines ctx=""
+  for tok in "${toks[@]}"; do
+    lines=$(grep -F -- "$tok" "$FILE" 2>/dev/null)
+    [[ -n "$lines" ]] && ctx+="$lines"$'\n'
+  done
+  [[ -n "$ctx" ]] || return 0
+  local saved="$SCAN_CONTENT"
+  SCAN_CONTENT=$(printf '%s' "$ctx" | grep -vE '^[[:space:]]*$' | head -40)
+  local raw cand seg
+  while IFS= read -r raw; do
+    [[ -n "$raw" ]] || continue
+    cand=$(normalize_candidate "$raw")
+    [[ -n "$cand" ]] || continue
+    # SUBSTRING match against the CANDIDATE, not the raw span: an Edit can replace
+    # part of a segment (`gone` -> `real` turns `docs/gone.md` into `docs/real.md`),
+    # so the hunk token is a substring of the path rather than the whole of it, and
+    # the anchor must appear in the thing actually reported.
+    for seg in "${toks[@]}"; do
+      if [[ "$cand" == *"$seg"* ]]; then
+        printf '%s\n' "$cand"
+        break
+      fi
+    done
+  done < <(emit_tokens)
+  SCAN_CONTENT="$saved"
+}
+
 declare -A DELETED=()
 DELETED_BUILT=0
 SHALLOW=0
@@ -190,7 +250,17 @@ declare -A CHECKED=()
 MISSING=()
 ABSENT=0
 
-while IFS= read -r raw; do
+RAW_TOKENS=()
+mapfile -t RAW_TOKENS < <(emit_tokens)
+# Reconstruction runs on EVERY Edit, not only when the hunk yielded nothing. One
+# hunk can both carry a complete code span and change a substring inside another,
+# so gating on an empty scan would miss the partial half. Duplicates are harmless
+# — CHECKED dedupes below.
+if [[ "$TOOL" == "Edit" ]]; then
+  mapfile -t -O "${#RAW_TOKENS[@]}" RAW_TOKENS < <(reconstruct_partial_edit)
+fi
+
+for raw in "${RAW_TOKENS[@]}"; do
   [[ -n "$raw" ]] || continue
   cand=$(normalize_candidate "$raw")
   [[ -n "$cand" ]] || continue
@@ -207,7 +277,7 @@ while IFS= read -r raw; do
   [[ -n "${DELETED[$cand]:-}" ]] || continue
 
   MISSING+=("$cand")
-done < <(emit_tokens)
+done
 
 emit_tel() {
   [[ -n "$start" ]] || return 0

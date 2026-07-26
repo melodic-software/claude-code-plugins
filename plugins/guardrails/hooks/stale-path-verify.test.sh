@@ -136,6 +136,28 @@ OUT=$(run_edit 'Now cites `plugins/re-anchor/context/re-anchor-audit-correct.md`
 assert_contains "Edit hunk scanned via new_string" "$OUT" \
   "STALE_PATH: plugins/re-anchor/context/re-anchor-audit-correct.md"
 
+# PARTIAL-EDIT RECONSTRUCTION. An Edit may replace a bare substring INSIDE an
+# existing code span: the surrounding backticks are pre-existing and never enter
+# new_string, so the hunk holds no complete span for the direct scan to find. The
+# edit is already applied by PostToolUse time, so the containing citation is
+# recovered from disk, anchored to the hunk's tokens.
+#
+# `docs/gone.md` is in the deleted set; `docs/real.md` survives. The fixture holds
+# the post-edit state (`real` -> `gone`), which is what disk carries when the hook
+# runs.
+PARTIAL="$REPO/partial.md"
+printf 'Untouched `tools/legacy-emit.sh` here.\nNow cites `docs/gone.md` today.\n' >"$PARTIAL"
+OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" <<<"$(edit_json "$PARTIAL" 'gone')" 2>&1)
+RC=$?
+assert_exit "bare-substring Edit hunk → exit 0" 0 "$RC"
+assert_contains "bare-substring Edit hunk → containing citation recovered" "$OUT" \
+  "STALE_PATH: docs/gone.md"
+
+# Diff-scope is preserved: a PRE-EXISTING unrelated stale citation must NOT fire
+# just because reconstruction read from disk.
+assert_absent "reconstruction does NOT report an untouched neighbour" "$OUT" \
+  "legacy-emit"
+
 # A line-citation suffix is stripped for resolution; the finding names the path
 # without it.
 OUT=$(run 'Per `plugins/re-anchor/context/re-anchor-audit-correct.md:12` the rule applies.')
