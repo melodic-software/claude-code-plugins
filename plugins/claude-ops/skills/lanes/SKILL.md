@@ -64,12 +64,26 @@ begins with fresh context.
 ## Run it
 
 ```bash
-bash "${CLAUDE_PLUGIN_ROOT}/skills/lanes/scripts/lane-launcher.sh" $ARGUMENTS
+bash "${CLAUDE_PLUGIN_ROOT}/skills/lanes/scripts/lane-launcher.sh" --data-dir "${CLAUDE_PLUGIN_DATA}" $ARGUMENTS
 ```
 
 Print the script's output verbatim — it is the deliverable. Preview any mutating
 run first with `--dry-run` (prints the exact `claude`/`git` commands, seeds
 nothing, kills nothing).
+
+**`--data-dir` is passed explicitly, not left to the script's own
+`$CLAUDE_PLUGIN_DATA` env-var fallback.** Per
+[plugins-reference](https://code.claude.com/docs/en/plugins-reference#environment-variables),
+`${CLAUDE_PLUGIN_DATA}` is exported as a real environment variable only to hook
+processes and MCP/LSP subprocesses — for skill content it instead resolves by
+**inline text substitution anywhere the placeholder appears** in the rendered
+skill body, exactly like `${CLAUDE_PLUGIN_ROOT}` above. A script this skill
+shells out to via the Bash tool does **not** inherit `CLAUDE_PLUGIN_DATA` as an
+env var, so leaving `--data-dir` off here would silently fall through to
+`lane-launcher.sh`'s own `~/.claude/plugins/data/claude-ops` guess instead of
+the marketplace-qualified directory Claude Code actually resolves. `$ARGUMENTS`
+comes after `--data-dir`, so an explicit `--data-dir` the caller passes in
+`$ARGUMENTS` still wins (last flag wins in `lane-launcher.sh`'s parser).
 
 ## Action Router
 
@@ -85,14 +99,17 @@ Parse `$ARGUMENTS` for the action (first token); remaining tokens are lane names
 
 Options: `--config FILE`, `--repo DIR`, `--no-pull`, `--no-update`, `--dry-run`,
 `--agents-json FILE` (read the session list from a file instead of the live CLI —
-offline/scripted reuse). Exit codes: `0` ok · `3` bad argument/config · `4`
-prerequisite missing or repo/config unresolved.
+offline/scripted reuse), `--data-dir DIR` (base dir for the per-lane
+launch-commit marker; default `$CLAUDE_PLUGIN_DATA`). Exit codes: `0` ok · `3`
+bad argument/config · `4` prerequisite missing or repo/config unresolved.
 
 ## Lane config
 
 Lanes are defined in a JSON config, resolved first-hit-wins:
 `--config FILE` → `$CLAUDE_OPS_LANES_CONFIG` → `<repo>/.work/lanes.json`. Each lane
-carries a `name`, a `prompt` file path, and optional `model`/`effort`. The full
+carries a `name`, a `prompt` file path, and optional `model`/`effort`/`settings`
+(a session-only `claude --settings` override — e.g. opting the lane into the
+`autonomy` plugin's lane-stop gate). The full
 schema, resolution rules, and the prompt-storage seam live in
 [context/config.md](context/config.md) — read it before authoring a config.
 
@@ -111,15 +128,40 @@ its launch-time plugin versions, `/loop` never re-reads a skill's body on later
 cycles, and a loop can't self-trigger `/reload-plugins`). Restart is the honest
 refresh mechanism — the same `restart` that clears context bloat (#496). Detect an
 unconsumed self-fix with a read-only git probe against the repo's default branch,
-then restart that lane at its next cycle boundary. Full reasoning, the probe, and the cadence
-live in [context/refresh.md](context/refresh.md) — read it before answering "why is
-my merged fix not live in the lane?" or setting a restart frequency.
+then restart that lane at its next cycle boundary. The probe reads the launch
+commit `lane-launcher.sh` records per lane at `start`/`restart`
+(`${CLAUDE_PLUGIN_DATA}/lanes/<repo-key>/<lane>-launch-commit`, #792 — the data
+directory is plugin-wide, so `<repo-key>`, a digest of the repo's canonical
+path, keeps a conventional `work` lane in two different checkouts from sharing
+one marker) — no manual fill-in needed.
+Full reasoning, the probe, and the cadence live in
+[context/refresh.md](context/refresh.md) — read it before answering "why is my
+merged fix not live in the lane?" or setting a restart frequency.
+
+**Carry this line into that probe** — it is the `data_dir` assignment
+`context/refresh.md` deliberately leaves unresolved, because only skill content
+(this file) substitutes the placeholder:
+
+```bash
+data_dir="${CLAUDE_PLUGIN_DATA}"
+```
+
+Copy it as it renders **here**, already substituted to an absolute path. Writing
+the placeholder — or a `${CLAUDE_PLUGIN_DATA:-…}` env fallback — inside
+`context/refresh.md` would not work: that file is read raw, and per
+[plugins-reference](https://code.claude.com/docs/en/plugins-reference#environment-variables)
+`CLAUDE_PLUGIN_DATA` reaches only hook and MCP/LSP subprocesses as a real
+environment variable, never a script the Bash tool runs. The probe would then
+read the unqualified `~/.claude/plugins/data/claude-ops` guess, find no marker,
+and skip the staleness check silently.
 
 ## Verified CLI surface
 
 The launcher shells out only to primitives confirmed on this machine's `claude`
 (`--help` / real invocation): `claude --bg -n <name> [--model M] [--effort E]
-"<prompt>"` (launch a named background session, return immediately),
+[--settings JSON] "<prompt>"` (launch a named background session, return
+immediately; `--settings` accepts inline JSON and applies session-only, per the
+CLI reference),
 `claude agents --json` (list active sessions: pid, cwd, kind, startedAt,
 sessionId, name, status),
 `claude stop <sessionId>` (stop one session; conversation kept, resumable with
@@ -142,6 +184,17 @@ only for a configured lane name.
   in-flight conversation). Use `start` for "bring up whatever is down".
 - **A missing/empty prompt file skips that lane** (with an error) rather than
   launching an empty session. `status` flags `[prompt MISSING]`.
+- **The launch-commit marker is per-machine and best-effort.** It lives under
+  `${CLAUDE_PLUGIN_DATA}` (a per-machine dir, not synced), so a lane restarted
+  on a different machine has no marker there yet. A write failure only warns —
+  it never fails an already-launched (or already-stopped-and-relaunched) lane —
+  so a missing marker means "never started here via `lane-launcher.sh`", not
+  "launcher broken". A (re)start that *cannot* record its commit also deletes
+  any marker the previous launch left, so "missing" always beats a stale commit
+  the probe would otherwise trust.
+- **A lane name must be a single path component.** It is the marker's filename,
+  so config preflight exits `3` on a name containing `/` or `\`, or equal to `.`
+  or `..` — otherwise two distinct lanes could share one marker.
 
 ## Per-cycle deterministic scripts (#538)
 

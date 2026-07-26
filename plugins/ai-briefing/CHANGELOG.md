@@ -3,6 +3,32 @@
 All notable changes to the `ai-briefing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.2]
+
+### Fixed
+
+- **Headless reconfigure recipe now preserves install scope (#1406).** The `claude plugin
+  uninstall` → `claude plugin install ... --config` recipe in `skills/setup/SKILL.md` defaulted
+  both halves to `-s user`. When this plugin is installed at `project` or `local` scope, that
+  silently uninstalled a separate user-scope record while the effective project/local install kept
+  loading, and the reinstall landed at a scope that does not load. Both commands now carry
+  `-s <scope>`, sourced from what `claude plugin list` reports for this plugin — the same fix
+  applied to the other affected plugins in this release wave.
+
+## [0.6.1]
+
+### Changed
+
+- **Setup now documents how to change `active_profile`, not only how it is read.** The skill
+  resolved the key and reported the profile path, but named no route to a different stored value,
+  so a consumer whose configured profile was wrong for the repository had nothing to act on and the
+  `--profile` override looked like the only lever. `check` step 1 now names all three: the
+  interactive `/plugin configure ai-briefing` flow, which is the only surface that changes the
+  stored value; the headless `--config` path, with the caveat that it seeds on a fresh install only
+  and is ignored once installed, so reconfiguring headlessly is uninstall-then-reinstall; and the
+  per-run `--profile` for a one-off that should not touch stored config. This skill still never
+  writes `pluginConfigs`.
+
 ## [0.6.0]
 
 ### Changed

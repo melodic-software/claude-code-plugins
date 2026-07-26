@@ -239,6 +239,139 @@ else
   fail "missing .md not skipped (rc=$RC_M out=$OUT_M)"
 fi
 
+# --- Git-tree scoping: CLAUDE_PROJECT_DIR unset, file outside any git tree ----
+# Regression for out-of-tree scratchpad-lint noise: with CLAUDE_PROJECT_DIR
+# unset (run_hook already unsets it), a .md written outside any git working tree
+# (a lane's temp comment-body) is skipped entirely — no --fix applied, no
+# findings. A temp dir that happens to sit inside a git tree on this host would
+# pass vacuously, so assert the fixture is genuinely out-of-tree first. The
+# in-tree counterpart (unset dir, file inside a git tree still linted) is
+# covered by every fixture above: they all live in $REPO, a git working tree.
+OUTOFTREE="$(mktemp -d)"
+if git -C "$OUTOFTREE" rev-parse --show-toplevel >/dev/null 2>&1; then
+  ok "out-of-tree scratchpad case SKIPPED (temp dir sits inside a git tree on this host)"
+else
+  SCRATCH="$OUTOFTREE/comment-body.md"
+  # A fixable issue (MD004 star marker + MD047 missing final newline) the hook
+  # WOULD apply if it ran — so an unmodified file proves the skip.
+  printf '# Comment\n\n* bullet' >"$SCRATCH"
+  SCRATCH_BEFORE="$(cat "$SCRATCH")"
+  OUT_SCRATCH="$(run_hook "$SCRATCH")"
+  RC_SCRATCH=$?
+  if [[ $RC_SCRATCH -eq 0 && -z "$OUT_SCRATCH" ]]; then
+    ok "out-of-tree scratchpad .md skipped (exit 0, no findings)"
+  else
+    fail "out-of-tree scratchpad .md not skipped (rc=$RC_SCRATCH out=$OUT_SCRATCH)"
+  fi
+  if [[ "$(cat "$SCRATCH")" == "$SCRATCH_BEFORE" ]]; then
+    ok "out-of-tree scratchpad .md left unmodified (no --fix)"
+  else
+    fail "out-of-tree scratchpad .md was modified: $(cat "$SCRATCH")"
+  fi
+
+  # Inherited repository overrides must not decide membership. GIT_DIR and
+  # GIT_WORK_TREE override Git's discovery outright, so `git -C <out-of-tree
+  # dir>` answers with the overridden repository — the same out-of-tree file
+  # would be admitted and linted under that repository's rules. The fixture
+  # carries an unfixable MD024 so a hook that DID run is visible in stdout.
+  SCRATCH_GITDIR="$OUTOFTREE/comment-body-gitdir.md"
+  printf '# Comment\n\n## Section\n\ntext\n\n## Section\n\n* bullet\n' >"$SCRATCH_GITDIR"
+  OUT_GITDIR="$(cd "$UNRELATED" && printf '{"tool_input":{"file_path":"%s"}}' "$SCRATCH_GITDIR" |
+    env -u CLAUDE_PROJECT_DIR GIT_DIR="$REPO/.git" GIT_WORK_TREE="$REPO" \
+      CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true bash "$HOOK")"
+  RC_GITDIR=$?
+  if [[ $RC_GITDIR -eq 0 && -z "$OUT_GITDIR" ]]; then
+    ok "inherited GIT_DIR/GIT_WORK_TREE does not admit an out-of-tree .md"
+  else
+    fail "inherited GIT_DIR/GIT_WORK_TREE admitted an out-of-tree .md (rc=$RC_GITDIR out=$OUT_GITDIR)"
+  fi
+  if grep -q '^\* bullet$' "$SCRATCH_GITDIR"; then
+    ok "out-of-tree .md unmodified under inherited GIT_DIR (no --fix)"
+  else
+    fail "out-of-tree .md was fixed under inherited GIT_DIR: $(cat "$SCRATCH_GITDIR")"
+  fi
+
+  # Symlink escape: an IN-repository path whose target is the out-of-tree file.
+  # The lexical parent ($REPO) is a git tree, so a lexical membership test would
+  # admit it and --fix would rewrite the external target under repo rules. The
+  # guard must decide on the physical path, as hook::read_file_path does.
+  # Skipped where the host cannot create real symlinks (Git Bash without
+  # winsymlinks copies the file instead).
+  LINK="$REPO/escaping-link.md"
+  if ln -s "$SCRATCH" "$LINK" 2>/dev/null && [[ -L "$LINK" ]]; then
+    LINK_BEFORE="$(cat "$SCRATCH")"
+    OUT_LINK="$(run_hook "$LINK")"
+    RC_LINK=$?
+    if [[ $RC_LINK -eq 0 && -z "$OUT_LINK" ]]; then
+      ok "in-repo symlink to out-of-tree .md skipped (exit 0, no findings)"
+    else
+      fail "in-repo symlink to out-of-tree .md not skipped (rc=$RC_LINK out=$OUT_LINK)"
+    fi
+    if [[ "$(cat "$SCRATCH")" == "$LINK_BEFORE" ]]; then
+      ok "symlink target left unmodified (no --fix on the external file)"
+    else
+      fail "symlink target was modified: $(cat "$SCRATCH")"
+    fi
+    # Same escape with BOTH canonicalizers neutered, so hook::physical_path
+    # degrades to the unchanged lexical path — whose parent ($REPO) IS a git
+    # tree. A physical-path test alone would admit the link there and hand the
+    # external target to --fix, so the guard must fail closed on an unresolved
+    # symlink instead.
+    #
+    # The fixture carries a duplicate sibling heading (MD024, unfixable under
+    # this repo's config) so a hook that DID run emits additionalContext: the
+    # skip is proven by silence, not by an unchanged file. File content alone
+    # would be a vacuous witness — the stub's `sed -i` replaces the link with a
+    # regular file instead of writing through it, leaving the target intact
+    # even when --fix ran.
+    NO_CANON_ENV="$WORK/no-canonicalizer.bashenv"
+    cat >"$NO_CANON_ENV" <<'EOF'
+realpath() { return 1; }
+readlink() { return 1; }
+EOF
+    run_hook_no_canon() {
+      (cd "$UNRELATED" && printf '{"tool_input":{"file_path":"%s"}}' "$1" |
+        env -u CLAUDE_PROJECT_DIR BASH_ENV="$NO_CANON_ENV" \
+          CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true bash "$HOOK")
+    }
+    SCRATCH_NC="$OUTOFTREE/comment-body-nocanon.md"
+    printf '# Comment\n\n## Section\n\ntext\n\n## Section\n\n* bullet\n' >"$SCRATCH_NC"
+    LINK_NC="$REPO/escaping-link-nocanon.md"
+    ln -s "$SCRATCH_NC" "$LINK_NC"
+    OUT_NOCANON="$(run_hook_no_canon "$LINK_NC")"
+    RC_NOCANON=$?
+    if [[ $RC_NOCANON -eq 0 && -z "$OUT_NOCANON" ]]; then
+      ok "symlink escape fails closed when canonicalization is unavailable"
+    else
+      fail "symlink escape not skipped without canonicalizer (rc=$RC_NOCANON out=$OUT_NOCANON)"
+    fi
+    if [[ -L "$LINK_NC" ]]; then
+      ok "escaping symlink untouched without canonicalizer (still a symlink)"
+    else
+      fail "escaping symlink was rewritten by --fix without canonicalizer"
+    fi
+
+    # Control: the neutered canonicalizers must not disable the hook wholesale,
+    # or the silence above would prove nothing. The SAME fixture body in a
+    # REGULAR in-repository file still lints and still reports MD024.
+    NOCANON_REGULAR="$REPO/fixtureNoCanon.md"
+    printf '# Comment\n\n## Section\n\ntext\n\n## Section\n\n* bullet\n' >"$NOCANON_REGULAR"
+    OUT_NOCANON_REG="$(run_hook_no_canon "$NOCANON_REGULAR")"
+    RC_NOCANON_REG=$?
+    if [[ $RC_NOCANON_REG -eq 0 ]] &&
+      printf '%s' "$OUT_NOCANON_REG" | jq -e '.hookSpecificOutput.additionalContext | test("MD024")' >/dev/null 2>&1; then
+      ok "regular in-repo .md still linted without canonicalizer (control)"
+    else
+      fail "control failed: regular in-repo .md not linted without canonicalizer (rc=$RC_NOCANON_REG out=$OUT_NOCANON_REG)"
+    fi
+    rm -f "$LINK_NC"
+  else
+    ok "symlink-escape case SKIPPED (host cannot create real symlinks)"
+  fi
+  rm -f "$LINK"
+fi
+rm -rf "$OUTOFTREE"
+
 # --- Repository-local markdownlint: use contained npm/Git Bash shim ---------
 # Hide the PATH copy, then provide the extensionless POSIX shim npm installs
 # beside its Windows .cmd launcher. The hook must execute it directly from the
@@ -656,8 +789,32 @@ rm -f "$FAIL_SINK_FILE"
 # file on Windows. A baseline run (fast sink, no sleep) captures the SAME ambient
 # overhead as the slow run under the SAME capture; subtracting it cancels the
 # overhead and isolates the leak signal. Under a leak the delta is ~SINK_SLEEP;
-# with no leak it is ~0 (± scheduling jitter). Threshold is half the sleep:
-# comfortably above jitter, comfortably below the leak signal.
+# with no leak it is ~0 (± scheduling jitter).
+#
+# THRESHOLD_MS asserts the actual invariant — "did not wait for the sink" —
+# as sleep-minus-a-safety-margin, NOT half the sleep. Halving discarded margin
+# for no gain and was proven too tight empirically (#448 reopen): a clean-main
+# false-fail measured delta=3697ms against the old 3000ms/half-sleep threshold,
+# and load-generated measurements up to ~2150ms (30 concurrent suite runs on
+# Windows Git Bash) confirm noise alone can approach that old threshold.
+#
+# The threshold has TWO margins and both must clear that 2150ms worst observed
+# noise, because the detector can fail in either direction:
+#
+#   noise side  threshold - max_noise      a no-leak run must stay BELOW it
+#   leak  side  leak_signal - threshold    a leaking run must stay ABOVE it
+#
+# The leak side is the one a too-HIGH threshold breaks, and it is not covered by
+# the min-of-N baseline below: that protects against ONE unlucky baseline sample,
+# not against a load shift that inflates ALL of them and then subsides before the
+# slow run. Baselines 2s+ slower than the slow run's own overhead subtract real
+# leak signal out of the delta, so a leak whose delta lands between the threshold
+# and SINK_SLEEP passes silently. SINK_SLEEP=8s with SAFETY_MARGIN_MS=3000 puts
+# the threshold at 5000ms, roughly midway between the signal and the noise:
+# 2850ms of noise-side margin and 3000ms of leak-side margin, both above the
+# 2150ms worst case measured. Recorded measurements bracket it — a deliberately
+# reintroduced leak measured delta=8065ms (detected), while 40 runs under 30x
+# concurrent load peaked at ~1555ms with no leak (passed).
 #
 # The baseline is the MINIMUM of several fast runs, not a single sample. A lone
 # baseline that happened to be descheduled longer than the slow run would shrink
@@ -668,7 +825,8 @@ rm -f "$FAIL_SINK_FILE"
 # sample with no leak — only re-fails a green run (fail-safe, re-runnable), so
 # just the baseline needs min-of-N; the slow run stays single (each slow sample
 # costs SINK_SLEEP).
-SINK_SLEEP=6
+SINK_SLEEP=8
+SAFETY_MARGIN_MS=3000
 BASE_SAMPLES=3
 BASE_SINK="$(make_sink "cat >/dev/null")"
 SLOW_SINK="$(make_sink "cat >/dev/null; sleep $SINK_SLEEP")"
@@ -699,7 +857,7 @@ _TS1=$EPOCHREALTIME
 SLOW_MS=$(epoch_delta_ms "$_TS0" "$_TS1")
 
 DELTA_MS=$((SLOW_MS - BASE_MS))
-THRESHOLD_MS=$((SINK_SLEEP * 1000 / 2))
+THRESHOLD_MS=$((SINK_SLEEP * 1000 - SAFETY_MARGIN_MS))
 echo "  (C1 fd1-leak: base=${BASE_MS}ms (min of ${BASE_SAMPLES}) slow=${SLOW_MS}ms delta=${DELTA_MS}ms, threshold <${THRESHOLD_MS}ms, sink sleeps ${SINK_SLEEP}s)"
 if [[ $RC_SLOW -eq 0 ]]; then ok "telemetry/slow-sink: hook exit 0"; else fail "telemetry/slow-sink: hook exit $RC_SLOW"; fi
 if [[ $DELTA_MS -lt $THRESHOLD_MS ]]; then

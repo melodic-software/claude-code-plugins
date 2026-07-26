@@ -4,6 +4,57 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.5.1]
+
+Runs the context-engineering rightsizing effort's criteria catalog
+(`docs/topics/context-engineering-rightsizing/design/` on `feat/context-engineering-rightsizing`,
+not yet merged to `main`) over `fable-5`, the one subtree decision D-6 excluded from the original
+pass because #1261 was rewriting it concurrently. #1261 merged first; this closes the follow-up
+(#1324).
+
+### Changed
+
+- **`fable-5`: narrow the fresh-context-verifier trigger to exclude mechanical,
+  behavior-preserving batches** — `context/orchestration.md`, section "Fresh-context
+  verification" (the owning site, full reasoning); `SKILL.md`'s core-doctrine distillation,
+  `context/verification.md`'s floor statement, the owning section's own floor sentence, and
+  `context/opus-adaptation.md`'s delegation correction all restate the trigger operatively and are
+  narrowed to match, each pointing back to the owning section for the exception's detail.
+  Previously the trigger fired unconditionally after any multi-file edit batch or before any
+  multi-part completion claim; the catalog's S3 digest names this exact blanket dispatch as the
+  D-5 target ("drop blanket dispatch on mechanical behavior-preserving work; keep it where the
+  verdict is subjective or blast radius is wide") and lists `playbooks/fable-5` among the affected
+  files. The carve-out reuses the planning chapter's existing behavior-preserving/behavior-changing
+  distinction rather than inventing a second one, and a subjective verdict or a wide blast radius
+  keeps the original trigger unchanged at all three sites.
+
+## [0.5.0]
+
+Numbered `0.5.0` rather than the `0.4.0` this branch first claimed: #1261 merged
+first and took that number. The tier is unchanged — still **minor**, now measured
+from `0.4.0` instead of `0.3.2`.
+
+### Added
+
+- **`boris`: four reference buckets for the twenty sections upstream added since
+  the last sync** — [`unknowns.md`](skills/boris/reference/unknowns.md)
+  (96–99, finding your unknowns), [`loops.md`](skills/boris/reference/loops.md)
+  (100–103, the four loop types),
+  [`automation.md`](skills/boris/reference/automation.md) (104–109, `/checkup`
+  and automation as infrastructure), and
+  [`context-engineering.md`](skills/boris/reference/context-engineering.md)
+  (110–115, the Claude 5 context-engineering rules and Opus 5). Buckets follow
+  upstream's own thread grouping — Parts 18, 19, 20–21, and 22.
+
+### Changed
+
+- **`boris`: vendored baseline synced 8.8.1 → 8.13.0** through
+  `/playbooks:update --apply`, never a hand-copy. The delta is additive:
+  sections 1–95 are unchanged, and the counts move 107 → 127 tips across
+  95 → 115 sections. The hub's hardcoded counts (frontmatter description and
+  body), the Topic Index, the Quick Reference, the source-date footer, and the
+  plugin README's pack row all move with them.
+
 ## [0.4.0]
 
 ### Added

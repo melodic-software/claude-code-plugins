@@ -3,6 +3,20 @@
 All notable changes to the `github` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.2.0]
+
+### Changed
+
+- **`/github:setup apply` now states the two state-assessing clauses the setup contract requires of
+  it.** The skill said `apply` "never blindly rewrites" and carried an idempotency check, but
+  neither of the contract's specific guarantees had a line to cite: nothing preserved keys in an
+  existing `routing.yaml` that the schema does not recognize, and nothing said a recognized value
+  the current version cannot reconcile is reported rather than converged. Both are now explicit and
+  scoped to `routing.yaml`, which is the only file `apply` merges — `conventions.md` is a prose stub
+  already governed by never-overwrite, so a preserve-keys guarantee about it would say nothing. An
+  unrecognized key may be a consumer extension or a newer version's, and an unreconcilable value
+  quietly rewritten is config loss the consumer discovers only when routing misbehaves.
+
 ## [0.1.0]
 
 ### Added

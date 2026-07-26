@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/hook-telemetry/data/lane-stop-gate.schema.json",
+  "title": "lane-stop-gate telemetry data",
+  "description": "Per-hook `data` payload for the autonomy plugin's deterministic lane-stop gate (Stop hook). Discovered from the envelope `hook` value \"lane-stop-gate\". Evolves additive-only. Only the gate's three EVALUATED outcomes emit (an opted-in lane, a true Stop event, payload parsed); the default-off and fail-open exits are silent. The payload is a closed fixed vocabulary by design: it NEVER carries the sentinel token value, the marker path, the session cwd, or the branch name.",
+  "type": "object",
+  "required": ["outcome", "signal"],
+  "additionalProperties": true,
+  "properties": {
+    "outcome": {
+      "type": "string",
+      "description": "Evaluated gate outcome: \"completion-signaled\" (legitimate stop, allowed silently; envelope status ok) | \"nudged\" (first stop attempt without a completion signal, blocked once with the re-injected self-check; envelope status blocked) | \"stopped-after-nudge\" (lane stopped again without signaling — treated as a genuine down/stuck lane, allowed with the operator notification; envelope status ok)."
+    },
+    "signal": {
+      "type": "string",
+      "description": "Which completion channel authorized the stop: \"sentinel\" (token alone on its own line in the final message) | \"marker\" (configured marker file exists) | \"none\" (no signal — the nudged and stopped-after-nudge outcomes). The channel kind only, never the configured token or path."
+    }
+  }
+}

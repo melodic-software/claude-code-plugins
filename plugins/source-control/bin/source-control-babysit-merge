@@ -1,8 +1,12 @@
 #!/usr/bin/env bash
 # Canonical, self-locating wrapper for the guarded babysit-prs merge gate.
-# Exposing the gate as a stable bare command lets a narrow, non-interpreter allow
-# rule -- Bash(source-control-babysit-merge:*) -- survive Claude Code auto mode,
-# which drops wildcarded-interpreter rules like Bash(python*). Adds no capability
+# The stable bare name exists so a narrow, non-interpreter allow rule --
+# Bash(source-control-babysit-merge:*) -- could survive Claude Code auto mode,
+# which drops wildcarded-interpreter rules like Bash(python*). That benefit is
+# currently unrealized: bare-name PATH delivery is unreliable, so callers invoke
+# this by its ${CLAUDE_PLUGIN_ROOT}/bin/ path, and a path invocation cannot match
+# the bare-name rule. Both halves are spelled out under "Guarded Mutation
+# Wrappers" in skills/babysit-prs/reference/safety.md. Adds no capability
 # of its own: the deterministic gate in babysit_merge.py stays the only merge
 # path. It additionally refuses --allow-unpinned-head so that no unattended,
 # allow-rule-covered invocation can merge an unvetted head; the interactive
@@ -12,10 +16,16 @@ export PYTHONUTF8=1
 here="$(cd "$(dirname "$(readlink -f "$0" 2>/dev/null || echo "$0")")" && pwd)"
 scripts="$here/../skills/babysit-prs/scripts"
 
+# Refuse the flag AND every long-option prefix of it. The gate's parser now
+# sets allow_abbrev=False, but this wrapper is the allow-rule boundary and must
+# not depend on the interpreter behind it: an exact-equality test alone let
+# `--allow-unpinned-hea` sail through while argparse (with abbreviation on)
+# resolved it to the refused flag. A prefix here can only mean the refused flag
+# or an ambiguous stem of it, so refusing the whole family is exact.
 for arg in "$@"; do
-  if [[ "$arg" == "--allow-unpinned-head" ]]; then
+  if [[ "$arg" == --a* && "--allow-unpinned-head" == "$arg"* ]]; then
     printf '%s\n' \
-      'source-control-babysit-merge: --allow-unpinned-head is not permitted through the wrapper.' \
+      "source-control-babysit-merge: $arg is not permitted through the wrapper (--allow-unpinned-head or a prefix of it)." \
       'Invoke babysit_merge.py directly for interactive unpinned use.' >&2
     exit 2
   fi

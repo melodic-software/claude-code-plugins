@@ -49,7 +49,22 @@ anything.
 1. **Resolve the profile.** Parse `--profile <name>` from `$ARGUMENTS`; otherwise use the
    rendered `${user_config.active_profile}` value when non-empty, else the root `default`
    profile. A per-run `--profile` wins. Require a 1-63 character lowercase-kebab slug and
-   reject reserved Windows device names. Report the resolved profile path.
+   reject reserved Windows device names. Report the resolved profile path, which of the three
+   sources supplied it, and — when the resolved value came from `${user_config.active_profile}` or
+   the configured value is wrong for this repository — the reconfiguration route:
+   - **Interactive, any time:** `/plugin configure ai-briefing`. This is the only surface that
+     changes the stored value; this skill never writes `pluginConfigs`.
+   - **Headless:** `claude plugin install ... --config active_profile=<name>` seeds the value on a
+     *fresh install only* and is ignored once the plugin is installed, so reconfiguring headlessly
+     means `claude plugin uninstall ai-briefing -s <scope>` then `claude plugin install
+     ai-briefing@<marketplace> -s <scope> --config active_profile=<name>`. Both commands default
+     to `-s user` — pass the scope `claude plugin list` reports for this plugin, and run from that
+     project's directory for a `project`/`local` scope. Defaulting instead uninstalls a separate
+     user-scope record while the effective install stays in place, so the reinstall lands at a
+     scope that does not load. `active_profile` is this plugin's only `userConfig` key, so the
+     reinstall has nothing else to re-supply.
+   - **Neither, for a one-off:** a per-run `--profile <name>` selects a different profile without
+     touching stored config.
 2. **`sources.md`** — FAIL if the resolved profile has no `sources.md`: `/ai-briefing:generate`
    has no authorized sources to collect from. Remediation: `apply`.
 3. **Optional overlays** — INFO: report whether `audience.md` and declarative `brand.json`

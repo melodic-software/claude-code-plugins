@@ -3,6 +3,68 @@
 All notable changes to the `toolchain` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.2]
+
+### Changed
+
+- **`/toolchain:check` §2 Reachability bullet now states the settled cross-ecosystem-trigger
+  pattern.** A gate's `trigger-globs` narrows a run *within* its already-affected ecosystem and never
+  selects an ecosystem under auto-targeting — that subordinate model was already the implemented
+  behavior (#1020) but was left as an open design question in the schema and skill docs. Decided by
+  #1339: the docs now state explicitly that a consumer with a cross-ecosystem gate trigger (e.g. a Go
+  gate keyed off `*.proto`) adds the trigger pattern to the ecosystem's own `globs` to make it
+  auto-targeting-visible. Docs-only; no runtime behavior change; `ecosystem.schema.json`'s
+  `trigger-globs` description bumped to convention v1.1.1 in lockstep (docs/conventions/
+  ecosystem-commands/CHANGELOG.md).
+
+## [0.10.1]
+
+### Fixed
+
+- **`pyrightconfig.json` added to the python ecosystem detection `globs`.** A standalone
+  pyright-config-only change (`reference/ecosystems/python.yaml` `globs` previously covered only
+  `*.py`/`pyproject.toml`/`uv.lock`) is now auto-detected as python-affecting by `/toolchain:check`
+  and `/toolchain:lint` local runs, closing a coverage gap versus CI.
+- **python `opt-in` reduced to its single gating condition.** The trailing semicolon-separated
+  pyright-mode clause structurally resembled the multi-clause per-tool `opt-in` form (per the
+  ecosystem-commands contract), risking a misread of python's single-condition (ruff config) gate as
+  multi-condition. The descriptive pyright-mode note is unchanged and already lives in the check
+  skill's `context/python.md` gotchas (single source of truth).
+- **pyright documented as a hard prerequisite of the python default once ruff opts the ecosystem
+  in.** `context/python.md` now states that pyright shares the compound `check-cmd` with ruff and
+  tool presence is evaluated per ecosystem, so a ruff-configured project with pyright absent reports
+  a whole-ecosystem missing-tool `skip` (dropping ruff coverage) rather than skipping pyright alone —
+  install pyright alongside ruff. Follow-ups from PR #859 review, batched via #657 sweep; closes #1017.
+
+## [0.10.0]
+
+### Added
+
+- **Resolved `gates` arrays now execute in `/toolchain:check`.** The ecosystem-commands
+  `gates` array (`name`/`cmd`/`trigger-globs`/`remediation`) was resolved as part of each
+  ecosystem's command surface but never invoked by any workflow step — a bundled or
+  consumer-declared gate was inert. `check/SKILL.md` §2 now iterates each affected ecosystem's
+  resolved `gates` after build → test → lint: under auto-detection a gate fires when a changed file
+  matches its `trigger-globs` (full changed-files set) or unconditionally when `trigger-globs` is
+  omitted, and under an explicit `/toolchain:check all` or `/toolchain:check <ecosystem>` every
+  gate of a selected ecosystem fires regardless of `trigger-globs` (so full-repo verification on a
+  clean tree cannot pass a committed-but-untidy `go.mod`),
+  runs independent of the build/test/lint short-circuit, reports `skip` when the tool is missing or
+  its version is verified below the gate's documented floor (an environment capability gap is not
+  project drift — a Go 1.22 toolchain skips `go mod tidy -diff` instead of failing every `*.go`
+  change, while an unexplained rejection such as a typo in a consumer's `cmd` still fails), and on
+  failure surfaces `remediation` and flips Overall to `FAIL`. A gate executes from the same
+  location the ecosystem's own build/test/lint use — once per resolved `<project-dir>` for a
+  `project-discovery` ecosystem, from the `anchor`'s directory otherwise — so the bundled
+  `go.yaml` `go-mod-tidy-drift` gate runs from each `go.mod` root in a monorepo rather than only
+  `$REPO_ROOT` (a repo-root-only `go mod tidy -diff` falsely fails when the sole module is nested
+  and misses drift in nested modules). `go.yaml`'s `go-mod-tidy-drift` bundled default and a
+  consumer's `nuget-lockfile-drift`-shaped gate now actually run. The prior path — CI-parity gates
+  documented in the consuming project's own `CLAUDE.md`, rules, or commands reference — is
+  additive, not replaced: those still run under the same fire/report/verdict rules, so no consumer
+  has to migrate to keep them. `lint` is unchanged — gates are CI-parity checks beyond lint's fast
+  build-free path. Closes #926.
+
 ## [0.9.0]
 
 ### Added

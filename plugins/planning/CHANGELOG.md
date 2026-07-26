@@ -3,6 +3,88 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.26.3]
+
+### Fixed
+
+- **Headless reconfigure recipe now preserves install scope (#1406).** The `claude plugin
+  uninstall` → `claude plugin install ... --config` recipe in `skills/setup/SKILL.md` defaulted
+  both halves to `-s user`. When this plugin is installed at `project` or `local` scope, that
+  silently uninstalled a separate user-scope record while the effective project/local install kept
+  loading, and the reinstall landed at a scope that does not load. Both commands now carry
+  `-s <scope>`, sourced from what `claude plugin list` reports for this plugin — the same fix
+  already applied to `session-flow` and `rate-limit-guard` in #1393.
+
+## [0.26.2]
+
+### Fixed
+
+- **`interview`'s `recommends-session-config` eval no longer only covers the
+  downstream-execution-session framing.** The single eval asserted config for
+  "the downstream execution session" for every case, so a general/terminal
+  session — which has no downstream consumer and should be told to configure the
+  current/next session, applied now — could still pass on the stale
+  downstream-only framing. Split into two cases: eval 9
+  (`recommends-session-config-engineering-downstream`) keeps the downstream
+  framing, now explicitly scoped to the engineering/handoff path, and new eval 10
+  (`recommends-session-config-general-current-session`) asserts the current/next
+  session framing for a general/terminal decision — including the 0.26.1 timing
+  contract: an early first read right after the Step 1 survey classifies the
+  domain as general, the stop-boundary recommendation as a refresh of it, and
+  the offer to re-evaluate the reached understanding when config was raised
+  only at the end. Covers the skill-side reframe that landed in 0.26.1.
+
+## [0.26.1]
+
+### Fixed
+
+- **`interview`'s session-config guidance no longer reads as a runtime imperative to
+  a nonexistent downstream session.** The mid-task "raise the model/effort" rule was
+  phrased as an instruction to an executing actor, but `/interview` terminates at
+  handoff and never wires that context into whatever session executes next — it is
+  now framed as a watch-for the interview hands the **user** at handoff. Separately,
+  the recommendation's header framed itself as configuring "the downstream execution
+  session," which the "Both domains" section then extended to general sessions even
+  though a general session is terminal with no downstream consumer (SKILL.md Step 5).
+  General/terminal sessions now frame the recommendation as config for the
+  current/next session, applied now; the "Both domains" scope is unchanged. The
+  handoff checklist's Step 5 is aligned to the same split.
+- **`interview`'s general-session config recommendation now lands early enough to
+  act on.** With the current/next-session framing, a recommendation first emitted at
+  the stop boundary arrives after the work it was derived from is complete — the
+  general session is terminal, so applying `/model`, effort, or `/advisor` there
+  cannot improve the reached understanding. General/terminal sessions now surface a
+  first read right after the Step 1 survey classifies the domain as general (when
+  survey signals warrant a change), refresh it at the stop boundary, and — when the
+  config was raised only at the end — offer to re-evaluate the reached understanding
+  under the raised config. Engineering timing is unchanged: the downstream execution
+  session has not started yet, so the stop/handoff boundary remains early enough.
+
+## [0.26.0]
+
+### Changed
+
+- **`draft-goal-condition` is now reachable from lever-selection intent.** Its
+  Step 0 was already the lever-fit router across `/goal`, `/loop`, routines and
+  `/schedule`, a Stop hook, and a one-shot prompt, but the description sold only
+  the drafting half, so "which of these should I use" never reached it. The
+  description now leads with the routing and carries five lever-selection
+  triggers (`'which loop should I use'`, `'/goal or /loop'`,
+  `'should this be a routine'`, `'pick the right autonomy lever'`,
+  `'what kind of loop is this'`). Every pre-existing trigger phrase is
+  preserved, and the rewrite also switches the trigger list to the `Use when:`
+  form the authoring gate expects, clearing a standing warning.
+
+### Fixed
+
+- **`draft-goal-condition` no longer restates the `/goal` condition shape it
+  tells itself never to hardcode.** Step 2 enumerated a four-part shape and
+  Step 3's tightening rule named those parts, while the skill's own gotcha
+  forbids baking the shape into this file — and the restatement had already
+  drifted: the live page prescribes three elements and treats the turn/time
+  clause separately. Both steps now defer to the shape Step 1 reads off the live
+  page.
+
 ## [0.25.0]
 
 ### Added

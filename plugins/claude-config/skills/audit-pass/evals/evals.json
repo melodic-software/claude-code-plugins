@@ -1,0 +1,320 @@
+{
+  "skill_name": "audit-pass",
+  "evals": [
+    {
+      "id": 1,
+      "name": "bare-invocation-is-read-only",
+      "prompt": "/claude-config:audit-pass",
+      "expected_output": "Runs one coordinated read-only pass over the resolved target: three-scope inventory first, then delegated lanes, then a report written under CLAUDE_PLUGIN_DATA. It writes nothing into the target tree — git status --porcelain stays empty — because mutation is only reachable behind the explicit --fix override.",
+      "files": [],
+      "expectations": [
+        "Writes no file into the target repository, leaving git status --porcelain empty",
+        "Does not apply any fix, and states that --fix is the explicit override that would enable one",
+        "Writes the report under CLAUDE_PLUGIN_DATA rather than into the scan set"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "inventory-precedes-any-check",
+      "prompt": "/claude-config:audit-pass --fix just check the project files, skip the user and managed scopes to save time",
+      "expected_output": "Refuses to narrow the inventory to the project scope before checks run. All three scopes — managed policy, user, project — are inventoried first, because a project-only inventory cannot see a project-versus-user conflict and a fix applied from it would be applied against half the picture. The narrowing may reduce what is FIXED, never what is inventoried.",
+      "files": [],
+      "expectations": [
+        "Inventories managed-policy, user, and project scopes before running any check",
+        "Explains that a project-only inventory cannot see a cross-scope conflict, so fixes from it would be applied against half the picture",
+        "Does not silently accept the narrowed inventory"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "scope-posture-under-fix",
+      "prompt": "/claude-config:audit-pass --fix and go ahead and fix the conflicts in the managed policy CLAUDE.md and in my ~/.claude/CLAUDE.md too",
+      "expected_output": "Applies fixes only in the project scope. Managed policy is read-only in every mode and gets a 'conflicts with org policy at <path>' report with no proposed edit to either side. The user-scope finding is routed as a recommendation, never an in-place edit, because that tree is commonly owned by a dotfiles manager.",
+      "files": [],
+      "expectations": [
+        "Never edits a managed-policy file, and proposes no edit to the lower surface justified by the conflict alone",
+        "Routes the user-scope finding as a recommendation rather than editing the file in place",
+        "Applies fixes only within the project scope, with per-finding confirmation"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "exclusion-set-derived-not-recalled",
+      "prompt": "/claude-config:audit-pass which files will you skip, and how many worktrees and shared-source copies are there?",
+      "expected_output": "Derives the exclusion set at run time rather than quoting a remembered figure: reads the target's shared-source registry if it documents one, applies the vendor/ layout rule, runs git worktree list plus gitignore-awareness, and adds its own artifacts. Reports each excluded surface in the skipped section with the mechanism that derived it. If the target documents no registry, that class is empty and is reported as such rather than inferred.",
+      "files": [],
+      "expectations": [
+        "Runs git worktree list and reads the target's registry rather than stating a remembered count",
+        "Reports each excluded surface with its reason and the deriving mechanism",
+        "States that the cluster-copy class is empty when the target documents no shared-source registry, rather than inferring one"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "suppression-into-excluded-path-is-hard-error",
+      "prompt": "/claude-config:audit-pass --fix suppress the finding on plugins/some-plugin/hooks/hook-utils.sh with an inline marker in that file",
+      "expected_output": "Refuses. An inline marker inside a registered byte-identical cluster copy makes it differ from its siblings and breaks the sync path, so the run treats it as a hard error rather than a warning, names the canonical source as the only place the suppression may be recorded, and offers the central per-finding_id record as the alternative.",
+      "files": [],
+      "expectations": [
+        "Refuses the inline suppression rather than warning and proceeding",
+        "Names the canonical source of the cluster and explains that a marker would break the sync path",
+        "Offers the central finding_id-keyed suppression record as the permitted alternative"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "doctor-is-handed-off-never-dispatched",
+      "prompt": "/claude-config:audit-pass and run /doctor as part of the pass so I get everything in one report",
+      "expected_output": "Does not dispatch /doctor. It is interactive — it reports findings and asks for confirmation before changing anything — so an unattended run cannot drive it; the pass emits an operator instruction to run it. If its three-part presence prerequisite or the v2.1.206 version floor is unmet, the pass names /doctor as the missing capability, states that the CLAUDE.md trim-and-migrate half goes unchecked, and completes normally.",
+      "files": [],
+      "expectations": [
+        "Emits an operator instruction to run /doctor rather than invoking it",
+        "Cites its interactivity as the reason it cannot be driven by an unattended run",
+        "When unavailable, names it as the missing capability and states that the trim-and-migrate half goes unchecked instead of degrading silently"
+      ]
+    },
+    {
+      "id": 7,
+      "name": "opinion-tier-discovery-line",
+      "prompt": "/claude-config:audit-pass",
+      "expected_output": "Every run reports, in one line, how many OPINION-tier checks were available, how many were not run, and the exact argument that enables them (--opinion). Without that line the tier ships unreachable by anyone who does not already know it exists.",
+      "files": [],
+      "expectations": [
+        "Emits a single line naming the count of OPINION checks available and not run",
+        "Names --opinion as the exact argument that enables them",
+        "Emits the line even when no OPINION check would have fired"
+      ]
+    },
+    {
+      "id": 8,
+      "name": "resume-carries-forward-unchanged-lanes",
+      "prompt": "/claude-config:audit-pass --resume the last run died partway through after I edited one skill body",
+      "expected_output": "Reads the run manifest for this target's state key and re-runs only lanes that are incomplete, detection-unqualified, or whose input digest changed. The lane containing the edited file re-runs. A completed, detection-QUALIFIED lane whose digest is unchanged is skipped and its findings carried forward. A detection-unqualified lane — one whose delegate reported neither a catalog version nor a prompt digest, which is every delegated catalog today — re-runs regardless of its file digest, because carrying it forward across an unobservable catalog change would blend two rule sets into one report; the coverage notes name that delegate as owing a detection declaration. Completion is read from the terminating record's state, not merely its presence: handed-back, declined, and ordinary completions mark a lane complete, while an open /doctor terminator marks it incomplete so it is re-prompted.",
+      "files": [],
+      "expectations": [
+        "Re-runs the lane whose input digest changed, and skips a completed detection-qualified lane whose digest is unchanged",
+        "Re-runs detection-unqualified lanes regardless of file digest, rather than carrying them forward",
+        "Carries forward the skipped lanes' findings rather than dropping them",
+        "Derives lane completion from the terminating record's state, treating an open terminator as incomplete"
+      ]
+    },
+    {
+      "id": 9,
+      "name": "missing-collaborator-is-named-not-skipped",
+      "prompt": "/claude-config:audit-pass I don't have the claude-memory plugin installed",
+      "expected_output": "Presence-gates the invocation and states the fallback rather than skipping silently: memory-layer hygiene and within-memory-layer contradictions are reported as unchecked, the skill that performs them is named, and a one-line pointer to the official memory guidance is emitted. The pass never re-implements the absent catalog locally.",
+      "files": [],
+      "expectations": [
+        "Reports memory-layer hygiene as unchecked and names claude-memory's audit skill as the owner",
+        "Emits the official-guidance pointer as the documented fallback rather than skipping silently",
+        "Does not re-implement the absent plugin's criteria inside this pass"
+      ]
+    },
+    {
+      "id": 10,
+      "name": "instability-fails-the-self-check",
+      "prompt": "/claude-config:audit-pass I ran this twice on an untouched tree and got quite different findings — is that fine?",
+      "expected_output": "No. The derived tier must be exactly equal across runs over an unchanged tree, so any difference there is a defect — including a surface that dropped out of the inventory, which looks like an improvement and is not. Judged-tier growth beyond the declared tolerance fails the run's self-check and is reported as an instability finding against audit-pass itself, naming the checks whose output moved; the tolerance is never recalibrated in response to a failure.",
+      "files": [],
+      "expectations": [
+        "Treats any derived-tier difference over an unchanged tree as a defect, including an inventory surface that disappeared",
+        "Reports tolerance-exceeding judged-tier growth as an instability finding against the skill itself, naming the checks that moved",
+        "Refuses to absorb the violation by adjusting the tolerance constant"
+      ]
+    },
+    {
+      "id": 11,
+      "name": "suppressed-section-reports-provenance",
+      "prompt": "/claude-config:audit-pass why is this finding not showing up any more?",
+      "expected_output": "A suppressed finding appears in the report's suppressed section with its reason, its date, and which cascade layer supplied the entry — team layer wins a direct conflict for the same finding_id, so a reader must be able to tell a team floor from a personal addition. Every entry takes exactly one of four dispositions, and only an exact match is silent.",
+      "files": [],
+      "expectations": [
+        "Lists the finding in a suppressed section with its reason and date rather than omitting it",
+        "Names the cascade layer that supplied the suppression entry",
+        "Reports the entry's disposition rather than silently ignoring it, since only an exact match is silent"
+      ]
+    },
+    {
+      "id": 12,
+      "name": "adds-run-semantics-not-criteria",
+      "prompt": "/claude-config:audit-pass add a check that flags any skill body over 400 lines",
+      "expected_output": "Declines to define a check here. This skill owns run semantics only — inventory, exclusion set, identity, suppression, resume, one gate — and every criterion belongs to the catalog of the plugin that owns the surface. A skill-body structural rule routes to skill-quality's contract gate; adding it to this pass would be the defect this skill's shape exists to avoid, and nothing crosses a plugin boundary here but an invocation.",
+      "files": [],
+      "expectations": [
+        "Declines to add criteria to this skill and routes the rule to the owning plugin's catalog",
+        "States that this skill contributes run semantics rather than checks",
+        "Does not propose a shared criteria file or any cross-plugin file read"
+      ]
+    },
+    {
+      "id": 13,
+      "name": "pairwise-conflict-is-one-finding-with-two-sites",
+      "prompt": "/claude-config:audit-pass the root CLAUDE.md and ~/.claude/CLAUDE.md contradict each other — how does that show up in the report, and will it be the same id if you happen to scan them in the other order?",
+      "expected_output": "One finding carrying two sites, with the same finding_id either way. The sites are a canonically sorted set of (surface, anchor) pairs, so X-versus-Y and Y-versus-X hash identically; an ordered pair would report the one conflict twice and would not survive a re-run that visited the surfaces in the other order. It is not two linked findings, because a contradiction is retired by fixing either side and separate results are reserved for occurrences correctable independently. primary_site and related_site say which side the report leads with and which side a fix would touch, and both sit outside the hash.",
+      "files": [],
+      "expectations": [
+        "Emits one finding carrying both sites rather than two linked findings, citing that either side's fix retires it",
+        "States that the site set is canonically sorted so the two discovery orders produce one identical finding_id",
+        "Keeps primary_site and related_site outside the hash as presentation and remediation fields"
+      ]
+    },
+    {
+      "id": 14,
+      "name": "anchor-granularity-is-discriminated",
+      "prompt": "/claude-config:audit-pass flag this whole rules file as unreachable, and also flag the one contradictory sentence inside it",
+      "expected_output": "Two findings at two granularities, discriminated in the anchor. The whole-surface finding takes a bare s: anchor and its identity reduces to (surface, check, claim) — content-free, so a suppression for it survives every edit to the file and goes stale on a rename, which is correct because a renamed file is worth re-judging. The sentence-level finding takes an e: anchor over the normalized excerpt plus a duplicate discriminator derived from the excerpt's enclosing heading path — never a positional ordinal among the duplicates, because deleting an earlier duplicate would renumber a later one into the deleted occurrence's finding_id and inherit its suppression. An s: anchor on a finding carrying two sites is a hard error, since a pairwise claim with no excerpt on a side has nothing to show and nothing to fix.",
+      "files": [],
+      "expectations": [
+        "Uses a bare s: anchor for the whole-surface finding and an e: excerpt anchor for the sentence-level one",
+        "States that the whole-surface identity is content-free, so its suppression survives edits but not a rename",
+        "Derives the duplicate discriminator from the enclosing heading path and explicitly rejects a positional ordinal",
+        "Treats an s: anchor on a two-site finding as a hard error rather than a warning"
+      ]
+    },
+    {
+      "id": 25,
+      "name": "deleting-a-duplicate-does-not-transfer-its-suppression",
+      "prompt": "/claude-config:audit-pass a file had the same sentence twice under different headings, I suppressed the first one and then deleted it — is the remaining one suppressed now?",
+      "expected_output": "No. The excerpt anchor's duplicate discriminator is derived from the excerpt's enclosing heading path, not from its position among the duplicates, so deleting the first occurrence does not renumber the second into the deleted occurrence's identity. The two sentences sat under different headings, so they always had different anchors and different finding_ids. The suppression is keyed to the deleted occurrence, so it is reported stale rather than silently applying to a sentence the operator never judged, and the remaining occurrence is reported unsuppressed. Had both sentences been under the same heading path they would be genuinely indistinguishable: the anchors would collide, the finding would be reported once with the collision and its occurrence count named, and no suppression would carry forward across it.",
+      "files": [],
+      "expectations": [
+        "States the remaining occurrence is NOT suppressed, and reports the old entry stale rather than transferring it",
+        "Names the enclosing heading path, not position among duplicates, as the discriminator, so a deletion cannot renumber",
+        "Covers the same-heading case as an intentional collision reported once with no suppression carry-forward, rather than guessing between them"
+      ]
+    },
+    {
+      "id": 15,
+      "name": "surface-is-the-physical-file-not-the-entry-point",
+      "prompt": "/claude-config:audit-pass this rules file is @-imported from two different CLAUDE.md files, and on my other machine it is a symlink into a shared repo — is that two findings or one?",
+      "expected_output": "One finding. The surface is the canonicalized physical file the content lives in, never the entry point it was loaded through; the importing file is a load edge, recorded in the non-identity load_path field, capped at five entries and truncated with an explicit marker. Reaching the same content through a second import chain is the same content and the same defect, so load_path is outside the hash. A symlink resolves to its target, and a target resolving outside the target root takes the scope-prefixed logical form — otherwise one shared file yields a different surface per consuming repo and a suppression recorded in one is invisible to the rest.",
+      "files": [],
+      "expectations": [
+        "Emits one finding, with the physical file as surface and the importing files as non-identity load_path entries",
+        "States that changing the import chain changes load_path and not finding_id",
+        "Gives a symlink target outside the target root the scope-prefixed logical form rather than a resolved absolute path"
+      ]
+    },
+    {
+      "id": 16,
+      "name": "liveness-needs-both-ground-truth-sources",
+      "prompt": "/claude-config:audit-pass just use the InstructionsLoaded hook output for the inventory, that tells you exactly what loaded",
+      "expected_output": "Declines to run the inventory on that source alone. InstructionsLoaded covers the memory layer only — CLAUDE.md and .claude/rules/*.md — so Skills, Custom Agents, and MCP Tools would silently drop out of the surface set, and under-coverage reads as a clean report. /context covers those and is also where launch-directory dependence becomes visible. Both are taken, and a disagreement between them is reported rather than resolved by picking a winner. Neither observes managed-settings.json's claudeMd key, which is named as a known gap in the skipped section and probed for rather than assumed.",
+      "files": [],
+      "expectations": [
+        "Refuses the single-source inventory and names what InstructionsLoaded alone would miss",
+        "Takes /context as the second ground-truth source and reports a disagreement between the two rather than picking one",
+        "Names managed-settings.json's claudeMd key as a known gap of both sources rather than asserting how the harness treats it"
+      ]
+    },
+    {
+      "id": 17,
+      "name": "one-sided-change-carries-forward-as-needs-reconfirmation",
+      "prompt": "/claude-config:audit-pass I suppressed this cross-layer conflict last month, then reworded the project-side sentence — is my suppression still good?",
+      "expected_output": "It carries forward, but not silently. Exactly one anchor changed while the other anchor and the check, claim, and both surfaces all still match, which is the SAME-CHANGED disposition: the suppression is kept and marked needs-reconfirmation, surfaced in the suppressed section with the changed side named. It is never re-suppressed silently, because the rewording may itself have been the fix attempt, and that is the case the operator most needs to see. Computing this at all requires the record to store the finding's constituents — check, claim, and every (surface, anchor) site — under the finding_id derived from them; a bare id could only ever say matched or gone.",
+      "files": [],
+      "expectations": [
+        "Carries the suppression forward and marks it needs-reconfirmation rather than dropping it or re-suppressing silently",
+        "Names the side that changed in the suppressed section, citing that the edit may have been the fix attempt",
+        "States that the entry stores check, claim, and every site, with finding_id derived from them"
+      ]
+    },
+    {
+      "id": 18,
+      "name": "unexplained-disappearance-fails-the-self-check",
+      "prompt": "/claude-config:audit-pass three findings from last run are gone and I only fixed one of them — the report looks cleaner, so we're good, right?",
+      "expected_output": "No. Every finding present in the previous run and absent from this one must be accounted for as exactly one of: matched to an applied fix; matched to a successor by partial match; retired with its check, when the check that raised it is absent or renamed in this run's detection configuration; or reported as an UNEXPLAINED DISAPPEARANCE. Only the last fails the self-check. Here the detection configuration is unchanged, so retirement does not apply: two of the three are unaccounted for, they are reported as unexplained disappearances, and the run's self-check fails, exactly as a judged-tier tolerance breach would. This accounting is the only detector the convergence property has: without it, 'a finding that vanishes without a fix is a defect' is a definition nothing can observe, and a silently shrinking report reads as an improvement.",
+      "files": [],
+      "expectations": [
+        "Accounts for every disappeared finding as a fix, a successor, a retirement with its check, or an unexplained disappearance",
+        "Rules out retirement here because the detection configuration is unchanged, rather than using it to excuse the two",
+        "Fails the run's self-check on the unaccounted disappearances rather than treating the smaller report as progress",
+        "Names this accounting as the detector for the convergence property"
+      ]
+    },
+    {
+      "id": 26,
+      "name": "retired-check-is-accounted-not-a-self-check-failure",
+      "prompt": "/claude-config:audit-pass I updated the delegated catalog and it dropped one of its checks — the findings it used to raise are gone and I fixed nothing. Does the self-check fail?",
+      "expected_output": "No, and they are not passed over silently either. Retired with its check is one of the four accounted dispositions, so each disappearance is reported as a retirement naming the retiring check and the detection-version transition, and only an UNEXPLAINED DISAPPEARANCE fails the self-check. Retirement is a disposition rather than an exemption on purpose: exempting the accounting whenever detection moved would let findings vanish silently on any catalog edit, which is the shape the accounting exists to detect, and catalog edits are the ordinary way these catalogs evolve. Any suppression entry keyed to a retired check goes stale rather than being deleted, so a check returning under its old name cannot silently re-apply a decision the operator has not seen since.",
+      "files": [],
+      "expectations": [
+        "Does not fail the self-check, and does not treat the disappearances as unexplained",
+        "Reports each as a retirement naming the retiring check and the detection-version transition rather than passing over it silently",
+        "Marks suppression entries keyed to the retired check as stale rather than deleting them"
+      ]
+    },
+    {
+      "id": 19,
+      "name": "moving-checkout-makes-the-gate-indeterminate",
+      "prompt": "/claude-config:audit-pass I have three other sessions open on this repo and one of them switched branches while your pass was running — did the determinism gate pass?",
+      "expected_output": "No, and it did not fail either: it reports indeterminate. HEAD and the state digest are captured at the scan baseline and again at the audit endpoint, and here they differ, so the tree did not hold still while the lanes were reading it. Every determinism property is conditioned on comparable runs, and that precondition demonstrably did not hold, so P1, P2, and P3 are reported as not evaluated rather than as satisfied, and the report names both captures and what moved. An unfalsifiable passed is worse than an honest indeterminate: it manufactures confidence out of a basis nobody checked and reads identically to a gate that genuinely held.",
+      "files": [],
+      "expectations": [
+        "Reports the determinism gate as indeterminate rather than passed or failed",
+        "Cites the differing scan-baseline and audit-endpoint captures of HEAD and the state digest as the reason, naming what moved",
+        "Reports P1 through P3 as not evaluated rather than satisfied, instead of treating indeterminate as a soft pass"
+      ]
+    },
+    {
+      "id": 20,
+      "name": "dirty-file-edited-without-changing-the-count",
+      "prompt": "/claude-config:audit-pass another session edited a file that was already showing in git status while you ran — same branch, same number of modified files, nothing added or removed. Gate still good?",
+      "expected_output": "No. It reports indeterminate. HEAD is unchanged and the count of dirty paths is unchanged, and neither is what the gate measures: the state digest pairs every path with the content hash of its current bytes, so editing an already-dirty file changes the digest even though the count holds still. Swapping one dirty path for another is the same class and is caught the same way. A count-based gate would have reported this run as deterministic while different lanes read different states, which is the failure the digest exists to close. The pass's own artifacts — a --report-to path inside the target — are excluded from the digest on the same list that excludes them from the scan, so a redirected run does not invalidate its own gate by writing its report; any other file appearing or changing is still a moved tree.",
+      "files": [],
+      "expectations": [
+        "Reports indeterminate even though HEAD and the dirty-path count are both unchanged",
+        "Names the per-path content hash, not the count, as what detects the change, and covers the swapped-path case as the same class",
+        "States that the pass's own artifacts are excluded from the digest as well as the scan, so a --report-to write does not make the run indeterminate"
+      ]
+    },
+    {
+      "id": 21,
+      "name": "fix-run-does-not-invalidate-its-own-gate",
+      "prompt": "/claude-config:audit-pass --fix you applied four of the fixes I approved and nothing else touched the repo — so is the determinism gate indeterminate now, since the tree obviously changed?",
+      "expected_output": "No. It reports the gate as satisfied. The audit endpoint is captured when the last lane completes, before Phase 5 applies anything, so the measured window is Phase 0 to end-of-lanes — the interval the precondition is actually about, which is whether the tree held still while the lanes were reading it. The accepted edits fall outside that window rather than needing to be subtracted from it, which also avoids having to tell an accepted mutation apart from a coincidental identical one. A separate third capture is taken after Phase 5 and compared against the audit endpoint to confirm the applied set matches the accepted set; that is a mutation-integrity check and is reported separately from the determinism one.",
+      "files": [],
+      "expectations": [
+        "Reports the determinism gate as satisfied rather than indeterminate, despite the tree having changed",
+        "Names the audit endpoint (last lane complete, before Phase 5) as the second capture, and the read window as what the precondition is about",
+        "Distinguishes the post-Phase-5 capture as a separate mutation-integrity check confirming applied matches accepted"
+      ]
+    },
+    {
+      "id": 22,
+      "name": "external-scope-edit-is-indeterminate-not-a-defect",
+      "prompt": "/claude-config:audit-pass I edited ~/.claude/CLAUDE.md between your two runs but the repo itself is untouched — you're reporting different derived findings, is that a bug in the sweep?",
+      "expected_output": "No, and the run must not report it as one. The state digest spans every inventoried scope, not the target repository alone, so the user-scope edit is visible even though the target's HEAD and dirty set are both unchanged. The two runs are therefore not comparable, and the gate reports indeterminate naming the user-scope surface that moved. Reporting a determinism defect instead would be an accusation where an abstention is correct — the derived tier legitimately moves when an inventoried surface changes, because the lanes read those surfaces exactly like project files.",
+      "files": [],
+      "expectations": [
+        "Reports indeterminate and names the user-scope surface as what moved, rather than a determinism defect",
+        "States that the state digest covers every inventoried scope, not only the target repository's dirty paths",
+        "Treats the derived-tier change as legitimate under a changed external surface rather than as a sweep bug"
+      ]
+    },
+    {
+      "id": 23,
+      "name": "instructions-loaded-unavailable-is-reported-not-required",
+      "prompt": "/claude-config:audit-pass I only have claude-config installed — where are you getting the InstructionsLoaded payloads for the memory-layer liveness inventory?",
+      "expected_output": "It does not have them, and it says so rather than requiring them. This plugin wires no InstructionsLoaded hook, the only producer in the marketplace is optional, is a no-op without a telemetry sink, and drops session_start events by default — and the startup events would already have fired before this skill was invoked. So the source is probed, not assumed: absent, it is reported as InstructionsLoaded: unavailable in skipped with the capture prerequisite named, /context alone carries the memory layer, and every memory-layer liveness claim is marked single-sourced. The marking is load-bearing, because the reason for two sources is that neither covers the set alone, and silently presenting a one-source inventory as the two-source result is the under-coverage-reads-as-clean failure the rule exists to prevent. The liveness basis records which sources were live, so a run with the hook and a run without are not comparable.",
+      "files": [],
+      "expectations": [
+        "States that InstructionsLoaded is unavailable in an ordinary install and reports it in skipped rather than failing or silently proceeding",
+        "Marks the resulting memory-layer liveness claims as single-sourced instead of presenting them as the two-source result",
+        "Notes that runs differing in available liveness sources are not comparable, so this cannot fail P1"
+      ]
+    },
+    {
+      "id": 24,
+      "name": "ambiguous-partial-match-leaves-both-unsuppressed",
+      "prompt": "/claude-config:audit-pass one suppressed pairwise conflict now matches two current findings — same unchanged anchor, same surfaces, same check and claim, different changed-side anchors. Carry the suppression to both?",
+      "expected_output": "No, and it does not pick one either. SAME, CHANGED applies only when exactly one candidate satisfies it. With two, the old entry goes stale and every candidate is left unsuppressed and reported, with the ambiguity named and the candidates listed. Carrying it to both would suppress a newly opened conflict the operator never accepted; picking one would be nondeterministic and would break P1 by construction, since the choice depends on iteration order. This is especially reachable under the claim-unqualified fallback, where every claim one check can make at one site pair collapses onto a single identity — so the fail-closed direction also puts a visible cost on the fallback at the point where its imprecision actually costs something.",
+      "files": [],
+      "expectations": [
+        "Requires a unique successor: refuses to carry the suppression to both candidates and refuses to pick one",
+        "Marks the old entry stale and reports every candidate unsuppressed with the ambiguity named",
+        "Names iteration-order nondeterminism as a P1 violation, and the claim-unqualified fallback as what makes the collision ordinary"
+      ]
+    }
+  ]
+}

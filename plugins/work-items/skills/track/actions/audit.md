@@ -30,6 +30,8 @@ Present each item the verb reports `reclaimed: true` (released — the `reason` 
 
 Exit `6` (capability-unsupported, CONTRACT.md "Exit codes") means the bound provider declares `reclaim: false` (e.g. `local-markdown`) — not an error; report zero stale claims for this pass instead of failing the audit.
 
+A **harness denial of the `reclaim` call itself** takes the same posture. Under auto mode the permission classifier can refuse the Bash tool call before the script runs, so neither an exit code nor the JSON the presentation step above consumes is produced (CONTRACT.md "Exit codes"; observed on `#1381`). Report the denial once and skip the stale-claim pass — reporting it as skipped, not as zero stale claims, since nothing was checked — then continue the audit's remaining passes. Never retry the denied call, and never self-widen permissions to work around it (`${CLAUDE_PLUGIN_ROOT}/reference/permission-preflight.md` "Why a preflight, not a fixer").
+
 ### 2. Orphaned recurring entries
 
 Entries in `.github/recurring-schedule.json` with no corresponding open or recently-closed item (skip when the repo has no recurring schedule). Only **due** entries can be orphaned — the automation creates an item only once `next_due <= today`, so a healthy future entry legitimately has no open item and is NOT orphaned:

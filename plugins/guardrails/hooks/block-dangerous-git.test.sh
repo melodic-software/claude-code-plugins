@@ -15,14 +15,38 @@ trap 'rm -rf "$TEST_TMPDIR"' EXIT
 # shellcheck source=guardrails-test-helpers.sh
 source "$HOOK_DIR/guardrails-test-helpers.sh"
 
+# A lease expectation is judged against the hash width of the repository the
+# push would run in, so every case that carries one needs a KNOWN working
+# directory — the ambient one is whatever invoked the suite. Fixtures: a SHA-1
+# repository (the default every `run` uses), a SHA-256 one, and a plain
+# directory that is no repository at all.
+REPO_SHA1="$TEST_TMPDIR/repo-sha1"
+REPO_SHA256="$TEST_TMPDIR/repo-sha256"
+NOT_A_REPO="$TEST_TMPDIR/not-a-repo"
+mkdir -p "$REPO_SHA1" "$REPO_SHA256" "$NOT_A_REPO"
+git init -q --object-format=sha1 "$REPO_SHA1" ||
+  bad "fixture: could not create the SHA-1 repository"
+# SHA-256 repositories are git 2.29+. A missing fixture is a hard failure rather
+# than a skip: without it the wrong-width case below is untested, and a test
+# that quietly does not run reads as coverage it is not.
+git init -q --object-format=sha256 "$REPO_SHA256" ||
+  bad "fixture: could not create the SHA-256 repository (git 2.29+ required)"
+
+# run_in <dir> <label> <command> <expected-exit> [extra-env NAME=VAL ...]
+run_in() {
+  local dir="$1" label="$2" command="$3" expected="$4"
+  shift 4
+  local rc
+  (cd "$dir" && env "$@" bash "$HOOK" <<<"$(command_json "$command")" >/dev/null 2>&1)
+  rc=$?
+  assert_exit "$label" "$expected" "$rc"
+}
+
 # run <label> <command> <expected-exit> [extra-env NAME=VAL ...]
 run() {
   local label="$1" command="$2" expected="$3"
   shift 3
-  local rc
-  env "$@" bash "$HOOK" <<<"$(command_json "$command")" >/dev/null 2>&1
-  rc=$?
-  assert_exit "$label" "$expected" "$rc"
+  run_in "$REPO_SHA1" "$label" "$command" "$expected" "$@"
 }
 
 # --- push-force ---------------------------------------------------------------
@@ -33,9 +57,95 @@ run "git push -uf (bundled f, blocked)" "git push -uf origin main" 2
 run "git push origin +HEAD:main (refspec force, blocked)" "git push origin +HEAD:main" 2
 run "git push origin +feature (bare + refspec, blocked)" "git push origin +feature" 2
 run "git push --mirror (force-updates all refs, blocked)" "git push --mirror backup" 2
-run "git push --force-with-lease (safe force, allowed)" "git push --force-with-lease" 0
-run "git push --force-with-lease=main (valued lease, allowed)" "git push --force-with-lease=main origin main" 0
-run "git push --force-if-includes (allowed)" "git push --force-with-lease --force-if-includes" 0
+run "git push --force-with-lease (no expected value, blocked)" "git push --force-with-lease" 2
+run "git push --force-with-lease=main (refname only, no expectation, blocked)" "git push --force-with-lease=main origin main" 2
+# An object id of THIS repository's hash width — the only expectation shape the
+# guard accepts as immutable. Anything shorter is an abbreviation git resolves
+# as a ref first; anything of the other width is an ordinary ref name here, so
+# git resolves it too and the expectation moves with whatever it names.
+SHA1_OID=0123456789abcdef0123456789abcdef01234567
+SHA256_OID=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+run "git push --force-with-lease=main:<40-hex> (full object id, allowed)" "git push --force-with-lease=main:$SHA1_OID origin main" 0
+run "git push --force-with-lease=main:<64-hex> in a SHA-1 repo (a 64-hex ref name resolves here, blocked)" "git push --force-with-lease=main:$SHA256_OID origin main" 2
+run_in "$REPO_SHA256" "git push --force-with-lease=main:<64-hex> in a SHA-256 repo (full object id, allowed)" "git push --force-with-lease=main:$SHA256_OID origin main" 0
+run_in "$REPO_SHA256" "git push --force-with-lease=main:<40-hex> in a SHA-256 repo (a 40-hex ref name resolves here, blocked)" "git push --force-with-lease=main:$SHA1_OID origin main" 2
+run_in "$NOT_A_REPO" "git push --force-with-lease=main:<40-hex> outside a repository (width undeterminable, fail-closed block)" "git push --force-with-lease=main:$SHA1_OID origin main" 2
+run_in "$NOT_A_REPO" "git push --force-with-lease=main: outside a repository (empty expect needs no width, allowed)" "git push --force-with-lease=main: origin main" 0
+# git's repository-locating globals move the push off the invoking directory, so
+# the width follows them. `-C` takes its value as a separate word — git rejects
+# an attached `-C<path>` with its usage.
+run "git -C <sha256-repo> push --force-with-lease=main:<40-hex> (40-hex is a name in the target, blocked)" "git -C $REPO_SHA256 push --force-with-lease=main:$SHA1_OID origin main" 2
+run "git -C <sha256-repo> push --force-with-lease=main:<64-hex> (object id in the target, allowed)" "git -C $REPO_SHA256 push --force-with-lease=main:$SHA256_OID origin main" 0
+run_in "$REPO_SHA256" "git -C <sha1-repo> push --force-with-lease=main:<64-hex> (64-hex is a name in the target, blocked)" "git -C $REPO_SHA1 push --force-with-lease=main:$SHA256_OID origin main" 2
+run_in "$REPO_SHA256" "git -C <sha1-repo> push --force-with-lease=main:<40-hex> (object id in the target, allowed)" "git -C $REPO_SHA1 push --force-with-lease=main:$SHA1_OID origin main" 0
+run "git --git-dir=<sha256-repo>/.git push --force-with-lease=main:<40-hex> (blocked)" "git --git-dir=$REPO_SHA256/.git push --force-with-lease=main:$SHA1_OID origin main" 2
+run "git -C <not-a-repo> push --force-with-lease=main:<40-hex> (width undeterminable, fail-closed block)" "git -C $NOT_A_REPO push --force-with-lease=main:$SHA1_OID origin main" 2
+run "git -c x=y -C <sha256-repo> push --force-with-lease=main:<64-hex> (config value skipped, not mistaken for a path, allowed)" "git -c x=y -C $REPO_SHA256 push --force-with-lease=main:$SHA256_OID origin main" 0
+
+# The width probe is the guard's only subprocess, and a command may carry many
+# lease expectations. Counting real git invocations catches the cache being lost
+# to a subshell — a per-expectation probe would spawn one git each and push a
+# blocking PreToolUse hook toward its timeout, where it fails open.
+GIT_SHIM_DIR="$TEST_TMPDIR/git-shim"
+GIT_CALL_LOG="$TEST_TMPDIR/git-calls"
+mkdir -p "$GIT_SHIM_DIR"
+cat >"$GIT_SHIM_DIR/git" <<EOF
+#!/usr/bin/env bash
+printf 'x' >>"$GIT_CALL_LOG"
+exec "$(command -v git)" "\$@"
+EOF
+chmod +x "$GIT_SHIM_DIR/git"
+: >"$GIT_CALL_LOG"
+many_leases="git push"
+for i in 1 2 3 4 5 6 7 8; do
+  many_leases="$many_leases --force-with-lease=ref$i:$SHA1_OID"
+done
+run "eight pinned leases (all allowed)" "$many_leases origin main" 0 "PATH=$GIT_SHIM_DIR:$PATH"
+git_calls=$(wc -c <"$GIT_CALL_LOG" | tr -d ' ')
+if [[ "$git_calls" == 1 ]]; then
+  ok "width probe runs once for eight lease expectations (git invocations: 1)"
+else
+  bad "width probe should run once for eight lease expectations, ran $git_calls times"
+fi
+run "git push --force-with-lease=main: (empty expect means ref must not exist, allowed)" "git push --force-with-lease=main: origin main" 0
+run "git push --force-with-lease --force-if-includes (mitigated, allowed)" "git push --force-with-lease --force-if-includes" 0
+run "git push --force-with-lease=main --force-if-includes (mitigated, allowed)" "git push --force-with-lease=main --force-if-includes origin main" 0
+run "git push --force-if-includes alone (no lease, git no-ops it, allowed)" "git push --force-if-includes origin main" 0
+run "git push --force-w (unique abbrev of the lease flag, blocked)" "git push --force-w" 2
+run "git push --force-w=main:<40-hex> (abbrev flag with full object id, allowed)" "git push --force-w=main:$SHA1_OID origin main" 0
+run "git push --force-w --force-i (both abbreviated, mitigated, allowed)" "git push --force-w --force-i" 0
+run "git push --force-with-lease --dry-run (preview updates nothing, allowed)" "git push --force-with-lease --dry-run" 0
+run "git push --force-with-lease -- --force-if-includes (after --, operand not flag, blocked)" "git push --force-with-lease -- --force-if-includes" 2
+run "git push --force-with-lease --force-if-includes --no-force-if-includes (negated mitigation, blocked)" "git push --force-with-lease --force-if-includes --no-force-if-includes origin main" 2
+run "git push --force-with-lease --no-force-if-includes --force-if-includes (re-armed mitigation, allowed)" "git push --force-with-lease --no-force-if-includes --force-if-includes origin main" 0
+run "git push --force-with-lease --force-i --no-force-i (abbreviated negation, blocked)" "git push --force-with-lease --force-i --no-force-i origin main" 2
+run "git push --force-with-lease --force-if-includes --no-force-w (lease negation does not clear the mitigation, allowed)" "git push --force-with-lease --force-if-includes --no-force-w origin main" 0
+run "git push --force-with-lease --no-force-with-lease (lease negated, not a lease push, allowed)" "git push --force-with-lease --no-force-with-lease origin main" 0
+run "git push --force-with-lease --no-force-with-lease --force-with-lease (lease re-armed, blocked)" "git push --force-with-lease --no-force-with-lease --force-with-lease origin main" 2
+run "git push --no-force-with-lease alone (nothing to negate, allowed)" "git push --no-force-with-lease origin main" 0
+run "git push pinned lease then --no-force-with-lease (stated expectation negated, allowed)" "git push --force-with-lease=main:$SHA1_OID --no-force-with-lease origin main" 0
+run "git push movable lease then --no-force-with-lease (git cancels every previous lease, allowed)" "git push --force-with-lease=main:origin/main --no-force-with-lease origin main" 0
+run "git push movable lease, negated, then re-stated (claims re-staked, blocked)" "git push --force-with-lease=main:origin/main --no-force-with-lease --force-with-lease=main:origin/main origin main" 2
+run "git push bare + pinned lease over two refs (bare fallback still governs 'other', blocked)" "git push --force-with-lease --force-with-lease=refs/heads/main:$SHA1_OID origin main other" 2
+run "git push pinned then bare (order does not rescue the bare fallback, blocked)" "git push --force-with-lease=refs/heads/main:$SHA1_OID --force-with-lease origin main other" 2
+run "git push bare + pinned + --force-if-includes (mitigation covers the fallback, allowed)" "git push --force-with-lease --force-with-lease=refs/heads/main:$SHA1_OID --force-if-includes origin main other" 0
+run "git push lease pinned to a remote-tracking name (movable at push time, blocked)" "git push --force-with-lease=refs/heads/main:refs/remotes/origin/main origin main" 2
+run "git push lease pinned to origin/main shorthand (movable, blocked)" "git push --force-with-lease=main:origin/main origin main" 2
+run "git push lease pinned to HEAD (movable, blocked)" "git push --force-with-lease=main:HEAD origin main" 2
+run "git push lease pinned to an abbreviated object id (a ref of that name wins, blocked)" "git push --force-with-lease=main:abc123 origin main" 2
+run "git push lease pinned to a 4-hex expect that is also a valid ref name (blocked)" "git push --force-with-lease=main:dead origin main" 2
+run "git push lease pinned to a 39-hex expect (one short of full width, blocked)" "git push --force-with-lease=main:012345678901234567890123456789012345678 origin main" 2
+run "git push lease pinned to a movable name + --force-if-includes (git no-ops the mitigation here, blocked)" "git push --force-with-lease=main:origin/main --force-if-includes origin main" 2
+run "git push lease pinned to a 3-char expect (too short to be an object id, blocked)" "git push --force-with-lease=main:abc origin main" 2
+run "git push --force-with-lease --force-if-includes --no-dry-run (dry-run negation does not clear the mitigation, allowed)" "git push --force-with-lease --force-if-includes --no-dry-run origin main" 0
+run "git push pinned lease + --no-force-if-includes (stated expectation stands without the mitigation, allowed)" "git push --force-with-lease=main:$SHA1_OID --no-force-if-includes origin main" 0
+# git's apply_cas() returns on the FIRST lease entry matching the ref being
+# updated, so a repeated ref is decided by the earlier spelling alone.
+run "git push same ref pinned first, movable second (git uses the first, allowed)" "git push --force-with-lease=main:$SHA1_OID --force-with-lease=main:origin/main origin main" 0
+run "git push same ref movable first, pinned second (git uses the first, blocked)" "git push --force-with-lease=main:origin/main --force-with-lease=main:$SHA1_OID origin main" 2
+run "git push same ref no-expect first, pinned second (first is tracking-based, blocked)" "git push --force-with-lease=main --force-with-lease=main:$SHA1_OID origin main" 2
+run "git push same ref no-expect first, pinned second, mitigated (allowed)" "git push --force-with-lease=main --force-with-lease=main:$SHA1_OID --force-if-includes origin main" 0
+run "git push different refs, one pinned one movable (both entries live, blocked)" "git push --force-with-lease=main:$SHA1_OID --force-with-lease=other:origin/other origin main other" 2
 run "git push (plain, allowed)" "git push" 0
 run "git push -u origin main (allowed)" "git push -u origin main" 0
 run "git push -o f (option value f, allowed)" "git push -o f origin main" 0
@@ -326,6 +436,10 @@ run "allow-list push-force only → clean still blocked" "git clean -fd" 2 \
   CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=push-force
 run "allow-list empty → blocked" "git push --force" 2 \
   CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=
+run "allow-list push-lease-unsafe → bare lease allowed" "git push --force-with-lease" 0 \
+  CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=push-lease-unsafe
+run "allow-list push-force only → bare lease still blocked" "git push --force-with-lease" 2 \
+  CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=push-force
 
 # --- kill switch ---------------------------------------------------------------
 run "kill switch off → no-op despite push --force" "git push --force" 0 \
@@ -356,13 +470,14 @@ fi
 # caught; push-shaped PowerShell the guard cannot parse fails closed.
 run_pwsh() {
   local label="$1" command="$2" expected="$3" rc
-  bash "$HOOK" <<<"$(pwsh_command_json "$command")" >/dev/null 2>&1
+  (cd "$REPO_SHA1" && bash "$HOOK" <<<"$(pwsh_command_json "$command")" >/dev/null 2>&1)
   rc=$?
   assert_exit "$label" "$expected" "$rc"
 }
 run_pwsh "PS: git push --force (blocked)" "git push --force" 2
 run_pwsh "PS: git reset --hard (blocked)" "git reset --hard" 2
-run_pwsh "PS: git push --force-with-lease (allowed — safe force)" "git push --force-with-lease" 0
+run_pwsh "PS: git push --force-with-lease (no expected value, blocked)" "git push --force-with-lease" 2
+run_pwsh "PS: git push --force-with-lease=main:<40-hex> (immutable expectation, allowed)" "git push --force-with-lease=main:0123456789abcdef0123456789abcdef01234567" 0
 run_pwsh "PS: git push (plain, allowed)" "git push origin main" 0
 run_pwsh "PS: git status (allowed)" "git status" 0
 run_pwsh "PS: backtick-continued force push (fail-closed block)" \

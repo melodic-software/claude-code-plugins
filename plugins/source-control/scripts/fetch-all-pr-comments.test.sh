@@ -68,15 +68,17 @@ cat >"$FIXTURE_INLINE" <<'JSON'
     "path": "src/Auth.cs",
     "line": 42,
     "original_line": null,
+    "in_reply_to_id": null,
     "created_at": "2026-05-20T09:30:00Z"
   },
   {
     "id": 3002,
-    "user": {"login": "codex[bot]"},
+    "user": {"login": "kyle-sexton"},
     "body": "Stale count reference",
     "path": "src/Counter.cs",
     "line": null,
     "original_line": 15,
+    "in_reply_to_id": 3001,
     "created_at": "2026-05-20T12:00:00Z"
   }
 ]
@@ -158,6 +160,23 @@ assert_eq "inline comments have path" "2" "$inline_with_path"
 fallback_line=$(printf '%s' "$out" | jq '[.[] | select(.id == 3002)] | .[0].line')
 assert_eq "original_line fallback" "15" "$fallback_line"
 
+# Case 6a: a top-level inline comment reports in_reply_to_id null (regression
+# guard for #587 — the field must be sourced from the raw API response, not
+# silently dropped by the jq projection)
+top_level_reply_id=$(printf '%s' "$out" | jq '[.[] | select(.id == 3001)] | .[0].in_reply_to_id')
+assert_eq "top-level inline comment has null in_reply_to_id" "null" "$top_level_reply_id"
+
+# Case 6b: a threaded inline reply reports the true parent id
+threaded_reply_id=$(printf '%s' "$out" | jq '[.[] | select(.id == 3002)] | .[0].in_reply_to_id')
+assert_eq "threaded inline reply reports parent id" "3001" "$threaded_reply_id"
+
+# Case 6c: general and review comments (no reply-parent concept) carry null
+general_reply_id=$(printf '%s' "$out" | jq '[.[] | select(.id == 1001)] | .[0].in_reply_to_id')
+assert_eq "general comment has null in_reply_to_id" "null" "$general_reply_id"
+
+review_reply_id=$(printf '%s' "$out" | jq '[.[] | select(.id == 2001)] | .[0].in_reply_to_id')
+assert_eq "review comment has null in_reply_to_id" "null" "$review_reply_id"
+
 # Case 7: gh api failure exits 2
 FAIL_STUB="$TEST_TMPDIR/bin-fail/gh"
 mkdir -p "$TEST_TMPDIR/bin-fail"
@@ -225,6 +244,15 @@ out=$(FETCH_COMMENTS_OWNER=o FETCH_COMMENTS_REPO=r \
   PATH="$TEST_TMPDIR/bin-norepo:$PATH" bash "$SCRIPT" "$PR_NUM" 2>/dev/null)
 rc=$?
 assert_eq "env-var override resolves owner/repo (exit 0)" "0" "$rc"
+
+# Case 11 (#597): --help documents the Windows PYTHONUTF8=1 gotcha for a
+# downstream Python consumer parsing this script's UTF-8 JSON output (bot
+# badges / reaction emoji commonly present in review comment bodies raise
+# UnicodeDecodeError under the Windows default cp1252 encoding if the
+# consumer does not pin encoding="utf-8" or PYTHONUTF8=1 itself).
+help_out=$(bash "$SCRIPT" --help 2>&1)
+assert_contains "--help documents PYTHONUTF8=1 for Windows consumers" "$help_out" "PYTHONUTF8=1"
+assert_contains "--help names the UnicodeDecodeError failure mode" "$help_out" "UnicodeDecodeError"
 
 # ---- Summary ----------------------------------------------------------------
 

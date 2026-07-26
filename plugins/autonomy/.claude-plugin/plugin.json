@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "autonomy",
-  "version": "0.9.0",
+  "version": "0.11.0",
   "description": "Governed autonomous agent operation: role-topology, binding-seam, wiring-vs-advisor, telemetry, return-accounting, trigger-dispatch, per-work-class guardrail-matrix, standing-routine-catalog, and design-only runner-charter contracts for climbing the AI-adoption ladder, plus a guided-setup skill that discovers an adopting org's state, writes its schema-versioned binding, wires standards-pinned OTLP emission with a zero-cost file-artifact default, wires human-attested return capture at the task boundary, wires signal adapters with one governed dispatch entrypoint, binds the five-class guardrail matrix to an org's isolation substrates with an in-boundary live-validation probe before recording each fail-closed binding, and stands up standing-routine-catalog classes as scheduled temporal signal adapters behind the one governed queue with free scheduling defaults wired as reviewable changes and each routine's work-class mapping homed on the security surface.",
   "author": {
     "name": "Melodic Software",
@@ -20,5 +20,43 @@
     "runner",
     "telemetry",
     "topology"
-  ]
+  ],
+  "userConfig": {
+    "lane_stop_gate_enabled": {
+      "type": "boolean",
+      "title": "lane-stop gate",
+      "description": "Opt an autonomous lane into the deterministic Stop-hook completion gate. Default OFF — a Stop-blocking hook must never engage for an interactive session; the lane launcher enables it per session.",
+      "default": false
+    },
+    "lane_stop_gate_sentinel": {
+      "type": "string",
+      "title": "lane-stop completion token",
+      "description": "The exact token the agent emits in its final message to declare the lane's goal met and authorize a stop. Matched only when alone on its own line.",
+      "default": "LANE-STOP-OK"
+    },
+    "lane_stop_gate_marker": {
+      "type": "string",
+      "title": "lane-stop completion marker file",
+      "description": "Optional path to a completion-marker file whose existence also authorizes a stop (absolute, or relative to the session cwd). Empty disables the file signal.",
+      "default": ""
+    },
+    "lane_notify_enabled": {
+      "type": "boolean",
+      "title": "lane operator notification",
+      "description": "Master switch for the operator alert fired when a lane stops without signaling completion.",
+      "default": true
+    },
+    "lane_notify_os_toast_enabled": {
+      "type": "boolean",
+      "title": "lane-notify os-toast channel",
+      "description": "OS-native desktop toast (macOS/Linux) for the lane-stop alert.",
+      "default": true
+    },
+    "lane_notify_terminal_enabled": {
+      "type": "boolean",
+      "title": "lane-notify terminal channel",
+      "description": "Audible bell + OSC 9 notification written to the controlling terminal for the lane-stop alert.",
+      "default": true
+    }
+  }
 }
