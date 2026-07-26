@@ -226,14 +226,27 @@ explicit_git_dir() { explicit_global git-dir "$@"; }
 # guard never moves a repository mid-analysis. Published in a global and assigned by
 # a PLAIN call, never `$(…)`: a command substitution would run it in a subshell and
 # discard the cache.
+#
+# The key QUOTES each field with `%q`, the same way the traversal memo below builds
+# its own. `$*` would flatten the argv into one space-separated string, and git reads
+# these globals as distinct words — so `--git-dir 'X --work-tree' --namespace Z` and
+# `--git-dir X --work-tree '--namespace Z'` flatten identically while locating two
+# different repositories. One segment of a multi-segment payload then answered for
+# the next, which decides a launch directory and therefore a verdict. Quoting keeps
+# every boundary, including a path holding a space or a newline.
 # Call as: alias_launch_dir <dir> [locating-global...]
 declare -A _alias_launch_dir=()
 HOOK_ALIAS_LAUNCH_DIR=""
 # shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
 alias_launch_dir() {
-  local dir="$1" key out inside toplevel
+  local dir="$1" key out inside toplevel q w
   shift
-  key="$dir"$'\n'"$*"
+  printf -v q '%q' "$dir"
+  key="$q"
+  for w in "$@"; do
+    printf -v q '%q' "$w"
+    key+=$'\n'"$q"
+  done
   if [[ -z "${_alias_launch_dir[$key]+x}" ]]; then
     out=$(git -C "$dir" "$@" rev-parse --is-inside-work-tree --show-toplevel 2>/dev/null | tr -d '\r')
     inside="${out%%$'\n'*}"
@@ -371,12 +384,19 @@ sequencer_in_progress() {
 # The result is published in a global and assigned by a PLAIN call, never through
 # `$(…)`: a command substitution would run this in a subshell and discard the
 # cache with it.
+#
+# Both fields are `%q`-quoted, as in alias_launch_dir: a raw newline join lets a
+# directory whose path CONTAINS the delimiter shift the boundary, so one repository
+# could be served another's aliases — and an alias name is parsed argv, not a
+# vetted identifier.
 declare -A _persisted_alias=()
 HOOK_PERSISTED_ALIAS=""
 # shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
 persisted_alias() {
-  local dir="$1" sub="$2" key
-  key="$dir"$'\n'"$sub"
+  local dir="$1" sub="$2" key qd qs
+  printf -v qd '%q' "$dir"
+  printf -v qs '%q' "$sub"
+  key="$qd"$'\n'"$qs"
   [[ -n "${_persisted_alias[$key]+x}" ]] ||
     _persisted_alias["$key"]=$(git -C "$dir" config --get "alias.$sub" 2>/dev/null)
   HOOK_PERSISTED_ALIAS="${_persisted_alias[$key]}"

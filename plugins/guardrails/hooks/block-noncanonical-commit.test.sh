@@ -748,6 +748,43 @@ else
   PASS=$((PASS + 1))
 fi
 
+# --- one segment's launch directory must not be served to another -------------
+# The launch-directory cache is keyed on (composed directory + replayed locating
+# globals). Joining those globals with `$*` flattened the argv into one
+# space-separated string, and git reads them as distinct words — so two segments of
+# ONE payload whose globals differ only in where the word boundaries fall collide on
+# the key and the first segment's answer is served to the second.
+#
+# The primer below resolves from INSIDE its work tree, so it caches that work tree's
+# top level. The payload segment carries the same words with a different boundary
+# (`--git-dir '<g> --work-tree <w>'`), which locates nothing — the guard must fall
+# back to the caller's own directory and find the caller's `commit -m` alias there.
+# Inheriting the primer's top level instead sent it to the benign `<w>/child` and
+# returned 0.
+KEYCOL="$TEST_TMPDIR/keycollision"
+nested_repo "$KEYCOL/w"
+nested_repo "$KEYCOL/w/child"
+nested_repo "$KEYCOL/w/out/child"
+git -C "$KEYCOL/w/child" config alias.p 'commit -F -'
+git -C "$KEYCOL/w/out/child" config alias.p 'commit --allow-empty -m bypass'
+
+if [[ -d "$KEYCOL/w/child/.git" && -d "$KEYCOL/w/out/child/.git" ]]; then
+  keycol_g="$KEYCOL/w/.git"
+  keycol_w="$KEYCOL/w"
+  # Both segments flatten to the same `$*`; only the word boundaries differ.
+  keycol_cmd="git --git-dir $keycol_g --work-tree $keycol_w -c alias.z='!true' z"
+  keycol_cmd+="; git --git-dir '$keycol_g --work-tree $keycol_w' -c alias.a='!git -C child p' a"
+  MSYS_NO_PATHCONV=1 jq -n --arg c "$keycol_cmd" --arg d "$KEYCOL/w/out" \
+    '{tool_name:"Bash",tool_input:{command:$c},cwd:$d}' |
+    timeout 30 bash "$HOOK" >/dev/null 2>&1
+  rc=$?
+  if ((rc == 124)); then
+    bad "launch-directory cache key: exceeded the 30s ceiling"
+  else
+    assert_exit "a sibling segment's globals do not poison the launch-directory cache" 2 "$rc"
+  fi
+fi
+
 # --- PowerShell tool coverage ------------------------------------------------
 # The canonical PowerShell commit form (a here-string piped to `git commit -F -`)
 # must be allowed exactly as the Bash `-F -` form is; a `-m` PowerShell commit
