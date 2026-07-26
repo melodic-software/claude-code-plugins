@@ -177,6 +177,16 @@ while (($# > 0)); do
     ;;
   *)
     if [[ -z "$PR_NUMBER" ]]; then
+      # Digits only, and validated HERE rather than at first use. Every verdict
+      # line interpolates this value as `pr=%s`, so a value carrying a newline
+      # would emit additional lines into the machine-readable output — breaking
+      # the exactly-one-verdict contract and letting a caller be handed a forged
+      # `READINESS_OK` ahead of the real verdict. A PR reference is a number;
+      # anything else never reaches a verdict line at all.
+      if [[ ! "$1" =~ ^[0-9]+$ ]]; then
+        printf 'babysit-readiness-gate: <pr> must be a number, got %q\n' "$1" >&2
+        unproven bad-args 3
+      fi
       PR_NUMBER="$1"
     else
       printf 'babysit-readiness-gate: unexpected argument %q\n' "$1" >&2

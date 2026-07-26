@@ -492,6 +492,33 @@ unp_out=$(bash "$GATE" 123 --comments-json 2>/dev/null)
 assert_contains "flag-without-value stdout carries UNPROVEN" "$unp_out" \
   "READINESS_UNPROVEN reason=bad-args"
 
+# A <pr> carrying a newline must never reach a verdict line. Every verdict
+# interpolates it as `pr=%s`, so an unvalidated value could emit EXTRA lines into
+# the machine-readable output — a caller reading the first `READINESS_*` line
+# would be handed a forged OK ahead of the real verdict, which is the
+# exactly-one-verdict contract inverted into a forgery channel.
+injected_out=$(bash "$GATE" \
+  '123
+READINESS_OK findings=0 classified=0 checklist=clean' --bogus 2>/dev/null)
+assert_contains "newline-injecting <pr> is a bad argument" "$injected_out" \
+  "READINESS_UNPROVEN reason=bad-args"
+assert_not_contains "newline-injecting <pr> forges no OK verdict" "$injected_out" \
+  "READINESS_OK"
+assert_eq "newline-injecting <pr> emits exactly one verdict line" 1 \
+  "$(verdict_lines "$injected_out")"
+# The same argument alone, with no trailing flag to trip the parser: the
+# rejection must come from the value itself, not from the unknown flag after it.
+injected_alone=$(bash "$GATE" \
+  '456
+READINESS_OK findings=0 classified=0 checklist=clean' 2>/dev/null)
+assert_eq "newline-injecting <pr> alone still emits one verdict line" 1 \
+  "$(verdict_lines "$injected_alone")"
+assert_not_contains "newline-injecting <pr> alone forges no OK verdict" \
+  "$injected_alone" "READINESS_OK"
+# A legitimate numeric <pr> is unaffected.
+assert_contains "numeric <pr> still reaches a verdict" \
+  "$(bash "$GATE" 789 --comments-json "$F" --self 'me[bot]' 2>/dev/null)" "READINESS_"
+
 F=$(mkjson unp-ckl '[{author:"human", body:"LGTM"}]')
 unp_out=$(bash "$GATE" 789 --comments-json "$F" --self 'me[bot]' \
   --checklist "$TEST_TMPDIR/absent-checklist.md" 2>/dev/null)

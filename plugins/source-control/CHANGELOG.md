@@ -98,6 +98,13 @@ All notable changes to the `source-control` plugin are documented here. Format f
   strings, which is exactly how the counters consume them (`author` matched against the self list,
   `body` grepped for severity markers); a non-string in either position is unreadable, not empty. An
   empty array and an empty `body` string stay legitimate and still reach a verdict.
+- **A `<pr>` argument can no longer forge a verdict line.** Every `READINESS_*` line interpolates
+  the PR reference as `pr=%s`, and the value was stored unvalidated — so a positional argument
+  carrying a newline emitted *additional* lines into the machine-readable output. A caller reading
+  the first `READINESS_*` line could be handed a forged `READINESS_OK findings=0` ahead of the real
+  verdict, which turns the exactly-one-verdict contract into a forgery channel. `<pr>` is now
+  required to be digits at parse time, so a value that could break the line shape never reaches a
+  verdict at all.
 - **A snapshot read that fails partway is unreadable, not empty.** `--comments-json` was read with
   `$(cat …)` and the exit status ignored, so a `cat` that emitted a syntactically valid prefix and
   then hit an I/O error left the shape check validating that prefix. A file whose readable head is
