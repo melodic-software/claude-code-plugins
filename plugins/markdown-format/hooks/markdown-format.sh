@@ -668,6 +668,29 @@ FIX_OUTPUT=$(cd "$REPO_ROOT" && "${MDLINT[@]}" --fix "$FILE" 2>&1)
 LINT_RC=$?
 BASE="$(basename "$FILE")"
 
+# Normalize carriage returns ONCE, here, before anything reads this output.
+# markdownlint-cli2 is a Node process whose stdout is CRLF-terminated on
+# Windows, and command substitution strips only the trailing newline — so every
+# line below would otherwise carry a CR that survives JSON-escaping into the
+# emitted document as a literal \r. Verified by removing this line: the report
+# and the user-channel message both regain \r escapes.
+#
+# The telemetry `data.findings` array is a different story, and the honest
+# version is worth recording. It is built by piping into `jq -R`, and on Git
+# Bash that pipe already performs CRLF→LF translation — so measurement shows
+# that array never carried a CR even without this line. Normalizing here does
+# not fix a demonstrated leak on that channel; it removes the payload's
+# dependence on an incidental property of one platform's pipe behavior, which is
+# not something the next reader should have to rediscover to reason about this
+# code. The single normalization also replaces four downstream strips that would
+# each have to be remembered when a fifth consumer of this output is added.
+#
+# Side effect worth naming: `digest_now` below is hashed over `findings_raw`, so
+# this changes that hash. Every digest recorded before this version invalidates
+# once, producing one extra full-detail report per file. Self-correcting, and
+# not a regression.
+FIX_OUTPUT="${FIX_OUTPUT//$'\r'/}"
+
 # markdownlint-cli2 reports the fixes it WROTE as a bare count line and nothing
 # more — it has no per-fix detail to offer. That count is still the only signal
 # that this hook changed the file, so it is reported rather than dropped; the
@@ -793,12 +816,9 @@ fi
 # single JSON document, so the agent-channel report and the user-channel
 # mutation notice are emitted together rather than printed twice.
 #
-# Carriage returns are dropped first. markdownlint-cli2 is a Node process whose
-# stdout is CRLF-terminated on Windows, and command substitution strips only the
-# trailing newline — so every retained violation line arrives with a CR that
-# would survive JSON-escaping into the report as a literal \r.
-CTX="${CTX//$'\r'/}"
-SYSMSG="${SYSMSG//$'\r'/}"
+# Carriage returns are already gone: FIX_OUTPUT is normalized at the source, so
+# every string derived from it — this report, the user-channel message, and the
+# telemetry findings array — is clean without a per-string strip.
 CTX="${CTX%"${CTX##*[![:space:]]}"}"
 hook::emit_channels PostToolUse "$CTX" "$SYSMSG"
 
