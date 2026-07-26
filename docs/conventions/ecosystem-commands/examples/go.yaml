@@ -7,7 +7,7 @@ test-cmd: "go test ./..."
 check-cmd: "golangci-lint run ./..."
 fix-cmd: "golangci-lint run --fix ./..."
 opt-in: ".golangci.yml, .golangci.yaml, .golangci.toml, or .golangci.json present (walked from the changed file up to the repo root) — otherwise golangci-lint applies its own unconfigured \"standard\" linter preset unconditionally"
-install-hint: "Install golangci-lint: https://golangci-lint.run/docs/welcome/install/ | Go toolchain: https://go.dev/dl/"
+install-hint: "Install golangci-lint: https://golangci-lint.run/docs/welcome/install/ | Go toolchain: https://go.dev/dl/ | Buf CLI (needed by the proto-gen-freshness gate below): https://buf.build/docs/cli/installation/"
 gates:
   - name: go-mod-tidy-drift
     cmd: "go mod tidy -diff"

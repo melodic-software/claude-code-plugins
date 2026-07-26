@@ -22,7 +22,9 @@ whose working-tree copy `--clean` has since overwritten; and without `--clean` â
 counterpart [defaults to `false`](https://buf.build/docs/configuration/v2/buf-gen-yaml/) â€” an output
 orphaned by a deleted `.proto` is left in place and passes every git check. The comment also records
 what no regenerate-and-diff gate can catch: an unstaged hand-edit to a generated file is overwritten
-by `--clean` before any check reads it.
+by `--clean` before any check reads it. The example's `install-hint` gains the Buf CLI alongside
+golangci-lint and the Go toolchain: `install-hint` is per-ecosystem, so a tool-presence skip on the
+new gate would otherwise reuse a hint that cannot install the executable it is missing.
 Deferred from melodic-software/claude-code-plugins#1361 via #1462 (a
 documentation-depth finding from #1460's review): a worked `run-from: repo-root` example was still
 missing.
