@@ -1,5 +1,24 @@
 # Changelog — session-flow plugin
 
+## [0.17.10]
+
+### Fixed
+
+- **`observer.py`'s `_pid_alive` Windows liveness check no longer assumes a fixed decoder for
+  `tasklist` output.** #1483/#1496 (0.17.7-era) hardcoded `encoding="utf-8"` with
+  `errors="replace"` on the `subprocess.run` call. `tasklist`'s piped output actually follows the
+  **console output code page**, which is not fixed — measured on one machine, the same command in
+  the same session returned UTF-8 bytes under `GetConsoleOutputCP=65001` and CP437 bytes under
+  `GetConsoleOutputCP=437` (two shells in one session genuinely disagreed), so a hardcoded `oem`
+  would have been wrong in the opposite direction just as often. Before #1496's `errors="replace"`,
+  a CP437 console plus a process name containing an undefined-in-cp1252 byte (e.g. `ü`) raised
+  `UnicodeDecodeError` inside `subprocess`'s reader thread, leaving `out.stdout` as `None` and
+  `str(pid) in out.stdout` raising out of `_pid_alive` — `errors="replace"` closed that crash path
+  but left the decoder assumption in place as a correctness smell (harmless today only because the
+  predicate matches ASCII digits, which mojibake in a process *name* cannot change). `_pid_alive`
+  now drops decoding entirely and matches `str(pid).encode("ascii")` against `tasklist`'s raw
+  `stdout` bytes, removing the code-page question from the call site altogether (#1512).
+
 ## [0.17.9]
 
 ### Fixed
