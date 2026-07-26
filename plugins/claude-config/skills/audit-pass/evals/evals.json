@@ -89,12 +89,13 @@
       "id": 8,
       "name": "resume-carries-forward-unchanged-lanes",
       "prompt": "/claude-config:audit-pass --resume the last run died partway through after I edited one skill body",
-      "expected_output": "Reads the run manifest for this target's state key and re-runs only lanes that are incomplete or whose input digest changed. The lane containing the edited file re-runs; every other completed lane is skipped and its findings carried forward. Completion state is read from the append-only partial artifact, not from state tracked beside it.",
+      "expected_output": "Reads the run manifest for this target's state key and re-runs only lanes that are incomplete, detection-unqualified, or whose input digest changed. The lane containing the edited file re-runs. A completed, detection-QUALIFIED lane whose digest is unchanged is skipped and its findings carried forward. A detection-unqualified lane — one whose delegate reported neither a catalog version nor a prompt digest, which is every delegated catalog today — re-runs regardless of its file digest, because carrying it forward across an unobservable catalog change would blend two rule sets into one report; the coverage notes name that delegate as owing a detection declaration. Completion is read from the terminating record's state, not merely its presence: handed-back, declined, and ordinary completions mark a lane complete, while an open /doctor terminator marks it incomplete so it is re-prompted.",
       "files": [],
       "expectations": [
-        "Re-runs the lane whose input digest changed and skips completed lanes whose digest is unchanged",
+        "Re-runs the lane whose input digest changed, and skips a completed detection-qualified lane whose digest is unchanged",
+        "Re-runs detection-unqualified lanes regardless of file digest, rather than carrying them forward",
         "Carries forward the skipped lanes' findings rather than dropping them",
-        "Derives lane completion from the partial artifact's terminating records"
+        "Derives lane completion from the terminating record's state, treating an open terminator as incomplete"
       ]
     },
     {

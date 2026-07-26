@@ -91,6 +91,20 @@ this skill never installs system packages:
   jq`, or `apt-get install jq`); rerun `check` after.
 - **missing `curl`:** the platform's curl install — modern Windows and Git Bash already ship `curl`.
   Only the plugin-drift check needs it, so the rest of the plugin works meanwhile.
+- **missing `awk` or `sort`:** both ship with every POSIX userland, so absence means the shell
+  environment is minimal rather than that one package is missing — Git Bash and Windows `busybox`
+  shims are where this shows up. Remediate by installing a full userland rather than the single tool:
+  Git for Windows, which bundles both; the distribution's `gawk`/`mawk` and `coreutils` on Linux;
+  `brew install gawk coreutils` on macOS. Report the two separately, since a minimal shell can carry
+  one and not the other. Scoped to `audit-instructions`' conflict pass, which `exit 2`s without them
+  — the rest of that skill and the other three still run.
+- **no resolvable bash:** also not remediable by one package — the scripts use arrays, `[[ ]]`,
+  process substitution, and `BASH_SOURCE`, so they need a real bash on `PATH`: Git for Windows on
+  native Windows, the distribution's `bash` elsewhere. Nothing bundled runs until it resolves, so
+  say that this FAIL blocks the plugin rather than offering a partial workaround.
+
+The network row stays INFO and has no `apply` entry on purpose: a failed fetch degrades to SKIP by
+design, so there is nothing to remediate.
 
 After any install, re-run the relevant `check` probe and report its actual result — never claim resolved
 on the install command's exit code alone. Re-running `apply` once every probe passes changes nothing and

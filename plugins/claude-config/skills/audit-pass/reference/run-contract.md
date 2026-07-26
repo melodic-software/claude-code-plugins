@@ -618,9 +618,37 @@ Every property below is conditioned on the runs being **comparable**, stated her
 per-property so the clause cannot drift between them:
 
 > `R1` and `R2` are **comparable** when their **scan-baseline state digest**, **live surface set**,
-> **detection version** of every check consulted (its catalog version and a digest over the check's
-> own detection-behavior inputs — the host `SKILL.md`, the criteria catalog and its imports, and any
-> script named for that check), and **harness version** are all equal.
+> **observable detection version** of every check consulted, **harness version**, and
+> **behavior-affecting arguments** are all equal.
+
+**Observable detection version** is what the pass can actually establish without reading inside
+another plugin, and it has two forms per check:
+
+- **Qualified** — the invocation declared its catalog version and prompt digest. Those are the
+  values compared, and a catalog edit is detected exactly.
+- **Unqualified** — it declared neither, the state of every delegated catalog today. The compared
+  value is then what is observable from outside: the delegate plugin's **semver from the marketplace
+  manifest**, plus the harness version. The comparison is **coarse** and the report says so per
+  check, because a catalog edit that ships without a version bump is invisible to it.
+
+**Defining it as "the catalog version and prompt digest" made every property vacuous, and that was
+the defect.** If the compared values cannot be established, no pair is ever comparable, so P1–P4
+assert nothing about any two real runs — the resume fallback stopped a *resumed* report from mixing
+configurations, and did nothing for the cross-run comparison, which is a different question with the
+same cause. An unknown sentinel compared equal to itself would have been worse: it reads as a clean
+comparison while missing exactly the catalog changes the input exists to catch.
+
+Coarse-but-honest is the right trade here because the failure directions are not symmetric. A missed
+sub-semver catalog edit makes a property assert over a pair it should have abstained on — one wrong
+finding, visibly attributed to a named check. Vacuity makes every property assert nothing, silently,
+forever. The report names each unqualified check so the coarseness is attributable rather than
+assumed, and the exact comparison arrives for free the moment a delegate declares its detection
+version — the same declaration `claim` templates already ask of it.
+
+**Behavior-affecting arguments belong here too, not only in the resume digest.** Two completed runs
+differing only in `--opinion` were classified comparable while one deliberately ran additional
+checks, so the extra judged findings could fail P4 as audit instability — a false alarm produced by
+the operator using a documented flag.
 
 **The first input is the state digest, not the target tree, and the difference is the whole point of
 widening the digest.** "Target tree" covers only the repository, so a changed `~/.claude/CLAUDE.md`
@@ -726,7 +754,14 @@ Two artifacts, because incremental persistence and a sectioned report want diffe
 **During the run — `findings.partial.<owner_epoch>.jsonl`.** One JSON object per line, appended as each lane
 completes. Append-only is what makes §5 real: a single JSON document would be rewritten whole on
 every append, which is exactly the operation an interrupted run leaves half-done. A lane's final
-record is its terminating record, which is what marks the lane complete.
+record is its terminating record.
+
+**Completion is read from the terminator's state, not from its presence.** A terminator lets
+assembly render the lane; whether the lane is *done* is a separate question, and conflating them
+would carry an outstanding `/doctor` handoff forward on every resume instead of closing it. A
+terminator carrying `handed-back`, `declined`, or an ordinary lane completion marks the lane
+**complete**; a terminator carrying **`open`** marks it **incomplete**, so `--resume` re-runs it —
+which for a delegated lane is a re-prompt rather than a re-scan.
 
 **Every record carries an attempt id, and an attempt is delimited at both ends.** A lane can be
 attempted more than once — a completed lane is invalidated on resume when its input digest moved,
