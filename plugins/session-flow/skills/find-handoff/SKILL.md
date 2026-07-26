@@ -70,9 +70,15 @@ lost session was running under `/loop`, so its absence disqualifies nothing.
    before that jump**, or this short-circuit surfaces a looping handoff with its `/loop` re-arm
    missing while step 4 claims to present it. Locate the producer transcript by the candidate's
    own `session_id` (`<session_id>.jsonl` under `~/.claude/projects/*/` — the same lookup step 5
-   performs, pulled ahead) and capture the note from the tail. That is a bounded, read-only tail
-   read of ONE already-named file, not the step-2 scan reintroduced. Transcript missing or note
-   absent → surface the candidate without a note and say which, never block on it. **Exception — operator says the handoff was
+   performs, pulled ahead). That is a bounded, read-only read of ONE already-named file, not the
+   step-2 scan reintroduced. **Bind the note to THIS candidate by content, never by taking the
+   transcript's last one:** one session can emit several handoffs, so find the rails block whose
+   `Read @…` directive names this exact file and capture only the note adjacent to that block. A
+   tail read would hand back a later handoff's note — and if the loop was stopped and relaunched
+   with a different prompt in between, that re-arms the wrong recurring work, which is worse than
+   returning nothing. This is the same correlate-by-content rule the background-delivery screening
+   above already runs on. No block names this file, transcript missing, or no note → surface the
+   candidate without a note and say which, never block on it. **Exception — operator says the handoff was
    prompt-only:** then no file is the target (prompt-only writes none), and handoff files
    intentionally accumulate, so a recent file here belongs to some *other* handoff. Skip this
    short-circuit and go straight to the transcript scan. **Screen for background-delivery

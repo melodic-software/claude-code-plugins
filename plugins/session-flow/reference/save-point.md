@@ -113,15 +113,19 @@ copy, which goes stale the moment disk moved on without this conversation seeing
   launch-turn signal is found, say instead: "if a loop was active, re-arm it with
   `/loop [<interval>] <the prompt you originally launched it with>` after pasting the block above."
 
-  **This rule is scoped to the `/clear`-then-paste delivery, and emits nothing on a background
-  launch.** Re-arming exists only because `/clear` destroys the session-scoped schedule. A
-  `/session-flow:continue-in-background` launch clears nothing and pastes nothing — it hands the
-  rails prompt straight to a detached agent — so the loop stays armed on the session that is still
-  sitting there, and there is nothing to re-arm. Emitting the note there would be worse than
-  useless: its own wording ("after pasting the block above") describes a paste that never happens,
-  and the reader has no message to send it in. Detect the delivery path from the citing skill —
-  the engine owns the prompt, the citing skill owns delivery — and emit the note on the paste path
-  only. Transferring the loop INTO the launched agent is deliberately not done: that would arm a
+  **The note is conditioned on the paste, not on the citing skill.** Re-arming exists only because
+  `/clear` destroys the session-scoped schedule, so a delivery that never clears needs none: a
+  successful `/session-flow:continue-in-background` launch hands the rails prompt straight to a
+  detached agent, clearing nothing, and the loop stays armed on the session still sitting there.
+  But the engine emits this prompt BEFORE that skill runs its dirty-tree gate or its launch, and
+  both can fall back to the standard `/clear`-then-paste instruction — so the delivery path is not
+  yet knowable here, and keying the note off the citing skill's identity would drop the re-arm on
+  exactly the fallbacks that do clear. Word the note conditionally instead, so it is correct
+  whichever way delivery resolves: "this session was running under `/loop` — **if you paste this
+  block after `/clear`** (including the fallback when a background launch is refused or fails),
+  send `/loop [<interval>] <original prompt>` as a separate message afterwards to re-arm it; a
+  background launch that succeeds clears nothing, so the loop keeps running here and needs no
+  re-arm." Transferring the loop INTO the launched agent is deliberately not done: that would arm a
   recurring schedule inside a detached session the operator is not watching, which is a new
   behavior to decide on its own merits, not a side effect of writing a save-point.
 - **Combining both:** a command is recognized only at the start of a message

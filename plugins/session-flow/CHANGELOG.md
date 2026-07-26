@@ -43,12 +43,19 @@
   without a transcript in hand: it pulls step 5's `session_id` → `<session_id>.jsonl` lookup ahead
   of the gate and reads that one file's tail, so the default discovery path surfaces the note too
   rather than promising it and delivering nothing.
-- **The `/loop` re-arm note is now scoped to `/clear`-then-paste delivery.** The engine is shared
-  with `/session-flow:continue-in-background`, which clears nothing and pastes nothing — it hands
-  the rails prompt straight to a detached agent. The loop therefore stays armed on the foreground
-  session and has nothing to re-arm, while the note's own "after pasting the block above" wording
-  describes a paste that never happens and a follow-up message the reader has nowhere to send.
-  The rule now emits on the paste path only. Transferring the loop *into* the launched agent is
+  The note is bound to its candidate by content — the rails block whose `Read @…` directive names
+  that exact file — rather than by reading the transcript's tail, since one session can emit
+  several handoffs and a loop stopped and relaunched between them would otherwise re-arm the wrong
+  recurring work. Same correlate-by-content rule the background-delivery screening already uses.
+- **The `/loop` re-arm note is now conditioned on the paste, not on the citing skill.** The engine
+  is shared with `/session-flow:continue-in-background`, whose successful launch clears nothing and
+  pastes nothing — it hands the rails prompt straight to a detached agent, so the loop stays armed
+  on the foreground session and the note's unconditional "after pasting the block above" wording
+  described a paste that never happens. Keying the note off the citing skill would have been just
+  as wrong in the other direction: the engine emits the prompt BEFORE that skill's dirty-tree gate
+  and launch run, and either can fall back to `/clear`-then-paste, which does clear. The note is
+  therefore worded conditionally — re-arm if you paste after `/clear`, including on those
+  fallbacks; a launch that succeeds needs none. Transferring the loop *into* the launched agent is
   deliberately not done: arming a recurring schedule inside a detached session the operator is not
   watching is a behavior to decide on its own merits, not a side effect of writing a save-point.
 
