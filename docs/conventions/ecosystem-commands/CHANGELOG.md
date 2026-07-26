@@ -4,10 +4,12 @@
 
 Docs-only, no schema shape change: `examples/go.yaml` gains a clearly-commented illustrative gate
 (`proto-gen-freshness`) demonstrating the `run-from: repo-root` shape added in 1.2.0 — no bundled
-default or example repo needs it yet, so it is documentation, not a functioning gate. `*.proto` and
-`buf.gen.yaml` are also added to the file's own `globs`, per the 1.1.1 reachability rule, so the
-worked example is actually reachable under auto-targeting rather than silently unfired. Its
-`trigger-globs` (`*.proto`, `buf.gen.yaml`, `*.pb.go`, `*.pb.gw.go`) additionally list the plugins'
+default or example repo needs it yet, so it is documentation, not a functioning gate. Every input
+that can change what `buf generate` produces is also added to the file's own `globs`, per the 1.1.1
+reachability rule, so the worked example is actually reachable under auto-targeting rather than
+silently unfired: `*.proto` and `buf.gen.yaml`, plus `buf.yaml` and v1's `buf.work.yaml`, whose
+workspace `modules`/`includes`/`excludes` decide which Protobuf files generation discovers at all.
+Its `trigger-globs` (those four, plus `*.pb.go` and `*.pb.gw.go`) additionally list the plugins'
 own generated-output patterns, so a hand-edit that drifts a generated file from what `buf generate`
 would produce still fires the gate — those two need no separate `globs` entry since they already end
 in `.go`. Its freshness `cmd` runs `buf generate --clean` and chains `git diff HEAD --exit-code`,
