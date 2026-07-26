@@ -100,6 +100,14 @@ All notable changes to the `typos-format` plugin are documented here. Format fol
   as an argument (#1595), so an oversized envelope is currently dropped rather
   than delivered — the correct failure direction, and what the scale assertion
   pins.
+- **The disclosure is bounded by characters, not only by entry count.** Capping
+  the list at ten entries does not cap the message: a token or a correction is
+  arbitrary text from the file, so ten long ones overrun the 10,000-character
+  `systemMessage` cap and the channel truncates or rejects the disclosure —
+  after the file has already been rewritten, which is the one outcome this path
+  exists to prevent. Rendered tokens are elided at 60 characters and each
+  channel carries a hard ceiling, with the truncation stated in the message.
+  The telemetry arrays keep the untruncated values.
 - Carriage returns no longer leak into the emitted report. `jq` writes stdout in
   text mode on Windows, so a multi-line value returns CRLF-terminated and
   command substitution strips only the last one, leaving a literal `\r` before

@@ -152,6 +152,18 @@ if ((write == 1)) && [[ -n "${STUB_BREAK:-}" ]]; then
   exit 2
 fi
 
+# STUB_LONG: report an absurdly long correction for every fixable finding. The
+# entry COUNT is capped, but a single entry is arbitrary text from the file, so
+# ten of them can still overrun the systemMessage character cap.
+long=""
+if [[ -n "${STUB_LONG:-}" ]]; then
+  i=0
+  while ((i < 40)); do
+    long="${long}veryverylongcorrectiontoken"
+    i=$((i + 1))
+  done
+fi
+
 residual=0
 out=""
 lineno=0
@@ -166,7 +178,7 @@ while IFS= read -r line || [[ -n "$line" ]]; do
     esac
     case "$tok" in
     teh)
-      out+='{"type":"typo","path":"'"$target"'","line_num":'"$lineno"',"byte_offset":0,"typo":"teh","corrections":["the"]}'$'\n'
+      out+='{"type":"typo","path":"'"$target"'","line_num":'"$lineno"',"byte_offset":0,"typo":"teh","corrections":["'"${long:-the}"'"]}'$'\n'
       if ((write == 1)); then line="${line//" teh "/" the "}"; else residual=1; fi
       ;;
     wnat)
@@ -418,6 +430,35 @@ if [[ "$RES_ELAPSED" -lt 10 ]]; then
   ok "stub/scale-residual: completed in ${RES_ELAPSED}s, inside the handler's 15s timeout"
 else
   fail "stub/scale-residual: took ${RES_ELAPSED}s — quadratic membership regression?"
+fi
+
+# --- The disclosure must respect the channel's character cap -----------------
+# Capping the number of entries does not cap the message: a token or correction
+# is arbitrary text from the file, so ten long ones can still overrun the
+# 10,000-character systemMessage cap and get the disclosure truncated or
+# rejected by the channel — after the file has already been rewritten. Ten
+# corrections of ~1,080 characters each is ~10,800 before any prose.
+: >"$STUB_REPO/longtok.txt"
+for _i in 1 2 3 4 5 6 7 8 9 10 11 12; do
+  printf 'line %s has teh typo\n' "$_i" >>"$STUB_REPO/longtok.txt" # spellchecker:disable-line
+done
+OUT_LT=$(run_stub "$STUB_REPO/longtok.txt" STUB_LONG=1)
+SYS_LT=$(printf '%s' "$OUT_LT" | jq -r '.systemMessage // empty' 2>/dev/null)
+CTX_LT=$(printf '%s' "$OUT_LT" | jq -r '.hookSpecificOutput.additionalContext // empty' 2>/dev/null)
+if [[ -n "$SYS_LT" && "${#SYS_LT}" -lt 10000 ]]; then
+  ok "stub/long: systemMessage stays under the 10,000-character channel cap (${#SYS_LT})"
+else
+  fail "stub/long: systemMessage is ${#SYS_LT} characters — at or over the channel cap"
+fi
+if printf '%s' "$SYS_LT" | grep -q 'rewrote 12 word'; then
+  ok "stub/long: the true rewrite count survives the character bound"
+else
+  fail "stub/long: count lost under truncation: $SYS_LT"
+fi
+if printf '%s' "$CTX_LT" | grep -q 'veryverylongcorrectiontokenveryverylongcorrectiontokenveryverylongcorrectiontoken'; then
+  fail "stub/long: an unelided long token reached the report"
+else
+  ok "stub/long: long tokens are elided in the rendered report"
 fi
 
 # --- A broken write pass must not be read as "everything was applied" --------

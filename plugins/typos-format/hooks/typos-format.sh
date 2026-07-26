@@ -311,7 +311,13 @@ CLASSIFIED=$(printf '%s\n@@typos-format-split@@\n%s\n' "$SCAN_OUTPUT" "$RESIDUAL
   jq -R -s -c --argjson max "$MAX_REPORT" '
     def parse($lines): [$lines[] | select(length > 0) | (fromjson? // empty) | select(.type == "typo")];
     def keyof: "\(.line_num // 0)\t\(.typo // "")";
-    def corr1: (.corrections[0] // "");
+    # Entry count is capped, but a single entry is not bounded by that: a token
+    # or correction is arbitrary text from the file, so ten of them can still
+    # blow the systemMessage character cap. Rendered tokens are elided; the
+    # telemetry arrays below keep the untruncated values.
+    def elide: if (length > 60) then (.[0:60] + "…") else . end;
+    def tok: ((.typo // "") | elide);
+    def corr1: ((.corrections[0] // "") | elide);
     (split("\n")) as $lines
     | (($lines | index("@@typos-format-split@@")) // ($lines | length)) as $sep
     | ((parse($lines[($sep + 1):]) | map({(keyof): true}) | add) // {}) as $res
@@ -323,13 +329,13 @@ CLASSIFIED=$(printf '%s\n@@typos-format-split@@\n%s\n' "$SCAN_OUTPUT" "$RESIDUAL
         residualCount: ($r | length),
         applied: ($a | map({typo: (.typo // ""), correction: corr1, line: (.line_num // 0)})),
         findings: ($r | map({typo: (.typo // ""), corrections: .corrections})),
-        appliedText: ([limit($max; $a[])] | map("  \"\(.typo)\" -> \"\(corr1)\" (line \(.line_num // 0))") | join("\n")),
-        appliedInline: ([limit($max; $a[])] | map("\"\(.typo)\" -> \"\(corr1)\" (line \(.line_num // 0))") | join("; ")),
+        appliedText: ([limit($max; $a[])] | map("  \"\(tok)\" -> \"\(corr1)\" (line \(.line_num // 0))") | join("\n")),
+        appliedInline: ([limit($max; $a[])] | map("\"\(tok)\" -> \"\(corr1)\" (line \(.line_num // 0))") | join("; ")),
         residualText: ([limit($max; $r[])] | map(
             if .corrections == null then
-              "  \"\(.typo)\" (line \(.line_num // 0)) is disallowed with no known correction — if intentional, add it to extend-words / extend-identifiers (or an extend-ignore-re pattern) in your typos config."
+              "  \"\(tok)\" (line \(.line_num // 0)) is disallowed with no known correction — if intentional, add it to extend-words / extend-identifiers (or an extend-ignore-re pattern) in your typos config."
             else
-              "  \"\(.typo)\" (line \(.line_num // 0)) should be \"\(corr1)\" — if intentional, add it to extend-words / extend-identifiers in your typos config."
+              "  \"\(tok)\" (line \(.line_num // 0)) should be \"\(corr1)\" — if intentional, add it to extend-words / extend-identifiers in your typos config."
             end) | join("\n"))
       }' 2>/dev/null) || CLASSIFIED=""
 
@@ -408,6 +414,26 @@ fi
 
 # Trim the trailing newline the same way hook::ctx_flush does.
 CTX="${CTX%"${CTX##*[![:space:]]}"}"
+
+# Hard character ceiling, belt to the per-entry elision's braces. systemMessage
+# is documented at a 10,000-character cap
+# (docs/conventions/hook-observability/README.md, from the hooks reference), and
+# a disclosure that overruns it can be truncated or rejected by the channel
+# AFTER the file has already been rewritten — the one outcome this whole path
+# exists to prevent. The budget leaves headroom for JSON escaping, which can
+# expand a string well past its character count, and the trailing note names
+# the channel that still has the full list.
+truncate_to() {
+  local s="$1" n="$2"
+  if ((${#s} > n)); then
+    printf '%s… (message truncated at %s characters; the run'"'"'s full finding set is in its telemetry payload, which is never capped)' "${s:0:n}" "$n"
+  else
+    printf '%s' "$s"
+  fi
+}
+SYSMSG=$(truncate_to "$SYSMSG" 4000)
+CTX=$(truncate_to "$CTX" 12000)
+
 hook::emit_channels PostToolUse "$CTX" "$SYSMSG"
 
 data_json=$(build_data_json "$FINDINGS_JSON" "$APPLIED_JSON")
