@@ -59,7 +59,7 @@ Switch roles from author to attacker, because the inputs you designed for pass b
 - Force the error path once and observe it fail loudly and correctly — real error, right message, no partial state left behind — because unexercised error paths silently succeed or corrupt.
 - If the change is one member of a symmetric family (one handler of several, one platform of several, one half of a read/write pair), check the siblings: either they need the same change, or state why they do not.
 
-**This pass is a floor, never the final gate for multi-file work:** after a multi-file edit batch, and before declaring any multi-part task complete, a fresh-context verifier is required in addition — the orchestration chapter, section "Fresh-context verification", owns that gate.
+**This pass is a floor, never the final gate for multi-file work:** after a multi-file edit batch, and before declaring any multi-part task complete, a fresh-context verifier is required in addition, unless every batch the trigger covers is mechanical, wholly behavior-preserving, narrow in blast radius, and free of any subjective verdict — the orchestration chapter, section "Fresh-context verification", owns that gate and its exception.
 
 > Change: date parser now accepts `YYYY-MM-DD`.
 > Weak: parse `2026-07-06` → works, claim done — confirmation-only testing, structurally guaranteed to pass.

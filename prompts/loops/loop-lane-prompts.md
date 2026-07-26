@@ -768,14 +768,16 @@ overnight without me":
 
 - **Tier `autopilot`** — in the prompt below. Already maximal.
 - **Merge rung** — one line in `.claude/source-control.md` on `main`.
-  Currently `c2-mechanical`. Changing it to `c3-autonomous` takes the
-  eligible set from the `mechanical` handful to nearly the whole open
-  `agent-ready` backlog — run the union command for the live figures rather
-  than trusting a number written here. Whether that raise is
-  *authorized* is a separate question from whether the seam supports it: the
-  guardrail matrix sets C3 merge policy to `human merge` and lists no C3
-  auto-merge promotion cell, so the flip is filed as an operator decision
-  rather than a ready edit.
+  Currently `c2-mechanical`, and **staying there: the operator decided
+  against raising it on 2026-07-25** (#1388). Changing it to `c3-autonomous`
+  would take the eligible set from the `mechanical` handful to nearly the
+  whole open `agent-ready` backlog, but throughput was not the binding
+  constraint — authorization was. The guardrail matrix sets C3 merge policy
+  to a flat `human merge` and lists **no C3 auto-merge promotion cell**, so
+  no evidence predicate exists that a raise could satisfy; and the C2 rung
+  already in force has not met its own predicate either, with zero autonomous
+  merges recorded here to date. Reopen the question only by amending the
+  guardrail contract first, never by flipping the seam alone.
 
 `full-autonomy` as a rung adds only C4 `structural` and C5
 `untrusted-provenance` on top of `c3-autonomous` — refactors, migrations,
@@ -783,14 +785,17 @@ contract changes, and fork PRs. That is the category least suited to
 landing unattended, for near-zero throughput gain over c3, so `full-autonomy`
 is never the answer here.
 
-**But that ranking is not a recommendation to raise.** The governing policy
-is `plugins/autonomy/reference/guardrails.md`'s matrix, which sets C3 merge
-policy to `human merge`, and its promotion table, which defines an auto-merge
-evidence predicate for C2 only — C3 has no auto-merge promotion cell at all.
-Until that policy defines a C3 promotion path, **stay at `c2-mechanical`**:
-the eligible-count arithmetic above says what the seam would do, not what
-the contract permits. Raising the rung anyway is an operator decision to
-override the matrix, and it belongs in a change to the policy first.
+**But that ranking is not a recommendation to raise, and the question is
+settled.** The governing policy is `plugins/autonomy/reference/guardrails.md`'s
+matrix, which sets C3 merge policy to `human merge`, and its promotion table,
+which defines an auto-merge evidence predicate for C2 only — C3 has no
+auto-merge promotion cell at all. The eligible-count arithmetic above says
+what the seam *would* do, not what the contract *permits*.
+
+**Decided 2026-07-25 (#1388): stay at `c2-mechanical`.** Raising the rung
+would be an operator override of the matrix, and it belongs in a change to
+the policy first — add a C3 auto-merge cell with an evidence predicate, then
+flip the seam. Not the reverse.
 
 Neither rung bypasses classification: an item with **no recorded class in
 either source** — no `Work-class: C<n>` body trailer and no `work-class:`

@@ -62,7 +62,7 @@ def run(args: argparse.Namespace) -> dict:
 
 def main() -> int:
     configure_stdio()
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=False)
     parser.add_argument("action", choices=("acquire", "heartbeat", "release", "reap"))
     parser.add_argument(
         "--scope",

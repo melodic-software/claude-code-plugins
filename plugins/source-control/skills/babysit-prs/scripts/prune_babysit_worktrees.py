@@ -19,6 +19,7 @@ from babysit_util import configure_stdio, run_command
 
 WORKTREE_RE = re.compile(r"^(?P<owner>.+?)__(?P<repo>.+?)__pr-(?P<number>\d+)$")
 ALLOWED_EXECUTABLES = ("git", "gh")
+UNRECOGNIZED_REASON = "directory name does not match <owner>__<repo>__pr-<number>"
 
 
 @dataclass
@@ -35,6 +36,14 @@ class Worktree:
     @property
     def key(self) -> str:
         return f"{self.full_repo}#{self.number}"
+
+
+@dataclass
+class UnrecognizedWorktree:
+    """A directory under the root whose PR identity cannot be derived."""
+
+    path: Path
+    reason: str
 
 
 def run(argv: list[str], *, check: bool = True) -> subprocess.CompletedProcess[str]:
@@ -75,15 +84,25 @@ def repo_path(worktree_path: Path) -> Path:
     return common.parent if common.name == ".git" else common
 
 
-def iter_worktrees(root: Path) -> list[Worktree]:
+def iter_worktrees(root: Path) -> list[Worktree | UnrecognizedWorktree]:
+    """Every directory under the root, identified or explicitly unidentified.
+
+    A directory whose name does not carry a PR identity is reported rather than
+    dropped: a caller that reads this report to answer "is anything left to
+    clean up?" would otherwise get a false all-clear for a worktree it can
+    neither see nor act on (#555). Unrecognized entries are never removed --
+    identity is a precondition for the PR-state and lease checks that authorize
+    removal.
+    """
     if not root.exists():
         return []
-    found: list[Worktree] = []
-    for child in root.iterdir():
+    found: list[Worktree | UnrecognizedWorktree] = []
+    for child in sorted(root.iterdir()):
         if not child.is_dir():
             continue
         match = WORKTREE_RE.match(child.name)
         if not match:
+            found.append(UnrecognizedWorktree(path=child, reason=UNRECOGNIZED_REASON))
             continue
         found.append(
             Worktree(
@@ -157,7 +176,9 @@ def active_worker_lease(
 
 def main() -> int:
     configure_stdio()
-    parser = argparse.ArgumentParser(description="Prune babysit-prs Git worktrees.")
+    parser = argparse.ArgumentParser(
+        description="Prune babysit-prs Git worktrees.", allow_abbrev=False
+    )
     parser.add_argument(
         "--root",
         required=True,
@@ -206,7 +227,23 @@ def main() -> int:
         target_key = f"{repo}#{number}"
     rows: list[dict[str, object]] = []
     exit_code = 0
-    for worktree in iter_worktrees(root):
+    for entry in iter_worktrees(root):
+        if isinstance(entry, UnrecognizedWorktree):
+            # Reported before the --pr filter below, because an unrecognized
+            # entry has no key and so could never match a target: leaving it to
+            # that filter would hide it from every scoped run forever. A
+            # recognized non-target entry is merely out of the caller's declared
+            # scope and still appears in an unscoped run.
+            rows.append(
+                {
+                    "path": str(entry.path),
+                    "action": "unrecognized",
+                    "reason": entry.reason,
+                    "removed": False,
+                }
+            )
+            continue
+        worktree = entry
         if target_key and worktree.key.casefold() != target_key:
             continue
         row: dict[str, object] = {"key": worktree.key, "path": str(worktree.path)}

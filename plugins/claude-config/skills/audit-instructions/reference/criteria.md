@@ -20,7 +20,7 @@ pages (the Fable 5 guide) are superseded on each model generation.
   truth is observed model behavior, so findings ship as proposals verified by the delete-and-watch
   loop, never confident removals).
 - **Authority** — `ANTHROPIC-DOCS` (official documentation), `TALK` (a recorded talk), `OPINION`
-  (a practitioner's stated practice). A closed three-value set. All fourteen checks are currently
+  (a practitioner's stated practice). A closed three-value set. All fifteen checks are currently
   `ANTHROPIC-DOCS`.
 - **Severity** — `error` / `warning` / `info`.
 
@@ -28,7 +28,7 @@ pages (the Fable 5 guide) are superseded on each model generation.
 non-memory surfaces (skill bodies, agent definitions, prompt-type hooks, output styles); on
 memory-layer surfaces (CLAUDE.md, CLAUDE.local.md, `.claude/rules/`, `~/.claude/rules/`) their
 findings route to the `claude-memory` plugin's `audit` skill when it is installed, and fall back
-to the official include/exclude guidance (I1–I5 source below) when it is not. Checks I6–I12 apply
+to the official include/exclude guidance (I1–I5 source below) when it is not. Checks I6–I12 and I15 apply
 to all surfaces; I13 and I14 name narrower surface sets in their own rows.
 
 ## Sources
@@ -268,6 +268,39 @@ skill bodies.
   `~/.claude/CLAUDE.md`, project rules, `CLAUDE.local.md`, and managed policy files." The qualifier
   *the main conversation loads* is what bounds this check: memory documents lazy loading for
   "path-specific rules or lazy-loaded files in subdirectories", so those are outside the guarantee.
+
+### I15: Cross-surface instruction conflict
+
+Tier `behavioral` · Authority `ANTHROPIC-DOCS` · Severity `warning` · Surfaces: all — but the unit is
+a **pair**, so this row is answered by Phase B2 rather than by a per-surface lane.
+
+- **Detect:** two instruction surfaces that both constrain the same decidable act and prescribe
+  incompatible actions for at least one input firing both, with no resident text arbitrating between
+  them. The unit of judgment is the pair, never one document read alone — which is why the
+  per-surface lanes are structurally blind to it. The five gates that make this checkable, the
+  residency table gate 1 resolves against, and the precedence table separating what the docs settle
+  from what they leave unresolved all live in
+  [conflict-criteria.md](conflict-criteria.md); that file is this row's adjudication procedure.
+- **Comparison set:** every pair drawn from the surfaces Phase A inventoried, including the ones it
+  recorded as *skipped* — plugin-cache content, managed materializations, org policy — since a
+  contradiction is real whether or not this repository may edit either side. Resolve `@path` imports
+  and symlinks to their targets before pairing, so an imported file is compared as part of the
+  surface importing it rather than as a separate one.
+- **Excluded from the comparison set:** `AGENTS.md` and other files that are not Claude Code
+  instruction surfaces. They shape no behavior here, so a divergence between one and a `CLAUDE.md`
+  is not a conflict this check reports.
+- **Remediate by scope**, never by picking a winner the docs do not name. Where the precedence table
+  cites a documented order, name the winner and its source. Where it does not, report the pair as
+  `unresolved` with both anchors quoted and let the operator choose. Where the same conflict keeps
+  recurring, offer the mechanism route — a `PreToolUse` hook, a `permissions.deny` rule, or a skill's
+  own `disallowed-tools` — since a mechanism outranks instruction text.
+- **Must NOT flag:** two surfaces that can never be resident together (that is orphaned instruction
+  drift, reported separately). Different observables sharing a keyword. The same verb over different
+  objects. An absolute carrying its own exception beside a directive presupposing that exception. A
+  pair one of whose sides already states which wins. The full set with worked instances is in
+  [conflict-criteria.md](conflict-criteria.md).
+- **Source:** memory — "If two rules contradict each other, Claude may pick one arbitrarily", which
+  is why an unarbitrated pair is a finding rather than a stylistic note.
 
 ---
 
