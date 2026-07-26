@@ -45,7 +45,7 @@ this session verified it — a command run, a file read, an output observed. Any
 prior handoff's assertion, an issue label, a remembered state — is written with an explicit
 `UNVERIFIED (<source>)` marker, because the resuming session treats an unmarked claim as fact and
 builds on it: an inherited claim is a claim to falsify, not a fact to forward. The met/unmet marks
-in Completion criteria carry the same rule (see the evidence rule in the citing skill's gotchas).
+in Completion criteria carry the same rule.
 
 ### Resumption brief
 
