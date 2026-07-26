@@ -78,12 +78,14 @@ Entries below `0.9.0` were released under the plugin's former name, `re-anchor`.
   The replacement is not a smaller cap but a different default: **prefer ONE wave.** Splitting is
   what breaks the ledger independence step 3's dedup assumes — a fork inherits everything the
   session holds at spawn, so wave 2 reads wave 1's findings — and the `-deep` siblings carry no
-  such invariant, which is why their number never belonged here. With the `never` tier excluded
-  and the situational tier gated, an in-scope set fits the documented parallelism budget. Where
-  it does not, the skill says to shrink the set before splitting, and to disclose the anchoring
-  when it splits anyway. The shared `CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS` (default 20) and
-  `CLAUDE_CODE_MAX_SUBAGENTS_PER_SESSION` (default 200) budgets are modeled, and per-wave
-  checkpointing is restored.
+  such invariant, which is why their number never belonged here. The two documented limits are
+  also distinguished, which the old text conflated: `CLAUDE_CODE_MAX_TOOL_USE_CONCURRENCY`
+  (default 10) caps how many run at once, not how many you dispatch, while
+  `CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS` (default 20) is the hard spawn failure — so even a
+  fully-admitted set dispatches in one wave in a quiet session. Membership resolution decides
+  scope and concurrency decides only timing: a relevant corrector is never dropped to fit a
+  budget; the pass waits for capacity. `CLAUDE_CODE_MAX_SUBAGENTS_PER_SESSION` (default 200) is
+  modeled too, and per-wave checkpointing is restored for the split fallback that needs it.
 
 - **`sweep-all`: the retry rule never defined failure (`#1621`).** "Retry only a failed subset,
   once" did not cover the actual exposure — a fabricated ledger is not an errored dispatch.

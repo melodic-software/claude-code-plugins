@@ -213,27 +213,31 @@ unchanged and bind every member.
    wave: it is calibrated for cheap fresh-context subagents that carry no such
    invariant.
 
-   One wave is usually possible. With the `never` tier excluded and the
-   situational tier relevance-gated, an in-scope set of eight or nine fits
-   inside `CLAUDE_CODE_MAX_TOOL_USE_CONCURRENCY` ("Maximum number of read-only
-   tools and subagents that can execute in parallel", documented default 10).
-   The sweep does not own that budget alone: every subagent spawned with the
-   Agent tool — forks included — also counts toward
-   `CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS` (documented default 20) and
-   `CLAUDE_CODE_MAX_SUBAGENTS_PER_SESSION` (documented default 200), shared
-   with everything else the session is already running. Check what is already
-   in flight rather than colliding with `Concurrent subagent limit reached`,
-   which the harness tells Claude not to retry
+   One wave is usually possible, and the two documented limits are not the
+   same kind of limit. `CLAUDE_CODE_MAX_TOOL_USE_CONCURRENCY` ("Maximum number
+   of read-only tools and subagents that can execute in parallel", documented
+   default 10) caps how many run at once — it does not cap how many you
+   dispatch. The hard one is `CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS` (documented
+   default 20): past it, "spawning another with the Agent tool fails with
+   `Concurrent subagent limit reached`, and the error tells Claude not to
+   retry." Every Agent-tool subagent counts against it, forks included, shared
+   with everything else the session is running, and against
+   `CLAUDE_CODE_MAX_SUBAGENTS_PER_SESSION` (documented default 200)
    (<https://code.claude.com/docs/en/sub-agents>,
-   <https://code.claude.com/docs/en/env-vars>).
+   <https://code.claude.com/docs/en/env-vars>). So even a fully-admitted set —
+   every core plus every situational corrector — dispatches in one wave in an
+   otherwise-quiet session.
 
-   Where the in-scope set does not fit, prefer shrinking it — gate the
-   situational tier harder — over splitting. If you must split, **say so in
-   the report**: every member in a later wave inherits the earlier waves'
-   ledgers and can be anchored by them. That is a real weakening of the
-   independence the dedup relies on, and it is disclosed, not hidden. Only a
-   split fan-out needs the `-deep` siblings' per-wave checkpointing of the
-   collected ledgers; a single wave has no partial state to lose.
+   **Never drop a relevant corrector to fit a budget.** Membership resolution
+   decides what is in scope; concurrency decides only when it runs. If the
+   session already holds enough subagents that the full set cannot be
+   dispatched, wait for capacity and then dispatch it whole. Split only if that
+   is not possible, and then **say so in the report**: every member in a later
+   wave inherits the earlier waves' ledgers and can be anchored by them. That
+   is a real weakening of the independence the dedup relies on, disclosed, not
+   hidden. Only a split fan-out needs the `-deep` siblings' per-wave
+   checkpointing of the collected ledgers; a single wave has no partial state
+   to lose.
 
    **Retry, and what counts as a failure.** Retry only a failed subset, once —
    and **failure includes a ledger returned without verified inheritance
