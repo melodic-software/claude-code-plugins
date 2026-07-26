@@ -16,8 +16,11 @@ All notable changes to the `planning` plugin are documented here. Format follows
   (`recommends-session-config-engineering-downstream`) keeps the downstream
   framing, now explicitly scoped to the engineering/handoff path, and new eval 10
   (`recommends-session-config-general-current-session`) asserts the current/next
-  session framing for a general/terminal decision. Covers the skill-side
-  reframe that landed in 0.26.1.
+  session framing for a general/terminal decision — including the 0.26.1 timing
+  contract: an early first read right after the Step 1 survey classifies the
+  domain as general, the stop-boundary recommendation as a refresh of it, and
+  the offer to re-evaluate the reached understanding when config was raised
+  only at the end. Covers the skill-side reframe that landed in 0.26.1.
 
 ## [0.26.1]
 
