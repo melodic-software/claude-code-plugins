@@ -136,35 +136,16 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
     Directory resolution now sees only the invocation prefix, which also stops
     `git commit -C HEAD` (`--reuse-message`) reading as a directory named `HEAD`.
 
-  - **A `cd` inside a `!` shell-alias body now moves the analysis with it**
-    (`block-noncanonical-commit`; review finding on the fix above). A `!` body is a
-    shell command list, so a `cd` relocates every command after it:
-    `alias.a = !cd child && git a` in an outer repository, with
-    `alias.a = commit --allow-empty -m bypass` in the child, made real git commit in
-    the child while the guard analyzed the outer one and skipped the hop as a cycle
-    (verified fail-open: hook returned 0, real git's commit count went 0 → 1). This
-    was the compound-`cd` residual the guard has always documented, shown to be live.
-
-    It is handled where a shell handles it — as a per-segment side effect in segment
-    order, through the tokenizer that already splits the body — so no shell modelling
-    is added: a `cd` segment moves the base that later segments compose against, and
-    git still answers what that base means. Gating only the cycle-skip would not have
-    closed the class: with a DIFFERENT alias name in the child there is no cycle hit
-    at all, and that case is now a regression test too.
-
-    Only a single LITERAL operand is followed. `cd` with no operand, `cd -`,
-    `pushd`/`popd`/`chdir`, and any operand carrying expansion (`$`, backtick, `~`,
-    glob) name a destination this static guard cannot know without running shell;
-    inside a `!` reparse those fail closed. At TOP level the base is left unchanged
-    instead, so an ordinary `cd $DIR && git commit -F -` in a script does not start
-    blocking — the guard keeps the accuracy it always had there. The rule is "one
-    literal `cd` resolved, everything else unanalyzable" rather than a catalogue of
-    shell builtins, which is a list that never ends.
-
-    A canonical commit behind a `cd` stays ALLOWED, directly and through a nested
-    alias — both are pinned, because blocking a correct commit for relocating first
-    would be a regression. Cost unchanged on the common path: a plain
-    `git commit -F -` still forks 0 git subprocesses; the reviewer's fixture costs 4.
+    **Standing limitation, unchanged and still open:** the guard does not evaluate
+    shell relocation, so a `!` body that moves the process (`!cd child && git …`)
+    is analyzed against the invoking repository rather than the destination. Real
+    git resolves the destination's aliases, so an alias defined only there is not
+    seen. Modelling this means evaluating arbitrary shell word expansion, which
+    this guard deliberately does not do; asking git cannot help either, because
+    git is never told about the `cd`. Tracked in
+    [#1486](https://github.com/melodic-software/claude-code-plugins/issues/1486),
+    with a reverted working attempt and the four findings that landed against it as
+    a map of what a real fix must handle.
 
     Behavior change to note: an aliased git command invoked where git cannot
     resolve a work tree now blocks instead of proceeding on a guessed directory.

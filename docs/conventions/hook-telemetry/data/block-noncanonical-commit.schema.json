@@ -17,7 +17,7 @@
     },
     "form": {
       "type": "string",
-      "description": "The non-canonical commit-message form when blocked (e.g. \"message-flag\" for a bare -m/-F not paired with the canonical marker), \"alias-traversal-cap\" when checking the command's git alias chain exceeded the re-expansion budget, \"unresolvable-alias-dir\" when git cannot resolve which repository an alias would run in, or \"unanalyzable-chdir\" when an alias body changes directory to a destination the guard cannot determine. Empty string when the command was allowed (status ok)."
+      "description": "The non-canonical commit-message form when blocked (e.g. \"message-flag\" for a bare -m/-F not paired with the canonical marker), or \"alias-traversal-cap\" when checking the command's git alias chain exceeded the re-expansion budget. Empty string when the command was allowed (status ok)."
     }
   }
 }
