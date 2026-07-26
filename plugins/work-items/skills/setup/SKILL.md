@@ -56,8 +56,9 @@ adapter resolution are the seam contract's
 [`${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/CONTRACT.md`](${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/CONTRACT.md)
 "Setup (binding file)" and "Adapter resolution".
 
-Steps 2 and 3 are an interview. With no interactive user, resolve them by `apply`'s "Autonomous
-invocation" rule below rather than asking — it fixes what the RECOMMENDED answers resolve to, and
+Step 1's keep-or-re-bind recommendation and the steps 2–3 interview are all decisions. With no
+interactive user, resolve them by `apply`'s "Autonomous invocation" rule below rather than asking —
+it fixes what the RECOMMENDED answers resolve to (including that an existing binding is kept), and
 when this pass must stop instead of guessing.
 
 1. **Read the current binding first.** If `.work-item-tracker.json` exists, load it and report the
@@ -201,12 +202,13 @@ Applied to the three passes:
 
 | pass | unattended resolution |
 | --- | --- |
-| Provider binding (step 1) | Bind `github` with `config.lease_ttl_hours: 24` — both RECOMMENDED — **only when `gh` is installed and `gh auth status` succeeds**. Otherwise stop: `local-markdown` and `jira` need `storage_dir` / `config.jira` values that have no defaults and cannot be inferred, so there is no provider left to choose safely. Report "tracker binding needs a provider decision; run `/work-items:setup apply` with a user present". |
+| Provider binding (`apply` step 1, which runs the "Provider binding" procedure) | **Binding already present and valid — keep it, and re-bind nothing.** That is the procedure's own read-first RECOMMENDED answer, so this rule resolves to it silently: a repo bound to `local-markdown`, `jira`, or a consumer-local provider stays on it, and a working `gh` never switches it to `github`. Re-binding is a switch-providers decision, which no default can stand in for. (A present binding that is malformed or resolves to no adapter never reaches here — `apply` runs `check` first, and its binding probe already FAILs it.) **Binding absent** — bind `github` with `config.lease_ttl_hours: 24`, both RECOMMENDED, **only when `gh` is installed and `gh auth status` succeeds**. Otherwise stop: `local-markdown` and `jira` need `storage_dir` / `config.jira` values that have no defaults and cannot be inferred, so there is no provider left to choose safely. Report "tracker binding needs a provider decision; run `/work-items:setup apply` with a user present". |
 | Role labels (step 2) | Keep the defaults — the RECOMMENDED answer, and the one that writes nothing. The pass runs and completes as a no-op: `config.role_labels` is left absent, so every role resolves to its documented fallback. A remap is a repo-vocabulary decision no default can stand in for. |
 | Schedule seeding (before step 4) | Skip — the RECOMMENDED answer. Write the empty `{"items": []}` skeleton and go to step 6. |
 
 So an autonomous first-time bind on a `gh`-ready repo produces the binding, the role-label pass, and
-the empty skeleton, and nothing else. Absent an opt-in, never infer and never interview.
+the empty skeleton, and nothing else; an autonomous re-run against a repo that is already bound leaves
+that binding exactly as it found it. Absent an opt-in, never infer and never interview.
 `--seed-schedule` carries the opt-in decision without the offer prompt, but the pass it selects is
 step 5's per-item interview — so it is not a non-interactive seeding path, and an unattended caller
 should not be directed at it.

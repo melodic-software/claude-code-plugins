@@ -30,10 +30,13 @@ All notable changes to the `work-items` plugin are documented here. Format follo
   blocked before it could reach the skip default. The rule is now stated once for the whole flow: a
   decision whose RECOMMENDED answer is safe resolves to it silently (and the summary names which
   defaults were taken), while a decision with no safe default is never guessed — `apply` stops and
-  reports it as a named blocker. Provider binding is where the second branch applies: `github` is
-  RECOMMENDED but needs `gh`, and `local-markdown` / `jira` need `storage_dir` / `config.jira`
-  values that have no defaults and cannot be inferred, so with `gh` absent `apply` writes no binding
-  rather than making every seam verb resolve a provider the repo never chose.
+  reports it as a named blocker. Provider binding is where the second branch applies, and only when
+  the repo has **no** binding yet: `github` is RECOMMENDED but needs `gh`, and `local-markdown` /
+  `jira` need `storage_dir` / `config.jira` values that have no defaults and cannot be inferred, so
+  with `gh` absent `apply` writes no binding rather than making every seam verb resolve a provider
+  the repo never chose. An unattended re-run against a repo that is **already** bound keeps its
+  existing provider and config — re-binding is a switch-providers decision, so a working `gh` never
+  moves a `local-markdown`, `jira`, or consumer-local repo onto `github` behind the operator's back.
 
 ## [0.25.2]
 

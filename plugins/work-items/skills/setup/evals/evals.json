@@ -92,6 +92,19 @@
         "Reports the blocker by name and gives the command to resolve it with a user present",
         "Distinguishes this from the seeding offer, which does have a safe default and is skipped silently"
       ]
+    },
+    {
+      "id": 8,
+      "name": "unattended-rerun-preserves-existing-provider-binding",
+      "prompt": "/work-items:setup apply\n\n(.work-item-tracker.json is already bound to local-markdown with config.storage_dir set, and .github/recurring-schedule.json is absent. gh is installed and authenticated. This runs unattended — there is no interactive user to answer any question.)",
+      "expected_output": "The unattended provider default applies only where there is no binding to preserve. Here one exists and is valid, so the read-first recommendation — keep it — is the RECOMMENDED answer the unattended rule resolves to silently: the repo stays on local-markdown with its existing config, and nothing is rewritten. A working gh does not make github the answer, because re-binding is a switch-providers decision no default can stand in for, and switching would point every later seam verb at an item store the repo never chose. The run continues past the bind: the role-label pass keeps its defaults, seeding is skipped, and the empty {\"items\": []} skeleton is written.",
+      "files": [],
+      "expectations": [
+        "Preserves the existing local-markdown provider and its config rather than re-binding",
+        "Does not bind github merely because gh is installed and authenticated, when a valid binding already exists",
+        "Scopes the unattended github default to the case where no binding is present",
+        "Still completes the remaining passes silently: role labels kept at their defaults, seeding skipped, empty {\"items\": []} skeleton written"
+      ]
     }
   ]
 }
