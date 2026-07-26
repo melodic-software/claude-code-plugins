@@ -3,6 +3,22 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.16.3]
+
+### Fixed
+
+- **Shared `hook-utils.sh`: a bare or trailing unquoted `NAME=value` Bash
+  command no longer leaks the assignment value into the privacy-safe
+  telemetry/audit subject.** `hook::extract_bash_subject` stripped a leading
+  `VAR=value` prefix only when a following command word consumed it, so a
+  command whose LAST token was an unquoted assignment (e.g. `TOKEN=ghp_…`)
+  survived to the subject and emitted `Bash:TOKEN=ghp_…` into
+  `hook-events.jsonl` and any wired `HOOK_TELEMETRY_SINK`. A resolved token
+  still shaped like a shell assignment now bails to the bare `Bash` subject,
+  matching the existing quoted-value bail (`VAR=x cmd` still reduces to
+  `Bash:cmd`). Synced from `lib/hook-utils.sh`; the subject is
+  telemetry/audit-only, so no guard or formatter block/allow behavior changes.
+
 ## [0.16.2]
 
 ### Fixed
@@ -32,17 +48,6 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   disjoint places on disk. `stale-path-verify` and `cli-flag-verify` carry the same reconstruction
   shape and are not fixed here; the guard-wide false-positive class they belong to is tracked on
   `#547`, and `#1432` (`65b4f67c`) is the sibling fix this ports from.
-- **Shared `hook-utils.sh`: a bare or trailing unquoted `NAME=value` Bash
-  command no longer leaks the assignment value into the privacy-safe
-  telemetry/audit subject.** `hook::extract_bash_subject` stripped a leading
-  `VAR=value` prefix only when a following command word consumed it, so a
-  command whose LAST token was an unquoted assignment (e.g. `TOKEN=ghp_…`)
-  survived to the subject and emitted `Bash:TOKEN=ghp_…` into
-  `hook-events.jsonl` and any wired `HOOK_TELEMETRY_SINK`. A resolved token
-  still shaped like a shell assignment now bails to the bare `Bash` subject,
-  matching the existing quoted-value bail (`VAR=x cmd` still reduces to
-  `Bash:cmd`). Synced from `lib/hook-utils.sh`; the subject is
-  telemetry/audit-only, so no guard or formatter block/allow behavior changes.
 
 ## [0.16.1]
 
