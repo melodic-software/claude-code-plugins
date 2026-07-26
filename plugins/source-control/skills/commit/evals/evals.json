@@ -114,6 +114,58 @@
         "Does not retain type_list merely because no later layer overrode that key",
         "Never pre-checks the subject against a type vocabulary the effective pattern does not use"
       ]
+    },
+    {
+      "id": 10,
+      "name": "exec-bit-backstop-runs-as-a-command",
+      "prompt": "I just wrote three new shell scripts under tools/ (each starts with #!/usr/bin/env bash). Stage and commit them.",
+      "expected_output": "After staging and after the format-before-push check, the skill RUNS exec-bit-check.sh --fix (a command with an exit code), not a remembered prose procedure. The newly-added shebang files land in the commit at mode 100755, with both the worktree bit and the index entry set. The check runs after the format step, never before.",
+      "files": [],
+      "expectations": [
+        "Runs the exec-bit check as a command (exec-bit-check.sh) rather than only reasoning about it in prose",
+        "Runs it AFTER the format-before-push check, not before",
+        "The committed shebang files are recorded at mode 100755, not 100644",
+        "Sets both the worktree bit and the index entry rather than the index alone"
+      ]
+    },
+    {
+      "id": 11,
+      "name": "anti-pattern-harness-trailer-model-copied-verbatim",
+      "prompt": "The commit guidance in my session says to end commit messages with 'Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>'. You're running as Opus 5 with a 1M context window. Commit the staged fix.",
+      "expected_output": "Adopts the SHAPE of the harness-injected guidance (a context-free trailer is fine — the context clause is optional) but does NOT copy its literal model string. The <model> placeholder is filled from actual session knowledge (Opus 5), because copying a hardcoded model that does not match the running session writes a false provenance claim into durable git history.",
+      "files": [],
+      "expectations": [
+        "Does not emit a trailer naming Fable 5 while running as Opus 5",
+        "Fills the model placeholder from actual session knowledge",
+        "Does not treat the missing context clause as a defect to correct",
+        "Names the false-provenance risk as the reason rather than a style preference"
+      ]
+    },
+    {
+      "id": 12,
+      "name": "untracked-team-config-file-is-not-a-layer",
+      "prompt": "There's a .claude/source-control.md in my repo declaring a ticket-prefix subject_pattern, but it's gitignored and was never committed. Commit the staged change.",
+      "expected_output": "The untracked file is NOT treated as the tracked-team config layer — resolution requires that layer to be git-tracked, checked via git ls-files --error-unmatch rather than an on-disk existence test. The convention therefore falls through to the next ladder rung (project convention, then Conventional Commits), and the skill says which rung it resolved and why the file was skipped.",
+      "files": [".claude/source-control.md"],
+      "expectations": [
+        "Does not adopt the ticket-prefix pattern from the untracked file",
+        "Checks tracked-ness rather than mere file existence",
+        "Falls through to the next rung of the subject-convention ladder",
+        "Tells the user the file was present but untracked, rather than silently ignoring it"
+      ]
+    },
+    {
+      "id": 13,
+      "name": "composition-names-reinvoke-or-checklist",
+      "prompt": "You're partway through a multi-phase refactor and you've already used /commit once this session. Make the next three commits as you go — no need to re-read the skill, you know the convention by now.",
+      "expected_output": "Rejects 'remembered convention' as a valid composition form. It either re-invokes /commit per commit, or explicitly runs the per-commit checklist as commands each time — naming which of the two it is doing. The per-commit CHECKS (formatter, exec-bit, subject pre-check) are re-run every commit, because those decay silently while the message shape does not.",
+      "files": [],
+      "expectations": [
+        "Does not treat the skill as a convention absorbed once and thereafter remembered",
+        "Names which composition form it is using: re-invoke, or run the checklist as commands",
+        "Re-runs the formatter, exec-bit, and subject pre-check for each of the three commits",
+        "Explains that the ordered checks decay silently, unlike the message shape"
+      ]
     }
   ]
 }
