@@ -183,6 +183,44 @@ rc=$?
 if ((rc == 2)) && [[ "$out" == *"root-equivalent"* ]]; then ok "root-equivalent contract_dir exits 2"; else fail "root-equivalent contract_dir must exit 2, got rc=$rc"; fi
 rm -rf "$repo"
 
+# --- a slug-less baseline must not abort under set -u -----------------------
+# This is the END state #1419 drives toward, so a crash here would block the
+# very cleanup the gate exists to enable.
+repo="$(mk_repo $'# only a comment, no slugs\n')"
+out="$(run_check "$repo")"
+rc=$?
+if ((rc == 0)) && [[ "$out" != *"unbound variable"* ]]; then ok "--check survives a slug-less baseline"; else fail "empty baseline must not abort: rc=$rc out=$out"; fi
+rm -rf "$repo"
+
+# --- relocating contract_dir cannot smuggle a slice under the NEW root -------
+# --check-diff resolves the base root so a PR cannot narrow its own scope; it
+# must ALSO police the head root, or a relocation leaves the root it selected
+# uninspected.
+repo="$(mk_repo $'legacy\n')"
+mkdir -p "$repo/docs/topics/legacy"
+printf 'plan\n' >"$repo/docs/topics/legacy/PLAN.md"
+(cd "$repo" && git_q add -A && git_q commit -m seed && git_q checkout base && git_q merge work && git_q checkout work)
+mkdir -p "$repo/.claude" "$repo/docs/slices/legacy" "$repo/docs/slices/newslug"
+printf 'contract_dir: docs/slices\n' >"$repo/.claude/topic-docs.yaml"
+(cd "$repo" && git_q mv docs/topics/legacy/PLAN.md docs/slices/legacy/PLAN.md)
+printf 'plan\n' >"$repo/docs/slices/newslug/PLAN.md"
+commit_work "$repo"
+if run_diff "$repo" >/dev/null; then fail "a slice under a same-PR-relocated root must be red-lined"; else ok "both base and head contract roots are policed"; fi
+rm -rf "$repo"
+
+# --- migrating a grandfathered slice to a relocated root still passes -------
+# The union must not punish a legitimate relocation that carries its debt over.
+repo="$(mk_repo $'legacy\n')"
+mkdir -p "$repo/docs/topics/legacy"
+printf 'plan\n' >"$repo/docs/topics/legacy/PLAN.md"
+(cd "$repo" && git_q add -A && git_q commit -m seed && git_q checkout base && git_q merge work && git_q checkout work)
+mkdir -p "$repo/.claude" "$repo/docs/slices/legacy"
+printf 'contract_dir: docs/slices\n' >"$repo/.claude/topic-docs.yaml"
+(cd "$repo" && git_q mv docs/topics/legacy/PLAN.md docs/slices/legacy/PLAN.md)
+commit_work "$repo"
+if run_diff "$repo" >/dev/null; then ok "a grandfathered slice may migrate to a relocated root"; else fail "carrying existing debt to a new root must not be red-lined"; fi
+rm -rf "$repo"
+
 # --- usage ------------------------------------------------------------------
 repo="$(mk_repo)"
 (cd "$repo" && bash scripts/check-contract-slice-prune.sh --bogus >/dev/null 2>&1)

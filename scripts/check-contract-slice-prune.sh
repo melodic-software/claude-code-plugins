@@ -124,15 +124,43 @@ if [[ "$mode" == "--check-diff" ]]; then
   baseline_rev="$2"
 fi
 
-CONTRACT_DIR="${CONTRACT_SLICE_DIR:-$(resolve_contract_dir "$baseline_rev")}"
-CONTRACT_DIR="${CONTRACT_DIR%/}"
-if [[ -z "$CONTRACT_DIR" || "$CONTRACT_DIR" == "." || "$CONTRACT_DIR" == "/" ]]; then
-  echo "check-contract-slice-prune: resolved contract_dir is root-equivalent ('$CONTRACT_DIR'); refusing to run." >&2
-  exit 2
-fi
+# Both roots are policed, not just one. --check-diff resolves contract_dir from
+# the base revision so a change set cannot narrow its own scope, but a PR that
+# RELOCATES contract_dir would then leave the root it selected uninspected — it
+# could migrate the grandfathered slices to the new root and add an unpruned one
+# alongside them, and the diff check would still be looking at the old root. So
+# the diff is checked against the union of the base root and the head root.
+# Identical values collapse to one.
+declare -a CONTRACT_DIRS=()
+add_contract_dir() {
+  local dir="${1%/}"
+  [[ -z "$dir" || "$dir" == "." || "$dir" == "/" ]] && {
+    echo "check-contract-slice-prune: resolved contract_dir is root-equivalent ('$1'); refusing to run." >&2
+    exit 2
+  }
+  local existing
+  for existing in ${CONTRACT_DIRS[@]+"${CONTRACT_DIRS[@]}"}; do
+    [[ "$existing" == "$dir" ]] && return 0
+  done
+  CONTRACT_DIRS+=("$dir")
+}
 
-# Grandfathered slice slugs (directory names directly under the contract dir).
-declare -A grandfathered
+if [[ -n "${CONTRACT_SLICE_DIR:-}" ]]; then
+  add_contract_dir "$CONTRACT_SLICE_DIR"
+else
+  add_contract_dir "$(resolve_contract_dir "$baseline_rev")"
+  # The head root only matters when judging a change set; --check inspects the
+  # working tree, which resolve_contract_dir already reads with an empty rev.
+  [[ "$mode" == "--check-diff" ]] && add_contract_dir "$(resolve_contract_dir "")"
+fi
+# The primary root — the one messages name, and the only one --check walks.
+CONTRACT_DIR="${CONTRACT_DIRS[0]}"
+
+# Grandfathered slice slugs (directory names directly under a contract dir).
+# Explicitly emptied: under `set -u`, a bare `declare -A` leaves the variable
+# unset, so `${#grandfathered[@]}` aborts when the baseline holds no slugs — the
+# exact END state this gate's debt burn-down is driving toward (#1419).
+declare -A grandfathered=()
 if baseline_content="$(read_at_rev "$baseline_rev" "$BASELINE")"; then
   while IFS= read -r line; do
     line="${line%%#*}"
@@ -143,22 +171,26 @@ if baseline_content="$(read_at_rev "$baseline_rev" "$BASELINE")"; then
   done <<<"$baseline_content"
 fi
 
-# Map a repo path to the slice slug that owns it, or empty if the path is not
-# under the contract dir. "docs/topics/foo/design/x.md" -> "foo".
+# Map a repo path to the slice slug that owns it, or empty if the path is under
+# no contract root. "docs/topics/foo/design/x.md" -> "foo".
 slug_of() {
-  local path="$1"
-  case "$path" in
-  "$CONTRACT_DIR"/*)
-    local rest="${path#"$CONTRACT_DIR"/}"
-    printf '%s' "${rest%%/*}"
-    ;;
-  *) printf '' ;;
-  esac
+  local path="$1" dir rest
+  for dir in "${CONTRACT_DIRS[@]}"; do
+    case "$path" in
+    "$dir"/*)
+      rest="${path#"$dir"/}"
+      printf '%s' "${rest%%/*}"
+      return 0
+      ;;
+    *) ;; # not under this root; try the next
+    esac
+  done
+  printf ''
 }
 
 if [[ "$mode" == "--check" ]]; then
   stale=0
-  for slug in "${!grandfathered[@]}"; do
+  for slug in ${grandfathered[@]+"${!grandfathered[@]}"}; do
     if [[ ! -d "$CONTRACT_DIR/$slug" ]]; then
       echo "STALE BASELINE: '$slug' in $BASELINE no longer names a slice under $CONTRACT_DIR/ — remove the line." >&2
       stale=1
@@ -216,8 +248,13 @@ while IFS=$'\t' read -r status path dest; do
   fi
 done <<<"$diff_status"
 
+# Name every root actually policed, so a relocation's second root is visible in
+# the log rather than implied.
+roots_label="$(printf '%s/, ' "${CONTRACT_DIRS[@]}")"
+roots_label="${roots_label%, }"
+
 if ((${#violations[@]})); then
-  echo "Contract-slice prune gate FAILED — this change set leaves ${#violations[@]} path(s) under $CONTRACT_DIR/:" >&2
+  echo "Contract-slice prune gate FAILED — this change set leaves ${#violations[@]} path(s) under $roots_label:" >&2
   printf '  %s\n' "${violations[@]}" >&2
   echo "" >&2
   echo "$CONTRACT_DIR/<slug>/ is Contract tier per docs/conventions/topic-docs/README.md: committed on a task branch only, pruned before merge." >&2
@@ -227,8 +264,8 @@ if ((${#violations[@]})); then
 fi
 
 if ((${#exempted[@]})); then
-  echo "Contract-slice prune gate passed — ${#exempted[@]} path(s) under $CONTRACT_DIR/ exempted by $BASELINE (see #1419)."
+  echo "Contract-slice prune gate passed — ${#exempted[@]} path(s) under $roots_label exempted by $BASELINE (see #1419)."
 else
-  echo "Contract-slice prune gate passed — this change set leaves no path under $CONTRACT_DIR/."
+  echo "Contract-slice prune gate passed — this change set leaves no path under $roots_label."
 fi
 exit 0
