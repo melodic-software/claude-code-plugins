@@ -280,15 +280,24 @@ fi
 #
 # The display lines are rendered here too, capped, so the shell never has to
 # walk the finding set at all.
-CLASSIFIED=$(jq -c -n \
-  --arg scan "$SCAN_OUTPUT" \
-  --arg residual "$RESIDUAL_OUTPUT" \
-  --argjson max "$MAX_REPORT" '
-    def parse($s): [$s | split("\n")[] | select(length > 0) | (fromjson? // empty) | select(.type == "typo")];
+#
+# Both streams arrive on STDIN, separated by a marker line, rather than as --arg
+# values. Windows caps a process command line at 32767 characters, and typos'
+# jsonlines run about 110 bytes per finding — so passing them as arguments
+# silently broke somewhere past ~300 corrections: jq never ran, and the run
+# degraded to "could not be summarized" on exactly the typo-heavy files the
+# disclosure matters most for. Reproduced at 500 corrections before the change,
+# clean after. The marker is not valid JSON, so it can never collide with a
+# finding line.
+CLASSIFIED=$(printf '%s\n@@typos-format-split@@\n%s\n' "$SCAN_OUTPUT" "$RESIDUAL_OUTPUT" |
+  jq -R -s -c --argjson max "$MAX_REPORT" '
+    def parse($lines): [$lines[] | select(length > 0) | (fromjson? // empty) | select(.type == "typo")];
     def keyof: "\(.line_num // 0)\t\(.typo // "")";
     def corr1: (.corrections[0] // "");
-    (parse($residual) | map(keyof)) as $res
-    | parse($scan) as $all
+    (split("\n")) as $lines
+    | (($lines | index("@@typos-format-split@@")) // ($lines | length)) as $sep
+    | (parse($lines[($sep + 1):]) | map(keyof)) as $res
+    | parse($lines[0:$sep]) as $all
     | ($all | map(select((keyof) as $key | ($res | index($key)) != null))) as $r
     | ($all | map(select((keyof) as $key | ($res | index($key)) == null))) as $a
     | {
@@ -329,6 +338,14 @@ APPLIED_JSON=$(printf '%s' "$CLASSIFIED" | jq -c '.applied' 2>/dev/null) || APPL
 FINDINGS_JSON=$(printf '%s' "$CLASSIFIED" | jq -c '.findings' 2>/dev/null) || FINDINGS_JSON='[]'
 [[ "$APPLIED_COUNT" =~ ^[0-9]+$ ]] || APPLIED_COUNT=0
 [[ "$RESIDUAL_COUNT" =~ ^[0-9]+$ ]] || RESIDUAL_COUNT=0
+# jq writes stdout in text mode on Windows, so a multi-line value comes back
+# with CRLF line endings; command substitution strips only the trailing one and
+# leaves a CR embedded before every remaining newline, which then survives
+# JSON-escaping into the emitted context as a literal \r. These strings are
+# display text with no meaningful carriage returns of their own.
+APPLIED_LINES="${APPLIED_LINES//$'\r'/}"
+APPLIED_INLINE="${APPLIED_INLINE//$'\r'/}"
+RESIDUAL_LINES="${RESIDUAL_LINES//$'\r'/}"
 [[ -n "$APPLIED_LINES" ]] && APPLIED_LINES="$APPLIED_LINES"$'\n'
 [[ -n "$RESIDUAL_LINES" ]] && RESIDUAL_LINES="$RESIDUAL_LINES"$'\n'
 

@@ -311,23 +311,42 @@ else
 fi
 
 # --- Scale: disclosure must still arrive on a heavily-corrected file ---------
-# The hook's handler declares a 15-second timeout. An implementation that spawns
-# a subprocess per finding rewrites the file and then times out with empty
-# stdout — reproducing the silent mutation at scale, on exactly the files where
-# the disclosure matters most. Classification is therefore one jq pass, and this
-# case pins that: 120 corrections in one file, well inside the budget.
+# Two distinct failures live here, both ending in the same place — the file is
+# rewritten and stdout is empty, which is the silent mutation this whole change
+# exists to end, hitting hardest on exactly the files that need it most:
+#
+#   1. A subprocess per finding. The handler declares a 15-second timeout; a
+#      per-finding loop blew it at ~100 corrections.
+#   2. Passing the finding sets to jq as --arg values. Windows caps a process
+#      command line at 32767 characters and typos' jsonlines run ~110 bytes per
+#      finding, so this broke silently somewhere past ~300 corrections — jq
+#      never ran and the hook degraded to "could not be summarized".
+#
+# 500 is therefore the floor for this case, not 100: it has to exceed the argv
+# limit, which a smaller count does not. Both streams go to jq on stdin now.
+SCALE_N=500
 : >"$STUB_REPO/scale.txt"
-for _i in $(seq 1 120); do
+for _i in $(seq 1 "$SCALE_N"); do
   printf 'line %s has teh typo\n' "$_i" >>"$STUB_REPO/scale.txt" # spellchecker:disable-line
 done
 SCALE_START=$(date +%s)
 OUT_SC=$(run_stub "$STUB_REPO/scale.txt")
 SCALE_ELAPSED=$(($(date +%s) - SCALE_START))
 CTX_SC=$(printf '%s' "$OUT_SC" | jq -r '.hookSpecificOutput.additionalContext // empty' 2>/dev/null)
-if printf '%s' "$CTX_SC" | grep -q 'REWROTE 120 word'; then
-  ok "stub/scale: 120 corrections are disclosed, not dropped"
+if printf '%s' "$CTX_SC" | grep -q "REWROTE $SCALE_N word"; then
+  ok "stub/scale: $SCALE_N corrections are disclosed, not dropped"
 else
-  fail "stub/scale: disclosure missing on a 120-correction file: $CTX_SC"
+  fail "stub/scale: disclosure missing on a $SCALE_N-correction file: $CTX_SC"
+fi
+if printf '%s' "$CTX_SC" | grep -q 'could not be summarized'; then
+  fail "stub/scale: classification failed at $SCALE_N findings (argv limit?): $CTX_SC"
+else
+  ok "stub/scale: classification survives a finding set larger than a Windows command line"
+fi
+if printf '%s' "$CTX_SC" | grep -q $'\r'; then
+  fail "stub/scale: carriage returns leaked into the report text"
+else
+  ok "stub/scale: report text carries no stray carriage returns"
 fi
 if [[ "$SCALE_ELAPSED" -lt 10 ]]; then
   ok "stub/scale: completed in ${SCALE_ELAPSED}s, inside the handler's 15s timeout"

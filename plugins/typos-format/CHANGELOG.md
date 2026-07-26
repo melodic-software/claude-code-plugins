@@ -65,9 +65,20 @@ All notable changes to the `typos-format` plugin are documented here. Format fol
   exactly the files where the disclosure matters most. The scan set, the
   residual set, the split between them, and the capped display text are all
   produced by a single invocation, so the subprocess count is constant in the
-  number of findings. A 120-correction file is asserted to disclose inside the
-  budget. The residual key is built and compared as a JSON string inside `jq`,
-  so a token carrying a shell or glob metacharacter is data throughout.
+  number of findings. Both finding sets reach `jq` on **stdin**, never as
+  `--arg` values: Windows caps a process command line at 32767 characters and
+  typos' jsonlines run about 110 bytes per finding, so an argument-passed set
+  broke silently somewhere past ~300 corrections — jq never ran and the hook
+  degraded to "could not be summarized" on precisely the typo-heavy files the
+  disclosure matters most for. A 500-correction file (past that limit, and the
+  scale at which the old per-finding loop timed out) is asserted to disclose all
+  500 inside the budget; it runs in about 3 seconds against the real binary. The
+  residual key is built and compared as a JSON string inside `jq`, so a token
+  carrying a shell or glob metacharacter is data throughout.
+- Carriage returns no longer leak into the emitted report. `jq` writes stdout in
+  text mode on Windows, so a multi-line value returns CRLF-terminated and
+  command substitution strips only the last one, leaving a literal `\r` before
+  every remaining newline in the escaped context.
 
 ## [0.3.4]
 
