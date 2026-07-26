@@ -1,5 +1,35 @@
 # Changelog — session-flow plugin
 
+## [0.17.9]
+
+### Fixed
+
+- **The multi-loop re-arm landed on the producer only, so recovery and the handoff checklists still
+  spoke of one loop.** 0.17.8 taught `save-point.md` to emit "one re-arm message per loop left
+  standing", but the surfaces that consume that output were not moved with it: `find-handoff`'s
+  capture step asked for "the re-arm instruction" and matched a single `send /loop …` shape, its
+  confirm gate surfaced the note "when one was found", and both of `handoff`'s enforcement
+  checklists still read "if a loop is active, a below-the-rails note". A handoff written with three
+  surviving loops therefore recovered one of them and dropped two after `/clear` — the producer-side
+  failure 0.17.8 fixed, reintroduced one layer down in the consumer, which is the same shape as the
+  two recovery defects already fixed in this series. The capture now keeps matching past the first
+  hit; the confirm gate surfaces all of them; the redaction invariant and the
+  *does NOT do* list are pluralized so they cannot be read as licensing a single-note recovery; and
+  `save-point.md`'s own detection contract names the recoverable unit as every re-arm message the
+  producer wrote, so the two sides state one rule.
+- **The re-arm entries are length-delimited, so an arbitrary multi-line loop prompt survives
+  recovery.** The producer quotes the original prompt verbatim and a `/loop` prompt can carry
+  newlines, so an entry is not reliably one physical line — and no content test can bound it.
+  Matching command wording cuts the first multi-line prompt in half and swallows every entry behind
+  it; a marker fares no better, since a verbatim prompt is allowed to contain whatever marker is
+  chosen and would then split its own command. Each entry is now headed
+  `Re-arm <i> of <n> — <L> lines:` with the body on exactly the next `<L>` lines, and the block is
+  emitted last in the message. Counting lines is the one boundary that cannot collide with what it
+  delimits. `<n>` is retained as a self-check rather than a scanner: `find-handoff` reports what it
+  recovered against what the producer said it wrote, instead of presenting a subset as the whole
+  set. `save-point.md`'s detection contract states the same boundary, so the stable contract an
+  agent reads cannot send it back to the wording match its consumer no longer performs.
+
 ## [0.17.8]
 
 ### Fixed
