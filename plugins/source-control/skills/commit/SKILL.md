@@ -35,7 +35,7 @@ commands, not remembered facts — steps 3–5 are the ones a long session silen
    is enough; re-resolve if a layer changed).
 2. **Stage** surgically by explicit path, after checking the four pre-existing conditions below.
 3. **Format** — run the discoverable formatter scoped to this commit's paths, re-stage its fixes.
-4. **Exec-bit** — run `exec-bit-check.sh --fix` on this commit's paths, AFTER step 3.
+4. **Exec-bit** — run `exec-bit-check.sh --fix -- <this commit's paths>`, AFTER step 3.
 5. **Pre-check** the drafted subject against the resolved pattern before invoking git.
 6. **Commit** via the Bash tool: `git commit -F -` heredoc-piped, `--trailer` per `trailer_policy`.
 7. **Report** the resulting SHA + subject to the user.
@@ -122,8 +122,10 @@ convention instead of re-inferring one every commit.
 
    The script reports and fixes every newly-added file whose staged blob starts with a shebang while
    its staged mode is `100644`, setting the worktree bit and the index entry in the order that
-   survives a later `git add`. Rationale, cross-platform caveats, and the manual fallback live in
-   [reference/exec-bit.md](reference/exec-bit.md).
+   survives a later `git add`. **The pathspec is required** — `--fix` refuses an unscoped run
+   (exit 2) rather than sweeping mode changes across another session's staged work; pass `--all`
+   only to opt into a deliberate whole-index sweep. Rationale, cross-platform caveats, and the
+   manual fallback live in [reference/exec-bit.md](reference/exec-bit.md).
 5. Draft a subject + optional body, scoped to the staged diff, shaped to satisfy the active subject
    convention (default: the Conventional Commits pattern above).
 6. Pre-check the subject against the pattern (fast-fail before invoking git).

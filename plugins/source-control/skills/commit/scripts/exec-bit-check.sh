@@ -65,10 +65,12 @@ Modes (default --list):
   --list             One offending path per line. Empty output = nothing to do.
   --probe            Single-line summary for pre-computed skill context.
   --fix              chmod +x the worktree file, then git update-index --chmod=+x.
+                     Requires an explicit scope: '-- <path>...' or --all.
 
 Options:
   --repo-dir <dir>   Operate on this repository instead of the current directory.
-  -- <path>...       Limit to these pathspecs (default: the whole staged set).
+  --all              Allow --fix to sweep the whole staged set (explicit opt-in).
+  -- <path>...       Limit to these pathspecs (default for --list/--probe: whole staged set).
   -h, --help         This help.
 
 Reports staged NEW files (status A) whose staged blob starts with '#!' but whose
@@ -78,6 +80,7 @@ EOF
 
 mode=list
 repo_dir=""
+all=0
 paths=()
 
 while [[ "$#" -gt 0 ]]; do
@@ -85,6 +88,7 @@ while [[ "$#" -gt 0 ]]; do
   --list) mode=list ;;
   --probe) mode=probe ;;
   --fix) mode=fix ;;
+  --all) all=1 ;;
   --repo-dir)
     [[ "$#" -ge 2 ]] || {
       echo "$PROG: --repo-dir needs a value" >&2
@@ -130,6 +134,18 @@ git rev-parse --is-inside-work-tree >/dev/null 2>&1 || {
   echo "$PROG: not inside a git work tree" >&2
   exit 3
 }
+
+# --fix MUTATES index entries, so it refuses an unscoped run. The whole staged
+# set can include another concurrent session's staged work, and silently
+# rewriting its mode entries is exactly the blanket-mutation this skill's
+# surgical-staging discipline exists to prevent. --list/--probe stay unscoped by
+# default because they only read. `--all` is the explicit opt-in for the
+# deliberate whole-index sweep.
+if [[ "$mode" == "fix" ]] && [[ "$all" -eq 0 ]] && [[ "${#paths[@]}" -eq 0 ]]; then
+  echo "$PROG: --fix needs an explicit scope: pass '-- <path>...' for this commit's paths," >&2
+  echo "       or --all to deliberately sweep the whole staged set." >&2
+  exit 2
+fi
 
 # Collect paths staged as NEW files (status A). -z keeps paths with spaces,
 # quotes, or newlines intact; --name-status emits status and path as separate

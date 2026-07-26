@@ -144,7 +144,7 @@ repo5="$(mkrepo)"
 
 assert_eq "before --fix the index records 100644" "100644" "$(staged_mode "$repo5" fixme.sh)"
 
-fix_out="$(bash "$HELPER" --repo-dir "$repo5" --fix 2>&1)"
+fix_out="$(bash "$HELPER" --repo-dir "$repo5" --fix -- fixme.sh 2>&1)"
 fix_rc=$?
 assert_exit "--fix exits 0 on success" 0 "$fix_rc"
 assert_contains "--fix names the path it fixed" "$fix_out" "fixme.sh"
@@ -164,7 +164,7 @@ assert_eq "the fix survives a subsequent git add" "100755" "$(staged_mode "$repo
 after="$(bash "$HELPER" --repo-dir "$repo5" --list 2>/dev/null)"
 assert_silent "nothing remains to report after --fix" "$after"
 
-nothing="$(bash "$HELPER" --repo-dir "$repo5" --fix 2>&1)"
+nothing="$(bash "$HELPER" --repo-dir "$repo5" --fix -- fixme.sh 2>&1)"
 assert_contains "--fix on a clean tree says so" "$nothing" "nothing to fix"
 
 clean_probe="$(bash "$HELPER" --repo-dir "$repo5" --probe 2>/dev/null)"
@@ -188,7 +188,7 @@ repo5b="$(mkrepo)"
 out5b="$(bash "$HELPER" --repo-dir "$repo5b" --list 2>/dev/null)"
 assert_contains "detects the offender under core.filemode=false" "$out5b" "nofilemode.sh"
 
-bash "$HELPER" --repo-dir "$repo5b" --fix >/dev/null 2>&1
+bash "$HELPER" --repo-dir "$repo5b" --fix -- nofilemode.sh >/dev/null 2>&1
 assert_eq "--fix reaches the index under core.filemode=false" \
   "100755" "$(staged_mode "$repo5b" nofilemode.sh)"
 
@@ -219,7 +219,7 @@ repo7="$(mkrepo)"
 out7="$(bash "$HELPER" --repo-dir "$repo7" --list 2>/dev/null)"
 assert_contains "a path containing a space is reported intact" "$out7" "my script.sh"
 
-bash "$HELPER" --repo-dir "$repo7" --fix >/dev/null 2>&1
+bash "$HELPER" --repo-dir "$repo7" --fix -- "my script.sh" >/dev/null 2>&1
 assert_eq "a path containing a space is fixed" "100755" "$(staged_mode "$repo7" "my script.sh")"
 
 # --- Case group 8: error exits ------------------------------------------------
@@ -240,6 +240,44 @@ assert_exit "an unreachable --repo-dir exits 3" 3 "$?"
 
 bash "$HELPER" --help >/dev/null 2>&1
 assert_exit "--help exits 0" 0 "$?"
+
+# --- Case group 8b: --fix refuses an unscoped run -----------------------------
+#
+# --fix mutates index entries, so an unscoped run could silently rewrite a
+# concurrent session's staged modes — the blanket mutation this skill's
+# surgical-staging discipline exists to prevent. Read-only modes stay unscoped.
+
+repo8b="$(mkrepo)"
+(
+  cd "$repo8b" || exit 1
+  printf '#!/usr/bin/env bash\necho scoped\n' >scoped.sh
+  git add scoped.sh
+) >/dev/null 2>&1
+
+refusal="$(bash "$HELPER" --repo-dir "$repo8b" --fix 2>&1)"
+refuse_rc=$?
+assert_exit "bare --fix refuses with exit 2" 2 "$refuse_rc"
+assert_contains "the refusal explains the required scope" "$refusal" "needs an explicit scope"
+assert_eq "a refused --fix mutates nothing" "100644" "$(staged_mode "$repo8b" scoped.sh)"
+
+bash "$HELPER" --repo-dir "$repo8b" --list >/dev/null 2>&1
+assert_exit "--list stays unscoped and exits 0" 0 "$?"
+
+bash "$HELPER" --repo-dir "$repo8b" --probe >/dev/null 2>&1
+assert_exit "--probe stays unscoped and exits 0" 0 "$?"
+
+bash "$HELPER" --repo-dir "$repo8b" --fix -- scoped.sh >/dev/null 2>&1
+assert_eq "--fix with an explicit pathspec is allowed" "100755" "$(staged_mode "$repo8b" scoped.sh)"
+
+repo8c="$(mkrepo)"
+(
+  cd "$repo8c" || exit 1
+  printf '#!/usr/bin/env bash\necho swept\n' >swept.sh
+  git add swept.sh
+) >/dev/null 2>&1
+
+bash "$HELPER" --repo-dir "$repo8c" --fix --all >/dev/null 2>&1
+assert_eq "--fix --all is the explicit whole-index opt-in" "100755" "$(staged_mode "$repo8c" swept.sh)"
 
 # --- Case group 9: empty index is a clean no-op -------------------------------
 

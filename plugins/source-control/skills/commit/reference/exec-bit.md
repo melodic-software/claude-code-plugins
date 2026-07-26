@@ -48,6 +48,21 @@ advisory prose version of this check was most likely to look like it had worked 
 `exec-bit-check.test.sh` pins the behavior with `core.filemode` set explicitly, so the case tests
 the same thing on every platform.
 
+## `--fix` refuses an unscoped run
+
+`--fix` mutates index entries, so it requires an explicit scope: either `-- <path>...` (this
+commit's paths) or `--all` as a deliberate whole-index opt-in. Without one it exits 2 and changes
+nothing.
+
+The reason is this skill's own surgical-staging discipline. The staged set can hold another
+concurrent session's work — the whole premise of the pathspec-limited commit form — and silently
+rewriting that session's mode entries, plus `chmod`-ing its worktree files, is exactly the blanket
+mutation `git add -A` is banned for. A fixer whose default is "everything staged" would invert the
+skill's default.
+
+`--list` and `--probe` stay unscoped by default: they only read, so a whole-index view is useful
+and harmless. That asymmetry is deliberate, not an oversight.
+
 ## Ordering within the commit flow
 
 Run the exec-bit check **after** the format-before-push check, never before. The format check

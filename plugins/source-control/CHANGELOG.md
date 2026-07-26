@@ -13,8 +13,14 @@ All notable changes to the `source-control` plugin are documented here. Format f
   catching it. Two tiers now sit under it. A pre-computed probe line at the TOP of the skill —
   inside the documented 5,000-token compaction re-attach window — reports staged newly-added shebang
   files still at `100644`; and `skills/commit/scripts/exec-bit-check.sh` (`--list` / `--probe` /
-  `--fix`, with a 30-case `.test.sh`) makes the per-commit step a command with an exit code. Both,
+  `--fix`, with a 37-case `.test.sh`) makes the per-commit step a command with an exit code. Both,
   because the probe is only a snapshot at invocation and cannot see files staged later in the flow.
+
+  `--fix` **requires an explicit scope** — `-- <path>...` or a deliberate `--all` — and exits 2
+  otherwise, changing nothing. It mutates index entries, and the staged set can hold a concurrent
+  session's work (the whole premise of the pathspec-limited commit form), so an unscoped default
+  would have inverted this skill's own surgical-staging discipline. `--list` and `--probe` stay
+  unscoped because they only read; the asymmetry is deliberate.
 
   A new cross-platform hazard was found and pinned while implementing this: under
   `core.filemode=false` — **the default on Windows/NTFS** — git ignores worktree permission bits
