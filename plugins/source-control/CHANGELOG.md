@@ -39,9 +39,19 @@ All notable changes to the `source-control` plugin are documented here. Format f
   only when its finding carries one of three recorded dispositions: `VALID (fix now)` with the
   fix pushed and cited, `VALID (defer)` grounded per D4.6 with the item id cited, or `INCORRECT`
   with counter-evidence posted. `UNCERTAIN` escalates and is never resolved. Every existing
-  author condition still applies on top. The two surfaces that cite the step by its condition —
-  `babysit-prs/reference/loop.md` and `pull-request/reference/monitor.md` — are updated to match,
-  so neither keeps describing it as author-conditional alone.
+  author condition still applies on top. All four surfaces that restate the step — `pull-request`'s
+  SKILL.md checklist and gotcha, `pull-request/reference/monitor.md`, and
+  `babysit-prs/reference/loop.md` — are updated with it. They previously gated resolution on a
+  pushed fix, so a correctly grounded deferral or an `INCORRECT` with counter-evidence satisfied
+  canonical D7.5 and still left the thread open, holding readiness.
+- **The independent-authorization requirement states a property, not one mechanism.** Naming only
+  the pre-escalation dispatch would have made the requirement unreachable — that path exists only
+  on the explicit `autopilot` + `--merge c3-this-run` widening, so every other merge-capable path
+  would have been required to obtain an authorization it cannot obtain, deadlocking a grounded
+  deferral instead of terminating it. The rule is now "the adjudicating context must not be the
+  merging context", with the dispatch named where an invocation has one and an explicit fail-closed
+  fallback everywhere else: do not resolve, do not merge, report the deferral and let the user
+  decide.
 - **A defer-resolution on a PR the same session intends to merge is not that session's call.**
   In a merge-capable tier it routes through the fresh independent resolution dispatch
   `babysit-loop` already defines for a contradictory or unresolved bot thread, so a deferral that

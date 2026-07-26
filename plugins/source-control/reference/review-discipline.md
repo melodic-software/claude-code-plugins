@@ -239,11 +239,15 @@ D1–D7 cycles. Exploration and validation must run on the PR's head branch.
     must be `true`
 
 **Who authorizes a resolution that ships no fix.** In a merge-capable tier, a `VALID (defer)`
-resolution on a PR the same session intends to merge is not that session's call: it goes through
-the fresh independent resolution dispatch already defined for a contradictory or unresolved bot
-thread (`skills/babysit-loop/reference/pre-escalation-dispatch.md`), so the deferral is
-adjudicated by a context that is not trying to merge. Outside a merge-capable tier the classification stands alone, because nothing
-merges on it.
+resolution on a PR the same session intends to merge is not that session's call. The requirement
+is a property, not one mechanism: the context adjudicating the deferral must not be the context
+trying to merge. Where the invocation has an independent resolution dispatch, it goes there —
+`skills/babysit-loop/reference/pre-escalation-dispatch.md`, reachable only on the explicit
+`autopilot` + `--merge c3-this-run` widening. Where it has none, which is every other
+merge-capable path, the session neither resolves the thread nor merges on it: report the PR with
+the grounded deferral named and leave the call to the user. Fail closed — a path with no
+independent authorization available has no self-authorized route to merge over its own deferral.
+Outside a merge-capable tier the classification stands alone, because nothing merges on it.
 
 **"Done" means GitHub shows evidence.** A per-finding work item is addressed only when the
 verification sub-step confirms the action landed on GitHub. Model memory of "I posted a reply"
