@@ -1977,6 +1977,66 @@ else
 fi
 rm -f "$f"
 
+# --- a redirection may be ATTACHED to the command word, and a simple command
+# carries a redirection anywhere, so the option still reaches the utility. The
+# whitespace-after-the-name anchor alone let all three spellings through.
+f="$(tmpsh "$(printf '%s\n' \
+  'date>/dev/null -d tomorrow' \
+  'stat</dev/null -c %s "$f"' \
+  'date>&2 -d tomorrow')")"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "an attached redirection should not hide the option, got success: $out"
+elif [[ "$(echo "$out" | grep -c "PORTABILITY: ${f}:")" -eq 3 ]]; then
+  ok "a redirection attached to the command word no longer hides the option"
+else
+  fail "expected all three attached-redirection forms flagged, got: $out"
+fi
+rm -f "$f"
+
+# --- and the anchor still does the job it was added for: these are operands and
+# substrings, not options.
+f="$(tmpsh "$(printf '%s\n' \
+  'git -c alias.x=status -c core.pager=cat log' \
+  '[[ -d "$candidate" ]]' \
+  'stat foo-c' \
+  'stat "$file-c"' \
+  'date "$x-d"')")"
+if scan_paths "$REAL_TOKENS" "$f" >/dev/null 2>&1; then
+  ok "widening the separator to a redirection keeps the operand negatives clean"
+else
+  fail "no operand/substring form may be flagged: $(scan_paths "$REAL_TOKENS" "$f" 2>&1)"
+fi
+rm -f "$f"
+
+# --- a subshell or brace group after the `||` executes the BSD fallback as its
+# first command, so it is a real ladder rather than a forced exemption.
+f="$(tmpsh "$(printf '%s\n' \
+  "stat -c '%s' \"\$f\" || (stat -f '%z' \"\$f\")" \
+  "stat -c '%s' \"\$f\" || { stat -f '%z' \"\$f\"; }")")"
+if scan_paths "$REAL_TOKENS" "$f" >/dev/null 2>&1; then
+  ok "a grouped BSD fallback after || is recognized as a real ladder"
+else
+  fail "grouped stat -f fallbacks must not be flagged: $(scan_paths "$REAL_TOKENS" "$f" 2>&1)"
+fi
+rm -f "$f"
+
+# --- admitting a group opener must not weaken what the guard demands INSIDE it:
+# the fallback still has to be the command the group runs first, not merely a
+# string it prints. `|| ( true; stat -f ... )` stays flagged too — reaching a
+# fallback across a `;` is the line-wide behaviour the per-occurrence anchoring
+# replaced, and widening it back is not worth a contrived spelling.
+f="$(tmpsh "$(printf '%s\n' \
+  "stat -c '%s' \"\$f\" || { echo 'stat -f is unavailable'; }" \
+  "stat -c '%s' \"\$f\" || ( true; stat -f '%z' \"\$f\" )")")"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "a group that does not run stat -f first should fail, got success: $out"
+elif [[ "$(echo "$out" | grep -c "PORTABILITY: ${f}:")" -eq 2 ]]; then
+  ok "a group opener does not excuse a fallback the group does not run first"
+else
+  fail "expected both non-ladder groups flagged, got: $out"
+fi
+rm -f "$f"
+
 echo
 echo "PASS=$PASS FAIL=$FAIL"
 [[ "$FAIL" -eq 0 ]]

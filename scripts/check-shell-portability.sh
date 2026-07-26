@@ -559,10 +559,13 @@ scan_file() {
     }
     function is_guarded(q, p, at,   CMDPOS, SEG, PRE, NAME, QP, QL) {
       if (is_negated(q, at)) return 0
-      # A substitution opener after the `||` may be either spelling, since
-      # both make the command that follows what the `||` actually runs. The
-      # bare `NAME=` (no value, no trailing space) is the `x=$(stat …)` shape.
-      CMDPOS = "\\|\\|[[:space:]]*([A-Za-z_][A-Za-z0-9_]*=)?(\\$\\(|" BT ")?[[:space:]]*" PREFIXES
+      # An opener after the `||` may be any spelling that makes the command
+      # which follows it what the `||` actually runs: either substitution
+      # spelling, or a subshell/brace group whose first command it is. The bare
+      # `NAME=` (no value, no trailing space) is the `x=$(stat …)` shape.
+      # `|| (stat -f …)` and `|| { stat -f …; }` were forced into an exemption
+      # although the group genuinely executes the BSD fallback (#1544).
+      CMDPOS = "\\|\\|[[:space:]]*([A-Za-z_][A-Za-z0-9_]*=)?(\\$\\(|" BT "|\\(|\\{)?[[:space:]]*" PREFIXES
       SEG = "([^;|&]|[<>]&|&>|&&)*"
       # The fallback command word carries the same optional quote and path
       # spellings the token patterns already admit — quote removal invokes the

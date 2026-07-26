@@ -296,7 +296,15 @@ readlink[[:space:]]+(-[A-Za-z]*f|--canonicalize)
 # token above documents for its own cluster. What still keeps a `-c`/`-d` from
 # being read out of an OPERAND is unchanged: the run before the hyphen must end
 # in whitespace, so `stat "$file-c"` and `date "$x-d"` stay clean.
-(^|[^A-Za-z0-9_-])date['"]?[[:space:]]+([^;&|()`\n]*[[:space:]])?['"]*(-[A-Za-z'"]*d|--date([[:space:]]|=))
+#
+# A redirection may be ATTACHED to the command word with no separating space —
+# `date>/dev/null -d tomorrow`, `date>&2 -d tomorrow` — and a simple command may
+# carry a redirection anywhere, so the option still reaches the utility. The
+# whitespace requirement alone let those through (#1544). It is what keeps
+# `git -c alias.x=status -c …` (via "STATus") and `[[ -d "$candidate" ]]` (via
+# "can-DATE") clean, so the separator is WIDENED rather than relaxed: whitespace,
+# or a redirection operator, and nothing else.
+(^|[^A-Za-z0-9_-])date['"]?([[:space:]]+|[<>]&?)([^;&|()`\n]*[[:space:]])?['"]*(-[A-Za-z'"]*d|--date([[:space:]]|=))
 
 # `stat -c` (GNU format string) — a GNU coreutils extension; BSD/macOS stat
 # uses `-f`. Requires whitespace immediately after `stat` so the token matches
@@ -340,7 +348,9 @@ readlink[[:space:]]+(-[A-Za-z]*f|--canonicalize)
 # anchor keeps `stat --dereference` out of the cluster branch.
 # Same quoted-option-word admission as `date -d` above (#1544): `stat "-c" %s`
 # and `stat -"c" %s` both reach GNU stat as `-c` after quote removal.
-(^|[^A-Za-z0-9_-])stat['"]?[[:space:]]+([^;&|()`\n]*[[:space:]])?['"]*(-[A-Za-z'"]*c|--format|--printf)
+# Same attached-redirection separator as `date -d` above (#1544):
+# `stat</dev/null -c %s "$f"` still passes GNU stat its `-c`.
+(^|[^A-Za-z0-9_-])stat['"]?([[:space:]]+|[<>]&?)([^;&|()`\n]*[[:space:]])?['"]*(-[A-Za-z'"]*c|--format|--printf)
 # `mktemp -p` (parent-directory flag) — a GNU coreutils extension; BSD/macOS
 # mktemp has no `-p`. The portable replacement embeds the directory in the
 # positional TEMPLATE argument instead (`mktemp "$DIR/prefix.XXXXXX"`), which
