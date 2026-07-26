@@ -115,19 +115,62 @@ function isPrivateHost(hostname) {
 	return false;
 }
 
-/** Return true for links that must not be included in reachability checks. */
-export async function shouldSkipLinkCheck(link) {
+// Default DNS resolver for the non-literal-host gate below: every address the
+// name resolves to, both families.
+async function lookupAllAddresses(hostname) {
+	const { lookup } = await import("node:dns/promises");
+	return lookup(hostname, { all: true });
+}
+
+/**
+ * Return true for links that must not be included in reachability checks.
+ *
+ * SSRF guard, two layers: a literal IP host is judged directly against the
+ * non-global blocks above, and a DNS name is resolved (every A/AAAA record)
+ * and refused when ANY resolved address is non-global — so a hostname whose
+ * record points at, e.g., 169.254.169.254 is never dereferenced. A name that
+ * does not resolve is skipped too: nothing reachable to check. Residual,
+ * documented in the CHANGELOG: the checker performs its own resolution at
+ * fetch time, so a rebind between this gate and the fetch, or a redirect hop
+ * to a private target inside the checker, remains outside this gate.
+ *
+ * `resolveHost` is injectable for tests; production uses the real resolver.
+ */
+export async function shouldSkipLinkCheck(link, resolveHost = lookupAllAddresses) {
 	if (/^(?:data:|file:|#)/i.test(link)) return true;
 
 	try {
 		const url = new URL(link);
-		// SSRF guard: never let the reachability checker fetch a
-		// private/loopback/link-local/reserved host.
 		if (isPrivateHost(url.hostname)) return true;
-		return (
-			(url.protocol === "http:" || url.protocol === "https:") &&
-			isCitationOnlyHost(url.hostname)
-		);
+		if (url.protocol !== "http:" && url.protocol !== "https:") return false;
+		if (isCitationOnlyHost(url.hostname)) return true;
+
+		const host = url.hostname.toLowerCase().replace(/\.$/, "");
+		const isLiteral =
+			(host.startsWith("[") && host.endsWith("]")) ||
+			/^\d{1,3}(?:\.\d{1,3}){3}$/.test(host);
+		if (!isLiteral) {
+			let records;
+			try {
+				records = await resolveHost(host);
+			} catch {
+				return true; // unresolvable — nothing reachable to check
+			}
+			const addresses = Array.isArray(records) ? records : [records];
+			if (addresses.length === 0) return true;
+			for (const record of addresses) {
+				const address =
+					typeof record === "string" ? record : record?.address;
+				if (typeof address !== "string" || address.length === 0) {
+					return true; // unreadable answer — fail closed
+				}
+				const nonGlobal = address.includes(":")
+					? isPrivateIPv6(address)
+					: isPrivateIPv4(address);
+				if (nonGlobal) return true;
+			}
+		}
+		return false;
 	} catch {
 		return false;
 	}

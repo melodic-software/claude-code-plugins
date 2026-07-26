@@ -78,6 +78,47 @@ test("shouldSkipLinkCheck skips shared-address and other non-global blocks", asy
 	}
 });
 
+// Stub resolvers so tests never touch real DNS.
+const resolvesPublic = async () => [{ address: "93.184.216.34", family: 4 }];
+
+test("shouldSkipLinkCheck skips hostnames resolving to non-global addresses", async () => {
+	const cases = [
+		["http://metadata.attacker.example/", [{ address: "169.254.169.254", family: 4 }]],
+		["http://internal.attacker.example/", [{ address: "10.0.0.7", family: 4 }]],
+		["http://cgn.attacker.example/", [{ address: "100.64.0.9", family: 4 }]],
+		["http://v6.attacker.example/", [{ address: "::1", family: 6 }]],
+		["http://mixed.attacker.example/", [
+			{ address: "93.184.216.34", family: 4 },
+			{ address: "192.168.1.5", family: 4 },
+		]], // ANY non-global record refuses the whole name
+	];
+	for (const [link, records] of cases) {
+		assert.equal(await shouldSkipLinkCheck(link, async () => records), true, link);
+	}
+});
+
+test("shouldSkipLinkCheck skips unresolvable and unreadable hostnames (fail closed)", async () => {
+	const failing = async () => {
+		throw new Error("ENOTFOUND");
+	};
+	assert.equal(await shouldSkipLinkCheck("https://nxdomain.example/", failing), true);
+	assert.equal(
+		await shouldSkipLinkCheck("https://empty.example/", async () => []),
+		true,
+	);
+	assert.equal(
+		await shouldSkipLinkCheck("https://weird.example/", async () => [{}]),
+		true,
+	);
+});
+
+test("shouldSkipLinkCheck still checks hostnames resolving to global addresses", async () => {
+	assert.equal(
+		await shouldSkipLinkCheck("https://example.com/a", resolvesPublic),
+		false,
+	);
+});
+
 test("shouldSkipLinkCheck still checks ordinary public hosts", async () => {
 	for (const link of [
 		"https://example.com/a",
@@ -92,7 +133,7 @@ test("shouldSkipLinkCheck still checks ordinary public hosts", async () => {
 		"https://223.255.255.254/", // top of unicast space, below multicast
 		"https://[2001:db7::1]/", // just below the 2001:db8::/32 documentation block
 	]) {
-		assert.equal(await shouldSkipLinkCheck(link), false, link);
+		assert.equal(await shouldSkipLinkCheck(link, resolvesPublic), false, link);
 	}
 });
 
@@ -120,7 +161,7 @@ test("does not skip lookalike or unrelated hosts", async () => {
 	];
 
 	for (const link of links) {
-		assert.equal(await shouldSkipLinkCheck(link), false, link);
+		assert.equal(await shouldSkipLinkCheck(link, resolvesPublic), false, link);
 	}
 });
 

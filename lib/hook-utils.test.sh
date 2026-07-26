@@ -884,6 +884,14 @@ subject_is "path-valued trailing assignment bails (no basename leak)" \
 # Multiple assignments with no following command are all value — bail.
 subject_is "trailing multi-assignment bails to Bash" \
   "Bash" "VAR=x TOKEN=secret" "Bash"
+# Every valid Bash assignment form counts: append and subscripted assignments
+# carry the value just the same.
+subject_is "trailing append assignment bails to Bash" \
+  "Bash" "TOKEN+=ghp_secret" "Bash"
+subject_is "trailing subscripted assignment bails to Bash" \
+  "Bash" "TOKEN[0]=ghp_secret" "Bash"
+subject_is "trailing subscripted append assignment bails to Bash" \
+  "Bash" "TOKEN[0]+=ghp_secret" "Bash"
 
 # Preserved: a following real command wins the token, so the assignment prefix is
 # stripped and the command name is the subject.

@@ -228,7 +228,8 @@ collect_risky_configs() {
 
   cursor="$CONFIG_TARGET_DIR"
   while :; do
-    dirs=("$cursor" "${dirs[@]}")
+    # Guarded for bash 3.2 + `set -u`: expanding an empty array errs there.
+    if ((${#dirs[@]} > 0)); then dirs=("$cursor" "${dirs[@]}"); else dirs=("$cursor"); fi
     [[ "$cursor" == "$CONFIG_ROOT" ]] && break
     dir="$(dirname "$cursor")"
     [[ "$dir" != "$cursor" ]] || return 0
@@ -319,18 +320,22 @@ collect_risky_configs() {
 # returns 1 and the caller fails closed. Bare package identifiers resolve to
 # node_modules, which the user installs explicitly — that separate trust
 # decision is not folded into this repository-content signature.
+# Bash 3.2-compatible throughout (macOS system bash): dedup state lives in
+# newline-delimited strings rather than associative arrays, and every array
+# expansion is guarded non-empty — `"${arr[@]}"` on an empty array is an
+# unbound-variable error under `set -u` before bash 4.4.
 MODULE_FILES=()
 collect_module_files() {
-  local item dir str candidate resolved entry scanned=0
+  local item dir str base candidate resolved entry scanned=0
   local queue=("$@")
-  local -A seen_scan=() seen_module=()
+  local seen_scan=$'\n' seen_module=$'\n'
   local quoted_string_re="\"[^\"]+\"|'[^']+'"
 
   while ((${#queue[@]} > 0)); do
     item="${queue[0]}"
-    queue=("${queue[@]:1}")
-    [[ -n "${seen_scan[$item]:-}" ]] && continue
-    seen_scan[$item]=1
+    if ((${#queue[@]} > 1)); then queue=("${queue[@]:1}"); else queue=(); fi
+    case "$seen_scan" in *$'\n'"$item"$'\n'*) continue ;; *) ;; esac
+    seen_scan+="$item"$'\n'
     scanned=$((scanned + 1))
     ((scanned <= 64)) || return 1
     dir="$(dirname "$item")"
@@ -338,29 +343,38 @@ collect_module_files() {
       str="${str#?}"
       str="${str%?}"
       [[ -n "$str" && "$str" != *$'\n'* ]] || continue
-      for candidate in "$dir/$str" "$CONFIG_ROOT/$str"; do
-        resolved=""
-        if [[ -f "$candidate" ]]; then
-          resolved="$(hook::physical_path "$candidate")"
-        elif [[ -d "$candidate" ]]; then
-          for entry in package.json index.js index.cjs index.mjs; do
-            if [[ -f "$candidate/$entry" ]]; then
-              queue+=("$(hook::physical_path "$candidate/$entry")")
-            fi
-          done
-          continue
-        else
-          continue
-        fi
-        case "$resolved" in
-        "$CONFIG_ROOT"/*) ;;
-        *) continue ;;
-        esac
-        if [[ -z "${seen_module[$resolved]:-}" ]]; then
-          seen_module[$resolved]=1
-          MODULE_FILES+=("$resolved")
-          queue+=("$resolved")
-        fi
+      for base in "$dir/$str" "$CONFIG_ROOT/$str"; do
+        # Node's CommonJS resolution tries the literal path, then the
+        # .cjs/.mjs/.js/.json/.node extension candidates, then a directory's
+        # package.json/index entry points — an extensionless
+        # require("./rules/local-rule") must still pin local-rule.cjs.
+        for candidate in "$base" "$base.cjs" "$base.mjs" "$base.js" "$base.json" "$base.node"; do
+          resolved=""
+          if [[ -f "$candidate" ]]; then
+            resolved="$(hook::physical_path "$candidate")"
+          elif [[ "$candidate" == "$base" && -d "$candidate" ]]; then
+            for entry in package.json index.js index.cjs index.mjs; do
+              if [[ -f "$candidate/$entry" ]]; then
+                queue+=("$(hook::physical_path "$candidate/$entry")")
+              fi
+            done
+            continue
+          else
+            continue
+          fi
+          case "$resolved" in
+          "$CONFIG_ROOT"/*) ;;
+          *) continue ;;
+          esac
+          case "$seen_module" in
+          *$'\n'"$resolved"$'\n'*) ;;
+          *)
+            seen_module+="$resolved"$'\n'
+            MODULE_FILES+=("$resolved")
+            queue+=("$resolved")
+            ;;
+          esac
+        done
       done
     done < <(grep -oE "$quoted_string_re" "$item" 2>/dev/null)
   done
@@ -398,10 +412,13 @@ resolve_trust_dir() {
         digest=$(git hash-object "$config" 2>/dev/null) || return 1
         printf '%s\t%s\n' "$config" "$digest"
       done
-      for module in "${MODULE_FILES[@]}"; do
-        digest=$(git hash-object "$module" 2>/dev/null) || return 1
-        printf 'module\t%s\t%s\n' "$module" "$digest"
-      done
+      # Guarded for bash 3.2 + `set -u`: expanding an empty array errs there.
+      if ((${#MODULE_FILES[@]} > 0)); then
+        for module in "${MODULE_FILES[@]}"; do
+          digest=$(git hash-object "$module" 2>/dev/null) || return 1
+          printf 'module\t%s\t%s\n' "$module" "$digest"
+        done
+      fi
     } | git hash-object --stdin 2>/dev/null
   ) || return 1
   [[ -n "$signature" ]] || return 1

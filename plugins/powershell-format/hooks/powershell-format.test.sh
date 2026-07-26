@@ -461,6 +461,33 @@ else
   fail "changed rule module was not re-gated: $OUT_GATE_M2 $(cat "$REPO_CRP/crp3.ps1")"
 fi
 
+# Transitive dependency: a file the rule module references by string literal is
+# part of the code that runs, so it is pinned too — changing ONLY that file
+# (settings and declared module untouched) must revoke the approval.
+cat >>"$REPO_CRP/rules/CleanRules.psm1" <<'EOF'
+$rulesHelper = './helper.ps1'
+EOF
+printf '%s\n' '# helper v1' >"$REPO_CRP/rules/helper.ps1"
+printf "%s\n" "get-childitem -Path '.'" >"$REPO_CRP/crp4.ps1"
+OUT_GATE_T1=$(run_hook_env "$REPO_CRP/crp4.ps1" CLAUDE_PLUGIN_DATA="$CRP_DATA" CLAUDE_PLUGIN_OPTION_POWERSHELL_FORMAT_ENABLED=true)
+T_MARKER="$(printf '%s' "$OUT_GATE_T1" | jq -r '.systemMessage' | sed -n "s/.*mkdir -p '\([^']*\)'.*/\1/p")"
+mkdir -p "$T_MARKER"
+OUT_GATE_T2=$(run_hook_env "$REPO_CRP/crp4.ps1" CLAUDE_PLUGIN_DATA="$CRP_DATA" CLAUDE_PLUGIN_OPTION_POWERSHELL_FORMAT_ENABLED=true)
+if [[ -n "$T_MARKER" && -z "$OUT_GATE_T2" ]] && grep -q 'Get-ChildItem' "$REPO_CRP/crp4.ps1"; then
+  ok "approved state including transitive helper analyzes"
+else
+  fail "approved transitive state did not analyze: m=$T_MARKER out=$OUT_GATE_T2 $(cat "$REPO_CRP/crp4.ps1")"
+fi
+printf '%s\n' '# unreviewed helper revision' >>"$REPO_CRP/rules/helper.ps1"
+printf "%s\n" "get-childitem -Path '.'" >"$REPO_CRP/crp5.ps1"
+OUT_GATE_T3=$(run_hook_env "$REPO_CRP/crp5.ps1" CLAUDE_PLUGIN_DATA="$CRP_DATA" CLAUDE_PLUGIN_OPTION_POWERSHELL_FORMAT_ENABLED=true)
+if printf '%s' "$OUT_GATE_T3" | jq -e '.hookSpecificOutput.additionalContext | contains("trust gate")' >/dev/null 2>&1 &&
+  grep -q 'get-childitem' "$REPO_CRP/crp5.ps1"; then
+  ok "changed transitive helper revokes approval and blocks again"
+else
+  fail "changed transitive helper was not re-gated: $OUT_GATE_T3 $(cat "$REPO_CRP/crp5.ps1")"
+fi
+
 # Fail closed: with no CLAUDE_PLUGIN_DATA an approval can be neither recorded
 # nor verified, so a CustomRulePath settings state must still skip the run (and
 # notice every time — the once-per-session gate fails open toward visibility

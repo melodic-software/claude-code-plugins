@@ -719,6 +719,32 @@ if printf '%s' "$OUT_TRUST_MOD3" | jq -e '.hookSpecificOutput.additionalContext 
 else
   fail "changed referenced module did not revoke approval: $OUT_TRUST_MOD3"
 fi
+# An EXTENSIONLESS module reference resolves through Node's CommonJS extension
+# candidates, so it must pin the same module file: approving a config that says
+# "./rules/local-rule" and then changing local-rule.cjs must revoke.
+cat >"$ORIGINAL_CONFIG" <<'JSONC'
+{
+  "config": { "MD013": false },
+  "customRules": ["./rules/local-rule"],
+  "noBanner": true,
+  "noProgress": true
+}
+JSONC
+printf '# Executable config\n\nClean text.' >"$TRUST_FILE"
+OUT_TRUST_EXT1="$(cd "$UNRELATED" && printf '{"tool_input":{"file_path":"%s"}}' "$TRUST_FILE" |
+  env -u CLAUDE_PROJECT_DIR CLAUDE_PLUGIN_DATA="$TRUST_DATA" CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true bash "$HOOK")"
+EXT_MARKER="$(printf '%s' "$OUT_TRUST_EXT1" | jq -r '.systemMessage' | sed -n "s/.*mkdir -p '\([^']*\)'.*/\1/p")"
+mkdir -p "$EXT_MARKER"
+printf '\n// another unreviewed rule revision\n' >>"$REPO/rules/local-rule.cjs"
+printf '# Executable config\n\nClean text.' >"$TRUST_FILE"
+OUT_TRUST_EXT2="$(cd "$UNRELATED" && printf '{"tool_input":{"file_path":"%s"}}' "$TRUST_FILE" |
+  env -u CLAUDE_PROJECT_DIR CLAUDE_PLUGIN_DATA="$TRUST_DATA" CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true bash "$HOOK")"
+if [[ -n "$EXT_MARKER" ]] && printf '%s' "$OUT_TRUST_EXT2" | jq -e '.hookSpecificOutput.additionalContext | contains("trust gate")' >/dev/null 2>&1 &&
+  ! has_final_newline "$TRUST_FILE"; then
+  ok "extensionless module reference is pinned; module change revokes approval"
+else
+  fail "extensionless module reference not pinned: m=$EXT_MARKER out=$OUT_TRUST_EXT2"
+fi
 rm -rf "$REPO/rules"
 
 # Negative control: a declarative rule-only config is not executable and loads

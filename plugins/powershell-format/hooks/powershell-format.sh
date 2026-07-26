@@ -268,9 +268,57 @@ PSSA_OUTPUT=$(PSSA_FILE="$PSSA_FILE_ARG" PSSA_SETTINGS="$PSSA_SETTINGS_ARG" \
             Write-Output "PSSA_TRUST UNVERIFIABLE"
             exit 6
         }
+        # Transitive code-loading inputs: a declared leaf module may dot-source
+        # or Import-Module further repository files, and those execute with it,
+        # so they must be pinned too. Enumerating PowerShell resolution exactly
+        # would mean evaluating the module - the very thing being gated - so
+        # approximate from text: collect every string literal in each collected
+        # file, resolve it against the containing directory and the settings
+        # directory, take existing files, and rescan those the same way,
+        # bounded. Overflow or an unreadable file makes the state unverifiable.
+        $sq = [char]39
+        $dq = [char]34
+        $litPattern = "$sq([^$sq]+)$sq|$dq([^$dq]+)$dq"
+        $seen = [System.Collections.Generic.HashSet[string]]::new(
+            [System.StringComparer]::OrdinalIgnoreCase)
+        $allFiles = [System.Collections.Generic.List[string]]::new()
+        $scanQueue = [System.Collections.Generic.Queue[string]]::new()
+        foreach ($rf in $ruleFiles) {
+            if ($seen.Add($rf)) { $allFiles.Add($rf); $scanQueue.Enqueue($rf) }
+        }
+        $scanned = 0
+        while ($scanQueue.Count -gt 0) {
+            $cur = $scanQueue.Dequeue()
+            $scanned++
+            if ($scanned -gt 256 -or $allFiles.Count -gt 512) {
+                Write-Output "PSSA_TRUST UNVERIFIABLE"
+                exit 6
+            }
+            $curDir = Split-Path -Parent $cur
+            try { $text = [System.IO.File]::ReadAllText($cur) } catch {
+                Write-Output "PSSA_TRUST UNVERIFIABLE"
+                exit 6
+            }
+            foreach ($hit in [regex]::Matches($text, $litPattern)) {
+                $lit = if ($hit.Groups[1].Success) { $hit.Groups[1].Value } else { $hit.Groups[2].Value }
+                if ([string]::IsNullOrWhiteSpace($lit) -or $lit.Contains("`n")) { continue }
+                foreach ($baseDir in @($curDir, $settingsDir)) {
+                    $cand = $lit
+                    try {
+                        if (-not [System.IO.Path]::IsPathRooted($cand)) {
+                            $cand = Join-Path $baseDir $cand
+                        }
+                        if (Test-Path -LiteralPath $cand -PathType Leaf) {
+                            $full = Convert-Path -LiteralPath $cand
+                            if ($seen.Add($full)) { $allFiles.Add($full); $scanQueue.Enqueue($full) }
+                        }
+                    } catch { continue }
+                }
+            }
+        }
         $manifest = [System.Text.StringBuilder]::new()
         [void]$manifest.AppendLine($env:PSSA_REPO_ROOT)
-        $digestTargets = @($env:PSSA_SETTINGS) + (@($ruleFiles) | Sort-Object)
+        $digestTargets = @($env:PSSA_SETTINGS) + (@($allFiles) | Sort-Object)
         foreach ($target in $digestTargets) {
             try {
                 $h = (Get-FileHash -LiteralPath $target -Algorithm SHA256 -ErrorAction Stop).Hash
@@ -284,9 +332,29 @@ PSSA_OUTPUT=$(PSSA_FILE="$PSSA_FILE_ARG" PSSA_SETTINGS="$PSSA_SETTINGS_ARG" \
             Write-Output "PSSA_TRUST NOSTORE"
             exit 6
         }
-        $sigBytes = [System.Security.Cryptography.SHA256]::HashData(
-            [System.Text.Encoding]::UTF8.GetBytes($manifest.ToString()))
-        $signature = [System.Convert]::ToHexString($sigBytes).ToLowerInvariant()
+        # Instance SHA256 + x2 formatting: the static SHA256.HashData /
+        # Convert.ToHexString shortcuts are .NET 5+, absent on the PowerShell
+        # 7.0 (.NET Core 3.1) floor this hook supports. Any failure is
+        # UNVERIFIABLE - an empty signature must never mint a shared marker.
+        $signature = ""
+        try {
+            $sha = [System.Security.Cryptography.SHA256]::Create()
+            try {
+                $sigBytes = $sha.ComputeHash(
+                    [System.Text.Encoding]::UTF8.GetBytes($manifest.ToString()))
+            } finally {
+                $sha.Dispose()
+            }
+            $hex = [System.Text.StringBuilder]::new()
+            foreach ($b in $sigBytes) { [void]$hex.Append($b.ToString("x2")) }
+            $signature = $hex.ToString()
+        } catch {
+            $signature = ""
+        }
+        if ([string]::IsNullOrEmpty($signature)) {
+            Write-Output "PSSA_TRUST UNVERIFIABLE"
+            exit 6
+        }
         # Emit the marker NAME, not a path: the shell rebuilds the directory in
         # its own path form so the approval hint matches the POSIX shell the
         # user runs mkdir in, while Test-Path here uses the native form — both

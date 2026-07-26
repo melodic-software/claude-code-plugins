@@ -29,9 +29,14 @@ All notable changes to the `ai-briefing` plugin are documented here. Format foll
   `localhost`/`*.localhost`; IPv6 `::`/`::1`/`fc00::/7`/`fe80::/10`/`ff00::/8`/
   `100::/64`/`2001:db8::/32`/`3fff::/20`, plus IPv4-mapped and NAT64
   `64:ff9b::/96` forms judged by their embedded IPv4 address), relying on
-  WHATWG URL canonicalization of decimal/hex/octal/integer IPv4. A public hostname that resolves to a private
-  address at fetch time (DNS rebind) is not covered — the checker resolves DNS
-  itself, so that case remains outside this offline literal gate.
+  WHATWG URL canonicalization of decimal/hex/octal/integer IPv4. A DNS-name
+  host is additionally resolved at gate time (every A/AAAA record) and refused
+  when ANY resolved address is non-global, so a hostname whose record points
+  at, e.g., the cloud metadata address is never handed to the checker; an
+  unresolvable or unreadable answer fails closed. Residual: the checker
+  performs its own resolution at fetch time, so a rebind between this gate and
+  the fetch, or a redirect hop to a private target inside the checker, remains
+  outside this gate.
 
 ## [0.6.2]
 

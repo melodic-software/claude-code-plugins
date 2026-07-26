@@ -312,12 +312,14 @@ hook::extract_bash_subject() {
     printf '%s' "$tool"
     return 0
   fi
-  # A resolved token still shaped like a bare/trailing NAME=value assignment (no
-  # following command word consumed it in the strip loop) would emit the
-  # assignment's value — a possible credential — as the subject; bail to the bare
-  # "Bash" subject as with a quoted value. This runs BEFORE the basename strip so
-  # a path-valued assignment (TOKEN=/a/b/secret) cannot lose its "=" first.
-  if [[ "$first_token" =~ ^[a-zA-Z_][a-zA-Z0-9_]*= ]]; then
+  # A resolved token still shaped like a bare/trailing assignment (no following
+  # command word consumed it in the strip loop) would emit the assignment's
+  # value — a possible credential — as the subject; bail to the bare "Bash"
+  # subject as with a quoted value. All valid Bash assignment forms count:
+  # NAME=value, append NAME+=value, and subscripted NAME[idx]=value /
+  # NAME[idx]+=value. This runs BEFORE the basename strip so a path-valued
+  # assignment (TOKEN=/a/b/secret) cannot lose its "=" first.
+  if [[ "$first_token" =~ ^[a-zA-Z_][a-zA-Z0-9_]*(\[[^]]*\])?\+?= ]]; then
     printf '%s' "$tool"
     return 0
   fi
