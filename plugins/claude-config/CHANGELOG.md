@@ -80,6 +80,30 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
 
 ### Fixed
 
+- **The conflict pass resolves effective liveness before it pairs anything.** It received Phase A's
+  filesystem inventory and treated presence in the tree as liveness, but liveness is a session
+  property: the launch directory decides which ancestor `CLAUDE.md` files are candidates,
+  `claudeMdExcludes` (merged across every settings layer) can kill one that is present, omitting
+  `project` from `--setting-sources` skips project rules entirely, and `--add-dir` with
+  `CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD` adds live memory files the tree walk never sees.
+  Uncorrected, the pass reported conflicts one side of which was dead and missed live counterparts
+  it never inventoried — silently, and reproducibly only on the machine that produced them. Phase A
+  now resolves those controls and reports them in the tier-transparency line; surfaces whose
+  liveness an out-of-session inventory cannot determine are marked `liveness-unresolved` and their
+  pairs are reported rather than graded.
+- **A prompt hook enters the comparison set as the gate it imposes, never as its prose.** Per
+  [hooks](https://code.claude.com/docs/en/hooks), a `type: "prompt"` handler sends its text to a
+  separate Claude model for single-turn evaluation returning a yes/no decision — it is never
+  injected into the main conversation. Comparing that raw prompt against a `CLAUDE.md`, skill, or
+  output style manufactured conflicts between two models that satisfy their own instructions
+  independently (an evaluator told to return JSON only against a main-session Markdown-output rule).
+  The pass now compares the act the hook blocks, under its event and `matcher`. This also closes the
+  `UNVERIFIED` residency row that told the reader to fetch the hooks page.
+- **Eval 13 required the wrong reason for refusing an agent-definition import split.** It rewarded
+  saying that an `@path` in an agent definition loads at launch, which the catalog's own I13 says is
+  false — `@` carries no import meaning outside the memory-layer surfaces, so the referenced file
+  would not load at all. The eval now requires that explanation, which is what makes the split a
+  silent removal rather than a failed saving.
 - **`audit-permission-grants` no longer points outside the plugin root.** Both `SKILL.md` and
   `reference/criteria.md` reached the permission-rule-hygiene convention through a `../` relative
   link. An installed plugin runs from an isolated cache holding only the plugin's own tree, so the

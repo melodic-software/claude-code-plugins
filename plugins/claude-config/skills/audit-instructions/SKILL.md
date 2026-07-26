@@ -101,9 +101,22 @@ official memory and `.claude`-directory docs (cited in the report's Sources line
   demand when it reads files in those directories, so walk the tree — do not stop at the root);
   `.claude/rules/`, `.claude/skills/`, `.claude/agents/`, `.claude/output-styles/`.
 - Prompt-type hook text configured in the project or user `settings.json`, **and in
-  `.claude/settings.local.json`** — local settings are a supported hook-configuration scope, so hook
-  text there is as live as any other. Extract the prompt text only; never carry a command line,
-  token, or other secret-bearing value out of a settings file into the report.
+  `.claude/settings.local.json`** — local settings are a supported hook-configuration scope, so a
+  hook configured there gates the session as much as one configured anywhere else. Extract the
+  prompt text only; never carry a command line, token, or other secret-bearing value out of a
+  settings file into the report. **What is compared is the gate, not the prose:** a prompt hook's
+  text goes to a separate evaluator model, never into this session's context, so it enters the
+  comparison set as the act it blocks under its event and `matcher` — see
+  [reference/conflict-criteria.md](reference/conflict-criteria.md).
+
+**The tree does not decide what is live.** Before the inventory is handed to any lane, resolve the
+session's effective liveness controls — the launch directory, the merged `claudeMdExcludes`,
+`--setting-sources`, and the additional-directory inputs — then drop what they exclude and add the
+memory files they contribute. A walk of the project tree alone both invents surfaces that are dead
+in this session and misses live ones that are not in the tree at all. The controls, their official
+sources, and the `liveness-unresolved` marking for values an out-of-session inventory cannot read
+are in [reference/conflict-criteria.md](reference/conflict-criteria.md), which owns the gate; name
+the resolved controls in the report's tier-transparency line.
 
 Exclude from the **editable** set, and hold for the routing subsection: auto-memory
 (`~/.claude/projects/<project>/memory/`, owned by `claude-memory`), installed plugin-cache content,

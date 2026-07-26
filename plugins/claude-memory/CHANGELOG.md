@@ -7,6 +7,13 @@ All notable changes to the `claude-memory` plugin are documented here. Format fo
 
 ### Fixed
 
+- **The C3 placement eval no longer rewards moving an unspecified remainder.** Its prompt left the
+  other half of the 300-line `CLAUDE.md` unstated, so removing the running log alone already brought
+  the file under the line budget — and if that remainder were always-on project conventions, C3 says
+  they belong in `CLAUDE.md`. The expectation nevertheless demanded a skill or path-scoped rule for
+  it, rewarding a move that can make required instructions unavailable after compaction. The prompt
+  now says what the remainder is (a Terraform walkthrough relevant only under `infra/`), and the
+  expectation requires the destination to be justified by relevance rather than by the budget.
 - **`reference/official-guidance.md` no longer claims Claude Code loads `AGENTS.md`.** The
   "Compaction by steering method" table carried a `CLAUDE.md / AGENTS.md` row, but the memory doc's
   own `AGENTS.md` section states "Claude Code reads `CLAUDE.md`, not `AGENTS.md`" and prescribes an

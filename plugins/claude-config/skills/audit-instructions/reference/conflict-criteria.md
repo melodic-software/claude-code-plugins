@@ -88,7 +88,7 @@ shapes without this gate produces noise, because most surface pairs never co-loa
 | Skill bundled `reference/`, `context/` file | Only when Claude reads it | skills: "letting Claude access detailed reference material only when needed" |
 | Agent definition (its own subagent) | Always, as that subagent's system prompt — **alongside the full CLAUDE.md hierarchy** | subagents, "What loads at startup" |
 | Skill named in an agent's `skills:` field | Always, in that subagent | subagents: "The full content of each listed skill is injected, not only the description" |
-| Prompt-type hook text | At the matched lifecycle event | **UNVERIFIED** — the hooks page was not fetched |
+| Prompt-type hook text | **Never** — see "A prompt hook's text is not an instruction" below | hooks: a `prompt` hook "send[s] a prompt to a Claude model for single-turn evaluation" |
 | Output style (the **active** one) | Every session in the main conversation, appended to the system prompt | output-styles: "Output styles directly modify Claude Code's system prompt"; "read once at session start" |
 
 **An agent definition co-resides with the whole memory layer, and that is a guaranteed pair.** A
@@ -111,10 +111,26 @@ own system prompt", with a fork the exception — so an output style never pairs
 definition except via a fork — and it is read "once at session start", so a mid-session edit is not
 resident until the next session.
 
-Prompt-type hooks stay **UNVERIFIED**: Phase A inventories them, so the pass reports pairs involving
-them as `residency-unknown` rather than clearing or classifying them. Gate 1 cannot be evaluated
-against a row this file cannot source, and guessing a load model to satisfy the gate is the same error
-as inventing a precedence winner. Fetch the hooks page to close it.
+**A prompt hook's text is not an instruction to the main session.** Per
+[hooks](https://code.claude.com/docs/en/hooks), a `type: "prompt"` handler "send[s] a prompt to a
+Claude model for single-turn evaluation. The model returns a yes/no decision as JSON" — a separate
+model call, evaluated in isolation, never injected into the main conversation. Comparing that raw
+prompt against a `CLAUDE.md`, a skill, or an output style manufactures conflicts between two models
+that satisfy their own instructions independently: an evaluator told to *return JSON only* does not
+contradict a main-session rule requiring Markdown output.
+
+So a prompt hook enters the comparison set as the **constraint it imposes**, never as its prose:
+
+- The **act** it gates, taken from the decision the evaluator can return, together with the hook's
+  `matcher` and event — a `PreToolUse` hook matching `Bash` constrains Bash calls, and nothing else.
+- Not the wording of the prompt, the output format it demands of its evaluator, the persona it sets,
+  or any directive whose only audience is that evaluator.
+
+A pair is then real when a resident instruction tells the main session to do something the hook's
+gate would block under a matching input — "always run `git push --force` after a rebase" against a
+`PreToolUse` hook that denies force-pushes. That is a genuine unsatisfiable pair; a formatting
+directive addressed to the evaluator is not. Command-type hooks are outside this pass entirely
+(context-window doc: "hooks run as code, not context").
 
 **Guaranteed pairs** are any two of {user `CLAUDE.md`, project `CLAUDE.md`, unscoped rules,
 `MEMORY.md`}, and any agent definition against any of them except via `Explore` / `Plan`.
@@ -122,7 +138,40 @@ as inventing a precedence winner. Fetch the hooks page to close it.
 they only bite once that surface loads. Report the distinction; do not drop conditional pairs, because
 the worked example below is one.
 
-## Known limit: Phase A does not reach the plugin-source surface
+## Prerequisite: effective liveness, which the tree does not determine
+
+Co-residency asks *when* a surface loads. This gate asks a prior question — **whether it loads at
+all in this session** — and the answer is not a function of the file tree. Five session-level inputs
+change it, all from [memory](https://code.claude.com/docs/en/memory):
+
+- **Launch directory.** "if you run Claude Code in `foo/bar/`, it loads instructions from
+  `foo/bar/CLAUDE.md`, `foo/CLAUDE.md`, and any `CLAUDE.local.md` files alongside them" — which
+  ancestors are candidates at all follows from where the session started, not from the repo root.
+- **`claudeMdExcludes`.** "Patterns are matched against absolute file paths using glob syntax. You
+  can configure `claudeMdExcludes` at any settings layer: user, project, local, or managed policy.
+  Arrays merge across layers." A file the tree contains may therefore be dead. (Managed policy
+  CLAUDE.md is the one thing exclusion cannot reach.)
+- **`--setting-sources`.** "Project rules are skipped if you exclude `project` from
+  `--setting-sources`" — a `.claude/rules/` file on disk then contributes nothing.
+- **`--add-dir` with `CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD`.** Setting it "loads
+  `CLAUDE.md`, `.claude/CLAUDE.md`, `.claude/rules/*.md`, and `CLAUDE.local.md` from the additional
+  directory" — live surfaces a walk of the project tree never sees.
+- **A declined external-import approval.** "If you decline, the imports stay disabled and the dialog
+  doesn't appear again" — persistent, machine-local, and invisible in the tree.
+
+A pass that skips this gate reports conflicts between instructions one side of which is dead, and
+misses live counterparts that were never inventoried. Both failures are silent, and both are
+reproducible only on the machine that produced them.
+
+**So resolve effective liveness before pairing, and record what you resolved.** Take the session's
+launch directory and the merged effective values of `claudeMdExcludes`, `--setting-sources`, and the
+additional-directory inputs; drop excluded and source-skipped surfaces from the comparison set, and
+add the memory files the additional directories contribute. Where a value cannot be resolved — an
+inventory taken outside the session it describes, a declined import that leaves no trace in the tree
+— mark the affected surfaces `liveness-unresolved` and report pairs touching them as such rather
+than grading them. **Name the resolved controls in the pass's tier-transparency line**: a
+finding whose liveness depends on a machine-local setting is not reproducible elsewhere, and a reader
+comparing two machines' reports needs to know which inputs differed.
 
 Phase A enumerates two roots — user `${CLAUDE_CONFIG_DIR:-~/.claude}` and project `.claude/**`. In a
 marketplace repository that never reaches `plugins/`, so this pass currently runs against the
