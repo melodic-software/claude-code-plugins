@@ -257,7 +257,8 @@ auto-mode safety classifier and blocks the call before the wrapper runs.
 - Both wrappers **fail closed**: invoked without `--allowed-owners`, they exit `3` and refuse to
   act. The read-only forms are `source-control-babysit-merge owner/repo#42 --allowed-owners
   <watched-owners>` (merge-readiness gate) and `source-control-babysit-resolve-thread
-  owner/repo#42 --allowed-owners <watched-owners>` (thread list).
+  owner/repo#42 --allowed-owners <watched-owners> --extra-bot-logins <extra-bot-logins>`
+  (thread list).
 - **`--extra-bot-logins <extra-bot-logins>` rides on every resolve-thread form**, listing and
   mutating alike, whenever `babysit_extra_bot_logins` is configured. Bot classification is what
   decides which threads the resolver may touch at all, and structural detection cannot see a
