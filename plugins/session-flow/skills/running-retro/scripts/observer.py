@@ -238,14 +238,13 @@ def summarize_record(rec: dict) -> dict:
         content = msg.get("content")
         if isinstance(content, str):
             _set_narration(out, "human", content)
+            out["turn_boundary"] = True
         elif isinstance(content, list):
             tool_results = [c for c in content
                             if isinstance(c, dict) and c.get("type") == "tool_result"]
             # A bare string inside the content list is a human message, the same
-            # as a `text` block -- retro's canonical parser counts it as one, and
-            # missing it emits neither `human` nor `turn_boundary`, so a session
-            # without `stop_hook_summary` records loses the turn boundary the
-            # dependency check refuses to cross.
+            # as a `text` block -- retro's canonical `parse_transcript.py` counts
+            # it as one.
             humans = [c if isinstance(c, str) else c.get("text", "")
                       for c in content
                       if isinstance(c, str)
@@ -254,6 +253,15 @@ def summarize_record(rec: dict) -> dict:
                 out["results"] = [_result_entry(c) for c in tool_results]
             if humans and any(h.strip() for h in humans):
                 _set_narration(out, "human", " ".join(humans).strip())
+            # Anything in a user record that is not a tool_result is the human
+            # speaking: text, a bare string, an image, a document, or a block
+            # type that does not exist yet. Only some of those yield readable
+            # narration, so the boundary is marked structurally rather than
+            # inferred from whether text happened to be extractable -- an
+            # image-only prompt would otherwise carry neither `human` nor
+            # `turn_boundary` and let the dependency check span a new request.
+            if len(tool_results) < len(content):
+                out["turn_boundary"] = True
     elif t == "system":
         out["subtype"] = rec.get("subtype")
         if rec.get("subtype") == "stop_hook_summary":

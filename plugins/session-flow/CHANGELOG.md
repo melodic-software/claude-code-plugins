@@ -55,12 +55,16 @@
   a missed batch. A candidate pair must also sit inside one user turn — no
   intervening `human` or `turn_boundary` event — before the dependency test runs at all, since two
   calls answering different human prompts could never have been batched however independent they
-  are. That precondition needs the boundary to be visible, so `summarize_record()` now reads a bare
-  string inside a user `content` list as a human message, matching what retro's canonical
-  `parse_transcript.py` already counts: extracting only dict `text` blocks meant a prompt encoded as
-  `content: ["next request"]` emitted neither `human` nor `turn_boundary`, so in a session carrying
-  no `stop_hook_summary` records the turn boundary was invisible and calls answering prompts on
-  either side of it became a candidate pair. Its grouping rule no longer both asserts sequential
+  are. That precondition needs the boundary to be visible, and keying it off extractable text left it
+  invisible in every session carrying no `stop_hook_summary` record at that point — a prompt encoded
+  as `content: ["next request"]` (a bare string, which retro's canonical `parse_transcript.py`
+  already counts as a human message) emitted no `human`, and an image- or document-only prompt yields
+  no readable narration at all, so calls answering prompts on either side became a candidate pair.
+  `summarize_record()` now reads a bare string as a human message like a `text` block, and marks the
+  boundary STRUCTURALLY: any user record carrying content that is not a `tool_result` is the human
+  speaking — text, a bare string, an image, a document, or a block type that does not exist yet —
+  while a pure tool-result record stays inside the turn, since marking those would split every
+  genuinely batched turn and suppress real findings. Its grouping rule no longer both asserts sequential
   execution for a missing `mid` and calls
   that case uncomputable — a missing grouping key is now uniformly uncomputable, never evidence of
   sequential execution.

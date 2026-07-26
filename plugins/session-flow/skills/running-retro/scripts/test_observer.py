@@ -171,6 +171,38 @@ class Distillation(unittest.TestCase):
             "content": ["first", {"type": "text", "text": "second"}]}})
         self.assertEqual(u["human"], "first second")
 
+    def test_non_tool_result_user_content_is_a_turn_boundary(self):
+        """The boundary is structural, not text-dependent. An image- or
+        document-only prompt yields no readable `human` narration at all, so
+        keying the boundary off extractable text let the dependency check span a
+        new human request in transcripts with no `stop_hook_summary` at that
+        point (#1485 review). Anything in a user record that is not a
+        `tool_result` is the human speaking -- including a block type that does
+        not exist yet."""
+        for content in (
+            [{"type": "image", "source": {"type": "base64", "data": "..."}}],
+            [{"type": "document", "source": {"type": "base64", "data": "..."}}],
+            [{"type": "some_future_block"}],
+            ["a bare string"],
+            [{"type": "text", "text": "plain text"}],
+            "a plain string content",
+        ):
+            with self.subTest(content=content):
+                u = observer.summarize_record(
+                    {"type": "user", "message": {"content": content}})
+                self.assertTrue(u.get("turn_boundary"))
+
+    def test_tool_result_only_user_record_is_not_a_turn_boundary(self):
+        """The counterpart: a pure tool-result record is the harness answering a
+        call, not the human speaking. Marking it a boundary would split every
+        genuinely batched turn and suppress real findings."""
+        u = observer.summarize_record({"type": "user", "message": {
+            "content": [{"type": "tool_result", "tool_use_id": "call_1",
+                         "content": "ok"},
+                        {"type": "tool_result", "tool_use_id": "call_2",
+                         "content": "ok"}]}})
+        self.assertNotIn("turn_boundary", u)
+
     def test_sequencing_and_dependency_round_trip(self):
         """Builds observations from real transcript-shaped records for a genuinely
         DEPENDENT sequential pair (a Write, then a Read of a path the Write's own
