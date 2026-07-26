@@ -1,5 +1,18 @@
 # Changelog — session-flow plugin
 
+## [0.17.4]
+
+### Fixed
+
+- **`running-retro`'s detached observer launcher can spawn again — both the manual `arm` action and
+  the opt-in SessionStart auto-arm hook were dead.** `arm_observer.py`'s spawn call referenced an
+  undefined `observer` name for the child process's working directory (the resolved script-path
+  variable is `observer_py`), raising an unhandled `NameError` on every invocation. Both entry points
+  route through this same launcher, so the entire detached-observer feature was inoperable on any
+  platform. Fixed the undefined name and widened the narrow `except OSError` guard around the spawn
+  call to catch any spawn-time exception, so a future failure at that call site degrades gracefully
+  (`observer: failed to spawn: ...`, exit 0) instead of escaping as a raw traceback.
+
 ## [0.17.3]
 
 ### Fixed
