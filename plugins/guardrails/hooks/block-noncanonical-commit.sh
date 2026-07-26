@@ -221,7 +221,7 @@ repo_identity() {
 # for the same reason the sibling does it: git applies last-wins itself, so handing
 # it the whole sequence lets git decide precedence instead of this guard modelling
 # it. Taking the first match would replay the wrong repository for
-# `git --git-dir=<a> --git-dir=<b> …` — a wrong identity can mis-collapse the
+# `git --git-dir=<a> --git-dir=<b> …` — a wrong identity can wrongly collapse the
 # shell-alias cycle key and skip an analysis, so this is a correctness question, not
 # a tidiness one.
 # Call as: collect_locating_globals <invocation-prefix words...> -> $locating_globals
