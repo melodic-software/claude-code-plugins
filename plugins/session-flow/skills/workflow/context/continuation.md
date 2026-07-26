@@ -11,7 +11,7 @@ continue in session, `/clear`, `session-flow:handoff`, `session-flow:continue-in
 `session-flow:clean-stop`, and `/compact`. Two session-flow siblings are deliberately NOT
 terminals: `reconcile` and `orient` are state hygiene — they inform this decision (what is still
 running, where we stand) but never carry the session forward. Mid-task subagent delegation is a
-spawn-brief decision owned by `session-flow:orchestrate` (if installed), reached from question 4
+spawn-brief decision owned by `session-flow:orchestrate` (if installed), reached from question 3
 only when the work leaves this session entirely.
 
 ## Zone input (presence-gated, conservative)
@@ -41,15 +41,20 @@ than route past it.
 2. **Is this session's context disposable — nothing in it worth carrying forward?** → `/clear`.
    *The cheapest reset, asked before any writing mechanism: capturing state nothing needs is
    pure cost.*
-3. **Must state survive the boundary — or does the work pass to another agent, another checkout,
+3. **Did the user explicitly request background continuation, AND can the work proceed without
+   human input right now?** → `session-flow:continue-in-background`. *Ordered BEFORE handoff
+   because it is the strictly narrower gate on the same save-point engine — same state captured,
+   different delivery (a detached background session instead of clear-then-paste). Question 4
+   would otherwise swallow every one of these: a background continuation always passes the work
+   to another agent, so asking the generic question first makes this outcome unreachable. The
+   explicit-request gate is that skill's own hard rule, restated here only as an ordering fact;
+   a background request that still needs human input, or that this session cannot hand off
+   autonomously, falls through to question 4 and gets a handoff instead.*
+4. **Must state survive the boundary — or does the work pass to another agent, another checkout,
    or a colleague?** → `session-flow:handoff`, then the user `/clear`s. *The first mechanism
-   that pays a write cost: a handoff carries forward exactly the state that matters, chosen
-   deliberately.* (Absent that skill: write a resume file by hand, then `/clear`.)
-4. **Can the work proceed without human input right now, AND did the user explicitly request
-   background continuation?** → `session-flow:continue-in-background`. *Ordered after handoff
-   because the save-point decision is identical — same engine, different delivery (a detached
-   background session instead of clear-then-paste); the explicit-request gate is that skill's
-   own hard rule, restated here only as an ordering fact.*
+   that pays a write cost without a live continuation attached: a handoff carries forward exactly
+   the state that matters, chosen deliberately.* (Absent that skill: write a resume file by hand,
+   then `/clear`.)
 5. **Fallthrough** → `/compact`, at a phase boundary only, with a steering hint naming what the
    summary must keep. *Last deliberately: a compaction summary is a model-written lossy summary
    produced at the least-intelligent point of the session, and whatever degradation prompted

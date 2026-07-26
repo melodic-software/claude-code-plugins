@@ -60,7 +60,7 @@ zone bands, zones.json shape) are owned by
    `statusLine` (user `~/.claude/settings.json`, project `.claude/settings.json`, local
    `.claude/settings.local.json`) and determine which one owns the EFFECTIVE command (the most
    specific scope wins). All wiring states below are evaluated against that effective command,
-   and the printed edit in step 6 targets THAT scope's file — wiring the user file while a
+   and the printed edit in step 7 targets THAT scope's file — wiring the user file while a
    project-level `statusLine` shadows it would apply cleanly and never run; when a shadow
    exists, say so explicitly and print the edit for the shadowing file (or note that removing
    the override is the alternative). Distinguish FOUR states:
@@ -99,10 +99,33 @@ zone bands, zones.json shape) are owned by
    (report the bands in effect, both shapes), or present with a malformed shape (report per shape
    — the resolver validates percentage keys and `token_bands` independently and falls back per
    shape with a stderr notice; a v1 file without `token_bands` is valid, with shipped token bands
-   silently in effect; remediation: `apply`). Also report whether the hooks are active (plugin
-   enabled = hooks registered) and that they resolve zones through this same data — a machine
-   with no snapshots gets silent hooks, not errors.
-6. **Print the operator edit** — always print the applicable statusline edit for the settings
+   silently in effect; remediation: `apply`). Note the hooks resolve zones through this same data —
+   a machine with no snapshots gets silent hooks, not errors.
+6. **Hook registration vs hook activation** — THREE separate facts, never collapsed into one
+   status. A registered hook set that every hook exits out of immediately is the exact state an
+   operator is diagnosing when injections or gating are missing, and reporting "active" because the
+   plugin is enabled tells them the opposite of the runtime state.
+   - **Registered** — the plugin is enabled, so `hooks/hooks.json` is loaded and the matchers fire.
+     This follows from the plugin being enabled and says nothing about what the hooks then do.
+   - **Hook set armed** — the `context_guard_hooks_enabled` kill switch. Read its CONFIGURED value,
+     not the plugin's enablement: the value substituted here is
+     `${user_config.context_guard_hooks_enabled}`. Interpret it as
+     - `false` → **INERT**: registered but every hook (injection, gate, PostCompact marker) exits
+       immediately without acting. Remediation: re-enable the option via `/plugin`.
+     - `true` → armed.
+     - anything else, including the literal `${user_config.context_guard_hooks_enabled}` surviving
+       unexpanded (unset key, or a Claude Code without the substitution) → **UNKNOWN**, never
+       "armed". Say which source was read and that an unset key falls back to the hooks' in-script
+       default (armed); the operator-inspectable source of truth is the
+       `pluginConfigs["context-guard@<marketplace>"].options` block in the user `settings.json`
+       (`docs/conventions/hook-config-delivery` owns why the declared `default` field is not
+       delivered to hook processes).
+   - **Gate posture** — `zone_hook_mode` is `${user_config.zone_hook_mode}`, read and interpreted
+     the same way. Only `blocking` makes the PreToolUse gate do anything; `advisory` (the in-script
+     default) leaves it inert while the injection hook still runs. Report it separately: an armed
+     hook set with an advisory posture is a different runtime state from an inert hook set, and
+     only one of the two is a defect.
+7. **Print the operator edit** — always print the applicable statusline edit for the settings
    file that owns the effective command (step 3), marked clearly as the operator's to apply. The
    wiring target is the SHIM's fixed path — never `${CLAUDE_PLUGIN_ROOT}`, which is version-pinned
    and belongs in no operator file:
@@ -207,7 +230,7 @@ zone bands, zones.json shape) are owned by
    "Windows configuration"). State this with the printed edit: the wiring is applied ONCE and
    survives every later plugin update, because the shim — not the version-pinned cache path — is
    what the settings file names.
-7. **Dotfiles tracking proposal** — the printed edit changes a durable user-scope file the operator
+8. **Dotfiles tracking proposal** — the printed edit changes a durable user-scope file the operator
    maintains. When the operator's home directory is managed by a dotfiles system (chezmoi, yadm, a
    bare-repo setup, ...), surface the reminder to capture the `settings.json` change through that
    system's own add/track flow so the wiring survives machine rebuilds. This skill only surfaces
@@ -230,9 +253,9 @@ result (a no-op on Windows ACL volumes; the wiring invokes it through `bash` any
   Otherwise overwrite it (this is the update path after a plugin version bump changes the shim)
   and report the `# shim-revision:` values, old → new.
 - The shim is **inert until wired**: installing it starts nothing. Only the operator's
-  `settings.json` edit — step 6 of `check`, which this skill never applies — puts it on the
+  `settings.json` edit — step 7 of `check`, which this skill never applies — puts it on the
   statusline path. Say that explicitly when reporting the write.
-- After installing, print the wiring edit (`check` step 6) so the operator's next action is in
+- After installing, print the wiring edit (`check` step 7) so the operator's next action is in
   front of them, and note that a statusline already wired to the shim needs NO change now or on
   any future plugin update.
 
