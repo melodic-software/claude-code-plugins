@@ -128,9 +128,14 @@ to compare against them even though no proposed edit may ever touch them. Read-o
 nothing about ownership: these surfaces still produce no proposal of their own, and a finding
 involving one still carries the no-change representation and its routing recommendation.
 
-- **Auto memory** — the `MEMORY.md` entrypoint at the effective auto-memory location (the
-  `autoMemoryDirectory` setting where one is resolved, otherwise
-  `~/.claude/projects/<project>/memory/`). It loads into every session, and
+- **Auto memory, when it is on** — the `MEMORY.md` entrypoint at the effective auto-memory location
+  (the `autoMemoryDirectory` setting where one is resolved, otherwise
+  `~/.claude/projects/<project>/memory/`). **Resolve the effective enabled state first:** auto memory
+  is on by default, but `autoMemoryEnabled: false` at any settings scope or
+  `CLAUDE_CODE_DISABLE_AUTO_MEMORY=1` turns it off, and a `MEMORY.md` left on disk from before it was
+  disabled is then neither loaded nor written — inventorying it unconditionally would pair live
+  instructions against text no session sees, the same defect as reading a disabled plugin's cache.
+  When it is on it loads into every session, and
   [reference/conflict-criteria.md](reference/conflict-criteria.md) assigns every pair involving it to
   I15 precisely because `claude-memory`'s C6 does not read it — so excluding it outright would leave
   a `MEMORY.md`-versus-`CLAUDE.md` contradiction audited by neither skill. Only the content that

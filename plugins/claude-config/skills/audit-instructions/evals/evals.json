@@ -91,12 +91,12 @@
       "id": 8,
       "name": "cross-layer-conflict-reported-with-both-locations",
       "prompt": "/claude-config:audit-instructions my CLAUDE.md says \"every public function must carry a doc comment explaining why it exists\" and .claude/skills/refactor/SKILL.md says \"DO NOT add comments to any code you touch\". Sort this out.",
-      "expected_output": "Reports an I15 cross-surface conflict, because the two instructions cannot both be satisfied on a public function the refactor skill touches — one requires a comment the other forbids — and one side is a skill body, therefore outside the memory layer, which no incumbent covers. The finding names both participating locations rather than a single line. Remediation reconciles and says which side to change; it does not default to proposing deletion of either side, because a conflict is evidence that two intentions exist and which is correct is not derivable from the text.",
+      "expected_output": "Reports an I15 cross-surface conflict, because the two instructions cannot both be satisfied on a public function the refactor skill touches — one requires a comment the other forbids — and one side is a skill body, therefore outside the memory layer, which no incumbent covers. The finding names both participating locations rather than a single line. Remediation reports the pair as `unresolved` with both anchors quoted and leaves the choice to the operator: the precedence table classifies skill body versus any CLAUDE.md as unresolved — the skills page states no authority relation between them, and silence is not a winner — so naming a side would be inventing precedence the docs decline to state. It does not default to proposing deletion of either side either, because a conflict is evidence that two intentions exist and which is correct is not derivable from the text. Offering the mechanism route (moving one side to a hook, a permissions.deny rule, or the skill's own disallowed-tools) is acceptable as an option, never as a verdict.",
       "files": [],
       "expectations": [
         "Emits an I15 conflict finding because the two instructions are impossible to satisfy together and at least one side (the skill body) is outside the memory layer",
         "The finding names BOTH participating locations, not one line",
-        "Proposes reconciliation and says which side to change, and does NOT default to proposing deletion of either side"
+        "Reports the pair as unresolved and leaves the choice to the operator rather than naming a winner, since the precedence table classifies this pair as unresolved, and does NOT default to proposing deletion of either side"
       ]
     },
     {

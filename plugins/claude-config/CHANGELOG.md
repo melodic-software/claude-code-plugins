@@ -110,6 +110,18 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   absent from the corpus entirely. Phase A now inventories the loaded part of `MEMORY.md` at the
   effective auto-memory location and the one style that resolves active, both read-only, with
   ownership and routing unchanged.
+- **Auto memory is inventoried only when it is effectively on.** It is on by default, but
+  `autoMemoryEnabled: false` at any settings scope or `CLAUDE_CODE_DISABLE_AUTO_MEMORY=1` turns it
+  off, and a `MEMORY.md` left on disk from before is then neither loaded nor written. Phase A
+  resolves that state before inventorying the file — the same gate the plugin-cache surfaces already
+  carry, and for the same reason: pairing live instructions against text no session sees is a
+  manufactured finding.
+- **Eval 8 required naming a winner for a pair the precedence table calls unresolved.** It asked the
+  run to "say which side to change" for a skill body against a `CLAUDE.md`, which
+  `conflict-criteria.md` classifies as unresolved because the skills page states no authority
+  relation between the two and "silence is not a winner". The eval now requires an `unresolved`
+  verdict with both anchors quoted and the choice left to the operator, with the mechanism route
+  offered as an option rather than a verdict.
 - **Eval 7 required dropping a real contradiction when `claude-memory` is absent.** It expected the
   run to report memory-layer contradictions as unchecked and name the sibling skill, but
   `conflict-criteria.md`'s fallback contract keeps the pair as an I15 finding when that plugin is not
