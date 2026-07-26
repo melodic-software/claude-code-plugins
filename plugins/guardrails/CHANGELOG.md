@@ -7,21 +7,26 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
 
 ### Fixed
 
-- **`skill-reference-verify`'s partial-Edit reconstruction now anchors on the hunk's own lines,
-  not its word tokens (#1453).** The guard's header comment claimed the token filter held the
-  diff-scope contract — a pre-existing unrelated reference sharing a recovered line never fires —
-  but a 4+ character word token is short enough to occur on lines the edit never touched: a hunk of
-  unrelated prose containing `legacy` grepped back every `*-legacy` reference in the file, including
-  an untouched broken one, which then passed the substring gate and fired from an edit that never
-  touched it. Lines are now located by the hunk's own text: every line of `new_string` is on disk
-  verbatim by `PostToolUse` time, so line-anchoring selects a strict subset of what token-anchoring
-  returned and always retains the edited line. The token filter survives as a second gate on the
-  reported candidate rather than as the locator — the same shape `stale-path-verify` was fixed to on
-  `#1432` (`65b4f67c`), ported here to this guard's `/plugin:skill` syntax. A regression test proves
-  the false-positive direction against the pre-fix guard; the existing partial-replacement
-  true-positive cases keep passing, with the composite (complete-reference-plus-bare-word) case
-  reshaped onto a realistic multi-line hunk since a single Edit's `new_string` cannot land in two
-  disjoint places on disk.
+- **`skill-reference-verify`'s partial-Edit reconstruction now anchors on the hunk's own lines and
+  only where they locate a single line, not on its word tokens (#1453).** The guard's header comment
+  claimed the token filter held the diff-scope contract — a pre-existing unrelated reference sharing
+  a recovered line never fires — but a 4+ character word token is short enough to occur on lines the
+  edit never touched: a hunk of unrelated prose containing `legacy` grepped back every `*-legacy`
+  reference in the file, including an untouched broken one, which then passed the substring gate and
+  fired from an edit that never touched it. Lines are now located by the hunk's own text: every line
+  of `new_string` is on disk verbatim by `PostToolUse` time, so a match is the line the edit landed
+  in. Anchoring on lines alone is not enough, because a hunk can be one short word and then the
+  anchor is no longer than the token it was replacing — so an anchor is used only when it matches
+  **exactly one** line, and an ambiguous anchor is dropped rather than unioned. That is what closes
+  the false positive; the token filter is a second gate on what survives, never the locator. Cost of
+  the trade: an edit landing in a line duplicated verbatim elsewhere in the same file now goes
+  unreported, which is the right side of the trade for a detect-then-judge guard, degraded far worse
+  by speaking wrongly than by staying quiet. Two regression tests cover the shared-token and
+  bare-token shapes; the existing partial-replacement true-positive cases keep passing, with the
+  composite (complete-reference-plus-bare-word) case reshaped onto a realistic multi-line hunk since
+  a single Edit's `new_string` cannot land in two disjoint places on disk. `stale-path-verify` and
+  `cli-flag-verify` carry the same reconstruction shape and are tracked separately — see `#1432`
+  (`65b4f67c`) for the sibling fix this ports from.
 
 ## [0.16.1]
 

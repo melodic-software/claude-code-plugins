@@ -281,6 +281,21 @@ RC=$?
 assert_exit "prose hunk sharing a word token → exit 0" 0 "$RC"
 assert_silent "hunk sharing only a token does not drag in an untouched broken reference" "$OUT"
 
+# The DEGENERATE shape of the same defect: the hunk IS the shared word, so its
+# anchor is no longer than the token and matches BOTH the edited prose line and
+# the untouched reference. Anchoring on lines cannot separate them here — only
+# requiring the anchor to locate exactly ONE line does. An anchor matching several
+# cannot say which the edit landed in, so it is dropped rather than unioned;
+# unioning fired `UNRESOLVED_SKILL: /alpha:ghost-legacy` from an edit that never
+# touched it, since `legacy` is also a substring of that skill segment and so
+# clears the token filter. Trading this for a missed advisory when an edit lands
+# in a verbatim-duplicated line is deliberate — an advisory guard is degraded
+# worse by speaking wrongly than by staying quiet.
+OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" <<<"$(edit_json "$SEGSHARE" 'legacy')" 2>&1)
+RC=$?
+assert_exit "bare-token hunk matching several lines → exit 0" 0 "$RC"
+assert_silent "ambiguous anchor is dropped, not unioned" "$OUT"
+
 # A hunk that already carries a full command is scanned directly.
 OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" <<<"$(edit_json "$PARTIAL2" 'Run `/alpha:ghost-three` now.')" 2>&1)
 assert_contains "full-command hunk → scanned directly" "$OUT" \

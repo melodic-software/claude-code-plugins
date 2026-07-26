@@ -147,9 +147,10 @@ emit_refs() {
     sed -nE 's|^(/[a-z][a-z0-9-]*:[a-z][a-z0-9-]*)([[:space:]].*)?$|\1|p'
 }
 
-# Partial-replacement context reconstruction (Edit only), mirroring
-# stale-path-verify's reconstruct_partial_edit (fixed for the same defect class
-# by 65b4f67c, #1432).
+# Partial-replacement context reconstruction (Edit only). The same shape lives in
+# stale-path-verify and cli-flag-verify; stale-path-verify was fixed for this
+# defect class by 65b4f67c (#1432) and this one goes one step further with the
+# uniqueness requirement below, so the three are not yet identical.
 #
 # An Edit may replace an arbitrary substring: swapping `setup` for `ghost` inside
 # an existing `/alpha:setup` leaves `/alpha:ghost` on disk, but the hunk is the
@@ -157,15 +158,23 @@ emit_refs() {
 # newly-broken reference would be silently missed.
 #
 # Recover bounded context: the edit is already applied by PostToolUse time, so
-# pull from disk only the lines the hunk's OWN TEXT appears in, scan those, and
-# keep only references whose plugin or skill segment contains one of the hunk's
-# word tokens. What line-anchoring actually guarantees: it can only ever select a
-# STRICT SUBSET of what token-anchoring alone would, and the edited line is always
-# in that subset — never a wider net. It degrades to plain token-anchoring in the
-# limiting case where the whole hunk IS a single short token (a bare `host`
-# substitution carries no more positional information than the token itself), so
-# the token filter stays a real second gate, not a formality, on the candidate
-# that survives.
+# pull from disk only the lines the hunk's OWN TEXT UNIQUELY locates, scan those,
+# and keep only references whose plugin or skill segment contains one of the
+# hunk's word tokens. Two independent gates, and the first one is where the
+# diff-scope contract actually lives:
+#
+#   1. LOCATE by the hunk's own lines, and only where a line matches exactly once.
+#      Every line of new_string is on disk verbatim, so a unique match IS the line
+#      the edit landed in. A hunk line that matches several lines — most sharply
+#      when the whole hunk is one short word — cannot distinguish them, so it is
+#      dropped rather than unioned; unioning is exactly how a token-length anchor
+#      drags in an untouched reference elsewhere in the file.
+#   2. FILTER the references found there by the hunk's word tokens.
+#
+# Gate 2 alone is not sufficient and was never the guarantee: a token short
+# enough to occur in unrelated prose is also short enough to be a substring of an
+# untouched skill segment, so it would pass the reference through. Uniqueness at
+# gate 1 is what keeps the guard inside the diff.
 reconstruct_partial_edit() {
   [[ "$TOOL" == "Edit" && -f "$FILE" ]] || return 0
   # The token filter reads the hunk with any COMPLETE reference removed first. A
@@ -186,16 +195,26 @@ reconstruct_partial_edit() {
   # new_string is on disk verbatim, so it matches the line the edit landed in; a
   # token, being shorter, also matches lines the edit never touched — a bare
   # `legacy` in unrelated prose pulls in every `/alpha:*-legacy` reference on any
-  # line, and an untouched broken one among them would fire. Line-anchoring can
-  # only ever select a subset of what token-anchoring would, and the edited line
-  # is always in that subset.
+  # line, and an untouched broken one among them would fire.
   local -a anchors=()
   mapfile -t anchors < <(printf '%s' "$SCAN_CONTENT" | grep -vE '^[[:space:]]*$' 2>/dev/null)
   ((${#anchors[@]})) || return 0
-  local anchor lines ctx=""
+  # An anchor is used ONLY when it locates exactly ONE line. Several matches mean
+  # the anchor cannot say which of them the edit landed in, and unioning them
+  # re-opens the very false positive line-anchoring exists to close: a hunk that
+  # is itself just `legacy` matches both the edited prose line and an untouched
+  # `` `/alpha:ghost-legacy` `` line, and the token filter — `legacy` being a
+  # substring of that skill segment — passes it straight through. So ambiguous
+  # anchors are dropped, not unioned. The cost is a missed advisory when an edit
+  # lands in a line duplicated verbatim elsewhere in the same file; for a
+  # detect-then-judge guard that is the right side of the trade, which is
+  # degraded far worse by being wrong when it speaks than by staying quiet.
+  local anchor ctx=""
+  local -a hits=()
   for anchor in "${anchors[@]}"; do
-    lines=$(grep -F -- "$anchor" "$FILE" 2>/dev/null)
-    [[ -n "$lines" ]] && ctx+="$lines"$'\n'
+    mapfile -t hits < <(grep -F -- "$anchor" "$FILE" 2>/dev/null)
+    ((${#hits[@]} == 1)) || continue
+    ctx+="${hits[0]}"$'\n'
   done
   [[ -n "$ctx" ]] || return 0
   local saved="$SCAN_CONTENT"
