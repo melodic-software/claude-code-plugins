@@ -165,6 +165,9 @@ scan_file() {
   *) awk_file="./$awk_file" ;;
   esac
   awk '
+    # Spelled as octal escapes because this program is itself embedded in a
+    # single-quoted shell word, where a literal quote cannot appear.
+    BEGIN { SQ = "\047"; DQ = "\042"; BS = "\134" }
     function is_annotated(l) { return l ~ /portability-ok:/ }
     function is_comment(l) { return l ~ /^[[:space:]]*#/ }
     # Same-line auto-guard: a portable BSD-side attempt already co-located on
@@ -206,38 +209,184 @@ scan_file() {
     # ATTACHED nonempty suffix (sed -i.bak ... && rm -f the backup after),
     # which this token never matches (attached, no separating whitespace)
     # and so is correctly never flagged.
-    # CMDPOS is everything allowed between the || and the BSD-side command
-    # name for that command to be what the || actually RUNS: whitespace, an
-    # optional name= assignment prefix, and an optional $( opening a command
-    # substitution (the shape lib/hook-utils.sh uses). Anything else means the
-    # counterpart is an ARGUMENT to some other command, not an invocation.
-    # Keyed on index() of the pattern core rather than an anchored ^stat[
-    # match, so a token that grows a leading word boundary still selects its
-    # own guard.
     #
-    # SEG is the run between the GNU call and that ||, and stops at a command
-    # separator. Without it the two calls need not be in the same command at
-    # all: `stat -c %s "$f"; true || stat -f %z "$f"` runs the GNU-only call
-    # unconditionally and reaches the || from a LATER command, so the BSD form
-    # is not its fallback (#1544). `;` and `|` are excluded, and so is a
-    # CONTROL `&`, which backgrounds the GNU call and hands the || to whatever
-    # follows: in `stat -c %s "$f" & true || stat -f %z "$f"` the || binds to
-    # `true`, so the BSD form never runs. A lone `&` is therefore rejected
-    # while `>&`/`<&` and `&&` are kept, since a real ladder may redirect with
-    # 2>&1 and `a && b || c` does still fall back to c when a fails. `)` stays
-    # admissible because a real ladder closes a $( ) before its ||.
+    # Which characters bound one command, and which `||` a guard may cross,
+    # are decided by the segmenter below rather than by the guard regex.
+    # ---- Quote-aware command segmentation (#1544) ----
+    # Which run of characters is ONE command is decided on a MASKED copy of
+    # the line, in which every character inside a quoted run — the quote
+    # characters included — is replaced by a filler. A separator that is
+    # merely a literal inside a string is therefore never read as a control
+    # operator. POSIX Shell Command Language 2.3 Token Recognition rule 4:
+    # an unquoted <backslash>, single-quote, or double-quote "shall affect
+    # quoting for subsequent characters up to the end of the quoted text";
+    # 2.2.2: single-quotes "preserve the literal value of each character
+    # within the single-quotes"; 2.2.3: double-quotes preserve it "with the
+    # exception of the characters backquote, <dollar-sign>, and <backslash>"
+    # — so the mask keeps a backslash escaping its successor in both the
+    # unquoted and the double-quoted state, and neither inside single quotes.
+    # <https://pubs.opengroup.org/onlinepubs/9799919799/utilities/V3_chap02.html>
     #
-    # PRE is what may sit between either `stat` and its own option: a
-    # redirection does not change the argv stat receives, so
-    # `stat 2>/dev/null -f "%z" "$f"` is the same BSD call as `stat -f …` and
-    # must not be forced into a hand-written exemption (#1544). Requiring the
-    # run to end in whitespace keeps the option a separate argument.
-    function is_guarded(l, p, CMDPOS, SEG, PRE) {
-      CMDPOS = "\\|\\|[[:space:]]*([A-Za-z_][A-Za-z0-9_]*=)?(\\$\\()?[[:space:]]*"
-      SEG = "([^;|&]|[<>]&|&&)*"
-      PRE = "[[:space:]]+([^;|&]*[[:space:]])?"
-      if (p ~ /readlink/ && l ~ ("realpath" SEG CMDPOS "readlink")) return 1
-      if (index(p, "stat[[:space:]]") && l ~ ("stat" PRE "(-[A-Za-z]*c|--format|--printf)" SEG CMDPOS "stat" PRE "-[A-Za-z]*f")) return 1
+    # An ERE character class cannot hold that state, which is why the gap
+    # `[^;&|()\n]*` this replaces both over- and under-reached:
+    #   - `stat "name;part" -c "%s"` was MISSED — the gap stopped at a `;`
+    #     that is a filename character, not an operator;
+    #   - `stat -- -c` and `date -- -d` were REPORTED — `--` ends option
+    #     parsing, so the following word is an operand, not a flag;
+    #   - `stat -c … ; stat -c … || stat -f …` reported NEITHER call — the
+    #     guard was evaluated line-wide, so one guarded ladder anywhere on
+    #     the line excused an unconditional GNU-only call before it.
+    # Fixing any of those inside the ERE is not possible (quote state and
+    # per-occurrence guard binding both need memory), and the `--` case needs
+    # a word-is-not-`--` alternation that no reader could check. The state
+    # belongs in this layer.
+    #
+    # Matching still runs against the ORIGINAL segment text, never the mask:
+    # the GNU regex-escape classes (`\b`, `\s`, `\<`, …) legitimately live
+    # INSIDE string literals — `grep -E "\bword"` — and must keep matching
+    # there. The mask decides structure only.
+    # (Both examples are spelled with double quotes because this awk program
+    # is embedded in a single-quoted shell word; the single-quoted spellings
+    # they stand for behave identically for the point being made.)
+    #
+    # Parentheses nest rather than separate: a `;` inside `$( )` belongs to
+    # the inner command list (POSIX 2.6.3), and keeping the substitution
+    # whole is also what lets `x=$(stat -c …) || y=$(stat -f …)` — the shape
+    # lib/hook-utils.sh uses — still read as one fallback ladder.
+    function mask_quotes(l,   i, c, m, q, len) {
+      m = ""
+      q = ""
+      len = length(l)
+      for (i = 1; i <= len; i++) {
+        c = substr(l, i, 1)
+        if (q == "") {
+          # An unquoted backslash quotes exactly its successor (2.2.1), so
+          # `\"` opens no string. Mask both, never running past the line end.
+          if (c == BS) {
+            m = m "Q"
+            if (i < len) { m = m "Q"; i++ }
+            continue
+          }
+          if (c == SQ || c == DQ) { q = c; m = m "Q"; continue }
+          m = m c
+          continue
+        }
+        if (q == DQ && c == BS) {
+          m = m "Q"
+          if (i < len) { m = m "Q"; i++ }
+          continue
+        }
+        m = m "Q"
+        if (c == q) q = ""
+      }
+      return m
+    }
+    # split_commands(line, mask, seg, sep) -> count. seg[i] is the ORIGINAL
+    # text of command segment i; sep[i] is the control operator that
+    # TERMINATED it ("" for the last). Binding each segment to its own
+    # terminator is what lets a guard apply to the one invocation it actually
+    # guards rather than to the whole line.
+    function split_commands(l, m, seg, sep,   i, c, nx, pv, n, start, depth, len, op) {
+      split("", seg)
+      split("", sep)
+      n = 1
+      start = 1
+      depth = 0
+      len = length(m)
+      for (i = 1; i <= len; i++) {
+        c = substr(m, i, 1)
+        if (c == "(") { depth++; continue }
+        if (c == ")" && depth > 0) { depth--; continue }
+        if (depth > 0) continue
+        op = ""
+        nx = substr(m, i + 1, 1)
+        if (c == ";") {
+          op = (nx == ";") ? ";;" : ";"
+        } else if (c == "|") {
+          op = (nx == "|") ? "||" : "|"
+        } else if (c == "&") {
+          # `2>&1` and `<&-` are redirections, not control operators — the
+          # `&` there does not end the command. `&&` does, and so does a
+          # lone `&`, which backgrounds what precedes it (so a `||` after it
+          # binds to the NEXT command, not to the backgrounded one).
+          pv = (i > 1) ? substr(m, i - 1, 1) : ""
+          if (pv == ">" || pv == "<") continue
+          op = (nx == "&") ? "&&" : "&"
+        } else if (c == ")") {
+          op = ")"
+        } else {
+          continue
+        }
+        seg[n] = substr(l, start, i - start)
+        sep[n] = op
+        i += length(op) - 1
+        start = i + 2
+        n++
+      }
+      seg[n] = substr(l, start)
+      sep[n] = ""
+      return n
+    }
+    # `--` ends option parsing, so every word after it is an operand however
+    # flag-shaped it looks. Returning the text BEFORE it — searched on the
+    # mask, so a literal `--` inside a string does not truncate — lets the
+    # unchanged token EREs decide: if the construct still matches the prefix,
+    # a real option was passed; if it only matched after the `--`, it was a
+    # filename. GNU coreutils honors `--` per its shared option parser, and
+    # BSD/macOS stat and date do the same (both document the
+    # `utility [options] operands` form).
+    function before_end_of_options(l, m,   cut) {
+      if (!match(m, /(^|[[:space:]])--([[:space:]]|$)/)) return l
+      cut = (substr(m, RSTART, 1) == "-") ? 0 : RSTART
+      return substr(l, 1, cut)
+    }
+    # A guard is now anchored to ONE matched invocation rather than to the
+    # physical line, so `stat -c … ; …` can no longer be excused by a ladder
+    # further down the line.
+    #
+    # The two ladders run in OPPOSITE directions, and the matched segment
+    # sits at a different end of each:
+    #   - `stat -c … || stat -f …` — the token matches the GNU call, the
+    #     FIRST rung of the ladder, so the guard looks FORWARD across the
+    #     `||` that terminates the matched segment for the BSD counterpart.
+    #   - `realpath … || readlink -f …` — the token matches `readlink -f`,
+    #     which is the LAST rung, reached only when the portable attempt
+    #     before it failed, so the guard looks BACKWARD across the `||`
+    #     preceding the matched segment for the `realpath` attempt.
+    #
+    # CMDPOS is everything allowed between that `||` and the BSD-side command
+    # NAME for that command to be what the `||` actually runs: an optional
+    # name= assignment prefix, an optional `$(` opening a command
+    # substitution, and an optional invocation wrapper. `command` is the
+    # POSIX-specified one — it "shall execute" the named utility while
+    # suppressing shell-function lookup — and `env`, plus a leading backslash
+    # (which suppresses alias expansion), reach the same real utility. All
+    # three were rejected before, forcing a hand-written exemption onto a
+    # genuinely portable ladder (#1544).
+    #
+    # PRE is what may sit between either command name and its own option: a
+    # redirection does not change the argv the utility receives, so
+    # `stat 2>/dev/null -f "%z" "$f"` is the same BSD call as `stat -f …`.
+    # Requiring the run to end in whitespace keeps the option a separate
+    # argument. The optional closing quote after each command name mirrors
+    # the token patterns, so a quoted `"stat"` still reads as the command.
+    #
+    # Keyed on index() of the command name rather than an anchored match, so
+    # a token that grows a leading word boundary or a closing quote still
+    # selects its own guard.
+    function is_guarded_at(p, seg, sep, n, s,   CMDPOS, PRE) {
+      CMDPOS = "^[[:space:]]*([A-Za-z_][A-Za-z0-9_]*=)?(\\$\\()?[[:space:]]*((command|env)[[:space:]]+|\\\\)?[[:space:]]*"
+      # Built from SQ/DQ rather than written literally, because a single
+      # quote cannot appear inside this single-quoted shell word.
+      PRE = "[" SQ DQ "]?[[:space:]]+([^\n]*[[:space:]])?"
+      if (p ~ /readlink/) {
+        if (s <= 1 || sep[s - 1] != "||") return 0
+        return (seg[s - 1] ~ /realpath/) && (seg[s] ~ (CMDPOS "readlink"))
+      }
+      if (index(p, "stat")) {
+        if (s >= n || sep[s] != "||") return 0
+        return seg[s + 1] ~ (CMDPOS "stat" PRE "-[A-Za-z]*f")
+      }
       return 0
     }
     # Pass 1: collect active ERE patterns from the token list.
@@ -261,11 +410,20 @@ scan_file() {
       }
       # Construct matching skips comment-only lines — see script header.
       if (is_cmt) next
+      mask = mask_quotes(line)
+      nseg = split_commands(line, mask, seg, sep)
+      # Same split over the mask itself, so each segment has a masked twin at
+      # the same index for the `--` search (which must not see a quoted `--`).
+      split_commands(mask, mask, smask, ssep)
       for (i = 1; i <= np; i++) {
-        if (line ~ patterns[i]) {
-          if (is_annotated(line) || annotated_above) continue
-          if (is_guarded(line, patterns[i])) continue
+        for (s = 1; s <= nseg; s++) {
+          if (before_end_of_options(seg[s], smask[s]) !~ patterns[i]) continue
+          if (is_annotated(line) || annotated_above) break
+          if (is_guarded_at(patterns[i], seg, sep, nseg, s)) continue
+          # One report per pattern per physical line: the reported text is
+          # the whole line, so a second hit on it would print a duplicate.
           printf "%d: %s -> %s\n", FNR, patterns[i], line
+          break
         }
       }
     }

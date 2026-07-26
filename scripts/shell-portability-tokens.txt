@@ -175,12 +175,19 @@ readlink[[:space:]]+(-[A-Za-z]*f|--canonicalize)
 # across separate statements, not co-located on one line, so it is excused via
 # a `portability-ok:` annotation at each site rather than a same-line guard
 # (#1510).
-# The gap between `date` and `-d` excludes shell command separators (#1544): a
-# physical line is not a command, so `[^\n]*` walked past `;`/`&`/`|` and
-# attributed a LATER command's flag to `date` — `date +%s; test -d "$dir"` was
-# reported even though `date` never received `-d`. Scoping the gap to `date`'s
-# own command segment keeps `date -d @0`, `x=$(date -d @0)` and
-# `date --utc -d @0` matched while that shape is not.
+# The gap between `date` and `-d` stays inside `date`'s own command segment
+# (#1544): a physical line is not a command, so `[^\n]*` walked past `;`/`&`/`|`
+# and attributed a LATER command's flag to `date` — `date +%s; test -d "$dir"`
+# was reported even though `date` never received `-d`. That scoping is no
+# longer spelled as an excluded character class here. A class cannot tell a
+# control operator from the same character inside a string, so it also MISSED
+# `date 'a;b' -d @0`; segmentation moved to the quote-aware splitter in
+# check-shell-portability.sh, which matches each pattern per command segment.
+# `date -d @0`, `x=$(date -d @0)` and `date --utc -d @0` all still match.
+# The command word may carry a CLOSING QUOTE, exactly as the `mktemp` patterns
+# below already allow (#1544): in `"date" -d tomorrow` the whitespace that
+# makes the flag a separate argument is separated from the command name by
+# that quote, so a bare `date[[:space:]]` missed a real GNU-only invocation.
 # The leading boundary keeps `date` a whole command WORD rather than any word
 # merely ending in it (#1544): without it `validate -d config` and
 # `update -d /tmp` were both reported, since "date" is a tail substring of
@@ -201,7 +208,7 @@ readlink[[:space:]]+(-[A-Za-z]*f|--canonicalize)
 # `d` may also sit anywhere in a CLUSTER, at the argument-taking end: GNU lists
 # `-u, --utc` alongside `-d, --date=STRING` and `date -ud tomorrow +%Y`
 # succeeds, so the branch is `-[A-Za-z]*d` rather than a literal `-d`.
-(^|[^A-Za-z0-9_-])date[[:space:]]+([^;&|()\n]*[[:space:]])?(-[A-Za-z]*d|--date([[:space:]]|=))
+(^|[^A-Za-z0-9_-])date['"]?[[:space:]]+([^\n]*[[:space:]])?(-[A-Za-z]*d|--date([[:space:]]|=))
 
 # `stat -c` (GNU format string) — a GNU coreutils extension; BSD/macOS stat
 # uses `-f`. Requires whitespace immediately after `stat` so the token matches
@@ -217,9 +224,14 @@ readlink[[:space:]]+(-[A-Za-z]*f|--canonicalize)
 # a BSD fallback there would be dead code (#1510).
 # Same command-segment scoping as `date -d` above (#1544): `[^\n]*` crossed
 # shell separators and attributed a later command's `-c` to `stat`, so
-# `stat "$file"; tool -c x` was reported. The auto-guard still sees the
-# co-located BSD fallback, since `stat -c ... || stat -f ...` matches on the
-# first segment and the guard inspects the whole line.
+# `stat "$file"; tool -c x` was reported. Segmentation is the splitter's job
+# now, not a character class's, which also fixed the converse miss
+# `stat 'name;part' -c '%s'` — a `;` inside a filename is not an operator.
+# The auto-guard is bound to the matched invocation's own `||` rather than to
+# the line, so `stat -c … ; stat -c … || stat -f …` no longer lets the second
+# call's ladder excuse the unconditional first one.
+# Same optional closing quote on the command word as `date -d` above (#1544):
+# `"/usr/bin/stat" -c '%s' "$f"` is a real GNU-only call and was missed.
 # Same leading word boundary as `date -d` above (#1544). Trailing whitespace
 # after `stat` already excluded a word STARTING with it ("status"), but not one
 # ENDING with it: `mystat -c foo` was reported.
@@ -238,7 +250,7 @@ readlink[[:space:]]+(-[A-Za-z]*f|--canonicalize)
 # argument rather than sitting inside one (#1544): `stat foo-c` and
 # `stat "$file-c"` pass no option at all and were being reported, and the same
 # anchor keeps `stat --dereference` out of the cluster branch.
-(^|[^A-Za-z0-9_-])stat[[:space:]]+([^;&|()\n]*[[:space:]])?(-[A-Za-z]*c|--format|--printf)
+(^|[^A-Za-z0-9_-])stat['"]?[[:space:]]+([^\n]*[[:space:]])?(-[A-Za-z]*c|--format|--printf)
 # `mktemp -p` (parent-directory flag) — a GNU coreutils extension; BSD/macOS
 # mktemp has no `-p`. The portable replacement embeds the directory in the
 # positional TEMPLATE argument instead (`mktemp "$DIR/prefix.XXXXXX"`), which
