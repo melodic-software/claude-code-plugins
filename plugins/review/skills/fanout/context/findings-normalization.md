@@ -13,11 +13,14 @@ The 5-stage main-thread pipeline that turns heterogeneous free-text findings fro
 | `architecture-guardian` | Violations / Risks / Opportunities | — | file-only (Violations); none (Risks/Opportunities) |
 | `doc-drift-detector` | Stale / Missing / Aspirational | — | doc-file line (table) |
 | slice-subagents | project's tiers (or baseline) | — | `file:line` (inferred) |
+| `code-review` plugin | none (flat issue list) | 0–100, filters <80 | GitHub permalink `#L[s]-L[e]` |
 | `pr-review-toolkit` orchestrator | Critical / Important / Suggestion | — | `[file:line]` (inferred) |
 
 Line numbers from LLM reviewers drift — treat inferred lines as approximate and keep dedup noise-tolerant.
 
-**Not in this table:** the bundled `/code-review` command and the managed Code Review GitHub App service (SKILL.md "Boundary — built-in/managed surfaces, not marketplace plugins"). The managed service posts its findings to the PR rather than returning them to normalize; bare `/code-review` is report-only, but is itself a multi-agent review of the same diff whose output has no documented schema to parse. Neither is dispatched as a fan-out leaf here.
+**One row's raw text is not returned to the session:** the `code-review` plugin ends by posting its surviving findings as a PR comment, so the dispatch itself yields no parsable output. After an opted-in dispatch, fetch that comment (`gh pr view <n> --json comments --jq '.comments[-1].body'`, matching the plugin's `### Code review` heading) and feed the body to Stage 0 as this surface's raw text. Skip the retrieval and the row has no input — then the surface is not normalized and belongs in `## Surfaces` as a skip, not silently absent from the report.
+
+**Not in this table:** the bundled `/code-review` command and the managed Code Review GitHub App service (SKILL.md "Boundary — the bundled command and the managed service"), both distinct from the `code-review` plugin row above. The managed service posts its findings to the PR rather than returning them to normalize; bare `/code-review` is report-only, but is itself a multi-agent review of the same diff whose output has no documented schema to parse. Neither is dispatched as a fan-out leaf here.
 
 ## Stage 0 — Extraction (Sonnet)
 

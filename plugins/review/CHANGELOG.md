@@ -3,6 +3,38 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.15.3]
+
+### Fixed
+
+- Restored the `code-review` marketplace plugin as a real, distinct review surface across the
+  plugin. The `0.15.1` and `0.15.2` entries below both state a false premise as their rationale —
+  that no installable `code-review` plugin exists and that `fanout` "described the same nonexistent
+  plugin". `anthropics/claude-plugins-official`'s `marketplace.json` lists `code-review`
+  (`./plugins/code-review`, category `productivity`) alongside `pr-review-toolkit`, and
+  `plugins/code-review/commands/code-review.md` defines `/code-review:code-review`. Those entries
+  are left as written — history is corrected forward, not rewritten. Three surfaces overlap a PR
+  review and are now enumerated as three everywhere: the installable `code-review` marketplace
+  plugin, the bundled `/code-review` command, and the managed Code Review GitHub App service.
+  `pr.md`'s Boundary covers all three and its mutation gate again covers the plugin, which takes a
+  PR as its only target and ends every run by commenting the surviving findings back onto it — the
+  gate is unconditional because the plugin has no session-returning mode; `fanout`'s orchestrator
+  roster is back to three plugins, carrying that gate plus an applicability gate — the same PR-only
+  targeting makes the plugin undispatchable on a local branch with no open PR, which
+  `run-everything` step 3 would otherwise invoke as an empty surface; and
+  `findings-normalization.md` carries the `code-review` parse contract again — with the retrieval
+  step it needs, since the plugin posts its findings instead of returning them and the row would
+  otherwise have no Stage-0 input — which restores the only referent for the Stage-1 "surfaces
+  emitting no severity → DERIVE" rule; the README's
+  optional-orchestrator roster names it again. The `pr-comment-gate-opt-in` eval covers the plugin
+  alongside the other two mutating surfaces. Re-verified against the live marketplace manifest,
+  upstream `plugins/code-review/commands/code-review.md`, and
+  <https://code.claude.com/docs/en/code-review> (#1402).
+- The behavioral corrections `0.15.1` and `0.15.2` got right are unchanged: bare
+  `/code-review <target>` stays ungated (report-only; only `--fix` and `--comment` mutate), the
+  managed Code Review GitHub App service stays described as the built-in/managed service it is, and
+  `codex` stays in the README's optional-orchestrator roster.
+
 ## [0.15.2]
 
 ### Fixed
