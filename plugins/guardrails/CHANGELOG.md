@@ -21,8 +21,10 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   true **idle** bound: `read -t` is a deadline for the whole requested read rather than an inactivity
   timer, so a timed-out read that nevertheless returned bytes is now treated as progress — its
   partial chunk is kept and a fresh window is armed. Only a window that delivers nothing at all is a
-  stall, and that still fails closed with rc 2 exactly as before. Measured: 50 KB drops from
-  ~2100 ms to ~20 ms, 200 KB from ~6800 ms to ~85 ms.
+  stall, and that still fails closed with rc 2 exactly as before. Re-arming stops once the buffer
+  already parses as whole JSON, so the Win32 late-EOF case (payload complete, pipe simply never
+  closed) settles in one window instead of two. Measured: 50 KB drops from ~2100 ms to ~20 ms,
+  200 KB from ~6800 ms to ~85 ms.
   `read -N` is Bash 4.1+, and these hooks support Bash 3.2+ (macOS system bash), so the pre-4.1 path
   falls back to the delimiter read inside the same re-arming loop — same guard and rationale as
   `context-guard`'s `statusline-tee.sh`.

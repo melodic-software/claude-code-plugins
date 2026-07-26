@@ -854,6 +854,53 @@ if [[ "$bs_rc" == "0" ]] && [[ "$(cat "$bs_out_file")" == '{"complete":true}' ]]
 else
   fail "buffer_stdin late-EOF: rc=$bs_rc out=$(cat "$bs_out_file")"
 fi
+
+# ...and it must cost ONE window, not two. Re-arming on progress would otherwise
+# spend a second full window waiting for an EOF this producer never sends,
+# doubling the delay the bound is supposed to cap; the loop therefore stops as
+# soon as the buffer already parses as whole JSON. One window is the floor —
+# until a window expires, a held-open pipe is indistinguishable from a slow one.
+#
+# Asserted by COMPARISON, not against a wall-clock constant: both variants run
+# back to back on the same host, so runner load cancels out and no absolute
+# threshold has to be tuned. The slow variant is produced by overriding the
+# completeness predicate in a child shell (the same idiom Test 18e uses), which
+# reproduces the pre-fix behavior exactly. Timing is taken INSIDE the consumer —
+# the pipeline as a whole does not finish until the producer's sleep ends, so
+# bracketing the pipeline would measure the producer, not the read.
+bs_time_late_eof() { # $1 = shell prelude; prints elapsed ms (empty if untimed)
+  local t_file
+  t_file="$(mktemp)"
+  { printf '{"complete":true}'; sleep 3; } | {
+    CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT=0.4 bash -c '
+      source "$1"
+      eval "$2"
+      printf "%s\n" "${EPOCHREALTIME:-0}"
+      hook::buffer_stdin >/dev/null 2>&1
+      printf "%s\n" "${EPOCHREALTIME:-0}"
+    ' _ "$HOOK_DIR/hook-utils.sh" "$1" >"$t_file"
+  }
+  awk 'NR==1 {s=$0} NR==2 {e=$0}
+       END { if (s == 0 || e == 0 || NR < 2) print ""; else printf "%.0f", (e - s) * 1000 }' \
+    "$t_file"
+  rm -f "$t_file"
+}
+bs_fast=$(bs_time_late_eof "")
+bs_slow=$(bs_time_late_eof 'hook::json_complete() { return 1; }')
+if [[ -z "$bs_fast" || -z "$bs_slow" ]]; then
+  # Only legitimate below Bash 5.0, where EPOCHREALTIME does not exist. On a
+  # host that HAS it, an empty measurement means the harness broke — which would
+  # silently turn this case into a vacuous pass, so it fails instead.
+  if [[ -n "${EPOCHREALTIME:-}" ]]; then
+    fail "late-EOF timing harness produced no measurement (fast='$bs_fast' slow='$bs_slow')"
+  else
+    ok "buffer_stdin: late-EOF window count not timed (EPOCHREALTIME absent, Bash < 5.0)"
+  fi
+elif ((bs_fast < bs_slow - 200)); then
+  ok "buffer_stdin: late-EOF costs one window, not two (${bs_fast} ms vs ${bs_slow} ms re-arming)"
+else
+  fail "buffer_stdin late-EOF: ${bs_fast} ms vs ${bs_slow} ms re-arming — expected >200 ms faster"
+fi
 rm -f "$bs_rc_file" "$bs_out_file"
 
 # --- Test 18c: hook::buffer_stdin — a large payload is neither blocked nor slow -

@@ -251,7 +251,10 @@ hook::repo_root() {
 #     assigns whatever it did receive even when it times out, so a timed-out read
 #     that returned bytes is progress, not a stall: the loop keeps that partial
 #     chunk and arms a fresh window. Only a window that delivers nothing at all
-#     is a stall.
+#     is a stall. Re-arming is skipped once the buffer already parses as whole
+#     JSON, so the late-EOF case costs ONE window, not two — that is the floor,
+#     since a producer holding the pipe open cannot be distinguished from a slow
+#     one until a window expires.
 #
 # The trade this makes: a producer trickling bytes indefinitely is never cut off
 # here. That is deliberate — the harness already caps a `command` hook at 600 s
@@ -281,6 +284,17 @@ hook::read_supports_nchars() {
   ((BASH_VERSINFO[0] > 4 || (BASH_VERSINFO[0] == 4 && BASH_VERSINFO[1] >= 1)))
 }
 
+# Is the buffered text already a complete JSON document? Lets the read stop the
+# moment the payload is whole instead of spending another idle window waiting
+# for an EOF a Win32 pipe may never deliver. Returns non-zero when jq is
+# unavailable or broken (exit 127) as well as when the text is incomplete — the
+# caller must keep reading rather than guess, and the caller's own fail-open
+# handling for absent jq is unaffected.
+hook::json_complete() {
+  command -v jq >/dev/null 2>&1 || return 1
+  jq -e . >/dev/null 2>&1 <<<"$1"
+}
+
 hook::buffer_stdin() {
   local input="" chunk="" read_rc=0 stalled=0
   local read_timeout="${CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT:-2}"
@@ -303,6 +317,12 @@ hook::buffer_stdin() {
       # Timed out. Bytes in this window mean the producer is alive: keep them
       # and re-arm. An empty window is the stall this guard exists to catch.
       if [[ -n "$chunk" ]]; then
+        # ... but stop immediately if what we already hold is a whole JSON
+        # document. That is the Win32 late-EOF case — the payload arrived, the
+        # pipe just never closed — and re-arming there would spend a second full
+        # window waiting for an EOF that is not coming, doubling the delay this
+        # function is supposed to bound.
+        hook::json_complete "${input//$'\r'/}" && break
         continue
       fi
       stalled=1
