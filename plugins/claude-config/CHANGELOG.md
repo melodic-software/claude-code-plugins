@@ -3,6 +3,65 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.12.0]
+
+### Added
+
+- **`audit-pass` skill** (`/claude-config:audit-pass`). One coordinated, ordered, resumable pass over
+  a named target repository's instruction surface. It defines no criteria: every check is delegated
+  to the plugin that owns it through a presence-gated namespaced invocation with a documented
+  fallback, and nothing crosses a plugin boundary but that invocation. What it adds is the run
+  semantics — a three-scope inventory (managed policy read-only, user scope routed as
+  recommendations, project scope) taken before any check runs; an exclusion set derived at run time
+  from the target's own shared-source registry, the `vendor/` layout rule, `git worktree list`, and
+  the pass's own artifacts, never transcribed; content-derived finding identity; a constituent-keyed
+  suppression record whose entries resolve through a four-way disposition table in which only an exact
+  match is silent — a one-sided anchor change carries forward as `needs-reconfirmation`, a deeper
+  change closes the old entry and opens the new finding, and every disappeared finding is accounted
+  for as a fix, a successor, or an unexplained disappearance that fails the self-check, which is the
+  detector the convergence property previously lacked; per-lane incremental persistence with resume;
+  and one human gate per run. Liveness is read from two ground-truth sources — `InstructionsLoaded`
+  for the memory layer and `/context` for Skills, Custom Agents, and MCP Tools — because either alone
+  under-covers the surface set silently; `managed-settings.json`'s `claudeMd` key is observed by
+  neither and is reported as a known gap. Read-only on bare invocation, mutation only behind `--fix`, and never an edit
+  to managed policy or a user-scope file. `/doctor` is an operator handoff rather than a dispatch,
+  because it is interactive; when its three-part prerequisite or v2.1.206 version floor is unmet the
+  run names it as the missing capability and states what goes unchecked. Findings report in three
+  tiers — derived (exact equality across runs), judged (a stability tolerance whose violation fails
+  the run's self-check), delegated (no property) — and every run reports in one line how many
+  `OPINION`-tier checks were available, were not run, and the argument that enables them. The
+  determinism gate **measures its own precondition** rather than assuming it: HEAD and a **state
+  digest** — every inventoried surface and every dirty path, each paired with the content hash of its
+  current bytes — are captured at the **scan baseline** (Phase 1's inventory frozen, before any lane
+  reads, since the digest spans that inventory and is not computable before it exists) and again at
+  the **audit endpoint**, and a target that
+  moved mid-run reports `indeterminate` rather than `passed`, with the properties marked not
+  evaluated. Three things the naive form gets wrong, all closed here: a *count* holds still while an
+  already-dirty file's contents change, so the digest pairs each path with its content; the digest
+  spans **every inventoried scope**, because a `~/.claude/CLAUDE.md` edit moves what the lanes read
+  while the target's HEAD and dirty set both hold still, and reporting that as a defect would be an
+  accusation where an abstention is correct; and the endpoint is captured **before** Phase 5, so a
+  `--fix` run's own accepted edits fall outside the measured read window instead of marking every
+  successful mutating run `indeterminate`. The pass's own artifacts are excluded from the digest on
+  the same list that excludes them from the scan, so a `--report-to` write does not invalidate the
+  run's own gate. A checkout shared with concurrent sessions is the normal case for the first
+  operator, and an unfalsifiable pass is worse than an honest indeterminate.
+- **Finding-suppression convention** (`docs/conventions/finding-suppression/`). Owner doc for the
+  suppression record `audit-pass` reads at `.claude/audit-pass.md`: entries store the finding's
+  constituents — `check`, `claim`, and every `(surface, anchor)` site — under a derived `finding_id`
+  key, with the constituents authoritative and a key that does not hash from its own body reported
+  malformed. Also the required reason and date, per-key merge (never a closed list, which one personal
+  entry would discard whole), the policy-floor precedence inversion where the team layer wins a
+  conflict, and the five obligations on any consuming skill. Layering defers to the config-cascade
+  contract.
+
+### Changed
+
+- **`setup` now covers a consumer-project configuration surface.** `audit-pass`'s tracked suppression
+  record makes the plugin's previous "owns no consumer-project configuration" claim false, so `check`
+  gains per-layer verification of the record (user-global INFO, team must be tracked, overlay must be
+  gitignored) plus malformed-entry reporting, and `apply` gains its one write path.
+
 ## [0.11.0]
 
 ### Added
