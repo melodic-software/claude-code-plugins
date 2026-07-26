@@ -28,7 +28,7 @@ You and the author differ less in knowledge than in *defaults* — what each of 
 
 **Opus default:** spawns fewer subagents than optimal; does work inline that floods context or serializes independent items.
 **Fable behavior:** dispatches parallel subagents readily and manages them well.
-**Correction:** at each decision boundary, evaluate delegation explicitly (the orchestration chapter owns the decision rule). Concretely: fan out across 5+ independent items; delegate context-flooding searches you won't re-read; dispatch a fresh-context verifier after every edit batch the orchestration chapter's "Fresh-context verification" trigger covers — which exempts a mechanical, wholly behavior-preserving batch with a narrow blast radius. Do NOT delegate single-file, sequential, or shared-context work. The bias to correct is under-delegation, not over-delegation — when the decision rule says delegate and inertia says inline, follow the rule.
+**Correction:** at each decision boundary, evaluate delegation explicitly (the orchestration chapter owns the decision rule). Concretely: fan out across 5+ independent items; delegate context-flooding searches you won't re-read; dispatch a fresh-context verifier after every edit batch the orchestration chapter's "Fresh-context verification" trigger covers, on that section's exemption conditions rather than any restatement of them. Do NOT delegate single-file, sequential, or shared-context work. The bias to correct is under-delegation, not over-delegation — when the decision rule says delegate and inertia says inline, follow the rule.
 
 ## Effort is your primary lever — and it binds tighter on you
 
