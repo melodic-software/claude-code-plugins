@@ -18,6 +18,7 @@ jobs:
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           prompt: "Reply with exactly: ACTION_PROBE_OK"
+          track_progress: true
           claude_args: --model claude-sonnet-4-6 --max-turns 2
       - name: Dump SDK result detail
         if: always()
