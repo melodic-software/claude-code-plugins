@@ -558,7 +558,7 @@ wakeup ceiling for days rather than finishing.
 > for CI fixes, review-comment work, and any judgment call; `haiku` only for
 > mechanical log pulls. Never leave it to inherit. One explicit exception to
 > the review-work binding: the explicit-`autopilot` pre-escalation resolver
-> (babysit-loop, Escalation) always dispatches at the frontier tier's current
+> (babysit-loop, `reference/pre-escalation-dispatch.md`) always dispatches at the frontier tier's current
 > alias — blocker resolution under that path never runs at the review-work
 > model, and a run that cannot resolve the frontier alias escalates instead.
 >
@@ -1389,7 +1389,7 @@ exists — not before.
 > for CI fixes, review-comment work, and any judgment call; `haiku` only for
 > mechanical log pulls. Never leave it to inherit. One explicit exception to
 > the review-work binding: the explicit-`autopilot` pre-escalation resolver
-> (babysit-loop, Escalation) always dispatches at the frontier tier's current
+> (babysit-loop, `reference/pre-escalation-dispatch.md`) always dispatches at the frontier tier's current
 > alias — blocker resolution under that path never runs at the review-work
 > model, and a run that cannot resolve the frontier alias escalates instead.
 >
