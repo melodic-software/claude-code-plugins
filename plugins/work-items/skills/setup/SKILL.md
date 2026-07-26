@@ -56,6 +56,10 @@ adapter resolution are the seam contract's
 [`${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/CONTRACT.md`](${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/CONTRACT.md)
 "Setup (binding file)" and "Adapter resolution".
 
+Steps 2 and 3 are an interview. With no interactive user, resolve them by `apply`'s "Autonomous
+invocation" rule below rather than asking — it fixes what the RECOMMENDED answers resolve to, and
+when this pass must stop instead of guessing.
+
 1. **Read the current binding first.** If `.work-item-tracker.json` exists, load it and report the
    bound `provider` and `config`. RECOMMENDED: keep it — re-bind only to switch providers or fix
    config. If it is absent, say so and continue to the interview.
@@ -180,10 +184,29 @@ single yes/no with **skip marked RECOMMENDED**: name that seeding walks them thr
 candidate item, that the skeleton alone already stops the degradation, and that re-running `apply` (or
 `apply --seed-schedule`) bulk-seeds later at any time. On skip, say so plainly and go to step 6.
 
-**Autonomous invocation (no interactive user).** When `apply` runs in an unattended or loop-driven
-context, there is nobody to answer that offer — do not present it and do not block. The recommended
-default applies silently, so an autonomous first-time bind produces the binding, the role-label pass,
-and the empty skeleton, and nothing else. Absent an opt-in, never infer and never interview.
+### Autonomous invocation (no interactive user)
+
+When `apply` runs in an unattended or loop-driven context there is nobody to answer any of its
+questions, and blocking on one strands the run. This rule governs **every** decision in `apply`, not
+only the seeding offer — the seeding offer is the last question in the flow, and the bind and
+role-label passes above it ask their own:
+
+- **A decision whose RECOMMENDED answer is safe resolves to it silently.** Do not present it. Say in
+  the summary which defaults were taken so the operator can revisit them.
+- **A decision with no safe default is never guessed.** Stop and report it as a named blocker, with
+  the one command that resolves it. Writing an invented binding is worse than not binding: every seam
+  verb then resolves a provider the repo did not choose.
+
+Applied to the three passes:
+
+| pass | unattended resolution |
+| --- | --- |
+| Provider binding (step 1) | Bind `github` with `config.lease_ttl_hours: 24` — both RECOMMENDED — **only when `gh` is installed and `gh auth status` succeeds**. Otherwise stop: `local-markdown` and `jira` need `storage_dir` / `config.jira` values that have no defaults and cannot be inferred, so there is no provider left to choose safely. Report "tracker binding needs a provider decision; run `/work-items:setup apply` with a user present". |
+| Role labels (step 2) | Keep the defaults — the RECOMMENDED answer, and the one that writes nothing. The pass runs and completes as a no-op: `config.role_labels` is left absent, so every role resolves to its documented fallback. A remap is a repo-vocabulary decision no default can stand in for. |
+| Schedule seeding (before step 4) | Skip — the RECOMMENDED answer. Write the empty `{"items": []}` skeleton and go to step 6. |
+
+So an autonomous first-time bind on a `gh`-ready repo produces the binding, the role-label pass, and
+the empty skeleton, and nothing else. Absent an opt-in, never infer and never interview.
 `--seed-schedule` carries the opt-in decision without the offer prompt, but the pass it selects is
 step 5's per-item interview — so it is not a non-interactive seeding path, and an unattended caller
 should not be directed at it.
@@ -315,7 +338,9 @@ binding shape live in the plugin's
    this repo, so there is nothing to remap.
 2. **Read the current binding first** and present each role with its currently-resolved label
    (the default when unset). RECOMMENDED: keep the defaults — remap only when the repo already
-   uses a different vocabulary for these markers.
+   uses a different vocabulary for these markers. With no interactive user, take that recommendation
+   silently per `apply`'s "Autonomous invocation" rule: the pass completes as a no-op, leaving
+   `config.role_labels` absent so every role resolves to its documented fallback.
 3. **On a remap**, per role:
    - Verify the target label exists via the adapter's label listing; route creation through the
      repo's label-as-code owner under the same policy the schedule step applies — never create ad hoc.
