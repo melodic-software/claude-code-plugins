@@ -372,9 +372,10 @@ SEVERITY_BADGE_RE = re.compile(r"/badge/P[0-3]-")
 # a shields badge. Bounded to the documented P0-P3 range so incidental [P4]+
 # text cannot inflate the count into a false READINESS_BLOCKED.
 SEVERITY_PLAIN_RE = re.compile(r"\[P[0-3]\]")
-# A disposition token OPENING a markdown table cell: a `|`, then only non-letter
-# decoration (whitespace, `**`, a checkmark emoji), then the token, then a
-# non-letter.
+# A markdown table cell that IS a disposition -- not merely one that contains or
+# opens with a disposition word. The cell must hold the token and nothing else
+# but non-word decoration: `|`, decoration, token, decoration, then the next `|`
+# or end of line.
 #
 # Case-insensitive (unlike SEVERITY_WORDS_RE above): a worker's classification
 # reply that writes a natural-language disposition like "Valid (defer)" instead
@@ -382,25 +383,46 @@ SEVERITY_PLAIN_RE = re.compile(r"\[P[0-3]\]")
 # readiness gate reports a false BLOCKED even though the finding genuinely was
 # classified (#619).
 #
-# Cell-ANCHORED, not anywhere-in-the-row: case-folding a token scanned across a
-# whole `|`-prefixed line makes ordinary table prose score as a disposition --
-# `| CI check | result is valid |` would credit a classification and let an
-# unclassified finding past the under-decomposition gate. The mandated table
-# (loop.md §5.5) puts the bare disposition in its own Classification cell, so
-# requiring the token to open a cell keeps every real disposition countable
-# while refusing prose. The `[^A-Za-z|]*` run cannot cross a letter or a cell
-# boundary, so "invalid"/"INVALID" still does not false-match "valid"/"VALID".
-_CLASSIFY_CELL = r"\|[^A-Za-z|]*(?:VALID|INCORRECT|UNCERTAIN)(?![A-Za-z])"
+# WHOLE-CELL, not anywhere-in-the-row and not merely cell-opening. Each weaker
+# rule credits prose as a disposition and lets an unclassified finding past the
+# under-decomposition gate:
+#   anywhere-in-the-row  `| CI check | result is valid |`
+#   cell-opening         `| 2 | c2 | Valid cache entries are rejected | | |`
+# Requiring the WHOLE cell to be the token also identifies the disposition
+# column more tightly than parsing the table header would: a header-driven rule
+# still credits prose written INTO the Classification column, and it needs a
+# header row at all, which a single-row reply does not carry.
+#
+# The decoration class excludes word characters, not just letters, on BOTH sides
+# of the token: `[A-Za-z]` alone would accept `valid2` and `VALID_TOKEN`, since
+# digits and underscores are not letters. It also excludes `|`, so the run
+# cannot cross a cell boundary. Together those keep "invalid"/"INVALID" from
+# false-matching "valid"/"VALID".
+_CELL_DECORATION = r"[^A-Za-z0-9_|]*"
+_CLASSIFY_CELL = (
+    r"\|" + _CELL_DECORATION + r"(?:VALID|INCORRECT|UNCERTAIN)" + _CELL_DECORATION + r"(?:\||$)"
+)
 CLASSIFY_TOKEN_RE = re.compile(_CLASSIFY_CELL, re.IGNORECASE)
-# A classification table row: a `|`-prefixed line whose disposition cell carries
-# a classification token. Built by concatenating the row anchor onto the SAME
-# cell pattern `CLASSIFY_TOKEN_RE` uses, so the rows excluded from the finding
-# corpus (`count_findings`) and the rows credited as classified
-# (`count_classified`) cannot drift apart -- a row counted as a classification
-# but not stripped would re-count its own embedded severity word as a phantom
-# finding.
+# A classification table row: a `|`-prefixed line carrying a disposition cell.
+# Built by concatenating the row anchor onto the SAME cell pattern
+# `CLASSIFY_TOKEN_RE` uses, so the rows excluded from the finding corpus
+# (`count_findings`) and the rows credited as classified (`count_classified`)
+# cannot drift apart -- a row counted as a classification but not stripped would
+# re-count its own embedded severity word as a phantom finding.
 CLASSIFY_ROW_RE = re.compile(r"^[ \t]*(?=\|).*" + _CLASSIFY_CELL, re.IGNORECASE)
 PIPE_ROW_RE = re.compile(r"^[ \t]*\|")
+# Parenthesised/bracketed asides are removed before a line is tested against the
+# patterns above, so "Valid (defer)" -- the natural-language disposition #619 is
+# about -- reads as the bare token while "Valid cache entries are rejected" does
+# not. An UNCLOSED aside strips nothing and the cell stays prose: fail-closed,
+# the safe direction for a merge gate. `babysit-readiness-gate.sh` carries the
+# same normalization as CLASSIFY_ASIDE_SED; the two move together.
+CLASSIFY_ASIDE_RE = re.compile(r"\([^)]*\)|\[[^\]]*\]")
+
+
+def classification_normalize(line: str) -> str:
+    """Strip parenthesised/bracketed asides before disposition matching."""
+    return CLASSIFY_ASIDE_RE.sub("", line)
 
 
 def thread_is_open(comment: dict[str, Any]) -> bool:
@@ -500,7 +522,9 @@ def count_findings(
 
 def _strip_classification_rows(body: str) -> str:
     return "\n".join(
-        line for line in body.splitlines() if not CLASSIFY_ROW_RE.search(line)
+        line
+        for line in body.splitlines()
+        if not CLASSIFY_ROW_RE.search(classification_normalize(line))
     )
 
 
@@ -526,7 +550,8 @@ def count_classified(
         if not is_self_login(str(comment.get("author") or ""), self_logins):
             continue
         for line in str(comment.get("body") or "").splitlines():
-            if PIPE_ROW_RE.search(line) and CLASSIFY_TOKEN_RE.search(line):
+            normalized = classification_normalize(line)
+            if PIPE_ROW_RE.search(normalized) and CLASSIFY_TOKEN_RE.search(normalized):
                 total += 1
     return total
 

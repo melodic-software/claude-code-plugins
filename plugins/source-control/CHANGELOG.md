@@ -7,22 +7,26 @@ All notable changes to the `source-control` plugin are documented here. Format f
 
 ### Fixed
 
-- **`babysit-readiness-gate.sh` classification matching is now case-insensitive, and anchored to the
-  disposition cell (#619).** Both the bash safe-tier degrade and the preferred Python classifier
-  (`babysit_classify.py`'s `CLASSIFY_TOKEN_RE`/`CLASSIFY_ROW_RE`) matched the classification tokens
-  exact-case only, anywhere in a `|`-prefixed line. A worker reply that wrote a natural-language
-  disposition like "Valid (defer)" instead of the mandated all-caps `VALID` scored as unclassified,
-  so the gate reported `READINESS_BLOCKED reason=under-decomposed` even though the finding genuinely
-  was classified. Matching is now case-insensitive, but only where a classification can actually
-  live: a token that opens a table cell (leading non-letter decoration such as `**` or a checkmark is
-  allowed). Case-folding the token while scanning the whole line would have made ordinary table prose
-  — `| CI check | result is valid |` — score as a classification and let an unclassified finding past
-  the under-decomposition gate. The same cell-anchored predicate drives the self-row exclusion that
-  keeps a classification row's own severity word from re-counting as a phantom finding, so the two
-  counts cannot drift apart. Whole-word matching is preserved, so "invalid"/"INVALID" still does not
-  false-match "valid"/"VALID". Both tightenings fail closed: a disposition buried mid-cell now scores
-  unclassified (BLOCKED) rather than passing. New convergence fixtures pin the bash degrade and the
-  Python classifier to the same count on a lowercase disposition and on the prose-row false positive.
+- **A readiness-gate classification is now a table CELL that IS a disposition, matched
+  case-insensitively (#619).** Both the bash safe-tier degrade and the preferred Python classifier
+  (`babysit_classify.py`) matched the classification tokens exact-case only, anywhere in a
+  `|`-prefixed line. A worker reply that wrote a natural-language disposition like "Valid (defer)"
+  instead of the mandated all-caps `VALID` scored as unclassified, so the gate reported
+  `READINESS_BLOCKED reason=under-decomposed` even though the finding genuinely was classified.
+  Matching is now case-insensitive, and the token must be the WHOLE cell — decoration such as `**` or
+  a checkmark is allowed around it, and a parenthesised or bracketed aside is removed first, so
+  "Valid (defer)" reads as the bare token. Every weaker rule credits prose as a disposition and lets
+  an unclassified finding past the gate: scanning the whole line credits `| CI check | result is
+  valid |`, and merely anchoring the token to the start of a cell credits `| 2 | c2 | Valid cache
+  entries are rejected | | |`. The decoration allowed around the token excludes word characters
+  rather than only letters, so `valid2`, `2valid` and `VALID_TOKEN` no longer satisfy it, and
+  "invalid"/"INVALID" still does not false-match "valid"/"VALID". One predicate drives both the
+  classified count and the self-row exclusion that keeps a classification row's own severity word
+  from re-counting as a phantom finding, so the two counts cannot drift apart. Every tightening fails
+  closed — an unclosed aside, or a disposition buried in prose, scores unclassified (BLOCKED) rather
+  than passing. New convergence fixtures pin the bash degrade and the Python classifier to the same
+  counts on a lowercase disposition, both prose false positives, a word-like continuation, and both
+  aside forms.
 
 ## [0.31.0]
 

@@ -284,6 +284,74 @@ r=$(run_gate "$F")
 assert_contains "table prose is not a classification -> classified=1" "$r" "classified=1"
 assert_contains "table prose is not a classification -> BLOCKED" "$r" "READINESS_BLOCKED reason=under-decomposed"
 
+# --- Case: prose OPENING a cell with "Valid" is NOT a classification (#619) --
+# Anchoring the token to the start of a cell is not enough: prose can open a
+# cell too. Two findings, one real VALID row, and a row whose Finding cell
+# begins with "Valid ..." — codex on #1347. The whole-cell rule must score it
+# classified=1 and BLOCK.
+F=$(mkjson cell-opening-prose '[
+  {author:"claude[bot]", body:"### 1. [CRITICAL] a\n### 2. [CRITICAL] b"},
+  {author:"me[bot]", body:"| 1 | comment 1 | VALID | fixed |\n| 2 | comment 2 | Valid cache entries are rejected | | | | |"}
+]')
+r=$(run_gate "$F")
+assert_contains "cell-opening prose is not a classification -> classified=1" "$r" "classified=1"
+assert_contains "cell-opening prose is not a classification -> BLOCKED" "$r" "READINESS_BLOCKED reason=under-decomposed"
+
+# --- Case: word-like continuations do NOT satisfy the token (#619) ----------
+# Digits and underscores are not letters, so a letters-only boundary accepted
+# `valid2` / `VALID_TOKEN` and credited the row — codex on #1347. Such a row
+# would be credited AND stripped from the finding corpus, turning one
+# unclassified finding into READINESS_OK.
+F=$(mkjson word-continuation '[
+  {author:"claude[bot]", body:"### 1. [CRITICAL] a"},
+  {author:"me[bot]", body:"| 1 | finding | valid2 | pending |"}
+]')
+r=$(run_gate "$F")
+assert_contains "valid2 is not a classification -> classified=0" "$r" "classified=0"
+assert_contains "valid2 is not a classification -> findings=1" "$r" "findings=1"
+assert_contains "valid2 is not a classification -> BLOCKED" "$r" "READINESS_BLOCKED reason=under-decomposed"
+F=$(mkjson word-continuation-underscore '[
+  {author:"claude[bot]", body:"### 1. [CRITICAL] a"},
+  {author:"me[bot]", body:"| 1 | finding | VALID_TOKEN | pending |"}
+]')
+r=$(run_gate "$F")
+assert_contains "VALID_TOKEN is not a classification -> classified=0" "$r" "classified=0"
+assert_contains "VALID_TOKEN is not a classification -> BLOCKED" "$r" "READINESS_BLOCKED reason=under-decomposed"
+# ... and the same on the leading side: a digit before the token is a word
+# character, not decoration.
+F=$(mkjson word-continuation-leading '[
+  {author:"claude[bot]", body:"### 1. [CRITICAL] a"},
+  {author:"me[bot]", body:"| 1 | finding | 2valid | pending |"}
+]')
+r=$(run_gate "$F")
+assert_contains "2valid is not a classification -> classified=0" "$r" "classified=0"
+assert_contains "2valid is not a classification -> BLOCKED" "$r" "READINESS_BLOCKED reason=under-decomposed"
+
+# --- Case: a BRACKETED aside is stripped like a parenthesised one (#619) ----
+# Pins the `[^]]` bracket expression in the aside-stripping pattern: a `]` as
+# the first character of a bracket expression is POSIX-literal, but an awk that
+# mis-parsed it would silently strip nothing — and every paren-only test would
+# still pass, so only this case can catch it.
+F=$(mkjson bracket-aside '[
+  {author:"claude[bot]", body:"### 1. [CRITICAL] a"},
+  {author:"me[bot]", body:"| 1 | finding | Valid [defer] | noted |"}
+]')
+r=$(run_gate "$F")
+assert_contains "bracketed aside stripped -> classified=1" "$r" "classified=1"
+assert_contains "bracketed aside stripped -> READINESS_OK" "$r" "READINESS_OK"
+
+# --- Case: an UNCLOSED aside fails closed (#619) ----------------------------
+# Aside removal is what lets "Valid (defer)" read as the bare token. An
+# unclosed aside strips nothing, so the cell stays prose and scores
+# unclassified — BLOCKED, never a false pass.
+F=$(mkjson unclosed-aside '[
+  {author:"claude[bot]", body:"### 1. [CRITICAL] a"},
+  {author:"me[bot]", body:"| 1 | finding | Valid (unclosed | pending |"}
+]')
+r=$(run_gate "$F")
+assert_contains "unclosed aside -> classified=0" "$r" "classified=0"
+assert_contains "unclosed aside -> BLOCKED" "$r" "READINESS_BLOCKED reason=under-decomposed"
+
 # --- Case: a decorated disposition cell still counts (#619) -----------------
 # The cell anchor permits leading non-letter decoration, so a bolded
 # `| **VALID** |` cell — countable before this change under the
@@ -523,6 +591,34 @@ F=$(mkjson conv-prose-valid '[
   {author:"me[bot]", body:"| 1 | a | VALID | x |\n| CI check | result is valid |"}
 ]')
 converge "prose-valid-not-classification" "$F"
+# Prose OPENING a cell (#619): the whole-cell rule, not a cell-start anchor, is
+# what rejects this — both paths must reject it identically.
+F=$(mkjson conv-cell-opening-prose '[
+  {author:"claude[bot]", body:"CRITICAL a\nCRITICAL b"},
+  {author:"me[bot]", body:"| 1 | c1 | VALID | x |\n| 2 | c2 | Valid cache entries are rejected | | | | |"}
+]')
+converge "cell-opening-prose" "$F"
+# Word-like continuation (#619): `valid2` must not satisfy the token in either
+# path — a divergence here would let the degrade credit a row the engine does
+# not, and the row is ALSO stripped from the finding corpus when credited.
+F=$(mkjson conv-word-continuation '[
+  {author:"claude[bot]", body:"CRITICAL a"},
+  {author:"me[bot]", body:"| 1 | finding | valid2 | pending |"}
+]')
+converge "word-continuation" "$F"
+# Aside removal (#619): "Valid (defer)" is a disposition only because the
+# parenthesised aside is stripped first — the normalization must be identical in
+# both paths, not just the cell pattern.
+F=$(mkjson conv-aside '[
+  {author:"claude[bot]", body:"CRITICAL a"},
+  {author:"me[bot]", body:"| 1 | a | Valid (defer) | x |"}
+]')
+converge "aside-stripped-disposition" "$F"
+F=$(mkjson conv-bracket-aside '[
+  {author:"claude[bot]", body:"CRITICAL a"},
+  {author:"me[bot]", body:"| 1 | a | Valid [defer] | x |"}
+]')
+converge "bracket-aside-stripped-disposition" "$F"
 
 # --- Case: live fetch failure emits an actionable owner/repo diagnostic ------
 # Run WITHOUT --comments-json from a cwd `gh repo view` cannot resolve: the gate's

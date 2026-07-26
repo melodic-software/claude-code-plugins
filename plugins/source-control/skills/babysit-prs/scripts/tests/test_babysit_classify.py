@@ -172,6 +172,49 @@ class ClassificationCountTests(unittest.TestCase):
         ]
         self.assertEqual(bc.count_classified(comments, self.SELF), 1)
 
+    def test_prose_opening_a_cell_is_not_a_classification(self) -> None:
+        """#619: anchoring the token to the START of a cell is not enough --
+        prose can open a cell too. Only the second row is a real disposition."""
+        comments = [
+            {
+                "author": "me[bot]",
+                "body": (
+                    "| 1 | comment 1 | VALID | fixed |\n"
+                    "| 2 | comment 2 | Valid cache entries are rejected | | | | |"
+                ),
+            },
+        ]
+        self.assertEqual(bc.count_classified(comments, self.SELF), 1)
+
+    def test_word_like_continuations_do_not_satisfy_the_token(self) -> None:
+        """#619: digits and underscores are not letters, so a letters-only
+        boundary credited `valid2` / `VALID_TOKEN` / `2valid`. Such a row would
+        be credited AND stripped from the finding corpus."""
+        for cell in ("valid2", "VALID_TOKEN", "2valid"):
+            with self.subTest(cell=cell):
+                comments = [
+                    {"author": "me[bot]", "body": f"| 1 | finding | {cell} | pending |"},
+                ]
+                self.assertEqual(bc.count_classified(comments, self.SELF), 0)
+
+    def test_bracketed_aside_is_stripped_like_a_parenthesised_one(self) -> None:
+        """Pins the bracket branch of the aside pattern, which the bash path
+        spells as an awk `[^]]` bracket expression -- a paren-only test would
+        pass even if that branch stripped nothing."""
+        comments = [
+            {"author": "me[bot]", "body": "| 1 | finding | Valid [defer] | noted |"},
+        ]
+        self.assertEqual(bc.count_classified(comments, self.SELF), 1)
+
+    def test_unclosed_aside_fails_closed(self) -> None:
+        """#619: aside removal is what lets "Valid (defer)" read as the bare
+        token. An unclosed aside strips nothing, so the cell stays prose and
+        scores unclassified -- BLOCKED, never a false pass."""
+        comments = [
+            {"author": "me[bot]", "body": "| 1 | finding | Valid (unclosed | pending |"},
+        ]
+        self.assertEqual(bc.count_classified(comments, self.SELF), 0)
+
     def test_decorated_disposition_cell_still_counts(self) -> None:
         """The cell anchor permits leading non-letter decoration, so a bolded
         `| **VALID** |` cell -- countable before #619 under the
