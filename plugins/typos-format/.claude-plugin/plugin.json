@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "typos-format",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "description": "Auto-fix spelling typos on edit via typos-cli, unconditionally — honoring the consuming repo's own typos configuration when one is present.",
   "author": {
     "name": "Melodic Software",

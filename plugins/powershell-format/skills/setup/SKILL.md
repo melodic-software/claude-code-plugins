@@ -85,9 +85,14 @@ Run `check`, then for each finding point at the resolution — this skill instal
   it. The settings file is the executed-adjacent trust boundary above; the choice and the edit
   belong to the consumer.
 - toggle off: direct to `/plugin configure powershell-format` (interactive, any
-  time). Headless: `--config` only applies on a fresh install (ignored once installed), so reconfigure via `claude plugin uninstall powershell-format` then
-  `claude plugin install powershell-format@<marketplace> --config powershell_format_enabled=true`;
-  this skill never writes user settings or `pluginConfigs`.
+  time). Headless: `--config` only applies on a fresh install (ignored once installed), so
+  reconfigure via `claude plugin uninstall powershell-format -s <scope>` then
+  `claude plugin install powershell-format@<marketplace> -s <scope> --config powershell_format_enabled=true`;
+  this skill never writes user settings or `pluginConfigs`. Both commands default to `-s user` —
+  pass the scope `claude plugin list` reports for this plugin, and run from that project's
+  directory for a `project`/`local` scope. Defaulting instead uninstalls a separate user-scope
+  record while the effective install stays in place, so the reinstall lands at a scope that
+  does not load.
 
 After pointing at a remediation, re-run the relevant `check` probe and report its actual
 result — never claim resolved on the reader's report that they installed something.
