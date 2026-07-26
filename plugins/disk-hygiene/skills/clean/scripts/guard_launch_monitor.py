@@ -234,7 +234,13 @@ def _build_message(failures: list[tuple[dict, dict]]) -> str:
     )
 
 
-def _run(hook_input: dict, data_root: str | None) -> str | None:
+def _run(hook_input: dict, data_root: str | None) -> tuple[str, list[Path]] | None:
+    """Return the warning and where to record it, or ``None`` if there is nothing to say.
+
+    Recording is the caller's job, deliberately: the marker suppresses every
+    later ``Stop`` in the session, so it must not be written until the warning
+    has actually left the process.
+    """
     transcript_path = hook_input.get("transcript_path")
     session_id = hook_input.get("session_id") or "unknown-session"
     marker_paths = _marker_path_candidates(data_root, str(session_id))
@@ -246,9 +252,7 @@ def _run(hook_input: dict, data_root: str | None) -> str | None:
     failures = list(_iter_guard_failures(transcript_text))
     if not failures:
         return None
-    message = _build_message(failures)
-    _write_marker(marker_paths)
-    return message
+    return _build_message(failures), marker_paths
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -259,9 +263,12 @@ def main(argv: list[str] | None = None) -> int:
         hook_input = json.loads(raw_input) if raw_input.strip() else {}
         if not isinstance(hook_input, dict):
             return 0
-        message = _run(hook_input, data_root)
-        if message:
+        found = _run(hook_input, data_root)
+        if found:
+            message, marker_paths = found
             print(json.dumps({"systemMessage": message}))
+            sys.stdout.flush()
+            _write_marker(marker_paths)
         return 0
     except BaseException:  # noqa: BLE001 - detector must never fail loudly
         return 0

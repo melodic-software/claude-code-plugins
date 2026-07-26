@@ -32,7 +32,10 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
   bounded tail read discards its first line only when the retained window actually starts mid-record:
   when `size - _MAX_TAIL_BYTES` lands exactly on a record's first byte, an unconditional discard threw
   away a whole record — which can be the session's only guard failure, silencing the very report the
-  detector exists to make.
+  detector exists to make. The once-per-session marker is written only after the warning has actually
+  left the process (`print` then `flush`, then mark): marking first meant a closed pipe or a kill
+  between the two silenced every later `Stop` in the session while the broad never-fail-loudly handler
+  exited quietly — reinstating the silence the detector exists to break.
 
 ## [0.9.4]
 

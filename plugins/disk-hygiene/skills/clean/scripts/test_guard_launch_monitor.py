@@ -279,6 +279,31 @@ class GuardLaunchMonitorTests(unittest.TestCase):
         self.assertIsNotNone(message)
         self.assertIn("exitCode: 1", message)
 
+    def test_undelivered_warning_is_not_marked_as_warned(self) -> None:
+        """A delivery that never reached the runner must stay repeatable.
+
+        Marking before delivery would let one broken pipe suppress every later
+        `Stop` in the session — the exact silence this detector exists to break.
+        """
+        self.write_transcript([_record(exit_code=1, duration_ms=17054)])
+        hook_input = {
+            "session_id": "session-broken-pipe",
+            "transcript_path": str(self.transcript_path),
+        }
+        argv = ["--data-root", str(self.data_root)]
+
+        class _BrokenStdout(io.StringIO):
+            def flush(self) -> None:
+                raise BrokenPipeError("hook runner closed the pipe")
+
+        with mock.patch.object(monitor.sys, "stdin", io.StringIO(json.dumps(hook_input))):
+            with redirect_stdout(_BrokenStdout()):
+                self.assertEqual(0, monitor.main(argv))
+
+        retry = self.run_monitor(session_id="session-broken-pipe")
+        self.assertIsNotNone(retry)
+        self.assertIn("exitCode: 1", retry)
+
     # -- data-root placeholder handling --------------------------------------
 
     def test_unsubstituted_data_root_placeholder_treated_as_absent(self) -> None:
