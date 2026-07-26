@@ -152,13 +152,13 @@ not a tunable: a fork inherits its parent's conversation but cannot spawn a furt
 is a leaf, never an intermediate tier.
 
 **Confirm nesting from behavior, not from one page.** The ceiling moves faster than the prose docs
-track it: as of 2026-07-26 the [sub-agents](https://code.claude.com/docs/en/sub-agents) page still
-describes the superseded off-by-default state while the changelog and the running harness both have
-nesting on — so a tree authored from either alone can be wrong in *both* directions (assuming depth
-you lack, or declining depth you have). The cheap check is behavioral: have one worker attempt a
-trivial nested spawn and report the exact outcome — holding `Agent` is necessary, not sufficient.
-Read a refusal's text before concluding: a depth rejection names depth, while a permission refusal
-(spawns are classified before launch) says nothing about the ceiling. Quotes: `context/sources.md`.
+track it: on 2026-07-26 the [sub-agents](https://code.claude.com/docs/en/sub-agents) page still
+described the superseded off-by-default state while the changelog and the harness had nesting on, so
+a tree authored from either alone can be wrong in *both* directions. The cheap check is behavioral:
+have a worker of the SAME definition you plan to use as the intermediate tier attempt a trivial
+nested spawn and report the outcome. The gate is definition-specific, so another agent type proves
+nothing, and holding `Agent` is necessary but not sufficient. Read a refusal: a depth rejection
+names depth; a permission refusal (classified pre-launch) does not. Quotes: `context/sources.md`.
 
 ## Export modes (handoff / worker) — paste-ready brief
 

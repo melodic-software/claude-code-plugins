@@ -11,11 +11,16 @@ state while the changelog and the running harness both had nesting on — so a t
 either source alone could be wrong in **both** directions: assuming depth that is not there, or
 declining depth that is. The failure is silent in the second direction, which is why it survives.
 
-**Do this instead:** before committing a design to a second layer, have one worker attempt a trivial
-nested spawn and report the exact outcome. Do not stop at "the `Agent` tool is listed" — listing is
-necessary and not sufficient, and a worker can hold the tool while the spawn is still refused. One
-cheap probe beats any citation. `context/sources.md` carries the verbatim quotes and the current
-divergence.
+**Do this instead:** before committing a design to a second layer, have a worker of the **same agent
+definition** you plan to use as the intermediate tier attempt a trivial nested spawn, and report the
+exact outcome. Two ways this probe goes wrong if you shortcut it: stopping at "the `Agent` tool is
+listed" (listing is necessary and not sufficient — a worker can hold the tool while the spawn is
+refused), and probing with a different agent type (the gate is definition-specific, so a
+`general-purpose` success says nothing about a definition that omits `Agent` or disallows it). That
+second one is not hypothetical: it is the most likely explanation for the audit report that produced
+this gotcha, which observed `Agent` "entirely absent" from a restricted agent type and read it as
+nesting being off platform-wide. One cheap probe beats any citation — but it has to probe the thing
+you are actually going to run. `context/sources.md` carries the verbatim quotes and the divergence.
 
 ## A denied spawn is not a depth answer
 
