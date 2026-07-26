@@ -72,8 +72,15 @@ assert_eq 'a nested key never answers for an absent root key' ".notes" \
   "$(resolve "$(printf 'other:\n  memory_dir: nested\n')" memory_dir '.notes')"
 assert_eq 'a key deeper than an indented root mapping is still nested' ".notes" \
   "$(resolve "$(printf '  other:\n    memory_dir: nested\n  contract_dir: docs/x')" memory_dir '.notes')"
+# No preamble at column 0 may fix the base indent and hide an indented root map.
 assert_eq 'a leading document marker does not become the base indent' ".scratch" \
   "$(resolve "$(printf -- '---\nmemory_dir: .scratch')")"
+assert_eq 'a decorated document marker does not become the base indent' ".scratch" \
+  "$(resolve "$(printf -- '--- # generated file\n  memory_dir: .scratch')")"
+assert_eq 'a YAML directive does not become the base indent' ".scratch" \
+  "$(resolve "$(printf -- '%%YAML 1.2\n---\n  memory_dir: .scratch')")"
+assert_eq 'a leading comment does not become the base indent' ".scratch" \
+  "$(resolve "$(printf -- '# committed, team-shared\n  memory_dir: .scratch')")"
 # A key that only appears as a SUBSTRING of another key must not match.
 assert_eq 'a longer key is not matched by a shorter one' \
   ".notes" "$(resolve 'memory_dir_extra: .scratch' memory_dir '.notes')"

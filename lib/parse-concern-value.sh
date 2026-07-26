@@ -110,22 +110,26 @@ if [[ -f "$concern_file" ]]; then
   # another mapping is a DIFFERENT key and must never answer for the root one,
   # including when the root key is present but deliberately empty.
   #
-  # The document's base indentation is that of its first key line; every root key
-  # shares it, and anything deeper belongs to some other mapping. Matching on
-  # that, rather than on "unindented, else any indent", is what separates an
-  # indented root mapping from a nested one. Keys are `[a-z_]+` identifiers, so
-  # they carry no regex metacharacters.
+  # The document's base indentation is that of its first MAPPING-KEY line; every
+  # root key shares it, and anything deeper belongs to some other mapping.
+  # Matching on that, rather than on "unindented, else any indent", is what
+  # separates an indented root mapping from a nested one.
+  #
+  # Only a key line can set the base. Deriving it from "first non-blank,
+  # non-comment line" instead would let any preamble at column 0 — a `---`
+  # document marker plain or decorated (`--- # generated`), a `...` end marker, a
+  # `%YAML` directive, a leading sequence entry — fix the base at 0 and hide an
+  # indented root mapping entirely. Keys are `[a-z_]+` identifiers, so they carry
+  # no regex metacharacters.
   raw_line=$(awk -v key="$key" '
     BEGIN { base = -1 }
-    /^[[:space:]]*$/ { next }
-    /^[[:space:]]*#/ { next }
-    /^---[[:space:]]*$/ { next }
     {
       match($0, /^[[:space:]]*/)
       indent = RLENGTH
+      line = substr($0, indent + 1)
+      if (line !~ /^[A-Za-z_][A-Za-z0-9_-]*[[:space:]]*:/) next
       if (base < 0) base = indent
       if (indent != base) next
-      line = substr($0, indent + 1)
       if (line ~ "^" key "[[:space:]]*:") {
         sub("^" key "[[:space:]]*:[[:space:]]*", "", line)
         print line
