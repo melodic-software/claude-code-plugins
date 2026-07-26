@@ -390,6 +390,30 @@ PSSA_OUTPUT=$(PSSA_FILE="$PSSA_FILE_ARG" PSSA_SETTINGS="$PSSA_SETTINGS_ARG" \
                         exit 6
                     }
                 }
+                # `using module ./deps/helper.psm1` loads code but is a
+                # UsingStatementAst, not a CommandAst, so the loop above never
+                # sees it - and the form needs no quotes, so the text scan does
+                # not either. Only the Module kind loads repository code; a
+                # `using namespace` or `using assembly` statement names no
+                # repository file and is left alone. The path must be a constant
+                # (PowerShell requires one), so a hashtable module specification
+                # cannot be pinned and refuses approval.
+                $usingAsts = $fileAst.FindAll({
+                        param($n) $n -is [System.Management.Automation.Language.UsingStatementAst]
+                    }, $true)
+                foreach ($useAst in $usingAsts) {
+                    if ($useAst.UsingStatementKind -ne
+                        [System.Management.Automation.Language.UsingStatementKind]::Module) {
+                        continue
+                    }
+                    if ($useAst.Name -is
+                        [System.Management.Automation.Language.StringConstantExpressionAst]) {
+                        [void]$pending.Add($useAst.Name.Value)
+                        continue
+                    }
+                    Write-Output "PSSA_TRUST UNPINNABLE"
+                    exit 6
+                }
             }
             foreach ($hit in [regex]::Matches($text, $litPattern)) {
                 $lit = if ($hit.Groups[1].Success) { $hit.Groups[1].Value } else { $hit.Groups[2].Value }
@@ -403,19 +427,51 @@ PSSA_OUTPUT=$(PSSA_FILE="$PSSA_FILE_ARG" PSSA_SETTINGS="$PSSA_SETTINGS_ARG" \
                     if ($expanded -ne $lit) { [void]$pending.Add($expanded) }
                 }
             }
+            # An extensionless reference resolves through PowerShell module
+            # resolution, so pinning only the exact leaf would miss the file that
+            # actually executes: Import-Module "$PSScriptRoot/MyModule" loads
+            # MyModule.psd1/.psm1, or MyModule/MyModule.psd1 when the reference
+            # names a module directory. Every candidate is tried; whatever exists
+            # is pinned, which over-collects at worst.
             foreach ($cand0 in $pending) {
                 if ([string]::IsNullOrWhiteSpace($cand0)) { continue }
                 foreach ($baseDir in @($curDir, $settingsDir)) {
-                    $cand = $cand0
+                    $base = $cand0
                     try {
-                        if (-not [System.IO.Path]::IsPathRooted($cand)) {
-                            $cand = Join-Path $baseDir $cand
-                        }
-                        if (Test-Path -LiteralPath $cand -PathType Leaf) {
-                            $full = Convert-Path -LiteralPath $cand
-                            if ($seen.Add($full)) { $allFiles.Add($full); $scanQueue.Enqueue($full) }
+                        if (-not [System.IO.Path]::IsPathRooted($base)) {
+                            $base = Join-Path $baseDir $base
                         }
                     } catch { continue }
+                    $cands = @($base)
+                    foreach ($ext in @(".psd1", ".psm1", ".ps1", ".dll")) {
+                        $cands += "$base$ext"
+                    }
+                    try {
+                        if (Test-Path -LiteralPath $base -PathType Container) {
+                            $leaf = Split-Path -Leaf $base
+                            foreach ($ext in @(".psd1", ".psm1")) {
+                                $cands += (Join-Path $base "$leaf$ext")
+                            }
+                            # The versioned layout PowerShell also loads:
+                            # MyModule/<version>/MyModule.psd1. Every immediate
+                            # subdirectory is tried rather than version strings
+                            # being parsed - a non-version directory simply has
+                            # no manifest to find.
+                            foreach ($sub in Get-ChildItem -LiteralPath $base -Directory -Force -ErrorAction SilentlyContinue) {
+                                foreach ($ext in @(".psd1", ".psm1")) {
+                                    $cands += (Join-Path $sub.FullName "$leaf$ext")
+                                }
+                            }
+                        }
+                    } catch { }
+                    foreach ($cand in $cands) {
+                        try {
+                            if (Test-Path -LiteralPath $cand -PathType Leaf) {
+                                $full = Convert-Path -LiteralPath $cand
+                                if ($seen.Add($full)) { $allFiles.Add($full); $scanQueue.Enqueue($full) }
+                            }
+                        } catch { continue }
+                    }
                 }
             }
         }

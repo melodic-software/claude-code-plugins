@@ -557,6 +557,60 @@ else
   fail "unquoted load target not pinned: m=$Q_MARKER out=$OUT_GATE_Q2 $(cat "$REPO_CRP/crp11.ps1")"
 fi
 
+# Two load shapes the collector must reach, both hosted in a module the rule
+# module names by literal rather than appended to the rule module itself:
+# `using` statements must LEAD their file, and hosting the fixtures separately
+# also keeps PSScriptAnalyzer's own load of the rule module free of side effects
+# while still exercising the scan (the collector pins the host by literal, then
+# scans it).
+#   using module   a UsingStatementAst, not a CommandAst, and needs no quotes,
+#                  so neither the command walk nor the text scan sees it.
+#                  `using namespace` names no repository file and must stay
+#                  approvable, so it rides along as the negative control.
+#   extensionless  Import-Module resolves through PowerShell module resolution,
+#                  so pinning only an exact leaf would miss the file that runs:
+#                  a sibling LeafMod.psm1, and a DirMod directory whose
+#                  DirMod.psd1 is the manifest PowerShell loads.
+mkdir -p "$REPO_CRP/rules/deps" "$REPO_CRP/rules/DirMod"
+printf '%s\n' 'function Get-CrpUsingDep { return 5 }' >"$REPO_CRP/rules/deps/UsingDep.psm1"
+printf '%s\n' '@{ ModuleVersion = "1.0" }' >"$REPO_CRP/rules/DirMod/DirMod.psd1"
+printf '%s\n' 'function Get-CrpLeafMod { return 6 }' >"$REPO_CRP/rules/LeafMod.psm1"
+cat >"$REPO_CRP/rules/LoadHost.psm1" <<'EOF'
+using namespace System.Collections
+using module ./deps/UsingDep.psm1
+Import-Module "$PSScriptRoot/LeafMod"
+Import-Module "$PSScriptRoot/DirMod"
+function Get-CrpLoadHost { return 7 }
+EOF
+cat >>"$REPO_CRP/rules/CleanRules.psm1" <<'EOF'
+$loadHost = './LoadHost.psm1'
+EOF
+n=0
+for target in \
+  "$REPO_CRP/rules/deps/UsingDep.psm1" \
+  "$REPO_CRP/rules/LeafMod.psm1" \
+  "$REPO_CRP/rules/DirMod/DirMod.psd1"; do
+  n=$((n + 1))
+  # A distinct session per invocation: consecutive iterations begin in the state
+  # the previous one ended in, so a shared session would dedupe the notice and
+  # the marker extraction would read an empty payload as a missing gate.
+  printf "%s\n" "get-childitem -Path '.'" >"$REPO_CRP/crp-ext$n-a.ps1"
+  OUT_EXT1="$(cd "$UNRELATED" && printf '{"session_id":"dep-%s-a","tool_input":{"file_path":"%s"},"tool_name":"Write"}' "$n" "$REPO_CRP/crp-ext$n-a.ps1" |
+    env -u CLAUDE_PROJECT_DIR CLAUDE_PLUGIN_DATA="$CRP_DATA" CLAUDE_PLUGIN_OPTION_POWERSHELL_FORMAT_ENABLED=true bash "$HOOK")"
+  E_MARKER="$(printf '%s' "$OUT_EXT1" | jq -r '.systemMessage' | sed -n "s/.*mkdir -p '\([^']*\)'.*/\1/p")"
+  mkdir -p "$E_MARKER"
+  printf '%s\n' '# unreviewed dependency revision' >>"$target"
+  printf "%s\n" "get-childitem -Path '.'" >"$REPO_CRP/crp-ext$n-b.ps1"
+  OUT_EXT2="$(cd "$UNRELATED" && printf '{"session_id":"dep-%s-b","tool_input":{"file_path":"%s"},"tool_name":"Write"}' "$n" "$REPO_CRP/crp-ext$n-b.ps1" |
+    env -u CLAUDE_PROJECT_DIR CLAUDE_PLUGIN_DATA="$CRP_DATA" CLAUDE_PLUGIN_OPTION_POWERSHELL_FORMAT_ENABLED=true bash "$HOOK")"
+  if [[ -n "$E_MARKER" ]] && printf '%s' "$OUT_EXT2" | jq -e '.hookSpecificOutput.additionalContext | contains("trust gate")' >/dev/null 2>&1 &&
+    grep -q 'get-childitem' "$REPO_CRP/crp-ext$n-b.ps1"; then
+    ok "host-module dependency $(basename "$target") is pinned; its change revokes"
+  else
+    fail "host-module dependency $target not pinned: m=$E_MARKER out=$OUT_EXT2"
+  fi
+done
+
 # A load target the scan cannot resolve to a file cannot be bound to any
 # approval, so each of these must gate AND refuse approval (no mkdir hint)
 # rather than sign a signature that omits the code that would execute. Each

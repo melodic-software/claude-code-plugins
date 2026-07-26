@@ -25,8 +25,15 @@ All notable changes to the `ai-briefing` plugin are documented here. Format foll
   loopback, private, link-local, shared address space (CGN), benchmarking,
   documentation TEST-NETs, IETF protocol assignments, multicast, and reserved
   (127/8, 10/8, 100.64/10, 172.16/12, 192.168/16, 169.254/16, 0/8, 192.0.0/24,
-  192.0.2/24, 198.18/15, 198.51.100/24, 203.0.113/24, 224/4, 240/4,
-  `localhost`/`*.localhost`), relying on WHATWG URL canonicalization of
+  192.0.2/24, 198.18/15, 198.51.100/24, 203.0.113/24, 192.88.99/24 deprecated
+  6to4 relay anycast, 224/4, 240/4,
+  `localhost`/`*.localhost`) — the IPv4 list is complete against the registry;
+  the only rows omitted are those it marks globally reachable (the AS112, AMT,
+  PCP and TURN anycast assignments). A deny list is the correct shape for IPv4,
+  unlike IPv6 below: global unicast is not one prefix but 1.0.0.0 through
+  223.255.255.255 minus the carve-outs, so the two ends are handled by range and
+  the middle needs the registry's blocks enumerated either way. Matching relies
+  on WHATWG URL canonicalization of
   decimal/hex/octal/integer IPv4. IPv6 is judged by ALLOWLIST rather than by an
   enumerated deny list: only globally reachable unicast space (`2000::/3`)
   survives, and the IANA IPv6 Special-Purpose Address Registry's non-global

@@ -25,10 +25,17 @@ function isCitationOnlyHost(hostname) {
 	);
 }
 
-// Matches the IANA IPv4 Special-Purpose Address Registry's non-global blocks,
-// not just RFC1918: any literal target outside globally reachable unicast
-// space is refused, including shared address space (CGN) and the multicast
-// and reserved ranges.
+// Every block in the IANA IPv4 Special-Purpose Address Registry whose "Globally
+// Reachable" column is not True, not just RFC1918: shared address space (CGN),
+// the documentation TEST-NETs, benchmarking, the deprecated 6to4 relay anycast
+// range, plus the multicast and reserved space above 224/8.
+//
+// A deny list is the right shape here, unlike the IPv6 predicate below. IPv4
+// global unicast is not one prefix — it is 1.0.0.0 through 223.255.255.255 minus
+// the carve-outs — so the two ends are handled by range (`a === 0`, `a >= 224`)
+// and the middle needs the registry's blocks enumerated either way. The list is
+// complete against the registry; the only rows omitted are those the registry
+// marks globally reachable (the AS112, AMT, PCP and TURN anycast assignments).
 function isPrivateIPv4(host) {
 	const octets = host.split(".").map(Number);
 	if (
@@ -47,6 +54,7 @@ function isPrivateIPv4(host) {
 		(a === 172 && b >= 16 && b <= 31) || // 172.16.0.0/12 private
 		(a === 192 && b === 0 && c === 0) || // 192.0.0.0/24 IETF protocol assignments
 		(a === 192 && b === 0 && c === 2) || // 192.0.2.0/24 TEST-NET-1
+		(a === 192 && b === 88 && c === 99) || // 192.88.99.0/24 deprecated 6to4 relay anycast (RFC 7526)
 		(a === 192 && b === 168) || // 192.168.0.0/16 private
 		(a === 198 && (b === 18 || b === 19)) || // 198.18.0.0/15 benchmarking
 		(a === 198 && b === 51 && c === 100) || // 198.51.100.0/24 TEST-NET-2

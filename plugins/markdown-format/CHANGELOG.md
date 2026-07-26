@@ -29,8 +29,22 @@ All notable changes to the `markdown-format` plugin are documented here. Format 
   gate as code-loading, and constructs able to synthesize a hidden spelling
   (JSONC `\uXXXX` escapes; YAML `\x`/`\u`/`\U` escapes, escaped line joins,
   `!!` tags) mark the configuration unverifiable — gated with no approval
-  route, since text whose meaning cannot be read cannot be reviewed. A module
-  specifier the scan cannot pin to a file likewise refuses approval, because a
+  route, since text whose meaning cannot be read cannot be reviewed. Those two
+  tiers are independent tests rather than a chain, so a config carrying a literal
+  key AND an escaped module value still reaches the escape verdict instead of
+  having it suppressed by the key match.
+
+  **An executable (`.cjs`/`.mjs`) config that declares one of the module-loading
+  keys now gets no approval route at all** — a deliberate narrowing.
+  markdownlint-cli2 resolves those entries itself, so an entry may be any
+  expression producing a string (`path.join(...)`,
+  `["./rules","x.cjs"].join("/")`, a concatenation, a helper call, a value
+  imported from elsewhere), and no text scan can enumerate that space. A repo
+  that names custom rules from a JS config must move those entries to a
+  declarative config, where they are data this scan reads exactly rather than an
+  expression it would have to predict; an executable config that declares none of
+  those keys stays approvable as before. A module specifier the scan cannot pin to
+  a file likewise refuses approval, because a
   signature that omits the module would keep honoring an approval across
   arbitrary edits to it: any path-building machinery in a JS source
   (an import of the `path` module — refused at the import, because a call site

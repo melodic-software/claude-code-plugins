@@ -224,7 +224,7 @@ CONFIG_ROOT="$(cd "$REPO_ROOT" 2>/dev/null && pwd -P)" || CONFIG_ROOT="$REPO_ROO
 CONFIG_TARGET_DIR="$(cd "$(dirname "$FILE")" 2>/dev/null && pwd -P)" ||
   CONFIG_TARGET_DIR="$(dirname "$FILE")"
 collect_risky_configs() {
-  local cursor dir candidate config
+  local cursor dir candidate config risky
   local dirs=()
 
   cursor="$CONFIG_TARGET_DIR"
@@ -251,7 +251,25 @@ collect_risky_configs() {
     done
     if [[ -n "$config" ]]; then
       case "$config" in
-      *.cjs | *.mjs) RISK_CONFIGS+=("$config") ;;
+      *.cjs | *.mjs)
+        RISK_CONFIGS+=("$config")
+        # A module-loading key in an EXECUTABLE config names entries
+        # markdownlint-cli2 resolves ITSELF, so an entry can be any expression
+        # that produces a string — `path.join(...)`, `["./rules","x.cjs"]
+        # .join("/")`, a concatenation, a helper call, a value imported from
+        # elsewhere. That space cannot be enumerated by a text scan, and each
+        # attempt only moves the edge, so a JS config carrying one of these keys
+        # gets no approval route at all.
+        #
+        # A JS config WITHOUT these keys stays approvable: its only code loading
+        # is its own require/import calls, whose arguments unpinnable_js_specifier
+        # reads exactly. A repo that does name custom rules from a JS config must
+        # move those entries to a declarative config, where they are data this
+        # scan can read rather than an expression it must predict.
+        if grep -Eq 'customRules|markdownItPlugins|outputFormatters' "$config" 2>/dev/null; then
+          RISK_UNPINNABLE=1
+        fi
+        ;;
       *)
         # A textual scan cannot see a module-loading key spelled through
         # string escapes (JSONC "customRules") or YAML escape/tag
@@ -270,16 +288,29 @@ collect_risky_configs() {
         # reviewed. YAML anchors/aliases stay verifiable — an alias only
         # reuses a node whose text is spelled literally elsewhere in the
         # same file, where tier one sees it.
+        #
+        # The two tiers are INDEPENDENT tests, not a chain: a config can carry a
+        # literal key AND an escaped module VALUE
+        # (`"customRules": ["./rules.cjs"]`), and chaining them would let
+        # the tier-one match suppress the tier-two verdict — the collector would
+        # then hash the raw escaped spelling rather than the file markdownlint
+        # decodes it to and loads, leaving an approval valid across edits to it.
+        risky=0
         if grep -Eq 'customRules|markdownItPlugins|outputFormatters' "$config" 2>/dev/null; then
-          RISK_CONFIGS+=("$config")
-        elif [[ "$config" == *.jsonc ]] &&
+          risky=1
+        fi
+        if [[ "$config" == *.jsonc ]] &&
           grep -Eq '\\u[0-9a-fA-F]{4}' "$config" 2>/dev/null; then
-          RISK_CONFIGS+=("$config")
+          risky=1
           RISK_UNVERIFIABLE=1
-        elif [[ "$config" == *.yaml ]] &&
+        fi
+        if [[ "$config" == *.yaml ]] &&
           grep -Eq '\\[xuU][0-9a-fA-F]|\\$|!![A-Za-z]' "$config" 2>/dev/null; then
-          RISK_CONFIGS+=("$config")
+          risky=1
           RISK_UNVERIFIABLE=1
+        fi
+        if ((risky == 1)); then
+          RISK_CONFIGS+=("$config")
         fi
         ;;
       esac
@@ -479,6 +510,7 @@ resolve_trust_dir() {
   TRUST_DIR=""
   [[ -n "$state_base" ]] || return 1
   ((RISK_UNVERIFIABLE == 0)) || return 1
+  ((RISK_UNPINNABLE == 0)) || return 1
   if command -v cygpath >/dev/null 2>&1 && [[ "$state_base" == [A-Za-z]:\\* ]]; then
     state_base="$(cygpath -u "$state_base" 2>/dev/null)" || return 1
   fi

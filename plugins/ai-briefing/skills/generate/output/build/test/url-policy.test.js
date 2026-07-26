@@ -64,6 +64,8 @@ test("shouldSkipLinkCheck skips shared-address and other non-global blocks", asy
 		"http://198.19.255.1/",
 		"http://198.51.100.7/", // TEST-NET-2
 		"http://203.0.113.9/", // TEST-NET-3
+		"http://192.88.99.1/", // 192.88.99.0/24 deprecated 6to4 relay anycast
+		"http://192.88.99.2/", // 6a44-relay anycast
 		"http://224.0.0.251/", // multicast
 		"http://240.0.0.1/", // reserved
 		"http://255.255.255.255/", // broadcast
@@ -187,6 +189,8 @@ test("shouldSkipLinkCheck still checks ordinary public hosts", async () => {
 		"https://100.63.255.254/", // just below the 100.64/10 shared block
 		"https://100.128.0.1/", // just above it
 		"https://192.0.1.1/", // between 192.0.0/24 and 192.0.2/24
+		"https://192.88.98.1/", // just below the 192.88.99/24 relay block
+		"https://192.88.100.1/", // just above it
 		"https://198.17.255.1/", // just below the 198.18/15 benchmarking block
 		"https://198.20.0.1/", // just above it
 		"https://223.255.255.254/", // top of unicast space, below multicast

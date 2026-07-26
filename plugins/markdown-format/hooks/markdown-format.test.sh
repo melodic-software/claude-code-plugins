@@ -722,6 +722,82 @@ else
 fi
 rm "$REPO/.markdownlint-cli2.cjs"
 
+# An EXECUTABLE config that carries a module-loading key gets no approval route,
+# whatever the entry looks like: markdownlint-cli2 resolves those entries itself,
+# so the entry may be any string-producing expression and no text scan can
+# enumerate that space. Both a plain literal and an array-built path are refused
+# here — the literal case is the capability this deliberately gives up, and the
+# array case is what no per-shape pattern could have caught.
+mkdir -p "$REPO/rules"
+cat >"$REPO/rules/local.cjs" <<'CJS'
+module.exports = { names: ["local"], description: "noop", tags: [], function: () => {} };
+CJS
+for shape in literal arrayjoin; do
+  case "$shape" in
+  literal)
+    cat >"$REPO/.markdownlint-cli2.cjs" <<'CJS'
+module.exports = {
+  config: { "MD013": false },
+  customRules: ["./rules/local.cjs"],
+  noBanner: true,
+  noProgress: true
+};
+CJS
+    ;;
+  arrayjoin)
+    cat >"$REPO/.markdownlint-cli2.cjs" <<'CJS'
+module.exports = {
+  config: { "MD013": false },
+  customRules: [["./rules", "local.cjs"].join("/")],
+  noBanner: true,
+  noProgress: true
+};
+CJS
+    ;;
+  *) fail "unknown JS-config shape: $shape" ;;
+  esac
+  printf '# Executable config
+
+Clean text.' >"$TRUST_FILE"
+  OUT_JSKEY="$(cd "$UNRELATED" && printf '{"session_id":"jskey-%s","tool_input":{"file_path":"%s"}}' "$shape" "$TRUST_FILE" |
+    env -u CLAUDE_PROJECT_DIR CLAUDE_PLUGIN_DATA="$TRUST_DATA" CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true bash "$HOOK")"
+  if printf '%s' "$OUT_JSKEY" | jq -e '(.systemMessage | contains("trust gate") and contains("cannot pin")) and (.systemMessage | contains("mkdir -p") | not)' >/dev/null 2>&1 &&
+    ! has_final_newline "$TRUST_FILE"; then
+    ok "module-loading key in an executable config ($shape) refuses approval"
+  else
+    fail "module-loading key in an executable config ($shape) was not refused: $OUT_JSKEY"
+  fi
+  rm "$REPO/.markdownlint-cli2.cjs"
+done
+
+# A declarative config can carry BOTH a literal module key AND an escaped module
+# VALUE. The escape verdict must still fire: chained as an else-branch, the key
+# match suppressed it and the collector hashed the raw escaped spelling instead
+# of the file markdownlint decodes it to and loads.
+# The escape is assembled from a backslash variable (unquoted heredoc) so the
+# fixture's intent survives authoring: the file must hold the six characters
+# backslash-u-0-0-6-1, which JSONC decodes to the letter "a".
+BS=$'\\'
+cat >"$ORIGINAL_CONFIG" <<JSONC
+{
+  "config": { "MD013": false },
+  "customRules": ["./rules/loc${BS}u0061l.cjs"],
+  "noBanner": true,
+  "noProgress": true
+}
+JSONC
+printf '# Executable config\n\nClean text.' >"$TRUST_FILE"
+OUT_BOTH="$(cd "$UNRELATED" && printf '{"session_id":"key-and-escape","tool_input":{"file_path":"%s"}}' "$TRUST_FILE" |
+  env -u CLAUDE_PROJECT_DIR CLAUDE_PLUGIN_DATA="$TRUST_DATA" CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true bash "$HOOK")"
+if printf '%s' "$OUT_BOTH" | jq -e '(.systemMessage | contains("trust gate") and contains("defeat textual verification")) and (.systemMessage | contains("mkdir -p") | not)' >/dev/null 2>&1 &&
+  ! has_final_newline "$TRUST_FILE"; then
+  ok "literal key plus escaped module value still reaches the escape verdict"
+else
+  fail "literal key suppressed the escape verdict: $OUT_BOTH"
+fi
+rm -f "$ORIGINAL_CONFIG"
+rm -rf "$REPO/rules"
+
 # The evasions a loader-proximity pattern cannot see. Each must still refuse
 # approval, and each defeats a `require`-adjacency window on its own:
 #   comment    a JS comment between the loader name and its open paren
