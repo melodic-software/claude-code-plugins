@@ -1506,21 +1506,40 @@ rm -f "$f"
 # `;` between commands stop being the same character to it.
 # =============================================================================
 
-# --- `--` ends option parsing, so a flag-shaped word after it is an operand.
+# --- `--` (end-of-options) is deliberately NOT honored: a flag-shaped word
+# after the marker is an operand, but reporting it is the documented over-flag
+# direction and `portability-ok:` is the escape. Pinned as a test so the
+# withdrawal is a stated behaviour rather than an absence -- honoring it needs
+# per-invocation scoping, resumed matching after a discarded occurrence, and
+# quoted-`"--"` recognition, and every partial answer traded this false
+# positive for a fail-OPEN (see the #1544 review rounds).
 f="$(tmpsh "$(printf '%s\n' \
   'stat -- -c' \
-  'date -- -d' \
-  'date -c -- -d' \
-  'stat -- --format')")"
-if scan_paths "$REAL_TOKENS" "$f" >/dev/null 2>&1; then
-  ok "a flag-shaped operand after the -- end-of-options marker is not flagged"
+  'date -- -d')")"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "the over-flag on -- operands is the documented behaviour, got success: $out"
 else
-  fail "-- must end option parsing for both date and stat"
+  ok "a flag-shaped operand after -- is still reported (documented over-flag)"
 fi
 rm -f "$f"
 
-# --- ... but a real option BEFORE the -- still is one.
-f="$(tmpsh "stat -c '%s' -- \"\$f\"")"
+# --- and a later real invocation on the same line is never lost behind one.
+# This is the direction that actually matters, and the one a partial `--`
+# implementation broke: the marker suppressed the whole line.
+f="$(tmpsh "$(printf '%s\n' \
+  'stat -- -c; stat -c "%s" "$g"' \
+  'date -- -d; date -d tomorrow')")"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "a real call after a -- operand should fail, got success: $out"
+elif [[ "$(echo "$out" | grep -c "PORTABILITY: ${f}:")" -eq 2 ]]; then
+  ok "a GNU-only call after a -- operand is still reported on both classes"
+else
+  fail "expected both later invocations flagged, got: $out"
+fi
+rm -f "$f"
+
+# --- a real option before a -- is unambiguously an option.
+f="$(tmpsh "stat -c '%s' -- \"\$g\"")"
 if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
   fail "a real -c before -- should still fail, got success: $out"
 else
@@ -1608,31 +1627,21 @@ rm -f "$f"
 # =============================================================================
 # Offset-anchored matching -- #1544 review round 2
 #
-# End-of-options and the fallback guard both have to apply to ONE invocation,
-# not to the physical line: an outer command `--` must not reach a nested
-# call, and a `||` further along the line must not excuse a call that cannot
-# reach it. Both are scoped to the matched extent and the matched offset.
-# Three of the shapes below were fail-OPEN, two of those introduced by the
-# first revision of this fix.
+# The fallback guard has to apply to ONE invocation, not to the physical line:
+# a `||` further along must not excuse a call that cannot reach it. The guard
+# is anchored at the offset the construct matched, so SEG's existing separator
+# exclusions do the binding. Several shapes below were fail-OPEN, some of them
+# introduced by an earlier revision of this fix and caught by review.
 # =============================================================================
 
-# --- an outer `--` belongs to the outer command; it must not hide a nested
-# invocation. FAIL-OPEN before the fix.
+# --- an outer command `--` never suppresses a nested invocation. This was
+# FAIL-OPEN while `--` was honored line-wide, and is the shape that made the
+# feature not worth carrying half-built.
 f="$(tmpsh 'printf -- "%s\n" "$(stat -c "%s" "$g")"')"
 if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
   fail "a nested stat -c under an outer -- should fail, got success: $out"
 else
-  ok "an outer -- no longer hides a GNU-only call inside a substitution"
-fi
-rm -f "$f"
-
-# --- ... and the inner one is still honored, which needs the mask to see the
-# substitution through the surrounding double quotes at all.
-f="$(tmpsh 'printf "%s\n" "$(stat -- -c)"')"
-if scan_paths "$REAL_TOKENS" "$f" >/dev/null 2>&1; then
-  ok "an -- inside a double-quoted substitution is still honored"
-else
-  fail "the mask must parse substitutions nested in double quotes"
+  ok "an outer -- does not hide a GNU-only call inside a substitution"
 fi
 rm -f "$f"
 
@@ -1698,13 +1707,16 @@ else
 fi
 rm -f "$f"
 
-# --- the fallback -f must itself be an option: after --, it names a file.
-# FAIL-OPEN before the fix.
-f="$(tmpsh 'stat -c "%s" "$g" || stat -- -f')"
-if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
-  fail "a fallback whose -f follows -- should fail, got success: $out"
+# --- the guard reads a real -f as a real fallback. A `stat -- -f` counterpart
+# is NOT recognized as a non-fallback today, because `--` is not honored at all
+# -- the same known gap, on the trusted side. Pinned here so its direction is
+# explicit: this one fails OPEN, which is why honoring `--` is worth doing
+# properly rather than partially.
+f="$(tmpsh 'stat -c "%s" "$g" || stat -f "%z" "$g"')"
+if scan_paths "$REAL_TOKENS" "$f" >/dev/null 2>&1; then
+  ok "a real BSD -f counterpart is recognized as the fallback"
 else
-  ok "end-of-options is applied to the candidate fallback segment too"
+  fail "the plain stat -f ladder must not be flagged"
 fi
 rm -f "$f"
 

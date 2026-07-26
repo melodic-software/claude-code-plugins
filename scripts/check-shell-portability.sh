@@ -170,7 +170,6 @@ scan_file() {
     BEGIN {
       SQ = "\047"; DQ = "\042"; BS = "\134"; BT = "\140"
       SEPS = ";&|()" BT
-      EOO = "(^|[[:space:]])--([[:space:]]|$)"
     }
     function is_annotated(l) { return l ~ /portability-ok:/ }
     function is_comment(l) { return l ~ /^[[:space:]]*#/ }
@@ -232,18 +231,14 @@ scan_file() {
     # <https://pubs.opengroup.org/onlinepubs/9799919799/utilities/V3_chap02.html>
     #
     # An ERE character class cannot hold that state, which is why the gap
-    # `[^;&|()\n]*` this replaces both over- and under-reached:
+    # alone both over- and under-reached:
     #   - `stat "name;part" -c "%s"` was MISSED — the gap stopped at a `;`
     #     that is a filename character, not an operator;
-    #   - `stat -- -c` and `date -- -d` were REPORTED — `--` ends option
-    #     parsing, so the following word is an operand, not a flag;
     #   - `stat -c … ; stat -c … || stat -f …` reported NEITHER call — the
     #     guard was evaluated line-wide, so one guarded ladder anywhere on
     #     the line excused an unconditional GNU-only call before it.
-    # Fixing any of those inside the ERE is not possible (quote state and
-    # per-occurrence guard binding both need memory), and the `--` case needs
-    # a word-is-not-`--` alternation that no reader could check. The state
-    # belongs in this layer.
+    # Neither is fixable inside the ERE: quote state and per-occurrence guard
+    # binding both need memory. The state belongs in this layer.
     #
     # Matching still runs against the ORIGINAL segment text, never the mask:
     # the GNU regex-escape classes (`\b`, `\s`, `\<`, …) legitimately live
@@ -352,23 +347,24 @@ scan_file() {
       }
       return r
     }
-    # `--` ends option parsing, so every word after it is an operand however
-    # flag-shaped it looks. Applied to the MATCHED EXTENT only, never to the
-    # whole line: an outer command marker must not reach an inner one, and
-    # `printf -- "%s" "$(stat -c "%s" "$f")"` has to stay reported. Searched on
-    # the mask so a literal `--` inside a string does not truncate. GNU
-    # coreutils honors `--` through its shared option parser, and BSD/macOS
-    # stat and date document the same `utility [options] operands` form.
-    function hit_offset(q, m, p,   st, len, mext, cut, keep) {
+    # `--` (end-of-options) is deliberately NOT honored — `stat -- -c` and
+    # `date -- -d` are reported even though the flag-shaped word after the
+    # marker is an operand. This is the documented over-flag direction, and
+    # `portability-ok: <reason>` is the one-line escape.
+    #
+    # It was implemented and withdrawn. Honoring it correctly needs the marker
+    # scoped to the invocation that owns it, resumed matching after a discarded
+    # occurrence, and recognition of a quoted `"--"` word — and each partial
+    # answer traded the false positive for a fail-OPEN, which is the worse
+    # direction this gate is explicitly tuned against:
+    #   stat -- -c; stat -c "%s" "$f"      later real call went unreported
+    #   printf -- "%s" "$(stat -c ...)"    outer marker hid the nested call
+    #   stat -c "%s" "$f" || stat "--" -f  guard trusted an -f that names a file
+    # Tracked as its own change rather than carried here half-built; see #1544
+    # review rounds for the reproductions.
+    function hit_offset(q, m, p,   st) {
       if (!match(q, p)) return 0
       st = RSTART
-      len = RLENGTH
-      mext = substr(m, st, len)
-      if (match(mext, EOO)) {
-        cut = (substr(mext, RSTART, 1) == "-") ? 0 : RSTART
-        keep = substr(q, st, cut)
-        if (keep !~ p) return 0
-      }
       # Step over the leading word-boundary character the token consumed, so
       # the guard can anchor on the command name itself.
       if (substr(q, st, 1) !~ /[A-Za-z]/) st++
@@ -392,24 +388,25 @@ scan_file() {
     # PRE is what may sit between either command name and its own option: a
     # redirection does not change the argv the utility receives, so
     # `stat 2>/dev/null -f "%z" "$f"` is the same BSD call as `stat -f …`. Its
-    # gap admits any word EXCEPT a bare `--`, because after an end-of-options
-    # marker the `-f` names a file and formats nothing - accepting it would
-    # admit the GNU-only call with no fallback at all (#1544). Anything the
-    # guard reads in order to SUPPRESS a report gets the same scrutiny as the
-    # construct being reported; a weaker check on the trusted side is a
-    # fail-open by construction.
-    function is_guarded(q, p, at,   CMDPOS, SEG, PRE, WORD) {
+    # gap excludes the control operators for the same reason SEG does — a gap
+    # that may swallow a `;` lets the guard be satisfied by a ladder belonging
+    # to a later command.
+    #
+    # Known gap, same one the `--` withdrawal above describes, on the TRUSTED
+    # side: a `stat "--" -f` counterpart is accepted as a fallback although the
+    # `-f` names a file there. That direction fails OPEN, which is the argument
+    # for honoring `--` properly rather than partially.
+    function is_guarded(q, p, at,   CMDPOS, SEG, PRE) {
       # A substitution opener after the `||` may be either spelling, since
       # both make the command that follows what the `||` actually runs.
       CMDPOS = "\\|\\|[[:space:]]*([A-Za-z_][A-Za-z0-9_]*=)?(\\$\\(|" BT ")?[[:space:]]*((command|env)[[:space:]]+|\\\\)?[[:space:]]*"
       SEG = "([^;|&]|[<>]&|&>|&&)*"
-      # A word inside PRE is any single argument that is neither a control
-      # operator nor a bare `--`. Excluding the operators matters as much here
-      # as in SEG: a gap that may swallow a `;` lets the guard reach PAST the
-      # matched invocation and be satisfied by a ladder belonging to a later
-      # command, which is the line-wide behaviour this anchoring replaced.
-      WORD = "([^;|&[:space:]]*[^-;|&[:space:]][^;|&[:space:]]*|-|---+)"
-      PRE = "[" SQ DQ "]?[[:space:]]+(" WORD "[[:space:]]+)*"
+      # A word inside PRE is any single argument that is not a control
+      # operator. Excluding the operators matters as much here as in SEG: a gap
+      # that may swallow a `;` lets the guard reach PAST the matched invocation
+      # and be satisfied by a ladder belonging to a later command, which is the
+      # line-wide behaviour this anchoring replaced.
+      PRE = "[" SQ DQ "]?[[:space:]]+([^;|&\n]*[[:space:]])?"
       if (p ~ /readlink/) {
         return substr(q, 1, at + 7) ~ ("realpath" SEG CMDPOS "readlink$")
       }
