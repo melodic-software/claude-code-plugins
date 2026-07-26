@@ -66,10 +66,12 @@ Rows evaluate top-down; the first match wins per detection site.
 - **Fence- and span-aware:** fenced code blocks and inline code spans are ignored by both
   detectors, so docs (like this page) can show literal examples. Fences follow CommonMark
   matching: a closer is a same-character run at least as long as its opener with only spaces
-  after it — an info-string line inside a fence never closes it. Spans pair a backtick run with
-  the next run of exactly the same length (multi-backtick spans included); an unpaired run is
-  literal. Keep literal directive examples inside fences — a bare `<class>` placeholder in prose
-  would FAIL as an unknown class.
+  after it — an info-string line inside a fence never closes it, and a backtick opener carrying a
+  backtick in its info string is prose, not a fence. Spans pair a backtick run with the next run
+  of exactly the same length (multi-backtick spans included). A run with no closer on its own line
+  carries forward, so a span may cross a newline; the carry expires at the next blank line or
+  fence, because a CommonMark span cannot outlive its paragraph. Keep literal directive examples
+  inside fences — a bare `<class>` placeholder in prose would FAIL as an unknown class.
 - **Proximity is per-file and line-based** (`FRESH_EYES_PROXIMITY_LINES` in `check-skill.sh`). A
   declaration in a different file of the same skill does not satisfy proximity; the WARN message
   says so ("declaration may live in a referenced spoke — hand-verify").

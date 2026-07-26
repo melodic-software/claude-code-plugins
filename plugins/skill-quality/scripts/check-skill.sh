@@ -822,13 +822,34 @@ for fe_file in "${FRESH_EYES_FILES[@]}"; do
       # such a line is ordinary prose, so it falls through to the scanners
       # instead of opening a fence.
       if (!(fe_char == "`" && index(fe_info, "`"))) {
-        fe_fence = 1; fe_open_char = fe_char; fe_open_len = fe_len
+        # A fence interrupts the paragraph, so any code span still waiting for
+        # its closer expires here rather than blinding the first paragraph
+        # after the fence closes.
+        fe_fence = 1; fe_open_char = fe_char; fe_open_len = fe_len; sp_open = 0
         next
       }
     }
     fe_fence { next }
     {
       line = $0
+      # A code span lives inside one paragraph, so a blank line expires a span
+      # still waiting for its closer — otherwise one stray backtick would blind
+      # the detectors for the rest of the file.
+      if (line ~ /^[ \t]*$/) sp_open = 0
+      # A span opened on an earlier line: everything up to a run of EXACTLY the
+      # opener length is span content. With no such run the whole line is span
+      # content and never reaches the detectors.
+      if (sp_open) {
+        sp_close = 0; sp_base = 0; sp_search = line
+        while (match(sp_search, /`+/)) {
+          if (RLENGTH == sp_open) { sp_close = sp_base + RSTART; break }
+          sp_base += RSTART + RLENGTH - 1
+          sp_search = substr(sp_search, RSTART + RLENGTH)
+        }
+        if (!sp_close) next
+        line = " " substr(line, sp_close + sp_open)
+        sp_open = 0
+      }
       # Inline code spans, CommonMark pairing: an opening backtick run pairs
       # with the next run of EXACTLY the same length; a run with no matching
       # closer is literal text. A naive /`[^`]*`/ would split a ``…`` span at
@@ -842,7 +863,17 @@ for fe_file in "${FRESH_EYES_FILES[@]}"; do
           sp_base += RSTART + RLENGTH - 1
           sp_search = substr(sp_search, RSTART + RLENGTH)
         }
-        if (!sp_close) break
+        # No closer on this line: a span can cross a newline, so carry the
+        # opener length forward and treat the remainder as span content. The
+        # carry is optimistic — a run that never closes before the paragraph
+        # ends masks content CommonMark would call literal — but the tradeoff
+        # is deliberate: masking risks missing a declaration, while scanning
+        # risks a blocking failure on legitimate code-span text.
+        if (!sp_close) {
+          sp_open = sp_len
+          line = substr(line, 1, sp_start - 1)
+          break
+        }
         line = substr(line, 1, sp_start - 1) " " substr(sp_rest, sp_close + sp_len)
       }
       if (line ~ /<!--[ \t]*fresh-eyes-exempt/) {

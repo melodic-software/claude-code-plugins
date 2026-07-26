@@ -30,9 +30,8 @@ token `verif` narrowed to `verifier` — the stem matched bare "verification" pr
 no worker; surfaced by external review on the Phase-1 PR.)* *(Amended 2026-07-23, Phase-1 review
 round 3: worker terms match as whole words with explicit inflections — substring stems let
 "agentless" satisfy the worker requirement; surfaced by external review on the Phase-1 PR.)*
-Visible prose, not a marker: the
-wording IS the model's instruction, so it must be visible regardless — a parallel marker would be
-a second source of truth that drifts.
+Visible prose, not a marker: the wording IS the model's instruction, so it must be visible
+regardless — a parallel marker would be a second source of truth that drifts.
 
 ### Exemption directive — namespaced HTML comment
 
@@ -80,7 +79,15 @@ Scan mechanics (all constraints normative for implementation):
   in shipped docs MUST sit inside fenced blocks — never in tables or bare prose (a table cell
   cannot hold a fence; a placeholder `<class>` literal would otherwise FAIL as unknown-class).
   Directive parsing tolerates an optional trailing `\r` (third-party repos without `eol=lf`
-  checkout normalization).
+  checkout normalization). *(Amended 2026-07-23, Phase-1 review round 3: a backtick fence opener
+  carrying a backtick in its info string is prose, not a fence — CommonMark forbids such an info
+  string, and treating it as an opener suppressed every following line until a closing run.)*
+  *(Amended 2026-07-23, Phase-1 review round 3: an unclosed backtick run carries across the
+  newline, because a span may cross a line boundary and its content was reaching the parser as a
+  blocking malformed directive. The carry expires at the next blank line or fence — a CommonMark
+  span cannot outlive its paragraph — so a stray backtick cannot blind the scanner past it. The
+  carry is deliberately optimistic: masking risks missing a declaration, whereas scanning risks
+  failing a skill on legitimate code-span text.)*
 - **Proximity is per-file and line-based** (tunable constant beside the script's existing caps).
   Known limitation, documented in the WARN message: a declaration living in a referenced spoke
   file cannot satisfy proximity — "declaration may live in a referenced spoke — hand-verify".

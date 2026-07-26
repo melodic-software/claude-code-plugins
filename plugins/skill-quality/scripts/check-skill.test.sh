@@ -1655,6 +1655,55 @@ else
   fail "agentless stem should not satisfy check 21 (rc=$rc): $out"
 fi
 
+# 37i. Check 21: a code span that crosses a newline keeps masking its content on
+#      the following line — a literal directive inside it must not be parsed.
+make_skill fe-span-crossline '---
+name: fe-span-crossline
+description: "Fresh-eyes fixture. Use when: '"'"'fe crossline span fixture'"'"'."
+---
+
+## Steps
+
+A literal directive inside a span that crosses a line: `<!-- fresh-eyes-exempt: bogus-class -- literal
+example -->` and the prose continues here.
+
+## Gotchas
+
+None known.
+'
+out="$(run fe-span-crossline 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && ! grep -q 'malformed fresh-eyes-exempt directive' <<<"$out"; then
+  pass "code span crossing a line boundary still masks its content (check 21)"
+else
+  fail "cross-line span content should not be parsed as a directive (rc=$rc): $out"
+fi
+
+# 37j. Check 21: the cross-line carry expires at the paragraph break, so one
+#      stray unclosed backtick cannot blind the scanner for the rest of the file.
+make_skill fe-span-stray '---
+name: fe-span-stray
+description: "Fresh-eyes fixture. Use when: '"'"'fe stray backtick fixture'"'"'."
+---
+
+## Steps
+
+A stray unclosed backtick ` ends this paragraph.
+
+<!-- fresh-eyes-exempt: bogus-class -- wrong class stays malformed -->
+
+## Gotchas
+
+None known.
+'
+out="$(run fe-span-stray 2>&1)"
+rc=$?
+if [[ $rc -ne 0 ]] && grep -q 'malformed fresh-eyes-exempt directive' <<<"$out"; then
+  pass "stray-backtick span carry expires at the paragraph break (check 21)"
+else
+  fail "directive after a stray-backtick paragraph should still FAIL (rc=$rc): $out"
+fi
+
 # 37. Check 21: a skill with no judgment language emits nothing from check 21
 #     (good-skill re-run guards against detector overreach).
 out="$(run good-skill 2>&1)"
