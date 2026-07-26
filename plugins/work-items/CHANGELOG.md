@@ -3,6 +3,19 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.25.2]
+
+### Fixed
+
+- **`track start` suggests a branch based on the remote's OWN default branch.** Both branch-switch
+  suggestions emitted `git checkout -b <type>/<N>-<slug> origin/main`, hardcoding a default-branch
+  name into a forge-agnostic skill: on a repo whose default branch is `master`, `trunk`, or
+  `develop`, the user was handed a command that either fails or silently bases the work on the wrong
+  ref. The existing-branch check now resolves `BASE_REF` from `refs/remotes/origin/HEAD`
+  (detection-first), falling back to the literal only for a clone that has no `origin/HEAD`, and
+  both suggestions emit `"$BASE_REF"`. Surfaced by `portability-lint`, which reads the whole file
+  once the file is touched.
+
 ## [0.25.1]
 
 ### Documented
