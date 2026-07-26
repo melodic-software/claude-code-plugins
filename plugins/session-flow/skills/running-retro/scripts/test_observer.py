@@ -98,21 +98,29 @@ class Distillation(unittest.TestCase):
                          [observer._short_id("call_1"), observer._short_id("call_2")])
         self.assertEqual(out["mid"], observer._short_id("msg_batch"))
 
-    def test_assistant_one_message_spans_multiple_records_shares_one_mid(self):
-        """The pattern real transcripts actually exhibit (verified for #1485 against
-        150+ live session transcripts): a SINGLE API message is frequently split
-        across MULTIPLE consecutive assistant records (e.g. a text-only record then
-        a tool_use record), never multiple tool_use blocks in one record. `mid` is
-        what makes these recognizable as the same turn -- record adjacency alone
-        is NOT reliable, since other records (tool results) interleave."""
+    def test_assistant_one_message_spans_multiple_tool_bearing_records_shares_one_mid(self):
+        """The pattern real transcripts actually exhibit (verified for #1485: of
+        6352 tool-bearing message ids across 200 live session transcripts, 1412
+        (~22%) span 2+ tool-bearing records -- confirmed again as a positive
+        control against this repo's OWN session transcripts, 580/5431, ~11%): a
+        SINGLE API message's tool calls are frequently split across MULTIPLE
+        assistant records rather than packed into one record's content list.
+        `mid` is what makes these recognizable as the SAME batched turn -- record
+        adjacency alone is NOT reliable, since other records (tool results, text-
+        only records) interleave. This is the invariant the analysis prompt's
+        batching computation actually depends on, so both records here carry a
+        tool_use (not one text-only + one tool-bearing, which wouldn't exercise
+        cross-record mid-sharing between two calls at all)."""
         r1 = observer.summarize_record({"type": "assistant", "message": {
-            "id": "msg_shared", "content": [{"type": "text", "text": "checking..."}]}})
-        r2 = observer.summarize_record({"type": "assistant", "message": {
             "id": "msg_shared", "content": [
                 {"type": "tool_use", "id": "call_1", "name": "Read",
                  "input": {"file_path": "a.py"}}]}})
-        self.assertNotIn("mid", r1)  # no tool_use in r1 -> nothing to group
-        self.assertEqual(r2["mid"], observer._short_id("msg_shared"))
+        r2 = observer.summarize_record({"type": "assistant", "message": {
+            "id": "msg_shared", "content": [
+                {"type": "tool_use", "id": "call_2", "name": "Read",
+                 "input": {"file_path": "b.py"}}]}})
+        self.assertEqual(r1["mid"], r2["mid"])
+        self.assertEqual(r1["mid"], observer._short_id("msg_shared"))
 
     def test_user_and_system(self):
         u = observer.summarize_record({"type": "user", "message": {

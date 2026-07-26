@@ -12,9 +12,11 @@
   missed-batching Efficiency finding — had no field it could actually compute either claim from. Two
   additions close the gap: an assistant event now carries `mid` (a bounded correlation key derived
   from the transcript's own API message id, when present) so events sharing one `mid` can be
-  recognized as one batched turn versus separate sequential turns — verified against 150+ real
-  session transcripts, which showed a single API message routinely spans multiple transcript records,
-  so `mid` (not record adjacency) is what makes this computable at all — and both assistant
+  recognized as one batched turn versus separate sequential turns — verified against real session
+  transcripts (of 6,352 tool-bearing message ids across 200 live sessions, 1,412 (~22%) spanned 2+
+  tool-bearing records, confirmed again as a positive control against this repo's own session
+  transcripts, 580/5,431 (~11%)), so `mid` — not record adjacency — is what makes batching computable
+  at all — and both assistant
   (`calls[].in`) and user (`results[].out`) events now carry a bounded (80-char) preview of each tool
   call's input/result, keyed by a bounded correlation id, so a later call's input can be checked
   against an earlier call's output for a genuine dependency. Both fields are omitted (not padded) when
