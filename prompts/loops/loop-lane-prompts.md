@@ -16,7 +16,7 @@ and no row claims it, that is a gap to fix here, not a population to ignore.
 | Worker-escalated (marker kinds `escalated` and `routed-advisory`) | 3 — Attended queue, `[escalated]` |
 | C3 first-drain admissions (marker kind `ratify-c3`) | 3 — Attended queue, `[ratify]` |
 | Autonomous-eligible (role label, default `agent-ready`) | 1 — Worker lane |
-| Ordinary tracked item — priority/category labels, no raw marker, no canonical role (what `/work-items:track add` creates without `--agent-ready`; disjoint from row 1, which is the unlabeled/raw-marked state) | 1 — Worker lane. The frontier is open ∧ unblocked ∧ unassigned, and `list-frontier --autonomous` *excludes* the human-gated role rather than *requiring* the autonomous one — so a role-less item is already a tier-3 candidate |
+| Ordinary tracked item — priority/category labels, no raw marker, no canonical role (what `/work-items:track add` creates without `--agent-ready`; disjoint from the raw-intake row, which is the unlabeled/raw-marked state) | 1 — Worker lane. The frontier is open ∧ unblocked ∧ unassigned, and `list-frontier --autonomous` *excludes* the human-gated role rather than *requiring* the autonomous one — so a role-less item is already a tier-3 candidate |
 | Open PRs (drafts and `do-not-merge` included — evaluated, never force-merged) | 2 — Merge lane |
 | Parked human-gated (role label present, no escalation marker) | 3b — Parked-decision burn-down |
 | Decision-pending status label, where the repository declares one | 3b — Parked-decision burn-down |
