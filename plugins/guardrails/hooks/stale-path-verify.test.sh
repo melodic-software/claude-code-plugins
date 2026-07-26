@@ -161,7 +161,7 @@ assert_absent "reconstruction does NOT report an untouched neighbour" "$OUT" \
 # Diff-scope again, against the harder shape: the hunk is unrelated prose that
 # merely SHARES a path segment with an untouched stale citation elsewhere in the
 # same file. Anchoring on a word token pulls that citation in — `docs` occurs in
-# both — so the anchor has to be the hunk's own line, which occurs in one line only.
+# both — so the anchor has to be the hunk's own line, which occurs exactly once.
 SEGSHARE="$REPO/segshare.md"
 printf 'Untouched `docs/gone.md` here.\nThe docs folder was reorganized today.\n' >"$SEGSHARE"
 OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" \
@@ -169,6 +169,45 @@ OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" \
 RC=$?
 assert_exit "prose hunk sharing a path segment → exit 0" 0 "$RC"
 assert_silent "hunk sharing only a path SEGMENT does not drag in an untouched citation" "$OUT"
+
+# The same shape with the hunk reduced to a BARE FRAGMENT — the normal minimal
+# Edit, and the one the header comment uses to motivate reconstruction. `grep -F`
+# is a substring match, so the line anchor collapses onto the token anchor here
+# and line-anchoring alone recovers the untouched line 1. Occurrence uniqueness is
+# what holds diff-scope: `docs` occurs on both lines, so the anchor is ambiguous
+# and dropped rather than guessed at.
+OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" <<<"$(edit_json "$SEGSHARE" 'docs')" 2>&1)
+RC=$?
+assert_exit "bare-fragment hunk → exit 0" 0 "$RC"
+assert_silent "bare-fragment hunk does not adjudicate an untouched citation" "$OUT"
+
+# Occurrences, not matching lines. Two occurrences on ONE physical line are a
+# single grep hit, so a line-uniqueness gate would call this unique and adjudicate
+# a citation sharing the line. The anchor cannot say which occurrence the edit
+# landed on, so it is dropped.
+ONELINE="$REPO/oneline.md"
+printf 'The docs folder and the docs tree both hold `docs/gone.md` today.\n' >"$ONELINE"
+OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" <<<"$(edit_json "$ONELINE" 'docs')" 2>&1)
+RC=$?
+assert_exit "anchor occurring twice on one line → exit 0" 0 "$RC"
+assert_silent "two occurrences on a single line are ambiguous, not unique" "$OUT"
+
+# `replace_all` is the one shape where repetition is EXPECTED, not ambiguous:
+# every occurrence is a place this call edited, so uniqueness must not be required
+# or the guard goes silent on a genuine multi-site staleness. Built inline rather
+# than through edit_json — that helper is shared across guard suites and gated by
+# hook-utils-sync, so this suite's payload variant stays local to it.
+replall_json() {
+  MSYS_NO_PATHCONV=1 jq -n --arg fp "$1" --arg s "$2" \
+    '{tool_name:"Edit",tool_input:{file_path:$fp,new_string:$s,replace_all:true}}'
+}
+REPLALL="$REPO/replall.md"
+printf 'First `docs/gone.md` here.\nSecond `docs/gone.md` there.\n' >"$REPLALL"
+OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" <<<"$(replall_json "$REPLALL" 'gone')" 2>&1)
+RC=$?
+assert_exit "replace_all Edit → exit 0" 0 "$RC"
+assert_contains "replace_all → repeated anchor still adjudicated" "$OUT" \
+  "STALE_PATH: docs/gone.md"
 
 # A line-citation suffix is stripped for resolution; the finding names the path
 # without it.
@@ -344,6 +383,21 @@ OUT=$(CLAUDE_PROJECT_DIR="$SPARSE" bash "$HOOK" \
 RC=$?
 assert_exit "unmaterialized sparse path → exit 0" 0 "$RC"
 assert_silent "tracked at HEAD but not materialized → silent (index consulted)" "$OUT"
+
+# The exemption is the SKIP-WORKTREE BIT, not the mere index entry. Clearing the
+# bit leaves the same path tracked and the same absence from disk, but the shape is
+# now an UNSTAGED DELETION (`git status` reports ` D`) — a genuine working-tree
+# disappearance rather than a by-design sparse one, so it must be adjudicated.
+# `ls-files --error-unmatch` reports the entry in both shapes and cannot separate
+# them; the `S` tag can.
+git -C "$SPARSE" update-index --no-skip-worktree docs/restored.md >/dev/null 2>&1
+OUT=$(CLAUDE_PROJECT_DIR="$SPARSE" bash "$HOOK" \
+  <<<"$(write_json "$SPARSE_TARGET" 'Read `docs/restored.md` first.')" 2>&1)
+RC=$?
+assert_exit "unstaged deletion → exit 0" 0 "$RC"
+assert_contains "unstaged deletion is not a sparse exemption → fires" "$OUT" \
+  "STALE_PATH: docs/restored.md"
+git -C "$SPARSE" update-index --skip-worktree docs/restored.md >/dev/null 2>&1
 
 # The index check must not swallow a genuine removal. Same repo, same absence from
 # disk — the only difference is that this one is in no index entry either.

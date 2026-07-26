@@ -68,8 +68,18 @@ esac
 # whole file from disk. An Edit's pre-existing lines outside the changed hunk are
 # not this call's claims.
 TOOL=$(printf '%s' "$INPUT" | jq -r '.tool_name // empty' 2>/dev/null | tr -d '\r')
+# replace_all feeds reconstruction's uniqueness gate below. Per the tools
+# reference an Edit's `old_string` "must appear exactly once", and
+# `replace_all: true` is how every occurrence is replaced instead — so under
+# replace_all the same new_string landing in several places is the edit's own
+# footprint rather than an ambiguity.
+# https://code.claude.com/docs/en/tools-reference
+REPLACE_ALL=false
 case "$TOOL" in
-Edit) SCAN_CONTENT=$(printf '%s' "$INPUT" | jq -r '.tool_input.new_string // empty' 2>/dev/null | tr -d '\r') ;;
+Edit)
+  SCAN_CONTENT=$(printf '%s' "$INPUT" | jq -r '.tool_input.new_string // empty' 2>/dev/null | tr -d '\r')
+  REPLACE_ALL=$(printf '%s' "$INPUT" | jq -r '(.tool_input.replace_all // false) | tostring' 2>/dev/null | tr -d '\r')
+  ;;
 Write) SCAN_CONTENT=$(printf '%s' "$INPUT" | jq -r '.tool_input.content // empty' 2>/dev/null | tr -d '\r') ;;
 *) exit 0 ;;
 esac
@@ -168,14 +178,11 @@ normalize_candidate() {
 # from disk only the lines the hunk's OWN TEXT appears in, scan those, and keep only
 # candidates containing one of the hunk's word tokens.
 #
-# What those two filters DO guarantee: the line the edit landed in is always
-# recovered, and the reported candidate always contains edited text. What they do
-# NOT guarantee is the converse — that every recovered line was touched. The anchor
-# match below is a SUBSTRING match, so when the hunk is a single bare fragment the
-# anchor IS that fragment and the line filter degenerates to the token filter: an
-# `Edit` whose whole `new_string` is `docs` recovers every line containing `docs`,
-# and a pre-existing stale citation on an untouched one among them fires. Closing
-# that means anchoring on `old_string`'s surrounding context, tracked in #1455.
+# The anchor match is a SUBSTRING match, so line-anchoring ALONE does not bound
+# what is recovered: when the hunk is a single bare fragment the anchor IS that
+# fragment and the line filter degenerates to the token filter. What bounds it is
+# the occurrence-uniqueness gate below — the same gate the sibling guard this
+# function mirrors already carries.
 reconstruct_partial_edit() {
   [[ "$TOOL" == "Edit" && -f "$FILE" ]] || return 0
   # The token filter reads the hunk with any COMPLETE code span removed first. A
@@ -195,18 +202,42 @@ reconstruct_partial_edit() {
   # Lines are located by the hunk's own lines, never by its tokens. Every line of
   # new_string is on disk verbatim, so it matches the line the edit landed in; a
   # token, being shorter, also matches lines the edit never touched — a bare `docs`
-  # in unrelated prose pulls in every citation under docs/, and an untouched stale
-  # one among them would fire. Line-anchoring can only ever select a subset of what
-  # token-anchoring would, and the edited line is always in that subset. That
-  # subset is STRICT only while an anchor line is longer than its own tokens; a
-  # bare-fragment hunk collapses the two, which is the residual noted above (#1455).
+  # in unrelated prose pulls in every citation under docs/.
   local -a anchors=()
   mapfile -t anchors < <(printf '%s' "$SCAN_CONTENT" | grep -vE '^[[:space:]]*$' 2>/dev/null)
   ((${#anchors[@]})) || return 0
-  local anchor lines ctx=""
+  # An anchor is used ONLY when it OCCURS exactly once in the file — occurrences,
+  # not matching lines. Counting lines is not enough: two occurrences on one
+  # physical line are one grep hit, and that is a real shape — editing `docs` into
+  # a line that already carries an untouched `` `docs/gone.md` `` leaves the anchor
+  # twice on that line, and adjudicating that citation would be an advisory about
+  # text this call never wrote. Occurrence uniqueness subsumes line uniqueness (one
+  # occurrence can only be on one line), so it is the only gate.
+  #
+  # This is what makes the recovered set diff-scoped rather than merely narrower.
+  # The edited line provably contains the anchor, so a single occurrence pins the
+  # edit to that line; a non-unique anchor cannot say WHICH occurrence the edit
+  # landed on, and is dropped rather than unioned. Cost: a missed advisory when an
+  # edit lands in text repeating verbatim elsewhere in the file. For a
+  # detect-then-judge guard that is the right side of the trade — it is degraded
+  # far worse by being wrong when it speaks than by staying quiet.
+  local anchor occ ctx=""
+  local -a hits=()
   for anchor in "${anchors[@]}"; do
-    lines=$(grep -F -- "$anchor" "$FILE" 2>/dev/null)
-    [[ -n "$lines" ]] && ctx+="$lines"$'\n'
+    mapfile -t hits < <(grep -F -- "$anchor" "$FILE" 2>/dev/null)
+    ((${#hits[@]})) || continue
+    # replace_all is the one case where repetition is expected rather than
+    # ambiguous: every occurrence is a place THIS call edited, so all of them are
+    # in scope and uniqueness must not be required. Accepted narrowing — a line
+    # that independently contained new_string and was never touched is kept too,
+    # since nothing in the payload distinguishes it from an edited one.
+    if [[ "$REPLACE_ALL" == "true" ]]; then
+      for occ in "${hits[@]}"; do ctx+="$occ"$'\n'; done
+      continue
+    fi
+    occ=$(grep -o -F -- "$anchor" "$FILE" 2>/dev/null | grep -c .)
+    ((occ == 1)) || continue
+    ctx+="${hits[0]}"$'\n'
   done
   [[ -n "$ctx" ]] || return 0
   local saved="$SCAN_CONTENT"
@@ -294,6 +325,7 @@ moved_hint() {
 declare -A CHECKED=()
 MISSING=()
 ABSENT=0
+ls_tag=""
 
 RAW_TOKENS=()
 mapfile -t RAW_TOKENS < <(emit_tokens)
@@ -328,7 +360,20 @@ for raw in "${RAW_TOKENS[@]}"; do
   # a real removal and the index has to be consulted. Placed after the provenance
   # gate, not before it: only a path already headed for a finding pays for the call,
   # which keeps the quiet path free of any per-candidate git invocation.
-  git -C "$REPO_ROOT" ls-files --error-unmatch -- ":(literal)${cand%/}" >/dev/null 2>&1 && continue
+  #
+  # The test is the SKIP-WORKTREE BIT, not mere presence in the index. An index
+  # entry exists in two different situations and `--error-unmatch` cannot tell them
+  # apart — it reports the entry either way:
+  #
+  #   sparse checkout      `ls-files -v` tags the entry `S`; absent BY DESIGN.
+  #   unstaged deletion    tag stays `H` and `git status` shows ` D`; the path is
+  #                        genuinely gone from the working tree, which is exactly
+  #                        the disappearance this guard adjudicates.
+  #
+  # Exempting on presence alone therefore suppressed the finding for a real removal
+  # a user had not committed yet. Only `S` earns the exemption.
+  ls_tag=$(git -C "$REPO_ROOT" ls-files -v -- ":(literal)${cand%/}" 2>/dev/null | tr -d '\r' | cut -c1)
+  [[ "$ls_tag" == "S" ]] && continue
 
   MISSING+=("$cand")
 done
