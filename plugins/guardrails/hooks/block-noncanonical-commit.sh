@@ -146,71 +146,43 @@ explicit_git_dir() {
   done
 }
 
-# Lexically clean a composed directory: collapse duplicate slashes, drop `.`
-# components, and cancel `x/..` pairs. Fork-free (no realpath, no rev-parse), so it
-# can run at every alias hop.
+# Canonical identity of the repository a composed `-C` path lands in, as GIT
+# resolves it. This guard does not model git's path semantics anywhere — it asks
+# git, because every attempt to model them has been a bypass:
 #
-# This is load-bearing, not cosmetic. Once the effective directory became part of
-# the shell-alias cycle key below, a body that rewrites the directory to the place
-# it already is (`alias.a = !git -C . a`) minted an endlessly NEW key — `R`, `R/.`,
-# `R/./.` — so the walk kept descending, one `git config` fork per hop, until the
-# traversal budget or the platform's own path limit stopped it (measured: 34.6s).
-# Normalizing collapses those to the directory already visited, so the key repeats
-# and the walk stops at once, while a real component (`child`) still differs and
-# descent is still followed.
+#   - Lexically cancelling `x/..` is wrong when `x` is a symlink: on a POSIX host
+#     `git -C link/.. …` enters the symlink's parent, not the textual one.
+#   - Resolving PHYSICALLY instead (`cd -P` + `pwd -P`) is equally a model, and a
+#     wrong one on Windows: verified on git 2.54.0.windows.1, `cd -P link/..`
+#     reports the link target's parent while `git -C link/..` reports "not a git
+#     repository" — Win32 normalizes `..` textually, so git itself is lexical
+#     there. A shell resolver would send the guard to a repository git never
+#     enters, which is the same defect wearing the opposite bias.
 #
-# Lexical only: a symlinked component is not resolved, which this static guard
-# never resolves anywhere. A path containing a newline is returned untouched
-# rather than risk splitting it into a DIFFERENT directory — the traversal budget
-# still bounds that case, and a truncated path could name the wrong repository.
+# `rev-parse --show-toplevel` is git's own answer on whatever platform, so it
+# cannot drift from git's behavior by construction. It also canonicalizes for
+# free: `-C .`, `link/..`, a subdirectory, and any other spelling of one
+# repository all collapse to a single identity, which is what lets the
+# shell-alias cycle key below detect a repeat instead of walking forever.
+#
+# Empty means git could not answer — no such directory, or no work tree. Callers
+# on the alias-walk path FAIL CLOSED on empty: a guard that cannot determine
+# which repository a command will execute in must not allow it. Nothing off that
+# path calls this, so an ordinary `git commit -F -` never pays a fork.
+#
+# Cached per literal path (the fork is the expensive step, and a static guard
+# never moves a repository mid-analysis). Published in a global and assigned by a
+# PLAIN call, never `$(…)`: a command substitution would run it in a subshell and
+# discard the cache.
+declare -A _repo_identity=()
+HOOK_REPO_IDENTITY=""
 # shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
-normalize_dir() {
-  local p="$1" prefix="" part n=0
-  local -a parts=() stack=()
-  [[ "$p" == *$'\n'* ]] && {
-    printf '%s' "$p"
-    return 0
-  }
-  case "$p" in
-  [A-Za-z]:/*)
-    prefix="${p:0:2}/"
-    p="${p:2}"
-    ;;
-  /*) prefix="/" ;;
-  *) ;; # relative path — no root prefix to preserve
-  esac
-  # `local IFS=/` does double duty and must stay in scope through the final
-  # printf: it splits here and REJOINS in `${stack[*]:0:n}` below. Moving it would
-  # silently produce space-separated components. `read -ra` rather than an
-  # unquoted expansion so a component containing `*` cannot glob; the herestring's
-  # subshell is affordable here because this runs at most once per frame, unlike
-  # the per-word `printf -v` in alias_reexpand_admit.
-  local IFS=/
-  read -ra parts <<<"$p"
-  for part in ${parts[@]+"${parts[@]}"}; do
-    case "$part" in
-    "" | ".") ;;
-    "..")
-      # Cancel the preceding component, unless there is none to cancel: above a
-      # rooted path `..` is a no-op, and on a relative one it must be kept.
-      if ((n > 0)) && [[ "${stack[n - 1]}" != ".." ]]; then
-        ((n--))
-      elif [[ -z "$prefix" ]]; then
-        stack[n]=".."
-        ((n++))
-      fi
-      ;;
-    *)
-      stack[n]="$part"
-      ((n++))
-      ;;
-    esac
-  done
-  if ((n == 0)); then
-    printf '%s' "${prefix:-.}"
-  else
-    printf '%s%s' "$prefix" "${stack[*]:0:n}"
-  fi
+repo_identity() {
+  local dir="$1"
+  [[ -n "${_repo_identity[$dir]+x}" ]] ||
+    _repo_identity["$dir"]=$(git -C "$dir" rev-parse --show-toplevel 2>/dev/null | tr -d '\r')
+  HOOK_REPO_IDENTITY="${_repo_identity[$dir]}"
+  [[ -n "$HOOK_REPO_IDENTITY" ]]
 }
 
 # The base is HOOK_EFFECTIVE_BASE, not the payload cwd directly, because a `!`
@@ -222,11 +194,16 @@ normalize_dir() {
 # a self-cycle, and the grandchild's `commit -m` was never reached while real git
 # committed there. HOOK_EFFECTIVE_BASE is save/restored around each `!` reparse.
 #
-# Known residual: git runs a `!` body from the repository's TOP LEVEL, so a
-# relative `-C` inside a body invoked from a SUBDIRECTORY composes one level
-# deeper here than git would. Alias resolution is unaffected (`git -C <subdir>
-# config` walks up to the same repo), and resolving the top level would cost a
-# fork per hop; this guard resolves no other path either (see the `cd` gap).
+# The base a `!` reparse inherits is the outer repository's TOP LEVEL, which is
+# where git documents it runs a shell body from — not the directory the outer
+# command was invoked in. Invoked from `<repo>/sub` with `alias.a = !git -C child
+# a`, git reaches `<repo>/child`; carrying the subdirectory forward made the guard
+# probe `<repo>/sub/child` and miss the nested repository's `commit -m` entirely.
+# repo_identity supplies that top level from git itself.
+#
+# What this function returns is a LITERAL composed path, deliberately not a
+# resolved one: it is handed straight to `git -C`, so git applies its own path
+# semantics to it. The guard never normalizes it (see repo_identity).
 # shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
 effective_dir() {
   local base="${HOOK_EFFECTIVE_BASE:-${HOOK_CWD:-${CLAUDE_PROJECT_DIR:-.}}}" i n=$# arg
@@ -242,7 +219,7 @@ effective_dir() {
       ((i++))
     fi
   done
-  normalize_dir "$base"
+  printf '%s' "$base"
 }
 
 # Is a merge / rebase / cherry-pick / revert in progress? Those commits carry a
@@ -287,6 +264,20 @@ persisted_alias() {
   [[ -n "${_persisted_alias[$key]+x}" ]] ||
     _persisted_alias["$key"]=$(git -C "$dir" config --get "alias.$sub" 2>/dev/null)
   HOOK_PERSISTED_ALIAS="${_persisted_alias[$key]}"
+}
+
+# Fail closed when git cannot say which repository a `!` body will run in. Only
+# the alias-walk reaches here — a plain `git commit -F -` resolves no path and can
+# never trip it — so the cost is narrow: an aliased git command invoked where there
+# is no work tree (or no such directory) now blocks instead of being waved through
+# on a guessed directory. A commit could not have succeeded there anyway, and a
+# guard that cannot determine where a command executes must not allow it.
+# shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
+block_unresolvable_dir() {
+  echo "BLOCKED: cannot determine which repository this git alias would run in ('$1' is not a work tree git can resolve) — failing closed rather than guessing." >&2
+  echo "Run the subcommand directly, invoke it from inside the intended repository, or set the guardrails block_noncanonical_commit_enabled option to false to bypass." >&2
+  emit_tel "blocked" "unresolvable-alias-dir"
+  exit 2
 }
 
 # Alias re-expansion is this guard's only recursive path, and it BRANCHES: every
@@ -450,8 +441,9 @@ check_segment() {
           reparse="${exp#!}"
           for a in "${w[@]:sub_idx+1}"; do reparse+=" $(printf '%q' "$a")"; done
           [[ -n "$seg_dir" ]] || seg_dir="$(effective_dir "${w[@]}")"
+          repo_identity "$seg_dir" || block_unresolvable_dir "$seg_dir"
           HOOK_ALIAS_SEEN=()
-          HOOK_EFFECTIVE_BASE="$seg_dir"
+          HOOK_EFFECTIVE_BASE="$HOOK_REPO_IDENTITY"
           alias_reexpand_admit shell "$reparse" &&
             hook::bash_parse_segments "$reparse" check_segment
           HOOK_EFFECTIVE_BASE="$saved_base"
@@ -499,7 +491,8 @@ check_segment() {
           # the directory forever (`-C .`) never repeats a key, so termination
           # there rests on the fail-closed traversal budget, not on this set.
           local pkey pseen_hit=0
-          pkey="$seg_dir"$'\n'"$sub="$'\n'"$pexp"
+          repo_identity "$seg_dir" || block_unresolvable_dir "$seg_dir"
+          pkey="$HOOK_REPO_IDENTITY"$'\n'"$sub="$'\n'"$pexp"
           for s in ${HOOK_SHELL_ALIAS_SEEN[@]+"${HOOK_SHELL_ALIAS_SEEN[@]}"}; do
             [[ "$s" == "$pkey" ]] && {
               pseen_hit=1
@@ -512,7 +505,7 @@ check_segment() {
             preparse="${pexp#!}"
             for pa in "${w[@]:sub_idx+1}"; do preparse+=" $(printf '%q' "$pa")"; done
             HOOK_ALIAS_SEEN=()
-            HOOK_EFFECTIVE_BASE="$seg_dir"
+            HOOK_EFFECTIVE_BASE="$HOOK_REPO_IDENTITY"
             alias_reexpand_admit shell "$preparse" &&
               hook::bash_parse_segments "$preparse" check_segment
             HOOK_EFFECTIVE_BASE="$saved_base"

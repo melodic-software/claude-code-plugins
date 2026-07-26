@@ -510,6 +510,71 @@ if [[ -d "$NESTED/a/.git" && -d "$NESTED/a/child/child/.git" ]]; then
   done
 fi
 
+# --- `!` bodies start at the outer repository's TOP LEVEL ---------------------
+# git documents that a shell alias body runs from the top-level directory of the
+# repository, NOT from wherever the outer command was invoked. Invoked from
+# `<repo>/sub` with `alias.a = !git -C child a`, git reaches `<repo>/child`;
+# carrying the subdirectory forward made the guard probe `<repo>/sub/child` and
+# miss the nested repository's `commit -m`. The top level comes from git itself
+# (`rev-parse --show-toplevel`), so it cannot drift from git's own behavior.
+TOPLEVEL="$TEST_TMPDIR/toplevel"
+nested_repo "$TOPLEVEL/outer"
+nested_repo "$TOPLEVEL/outer/child"
+mkdir -p "$TOPLEVEL/outer/sub/child"
+nested_repo "$TOPLEVEL/canon"
+nested_repo "$TOPLEVEL/canon/child"
+mkdir -p "$TOPLEVEL/canon/sub"
+
+if [[ -d "$TOPLEVEL/outer/child/.git" ]]; then
+  git -C "$TOPLEVEL/outer" config alias.a '!git -C child a'
+  git -C "$TOPLEVEL/outer/child" config alias.a 'commit --allow-empty -m bypass'
+  git -C "$TOPLEVEL/canon" config alias.a '!git -C child a'
+  git -C "$TOPLEVEL/canon/child" config alias.a 'commit -F -'
+  for spec in \
+    "outer/sub|2|! body resolves from the outer repo top level, not the subdir" \
+    "canon/sub|0|same shape, canonical grandchild commit (allowed)"; do
+    IFS='|' read -r sub want label <<<"$spec"
+    MSYS_NO_PATHCONV=1 jq -n --arg c "git a" --arg d "$TOPLEVEL/$sub" \
+      '{tool_name:"Bash",tool_input:{command:$c},cwd:$d}' |
+      timeout 30 bash "$HOOK" >/dev/null 2>&1
+    assert_exit "$label" "$want" $?
+  done
+fi
+
+# A symlinked component before `..` means the directory git enters is not the one
+# textual cancellation produces. The guard hands the LITERAL path to git rather
+# than resolving it, so git's own semantics decide — which differ by platform:
+# POSIX resolves `link/..` through the kernel (reaching the link target's parent),
+# while Win32 normalizes `..` textually, so Windows git stays in the textual
+# parent. The fixture is therefore gated on the platform actually exhibiting it,
+# probed directly rather than assumed, so this asserts on Linux/macOS and skips
+# loudly on Windows instead of encoding one platform's semantics as the expected
+# answer.
+SYMDIR="$TEST_TMPDIR/symlink"
+mkdir -p "$SYMDIR/base"
+nested_repo "$SYMDIR/target"
+mkdir -p "$SYMDIR/target/child"
+MSYS=winsymlinks:nativestrict ln -s "$SYMDIR/target/child" "$SYMDIR/base/link" 2>/dev/null
+sym_top=""
+if [[ -L "$SYMDIR/base/link" ]]; then
+  sym_top=$(git -C "$SYMDIR/base/link/.." rev-parse --show-toplevel 2>/dev/null | tr -d '\r')
+fi
+if [[ -n "$sym_top" ]] && [[ "$(cd -P "$SYMDIR/target" && pwd -P)" == "$(cd -P "$sym_top" && pwd -P)" ]]; then
+  git -C "$SYMDIR/target" config alias.a 'commit --allow-empty -m bypass'
+  git -C "$SYMDIR/target" config alias.c 'commit -F -'
+  for spec in "git -C link/.. a|2|symlinked parent: guard follows git into the link target" \
+    "git -C link/.. c|0|symlinked parent: canonical commit there is allowed"; do
+    IFS='|' read -r cmd want label <<<"$spec"
+    MSYS_NO_PATHCONV=1 jq -n --arg c "$cmd" --arg d "$SYMDIR/base" \
+      '{tool_name:"Bash",tool_input:{command:$c},cwd:$d}' |
+      timeout 30 bash "$HOOK" >/dev/null 2>&1
+    assert_exit "$label" "$want" $?
+  done
+else
+  echo "ok: symlinked-parent fixture skipped (this platform's git does not resolve link/.. through the symlink)"
+  PASS=$((PASS + 1))
+fi
+
 # --- PowerShell tool coverage ------------------------------------------------
 # The canonical PowerShell commit form (a here-string piped to `git commit -F -`)
 # must be allowed exactly as the Bash `-F -` form is; a `-m` PowerShell commit

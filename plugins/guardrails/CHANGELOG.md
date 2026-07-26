@@ -90,6 +90,39 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
     is unaffected, and this guard resolves no other path either (see the `cd`
     gap). `block-dangerous-git` is not affected — it resolves inline aliases
     only, with no persisted lookup and no shell-alias seen-set.
+  - **The guard no longer MODELS git's path semantics; it asks git**
+    (`block-noncanonical-commit`; two review findings on the fix above, one root
+    cause). Modelling resolution in shell text produced a bypass every time it was
+    attempted, in both directions:
+    - **Lexical `x/..` cancellation is wrong when `x` is a symlink.** With
+      `base/link -> target/child`, `git -C link/.. …` enters `target` on a POSIX
+      host, but textual cancellation reduced the lookup to `base` — so a
+      `commit -m` alias in `target` went unseen.
+    - **Resolving physically instead would be just as wrong, with the opposite
+      bias.** Verified on git 2.54.0.windows.1: `cd -P link/..` reports the link
+      target's parent while `git -C link/..` reports "not a git repository",
+      because Win32 normalizes `..` textually. A shell resolver would send the
+      guard to a repository git never enters.
+    - **A `!` body starts at the outer repository's TOP LEVEL**, not where the
+      outer command ran. Invoked from `<repo>/sub` with `alias.a = !git -C child
+      a`, git reaches `<repo>/child`; carrying the subdirectory forward made the
+      guard probe `<repo>/sub/child` and miss a nested repository's `commit -m`.
+
+    The lexical normalizer is deleted rather than patched. Composed `-C` paths are
+    now handed to git verbatim, and one primitive —
+    `git -C <dir> rev-parse --show-toplevel` — supplies both the `!` body's base
+    and the canonical repository identity in the shell-alias cycle key, so the
+    guard tracks git's behavior on every platform by construction. Identity also
+    canonicalizes for free: `-C .`, `link/..`, a subdirectory, and every other
+    spelling of one repository collapse to a single key, which is what stops a
+    self-rewriting `-C` chain. Resolution failure **fails closed**, scoped to the
+    alias walk only, so an ordinary `git commit -F -` resolves nothing and forks
+    nothing (measured: 0 git subprocesses; the `-C .` chain stops after 4, not the
+    128 traversal budget; a 20-hop inline chain still forks 0).
+
+    Behavior change to note: an aliased git command invoked where git cannot
+    resolve a work tree now blocks instead of proceeding on a guessed directory.
+    A commit could not have succeeded there anyway.
 
   Guard-local change only (no `hook-utils.sh` change, no cross-plugin sync).
   Test matrices extended in both guards with two- and three-hop chains, the
@@ -101,9 +134,13 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   costs no coverage), a 60-hop single-spelling chain (allowed: the budget bounds
   branching, not depth), a divergent-spelling chain (blocked on the budget), a
   three-level nested-repository fixture whose grandchild `commit -m` must block
-  (with its canonical twin allowed), a `-C .` self-reference that must normalize
-  to a cycle (with a twin proving a real `commit -m` behind a `-C .` hop still
-  blocks), and benign controls (safe multi-hop chain allowed; alias cycle, self-
+  (with its canonical twin allowed), a `-C .` self-reference that must collapse to
+  a cycle (with a twin proving a real `commit -m` behind a `-C .` hop still
+  blocks), a `!` body invoked from a SUBDIRECTORY that must resolve from the outer
+  repository's top level (canonical twin allowed), a symlinked-parent `-C link/..`
+  fixture gated on the platform actually resolving through the symlink (asserted on
+  POSIX, skipped loudly on Windows, where git is itself textual), and benign
+  controls (safe multi-hop chain allowed; alias cycle, self-
   and mutually referential persisted shell aliases terminate and allow without
   hanging). Closes #964.
 
