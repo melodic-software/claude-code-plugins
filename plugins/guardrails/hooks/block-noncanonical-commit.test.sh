@@ -670,6 +670,64 @@ if [[ -d "$GLOB/repo/.git" ]]; then
   done
 fi
 
+# --- a `!` body's launch directory when git does NOT chdir --------------------
+# git chdirs a `!` shell-alias body to the work-tree top level only when the
+# invocation's directory lies inside that work tree — setup.c's setup_explicit_git_dir
+# returns from its `cwd outside worktree` branch without one. An explicit
+# `--git-dir`/`--work-tree` naming a tree that does not contain the caller therefore
+# launches the body where the CALLER stands, and a relative `-C` in the body composes
+# onto the caller. Adopting the top level unconditionally aimed the sequencer probe at
+# `<repo>/child`, so a merge staged there EXEMPTED a `-m` commit that really lands in
+# `<repo>` — a bypass of this guard, not a false positive. Each case below stages the
+# merge in exactly one candidate directory, so the verdict names which one the guard read.
+LAUNCH="$TEST_TMPDIR/launch"
+nested_repo "$LAUNCH/outside"
+nested_repo "$LAUNCH/outside/child"
+nested_repo "$LAUNCH/repo"
+nested_repo "$LAUNCH/repo/child"
+nested_repo "$LAUNCH/repo/sub/child"
+
+# launch_case <label> <cwd-under-LAUNCH> <command> <expected-exit> <merge-repo-under-LAUNCH>
+launch_case() {
+  local label="$1" cwd="$2" cmd="$3" want="$4" merge="$5" rc
+  rm -f "$LAUNCH/outside/child/.git/MERGE_HEAD" \
+    "$LAUNCH/repo/child/.git/MERGE_HEAD" \
+    "$LAUNCH/repo/sub/child/.git/MERGE_HEAD"
+  : >"$LAUNCH/$merge/.git/MERGE_HEAD"
+  MSYS_NO_PATHCONV=1 jq -n --arg c "$cmd" --arg d "$LAUNCH/$cwd" \
+    '{tool_name:"Bash",tool_input:{command:$c},cwd:$d}' |
+    timeout 30 bash "$HOOK" >/dev/null 2>&1
+  rc=$?
+  ((rc == 124)) && bad "$label: exceeded the 30s ceiling" && return
+  assert_exit "$label" "$want" "$rc"
+}
+
+if [[ -d "$LAUNCH/repo/child/.git" && -d "$LAUNCH/outside/child/.git" && -d "$LAUNCH/repo/sub/child/.git" ]]; then
+  BODY="!git -C child commit -m x"
+  WT="--git-dir=$LAUNCH/repo/.git --work-tree=$LAUNCH/repo"
+
+  # Caller OUTSIDE the named work tree: git leaves the body in the caller's directory,
+  # so a merge under the work tree's own child is not the one the command would conclude.
+  launch_case "caller outside the work tree: the work-tree child's merge must not exempt" \
+    outside "git $WT -c alias.a='$BODY' a" 2 repo/child
+  launch_case "caller outside the work tree: the caller's child is the directory reached" \
+    outside "git $WT -c alias.a='$BODY' a" 0 outside/child
+
+  # Caller INSIDE the work tree: git does chdir, so the top level remains the base —
+  # the case the top-level base exists for, here under explicit locating globals.
+  launch_case "caller inside the work tree: the top level is still the base" \
+    repo/sub "git $WT -c alias.a='$BODY' a" 0 repo/child
+  launch_case "caller inside the work tree: the caller's subdirectory child is not the base" \
+    repo/sub "git $WT -c alias.a='$BODY' a" 2 repo/sub/child
+
+  # `--git-dir` with no `--work-tree`: git answers the caller's own directory as the top
+  # level, so both readings agree and the caller's child is what the body reaches.
+  launch_case "--git-dir alone: the caller's child is the base" \
+    outside "git --git-dir=$LAUNCH/repo/.git -c alias.a='$BODY' a" 0 outside/child
+  launch_case "--git-dir alone: a merge elsewhere does not exempt" \
+    outside "git --git-dir=$LAUNCH/repo/.git -c alias.a='$BODY' a" 2 repo/child
+fi
+
 # --- PowerShell tool coverage ------------------------------------------------
 # The canonical PowerShell commit form (a here-string piped to `git commit -F -`)
 # must be allowed exactly as the Bash `-F -` form is; a `-m` PowerShell commit

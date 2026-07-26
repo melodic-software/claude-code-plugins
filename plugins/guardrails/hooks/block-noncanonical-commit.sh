@@ -186,9 +186,15 @@ explicit_git_dir() { explicit_global git-dir "$@"; }
 # --show-toplevel` is still git's own answer, not a reconstruction of one.
 #
 # Empty means git could not answer — no such directory, or genuinely no work tree.
-# Callers on the alias-walk path FAIL CLOSED on empty: a guard that cannot determine
-# which repository a command will execute in must not allow it. Nothing off that
-# path calls this, so an ordinary `git commit -F -` never pays a fork.
+# Callers fall back to the literal composed directory (best-available, not a gate —
+# see the note above check_segment, where an interim fail-closed revision is recorded
+# and why it was dropped). Nothing off the alias-walk path calls this, so an ordinary
+# `git commit -F -` never pays a fork.
+#
+# `--is-inside-work-tree` rides the SAME probe and answers a second question the
+# alias walk needs — whether git would chdir into that work tree at all (see
+# alias_body_base). One `rev-parse` carrying both flags costs exactly what asking
+# for the top level alone cost.
 #
 # Cached per (path + replayed globals), since the same path under a different
 # --git-dir is a different question. The fork is the expensive step and a static
@@ -197,16 +203,62 @@ explicit_git_dir() { explicit_global git-dir "$@"; }
 # discard the cache.
 # Call as: repo_identity <dir> [locating-global...]
 declare -A _repo_identity=()
+declare -A _repo_inside=()
 HOOK_REPO_IDENTITY=""
+HOOK_REPO_INSIDE=""
 # shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
 repo_identity() {
-  local dir="$1" key
+  local dir="$1" key out
   shift
   key="$dir"$'\n'"$*"
-  [[ -n "${_repo_identity[$key]+x}" ]] ||
-    _repo_identity["$key"]=$(git -C "$dir" "$@" rev-parse --show-toplevel 2>/dev/null | tr -d '\r')
+  if [[ -z "${_repo_identity[$key]+x}" ]]; then
+    out=$(git -C "$dir" "$@" rev-parse --is-inside-work-tree --show-toplevel 2>/dev/null | tr -d '\r')
+    # One line per flag, in flag order. A bare repository answers `false` and
+    # nothing more, and an unresolvable directory answers nothing at all — both
+    # leave the identity empty, which is already the "git could not answer" value.
+    _repo_inside["$key"]="${out%%$'\n'*}"
+    _repo_identity["$key"]=""
+    [[ "$out" == *$'\n'* ]] && _repo_identity["$key"]="${out#*$'\n'}"
+  fi
   HOOK_REPO_IDENTITY="${_repo_identity[$key]}"
+  HOOK_REPO_INSIDE="${_repo_inside[$key]}"
   [[ -n "$HOOK_REPO_IDENTITY" ]]
+}
+
+# Directory a `!` shell-alias body launched from <dir> actually runs in, alongside
+# the repository identity that names it (HOOK_REPO_IDENTITY, falling back to <dir>
+# when git cannot answer).
+#
+# git documents the body running "from the top-level directory of a repository, which
+# may not necessarily be the current directory" (Documentation/config/alias.adoc), but
+# that chdir is CONDITIONAL. setup.c's setup_explicit_git_dir performs it only when the
+# invocation's directory lies inside the located work tree; its `/* cwd outside worktree */`
+# branch returns without one. So `git --git-dir=<r>/.git --work-tree=<r> -c alias.a='!…' a`
+# invoked from OUTSIDE <r> launches the body where the caller stands, and a relative `-C`
+# in that body composes onto the caller rather than onto <r>. Verified on git
+# 2.54.0.windows.1: that invocation run from `<out>` prints `<out>`, while the same one
+# run from `<r>/sub` prints `<r>`.
+#
+# Adopting the top level unconditionally therefore aimed the directory-dependent probes at
+# a directory the command never touches. With a merge in progress under `<r>/child`,
+# `!git -C child commit -m x` read `<r>/child`'s sequencer state, took the in-progress-merge
+# exemption, and ALLOWED a commit that really landed in `<r>`, where no merge was running.
+#
+# `--is-inside-work-tree` is git's own answer to the condition setup.c tests, which keeps
+# this on the ask-git side of the line repo_identity draws instead of modelling containment.
+# The top level still wins whenever git does chdir, so the canonicalization the shell-alias
+# cycle key depends on is unchanged for every discovered repository.
+# Call as: alias_body_base <dir> [locating-global...] -> $HOOK_ALIAS_BODY_BASE
+HOOK_ALIAS_BODY_BASE=""
+# shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
+alias_body_base() {
+  local dir="$1"
+  repo_identity "$@" || HOOK_REPO_IDENTITY="$dir"
+  if [[ "$HOOK_REPO_INSIDE" == true ]]; then
+    HOOK_ALIAS_BODY_BASE="$HOOK_REPO_IDENTITY"
+  else
+    HOOK_ALIAS_BODY_BASE="$dir"
+  fi
 }
 
 # The locating globals carried by an invocation prefix, as an argv array ready to
@@ -256,12 +308,14 @@ collect_locating_globals() {
 # a self-cycle, and the grandchild's `commit -m` was never reached while real git
 # committed there. HOOK_EFFECTIVE_BASE is save/restored around each `!` reparse.
 #
-# The base a `!` reparse inherits is the outer repository's TOP LEVEL, which is
-# where git documents it runs a shell body from — not the directory the outer
-# command was invoked in. Invoked from `<repo>/sub` with `alias.a = !git -C child
-# a`, git reaches `<repo>/child`; carrying the subdirectory forward made the guard
-# probe `<repo>/sub/child` and miss the nested repository's `commit -m` entirely.
-# repo_identity supplies that top level from git itself.
+# The base a `!` reparse inherits is the outer repository's TOP LEVEL whenever git
+# actually chdirs there — not the directory the outer command was invoked in.
+# Invoked from `<repo>/sub` with `alias.a = !git -C child a`, git reaches
+# `<repo>/child`; carrying the subdirectory forward made the guard probe
+# `<repo>/sub/child` and miss the nested repository's `commit -m` entirely.
+# alias_body_base supplies that top level from git itself, and withholds it in the
+# one shape where git does NOT chdir — an explicit `--git-dir`/`--work-tree` whose
+# work tree does not contain the caller, where the body runs where the caller stands.
 #
 # What this function returns is a LITERAL composed path, deliberately not a
 # resolved one: it is handed straight to `git -C`, so git applies its own path
@@ -515,10 +569,9 @@ check_segment() {
           for a in "${w[@]:sub_idx+1}"; do reparse+=" $(printf '%q' "$a")"; done
           [[ -n "$seg_dir" ]] || seg_dir="$(effective_dir "${w[@]:0:sub_idx}")"
           collect_locating_globals "${w[@]:0:sub_idx}"
-          repo_identity "$seg_dir" ${locating_globals[@]+"${locating_globals[@]}"} ||
-            HOOK_REPO_IDENTITY="$seg_dir"
+          alias_body_base "$seg_dir" ${locating_globals[@]+"${locating_globals[@]}"}
           HOOK_ALIAS_SEEN=()
-          HOOK_EFFECTIVE_BASE="$HOOK_REPO_IDENTITY"
+          HOOK_EFFECTIVE_BASE="$HOOK_ALIAS_BODY_BASE"
           alias_reexpand_admit shell "$reparse" &&
             hook::bash_parse_segments "$reparse" check_segment
           HOOK_EFFECTIVE_BASE="$saved_base"
@@ -567,8 +620,11 @@ check_segment() {
           # there rests on the fail-closed traversal budget, not on this set.
           local pkey pseen_hit=0
           collect_locating_globals "${w[@]:0:sub_idx}"
-          repo_identity "$seg_dir" ${locating_globals[@]+"${locating_globals[@]}"} ||
-            HOOK_REPO_IDENTITY="$seg_dir"
+          alias_body_base "$seg_dir" ${locating_globals[@]+"${locating_globals[@]}"}
+          # The cycle key stays on the CANONICAL identity even where the body's base
+          # does not: collapsing every spelling of one repository is what stops a
+          # self-referential persisted body, and the launch directory is a separate
+          # question from which repository this hop is in.
           pkey="$HOOK_REPO_IDENTITY"$'\n'"$sub="$'\n'"$pexp"
           for s in ${HOOK_SHELL_ALIAS_SEEN[@]+"${HOOK_SHELL_ALIAS_SEEN[@]}"}; do
             [[ "$s" == "$pkey" ]] && {
@@ -582,7 +638,7 @@ check_segment() {
             preparse="${pexp#!}"
             for pa in "${w[@]:sub_idx+1}"; do preparse+=" $(printf '%q' "$pa")"; done
             HOOK_ALIAS_SEEN=()
-            HOOK_EFFECTIVE_BASE="$HOOK_REPO_IDENTITY"
+            HOOK_EFFECTIVE_BASE="$HOOK_ALIAS_BODY_BASE"
             alias_reexpand_admit shell "$preparse" &&
               hook::bash_parse_segments "$preparse" check_segment
             HOOK_EFFECTIVE_BASE="$saved_base"

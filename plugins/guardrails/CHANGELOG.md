@@ -174,6 +174,28 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
     ([#1500](https://github.com/melodic-software/claude-code-plugins/issues/1500))
     rather than bolted on at this depth.
 
+  - **A `!` body's launch directory is no longer assumed to be the work-tree top
+    level** (`block-noncanonical-commit`; review finding on the fix above). git's
+    chdir into the top level is CONDITIONAL: `setup.c`'s `setup_explicit_git_dir`
+    performs it only when the invocation's directory lies inside the located work
+    tree, returning from its `cwd outside worktree` branch without one. So
+    `git --git-dir=<r>/.git --work-tree=<r> -c alias.a='!…' a` invoked from OUTSIDE
+    `<r>` launches the body where the caller stands — verified on git
+    2.54.0.windows.1, where that invocation prints the caller's directory while the
+    same one run from `<r>/sub` prints `<r>`. Taking the top level unconditionally
+    therefore aimed the directory-dependent probes at a directory the command never
+    touches: with a merge staged under `<r>/child`, `!git -C child commit -m x` read
+    that child's sequencer state, took the in-progress-merge exemption and returned
+    0, while the commit really landed in `<r>`, where no merge was running (verified
+    fail-open, and `main` blocks the same payload — the regression was this change's
+    own). The identity probe now carries `--is-inside-work-tree` beside
+    `--show-toplevel`, on the same single fork: git's own answer to the condition
+    `setup.c` tests, so the guard still asks rather than models containment. The top
+    level is adopted as the body's base only where git would actually chdir there;
+    otherwise the body keeps the caller's composed directory. The shell-alias cycle
+    key stays on the canonical identity either way, so the collapse that stops a
+    self-rewriting `-C` chain is unchanged.
+
   Guard-local change only (no `hook-utils.sh` change, no cross-plugin sync).
   Test matrices extended in both guards with two- and three-hop chains, the
   `--config-env` and `.command` second-hop variants, a persisted-config alias
@@ -192,7 +214,10 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   POSIX, skipped loudly on Windows, where git is itself textual), `-C ./././.`
   collapsing to a cycle without a `.`-cancelling pass, `-C sub/..` reaching a
   `commit -m` (blocked) beside its canonical twin (allowed, which is why `..` is
-  not refused outright), and benign controls (safe multi-hop chain allowed; alias cycle, self-
+  not refused outright), six launch-directory cases staging an in-progress merge in
+  exactly one candidate directory so the verdict names which one the guard read
+  (caller outside the named work tree, caller inside it, and `--git-dir` with no
+  `--work-tree`), and benign controls (safe multi-hop chain allowed; alias cycle, self-
   and mutually referential persisted shell aliases terminate and allow without
   hanging). Closes #964.
 
