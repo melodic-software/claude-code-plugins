@@ -157,6 +157,32 @@ class Locking(unittest.TestCase):
                 t.join()
             self.assertEqual(sum(wins), 1, "exactly one racer may win the lock")
 
+    def test_pid_alive_tasklist_call_is_utf8_explicit(self):
+        # #1483: _pid_alive's Windows branch shells out to `tasklist`, whose
+        # subprocess.run call (unlike #1472's already-fixed _run_analysis) had no
+        # explicit encoding= -- Python's default text-mode decode is the platform
+        # code page (cp1252 on Windows), not UTF-8. Force the "nt" branch
+        # regardless of the host platform running this test so the assertion is
+        # not skipped on Linux/mac CI.
+        captured = {}
+
+        class FakeProc:
+            stdout = "12345 Console 1 10,000 K"
+
+        def fake_run(cmd, **kw):
+            captured.update(kw)
+            return FakeProc()
+
+        on, orr = observer.os.name, observer.subprocess.run
+        observer.os.name = "nt"
+        observer.subprocess.run = fake_run
+        try:
+            self.assertTrue(observer._pid_alive(12345))
+        finally:
+            observer.os.name, observer.subprocess.run = on, orr
+        self.assertEqual(captured.get("encoding"), "utf-8")
+        self.assertEqual(captured.get("errors"), "replace")
+
 
 class LedgerAndRetention(unittest.TestCase):
     def test_find_and_append_with_redaction(self):

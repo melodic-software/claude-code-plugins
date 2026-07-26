@@ -547,8 +547,17 @@ def _pid_alive(pid: int) -> bool:
     if pid <= 0:
         return False
     if os.name == "nt":
+        # encoding="utf-8" is explicit for the same reason as _run_analysis's
+        # subprocess.run (#1472): Python's default text encoding for subprocess
+        # capture is the platform code page (cp1252 on Windows), not UTF-8.
+        # Currently harmless here (the only check is an ASCII integer substring
+        # match against tasklist's stdout), but leaving it implicit invites the
+        # same class of defect if this check ever inspects non-ASCII output.
+        # errors="replace" matches the same rationale: don't let a decode
+        # failure raise past this function's plain bool contract.
         out = subprocess.run(["tasklist", "/FI", f"PID eq {pid}", "/NH"],
-                            capture_output=True, text=True)
+                            capture_output=True, text=True,
+                            encoding="utf-8", errors="replace")
         return str(pid) in out.stdout
     try:
         os.kill(pid, 0)

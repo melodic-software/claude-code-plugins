@@ -1,5 +1,23 @@
 # Changelog — session-flow plugin
 
+## [0.17.4]
+
+### Fixed
+
+- **`observer.py`'s `_pid_alive` Windows liveness check now decodes `tasklist` output as UTF-8
+  explicitly.** Its `subprocess.run` call passed `text=True` with no `encoding=`, so Python fell
+  back to the platform code page (cp1252 on Windows) instead of UTF-8 — the same class of defect
+  `_run_analysis`'s subprocess call was fixed for (#1472). Currently harmless in practice (the only
+  check is an ASCII integer substring match against `tasklist`'s stdout), but left implicit it
+  risked the same silent-corruption pattern if the check's output-parsing ever changed.
+  `errors="replace"` is set alongside it for the same reason as `_run_analysis`'s fix: a
+  truncated/invalid byte sequence decodes rather than raising. A full sweep of every other
+  `subprocess.run`/`subprocess.Popen` and `open()`/`read_text`/`write_text` call across
+  `session-flow`'s production scripts (`observer.py`, `arm_observer.py`,
+  `retro/scripts/parse_transcript.py`) found every other text-mode call site already
+  UTF-8-explicit or intentionally binary (`"rb"` mode, or a raw `os.open` file descriptor with no
+  text decoding involved) (#1483).
+
 ## [0.17.3]
 
 ### Fixed
