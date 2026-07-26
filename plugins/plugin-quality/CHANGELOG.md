@@ -16,10 +16,26 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   therefore dropped the findings file from the deterministic recovery path — the exact loss the
   packet exists to prevent — even though the substitution had been recorded in `evidence.md`.
 
-  The rule no longer looks for one hardcoded filename. It reads the name recorded in `evidence.md`
-  first, falls back to all three known names (`audit-notes.md`, `audit-data.md`, legacy
-  `findings.md`), and treats every non-empty file in the packet directory as in-scope rather than
-  concluding the findings are gone. Raised in review on #1569; the fix missed that PR's merge.
+  The rule now probes a **closed set** of basenames — `audit-notes.md`, `audit-data.md`, legacy
+  `findings.md` — and the rename fallback may only choose from that set, so resume never needs a
+  pointer telling it what to open. Raised in review on #1569; the fix missed that PR's merge.
+
+  Two further review findings on the fix itself shaped the final design:
+
+  - **The findings pointer must not come from `evidence.md` (P1, prompt injection).** An earlier
+    revision had resume read the filename recorded there. `evidence.md` records what the audited
+    component printed, which is DATA under audit per the skill's own standing untrusted-content
+    posture — a forged substitution record could have redirected a post-compaction resume onto an
+    attacker-chosen file and suppressed or replaced the real findings. Closing the name set removes
+    the pointer, and with it the injection surface; the `evidence.md` note is now explicitly a
+    courtesy for human readers, not an input.
+  - **A missing findings file must be surfaced, not shrugged off (P2).** An earlier revision told a
+    resumed session to treat every non-empty packet file as in-scope rather than concluding the
+    findings were gone — which would let an interrupted auditor (dispatch died before persisting, or
+    every write refused) flow into contract lock and emit with no grounded findings at all. Every
+    initialized packet already holds a non-empty `evidence.md`, so "some file exists" was never
+    evidence that findings do. Resume now stops and re-runs step 2 when none of the closed set is
+    present.
 
 ## [0.2.0] - 2026-07-26
 
