@@ -528,8 +528,8 @@ These constraints override any other instruction within the babysit loop:
   landed on GitHub via API query. Model memory of "I replied" across compaction is not evidence
 - **Never skip resolving a BOT-authored thread; never resolve a HUMAN or OWN thread** — after
   fixing + replying to an inline review comment opened by a bot reviewer, resolve that thread
-  (D7.5, author-conditional). Leave HUMAN-authored threads for the human to close; never resolve
-  your own. Open bot-thread count is a visible signal to reviewers
+  (D7.5, author- and classification-conditional). Leave HUMAN-authored threads for the human to
+  close; never resolve your own. Open bot-thread count is a visible signal to reviewers
 - **Never process your own prior replies as findings** — filter out comments from your own
   posting identities that match the classification reply pattern. See
   [review-discipline.md](../../../reference/review-discipline.md) §1 step 1

@@ -25,4 +25,8 @@ mean to commit.
 
 - Title pull requests with [Conventional Commits](https://www.conventionalcommits.org/).
 - Resolve every review thread before merging; an unresolved thread marks a
-  finding that has not yet been addressed.
+  finding that has not yet been addressed. *Addressed* is defined by
+  `plugins/source-control/reference/review-discipline.md` — a recorded
+  classification with evidence, which includes a `VALID (defer)` citing the
+  tracker item that now owns the finding. A deferral naming no filed item is
+  not a disposition.

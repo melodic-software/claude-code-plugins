@@ -174,6 +174,23 @@ D1–D7 cycles. Exploration and validation must run on the PR's head branch.
     identities — non-zero confirms. Use `pulls/comments/<id>/reactions` for inline review
     comments. **Exemption:** PR review BODIES have no reactions endpoint in the REST API — skip
     the reaction there; the D5 reply is the audit signal
+- [ ] D4.6 — **Ground a `VALID (defer)`.** A deferral ships the change without the fix, so it
+  counts as a disposition only when it is durable and someone else can find it: file a tracker
+  item carrying the finding's own evidence — the reviewer's claim, your D2–D3 validation, and
+  the file and line it lands on — and cite that item's id in the D5 reply. A deferral whose only
+  record is prose in a review thread is a dropped finding, and the thread stays open
+  - [ ] **Never defer a finding this change introduced.** `VALID (defer)` is for a defect
+    already present on the base branch, living outside this change's files, or owned by another
+    contract. A finding against lines this change authored, describing a defect that did not
+    exist on the base, is `VALID (fix now)` — fix it, or revert the change that caused it.
+    Provenance decides this, never severity: a self-introduced regression wearing a low-severity
+    badge is still a regression this change is shipping
+  - [ ] Record the work class the item was filed under, because it bounds when the finding gets
+    addressed: an autonomously-drainable class is a materially stronger deferral candidate than
+    a human-gated one, whose latency is unbounded
+  - [ ] **verify the item exists:** re-query it by id and confirm it is filed and open before
+    the D5 reply cites it — a cited id that does not resolve is the dropped finding this step
+    exists to prevent
 - [ ] D5 — Reply with the per-finding classification table + evidence (before fixing). Table
   format per §2 — includes the Reacted column. **Route the reply by comment type — REQUIRED,
   not interchangeable:** inline review comments (diff-anchored, `pulls/comments`) MUST reply
@@ -195,8 +212,15 @@ D1–D7 cycles. Exploration and validation must run on the PR's head branch.
   - [ ] **verify follow-up reply posted — same surface routing as D5:** inline thread →
     `pulls/<pr>/comments` filtered by `in_reply_to_id`; issue-level →
     `gh api repos/{owner}/{repo}/issues/<pr>/comments --jq '.[-1].body'`
-- [ ] D7.5 — Resolve review thread — **author-conditional, inline review comments only** (this
-  section is the canonical policy). Resolve ONLY threads whose OPENING comment is authored by a
+- [ ] D7.5 — Resolve review thread — **author- and classification-conditional, inline review
+  comments only** (this section is the canonical policy). A thread is eligible for resolution
+  only when its finding carries one of three recorded dispositions: `VALID (fix now)` with the
+  fix pushed and cited (D6–D7); `VALID (defer)` grounded per D4.6 with the item id cited; or
+  `INCORRECT` with the counter-evidence posted. `UNCERTAIN` is never resolved — it escalates.
+  This is what `skills/babysit-prs/reference/safety.md`'s Never Do Automatically entry "Resolve
+  any thread over a live, unaddressed finding" means operationally: *addressed* is one of those
+  three records, never the absence of one. The author conditions apply in full — this narrows the
+  eligible set and never widens it. Resolve ONLY threads whose OPENING comment is authored by a
   BOT reviewer that you addressed. NEVER resolve HUMAN-authored threads — the human resolves
   their own after verifying the fix. NEVER resolve your OWN threads (any of your posting
   identities — same self set as §1 step 1). Skip issue-level comments (no thread). **Thread
@@ -213,6 +237,13 @@ D1–D7 cycles. Exploration and validation must run on the PR's head branch.
   `author{__typename login}` to apply the conditional in one query
   - [ ] **verify thread resolved:** query the thread node via `gh api graphql` — `isResolved`
     must be `true`
+
+**Who authorizes a resolution that ships no fix.** In a merge-capable tier, a `VALID (defer)`
+resolution on a PR the same session intends to merge is not that session's call: it goes through
+the fresh independent resolution dispatch already defined for a contradictory or unresolved bot
+thread (`skills/babysit-loop/reference/pre-escalation-dispatch.md`), so the deferral is
+adjudicated by a context that is not trying to merge. Outside a merge-capable tier the classification stands alone, because nothing
+merges on it.
 
 **"Done" means GitHub shows evidence.** A per-finding work item is addressed only when the
 verification sub-step confirms the action landed on GitHub. Model memory of "I posted a reply"

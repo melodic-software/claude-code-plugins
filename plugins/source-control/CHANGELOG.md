@@ -3,6 +3,61 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.34.0]
+
+### Added
+
+- **A `VALID (defer)` must now be durable to count as a disposition — D4.6 (#1614).** The review
+  discipline already shipped the `VALID (defer)` classification, and `safety.md` already refused
+  to resolve a thread "over a live, unaddressed finding", but nothing connected the two: a lane
+  could defer a finding with a plausible sentence in a review thread and resolve against it,
+  leaving no artifact anyone could find. D4.6 requires the tracker item to be filed **before**
+  the D5 reply, carrying the finding's own evidence, with its id cited in the reply and re-queried
+  to confirm it resolves. A deferral whose only record is thread prose is a dropped finding and
+  the thread stays open. This narrows what a lane may resolve; it does not widen it, and the
+  `--autonomous` `isOutdated` guard in `babysit_resolve_thread.py` is untouched.
+- **Never defer a finding this change introduced.** `VALID (defer)` is for a defect already
+  present on the base branch, outside this change's files, or owned by another contract.
+  Provenance decides, never severity — a self-introduced regression wearing a low-severity badge
+  is still a regression the change is shipping, so it is `VALID (fix now)`: fix it or revert the
+  change that caused it.
+- **A third class in the non-convergence taxonomy — (c) self-inflicted findings (#1614).** The
+  existing (a)-duplicate / (b)-new-distinct split had no slot for a finding that is new and
+  distinct *and* against text the lane's own prior fix introduced. Provenance decides the class.
+  A (c) finding is fixed like any in-scope defect and is never deferrable, but it is counted: a
+  second consecutive round of nothing but (c) means incremental patching is injecting defects
+  about as fast as it removes them. The response is a change of METHOD — rewrite the contested
+  section whole in one commit, or report for a human decision — never a licence to ship a known
+  defect. This is a signal, not a counter; the `babysit_advisory_fix_round_cap` backstop is
+  unchanged and a low round cap was rejected.
+
+### Changed
+
+- **D7.5 is now author- *and* classification-conditional (#1614).** Resolution eligibility
+  previously turned on thread authorship alone, which is the operational hole behind
+  `safety.md`'s "Resolve any thread over a live, unaddressed finding". A thread is now eligible
+  only when its finding carries one of three recorded dispositions: `VALID (fix now)` with the
+  fix pushed and cited, `VALID (defer)` grounded per D4.6 with the item id cited, or `INCORRECT`
+  with counter-evidence posted. `UNCERTAIN` escalates and is never resolved. Every existing
+  author condition still applies on top. The two surfaces that cite the step by its condition —
+  `babysit-prs/reference/loop.md` and `pull-request/reference/monitor.md` — are updated to match,
+  so neither keeps describing it as author-conditional alone.
+- **A defer-resolution on a PR the same session intends to merge is not that session's call.**
+  In a merge-capable tier it routes through the fresh independent resolution dispatch
+  `babysit-loop` already defines for a contradictory or unresolved bot thread, so a deferral that
+  unblocks a merge is adjudicated by a context that is not trying to merge.
+- **The auto-merge prohibition now states its reason (#1614).** "Enable auto-merge." sat in the
+  Never Do Automatically list with no rationale, so each lane rediscovered it. Under a base whose
+  ruleset requires thread resolution plus a reviewer that re-reviews every pushed head, a round
+  landing after `--auto` is armed leaves the PR permanently unmergeable while the lane has
+  already reported success. The prohibition is unchanged; only the reason is now written down.
+- **Verify Before Escalating Non-Convergence states its own reach (#1614).** It binds every
+  escalation of that shape regardless of which skill's escalation path carries it, so a lane
+  escalating through a loop's own escalation contract no longer reads as outside it. `babysit-loop`'s
+  Escalation section carries the matching pointer, because a lane raising a cap-policy question
+  through that contract had no reason to open `safety.md` first — which is how #1614 itself came
+  to be filed against the rule that forbids it.
+
 ## [0.33.1]
 
 ### Fixed

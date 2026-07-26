@@ -288,6 +288,12 @@ writer (the same one-directional pattern as the `claude-ops:lane-telemetry` sent
 babysit escalations surface in the same attention view as worker escalations. Telemetry is the
 report surface, never the escalation channel.
 
+A non-convergence, round-cap, or pause-the-loop escalation carries one extra precondition before
+it may be raised: read the actual content of every unresolved review thread first
+(`babysit-prs/reference/safety.md`, "Verify Before Escalating Non-Convergence"). Routing such an
+escalation through this contract does not exempt it — round count and thread count are never
+sufficient grounds.
+
 **Pre-escalation resolution attempt, explicit-`autopilot` only.** When — and only when — this
 invocation's own argument line typed both the literal `autopilot` tier argument and
 `--merge c3-this-run` (the widening pair above), a merge-eligible (C1-C3) PR blocked on a

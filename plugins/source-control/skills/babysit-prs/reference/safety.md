@@ -154,16 +154,27 @@ value and its unset fallback.
 Before reporting a blocker as real — and before raising a "this PR is not converging," "should
 rounds be capped," or "should we pause the loop" question to the user — re-query GitHub and read
 the actual content of every currently-unresolved review thread on the PR(s) in question. Never
-escalate on unresolved-thread count or round number alone.
+escalate on unresolved-thread count or round number alone. This section binds every escalation of
+that shape regardless of which skill's escalation path carries it — a lane escalating through a
+loop's own escalation contract is not outside it.
 
 - Classify each unresolved thread: (a) a genuine duplicate — the same finding recurring after a
-  fix that should have addressed it, real evidence of non-convergence; or (b) a new, distinct,
-  code/line-cited finding — expected depth on complex or security-sensitive logic, not churn.
-- Escalate a bounding/cap-policy question only when verification shows (a), or a finding that is
-  structurally impossible to resolve (the check itself is external or non-deterministic). If
-  every unresolved thread is (b) and each is individually fixable — a mechanical fix or a
-  clearly-scoped judgment call — fix directly instead. A high round count alone is not evidence
-  of non-convergence.
+  fix that should have addressed it, real evidence of non-convergence; (b) a new, distinct,
+  code/line-cited finding — expected depth on complex or security-sensitive logic, not churn; or
+  (c) a self-inflicted finding — new and distinct, but against text this lane's own prior fix on
+  this PR introduced. Provenance decides (c), never severity.
+- Fix (c) like any other in-scope defect — it is never deferrable, because it is a defect this
+  change is shipping (`${CLAUDE_PLUGIN_ROOT}/reference/review-discipline.md`, D4.6) — but count
+  it. A second consecutive round whose findings are *all* (c) means incremental patching is
+  injecting defects about as fast as it removes them; that is the non-convergence signal a round
+  count only approximates. Change METHOD rather than stopping: rewrite the contested section
+  whole in one commit, or report it for a human decision. It is never a licence to ship a known
+  defect.
+- Escalate a bounding/cap-policy question only when verification shows (a), a second consecutive
+  all-(c) round, or a finding that is structurally impossible to resolve (the check itself is
+  external or non-deterministic). If every unresolved thread is (b) or (c) and each is
+  individually fixable — a mechanical fix or a clearly-scoped judgment call — fix directly
+  instead. A high round count alone is not evidence of non-convergence.
 - This verification is required even when a sub-agent, advisor, or other second opinion reads
   round-count or metadata as a non-convergence pattern — that read is a hypothesis to test
   against actual thread content, never a conclusion to act on or escalate over.
@@ -643,7 +654,11 @@ as done and re-running the gate.
   merge-ready list. The tier never routes around the gate and never rubber-stamps: the bot
   review is a real review pass, and the ruleset stays meaningful. Absent the enable flag this
   tier does not exist and the first bullet governs unchanged.
-- Enable auto-merge.
+- Enable auto-merge. Under a base whose ruleset requires review-thread resolution, plus a
+  reviewer that re-reviews each pushed head, a review round landing after `--auto` is armed
+  leaves the PR permanently unmergeable while the lane has already reported success and moved
+  on. Merge synchronously against a `ready: true` merge-gate run, or report the PR as
+  merge-ready and leave it in the queue.
 - Force-push.
 - Rebase or force-update a PR branch as freshness maintenance.
 - Change GitHub settings by hand.
