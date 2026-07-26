@@ -1,6 +1,6 @@
 ---
 name: explore
-description: "Explore the local codebase before making changes — read code, trace dependencies, scan git history, discover tests, and audit build and tool configuration. Use as step 1 before any code change, or for 'what exists for X' investigation."
+description: "Explore the local codebase before making changes — read code, trace dependencies, scan git history, discover tests, and audit build and tool configuration, persisting an EXPLORE.md index plus sidecars. Dispatches a fresh-context subagent by default so the file reads stay out of the main conversation, with a documented inline escape hatch. Use when: 'explore the codebase', 'what exists for X' investigation, 'how does this work', 'where is X implemented', 'trace the dependencies', 'what tests cover this', or as step 1 before any code change."
 argument-hint: "[scope] (e.g., /discovery:explore payments module dependencies, /discovery:explore tests, /discovery:explore git, /discovery:explore config)"
 user-invocable: true
 disable-model-invocation: false
@@ -15,15 +15,27 @@ Project root: !`git rev-parse --show-toplevel 2>/dev/null || echo "unknown"`
 
 These values orient this session only. The project root is an absolute machine path — use it to resolve files while working, but never echo it into `EXPLORE.md`; the handoff artifact records relative paths (see the outcome gate below).
 
-## Routing — context preservation first (three ways to explore)
+## Routing — dispatch by default
 
-Exploration reads many files; keeping that out of the main conversation is what subagents are for. Three ways to run it, by how much context it burns and whether you need this structured workflow:
+**From the main conversation, this skill dispatches the `discovery:explorer` subagent.** Exploration reads many files; keeping that out of the orchestrator's context window is the point. The agent loads the project's path-scoped rules, runs the six dimensions, writes the artifact set, and returns a bounded summary plus a file pointer — not the reads. The parent resolves the **pre-dispatch envelope** first (scope, memory-slice path, memory root, budget, capability flags) and owns the **post-dispatch boundary** after: re-surfacing `open_questions` to the user, dispatching the sibling verifier, and **writing its verdict back into `EXPLORE.md`** — the explorer always returns `verification: pending` because it may not grade its own work, so an artifact left saying `pending` after the parent verified it cannot be told apart from one whose verifier never ran, and this artifact is the whole handoff a fresh session resumes from.
 
-- **Built-in Explore subagent — context-preserving default.** For raw "where is X / how does Y work" search, delegate to a fresh Explore subagent ("use a subagent to investigate X"). Fast, read-only, context-isolated. It skips project memory (convention-blind) and does NOT run this 6-dimension workflow or write `EXPLORE.md` — pass key constraints in the prompt when conventions matter. Scale 1→N for coverage: dispatch more Explore subagents (each owning a disjoint area) until nothing relevant to the task is left undiscovered; the main session synthesizes their summaries and persists the artifact.
-- **Inline `/explore` — this structured workflow, scoped.** Stay here when ALL hold: ≤~5 known files; tight turn-by-turn iteration; findings feed a same-session edit; you need the `EXPLORE.md` artifact with project rules already loaded. Runs the full 6 dimensions in main context.
-- **`/explore-deep` — this structured workflow, forked.** For a single deep pass whose synthesis must ALSO stay off main context: a forked subagent that loads project memory and persists `EXPLORE.md` itself before returning only a summary. Pass explicit scope in the invocation arguments — a fork does not see the parent conversation.
+**Run inline instead when any of these holds** — inline runs the identical workflow, and the escape hatch relaxes nothing:
 
-**Coverage discipline** when fanning out: (1) write a numbered gap-list before any deepen pass; (2) fan out by disjoint area — never split the six dimensions across agents; (3) the main session synthesizes and writes `EXPLORE.md` (built-in Explore agents cannot write it).
+- **Tight turn-by-turn iteration** — ≤~5 known files, findings feeding a same-session edit, and you will redirect as results land.
+- **Cost** — a dispatched run pays the full six dimensions every time; a single-file question does not need an envelope.
+- **The invoking context is already a subagent** — dispatch-by-default is scoped to the main-conversation boundary. Hoisting, not nesting: the outer dispatch already supplied the fresh context, so a second hop only spends the inner agent's own window.
+
+**One named alternative:** the **built-in Explore subagent**, for raw "where is X / how does Y work" search. Fast, read-only, context-isolated. It skips project memory (convention-blind) and neither runs this 6-dimension workflow nor writes `EXPLORE.md` — pass key constraints in the prompt when conventions matter, and expect to write the artifact yourself. Scale 1→N by dispatching more, each owning a disjoint area.
+
+**Preload-liveness sentinel.** A dispatched agent receives this body through its `skills:` preload, and a preload that fails to resolve is skipped **silently** — logged to the debug log and nowhere else. A dispatched run therefore echoes this token verbatim as `preload_token` in its return payload:
+
+```text
+discovery-explore-preload-8e2b7d
+```
+
+A missing or mismatched token is a **hard failure: the parent discards the run**, never downgrades or accepts the artifact. Without it, a preload miss produces an undisciplined run that still writes an artifact — indistinguishable from success at every other seam.
+
+**Coverage discipline** when fanning out: (1) write a numbered gap-list before any deepen pass; (2) fan out by disjoint area — never split the six dimensions across agents; (3) whoever holds the workflow writes `EXPLORE.md` — `discovery:explorer` writes its own, while built-in Explore agents cannot write one at all, so their caller does.
 
 ## Purpose
 
@@ -33,13 +45,13 @@ Local counterpart to `/research` (external sources). Together: `/explore` for wh
 
 **Philosophy**: invest in understanding before acting. Reading 20 files takes seconds; fixing a wrong assumption takes minutes to hours. When in doubt, read more code.
 
-**Plan-mode for high-risk exploration (optional)**: when exploring unfamiliar code in a high-blast-radius area (security boundaries, critical infrastructure, code you might accidentally modify mid-investigation), switch into plan mode for harness-level read-only protection. Routine exploration of well-understood code does not need this.
+**Plan-mode for high-risk exploration (optional, inline only)**: when exploring unfamiliar code in a high-blast-radius area (security boundaries, critical infrastructure, code you might accidentally modify mid-investigation), switch into plan mode for harness-level read-only protection. Routine exploration of well-understood code does not need this. **A dispatched run cannot reach it** — `EnterPlanMode` and `ExitPlanMode` are filtered out of every non-fork subagent — so there the read-only boundary is the agent's own instruction, honored deliberately rather than enforced by the harness.
 
 ## Scope
 
 Explore the following: $ARGUMENTS
 
-If no specific scope was provided above, infer the exploration scope from the current conversation context — identify what area of the codebase is relevant to the task at hand and explore that.
+**A dispatched run does not read that line.** `$ARGUMENTS` substitutes to the empty string on the preload path, and a non-fork subagent has no view of the conversation to fall back on — so for a dispatched run the scope arrives in the dispatch prompt, and its absence is a parent-envelope failure the agent reports rather than repairs. There is no unscoped orientation mode under dispatch: a general repository sweep would hand back a plausible artifact answering a question nobody asked. Running **inline** with no scope supplied above, infer it from the current conversation context — identify what area of the codebase is relevant to the task at hand and explore that.
 
 ## Exploration dimensions
 
@@ -63,7 +75,7 @@ Code has context only git reveals — who changed it, when, why, and what else c
 - `git log --oneline --all --since="2 weeks ago"` — recent repo-wide activity
 - `git diff HEAD~5 -- <path>` — what changed recently in the target area
 - `git blame <file>` — when specific lines were last touched and by whom
-- **Missing files** — when `git status` or history references files that don't exist on disk, **ask the user before investigating** via git archaeology. They may be intentionally deleted
+- **Missing files** — when `git status` or history references files that don't exist on disk, they may be intentionally deleted, so do not open git archaeology on them unprompted. Inline, ask first. **Dispatched, you cannot ask** — record the file as an `open_questions` entry for the parent to surface and move on; asking is not optional here, so proceeding anyway would silently violate the rule that protects a deliberate deletion
 
 ### 3. Project structure
 
@@ -105,7 +117,7 @@ When the task involves tooling, MCP servers, or infrastructure:
 
 ## Exploration modes
 
-The `$ARGUMENTS` value shapes the exploration focus:
+The resolved scope shapes the exploration focus — read from `$ARGUMENTS` inline, and from the dispatch prompt under dispatch, where `$ARGUMENTS` is empty:
 
 | Argument | Focus | Key actions |
 |----------|-------|-------------|
@@ -131,7 +143,7 @@ Present exploration findings as:
 4. **Test coverage** — what's tested, what's not, what test patterns are used
 5. **Constraints** — analyzers, conventions, layer rules, or CI gates that constrain the solution
 6. **Planned direction alignment** — how findings relate to any direction the project documents
-7. **Open questions** — anything that needs clarification before proceeding. **Surface these to the USER**, each with a one-line recommended default + escape hatch. Silent downstream resolution of surfaced open questions is an anti-pattern
+7. **Open questions** — anything that needs clarification before proceeding, each with a one-line recommended default + escape hatch. **Inline, surface these to the USER. Dispatched, return them as `open_questions` in the payload and the parent surfaces them** — `AskUserQuestion` is filtered out of every non-fork subagent, so the payload is how they reach a human at all. Either way, silent downstream resolution of a surfaced open question is an anti-pattern; the hand-off changes, the rule does not
 
 If invoked standalone, present findings directly. If invoked as part of a larger workflow, findings feed into subsequent research and planning steps.
 
@@ -143,15 +155,21 @@ Before writing EXPLORE.md (or returning the summary), check the artifact against
 - **Every load-bearing area covered OR listed as a numbered gap** — nothing the task plausibly depends on is silently unexplored.
 - **Conclusion-driving claims are Read-verified, not inferred from a filename or grep hit** — anything a downstream decision rests on came from reading the file or code.
 - **Paths are machine-agnostic** — no finding in the artifact echoes an absolute machine path (notably the pre-computed project root); every path it records is written relative to the repo root, or — when there is no repo root — to the current working directory, so the handoff stays portable across machines.
-- **Open questions surfaced to the user**, each with a recommended default.
+- **Open questions handed off, never dropped** — surfaced to the user inline, or carried in the payload's `open_questions` for the parent to surface under dispatch. Each with a recommended default.
 
 ## Final step: persist artifact for handoff
 
 Write the exploration output to `<memory_dir>/<slug>/EXPLORE.md` — a memory-tier artifact, never committed. Destination, slug, and runtime guards resolve per the plugin's topic-docs binding ([`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md)).
 
-This file is the authoritative stage summary — a fresh session must be able to resume external research or planning reading only this artifact. The artifact's Findings section follows the 7-point Output format above, and a closing Next-stage-handoff names what external research (`/research`) or planning needs.
+This file is the authoritative stage summary — a fresh session must be able to resume external research or planning reading only this artifact.
 
-If exploration spans many sub-areas and EXPLORE.md exceeds ~2000 words, split overflow into sibling `EXPLORE-<scope>.md` files in the same directory and keep EXPLORE.md as the index.
+**`EXPLORE.md` is always an INDEX**, at every size — not only past an overflow threshold. It carries a task restatement, a one-line abstract per sidecar copied verbatim from that sidecar's header, a section → file + anchor table, and the closing Next-stage-handoff naming what external research (`/research`) or planning needs. The 7-point Output format's content lives in sibling `EXPLORE-<section>.md` sidecars in the same directory, each opening with a machine-readable YAML header so a consumer can grep headers and read exactly one file. Schema and the two load-bearing placement rules — sidecars stay inside `<memory_dir>/<slug>/`, and `EXPLORE.md` stays the entry point: [`${CLAUDE_PLUGIN_ROOT}/skills/research/context/artifact-shape.md`](${CLAUDE_PLUGIN_ROOT}/skills/research/context/artifact-shape.md).
+
+**Sidecar filenames are keyed on the SECTION, not the scope** — a run has one scope and many sections, so a scope-keyed name gives every sidecar the same filename and later sections overwrite earlier ones. Use the same stable id the header's `section` field and the index anchor carry.
+
+**Sidecar headers use the EXPLORE schema, not the research one.** Local evidence is a repository path and whether the file was actually Read — `verified: read | grep | inferred` — not a URL, a source tier, and a publishing pool. Handed the research header, a run either fabricates fields it has no values for or improvises a shape no consumer can parse; the fabrication is worse, because it launders a grep hit into the field a fetched primary would occupy. Schema and why `verified` is load-bearing: the artifact-shape spoke's "EXPLORE.md sidecar header" section.
+
+**If an unrelated `EXPLORE.md` already exists** in that slice, do not clobber it — and do not rename the index to dodge it, since `EXPLORE-*.md` is the sidecar pattern and a renamed index collides with its own sidecars. Write the whole artifact set, under its normal names, into a sub-slice `<memory_dir>/<slug>/<scope-slug>/`, and report that path. A prior exploration lost to a filename collision is silent and unrecoverable.
 
 ## Gotchas
 

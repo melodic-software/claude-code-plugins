@@ -68,9 +68,13 @@ never claim resolved without re-verifying. For everything else `apply` only poin
   this skill never installs system packages.
 - toggle off: direct to `/plugin configure typos-format` (interactive, any
   time). Headless: `--config` only applies on a fresh install (ignored once installed), so
-  reconfigure via `claude plugin uninstall typos-format` then
-  `claude plugin install typos-format@<marketplace> --config typos_format_enabled=true`;
-  this skill never writes user settings or `pluginConfigs`.
+  reconfigure via `claude plugin uninstall typos-format -s <scope>` then
+  `claude plugin install typos-format@<marketplace> -s <scope> --config typos_format_enabled=true`;
+  this skill never writes user settings or `pluginConfigs`. Both commands default to `-s user` —
+  pass the scope `claude plugin list` reports for this plugin, and run from that project's
+  directory for a `project`/`local` scope. Defaulting instead uninstalls a separate user-scope
+  record while the effective install stays in place, so the reinstall lands at a scope that
+  does not load.
 - no typos config: offer to create a minimal `_typos.toml` in the repository root only when
   explicitly asked — the plugin imposes no rules of its own.
 

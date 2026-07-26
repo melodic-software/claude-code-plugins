@@ -552,7 +552,7 @@ Every `[EXEC-SHAPE]` / `[FALLBACK]` tag in this plan, for override at approval:
 |---|---|---|
 | [EXEC-SHAPE] Two serialized lanes, sequential phases within each, main-thread implementation sessions | Execution-shape section; no parallel agent waves | Playbook swim-lane + seams-first sections read this session; B1 inlines A3's contract, so lane B authored against an unmerged contract risks split-brain |
 | [EXEC-SHAPE] `plugin-quality` ships a plugin agent (`agents/auditor.md`) as the named fresh-context subagent that the main-thread skill dispatches for steps 2–3 | Phase B3 exists; SKILL.md step 2 dispatches by agent name; steps 1, 4, 6 stay main-thread | The audit's step topology is not expressible as `context: fork` — basis in full below |
-| [EXEC-SHAPE] context-guard setup `apply` scoped to seeding/refreshing zones.json only | Phase A4 apply surface; statusline wiring stays print-only | Philosophy setup contract (never mutate user settings) + rate-limit-guard check-only precedent; zones.json is the one machine file whose schema the plugin owns |
+| [EXEC-SHAPE] context-guard setup `apply` scoped to seeding/refreshing zones.json only — **widened 2026-07-24 (owner-approved) to also install the statusline shim**; see the resolved stable-shim entry under Open questions | Phase A4 apply surface; statusline wiring stays print-only | Philosophy setup contract (never mutate user settings) + rate-limit-guard check-only precedent; zones.json is the one machine file whose schema the plugin owns. Widening rationale: the shim lands in the same operator-home carve-out, is inert until wired, and cleared delta security review |
 | [FALLBACK — confirm or override] Design gate satisfied by `design/design-resolution.md` early-exit instead of a `/planning:design` pass | No separate design stage before implementation | Interview resolved all design threads (15 branches, owner-confirmed 2026-07-23); artifact maps each design axis to its ledger branch |
 | [FALLBACK — confirm or override] Draft+confirm read as the `audit` verb's "explicit user override" for the `gh issue create` emit | B1 emit design; no `--apply`-style argument gating the sink | Brief B14 locks unconditional draft+confirm; fleet precedent (`github:audit`) uses `--apply` instead — deviation recorded at the coupling site |
 | [FALLBACK — confirm or override] Default zone bands: smart ≤ 50, acceptable 50–75, dumb > 75 | A2 shipped defaults; B1 inlined fallback constants | No documented auto-compact threshold exists (4 doc pages fetched 2026-07-23); judgment values with the A2 empirical-ordering task + zones.json override as correction paths |
@@ -623,10 +623,20 @@ independent of how that resolves; the caveat is carried so the observation is no
 - Evidence-packet field list — capture-broadly set locked; trimmed after first real runs
   (Brief-deferred).
 - zones.json org/managed layer — USER-RESERVED, untouched by this plan.
-- Stable-shim question (stress-test #4): a `~/.claude/context-guard/bin/` shim would immunize the
-  statusline wiring against cache-path churn on plugin updates, at the cost of a plugin writing an
-  executable into the operator's home. Not planned; the upgraded `check` detection covers the
-  failure mode. Owner may opt in later.
+- ~~Stable-shim question (stress-test #4)~~ **RESOLVED 2026-07-24 — owner opted in.** Shipped as
+  `scripts/statusline-shim.sh` in BOTH guard plugins (context-guard 0.2.0, rate-limit-guard 0.2.0),
+  installed to `~/.claude/<plugin>/bin/statusline-shim.sh` by `setup apply`. The operator wires the
+  shim once and never re-wires; `check` now classifies version-pinned cache-path wiring as LEGACY
+  regardless of whether the file still exists. Two options were weighed and rejected: keeping the
+  interim `[ -f … ]` guard (survives pruning but still stops teeing at every version bump), and an
+  inline glob in `settings.json` (untestable shell frozen in an operator file, and unreadable once
+  two tees chain). The cost the original question flagged — a plugin writing an executable into the
+  operator's home — was accepted after delta security review (MIGRATION-PLAYBOOK.md): the copy is
+  byte-identical to reviewed bundled code, lands in the plugin's already-accepted operator-home
+  carve-out, and is inert until the operator's own `settings.json` edit, so the base record's
+  no-kill-switch justification survives intact. `setup apply` scope widened accordingly (owner-
+  approved change to the A4 EXEC-SHAPE entry, which had scoped `apply` to zones.json only);
+  statusline wiring stays print-only.
 
 ## Handoff to implementation
 

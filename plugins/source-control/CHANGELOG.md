@@ -3,6 +3,100 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.31.6]
+
+### Fixed
+
+- **`babysit-prs` states the bare-name wrapper situation accurately (`#843`).** `safety.md` asserted
+  the bundled wrappers' bare names "are not on the Bash tool's `PATH`", and the two `bin/` wrapper
+  headers presented their bare-command allow-rule rationale as operative fact. Both were wrong, in
+  opposite directions. Two corrections, each tied to its source:
+  - **Bare-name resolution is unreliable, not absent.** A local shell-snapshot survey recorded on
+    `#843` found plugin `bin/` directories present on the Bash tool's `PATH` in some sessions and
+    missing in others on the same machine, including sessions carrying this plugin's own `bin/`. The
+    delivery path is the session snapshot's final `export PATH=` line; when it does not land, every
+    enabled plugin's `bin/` goes with it
+    ([anthropics/claude-code#68066](https://github.com/anthropics/claude-code/issues/68066), which
+    reports the same signature on macOS/zsh and supplies the mechanism — the Windows/Git-Bash
+    evidence is the local survey, not that issue). The earlier "never delivered here" reading came
+    from sampling only sessions in which it was missing.
+  - **A path invocation cannot match a bare-name allow rule.** Claude Code strips only a fixed
+    wrapper set before matching Bash rules (`timeout`, `time`, `nice`, `nohup`, `stdbuf`, `command`,
+    `builtin`, `noglob`, bare `xargs` — [permissions](https://code.claude.com/docs/en/permissions));
+    `bash` is not among them. So `Bash(source-control-babysit-merge:*)` does not cover the
+    `bash "…/bin/…"` form this skill uses, and what follows is the permission mode's call rather
+    than a misconfiguration: a mode that prompts issues a per-call prompt, while
+    [auto mode](https://code.claude.com/docs/en/permission-modes#eliminate-prompts-with-auto-mode)
+    issues none — it routes the uncovered call to its classifier, which may approve or deny it
+    silently, so an operator must read `/permissions` → **Recently denied** rather than wait for a
+    prompt. `safety.md` also records that
+    [`autoMode.classifyAllShell`](https://code.claude.com/docs/en/auto-mode-config#route-all-shell-commands-through-the-classifier)
+    suspends even narrow shell allow rules while auto mode is active.
+
+  Guidance is unchanged and was already correct: the `${CLAUDE_PLUGIN_ROOT}/bin/` path form is
+  canonical because it is the only form that runs in both `PATH` states. Only the justification
+  changed, and it mattered — a reader who checked on a session where the bare name *did* resolve
+  found the doc contradicting their own shell, and the documented reason to keep the path form
+  disappeared exactly when it looked safe to drop.
+
+## [0.31.5]
+
+### Fixed
+
+- **A readiness-gate classification is now a table CELL that OPENS with a disposition, matched
+  case-insensitively (#619).** Both the bash safe-tier degrade and the preferred Python classifier
+  (`babysit_classify.py`) matched the classification tokens exact-case only, anywhere in a
+  `|`-prefixed line. A worker reply that wrote a natural-language disposition like "Valid (defer)"
+  instead of the mandated all-caps `VALID` scored as unclassified, so the gate reported
+  `READINESS_BLOCKED reason=under-decomposed` even though the finding genuinely was classified.
+  Matching is now case-insensitive, and the token must open a table cell, optionally followed by an
+  annotation introduced by punctuation. That punctuation requirement is what separates the
+  disposition values `reference/review-discipline.md` documents — `VALID — fixing`, `VALID (defer)`,
+  `VALID — fix now` — from prose that merely starts with a disposition word. Scanning the whole line
+  instead credited `| CI check | result is valid |`, and accepting a bare space before the
+  annotation credited `| 2 | c2 | Valid cache entries are rejected | | |`; either miss lets an
+  unclassified finding past the under-decomposition gate. The decoration allowed before the token
+  and the character required after it exclude word characters rather than only letters, so `valid2`,
+  `2valid` and `VALID_TOKEN` no longer satisfy the token, and "invalid"/"INVALID" still does not
+  false-match "valid"/"VALID". One predicate drives both the classified count and the self-row
+  exclusion that keeps a classification row's own severity word from re-counting as a phantom
+  finding, so the two counts cannot drift apart. New convergence fixtures pin the bash degrade and
+  the Python classifier to the same counts on a lowercase disposition, both prose false positives, a
+  word-like continuation, and the documented annotated forms.
+
+## [0.31.4]
+
+### Fixed
+
+- **Headless reconfigure recipe now preserves install scope (#1406).** The `claude plugin
+  uninstall` → `claude plugin install ... --config` recipe in `skills/setup/SKILL.md` defaulted
+  both halves to `-s user`. When this plugin is installed at `project` or `local` scope, that
+  silently uninstalled a separate user-scope record while the effective project/local install kept
+  loading, and the reinstall landed at a scope that does not load. Both commands now carry
+  `-s <scope>`, sourced from what `claude plugin list` reports for this plugin — the same fix
+  already applied to `session-flow` and `rate-limit-guard` in #1393.
+  The recipe also now requires the reinstall to re-supply **every** key whose value should
+  stay non-default, not only the key being changed: uninstalling drops the stored
+  `pluginConfigs` entry, so an omitted key silently falls back to its manifest default.
+  Record the current values before uninstalling.
+
+## [0.31.3]
+
+### Changed
+
+- **`test_pr_queue_snapshot.py`'s Approve-with-nits integration test now pins the routing by
+  elimination (#578).** The test asserted only that `blocking` and `material` were empty, which does
+  not distinguish "routed to `ignored`" from "routed to a human bucket". It now also asserts
+  `human_blocking` and `human` are empty; since `collect_feedback` places every record in exactly one
+  bucket and `classify_pr` surfaces four, all four empty rules out every bucket the snapshot projects.
+  Elimination alone still could not tell "routed to `ignored`" from "dropped before reaching any
+  bucket", so the test now also calls `collect_feedback` directly on the same fixture — under the
+  same `FeedbackConfig` `classify_pr` passes down — and asserts the record is in `ignored` carrying
+  the `approval_verdict` downgrade marker, which pins the arrival branch rather than only the
+  destination. #578 asked for a direct assertion on `feedback["ignored"]`: that holds at the
+  `collect_feedback` layer, but not on the snapshot's `feedback` mapping, which deliberately does not
+  project `ignored`. Test-only; no behavior change.
+
 ## [0.31.2]
 
 ### Fixed

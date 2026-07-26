@@ -1,5 +1,33 @@
 # Changelog — docs-hygiene plugin
 
+## [0.9.1]
+
+### Fixed
+
+- **Form 1's trailing boundary excludes a hyphen.** `\b` treats a hyphen as a word boundary, so
+  `\B/<old>\b` matched `/context-guard` when renaming `context` — and Form 1 is Certain and sits
+  on container mode's Certain allowlist, so an unrelated command went through the default
+  auto-apply path and was rewritten. Slash-command and container names are kebab-case, so this
+  fires constantly rather than rarely. Now uses the same consumed `([^\w-]|$)` terminator as
+  Forms 13 and 15; a namespaced `/<old>:sub` still matches, a colon being a valid terminator.
+- **`SKILL.md`'s slash-token gotcha states Form 1's corrected expression.** It still prescribed
+  `\B/<old>\b` — the exact defect above — and `SKILL.md` is always loaded, so an agent following
+  the gotcha would reintroduce it while `patterns.md` claimed it fixed.
+- **Occurrence enumeration is bounded by a per-form REFERENCE REGION.** The survey emits a record
+  for every `<old>` span inside a match; once the declaration alternatives accepted a trailing
+  comment, a comment that mentions the thing it documents (`name: <old> # <old> before
+  publishing`) produced a second record attributed to Form 14 — Certain, and exempt from the
+  common-word demotion inside a manifest — so apply mode rewrote the prose. The region for those
+  alternatives is the declaration VALUE; Form 7's stays the whole quoted field, whose occurrences
+  are all genuine references.
+- **Manifest declarations may carry an inline comment.** `name: <old> # package name` and
+  `name = "<old>"  # package name` are ordinary self-documenting manifests, and the end-anchored
+  declaration alternatives rejected the whole line — while filesystem evidence still selected
+  container mode, so the registration went unmatched and was suppressed as residue while apply
+  mode reported completion. The YAML form requires whitespace before `#`, since YAML starts a
+  comment only after whitespace and `name: <old>#x` is a single scalar; TOML allows optional
+  whitespace, its value being quoted. JSON is excluded, having no comment syntax.
+
 ## [0.9.0]
 
 ### Fixed

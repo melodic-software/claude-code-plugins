@@ -2,21 +2,33 @@
 
 A Claude Code plugin for **structured discovery before changes** — understand what
 IS (the local codebase) and what SHOULD BE (current external sources) before any
-code is written. The explore/research skills sit on two axes — local vs external,
-inline vs isolated — with `blindspot` as a fifth skill that serves the USER's
+code is written. The explore/research skills sit on the local vs external axis and
+**dispatch a purpose-built subagent by default**, so the reading stays out of the
+main conversation; `blindspot` is the fourth skill, serving the USER's
 understanding rather than the agent's.
 
 | Skill | Axis | What it does |
 |---|---|---|
-| `/discovery:explore` | Local, inline | Six-dimension codebase exploration — code reading, git history, project structure, test discovery, build config, environment — persisting an `EXPLORE.md` handoff artifact. |
-| `/discovery:explore-deep` | Local, isolated | The same explore workflow in a forked subagent: verbose reads and search output stay in the fork; only a short summary returns, with findings persisted to `EXPLORE.md`. |
-| `/discovery:research` | External, inline | Three chained research phases (broad → targeted + falsification → preferred sources) with per-claim source tiers, independent-corroborator ratios, a recency gate, and a binary outcome gate before presenting. |
-| `/discovery:research-deep` | External, isolated | Dispatcher that routes deep research to the heaviest isolated tier available — a deep-research workflow engine, a forked subagent, or inline as last resort — with a multi-topic check that fans out one agent per separable topic. |
+| `/discovery:explore` | Local | Six-dimension codebase exploration — code reading, git history, project structure, test discovery, build config, environment — persisting an `EXPLORE.md` index plus sidecars. Dispatches `discovery:explorer` by default. |
+| `/discovery:research` | External | Corpus enumeration, then three chained research phases (broad → targeted + falsification → preferred sources) with per-claim source tiers, independent-corroborator ratios, a recency gate, a coverage ledger, and a binary outcome gate before presenting. Dispatches `discovery:researcher` by default. |
+| `/discovery:research-deep` | External, tiered | Dispatcher that routes deep research to the heaviest isolated tier available — a deep-research workflow engine, a subagent, or inline as last resort — with a multi-topic check that fans out one agent per separable topic. Runs in main context itself, because a subagent cannot reach the `Workflow` tool. |
 | `/discovery:blindspot` | Local, user-facing | Surfaces the USER's unknown-unknowns before they work in unfamiliar territory (a codebase area or a domain vocabulary), emitting blindspot cards and coaching one improved prompt. Deliverable is the user's understanding, not `EXPLORE.md`. |
+
+| Agent | Dispatched by | What it does |
+|---|---|---|
+| `discovery:explorer` | `/discovery:explore` | Runs the six dimensions in a fresh context, loads path-scoped project rules explicitly, writes the artifact set, returns a bounded summary and a file pointer. |
+| `discovery:researcher` | `/discovery:research` | Runs the full research discipline in a fresh context, writes the artifact set and coverage ledger, returns a file pointer plus a verification request. |
 
 The two artifact-persisting skills (`/discovery:explore`, `/discovery:research`)
 persist handoff artifacts (`EXPLORE.md` / `RESEARCH.md`) so a fresh session can
-resume planning from the artifact alone.
+resume planning from the artifact alone. Each is **always an index**, with content
+in sibling sidecars carrying a machine-readable header, so a consumer greps the
+index and reads exactly the one section it needs.
+
+Both skills document an **inline escape hatch** and the conditions under which it
+is correct — tight turn-by-turn iteration, cost on a lookup too small to justify
+the dispatch, or an invoking context that is itself a subagent. Running inline
+relaxes no discipline.
 
 ## Works in any repo
 

@@ -62,7 +62,7 @@ topic qualifier follows the verb with a hyphen (`audit-noise` beside `audit-enca
 Nouns are reserved for knowledge routers (`principles`, `methodology`) and lifecycle-object routers
 (`worktree`, `pull-request`). Five further documented exceptions: a single-skill vendor-CLI wrapper
 repeats its tool name (`firecrawl:firecrawl`); a `-deep` suffix marks the heavier
-isolated-execution tier of a sibling skill (`explore`/`explore-deep`); a knowledge router named by
+isolated-execution tier of a sibling skill (`research`/`research-deep`); a knowledge router named by
 its method's own literature term keeps that term when renaming would destroy recognized craft
 vocabulary (`songwriting:object-writing`, `meter-prosody`, `song-form` — Pattison's terms); a
 playbook router named by its source keeps the source's own identifier, because provenance is the
@@ -129,7 +129,7 @@ native one matures into fitness.
 | [MCP servers](https://code.claude.com/docs/en/mcp) | Adopt on need | Clears the plugin-acceptance security review for egress and trust delegation. | 2026-07-17 |
 | [LSP servers](https://code.claude.com/docs/en/plugins-reference) | Adopt on need | Consumer must have the language-server binary; declare the prerequisite per the failure-behavior rules. | 2026-07-17 |
 | [Output styles](https://code.claude.com/docs/en/plugins-reference) | Adopt on need | — | 2026-07-17 |
-| [`bin/`](https://code.claude.com/docs/en/plugins) | Adopt on need | Executables join the Bash tool's `PATH` while the plugin is enabled; names must be collision-safe (plugin-prefixed) — the platform does not namespace them. | 2026-07-17 |
+| [`bin/`](https://code.claude.com/docs/en/plugins) | Adopt on need | Executables join the Bash tool's `PATH` while the plugin is enabled; names must be collision-safe (plugin-prefixed) — the platform does not namespace them. That `PATH` delivery is per-session and can silently fail ([anthropics/claude-code#68066](https://github.com/anthropics/claude-code/issues/68066)), so never make bare-name invocation load-bearing: invoke via `${CLAUDE_PLUGIN_ROOT}/bin/`, and note that a `bash "…/bin/x"` invocation does not match a `Bash(x:*)` allow rule. | 2026-07-17 |
 | [Plugin `settings.json`](https://code.claude.com/docs/en/plugins) | `agent` prohibited by default | Supports only `agent` and `subagentStatusLine`. `agent` takes over the main thread — a consumer-hostile default for a marketplace plugin; any exception requires documented justification in the plugin README. | 2026-07-17 |
 | [Monitors](https://code.claude.com/docs/en/plugins-reference) | Wait | Experimental (`experimental.monitors`); interactive-CLI-only, unsandboxed at hook trust level, no `${user_config.*}` and no `CLAUDE_PLUGIN_OPTION_*` in monitor processes; keep running after mid-session disable. Re-verify before each audit. | 2026-07-17 |
 | [Themes](https://code.claude.com/docs/en/plugins-reference) | Wait | Experimental (`experimental.themes`); schema may change between releases. Re-verify before each audit. | 2026-07-17 |
