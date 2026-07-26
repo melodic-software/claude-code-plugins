@@ -157,7 +157,13 @@ Since 0.4.0 the plugin itself ships hooks over its own seam — the first shippe
   `blocking`): denies new `Write|Edit|NotebookEdit|Agent|Workflow` calls on a **fresh dumb-zone
   snapshot** past a small grace budget. Fail-open on `unknown`; handoff-path writes, read-only
   tools, Bash, and Skill invocations are never gated, so a durable handoff is always writable.
-- **PostCompact marker**: writes the evidence-degraded marker file (below).
+- **PostCompact marker**: writes the evidence-degraded marker file (below) and re-arms the
+  blocking gate's grace budget (compaction opens a fresh window — a fresh budget, not a disarmed
+  gate).
+- **Both zone consumers honor the marker**: when the marker exists, the injection hook and the
+  blocking gate treat the session's effective zone as **dumb** regardless of the resolved word —
+  including a green post-compaction reading and including `unknown` — implementing this
+  contract's own "evidence-degraded regardless of zone" rule so the marker is never write-only.
 
 Hook state (last-seen zone, gate counters) lives under `${CLAUDE_PLUGIN_DATA}` — plugin-private,
 NOT part of this contract. The hooks consume the seam through the same resolver consumers
@@ -177,7 +183,10 @@ finds the marker treats the session as evidence-degraded regardless of a green z
 section for why). Consumers should not gate on `compacted_at` freshness — compaction's evidence
 loss does not expire with time in the same session. The marker is part of this contract's seam
 (fixed path, same character-class and trust rules as snapshots); it closes the documented gap
-that the snapshot alone cannot reveal compaction.
+that the snapshot alone cannot reveal compaction. Housekeeping: the writer hook prunes sibling
+markers older than 14 days on each write — the same cutoff the tee applies to snapshots, far
+above any live session's horizon, so a marker is never deleted out from under the session it
+describes.
 
 ## Zone is NOT a compaction indicator
 

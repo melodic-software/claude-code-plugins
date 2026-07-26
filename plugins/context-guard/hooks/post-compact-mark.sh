@@ -31,13 +31,18 @@ set -uo pipefail
 
 # shellcheck source=hook-utils.sh
 source "$(dirname "${BASH_SOURCE[0]}")/hook-utils.sh"
+# shellcheck source=payload.sh
+source "$(dirname "${BASH_SOURCE[0]}")/payload.sh"
 
 hook::check_enabled "CONTEXT_GUARD_HOOKS"
 
 START_EPOCH=${EPOCHREALTIME:-0}
 
 # A missing or incomplete payload degrades the record, never suppresses it.
-INPUT=$(hook::buffer_stdin) || INPUT=""
+# Chunked reader: PostCompact carries the FULL compact_summary, so a single
+# bounded read times out on the normal case, not an edge (measured ~80KB
+# already lost on Git Bash pipes).
+INPUT=$(cg::read_payload) || INPUT=""
 
 SESSION=""
 if [[ "$INPUT" =~ \"session_id\"[[:space:]]*:[[:space:]]*\"(([^\"\\]|\\.)*)\" ]]; then
@@ -70,6 +75,11 @@ tmp="$CTX_DIR/$SESSION.compacted.tmp.$$"
 if printf '%s\n' "$marker" >"$tmp" 2>/dev/null; then
   mv -f "$tmp" "$CTX_DIR/$SESSION.compacted" 2>/dev/null || rm -f "$tmp" 2>/dev/null
 fi
+
+# Prune stale sibling markers with the same 14-day cutoff the tee applies to
+# snapshots — the shared contract dir must not grow unboundedly, and the
+# tee's own sweep matches *.json only.
+find "$CTX_DIR" -maxdepth 1 -name '*.compacted' -mmin +20160 -exec rm -f {} + 2>/dev/null || true
 
 # Compaction opens a fresh window: re-arm the blocking gate's grace budget.
 STATE_DIR="${CLAUDE_PLUGIN_DATA:-$HOME/.claude/context-guard}/state"

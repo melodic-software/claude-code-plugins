@@ -29,6 +29,8 @@ set -uo pipefail
 
 # shellcheck source=hook-utils.sh
 source "$(dirname "${BASH_SOURCE[0]}")/hook-utils.sh"
+# shellcheck source=payload.sh
+source "$(dirname "${BASH_SOURCE[0]}")/payload.sh"
 
 hook::check_enabled "CONTEXT_GUARD_HOOKS"
 
@@ -37,8 +39,10 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 RESOLVER="$SCRIPT_DIR/../scripts/context-zone.sh"
 
 # silent-skip-ok: without a stdin payload there is no session_id to key the
-# snapshot seam — nothing this hook could resolve or say.
-INPUT=$(hook::buffer_stdin) || exit 0
+# snapshot seam — nothing this hook could resolve or say. Chunked reader:
+# PostToolBatch payloads carry every serialized tool result and routinely
+# exceed what a single bounded read survives on Windows pipes.
+INPUT=$(cg::read_payload) || exit 0
 
 EVENT=$(hook::jq_field "$INPUT" '.hook_event_name') || EVENT="PostToolBatch"
 hook::require_jq "$EVENT" "context-guard" "$INPUT"
@@ -49,6 +53,17 @@ SESSION=$(hook::jq_field "$INPUT" '.session_id') || exit 0
 [[ "$SESSION" =~ ^[A-Za-z0-9_-]+$ ]] || exit 0
 
 zone=$(bash "$RESOLVER" "$SESSION" 2>/dev/null) || zone="unknown"
+
+# Evidence-degraded marker (reader contract): a compacted session is treated
+# as dumb regardless of the resolved word — including a green post-compaction
+# reading and including unknown, because the marker IS data even when the
+# snapshot has none.
+degraded=""
+if [[ -n "${HOME:-}" && -e "$HOME/.claude/context-guard/context/$SESSION.compacted" ]]; then
+  degraded="yes"
+  zone="dumb"
+fi
+
 # Silent on unknown, and state is left untouched: absence of data is not a
 # transition, and a later real reading must compare against the last REAL one.
 [[ "$zone" == "smart" || "$zone" == "acceptable" || "$zone" == "dumb" ]] || exit 0
@@ -85,7 +100,9 @@ printf '%s\n' "$zone" >"$STATE_FILE" 2>/dev/null || true
 }
 
 prev_label="${last:-unobserved}"
-guidance="context-guard: this session crossed from the ${prev_label} into the ${zone} context zone (snapshot seam, conservative-min over percentage and token bands). Response quality degrades as context occupancy grows. Prefer finishing the current step, then choose the continuation mechanism deliberately: (1) continue in-session only if the remaining work is small or simple enough for degraded context; (2) /clear if this session's context is disposable; (3) write a durable handoff then /clear if state must survive — run /session-flow:handoff (if that plugin is installed; otherwise write a resume file by hand before clearing); (4) /compact only at a phase boundary, as a last resort. For the full continuation router, run /session-flow:workflow (if installed)."
+zone_label="$zone"
+[[ -n "$degraded" ]] && zone_label="dumb (evidence-degraded: this session was compacted, so its context evidence is already lossy regardless of the snapshot's numbers)"
+guidance="context-guard: this session crossed from the ${prev_label} into the ${zone_label} context zone (snapshot seam, conservative-min over percentage and token bands). Response quality degrades as context occupancy grows. Prefer finishing the current step, then choose the continuation mechanism deliberately: (1) continue in-session only if the remaining work is small or simple enough for degraded context; (2) /clear if this session's context is disposable; (3) write a durable handoff then /clear if state must survive — run /session-flow:handoff (if that plugin is installed; otherwise write a resume file by hand before clearing); (4) /compact only at a phase boundary, as a last resort. For the full continuation router, run /session-flow:workflow (if installed)."
 if [[ "$zone" == "dumb" ]]; then
   guidance+=" The dumb zone means degradation is likely already measurable: avoid starting new complex work in this window."
 fi

@@ -95,6 +95,28 @@ run ''
 RC=$?
 if [[ $RC -eq 0 ]]; then ok "empty stdin fails open"; else fail "empty stdin: rc=$RC"; fi
 
+# 9. Large payload (real PostCompact carries the full compact_summary):
+# marker must still be written. Guards the Win32-pipe single-read timeout
+# regression measured at ~80KB.
+BIG=$(printf 'x%.0s' $(seq 1 150000))
+run "{\"session_id\":\"sbig\",\"hook_event_name\":\"PostCompact\",\"trigger\":\"auto\",\"compact_summary\":\"$BIG\"}"
+RC=$?
+if [[ $RC -eq 0 && -f "$MARK/sbig.compacted" ]]; then ok "marker written for a 150KB payload"; else fail "large payload: rc=$RC marker=$([[ -f "$MARK/sbig.compacted" ]] && echo yes || echo no)"; fi
+
+# 10. Old sibling markers are pruned on write (14-day cutoff, mirroring the
+# tee's snapshot sweep) so the shared contract dir cannot grow unboundedly.
+printf '{"compacted_at":"2020-01-01T00:00:00Z","trigger":"auto"}
+' >"$MARK/sold.compacted"
+if command -v touch >/dev/null 2>&1; then
+  touch -d '30 days ago' "$MARK/sold.compacted" 2>/dev/null || touch -t 202001010000 "$MARK/sold.compacted" 2>/dev/null || true
+fi
+run '{"session_id":"sprune","hook_event_name":"PostCompact","trigger":"auto"}'
+if [[ ! -e "$MARK/sold.compacted" && -f "$MARK/sprune.compacted" ]]; then
+  ok "stale markers pruned on write (14-day cutoff)"
+else
+  fail "stale marker not pruned"
+fi
+
 echo
 echo "PASS=$PASS FAIL=$FAIL"
 [[ $FAIL -eq 0 ]]

@@ -31,8 +31,18 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
     persists the evidence-degraded marker
     `~/.claude/context-guard/context/<session_id>.compacted` (`compacted_at`, `trigger`
     manual|auto|unknown), closing the reader contract's documented "the snapshot cannot tell you
-    compaction happened" gap, and re-arms the blocking gate's grace budget. jq-free by design,
-    mirroring the rate-limit-guard StopFailure recorder.
+    compaction happened" gap, re-arms the blocking gate's grace budget (a fresh budget, not a
+    disarmed gate — both zone consumers treat a marked session's effective zone as dumb
+    regardless of its post-compaction numbers, so the marker is never write-only), and prunes
+    sibling markers on the tee's 14-day cutoff. jq-free by design, mirroring the
+    rate-limit-guard StopFailure recorder.
+  - All three hooks read stdin through a plugin-local chunked drain loop (`hooks/payload.sh`,
+    mirroring the tee's proven `read -N` pattern) instead of the shared lib's single bounded
+    read, which on Windows/MSYS pipes times out on exactly the payloads these events carry —
+    PostCompact's full `compact_summary`, a large Write's `tool_input`, PostToolBatch's
+    serialized results (measured: ~80KB payloads already lost, which silently suppressed the
+    marker and failed the blocking gate open for the biggest writes). Each hook carries a
+    large-payload regression test that fails against the single-read form.
   - Config per `docs/conventions/hook-config-delivery`: non-safety knobs over channel B
     (`CLAUDE_PLUGIN_OPTION_<KEY>` env mirrors) with in-script defaults (the declared `default`
     field is not delivered to hook processes). New `userConfig`: `context_guard_hooks_enabled`,

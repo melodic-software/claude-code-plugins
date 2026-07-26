@@ -125,6 +125,37 @@ run "$H" "$D" s3
 LEN=${#OUT}
 if ((LEN > 0 && LEN < 10000)); then ok "injection length $LEN under 10k cap"; else fail "injection length $LEN"; fi
 
+# 10. Large PostToolBatch payload (serialized tool_calls) must not suppress
+# a due injection (Win32-pipe single-read timeout regression guard).
+write_snapshot "$H" sbig 90
+BIG=$(printf 'x%.0s' $(seq 1 150000))
+OUT=$(printf '{"session_id":"sbig","hook_event_name":"PostToolBatch","tool_calls":[{"tool_name":"Read","tool_response":"%s"}]}' "$BIG" |
+  HOME="$H" CLAUDE_PLUGIN_DATA="$D" HOOK_TELEMETRY_SINK="" bash "$HOOK" 2>/dev/null)
+RC=$?
+if [[ $RC -eq 0 && "$OUT" == *additionalContext* ]]; then
+  ok "150KB batch payload still injects (chunked stdin read)"
+else
+  fail "large payload suppressed injection: rc=$RC out=${OUT:0:120}"
+fi
+
+# 11. Evidence-degraded marker: green snapshot + .compacted marker is treated
+# as dumb — one injection fires (and mentions the degradation), then silence.
+write_snapshot "$H" smk 10
+printf '{"compacted_at":"2026-07-26T00:00:00Z","trigger":"auto"}
+' >"$H/$CTX_REL/smk.compacted"
+run "$H" "$D" smk
+if [[ $RC -eq 0 && "$OUT" == *additionalContext* && "$OUT" == *degraded* ]]; then
+  ok "marker + smart snapshot injects the evidence-degraded notice once"
+else
+  fail "marker ignored by inject: rc=$RC out=${OUT:0:120}"
+fi
+run "$H" "$D" smk
+if [[ $RC -eq 0 && -z "$OUT" ]]; then
+  ok "marker-driven dumb state stays silent on repeat"
+else
+  fail "marker repeat not silent: rc=$RC out=${OUT:0:120}"
+fi
+
 echo
 echo "PASS=$PASS FAIL=$FAIL"
 [[ $FAIL -eq 0 ]]

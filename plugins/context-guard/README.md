@@ -24,8 +24,9 @@ tool that needs it — so long-running workflows can route heavy work away from 
 - **Zone-crossing hooks** (`hooks/`) — the first shipped consumer. Once per transition into a
   worse zone, a PostToolBatch/UserPromptSubmit hook injects continuation guidance (advisory;
   silent on unchanged, improving, or `unknown` zones). A PostCompact hook writes an
-  evidence-degraded marker next to the session's snapshot. An optional **blocking** mode
-  (`zone_hook_mode` userConfig) adds a PreToolUse gate that denies new
+  evidence-degraded marker next to the session's snapshot, and both zone consumers honor it: a
+  compacted session's effective zone is dumb regardless of its post-compaction numbers. An
+  optional **blocking** mode (`zone_hook_mode` userConfig) adds a PreToolUse gate that denies new
   Write/Edit/NotebookEdit/Agent/Workflow calls on a fresh dumb-zone snapshot past a grace budget —
   fail-open on `unknown`, with handoff-path writes, reads, Bash, and Skill invocations never
   gated, so a durable handoff is always writable.

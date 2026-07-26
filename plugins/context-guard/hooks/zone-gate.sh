@@ -35,6 +35,8 @@ set -uo pipefail
 
 # shellcheck source=hook-utils.sh
 source "$(dirname "${BASH_SOURCE[0]}")/hook-utils.sh"
+# shellcheck source=payload.sh
+source "$(dirname "${BASH_SOURCE[0]}")/payload.sh"
 
 hook::check_enabled "CONTEXT_GUARD_HOOKS"
 
@@ -48,8 +50,10 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 RESOLVER="$SCRIPT_DIR/../scripts/context-zone.sh"
 
 # silent-skip-ok: no stdin payload → no session_id → fail-open (a gate that
-# cannot identify its session must never block).
-INPUT=$(hook::buffer_stdin) || exit 0
+# cannot identify its session must never block). Chunked reader: a large
+# Write's tool_input rides in this payload, and a single bounded read timing
+# out on it would fail the gate open for exactly the biggest writes.
+INPUT=$(cg::read_payload) || exit 0
 hook::require_jq "PreToolUse" "context-guard" "$INPUT"
 
 SESSION=$(hook::jq_field "$INPUT" '.session_id') || exit 0
@@ -59,6 +63,16 @@ STATE_DIR="${CLAUDE_PLUGIN_DATA:-${HOME:-.}/.claude/context-guard}/state"
 COUNT_FILE="$STATE_DIR/$SESSION.gate-count"
 
 zone=$(bash "$RESOLVER" "$SESSION" 2>/dev/null) || zone="unknown"
+
+# Evidence-degraded marker (reader contract): a compacted session is treated
+# as dumb regardless of the resolved word — a post-compaction percentage
+# resets downward while the context evidence is already gone, and without
+# this override the marker would be write-only and compaction would disarm
+# the gate the continuation router's own fallthrough recommends.
+if [[ -n "${HOME:-}" && -e "$HOME/.claude/context-guard/context/$SESSION.compacted" ]]; then
+  zone="dumb"
+fi
+
 if [[ "$zone" != "dumb" ]]; then
   # Fail-open on smart/acceptable/unknown — and leaving the dumb zone
   # (recovery, /clear into a new session, fresh snapshot) re-arms the grace

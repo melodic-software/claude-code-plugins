@@ -121,6 +121,32 @@ write_snapshot "$H" s9 95
 run "$H" "$D" s9 '' blocking 'banana'
 if [[ $RC -eq 0 && -z "$OUT" ]]; then ok "malformed grace falls back to default (call 1 allowed)"; else fail "malformed grace: rc=$RC out=$OUT"; fi
 
+# 10. Large Write payload must still be denied (Win32-pipe single-read
+# timeout made the gate fail open for exactly the biggest writes).
+write_snapshot "$H" sbig 95
+BIG=$(printf 'x%.0s' $(seq 1 130000))
+OUT=$(printf '{"session_id":"sbig","hook_event_name":"PreToolUse","tool_name":"Write","tool_input":{"file_path":"/w/big.txt","content":"%s"}}' "$BIG" |
+  HOME="$H" CLAUDE_PLUGIN_DATA="$D" HOOK_TELEMETRY_SINK=""     CLAUDE_PLUGIN_OPTION_ZONE_HOOK_MODE=blocking CLAUDE_PLUGIN_OPTION_ZONE_GATE_GRACE_CALLS=0 bash "$HOOK" 2>/dev/null)
+RC=$?
+if jq -e '.hookSpecificOutput.permissionDecision == "deny"' <<<"$OUT" >/dev/null 2>&1; then
+  ok "130KB Write payload still denied (chunked stdin read)"
+else
+  fail "large payload fail-open: rc=$RC out=${OUT:0:120}"
+fi
+
+# 11. Evidence-degraded marker: a green snapshot with the .compacted marker
+# present is treated as dumb (reader contract: presence alone is the signal),
+# so the gate stays armed after compaction resets the percentage.
+write_snapshot "$H" smk 10
+printf '{"compacted_at":"2026-07-26T00:00:00Z","trigger":"auto"}
+' >"$H/$CTX_REL/smk.compacted"
+run "$H" "$D" smk '' blocking 0
+if jq -e '.hookSpecificOutput.permissionDecision == "deny"' <<<"$OUT" >/dev/null 2>&1; then
+  ok "marker + smart snapshot still gates (evidence-degraded wins)"
+else
+  fail "marker ignored by gate: rc=$RC out=${OUT:0:120}"
+fi
+
 echo
 echo "PASS=$PASS FAIL=$FAIL"
 [[ $FAIL -eq 0 ]]
