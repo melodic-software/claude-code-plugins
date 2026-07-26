@@ -164,6 +164,58 @@ sed[^\n]*-i[[:space:]]+[^[:space:]]
 # (e.g. two unconditional statements in sequence) still flags.
 readlink[[:space:]]+(-[A-Za-z]*f|--canonicalize)
 
+# `mktemp -p` (parent-directory flag) — a GNU coreutils extension; BSD/macOS
+# mktemp has no `-p`. The portable replacement embeds the directory in the
+# positional TEMPLATE argument instead (`mktemp "$DIR/prefix.XXXXXX"`), which
+# both dialects accept identically — see #1527, which migrated the corpus's
+# shared hook-test-scaffolding sites off `-p` before this class went active.
+# `p` may appear anywhere in a combined short-option cluster (`-dp`, `-pd`),
+# not only as a standalone `-p`.
+#
+# The gap excludes shell command separators (#1543): a physical line is not a
+# command, so `[^\n]*` walked past `;`/`&`/`|` and attributed a later command's
+# flag to mktemp — `tmp=$(mktemp); cp -p source "$tmp"` was reported even
+# though `-p` belongs to `cp`. A CLOSING BACKTICK ends a command substitution
+# exactly as `)` ends `$(…)`, so it terminates the scan too: in
+# `` tmp=`mktemp` cp -p source target `` the `-p` is `cp`'s. The backtick is
+# already a boundary character in the `sort --sort=version` token above.
+#
+# The short-option token carries NO trailing boundary, unlike the
+# argument-less `grep -P` / `sort -V` / `echo -e` tokens above. `-p` takes a
+# REQUIRED argument and GNU getopt accepts it ATTACHED to the cluster
+# (`mktemp -p/tmp`, `mktemp -prel/sub`), so the DIR value is an arbitrary
+# string — no character class both admits every attached value and excludes a
+# non-value, and the narrower forms tried in #1543 kept missing attached paths
+# whose first segment is alphabetic. Any `-<letters>p` inside one mktemp
+# command is a short-option cluster containing `-p`; a long option cannot
+# reach it, because `[[:space:]]-[A-Za-z]*p` cannot cross the second `-` of
+# `--`.
+#
+#   - LONG form — `--tmpdir[=DIR]`, documented as the equivalent of `-p`, needs
+#     its own token since it shares no short-cluster shape.
+#
+# Both are anchored to the mktemp COMMAND TOKEN (#1543): `-p` and `--tmpdir`
+# are GNU mktemp's flags, not a flag of every command whose name merely
+# contains "mktemp". Without a leading boundary and the whitespace that must
+# follow the name, `mktemp_wrapper -p /tmp`, `mktempfoo -p /tmp` and
+# `xmktemp --tmpdir=/tmp` all failed the gate.
+#
+# The boundary is defined by SHELL WORD POSITION, not by enumerating which
+# characters a command name may contain — that enumeration cannot be
+# completed, since `+` and `@` are as legal in a name as `-` and `.`. What
+# precedes the real command is instead one of: line start, whitespace, a
+# control operator/redirection/substitution character, a QUOTE (the name
+# itself may be quoted: `'mktemp' -p /tmp`), or `/` (a path separator rather
+# than part of the name, so `/usr/bin/mktemp -p /tmp` is the same GNU-only
+# call and must keep failing). Anything else — `safe-mktemp`, `safe+mktemp`,
+# `safe@mktemp`, `my.mktemp`, `my_mktemp` — is a different command.
+#
+# The optional quote AFTER the name closes the `"…/mktemp" -p` spelling; the
+# whitespace that must follow it is what rejects a run-together suffix such as
+# `mktempfoo`.
+(^|[[:space:]'"`;&|()<>/])mktemp['"]?([[:space:]][^;&|()`\n]*)?[[:space:]]-[A-Za-z]*p
+(^|[[:space:]'"`;&|()<>/])mktemp['"]?([[:space:]][^;&|()`\n]*)?[[:space:]]--tmpdir([[:space:]|&;()<>]|=|$)
+
 # --- STAGED (commented until enabled — see #1510 for the enable trigger) ---
 #
 # Before enabling ANY staged class below:
@@ -185,10 +237,3 @@ readlink[[:space:]]+(-[A-Za-z]*f|--canonicalize)
 #     have no BSD fallback at all — real, currently-unfixed gaps a member
 #     issue should own before this class gates new touches to those files.
 # stat[^\n]*[[:space:]]-c
-#
-#   - `mktemp -p`: ~20 sites today, all shared test-scaffolding
-#     (`mktemp -p "$WORK" sink.XXXXXX`), none with a BSD-portable counterpart
-#     (BSD mktemp has no `-p`; the portable form is `mktemp
-#     "$WORK/sink.XXXXXX"` or `TMPDIR="$WORK" mktemp sink.XXXXXX`) — a real
-#     migration effort, not a one-line guard.
-# mktemp[^\n]*[[:space:]]-p([[:space:]]|$)

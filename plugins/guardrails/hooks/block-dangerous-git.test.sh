@@ -516,7 +516,7 @@ run "allow-list cannot bypass the parse cap (still blocked)" "$long_cmd" 2 \
   CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=too-long
 
 # --- telemetry: block emits a `blocked` envelope --------------------------------
-TEL="$(mktemp -p "$TEST_TMPDIR")"
+TEL="$(mktemp "$TEST_TMPDIR/tmp.XXXXXXXXXX")"
 SINK="$(make_sink "cat >\"$TEL\"")"
 env HOOK_TELEMETRY_SINK="$SINK" CLAUDE_PROJECT_DIR="$TEST_TMPDIR" \
   bash "$HOOK" <<<"$(command_json 'git push --force')" >/dev/null 2>&1 || true

@@ -47,7 +47,7 @@ cr_count() { tr -cd '\r' <"$1" | wc -c | tr -d ' '; }
 # single executable path, not a command-with-args, so tests point it at a stub.
 make_sink() {
   local s
-  s="$(mktemp -p "$WORK" sink.XXXXXX)"
+  s="$(mktemp "$WORK/sink.XXXXXX")"
   {
     printf '#!/usr/bin/env bash\n'
     printf '%s\n' "$1"
@@ -242,14 +242,14 @@ rm -f "$TELS"
 # --- jq-absent -> visible once-per-session notice (dim-9 doctrine) -----------
 # Without jq the hook cannot parse its input at all; the skip must surface on
 # both channels once per session instead of silently disabling normalization.
-FAKEBIN="$(mktemp -d -p "$WORK" fakebin.XXXXXX)"
+FAKEBIN="$(mktemp -d "$WORK/fakebin.XXXXXX")"
 for t in bash git dirname basename cat env printf mktemp mkdir find tr awk grep sed uname sleep cygpath realpath readlink; do
   real_t="$(command -v "$t" 2>/dev/null)" || continue
   [[ -n "$real_t" ]] || continue
   printf '#!/bin/sh\nexec "%s" "$@"\n' "$real_t" >"$FAKEBIN/$t"
   chmod +x "$FAKEBIN/$t"
 done
-JQ_DATA="$(mktemp -d -p "$WORK" plugdata.XXXXXX)"
+JQ_DATA="$(mktemp -d "$WORK/plugdata.XXXXXX")"
 run_nojq() {
   (
     cd "$UNRELATED" || return 1
