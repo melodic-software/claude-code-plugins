@@ -1,5 +1,27 @@
 # Changelog — ecosystem-commands convention
 
+## 1.2.0 — 2026-07-25
+
+Additive: optional `gates[].run-from` key (`"ecosystem"` default | `"repo-root"`) — lets a gate
+declared under a `project-discovery` ecosystem force a single run from `$REPO_ROOT` instead of
+inheriting the ecosystem's per-project execution location. Closes the gap tracked in
+melodic-software/claude-code-plugins#1361, deferred from #1020: a repo-wide gate (protobuf
+generation, schema freshness) under `go`/`python`/`typescript` had no way to opt out of running once
+per discovered project root. Omitting the key preserves current behavior exactly. Placeholder
+semantics under `repo-root` are pinned in the same bump: `<files>` expands to the full
+ecosystem-scoped changed-files set (not one project's subset), and `<project-dir>` is undefined — a
+`cmd` using it under `repo-root` is a configuration error a resolver reports as a failure rather than
+guessing an expansion.
+
+## 1.1.1 — 2026-07-25
+
+Clarification, no schema shape change: the gate `trigger-globs` description now states explicitly
+that it never selects an ecosystem under auto-targeting — it only narrows a run *within* an already-
+affected ecosystem (matched against the full changed-file set) — and names the supported pattern for
+a cross-ecosystem trigger (add the pattern to the ecosystem's own `globs`). Settled by decision on
+melodic-software/claude-code-plugins#1339; ratifies the subordinate model `/toolchain:check` already
+implements, no runtime behavior change.
+
 ## 1.1.0 — 2026-07-15
 
 Additive: optional `tool-pin` key — pinned tool versions keyed by tool name. When present, resolvers

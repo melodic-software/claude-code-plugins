@@ -3,6 +3,129 @@
 All notable changes to the `skill-quality` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.12.0]
+
+### Added
+
+- **Check 21 — fresh-eyes declaration conformance.** A skill step whose text reads as
+  same-context judgment (curated POSIX-ERE heuristic, WARN-only) is expected to carry
+  fresh-context delegation wording (`fresh-context` / `fresh context`) or a
+  `fresh-eyes-exempt` directive within a per-file proximity window. Directive syntax is
+  enforced: an unknown class or a missing `-- <reason>` FAILs; a directive with no
+  judgment-language hit nearby WARNs as stale (advisory). Both detectors are fence- and
+  inline-code-span-aware (literal examples in docs never trip them) and tolerate CRLF.
+  Contract spec for authors: `skills/check/reference/fresh-eyes-declarations.md`; the
+  heuristic list's curation policy lives there too. Fence matching follows CommonMark
+  (an info-string line inside a fence is content, not a closer; a backtick opener
+  carrying a backtick in its info string is prose, not a fence; opener indentation caps
+  at three spaces; blockquote and list-marker prefixes are stripped first, so a
+  container-nested fence still suppresses its body, while only a prefixed opener strips
+  them in-fence so a quoted run cannot close an unprefixed fence, and a nested fence ends
+  with its container — blockquote DEPTH, not mere marker presence — so an unclosed one
+  cannot swallow the rest of the file), spans pair
+  backtick runs of exactly equal length and carry an unclosed opener across line boundaries
+  to the end of the paragraph (multi-backtick and multi-line spans hide their content).
+  Escapes and spans resolve in one pass because CommonMark couples them: outside a span a
+  backslash escape makes the next character literal (`` \` `` opens no span, `\<!-- ... -->`
+  is text rather than a directive), while inside a span nothing is escaped, so a literal
+  backslash before the closing run does not stop it closing. Each directive on a line is
+  classified independently (a malformed one cannot borrow a valid neighbour's class), and
+  delegation wording only counts when the same line names the worker or dispatch as a whole
+  word — embedded stems satisfy neither half ("agentless" is no worker, "Refresh context" is
+  not the fresh-context wording).
+- **Check 21 ships a stated parsing contract**
+  (`skills/check/reference/fresh-eyes-declarations.md`, "Parsing contract"). It enumerates the
+  markdown constructs the scanner models, names the ones it does not attempt (indented code
+  blocks, mixed container stacks, paragraph-interrupting headings, multi-line HTML comments,
+  reference definitions and link syntax), and states what happens when structure cannot be
+  resolved. The scanner is a hand-written `awk` structure pass, not a CommonMark implementation,
+  because the check has to run with nothing but a POSIX shell and `awk`; the contract makes that
+  a bounded claim instead of an implicit promise to parse everything.
+- **Structurally ambiguous placement withholds the hard verdicts.** A four-space-indented
+  directive is either indented code or a list-item continuation, and the scanner cannot tell, so
+  it emits neither `DIRECTIVE_MALFORMED` nor `DIRECTIVE_NOREASON` there (nor the stale WARN)
+  rather than failing an author on a parser artifact. The judgment path still runs. The asymmetry
+  is the whole argument: those two verdicts are hard FAILs, while the judgment verdicts are WARNs
+  where a miss costs one nudge. Ambiguity cuts both ways: such a directive also cannot satisfy a
+  nearby judgment step, so a literal exemption inside an indented example does not silence the
+  warning that step deserves. This posture is specific to check 21 — it must not be carried into
+  a gate whose verdict is a security decision.
+
+### Fixed
+
+- **The directive name requires a terminator.** A prefix-only match read an ordinary comment about
+  a longer identifier (`<!-- fresh-eyes-exemption is explained here -->`) as a directive and FAILed
+  the skill on prose. The name must now be followed by `:`, whitespace, or `-->`.
+- **YAML frontmatter is no longer parsed as markdown.** A block-scalar `description` carrying an
+  example fence opened a fence that the closing `---` never ended, so the whole body was suppressed
+  and the file passed silently with its judgment language and any malformed directive unexamined.
+  The region is skipped and every structural carry resets at its terminator. Skipping it also drops
+  four spurious judgment hits measured across this marketplace — all in a `description` field, which
+  is listing metadata rather than a procedural step, so three advisory WARNs and one note go with
+  them. No skill's pass/fail verdict changes.
+- README check-count references were stale (still "eighteen"/"seventeen" after checks
+  19–20 shipped); counts now derive from the current twenty-one and the checks list
+  includes the injection-portability and fresh-eyes rows.
+
+## [0.11.0]
+
+### Added
+
+- **`listing-budget` action + `check-listing-budget.sh`: reports the SHARED skill-listing budget,
+  the aggregate limit nothing in the gate previously checked (#1404).** `check-skill.sh` check 2 only
+  ever guarded the per-skill entry cap (`skillListingMaxDescChars`, 1536 chars); the shared budget
+  every loaded skill draws from together (`skillListingBudgetFraction`, default 1% of the model's
+  context window) had no check at all — measured evidence found the aggregate overflowing by a large
+  multiple with no gate ever reporting it. The new script pools one or more skills roots into one
+  aggregate estimate against a documented, overridable default (8000 chars — the harness's own
+  `SLASH_COMMAND_TOOL_CHAR_BUDGET` fallback) and reports the biggest contributors on overflow. It is
+  always advisory (exit 0) since the live budget depends on a model's context window and a consumer's
+  own settings, neither of which a static check can observe — never hardcode
+  `skillListingBudgetFraction`'s documented default as a resolved live value; `/doctor` is the
+  authoritative source per machine. Wired into this repo's `skill-quality-gate` CI job as a report-only
+  step pooling every plugin's `skills/` root into one marketplace-wide aggregate.
+
+  The report counts only **listing-eligible** skills. A skill with `disable-model-invocation: true`
+  is skipped: the invocation-control table at <https://code.claude.com/docs/en/skills> records
+  "Description not in context" for that frontmatter, and "Hide individual skills" states it
+  "removes the skill from Claude's context entirely" — such a skill spends none of the shared
+  description budget, so counting it overstates the aggregate. A consumer's `skillOverrides` can
+  free further descriptions via `"name-only"`, which repository content cannot reveal, so the
+  figure is an upper bound for anyone who sets it. On this marketplace the filter excludes 51 of the
+  183 `SKILL.md` files, leaving a reported **132 listing-eligible skills / 83,611 characters** as
+  measured at this commit — still an order of magnitude over the 8000-char default, so the finding
+  the check exists to surface is unchanged. (A figure without its commit goes stale: the population
+  itself moves, so re-measure rather than quoting this one forward.)
+
+  The flag is read through a normalizing comparison rather than an exact string match, since valid
+  YAML can spell the same boolean as `true # manual-only`, `"true"`, `TRUE`, or with surrounding
+  whitespace, and a bare `== "true"` silently re-counted every one of those. Comment-stripping is
+  scoped to the boolean and deliberately never applied to `description` / `when_to_use`, where a
+  whitespace-preceded `#` is content rather than a comment. YAML 1.1's `yes` / `on` aliases are not
+  folded — the documented spelling is `true`, and over-matching would risk dropping a skill over a
+  value the harness may read as a plain string.
+
+  Input handling is fail-closed on operator error, while the budget verdict stays advisory: every
+  numeric override is validated as a positive number and every explicit root must exist, both
+  reported as the documented environment error (exit 2). Previously a nonnumeric override was
+  either coerced to zero by `awk` — fabricating a zero-character budget and a bogus overflow WARN
+  while still exiting 0 — or crashed with an undocumented exit 1, and a misspelled root among
+  several was silently skipped while its subtree vanished from an "OK" aggregate. A fixed
+  `CHECK_SKILL_LISTING_BUDGET_CHARS` now takes precedence over the token/fraction reconstruction as
+  its own documentation always claimed, announcing the ignored input rather than discarding it
+  silently, and is labelled an override instead of the "documented default". The report header
+  counts roots actually scanned rather than arguments given, and `--help` derives its range from the
+  header block so editing that block can no longer clip or overrun the help text.
+
+### Fixed
+
+- **Check 2 now counts the description/when_to_use joiner (#1404).** The harness assembles a skill's
+  listing entry as `description` + `" - "` + `when_to_use` — a literal 3-character joiner. Check 2
+  summed only `len(description) + len(when_to_use)`, under-counting by 3 whenever `when_to_use` is
+  populated, so an entry sitting exactly at the boundary could pass a cap it had actually crossed. Not
+  currently binding at present description lengths in this repo, but wrong in exactly the direction
+  the listing-budget work is about.
+
 ## [0.10.2]
 
 ### Fixed

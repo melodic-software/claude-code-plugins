@@ -25,20 +25,12 @@
 
 ai-adoption-ladder
 autonomy-ignition
-babysit-prs-migration
-boris-video-absorption
 commit-convention-well-known-path
 context-engineering-claude-5
-dometrain-mcp
 fable-field-guide-audit
 fresh-eyes-checkpoint-audit
-github-plugin-candidates
-handoff-bg-cutover
 interview-batch-rounds
 ladder-climb-roadmap
 loop-engineering-codification
 plugin-audit-port
-plugin-fleet-sync-skill
-plugin-organization
 shadowed-skill-renames
-underspecification
