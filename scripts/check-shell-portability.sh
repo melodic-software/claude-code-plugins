@@ -360,8 +360,8 @@ scan_file() {
     #   stat -- -c; stat -c "%s" "$f"      later real call went unreported
     #   printf -- "%s" "$(stat -c ...)"    outer marker hid the nested call
     #   stat -c "%s" "$f" || stat "--" -f  guard trusted an -f that names a file
-    # Tracked as its own change rather than carried here half-built; see #1544
-    # review rounds for the reproductions.
+    # Tracked in #1562 rather than carried here half-built; that issue holds
+    # the reproductions and what a correct implementation needs.
     function hit_offset(q, m, p,   st) {
       if (!match(q, p)) return 0
       st = RSTART
