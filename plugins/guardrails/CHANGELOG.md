@@ -45,15 +45,18 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   skip-worktree entry — it cannot tell the two apart. A genuine uncommitted
   removal, which is the working-tree disappearance this guard exists to
   adjudicate, was therefore skipped. The test is now the skip-worktree bit
-  itself: `ls-files -v` tags a sparse entry `S`, an unstaged deletion `H`, and an
-  assume-unchanged entry `h`. Only `S` is exempted — assume-unchanged promises a
-  path is unmodified on disk, not absent from it, so a deleted one is the same
-  genuine disappearance as any other unstaged deletion.
+  itself: `ls-files -v` tags a sparse entry `S` — lowercase `s` when the
+  assume-unchanged bit is also set, since `-v` marks assume-unchanged by
+  lowercasing the letter — an unstaged deletion `H`, and an assume-unchanged
+  entry `h`. Only the skip-worktree letter, in either case, is exempted —
+  assume-unchanged promises a path is unmodified on disk, not absent from it, so
+  a deleted one is the same genuine disappearance as any other unstaged deletion.
 
 Both were raised in review on
 [#1432](https://github.com/melodic-software/claude-code-plugins/pull/1432) and
 merged before they were resolved. Four behavioral cases pin them, verified red
-against the 0.17.1 guard (`PASS=79 FAIL=4`) and green after (`PASS=83 FAIL=0`).
+against the 0.17.1 guard (`PASS=79 FAIL=4`) and green after; a fifth pins the
+combined skip-worktree + assume-unchanged tag (`PASS=85 FAIL=0`).
 
 ## [0.17.1]
 
