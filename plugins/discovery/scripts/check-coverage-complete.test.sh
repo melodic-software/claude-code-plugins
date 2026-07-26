@@ -117,7 +117,7 @@ foreign_then_real="$WORK/foreign-then-real.md"
 run 0 "a real ledger after an unrelated table is still graded" "$foreign_then_real"
 
 # A backslash-escaped pipe is content, not a delimiter. A corpus item carrying a
-# TypeScript union must not be unparseable — the alternative is rewriting the
+# TypeScript union must not be unparsable — the alternative is rewriting the
 # ledger to say something less accurate so the gate will read it.
 escaped_pipe="$WORK/escaped-pipe.md"
 {
