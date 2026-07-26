@@ -547,4 +547,313 @@ assert_exit "live-fetch-failure exit 4" 4 "$fetch_rc"
 fetch_err=$(PATH="$NOREPO_BIN:$PATH" bash "$GATE" 123 2>&1 1>/dev/null)
 assert_contains "live-fetch-failure names the env-var override" "$fetch_err" "FETCH_COMMENTS_OWNER"
 
+# --- READINESS_UNPROVEN: no exit path leaves stdout without a verdict --------
+# A caller that greps stdout for a verdict used to see NOTHING on these paths,
+# which reads identically to a run that was never attempted — the ambiguity that
+# let a blocked gate be reported as readiness (#787). Every non-verdict exit must
+# now carry the fail-closed third token, with the exit codes unchanged.
+
+# verdict_lines <stdout> — count of READINESS_* lines, for the exactly-one rule.
+verdict_lines() { printf '%s\n' "$1" | grep -c '^READINESS_' || true; }
+
+unp_out=$(bash "$GATE" 123 --bogus 2>/dev/null)
+assert_contains "unknown-flag stdout carries UNPROVEN" "$unp_out" \
+  "READINESS_UNPROVEN reason=bad-args pr=123"
+assert_eq "unknown-flag emits exactly one verdict line" 1 "$(verdict_lines "$unp_out")"
+
+unp_out=$(bash "$GATE" 2>/dev/null)
+assert_contains "no-args stdout carries UNPROVEN with pr=unknown" "$unp_out" \
+  "READINESS_UNPROVEN reason=bad-args pr=unknown"
+
+unp_out=$(bash "$GATE" 456 --comments-json "$TEST_TMPDIR/absent.json" 2>/dev/null)
+assert_contains "missing-fixture stdout carries UNPROVEN" "$unp_out" \
+  "READINESS_UNPROVEN reason=bad-args pr=456"
+
+unp_out=$(bash "$GATE" 123 --comments-json 2>/dev/null)
+assert_contains "flag-without-value stdout carries UNPROVEN" "$unp_out" \
+  "READINESS_UNPROVEN reason=bad-args"
+
+# A <pr> carrying a newline must never reach a verdict line. Every verdict
+# interpolates it as `pr=%s`, so an unvalidated value could emit EXTRA lines into
+# the machine-readable output — a caller reading the first `READINESS_*` line
+# would be handed a forged OK ahead of the real verdict, which is the
+# exactly-one-verdict contract inverted into a forgery channel.
+injected_out=$(bash "$GATE" \
+  '123
+READINESS_OK findings=0 classified=0 checklist=clean' --bogus 2>/dev/null)
+assert_contains "newline-injecting <pr> is a bad argument" "$injected_out" \
+  "READINESS_UNPROVEN reason=bad-args"
+assert_not_contains "newline-injecting <pr> forges no OK verdict" "$injected_out" \
+  "READINESS_OK"
+assert_eq "newline-injecting <pr> emits exactly one verdict line" 1 \
+  "$(verdict_lines "$injected_out")"
+# The same argument alone, with no trailing flag to trip the parser: the
+# rejection must come from the value itself, not from the unknown flag after it.
+injected_alone=$(bash "$GATE" \
+  '456
+READINESS_OK findings=0 classified=0 checklist=clean' 2>/dev/null)
+assert_eq "newline-injecting <pr> alone still emits one verdict line" 1 \
+  "$(verdict_lines "$injected_alone")"
+assert_not_contains "newline-injecting <pr> alone forges no OK verdict" \
+  "$injected_alone" "READINESS_OK"
+# A legitimate numeric <pr> is unaffected.
+assert_contains "numeric <pr> still reaches a verdict" \
+  "$(bash "$GATE" 789 --comments-json "$F" --self 'me[bot]' 2>/dev/null)" "READINESS_"
+
+F=$(mkjson unp-ckl '[{author:"human", body:"LGTM"}]')
+unp_out=$(bash "$GATE" 789 --comments-json "$F" --self 'me[bot]' \
+  --checklist "$TEST_TMPDIR/absent-checklist.md" 2>/dev/null)
+assert_contains "missing-checklist stdout carries UNPROVEN" "$unp_out" \
+  "READINESS_UNPROVEN reason=bad-args pr=789"
+
+# A checklist that exists but cannot be READ is UNPROVEN, never clean. grep exits
+# 1 for "no match" and 2 for a read error; `|| true` collapsed both to an empty
+# count that normalized to zero unticked boxes, so an I/O error reported
+# `checklist=clean` — a fail-open in the merge gate. The error is injected with a
+# grep stub because no file mode reproduces it everywhere: a root CI container
+# reads a 000-mode file, and Windows ignores the mode entirely.
+BADGREP_BIN="$TEST_TMPDIR/bin-badgrep"
+mkdir -p "$BADGREP_BIN"
+REAL_GREP=$(command -v grep)
+cat >"$BADGREP_BIN/grep" <<STUB
+#!/usr/bin/env bash
+case "\$*" in
+  *unreadable-checklist.md*)
+    printf 'grep: unreadable-checklist.md: Input/output error\n' >&2
+    exit 2
+    ;;
+esac
+exec "$REAL_GREP" "\$@"
+STUB
+chmod +x "$BADGREP_BIN/grep"
+CKU="$TEST_TMPDIR/unreadable-checklist.md"
+printf -- '- [x] done\n' >"$CKU"
+unp_out=$(PATH="$BADGREP_BIN:$PATH" bash "$GATE" 790 --comments-json "$F" --self 'me[bot]' \
+  --checklist "$CKU" 2>/dev/null)
+assert_contains "unreadable-checklist stdout carries UNPROVEN" "$unp_out" \
+  "READINESS_UNPROVEN reason=checklist-unreadable pr=790"
+assert_contains "unreadable-checklist never claims readiness" "$unp_out" "READINESS_UNPROVEN"
+assert_eq "unreadable-checklist emits exactly one verdict line" 1 "$(verdict_lines "$unp_out")"
+unp_rc=$(
+  PATH="$BADGREP_BIN:$PATH" bash "$GATE" 790 --comments-json "$F" --self 'me[bot]' \
+    --checklist "$CKU" >/dev/null 2>&1
+  echo $?
+)
+assert_exit "unreadable-checklist exit 4" 4 "$unp_rc"
+# The stub must not be a blanket grep failure, or the assertion above would pass
+# for the wrong reason: the same PATH with a readable checklist still verdicts.
+ok_out=$(PATH="$BADGREP_BIN:$PATH" bash "$GATE" 791 --comments-json "$F" --self 'me[bot]' \
+  --checklist "$CK2" 2>/dev/null)
+assert_contains "badgrep stub leaves a readable checklist clean" "$ok_out" "checklist=clean"
+
+# The jq prerequisite is asserted at the source, not by nuking PATH: a PATH that
+# hides jq also hides the interpreter (both live in the same bin dir on the CI
+# image), so the subprocess would report its own 127 rather than the gate's
+# verdict. Assert instead that the jq check routes through unproven — the same
+# source-level contract style as the POSIX-matching assertion above.
+assert_contains "jq prerequisite emits UNPROVEN prereq-missing" "$(cat "$GATE")" \
+  "unproven prereq-missing 4"
+bare_exits=$(grep -cE '^[[:space:]]*exit [34]$' "$GATE" || true)
+assert_eq "no bare exit 3/4 survives (every failure path emits a verdict)" 0 \
+  "${bare_exits//[^0-9]/}"
+
+unp_out=$(PATH="$NOREPO_BIN:$PATH" bash "$GATE" 123 2>/dev/null)
+assert_contains "live-fetch-failure stdout carries UNPROVEN" "$unp_out" \
+  "READINESS_UNPROVEN reason=fetch-failed pr=123"
+
+# --- A malformed comment payload must never read as readiness ----------------
+# A snapshot that exists but does not parse (truncated, hand-edited, an error
+# document a fetch returned with exit 0) used to reach the counters with jq's
+# stderr suppressed: the counts stayed 0 and the gate printed READINESS_OK — a
+# ready verdict derived from data it never read. Every non-array shape must
+# route through the fail-closed verdict instead.
+printf 'not-json' >"$TEST_TMPDIR/malformed.json"
+bad_out=$(bash "$GATE" 321 --comments-json "$TEST_TMPDIR/malformed.json" --self 'me[bot]' 2>/dev/null)
+bad_rc=$(
+  bash "$GATE" 321 --comments-json "$TEST_TMPDIR/malformed.json" --self 'me[bot]' >/dev/null 2>&1
+  echo $?
+)
+assert_contains "malformed snapshot carries UNPROVEN" "$bad_out" \
+  "READINESS_UNPROVEN reason=comments-unreadable pr=321"
+assert_not_contains "malformed snapshot never claims READINESS_OK" "$bad_out" "READINESS_OK"
+assert_exit "malformed snapshot exit 4" 4 "$bad_rc"
+
+# Valid JSON of the wrong TYPE is the same fail-open: `.[]` over a scalar or an
+# object yields no bodies, so parseability alone is not enough — the shape check
+# is what holds.
+for shape in '"a string"' '{"author":"x"}' '42'; do
+  printf '%s' "$shape" >"$TEST_TMPDIR/shape.json"
+  shape_out=$(bash "$GATE" 322 --comments-json "$TEST_TMPDIR/shape.json" --self 'me[bot]' 2>/dev/null)
+  assert_contains "non-array payload ($shape) carries UNPROVEN" "$shape_out" \
+    "READINESS_UNPROVEN reason=comments-unreadable"
+  assert_not_contains "non-array payload ($shape) never claims READINESS_OK" \
+    "$shape_out" "READINESS_OK"
+done
+
+# A well-formed ARRAY holding elements the counters cannot read is the same
+# fail-open one level down: the container check passes, `.body // ""` coalesces
+# the missing field, and the gate reports READINESS_OK findings=0 over data it
+# never read. `.body` is required as a string because that is how the counters
+# consume it — grepped for severity markers. `.author` may be a string or null;
+# see the deleted-account case below.
+for element in '[null]' '[{}]' '[{"author":"x"}]' '[{"body":"[P1] real"}]' \
+  '[{"author":"x","body":42}]' \
+  '[{"author":"x","body":"ok"},null]'; do
+  printf '%s' "$element" >"$TEST_TMPDIR/element.json"
+  element_out=$(bash "$GATE" 323 --comments-json "$TEST_TMPDIR/element.json" --self 'me[bot]' 2>/dev/null)
+  element_rc=$(
+    bash "$GATE" 323 --comments-json "$TEST_TMPDIR/element.json" --self 'me[bot]' >/dev/null 2>&1
+    echo $?
+  )
+  assert_contains "malformed element ($element) carries UNPROVEN" "$element_out" \
+    "READINESS_UNPROVEN reason=comments-unreadable"
+  assert_not_contains "malformed element ($element) never claims READINESS_OK" \
+    "$element_out" "READINESS_OK"
+  assert_exit "malformed element ($element) exit 4" 4 "$element_rc"
+done
+
+# The element check must not reject a well-formed payload. An EMPTY array is a
+# PR with no comments at all, which is legitimately zero findings, and an empty
+# body string is a real comment shape.
+for wellformed in '[]' '[{"author":"me[bot]","body":""}]'; do
+  printf '%s' "$wellformed" >"$TEST_TMPDIR/wellformed.json"
+  wellformed_out=$(bash "$GATE" 324 --comments-json "$TEST_TMPDIR/wellformed.json" --self 'me[bot]' 2>/dev/null)
+  assert_contains "well-formed payload ($wellformed) still reaches a verdict" \
+    "$wellformed_out" "READINESS_OK findings=0"
+done
+
+# A snapshot read that FAILS after emitting a syntactically valid prefix must be
+# unreadable, not empty. `cat` can print a valid head and then hit an I/O error;
+# ignoring its status left the shape check validating that prefix, so a file
+# whose readable head is `[]` passed as an empty array while the real findings
+# sat in the part that never arrived — READINESS_OK findings=0 over a truncated
+# read. Injected with a cat stub for the same portability reason as the grep
+# stub above: no file state reproduces a mid-read failure everywhere.
+BADCAT_BIN="$TEST_TMPDIR/bin-badcat"
+mkdir -p "$BADCAT_BIN"
+REAL_CAT=$(command -v cat)
+cat >"$BADCAT_BIN/cat" <<STUB
+#!/usr/bin/env bash
+case "\$*" in
+  *truncated-read.json*)
+    printf '[]'
+    exit 1
+    ;;
+esac
+exec "$REAL_CAT" "\$@"
+STUB
+chmod +x "$BADCAT_BIN/cat"
+CKT="$TEST_TMPDIR/truncated-read.json"
+printf '%s' '[{"author":"claude[bot]","body":"[P1] real"}]' >"$CKT"
+truncated_out=$(PATH="$BADCAT_BIN:$PATH" bash "$GATE" 327 --comments-json "$CKT" --self 'me[bot]' 2>/dev/null)
+truncated_rc=$(
+  PATH="$BADCAT_BIN:$PATH" bash "$GATE" 327 --comments-json "$CKT" --self 'me[bot]' >/dev/null 2>&1
+  echo $?
+)
+assert_contains "failed snapshot read carries UNPROVEN" "$truncated_out" \
+  "READINESS_UNPROVEN reason=comments-unreadable"
+assert_not_contains "failed snapshot read never claims READINESS_OK" "$truncated_out" \
+  "READINESS_OK"
+assert_exit "failed snapshot read exit 4" 4 "$truncated_rc"
+# The same read on the Python-free degrade path, which is where the fail-open is
+# outright rather than merely latent: the bash counters read the truncated `[]`
+# and report zero, and without the read-status check nothing else contradicts
+# them. (With the refinement available, babysit_findings.py re-reads the file and
+# recovers the finding, so the full path masked this as BLOCKED rather than OK.)
+bashonly_out=$(BABYSIT_READINESS_BASH_ONLY=1 PATH="$BADCAT_BIN:$PATH" \
+  bash "$GATE" 329 --comments-json "$CKT" --self 'me[bot]' 2>/dev/null)
+assert_contains "failed snapshot read is UNPROVEN on the degrade path too" \
+  "$bashonly_out" "READINESS_UNPROVEN reason=comments-unreadable"
+assert_not_contains "failed snapshot read never reads as zero findings" \
+  "$bashonly_out" "READINESS_OK findings=0"
+# The stub must not be a blanket cat failure, or the assertions above would hold
+# for the wrong reason: the same PATH with a readable snapshot still verdicts.
+CKR="$TEST_TMPDIR/readable-read.json"
+printf '%s' '[{"author":"me[bot]","body":"no findings"}]' >"$CKR"
+readable_out=$(PATH="$BADCAT_BIN:$PATH" bash "$GATE" 328 --comments-json "$CKR" --self 'me[bot]' 2>/dev/null)
+assert_not_contains "badcat stub leaves a readable snapshot alone" "$readable_out" \
+  "READINESS_UNPROVEN"
+
+# A null `.author` is a real GitHub shape, not a malformed one: a comment whose
+# account was deleted comes back that way and fetch-all-pr-comments.sh passes it
+# through. Rejecting it would leave any PR carrying such a comment permanently
+# UNPROVEN — fail-closed against the wrong thing. It must be READ, and read as
+# NON-self: the self list is matched by identity and null is no login, so the
+# finding counts exactly as an unrecognized author's would.
+printf '%s' '[{"author":null,"body":"[P1] real"}]' >"$TEST_TMPDIR/null-author.json"
+null_author_out=$(bash "$GATE" 325 --comments-json "$TEST_TMPDIR/null-author.json" --self 'me[bot]' 2>/dev/null)
+assert_not_contains "deleted-account author is not unreadable" "$null_author_out" \
+  "READINESS_UNPROVEN"
+assert_contains "deleted-account comment counts as a non-self finding" \
+  "$null_author_out" "findings=1"
+assert_contains "deleted-account finding still gates on classification" \
+  "$null_author_out" "READINESS_BLOCKED reason=under-decomposed"
+# The self side of the same identity rule: a null author must never be credited
+# as a self reply, or a deleted account's table row would classify a finding.
+printf '%s' '[{"author":"claude[bot]","body":"[P1] real"},{"author":null,"body":"| 1 | a | VALID | x |"}]' \
+  >"$TEST_TMPDIR/null-author-selfrow.json"
+null_self_out=$(bash "$GATE" 326 --comments-json "$TEST_TMPDIR/null-author-selfrow.json" --self 'me[bot]' 2>/dev/null)
+assert_contains "null author is never credited as a self classification row" \
+  "$null_self_out" "READINESS_BLOCKED reason=under-decomposed"
+
+# --- Identity lookup failure is not a bad argument ---------------------------
+# With no --self/--extra-self and a `gh api user` that fails, the ARGUMENTS are
+# valid; the identity prerequisite is what broke. Reporting bad-args sent the
+# operator (and the loop report that quotes this verdict verbatim) to edit flags
+# that were already correct. Exit code stays 3 for callers keyed on it.
+NOAUTH_BIN="$TEST_TMPDIR/bin-noauth"
+mkdir -p "$NOAUTH_BIN"
+cat >"$NOAUTH_BIN/gh" <<'STUB'
+#!/usr/bin/env bash
+printf 'gh: authentication required\n' >&2
+exit 1
+STUB
+chmod +x "$NOAUTH_BIN/gh"
+F=$(mkjson unp-identity '[{author:"human", body:"LGTM"}]')
+ident_out=$(PATH="$NOAUTH_BIN:$PATH" bash "$GATE" 654 --comments-json "$F" 2>/dev/null)
+ident_rc=$(
+  PATH="$NOAUTH_BIN:$PATH" bash "$GATE" 654 --comments-json "$F" >/dev/null 2>&1
+  echo $?
+)
+assert_contains "identity-lookup failure carries its own reason" "$ident_out" \
+  "READINESS_UNPROVEN reason=identity-unresolved pr=654"
+assert_not_contains "identity-lookup failure is not reported as bad-args" "$ident_out" \
+  "reason=bad-args"
+assert_exit "identity-lookup failure keeps exit 3" 3 "$ident_rc"
+
+# The verdict paths stay single-token and never claim UNPROVEN.
+F=$(mkjson unp-ok '[
+  {author:"claude[bot]", body:"### 1. [CRITICAL] a"},
+  {author:"me[bot]", body:"| 1 | a | VALID | fixed |"}
+]')
+ok_out=$(bash "$GATE" 123 --comments-json "$F" --self 'me[bot]' 2>/dev/null)
+assert_eq "READINESS_OK emits exactly one verdict line" 1 "$(verdict_lines "$ok_out")"
+assert_not_contains "READINESS_OK never claims UNPROVEN" "$ok_out" "READINESS_UNPROVEN"
+
+F=$(mkjson unp-blocked '[
+  {author:"claude[bot]", body:"### 1. [CRITICAL] a\n### 2. [IMPORTANT] b"},
+  {author:"me[bot]", body:"| 1 | a | VALID | fixed |"}
+]')
+blocked_out=$(bash "$GATE" 123 --comments-json "$F" --self 'me[bot]' 2>/dev/null)
+assert_eq "READINESS_BLOCKED emits exactly one verdict line" 1 "$(verdict_lines "$blocked_out")"
+assert_not_contains "READINESS_BLOCKED never claims UNPROVEN" "$blocked_out" "READINESS_UNPROVEN"
+
+# --help must document the third verdict, or a worker cannot know to look for it.
+assert_contains "--help documents READINESS_UNPROVEN" "$help_out" "READINESS_UNPROVEN"
+
+# ...but documenting a verdict must not COUNT as emitting one. --help is not a
+# check run, so a caller's `^READINESS_` grep must find nothing there. A header
+# line describing the token un-indented into a bare match once the comment
+# markers were stripped, so help text parsed as a malformed verdict on a run
+# that checked nothing.
+help_verdicts=$(verdict_lines "$help_out")
+assert_eq "--help emits no verdict line" 0 "$help_verdicts"
+
+# The header prints by derivation from the comment block, not a hardcoded line
+# range, so growing it can neither truncate the usage text nor spill code in.
+assert_contains "--help still reaches the end of the header" "$help_out" \
+  "reason=prereq-missing|fetch-failed|comments-unreadable"
+assert_not_contains "--help never spills code past the header" "$help_out" \
+  "set -uo pipefail"
+
 [[ $FAILED -eq 0 ]] || exit 1

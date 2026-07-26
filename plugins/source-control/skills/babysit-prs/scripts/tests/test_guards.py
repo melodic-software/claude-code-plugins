@@ -12,6 +12,9 @@ The contract's markdown rendering in `../reference/guard-contract.md` is what
 consumers cite; `GeneratedDocIsCurrent` is what keeps it honest.
 """
 
+import argparse
+import contextlib
+import io
 import json
 import os
 import pathlib
@@ -359,6 +362,79 @@ class MechanismsMatchTheSource(unittest.TestCase):
                     )
 
 
+class NoParserResolvesAnAbbreviation(unittest.TestCase):
+    """`allow_abbrev=False` on every catalogued Python entry point, not two of them.
+
+    A permission grant states its condition as the literal presence or absence of
+    a flag in the command text. Argparse's default prefix abbreviation lets
+    `--app` resolve to `--apply` while the text contains no such flag, so the
+    written command and the resolved behavior diverge -- which is precisely what
+    such a condition has to be able to rule out. The merge gate and the thread
+    resolver were hardened individually; the property belongs to the directory,
+    because the next entry point inherits the default unless something fails.
+
+    ABBREVIATION_PROBE is the universal one: argparse registers `--help` on every
+    parser here, so with abbreviation on it resolves and exits 0, and with
+    abbreviation off it is an unrecognized argument at exit 2. No per-CLI
+    argument shape is needed, which is what makes this a gate over the catalogue
+    rather than a hand-maintained list of cases.
+
+    Three characters, not one or two: `manage_babysit_lease.py` also registers
+    `--heartbeat-interval-seconds`, so a shorter prefix is AMBIGUOUS there and
+    exits 2 even with abbreviation on -- the probe would pass on that entry point
+    while proving nothing.
+    """
+
+    ABBREVIATION_PROBE = "--hel"  # spellchecker:disable-line
+
+    def test_every_python_entry_point_refuses_an_abbreviated_flag(self) -> None:
+        catalogued = [
+            entry.path for entry in contract.ENTRY_POINTS if entry.path.endswith(".py")
+        ]
+        self.assertTrue(catalogued, "no Python entry points catalogued")
+        for path in catalogued:
+            with self.subTest(entry_point=path):
+                proc = subprocess.run(
+                    [
+                        sys.executable,
+                        str(contract.plugin_path(path)),
+                        self.ABBREVIATION_PROBE,
+                    ],
+                    capture_output=True,
+                    text=True,
+                    cwd=tempfile.gettempdir(),
+                )
+                self.assertNotEqual(
+                    proc.returncode,
+                    0,
+                    f"`{path}` resolved `{self.ABBREVIATION_PROBE}` to `--help` and"
+                    " exited 0; its parser needs allow_abbrev=False",
+                )
+
+    def test_the_probe_separates_the_two_parsers(self) -> None:
+        # Guards the guard. The probe reads an exit code, and a CLI can exit 2
+        # for reasons of its own -- several here have a required mutually
+        # exclusive group that errors before any unrecognized argument is
+        # reported, so the message is not a reliable discriminator and the code
+        # is. What makes the code sufficient is that `--help` short-circuits
+        # parsing: an abbreviation that resolves exits 0 before required-argument
+        # validation ever runs. Asserted against argparse itself rather than
+        # assumed, because the whole gate rests on it.
+        strict = argparse.ArgumentParser(prog="probe", allow_abbrev=False)
+        strict.add_argument("--required-thing", required=True)
+        with self.assertRaises(SystemExit) as refused:
+            strict.parse_args([self.ABBREVIATION_PROBE])
+        self.assertEqual(refused.exception.code, 2)
+
+        lenient = argparse.ArgumentParser(prog="probe")
+        lenient.add_argument("--required-thing", required=True)
+        # The resolved `--help` prints to stdout; keep it out of the test log.
+        with contextlib.redirect_stdout(io.StringIO()):
+            with self.assertRaises(SystemExit) as resolved:
+                lenient.parse_args([self.ABBREVIATION_PROBE])
+        self.assertEqual(resolved.exception.code, 0)
+
+
 class EntryPointCatalogueIsComplete(unittest.TestCase):
     def test_every_executable_script_is_classified(self) -> None:
         # A new entry point must arrive with its mutation classification, or a
@@ -488,6 +564,9 @@ class DocumentedCommandsMatchTheParsers(unittest.TestCase):
         would pass. Argparse renders the usage block from the registered option
         strings and nothing else, so it -- not the description, not the help
         text -- is the registry. It runs from `usage:` to the first blank line.
+
+        `--help` is the one registered long option usage never renders, so it is
+        added back on the evidence of this call itself.
         """
         proc = subprocess.run(
             [sys.executable, str(contract.plugin_path(cli)), "--help"],
@@ -501,9 +580,13 @@ class DocumentedCommandsMatchTheParsers(unittest.TestCase):
         )
         usage = proc.stdout.split("usage:", 1)[1].split("\n\n", 1)[0]
         flags = set(re.findall(r"(?<![\w-])--[a-z0-9][a-z0-9-]*", usage))
-        # `--help` is deliberately absent: argparse renders it as `-h` in usage.
         self.assertTrue(flags, f"{cli} usage block parsed to no long options")
-        return flags
+        # `--help` never appears in usage -- argparse renders the pair as `-h`.
+        # Its evidence is this call: the invocation above IS `--help` and it
+        # exited 0, which is a stronger proof of acceptance than the usage text
+        # gives for any other flag. Omitting it would reject the reachability
+        # canary, whose whole point is an argument-shape-only invocation.
+        return flags | {"--help"}
 
     def test_prose_only_flags_are_not_read_as_accepted(self) -> None:
         # The regression this parse exists to prevent, pinned: `--admin` appears
@@ -646,6 +729,46 @@ class GeneratedDocIsCurrent(unittest.TestCase):
             "reference/guard-contract.md is stale -- regenerate it with"
             " `python tests/guard_contract.py --emit`",
         )
+
+
+class SetupReachabilityCanaryContract(unittest.TestCase):
+    """The setup skill's #787 probe invokes a real wrapper as a permission canary.
+
+    Its whole value is that a denial there is a FAILED prerequisite rather than an
+    INFO note -- which only holds if the target is provably harmless and stays
+    pinned to the form the lane actually mandates. The wrapper's own exit-0,
+    no-network behaviour is exercised in bash by
+    plugins/source-control/scripts/babysit-wrapper-help.test.sh; what is pinned
+    here is that the skill still names that exact invocation.
+    """
+
+    SETUP = contract.plugin_path("skills/setup/SKILL.md")
+
+    def test_setup_skill_pins_the_canary_and_fails_on_denial(self):
+        setup = " ".join(self.SETUP.read_text(encoding="utf-8").split())
+
+        self.assertIn(
+            'bash "${CLAUDE_PLUGIN_ROOT}/bin/source-control-babysit-merge" --help',
+            setup,
+        )
+        # Both path prefixes are canaries: an allow rule or classifier decision
+        # covering bin/ says nothing about scripts/, and the readiness gate is
+        # the path the lane's own verdict travels.
+        self.assertIn(
+            'bash "${CLAUDE_PLUGIN_ROOT}/scripts/babysit-readiness-gate.sh" --help',
+            setup,
+        )
+        self.assertIn("denial on either is a FAILED prerequisite", setup)
+        # A pass is asymmetric with a denial: the classifier decides per call, so
+        # a permitted --help cannot certify the production shapes. The skill must
+        # keep saying so, and must keep naming the mechanism that covers the gap.
+        self.assertIn("A pass is reachability, not a guarantee", setup)
+        self.assertIn("READINESS_UNPROVEN", setup)
+        self.assertIn("quote that stdout verbatim", setup)
+        # The dropped scope-enumeration clause must not creep back: managed
+        # settings are not locally readable, so it had no executable path.
+        self.assertNotIn("not a project's `.claude/` settings", setup)
+        self.assertIn("claude auto-mode config", setup)
 
 
 if __name__ == "__main__":

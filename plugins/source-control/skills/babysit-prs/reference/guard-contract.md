@@ -119,6 +119,8 @@ Checked against the WRAPPER boundary, not the parser alone. A wrapper's accepted
 | --- | --- | --- |
 | `safety.pinned-command-degradation` | `skills/babysit-prs/reference/safety.md` | reference/safety.md hard-codes fully-argument-pinned bin/-path wrapper command lines for the operator to run when the runtime denies a mutation the gate already proved ready. Every wrapper path in it resolves, and every flag it names is one the backing CLI's parser accepts. |
 | `orchestration.worker-dispatch-commands` | `skills/babysit-prs/reference/orchestration.md` | reference/orchestration.md spells out the same bin/-path wrapper commands for the dispatched-worker and thread-resolve paths. It is a second copy of the same argument shapes and drifts independently of safety.md. |
+| `setup.reachability-canary-commands` | `skills/setup/SKILL.md` | skills/setup/SKILL.md spells out the permission canary an operator runs to prove this lane's scripts are reachable at all. A canary naming a flag the wrapper does not accept fails for the wrong reason and reads as a denial, so its spelling is checked like any other copyable command. |
+| `changelog.canary-command-restatement` | `CHANGELOG.md` | CHANGELOG.md restates the canary invocation while describing it. A changelog is read by operators reaching for the command, so it is covered rather than exempted -- a restatement drifting from the parser is the same defect wherever it lives. |
 
 ## Not covered here
 

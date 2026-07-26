@@ -3,6 +3,25 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.26.2]
+
+### Fixed
+
+- **`interview`'s `recommends-session-config` eval no longer only covers the
+  downstream-execution-session framing.** The single eval asserted config for
+  "the downstream execution session" for every case, so a general/terminal
+  session — which has no downstream consumer and should be told to configure the
+  current/next session, applied now — could still pass on the stale
+  downstream-only framing. Split into two cases: eval 9
+  (`recommends-session-config-engineering-downstream`) keeps the downstream
+  framing, now explicitly scoped to the engineering/handoff path, and new eval 10
+  (`recommends-session-config-general-current-session`) asserts the current/next
+  session framing for a general/terminal decision — including the 0.26.1 timing
+  contract: an early first read right after the Step 1 survey classifies the
+  domain as general, the stop-boundary recommendation as a refresh of it, and
+  the offer to re-evaluate the reached understanding when config was raised
+  only at the end. Covers the skill-side reframe that landed in 0.26.1.
+
 ## [0.26.1]
 
 ### Fixed
