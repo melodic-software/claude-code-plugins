@@ -62,7 +62,7 @@ topic qualifier follows the verb with a hyphen (`audit-noise` beside `audit-enca
 Nouns are reserved for knowledge routers (`principles`, `methodology`) and lifecycle-object routers
 (`worktree`, `pull-request`). Five further documented exceptions: a single-skill vendor-CLI wrapper
 repeats its tool name (`firecrawl:firecrawl`); a `-deep` suffix marks the heavier
-isolated-execution tier of a sibling skill (`explore`/`explore-deep`); a knowledge router named by
+isolated-execution tier of a sibling skill (`research`/`research-deep`); a knowledge router named by
 its method's own literature term keeps that term when renaming would destroy recognized craft
 vocabulary (`songwriting:object-writing`, `meter-prosody`, `song-form` — Pattison's terms); a
 playbook router named by its source keeps the source's own identifier, because provenance is the
