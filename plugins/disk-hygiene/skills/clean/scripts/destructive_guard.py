@@ -1,12 +1,51 @@
 #!/usr/bin/env python3
-"""Fail-closed skill hook: allow only exact bundled hygiene-engine commands."""
+"""Fail-closed skill hook: allow only exact bundled hygiene-engine commands.
+
+Exit-code contract (see ``main`` / ``_decide`` / ``_watchdog_fire``): only ``0``
+(a deliberate JSON allow/ask/deny decision on stdout) and ``2`` (a blocking
+deny, one-line diagnostic on stderr) are reachable. Exit ``1`` is a Claude Code
+*non-blocking* status for PreToolUse
+(https://code.claude.com/docs/en/hooks, fetched 2026-07-25: "Claude Code treats
+exit code 1 as a non-blocking error and proceeds with the action... If your
+hook is meant to enforce a policy, use exit 2") — every internal failure path
+that could once fall through to the interpreter's default (uncaught exception
+-> exit 1, no diagnostic) now denies instead (#1423).
+
+Investigation note for the one observed #1423 occurrence (engine-gate mode,
+``exitCode: 1``, empty stderr, ``durationMs: 17054``, Windows, no reproduction):
+every filesystem call already reachable from this module's own logic
+(``Path.resolve(strict=True)``, ``os.path.samefile``, ``Path.stat``/
+``read_text``) already caught ``OSError`` at the call site, so a stall ending
+in an ``OSError`` (a plausible shape for an unreachable/slow path — e.g. a
+stale network drive letter or UNC path referenced by an ordinary, unrelated
+Bash command) would not by itself explain an *uncaught* exception. Two things
+follow: (1) the strongest identified candidate for the 17s itself is
+``_engine_gate_relevant``'s marker-free fallback, which calls
+``os.path.samefile`` on every separator-containing word of *every* Bash/
+PowerShell command in *every* session (not only disk-hygiene commands) when
+resolving the plugin-level engine gate — a slow or unreachable path argument
+in an unrelated command is a real, user-reachable way to stall this hook for
+longer than milliseconds; (2) empty stderr is not what an uncaught Python
+exception normally produces (the default handler writes a traceback), so an
+external kill (antivirus/EDR scanning the ``python3`` process, a transient OS
+resource issue) remains an open, unconfirmed possibility this module cannot
+fix from inside the interpreter. What IS fixable and is fixed here: the
+watchdog below bounds every invocation to an internal deadline so a stall of
+this shape denies fast with a diagnostic instead of running indefinitely
+toward a harness-level, non-blocking kill; the exit-2 wrapper below fail-closes
+any exception this process DOES get to run to completion (rather than only
+those already caught by a narrower ``except OSError``).
+"""
 
 from __future__ import annotations
 
+import contextlib
 import json
+import math
 import os
 import re
 import sys
+import threading
 from pathlib import Path
 
 _LIB_DIR = Path(__file__).resolve().parents[3] / "lib"
@@ -768,24 +807,125 @@ def _bash_denial_guidance(authority: str | None) -> str:
     )
 
 
-def main() -> int:
-    try:
-        payload = json.load(sys.stdin)
-        tool_name = payload.get("tool_name", "")
-        command = payload["tool_input"]["command"]
-        if not isinstance(command, str):
-            raise TypeError("command is not text")
-    except (KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
-        print(
-            json.dumps(
-                decision(
-                    "deny",
-                    f"disk-hygiene guard could not validate the shell call: {exc}",
-                )
-            )
-        )
-        return 0
+_WATCHDOG_ENV_VAR = "DISK_HYGIENE_GUARD_WATCHDOG_SECONDS"
+_WATCHDOG_DEFAULT_SECONDS = 10.0
 
+# The `timeout` both guard registrations declare (`hooks/hooks.json` and
+# `skills/clean/SKILL.md` frontmatter). Duplicated here because a PreToolUse
+# payload does not carry the hook's own timeout, so the guard cannot read it at
+# runtime; `test_declared_hook_timeouts_match_the_watchdog_ceiling` fails the
+# suite if either registration drifts from this value.
+_DECLARED_HOOK_TIMEOUT_SECONDS = 60.0
+# Headroom the watchdog cannot itself cover: interpreter startup before `main`
+# runs, plus process teardown after `_watchdog_fire`. ADR 0004 measures
+# `python3 -c 'pass'` at 396 ms on this host, and that figure is unbounded from
+# inside the process under EDR or load contention, so the margin is generous
+# rather than tight.
+_HOOK_STARTUP_HEADROOM_SECONDS = 10.0
+_WATCHDOG_MAX_SECONDS = _DECLARED_HOOK_TIMEOUT_SECONDS - _HOOK_STARTUP_HEADROOM_SECONDS
+
+
+def _watchdog_seconds() -> float:
+    """The guard's own internal deadline, in seconds (module docstring, AC 5).
+
+    Every legitimate invocation completes in milliseconds; a finite positive
+    value from ``DISK_HYGIENE_GUARD_WATCHDOG_SECONDS`` lets an operator raise
+    the deadline on a known-slow filesystem, and any absent, non-numeric,
+    non-finite, or non-positive override falls back to the default rather than
+    disarming the watchdog or raising. A valid override above
+    ``_WATCHDOG_MAX_SECONDS`` is clamped to it, not rejected: the operator's
+    intent (wait longer) is honoured as far as it can safely go.
+
+    The clamp is what keeps the two deadline layers ordered. The watchdog is
+    the primary mechanism and the harness ``timeout`` is the backstop, which
+    only holds while the watchdog fires *first* — an override at or above the
+    declared hook timeout inverts that, the harness kills the process instead,
+    and a killed PreToolUse hook yields no ``permissionDecision`` at all, so
+    the guarded command proceeds unguarded (``docs/adr/0004-...``: across
+    15,845 cancelled runs "a killed PreToolUse hook yields ``outcome:
+    'cancelled'`` with no ``permissionDecision``, so the tool call proceeds
+    unguarded"). Clamping keeps the guard's own deny reachable no matter what
+    an operator sets.
+
+    The non-finite rejection is load-bearing, not defensive tidiness: ``inf``,
+    ``nan``, and overflowing literals such as ``1e400`` all parse cleanly
+    through ``float`` and ``inf`` passes a bare ``> 0`` test, but
+    ``threading.Timer(inf, ...)`` accepts ``start()`` and then dies inside the
+    timer thread with ``OverflowError: timestamp out of range for platform
+    time_t``. Because that raises on the *background* thread it never reaches
+    ``main``'s exit-2 boundary — it would silently disarm the watchdog while
+    leaving the guard apparently armed, the exact fail-open shape #1423 exists
+    to close. The clamp does not subsume it: ``nan`` fails every comparison, so
+    ``min(nan, ceiling)`` would return ``nan`` and hand the same broken value
+    to ``Timer``.
+    """
+    raw = os.environ.get(_WATCHDOG_ENV_VAR)
+    if not raw:
+        return _WATCHDOG_DEFAULT_SECONDS
+    try:
+        value = float(raw)
+    except ValueError:
+        return _WATCHDOG_DEFAULT_SECONDS
+    if not math.isfinite(value) or value <= 0:
+        return _WATCHDOG_DEFAULT_SECONDS
+    return min(value, _WATCHDOG_MAX_SECONDS)
+
+
+def _write_diagnostic(message: str) -> None:
+    """Write a deny diagnostic to stderr without ever preempting the deny.
+
+    The deny is carried by the exit code; this line only explains it. Writing
+    it is therefore best-effort, and the suppression below is the fail-closed
+    behavior rather than a swallowed error: if the hook host has closed or lost
+    the stderr pipe, ``print`` raises (``BrokenPipeError``, or ``ValueError`` on
+    an already-closed stream) from inside the very handler that is about to
+    deny — the exception escapes, ``return 2`` / ``os._exit(2)`` never runs, and
+    the process exits with something PreToolUse treats as non-blocking
+    (https://code.claude.com/docs/en/hooks), running the destructive command
+    ungated. Losing the message is acceptable; losing the deny is not.
+
+    On failure fd 2 is pointed at the null device, because a write failure can
+    leave data buffered and the interpreter's own shutdown flush of ``sys.stderr``
+    would then raise too — that failure exits 120, likewise non-blocking. Both
+    fallback steps are best-effort for the same reason as the write itself.
+    """
+    try:
+        print(message, file=sys.stderr, flush=True)
+    except BaseException:  # noqa: BLE001 -- deny must outrank the diagnostic; see docstring
+        with contextlib.suppress(BaseException):
+            null_fd = os.open(os.devnull, os.O_WRONLY)
+            try:
+                os.dup2(null_fd, sys.stderr.fileno())
+            finally:
+                os.close(null_fd)
+
+
+def _watchdog_fire(deadline: float) -> None:
+    """Watchdog callback (background timer thread): deny fast, never hang silently.
+
+    ``os._exit`` — not ``sys.exit`` — is deliberate: the main thread is
+    presumed stuck inside a syscall this callback cannot interrupt or join,
+    so this is a hard process exit, the one way this module can still
+    guarantee "deny, with a diagnostic" once cooperative return is no longer
+    an option.
+    """
+    _write_diagnostic(
+        f"destructive_guard: internal deadline of {deadline:g}s exceeded; "
+        f"denying by default. Raise {_WATCHDOG_ENV_VAR} (up to "
+        f"{_WATCHDOG_MAX_SECONDS:g}s) if this guard legitimately needs longer "
+        "on this filesystem."
+    )
+    os._exit(2)  # noqa: SLF001 -- hard exit is the point; see docstring
+
+
+def _decide(command: str, tool_name: str) -> int:
+    """The guard's decision logic once the JSON payload has parsed cleanly.
+
+    Every branch prints its decision (or nothing, for an instant plugin-level
+    defer) and returns 0; ``main`` supplies the watchdog and the exit-2
+    fail-closed boundary around this call, so nothing in here needs its own
+    exception handling to keep the exit-1 contract in the module docstring.
+    """
     if resolve_mode() == _MODE_ENGINE_GATE and not _engine_gate_relevant(
         command, tool_name
     ):
@@ -840,6 +980,70 @@ def main() -> int:
     )
     print(json.dumps(decision("deny", reason)))
     return 0
+
+
+def main() -> int:
+    # Fail-closed safety boundary (#1423): only 0 and 2 are reachable past this
+    # point. The watchdog denies fast on an internal deadline instead of
+    # letting a stalled syscall run toward a harness-level, non-blocking kill
+    # (module docstring, AC 5); the broad except denies on any exception this
+    # function (or anything it calls) still manages to raise, replacing the
+    # interpreter's default "uncaught exception -> exit 1, proceed" behavior
+    # with "exit 2, deny" (AC 1-2). BaseException is deliberate — a
+    # KeyboardInterrupt reaching a security guard mid-decision is exactly the
+    # kind of "not a deliberate, reasoned allow" path AC 1 requires to deny,
+    # not to propagate.
+    #
+    # Arming the watchdog is the FIRST action inside the boundary — before the
+    # stdin read, not after it. Two failure shapes this closes, both landing
+    # on a killed-hook, no-decision fail-open if the watchdog is not yet armed
+    # while they happen: (1) under OS thread or memory exhaustion
+    # `threading.Timer(...)` / `.start()` raises `RuntimeError: can't start
+    # new thread`, which from outside this boundary would reach the
+    # interpreter's default handler — exit 1, non-blocking, destructive
+    # command proceeds; (2) `json.load(sys.stdin)` blocks through EOF, and a
+    # Windows Win32 pipe can deliver the complete JSON payload but delay the
+    # EOF signal — the same late-EOF stall class the bash hook fleet bounds
+    # with a read timeout (plugins/guardrails/CHANGELOG.md, "[0.8.0]" ->
+    # `hook::buffer_stdin`). Python's blocking read has no partial-read risk
+    # the way bash's `read -t` does, so the watchdog's existing hard
+    # `os._exit(2)` on deadline is the equivalent bound here: arming it before
+    # the read means a late-EOF stall denies fast instead of running past the
+    # declared hook `timeout` toward the harness's own non-blocking kill.
+    deadline = _watchdog_seconds()
+    watchdog: threading.Timer | None = None
+    try:
+        watchdog = threading.Timer(deadline, _watchdog_fire, args=(deadline,))
+        watchdog.daemon = True
+        watchdog.start()
+        try:
+            payload = json.load(sys.stdin)
+            tool_name = payload.get("tool_name", "")
+            command = payload["tool_input"]["command"]
+            if not isinstance(command, str):
+                raise TypeError("command is not text")
+        except (KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
+            print(
+                json.dumps(
+                    decision(
+                        "deny",
+                        f"disk-hygiene guard could not validate the shell call: {exc}",
+                    )
+                )
+            )
+            return 0
+        return _decide(command, tool_name)
+    except BaseException as exc:
+        _write_diagnostic(
+            f"destructive_guard: internal error, denying by default "
+            f"({type(exc).__name__}: {exc})"
+        )
+        return 2
+    finally:
+        # `watchdog` stays None if construction itself raised; cancelling an
+        # armed-but-unstarted timer is harmless.
+        if watchdog is not None:
+            watchdog.cancel()
 
 
 if __name__ == "__main__":

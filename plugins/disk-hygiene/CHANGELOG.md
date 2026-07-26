@@ -3,6 +3,107 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.6]
+
+### Fixed
+
+- **The destructive-action guard could fail open on exit 1 with no diagnostic (#1423), distinct from
+  #1242.** #1416's transcript sweep turned up one recorded occurrence: the plugin-level
+  `hooks/hooks.json` `destructive_guard.py --mode engine-gate` hook launched successfully, ran for
+  17054 ms, then exited `1` with empty stderr — the post-#1242 command shape, not the
+  `${user_config.*}` launch-refusal bug #1242 already fixed. Per the
+  [hooks reference](https://code.claude.com/docs/en/hooks) (fetched 2026-07-25), PreToolUse treats
+  exit `1` as non-blocking and proceeds with the tool call — only exit `2` blocks — so the guard
+  itself never issued a deny, ask, or allow: it simply stopped, and the destructive command ran
+  ungated. The defect: only the top-of-`main` JSON-payload parse was wrapped in a `try`/`except`;
+  every line of decision logic after it (now extracted into `_decide`) had no exception handling at
+  all, so any bug or unexpected exception in that path fell through to Python's default
+  unhandled-exception behavior — exit 1, silently. `main` now wraps the entire `_decide` call in a
+  `try`/`except BaseException`, so any exception the guard's own code raises past the payload parse
+  denies (exit `2`, one-line diagnostic on stderr naming the exception type and message) instead of
+  falling open; exit `1` is no longer reachable from any internal path in the guard (`test_hygiene.py`
+  `GuardTests` now injects a failure into `_decide` directly, into every function `_decide` calls in
+  its real belt- and engine-gate-mode call graph — `resolve_mode`, `_engine_gate_relevant`,
+  `resolve_disk_hygiene_enabled`, `resolve_authorized_data_root`, `is_exact_kill_switch_probe`,
+  `classify_exact_engine_command`, `powershell_decision` — and a bare `KeyboardInterrupt`, asserting
+  exit `2` with non-empty stderr and exit `1` never observed, in every case).
+
+  **The 17-second duration investigated, not characterized (single unreproduced occurrence).** Every
+  filesystem call already reachable from this module (`Path.resolve(strict=True)`,
+  `os.path.samefile`, `Path.stat`/`read_text`) already caught `OSError` at its own call site, so a
+  stall ending in `OSError` would not by itself explain an *uncaught* exception — narrowing the field
+  without settling it. The strongest identified candidate for the stall itself, not for the exit-1
+  bug: `_engine_gate_relevant`'s marker-free fallback calls `os.path.samefile` on every
+  separator-containing word of *every* Bash/PowerShell command in *every* session (not only
+  disk-hygiene commands) while resolving the plugin-level engine gate — an unreachable or slow-to-stat
+  path referenced by an ordinary, unrelated command is a real, user-reachable way to block this hook
+  for seconds. What argues against a plain uncaught exception as the full story: empty stderr is not
+  what Python's default unhandled-exception handler produces (it writes a traceback), which leaves an
+  external process kill (antivirus/EDR scanning `python3`, a transient OS resource issue) as an open,
+  unconfirmed possibility this module cannot fix from inside the interpreter — a truly externally
+  killed process cannot run Python code to change its own exit behavior. What IS fixed regardless of
+  which of these it turns out to have been: the guard now self-enforces an internal watchdog deadline
+  (`DISK_HYGIENE_GUARD_WATCHDOG_SECONDS`, default 10s — comfortably above every legitimate
+  invocation, which completes in milliseconds, and below the one observed 17054 ms occurrence) that
+  denies (exit `2`, diagnostic on stderr) on a background timer if `_decide` has not returned by the
+  deadline, instead of risking an unbounded hang toward the harness's own (600s-default) hook timeout.
+  Both guard registrations (`hooks/hooks.json`'s plugin-level engine gate and `skills/clean/SKILL.md`'s
+  skill-scoped belt) now also declare an explicit `timeout: 60` as a harness-level backstop, well
+  below the previous implicit 600s default, in case the internal watchdog itself is ever prevented
+  from running — the same proven value `guardrails` raised its own blocking PreToolUse guards to
+  (`plugins/guardrails/CHANGELOG.md` `[0.15.1]`: 10-40x headroom over every real duration sample
+  measured, well short of the 600s platform default), not the 20s this plugin started at.
+
+- **Four residual fail-open paths in the new watchdog itself, all reported in review.** (1) Arming
+  the watchdog sat *outside* the exit-2 boundary it protects: under OS thread or memory exhaustion
+  `threading.Timer(...)` / `.start()` raises `RuntimeError: can't start new thread`, which reached
+  the interpreter's default handler — exit `1`, non-blocking, destructive command proceeds. Failing
+  to arm the guard's own deadline is exactly when the guard must deny, so construction and startup
+  now run inside the protected boundary and fail closed at exit `2`. (2) `_watchdog_seconds`
+  validated its `DISK_HYGIENE_GUARD_WATCHDOG_SECONDS` override with a bare `> 0` test, which `inf`
+  (and `1e400`, which parses to `inf`) passes; `threading.Timer(inf, ...)` then accepts `start()`
+  and dies *in the timer thread* with `OverflowError: timestamp out of range for platform time_t`,
+  silently disarming the watchdog while the guard looks armed — and because it raises off the main
+  thread, the exit-2 boundary never sees it. Non-finite overrides now fall back to the default like
+  every other invalid value. (3) The watchdog was armed *after* `json.load(sys.stdin)`, so a stall
+  in the stdin read itself — e.g. a Windows Win32-pipe late EOF, where the OS delivers the complete
+  JSON payload but delays the EOF signal (the same class `guardrails` bounds in its bash hook fleet
+  via `hook::buffer_stdin`, `plugins/guardrails/CHANGELOG.md` `[0.8.0]`) — ran with no deadline armed
+  at all, so the declared hook `timeout` would fire first and the harness would cancel the hook with
+  no `permissionDecision`, the exact non-blocking fail-open #1423 exists to close. The watchdog now
+  arms as the first action inside `main`'s fail-closed boundary, before the stdin read. (4) A valid
+  but large override inverted the two deadline layers: the watchdog is the primary mechanism and the
+  declared hook `timeout` is the backstop, which only holds while the watchdog fires *first*, so
+  `DISK_HYGIENE_GUARD_WATCHDOG_SECONDS=600` meant the harness killed the process instead — and a
+  killed PreToolUse hook yields no `permissionDecision`, so the command proceeds unguarded. Overrides
+  are now clamped to `_WATCHDOG_MAX_SECONDS` (the declared 60s hook timeout less 10s of headroom the
+  watchdog structurally cannot cover: interpreter startup before `main` runs, plus teardown after the
+  timer fires). The guard cannot read its own hook `timeout` — a PreToolUse payload does not carry it —
+  so that value is duplicated in code and pinned to both registrations by
+  `test_declared_hook_timeouts_match_the_watchdog_ceiling`, which fails the suite if either drifts.
+  All four paths are covered by new `GuardTests` cases, including a real-subprocess test with stdin
+  opened as a pipe that is never written to or closed (a stalled read on the host running the suite,
+  not only a Windows Win32-pipe late EOF, reproducing the general "blocked in read" shape without
+  needing that platform specifically); 209 tests pass.
+- **A fifth fail-open path: the deny diagnostic could preempt the deny itself.** Both fail-closed
+  exits write a one-line explanation to stderr first, and both wrote it with a bare `print`. If the
+  hook host has closed or lost the stderr pipe, that `print` raises `BrokenPipeError` from inside the
+  very handler about to deny — the exception escapes before `return 2` in `main` or `os._exit(2)` in
+  `_watchdog_fire` runs, and the process exits with a status PreToolUse treats as non-blocking, so
+  the destructive command proceeds ungated. On the timer thread it is worse: an exception there never
+  reaches `main`'s exit-2 boundary at all. Both sites now route through `_write_diagnostic`, which
+  makes the write best-effort — the deny is carried by the exit code, and losing the message is
+  acceptable where losing the deny is not — and, on a failed write, points fd 2 at the null device so
+  the interpreter's own shutdown flush of a still-buffered stderr cannot raise either (that failure
+  exits 120, likewise non-blocking). Covered by two new `GuardTests` cases, one per exit site; 211
+  tests pass.
+- **`GuardTests` no longer reads an operator's own watchdog override as the default.** The deadline
+  is overridable by environment variable — the guard's own timeout diagnostic tells operators to
+  export it — so a value already exported in the shell running the suite leaked into every
+  assertion about the DEFAULT deadline and failed it against a correct implementation. The class's
+  `setUp` now strips that variable for the whole class; the cases that exercise an override still
+  set it explicitly.
+
 ## [0.9.5]
 
 ### Fixed

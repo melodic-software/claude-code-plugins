@@ -6,6 +6,7 @@ from __future__ import annotations
 import importlib.util
 import io
 import json
+import math
 import os
 import re
 import shutil
@@ -13,7 +14,12 @@ import subprocess
 import tempfile
 import types
 import unittest
-from contextlib import ExitStack, chdir as chdir_context, redirect_stdout
+from contextlib import (
+    ExitStack,
+    chdir as chdir_context,
+    redirect_stderr,
+    redirect_stdout,
+)
 from pathlib import Path
 from unittest import mock
 
@@ -2313,6 +2319,13 @@ class HandoffVerifyTests(unittest.TestCase):
             self.assertTrue(junk.exists())
 
 
+class _ClosedPipeStderr(io.StringIO):
+    """A stderr stand-in whose writes fail the way a lost hook-host pipe does."""
+
+    def write(self, s: str) -> int:
+        raise BrokenPipeError(32, "Broken pipe")
+
+
 class GuardTests(unittest.TestCase):
     @staticmethod
     def python_command() -> str:
@@ -2338,6 +2351,17 @@ class GuardTests(unittest.TestCase):
         # Managed settings stay absent (points into the temp dir, never written),
         # so tests never read a real /etc or Program Files managed-settings.json.
         self._managed = cfg / "managed-settings.json"
+        # Hermetic watchdog deadline for the same reason. The guard's own deny
+        # diagnostic tells operators to raise
+        # DISK_HYGIENE_GUARD_WATCHDOG_SECONDS, so it can legitimately be set in
+        # the shell running this suite — and it reaches both the in-process
+        # helpers and the ones that spawn the real script, silently rewriting
+        # what every default-path assertion observes. Cases that want an
+        # override set one explicitly.
+        environ_patch = mock.patch.dict(os.environ)
+        environ_patch.start()
+        self.addCleanup(environ_patch.stop)
+        os.environ.pop(guard._WATCHDOG_ENV_VAR, None)
 
     def _set_kill_switch(self, enabled: bool) -> None:
         if enabled:
@@ -3627,6 +3651,449 @@ class GuardTests(unittest.TestCase):
         result = self.run_guard_tool(apply_command, "Bash", enabled=True)
         assert result is not None
         self.assertEqual("ask", result["hookSpecificOutput"]["permissionDecision"])
+
+    # -- #1423: exit-1 fail-open regression coverage -------------------------
+    #
+    # Before #1423, only the JSON-payload parse at the top of `main` was
+    # wrapped in a try/except; everything after it (the whole decision body,
+    # now `_decide`) had no exception handling at all. Any bug, unexpected
+    # OSError subtype, or future regression reaching that code would fall
+    # through to Python's default unhandled-exception behavior — exit 1 —
+    # which PreToolUse treats as a *non-blocking* error: Claude Code proceeds
+    # with the destructive command as if the guard had deliberately allowed
+    # it. These tests inject real failures into the real call graph (not a
+    # rewritten toy) and assert the fail-closed contract: exit 2, a non-empty
+    # stderr diagnostic, no stdout JSON, and exit 1 never reachable.
+
+    def _invoke_guard_raw(
+        self,
+        command: str,
+        *,
+        tool_name: str = "Bash",
+        argv_extra: list[str] | None = None,
+        stderr_stream: io.StringIO | None = None,
+    ) -> tuple[int, str, str]:
+        """Like `_invoke_guard`, but returns (exit_code, stdout, stderr) instead
+        of asserting exit 0 — the exit-1/exit-2 regression tests need to see a
+        non-zero code and its diagnostic, not just the decision JSON.
+
+        `stderr_stream` substitutes the capture buffer, so a test can hand the
+        guard a stream whose writes fail the way a closed hook-host pipe does.
+        """
+        self._set_kill_switch(True)
+        argv = [str(SCRIPT_DIR / "destructive_guard.py"), *(argv_extra or [])]
+        payload: dict[str, object] = {"tool_input": {"command": command}}
+        if tool_name:
+            payload["tool_name"] = tool_name
+        stdin = io.StringIO(json.dumps(payload))
+        stdout = io.StringIO()
+        stderr = stderr_stream if stderr_stream is not None else io.StringIO()
+        with (
+            mock.patch("sys.stdin", stdin),
+            redirect_stdout(stdout),
+            redirect_stderr(stderr),
+            mock.patch.object(guard.sys, "argv", argv),
+            mock.patch.object(
+                guard, "_resolve_user_settings_path", lambda: self._settings
+            ),
+            mock.patch.object(
+                guard.killswitch_config,
+                "managed_settings_path",
+                lambda: self._managed,
+            ),
+        ):
+            exit_code = guard.main()
+        return exit_code, stdout.getvalue(), stderr.getvalue()
+
+    def test_internal_failure_in_decide_exits_2_with_diagnostic_not_1(self) -> None:
+        """AC 3 (core case): an injected internal failure denies at exit 2."""
+        with mock.patch.object(
+            guard,
+            "_decide",
+            side_effect=RuntimeError("injected failure for #1423 regression"),
+        ):
+            exit_code, stdout, stderr = self._invoke_guard_raw("rm -rf /tmp/example")
+        self.assertEqual(2, exit_code)
+        self.assertNotEqual(1, exit_code)
+        self.assertTrue(stderr.strip(), "exit 2 must carry a stderr diagnostic")
+        self.assertIn("injected failure", stderr)
+        self.assertEqual(
+            "", stdout, "exit 2 must not also emit stdout JSON (Claude Code ignores it)"
+        )
+
+    def test_every_call_graph_function_failure_denies_at_exit_2_never_1(self) -> None:
+        """Sweep AC 3 across the real functions `_decide` calls, not one mock.
+
+        Each of these is reachable from a real, gate-relevant Bash command in
+        belt mode (the default — no ``--mode`` argv), so this exercises the
+        actual wiring, not a synthetic stand-in.
+        """
+        script = SCRIPT_DIR / "hygiene.py"
+        apply_command = (
+            f'"{self.python_command()}" "{script}" apply --execute --snapshot s '
+            f'--plan p --confirm-tier high --approval-token {"a" * 24} --report r'
+        )
+        targets = [
+            "resolve_mode",
+            "resolve_disk_hygiene_enabled",
+            "resolve_authorized_data_root",
+            "is_exact_kill_switch_probe",
+            "classify_exact_engine_command",
+        ]
+        for target in targets:
+            with self.subTest(target=target):
+                with mock.patch.object(
+                    guard, target, side_effect=ValueError(f"injected {target} failure")
+                ):
+                    exit_code, stdout, stderr = self._invoke_guard_raw(apply_command)
+                self.assertEqual(2, exit_code, target)
+                self.assertNotEqual(1, exit_code, target)
+                self.assertTrue(stderr.strip(), target)
+                self.assertEqual("", stdout, target)
+
+    def test_engine_gate_relevance_check_failure_denies_at_exit_2_never_1(self) -> None:
+        """The plugin-level engine-gate's own relevance check is in-scope too.
+
+        ``_engine_gate_relevant`` only runs in ``--mode engine-gate`` (the
+        plugin-level ``hooks/hooks.json`` registration), and only once
+        ``resolve_mode`` has legitimately resolved to that mode — this is the
+        function identified in the module's #1423 investigation note as the
+        strongest candidate for the observed stall (it stats every
+        separator-containing word of *every* Bash/PowerShell command in
+        *every* session), so its failure path is covered explicitly.
+        """
+        script = SCRIPT_DIR / "hygiene.py"
+        apply_command = (
+            f'"{self.python_command()}" "{script}" apply --execute --snapshot s '
+            f'--plan p --confirm-tier high --approval-token {"a" * 24} --report r'
+        )
+        with mock.patch.object(
+            guard,
+            "_engine_gate_relevant",
+            side_effect=ValueError("injected _engine_gate_relevant failure"),
+        ):
+            exit_code, stdout, stderr = self._invoke_guard_raw(
+                apply_command, argv_extra=["--mode", "engine-gate"]
+            )
+        self.assertEqual(2, exit_code)
+        self.assertNotEqual(1, exit_code)
+        self.assertTrue(stderr.strip())
+        self.assertEqual("", stdout)
+
+    def test_powershell_lane_failure_denies_at_exit_2_never_1(self) -> None:
+        """The PowerShell decision branch is a separate code path from Bash."""
+        with mock.patch.object(
+            guard,
+            "powershell_decision",
+            side_effect=RuntimeError("injected powershell_decision failure"),
+        ):
+            exit_code, stdout, stderr = self._invoke_guard_raw(
+                "Remove-Item -Recurse -Force C:/tmp/example", tool_name="PowerShell"
+            )
+        self.assertEqual(2, exit_code)
+        self.assertNotEqual(1, exit_code)
+        self.assertTrue(stderr.strip())
+        self.assertEqual("", stdout)
+
+    def test_keyboard_interrupt_mid_decision_denies_at_exit_2_never_1(self) -> None:
+        """A ``KeyboardInterrupt`` (or any BaseException) mid-decision is not a
+        deliberate, reasoned allow — it must deny too, not propagate."""
+        with mock.patch.object(
+            guard, "_decide", side_effect=KeyboardInterrupt
+        ):
+            exit_code, stdout, stderr = self._invoke_guard_raw("rm -rf /tmp/example")
+        self.assertEqual(2, exit_code)
+        self.assertNotEqual(1, exit_code)
+        self.assertTrue(stderr.strip())
+        self.assertEqual("", stdout)
+
+    # -- #1423: internal watchdog -------------------------------------------
+
+    def test_watchdog_seconds_resolves_default_and_validates_override(self) -> None:
+        self.assertEqual(guard._WATCHDOG_DEFAULT_SECONDS, guard._watchdog_seconds())
+        with mock.patch.dict(os.environ, {guard._WATCHDOG_ENV_VAR: "5"}):
+            self.assertEqual(5.0, guard._watchdog_seconds())
+        for invalid in ("not-a-number", "-3", "0", ""):
+            with self.subTest(invalid=invalid):
+                with mock.patch.dict(os.environ, {guard._WATCHDOG_ENV_VAR: invalid}):
+                    self.assertEqual(
+                        guard._WATCHDOG_DEFAULT_SECONDS, guard._watchdog_seconds()
+                    )
+
+    def test_watchdog_seconds_rejects_non_finite_overrides(self) -> None:
+        """Non-finite overrides must fall back, not disarm the watchdog.
+
+        `inf` parses through `float` and passes a bare `> 0` test, but
+        `threading.Timer(inf, ...)` accepts `start()` and then dies in the
+        timer thread with `OverflowError` — silently removing the watchdog on
+        a fail-closed guard. `nan` fails `> 0` already; asserted here so the
+        whole non-finite class is pinned by test, not by luck.
+        """
+        for raw in ("inf", "-inf", "Infinity", "nan", "1e400"):
+            with self.subTest(raw=raw):
+                with mock.patch.dict(os.environ, {guard._WATCHDOG_ENV_VAR: raw}):
+                    resolved = guard._watchdog_seconds()
+                self.assertEqual(guard._WATCHDOG_DEFAULT_SECONDS, resolved)
+                self.assertTrue(math.isfinite(resolved))
+
+    def test_watchdog_seconds_clamps_overrides_below_the_hook_timeout(self) -> None:
+        """An override must never outlive the harness deadline it sits under.
+
+        The watchdog is the primary mechanism and the declared hook `timeout`
+        is the backstop, which only holds while the watchdog fires first. An
+        override at or above the hook timeout inverts that: the harness kills
+        the process instead, and a killed PreToolUse hook yields no
+        `permissionDecision`, so the guarded command proceeds unguarded.
+        """
+        self.assertLess(
+            guard._WATCHDOG_MAX_SECONDS, guard._DECLARED_HOOK_TIMEOUT_SECONDS
+        )
+        self.assertLess(guard._WATCHDOG_DEFAULT_SECONDS, guard._WATCHDOG_MAX_SECONDS)
+        for raw in ("50", "60", "600", "1e300"):
+            with self.subTest(raw=raw):
+                with mock.patch.dict(os.environ, {guard._WATCHDOG_ENV_VAR: raw}):
+                    resolved = guard._watchdog_seconds()
+                self.assertEqual(guard._WATCHDOG_MAX_SECONDS, resolved)
+                self.assertLess(resolved, guard._DECLARED_HOOK_TIMEOUT_SECONDS)
+        # An override under the ceiling is still honoured verbatim.
+        with mock.patch.dict(os.environ, {guard._WATCHDOG_ENV_VAR: "30"}):
+            self.assertEqual(30.0, guard._watchdog_seconds())
+
+    def test_declared_hook_timeouts_match_the_watchdog_ceiling(self) -> None:
+        """Lock the config<->code seam the clamp is derived from.
+
+        `_WATCHDOG_MAX_SECONDS` is computed from a copy of the registrations'
+        `timeout`, because a PreToolUse payload does not carry the hook's own
+        timeout and the guard cannot read it at runtime. Lowering either
+        registration without lowering the constant would let a clamped
+        override still outrun the harness — the fail-open the clamp closes.
+        """
+        hooks_path = SCRIPT_DIR.parents[2] / "hooks" / "hooks.json"
+        config = json.loads(hooks_path.read_text(encoding="utf-8"))
+        declared = [
+            hook.get("timeout")
+            for entry in config["hooks"]["PreToolUse"]
+            for hook in entry.get("hooks", [])
+            if hook.get("args")
+            and any("destructive_guard.py" in arg for arg in hook["args"])
+        ]
+        self.assertEqual([guard._DECLARED_HOOK_TIMEOUT_SECONDS], declared)
+
+        skill_text = (SCRIPT_DIR.parent / "SKILL.md").read_text(encoding="utf-8")
+        timeout_lines = [
+            line
+            for line in skill_text.splitlines()
+            if line.strip().startswith("timeout:")
+        ]
+        self.assertEqual(1, len(timeout_lines), timeout_lines)
+        self.assertEqual(
+            guard._DECLARED_HOOK_TIMEOUT_SECONDS,
+            float(timeout_lines[0].split(":", 1)[1].strip()),
+        )
+
+    def test_main_denies_at_exit_2_when_watchdog_cannot_be_constructed(self) -> None:
+        """Timer construction is inside the fail-closed boundary.
+
+        Under OS thread/memory exhaustion `threading.Timer(...)` raises before
+        `_decide` is ever reached; from outside the `try` that would reach the
+        interpreter default (exit 1, non-blocking, destructive command runs).
+        """
+        with mock.patch.object(
+            guard.threading, "Timer", side_effect=RuntimeError("can't start new thread")
+        ):
+            exit_code, stdout, stderr = self._invoke_guard_raw("rm -rf /tmp/example")
+        self.assertEqual(2, exit_code)
+        self.assertNotEqual(1, exit_code)
+        self.assertTrue(stderr.strip())
+        self.assertEqual("", stdout)
+
+    def test_main_denies_at_exit_2_when_watchdog_thread_cannot_start(self) -> None:
+        """`.start()` failing is the same fail-closed case as construction
+        failing — the guard could not arm its own deadline, so it denies."""
+        fake_timer = mock.Mock()
+        fake_timer.start.side_effect = RuntimeError("can't start new thread")
+        with mock.patch.object(guard.threading, "Timer", return_value=fake_timer):
+            exit_code, stdout, stderr = self._invoke_guard_raw("rm -rf /tmp/example")
+        self.assertEqual(2, exit_code)
+        self.assertNotEqual(1, exit_code)
+        self.assertTrue(stderr.strip())
+        self.assertEqual("", stdout)
+        fake_timer.cancel.assert_called_once()
+
+    def test_main_denies_at_exit_2_when_the_diagnostic_write_fails(self) -> None:
+        """A failed diagnostic write must not cost the deny.
+
+        The deny is carried by the exit code; the stderr line only explains it.
+        If the hook host has closed or lost the stderr pipe, the `print` inside
+        the fail-closed handler raises `BrokenPipeError` and — unsuppressed —
+        escapes before `return 2` runs, so the process exits with a status
+        PreToolUse treats as non-blocking and the destructive command proceeds
+        ungated: the exact fail-open this handler exists to close, reintroduced
+        by its own diagnostic.
+        """
+        with mock.patch.object(
+            guard, "_decide", side_effect=RuntimeError("injected failure")
+        ):
+            exit_code, stdout, _stderr = self._invoke_guard_raw(
+                "rm -rf /tmp/example", stderr_stream=_ClosedPipeStderr()
+            )
+        self.assertEqual(2, exit_code)
+        self.assertNotEqual(1, exit_code)
+        self.assertEqual("", stdout)
+
+    def test_watchdog_fire_hard_exits_2_when_the_diagnostic_write_fails(self) -> None:
+        """Same protection on the timer thread, where the write would preempt
+        `os._exit(2)` — and an exception on a background thread never reaches
+        `main`'s exit-2 boundary at all, so the process would run on undenied."""
+        with (
+            mock.patch.object(guard.os, "_exit") as fake_exit,
+            redirect_stderr(_ClosedPipeStderr()),
+        ):
+            guard._watchdog_fire(1.0)
+        fake_exit.assert_called_once_with(2)
+
+    def test_main_arms_watchdog_at_resolved_deadline_and_cancels_on_return(
+        self,
+    ) -> None:
+        """Wiring check, no real thread: `main` must arm a `Timer` at the
+        resolved deadline before calling `_decide`, and cancel it once
+        `_decide` returns normally — a real watchdog thread firing here would
+        `os._exit` the test runner, so this substitutes a mock `Timer`.
+
+        Asserts the DEFAULT deadline specifically, so it must not observe an
+        operator's `DISK_HYGIENE_GUARD_WATCHDOG_SECONDS` override leaking in
+        from the test process's real environment — that would assert the
+        override's value instead and fail on an otherwise-correct guard.
+        """
+        fake_timer = mock.Mock()
+        with (
+            mock.patch.dict(os.environ, {}, clear=False) as patched_environ,
+            mock.patch.object(
+                guard.threading, "Timer", return_value=fake_timer
+            ) as timer_cls,
+        ):
+            patched_environ.pop(guard._WATCHDOG_ENV_VAR, None)
+            exit_code, _stdout, _stderr = self._invoke_guard_raw("rm -rf /tmp/example")
+        self.assertEqual(0, exit_code)
+        timer_cls.assert_called_once_with(
+            guard._WATCHDOG_DEFAULT_SECONDS,
+            guard._watchdog_fire,
+            args=(guard._WATCHDOG_DEFAULT_SECONDS,),
+        )
+        self.assertTrue(fake_timer.daemon)
+        fake_timer.start.assert_called_once()
+        fake_timer.cancel.assert_called_once()
+
+    def test_main_arms_watchdog_before_reading_stdin(self) -> None:
+        """The watchdog must start before `json.load(sys.stdin)`, not after.
+
+        `json.load(sys.stdin)` blocks through EOF, and a Windows Win32 pipe
+        can deliver the complete JSON payload but delay the EOF signal — a
+        late-EOF stall with nothing armed to bound it would run past the
+        declared hook `timeout` toward the harness's own non-blocking kill,
+        the same shape #1423 exists to close. Wiring check via a mocked
+        `Timer`, no real stdin stall or timer thread — the invariant is
+        asserted from inside the read spy itself (not derived from a
+        call-order list after the fact), so a future second `json.load` call
+        earlier in the path could not silently satisfy it.
+        `test_stdin_stall_denies_at_exit_2_via_real_watchdog` below proves the
+        actual outcome (a real stalled read really exits 2) that this wiring
+        check cannot.
+        """
+        fake_timer = mock.Mock()
+        real_load = guard.json.load
+
+        def _spy_load(*args: object, **kwargs: object) -> object:
+            self.assertTrue(
+                fake_timer.start.called,
+                "watchdog must already be armed before the stdin read begins",
+            )
+            return real_load(*args, **kwargs)
+
+        with (
+            mock.patch.object(guard.threading, "Timer", return_value=fake_timer),
+            mock.patch.object(guard.json, "load", side_effect=_spy_load),
+        ):
+            exit_code, _stdout, _stderr = self._invoke_guard_raw("rm -rf /tmp/example")
+        self.assertEqual(0, exit_code)
+        fake_timer.start.assert_called_once()
+
+    def test_stdin_stall_denies_at_exit_2_via_real_watchdog(self) -> None:
+        """Prove the OUTCOME on a real stalled stdin read, not just wiring order.
+
+        Spawns the real script (mirroring
+        `test_watchdog_fire_hard_exits_2_with_diagnostic_never_1`'s
+        real-subprocess approach) with stdin opened as a pipe that is never
+        written to or closed — the general "blocked in read" shape a Windows
+        Win32-pipe late EOF produces, and one this test's host (whatever CI
+        runs it on) can reproduce without needing an actual Win32 pipe. This
+        fails against the pre-fix ordering (watchdog armed only after the
+        stdin read returned): that code would hang past the deadline instead
+        of denying, which
+        `test_main_arms_watchdog_before_reading_stdin`'s mocked `Timer` can
+        never demonstrate.
+        """
+        env = dict(os.environ)
+        env[guard._WATCHDOG_ENV_VAR] = "1"
+        with subprocess.Popen(
+            [self.python_command(), str(SCRIPT_DIR / "destructive_guard.py")],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            env=env,
+        ) as proc:
+            try:
+                proc.wait(timeout=20)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+                proc.wait()
+                self.fail(
+                    "guard did not exit within the watchdog deadline on a "
+                    "stalled stdin read — the pre-fix fail-open regression"
+                )
+            stdout = proc.stdout.read()
+            stderr = proc.stderr.read()
+        self.assertEqual(2, proc.returncode)
+        self.assertNotEqual(1, proc.returncode)
+        self.assertIn("internal deadline", stderr)
+        self.assertEqual("", stdout)
+
+    def test_main_cancels_watchdog_even_when_decide_raises(self) -> None:
+        """The `finally` must cancel the timer on the exit-2 path too, so a
+        `_decide` exception never leaves a stray timer thread behind."""
+        fake_timer = mock.Mock()
+        with (
+            mock.patch.object(guard.threading, "Timer", return_value=fake_timer),
+            mock.patch.object(guard, "_decide", side_effect=RuntimeError("boom")),
+        ):
+            exit_code, _stdout, _stderr = self._invoke_guard_raw("rm -rf /tmp/example")
+        self.assertEqual(2, exit_code)
+        fake_timer.cancel.assert_called_once()
+
+    def test_watchdog_fire_hard_exits_2_with_diagnostic_never_1(self) -> None:
+        """The watchdog callback's own contract, exercised in a real subprocess.
+
+        `_watchdog_fire` calls `os._exit`, a hard process exit that must never
+        be allowed to run in the test-runner process itself — a subprocess we
+        spawned specifically for this is the only safe way to observe it.
+        """
+        completed = subprocess.run(
+            [
+                self.python_command(),
+                "-c",
+                "import sys; sys.path.insert(0, sys.argv[1]); "
+                "import destructive_guard as guard; guard._watchdog_fire(1.5)",
+                str(SCRIPT_DIR),
+            ],
+            capture_output=True,
+            text=True,
+            timeout=15,
+        )
+        self.assertEqual(2, completed.returncode)
+        self.assertNotEqual(1, completed.returncode)
+        self.assertTrue(completed.stderr.strip())
+        self.assertIn("1.5", completed.stderr)
 
 
 class DirectReadKillSwitchTests(unittest.TestCase):
