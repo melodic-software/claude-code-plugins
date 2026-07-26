@@ -37,6 +37,44 @@ plain `git rm <path>`, or `git rm --cached` followed by an on-disk `rm`), the sa
 records the deletion — `--only` mode's worktree read only produces the right answer when the
 worktree already matches the deletion.
 
+## The exec bit does NOT survive this form under `core.filemode=false`
+
+**A path needing the exec-bit fix and the pathspec form are incompatible on a `core.filemode=false`
+repository — the default on Windows/NTFS.** This is a hard constraint, not a bug to work around.
+
+`--only` records the named path's **working-tree** content and mode. With `core.filemode=false` git
+ignores worktree permission bits entirely, so it cannot see the `chmod +x`, and it rebuilds the
+entry as `100644` — discarding a `100755` index entry that `git update-index --chmod=+x` correctly
+set moments earlier.
+
+Verified empirically, both directions, on a `core.filemode=false` fixture:
+
+| Commit form | Index before | HEAD after |
+|---|---|---|
+| plain index commit | `100755` | **`100755`** — preserved |
+| pathspec `--only` commit | `100755` | **`100644`** — silently lost |
+
+Two candidate workarounds were tested and **both failed** on that platform, so neither is offered:
+`git -c core.fileMode=true commit -- <path>` still recorded `100644` (the filesystem carries no
+exec bit for git to read — Git Bash's `chmod` is emulated), and a post-commit
+`update-index --chmod=+x` followed by `commit --amend --only` regressed the same way for the same
+reason.
+
+**So when this commit's paths include a newly-added shebang file that the exec-bit check corrected,
+do not reach for the pathspec form for that path.** Options, in order of preference:
+
+1. **Commit the exec-bit path via the plain index form**, which honors the `100755` entry. If the
+   index is dirty with another session's work, coordinate: ask before committing, or wait.
+2. **Split the commit** — the exec-bit path in a plain commit of its own, the remaining paths by
+   pathspec.
+3. If the pathspec form is genuinely unavoidable, **say so and verify after the fact**:
+   `git ls-tree HEAD -- <path>` reports the mode actually recorded. A `100644` there is the
+   regression, and the repair is a follow-up commit made with the plain form — not another
+   pathspec commit.
+
+Never assume the mode survived. `git ls-tree HEAD -- <path>` is the only authority on what was
+recorded; the index entry is not.
+
 ## Safety preconditions — all required before offering this path
 
 - Every named path is fully this commit's work — no overlap with another session's in-flight scope

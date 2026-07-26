@@ -178,6 +178,15 @@ For a dirty shared index (concurrent sessions, pre-existing mixed WIP), the path
 and its staged-deletion hazards live in [reference/pathspec-commits.md](reference/pathspec-commits.md).
 Default remains the plain index commit.
 
+**The exec bit does not survive the pathspec form under `core.filemode=false`** (the Windows
+default). `--only` records the working-tree mode, and with filemode off git cannot see the
+`chmod +x`, so a correctly-set `100755` index entry is rebuilt as `100644`. Verified both
+directions: the plain index commit preserves `100755`; the pathspec commit loses it. If this
+commit includes a newly-added shebang file the exec-bit check corrected, commit that path with the
+**plain index form** (splitting the commit if the rest needs a pathspec), and confirm with
+`git ls-tree HEAD -- <path>` rather than trusting the index. Full detail and the two workarounds
+that were tested and failed are in the spoke.
+
 ## Pre-check
 
 Before invoking `git commit`, regex-match the drafted subject against the active convention's pattern

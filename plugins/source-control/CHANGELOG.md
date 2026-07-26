@@ -13,7 +13,7 @@ All notable changes to the `source-control` plugin are documented here. Format f
   catching it. Two tiers now sit under it. A pre-computed probe line at the TOP of the skill —
   inside the documented 5,000-token compaction re-attach window — reports staged newly-added shebang
   files still at `100644`; and `skills/commit/scripts/exec-bit-check.sh` (`--list` / `--probe` /
-  `--fix`, with a 44-case `.test.sh`) makes the per-commit step a command with an exit code. Both,
+  `--fix`, with a 47-case `.test.sh`) makes the per-commit step a command with an exit code. Both,
   because the probe is only a snapshot at invocation and cannot see files staged later in the flow.
 
   Hardened in review before merge, all found by the PR reviewer on #1590:
@@ -29,6 +29,16 @@ All notable changes to the `source-control` plugin are documented here. Format f
   - **A worktree symlink over a staged regular file is refused, not chmod-ed.** `-e` follows a
     symlink, so an unguarded `chmod +x` would have made the link's target executable — a file that
     can sit entirely outside the repository. The `-L` test now runs before `-e`.
+  - **The exec bit does not survive a pathspec (`--only`) commit under `core.filemode=false`, and
+    that is now documented as a hard constraint** rather than silently losing the fix. `--only`
+    records the working-tree mode, and with filemode off git cannot see the `chmod +x`, so a
+    correctly-set `100755` index entry is rebuilt as `100644`. Verified both directions on a fixture:
+    plain index commit preserves `100755`, pathspec commit loses it. Two candidate workarounds were
+    tested and **both failed** on that platform — `-c core.fileMode=true` on the commit, and a
+    post-commit `update-index` plus `--amend --only` — so neither is offered. The guidance is
+    instead to commit an exec-bit-corrected path with the plain index form (splitting the commit if
+    the rest needs a pathspec) and to confirm with `git ls-tree HEAD`, never the index. Both
+    behaviors are pinned as characterization tests so a future git change fails loudly.
   - **`--list0`** (NUL-delimited) added for pathnames containing a newline, which would otherwise
     break `--list`'s one-record-per-line contract; `--list` and `--probe` shell-quote such a path so
     the ambiguity is visible rather than silent.

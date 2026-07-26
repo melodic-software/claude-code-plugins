@@ -366,5 +366,47 @@ assert_eq "--list0 emits one NUL terminator per offender" "2" "$nul_count"
 bash "$HELPER" --repo-dir "$repo12" --list0 >/dev/null 2>&1
 assert_exit "--list0 exits 0" 0 "$?"
 
+# --- Case group 13: which commit form preserves the corrected mode ------------
+#
+# Not a test of the script: a pinned characterization of the git behavior the
+# skill's guidance depends on. Under core.filemode=false a pathspec (--only)
+# commit records the WORKTREE mode, and git cannot see the chmod, so it rebuilds
+# a corrected 100755 index entry as 100644. The plain index commit preserves it.
+# If git ever changes this, the skill's "use the plain form for exec-bit paths"
+# rule needs revisiting — so it fails here rather than drifting silently.
+
+repo13="$(mkrepo)"
+(
+  cd "$repo13" || exit 1
+  git config core.filemode false
+  printf 'unrelated\n' >other.txt
+  git add other.txt
+  printf '#!/usr/bin/env bash\necho pathspec\n' >ps.sh
+  git add ps.sh
+) >/dev/null 2>&1
+
+bash "$HELPER" --repo-dir "$repo13" --fix -- ps.sh >/dev/null 2>&1
+assert_eq "index is corrected to 100755 before either commit form" \
+  "100755" "$(staged_mode "$repo13" ps.sh)"
+
+(cd "$repo13" && git commit -q -m "test: pathspec" -- ps.sh) >/dev/null 2>&1
+ps_head="$(cd "$repo13" && git ls-tree HEAD -- ps.sh | cut -d' ' -f1)"
+assert_eq "a pathspec (--only) commit LOSES the exec bit under core.filemode=false" \
+  "100644" "$ps_head"
+
+repo14="$(mkrepo)"
+(
+  cd "$repo14" || exit 1
+  git config core.filemode false
+  printf '#!/usr/bin/env bash\necho plain\n' >pl.sh
+  git add pl.sh
+) >/dev/null 2>&1
+
+bash "$HELPER" --repo-dir "$repo14" --fix -- pl.sh >/dev/null 2>&1
+(cd "$repo14" && git commit -q -m "test: plain") >/dev/null 2>&1
+pl_head="$(cd "$repo14" && git ls-tree HEAD -- pl.sh | cut -d' ' -f1)"
+assert_eq "a plain index commit PRESERVES the exec bit under core.filemode=false" \
+  "100755" "$pl_head"
+
 printf '\n%d case(s), %d failure(s)\n' "$CASE_NUM" "$FAILED"
 [[ $FAILED -eq 0 ]] || exit 1
