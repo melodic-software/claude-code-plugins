@@ -54,9 +54,17 @@ nothing — it only points:
   section; this skill never installs system packages.
 - any toggle or scalar change: direct to `/plugin configure guardrails` (interactive, any
   time). Headless: `--config` only applies on a fresh install (ignored once installed), so
-  reconfigure via `claude plugin uninstall guardrails` then
-  `claude plugin install guardrails@<marketplace> --config KEY=VALUE …` (repeatable);
-  this skill never writes user settings or `pluginConfigs`.
+  reconfigure via `claude plugin uninstall guardrails -s <scope>` then
+  `claude plugin install guardrails@<marketplace> -s <scope> --config KEY=VALUE …` (repeatable);
+  this skill never writes user settings or `pluginConfigs`. Both commands default to `-s user` —
+  pass the scope `claude plugin list` reports for this plugin, and run from that project's
+  directory for a `project`/`local` scope. Defaulting instead uninstalls a separate user-scope
+  record while the effective install stays in place, so the reinstall lands at a scope that
+  does not load. Uninstalling also drops the stored `pluginConfigs` entry, so the reinstall must
+  re-supply **every** key whose value should stay non-default — this plugin declares sixteen, and
+  a reinstall that passes only the key being changed silently re-enables every guard the operator
+  had turned off and discards every `*_allow`, `*_bins`, and `*_prefixes` list. Record the current
+  values before uninstalling; afterwards there is nothing left to read them from.
 
 Re-running `apply` after everything passes changes nothing and reports "already configured".
 

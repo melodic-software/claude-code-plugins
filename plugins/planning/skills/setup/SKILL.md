@@ -124,9 +124,12 @@ implement it by reference, do not restate it. Plugin-side notes only:
 pipeline skills' question rounds render through `AskUserQuestion` or as inline prose — it is not a
 consumer-project file this skill writes. To change it, direct the user to `/plugin configure planning`
 (interactive, any time). Headless: `--config` only applies on a fresh install (ignored once installed),
-so reconfigure via `claude plugin uninstall planning` then
-`claude plugin install planning@<marketplace> --config use_ask_user_question=true`. This skill never
-writes Claude Code user settings or `pluginConfigs`.
+so reconfigure via `claude plugin uninstall planning -s <scope>` then
+`claude plugin install planning@<marketplace> -s <scope> --config use_ask_user_question=true`. Both
+commands default to `-s user` — pass the scope `claude plugin list` reports for this plugin, and run
+from that project's directory for a `project`/`local` scope. Defaulting instead uninstalls a separate
+user-scope record while the effective install stays in place, so the reinstall lands at a scope that
+does not load. This skill never writes Claude Code user settings or `pluginConfigs`.
 
 ### Verify after remediation
 
