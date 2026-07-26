@@ -3,7 +3,7 @@
 # BLOCKING mode only, deny new mutating/spawning work once a session sits in
 # a FRESH dumb-zone snapshot past a small grace budget.
 #
-# Posture contract (#1475, conforming to docs/conventions/hook-observability
+# Posture contract (conforming to docs/conventions/hook-observability's
 # gate-posture enum advisory | blocking):
 #   - advisory (default): this gate is inert — guidance comes from the
 #     advisory injection hook (zone-crossing-inject.sh).

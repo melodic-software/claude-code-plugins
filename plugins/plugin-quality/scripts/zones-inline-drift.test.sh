@@ -14,6 +14,7 @@
 # per-plugin isolated and cannot see the sibling plugin's contract file —
 # the lane is meaningful only where both files exist (repo CI's plugin-gate).
 
+# shellcheck disable=SC2088  # the ~/ strings are documented contract PHRASES being grep-matched as data, never paths this script expands
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

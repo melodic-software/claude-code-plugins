@@ -53,8 +53,8 @@
 #   window class 1000000: smart ≤ 200000 < acceptable ≤ 400000 < dumb
 #
 # All are declared judgment defaults, NOT doc- or benchmark-derived
-# constants (provenance table: issue #1475; anchors recorded in the reader
-# contract). zones.json is the operator's tuning path:
+# constants (anchors and provenance are recorded in the reader contract).
+# zones.json is the operator's tuning path:
 #
 #   {
 #     "smart_max_used_percentage": 50,

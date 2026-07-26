@@ -2,7 +2,7 @@
 # PostToolBatch + UserPromptSubmit hook: inject continuation guidance ONCE per
 # transition into a WORSE context zone; stay silent otherwise.
 #
-# Cadence contract (#1475): the session's zone is resolved from the plugin's
+# Cadence contract: the session's zone is resolved from the plugin's
 # own snapshot seam via scripts/context-zone.sh (the single band/combination
 # authority — this hook never re-implements band logic). The last-seen zone
 # is kept per session in a private state file; injection fires only when the
