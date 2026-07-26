@@ -74,11 +74,10 @@ near-miss recurrence in the manual lane reopens this as a design issue with full
 `handoff-verify` brings snapshot binding to the platforms where apply is unsupported, without
 adding an engine deletion lane. It takes the snapshot plus the human-approved exact path list
 (same containment rules as plan candidates: relative, non-root, no traversal, present in the
-snapshot, non-overlapping), re-validates the target root with preview's link/mount/OS-managed/
-protected-path checks but a deliberately tolerant root-identity check — stable device/inode/type
-(the same object identity apply uses for directories) instead of preview's full stat identity,
-because deleting one approved root-level item changes the root's own mtime and the manual lane
-re-verifies between items; a replaced root still refuses. It then reruns the per-path
+snapshot, non-overlapping), re-validates the target root with the same link/mount/OS-managed/
+protected-path and stable device/inode/type root-identity checks preview and apply use — the root's
+own mtime and size flip whenever any direct child is added or removed, so they are not identity; a
+replaced root still refuses. It then reruns the per-path
 identity/reparse/protection/descendant/VCS/handle checks against live state and emits one
 machine-readable verdict per path. It deliberately does not apply platform execution blockers —
 it exists exactly where `execution-platform-unsupported` blocks the engine lane — and it has no

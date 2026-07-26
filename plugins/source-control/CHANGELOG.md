@@ -3,6 +3,283 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.29.1]
+
+### Fixed
+
+- **The guard contract's wrapper-denial table is now bound in both directions.** `WRAPPER_DENIED_FLAGS`
+  records the flags a `bin/` wrapper refuses before Python runs, and a check already proved every
+  *listed* flag is one a `bash-wrapper` refusal row invokes the wrapper to demonstrate. Nothing
+  proved the converse: a new refusal row could demonstrate a second refused flag while the table
+  stayed silent about it, leaving that flag spellable in a documented command — the table would be a
+  subset of the wrapper's behavior while reading as a statement of it. Every bash-wrapper refusal
+  row's named flag must now be covered by the table. A companion assertion pins the premise the
+  separate wrapper check rests on: the merge parser *does* register `--allow-unpinned-head`, which is
+  exactly why a CLI-only check cannot see the wrapper's refusal — if that stops holding, the two
+  checks have collapsed into one and the narrowing is no longer load-bearing. The reverse check also
+  requires each bash-wrapper row to name a `--flag` in `error_contains`: that field is a tuple of
+  asserted output substrings with no invariant that any of them is a flag, so an empty tuple — or an
+  option recorded without its leading dashes — would have passed vacuously, leaving exactly the
+  omission the check exists to catch.
+
+## [0.29.0]
+
+### Changed
+
+- **Merge-conflict resolution splits the resolve from the push.** `babysit-prs` dispatched conflict
+  resolution to a dedicated subagent that also pushed the result. A dispatched subagent starts with
+  a fresh, isolated context window and never sees the parent conversation
+  (<https://code.claude.com/docs/en/sub-agents>), so a host runtime that grants mutation authority
+  only from the operator's own turn cannot observe that grant from inside one — such a push could
+  only ever be refused by that gate or route around it. The conflict worker now does the base fetch,
+  the head assertion, the `git merge` (never rebase), the marker resolution, the local merge commit,
+  and the affected-file verification, and returns one of `resolved` / `escalate` /
+  `verification-impossible` / `no-conflict` without touching GitHub. The orchestrator — which does
+  hold the operator's turn — pushes, fail-closed: only on `resolved`, only after matching the
+  worktree `HEAD` to the reported merge commit, requiring it to have two parents, re-asserting the
+  live PR head against its first parent, and re-running the affected-file verification in the
+  worktree itself; by refspec, never force. A conflict worker remains a worker for every other rule
+  — leases, concurrency cap, check-in — with resolving and not-pushing its only two differences.
+  Every prior invariant is preserved, now with an explicit owner. `reference/orchestration.md`
+  gains the Conflict-Worker and Orchestrator contracts plus a Conflict-Worker Prompt Delta (the
+  regular worker template forbids only *force*-pushing, so a conflict worker needs an affirmative
+  never-push instruction); an escalating conflict worker now preserves its partial resolution on a
+  SHA-qualified `conflict-wip/<pr-number>-<short-sha>` branch — created with hook-free plumbing,
+  never a hook bypass — and exits the merge only after that preservation, so it never strands an
+  unmergeable worktree and repeated escalations never collide; `reference/freshness.md` drops its drifting restatement for a pointer; `SKILL.md`,
+  `reference/safety.md`, and `babysit-loop`'s Subagents section state the new boundary. Pinned by
+  `test_skill_contract.py`.
+
+## [0.28.0]
+
+### Added
+
+- **`babysit-prs` guard semantics are now an executable contract (`#1265`).** The facts a host
+  permission classifier has to know about this lane — which entry points mutate, which flags gate
+  which guard, where a refusal is enforced, and how a mutation is actually performed — were
+  restated in prose by every consumer and had nothing detecting drift. They are now a table in
+  `skills/babysit-prs/scripts/tests/guard_contract.py`, executed row by row against the real entry
+  points by `test_guards.py`, and rendered to a citable
+  `skills/babysit-prs/reference/guard-contract.md`. Every row carries the prose claim it backs, so
+  a changed guard fails CI with a message naming the downstream claim that just became false. Five
+  binding kinds: refusals (invoked, exit code and message asserted), predicates (the classifier
+  called directly, because `--autonomous`'s `isOutdated` requirement is a condition over fetched
+  API data that no argument shape expresses), effects (run offline against a throwaway state dir —
+  this is what proves `manage_babysit_lease.py acquire` writes with no `--apply`, contrary to what
+  its flag names suggest), mechanisms (`refresh_pr_branch.py` uses GitHub's server-side
+  `update-branch` and never pushes), and documented command lines (every `bin/`-path wrapper
+  command spelled in `reference/safety.md` and `reference/orchestration.md` is checked against the
+  backing CLI's own parser). Catalogue gates fail when a new entry point, wrapper, or
+  command-spelling document arrives without a row — including the plugin-level
+  `scripts/babysit-readiness-gate.sh`, the one lane entry point outside the skill's scripts
+  directory. Each binding asserts the specific claim rather than a proxy for it: a row claiming
+  the refusal precedes every network call is replayed against a recording `gh` shim and fails if
+  the shim ran at all, an effect row records which way the state directory's file set moved so a
+  rewrite cannot pass as a deletion, and documented flags are checked against the parser's usage
+  block rather than scraped `--help` prose that names flags the CLI rejects. What CI does not
+  bind is stated in the generated doc's "Not covered here" section rather than left to inference:
+  the entry-point **Class** column cannot be proven for the four entry points whose mutation is a
+  GitHub write, because every row runs without network access.
+
+## [0.26.12]
+
+### Fixed
+
+- **`worktree create`'s `worktree_root` handoff is now shell-safe for unset AND special-character
+  values (#965).** `${user_config.worktree_root}` substitution into skill content is RAW text
+  substitution, not shell-escaped (confirmed against the official
+  [plugins-reference § User configuration](https://code.claude.com/docs/en/plugins-reference#user-configuration)
+  docs), so neither quote style around an inline `--root '${user_config.worktree_root}'` literal was
+  fully safe: double-quoted broke on an unset key (`bad substitution`, #898's original finding), and
+  the interim single-quoted fix (#898) broke on a configured value containing a single quote (e.g.
+  `~/worktrees/O'Connor`), `$`, or a backtick. `worktree-create.sh` gains an additive
+  `--root-file <path>` flag that reads the root from a file instead of a process argument; both
+  render sites (`context/create.md`, `SKILL.md`) now write the substituted value to a temp file with
+  the `Write` tool — a JSON string parameter no shell ever parses — and pass `--root-file` instead of
+  inlining the value in a `--root` shell literal. A quoted heredoc is deliberately NOT used: quoting
+  the delimiter suppresses expansion inside the body but cannot prevent delimiter collision, so a
+  value carrying a line equal to the delimiter would end the heredoc early and the shell would parse
+  the remainder as commands. The existing unset guard is reused unchanged: an unset key still leaves
+  the literal `${user_config.worktree_root}` token, which lands in the file verbatim, and the helper
+  still refuses with exit 3 and its guidance — no behavior change on that path. The rendered
+  invocation captures the helper's status before removing the temp directory and re-exits with it, so
+  the cleanup cannot mask a refusal behind a zero status. `--root-file` treats the file's bytes as the
+  root verbatim: a newline anywhere in it, trailing included, is a usage error (exit 2) rather than a
+  trimmed terminator or a silently-taken first line — trimming would be indistinguishable from a root
+  whose own last byte is a newline. A NUL byte is rejected the same way, checked on the file before
+  the value reaches a shell variable, because command substitution drops NULs and would otherwise
+  collapse `<root>-<NUL>suffix` into a path nobody supplied. The `--root`/`--root-file` mutual
+  exclusion now keys off whether each flag appeared rather than whether its value is non-empty, so
+  `--root '' --root-file <f>` is the usage error it always should have been rather than silently
+  selecting one source. `--root` is otherwise unaffected and stays available for a caller that
+  already holds the value as a real process argument (a hook, or direct CLI use). No remaining
+  `${user_config.worktree_root}` shell literal in either render site.
+
+## [0.26.11]
+
+### Fixed
+
+- **`fetch-all-pr-comments.sh` now emits `in_reply_to_id` for inline review comments (#587).** The
+  script's unified schema never projected the GitHub REST field that marks an inline review comment
+  as a threaded reply, so any caller reading the script's own output saw the key absent (surfacing as
+  `None`/`null` in downstream tooling) even for comments GraphQL confirmed were properly threaded
+  replies. Reproduced against live PR #563 data: the raw `pulls/<pr>/comments` response correctly
+  carries `in_reply_to_id` on reply comments — the script's `jq` projection for the inline surface
+  simply dropped it. Added `in_reply_to_id: .in_reply_to_id` to the inline mapping (sourced from the
+  same raw field GraphQL cross-checks against) and `in_reply_to_id: null` to the general/review
+  mappings, which have no reply-parent concept on their surfaces. Additive schema change — existing
+  consumers that don't read the new key are unaffected. Regression-tested with a threaded-reply
+  fixture.
+
+## [0.26.10]
+
+### Changed
+
+- `babysit-prs`'s Worker Contract and Worker Prompt Template
+  (`skills/babysit-prs/reference/orchestration.md`) now hand the worker the worktree's **absolute**
+  path and forbid relying on the shell's working directory persisting across separate tool calls:
+  every git operation is anchored with `git -C <absolute-worktree-path>` (`status`, `add`, `commit`,
+  `diff`, `log`, `push`), every file read/edit/write/glob/search takes an absolute path rather than
+  a relative one — worktree-prefixed for target-repository files, its own absolute path for a file
+  outside the worktree the worker is told to read, such as a `${CLAUDE_PLUGIN_ROOT}` reference — and
+  any command that derives its target from the working
+  directory without a `-C` equivalent — bare `gh`, `fetch-all-pr-comments.sh`, the target
+  repository's own build/test/lint commands — takes a per-call re-`cd` or its own explicit target
+  (`GH_REPO`, `FETCH_COMMENTS_OWNER`/`FETCH_COMMENTS_REPO`). A one-time `cd` at dispatch is not
+  enough:
+  cwd can drift between a read and the next write, silently committing a branch-owned fix into the
+  session's default checkout instead of the assigned worktree. Closes the same correctness gap
+  `implementation` 0.7.4 closed in the sibling `implement-dispatch` lane. `GH_REPO` is scoped to the
+  `gh` calls it can actually anchor: it selects the remote repository only (`gh help environment`),
+  so a locally-mutating call such as `gh pr checkout` ("Check out a pull request in git", `gh pr
+  checkout --help`) still takes a same-call `cd` — with `GH_REPO` alone it would fetch and switch
+  branches in whatever directory cwd had drifted to.
+
+## [0.26.9]
+
+### Fixed
+
+- **`babysit-prs` review-trigger contract now says `pending`, matching the code, and states what a
+  failing gate means (#324).** `reference/review-trigger.md` described the trigger signal as
+  `<review-gate-context>` "pending or failing", while every gate_state comparison in the engine
+  accepts only `pending` (`babysit_review_trigger.py` candidate predicate, `babysit_delta.py`
+  "awaiting requested review"), and `request_signal_pending` is derived solely from a `PENDING`
+  StatusContext with no target URL. The doc's own Engagement Gate Semantics section defines only
+  `PENDING` (no qualifying reviewer activity after the polling window) and `SUCCESS` (may reflect an
+  earlier head) — it gives `FAILING` no engagement meaning — so "or failing" was the erroneous
+  restatement, not the code. Narrowed the sentence to `pending` and recorded the failing semantic
+  once: a failing gate is not an engagement signal and is never a trigger candidate; it is bucketed
+  by `classify_checks` like any other check, so it already reaches the operator through the ordinary
+  failing-check blocker. Documentation and test only; no behavior change.
+
+## [0.26.8]
+
+### Fixed
+
+- **`fetch-all-pr-comments.sh` output can choke a downstream Python consumer on Windows
+  (emoji/cp1252 mismatch) (#597).** The script's UTF-8 JSON output commonly carries non-ASCII
+  bytes — bot badge images, reaction emoji — from bot review comments. Reproduced directly: a
+  Python consumer that opens the output (or reads this script's stdout) without an explicit UTF-8
+  encoding inherits the interpreter's default ANSI code page on Windows (cp1252) and raises
+  `UnicodeDecodeError` on those bytes; this repo's own consumers (`babysit_findings.py`) already
+  pin `encoding="utf-8"` explicitly and are unaffected, so the gap is external/downstream
+  consumers. `fetch-all-pr-comments.sh --help` now documents the `PYTHONUTF8=1` (PEP 540)
+  requirement for Windows consumers that don't pin the encoding themselves.
+  `babysit-readiness-gate.sh` — the one `babysit_python` caller that parses this script's
+  comment-JSON schema and lacked the `export PYTHONUTF8=1` convention the two `bin/` babysit
+  wrappers already apply — now sets it too, closing the inconsistency.
+
+## [0.26.7]
+
+### Fixed
+
+- **`babysit-prs` no longer misclassifies a bot's PR-level review comment as "new human feedback"
+  (#683).** `gh pr view --json reviews,latestReviews` (`view_pr`'s `VIEW_FIELDS`) returns each
+  review's `author` as `{login}` only — no `__typename`, no `is_bot`, and a GitHub App bot's login
+  without its `[bot]` suffix; verified live that this is a `gh` CLI JSON-field limitation, not a
+  GraphQL one — a raw `author{login __typename}` query against the same PR correctly reports
+  `__typename: "Bot"`. Both classification call sites (`pr_queue_snapshot.py`,
+  `babysit_feedback.fetch_current_human_stop`) already replace `pr["reviews"]` with the fully-typed
+  REST list (`fetch_pull_request_reviews`), but left `pr["latestReviews"]` untouched. Because
+  `collect_feedback`'s `latest_reviews_by_author` merges both collections keyed by raw login, the
+  same bot actor produced two entries under different keys — one correctly typed (from `reviews`),
+  one not (from `latestReviews`, e.g. `chatgpt-codex-connector` without `[bot]`) — and the untyped
+  duplicate fell through to `actor_kind`'s login-suffix heuristic and landed in `feedback["human"]`.
+  New `babysit_gh.rest_hydrate_reviews` replaces `reviews` with the REST list and drops the stale
+  `latestReviews` in one place, used by both call sites, so `latest_reviews_by_author` derives every
+  actor's latest review from the properly-typed REST list alone.
+
+## [0.26.6]
+
+### Fixed
+
+- **`scripts/worktree-create.sh` now refuses a git-illegal `--name` with the documented usage exit 2
+  instead of environment exit 4 (`#1016`).** The up-front character class (letters, digits, dots,
+  underscores, dashes per `/`-separated segment) is not a subset of git's ref grammar, so names like
+  `feat/foo..bar`, `foo.lock`, `.foo`, `HEAD`, and `-lead` passed validation, reached
+  `git worktree add`, and failed there as exit 4 — the code the helper reserves for environment
+  faults. A caller's correction flow keys on exit 2, so an invalid name was indistinguishable from a
+  broken environment. The schema check is now followed by `git check-ref-format --branch`, whose
+  output is discarded on both streams: on success `--branch` echoes the name to stdout, which would
+  break the helper's "created path is the sole stdout line" output contract. Verified across every
+  name the character class admits, `check-ref-format` and `git worktree add -b` agree exactly, so no
+  previously-creatable name is newly refused. `skills/worktree/context/create.md` gains the matching
+  constraint bullet, and the header comment that claimed the character class was "a strict subset of
+  what git refs allow" is corrected.
+
+  The grammar check runs **after** the repository is resolved and is scoped with `-C "$toplevel"`:
+  `--branch` takes a branchname-shorthand and so performs repository discovery, which dies outright
+  when the process's CWD is a stale checkout (a `.git` file naming a gitdir that no longer exists —
+  what this plugin's own worktree cleanup handles). Run unscoped, that turned a valid name into a
+  false exit 2 from such a directory, and the documented invocation omits `--repo-dir`, so the CWD is
+  the default. Consequence: exits 3 (root unconfigured) and 4 (not a repository) can now precede the
+  grammar refusal, matching how the pre-existing `--base-ref` and empty-slug exit-2 checks already
+  sit after them. The character-class and length checks still run first, before any git call.
+
+## [0.26.5]
+
+### Fixed
+
+- **`babysit_delta.py` and `babysit_feedback.py` now casefold owner/repo/login identity
+  comparisons, matching the already-ratified `.casefold()` convention `pr_queue_snapshot.py`
+  uses for the identical concept (#815).** `head_repository_scope`'s base/head owner and
+  same-repository checks, and `latest_reviews_by_author`'s per-reviewer login key, used
+  `.lower()` instead. Functionally equivalent for GitHub's ASCII-only owner/repo/login
+  alphabet, but a straggler against the sibling scripts' shared convention. Converted to
+  `.casefold()` in both files; added case-insensitivity regression tests covering a
+  differently-cased base repo, head repository, and allowlisted owner, and a differently-cased
+  reviewer login collapsing to one latest review.
+
+## [0.26.4]
+
+### Fixed
+
+- **`babysit-prs` now separates the finding-classification gate from the merge gate (`#601`).** Two
+  differently-named scripts both produced a verdict the docs called "readiness":
+  `babysit-readiness-gate.sh` (classification-row counting — blind to branch rules, thread
+  resolution, and required checks) and `babysit_merge.py` via `source-control-babysit-merge` (the
+  actual merge-policy check). Nothing said which one owns a `MERGE-READY` claim, and the
+  `loop.md` §5.5 checklist paired a single "Readiness: ready for merge" field directly under the
+  classification gate — which produced a false human-facing `MERGE-READY` report on a PR that a
+  `required_review_thread_resolution` ruleset was mechanically blocking. `safety.md` gains "Two
+  Gates, One Merge-Ready Authority" as the single home for the distinction; the checklist now
+  reports the two gates as separate fields, and every "readiness" site that meant *classification*
+  is renamed. No gate code and no emitted `READINESS_*` token changed; note that the §5.5 template
+  is machine-consumed via `--checklist <file>` (R6 blocks on any unticked `- [ ]`), so splitting one
+  status box into three does change what a checklist-gated iteration must tick. The new section also
+  states what "both gates satisfied" means on the orchestrator's direct zero-blocker path (a
+  non-draft PR the snapshot reports with zero blockers and no untriaged material feedback goes
+  straight to a merge-gate check with no worker): it takes that check without the worker's per-PR
+  classification-gate run, what keeps the path from a false `MERGE-READY` is the engine's
+  `untriaged_material_feedback` exclusion from `pr_clean_ready_for_direct_gate`, and
+  merge-readiness there still comes only from the merge gate's `ready` field. That `ready` field is
+  the plugin's **full merge-policy** verdict, not a readout of GitHub's mergeability alone —
+  `babysit_merge.py` adds its own policy blockers (dependency-manager author without
+  `--allow-dependency`, non-self author on an unprotected base without `--allow-unprotected`, and
+  an enabled autopilot merge tier's criteria), so `ready: false` may name a plugin hold on a PR
+  GitHub would merge; the docs no longer describe the gate as answering only whether GitHub will
+  merge.
+
 ## [0.26.3]
 
 ### Changed

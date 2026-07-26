@@ -107,7 +107,9 @@ bad argument/config · `4` prerequisite missing or repo/config unresolved.
 
 Lanes are defined in a JSON config, resolved first-hit-wins:
 `--config FILE` → `$CLAUDE_OPS_LANES_CONFIG` → `<repo>/.work/lanes.json`. Each lane
-carries a `name`, a `prompt` file path, and optional `model`/`effort`. The full
+carries a `name`, a `prompt` file path, and optional `model`/`effort`/`settings`
+(a session-only `claude --settings` override — e.g. opting the lane into the
+`autonomy` plugin's lane-stop gate). The full
 schema, resolution rules, and the prompt-storage seam live in
 [context/config.md](context/config.md) — read it before authoring a config.
 
@@ -137,7 +139,9 @@ merged fix not live in the lane?" or setting a restart frequency.
 
 The launcher shells out only to primitives confirmed on this machine's `claude`
 (`--help` / real invocation): `claude --bg -n <name> [--model M] [--effort E]
-"<prompt>"` (launch a named background session, return immediately),
+[--settings JSON] "<prompt>"` (launch a named background session, return
+immediately; `--settings` accepts inline JSON and applies session-only, per the
+CLI reference),
 `claude agents --json` (list active sessions: pid, cwd, kind, startedAt,
 sessionId, name, status),
 `claude stop <sessionId>` (stop one session; conversation kept, resumable with

@@ -5,8 +5,10 @@ the split that distinguishes an advisory-only head-ref alias failure (valid
 snapshot) from a substantive per-PR hydration failure.
 
 Config assembly covers the decoupling of the self-identity suppression set from
-the discovery `--author` filter. `@me` resolution is stubbed by monkeypatching
-the `babysit_gh` seam; no real gh process is spawned.
+the discovery `--author` filter, and -- for `--pr` scope -- that the resolved set
+is consumed by the classifier arms that read it, not merely populated. `@me`
+resolution and every per-PR fetch are stubbed by monkeypatching the `babysit_gh`
+seam; no real gh process is spawned.
 """
 
 from __future__ import annotations
@@ -410,6 +412,119 @@ class SelfIdentityDecouplingTests(unittest.TestCase):
             with mock.patch.object(gh, "resolve_authors", return_value=["alice"]):
                 resolved = self._resolve_via_snapshot(args)
         self.assertEqual(resolved, ["kyle-sexton"])
+
+
+class SinglePrScopeClassifierConsumptionTests(unittest.TestCase):
+    """`--pr` scope must CONSUME the resolved self set, not merely populate it.
+
+    Regression for #497: resolving `self_logins` ahead of the `--pr`/`--queue`
+    scope split is only half the contract -- the arms that read
+    `config.self_logins` (the `new_human_feedback` self-exclusion and
+    `detect_foreign_activity`) must actually fire for a single-PR run. Every
+    other `--pr` test in this module stops the per-PR loop before `classify_pr`,
+    so only these two drive a real classification end to end.
+    """
+
+    SELF = "kyle-sexton"
+
+    def _classify_single_pr(
+        self,
+        comments: list[dict[str, object]],
+        trigger_phrase: str = "",
+    ) -> dict[str, object]:
+        pr = {
+            "repo": "owner/repo",
+            "number": 1,
+            "url": "u",
+            "title": "t",
+            "state": "OPEN",
+            "author": {"login": self.SELF, "__typename": "User"},
+            "headRefName": "feature",
+            "headRefOid": "a" * 40,
+            "baseRefName": "main",
+            "baseRefOid": "b" * 40,
+            "headRepository": {"nameWithOwner": "owner/repo"},
+            "headRepositoryOwner": {"login": "owner"},
+            "isCrossRepository": False,
+            "isDraft": False,
+            "maintainerCanModify": True,
+            "baseRepositoryArchived": False,
+            "mergeStateStatus": "CLEAN",
+            "mergeable": "MERGEABLE",
+            "reviewDecision": "",
+            "reviews": [],
+            "latestReviews": [],
+            "comments": [],
+            "statusCheckRollup": [],
+            "updatedAt": "2026-07-09T00:00:00Z",
+        }
+        with tempfile.TemporaryDirectory() as state_dir:
+            args = argparse.Namespace(
+                pr="owner/repo#1",
+                author=None,
+                owners="owner",
+                trigger_phrase=trigger_phrase,
+                review_bot_logins="reviewbot",
+                review_gate_context="gate",
+                state_dir=state_dir,
+                write_state=False,
+            )
+            with mock.patch.object(gh, "resolve_author", return_value=self.SELF), \
+                 mock.patch.object(gh, "resolve_authors", return_value=[]), \
+                 mock.patch.object(
+                     gh, "parse_repo_number", return_value=("owner/repo", 1)
+                 ), \
+                 mock.patch.object(gh, "view_pr", return_value=pr), \
+                 mock.patch.object(
+                     gh, "fetch_issue_comments", return_value=comments
+                 ), \
+                 mock.patch.object(
+                     gh, "fetch_pull_request_reviews", return_value=[]
+                 ), \
+                 mock.patch.object(
+                     gh, "fetch_unresolved_review_comments", return_value=[]
+                 ), \
+                 mock.patch.object(
+                     gh, "find_open_prs_for_head_ref", return_value=["owner/repo#1"]
+                 ):
+                result = snapshot.build_snapshot(args)
+        self.assertEqual(result["errors"], [])
+        return result["prs"][0]
+
+    def test_self_authored_human_comment_is_not_new_human_feedback(self) -> None:
+        classified = self._classify_single_pr(
+            [
+                {
+                    "author": {"login": self.SELF, "__typename": "User"},
+                    "body": "must fix this blocking issue",
+                    "databaseId": 100,
+                }
+            ]
+        )
+        # It is still human-blocking (the maintainer keeps the ability to
+        # human-stop their own PR); it just must not re-dispatch a worker.
+        self.assertTrue(classified["feedback"]["human_blocking"])
+        self.assertEqual(classified["new_feedback"]["human"], [])
+        # The downstream effect, not just the mechanism: the suppressed comment
+        # contributes no dispatch reason. `needs_worker` itself stays True here
+        # on unrelated first-cycle reasons (empty state dir), so asserting on it
+        # would not isolate the self-exclusion.
+        self.assertNotIn(
+            "new_human_blocking_feedback", classified["needs_worker_reasons"]
+        )
+
+    def test_foreign_activity_fires_in_single_pr_scope(self) -> None:
+        classified = self._classify_single_pr(
+            [
+                {
+                    "author": {"login": self.SELF, "__typename": "User"},
+                    "body": "please review",
+                    "databaseId": 100,
+                }
+            ],
+            trigger_phrase="please review",
+        )
+        self.assertTrue(classified["foreign_activity"]["detected"])
 
 
 if __name__ == "__main__":
