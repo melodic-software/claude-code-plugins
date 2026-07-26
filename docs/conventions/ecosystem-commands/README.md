@@ -126,7 +126,11 @@ neither — unchanged from pre-`run-from` behavior. Set `run-from: repo-root` to
 from `$REPO_ROOT` regardless of the ecosystem's `project-discovery` or `anchor`, for a repo-wide
 check (protobuf generation, schema freshness) declared under a `project-discovery` ecosystem that
 would otherwise run once per discovered project root — redundantly at best, failing in roots that
-lack its config at worst. `run-from` is canonical-verb metadata, not a context binding: like `anchor`
+lack its config at worst. Under `run-from: repo-root`, a `cmd` using the `<files>` placeholder gets
+the full ecosystem-scoped changed-files set (the same base definition the placeholder table above
+gives), not one project's subset — there is no single project root left to scope it to.
+
+`run-from` is canonical-verb metadata, not a context binding: like `anchor`
 and `project-discovery` (which already fix a gate's default execution location per repo), it is a
 repo-invariant fact about *this* gate's `cmd` that every execution surface must agree on, not a
 per-surface wrapper choice — so it belongs in the ecosystem file alongside them, not in a consuming
