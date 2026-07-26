@@ -30,6 +30,9 @@ token `verif` narrowed to `verifier` — the stem matched bare "verification" pr
 no worker; surfaced by external review on the Phase-1 PR.)* *(Amended 2026-07-23, Phase-1 review
 round 3: worker terms match as whole words with explicit inflections — substring stems let
 "agentless" satisfy the worker requirement; surfaced by external review on the Phase-1 PR.)*
+*(Amended 2026-07-25, Phase-1 review round 4: the `fresh[- ]context` half is bounded as a whole
+word too — unbounded, it matched inside "Refresh context", so ordinary refresh prose next to any
+worker term satisfied the gate; surfaced by external review on the Phase-1 PR.)*
 Visible prose, not a marker: the wording IS the model's instruction, so it must be visible
 regardless — a parallel marker would be a second source of truth that drifts.
 
@@ -87,7 +90,18 @@ Scan mechanics (all constraints normative for implementation):
   blocking malformed directive. The carry expires at the next blank line or fence — a CommonMark
   span cannot outlive its paragraph — so a stray backtick cannot blind the scanner past it. The
   carry is deliberately optimistic: masking risks missing a declaration, whereas scanning risks
-  failing a skill on legitimate code-span text.)*
+  failing a skill on legitimate code-span text.)* *(Amended 2026-07-25, Phase-1 review round 4:
+  blockquote and list-marker prefixes are stripped before fence matching — a container-nested fence
+  never entered fence mode, so a quoted example failed the skill on its own documentation; and a
+  backslash-escaped backtick is literal text, not a span delimiter, which had been masking a
+  malformed directive into a silent pass.)* **Accepted gap:** indented code blocks are NOT
+  suppressed — telling one apart from indented list-item continuation needs a block parser this
+  scanner does not have, and guessing would silently drop declarations inside nested lists, the
+  worse direction. The contract tells authors to fence literal examples.
+- **One classification per directive, not per line** (amended 2026-07-25, Phase-1 review round 4):
+  each `<!-- fresh-eyes-exempt ... -->` occurrence is classified independently, bounded at its own
+  terminator. Classifying the whole line let a well-formed directive lend its class and reason to a
+  malformed neighbour, so an unknown-class suppression could hide beside a valid one.
 - **Proximity is per-file and line-based** (tunable constant beside the script's existing caps).
   Known limitation, documented in the WARN message: a declaration living in a referenced spoke
   file cannot satisfy proximity — "declaration may live in a referenced spoke — hand-verify".

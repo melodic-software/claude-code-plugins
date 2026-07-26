@@ -799,6 +799,21 @@ for fe_file in "${FRESH_EYES_FILES[@]}"; do
     esac
   done < <(awk -v P="$FRESH_EYES_PROXIMITY_LINES" -v JR="$FRESH_EYES_JUDGE_RE" '
     { sub(/\r$/, "") }
+    # Block-container prefixes come off before anything else looks at the line.
+    # CommonMark parses `> ```markdown` and `- ```markdown` as fenced blocks, but
+    # a matcher anchored on the bare line never enters fence mode for either, so
+    # a quoted or listed example leaked into the detectors and failed the skill on
+    # its own documentation. Stripping the markers makes container content parse
+    # exactly like top-level content: the fence opens, `fe_fence` swallows the
+    # body whatever its indentation, and the same-indent closer still closes.
+    # Markers interleave (`> - ```), so strip until neither form matches.
+    {
+      do {
+        fe_pre = $0
+        sub(/^ {0,3}> ?/, "", $0)
+        sub(/^ {0,3}([-*+]|[0-9]{1,9}[.)])[ \t]+/, "", $0)
+      } while ($0 != fe_pre)
+    }
     # CommonMark fence matching: a fence closes only on a same-character run at
     # least as long as its opener with nothing but spaces after it — a nested
     # run of the OTHER character, a shorter run, or a run carrying an info
@@ -832,6 +847,18 @@ for fe_file in "${FRESH_EYES_FILES[@]}"; do
     fe_fence { next }
     {
       line = $0
+      # CommonMark backslash escapes: a backslash-escaped backtick is literal
+      # text, never a code-span delimiter. Left unhandled, prose showing a
+      # directive between \` marks masked it and the malformed directive passed
+      # silently. Blank each escape pair to the SAME width so every offset the
+      # span masker computes below stays valid, and consume pairs left to right
+      # so an escaped backslash cannot escape the character after it.
+      esc_out = ""
+      while (match(line, /\\[\\`]/)) {
+        esc_out = esc_out substr(line, 1, RSTART - 1) "  "
+        line = substr(line, RSTART + 2)
+      }
+      line = esc_out line
       # A code span lives inside one paragraph, so a blank line expires a span
       # still waiting for its closer — otherwise one stray backtick would blind
       # the detectors for the rest of the file.
@@ -876,22 +903,33 @@ for fe_file in "${FRESH_EYES_FILES[@]}"; do
         }
         line = substr(line, 1, sp_start - 1) " " substr(sp_rest, sp_close + sp_len)
       }
-      if (line ~ /<!--[ \t]*fresh-eyes-exempt/) {
+      # Classify each directive on the line independently, bounded at its own
+      # `-->`. Testing the whole line let a valid directive elsewhere on it lend
+      # its class and reason to a malformed neighbour, so an unknown-class
+      # suppression could hide beside a well-formed one and never FAIL.
+      dir_rest = line
+      while (match(dir_rest, /<!--[ \t]*fresh-eyes-exempt/)) {
+        dir_one = substr(dir_rest, RSTART)
+        dir_rest = substr(dir_rest, RSTART + RLENGTH)
+        dir_end = index(dir_one, "-->")
+        if (dir_end) dir_one = substr(dir_one, 1, dir_end + 2)
         dir_n++
-        if (line ~ /<!--[ \t]*fresh-eyes-exempt:[ \t]*(deterministic-gate|external-input|deferred)[ \t]+--[ \t]+[^ \t].*-->/) {
-          d[dir_n] = NR; dt[dir_n] = "valid"
-        } else if (line ~ /<!--[ \t]*fresh-eyes-exempt:[ \t]*(deterministic-gate|external-input|deferred)[ \t]*(--[ \t]*)?-->/) {
-          d[dir_n] = NR; dt[dir_n] = "noreason"
+        d[dir_n] = NR
+        if (dir_one ~ /<!--[ \t]*fresh-eyes-exempt:[ \t]*(deterministic-gate|external-input|deferred)[ \t]+--[ \t]+[^ \t].*-->/) {
+          dt[dir_n] = "valid"
+        } else if (dir_one ~ /<!--[ \t]*fresh-eyes-exempt:[ \t]*(deterministic-gate|external-input|deferred)[ \t]*(--[ \t]*)?-->/) {
+          dt[dir_n] = "noreason"
         } else {
-          d[dir_n] = NR; dt[dir_n] = "malformed"
+          dt[dir_n] = "malformed"
         }
       }
       low = tolower(line)
       # Delegation wording needs a worker actually named on the line — bare
-      # "in a fresh context" prose assigns no one and does not declare. Worker
-      # terms match as whole words with their inflections, so embedded stems
-      # ("agentless") cannot satisfy the requirement.
-      if (low ~ /fresh[- ]context/ \
+      # "in a fresh context" prose assigns no one and does not declare. Both
+      # halves match as whole words with their inflections, so embedded stems
+      # cannot satisfy the requirement: "agentless" is not a worker, and
+      # "Refresh context" is not the fresh-context wording.
+      if (low ~ /(^|[^a-z0-9_])fresh[- ]context([^a-z0-9_]|$)/ \
           && low ~ /(^|[^a-z0-9_])((sub-?)?agents?|workers?|advisors?|reviewers?|verifiers?|dispatch(es|ed|ing)?|delegat(e|es|ed|ing|ion|ions))([^a-z0-9_]|$)/) {
         word_n++; w[word_n] = NR
       }

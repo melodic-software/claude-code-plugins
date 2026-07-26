@@ -23,8 +23,9 @@ Both `fresh-context` and `fresh context` are canonical — and the same line mus
 the dispatch as a whole word (with inflections): `agent(s)`/`subagent(s)`, `worker(s)`,
 `advisor(s)`, `reviewer(s)`, `verifier(s)`, `dispatch(es|ed|ing)`, `delegate(s|d)`/`delegating`/
 `delegation`. "dispatch a fresh-context subagent" declares; a bare "think about it in a fresh
-context" assigns the judgment to no one and does not, and an embedded stem ("agentless") does not
-count as naming a worker. The wording is visible prose, not a marker — it IS the model's
+context" assigns the judgment to no one and does not. Both halves need whole-word matches, so an
+embedded stem counts for neither: "agentless" names no worker, and "Refresh context" is not the
+fresh-context wording. The wording is visible prose, not a marker — it IS the model's
 instruction, so a parallel hidden marker would be a second source of truth that drifts.
 
 ## Form 2 — exemption directive (HTML comment)
@@ -67,11 +68,21 @@ Rows evaluate top-down; the first match wins per detection site.
   detectors, so docs (like this page) can show literal examples. Fences follow CommonMark
   matching: a closer is a same-character run at least as long as its opener with only spaces
   after it — an info-string line inside a fence never closes it, and a backtick opener carrying a
-  backtick in its info string is prose, not a fence. Spans pair a backtick run with the next run
-  of exactly the same length (multi-backtick spans included). A run with no closer on its own line
-  carries forward, so a span may cross a newline; the carry expires at the next blank line or
-  fence, because a CommonMark span cannot outlive its paragraph. Keep literal directive examples
-  inside fences — a bare `<class>` placeholder in prose would FAIL as an unknown class.
+  backtick in its info string is prose, not a fence. Blockquote and list-marker prefixes come off
+  before fence matching, so a fence nested in a container (`> ~~~markdown`, `- ```markdown`) still
+  suppresses its body. Spans pair a backtick run with the next run of exactly the same length
+  (multi-backtick spans included); a backslash-escaped backtick is literal text and opens nothing.
+  A run with no closer on its own line carries forward, so a span may cross a newline; the carry
+  expires at the next blank line or fence, because a CommonMark span cannot outlive its paragraph.
+  Keep literal directive examples inside fences — a bare `<class>` placeholder in prose would FAIL
+  as an unknown class.
+- **Known gap — indented code blocks are NOT suppressed.** A four-space-indented literal directive
+  is still parsed and still FAILs. Distinguishing an indented code block from indented list-item
+  continuation needs a block parser the scanner does not have, and guessing would silently drop
+  declarations inside nested lists — the worse failure. Put literal examples in fences, not
+  indented blocks.
+- **Every directive on a line is classified on its own**, bounded at its own `-->`, so a malformed
+  directive cannot borrow a valid neighbour's class or reason to escape the FAIL.
 - **Proximity is per-file and line-based** (`FRESH_EYES_PROXIMITY_LINES` in `check-skill.sh`). A
   declaration in a different file of the same skill does not satisfy proximity; the WARN message
   says so ("declaration may live in a referenced spoke — hand-verify").

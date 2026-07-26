@@ -18,11 +18,17 @@ All notable changes to the `skill-quality` plugin are documented here. Format fo
   heuristic list's curation policy lives there too. Fence matching follows CommonMark
   (an info-string line inside a fence is content, not a closer; a backtick opener
   carrying a backtick in its info string is prose, not a fence; opener indentation caps
-  at three spaces), spans pair backtick runs of exactly equal length and carry an
-  unclosed opener across line boundaries to the end of the paragraph (multi-backtick and
-  multi-line spans hide their content), and delegation wording only counts when the same
-  line names the worker or dispatch as a whole word — an embedded stem ("agentless") does
-  not.
+  at three spaces; blockquote and list-marker prefixes are stripped first, so a
+  container-nested fence still suppresses its body), spans pair backtick runs of exactly
+  equal length and carry an unclosed opener across line boundaries to the end of the
+  paragraph (multi-backtick and multi-line spans hide their content, while a
+  backslash-escaped backtick is literal and opens nothing), each directive on a line is
+  classified independently (a malformed one cannot borrow a valid neighbour's class), and
+  delegation wording only counts when the same line names the worker or dispatch as a whole
+  word — embedded stems satisfy neither half ("agentless" is no worker, "Refresh context" is
+  not the fresh-context wording). Indented code blocks are deliberately NOT suppressed:
+  separating them from indented list-item continuation needs a block parser, and guessing
+  would silently drop declarations inside nested lists — authors fence literal examples.
 
 ### Fixed
 

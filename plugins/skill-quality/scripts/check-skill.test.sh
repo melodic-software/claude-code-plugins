@@ -1704,6 +1704,107 @@ else
   fail "directive after a stray-backtick paragraph should still FAIL (rc=$rc): $out"
 fi
 
+# 37k. Check 21: a fence nested in a blockquote is still a fence — its literal
+#      directive example must not be parsed. Tildes, so the cross-line span
+#      carry cannot mask the body incidentally and pass the test for free.
+make_skill fe-quoted-fence '---
+name: fe-quoted-fence
+description: "Fresh-eyes fixture. Use when: '"'"'fe quoted fence fixture'"'"'."
+---
+
+## Steps
+
+Quoted example:
+
+> ~~~markdown
+> <!-- fresh-eyes-exempt: bogus -- example -->
+> ~~~
+
+Prose resumes here.
+
+## Gotchas
+
+None known.
+'
+out="$(run fe-quoted-fence 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && ! grep -q 'malformed fresh-eyes-exempt directive' <<<"$out"; then
+  pass "blockquoted fence still suppresses its content (check 21)"
+else
+  fail "directive inside a blockquoted fence should not be parsed (rc=$rc): $out"
+fi
+
+# 37l. Check 21: backslash-escaped backticks render literally, so they open no
+#      code span and the directive between them is a real malformed directive.
+make_skill fe-escaped-span '---
+name: fe-escaped-span
+description: "Fresh-eyes fixture. Use when: '"'"'fe escaped span fixture'"'"'."
+---
+
+## Steps
+
+Prose showing \`<!-- fresh-eyes-exempt: bogus -- reason -->\` between escaped backticks.
+
+## Gotchas
+
+None known.
+'
+out="$(run fe-escaped-span 2>&1)"
+rc=$?
+if [[ $rc -ne 0 ]] && grep -q 'malformed fresh-eyes-exempt directive' <<<"$out"; then
+  pass "escaped backticks open no code span (check 21)"
+else
+  fail "directive between escaped backticks should FAIL (rc=$rc): $out"
+fi
+
+# 37m. Check 21: each directive on a shared line is classified on its own, so a
+#      malformed one cannot hide beside a valid one.
+make_skill fe-two-directives '---
+name: fe-two-directives
+description: "Fresh-eyes fixture. Use when: '"'"'fe two directives fixture'"'"'."
+---
+
+## Steps
+
+Self-review the output.
+
+<!-- fresh-eyes-exempt: bogus -- unknown class --> <!-- fresh-eyes-exempt: deferred -- tracked -->
+
+## Gotchas
+
+None known.
+'
+out="$(run fe-two-directives 2>&1)"
+rc=$?
+if [[ $rc -ne 0 ]] && grep -q 'malformed fresh-eyes-exempt directive' <<<"$out"; then
+  pass "malformed directive beside a valid one still FAILs (check 21)"
+else
+  fail "shared-line malformed directive should FAIL (rc=$rc): $out"
+fi
+
+# 37n. Check 21: "Refresh context" is not the fresh-context wording — the
+#      judgment line still WARNs even though a worker term appears.
+make_skill fe-refresh-context '---
+name: fe-refresh-context
+description: "Fresh-eyes fixture. Use when: '"'"'fe refresh context fixture'"'"'."
+---
+
+## Steps
+
+Refresh context with agent output, then self-review your work.
+
+## Gotchas
+
+None known.
+'
+out="$(run fe-refresh-context 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q 'same-context judgment language with no' <<<"$out"; then
+  pass "Refresh-context prose does not declare delegation (check 21)"
+else
+  fail "\"Refresh context\" should not satisfy check 21 (rc=$rc): $out"
+fi
+
 # 37. Check 21: a skill with no judgment language emits nothing from check 21
 #     (good-skill re-run guards against detector overreach).
 out="$(run good-skill 2>&1)"
