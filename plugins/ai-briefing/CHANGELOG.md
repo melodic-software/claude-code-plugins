@@ -3,7 +3,7 @@
 All notable changes to the `ai-briefing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.6.1]
+## [0.6.2]
 
 ### Security
 
@@ -27,6 +27,20 @@ All notable changes to the `ai-briefing` plugin are documented here. Format foll
   decimal/hex/octal/integer IPv4. A public hostname that resolves to a private
   address at fetch time (DNS rebind) is not covered — the checker resolves DNS
   itself, so that case remains outside this offline literal gate.
+
+## [0.6.1]
+
+### Changed
+
+- **Setup now documents how to change `active_profile`, not only how it is read.** The skill
+  resolved the key and reported the profile path, but named no route to a different stored value,
+  so a consumer whose configured profile was wrong for the repository had nothing to act on and the
+  `--profile` override looked like the only lever. `check` step 1 now names all three: the
+  interactive `/plugin configure ai-briefing` flow, which is the only surface that changes the
+  stored value; the headless `--config` path, with the caveat that it seeds on a fresh install only
+  and is ignored once installed, so reconfiguring headlessly is uninstall-then-reinstall; and the
+  per-run `--profile` for a one-off that should not touch stored config. This skill still never
+  writes `pluginConfigs`.
 
 ## [0.6.0]
 

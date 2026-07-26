@@ -178,3 +178,4 @@ producers without coordinating with them or each other.
 | `claude-ops` plugin | `pre-compact-audit` | `data/pre-compact-audit.schema.json` |
 | `claude-ops` plugin | `skill-usage-audit` (two producers: PostToolUse/Skill and UserPromptExpansion — see schema) | `data/skill-usage-audit.schema.json` |
 | `claude-ops` plugin | `tool-failure-audit` | `data/tool-failure-audit.schema.json` |
+| `autonomy` plugin | `lane-stop-gate` | `data/lane-stop-gate.schema.json` |

@@ -76,6 +76,75 @@ describe("watch state phase map", () => {
   });
 });
 
+describe("synthesis target (resolved --target, resume recovery)", () => {
+  it("omits target when none was resolved at watch start", () => {
+    const state = sampleTalk();
+    expect(state.target).toBeUndefined();
+    expect(JSON.stringify(state)).not.toContain('"target"');
+  });
+
+  it("persists an explicit --target on the created state", () => {
+    const state = createWatchState({
+      videoId: "abc",
+      videoSlug: "talk-abc",
+      sourceUrl: "https://youtube.com/watch?v=abc",
+      title: "Talk",
+      target: "melodic-software/claude-code-plugins",
+    });
+    expect(state.target).toBe("melodic-software/claude-code-plugins");
+  });
+
+  it("tells a resumed session to reuse the recorded target instead of re-asking", () => {
+    let state = createWatchState({
+      videoId: "abc",
+      videoSlug: "talk-abc",
+      sourceUrl: "https://youtube.com/watch?v=abc",
+      title: "Talk",
+      target: "acme/webapp",
+    });
+    state = markPhaseComplete(state, "acquire");
+    const prompt = buildContinuationPrompt(state);
+    expect(prompt).toContain("Resolved: `acme/webapp`");
+    expect(prompt).toContain("do not re-ask");
+  });
+
+  it("tells a resumed session to resolve the target when none was recorded", () => {
+    let state = sampleTalk();
+    state = markPhaseComplete(state, "acquire");
+    const prompt = buildContinuationPrompt(state);
+    expect(prompt).toContain("Not yet resolved");
+  });
+
+  it("round-trips target through writeWatchState/readWatchState", async () => {
+    const store = new Map();
+    const writeFile = vi.fn(async (path, data) => {
+      store.set(path, data);
+    });
+    const readFile = vi.fn(async (path) => {
+      const value = store.get(path);
+      if (value === undefined) throw new Error("ENOENT");
+      return value;
+    });
+
+    const sliceDir = "/tmp/slice";
+    const initial = createWatchState({
+      videoId: "abc",
+      videoSlug: "talk-abc",
+      sourceUrl: "https://youtube.com/watch?v=abc",
+      title: "Talk",
+      target: "acme/webapp",
+    });
+    await writeWatchState(
+      sliceDir,
+      initial,
+      writeFile,
+      vi.fn(async () => {}),
+    );
+    const loaded = await readWatchState(sliceDir, readFile);
+    expect(loaded?.target).toBe("acme/webapp");
+  });
+});
+
 describe("watch state persistence (resume scaffolding)", () => {
   it("round-trips watch.json via injected writeFile/readFile", async () => {
     const store = new Map();

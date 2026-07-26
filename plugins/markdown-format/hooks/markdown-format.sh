@@ -59,6 +59,54 @@ case "$FILE" in
 *) exit 0 ;;
 esac
 
+# Does <dir> sit inside a git working tree? Git's repository-selection and
+# discovery environment variables are cleared first: an inherited GIT_DIR or
+# GIT_WORK_TREE (a repository wrapper that launched the session) overrides
+# discovery outright, so `git -C <out-of-tree dir>` would answer with the
+# overridden repository and admit an external file. GIT_COMMON_DIR,
+# GIT_CEILING_DIRECTORIES and GIT_DISCOVERY_ACROSS_FILESYSTEM skew the same
+# probe in the other direction. The verdict must come from the directory alone,
+# never from ambient state. Names per the official environment list —
+# https://git-scm.com/docs/git, "The Git Repository" and "Git Discovery".
+in_git_working_tree() {
+  (
+    unset GIT_DIR GIT_WORK_TREE GIT_COMMON_DIR GIT_CEILING_DIRECTORIES \
+      GIT_DISCOVERY_ACROSS_FILESYSTEM
+    git -C "$1" rev-parse --show-toplevel
+  ) >/dev/null 2>&1
+}
+
+# markdownlint applies repo-doc rules, so when no CLAUDE_PROJECT_DIR anchors
+# membership (e.g. an autonomous session whose cwd is not a repo), scope to
+# git-working-tree containment instead: a scratch/temp .md outside any working
+# tree (a lane's comment-body composed for gh --body-file) must not be linted
+# with rules that do not apply to it. When CLAUDE_PROJECT_DIR is set,
+# hook::read_file_path already enforced membership. This scoping is local to
+# markdown-format on purpose — the shared guard stays location-agnostic for
+# hooks whose value does not depend on repository membership.
+#
+# Membership is tested on the PHYSICAL path, matching hook::read_file_path: an
+# in-repository symlink to an out-of-tree file would otherwise pass on its
+# lexical parent while --fix rewrites the external target under repo rules.
+#
+# hook::physical_path degrades to the unchanged lexical path when no
+# canonicalizer resolves it (neither realpath nor readlink -f present, or both
+# failing). That degradation is safe for the shared prefix guard but not here:
+# the lexical parent of an escaping symlink IS a working tree, so admitting it
+# hands the external target to --fix. A symlink whose physical path came back
+# unchanged is therefore the observable signature of failed canonicalization —
+# checking the outcome rather than probing for a resolver also covers a
+# resolver that exists but fails — and this scope fails closed on it.
+if [[ -z "${CLAUDE_PROJECT_DIR:-}" ]]; then
+  FILE_PHYSICAL="$(hook::physical_path "$FILE")"
+  if [[ -L "$FILE" && "$FILE_PHYSICAL" == "$FILE" ]]; then
+    exit 0
+  fi
+  if ! in_git_working_tree "$(dirname "$FILE_PHYSICAL")"; then
+    exit 0
+  fi
+fi
+
 # Resolve repo root early — needed for CWD-anchored config discovery and for
 # computing the schema-required repo-relative path in data.file.
 REPO_ROOT="$(hook::repo_root "$(dirname "$FILE")")"
