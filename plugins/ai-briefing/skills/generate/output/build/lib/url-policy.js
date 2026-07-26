@@ -25,6 +25,10 @@ function isCitationOnlyHost(hostname) {
 	);
 }
 
+// Matches the IANA IPv4 Special-Purpose Address Registry's non-global blocks,
+// not just RFC1918: any literal target outside globally reachable unicast
+// space is refused, including shared address space (CGN) and the multicast
+// and reserved ranges.
 function isPrivateIPv4(host) {
 	const octets = host.split(".").map(Number);
 	if (
@@ -33,14 +37,21 @@ function isPrivateIPv4(host) {
 	) {
 		return false;
 	}
-	const [a, b] = octets;
+	const [a, b, c] = octets;
 	return (
 		a === 0 || // 0.0.0.0/8 "this host"
 		a === 10 || // 10.0.0.0/8 private
+		(a === 100 && b >= 64 && b <= 127) || // 100.64.0.0/10 shared address space (CGN)
 		a === 127 || // 127.0.0.0/8 loopback
+		(a === 169 && b === 254) || // 169.254.0.0/16 link-local (cloud metadata)
 		(a === 172 && b >= 16 && b <= 31) || // 172.16.0.0/12 private
+		(a === 192 && b === 0 && c === 0) || // 192.0.0.0/24 IETF protocol assignments
+		(a === 192 && b === 0 && c === 2) || // 192.0.2.0/24 TEST-NET-1
 		(a === 192 && b === 168) || // 192.168.0.0/16 private
-		(a === 169 && b === 254) // 169.254.0.0/16 link-local (cloud metadata)
+		(a === 198 && (b === 18 || b === 19)) || // 198.18.0.0/15 benchmarking
+		(a === 198 && b === 51 && c === 100) || // 198.51.100.0/24 TEST-NET-2
+		(a === 203 && b === 0 && c === 113) || // 203.0.113.0/24 TEST-NET-3
+		a >= 224 // 224.0.0.0/4 multicast + 240.0.0.0/4 reserved + broadcast
 	);
 }
 
@@ -73,8 +84,16 @@ function isPrivateIPv6(address) {
 	if (g.slice(0, 7).every((h) => h === 0) && g[7] === 1) return true; // ::1 loopback
 	if ((g[0] & 0xfe00) === 0xfc00) return true; // fc00::/7 unique-local
 	if ((g[0] & 0xffc0) === 0xfe80) return true; // fe80::/10 link-local
-	if (g.slice(0, 5).every((h) => h === 0) && g[5] === 0xffff) {
-		// ::ffff:a.b.c.d IPv4-mapped — check the embedded v4 address.
+	if ((g[0] & 0xff00) === 0xff00) return true; // ff00::/8 multicast
+	if (g[0] === 0x0100 && g[1] === 0 && g[2] === 0 && g[3] === 0) return true; // 100::/64 discard-only
+	if (g[0] === 0x2001 && g[1] === 0x0db8) return true; // 2001:db8::/32 documentation
+	if (g[0] === 0x3fff && (g[1] & 0xf000) === 0) return true; // 3fff::/20 documentation (RFC 9637)
+	const embedsIPv4 =
+		(g.slice(0, 5).every((h) => h === 0) && g[5] === 0xffff) || // ::ffff:a.b.c.d IPv4-mapped
+		(g[0] === 0x0064 &&
+			g[1] === 0xff9b &&
+			g.slice(2, 6).every((h) => h === 0)); // 64:ff9b::/96 NAT64 well-known prefix
+	if (embedsIPv4) {
 		const v4 = `${g[6] >> 8}.${g[6] & 0xff}.${g[7] >> 8}.${g[7] & 0xff}`;
 		return isPrivateIPv4(v4);
 	}

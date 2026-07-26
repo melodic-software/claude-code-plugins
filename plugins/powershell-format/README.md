@@ -47,11 +47,16 @@ references — treat them with the same trust you give your build and CI
 configuration — then create the marker directory using the exact `mkdir -p`
 command the notice carries. The marker lives under
 `${CLAUDE_PLUGIN_DATA}/trust-approvals` and is content-addressed over the
-repository and the settings file, so any settings change revokes the approval
-and re-gates the run. Detection uses PowerShell's restricted data-file parser,
+repository, the settings file, and every file reachable under each declared
+`CustomRulePath` entry (recursively for directories), so a change to the
+settings or to any referenced rule module — including a branch switch that
+swaps module bytes under an unchanged settings file — revokes the approval and
+re-gates the run. Detection uses PowerShell's restricted data-file parser,
 not a textual scan; a settings file that parser cannot read is treated as
-code-loading and stays gated, and when `CLAUDE_PLUGIN_DATA` is unavailable the
-gate fails closed and the run stays skipped. A settings file without
+code-loading and stays gated, a `CustomRulePath` entry that does not resolve
+to hashable content leaves the state unverifiable with no approval route, and
+when `CLAUDE_PLUGIN_DATA` is unavailable the gate fails closed and the run
+stays skipped. A settings file without
 `CustomRulePath` is declarative rule configuration and runs immediately. The
 hook only reads a settings file at or below your project root (bounded by
 `CLAUDE_PROJECT_DIR` when set), so it never picks up one from an ancestor

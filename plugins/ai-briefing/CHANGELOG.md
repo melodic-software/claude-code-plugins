@@ -19,12 +19,17 @@ All notable changes to the `ai-briefing` plugin are documented here. Format foll
   schema hard-fails a deck containing a disallowed scheme (loud fail-closed on an
   attack indicator), and the HTML and PPTX builders drop the individual unsafe
   link (defense-in-depth on the `--skip-emit` rebuild path).
-- **Link-reachability checks refuse private/loopback hosts (SSRF guard).**
-  `shouldSkipLinkCheck` now skips URLs whose literal host is loopback, private,
-  link-local, or reserved (127/8, 10/8, 172.16/12, 192.168/16, 169.254/16, 0/8,
-  `localhost`/`*.localhost`, IPv6 `::`/`::1`/`fc00::/7`/`fe80::/10`, and
-  IPv4-mapped forms), relying on WHATWG URL canonicalization of
-  decimal/hex/octal/integer IPv4. A public hostname that resolves to a private
+- **Link-reachability checks refuse non-global hosts (SSRF guard).**
+  `shouldSkipLinkCheck` now skips URLs whose literal host falls in any
+  non-global block of the IANA special-purpose registries, not just RFC1918:
+  loopback, private, link-local, shared address space (CGN), benchmarking,
+  documentation TEST-NETs, IETF protocol assignments, multicast, and reserved
+  (127/8, 10/8, 100.64/10, 172.16/12, 192.168/16, 169.254/16, 0/8, 192.0.0/24,
+  192.0.2/24, 198.18/15, 198.51.100/24, 203.0.113/24, 224/4, 240/4,
+  `localhost`/`*.localhost`; IPv6 `::`/`::1`/`fc00::/7`/`fe80::/10`/`ff00::/8`/
+  `100::/64`/`2001:db8::/32`/`3fff::/20`, plus IPv4-mapped and NAT64
+  `64:ff9b::/96` forms judged by their embedded IPv4 address), relying on
+  WHATWG URL canonicalization of decimal/hex/octal/integer IPv4. A public hostname that resolves to a private
   address at fetch time (DNS rebind) is not covered — the checker resolves DNS
   itself, so that case remains outside this offline literal gate.
 

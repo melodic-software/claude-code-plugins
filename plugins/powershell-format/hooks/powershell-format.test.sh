@@ -438,6 +438,29 @@ else
   fail "changed settings state was not re-gated: $OUT_GATE_4"
 fi
 
+# The approval signature must cover the rule-module content, not only the
+# settings text: after approving a settings state, changing a referenced rule
+# module (settings untouched) must revoke the approval — e.g. a branch switch
+# swapping the module bytes under an unchanged settings file.
+CRP_MARKER_2="$(printf '%s' "$OUT_GATE_4" | jq -r '.systemMessage' | sed -n "s/.*mkdir -p '\([^']*\)'.*/\1/p")"
+mkdir -p "$CRP_MARKER_2"
+printf "%s\n" "get-childitem -Path '.'" >"$REPO_CRP/crp2b.ps1"
+OUT_GATE_M1=$(run_hook_env "$REPO_CRP/crp2b.ps1" CLAUDE_PLUGIN_DATA="$CRP_DATA" CLAUDE_PLUGIN_OPTION_POWERSHELL_FORMAT_ENABLED=true)
+if [[ -z "$OUT_GATE_M1" ]] && grep -q 'Get-ChildItem' "$REPO_CRP/crp2b.ps1"; then
+  ok "re-approved settings+module state analyzes again"
+else
+  fail "re-approved settings+module state did not analyze: $OUT_GATE_M1 $(cat "$REPO_CRP/crp2b.ps1")"
+fi
+printf '%s\n' '# unreviewed rule-module revision' >>"$REPO_CRP/rules/CleanRules.psm1"
+printf "%s\n" "get-childitem -Path '.'" >"$REPO_CRP/crp3.ps1"
+OUT_GATE_M2=$(run_hook_env "$REPO_CRP/crp3.ps1" CLAUDE_PLUGIN_DATA="$CRP_DATA" CLAUDE_PLUGIN_OPTION_POWERSHELL_FORMAT_ENABLED=true)
+if printf '%s' "$OUT_GATE_M2" | jq -e '.hookSpecificOutput.additionalContext | contains("trust gate")' >/dev/null 2>&1 &&
+  grep -q 'get-childitem' "$REPO_CRP/crp3.ps1"; then
+  ok "changed rule module revokes approval and blocks again"
+else
+  fail "changed rule module was not re-gated: $OUT_GATE_M2 $(cat "$REPO_CRP/crp3.ps1")"
+fi
+
 # Fail closed: with no CLAUDE_PLUGIN_DATA an approval can be neither recorded
 # nor verified, so a CustomRulePath settings state must still skip the run (and
 # notice every time — the once-per-session gate fails open toward visibility

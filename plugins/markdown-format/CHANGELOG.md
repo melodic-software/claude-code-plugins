@@ -15,12 +15,23 @@ All notable changes to the `markdown-format` plugin are documented here. Format 
   lint run, with a visible once-per-session notice on both channels, until the
   user approves that exact configuration-content state by creating the marker
   directory named in the notice (under `${CLAUDE_PLUGIN_DATA}/trust-approvals`).
-  Any configuration change revokes the approval; the gate fails closed when
-  `CLAUDE_PLUGIN_DATA` is unavailable. Previously the hook warned once and
-  executed anyway, so a malicious repository's checked-in config could run
-  arbitrary code on a routine markdown edit. Declarative rule-only
-  configuration is unaffected. The edit itself is still never blocked — the
-  hook always exits 0.
+  The approval signature is content-addressed over the configuration AND every
+  repository file its string literals resolve to (transitively, bounded), so a
+  change to the configuration or to a referenced repository module — e.g. a
+  branch switch swapping rule-module bytes under an unchanged config — revokes
+  the approval; the gate fails closed when `CLAUDE_PLUGIN_DATA` is unavailable
+  or the module scan overflows its bound. Module-key detection in declarative
+  configs is a fail-closed textual over-approximation rather than a second
+  parser (which would only open a differential-parsing gap against
+  markdownlint-cli2's own parser): the literal key words anywhere in the file
+  gate as code-loading, and constructs able to synthesize a hidden spelling
+  (JSONC `\uXXXX` escapes; YAML `\x`/`\u`/`\U` escapes, escaped line joins,
+  `!!` tags) mark the configuration unverifiable — gated with no approval
+  route, since text whose meaning cannot be read cannot be reviewed.
+  Previously the hook warned once and executed anyway, so a malicious
+  repository's checked-in config could run arbitrary code on a routine
+  markdown edit. Declarative rule-only configuration is unaffected. The edit
+  itself is still never blocked — the hook always exits 0.
 
 ### Fixed
 

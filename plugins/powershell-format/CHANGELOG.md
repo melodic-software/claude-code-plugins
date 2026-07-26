@@ -13,9 +13,15 @@ All notable changes to the `powershell-format` plugin are documented here. Forma
   analysis, so the hook no longer runs the formatter/analyzer under such a
   settings file automatically: it skips the run — with a visible
   once-per-session notice on both channels — until the user approves that exact
-  settings-content state by creating the marker directory named in the notice
-  (under `${CLAUDE_PLUGIN_DATA}/trust-approvals`). Any settings change revokes
-  the approval; the gate fails closed when `CLAUDE_PLUGIN_DATA` is unavailable.
+  settings-and-rule-module content state by creating the marker directory named
+  in the notice (under `${CLAUDE_PLUGIN_DATA}/trust-approvals`). The approval
+  signature is content-addressed over the settings file AND every file
+  reachable under each declared `CustomRulePath` entry (recursively for
+  directories), so a change to the settings or to any referenced rule module —
+  e.g. a branch switch swapping module bytes under an unchanged settings file —
+  revokes the approval. The gate fails closed when `CLAUDE_PLUGIN_DATA` is
+  unavailable, and also when a `CustomRulePath` entry does not resolve to
+  hashable content: an unpinnable state offers no approval route at all.
   Detection uses PowerShell's restricted data-file parser
   (`Import-PowerShellDataFile`), not a textual scan, so quoting/escape
   obfuscation of the key cannot evade it — and a settings file the restricted

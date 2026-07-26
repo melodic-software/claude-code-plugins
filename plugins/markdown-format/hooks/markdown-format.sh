@@ -218,6 +218,7 @@ fi
 # documented same-directory precedence so a shadowed executable config does not
 # create a false warning.
 RISK_CONFIGS=()
+RISK_UNVERIFIABLE=0
 CONFIG_ROOT="$(cd "$REPO_ROOT" 2>/dev/null && pwd -P)" || CONFIG_ROOT="$REPO_ROOT"
 CONFIG_TARGET_DIR="$(cd "$(dirname "$FILE")" 2>/dev/null && pwd -P)" ||
   CONFIG_TARGET_DIR="$(dirname "$FILE")"
@@ -250,8 +251,33 @@ collect_risky_configs() {
       case "$config" in
       *.cjs | *.mjs) RISK_CONFIGS+=("$config") ;;
       *)
-        if grep -Eq "[\"']?(customRules|markdownItPlugins|outputFormatters)[\"']?[[:space:]]*:" "$config" 2>/dev/null; then
+        # A textual scan cannot see a module-loading key spelled through
+        # string escapes (JSONC "customRules") or YAML escape/tag
+        # machinery, and building a second parser here would only open a
+        # differential-parsing gap against the parser markdownlint-cli2
+        # actually uses. The predicate is instead a fail-closed
+        # over-approximation in two tiers. Tier one: the literal key words
+        # ANYWHERE in the file — no key-colon anchor, because YAML
+        # explicit-key syntax (`? customRules` with `:` on the next line)
+        # separates the key from its colon — mark the config code-loading.
+        # Tier two: any construct capable of synthesizing a spelling the
+        # scan cannot see (JSONC \uXXXX escapes; YAML \x/\u/\U escapes,
+        # escaped line joins, !! tags — a !!binary key decodes to arbitrary
+        # text) marks it UNVERIFIABLE: it gates AND refuses approval below,
+        # because text whose meaning cannot be read cannot be meaningfully
+        # reviewed. YAML anchors/aliases stay verifiable — an alias only
+        # reuses a node whose text is spelled literally elsewhere in the
+        # same file, where tier one sees it.
+        if grep -Eq 'customRules|markdownItPlugins|outputFormatters' "$config" 2>/dev/null; then
           RISK_CONFIGS+=("$config")
+        elif [[ "$config" == *.jsonc ]] &&
+          grep -Eq '\\u[0-9a-fA-F]{4}' "$config" 2>/dev/null; then
+          RISK_CONFIGS+=("$config")
+          RISK_UNVERIFIABLE=1
+        elif [[ "$config" == *.yaml ]] &&
+          grep -Eq '\\[xuU][0-9a-fA-F]|\\$|!![A-Za-z]' "$config" 2>/dev/null; then
+          RISK_CONFIGS+=("$config")
+          RISK_UNVERIFIABLE=1
         fi
         ;;
       esac
@@ -277,30 +303,104 @@ collect_risky_configs() {
   done
 }
 
+# The approval signature must cover the code that would RUN, not only the
+# config that names it: a customRules/markdownItPlugins/outputFormatters
+# module — or a file require()d by an approved .cjs/.mjs config — can change
+# (e.g. on a branch switch) while the config text stays identical, and a
+# config-only signature would keep honoring the stale approval. Enumerating
+# the true module graph would mean executing Node resolution, which is the
+# very thing being gated, so approximate it conservatively from text: collect
+# every string literal in each risky config, resolve it against the config's
+# directory and the repo root, and for each hit inside this repository take
+# the file (or, for a directory, its package.json/index entry points, the
+# files Node's directory-require loads) into MODULE_FILES — then rescan each
+# collected file the same way, so a repo rule module's own relative requires
+# are covered transitively. Bounded at 64 scanned files; exceeding the bound
+# returns 1 and the caller fails closed. Bare package identifiers resolve to
+# node_modules, which the user installs explicitly — that separate trust
+# decision is not folded into this repository-content signature.
+MODULE_FILES=()
+collect_module_files() {
+  local item dir str candidate resolved entry scanned=0
+  local queue=("$@")
+  local -A seen_scan=() seen_module=()
+  local quoted_string_re="\"[^\"]+\"|'[^']+'"
+
+  while ((${#queue[@]} > 0)); do
+    item="${queue[0]}"
+    queue=("${queue[@]:1}")
+    [[ -n "${seen_scan[$item]:-}" ]] && continue
+    seen_scan[$item]=1
+    scanned=$((scanned + 1))
+    ((scanned <= 64)) || return 1
+    dir="$(dirname "$item")"
+    while IFS= read -r str; do
+      str="${str#?}"
+      str="${str%?}"
+      [[ -n "$str" && "$str" != *$'\n'* ]] || continue
+      for candidate in "$dir/$str" "$CONFIG_ROOT/$str"; do
+        resolved=""
+        if [[ -f "$candidate" ]]; then
+          resolved="$(hook::physical_path "$candidate")"
+        elif [[ -d "$candidate" ]]; then
+          for entry in package.json index.js index.cjs index.mjs; do
+            if [[ -f "$candidate/$entry" ]]; then
+              queue+=("$(hook::physical_path "$candidate/$entry")")
+            fi
+          done
+          continue
+        else
+          continue
+        fi
+        case "$resolved" in
+        "$CONFIG_ROOT"/*) ;;
+        *) continue ;;
+        esac
+        if [[ -z "${seen_module[$resolved]:-}" ]]; then
+          seen_module[$resolved]=1
+          MODULE_FILES+=("$resolved")
+          queue+=("$resolved")
+        fi
+      done
+    done < <(grep -oE "$quoted_string_re" "$item" 2>/dev/null)
+  done
+  return 0
+}
+
 # Resolve the trust-approval marker directory for the current repo +
 # risky-config content state into TRUST_DIR. CLAUDE_PLUGIN_DATA is the
 # official persistent plugin-state location and survives plugin updates; the
-# signature is content-addressed over every risky config, so any configuration
-# change yields a new directory and revokes a prior approval. Returns 1 when
-# the state base is unavailable or a config cannot be digested — the caller
+# signature is content-addressed over every risky config PLUS every resolved
+# code-loading input it references (see collect_module_files), so a change to
+# the configuration or to a referenced repository module yields a new
+# directory and revokes a prior approval. Returns 1 when the state base is
+# unavailable, a config or module cannot be digested, the module scan
+# overflows its bound, or the config was classified unverifiable — the caller
 # must fail CLOSED and skip the lint run: configuration that can execute code
 # and whose approval cannot be verified is never run. Named trust-approvals,
 # NOT trust-advisories: that directory's markers recorded only that a warning
 # had been shown, and reading them as approvals would silently grant trust.
 TRUST_DIR=""
 resolve_trust_dir() {
-  local state_base="${CLAUDE_PLUGIN_DATA:-}" signature config digest
+  local state_base="${CLAUDE_PLUGIN_DATA:-}" signature config module digest
   TRUST_DIR=""
   [[ -n "$state_base" ]] || return 1
+  ((RISK_UNVERIFIABLE == 0)) || return 1
   if command -v cygpath >/dev/null 2>&1 && [[ "$state_base" == [A-Za-z]:\\* ]]; then
     state_base="$(cygpath -u "$state_base" 2>/dev/null)" || return 1
   fi
+  MODULE_FILES=()
+  collect_module_files "${RISK_CONFIGS[@]}" || return 1
   signature=$(
     {
       printf '%s\n' "$REPO_ROOT"
       for config in "${RISK_CONFIGS[@]}"; do
         digest=$(git hash-object "$config" 2>/dev/null) || return 1
         printf '%s\t%s\n' "$config" "$digest"
+      done
+      for module in "${MODULE_FILES[@]}"; do
+        digest=$(git hash-object "$module" 2>/dev/null) || return 1
+        printf 'module\t%s\t%s\n' "$module" "$digest"
       done
     } | git hash-object --stdin 2>/dev/null
   ) || return 1
@@ -328,9 +428,11 @@ if ((${#RISK_CONFIGS[@]} > 0)); then
       RISK_LIST+="${RISK_LIST:+, }$config"
     done
     if [[ -n "$TRUST_DIR" ]]; then
-      APPROVE_HINT="Review these files and their installed dependencies; to approve this exact configuration state and enable linting, run: mkdir -p '$TRUST_DIR' (any configuration change revokes the approval)."
+      APPROVE_HINT="Review these files and their installed dependencies; to approve this exact configuration state and enable linting, run: mkdir -p '$TRUST_DIR' (any change to the configuration or a referenced repository module revokes the approval)."
+    elif ((RISK_UNVERIFIABLE == 1)); then
+      APPROVE_HINT="The configuration contains constructs (string escapes or tags) that defeat textual verification, so it cannot be reviewed as written and linting stays disabled for this repository."
     else
-      APPROVE_HINT="Approval state is unavailable (CLAUDE_PLUGIN_DATA unset or unusable), so linting stays disabled for this repository."
+      APPROVE_HINT="Approval state is unavailable (CLAUDE_PLUGIN_DATA unset or unusable, or the configuration's referenced modules could not be tracked), so linting stays disabled for this repository."
     fi
     if hook::notice_once "markdown-format-trust-${TRUST_DIR##*/}" "$INPUT"; then
       hook::emit_skip_notice PostToolUse \

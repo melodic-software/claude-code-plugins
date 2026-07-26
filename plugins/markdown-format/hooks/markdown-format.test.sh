@@ -656,6 +656,71 @@ else
   fail "risky config without a plugin-data store did not fail closed: $OUT_TRUST_NOSTATE"
 fi
 
+# A module-loading key spelled through a JSONC string escape must not slip past
+# the textual key scan: the config is unverifiable as written, so it gates AND
+# refuses approval (no marker instruction is offered).
+cat >"$ORIGINAL_CONFIG" <<'JSONC'
+{
+  "config": { "MD013": false },
+  "custom\u0052ules": [],
+  "noBanner": true,
+  "noProgress": true
+}
+JSONC
+printf '# Executable config\n\nClean text.' >"$TRUST_FILE"
+OUT_TRUST_ESCAPE="$(cd "$UNRELATED" && printf '{"tool_input":{"file_path":"%s"}}' "$TRUST_FILE" |
+  env -u CLAUDE_PROJECT_DIR CLAUDE_PLUGIN_DATA="$TRUST_DATA" CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true bash "$HOOK")"
+if printf '%s' "$OUT_TRUST_ESCAPE" | jq -e '(.systemMessage | contains("trust gate") and contains("defeat textual verification")) and (.systemMessage | contains("mkdir -p") | not)' >/dev/null 2>&1 &&
+  ! has_final_newline "$TRUST_FILE"; then
+  ok "escape-obfuscated module key gates and refuses approval"
+else
+  fail "escape-obfuscated module key was not gated unverifiable: $OUT_TRUST_ESCAPE"
+fi
+
+# The approval signature must cover the referenced module content, not only the
+# config text: after approving a config whose customRules names a repository
+# module, changing THAT MODULE (config untouched) must revoke the approval.
+mkdir -p "$REPO/rules"
+cat >"$REPO/rules/local-rule.cjs" <<'CJS'
+module.exports = { names: ["local-rule"], description: "noop", tags: [], function: () => {} };
+CJS
+cat >"$ORIGINAL_CONFIG" <<'JSONC'
+{
+  "config": { "MD013": false },
+  "customRules": ["./rules/local-rule.cjs"],
+  "noBanner": true,
+  "noProgress": true
+}
+JSONC
+printf '# Executable config\n\nClean text.' >"$TRUST_FILE"
+OUT_TRUST_MOD1="$(cd "$UNRELATED" && printf '{"tool_input":{"file_path":"%s"}}' "$TRUST_FILE" |
+  env -u CLAUDE_PROJECT_DIR CLAUDE_PLUGIN_DATA="$TRUST_DATA" CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true bash "$HOOK")"
+MOD_MARKER="$(printf '%s' "$OUT_TRUST_MOD1" | jq -r '.systemMessage' | sed -n "s/.*mkdir -p '\([^']*\)'.*/\1/p")"
+if [[ -n "$MOD_MARKER" && "$MOD_MARKER" == "$TRUST_DATA"/* ]] && ! has_final_newline "$TRUST_FILE"; then
+  ok "module-referencing config gates with an approval marker"
+else
+  fail "module-referencing config not gated with marker: $OUT_TRUST_MOD1"
+fi
+mkdir -p "$MOD_MARKER"
+OUT_TRUST_MOD2="$(cd "$UNRELATED" && printf '{"tool_input":{"file_path":"%s"}}' "$TRUST_FILE" |
+  env -u CLAUDE_PROJECT_DIR CLAUDE_PLUGIN_DATA="$TRUST_DATA" CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true bash "$HOOK")"
+if [[ -z "$OUT_TRUST_MOD2" ]] && has_final_newline "$TRUST_FILE"; then
+  ok "approved config+module state lints"
+else
+  fail "approved config+module state did not lint: $OUT_TRUST_MOD2"
+fi
+printf '\n// unreviewed rule revision\n' >>"$REPO/rules/local-rule.cjs"
+printf '# Executable config\n\nClean text.' >"$TRUST_FILE"
+OUT_TRUST_MOD3="$(cd "$UNRELATED" && printf '{"tool_input":{"file_path":"%s"}}' "$TRUST_FILE" |
+  env -u CLAUDE_PROJECT_DIR CLAUDE_PLUGIN_DATA="$TRUST_DATA" CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true bash "$HOOK")"
+if printf '%s' "$OUT_TRUST_MOD3" | jq -e '.hookSpecificOutput.additionalContext | contains("trust gate")' >/dev/null 2>&1 &&
+  ! has_final_newline "$TRUST_FILE"; then
+  ok "changed referenced module revokes approval and blocks again"
+else
+  fail "changed referenced module did not revoke approval: $OUT_TRUST_MOD3"
+fi
+rm -rf "$REPO/rules"
+
 # Negative control: a declarative rule-only config is not executable and loads
 # no modules, so linting proceeds immediately with no gate noise.
 mv "$SAVED_CONFIG" "$ORIGINAL_CONFIG"

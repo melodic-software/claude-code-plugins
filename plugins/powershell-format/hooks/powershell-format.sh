@@ -173,41 +173,27 @@ to_pwsh_path() {
 PSSA_FILE_ARG="$(to_pwsh_path "$FILE")"
 PSSA_SETTINGS_ARG="$(to_pwsh_path "$SETTINGS_FOUND")"
 
-# Trust gate state for the code-loading settings check inside the pwsh block
-# below. A settings file may declare CustomRulePath, and PSScriptAnalyzer loads
-# and RUNS those rule modules during analysis — repository-supplied code must
-# never execute on the strength of a PowerShell edit alone. Approval is an
+# Trust gate state base for the code-loading settings check inside the pwsh
+# block below. A settings file may declare CustomRulePath, and PSScriptAnalyzer
+# loads and RUNS those rule modules during analysis — repository-supplied code
+# must never execute on the strength of a PowerShell edit alone. Approval is an
 # explicit marker directory the user creates after reviewing the settings file
 # and every rule module it references. CLAUDE_PLUGIN_DATA is the official
-# persistent plugin-state location and survives plugin updates; the signature
-# is content-addressed over the repo root and the settings file, so any
-# settings change yields a new directory and revokes a prior approval.
-# resolve_trust_dir returns 1 when the state base is unavailable or the
-# settings cannot be digested — the exit-6 arm then fails CLOSED: a
-# code-loading settings state whose approval cannot be verified is never run.
-# (Same shape as markdown-format's trust gate; a future refactor could hoist
-# the shared primitive into the hook-utils library.)
-TRUST_DIR=""
-resolve_trust_dir() {
-  local state_base="${CLAUDE_PLUGIN_DATA:-}" signature digest
-  TRUST_DIR=""
-  [[ -n "$state_base" ]] || return 1
-  if command -v cygpath >/dev/null 2>&1 && [[ "$state_base" == [A-Za-z]:\\* ]]; then
-    state_base="$(cygpath -u "$state_base" 2>/dev/null)" || return 1
-  fi
-  signature=$(
-    {
-      printf '%s\n' "$REPO_ROOT"
-      digest=$(git hash-object "$SETTINGS_FOUND" 2>/dev/null) || return 1
-      printf '%s\t%s\n' "$SETTINGS_FOUND" "$digest"
-    } | git hash-object --stdin 2>/dev/null
-  ) || return 1
-  [[ -n "$signature" ]] || return 1
-  TRUST_DIR="${state_base%/}/trust-approvals/$signature"
-}
-resolve_trust_dir || TRUST_DIR=""
-PSSA_APPROVED=0
-[[ -n "$TRUST_DIR" && -d "$TRUST_DIR" ]] && PSSA_APPROVED=1
+# persistent plugin-state location and survives plugin updates. The approval
+# signature itself is computed inside pwsh, because only the restricted data
+# parser can resolve WHAT the settings load: it is content-addressed over the
+# repo root, the settings file, and every file reachable under each declared
+# CustomRulePath entry, so a change to the settings OR to any referenced rule
+# module yields a new marker directory and revokes a prior approval — a
+# settings-only signature would keep honoring an approval after a branch
+# switch replaced the rule module bytes. The exit-6 arm fails CLOSED whenever
+# the signature cannot be computed. (Same shape as markdown-format's trust
+# gate; a future refactor could hoist the shared primitive into the hook-utils
+# library.)
+PSSA_STATE_BASE_ARG=""
+if [[ -n "${CLAUDE_PLUGIN_DATA:-}" ]]; then
+  PSSA_STATE_BASE_ARG="$(to_pwsh_path "$CLAUDE_PLUGIN_DATA")"
+fi
 
 # Single pwsh invocation — probe the module, gate code-loading settings, format
 # in place, then lint. File and settings pass via env vars to avoid pwsh
@@ -223,7 +209,7 @@ PSSA_APPROVED=0
 # SC2016: PowerShell uses $env:VAR syntax inside single quotes — not bash expansion.
 # shellcheck disable=SC2016
 PSSA_OUTPUT=$(PSSA_FILE="$PSSA_FILE_ARG" PSSA_SETTINGS="$PSSA_SETTINGS_ARG" \
-  PSSA_SETTINGS_APPROVED="$PSSA_APPROVED" \
+  PSSA_STATE_BASE="$PSSA_STATE_BASE_ARG" PSSA_REPO_ROOT="$REPO_ROOT" \
   pwsh -NoProfile -NonInteractive -Command '
     if (-not (Get-Module -ListAvailable -Name PSScriptAnalyzer)) {
         exit 3
@@ -238,15 +224,78 @@ PSSA_OUTPUT=$(PSSA_FILE="$PSSA_FILE_ARG" PSSA_SETTINGS="$PSSA_SETTINGS_ARG" \
     # rejects cannot be proven code-free (PSScriptAnalyzer settings parsing is
     # more lenient, for example taking the first hashtable of a
     # multi-statement file), so it gates too: fail closed.
-    if ($env:PSSA_SETTINGS_APPROVED -ne "1") {
-        $loadsCode = $true
-        try {
-            $sd = Import-PowerShellDataFile -LiteralPath $env:PSSA_SETTINGS -ErrorAction Stop
-            $loadsCode = ($sd -is [hashtable]) -and $sd.ContainsKey("CustomRulePath")
-        } catch {
-            $loadsCode = $true
+    #
+    # The approval signature covers the settings file AND every file reachable
+    # under each declared CustomRulePath entry (recursively for directories,
+    # matching -RecurseCustomRulePath reach), so approval binds to the rule
+    # module content that would execute, not just to the text that names it.
+    # An entry that does not resolve, or a state base that is unusable, makes
+    # the state unverifiable: exit 6 with no approval route (fail closed).
+    # Structured PSSA_TRUST lines on stdout hand the verdict to the shell.
+    $sd = $null
+    try {
+        $sd = Import-PowerShellDataFile -LiteralPath $env:PSSA_SETTINGS -ErrorAction Stop
+    } catch {
+        $sd = $null
+    }
+    if (-not ($sd -is [hashtable])) {
+        Write-Output "PSSA_TRUST UNVERIFIABLE"
+        exit 6
+    }
+    if ($sd.ContainsKey("CustomRulePath")) {
+        $settingsDir = Split-Path -Parent $env:PSSA_SETTINGS
+        $ruleFiles = [System.Collections.Generic.List[string]]::new()
+        $unverifiable = $false
+        foreach ($entry in @($sd["CustomRulePath"])) {
+            if (-not ($entry -is [string]) -or [string]::IsNullOrWhiteSpace($entry)) {
+                $unverifiable = $true; break
+            }
+            $resolvedPath = $entry
+            if (-not [System.IO.Path]::IsPathRooted($resolvedPath)) {
+                $resolvedPath = Join-Path $settingsDir $resolvedPath
+            }
+            if (Test-Path -LiteralPath $resolvedPath -PathType Leaf) {
+                $ruleFiles.Add((Convert-Path -LiteralPath $resolvedPath))
+            } elseif (Test-Path -LiteralPath $resolvedPath -PathType Container) {
+                foreach ($f in Get-ChildItem -LiteralPath $resolvedPath -Recurse -File -Force) {
+                    $ruleFiles.Add($f.FullName)
+                }
+            } else {
+                $unverifiable = $true; break
+            }
         }
-        if ($loadsCode) { exit 6 }
+        if ($unverifiable -or $ruleFiles.Count -gt 512) {
+            Write-Output "PSSA_TRUST UNVERIFIABLE"
+            exit 6
+        }
+        $manifest = [System.Text.StringBuilder]::new()
+        [void]$manifest.AppendLine($env:PSSA_REPO_ROOT)
+        $digestTargets = @($env:PSSA_SETTINGS) + (@($ruleFiles) | Sort-Object)
+        foreach ($target in $digestTargets) {
+            try {
+                $h = (Get-FileHash -LiteralPath $target -Algorithm SHA256 -ErrorAction Stop).Hash
+            } catch {
+                Write-Output "PSSA_TRUST UNVERIFIABLE"
+                exit 6
+            }
+            [void]$manifest.AppendLine("$target`t$h")
+        }
+        if ([string]::IsNullOrEmpty($env:PSSA_STATE_BASE)) {
+            Write-Output "PSSA_TRUST NOSTORE"
+            exit 6
+        }
+        $sigBytes = [System.Security.Cryptography.SHA256]::HashData(
+            [System.Text.Encoding]::UTF8.GetBytes($manifest.ToString()))
+        $signature = [System.Convert]::ToHexString($sigBytes).ToLowerInvariant()
+        # Emit the marker NAME, not a path: the shell rebuilds the directory in
+        # its own path form so the approval hint matches the POSIX shell the
+        # user runs mkdir in, while Test-Path here uses the native form — both
+        # views name the same physical directory.
+        $trustDir = Join-Path $env:PSSA_STATE_BASE "trust-approvals" "pssa-$signature"
+        if (-not (Test-Path -LiteralPath $trustDir -PathType Container)) {
+            Write-Output "PSSA_TRUST GATE pssa-$signature"
+            exit 6
+        }
     }
     try {
         $file = $env:PSSA_FILE
@@ -355,19 +404,52 @@ case $PWSH_EXIT in
 6)
   # Trust gate — the settings file can make the analyzer execute
   # repository-supplied code (CustomRulePath), or could not be verified
-  # code-free, and this exact settings-content state carries no approval
-  # marker. Skip the run with a visible once-per-session notice on both
-  # channels; the notice key carries the state signature so a settings change
-  # re-notices within the same session. When the approval store is unavailable
-  # the gate fails closed: analysis stays disabled rather than trusted.
+  # code-free, and this exact settings-plus-rule-module content state carries
+  # no approval marker. Skip the run with a visible once-per-session notice on
+  # both channels; the notice key carries the state signature so a settings or
+  # rule-module change re-notices within the same session. When the approval
+  # store is unavailable or the state is unverifiable the gate fails closed:
+  # analysis stays disabled rather than trusted. The pwsh block reports the
+  # verdict as a structured PSSA_TRUST line: "GATE <marker-name>" (approvable —
+  # the marker directory is rebuilt here from CLAUDE_PLUGIN_DATA in shell path
+  # form so the mkdir hint runs as printed), "NOSTORE" (no state base), or
+  # "UNVERIFIABLE" (settings unparsable, a CustomRulePath entry unresolvable,
+  # or rule content undigestable).
   SETTINGS_REL="$SETTINGS_FOUND"
   [[ -n "$root" ]] && SETTINGS_REL="${SETTINGS_FOUND#"$root"/}"
-  if [[ -n "$TRUST_DIR" ]]; then
-    APPROVE_HINT="Review that file and every rule module it references; to approve this exact settings-content state and enable analysis, run: mkdir -p '$TRUST_DIR' (any settings change revokes the approval)."
+  TRUST_VERDICT=""
+  TRUST_MARKER_NAME=""
+  TRUST_DIR=""
+  while IFS= read -r line; do
+    case "$line" in
+    "PSSA_TRUST GATE "*)
+      TRUST_VERDICT="GATE"
+      TRUST_MARKER_NAME="${line#PSSA_TRUST GATE }"
+      ;;
+    "PSSA_TRUST NOSTORE") TRUST_VERDICT="NOSTORE" ;;
+    "PSSA_TRUST UNVERIFIABLE") TRUST_VERDICT="UNVERIFIABLE" ;;
+    *) ;;
+    esac
+  done <<<"$PSSA_OUTPUT"
+  if [[ "$TRUST_VERDICT" == "GATE" && -n "$TRUST_MARKER_NAME" ]]; then
+    trust_state_base="${CLAUDE_PLUGIN_DATA:-}"
+    if command -v cygpath >/dev/null 2>&1 && [[ "$trust_state_base" == [A-Za-z]:\\* ]]; then
+      trust_state_base="$(cygpath -u "$trust_state_base" 2>/dev/null)" || trust_state_base=""
+    fi
+    [[ -n "$trust_state_base" ]] &&
+      TRUST_DIR="${trust_state_base%/}/trust-approvals/$TRUST_MARKER_NAME"
+  fi
+  if [[ "$TRUST_VERDICT" == "GATE" && -n "$TRUST_DIR" ]]; then
+    APPROVE_HINT="Review that file and every rule module it references; to approve this exact settings-and-rule-module content state and enable analysis, run: mkdir -p '$TRUST_DIR' (any change to the settings or a referenced rule module revokes the approval)."
+    NOTICE_KEY="powershell-format-trust-${TRUST_DIR##*[/\\]}"
+  elif [[ "$TRUST_VERDICT" == "UNVERIFIABLE" ]]; then
+    APPROVE_HINT="The settings state cannot be verified (settings unparsable by the restricted data parser, or a declared CustomRulePath entry does not resolve to hashable content), so analysis stays disabled for this repository."
+    NOTICE_KEY="powershell-format-trust-unverifiable"
   else
     APPROVE_HINT="Approval state is unavailable (CLAUDE_PLUGIN_DATA unset or unusable), so analysis stays disabled for this repository."
+    NOTICE_KEY="powershell-format-trust-nostore"
   fi
-  if hook::notice_once "powershell-format-trust-${TRUST_DIR##*/}" "$INPUT"; then
+  if hook::notice_once "$NOTICE_KEY" "$INPUT"; then
     hook::emit_skip_notice PostToolUse \
       "powershell-format trust gate: PSScriptAnalyzer run skipped — $SETTINGS_REL declares CustomRulePath (analysis would load and execute repository-supplied rule modules) or cannot be verified code-free. $APPROVE_HINT"
   fi

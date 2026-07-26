@@ -54,12 +54,43 @@ test("shouldSkipLinkCheck skips private, loopback, link-local and reserved hosts
 	}
 });
 
+test("shouldSkipLinkCheck skips shared-address and other non-global blocks", async () => {
+	for (const link of [
+		"http://100.64.0.1/", // 100.64.0.0/10 shared address space (CGN)
+		"http://100.127.255.254/",
+		"http://192.0.0.8/", // 192.0.0.0/24 IETF protocol assignments
+		"http://192.0.2.1/", // TEST-NET-1
+		"http://198.18.0.1/", // benchmarking
+		"http://198.19.255.1/",
+		"http://198.51.100.7/", // TEST-NET-2
+		"http://203.0.113.9/", // TEST-NET-3
+		"http://224.0.0.251/", // multicast
+		"http://240.0.0.1/", // reserved
+		"http://255.255.255.255/", // broadcast
+		"http://[::ffff:100.64.0.1]/", // IPv4-mapped shared address space
+		"http://[64:ff9b::a00:1]/", // NAT64 prefix embedding 10.0.0.1
+		"http://[100::1]/", // discard-only
+		"http://[2001:db8::1]/", // documentation
+		"http://[3fff::1]/", // documentation (RFC 9637)
+		"http://[ff02::1]/", // multicast
+	]) {
+		assert.equal(await shouldSkipLinkCheck(link), true, link);
+	}
+});
+
 test("shouldSkipLinkCheck still checks ordinary public hosts", async () => {
 	for (const link of [
 		"https://example.com/a",
 		"http://8.8.8.8/",
 		"https://172.15.0.1/", // just below the 172.16/12 private block
 		"https://172.32.0.1/", // just above it
+		"https://100.63.255.254/", // just below the 100.64/10 shared block
+		"https://100.128.0.1/", // just above it
+		"https://192.0.1.1/", // between 192.0.0/24 and 192.0.2/24
+		"https://198.17.255.1/", // just below the 198.18/15 benchmarking block
+		"https://198.20.0.1/", // just above it
+		"https://223.255.255.254/", // top of unicast space, below multicast
+		"https://[2001:db7::1]/", // just below the 2001:db8::/32 documentation block
 	]) {
 		assert.equal(await shouldSkipLinkCheck(link), false, link);
 	}
