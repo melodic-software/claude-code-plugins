@@ -226,11 +226,18 @@ scan_file() {
     # while `>&`/`<&` and `&&` are kept, since a real ladder may redirect with
     # 2>&1 and `a && b || c` does still fall back to c when a fails. `)` stays
     # admissible because a real ladder closes a $( ) before its ||.
-    function is_guarded(l, p, CMDPOS, SEG) {
+    #
+    # PRE is what may sit between either `stat` and its own option: a
+    # redirection does not change the argv stat receives, so
+    # `stat 2>/dev/null -f "%z" "$f"` is the same BSD call as `stat -f …` and
+    # must not be forced into a hand-written exemption (#1544). Requiring the
+    # run to end in whitespace keeps the option a separate argument.
+    function is_guarded(l, p, CMDPOS, SEG, PRE) {
       CMDPOS = "\\|\\|[[:space:]]*([A-Za-z_][A-Za-z0-9_]*=)?(\\$\\()?[[:space:]]*"
       SEG = "([^;|&]|[<>]&|&&)*"
+      PRE = "[[:space:]]+([^;|&]*[[:space:]])?"
       if (p ~ /readlink/ && l ~ ("realpath" SEG CMDPOS "readlink")) return 1
-      if (index(p, "stat[[:space:]]") && l ~ ("stat[[:space:]]+(-[A-Za-z]*c|--format|--printf)" SEG CMDPOS "stat[[:space:]]+-[A-Za-z]*f")) return 1
+      if (index(p, "stat[[:space:]]") && l ~ ("stat" PRE "(-[A-Za-z]*c|--format|--printf)" SEG CMDPOS "stat" PRE "-[A-Za-z]*f")) return 1
       return 0
     }
     # Pass 1: collect active ERE patterns from the token list.

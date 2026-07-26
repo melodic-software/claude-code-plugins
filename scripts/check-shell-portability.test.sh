@@ -616,6 +616,17 @@ if scan_paths "$tok" "$f" >/dev/null 2>&1; then
 else
   fail "2>&1 must not be mistaken for a control &: $(scan_paths "$tok" "$f" 2>&1)"
 fi
+rm -f "$f"
+
+# --- a redirection may also sit between `stat` and its OWN option: it does not
+# change the argv stat receives, so this is the same BSD fallback and must not
+# be forced into a hand-written exemption (#1544).
+f="$(tmpsh 'size=$(stat -c "%s" "$f") || size=$(stat 2>/dev/null -f "%z" "$f")')"
+if scan_paths "$tok" "$f" >/dev/null 2>&1; then
+  ok "a redirection before the BSD fallback option is still recognized as a guard"
+else
+  fail "a redirecting BSD fallback must not be flagged: $(scan_paths "$tok" "$f" 2>&1)"
+fi
 rm -f "$f" "$tok"
 
 tok="$(one_token_list 'readlink[[:space:]]+(-[A-Za-z]*f|--canonicalize)')"
@@ -954,6 +965,41 @@ if scan_paths "$REAL_TOKENS" "$f" >/dev/null 2>&1; then
   ok "date --debug and stat --dereference are not read as -d / -c"
 else
   fail "long flags must not match the short-option branch: $(scan_paths "$REAL_TOKENS" "$f" 2>&1)"
+fi
+rm -f "$f"
+
+# --- `d` may sit at the argument-taking end of a CLUSTER: GNU lists `-u, --utc`
+# beside `-d, --date=STRING`, and `date -ud tomorrow +%Y` succeeds (#1544).
+f="$(tmpsh "$(printf '%s\n' \
+  'date -ud tomorrow +%s' \
+  'date -ud@0')")"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "a clustered -d should fail, got success: $out"
+elif [[ "$(echo "$out" | grep -c "PORTABILITY: ${f}:")" -eq 2 ]]; then
+  ok "a clustered date -ud is detected at the argument-taking end"
+else
+  fail "expected both clustered forms flagged, got: $out"
+fi
+rm -f "$f"
+
+# --- the matched hyphen must BEGIN an argument, so a `-c` living inside a
+# filename passes no option and must not be reported (#1544).
+f="$(tmpsh "$(printf '%s\n' \
+  'stat "$file-c"' \
+  'stat foo-c')")"
+if scan_paths "$REAL_TOKENS" "$f" >/dev/null 2>&1; then
+  ok "a -c inside an operand is not mistaken for stat's format option"
+else
+  fail "operands containing -c must not be flagged: $(scan_paths "$REAL_TOKENS" "$f" 2>&1)"
+fi
+rm -f "$f"
+
+# --- ...while an option that genuinely follows an operand still is.
+f="$(tmpsh 'stat "$f" -c %s')"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "a -c after an operand should still fail, got success: $out"
+else
+  ok "a -c that does begin an argument after an operand is still detected"
 fi
 rm -f "$f"
 

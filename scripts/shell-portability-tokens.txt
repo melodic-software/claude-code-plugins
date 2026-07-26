@@ -180,10 +180,14 @@ readlink[[:space:]]+(-[A-Za-z]*f|--canonicalize)
 # that a mandatory long-option argument is mandatory for the short option too
 # and accepts a bare word: `date -u -dtomorrow +%Y` succeeds. What keeps a
 # LONGER flag from being read as `-d` is not the tail but the run before it,
-# which may not end in `-`: that is what stops `date --debug` (a real GNU flag,
-# `date --debug +%s` succeeds) from matching on the `-d` inside `--debug`,
-# while `date -d@0`, `date -u -dyesterday` and `date --utc -d @0` all still do.
-(^|[^A-Za-z0-9_-])date[[:space:]]+([^;&|()\n]*[^-;&|()\n])?(-d|--date([[:space:]]|=))
+# which must end in WHITESPACE (or be empty, where `date`'s own trailing space
+# supplies the boundary). That is what makes the hyphen BEGIN an argument, so
+# `date --debug` — a real GNU flag, `date --debug +%s` succeeds — is not read
+# as the `-d` inside it, and neither is a `-d` buried in an operand.
+# `d` may also sit anywhere in a CLUSTER, at the argument-taking end: GNU lists
+# `-u, --utc` alongside `-d, --date=STRING` and `date -ud tomorrow +%Y`
+# succeeds, so the branch is `-[A-Za-z]*d` rather than a literal `-d`.
+(^|[^A-Za-z0-9_-])date[[:space:]]+([^;&|()\n]*[[:space:]])?(-[A-Za-z]*d|--date([[:space:]]|=))
 
 # `stat -c` (GNU format string) — a GNU coreutils extension; BSD/macOS stat
 # uses `-f`. Requires whitespace immediately after `stat` so the token matches
@@ -216,7 +220,11 @@ readlink[[:space:]]+(-[A-Za-z]*f|--canonicalize)
 # a literal `-c` search missed it (#1544). The same not-ending-in-`-` run as
 # `date -d` above keeps a long flag out of the cluster branch, so
 # `stat --dereference` is not read as a `-…c` cluster.
-(^|[^A-Za-z0-9_-])stat[[:space:]]+([^;&|()\n]*[^-;&|()\n])?(-[A-Za-z]*c|--format|--printf)
+# The run before the flag must end in WHITESPACE, so the hyphen BEGINS an
+# argument rather than sitting inside one (#1544): `stat foo-c` and
+# `stat "$file-c"` pass no option at all and were being reported, and the same
+# anchor keeps `stat --dereference` out of the cluster branch.
+(^|[^A-Za-z0-9_-])stat[[:space:]]+([^;&|()\n]*[[:space:]])?(-[A-Za-z]*c|--format|--printf)
 
 # --- STAGED (commented until enabled — see #1528 for the enable trigger) ---
 #
