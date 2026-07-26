@@ -643,10 +643,13 @@ sequencing, batching, delegation, or an occurrence count -- MUST be computed fro
 distilled observations before you write it, never asserted from a narrative impression of \
 the read. Derive an ordering or batching claim (e.g. "ran sequentially," "no subagent \
 delegation") by grouping tool-use events by API message id and inspecting the grouping. \
-Derive an occurrence count backing an "Emerging pattern" finding by actually counting \
-matched occurrences. If the observations don't carry what's needed to compute a structural \
-claim, drop the claim rather than assert it uncomputed -- an asserted-and-wrong structural \
-claim routes as if verified and is worse than a missed finding.
+Note: the distilled observations you have here may not carry a message-id field at all -- \
+if it's absent, that claim is uncomputable from what you have, not a license to assert it \
+from impression. Derive an occurrence count backing an "Emerging pattern" finding by \
+actually counting matched occurrences. If the observations don't carry what's needed to \
+compute a structural claim, drop the claim rather than assert it uncomputed -- an \
+asserted-and-wrong structural claim routes as if verified and is worse than a missed \
+finding.
 
 Inputs (absolute):
 - Distilled observations (pre-filtered event stream, one JSON event per line): {observations}

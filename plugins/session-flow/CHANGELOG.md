@@ -14,7 +14,11 @@
   delegation (`context/checkpoint.md`'s Method section and delegation prompt template) and the
   detached observer's headless analysis prompt (`observer.py`'s `_analysis_prompt`, which has no
   delegation prompt to fall back on and needed the rule inline). A structural claim that can't be
-  computed from the record must now be dropped rather than asserted uncomputed (#1473).
+  computed from the record must now be dropped rather than asserted uncomputed (#1473). The
+  headless prompt's message-id-grouping guidance now notes explicitly that the distilled
+  observations it receives may not carry a message-id field at all — `summarize_record()` never
+  preserves one — so an absent field reads as uncomputable rather than as license to assert from
+  impression.
 
 ## [0.17.3]
 

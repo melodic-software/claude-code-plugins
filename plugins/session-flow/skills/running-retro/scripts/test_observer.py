@@ -107,6 +107,20 @@ class AnalysisPrompt(unittest.TestCase):
         # Uncomputable structural claims must be dropped, not asserted anyway.
         self.assertIn("drop the claim", prompt)
 
+    def test_message_id_absence_caveat_present(self):
+        # summarize_record() never carries a message-id field into the
+        # distilled observations the headless run receives (see its distillation
+        # below) -- the prompt must say so explicitly, or the agent is told to
+        # group by a field that never exists in its own input (PR #1482 review).
+        prompt = observer._analysis_prompt(
+            observations="/abs/obs.jsonl", checkpoint="/abs/checkpoint.md",
+            session_id="sid")
+        self.assertIn("may not carry a message-id field", prompt)
+        rec = observer.summarize_record(
+            {"type": "assistant",
+             "message": {"content": [{"type": "tool_use", "name": "Read"}]}})
+        self.assertNotIn("id", rec)
+
     def test_redaction_rule_still_present(self):
         # Guard against the new instruction crowding out the pre-existing
         # mandatory redaction pass.
