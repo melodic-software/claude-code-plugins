@@ -400,9 +400,11 @@ fi
 rm -f "$f"
 
 # --- operator-terminated forms: no trailing whitespace before a control
-# operator, redirection, subshell close or quote must still be detected
-# (#1545 — the boundary originally accepted only whitespace or end of line,
-# the same class of false negative #1537 fixed for sort -V/grep -P/echo -e) -
+# operator, redirection, or subshell close must still be detected (#1545 —
+# the boundary originally accepted only whitespace or end of line, the same
+# class of false negative #1537 fixed for sort -V/grep -P/echo -e). Quotes
+# are NOT in this token's boundary (unlike the sibling tokens above) — see
+# the "sed -Ei'' must not be flagged" test above for why. --------------------
 while IFS= read -r case; do
   f="$(tmpsh "$case")"
   if out="$(scan_paths "$tok" "$f" 2>&1)"; then
@@ -747,21 +749,24 @@ fi
 rm -f "$f"
 
 # --- operator-terminated sed -Ei / --in-place forms are active in the
-# SHIPPED list too (#1545): both tokens widened to the same boundary
-# `--sort=WORD` (#1530) and `sort -V`/`grep -P`/`echo -e` (#1537) already use,
-# proven here against the real token list rather than only the isolated-token
-# mechanism above -------------------------------------------------------------
+# SHIPPED list too (#1545): both tokens widened to the control-operator/
+# redirection/subshell-close boundary (deliberately narrower than
+# `--sort=WORD` (#1530) and `sort -V`/`grep -P`/`echo -e` (#1537), which also
+# include quotes — see the token-file comment), proven here against the real
+# token list rather than only the isolated-token mechanism above -----------
 f="$(tmpsh "$(printf '%s\n' \
   'x=$(sed -Ei)' \
   'sed -Ei|cat' \
+  'sed -Ei; echo done' \
   'x=$(sed --in-place)' \
-  'sed --in-place|cat')")"
+  'sed --in-place|cat' \
+  'sed --in-place; echo done')")"
 if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
   fail "operator-terminated sed -Ei/--in-place should fail under the shipped list, got success: $out"
-elif [[ "$(echo "$out" | grep -c "PORTABILITY: ${f}:")" -eq 4 ]]; then
+elif [[ "$(echo "$out" | grep -c "PORTABILITY: ${f}:")" -eq 6 ]]; then
   ok "the shipped list detects every operator-terminated sed -Ei/--in-place form"
 else
-  fail "expected all 4 operator-terminated forms flagged, got: $out"
+  fail "expected all 6 operator-terminated forms flagged, got: $out"
 fi
 rm -f "$f"
 
