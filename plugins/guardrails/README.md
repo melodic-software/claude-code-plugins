@@ -1,6 +1,6 @@
 # guardrails
 
-A Claude Code plugin bundling eleven **safety guards** that catch risky agent
+A Claude Code plugin bundling twelve **safety guards** that catch risky agent
 actions the moment they happen — before a write lands or a bash command runs.
 Each guard is independently toggleable, so you run exactly the subset you want.
 
@@ -19,19 +19,29 @@ Each guard is independently toggleable, so you run exactly the subset you want.
 | **block-convention-violation** | PreToolUse · Bash | **Blocks** (exit 2) | A commit subject or `gh pr create --title` that violates the team-tracked convention pattern declared in `.claude/source-control.md`. No tracked pattern means no enforcement. Same exemptions as `block-noncanonical-commit`. |
 | **flag-commit-pr-skill-bypass** | PreToolUse · Bash | **Advisory** (exit 0) | Any `gh pr create`, bypassing this marketplace's own `/pull-request create` skill. Only fires when the consuming project's own `.claude/settings.json` enables the `source-control` plugin — silent otherwise. Surfaces via `additionalContext`, never blocks. |
 | **skill-reference-verify** | PostToolUse · Write \| Edit | **Advisory** (exit 0) | A `` `/plugin:skill` `` reference in markdown that does not resolve. Only fires inside a marketplace repo, and only for a plugin that repo's own manifests own — a reference to another marketplace is left alone. Resolves through manifest and frontmatter `name`, so a renamed directory still matches. Surfaces via `additionalContext`, never blocks. |
+| **stale-path-verify** | PostToolUse · Write \| Edit | **Advisory** (exit 0) | A repo-relative path cited in a markdown inline code span that this repo's own history shows was **deleted** and that is gone from the working tree. The gate is provenance, not absence: the exact path must appear in `git log HEAD --no-renames --diff-filter=D --name-only`, so a path belonging to a consuming project's tree, an example, or a plan is never adjudicated. Names the surviving file when exactly one tracked path now carries that basename. Link destinations are out of scope. Surfaces via `additionalContext`, never blocks. |
 
 The seven blocking guards feed their stderr message back to Claude as
-actionable fix guidance. The four advisory guards surface their findings the same
+actionable fix guidance. The five advisory guards surface their findings the same
 way but always allow the operation.
 
 ### Enforceability tiers
 
 Ten guards are **deterministic** — their oracle is a mechanical test with no
-judgment step. `skill-reference-verify` is **detect-then-judge**: globbing a
-plugins tree is exact only inside a marketplace repo that owns the referenced
-plugin, so its finding is a prompt for a human verdict, never a determination and
-never an auto-fix. `cli-flag-verify` is deterministic in its oracle but advisory in
-its action, because a written claim can be deliberately forward-looking.
+judgment step. Two are **detect-then-judge**, where the oracle is mechanical but
+the conclusion is a human verdict, never an auto-fix: `skill-reference-verify`,
+because globbing a plugins tree is exact only inside a marketplace repo that owns
+the referenced plugin; and `stale-path-verify`, because a path may be cited
+deliberately as a deletion or completion record and be correct exactly as
+written. `cli-flag-verify` is deterministic in its oracle but advisory in its
+action, because a written claim can be deliberately forward-looking.
+
+`stale-path-verify` detects **staleness, not hallucination**. An invented path was
+never in the repository, so it never enters the deleted-path set and the guard
+stays silent by construction. Separating a hallucinated path from a correctly
+documented consumer-tree path needs a signal a repo-root oracle does not have —
+both are absent locally and conventionally shaped — so that class is deliberately
+out of scope until such a signal exists.
 
 ### Scope notes
 
@@ -100,7 +110,10 @@ contract — disable one guard without touching the others.
 | block-dangerous-git | `block_dangerous_git_enabled` |
 | block-hook-bypass | `block_hook_bypass_enabled` |
 | block-noncanonical-commit | `block_noncanonical_commit_enabled` |
+| block-convention-violation | `block_convention_gate_enabled` |
 | cli-flag-verify | `cli_flag_verify_enabled` |
+| skill-reference-verify | `skill_reference_verify_enabled` |
+| stale-path-verify | `stale_path_verify_enabled` |
 | workflow-resilience-check | `workflow_resilience_check_enabled` |
 | flag-commit-pr-skill-bypass | `flag_commit_pr_skill_bypass_enabled` |
 
