@@ -21,6 +21,8 @@ imposes no rules of its own.
   the file's directory up through its parents — so a nested config governs its
   subtree. The hook `cd`s to the repository root before linting so that
   discovery caps at the root regardless of the session's working directory.
+  A configuration that can execute code is gated on explicit approval — see
+  [Configuration trust boundary](#configuration-trust-boundary).
 
 ## Requirements
 
@@ -49,13 +51,25 @@ envelope is skipped while formatting still runs.
 ### Configuration trust boundary
 
 `markdownlint-cli2` supports executable `.cjs`/`.mjs` configuration and can
-load custom rules, Markdown-it plugins, and output formatters. Because the hook
-runs the consuming repository's configuration, enable it only for repositories
-whose configuration and installed dependencies you trust. Prefer declarative
-JSONC or YAML when executable configuration is unnecessary. Before running a
-risky configuration, the hook emits a non-blocking trust advisory once for each
-repository and configuration-content state; changing that configuration causes
-the advisory to appear again.
+load custom rules, Markdown-it plugins, and output formatters — running it
+under such configuration executes code the repository supplies. The hook
+therefore never runs the linter under a code-loading configuration without an
+explicit approval: it skips the lint run and reports a visible trust-gate
+notice (once per session, on both the agent and user channels) naming the
+risky files and the approval marker to create. To approve, review those files
+and their installed dependencies, then create the marker directory using the
+exact `mkdir -p` command the notice carries. The marker lives under
+`${CLAUDE_PLUGIN_DATA}/trust-approvals` and is content-addressed over the
+repository, its risky configuration files, and every repository file those
+files' string literals resolve to (transitively, bounded), so a change to the
+configuration or to a referenced repository module — including a branch switch
+that swaps module bytes under an unchanged config — revokes the approval and
+re-gates the run. When `CLAUDE_PLUGIN_DATA` is unavailable, the module scan
+overflows its bound, or the configuration contains constructs that defeat
+textual verification (string escapes or tags able to hide a module-loading
+key), the gate fails closed and the lint run stays skipped. Declarative
+rule-only JSONC/YAML configuration is unaffected and lints immediately —
+prefer it when executable configuration is unnecessary.
 
 ## Install
 
