@@ -1,7 +1,9 @@
-# Instruction-Audit Criteria
+---
+version: 1.2.0
+last-updated: 2026-07-25
+---
 
-Version: 1.1.0
-Last updated: 2026-07-25
+# Instruction-Audit Criteria
 
 The checks the `audit-instructions` skill runs, seeded from current official prompting doctrine.
 Each check carries an evidence tier, an authority tag, a default severity, its surface
@@ -11,8 +13,9 @@ cited URL, not restated here).
 **Recheck triggers** — treat these as staleness signals and re-verify the catalog against live
 docs when any fires: a new frontier model release; **a change to any page listed under Sources
 below**. Every check cites one of those pages, so the trigger set is the source set — naming a
-subset would leave the harness-behavior rows depending on pages nothing watches. Model-specific
-pages (the Fable 5 guide) are superseded on each model generation.
+subset would leave the harness-behavior rows depending on pages nothing watches. One staleness event
+fires the whole catalog, not the check that noticed it. Model-specific pages (the Fable 5 guide) are
+superseded on each model generation.
 
 **Axes.** Three orthogonal axes, never conflated:
 
@@ -20,16 +23,33 @@ pages (the Fable 5 guide) are superseded on each model generation.
   truth is observed model behavior, so findings ship as proposals verified by the delete-and-watch
   loop, never confident removals).
 - **Authority** — `ANTHROPIC-DOCS` (official documentation), `TALK` (a recorded talk), `OPINION`
-  (a practitioner's stated practice). A closed three-value set. All fifteen checks are currently
-  `ANTHROPIC-DOCS`.
+  (a practitioner's stated practice). A closed three-value set.
 - **Severity** — `error` / `warning` / `info`.
+
+**`OPINION` enablement.** Enablement attaches to *detection*, never to advice, and splits on what a
+rule does:
+
+- An `OPINION` check that **emits** findings is **off** on bare invocation, enabled only by the
+  explicit `--opinion` argument, capped at `info`, and never fix-applied. An unconfirmed
+  practitioner preference does not get to mutate a consumer's instruction corpus under the same
+  banner as documented doctrine.
+- An `OPINION` rule that **withholds** findings is **on** by default, disabled only by an explicit
+  opt-out. Defaulting a suppressor off would not make the audit more conservative — it would delete
+  the only bound on the checks it moderates.
+- `OPINION`-derived *advice* inside a backed check's Remediate line follows that check's enablement
+  and severity, because the detection is the host's and is backed. It is labelled inline as
+  `OPINION`-derived and is never fix-applied.
+
+Every run reports one line naming how many `OPINION`-tier checks were available, how many did not
+run, and the argument that enables them — an off-by-default tier nobody can find is shipped in name
+only.
 
 **Surface partition.** Checks I1–I5 are the instruction-memory hygiene layer: they apply on
 non-memory surfaces (skill bodies, agent definitions, prompt-type hooks, output styles); on
 memory-layer surfaces (CLAUDE.md, CLAUDE.local.md, `.claude/rules/`, `~/.claude/rules/`) their
 findings route to the `claude-memory` plugin's `audit` skill when it is installed, and fall back
-to the official include/exclude guidance (I1–I5 source below) when it is not. Checks I6–I12 and I15 apply
-to all surfaces; I13 and I14 name narrower surface sets in their own rows.
+to the official include/exclude guidance (I1–I5 source below) when it is not. Checks I6–I12 and
+I15–I16 apply to all surfaces; I13 and I14 name narrower surface sets in their own rows.
 
 ## Sources
 
@@ -40,13 +60,16 @@ to all surfaces; I13 and I14 name narrower surface sets in their own rows.
   <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5>
 - Memory (CLAUDE.md, rules, auto memory) — <https://code.claude.com/docs/en/memory>
 - The `.claude` directory — <https://code.claude.com/docs/en/claude-directory>
+- Skills (what loads when, how supporting files are referenced, the listing budget,
+  invocation-control fields) — <https://code.claude.com/docs/en/skills>
+- How features layer (per-surface precedence, routing between surfaces) —
+  <https://code.claude.com/docs/en/features-overview>
+- Context window (what survives compaction) — <https://code.claude.com/docs/en/context-window>
 - Refusals and fallback (`reasoning_extraction`) —
   <https://platform.claude.com/docs/en/build-with-claude/refusals-and-fallback>
 - CLI reference (`claude doctor` and the other terminal forms) —
   <https://code.claude.com/docs/en/cli-reference>
 - Subagents (what loads into a subagent at startup) — <https://code.claude.com/docs/en/sub-agents>
-- Skills (how a skill's supporting files are referenced and loaded) —
-  <https://code.claude.com/docs/en/skills>
 
 ---
 
@@ -75,10 +98,46 @@ Tier `behavioral` · Authority `ANTHROPIC-DOCS` · Severity `warning` · Surface
 Tier `mechanical` · Authority `ANTHROPIC-DOCS` · Severity `warning` · Surfaces: I1–I5 partition.
 
 - **Detect:** only-sometimes-relevant content (a workflow, domain knowledge, one subsystem's
-  quirks) living in an always-loaded surface.
-- **Remediate:** move it to a skill or a path-scoped rule that loads on demand.
+  quirks) living in a surface that loads **more broadly than the content is relevant**. Two cases,
+  because the surfaces this check runs on are not all always-loaded:
+  - an always-loaded surface — the selected output style, an unscoped rule, root `CLAUDE.md` where
+    the partition allows it;
+  - a surface loaded in full on every use of a component whose own scope is broader than the
+    content's — a skill body or an agent definition covering several concerns, where the content
+    matters to one of them and is in context for all of the others. Establish that breadth before
+    flagging: a skill or agent that exists *only* for the content's concern loads it exactly when it
+    is relevant, and is not a finding.
+- **Remediate:** move it to a skill or a path-scoped rule that loads on demand. **A destination
+  qualifies only if it defers loading** — `@path` imports do not, so a split into imports is an
+  organizational change and not a context saving, and proposing one satisfies this check's letter
+  while changing the load profile not at all. **State the move cost with the recommendation:** a
+  `paths:`-scoped rule or a nested `CLAUDE.md` is lost after compaction until a matching file is
+  read again, so content that must survive compaction stays unscoped or in the project-root
+  `CLAUDE.md`. **A *new* skill is not a free destination:** its body defers, but the listing entry it
+  adds — `name` plus the combined `description` and `when_to_use`, truncated at 1,536 characters — is
+  always in context, so the saving is the body minus that entry rather than the whole body. Moving
+  content into a skill that **already exists** adds no listing entry and does not carry this cost.
+  The only field that keeps a description out of context is `disable-model-invocation: true`, which
+  also makes the skill user-invocable only; `user-invocable: false` does not, and `skillOverrides`
+  does not reach plugin skills at all. State the entry as a cost, not a threshold — whether a corpus
+  is over its listing budget is a different question and not this check's.
+  **Content taken out of an agent definition needs an agent-reachable destination.** A subagent runs
+  in its own context, and path-scoped rules are invisible there
+  (<https://code.claude.com/docs/en/sub-agents>), so proposing one for instructions the agent needs
+  removes them from every dispatch rather than deferring them. Name a destination the agent itself
+  reaches — a skill the agent's definition invokes or preloads, or text kept in the definition — and
+  never a `paths:`-scoped rule.
+- **Adjacent axis:** this check is load *timing*. Definition-site *locality* — an instruction sitting
+  away from the thing it governs — is I16, and an instruction can be correctly deferred here and
+  still misplaced there.
 - **Source:** best-practices — "only include things that apply broadly. For domain knowledge or
-  workflows that are only relevant sometimes, use skills instead."
+  workflows that are only relevant sometimes, use skills instead."; memory — "splitting into `@path`
+  imports helps organization but doesn't reduce context, since imported files load at launch";
+  context-window, "What survives compaction", for the per-destination cost; skills — "skill
+  descriptions are loaded into context so Claude knows what's available, but full skill content only
+  loads when invoked", the combined `description` and `when_to_use` text "is truncated at 1,536
+  characters in the skill listing to reduce context usage", and "Plugin skills are not affected by
+  `skillOverrides`."
 
 ### I4: Inferable or redundant content
 
@@ -109,6 +168,7 @@ Tier `mechanical` · Authority `ANTHROPIC-DOCS` · Severity `warning` · Surface
   candidate lines; a line already carrying a rationale marker is a weaker candidate.
 - **Remediate:** reframe positively — state what to do instead — as the primary fix. Where a
   genuine hard "never" survives, keep it but add its rationale (see I7) as the fallback.
+- **Bounded by:** the **Stopping condition** below, which is enabled by default.
 - **Source:** prompting best-practices — "Tell Claude what to do instead of what not to do."
 
 ### I7: Reason with the request
@@ -129,6 +189,7 @@ Tier `behavioral` · Authority `ANTHROPIC-DOCS` · Severity `warning` · Surface
   behaviors a current model handles from a brief instruction, or scaffolding that pins an approach.
 - **Remediate:** propose removal or a briefer instruction; verify via the delete-and-watch loop
   that default performance holds or improves.
+- **Bounded by:** the **Stopping condition** below, which is enabled by default.
 - **Source:** Fable 5 guide — "Skills developed for prior models are often too prescriptive for
   Claude Fable 5 and can degrade output quality."
 
@@ -139,7 +200,12 @@ Tier `behavioral` · Authority `ANTHROPIC-DOCS` · Severity `info` · Surfaces: 
 - **Detect:** an example block that pins the model's *approach* to a task (behavioral scaffolding).
   Do not flag examples that steer output format, tone, or structure — those remain recommended.
 - **Remediate:** keep 3–5 diverse format/tone/structure examples; propose trimming or reframing
-  only approach-pinning ones, A/B'd against the no-example default.
+  only approach-pinning ones, A/B'd against the no-example default. Where the example block exists
+  to enumerate what a caller may pass — modes, options, permitted values — name the interface
+  destination that carries it instead: an argument enumeration, a frontmatter field, a typed
+  `argument-hint`. That destination clause is **`OPINION`-derived** — no official page states it —
+  so it rides this check's enablement and severity per the `OPINION` policy above, is labelled as
+  `OPINION` in the finding, and is never fix-applied.
 - **Source:** prompting best-practices, "Use examples effectively" — examples are "one of the most
   reliable ways to steer Claude's output format, tone, and structure"; keep them diverse enough
   "that Claude doesn't pick up unintended patterns."
@@ -301,6 +367,53 @@ a **pair**, so this row is answered by Phase B2 rather than by a per-surface lan
   [conflict-criteria.md](conflict-criteria.md).
 - **Source:** memory — "If two rules contradict each other, Claude may pick one arbitrarily", which
   is why an unarbitrated pair is a finding rather than a stylistic note.
+
+### I16: Definition-site locality
+
+Tier `mechanical` · Authority `OPINION` · Severity `info` · Surfaces: all · Default **off**, enabled
+by `--opinion`.
+
+- **Detect:** an instruction that governs one named thing — a tool, a script, a subsystem, a skill —
+  living somewhere other than that thing's own definition: a rule about tool X in a global
+  always-loaded file rather than beside X.
+- **Different axis from I3, and both can fire on one instruction.** I3 is load *timing*; this is
+  definition-site *locality*. An instruction can be correctly deferred — already in a skill or a
+  path-scoped rule — and still sit away from the thing it governs.
+- **Must not flag:** an instruction that genuinely applies across the whole target, which is I3's
+  broad-applicability case and not a locality defect; or one whose subject has no definition site to
+  sit beside.
+- **Remediate:** move it beside its subject — the skill body, the agent definition, the tool's own
+  documentation. **The destination must be a surface Claude loads.** This check diagnoses locality,
+  not load timing, so a move that lands an always-loaded instruction in an ordinary README or
+  reference file silently drops the behavior it enforced unless Claude independently reads that file.
+  Where the subject's definition site is not itself loaded, propose the colocated text *plus* a
+  retained one-line pointer on a loaded surface that triggers reading it — never a bare move.
+  Reported only, never fix-applied, per the `OPINION` policy above.
+- **Source:** none. No official page states definition-site locality, which is why this check is
+  `OPINION`-tier. The *routing* half — which surface a class of content belongs in — is documented
+  at features-overview, "Compare similar features", and is I3's concern, not this check's.
+
+---
+
+## Stopping condition
+
+Authority `OPINION` · applies to I6 and I8 · **enabled by default**, opt out with
+`--no-stopping-condition`.
+
+Neither I6 nor I8 carries an a-priori bound: I6's only escape is a rewrite concession and I8's
+remediation is unconditional, so both trim without a floor. This rule **withholds** findings rather
+than emitting them, which is why it inverts the `OPINION` default above — disabling it does not make
+the audit more conservative, it removes the only bound on two trimming checks and makes both strictly
+more aggressive.
+
+- **Withhold** an I6 or I8 proposal where the instruction guards a high-consequence area: a safety
+  gate, an irreversible or destructive action, a security or permission boundary, an external
+  contract, or genuine ordering another step depends on. De-prescription is the default posture; it
+  is not the posture in the places where being wrong is expensive.
+- **Report every withholding** in the run's own section, naming the check it moderated and the
+  ground. A silently suppressed finding reads as coverage.
+- **Source:** none — the "except in highly important areas" carve-out appears on no official page,
+  and it is the calibration knob the de-prescription guidance (I8's Fable 5 source) leaves unset.
 
 ---
 

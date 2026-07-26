@@ -85,7 +85,12 @@ then specialize it to the repo:
 
 Repo-specific CI-parity gates beyond plain build/test/lint (lockfile drift, generated-artifact
 freshness, schema regeneration) belong in the ecosystem file's `gates` array — draft one when the
-repo's CI runs such a check.
+repo's CI runs such a check. For an ecosystem with `project-discovery`, a gate that is repo-wide
+rather than per-project (protobuf generation, schema freshness — checks something that exists once,
+not once per discovered project root) needs `run-from: repo-root` on the drafted gate; omitting it
+defaults to per-project execution, which redundantly re-runs the check in every root or fails in
+roots lacking its config. Ask which shape applies when the CI check's own scope is ambiguous from its
+command alone.
 
 ### 3. Interview or write non-interactively
 
