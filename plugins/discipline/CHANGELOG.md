@@ -48,8 +48,14 @@ Entries below `0.9.0` were released under the plugin's former name, `re-anchor`.
   "skip both filters and receive the main conversation's exact tool pool"
   (<https://code.claude.com/docs/en/sub-agents>), so every audit fork holds Write, Edit, and
   Bash and is only *asked* not to use them — and the declared delta's safety argument rested on
-  that property. The skill now says so plainly and **verifies** rather than claims: it records
-  the working tree's state before dispatch and compares it after collecting the ledgers.
+  that property. The skill now says so plainly and **verifies** rather than claims: the preflight
+  records a working-tree baseline before the first dispatch — `git status --porcelain` entries
+  AND a per-path content digest, because a fork rewriting an already-dirty file leaves the status
+  letters unchanged — and each wave's landing is checked against it. A mismatch stops the pass
+  before dedup and correction rather than stacking remedies on top of unauthorized edits, and
+  hands the tree back to the user untouched. Where no baseline can be taken (not a git project)
+  the fan-out does not proceed on its own authority. The check is detection, not prevention: it
+  bounds how far a violation propagates.
 
   `isolation: "worktree"` was considered as containment and **rejected**, with the reasoning
   recorded in the skill so it is not re-proposed: a git worktree is created from a commit, so

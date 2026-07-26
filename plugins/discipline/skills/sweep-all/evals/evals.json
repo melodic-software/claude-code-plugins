@@ -89,11 +89,11 @@
       "id": 8,
       "name": "fork-no-writes-trusted-not-enforced",
       "prompt": "sweep all disciplines — and confirm the audit forks can't touch my working tree.",
-      "expected_output": "The skill does not claim the audit forks are constrained. It states that a fork receives the main conversation's exact tool pool and cannot be narrowed the way a named subagent's `tools` field can, so 'make NO writes' is an instruction the forks are trusted to honor rather than a harness constraint. Instead of asserting containment it cannot deliver, it verifies: it records the working tree's state before dispatch and compares it after collecting the ledgers, reporting any change a fork made. It does not offer worktree isolation as the answer — isolating the forks would hide the uncommitted work in flight that the audit exists to inspect, and would not bound an absolute-path write.",
+      "expected_output": "The skill does not claim the audit forks are constrained. It states that a fork receives the main conversation's exact tool pool and cannot be narrowed the way a named subagent's `tools` field can, so 'make NO writes' is an instruction the forks are trusted to honor rather than a harness constraint. Instead of asserting containment it cannot deliver, it verifies: a working-tree baseline is taken before the first dispatch (including the canary), covering both status entries and per-path content digests, and each wave is checked against it. It presents this as detection rather than prevention, and says a mismatch stops the pass before dedup and correction. It does not offer worktree isolation as the answer — isolating the forks would hide the uncommitted work in flight that the audit exists to inspect, and would not bound an absolute-path write.",
       "files": [],
       "expectations": [
         "States that forks receive the main conversation's exact tool pool and cannot be tool-restricted",
-        "Verifies the no-writes rule with a before/after working-tree comparison rather than claiming enforcement",
+        "Verifies the no-writes rule against a pre-dispatch baseline that covers content, not just status entries, and stops the pass on a mismatch",
         "Does not claim the fan-out's read-only posture is enforced by the harness"
       ]
     }

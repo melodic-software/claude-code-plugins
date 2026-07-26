@@ -84,10 +84,18 @@ never replaces stage 2 and never aborts on its own.
 
 **Take a working-tree baseline before the first dispatch.** The canary is a
 fork with the same unconstrained tool pool as every later member, so the
-baseline has to precede it, not wave 1. In a git project, `git status
---porcelain`. Where the project is not a git repository, there is no cheap
-baseline to take — skip the comparison and say so in the final report, rather
-than omitting the check silently and leaving the reader to assume it ran.
+baseline has to precede it, not wave 1. In a git project, record BOTH the
+`git status --porcelain` entries AND a content digest for every path they list
+(`git hash-object <path>` — git's own primitive, so no shell-specific pipeline
+is needed). Status letters alone are not enough: a fork that rewrites an
+already-modified file leaves its `M`-status entry unchanged, and a modified
+file is exactly what a mid-session audit is usually about.
+
+Where no baseline can be taken — the project is not a git repository — the write
+check cannot run at all. Do not fan out on your own authority in that case:
+report that the verification is unavailable, and either run mode 1 or dispatch
+only on the user's explicit acceptance of an unverified fan-out. Proceeding
+silently and disclosing the gap afterwards protects nothing.
 
 **Stage 2 — an inheritance-proof canary. The decider, at no extra cost.** Fold
 it into the first member's real audit: dispatch the in-scope corrector with the
@@ -99,7 +107,7 @@ anyway, and that member is not dispatched again.
 Every fork — canary and members alike — answers one inheritance-proof question
 FIRST, before any audit content, and stops and says so plainly if it cannot.
 Conversations differ, so specify the question's *properties*, not a fixed
-question. All three are required:
+question. All four are required:
 
 - **Its answer exists only in this conversation's history** — not in a file, not
   in a `CLAUDE.md`: a non-fork subagent's initial context still contains "every
@@ -114,8 +122,14 @@ question. All three are required:
   in a fork-enabled session: an out-of-band advisor result was absent from a
   fork's inherited transcript — not documented behavior, and a proof keyed on it
   would have read as a false negative).
+- **It cannot be guessed.** An answer a non-inheriting subagent could hit by
+  chance — a yes/no, a binary choice, a detail common to most sessions — clears
+  the main thread's check without proving anything, and the blind ledgers behind
+  it then reach the corrective write. Require an exact, high-entropy value: a
+  verbatim string, an exact count, a specific identifier, or several
+  independent details together.
 
-If the conversation is too thin for any question to satisfy all three, it is
+If the conversation is too thin for any question to satisfy all four, it is
 also too thin to audit: report that and run mode 1 instead.
 
 **Verify on the main thread, and fail closed.** Check the answer against what
@@ -180,11 +194,15 @@ unchanged and bind every member.
    skill-level `context: fork` also discards it — neither can audit this
    conversation. The forks read the live working tree — do NOT isolate them
    (see Gotchas: isolation would hide the uncommitted work in flight, which is
-   usually the thing under audit). Compare the working tree against the
-   baseline the preflight took, once every ledger is collected: the no-writes
-   rule is trusted, not enforced, so verify it rather than assume it. Any
-   difference is a fork that wrote — report it as its own finding and hold it
-   out of the correction pass; never fold it in silently. Instruct
+   usually the thing under audit). Compare the tree against the preflight's
+   baseline — entries AND per-path digests — as each wave's ledgers land: the
+   no-writes rule is trusted, not enforced, so verify it rather than assume it.
+   A mismatch means a fork wrote, so **stop before step 3**: do not dedup, do
+   not correct, and never stack remedies on top of unauthorized edits. Leave
+   the changed tree exactly as it is, report which members were in flight and
+   that their ledgers are untrusted, and hand the decision back to the user —
+   a fork that broke the audit contract is not something the batch resolves on
+   its own. Instruct
    each fork: answer the preflight's inheritance-proof question first, then
    load exactly this ONE corrector's
    `SKILL.md`, run shared-loop steps 1–2 only (re-anchor + self-audit), make
@@ -319,7 +337,9 @@ relevance-gated. Report the net effect whenever the overlay changes the set.
   session" (<https://code.claude.com/docs/en/sub-agents>). So every audit fork
   holds Write, Edit, and Bash and is only *asked* not to use them. Never
   present the audit fan-out's read-only posture as harness-enforced; verify it
-  instead, with the before/after working-tree comparison in step 1.
+  instead, against the preflight's baseline, and stop the pass if it trips.
+  The verification is detection after the fact, not prevention — it bounds how
+  far a violation propagates, it does not stop the write.
 - **`isolation: "worktree"` was considered for the audit forks and rejected.**
   The Agent tool accepts it on a fork, and it would move a fork's file edits
   off the user's checkout — but a git worktree is created from a commit, so the
