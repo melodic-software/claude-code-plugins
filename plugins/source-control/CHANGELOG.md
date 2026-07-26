@@ -40,6 +40,18 @@ All notable changes to the `source-control` plugin are documented here. Format f
   never draws a dispatch on the label alone. Conflicts route to the dedicated merge-only conflict
   worker; the dispatch never rebases a PR branch, which would need the force-push forbidden
   cross-tier.
+- **Edit-capable resolution runs the per-PR worker lifecycle, and the partition reruns after it.**
+  A blocker needing a code change gets the isolated PR worktree, the HEAD assertion at the live PR
+  head, and the commit/refspec push `reference/safety.md` requires — the guarded wrappers implement
+  merge and thread resolution and create no worktree, which a lane launched from a neutral directory
+  has no substitute for. After any resolver mutation the PR is re-snapshotted and step 3's
+  provenance, C4-diff, and rung partition rerun before the merge-capable invocation, so a resolution
+  that expanded a C2/C3 change into a refactor or contract change leaves the eligible set rather
+  than merging under a stale classification.
+- **The widening lasts the invocation that typed it, not one cycle.** Every `/loop` wakeup
+  re-invokes the same prompt in the same session and carries the same explicit authorization, so the
+  rung does not silently drop after the first cycle and no operator input is awaited that a loop
+  cannot supply. It ends when a newly launched invocation omits the keyword.
 - **The dispatch is leased and its tier is resolved, not named.** It acquires, heartbeats, and
   releases the PR's own worker lease around itself — the guarded-mutation wrappers pin comment
   state, they do not confer concurrency ownership — and a lease another worker holds means no

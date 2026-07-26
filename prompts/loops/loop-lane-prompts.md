@@ -17,8 +17,12 @@ Replace every `{{...}}` occurrence in the block you are pasting.
 | `{{RUNTIME_SURFACES}}` | Doc-shaped paths that are runtime | see profile |
 
 `{{TIER}}` widens discovery, fixing, threads, drafts, barriers, and
-escalation. It never raises merge authority — that binds only from the
-target repo's tracked config (below).
+escalation. *Standing* merge authority binds only from the target repo's
+tracked config (below). The skill carries one named exception — typing the
+literal `autopilot` keyword widens that invocation's merge rung to C3 — but
+it is not in force here: this repository's rung question was decided against
+raising (#1388, "Tier is not the rung" below), and every copy-block below
+carries `--merge human-only`, which the exception is explicitly floored by.
 
 ## Per-repository profile
 
@@ -759,9 +763,16 @@ Filled instance for the repository in use as of 2026-07-25.
 
 `autopilot` is the maximum the prompt can set. It widens six of the seven
 autonomy dimensions — discovery scope, fixing, thread resolution, draft
-elevation, barrier handling, escalation posture. It does **not** touch
-merge authority, which is floored at whatever the tracked config says and
-can only be lowered by an argument, never raised.
+elevation, barrier handling, escalation posture. It does **not** raise
+*standing* merge authority, which binds from the tracked config alone.
+
+The skill carries one named exception: typing the literal `autopilot`
+keyword widens that one invocation's merge rung to C3. It changes nothing
+here, for two independent reasons — the exception is floored by an
+explicitly argued lower rung, and every copy-block below passes
+`--merge human-only`; and the rung question itself was decided against
+raising (below). Treat it as dormant in this repository, and do not remove
+`--merge human-only` from a copy-block to wake it.
 
 So the two knobs are independent, and both are needed for "merge things
 overnight without me":

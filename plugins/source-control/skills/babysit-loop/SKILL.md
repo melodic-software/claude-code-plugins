@@ -140,7 +140,7 @@ restriction; it never overrides a caller asking for less authority, per
 the config-resolution reference's "an invocation argument may select a lower (safer) rung".
 
 The deterministic gate is not weakened: checks, thread resolution, and mergeability still all have to
-pass. What changes is what happens to a PR that's otherwise eligible (C1-C3) but blocked on a
+pass. What changes is what happens to a PR that's otherwise eligible (C1-C3) but blocked on
 a **machine-escalated** `needs-human` item, an open non-human finding, or a contradictory/unresolved
 **bot** review thread: instead of falling through to Escalation, the cycle dispatches a **fresh
 frontier-tier subagent sharing no context with the PR's authoring or reviewing sessions** (per the
@@ -148,16 +148,6 @@ convention's capability-tier independence rule) to resolve that specific blocker
 worker lease, through babysit-prs's own guarded-mutation path, never a raw/unguarded mutation. An
 operator-*parked* item wears the same label without the escalation marker and is never dispatched
 on; see Escalation below for the four blocker classes outside this dispatch.
-
-**Human blocking feedback is out of the dispatch's reach, unchanged.** A human
-`CHANGES_REQUESTED` review, explicit human blocking language, and an unresolved inline human thread
-stay stop-and-ask conditions that escalate and are never fixed or resolved past — the invoked
-mechanic's own rule (`babysit-prs/reference/feedback.md`, "Human Feedback"), which this exception
-does not touch. The dispatch is for machine-authored blockers; a PR whose blocker is human blocking
-feedback escalates without a dispatch. Merge conflicts likewise stay outside it: they route to the
-dedicated merge-based conflict worker (`babysit-prs/reference/orchestration.md`), integrating
-**merge-only, never rebase** — rebasing a PR branch needs the force-push babysit-prs forbids
-cross-tier.
 
 Only after a resolution attempt does the PR proceed to the normal gate; if the blocker is unresolved,
 or the PR is C4/C5, or the resolution attempt itself is uncertain, it still escalates exactly as it
@@ -308,8 +298,11 @@ the PR's worker lease**: acquire and heartbeat before it starts, release after, 
 and `babysit-prs/reference/orchestration.md`); the guarded wrappers pin comment state, not
 concurrency ownership, and a lease another worker already holds means no dispatch at all. Brief it
 with the blocker, the PR, and the convention's independence and frontier-tier requirements; it
-resolves through babysit-prs's own guarded-mutation path (never a raw mutation outside that skill's
-wrappers), replying to and resolving threads or fixing findings as the blocker requires.
+replies and resolves threads through babysit-prs's own guarded-mutation path, never a raw mutation.
+**A blocker needing a code change runs the full per-PR worker lifecycle** — isolated PR worktree,
+HEAD asserted at the live PR head, commit and refspec push (`babysit-prs/reference/safety.md`) — not
+the wrappers alone, which implement merge and thread resolution and create no worktree; a lane
+launched from a neutral directory has no usable tree without it.
 
 **Four blocker classes this dispatch never touches**, each because the invoked mechanic's own
 contract already owns them and this exception does not amend those contracts:
@@ -334,10 +327,14 @@ contract already owns them and this exception does not amend those contracts:
 - **C4/C5 PRs.** Already excluded at the rung partition (Cycle shape, step 3) — including the
   provenance-derived C5 override and the diff-derived C4 veto — and they escalate normally.
 
-If the dispatch resolves the blocker, the PR proceeds to its normal `autopilot`-tier invocation and
-gate. If it cannot — including any case where the subagent itself is uncertain the resolution is
-correct — the PR escalates exactly as it would without this exception; this dispatch adds one
-resolution attempt, it never removes the escalation path or lowers the deterministic gate's bar.
+If the dispatch resolves the blocker, **re-snapshot the PR and rerun step 3's provenance, C4-diff and
+rung partition before** its normal `autopilot`-tier invocation and gate — the first partition read
+the cycle-start diff, and a resolution that pushed code can have turned a C2/C3 change into a
+refactor, migration, or contract change that the downstream merge gate does not class-check. A PR
+that leaves the eligible set on that second partition escalates instead of merging. If the dispatch
+cannot resolve the blocker — including any case where the subagent itself is uncertain the
+resolution is correct — the PR escalates exactly as it would without this exception; this dispatch
+adds one resolution attempt, it never removes the escalation path or lowers the gate's bar.
 
 ## Telemetry and durable loop state
 
@@ -472,12 +469,14 @@ terminal manual-restart state, per the convention.
   no rung ever bypasses the deterministic gate.
 - **Unlinked or unclassified PRs never auto-merge.** Rung eligibility requires a close-linked work
   item with a recorded classification; missing either fails closed to the non-merge pass.
-- **A tier keyword is not a *standing* merge raise, but it is a one-cycle one.** `autopilot` in the
-  invocation always widens dimensions 1–5 and 7; it *also* widens dimension 6, for this invocation
-  only, up to C3, per the convention's one named exception — but that widening persists nothing,
-  never reaches C4/C5, and never substitutes for a recorded team-tracked raise. If you want the
-  next cycle to carry the same merge authority, type `autopilot` again; a bare `babysit_loop_tier:
-  worker` config value with no `autopilot` argument reverts to the seam rung immediately.
+- **A tier keyword is not a *standing* merge raise, but it lasts the invocation that typed it.**
+  `autopilot` in the invocation always widens dimensions 1–5 and 7; it *also* widens dimension 6, up
+  to C3, per the convention's one named exception — persisting nothing, never reaching C4/C5, never
+  substituting for a recorded team-tracked raise. It holds for **every cycle of the invocation that
+  typed it**, including each `/loop` wakeup, which re-invokes the same prompt in the same session
+  and so carries the same explicit authorization; nothing re-types it between cycles. It ends when a
+  newly launched invocation omits the keyword — a `babysit_loop_tier: autopilot` config value with
+  no typed argument is that case, and reverts to the seam rung.
 - **C4/C5 never merge autonomously, full stop.** Not at `full-autonomy`, not under the
   explicit-`autopilot` exception, not through any future rung name. This is a floor from the
   autonomy matrix's own promotion contract, not a `babysit_loop_merge` value — no config edit in

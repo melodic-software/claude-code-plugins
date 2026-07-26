@@ -160,9 +160,13 @@ the lane reports why.
 explicit-`autopilot` exception above — ever grants merge authority over a `work-class: structural`
 (C4) or `work-class: untrusted-provenance` (C5) item. This is not a `babysit_loop_merge` value; it is
 a ceiling the resolved rung composes under, always, per the autonomy matrix's "never promotes" cells
-(`work-classes.md#suggested-default-predicates`). C5 is decided by the PR's own provenance — a
-cross-repository head or an author outside the watched owners — not by the class stamped on the item
-it closes, because provenance "dominates every other property" (`work-classes.md`, `C5`).
+(`work-classes.md#suggested-default-predicates`). Both classes are decided from the pull request,
+not the class stamped on the item it closes: C5 from the code's own provenance — a cross-repository
+head, or another external-contribution signal on the PR — because provenance "dominates every other
+property" (`work-classes.md`, `C5`), and C4 from the diff's blast radius, with a class/diff mismatch
+failing closed. **Never derive C5 by testing the PR author's login against `babysit_watched_owners`**
+— that key is a repository-owner allowlist, not a trusted-author list, so on an organization-owned
+repository it would classify every internally authored PR as C5.
 
 ## The three layers
 
