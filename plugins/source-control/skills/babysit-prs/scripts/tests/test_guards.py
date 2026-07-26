@@ -578,6 +578,52 @@ class DocumentedCommandsMatchTheParsers(unittest.TestCase):
                         " bash-wrapper refusal row invoking it",
                     )
 
+    def test_every_wrapper_refusal_row_reaches_the_denial_table(self) -> None:
+        # The other direction of the same binding. The check above proves every
+        # LISTED flag is refused; without this one a new bash-wrapper refusal row
+        # could prove a second refused flag while the table stayed silent, and a
+        # document could then spell that flag unchallenged -- the table would be
+        # a subset of the wrapper's behavior while reading as its statement.
+        for row in contract.REFUSALS:
+            if row.refused_by != contract.BASH_WRAPPER:
+                continue
+            # `error_contains`, not `argv`: a row's argv also carries the flags
+            # that reached the wrapper legitimately, while the error names the
+            # one the refusal is about.
+            flags = [token for token in row.error_contains if token.startswith("--")]
+            # `error_contains` is a tuple of asserted output substrings with no
+            # invariant that any of them is a flag, so a row with an empty tuple
+            # -- or one naming its rejected option without the leading dashes --
+            # would yield nothing and pass this check vacuously, leaving exactly
+            # the omission it exists to catch. A wrapper refusal is ABOUT a flag;
+            # a row that cannot name one cannot be bound, so demand it here.
+            self.assertTrue(
+                flags,
+                f"`{row.id}` is a bash-wrapper refusal whose error_contains names"
+                " no `--flag`, so nothing binds it to WRAPPER_DENIED_FLAGS; name"
+                " the refused option in error_contains",
+            )
+            for flag in flags:
+                with self.subTest(row=row.id, flag=flag):
+                    self.assertTrue(
+                        contract.wrapper_denies(row.entry_point, flag),
+                        f"`{row.id}` proves {row.entry_point} refuses `{flag}`, but"
+                        " WRAPPER_DENIED_FLAGS does not cover it, so a documented"
+                        " command may still spell it",
+                    )
+
+    def test_the_denied_flag_is_one_its_own_cli_accepts(self) -> None:
+        # The premise the separate wrapper check rests on. The merge parser
+        # registers the flag the wrapper exists to remove, which is exactly why a
+        # CLI-only check cannot see the refusal. If this stops holding, the two
+        # checks have collapsed into one and the narrowing is no longer
+        # load-bearing -- the wrapper row would need re-deriving, not renaming.
+        self.assertIn("--allow-unpinned-head", self._accepted_flags(contract.MERGE_CLI))
+        self.assertTrue(
+            contract.wrapper_denies(contract.MERGE_WRAPPER, "--allow-unpinned-head")
+        )
+        self.assertFalse(contract.wrapper_denies(contract.MERGE_WRAPPER, "--merge"))
+
     def test_every_doc_naming_a_wrapper_is_covered(self) -> None:
         # A second document growing its own copy of a command line must be added
         # to DOC_COMMAND_SOURCES, not left unchecked.

@@ -149,6 +149,25 @@ All notable changes to the `source-control` plugin are documented here. Format f
   flags that were already correct. The path now emits `reason=identity-unresolved`, keeping exit 3
   so callers keyed on the code are unaffected.
 
+## [0.29.1]
+
+### Fixed
+
+- **The guard contract's wrapper-denial table is now bound in both directions.** `WRAPPER_DENIED_FLAGS`
+  records the flags a `bin/` wrapper refuses before Python runs, and a check already proved every
+  *listed* flag is one a `bash-wrapper` refusal row invokes the wrapper to demonstrate. Nothing
+  proved the converse: a new refusal row could demonstrate a second refused flag while the table
+  stayed silent about it, leaving that flag spellable in a documented command — the table would be a
+  subset of the wrapper's behavior while reading as a statement of it. Every bash-wrapper refusal
+  row's named flag must now be covered by the table. A companion assertion pins the premise the
+  separate wrapper check rests on: the merge parser *does* register `--allow-unpinned-head`, which is
+  exactly why a CLI-only check cannot see the wrapper's refusal — if that stops holding, the two
+  checks have collapsed into one and the narrowing is no longer load-bearing. The reverse check also
+  requires each bash-wrapper row to name a `--flag` in `error_contains`: that field is a tuple of
+  asserted output substrings with no invariant that any of them is a flag, so an empty tuple — or an
+  option recorded without its leading dashes — would have passed vacuously, leaving exactly the
+  omission the check exists to catch.
+
 ## [0.29.0]
 
 ### Changed
