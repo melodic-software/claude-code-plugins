@@ -429,6 +429,11 @@ class AnalysisPrompt(unittest.TestCase):
         self.assertIn('"err": true', self.prompt)
         self.assertIn("retry", self.prompt)
         self.assertIn("control-dependent", self.prompt)
+        # Tool-name equality alone is not a retry -- a failed Read of one file
+        # followed by a Read of another is two independent calls, and calling
+        # that control-dependent suppresses a genuine finding (#1485 review).
+        self.assertIn("NOT evidence of a retry", self.prompt)
+        self.assertIn("SAME resource or repeat the same arguments", self.prompt)
 
     def test_resource_dependency_compares_call_inputs(self):
         """A side-effecting call (`mkdir /tmp/out` before `Write /tmp/out/x.md`)
