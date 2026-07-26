@@ -179,11 +179,21 @@ and until it lands the lane stays at the coarser grain.
 Dispatch, in inventory order, each invocation presence-gated with its fallback stated:
 
 - **`/claude-config:audit-instructions`** — sibling in this plugin, always available. Carries the
-  model-capability catalog over every non-memory surface, and the cross-layer conflict check. It
-  takes a **surface-class scope**, so it yields **one lane per scope value dispatched**, each running
-  that skill's whole catalog over that class. Its conflicts come back as **one finding carrying two
-  sites**, never two linked findings — a contradiction is retired by fixing either side, so the sides
-  are not independently correctable.
+  model-capability catalog over every non-memory surface, and the cross-surface conflict check. It
+  takes a **surface-class scope**, so the per-class values yield **one lane per scope value
+  dispatched**, each running that skill's per-surface catalog over that class. Its conflicts come
+  back as **one finding carrying two sites**, never two linked findings — a contradiction is retired
+  by fixing either side, so the sides are not independently correctable.
+
+  **The conflict pass is dispatched exactly once, as its own lane, via that skill's `conflicts`
+  scope — never once per surface class.** Its unit is a *pair*, and its Phase B2 reports a pair
+  whenever **at least one** anchor falls in the requested scope, so a conflict spanning a skill body
+  and an agent definition would be returned by the `skills` lane *and* the `agents` lane. Both would
+  carry the same identity, and the partial-log contract assembles per lane with no cross-lane
+  ownership rule, so the finding would land in the report twice. Its own scope makes every pair
+  belong to exactly one lane by construction rather than needing a deduplication rule downstream —
+  and the per-class lanes drop the pair check, since dispatching it there is what created the
+  overlap.
 - **`/claude-memory:audit`** — invoke when the `claude-memory` plugin is installed; it owns
   memory-layer hygiene and the within-memory-layer consistency check. It takes an **action verb and
   no surface filter**, so it is **exactly one lane** covering the whole memory layer. Not installed:
@@ -247,7 +257,9 @@ with a **fresh-context (non-fork) subagent** as the stated fallback.
 ## Phase 6 — Report
 
 Two artifacts, because incremental persistence and a sectioned report want different shapes: an
-append-only `findings.partial.jsonl` during the run, assembled into `findings.json` at the end. Both
+append-only `findings.partial.<owner_epoch>.jsonl` during the run, assembled into `findings.json` at
+the end — epoch-scoped so a fenced writer cannot interleave into its adopter's file, with assembly
+reading only the highest epoch present. Both
 schemas, the identity-versus-presentation field split, the sections, and the tier memberships are in
 [reference/run-contract.md](reference/run-contract.md). Tiers stay in separate sections because their
 guarantees differ. Every run also emits, in **one line**, how many `OPINION`-tier checks were

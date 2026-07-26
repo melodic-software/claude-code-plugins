@@ -275,17 +275,37 @@ incomplete run, which the no-lock read-only policy otherwise makes undecidable.
 - **Liveness** — the lease is **live** when `now - heartbeat_at < 5 minutes` — five refresh intervals,
   chosen so ordinary scheduling delay, a slow filesystem, or a paused VM does not read as a crash.
   Otherwise it is **stale**.
-- **`--resume` against a live lease exits non-zero**, naming the run id and its `heartbeat_at`, and
-  does not attach. Against a stale lease it takes over the artifact and begins refreshing that lease
-  itself.
+- **A run that exits cleanly writes a `released` state into its lease** — a tombstone — rather than
+  leaving its last heartbeat to age out. Without it, a run that finished normally while deliberately
+  leaving a lane incomplete (the `/doctor` handoff is exactly this) looks live for the full five
+  minutes after its process is gone, so the operator who does the fastest correct thing — run
+  `/doctor`, come straight back with `--resume` — is the one refused. The mechanism designed to
+  protect an in-flight run would be punishing the intended workflow.
+- **`--resume` therefore distinguishes three lease states, not two**: `released` is resumable
+  immediately; a **stale** lease is resumable and adoption is reported, since it means an interrupted
+  run rather than a finished one; and a **live** lease exits non-zero, naming the run id and its
+  `heartbeat_at`, without attaching. A crash still leaves no tombstone, which is precisely why the
+  staleness path stays as the fallback — the tombstone is an optimization for the clean case, never
+  the only way out.
 - **Adoption fences the previous holder; a stale lease is not assumed abandoned.** A suspended
   process can wake at any time, so "it stopped refreshing" is evidence, never proof. The lease
   therefore carries an **`owner_epoch`**, a monotonically increasing integer. Adopting a stale lease
   increments it in a single atomic write conditioned on the observed value — the compare-and-set is
   what makes two simultaneous adopters resolve to one — and the adopter then owns that epoch.
-  **Every heartbeat refresh and every artifact append re-reads `owner_epoch` first and aborts the run
-  if it is no longer the writer's own.** A woken holder therefore fails on its next refresh or
-  append, before it can write, rather than resuming alongside the adopter.
+  **Every heartbeat refresh re-reads `owner_epoch` and aborts the run if it is no longer the writer's
+  own**, so a woken holder stops at its next refresh rather than resuming alongside the adopter.
+
+- **Checking the epoch before appending is not enough, and the artifact is what makes it safe rather
+  than the check.** A check and a write are two operations: the old holder can read its epoch an
+  instant before the adopter's compare-and-set and append an instant after, and no ordering of two
+  separate steps closes that window. So the partial artifact is **epoch-scoped** —
+  `findings.partial.<owner_epoch>.jsonl` — and a writer only ever appends to the file named for the
+  epoch it holds. A stale writer therefore appends to its **own** superseded file, physically unable
+  to interleave into the adopter's, and **assembly reads only the highest epoch present**. The race
+  is removed rather than narrowed, which a lock around check-and-append would not achieve across
+  processes on every filesystem this runs on. Superseded files are retained, not deleted: they are
+  the evidence that an adoption happened, and a run that was fenced mid-flight is worth being able to
+  inspect.
 - Without fencing, both processes could reach a not-yet-started lane and assign it the **same attempt
   ordinal** — and §7's delimiters distinguish attempts, not writers, so two interleaved streams under
   one ordinal are indistinguishable at assembly. That is the one failure the attempt machinery cannot
@@ -316,6 +336,8 @@ classification two implementations must reach identically or `--resume` is nonde
 | 3.7 | `--resume` against a run whose lease has not been refreshed past the threshold adopts the artifact, increments `owner_epoch`, and refreshes the lease itself. |
 | 3.8 | A holder whose lease was adopted while it was suspended aborts on its next heartbeat refresh or artifact append, writing nothing: the partial artifact contains records from exactly one writer per attempt ordinal. |
 | 3.9 | A lease whose `heartbeat_at` is further in the future than one refresh interval is classified stale and is adoptable, with the skew reported — a forward clock jump cannot make an abandoned run permanently unresumable. |
+| 3.10 | A run that exits cleanly leaving a lane incomplete writes a `released` lease, and an immediately following `--resume` is accepted rather than refused as live. |
+| 3.11 | A fenced writer's appends land in `findings.partial.<its own epoch>.jsonl` and never in the adopter's; assembly reads only the highest epoch present, and superseded files are retained. |
 | 5.4 | A lane whose delegate reported no catalog version or prompt digest re-runs on every `--resume` rather than being carried forward, and the delegate is named in the report's coverage notes as owing a detection declaration. |
 | 6.1d | The scan baseline is computable on a worktree containing an untracked directory: paths come from `git status --porcelain --untracked-files=all`, so no `git hash-object` is attempted on a directory. |
 | 3.2 | Two read-only runs launched concurrently both complete, and their derived identity sets are equal. |
@@ -565,10 +587,25 @@ So the run **measures** its own precondition:
 - If either capture differs, the determinism gate is reported **`indeterminate`**, never `passed` and
   never `failed`, naming both captures and what moved.
 - **Two endpoint captures detect a net change, not a transient one.** A file mutated and reverted
-  inside the run is invisible to them. §5's per-lane input digests are the detector for that case and
-  need no new machinery: two lanes whose inputs overlap record content hashes for the shared paths,
-  and a disagreement between them means the tree moved mid-run. It reports `indeterminate` on the
-  same grounds — the lanes demonstrably did not read one state.
+  inside the run is invisible to them. §5's per-lane input digests narrow that: two lanes whose
+  inputs overlap record content hashes for the shared paths, and a disagreement between them means
+  the tree moved mid-run, reported `indeterminate` on the same grounds — the lanes demonstrably did
+  not read one state.
+
+  **Narrows, not closes, and the residue is stated rather than left implied.** A file changed and
+  restored between two samples hashes identically at both, and a file read by only one lane has no
+  cross-lane comparison at all — so a lane can read transient bytes and every recorded hash still
+  agree. Two mitigations, both bounded: each lane samples its inputs **immediately before and
+  immediately after its own reads** and reports `indeterminate` for itself when its own pair
+  disagrees, which shrinks the undetectable window from the whole run to one lane's read span; and
+  the run states in its report that detection is **sampling-based**, so a mutation entirely inside a
+  sampling gap is not detected.
+
+  Closing it completely needs the lanes to read from an **immutable snapshot** — a `git worktree` of
+  the recorded revision, or a filesystem snapshot — which is a real option and not one this contract
+  mandates, because it cannot cover the untracked and user-scope surfaces the scan set includes. What
+  is binding is the honesty: the gate detects a tree that moved *across* samples and says so, and it
+  does not claim to detect one that moved *between* them.
 - `indeterminate` is a distinct outcome, not a soft pass. It says the run could not establish the
   basis for the comparison — which is a true statement — where `passed` would assert a stability that
   was never tested.
@@ -625,7 +662,17 @@ detection-behavior input not covered by the digest is a defect in the digest.
   because an accepted edit created, deleted, or moved it is attributable; one that moved because the
   launch directory or `claudeMdExcludes` changed is not, and P2 abstains.
 
-  Fix-comparable ⇒ every finding a fix targeted is absent from R2, and `D(R2) ⊆ D(R1)` still holds.
+  Fix-comparable ⇒ every finding a fix targeted is absent from R2, and **every derived addition in
+  `D(R2) \ D(R1)` is attributable to an accepted edit**.
+
+  **The subset form was still unconditional and still rejected the remediation this relation was
+  written to admit.** Moving material out of `CLAUDE.md` into a newly created skill makes `D(R2)`
+  gain that skill's own inventory identity — a derived *addition* — so `D(R2) ⊆ D(R1)` fails even
+  though the entire delta traces to the accepted edit. Fixing comparability and leaving the subset
+  assertion alone half-fixed it. The condition is therefore attribution, exactly as comparability
+  is: additions the accepted edit accounts for are expected, and a **non-attributable** addition is
+  the real failure — that is spontaneous growth during a fix round, which is P3's concern arriving
+  through the convergence door.
   **Strictness is conditional, not universal:** `D(R2) ⊊ D(R1)` is required only when at least one
   accepted fix targeted a derived-tier finding. A judged-tier fix need remove nothing from `D` —
   rewriting an over-prescriptive instruction leaves the surface inventory, the exclusion set, the
@@ -676,7 +723,7 @@ the floor is irrelevant. **10% is a starting calibration, not a discovered const
 
 Two artifacts, because incremental persistence and a sectioned report want different shapes.
 
-**During the run — `findings.partial.jsonl`.** One JSON object per line, appended as each lane
+**During the run — `findings.partial.<owner_epoch>.jsonl`.** One JSON object per line, appended as each lane
 completes. Append-only is what makes §5 real: a single JSON document would be rewritten whole on
 every append, which is exactly the operation an interrupted run leaves half-done. A lane's final
 record is its terminating record, which is what marks the lane complete.
