@@ -49,6 +49,7 @@ settings keys (`subagentStatusLine`) a plugin's `settings.json` may set. Channel
 | Hooks reference | <https://code.claude.com/docs/en/hooks> | 2026-07-17 |
 | Automate actions with hooks (guide) | <https://code.claude.com/docs/en/hooks-guide> | 2026-07-17 |
 | Subagents | <https://code.claude.com/docs/en/sub-agents> | 2026-07-17 |
+| Dynamic workflows — script-held orchestration, runtime agent caps | <https://code.claude.com/docs/en/workflows> | 2026-07-26 |
 | MCP | <https://code.claude.com/docs/en/mcp> | 2026-07-17 |
 | Connect to MCP servers (quickstart) | <https://code.claude.com/docs/en/mcp-quickstart> | 2026-07-17 |
 | Output styles | <https://code.claude.com/docs/en/output-styles> | 2026-07-17 |
@@ -98,6 +99,16 @@ SDK-based host.
 | CLI reference | <https://code.claude.com/docs/en/cli-reference> | 2026-07-17 |
 | Error reference | <https://code.claude.com/docs/en/errors> | 2026-07-17 |
 | Glossary | <https://code.claude.com/docs/en/glossary> | 2026-07-17 |
+| Release changelog — per-version behavior changes | <https://code.claude.com/docs/en/changelog> | 2026-07-26 |
+
+**On citing the changelog.** It is indexed here because the prose pages can lag it: a behavior can
+change in a release and reach the topic page a release or more later, and when the two disagree the
+changelog is the one that matches the running harness. Two handling rules follow. First, the
+rendered page summarizes; fetch the raw markdown (`…/changelog.md`, or the upstream
+`CHANGELOG.md`) when you need a byte-exact version-pinned quote, because a summarizing fetch of this
+page has produced inconsistent readings of the same entries. Second, a changelog citation records
+what changed **in a version** — always pin the version, and pair it with the topic page rather than
+replacing it, since the topic page stays authoritative for mechanism and semantics.
 
 Machine-readable JSON Schemas (editor validation only; Claude Code ignores the `$schema` field at
 load time — already cited in this repo's `CLAUDE.md`): `marketplace.json` →

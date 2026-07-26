@@ -3,7 +3,7 @@
 All notable changes to the `typos-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.3.5]
+## [0.4.1]
 
 ### Fixed
 
@@ -21,6 +21,116 @@ All notable changes to the `typos-format` plugin are documented here. Format fol
   system bash), so the pre-4.1 path falls back to the delimiter read inside the same re-arming
   loop. Measured: 50 KB drops from ~2100 ms to ~20 ms, 200 KB from ~6800 ms to ~85 ms. Synced
   from `lib/hook-utils.sh`; this plugin's own hook behavior is otherwise unchanged.
+
+## [0.4.0]
+
+### Fixed
+
+- **Every correction the hook applies is now disclosed on both channels.** On the
+  all-fixed path the hook emitted nothing at all — no `additionalContext`, no
+  `systemMessage`, telemetry only — so a rewrite drawn from typos' built-in
+  dictionary reached the file with the only trace being the harness's generic
+  "a PostToolUse hook modified this file" notice: no hook name, no word, no
+  diff. An acronym or identifier the dictionary maps to an unrelated English
+  word was therefore corrupted invisibly, indistinguishably from a benign
+  reformat. The hook now reports each applied rewrite — token, replacement, and
+  line — to Claude via `additionalContext` and to the user via `systemMessage`,
+  capped at ten per run with a count of the remainder so the disclosure cannot
+  itself become a context flood.
+- **The allow-list remediation moved onto the applied-correction path.** The
+  "if intentional, add it to `extend-words` / `extend-identifiers`" guidance sat
+  only on the residual branch, so it never fired for the corrections that
+  actually change file content — the one case where it is load-bearing. A
+  dictionary autocorrect has no memory: a word repaired by hand is rewritten
+  again on the next edit until the repo allow-lists it, and until now nothing
+  said so.
+
+### Added
+
+- **`typos_format_write_changes` userConfig (default `true`).** Set it to
+  `false` for a report-only hook: findings are reported and no file is
+  modified. Read from the `CLAUDE_PLUGIN_OPTION_TYPOS_FORMAT_WRITE_CHANGES`
+  environment mirror, because shell-form hook commands reject
+  `${user_config.*}` substitution outright.
+- **`data.applied` on the telemetry envelope** — the corrections this run wrote,
+  as `{typo, correction, line}`. Additive; `data.findings` keeps its existing
+  residual-only meaning and shape.
+- **`/typos-format:setup check` reports the effective write mode.** The setup
+  skill described a single tunable and probed only `typos_format_enabled`, so
+  with `typos_format_write_changes=false` it could report the hook fully
+  operational to a user who invoked it precisely because spell-fixing was not
+  happening. Write mode is now a reported INFO row with its own remediation —
+  including the alternative that usually fits better, allow-listing the specific
+  words rather than turning every correction off.
+- **Stub-driven contract tests for the disclosure surface.** The suite
+  previously skipped in full when no `typos` binary was installed, which is the
+  CI runner's state — so nothing about this hook was gated there. The
+  disclosure, report-only, cap, and telemetry cases now run against a stub
+  binary and execute everywhere; the config-discovery and exclusion cases still
+  require a real `typos`.
+
+### Changed
+
+- **The hook now scans read-only before it writes.** `typos --write-changes`
+  emits nothing for a correction it applies (verified against typos-cli 1.44.0:
+  a fully-fixable file exits 0 with empty stdout after rewriting), so a
+  write-only run has no information about what it changed. A read-only pass
+  captures the pre-write finding set; the applied set is derived as scan minus
+  what survived the write, rather than by guessing which findings typos
+  considers safe to auto-fix. Cost is one extra typos invocation only on files
+  that actually have findings — measured at roughly 80 ms on a 68 KB file,
+  against the handler's 15-second timeout. The read-only pass runs first, so a
+  run killed at the timeout between the two passes has modified nothing.
+  Both passes are guarded identically: an exit 2 with no output is a typos break,
+  not an empty residual set, so a write that broke mid-run is reported as a tool
+  break instead of being read as "every finding was applied".
+- **Classification is one `jq` pass, not a shell loop.** Process-spawn cost, not
+  typos, dominates this hook, and a per-finding loop turns a heavily-corrected
+  file into the very defect being fixed: the file is rewritten, the handler's
+  15-second timeout fires, and stdout is empty — silent mutation again, on
+  exactly the files where the disclosure matters most. The scan set, the
+  residual set, the split between them, and the capped display text are all
+  produced by a single invocation, so the subprocess count is constant in the
+  number of findings. Both finding sets reach `jq` on **stdin**, never as
+  `--arg` values: Windows caps a process command line at 32767 characters and
+  typos' jsonlines run about 110 bytes per finding, so an argument-passed set
+  broke silently somewhere past ~300 corrections — jq never ran and the hook
+  degraded to "could not be summarized" on precisely the typo-heavy files the
+  disclosure matters most for. A 500-correction file (past that limit, and the
+  scale at which the old per-finding loop timed out) is asserted to disclose all
+  500 inside the budget; it runs in about 3 seconds against the real binary. The
+  residual key is built and compared as a JSON string inside `jq`, so a token
+  carrying a shell or glob metacharacter is data throughout.
+- **Residual membership is a hash lookup, not a linear scan.** Classifying with
+  `index` over an array is quadratic exactly when the residual set is large — a
+  minified or generated file where most findings are ambiguous. Measured: 10,000
+  all-residual findings took about 15.7 s inside `jq` alone, past the handler's
+  15-second timeout, and the file is rewritten *before* classification runs, so
+  that timeout lands after the mutation and before any disclosure. The same set
+  takes about 0.6 s keyed by object. The scale cases now cover an all-applied
+  AND an all-residual set: the applied path alone never touches that branch.
+- **The telemetry payload reaches `jq` on stdin too.** `data.findings` and the
+  new `data.applied` are uncapped, so roughly a thousand ordinary corrections
+  (about 45 KB of JSON) exceeded the same command-line ceiling and the fallback
+  would have emitted an envelope reporting `applied: []` for a file this hook
+  had just rewritten. A dropped envelope is inside the best-effort telemetry
+  contract; one that arrives claiming a heavily-rewritten file was untouched is
+  not. The shared `hook::emit_telemetry` still hands the finished payload over
+  as an argument (#1595), so an oversized envelope is currently dropped rather
+  than delivered — the correct failure direction, and what the scale assertion
+  pins.
+- **The disclosure is bounded by characters, not only by entry count.** Capping
+  the list at ten entries does not cap the message: a token or a correction is
+  arbitrary text from the file, so ten long ones overrun the 10,000-character
+  `systemMessage` cap and the channel truncates or rejects the disclosure —
+  after the file has already been rewritten, which is the one outcome this path
+  exists to prevent. Rendered tokens are elided at 60 characters and each
+  channel carries a hard ceiling, with the truncation stated in the message.
+  The telemetry arrays keep the untruncated values.
+- Carriage returns no longer leak into the emitted report. `jq` writes stdout in
+  text mode on Windows, so a multi-line value returns CRLF-terminated and
+  command substitution strips only the last one, leaving a literal `\r` before
+  every remaining newline in the escaped context.
 
 ## [0.3.4]
 

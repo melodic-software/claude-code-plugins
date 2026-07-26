@@ -57,6 +57,20 @@ definition. (The `dim-N` numbers are an informal fleet-conformance shorthand —
 uniform setup-skill wave, dim-11 = seam phrasing — with no central registry defining the numbering;
 giving the whole scheme a documented home is a separate follow-up, tracked outside this doc.)
 
+**Also required — a hook that CHANGED the user's file content without being asked.** An autofix hook
+edits a file the user is working in, on the strength of an unrelated tool call, with no prompt and no
+diff. The harness's own signal for it is a generic "PostToolUse hook modified `<file>` after your
+edit (likely a formatter)" line that names no hook and shows no change — verified against
+<https://code.claude.com/docs/en/hooks> (fetched 2026-07-26): the three documented output channels
+carry no file-change or diff surface, so a benign reflow and a wrong dictionary rewrite arrive
+identically. The person whose file was changed is the only one who can judge whether the change was
+correct, so **the hook must name what it changed on the user channel**, not only the agent one: what
+was rewritten, to what, where, and how to prevent it. This is a *narrow* addition to the scope above,
+and its boundary is content the user did not request — a hook that only *reports* (a lint finding, a
+suggested fix, a diagnostic) still belongs on `additionalContext` alone. The same cap discipline as
+the repeat-notice rule applies: a per-item list must be bounded, with the remainder summarized as a
+count, or the disclosure becomes the noise problem it was meant to prevent.
+
 **Not required** for two situations that are already visible or already correctly agent-scoped:
 
 - **Exit-2 blocking paths.** A `PreToolUse` hook that blocks a tool call via exit code 2 is
@@ -64,7 +78,8 @@ giving the whole scheme a documented home is a separate follow-up, tracked outsi
   `systemMessage` on top of a block would be redundant, not more observable.
 - **Legitimate advisory findings.** A hook that surfaces a finding to Claude for it to act on
   (e.g. a lint result, a suggested fix) belongs on `additionalContext` only — that is the correct
-  channel for agent-actionable content, not a gap.
+  channel for agent-actionable content, not a gap. This is the case the content-mutation clause
+  above is deliberately distinguished from: reporting is agent-scoped, rewriting is not.
 
 **Repeat-notice discipline.** A missing-prerequisite notice behind a broad matcher (every
 `Write|Edit`, every `Bash` call) must not repeat on every invocation. Use `hook::require_jq`
@@ -112,9 +127,9 @@ melodic-software/claude-code-plugins#930.
 - **Not a new telemetry schema.** The envelope shape is `hook-telemetry`'s concern; this doc only
   states the adoption requirement.
 - **Not a blanket "add systemMessage everywhere" rule.** Scoped narrowly to the
-  missing-prerequisite-skip case; over-applying it to blocking paths or advisory findings is
-  itself a conformance defect (redundant user noise, or misrouting agent-actionable content to
-  the user channel).
+  missing-prerequisite-skip case and the unrequested-content-mutation case; over-applying it to
+  blocking paths or advisory findings is itself a conformance defect (redundant user noise, or
+  misrouting agent-actionable content to the user channel).
 - **Not a UI feature.** No native "verbose hooks" toggle exists in Claude Code as of 2026-07-22
   (confirmed against the same fresh fetch this doc cites) — `statusMessage` and `systemMessage`
   are the sanctioned surfaces available today. An upstream feature request for a native
@@ -128,6 +143,9 @@ Fleet audits check, per wired producer hook:
 - Every missing-prerequisite skip path emits a `systemMessage` (via `hook::require_jq` or
   `hook::notice_once` + `hook::emit_skip_notice`), gated so it fires once per session on a broad
   matcher.
+- Every path on which the hook rewrote file content names what it changed on the user channel,
+  bounded by a per-run cap with the remainder reported as a count. Not mechanically gated —
+  reviewed per hook. The adopting reference is `plugins/typos-format/hooks/typos-format.sh`.
 - The hook emits the telemetry envelope for every **meaningful outcome** — a check that ran and
   produced a result (ok / blocked / skipped-for-cause). A pure inapplicability short-circuit
   (wrong tool type, excluded path, empty content, outside the project) that fires before any
