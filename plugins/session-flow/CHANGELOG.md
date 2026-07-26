@@ -25,8 +25,16 @@
   "infer from conversation" prose. Neither re-arm can ride inside the other's prompt argument, since
   a command is recognized only at a message's start
   (<https://code.claude.com/docs/en/commands>), so each is its own message: `/goal` keeps the first
-  line between the rails, `/loop` follows separately. `handoff/SKILL.md`'s two enforcement
-  checklists and `handoff/context/gotchas.md` are updated to match.
+  line between the rails, `/loop` follows separately. The launch-turn signal is read as a set rather
+  than a single find: a session can hold up to 50 scheduled tasks at once
+  (<https://code.claude.com/docs/en/scheduled-tasks#manage-scheduled-tasks>) and `/clear` takes all
+  of them, so the rule enumerates every surviving loop and emits one re-arm message per loop —
+  a singular rule would have preserved one and silently dropped the rest. Elapsed time retires a
+  launch from that set alongside an explicit stop: a recurring task expires seven days after creation
+  (<https://code.claude.com/docs/en/scheduled-tasks#seven-day-expiry>), so a launch turn older than
+  that is already gone and re-arming it would resurrect a schedule that had already ended.
+  `handoff/SKILL.md`'s two enforcement checklists and `handoff/context/gotchas.md` are updated to
+  match.
 - **Lost-handoff recovery dropped that same `/loop` re-arm.** The re-arm note is the one piece of a
   resume prompt that cannot sit between the rails — a command is recognized only at a message's
   start (<https://code.claude.com/docs/en/commands>), so it is a separate follow-up message and its

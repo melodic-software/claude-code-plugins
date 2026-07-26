@@ -88,7 +88,7 @@ copy, which goes stale the moment disk moved on without this conversation seeing
   `/clear` destroys an active goal, so the pasted block must re-arm it. When no such call is found,
   omit it and note below the bottom rail: "if a goal was active, prepend `/goal <condition>`."
 - **Loop-aware re-arm:** if this session is running under `/loop` — check for this session's own
-  `/loop [<interval>] <prompt>` launch turn earlier in the conversation with no later stop (`Esc`, or
+  `/loop [<interval>] <prompt>` launch turns earlier in the conversation with no later stop (`Esc`, or
   a `ScheduleWakeup` call carrying `stop: true`), not "infer from conversation" prose. A subsequent
   `ScheduleWakeup` reschedule call (`stop` absent or `false`) corroborates self-paced mode but is
   never required to conclude the loop is active — on the loop's first iteration no reschedule has
@@ -97,6 +97,16 @@ copy, which goes stale the moment disk moved on without this conversation seeing
   (<https://code.claude.com/docs/en/scheduled-tasks#limitations>), so a resume prompt that says
   nothing about the loop runs the continuation once and silently loses the recurring behavior — the
   same failure class `/goal` re-arm exists to prevent.
+
+  **Enumerate every surviving loop, and only the surviving ones.** A session can hold up to 50
+  scheduled tasks at once (<https://code.claude.com/docs/en/scheduled-tasks#manage-scheduled-tasks>),
+  so treat the launch turns as a set, not a single find: `/clear` takes them all, and a note that
+  re-arms one silently drops the rest. Two conditions retire a launch from that set. A later stop for
+  that specific loop, as above. And elapsed time: a recurring task expires seven days after creation
+  (<https://code.claude.com/docs/en/scheduled-tasks#seven-day-expiry>), so a launch turn older than
+  that is already gone on its own — reading it as active would have the note resurrect a schedule the
+  operator's session had already stopped running. Emit one re-arm message per loop left standing, and
+  nothing at all when none is.
 
   **The re-arm is a SECOND message, and it carries the ORIGINAL loop prompt — never the resume
   directive.** `/loop` re-runs the prompt it was given on *every* iteration
@@ -107,11 +117,13 @@ copy, which goes stale the moment disk moved on without this conversation seeing
   every other path (the resume directive, unwrapped, bootstrapping the continuation once), and the
   note below the bottom rail reads: "this session was running under `/loop`; after pasting the block
   above, send `/loop [<interval>] <original prompt>` as a separate message to re-arm it" — quoting
-  the interval and the prompt verbatim from the launch turn, self-paced meaning no interval token.
-  Order matters and is stated in the note: bootstrap first, re-arm second, because the re-armed
-  loop's own first iteration must not run before the continuation it is resuming into. When no
-  launch-turn signal is found, say instead: "if a loop was active, re-arm it with
-  `/loop [<interval>] <the prompt you originally launched it with>` after pasting the block above."
+  the interval and the prompt verbatim from the launch turn, self-paced meaning no interval token,
+  and listing one such message per surviving loop, since a command is recognized only at a message's
+  start and two cannot share one. Order matters and is stated in the note: bootstrap first, re-arm
+  second, because the re-armed loop's own first iteration must not run before the continuation it is
+  resuming into. When no launch-turn signal is found, say instead: "if a loop was active, re-arm it
+  with `/loop [<interval>] <the prompt you originally launched it with>` after pasting the block
+  above."
 
   **The note is conditioned on the paste, not on the citing skill.** Re-arming exists only because
   `/clear` destroys the session-scoped schedule, so a delivery that never clears needs none: a
