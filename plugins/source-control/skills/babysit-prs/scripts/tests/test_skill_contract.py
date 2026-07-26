@@ -20,6 +20,24 @@ def _table_row(skill_text: str, label: str) -> str:
     )
 
 
+def _sections(text: str) -> dict[str, str]:
+    """Split a reference file into its `### ` sections, keyed by heading."""
+    sections: dict[str, str] = {}
+    heading: str | None = None
+    body: list[str] = []
+    for line in text.replace("\r\n", "\n").split("\n"):
+        if line.startswith("### ") or line.startswith("## "):
+            if heading is not None:
+                sections[heading] = "\n".join(body)
+            heading = line.removeprefix("### ") if line.startswith("### ") else None
+            body = []
+        elif heading is not None:
+            body.append(line)
+    if heading is not None:
+        sections[heading] = "\n".join(body)
+    return sections
+
+
 def _paragraph_containing(skill_text: str, marker: str) -> str:
     paragraphs = skill_text.replace("\r\n", "\n").split("\n\n")
     paragraph = next(paragraph for paragraph in paragraphs if marker in paragraph)
@@ -167,9 +185,14 @@ class SkillContractTests(unittest.TestCase):
         # with the classification gate is what produced the false report (#601).
         loop = (SKILL.parent / "reference" / "loop.md").read_text(encoding="utf-8")
 
-        self.assertIn(
-            "- [ ] Finding-classification gate: READINESS_OK / READINESS_BLOCKED", loop
-        )
+        self.assertIn("- [ ] Finding-classification gate:", loop)
+        # The field holds the captured line, not a menu of shapes to pick from.
+        # An offered `READINESS_UNPROVEN <reason>` conflicts with quoting stdout
+        # verbatim -- the gate prints `reason=<reason> pr=<n>` -- and a worker
+        # following the abbreviation reports a reconstruction, which carries none
+        # of the provenance the verdict contract rests on.
+        self.assertIn("the captured stdout line exactly as printed", loop)
+        self.assertNotIn("gate: READINESS_OK / READINESS_BLOCKED", loop)
         self.assertIn("- [ ] Merge gate: `ready: true` / `ready: false`", loop)
         self.assertNotIn("Readiness: ready for merge", loop)
         self.assertIn("Never report a PR MERGE-READY off `READINESS_OK`", loop)
@@ -203,6 +226,88 @@ class SkillContractTests(unittest.TestCase):
         ):
             with self.subTest(marker=marker):
                 self.assertIn(marker, para)
+
+    def test_conflict_resolution_splits_resolve_from_push(self) -> None:
+        # A dispatched conflict worker's isolated context cannot carry the
+        # operator's own grant for an outward mutation, so the local resolution
+        # stays with it and the push belongs to the dispatching context. Asserted
+        # per section, with the negative, so the boundary cannot drift back to a
+        # conflict worker that pushes while the markers still all appear somewhere.
+        sections = _sections(
+            (SKILL.parent / "reference" / "orchestration.md").read_text(
+                encoding="utf-8"
+            )
+        )
+
+        for header in (
+            "Why The Push Stays With The Orchestrator",
+            "Conflict-Worker Contract (local only — never writes to GitHub)",
+            "Orchestrator Contract (the push)",
+            "Conflict-Worker Prompt Delta",
+        ):
+            with self.subTest(header=header):
+                self.assertIn(header, sections)
+
+        worker = sections["Conflict-Worker Contract (local only — never writes to GitHub)"]
+        for marker in (
+            "git merge origin/<base-branch>",
+            "never rebase",
+            "never `git push`",
+            "`resolved`",
+            "`escalate`",
+            "`verification-impossible`",
+            "`no-conflict`",
+        ):
+            with self.subTest(side="conflict worker", marker=marker):
+                self.assertIn(marker, worker)
+
+        # The negative half: the push lives in exactly one of the two contracts.
+        self.assertNotIn('push "$PUSH_REMOTE"', worker)
+
+        orchestrator = sections["Orchestrator Contract (the push)"]
+        for marker in (
+            "Push only on `resolved`",
+            "rev-parse HEAD^1",
+            "rev-list --parents -n 1 HEAD",
+            "Re-run the verification in the worktree",
+            'push "$PUSH_REMOTE" HEAD:<headRefName>',
+            "Never force, in any tier.",
+        ):
+            with self.subTest(side="orchestrator", marker=marker):
+                self.assertIn(marker, orchestrator)
+
+        rationale = sections["Why The Push Stays With The Orchestrator"]
+        self.assertIn("https://code.claude.com/docs/en/sub-agents", rationale)
+
+    def test_conflict_worker_is_bound_by_the_worker_rules(self) -> None:
+        # The two contracts are the only differences from an ordinary worker;
+        # every other worker rule (leases, concurrency cap, check-in) must keep
+        # binding, so the vocabulary cannot quietly create an unowned actor.
+        orchestration = (SKILL.parent / "reference" / "orchestration.md").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn("**A conflict worker is a worker.**", orchestration)
+        self.assertIn("and it does not push", orchestration)
+
+    def test_skill_table_states_the_conflict_push_boundary(self) -> None:
+        row = _table_row(self.skill_text, "Dispatch a dedicated conflict worker")
+
+        self.assertIn("never pushes", row)
+        self.assertIn("the orchestrator re-verifies and pushes", row)
+
+    def test_reference_files_agree_on_who_pushes_a_resolution(self) -> None:
+        def unwrapped(path: pathlib.Path) -> str:
+            return " ".join(path.read_text(encoding="utf-8").split())
+
+        safety = unwrapped(SKILL.parent / "reference" / "safety.md")
+        loop = unwrapped(SKILL.parent.parent / "babysit-loop" / "SKILL.md")
+
+        # safety.md's Role Boundaries enumerates orchestrator authority; the one
+        # push it owns has to appear there, not only in the stop-and-ask list.
+        self.assertIn("push a dispatched conflict worker's verified resolution", safety)
+        self.assertIn("which the conflict worker never does", safety)
+        self.assertIn("the dispatched conflict worker never pushes", loop)
 
     def test_safety_md_codifies_the_tier_criteria(self) -> None:
         safety = (SKILL.parent / "reference" / "safety.md").read_text(encoding="utf-8")
@@ -257,6 +362,55 @@ class SkillContractTests(unittest.TestCase):
         self.assertIn("mergeStateStatus == CLEAN", safety)
         self.assertIn("operator enabling precondition", safety)
         self.assertIn("do not enable the tier", safety)
+
+    def test_unproven_readiness_contract_is_stated_on_both_sides(self) -> None:
+        # The gate can print an UNPROVEN verdict, but it cannot report its own
+        # non-invocation -- so half the #787 contract necessarily lives in prose:
+        # the report quotes the verdict verbatim, and neither an UNPROVEN verdict
+        # nor a denied call may be backfilled from live gh state. Pinned here
+        # because a silent deletion would restore the exact ambiguity #787 hit.
+        reference = SKILL.parent / "reference"
+        safety = (reference / "safety.md").read_text(encoding="utf-8")
+        loop = (reference / "loop.md").read_text(encoding="utf-8")
+
+        self.assertIn(
+            "READINESS_UNPROVEN reason=<bad-args|identity-unresolved"
+            "|prereq-missing|comments-unreadable|checklist-unreadable|fetch-failed>",
+            safety,
+        )
+        for marker in (
+            "quoting the verdict line verbatim",
+            "cannot report its own non-invocation",
+            "NOT a substitute verdict",
+        ):
+            with self.subTest(file="safety.md", marker=marker):
+                self.assertIn(marker, safety)
+
+        for marker in (
+            "Never report a readiness verdict the gate did not emit",
+            "not emitted — harness denied: <exact command>",
+            "readiness unproven",
+        ):
+            with self.subTest(file="loop.md", marker=marker):
+                self.assertIn(marker, loop)
+
+    def test_lane_script_prerequisite_names_its_actual_evidence(self) -> None:
+        # #787's own repro used a wildcarded-interpreter form auto mode drops by
+        # design, so it does not show the sanctioned bin/-path form being denied.
+        # The section must keep saying so, and keep citing dotfiles#315 -- the
+        # evidence that does hold -- or it reverts to overclaiming a repro.
+        safety = (SKILL.parent / "reference" / "safety.md").read_text(encoding="utf-8")
+
+        self.assertIn("does **not** demonstrate that the sanctioned", safety)
+        self.assertIn("generalization from other evidence", safety)
+        self.assertIn("melodic-software/dotfiles/issues/315", safety)
+        self.assertIn("classifyAllShell", safety)
+
+        # #455 disputes the never-retry rule this section sits beneath and
+        # restates; the open-question note keeps the restatement from reading as
+        # settled confirmation.
+        self.assertIn("claude-code-plugins/issues/455", safety)
+        self.assertIn("treat the retry semantics of a classifier denial", safety)
 
     def test_full_queue_and_draft_contract_remains_explicit(self) -> None:
         autopilot = _paragraph_containing(self.skill_text, '"Every PR" means every PR')

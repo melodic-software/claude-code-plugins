@@ -49,8 +49,7 @@ non-memory surfaces (skill bodies, agent definitions, prompt-type hooks, output 
 memory-layer surfaces (CLAUDE.md, CLAUDE.local.md, `.claude/rules/`, `~/.claude/rules/`) their
 findings route to the `claude-memory` plugin's `audit` skill when it is installed, and fall back
 to the official include/exclude guidance (I1–I5 source below) when it is not. Checks I6–I12 and
-I15–I16 apply to all surfaces; I13 and I14 name narrower surface sets in their own rows. I15 routes
-on the same convention for the narrower case its own entry states.
+I15–I16 apply to all surfaces; I13 and I14 name narrower surface sets in their own rows.
 
 ## Sources
 
@@ -338,105 +337,36 @@ skill bodies.
 
 ### I15: Cross-surface instruction conflict
 
-Tier `behavioral` · Authority `ANTHROPIC-DOCS` · Severity `warning` · Surfaces: all.
+Tier `behavioral` · Authority `ANTHROPIC-DOCS` · Severity `warning` · Surfaces: all — but the unit is
+a **pair**, so this row is answered by Phase B2 rather than by a per-surface lane.
 
-- **Detect:** two live instructions that cannot both be satisfied, where no official layering rule
-  already determines which one wins. A finding is a relation between two instructions, never a
-  property of one line: it names both participating locations.
-- **Comparison set** — every surface that can hold instruction text:
-  - `CLAUDE.md` at every scope — managed policy, user, project root, nested, `CLAUDE.local.md`
-  - `.claude/rules/`, both unscoped and `paths:`-scoped
-  - skill bodies
-  - agent definitions
-  - prompt-type hooks, including hook text configured in `.claude/settings.local.json`
-  - output styles
-
-  The comparison set is not narrowed by a scope argument. A conflict is a relation between two
-  surfaces, so a run scoped to one surface still needs the others inventoried to find the
-  counterpart; the scope filter governs which side may *produce* a finding, never which surfaces are
-  read. Phase A's inventory contract states this obligation.
-- **Compare only definitions that can be live together.** Two surfaces that can never be active in
-  the same context are alternatives, not an unsatisfiable pair: only the selected output style
-  applies to a session, and two agent definitions execute in separate subagent contexts. Filter the
-  comparison set by co-activation before comparing, and compare an agent or output-style definition
-  against the surfaces that *do* load alongside it rather than against its own siblings.
-- **Resolve before comparing — imports only where the surface implements them.** `@path` expansion is
-  a memory-surface behavior: `CLAUDE.md` at every scope, `CLAUDE.local.md`, and `.claude/rules/` files
-  import additional files, and those files are "expanded and loaded into context at launch"
-  (<https://code.claude.com/docs/en/memory>). Expand imports on those surfaces, and resolve symlinks
-  everywhere, before comparing. An imported file's content is live instruction text, so a detector
-  that reads only the importing file compares a different surface than the model sees, and every
-  `@docs/foo.md` import is invisible to it.
-- **An `@path`-shaped reference in a skill body or agent definition is not an import.** No official
-  page extends import expansion beyond the memory surfaces, and a skill's supporting files are read on
-  demand when the skill needs them rather than loaded at launch
-  (<https://code.claude.com/docs/en/skills>). Expanding one anyway would let I15 report conflicts
-  against instructions that were never in context. Treat it as an ordinary pointer: the pointing line
-  is comparable, the pointed-at file is not — it enters the comparison set only on its own merits, as
-  a skill body or agent definition the inventory already collected.
-- **`AGENTS.md` is deliberately not in the comparison set.** The memory doc's own `AGENTS.md`
-  section states it outright — "Claude Code reads `CLAUDE.md`, not `AGENTS.md`" — and prescribes an
-  `@AGENTS.md` import or a symlink as the way to make one load
-  (<https://code.claude.com/docs/en/memory>). A stock install never loads it, so flagging it would
-  false-positive on every repo that keeps one for other tools. Its content enters the comparison set
-  exactly when a loaded surface imports or symlinks it — through the resolution step above, not as a
-  surface of its own.
-- **Routing — `claude-memory:audit` C6 is the incumbent inside the memory layer**, on the same
-  convention I1–I5 already run:
-  - A contradiction **wholly inside the memory surfaces C6 actually inventories** — the project-root
-    `CLAUDE.md` / `CLAUDE.local.md` and the project `.claude/rules/` tree — is C6's. I15 does not
-    report it, so one finding is emitted rather than two from two plugins with no reconciliation rule
-    between them.
-  - **Cede only what the incumbent can see.** C6's discovery is bounded to those project-root and
-    project-rules files, so a memory-layer contradiction that reaches a surface outside them — a
-    user-scope `CLAUDE.md` or `~/.claude/rules/` file, or a nested `CLAUDE.md` below the project root
-    — stays I15's. Ceding it would leave it unchecked by both plugins. Confirm the incumbent's
-    discovery scope before ceding, and cede a pair only when *both* sides fall inside it.
-  - A contradiction with **at least one side outside** the memory layer — a skill body, an agent
-    definition, a prompt-type hook, an output style — is I15's, and nothing else covers it.
-  - Anything involving the **managed-policy tier** is I15's, read-only.
-  - When `claude-memory` is **not installed**, report that memory-layer contradictions go unchecked
-    and name `claude-memory:audit` as the skill that performs them. This check still does not
-    perform them.
-- **Must not flag:**
-  - a more-specific instruction narrowing a broader one — for `CLAUDE.md` conflicts the docs state
-    that Claude reconciles by judgment with more specific instructions typically taking precedence,
-    so a nested file tightening a root rule is the mechanism working
-  - format-steering against behavior-steering — they govern different things, the same distinction
-    I9 draws when it refuses to flag format-steering examples
-  - two **conditional** instructions whose conditions are disjoint, so neither can fire on the same
-    file — two `paths:`-scoped rules over `src/**` and `docs/**`, say. An unconditional instruction
-    always applies, so it can never be the disjoint side of this pair: an unconditional rule that
-    contradicts a path-scoped one *is* a conflict on the paths the scoped rule covers.
-  - two instructions that agree in substance and differ only in wording — redundancy is I1's concern
-  - a shadowed same-named skill or subagent: exactly one is live, so this is a resolved override, not
-    a conflict (see the adjacent report below)
-- **Adjacent report, not a conflict finding:** where a skill or subagent is shadowed by a same-named
-  definition at a higher-precedence scope, report it in its own `info` section naming the live
-  definition and the inert one. It is worth telling an operator about — an inert definition that
-  looks live is its own trap — but it is name comparison across a known precedence order and belongs
-  in the mechanical tier, not in this check's judged findings. Skills and subagents are the whole
-  contract: they are the shadowable definitions Phase A already inventories. Same-named MCP servers
-  across scopes are deliberately **not** covered — this skill inventories no MCP configuration and
-  routes `.mcp.json` mechanics to `claude-config:audit`, so promising an MCP shadow report here
-  would promise a finding with no data behind it.
-- **Remediate, by scope, and never a default deletion:**
-  - **Both sides operator-owned:** reconcile, and say which one to change. A conflict is evidence
-    that two intentions exist, and which is correct is not derivable from the text — so do not
-    propose deleting either side by default.
-  - **One side managed policy:** report as "conflicts with org policy at `<path>`", and propose no
-    edit — neither to the policy side, nor to the lower side justified by the conflict alone.
-    `claudeMdExcludes` cannot reach the managed tier, so seeking an exception may be the correct
-    resolution, and that is an organizational decision rather than a linting one. Such a finding
-    carries the report's **no-change representation** in place of a diff — Phase D exempts it from
-    the per-finding fenced-diff contract rather than forcing an edit this rule forbids.
-  - **One side a user-scope file under a dotfile manager:** route as a recommendation through that
-    repository, never an in-place edit.
-- **Source:** memory, "Consistency" — "if two rules contradict each other, Claude may pick one
-  arbitrarily. Review your CLAUDE.md files, nested CLAUDE.md files in subdirectories, and
-  `.claude/rules/` periodically to remove outdated or conflicting instructions."; features-overview,
-  "Understand how features layer", for the per-surface precedence rules that decide when a difference
-  is already resolved.
+- **Detect:** two instruction surfaces that both constrain the same decidable act and prescribe
+  incompatible actions for at least one input firing both, with no resident text arbitrating between
+  them. The unit of judgment is the pair, never one document read alone — which is why the
+  per-surface lanes are structurally blind to it. The five gates that make this checkable, the
+  residency table gate 1 resolves against, and the precedence table separating what the docs settle
+  from what they leave unresolved all live in
+  [conflict-criteria.md](conflict-criteria.md); that file is this row's adjudication procedure.
+- **Comparison set:** every pair drawn from the surfaces Phase A inventoried, including the ones it
+  recorded as *skipped* — plugin-cache content, managed materializations, org policy — since a
+  contradiction is real whether or not this repository may edit either side. Resolve `@path` imports
+  and symlinks to their targets before pairing, so an imported file is compared as part of the
+  surface importing it rather than as a separate one.
+- **Excluded from the comparison set:** `AGENTS.md` and other files that are not Claude Code
+  instruction surfaces. They shape no behavior here, so a divergence between one and a `CLAUDE.md`
+  is not a conflict this check reports.
+- **Remediate by scope**, never by picking a winner the docs do not name. Where the precedence table
+  cites a documented order, name the winner and its source. Where it does not, report the pair as
+  `unresolved` with both anchors quoted and let the operator choose. Where the same conflict keeps
+  recurring, offer the mechanism route — a `PreToolUse` hook, a `permissions.deny` rule, or a skill's
+  own `disallowed-tools` — since a mechanism outranks instruction text.
+- **Must NOT flag:** two surfaces that can never be resident together (that is orphaned instruction
+  drift, reported separately). Different observables sharing a keyword. The same verb over different
+  objects. An absolute carrying its own exception beside a directive presupposing that exception. A
+  pair one of whose sides already states which wins. The full set with worked instances is in
+  [conflict-criteria.md](conflict-criteria.md).
+- **Source:** memory — "If two rules contradict each other, Claude may pick one arbitrarily", which
+  is why an unarbitrated pair is a finding rather than a stylistic note.
 
 ### I16: Definition-site locality
 

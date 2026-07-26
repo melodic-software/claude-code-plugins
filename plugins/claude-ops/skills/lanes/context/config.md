@@ -19,7 +19,9 @@ A missing config exits `4`; malformed JSON or a config with no lanes exits `3`.
 {
   "prompt_dir": ".work",
   "lanes": [
-    { "name": "work",    "prompt": "work.md",    "model": "opus",   "effort": "high" },
+    { "name": "work",    "prompt": "work.md",    "model": "opus",   "effort": "high",
+      "settings": { "pluginConfigs": { "autonomy@<marketplace>": { "options": {
+        "lane_stop_gate_enabled": true, "lane_stop_gate_marker": ".lane-complete" } } } } },
     { "name": "work-2",  "prompt": "work-2.md",  "model": "opus",   "effort": "high" },
     { "name": "babysit", "prompt": "babysit.md", "model": "sonnet", "effort": "medium" },
     { "name": "decide",  "prompt": "decide.md" }
@@ -34,10 +36,20 @@ A missing config exits `4`; malformed JSON or a config with no lanes exits `3`.
 | `lanes[].prompt` | yes | Path to the lane's canonical prompt file. Relative → resolved against `prompt_dir`; absolute → used as-is. The file's full contents seed the session (positional prompt). A missing or empty file skips that lane with an error. |
 | `lanes[].model` | no | Passed as `claude --model`. An alias (`opus`, `sonnet`, `fable`) or a full model id. Omit to inherit the machine default. |
 | `lanes[].effort` | no | Passed as `claude --effort`. One of `low`, `medium`, `high`, `xhigh`, `max` (validated; a bad value skips the lane). Omit to inherit the default. |
+| `lanes[].settings` | no | A JSON **object** passed inline as `claude --settings` — a session-only override that never persists. The motivating use is opting a lane into the `autonomy` plugin's lane-stop gate via a `pluginConfigs` override (example above; the plugin id is marketplace-qualified, `<plugin>@<marketplace>`, for however the plugin was installed). A non-object value skips the lane with an error. |
 
 Lane names are free-form (`work`, `work-2`, `babysit`, `decide`, …); nothing is
 hardcoded. The set above mirrors the lanes this repo's telemetry conventions use,
 but any names work — `status`/`stop` only ever act on names present in this config.
+
+One constraint on the name, enforced at preflight: it is also the filename of the
+lane's launch-commit marker (#792,
+`<data-dir>/lanes/<repo-key>/<name>-launch-commit`), so it must be a single path
+component. A name containing `/` or `\`, or equal to `.` or `..`, exits `3` —
+without that check, `work` and `group/../work` would share one marker file and a
+targeted restart of either would corrupt the other's staleness probe. The
+`<repo-key>` component keeps same-named lanes in different repos apart, since the
+data directory is plugin-wide rather than per-repo.
 
 ## Prompt-storage seam (#480)
 

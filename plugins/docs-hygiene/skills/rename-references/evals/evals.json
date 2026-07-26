@@ -41,7 +41,7 @@
       "id": 4,
       "name": "re-sweep-until-zero-new-form-learned",
       "prompt": "You applied the /verify to /verify-changes rename. The re-sweep still finds one match in a frontmatter glob form the pattern library didn't have. What now?",
-      "expected_output": "Does not declare done: re-sweep must reach count == 0. The new syntactic form is a pattern-library gap — it adds the form to the pattern registry, re-iterates the sweep, and does NOT silently apply or ignore the straggler.",
+      "expected_output": "Does not declare done: re-sweep must reach an actionable count of 0. The new syntactic form is a pattern-library gap — it adds the form to the pattern registry, re-iterates the sweep, and does NOT silently apply or ignore the straggler.",
       "files": [],
       "expectations": [
         "Output does NOT declare the rename complete while the re-sweep count is non-zero",
@@ -71,6 +71,530 @@
         "The active rename-documenting plan doc is auto-excluded and left unedited",
         "Output explains both names appear in the plan doc by design (self-reference)",
         "Output does not rewrite the plan doc's occurrences of the old name"
+      ]
+    },
+    {
+      "id": 7,
+      "name": "container-rename-catches-command-argument-and-title",
+      "prompt": "I renamed the plugin `re-anchor` to `discipline`. The directory moved and every qualified `/re-anchor:<skill>` invocation is already updated. Audit for anything still stale.",
+      "expected_output": "The sweep runs the container-position forms (13-15) in addition to Forms 1-12, so it reports the plugin name in command-argument position (`/plugin install re-anchor@acme-tools`, `/plugin configure re-anchor`), a document title that is the bare token (`# re-anchor`), and possessive container prose (\"re-anchor's effective configuration\") as Certain. It does NOT report the English-verb uses (\"each skill re-anchors ONE discipline\") as Certain, and it flags command-argument hits as functional breaks rather than cosmetic ones.",
+      "files": [],
+      "expectations": [
+        "Forms 13-15 are run, not only the slash-token and path forms that a directory move already satisfies",
+        "`/plugin install <old>@marketplace` and `/plugin configure <old>` are reported as Certain and identified as functional breaks",
+        "A heading whose entire content is the bare token is reported as Certain",
+        "Verb-sense uses of the token are not swept into the Certain bucket"
+      ]
+    },
+    {
+      "id": 8,
+      "name": "verb-collision-not-fixed-by-blocklist-extension",
+      "prompt": "The token I'm renaming is also used as a verb hundreds of times in this repo. Should I add it to the English-verb blocklist so the sweep stops proposing bad rewrites?",
+      "expected_output": "Explains that blocklist extension is the wrong remedy for a token that is a verb in the consuming codebase: leaving it off rates every bare-token hit Certain, and adding it forces every hit into the ambiguous bucket where the per-match confirmation rule turns a handful of real defects into hundreds of prompts. Routes to the position-anchored forms 13-15 instead, which stay Certain regardless of blocklist membership because their surrounding syntax admits only the container sense.",
+      "files": [],
+      "expectations": [
+        "Identifies that BOTH blocklist branches fail for a codebase-specific verb, not just the omit branch",
+        "Recommends position-anchored forms rather than extending the blocklist",
+        "Does not propose per-match confirmation over the full bare-token hit set as the answer"
+      ]
+    },
+    {
+      "id": 9,
+      "name": "container-position-match-supersedes-the-bare-token-it-covers",
+      "prompt": "Audit the rename of `re-anchor` to `discipline`. The token is also used as an English verb throughout the plugin, so I expect a lot of noise.",
+      "expected_output": "The sweep runs Form 2 and the container-position forms, then deduplicates by OCCURRENCE SPAN (file, line, start, end) before triage: a container-position match is attributed to its own form and enters that form's bucket after its scope rules apply, and the Form 2 match COVERED BY that span is dropped rather than raised as a second finding. A bare occurrence elsewhere on the same line is a different reference and survives. Occurrences Form 2 matched alone are ordinary verb uses and, under container-rename mode, are excluded from Certain and reported as an aggregate rather than as prompts. The report states how many Form-2 hits were superseded.",
+      "files": [],
+      "expectations": [
+        "Deduplication keys on the occurrence span, never on line identity, and runs after the sweep and BEFORE triage",
+        "The bare-token match covered by a container-position span is dropped; an independent occurrence on the same line survives",
+        "A container-position match enters its own form's bucket after scope rules, which may be Ambiguous rather than Certain",
+        "The report includes the count of Form-2 hits superseded by container-position matches",
+        "Ordinary verb uses are not surfaced as rename candidates or as mandatory confirmation prompts"
+      ]
+    },
+    {
+      "id": 10,
+      "name": "container-mode-excludes-bare-token-residue-from-certain",
+      "prompt": "Audit the rename of the `re-anchor` plugin to `discipline`. The token is used as an English verb about 130 times across the plugin and it is not in the blocklist.",
+      "expected_output": "Declares container-rename mode at Phase 0. Position-anchored forms produce the Certain bucket; the bare-token residue -- every Form 2 line NOT matched by a position-anchored form -- is excluded from Certain entirely regardless of blocklist membership, and reported as a single aggregate count rather than as per-match confirmation prompts. It does not propose rewriting the verb uses, and it does not ask the user to confirm them one by one.",
+      "files": [],
+      "expectations": [
+        "Container-rename mode is declared and drives the bucketing",
+        "Bare-token residue is excluded from Certain WITHOUT relying on the blocklist",
+        "Residue is reported as an aggregate count, not as per-match prompts",
+        "Deduplication of overlapping lines is not presented as sufficient on its own",
+        "The eligibility rule is applied as an allowlist over forms, so Forms 8 and 12 lose their Certain default too rather than only Form 2 being filtered"
+      ]
+    },
+    {
+      "id": 11,
+      "name": "title-form-scoped-to-container-owned-documents",
+      "prompt": "Rename the `testing` plugin to `test-suite`. Audit for stale references.",
+      "expected_output": "Recognizes that `testing` is an ordinary English word, so Form 14 TITLE matches are demoted to Ambiguous rather than Certain. A heading like `### Testing` in the repository root README (a marketplace category heading, not the container's own document) is NOT auto-applied; only headings in plausibly container-owned files -- the plugin's own README/SKILL/manifest or paths under its directory -- are eligible for Certain, and even those are demoted when the token is a common word. The scope rule and the common-word demotion govern the title alternatives only: the plugin's own manifest `\"name\": \"testing\"` declaration is still Certain, because a manifest name key is the registration rather than evidence of one and cannot be verb usage.",
+      "files": [],
+      "expectations": [
+        "A title match outside container-owned files is not rated Certain",
+        "An ordinary-word container name demotes title matches regardless of path",
+        "Precedence does not discard the safer classification for an out-of-scope title match",
+        "The manifest name declaration is exempt from both demotions and stays Certain"
+      ]
+    },
+    {
+      "id": 12,
+      "name": "apply-mode-terminates-under-container-rename-mode",
+      "prompt": "Apply the rename of the `re-anchor` plugin to `discipline`. About 130 lines use the token as an ordinary English verb.",
+      "expected_output": "Phase 6's completion check uses the ACTIONABLE count -- the survey result after precedence and container-rename mode, minus any match the user confirmed skipping in Phase 4 -- not the raw match count. Two categories keep matching the token forever: the bare-token residue, deliberately left unrenamed, and a declined match. Counting either would mean Outcome A is never reached and Outcome B loops indefinitely. Apply mode reaches Outcome A once no actionable matches remain, and reports residue and skips as SEPARATE lines in the Phase 7 summary -- residue was never proposed, a skip was proposed and declined.",
+      "files": [],
+      "expectations": [
+        "Completion is evaluated on the actionable count, not the raw match count",
+        "A user-confirmed skip is excluded from the actionable count and reported separately from the residue aggregate",
+        "The re-sweep does not loop on residue the mode rule deliberately excluded",
+        "Residue is surfaced in the hand-off summary rather than silently dropped"
+      ]
+    },
+    {
+      "id": 13,
+      "name": "qualified-id-form-does-not-rewrite-email-addresses",
+      "prompt": "Rename the `info` plugin to `plugin-info`. The docs contain the contact address info@acmetools.com.",
+      "expected_output": "Form 13's qualified-id alternative matches the marketplace-qualified id (info@acme-tools) but NOT the email address (info@acmetools.com), because a marketplace slug is kebab-case with no dots while an email domain carries a TLD dot. The contact address is not proposed for rewriting and is not auto-applied.",
+      "files": [],
+      "expectations": [
+        "The marketplace-qualified id is still matched",
+        "The email address is not matched and is never auto-rewritten",
+        "The distinction is made structurally by the pattern, not by asking the user to catch it"
+      ]
+    },
+    {
+      "id": 14,
+      "name": "span-dedup-preserves-a-second-reference-on-the-same-line",
+      "prompt": "Audit the rename of the `re-anchor` plugin to `discipline`. One line reads: Use re-anchor via /plugin install re-anchor@acme-tools",
+      "expected_output": "Both occurrences on that line are reported. Deduplication keys on the occurrence SPAN (file, line, start, end), not the whole line, so the command-argument match suppresses only the bare-token match COVERED BY its own span -- the other bare occurrence earlier in the line is a separate reference and survives. Collapsing by line would drop it, and since Phase 5 replaces one span at a time, the surviving reference would then be reclassified as residue and the re-sweep would declare completion with a live stale reference in the file.",
+      "files": [],
+      "expectations": [
+        "Both references on the line are reported, not one",
+        "Suppression is by span coverage, never by line identity",
+        "The failure mode named is a false completion, not merely a missed report"
+      ]
+    },
+    {
+      "id": 15,
+      "name": "qualified-id-form-avoids-lookaround",
+      "prompt": "Run the rename sweep for a plugin named `info` using the Grep tool's default engine.",
+      "expected_output": "Form 13's qualified-id alternative runs on the default engine without requiring PCRE2. Its trailing boundary CONSUMES a terminator -- ([^\\w.@-]|$) -- rather than using a negative lookahead, because ripgrep's default engine rejects look-around (it needs -P/--pcre2) and patterns.md's own cross-platform note already bans lookbehinds for the same reason. The consumed trailing character is not part of the reference and is left in place when replacing.",
+      "files": [],
+      "expectations": [
+        "No look-around is used, so the form works on the default engine the skill instructs",
+        "The trailing terminator is consumed rather than asserted",
+        "A consumed delimiter is not rewritten as part of the reference",
+        "The cost of consuming is named and located in the survey's rescan cursor, not fixed by dropping the terminator"
+      ]
+    },
+    {
+      "id": 16,
+      "name": "container-position-demotion-survives-in-the-bucket-criteria",
+      "prompt": "Rename the `testing` plugin to `test-suite`. The repo root README has a `### Testing` category heading. Show me the triage buckets.",
+      "expected_output": "The `### Testing` heading is reported as Ambiguous, not Certain. triage.md's Ambiguous criteria list container-position Forms 14 and 15 as Ambiguous whenever the matching form's own scope rules demote it -- Form 13 is deliberately absent, its demoted alternative landing in Chain-context instead -- and audit.md's Certain definition carries the same qualifier -- so the demotion holds no matter which file the reader consults. Span-precedence attributes the occurrence to Form 14 and drops the bare-token duplicate, but does not override the demotion.",
+      "files": [],
+      "expectations": [
+        "The out-of-scope title match lands Ambiguous in the reported buckets",
+        "The demotion is consistent whether read from triage.md or audit.md",
+        "Precedence attributes the occurrence without promoting it"
+      ]
+    },
+    {
+      "id": 17,
+      "name": "mode-is-resolved-by-evidence-not-defaulted",
+      "prompt": "/rename-references re-anchor to discipline",
+      "expected_output": "Phase 1 resolves the rename MODE before surveying, using the Phase 0b ladder rather than defaulting: it finds plugins/re-anchor/ (or plugins/discipline/ post-move, read from git) carrying a plugin manifest, and /re-anchor:<skill> namespaced invocations in the tree. It collects all three evidence rules rather than stopping at the first, finds them in agreement, and concludes container. The resolved mode and every rule that fired appear in the report. If no rule fires -- or if the rules disagree -- it asks the user rather than guessing, and it never infers mode from the token's shape (hyphenation or word-likeness).",
+      "files": [],
+      "expectations": [
+        "Mode is resolved in Phase 1, before the survey and bucketing",
+        "Resolution cites concrete evidence -- directory/manifest/invocation shape -- not token appearance",
+        "An unresolvable case asks rather than silently defaulting either way",
+        "The report states the resolved mode and the rule that produced it"
+      ]
+    },
+    {
+      "id": 18,
+      "name": "coequal-form-alternatives-collapse-to-one-match",
+      "prompt": "Apply the rename of the `re-anchor` plugin to `discipline`. A line reads: /plugin install re-anchor@acme-tools",
+      "expected_output": "That occurrence is reported and edited ONCE. Both of Form 13's alternatives match it -- the management-verb alternative and the qualified-id alternative -- so span coverage collapses them to a single match (widest span preferred, earlier-numbered form on a tie) before triage. Left uncollapsed the count would double and Phase 5 would schedule two targeted Edits, the second failing because the first already rewrote the token.",
+      "files": [],
+      "expectations": [
+        "One finding and one Edit for the single occurrence, not two",
+        "Collapsing applies within a form, not only between a stronger and a weaker form",
+        "The named failure is a failed second Edit plus an inflated count, not merely a cosmetic duplicate"
+      ]
+    },
+    {
+      "id": 19,
+      "name": "hyphenated-superstring-is-not-a-container-match",
+      "prompt": "Rename the `context` plugin to `session-context`. The repo also has a `context-guard` plugin referenced as /plugin configure context-guard and context-guard@acme-tools.",
+      "expected_output": "The `context-guard` references are NOT matched. Container IDs are kebab-case, so a plain word boundary would let `context` match inside the hyphenated superstring `context-guard` and auto-rewrite an unrelated plugin's identifier on a Certain-rated form. Forms 13 and 15 exclude an adjacent hyphen on both sides, so `/plugin configure context` and `context@acme-tools` match while `/plugin configure context-guard` and `context-guard@acme-tools` do not.",
+      "files": [],
+      "expectations": [
+        "A hyphenated superstring containing the token is never matched as the container",
+        "The exact-name references are still matched",
+        "The failure prevented is auto-rewriting a DIFFERENT plugin's identifier, not a cosmetic over-match"
+      ]
+    },
+    {
+      "id": 20,
+      "name": "survey-emits-one-record-per-occurrence-not-per-line",
+      "prompt": "Audit the rename of `re-anchor` to `discipline`. A line reads: Use re-anchor via /plugin install re-anchor@acme-tools",
+      "expected_output": "Phase 2 emits TWO records for that line, one per occurrence, each carrying {file, line, start, end, pattern_form, snippet}. Grep's content mode returns matching LINES and --column reports only the first match on a line, so the survey re-scans each returned match locally for every occurrence before deduplication. Without per-occurrence offsets the span rule has nothing to compare and silently degrades to line-keyed dedup, restoring the false completion eval 14 prevents. The rescan unit is the returned MATCH, not always a line: for the two multiline forms (Form 7 and Form 14's Setext alternative) the block is kept intact and the pattern re-run against the whole block, because feeding those patterns one line at a time reproduces nothing and would drop the record entirely.",
+      "files": [],
+      "expectations": [
+        "One record per occurrence, not per line",
+        "Records carry start/end offsets before deduplication runs",
+        "The stated failure is a silent degradation to line-keyed dedup, not a missing field"
+      ]
+    },
+    {
+      "id": 21,
+      "name": "marketplace-subcommand-is-matched",
+      "prompt": "Rename the marketplace `acme-tools` to `acme-plugins`. The README says /plugin marketplace add acme-tools and /plugin marketplace update acme-tools.",
+      "expected_output": "Both marketplace commands are matched by Form 13 as command-argument references. A marketplace name sits after `/plugin marketplace add|update` rather than directly after `/plugin`, so without the optional marketplace subcommand group they match no position-anchored form, container mode suppresses their Form 2 hits as residue, and the sweep reports zero actionable stragglers while executable install instructions stay stale.",
+      "files": [],
+      "expectations": [
+        "/plugin marketplace add|update <old> is matched",
+        "A hyphenated superstring such as acme-tools-extra is not matched",
+        "The failure prevented is a false zero-straggler report on executable instructions"
+      ]
+    },
+    {
+      "id": 22,
+      "name": "bare-qualified-id-is-chain-context-not-certain",
+      "prompt": "Rename the `t` plugin to `toolkit`. The repo contains git config user.email t@t in test fixtures.",
+      "expected_output": "The bare qualified-id alternative is rated Chain-context, not Certain, so `t@t` is not auto-applied. Excluding dots is necessary but not sufficient -- a dotless address is still a valid address, and this tree contains both `auth_email: \"a@b\"` and `user.email t@t`. The management-verb alternative stays Certain because its verb anchors it. The unanchored alternative is promoted to Certain only by a per-occurrence structural signal -- the occurrence IS a key in an enabledPlugins/pluginConfigs map -- never by a management verb elsewhere on the line, which may govern an entirely different plugin.",
+      "files": [],
+      "expectations": [
+        "The unanchored qualified-id form does not auto-apply",
+        "The management-verb alternative keeps its Certain rating",
+        "Dot-exclusion is described as insufficient rather than sufficient",
+        "The Chain-context rating survives span-precedence and container-rename mode rather than being flattened back to Certain",
+        "A failed promotion check leaves the alternative at Chain-context rather than dropping it to Ambiguous"
+      ]
+    },
+    {
+      "id": 23,
+      "name": "mode-override-flags-are-parseable",
+      "prompt": "/rename-references audit context to session-context --identifier",
+      "expected_output": "The flag parses and forces identifier-rename mode, skipping the Phase 0b evidence ladder. Both --container and --identifier are registered in SKILL.md's argument-hint and flag table and in audit-modes.md's override table, so the documented correction mechanism is honored rather than rejected as an unknown flag. Passing both is an error, not a precedence question.",
+      "files": [],
+      "expectations": [
+        "--identifier and --container are accepted, not rejected as unknown flags",
+        "They are honored in audit, preview, and apply",
+        "Passing both is an explicit error"
+      ]
+    },
+    {
+      "id": 24,
+      "name": "coequal-collapse-keys-on-the-captured-token-span",
+      "prompt": "Apply the rename of `re-anchor` to `discipline`. A line reads: /plugin install re-anchor@acme-tools",
+      "expected_output": "One finding, one Edit. Deduplication keys on the CAPTURED <old> span, not the whole match span: Form 13's management-verb alternative spans `/plugin install <old>@` while its qualified-id alternative spans `<old>@acme-tools`, which overlap without either containing the other -- so a whole-span coverage test would keep both and schedule two Edits on one token, the second failing because the first already rewrote it.",
+      "files": [],
+      "expectations": [
+        "Coverage is tested on the captured token span, not the full match span",
+        "Two overlapping non-containing matches on one token collapse to one",
+        "The named failure is a failed second Edit, not a duplicate report line"
+      ]
+    },
+    {
+      "id": 25,
+      "name": "setext-title-is-a-container-title-match",
+      "prompt": "Rename the `re-anchor` plugin to `discipline`. Its README titles itself with `re-anchor` underlined by `=====` rather than an ATX heading.",
+      "expected_output": "Form 14 matches the Setext title shape (the token alone on a line followed by a line of = or -), so the container's own landing-page title is reported. Without it the title's only hit is Form 2, which container mode excludes as residue, and the rename could report completion with the primary title stale. Requires multiline matching, like Form 7.",
+      "files": [],
+      "expectations": [
+        "The Setext title shape is recognized as a title match",
+        "Multiline matching is used",
+        "The failure prevented is a completion report with a stale landing-page title"
+      ]
+    },
+    {
+      "id": 26,
+      "name": "sentence-initial-appositive-is-matched",
+      "prompt": "Rename the `guard` plugin to `guardrails`. The docs say: The guard plugin ships two hooks.",
+      "expected_output": "Form 15's appositive alternative matches the sentence-initial `The`, not only a lowercase `the`. Otherwise the token's only hit is Form 2, which container mode suppresses as residue, and apply mode finishes with the stale container reference. Only the article is case-flexible; the token itself stays case-sensitive, and `The context-guard plugin` is still rejected as a hyphenated superstring.",
+      "files": [],
+      "expectations": [
+        "Sentence-initial `The` is matched as well as lowercase `the`",
+        "The token remains case-sensitive",
+        "A hyphenated superstring is still not matched"
+      ]
+    },
+    {
+      "id": 27,
+      "name": "json-manifest-name-declaration-is-a-container-position-match",
+      "prompt": "Rename the `docs-hygiene` plugin to `doc-care`. Its manifest is JSON: .claude-plugin/marketplace.json carries `\"name\": \"docs-hygiene\"` indented inside an entry, and plugins/docs-hygiene/.claude-plugin/plugin.json carries the same at line 3. Audit for stale references.",
+      "expected_output": "Form 14's JSON declaration alternative matches both, so the container's registered name is reported as Certain. The YAML alternative requires an UNQUOTED key and reaches neither, whatever the indentation; without the JSON alternative no container-position form reaches them, container mode reduces both to excluded Form-2 residue, and the sweep can report zero actionable stragglers while the plugin stays registered under its old name. The scope rule does not demote the marketplace entry for living at the repository root rather than under the container's directory -- a catalog entry is the container's registration, and the quoted `name` key is the proof, so it is exempt from the container-owned-path test.",
+      "files": [],
+      "expectations": [
+        "The indented, quoted JSON name declaration is matched",
+        "The repository-root catalog entry is rated Certain rather than demoted for being outside the container's directory",
+        "The failure prevented is a completion report with the registered container name stale"
+      ]
+    },
+    {
+      "id": 28,
+      "name": "terminal-container-directory-path-stays-actionable",
+      "prompt": "Rename the `docs-hygiene` plugin to `doc-care`. The catalog says `\"source\": \"./plugins/docs-hygiene\"` and the root README links `[docs-hygiene](plugins/docs-hygiene)`. Audit for stale references.",
+      "expected_output": "Form 3's container-root alternative matches both. The earlier path alternatives all require something after the token -- a .md extension, a trailing slash, a known subdirectory -- so a path that ENDS in the container name reaches none of them; container mode then excludes the only remaining hit as bare-token residue and apply mode can finish while the marketplace points at a directory that no longer exists and installation is broken. The alternative excludes an adjacent hyphen at both ends, so `plugins/docs-hygiene-extra` and `x-plugins/docs-hygiene` do not match, and its parent segment is a bounded container-root vocabulary rather than any path segment, because an unconstrained parent would match ordinary prose like `input/output` on a Certain-rated form.",
+      "files": [],
+      "expectations": [
+        "A path terminating in the container name is matched",
+        "Hyphenated superstrings on either side are not matched",
+        "The parent segment is bounded to a container-root vocabulary rather than any segment",
+        "The failure prevented is apply mode completing with the catalog pointing at a vanished directory"
+      ]
+    },
+    {
+      "id": 29,
+      "name": "setext-alternative-is-multiline-enabled-in-the-survey",
+      "prompt": "During the Phase 2 survey I enabled `multiline: true` only for Form 7, the way the survey step lists it. Is Form 14 going to work?",
+      "expected_output": "No. Form 14's Setext alternative contains a literal \\n, and ripgrep's single-line default rejects that outright -- it errors with `the literal \"\\n\" is not allowed in a regex` rather than simply matching nothing. The survey step lists Form 14's Setext alternative alongside Form 7 as requiring multiline for exactly this reason; run without it the pattern is not executable at all, the survey silently loses the form, and a container's landing-page title survives as Form-2 residue that container mode excludes from Certain.",
+      "files": [],
+      "expectations": [
+        "Multiline is identified as required for Form 14's Setext alternative, not only Form 7",
+        "The failure mode is a regex error rather than a silent under-match",
+        "The consequence named is a stale landing-page title reported as completion"
+      ]
+    },
+    {
+      "id": 30,
+      "name": "toml-manifest-name-declaration-is-matched",
+      "prompt": "Rename the Python package `docs-hygiene` to `doc-care`. Its pyproject.toml declares `name = \"docs-hygiene\"` under [project]. Audit for stale references.",
+      "expected_output": "Form 14's TOML declaration alternative matches it. TOML delimits with `=` rather than `:`, so both the YAML and the JSON alternatives miss it -- and because the mode ladder names pyproject.toml as manifest evidence for selecting CONTAINER mode, missing it routes the package into the mode that suppresses bare-token residue while leaving the one declaration that mode makes load-bearing unmatched: apply mode reports zero actionable stragglers with the package metadata still carrying the old name. The alternative accepts an optionally-quoted key and a basic or literal string value, and rejects `name = \"docs-hygiene-extra\"` and `description = \"docs-hygiene\"`. Because pyproject.toml is a manifest, the declaration is exempt from the title scope rule and the common-word demotion; the same `name=\"...\"` shape in a shell script is NOT, since the exemption is conditioned on the file being a manifest or catalog.",
+      "files": [],
+      "expectations": [
+        "The `=`-delimited TOML declaration is matched, not only the `:`-delimited YAML and JSON shapes",
+        "The contradiction named is that the mode ladder already treats pyproject.toml as container evidence",
+        "The manifest/catalog condition on the exemption is preserved, so shell assignment syntax is not swept in as Certain"
+      ]
+    },
+    {
+      "id": 31,
+      "name": "qualified-id-promotion-binds-to-the-occurrence-not-the-line",
+      "prompt": "Rename the `t` plugin to `toolkit`. A doc line reads: /plugin install foo@acme; email t@t",
+      "expected_output": "`t@t` stays Chain-context and is not auto-applied. The line does carry a management verb, but it governs `foo@acme`, a different plugin -- so a line-level promotion test would rate the unrelated address Certain and apply mode would rewrite it, which is the exact failure the demotion exists to prevent. A verb that actually governs an occurrence is already matched by the management-verb alternative and already Certain, so a line-level check adds no recall and only launders the demotion. The only promotion signal is structural and per-occurrence: the occurrence IS a key in an enabledPlugins/pluginConfigs map.",
+      "files": [],
+      "expectations": [
+        "The unrelated management verb on the same line does not promote the address",
+        "`/plugin install foo@acme` is still reported as a Certain reference in its own right when `foo` is the renamed token",
+        "The promotion signal named is per-occurrence and structural, not line-level"
+      ]
+    },
+    {
+      "id": 32,
+      "name": "conflicting-mode-evidence-asks-instead-of-taking-first-match",
+      "prompt": "Rename the `/test` action to `/verify`. Somewhere in this monorepo an unrelated package manifest declares name = \"test\". Which mode does the sweep pick?",
+      "expected_output": "Neither, unasked. Manifest evidence (rule 3) says container and invocation-shape evidence (rule 4) says identifier, and only the explicit --container/--identifier override short-circuits the ladder -- rules 2 through 4 are evidence to be collected in full and compared, not a precedence order. Taking the earliest would select container mode, whose residue rule suppresses exactly the bare `/test` references that are actionable here, and the rename would falsely complete. On disagreement the sweep falls through to the ask, showing each rule's verdict and the file that produced it. A shared string is not evidence the manifest and the invocation name the same entity; correlation is established from the tree (a manifest whose directory also contains the /<old> definition) or not assumed at all.",
+      "files": [],
+      "expectations": [
+        "Conflicting evidence routes to the user rather than resolving by ladder order",
+        "The named risk is container mode suppressing actionable identifier references",
+        "A shared name is not treated as evidence that the two rules describe the same entity"
+      ]
+    },
+    {
+      "id": 33,
+      "name": "manifest-id-declaration-is-matched-like-name",
+      "prompt": "Rename the `docs-hygiene` container to `doc-care`. Its manifest identifies it with an `id` field rather than `name`. Audit for stale references.",
+      "expected_output": "All three of Form 14's declaration alternatives accept `id` alongside `name` and `title`, so the declaration is matched and reported as Certain. The mode ladder already selects CONTAINER mode on `<old>` appearing as the name/id field of a manifest, so recognizing only `name` and `title` routed such a manifest into the mode that suppresses bare-token residue while leaving its `id` occurrence as excluded residue -- apply mode could then report zero actionable stragglers with the manifest still registering the old ID. The manifest/catalog condition on the exemption is what keeps the widened key set safe: `id=\"$1\"` is ordinary shell assignment syntax and appears dozens of times in this repository, so outside a manifest an `id` match is treated as a title match and takes the scope rule and the common-word demotion rather than becoming a Certain rename candidate.",
+      "files": [],
+      "expectations": [
+        "An `id` declaration is matched, not only `name` and `title`",
+        "The contradiction named is that the mode ladder already treats an `id` field as container evidence",
+        "Shell `id=` assignments outside a manifest are not rated Certain"
+      ]
+    },
+    {
+      "id": 34,
+      "name": "catalog-keyed-by-container-id-is-matched",
+      "prompt": "Rename the `docs-hygiene` plugin to `doc-care`. The registry is keyed by container id rather than carrying a name field: plugins: { \"docs-hygiene\": { ... } }. Audit for stale references.",
+      "expected_output": "Form 14's key-position alternative matches the catalog key. The mode ladder already names both catalog shapes -- the name/id field of a manifest OR a key in a marketplace/registry catalog -- so recognizing only the field shape selected container mode while the registry's own key stayed unmatched Form-2 residue and apply mode could report zero actionable stragglers with the registry still using the old ID. The alternative requires the value to OPEN an object or array, which is what distinguishes a catalog entry from an ordinary scalar setting. Its manifest/catalog condition is mandatory rather than merely helpful: `\"<key>\": {` is the commonest line shape in JSON -- this repository carries 569 of them -- so outside a file established as a manifest or registry catalog the match is Ambiguous unconditionally. The key is anchored on the JSON delimiter -- `(^|[{,])` -- not on the line start, so the compact one-line rendering in this prompt matches as well as the pretty-printed one where the key sits alone on its line.",
+      "files": [],
+      "expectations": [
+        "A catalog key naming the container is matched, not only a name/id field",
+        "The value must open an object or array, distinguishing a catalog entry from a scalar setting",
+        "The alternative is Ambiguous outside a manifest or catalog file, with no common-word exception needed",
+        "The YAML block-mapping catalog key is named as a deliberate gap rather than silently covered, because the only pattern reaching it would match every nested YAML key"
+      ]
+    },
+    {
+      "id": 35,
+      "name": "container-mode-allowlist-demotes-glob-and-dot-forms",
+      "prompt": "Rename the `context` plugin to `context-tools`. The repo has a config key `context.timeout` and a frontmatter glob `{a,context,b}` enumerating skills. Audit in container mode.",
+      "expected_output": "Neither is rated Certain. Container mode's eligibility rule is an ALLOWLIST over forms -- Forms 1, 3 and 13-15 are the whole Certain-eligible set -- not a filter on Form 2 alone. Applied only to the bare-token residue it would leave Form 12 (dot-form) and Form 8 (glob set) on the auto-apply path, and both are Certain by default, so apply mode would rewrite the unrelated dotted key and the glob entry. Those forms anchor on syntax proving the token is an IDENTIFIER, which is exactly what a container rename is not asking about, so they demote to Ambiguous. They are demoted and reported per match rather than aggregated like the bare-token residue, because they are few and a container name genuinely can appear in a glob set.",
+      "files": [],
+      "expectations": [
+        "Forms 8 and 12 lose their Certain default under container mode",
+        "The rule is described as an allowlist over forms rather than a Form 2 filter",
+        "The demoted matches are reported per match, not folded into the bare-token aggregate"
+      ]
+    },
+    {
+      "id": 36,
+      "name": "multiline-matches-are-rescanned-as-blocks",
+      "prompt": "In Phase 2 I rescan every returned line with the form's own pattern to emit per-occurrence records. Does that work for Form 7 and Form 14's Setext alternative?",
+      "expected_output": "No, and the failure is silent. Those two patterns match only against a multi-line block, so re-running them against one line at a time reproduces nothing, no per-occurrence record is emitted, and the reference disappears between the survey and triage -- on exactly the two forms that exist because their references were being missed. The survey keeps the matched block intact, runs the pattern against the whole block, locates the captured <old> span within it, and converts that block offset to (line, start, end) using the block's first-line number. Line-by-line rescanning stays correct for every single-line form; the branch is whether the form requires multiline matching, which is the same two forms.",
+      "files": [],
+      "expectations": [
+        "The multiline forms are rescanned as blocks rather than line by line",
+        "The named failure is a dropped record, silently, rather than a partial match",
+        "The block offset is converted back to a line-relative span so dedup still works"
+      ]
+    },
+    {
+      "id": 37,
+      "name": "confirmed-skip-does-not-block-completion",
+      "prompt": "Renaming the `context` plugin to `context-tools`. Container mode demoted `context.timeout` to Ambiguous, it prompted me, and I chose \"skip this\" because it is an unrelated config key. The re-sweep still reports it. Am I stuck?",
+      "expected_output": "No -- a confirmed skip is not actionable and must be subtracted from the completion count. Phase 4 records each decline as (file, line, start, end), the same occurrence key precedence and dedup use, and Phase 6 subtracts those spans before testing for completion. Without that, the declined match re-enters Outcome B on every re-sweep and the only exits are rewriting a known false positive or aborting with a partial result -- the same non-terminating loop the residue rule closes, reached through the other door, and container mode makes it routine rather than rare because it demotes Forms 4-12 to per-match prompts. The skip is keyed by span rather than by file or form, since skipping one occurrence is not consent to skip another on the same line, and it is scoped to the sweep that asked: if Phase 6 finds a NEW form and the library is extended, the question changed and the user is re-asked. The hand-off reports skips on their own line, never folded into the residue aggregate -- residue was never proposed, a skip was proposed and declined.",
+      "files": [],
+      "expectations": [
+        "A confirmed skip is excluded from the actionable count so Outcome A is reachable",
+        "Skips are keyed by occurrence span, not by file or by form",
+        "Stored skip spans are remapped as Phase 5 applies edits, so a later occurrence on an already-edited line still subtracts",
+        "Skips are reported separately from the bare-token residue aggregate",
+        "A skip does not silently carry across a pattern-library extension"
+      ]
+    },
+    {
+      "id": 38,
+      "name": "skip-spans-are-remapped-after-earlier-same-line-edits",
+      "prompt": "Renaming `context` to `context-tools`. One line reads: /plugin configure context; use context.timeout -- I accept the first match and skip the second. Does the skip still subtract on the re-sweep?",
+      "expected_output": "Only because the stored spans are remapped as edits apply. `context-tools` is longer than `context`, so rewriting the accepted Form 13 occurrence shifts every later occurrence on that line right by len(new) - len(old); the Phase 6 rescan then reports different (start, end) for the skipped Form 12 occurrence, the pre-edit span fails to match, and the user is prompted for the deliberate skip again -- the same non-terminating loop, defeated by the very bookkeeping meant to close it. After each Edit at (line, start, end), the delta is added to the start and end of every stored skip span on that line whose start is greater than the edited start. Spans on other lines and earlier spans on the same line are untouched, because a rename replaces in place and adds no lines. The matched snippet is carried alongside the span, and a snippet mismatch after remapping is reported as a bug rather than silently dropping the skip.",
+      "files": [],
+      "expectations": [
+        "The length difference between old and new is identified as what invalidates the stored span",
+        "Only later spans on the same edited line are shifted",
+        "A snippet mismatch after remapping is surfaced rather than silently discarding the skip"
+      ]
+    },
+    {
+      "id": 39,
+      "name": "minified-json-manifest-declaration-is-matched",
+      "prompt": "Rename the `docs-hygiene` plugin to `doc-care`. Its plugin.json is minified: {\"name\":\"docs-hygiene\",\"version\":\"1\"}. Audit for stale references.",
+      "expected_output": "Form 14's JSON declaration alternative matches it. A manifest need not be pretty-printed to be valid, and filesystem evidence still selects container mode for plugins/docs-hygiene/plugin.json -- so a whole-line `^...$` anchor left the registration unmatched and suppressed as residue while apply mode reported completion. The alternative is delimiter-anchored, using the same (^|[{,]) opener and (,|}|$) terminator as the key-position shape, because in JSON a member starts after a line start, an opening brace, or a comma and ends at a comma, a closing brace, or end of line. Widening it does not cost precision: on this repository it still matches exactly the two real manifest declarations. The YAML and TOML alternatives keep their end-of-line anchor deliberately, because both grammars are line-oriented for the shapes manifests actually use; JSON is the one of the three with no line structure at all.",
+      "files": [],
+      "expectations": [
+        "A minified or compact JSON manifest declaration is matched",
+        "The anchor is described as delimiter-aware rather than whole-line",
+        "The YAML and TOML alternatives are not widened along with it, with the line-orientation reason given"
+      ]
+    },
+    {
+      "id": 40,
+      "name": "mode-ladder-lead-in-does-not-say-stop-at-first",
+      "prompt": "Reading Phase 0b, the ladder says to resolve in order. Should I stop as soon as a rule fires?",
+      "expected_output": "Only for rule 1. The lead-in states that just the explicit --container/--identifier override short-circuits, and that rules 2-4 are evidence to be collected in full and compared per the conflict rule below the list. Reading them as a precedence order and stopping at the first that fires is precisely the failure that conflict rule exists to prevent: an unrelated manifest declaring name: test fires rule 3 for container before rule 4 ever inspects the /test invocations, and container mode then suppresses the action's actionable references. The list ordering describes which evidence is cheapest to check first, not which verdict wins.",
+      "files": [],
+      "expectations": [
+        "Only the explicit override is described as short-circuiting",
+        "The ordering is explained as check order, not verdict precedence",
+        "The named failure is container mode suppressing an identifier's actionable references"
+      ]
+    },
+    {
+      "id": 41,
+      "name": "adjacent-declarations-both-emit-occurrence-records",
+      "prompt": "Rename `docs-hygiene` to `doc-care`. A compact manifest reads {\"name\":\"docs-hygiene\",\"id\":\"docs-hygiene\"}. Are both declarations reported?",
+      "expected_output": "Yes, but only because the rescan advances its cursor to the end of the captured token rather than the end of the match. Form 14's delimiter-anchored alternatives CONSUME a trailing delimiter instead of asserting it, since ripgrep's default engine rejects look-around -- and here the comma the first match consumes is exactly the leading delimiter the `id` member needs, so a global rescan resuming after the whole match returns only `{\"name\":\"docs-hygiene\",` and the second declaration never gets an occurrence record. Form 2 still finds the token, but container mode classifies it as suppressed residue, so the sweep could declare completion with `id` stale. The collision is specifically ADJACENCY: insert a sibling member between them and both are emitted either way. The remedy is in the survey rather than in each regex, because every consume-the-delimiter form shares it, and dropping the terminator is not an option -- without it the boundary is unenforced and the qualified-id form matches inside an email domain again.",
+      "files": [],
+      "expectations": [
+        "Both adjacent declarations produce occurrence records",
+        "The cause is identified as the first match consuming the delimiter the second needs",
+        "The remedy is the survey's cursor rule, not removing the consumed terminator",
+        "The rescan advances a cursor rather than slicing, so `^` is not re-anchored mid-line"
+      ]
+    },
+    {
+      "id": 42,
+      "name": "wide-match-enumerates-every-token-span",
+      "prompt": "Rename `docs-hygiene` to `doc-care`. A SKILL.md frontmatter field reads: description: \"first docs-hygiene and then docs-hygiene\". How many occurrence records does the survey emit?",
+      "expected_output": "Two. Form 7's pattern swallows the whole field and its greedy prefix binds the captured group to a single occurrence, so the whole-pattern match is ONE for two references -- and no cursor advance recovers the other, because re-matching from inside the field cannot reproduce the `description:` prefix the pattern requires. The survey therefore scans each match's REFERENCE REGION for every occurrence of the token and emits one record per occurrence, all attributed to the matching form: the whole-pattern match establishes THAT the form applies and over what extent, the token spans inside its reference region are the references. For Form 7 that region is the whole quoted field, since its occurrences are all real references; other forms narrow it, so enumeration never reaches text the match spans but does not refer through. Relying on repeated whole-pattern matching loses the earlier occurrence, and under container mode it becomes suppressed Form-2 residue, so the drop is silent and the rename can falsely complete.",
+      "files": [],
+      "expectations": [
+        "Both occurrences inside the single wide match produce records",
+        "The greedy prefix binding the capture to one occurrence is identified as the cause",
+        "Enumeration inside the match is used rather than repeated whole-pattern matching",
+        "The cursor then advances past the LAST enumerated span, not the first"
+      ]
+    },
+    {
+      "id": 43,
+      "name": "closed-atx-heading-is-a-title-match",
+      "prompt": "Rename the `docs-hygiene` plugin to `doc-care`. Its README titles itself `# docs-hygiene #` using the closed ATX form.",
+      "expected_output": "Form 14's ATX alternative matches it. The trailing hash run is ATX decoration rather than content, so the heading's entire content is still the token and the Certain reasoning applies unchanged; without the optional closing-hash group the anchor rejected it, the title's only hit was Form 2, and container mode excluded that as residue while reporting completion with the landing-page title stale. The closing run is not part of the reference -- only the captured token span is replaced, and the hashes stay. Discrimination is unchanged: `## How docs-hygiene works`, `# docs-hygiene extra` and `# docs-hygiene-extra #` are still not matched.",
+      "files": [],
+      "expectations": [
+        "The closed ATX form is matched",
+        "The closing hash run is not rewritten as part of the reference",
+        "Headings that merely contain the token are still rejected"
+      ]
+    },
+    {
+      "id": 44,
+      "name": "default-handoff-discloses-confirmed-skips",
+      "prompt": "I skipped two matches during the rename and the run finished. The summary says \"Phase 6 re-sweep: 0 actionable stragglers\". Is that the whole story?",
+      "expected_output": "No, and the default hand-off template carries a skipped-count line for exactly this reason. The zero is true -- a confirmed skip is not actionable -- but on its own it is misleading, because the run preserved stale occurrences BY REQUEST and a reader cannot distinguish that from a sweep that found nothing. The template emits `Skipped <S> matches at your confirmation` whenever <S> is non-zero, in either mode, on a line separate from the container-mode residue count: residue was never proposed, a skip was proposed and declined, and a reader asking why a surviving occurrence was left alone needs to know which of the two it was.",
+      "files": [],
+      "expectations": [
+        "The skipped count appears in the default success hand-off, not only in the Phase 7 prose",
+        "Skips and container-mode residue are reported on separate lines",
+        "The zero-stragglers line is explained as true but insufficient on its own"
+      ]
+    },
+    {
+      "id": 45,
+      "name": "slash-token-does-not-match-hyphenated-command",
+      "prompt": "Rename the `context` plugin to `context-tools`. The repo documents an unrelated `/context-guard` command. Is it safe to auto-apply the Certain bucket?",
+      "expected_output": "Yes, now that Form 1's trailing boundary excludes a hyphen. A bare `\\b` treats a hyphen as a word boundary, so `\\B/<old>\\b` matched `/context-guard` as a `context` reference -- and Form 1 is on container mode's Certain allowlist, so the default auto-apply path would have rewritten another command's name to `/context-tools-guard`. The consumed `([^\\w-]|$)` terminator rules it out, the same shape Forms 13 and 15 use for the same reason. Discrimination is otherwise unchanged: `/context`, the namespaced `/context:sub` (a colon is a valid terminator) and `see /context.` still match, while `/context-guard`, `/contextual` and `path/context` do not. The consumed character is not part of the reference and is left in place, and Form 1 now participates in the survey's rescan-cursor rule like the other consume-the-delimiter forms.",
+      "files": [],
+      "expectations": [
+        "`/context-guard` is not matched as a `context` reference",
+        "A namespaced `/context:sub` invocation still matches",
+        "The danger is tied to Form 1 being auto-applied rather than merely reported",
+        "The consumed terminator is not rewritten as part of the reference"
+      ]
+    },
+    {
+      "id": 46,
+      "name": "manifest-declaration-with-inline-comment-is-matched",
+      "prompt": "Rename `docs-hygiene` to `doc-care`. The manifest documents its own field: name: docs-hygiene # package name. And the TOML one reads name = \"docs-hygiene\"  # package name.",
+      "expected_output": "Both match. The declaration alternatives accept a trailing comment, because an end anchor otherwise rejected the whole line while filesystem evidence still selected container mode for the manifest -- leaving the registration unmatched and suppressed as residue while apply mode reported completion. The whitespace before the YAML `#` is required rather than decorative: YAML starts a comment only when `#` follows whitespace, so `name: docs-hygiene#x` is the single scalar `docs-hygiene#x` and must NOT match. The TOML alternative allows optional whitespace instead, because its value is quoted and the closing quote already ends the string unambiguously. JSON is excluded from this entirely, having no comment syntax.",
+      "files": [],
+      "expectations": [
+        "A YAML declaration with a trailing comment is matched",
+        "A TOML declaration with a trailing comment is matched",
+        "`name: <old>#x` is NOT matched, because YAML requires whitespace before a comment",
+        "JSON is excluded, with the absence of comment syntax given as the reason"
+      ]
+    },
+    {
+      "id": 47,
+      "name": "inline-comment-text-is-not-rewritten",
+      "prompt": "Rename the `test` plugin to `test-suite`. A manifest line reads: name: test # test before publishing. What gets rewritten?",
+      "expected_output": "Only the declaration value. The widened alternative makes the match span the comment as well, and the survey enumerates every token span inside a match -- so blind enumeration would emit TWO records, both attributed to Form 14, which is Certain and exempt from the common-word demotion inside a manifest, and apply mode would rewrite the ordinary prose to `test-suite before publishing`. Enumeration is therefore bounded to each form's REFERENCE REGION, and for the YAML and TOML declaration alternatives that region is the declaration VALUE, not the trailing comment: a comment is documentation ABOUT the declaration, never a second declaration. Form 7's region is by contrast the whole quoted field, because its multiple occurrences are all genuine references -- the region is per form, not a blanket narrowing.",
+      "files": [],
+      "expectations": [
+        "The comment text is not rewritten",
+        "The declaration value is still rewritten",
+        "Enumeration is bounded by a per-form reference region rather than the whole match",
+        "The TOML alternative is given the same region as the YAML one"
+      ]
+    },
+    {
+      "id": 48,
+      "name": "skill-md-slash-token-directive-matches-form-1",
+      "prompt": "SKILL.md's Gotchas tell me to use a particular regex for slash-token specificity. Does it still match what patterns.md defines for Form 1?",
+      "expected_output": "Yes -- both state `\\B/<old>([^\\w-]|$)`. The gotcha previously said `\\B/<old>\\b`, which is the bug Form 1 was fixed for: a trailing word boundary treats a hyphen as a boundary, so it matches inside kebab-case sibling commands like `/confirm-changes`, and Form 1 is Certain so that auto-applies. SKILL.md is always loaded, so a stale executable directive there outranks the corrected pattern in practice -- an agent following the gotcha would reintroduce the defect while patterns.md claimed it was fixed. The gotcha now also records that the terminator is CONSUMED and is not part of the reference.",
+      "files": [],
+      "expectations": [
+        "The SKILL.md gotcha and the patterns.md Form 1 definition state the same expression",
+        "`/confirm-changes` is named as what a trailing `\\b` wrongly matches",
+        "The always-loaded surface is identified as the reason a stale directive there is worse than elsewhere"
       ]
     }
   ]
