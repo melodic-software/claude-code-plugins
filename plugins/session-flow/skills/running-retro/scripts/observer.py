@@ -737,12 +737,17 @@ def _pid_alive(pid: int) -> bool:
     if pid <= 0:
         return False
     if os.name == "nt":
-        # encoding= must be explicit -- Python's default text-mode decoding is
-        # the platform code page, not UTF-8 (same class of defect as #1472).
+        # tasklist's piped output follows the console output code page, which
+        # is not fixed -- it varies by locale/session and can even differ
+        # between shells in the same session (#1512). Neither a hardcoded
+        # "utf-8" (the #1483 fix) nor a hardcoded "oem" decodes correctly
+        # everywhere, so match the PID as raw ASCII bytes instead of decoding
+        # at all. A process *name* containing non-ASCII/mojibake text can
+        # never affect this match either way, since the predicate only looks
+        # for ASCII digits.
         out = subprocess.run(["tasklist", "/FI", f"PID eq {pid}", "/NH"],
-                            capture_output=True, text=True,
-                            encoding="utf-8", errors="replace")
-        return str(pid) in out.stdout
+                            capture_output=True)
+        return str(pid).encode("ascii") in out.stdout
     try:
         os.kill(pid, 0)
     except (ProcessLookupError, PermissionError):
