@@ -261,8 +261,12 @@ Two facts about the wrappers' bare names, both load-bearing:
   command and never satisfies a pre-approved `Bash(source-control-babysit-merge:*)`. That rule does
   not cover these invocations, and cannot until bare-name resolution is dependable enough to invoke
   bare — so **what happens next is the permission mode's call, not the allow rule's:**
-  - **In a mode that prompts** (Manual, accept-edits, plan without auto mode), expect a per-call
-    permission prompt. It is expected behavior, not a misconfiguration.
+  - **In a mode that prompts** — Manual and accept-edits, and plan mode only on its no-classifier
+    branch — expect a per-call permission prompt. It is expected behavior, not a misconfiguration.
+    Plan mode still *runs* shell commands (it blocks source edits, not commands), but when auto mode
+    is available and `useAutoModeDuringPlan` is on, which is the default, the classifier reviews
+    them "instead of prompting you"; only otherwise do commands outside the read-only set prompt
+    ([plan mode](https://code.claude.com/docs/en/permission-modes#analyze-before-you-edit-with-plan-mode)).
   - **In auto mode, expect no prompt.** Auto mode "lets Claude execute without routine permission
     prompts", routing uncovered actions to a classifier that approves or blocks them
     ([permission modes](https://code.claude.com/docs/en/permission-modes#eliminate-prompts-with-auto-mode)).
