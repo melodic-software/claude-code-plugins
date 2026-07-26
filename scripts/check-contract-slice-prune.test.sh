@@ -8,6 +8,7 @@ set -uo pipefail
 
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT="$SELF_DIR/check-contract-slice-prune.sh"
+PARSE_LIB="$SELF_DIR/../lib/parse-concern-value.sh"
 
 PASS=0
 FAIL=0
@@ -27,8 +28,12 @@ git_q() { git -c user.email=t@t -c user.name=t -c commit.gpgsign=false "$@" >/de
 mk_repo() {
   local dir
   dir="$(mktemp -d)"
-  mkdir -p "$dir/scripts" "$dir/docs/topics"
+  mkdir -p "$dir/scripts" "$dir/lib" "$dir/docs/topics"
   cp "$SCRIPT" "$dir/scripts/check-contract-slice-prune.sh"
+  # The gate delegates the concern-file scalar parse to the shared helper, so a
+  # fixture repo must carry it too — running against a repo without it is the
+  # fail-closed case, not the normal one.
+  cp "$PARSE_LIB" "$dir/lib/parse-concern-value.sh"
   printf '%s' "${1:-}" >"$dir/scripts/contract-slice-baseline.txt"
   printf 'seed\n' >"$dir/README.md"
   (
@@ -219,6 +224,93 @@ printf 'contract_dir: docs/slices\n' >"$repo/.claude/topic-docs.yaml"
 (cd "$repo" && git_q mv docs/topics/legacy/PLAN.md docs/slices/legacy/PLAN.md)
 commit_work "$repo"
 if run_diff "$repo" >/dev/null; then ok "a grandfathered slice may migrate to a relocated root"; else fail "carrying existing debt to a new root must not be red-lined"; fi
+rm -rf "$repo"
+
+# --- a contract_dir with reducible segments still matches git's diff paths ---
+# Git names paths canonically, so an unnormalized root would match nothing and
+# the configured root would go unpoliced while the gate reported success.
+repo="$(mk_repo)"
+mkdir -p "$repo/.claude"
+printf 'contract_dir: ./docs/topics\n' >"$repo/.claude/topic-docs.yaml"
+(cd "$repo" && git_q add -A && git_q commit -m concern && git_q checkout base && git_q merge work && git_q checkout work)
+mkdir -p "$repo/docs/topics/newslug"
+printf 'plan\n' >"$repo/docs/topics/newslug/PLAN.md"
+commit_work "$repo"
+if run_diff "$repo" >/dev/null; then fail "a './'-prefixed contract_dir must still police its root"; else ok "contract_dir is canonicalized before matching"; fi
+rm -rf "$repo"
+
+repo="$(mk_repo)"
+mkdir -p "$repo/.claude"
+printf 'contract_dir: docs/x/../topics\n' >"$repo/.claude/topic-docs.yaml"
+(cd "$repo" && git_q add -A && git_q commit -m concern && git_q checkout base && git_q merge work && git_q checkout work)
+mkdir -p "$repo/docs/topics/newslug"
+printf 'plan\n' >"$repo/docs/topics/newslug/PLAN.md"
+commit_work "$repo"
+if run_diff "$repo" >/dev/null; then fail "a contract_dir with a '..' segment must resolve to its real root"; else ok "'..' segments are resolved, not matched literally"; fi
+rm -rf "$repo"
+
+# --- a contract_dir that escapes the repo root is refused --------------------
+repo="$(mk_repo)"
+mkdir -p "$repo/.claude"
+printf 'contract_dir: ../outside\n' >"$repo/.claude/topic-docs.yaml"
+(cd "$repo" && git_q add -A && git_q commit -m concern && git_q checkout base && git_q merge work && git_q checkout work)
+printf 'edit\n' >>"$repo/README.md"
+commit_work "$repo"
+out="$(run_diff "$repo")"
+rc=$?
+if ((rc == 2)) && [[ "$out" == *"escapes the repo root"* ]]; then ok "an escaping contract_dir exits 2"; else fail "an escaping contract_dir must exit 2, got rc=$rc"; fi
+rm -rf "$repo"
+
+# --- a literal hash inside contract_dir is not a comment ---------------------
+# Truncating at an adjacent '#' would silently police 'docs/a' and leave the
+# real 'docs/a#b' root unchecked.
+repo="$(mk_repo)"
+mkdir -p "$repo/.claude"
+printf 'contract_dir: docs/a#b\n' >"$repo/.claude/topic-docs.yaml"
+(cd "$repo" && git_q add -A && git_q commit -m concern && git_q checkout base && git_q merge work && git_q checkout work)
+mkdir -p "$repo/docs/a#b/newslug"
+printf 'plan\n' >"$repo/docs/a#b/newslug/PLAN.md"
+commit_work "$repo"
+if run_diff "$repo" >/dev/null; then fail "an adjacent '#' must stay part of contract_dir"; else ok "a literal hash in contract_dir survives the parse"; fi
+rm -rf "$repo"
+
+# --- a trailing comment on contract_dir is still stripped --------------------
+repo="$(mk_repo)"
+mkdir -p "$repo/.claude"
+printf 'contract_dir: docs/slices   # relocated root\n' >"$repo/.claude/topic-docs.yaml"
+(cd "$repo" && git_q add -A && git_q commit -m concern && git_q checkout base && git_q merge work && git_q checkout work)
+mkdir -p "$repo/docs/slices/newslug"
+printf 'plan\n' >"$repo/docs/slices/newslug/PLAN.md"
+commit_work "$repo"
+if run_diff "$repo" >/dev/null; then fail "a trailing ' #' comment must not become part of the root"; else ok "a trailing comment is still stripped"; fi
+rm -rf "$repo"
+
+# --- nested roots: the MOST SPECIFIC root owns a path -----------------------
+# Relocating contract_dir beneath a grandfathered slice used to let the outer
+# root match first, naming the exempt slug 'legacy' for every path inside the
+# new root — so a brand-new slice smuggled in alongside the migrated one passed.
+repo="$(mk_repo $'legacy\n')"
+mkdir -p "$repo/docs/topics/legacy"
+printf 'plan\n' >"$repo/docs/topics/legacy/PLAN.md"
+(cd "$repo" && git_q add -A && git_q commit -m seed && git_q checkout base && git_q merge work && git_q checkout work)
+mkdir -p "$repo/.claude" "$repo/docs/topics/legacy/legacy" "$repo/docs/topics/legacy/newslug"
+printf 'contract_dir: docs/topics/legacy\n' >"$repo/.claude/topic-docs.yaml"
+(cd "$repo" && git_q mv docs/topics/legacy/PLAN.md docs/topics/legacy/legacy/PLAN.md)
+printf 'plan\n' >"$repo/docs/topics/legacy/newslug/PLAN.md"
+commit_work "$repo"
+if run_diff "$repo" >/dev/null; then fail "a new slice under a nested relocated root must be red-lined"; else ok "the most specific contract root owns a path"; fi
+rm -rf "$repo"
+
+# --- nested roots: migrating the grandfathered slice itself still passes -----
+repo="$(mk_repo $'legacy\n')"
+mkdir -p "$repo/docs/topics/legacy"
+printf 'plan\n' >"$repo/docs/topics/legacy/PLAN.md"
+(cd "$repo" && git_q add -A && git_q commit -m seed && git_q checkout base && git_q merge work && git_q checkout work)
+mkdir -p "$repo/.claude" "$repo/docs/topics/legacy/legacy"
+printf 'contract_dir: docs/topics/legacy\n' >"$repo/.claude/topic-docs.yaml"
+(cd "$repo" && git_q mv docs/topics/legacy/PLAN.md docs/topics/legacy/legacy/PLAN.md)
+commit_work "$repo"
+if run_diff "$repo" >/dev/null; then ok "a grandfathered slice may migrate into a nested root"; else fail "most-specific matching must not punish a legitimate migration"; fi
 rm -rf "$repo"
 
 # --- usage ------------------------------------------------------------------
