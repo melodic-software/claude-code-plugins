@@ -38,6 +38,15 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   - A shallow clone truncates that history, which would leave the guard inert
     while appearing healthy, so it emits a visible prerequisite notice naming
     `git fetch --unshallow` instead.
+  - The walk's exit status is checked before anything is populated. A clone that
+    is not shallow can still fail mid-walk — a partial clone offline, a damaged
+    object store — emitting the deletions it already resolved and then exiting
+    nonzero. Read through a pipe that status is invisible, and a truncated set
+    is indistinguishable from a complete one: the guard would adjudicate against
+    a fraction of history while looking healthy. A failed walk takes the same
+    announced degradation as a shallow clone, and a behavioral test case pins it
+    against a fixture whose walk emits one deletion and then fails
+    (review-caught).
 - An `Edit` that replaces a bare substring **inside** an existing code span is
   reconstructed from disk, mirroring `skill-reference-verify`. The surrounding
   backticks are pre-existing and never enter `new_string`, so the hunk holds no

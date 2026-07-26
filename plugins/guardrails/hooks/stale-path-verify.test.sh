@@ -330,6 +330,62 @@ else
   bad "shallow clone: fixture could not be built"
 fi
 
+# ======================= INCOMPLETE HISTORY WALK ============================
+
+# A clone that is NOT shallow can still fail mid-walk — a partial clone offline,
+# a damaged object store. git emits the deletions it already resolved and THEN
+# exits nonzero, so a partial deleted-path set is indistinguishable from a
+# complete one unless the status is checked. The fixture reproduces exactly that:
+# HEAD's own diff resolves (docs/late.md is emitted) and the older one cannot.
+WALK_REPO="$TEST_TMPDIR/walkfail"
+mkdir -p "$WALK_REPO/docs"
+git -C "$WALK_REPO" init -q >/dev/null 2>&1
+echo early >"$WALK_REPO/docs/early.md"
+echo late >"$WALK_REPO/docs/late.md"
+echo keep >"$WALK_REPO/docs/keep.md"
+git_c "$WALK_REPO" add -A >/dev/null 2>&1
+git_c "$WALK_REPO" commit -qm seed >/dev/null 2>&1
+git_c "$WALK_REPO" rm -q docs/early.md >/dev/null 2>&1
+git_c "$WALK_REPO" commit -qm "drop early" >/dev/null 2>&1
+git_c "$WALK_REPO" rm -q docs/late.md >/dev/null 2>&1
+git_c "$WALK_REPO" commit -qm "drop late" >/dev/null 2>&1
+
+WALK_TREE=$(git -C "$WALK_REPO" rev-parse "HEAD~2^{tree}" 2>/dev/null | tr -d '\r')
+[[ -n "$WALK_TREE" ]] &&
+  rm -f "$WALK_REPO/.git/objects/${WALK_TREE:0:2}/${WALK_TREE:2}"
+
+WALK_OUT=$(git -C "$WALK_REPO" log HEAD --no-renames --diff-filter=D --name-only \
+  --pretty=format: 2>/dev/null)
+WALK_RC=$?
+
+# The fixture is only meaningful when the walk BOTH emitted something AND failed;
+# anything else is testing a different condition than the one the guard guards.
+if ((WALK_RC != 0)) && [[ "$WALK_OUT" == *docs/late.md* ]] &&
+  [[ "$(git -C "$WALK_REPO" rev-parse --is-shallow-repository 2>/dev/null | tr -d '\r')" != "true" ]]; then
+  WALK_TARGET="$WALK_REPO/notes.md"
+  : >"$WALK_TARGET"
+
+  OUT=$(CLAUDE_PROJECT_DIR="$WALK_REPO" bash "$HOOK" \
+    <<<"$(write_json "$WALK_TARGET" 'Read `docs/keep.md` first.')" 2>&1)
+  assert_silent "incomplete walk with nothing absent → silent" "$OUT"
+
+  # docs/late.md IS in the partial set. Adjudicating off it would look like a
+  # correct finding while the rest of history went unread.
+  OUT=$(CLAUDE_PROJECT_DIR="$WALK_REPO" bash "$HOOK" \
+    <<<"$(write_json "$WALK_TARGET" 'The spoke is `docs/late.md`.')" 2>&1)
+  RC=$?
+  assert_exit "incomplete walk → exit 0" 0 "$RC"
+  assert_contains "incomplete walk → visible prerequisite notice" "$OUT" "history walk exited nonzero"
+  assert_contains "incomplete walk → notice names the diagnostic" "$OUT" "diff-filter=D"
+  assert_absent "incomplete walk → partial set never adjudicated" "$OUT" "STALE_PATH"
+
+  OUT=$(CLAUDE_PROJECT_DIR="$WALK_REPO" bash "$HOOK" \
+    <<<"$(write_json "$WALK_TARGET" 'The spoke is `docs/late.md`.')" 2>&1)
+  assert_silent "incomplete walk → notice is once per session, not per write" "$OUT"
+else
+  bad "incomplete history walk: fixture could not be built"
+fi
+
 # ============================ KILL SWITCH ===================================
 
 OUT=$(CLAUDE_PROJECT_DIR="$REPO" CLAUDE_PLUGIN_OPTION_STALE_PATH_VERIFY_ENABLED=false \

@@ -205,6 +205,7 @@ reconstruct_partial_edit() {
 declare -A DELETED=()
 DELETED_BUILT=0
 SHALLOW=0
+WALK_FAILED=0
 
 # The deleted-path set, built at most once and only after some candidate has
 # already failed the working-tree existence test — the overwhelmingly common
@@ -228,11 +229,27 @@ build_deleted_set() {
   # enters the set and the guard silently drops to zero findings. HEAD, not
   # --all: a path that only ever existed on an abandoned branch is not a stale
   # mainline citation.
+  #
+  # The walk is captured and its status checked BEFORE anything is populated. A
+  # non-shallow clone can still fail mid-walk — a partial/lazy clone offline, a
+  # damaged object store — emitting some deleted paths and then exiting nonzero.
+  # Read through a pipe or process substitution that status is invisible, and a
+  # truncated set is indistinguishable from a complete one: the guard would look
+  # healthy while adjudicating against a fraction of history. Same failure mode
+  # as a shallow clone, so it takes the same announced degradation.
+  local walk walk_status=0
+  walk=$(git -C "$REPO_ROOT" log HEAD --no-renames --diff-filter=D --name-only --pretty=format: 2>/dev/null) ||
+    walk_status=$?
+  if ((walk_status != 0)); then
+    WALK_FAILED=1
+    return 0
+  fi
+
   local p
   while IFS= read -r p; do
     [[ -n "$p" ]] || continue
     DELETED["$p"]=1
-  done < <(git -C "$REPO_ROOT" log HEAD --no-renames --diff-filter=D --name-only --pretty=format: 2>/dev/null | tr -d '\r')
+  done < <(printf '%s\n' "$walk" | tr -d '\r')
 }
 
 # "Did you mean" enrichment, only once a finding exists. A basename match is far
@@ -317,6 +334,15 @@ if ((SHALLOW)) && ((ABSENT)); then
   if hook::notice_once "guardrails-stale-path-verify-shallow" "$INPUT"; then
     hook::emit_skip_notice PostToolUse \
       "stale-path-verify: this clone is shallow, so the deleted-path history it reads is truncated and the guard cannot adjudicate. Run \`git fetch --unshallow\` to restore it."
+  fi
+  emit_tel
+  exit 0
+fi
+
+if ((WALK_FAILED)) && ((ABSENT)); then
+  if hook::notice_once "guardrails-stale-path-verify-walk-failed" "$INPUT"; then
+    hook::emit_skip_notice PostToolUse \
+      "stale-path-verify: the deleted-path history walk exited nonzero, so the set it reads is incomplete and the guard cannot adjudicate. Run \`git log --diff-filter=D --name-only\` to see why — a partial clone missing objects offline and a damaged object store are the usual causes."
   fi
   emit_tel
   exit 0
