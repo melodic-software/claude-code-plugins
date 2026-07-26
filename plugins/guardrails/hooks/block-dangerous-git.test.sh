@@ -427,6 +427,70 @@ run "#964 shell-alias body re-invoking the outer chain name (blocked)" \
 run "#964 shell-alias body re-invoking an undefined inner name (allowed, no hang)" \
   "git -c alias.a='!git a' a" 0
 
+# --- alias-chain traversal stays proportional to the chain's LENGTH ------------
+# Each hop re-checks BOTH alias spellings, so re-expansion branches 2x per hop
+# unless equivalent states collapse: before the traversal bounds a 10-hop chain
+# defining both spellings cost 5.4s, and each further hop doubled it. These cases
+# therefore assert a hard wall-clock CEILING as well as the exit code — an
+# exit-code-only assertion passes at any runtime and would not see the regression.
+#
+# run_bounded <label> <command> <expected-exit> <seconds>: `timeout` reports 124
+# when the ceiling elapses, which must read as the failure it is rather than as
+# an unexpected exit code.
+run_bounded() {
+  local label="$1" command="$2" expected="$3" secs="$4" rc
+  (cd "$REPO_SHA1" && timeout "$secs" bash "$HOOK" <<<"$(command_json "$command")" >/dev/null 2>&1)
+  rc=$?
+  if ((rc == 124)); then
+    bad "$label: exceeded the ${secs}s ceiling — alias traversal is not bounded"
+  else
+    assert_exit "$label" "$expected" "$rc"
+  fi
+}
+
+# alias_chain <hops> <terminal> [diverge] — an N-hop chain where every hop
+# defines both `alias.aN` and `alias.aN.command`. They expand identically by
+# default (equivalent states, collapsed by memoization); `diverge` gives each
+# spelling its own trailing word so no two analysis paths share a state and only
+# the traversal budget can stop the walk.
+alias_chain() {
+  local n="$1" terminal="$2" mode="${3:-same}" cmd="git" i
+  for ((i = 1; i < n; i++)); do
+    if [[ "$mode" == diverge ]]; then
+      cmd+=" -c alias.a$i='a$((i + 1)) --x$i' -c alias.a$i.command='a$((i + 1)) --y$i'"
+    else
+      cmd+=" -c alias.a$i=a$((i + 1)) -c alias.a$i.command=a$((i + 1))"
+    fi
+  done
+  printf '%s' "$cmd -c alias.a$n='$terminal' -c alias.a$n.command='$terminal' a1"
+}
+
+# The SAFE terminal is the timing case: it exhausts the whole tree, so before the
+# bounds it ran past this ceiling (verified — 20 hops did not finish in 30s).
+run_bounded "traversal: 20-hop dual-spelling chain to a safe op (allowed, bounded)" \
+  "$(alias_chain 20 status)" 0 30
+# Coverage is not what the collapse trades away: the same depth still reaches a
+# dangerous terminal op and blocks. (This one always returned fast — the walk exits
+# on the first path that finds the op — so it asserts reach, not runtime.)
+run_bounded "traversal: 20-hop dual-spelling chain to reset --hard (blocked, bounded)" \
+  "$(alias_chain 20 'reset --hard')" 2 30
+# A long chain that does NOT branch (one spelling per hop) must stay allowed —
+# the budget bounds branching, not depth. Ceiling-guarded too: a regression that
+# made this one branch would otherwise hang the suite rather than fail it.
+run_bounded "traversal: 60-hop single-spelling chain to a safe op (allowed)" \
+  "$(
+    cmd="git"
+    for ((i = 1; i < 60; i++)); do cmd+=" -c alias.a$i=a$((i + 1))"; done
+    printf '%s' "$cmd -c alias.a60=status a1"
+  )" 0 30
+# Divergent spellings defeat state collapse, so the budget is what stops the walk:
+# fail CLOSED rather than stall the hook.
+run_bounded "traversal: divergent-spelling chain exhausts the budget (blocked, bounded)" \
+  "$(alias_chain 12 status diverge)" 2 30
+budgetout=$(cd "$REPO_SHA1" && timeout 30 bash "$HOOK" <<<"$(command_json "$(alias_chain 12 status diverge)")" 2>&1)
+assert_contains "traversal: budget block names the re-expansion ceiling" \
+  "$budgetout" "re-expansions"
+
 # --- allow-list ---------------------------------------------------------------
 run "allow-list push-force → allowed" "git push --force" 0 \
   CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=push-force

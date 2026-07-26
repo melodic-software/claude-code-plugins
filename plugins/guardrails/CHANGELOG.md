@@ -41,15 +41,45 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
     by a second save/restore seen-set of persisted name/expansion pairs, where
     a repeat models real git's endless fork of a self-referential persisted
     shell alias (`a = !git a`): nothing ever runs, so skipping is allow-safe.
+  - **Chain traversal is now proportional to the chain's LENGTH, not exponential
+    in it** (review finding on the fix above). Because each hop re-checks BOTH
+    alias spellings independently, following the chain to the real op branched 2x
+    per hop: a *benign* 10-hop, 402-character command cost 5.4s in
+    `block-dangerous-git`, and an 8-hop, 356-character one cost 14.6s in
+    `block-noncanonical-commit` (every leaf forked a `git config`) — and a hook
+    that stalls stops guarding. Two bounds, both guard-local:
+    - **Equivalent analysis states collapse.** A verdict is a pure function of
+      (alias seen-set, argv); every other input is invocation-constant, and a
+      block is a process-wide `exit 2`, so a state reached a second time while
+      the process still runs provably did not block and cannot decide otherwise
+      now. Skipping the repeat is exact, not a coverage trade — and it is what
+      collapses the common shape, where both spellings of a hop expand to the
+      same thing, to one path per hop. Persisted-alias lookups are cached per
+      (directory, subcommand) for the same reason, removing the per-leaf fork.
+    - **A total re-expansion budget, fail-CLOSED.** Collapsing cannot bound a
+      chain whose two spellings DIFFER, because each path carries its own
+      trailing text forward and no two states are equal. The ceiling counts
+      ANALYSES, not seconds — a wall clock is host- and command-length-dependent
+      — and is calibrated against the linear walk the guards already accept: a
+      memoized traversal spends one analysis per hop, so a branching walk is
+      capped at the same order as a long non-branching chain (in
+      `block-dangerous-git`, at strictly less than the ~430-hop chain its 16 KB
+      command ceiling admits). It sits far above real usage; every legitimate
+      command measured spends single digits. Exhausting it blocks: the guard
+      could not finish deciding, so it must not allow.
 
   Guard-local change only (no `hook-utils.sh` change, no cross-plugin sync).
   Test matrices extended in both guards with two- and three-hop chains, the
   `--config-env` and `.command` second-hop variants, a persisted-config alias
   chain (fixture repo), the shell-alias outer-chain re-invocation (blocked) with
   its canonical/undefined twins (allowed), a persisted chain crossing a `!` hop
-  (blocked / `-F -` allowed), and benign controls (safe multi-hop chain allowed;
-  alias cycle, self- and mutually referential persisted shell aliases terminate
-  and allow without hanging). Closes #964.
+  (blocked / `-F -` allowed), 20-hop dual-spelling chains under a hard wall-clock
+  ceiling (safe terminal allowed, dangerous terminal still blocked — the collapse
+  costs no coverage), a 60-hop single-spelling chain (allowed: the budget bounds
+  branching, not depth), a divergent-spelling chain (blocked on the budget), and
+  benign controls (safe multi-hop chain allowed; alias cycle, self- and mutually
+  referential persisted shell aliases terminate and allow without hanging).
+  Closes #964.
 
 ## [0.16.1]
 

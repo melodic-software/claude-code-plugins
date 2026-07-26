@@ -117,6 +117,78 @@ run "#964 shell-alias body re-invoking the outer chain name (blocked)" \
 run "#964 shell-alias re-invocation, canonical -F - twin (allowed)" \
   "git -c alias.a='!git -c alias.a=\"commit -F -\" a' a" 0
 
+# --- alias-chain traversal stays proportional to the chain's LENGTH ------------
+# Each hop re-checks BOTH alias spellings, so re-expansion branches 2x per hop
+# unless equivalent states collapse: before the traversal bounds an 8-hop chain
+# defining both spellings cost 14.6s here (each leaf forked a `git config`), and
+# every further hop doubled it. These cases therefore assert a hard wall-clock
+# CEILING as well as the exit code — an exit-code-only assertion passes at any
+# runtime and would not see the regression.
+#
+# run_bounded <label> <command> <expected-exit> <seconds>: `timeout` reports 124
+# when the ceiling elapses, which must read as the failure it is rather than as
+# an unexpected exit code. cwd is pinned to a directory that is no repository, so
+# an in-progress merge/rebase wherever the suite happens to run cannot silently
+# exempt the blocked cases — the guard exempts a live sequencer by design, and an
+# ambient one turns these into assertions about the wrong thing.
+TRAVERSAL_CWD="$TEST_TMPDIR/traversal"
+mkdir -p "$TRAVERSAL_CWD"
+run_bounded() {
+  local label="$1" command="$2" expected="$3" secs="$4" rc
+  MSYS_NO_PATHCONV=1 jq -n --arg c "$command" --arg d "$TRAVERSAL_CWD" \
+    '{tool_name:"Bash",tool_input:{command:$c},cwd:$d}' |
+    timeout "$secs" bash "$HOOK" >/dev/null 2>&1
+  rc=$?
+  if ((rc == 124)); then
+    bad "$label: exceeded the ${secs}s ceiling — alias traversal is not bounded"
+  else
+    assert_exit "$label" "$expected" "$rc"
+  fi
+}
+
+# alias_chain <hops> <terminal> [diverge] — an N-hop chain where every hop
+# defines both `alias.aN` and `alias.aN.command`. They expand identically by
+# default (equivalent states, collapsed by memoization); `diverge` gives each
+# spelling its own trailing word so no two analysis paths share a state and only
+# the traversal budget can stop the walk.
+alias_chain() {
+  local n="$1" terminal="$2" mode="${3:-same}" cmd="git" i
+  for ((i = 1; i < n; i++)); do
+    if [[ "$mode" == diverge ]]; then
+      cmd+=" -c alias.a$i='a$((i + 1)) --x$i' -c alias.a$i.command='a$((i + 1)) --y$i'"
+    else
+      cmd+=" -c alias.a$i=a$((i + 1)) -c alias.a$i.command=a$((i + 1))"
+    fi
+  done
+  printf '%s' "$cmd -c alias.a$n='$terminal' -c alias.a$n.command='$terminal' a1"
+}
+
+# The SAFE terminal is the timing case: it exhausts the whole tree, so before the
+# bounds it ran past this ceiling (verified — 20 hops did not finish in 30s).
+run_bounded "traversal: 20-hop dual-spelling chain to a canonical commit (allowed, bounded)" \
+  "$(alias_chain 20 'commit -F -')" 0 30
+# Coverage is not what the collapse trades away: the same depth still reaches the
+# non-canonical commit and blocks. (This one always returned fast — the walk exits
+# on the first path that finds the commit — so it asserts reach, not runtime.)
+run_bounded "traversal: 20-hop dual-spelling chain to commit -m (blocked, bounded)" \
+  "$(alias_chain 20 'commit -m bypass')" 2 30
+# A long chain that does NOT branch (one spelling per hop) must stay allowed —
+# the budget bounds branching, not depth. Ceiling-guarded too: a regression that
+# made this one branch would otherwise hang the suite rather than fail it.
+run_bounded "traversal: 60-hop single-spelling chain to a canonical commit (allowed)" \
+  "$(
+    cmd="git"
+    for ((i = 1; i < 60; i++)); do cmd+=" -c alias.a$i=a$((i + 1))"; done
+    printf '%s' "$cmd -c alias.a60='commit -F -' a1"
+  )" 0 30
+# Divergent spellings defeat state collapse, so the budget is what stops the walk:
+# fail CLOSED rather than stall the hook.
+run_bounded "traversal: divergent-spelling chain exhausts the budget (blocked, bounded)" \
+  "$(alias_chain 12 status diverge)" 2 30
+budgetout=$(timeout 30 bash "$HOOK" <<<"$(command_json "$(alias_chain 12 status diverge)")" 2>&1)
+assert_contains "traversal: budget block names the re-expansion ceiling" \
+  "$budgetout" "re-expansions"
+
 # --- --config-env aliases are refused by SHAPE -------------------------------
 # `--config-env=<key>=<envvar>` holds the alias expansion in an env var this guard never
 # reads (its origin — an ambient var, an inline/`env` prefix, an `export`, `set -a`, or a
@@ -321,6 +393,22 @@ if [[ -d "$PCHAIN/.git" ]]; then
       '{tool_name:"Bash",tool_input:{command:$c},cwd:$d}' |
       bash "$HOOK" >/dev/null 2>&1
     assert_exit "persisted alias chain: $cmd" "$want" $?
+  done
+
+  # A dual-spelling INLINE chain whose last hop names the PERSISTED alias, so the
+  # walk crosses from collapsed inline states into the config lookup. The two
+  # mechanics only meet here: the persisted branch is reached once per state, and
+  # the collapse must not drop it just because the inline hops above it converged.
+  mixed="git"
+  for ((i = 1; i < 12; i++)); do mixed+=" -c alias.a$i=a$((i + 1)) -c alias.a$i.command=a$((i + 1))"; done
+  mixed+=" -c alias.a12=c -c alias.a12.command=c a1"
+  for spec in "-m bypass:2" "-F -:0"; do
+    args="${spec%:*}"
+    want="${spec##*:}"
+    MSYS_NO_PATHCONV=1 jq -n --arg c "$mixed $args" --arg d "$PCHAIN" \
+      '{tool_name:"Bash",tool_input:{command:$c},cwd:$d}' |
+      timeout 30 bash "$HOOK" >/dev/null 2>&1
+    assert_exit "inline dual-spelling chain into a persisted alias: git … a1 $args" "$want" $?
   done
 fi
 
