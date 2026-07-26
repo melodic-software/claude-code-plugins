@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Shell-portability-lint gate (issue #1491): flags GNU-only shell constructs in
+# Shell-portability-lint gate (#1491): flags GNU-only shell constructs in
 # changed **/*.sh files — a class no existing gate covers. `shellcheck` lints
 # shell syntax/style; scripts/check-skill-portability.sh (#531) matches
 # skill-coupling tokens (stack/forge/branch/tracker defaults) against changed
