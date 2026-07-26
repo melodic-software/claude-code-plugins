@@ -3,7 +3,7 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.21.5]
+## [0.21.6]
 
 ### Changed
 
@@ -16,6 +16,19 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   fallback in an `else` branch or a separate statement) but not
   same-line-guardable, so each `date -d` call site now carries a
   `portability-ok:` annotation documenting why. No behavior change.
+
+## [0.21.5]
+
+### Fixed
+
+- **`known-issues` contact links now point at the migrated documentation domain.** Anthropic moved
+  the Claude Code docs from `docs.claude.com/en/docs/claude-code/<slug>` to
+  `code.claude.com/docs/en/<slug>`; the three links in
+  `skills/known-issues/context/issue-templates.md` still used the old host and survived only on a
+  301. Each replacement was verified by fetching the old URL, observing the redirect, and
+  confirming the target page's topic. The bare docs root does not redirect like the others (302 to
+  `platform.claude.com`, then 307 to `code.claude.com/docs`), so it now points at the Overview
+  page, which matches this repo's dominant `/docs/en/<slug>` convention.
 
 ## [0.21.4]
 

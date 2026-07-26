@@ -60,6 +60,21 @@ uncommitted-but-readable, travels to other sessions and machines, and gets read 
 current conversation never anticipated. A value acceptable to see in-session is not acceptable to
 persist. This pass gates the write — no artifact or prompt is emitted before it runs.
 
+## Claim provenance — mandatory on BOTH paths
+
+A status claim earns plain statement only when THIS session verified it — a command run, a file
+read, an output observed. Anything inherited — a prior handoff's assertion, an issue label, a
+remembered state — carries an explicit `UNVERIFIED (<source>)` marker instead: the resuming session
+treats an unmarked claim as fact and builds on it, so an inherited claim is a claim to falsify, not
+a fact to forward.
+
+This governs both paths, not just the full path's body sections. On the full path it shows up
+throughout [`structure.md`](structure.md) — most visibly the met/unmet marks in Completion criteria.
+Prompt-only writes no body sections at all, so the marker attaches directly to whichever inline
+remaining-work bullet carries the inherited status; a bullet that folds in an inherited "done" or
+"blocked" without `UNVERIFIED (<source>)` reproduces the exact failure this rule exists to prevent,
+with no file left behind for a later review to catch it in.
+
 ## Writing the handoff file (full path)
 
 The body sections, the TaskList reconstitute format, and the frontmatter shape (including the
