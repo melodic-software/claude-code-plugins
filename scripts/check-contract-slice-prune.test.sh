@@ -128,6 +128,61 @@ out="$(run_check "$repo")"
 if [[ "$out" == *"STALE BASELINE"* ]]; then ok "--check fails on a stale baseline entry"; else fail "a baseline entry outliving its slice must fail --check"; fi
 rm -rf "$repo"
 
+# --- a PR cannot self-grandfather: baseline is read from the BASE revision ---
+# Without this, one diff adding docs/topics/<slug>/ AND the matching baseline
+# line would exempt itself and the gate would be decorative.
+repo="$(mk_repo)"
+mkdir -p "$repo/docs/topics/sneaky"
+printf 'plan\n' >"$repo/docs/topics/sneaky/PLAN.md"
+printf 'sneaky\n' >"$repo/scripts/contract-slice-baseline.txt"
+commit_work "$repo"
+if run_diff "$repo" >/dev/null; then fail "a PR adding its own baseline line must NOT exempt itself"; else ok "baseline read from base revision: self-grandfathering is rejected"; fi
+rm -rf "$repo"
+
+# --- a baseline entry that already existed at base still exempts -------------
+repo="$(mk_repo $'legacy\n')"
+mkdir -p "$repo/docs/topics/legacy"
+printf 'plan\n' >"$repo/docs/topics/legacy/PLAN.md"
+commit_work "$repo"
+if run_diff "$repo" >/dev/null; then ok "a pre-existing baseline entry still exempts"; else fail "base-revision read must not break legitimate grandfathering"; fi
+rm -rf "$repo"
+
+# --- contract_dir resolves from the tracked concern file --------------------
+# A repo that relocates its contract root must not have the gate silently keep
+# checking docs/topics and leave the real root unguarded.
+repo="$(mk_repo)"
+mkdir -p "$repo/.claude"
+printf 'contract_dir: docs/slices   # relocated\n' >"$repo/.claude/topic-docs.yaml"
+(cd "$repo" && git_q add -A && git_q commit -m concern && git_q checkout base && git_q merge work && git_q checkout work)
+mkdir -p "$repo/docs/slices/relocated"
+printf 'plan\n' >"$repo/docs/slices/relocated/PLAN.md"
+commit_work "$repo"
+if run_diff "$repo" >/dev/null; then fail "a slice under the configured contract_dir must be red-lined"; else ok "contract_dir resolves from .claude/topic-docs.yaml"; fi
+rm -rf "$repo"
+
+# --- with a relocated contract_dir, the OLD default is no longer policed -----
+repo="$(mk_repo)"
+mkdir -p "$repo/.claude"
+printf 'contract_dir: docs/slices\n' >"$repo/.claude/topic-docs.yaml"
+(cd "$repo" && git_q add -A && git_q commit -m concern && git_q checkout base && git_q merge work && git_q checkout work)
+mkdir -p "$repo/docs/topics/stale"
+printf 'plan\n' >"$repo/docs/topics/stale/PLAN.md"
+commit_work "$repo"
+if run_diff "$repo" >/dev/null; then ok "a relocated contract_dir moves the gate's scope"; else fail "docs/topics must not stay policed once contract_dir moves"; fi
+rm -rf "$repo"
+
+# --- a root-equivalent contract_dir is refused, not silently honoured --------
+repo="$(mk_repo)"
+mkdir -p "$repo/.claude"
+printf 'contract_dir: .\n' >"$repo/.claude/topic-docs.yaml"
+(cd "$repo" && git_q add -A && git_q commit -m concern && git_q checkout base && git_q merge work && git_q checkout work)
+printf 'edit\n' >>"$repo/README.md"
+commit_work "$repo"
+out="$(run_diff "$repo")"
+rc=$?
+if ((rc == 2)) && [[ "$out" == *"root-equivalent"* ]]; then ok "root-equivalent contract_dir exits 2"; else fail "root-equivalent contract_dir must exit 2, got rc=$rc"; fi
+rm -rf "$repo"
+
 # --- usage ------------------------------------------------------------------
 repo="$(mk_repo)"
 (cd "$repo" && bash scripts/check-contract-slice-prune.sh --bogus >/dev/null 2>&1)

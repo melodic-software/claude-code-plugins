@@ -6,8 +6,12 @@
 #
 # This is a snapshot of the debt at the moment the gate landed (#1417), so a NEW
 # slice matches no line and is red-lined rather than grandfathered. That is the
-# whole point: the gate stops the bleed immediately, while the existing 17 are
+# whole point: the gate stops the bleed immediately, while the existing 19 are
 # graduated and pruned one at a time under #1419.
+#
+# --check-diff reads this file from the BASE revision, so adding a line here in
+# the same PR that adds the slice exempts nothing. An entry only takes effect
+# once it is already on the base branch.
 #
 # Stale-guarded: --check fails on an entry whose slice no longer exists, so an
 # exemption cannot outlive its debt, and a future slice cannot silently inherit
@@ -30,9 +34,11 @@ fable-field-guide-audit
 fresh-eyes-checkpoint-audit
 github-plugin-candidates
 handoff-bg-cutover
+interview-batch-rounds
 ladder-climb-roadmap
 loop-engineering-codification
 plugin-audit-port
 plugin-fleet-sync-skill
 plugin-organization
+shadowed-skill-renames
 underspecification
