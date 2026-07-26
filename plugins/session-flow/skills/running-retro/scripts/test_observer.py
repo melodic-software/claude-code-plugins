@@ -111,7 +111,7 @@ class AnalysisPrompt(unittest.TestCase):
         # summarize_record() never carries a message-id field into the
         # distilled observations the headless run receives (see its distillation
         # below) -- the prompt must say so explicitly, or the agent is told to
-        # group by a field that never exists in its own input (PR #1482 review).
+        # group by a field that never exists in its own input.
         prompt = observer._analysis_prompt(
             observations="/abs/obs.jsonl", checkpoint="/abs/checkpoint.md",
             session_id="sid")
@@ -125,9 +125,9 @@ class AnalysisPrompt(unittest.TestCase):
         # A correctly computed sequencing fact doesn't by itself prove a missed
         # batching opportunity -- genuinely dependent calls (a later call
         # consumes an earlier call's result) are correctly sequential, not a
-        # miss. Codex's PR #1482 review found the compute-don't-assert rule
-        # covered the structural fact but not the Efficiency judgment built on
-        # top of it.
+        # miss. The compute-don't-assert rule must cover the Efficiency
+        # judgment built on top of a computed structural fact, not only the
+        # fact itself.
         prompt = observer._analysis_prompt(
             observations="/abs/obs.jsonl", checkpoint="/abs/checkpoint.md",
             session_id="sid")
