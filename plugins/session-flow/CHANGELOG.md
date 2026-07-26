@@ -1,5 +1,54 @@
 # Changelog — session-flow plugin
 
+## [0.17.10]
+
+### Fixed
+
+- **`observer.py`'s `_pid_alive` Windows liveness check no longer assumes a fixed decoder for
+  `tasklist` output.** #1483/#1496 (0.17.7-era) hardcoded `encoding="utf-8"` with
+  `errors="replace"` on the `subprocess.run` call. `tasklist`'s piped output actually follows the
+  **console output code page**, which is not fixed — measured on one machine, the same command in
+  the same session returned UTF-8 bytes under `GetConsoleOutputCP=65001` and CP437 bytes under
+  `GetConsoleOutputCP=437` (two shells in one session genuinely disagreed), so a hardcoded `oem`
+  would have been wrong in the opposite direction just as often. Before #1496's `errors="replace"`,
+  a CP437 console plus a process name containing an undefined-in-cp1252 byte (e.g. `ü`) raised
+  `UnicodeDecodeError` inside `subprocess`'s reader thread, leaving `out.stdout` as `None` and
+  `str(pid) in out.stdout` raising out of `_pid_alive` — `errors="replace"` closed that crash path
+  but left the decoder assumption in place as a correctness smell (harmless today only because the
+  predicate matches ASCII digits, which mojibake in a process *name* cannot change). `_pid_alive`
+  now drops decoding entirely and matches `str(pid).encode("ascii")` against `tasklist`'s raw
+  `stdout` bytes, removing the code-page question from the call site altogether (#1512).
+
+## [0.17.9]
+
+### Fixed
+
+- **The multi-loop re-arm landed on the producer only, so recovery and the handoff checklists still
+  spoke of one loop.** 0.17.8 taught `save-point.md` to emit "one re-arm message per loop left
+  standing", but the surfaces that consume that output were not moved with it: `find-handoff`'s
+  capture step asked for "the re-arm instruction" and matched a single `send /loop …` shape, its
+  confirm gate surfaced the note "when one was found", and both of `handoff`'s enforcement
+  checklists still read "if a loop is active, a below-the-rails note". A handoff written with three
+  surviving loops therefore recovered one of them and dropped two after `/clear` — the producer-side
+  failure 0.17.8 fixed, reintroduced one layer down in the consumer, which is the same shape as the
+  two recovery defects already fixed in this series. The capture now keeps matching past the first
+  hit; the confirm gate surfaces all of them; the redaction invariant and the
+  *does NOT do* list are pluralized so they cannot be read as licensing a single-note recovery; and
+  `save-point.md`'s own detection contract names the recoverable unit as every re-arm message the
+  producer wrote, so the two sides state one rule.
+- **The re-arm entries are length-delimited, so an arbitrary multi-line loop prompt survives
+  recovery.** The producer quotes the original prompt verbatim and a `/loop` prompt can carry
+  newlines, so an entry is not reliably one physical line — and no content test can bound it.
+  Matching command wording cuts the first multi-line prompt in half and swallows every entry behind
+  it; a marker fares no better, since a verbatim prompt is allowed to contain whatever marker is
+  chosen and would then split its own command. Each entry is now headed
+  `Re-arm <i> of <n> — <L> lines:` with the body on exactly the next `<L>` lines, and the block is
+  emitted last in the message. Counting lines is the one boundary that cannot collide with what it
+  delimits. `<n>` is retained as a self-check rather than a scanner: `find-handoff` reports what it
+  recovered against what the producer said it wrote, instead of presenting a subset as the whole
+  set. `save-point.md`'s detection contract states the same boundary, so the stable contract an
+  agent reads cannot send it back to the wording match its consumer no longer performs.
+
 ## [0.17.8]
 
 ### Fixed

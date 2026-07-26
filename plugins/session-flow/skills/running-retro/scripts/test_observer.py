@@ -222,17 +222,19 @@ class Locking(unittest.TestCase):
 
 
 class PidAlive(unittest.TestCase):
-    def test_tasklist_call_is_utf8_explicit(self):
-        # #1483: _pid_alive's Windows branch shells out to `tasklist`, whose
-        # subprocess.run call (unlike #1472's already-fixed _run_analysis) had no
-        # explicit encoding= -- Python's default text-mode decode is the platform
-        # code page (cp1252 on Windows), not UTF-8. Force the "nt" branch
-        # regardless of the host platform running this test so the assertion is
-        # not skipped on Linux/mac CI.
+    def test_tasklist_call_uses_no_fixed_decoder(self):
+        # #1512: tasklist's piped output follows the console output code page,
+        # which is not fixed -- it varies by locale/session and can even
+        # differ between shells in the same session, so neither a hardcoded
+        # "utf-8" (the earlier #1483 fix) nor a hardcoded "oem" decodes
+        # correctly everywhere. _pid_alive must not pass any encoding/text
+        # kwarg to subprocess.run and must match the PID against raw bytes.
+        # Force the "nt" branch regardless of the host platform running this
+        # test so the assertion is not skipped on Linux/mac CI.
         captured = {}
 
         class FakeProc:
-            stdout = "12345 Console 1 10,000 K"
+            stdout = b"12345 Console 1 10,000 K"
 
         def fake_run(cmd, **kw):
             captured.update(kw)
@@ -245,8 +247,46 @@ class PidAlive(unittest.TestCase):
             self.assertTrue(observer._pid_alive(12345))
         finally:
             observer.os.name, observer.subprocess.run = on, orr
-        self.assertEqual(captured.get("encoding"), "utf-8")
-        self.assertEqual(captured.get("errors"), "replace")
+        self.assertNotIn("encoding", captured)
+        self.assertNotIn("text", captured)
+        self.assertNotIn("errors", captured)
+
+    def test_tasklist_call_matches_pid_despite_undecodable_process_name(self):
+        # A cp437 console plus a process name containing characters undefined
+        # in cp1252 (e.g. \x81) used to raise UnicodeDecodeError inside
+        # subprocess's reader thread when a fixed "utf-8" decoder was used,
+        # leaving out.stdout as None (the #1512-described crash class that
+        # #1496's errors="replace" merely papered over). Raw-bytes matching
+        # sidesteps decoding entirely, so this mojibake name must not affect
+        # the ASCII-digit PID match.
+        class FakeProc:
+            stdout = b"\r\nt\x81st\x82.exe" + b" " * 20 + b"12345 Console 1  10,000 K"
+
+        def fake_run(cmd, **kw):
+            return FakeProc()
+
+        on, orr = observer.os.name, observer.subprocess.run
+        observer.os.name = "nt"
+        observer.subprocess.run = fake_run
+        try:
+            self.assertTrue(observer._pid_alive(12345))
+        finally:
+            observer.os.name, observer.subprocess.run = on, orr
+
+    def test_tasklist_call_no_match_when_pid_absent(self):
+        class FakeProc:
+            stdout = b"INFO: No tasks are running which match the specified criteria."
+
+        def fake_run(cmd, **kw):
+            return FakeProc()
+
+        on, orr = observer.os.name, observer.subprocess.run
+        observer.os.name = "nt"
+        observer.subprocess.run = fake_run
+        try:
+            self.assertFalse(observer._pid_alive(12345))
+        finally:
+            observer.os.name, observer.subprocess.run = on, orr
 
 
 class LedgerAndRetention(unittest.TestCase):

@@ -125,6 +125,30 @@ copy, which goes stale the moment disk moved on without this conversation seeing
   with `/loop [<interval>] <the prompt you originally launched it with>` after pasting the block
   above."
 
+  **Delimit the re-arm entries; a verbatim prompt can be several lines long.** The prompt is quoted
+  exactly as the operator typed it, and a message can carry newlines, so an entry is not reliably
+  one physical line and "the next line that stops looking like a re-arm" is not a boundary a
+  consumer can trust — it truncates the first multi-line prompt it meets and swallows the entries
+  after it. Give the block real edges instead:
+
+  - Head each entry with a literal `Re-arm <i> of <n> — <L> lines:` line, then the entry body on
+    exactly the next `<L>` lines. `<n>` is the number of surviving loops; `<L>` counts the body
+    lines only, never the header.
+  - **`<L>` is the boundary, and it is a length, not a pattern.** No marker, sentinel, or
+    "looks like a re-arm" test can bound a region whose content is reproduced verbatim: whatever
+    string is chosen, a prompt is allowed to contain it, and the delimiter then fires inside the
+    payload. Counting lines is the only rule that cannot collide with what it delimits, so a prompt
+    holding a blank line, a dashed rail, or the literal text `Re-arm 2 of 3` passes through intact.
+  - `<n>` is not needed to find the entries — the lengths already do that — but it makes recovery
+    self-checking: a consumer can prove it holds the whole set instead of hoping so.
+  - Put the re-arm block LAST in the message, after the paste-condition note, so the entries are
+    contiguous and nothing interleaves them.
+  - The no-launch-signal fallback is a single entry with the same header (`Re-arm 1 of 1 — 1
+    lines:`), so a consumer parses one shape rather than two.
+
+  Changing this shape is a knowing break of the detection contract below, and must move
+  `find-handoff` with it.
+
   **The note is conditioned on the paste, not on the citing skill.** Re-arming exists only because
   `/clear` destroys the session-scoped schedule, so a delivery that never clears needs none: a
   successful `/session-flow:continue-in-background` launch hands the rails prompt straight to a
@@ -187,7 +211,7 @@ and (3) the `Prior session: <UUID>` line, which — together with the `type: han
 but is not required of prompt-only output, so consumers treat it as corroboration, never a
 required key.
 
-**The recoverable unit is the rails prompt PLUS the below-rail `/loop` re-arm note.** Every other
+**The recoverable unit is the rails prompt PLUS every below-rail `/loop` re-arm message.** Every other
 element of a resume prompt sits between the rails, so recovering the copy region recovers the whole
 contract — `/goal` included, since it is the first line inside the block. The `/loop` re-arm is the
 one exception, and not by choice: a command is recognized only at a message's start
@@ -196,10 +220,18 @@ lives below the bottom rail, outside the copy region. A recovery that surfaces o
 between the rails hands back a continuation that runs once and drops the recurring behavior — the
 exact failure the re-arm rule exists to prevent, reintroduced one layer down. So the re-arm note
 that directly follows the bottom rail is part of what a recovery must surface, not commentary it may
-discard. It is recovered as a **shape-matched, bounded** element — the note's own wording anchored to
-the bottom rail, never "whatever follows the rail" — and it carries the operator's original prompt
-verbatim, so the same redaction pass applies to it as to everything else surfaced from a transcript.
+discard. Nor is one of them enough: the rule above emits one re-arm message per loop left standing,
+so the recoverable unit is however many the producer wrote, and a consumer that stops at the first
+loses the rest exactly as quietly.
 
-Changing this prompt/marker format is a
+Each entry is recovered by its `Re-arm <i> of <n> — <L> lines:` header and the `<L>` body lines that
+follow it — **a length boundary, never a wording match**. The entry carries the operator's original
+prompt verbatim, so any content test can be defeated by the content: matching the note's wording
+truncates a prompt whose continuation lines do not resemble a re-arm, and matching a marker fails on
+a prompt that quotes the marker. A count cannot collide with what it delimits. `<n>` is the
+self-check that the whole set came back, not the scanner. The verbatim prompt also means the same
+redaction pass applies here as to everything else surfaced from a transcript.
+
+Changing this prompt/marker format — the rails, the header, or the meaning of `<L>` — is a
 **knowing** break of that contract, not a cosmetic edit; update `find-handoff`'s detection in the
 same change.
