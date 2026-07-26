@@ -92,30 +92,33 @@ copy, which goes stale the moment disk moved on without this conversation seeing
   a `ScheduleWakeup` call carrying `stop: true`), not "infer from conversation" prose. A subsequent
   `ScheduleWakeup` reschedule call (`stop` absent or `false`) corroborates self-paced mode but is
   never required to conclude the loop is active — on the loop's first iteration no reschedule has
-  fired yet, so its absence is not evidence of anything. The FIRST line between the rails is literal
-  `/loop` (self-paced) or `/loop <interval>` (fixed-interval, preserving the original interval),
-  immediately followed **on that same line** by the resume prompt's own first line. A command is
-  recognized only at the start of a message and everything after the command name becomes its
-  argument (<https://code.claude.com/docs/en/commands>) — so the wrapper and the directive must share
-  line one; a bare `/loop` with nothing following on that line is read as "no prompt supplied" and
-  fires the built-in maintenance prompt instead, not the resume directive
-  (<https://code.claude.com/docs/en/scheduled-tasks#run-a-prompt-repeatedly-with-%2Floop>). Starting a
-  fresh conversation clears every session-scoped scheduled task
-  (<https://code.claude.com/docs/en/scheduled-tasks#limitations>), so a resume prompt that drops the
-  wrapper runs the continuation once and silently loses the recurring behavior — the same failure
-  class `/goal` re-arm exists to prevent. When no launch-turn signal is found, omit it and note below
-  the bottom rail: "if a loop was active, prepend `/loop [<interval>]` (plus a trailing space) to the
-  first line above."
+  fired yet, so its absence is not evidence of anything. Starting a fresh conversation clears every
+  session-scoped scheduled task
+  (<https://code.claude.com/docs/en/scheduled-tasks#limitations>), so a resume prompt that says
+  nothing about the loop runs the continuation once and silently loses the recurring behavior — the
+  same failure class `/goal` re-arm exists to prevent.
+
+  **The re-arm is a SECOND message, and it carries the ORIGINAL loop prompt — never the resume
+  directive.** `/loop` re-runs the prompt it was given on *every* iteration
+  (<https://code.claude.com/docs/en/scheduled-tasks#run-a-prompt-repeatedly-with-%2Floop>), and a
+  save-point is an immutable record of one moment. Wrapping the resume directive in `/loop` would
+  therefore make every later tick re-read that frozen file and replay a remainder already done —
+  the loop would stop doing its actual recurring job. So the rails block stays exactly what it is on
+  every other path (the resume directive, unwrapped, bootstrapping the continuation once), and the
+  note below the bottom rail reads: "this session was running under `/loop`; after pasting the block
+  above, send `/loop [<interval>] <original prompt>` as a separate message to re-arm it" — quoting
+  the interval and the prompt verbatim from the launch turn, self-paced meaning no interval token.
+  Order matters and is stated in the note: bootstrap first, re-arm second, because the re-armed
+  loop's own first iteration must not run before the continuation it is resuming into. When no
+  launch-turn signal is found, say instead: "if a loop was active, re-arm it with
+  `/loop [<interval>] <the prompt you originally launched it with>` after pasting the block above."
 - **Combining both:** a command is recognized only at the start of a message
-  (<https://code.claude.com/docs/en/commands>), so `/goal` cannot be nested as a later line inside
-  `/loop`'s own prompt argument — text after line one is just more of that prompt, not a second
-  command invocation, and would silently fail to arm the goal. Emit the `/loop`-wrapped block as
-  above, then note below the bottom rail: "if a goal was also active, send `/goal <condition>` as a
-  separate message right after pasting the block above" — `/goal` is session-scoped and evaluated
-  after every subsequent turn regardless of what invoked it, so arming it in a second message covers
-  the loop's later iterations too. (Nesting a goal condition inside a single `/loop` paste is not
-  attempted here — it is unverified whether one exists, and the reporting issue flagged the exact
-  shape of that combination as a follow-on design question.)
+  (<https://code.claude.com/docs/en/commands>), so neither re-arm can ride inside the other's prompt
+  argument — text after the command name is just more of that argument, not a second command
+  invocation, and would silently fail to arm. Each is therefore its own message. `/goal` keeps its
+  place as the first line between the rails (it is session-scoped and evaluated after every
+  subsequent turn regardless of what invoked it, so arming it there covers the loop's later
+  iterations too); the `/loop` re-arm follows as the separate message described above.
 
 Full-path shape (minimum form — live: bare `─` rails, no fence; shown inside a fence here for
 display):

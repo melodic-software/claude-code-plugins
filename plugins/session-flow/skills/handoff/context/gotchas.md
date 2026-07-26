@@ -11,8 +11,11 @@ Failure patterns from real sessions. Loaded on demand from the handoff SKILL.md.
   verifiable evidence (a grep hit, a test exit code), not "looks good."
 - **Continuing after the user says stop** — a handoff is a save-point, never permission to keep
   implementing. Respect explicit pause/stop.
-- **Dropping the `/loop` wrapper on resume** — a resume prompt written for a session running under
-  `/loop` must re-arm it as the outermost first line (engine doc, "Emit the copy/paste resume
-  prompt"), the same way an active `/goal` gets re-armed. `/clear` starts a fresh conversation, which
-  clears every session-scoped scheduled task — a resume prompt that reads only as a one-shot
-  continuation task runs once and silently drops the recurring behavior, with no error to signal it.
+- **Saying nothing about an active `/loop` on resume** — `/clear` starts a fresh conversation, which
+  clears every session-scoped scheduled task, so a resume prompt that reads only as a one-shot
+  continuation runs once and silently drops the recurring behavior, with no error to signal it. The
+  re-arm is a SEPARATE follow-up message carrying the ORIGINAL loop prompt (engine doc, "Emit the
+  copy/paste resume prompt") — never the resume directive wrapped in `/loop`. `/loop` re-runs the
+  prompt it was given on every iteration, and a save-point is an immutable record of one moment, so
+  wrapping the directive would have every later tick re-read that frozen file and replay a
+  remainder already done, instead of doing the loop's actual recurring job.

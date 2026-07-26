@@ -10,18 +10,23 @@
   Pasted after `/clear` — which clears every session-scoped scheduled task
   (<https://code.claude.com/docs/en/scheduled-tasks#limitations>) — that ran the continuation once
   and silently dropped the recurring behavior, with no error to signal it. `save-point.md` now
-  carries a loop-aware re-arm rule structurally parallel to the goal-aware one: `/loop` or
-  `/loop <interval>` prefixes the resume prompt's own first line (same line — a command's argument
-  starts at the command name and a bare `/loop` alone on its line fires the built-in maintenance
-  prompt instead, per <https://code.claude.com/docs/en/commands> and
-  <https://code.claude.com/docs/en/scheduled-tasks#run-a-prompt-repeatedly-with-%2Floop>). Both
-  re-arm rules now key off a concrete conversational signal — this session's own `/loop` launch turn
-  (corroborated, never gated, by a later `ScheduleWakeup` reschedule) and an established `/goal`
-  call — rather than "infer from conversation" prose. A `/goal` active inside a `/loop` cannot be
-  nested in the same pasted block (a command is recognized only at the message's start, so a second
-  `/goal` line would just become inert prompt text); the rule instead has the reader send `/goal
-  <condition>` as a separate follow-up message. `handoff/SKILL.md`'s two enforcement checklists and
-  `handoff/context/gotchas.md` are updated to match.
+  carries a loop-aware re-arm rule: the rails block stays the unwrapped resume directive, and a note
+  below the bottom rail has the reader send `/loop [<interval>] <original prompt>` as a SEPARATE
+  follow-up message, quoting the interval and prompt verbatim from the launch turn. The re-arm
+  carries the ORIGINAL loop prompt rather than the resume directive because `/loop` re-runs the
+  prompt it was given on *every* iteration
+  (<https://code.claude.com/docs/en/scheduled-tasks#run-a-prompt-repeatedly-with-%2Floop>) while a
+  save-point is an immutable record of one moment — wrapping the directive would make every later
+  tick re-read that frozen file and replay an already-finished remainder instead of doing the loop's
+  actual recurring job. Order is stated (bootstrap first, re-arm second) so the re-armed loop's first
+  iteration cannot run ahead of the continuation it resumes into. Both re-arm rules now key off a
+  concrete conversational signal — this session's own `/loop` launch turn (corroborated, never
+  gated, by a later `ScheduleWakeup` reschedule) and an established `/goal` call — rather than
+  "infer from conversation" prose. Neither re-arm can ride inside the other's prompt argument, since
+  a command is recognized only at a message's start
+  (<https://code.claude.com/docs/en/commands>), so each is its own message: `/goal` keeps the first
+  line between the rails, `/loop` follows separately. `handoff/SKILL.md`'s two enforcement
+  checklists and `handoff/context/gotchas.md` are updated to match.
 
 ## [0.17.3]
 
