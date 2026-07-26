@@ -123,16 +123,20 @@ class AnalysisPrompt(unittest.TestCase):
 
     def test_dependency_check_before_batching_finding_present(self):
         # A correctly computed sequencing fact doesn't by itself prove a missed
-        # batching opportunity -- genuinely dependent calls (a later call
-        # consumes an earlier call's result) are correctly sequential, not a
-        # miss. The compute-don't-assert rule must cover the Efficiency
-        # judgment built on top of a computed structural fact, not only the
-        # fact itself.
+        # batching opportunity -- genuinely dependent calls are correctly
+        # sequential, not a miss. The compute-don't-assert rule must cover the
+        # Efficiency judgment built on top of a computed structural fact, not
+        # only the fact itself, and "dependent" must not be narrowed to data
+        # flow alone -- control, resource, and side-effect dependencies are
+        # just as real a reason two calls had to run in order.
         prompt = observer._analysis_prompt(
             observations="/abs/obs.jsonl", checkpoint="/abs/checkpoint.md",
             session_id="sid")
         self.assertIn("missed batching opportunity", prompt)
         self.assertIn("dependency", prompt)
+        self.assertIn("control", prompt)
+        self.assertIn("resource", prompt)
+        self.assertIn("side-effect", prompt)
 
     def test_redaction_rule_still_present(self):
         # Guard against the new instruction crowding out the pre-existing

@@ -35,9 +35,12 @@ none of this conversation).
    claim — do not assert it uncomputed. An asserted-and-wrong structural claim is worse than a missed
    finding: it routes as if verified. A correctly *computed* sequencing fact is not by itself proof of
    a *missed batching opportunity*: calls that ran in separate message-id groups may be genuinely
-   dependent (a later call's input consumes an earlier call's result), which makes the sequential
-   execution correct rather than a miss. Before routing an Efficiency finding for unbatched/sequential
-   calls, check the calls' inputs/results for that dependency — the same compute-don't-assert
+   dependent, which makes the sequential execution correct rather than a miss. "Dependent" is not
+   limited to a later call's input consuming an earlier call's result — a control, resource, or
+   side-effect dependency (e.g. a directory created before a file is written into it, an edit made
+   before a test that exercises it runs) is just as real a reason the calls had to be sequential.
+   Before routing an Efficiency finding for unbatched/sequential calls, check for any of these —
+   data, control, resource, or side-effect — dependency between them; the same compute-don't-assert
    discipline applies to the *judgment* built on a structural fact, not only to the fact itself.
 5. **Read the repo's own conventions** named in the inputs (its `CLAUDE.md`, the relevant
    `.claude/rules/` files, any convention READMEs) to judge "Convention / workflow drift" against the
@@ -137,9 +140,10 @@ if named; selectively read only the transcript spans the metrics flag; compute, 
 structural claim — sequencing, batching, delegation, or an occurrence count must be derived by
 grouping tool-use events by API message id or an actual count of matched occurrences, never asserted
 from a narrative impression, and dropped rather than asserted uncomputed if it can't be derived;
-before routing a computed sequential/unbatched claim as an Efficiency finding, check the calls'
-inputs/results for a genuine data dependency that would make the sequencing correct rather than a
-miss; read the named repo convention docs to judge drift; classify each finding by category and
+before routing a computed sequential/unbatched claim as an Efficiency finding, check for a genuine
+data, control, resource, or side-effect dependency between the calls that would make the sequencing
+correct rather than a miss; read the named repo convention docs to judge drift; classify each finding
+by category and
 suggested resolution route; run the mandatory redaction pass. Return ONLY the compact "Checkpoint
 findings" block — do not echo the transcript.
 ```

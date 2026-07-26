@@ -21,8 +21,10 @@
   impression. The compute-don't-assert rule now also covers the judgment built on top of a
   computed structural fact: a correctly computed sequencing fact does not by itself prove a missed
   batching opportunity (genuinely dependent calls are correctly sequential, not a miss), so both
-  prompts now require checking the calls' inputs/results for a data dependency before routing an
-  Efficiency finding for unbatched/sequential calls.
+  prompts now require checking for a dependency before routing an Efficiency finding for
+  unbatched/sequential calls — and that check is not narrowed to data flow alone: a control,
+  resource, or side-effect dependency (e.g. a directory created before a file is written into it)
+  is just as real a reason two calls had to run in order.
 
 ## [0.17.3]
 
