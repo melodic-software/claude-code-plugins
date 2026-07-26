@@ -3,6 +3,55 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.5]
+
+### Fixed
+
+- **The destructive-action guard could fail open on exit 1 with no diagnostic (#1423), distinct from
+  #1242.** #1416's transcript sweep turned up one recorded occurrence: the plugin-level
+  `hooks/hooks.json` `destructive_guard.py --mode engine-gate` hook launched successfully, ran for
+  17054 ms, then exited `1` with empty stderr — the post-#1242 command shape, not the
+  `${user_config.*}` launch-refusal bug #1242 already fixed. Per the
+  [hooks reference](https://code.claude.com/docs/en/hooks) (fetched 2026-07-25), PreToolUse treats
+  exit `1` as non-blocking and proceeds with the tool call — only exit `2` blocks — so the guard
+  itself never issued a deny, ask, or allow: it simply stopped, and the destructive command ran
+  ungated. The defect: only the top-of-`main` JSON-payload parse was wrapped in a `try`/`except`;
+  every line of decision logic after it (now extracted into `_decide`) had no exception handling at
+  all, so any bug or unexpected exception in that path fell through to Python's default
+  unhandled-exception behavior — exit 1, silently. `main` now wraps the entire `_decide` call in a
+  `try`/`except BaseException`, so any exception the guard's own code raises past the payload parse
+  denies (exit `2`, one-line diagnostic on stderr naming the exception type and message) instead of
+  falling open; exit `1` is no longer reachable from any internal path in the guard (`test_hygiene.py`
+  `GuardTests` now injects a failure into `_decide` directly, into every function `_decide` calls in
+  its real belt- and engine-gate-mode call graph — `resolve_mode`, `_engine_gate_relevant`,
+  `resolve_disk_hygiene_enabled`, `resolve_authorized_data_root`, `is_exact_kill_switch_probe`,
+  `classify_exact_engine_command`, `powershell_decision` — and a bare `KeyboardInterrupt`, asserting
+  exit `2` with non-empty stderr and exit `1` never observed, in every case).
+
+  **The 17-second duration investigated, not characterized (single unreproduced occurrence).** Every
+  filesystem call already reachable from this module (`Path.resolve(strict=True)`,
+  `os.path.samefile`, `Path.stat`/`read_text`) already caught `OSError` at its own call site, so a
+  stall ending in `OSError` would not by itself explain an *uncaught* exception — narrowing the field
+  without settling it. The strongest identified candidate for the stall itself, not for the exit-1
+  bug: `_engine_gate_relevant`'s marker-free fallback calls `os.path.samefile` on every
+  separator-containing word of *every* Bash/PowerShell command in *every* session (not only
+  disk-hygiene commands) while resolving the plugin-level engine gate — an unreachable or slow-to-stat
+  path referenced by an ordinary, unrelated command is a real, user-reachable way to block this hook
+  for seconds. What argues against a plain uncaught exception as the full story: empty stderr is not
+  what Python's default unhandled-exception handler produces (it writes a traceback), which leaves an
+  external process kill (antivirus/EDR scanning `python3`, a transient OS resource issue) as an open,
+  unconfirmed possibility this module cannot fix from inside the interpreter — a truly externally
+  killed process cannot run Python code to change its own exit behavior. What IS fixed regardless of
+  which of these it turns out to have been: the guard now self-enforces an internal watchdog deadline
+  (`DISK_HYGIENE_GUARD_WATCHDOG_SECONDS`, default 10s — comfortably above every legitimate
+  invocation, which completes in milliseconds, and below the one observed 17054 ms occurrence) that
+  denies (exit `2`, diagnostic on stderr) on a background timer if `_decide` has not returned by the
+  deadline, instead of risking an unbounded hang toward the harness's own (600s-default) hook timeout.
+  Both guard registrations (`hooks/hooks.json`'s plugin-level engine gate and `skills/clean/SKILL.md`'s
+  skill-scoped belt) now also declare an explicit `timeout: 20` as a harness-level backstop, well
+  below the previous implicit 600s default, in case the internal watchdog itself is ever prevented
+  from running.
+
 ## [0.9.4]
 
 ### Fixed

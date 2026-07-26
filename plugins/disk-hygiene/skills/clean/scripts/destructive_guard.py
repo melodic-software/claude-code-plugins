@@ -1,5 +1,41 @@
 #!/usr/bin/env python3
-"""Fail-closed skill hook: allow only exact bundled hygiene-engine commands."""
+"""Fail-closed skill hook: allow only exact bundled hygiene-engine commands.
+
+Exit-code contract (see ``main`` / ``_decide`` / ``_watchdog_fire``): only ``0``
+(a deliberate JSON allow/ask/deny decision on stdout) and ``2`` (a blocking
+deny, one-line diagnostic on stderr) are reachable. Exit ``1`` is a Claude Code
+*non-blocking* status for PreToolUse
+(https://code.claude.com/docs/en/hooks, fetched 2026-07-25: "Claude Code treats
+exit code 1 as a non-blocking error and proceeds with the action... If your
+hook is meant to enforce a policy, use exit 2") — every internal failure path
+that could once fall through to the interpreter's default (uncaught exception
+-> exit 1, no diagnostic) now denies instead (#1423).
+
+Investigation note for the one observed #1423 occurrence (engine-gate mode,
+``exitCode: 1``, empty stderr, ``durationMs: 17054``, Windows, no reproduction):
+every filesystem call already reachable from this module's own logic
+(``Path.resolve(strict=True)``, ``os.path.samefile``, ``Path.stat``/
+``read_text``) already caught ``OSError`` at the call site, so a stall ending
+in an ``OSError`` (a plausible shape for an unreachable/slow path — e.g. a
+stale network drive letter or UNC path referenced by an ordinary, unrelated
+Bash command) would not by itself explain an *uncaught* exception. Two things
+follow: (1) the strongest identified candidate for the 17s itself is
+``_engine_gate_relevant``'s marker-free fallback, which calls
+``os.path.samefile`` on every separator-containing word of *every* Bash/
+PowerShell command in *every* session (not only disk-hygiene commands) when
+resolving the plugin-level engine gate — a slow or unreachable path argument
+in an unrelated command is a real, user-reachable way to stall this hook for
+longer than milliseconds; (2) empty stderr is not what an uncaught Python
+exception normally produces (the default handler writes a traceback), so an
+external kill (antivirus/EDR scanning the ``python3`` process, a transient OS
+resource issue) remains an open, unconfirmed possibility this module cannot
+fix from inside the interpreter. What IS fixable and is fixed here: the
+watchdog below bounds every invocation to an internal deadline so a stall of
+this shape denies fast with a diagnostic instead of running indefinitely
+toward a harness-level, non-blocking kill; the exit-2 wrapper below fail-closes
+any exception this process DOES get to run to completion (rather than only
+those already caught by a narrower ``except OSError``).
+"""
 
 from __future__ import annotations
 
@@ -7,6 +43,7 @@ import json
 import os
 import re
 import sys
+import threading
 from pathlib import Path
 
 _LIB_DIR = Path(__file__).resolve().parents[3] / "lib"
@@ -768,24 +805,56 @@ def _bash_denial_guidance(authority: str | None) -> str:
     )
 
 
-def main() -> int:
-    try:
-        payload = json.load(sys.stdin)
-        tool_name = payload.get("tool_name", "")
-        command = payload["tool_input"]["command"]
-        if not isinstance(command, str):
-            raise TypeError("command is not text")
-    except (KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
-        print(
-            json.dumps(
-                decision(
-                    "deny",
-                    f"disk-hygiene guard could not validate the shell call: {exc}",
-                )
-            )
-        )
-        return 0
+_WATCHDOG_ENV_VAR = "DISK_HYGIENE_GUARD_WATCHDOG_SECONDS"
+_WATCHDOG_DEFAULT_SECONDS = 10.0
 
+
+def _watchdog_seconds() -> float:
+    """The guard's own internal deadline, in seconds (module docstring, AC 5).
+
+    Every legitimate invocation completes in milliseconds; a positive value
+    from ``DISK_HYGIENE_GUARD_WATCHDOG_SECONDS`` lets an operator raise the
+    deadline on a known-slow filesystem, and any absent, non-numeric, or
+    non-positive override falls back to the default rather than disarming the
+    watchdog or raising.
+    """
+    raw = os.environ.get(_WATCHDOG_ENV_VAR)
+    if not raw:
+        return _WATCHDOG_DEFAULT_SECONDS
+    try:
+        value = float(raw)
+    except ValueError:
+        return _WATCHDOG_DEFAULT_SECONDS
+    return value if value > 0 else _WATCHDOG_DEFAULT_SECONDS
+
+
+def _watchdog_fire(deadline: float) -> None:
+    """Watchdog callback (background timer thread): deny fast, never hang silently.
+
+    ``os._exit`` — not ``sys.exit`` — is deliberate: the main thread is
+    presumed stuck inside a syscall this callback cannot interrupt or join,
+    so this is a hard process exit, the one way this module can still
+    guarantee "deny, with a diagnostic" once cooperative return is no longer
+    an option.
+    """
+    print(
+        f"destructive_guard: internal deadline of {deadline:g}s exceeded; "
+        f"denying by default. Raise {_WATCHDOG_ENV_VAR} if this guard "
+        "legitimately needs longer on this filesystem.",
+        file=sys.stderr,
+        flush=True,
+    )
+    os._exit(2)  # noqa: SLF001 -- hard exit is the point; see docstring
+
+
+def _decide(command: str, tool_name: str) -> int:
+    """The guard's decision logic once the JSON payload has parsed cleanly.
+
+    Every branch prints its decision (or nothing, for an instant plugin-level
+    defer) and returns 0; ``main`` supplies the watchdog and the exit-2
+    fail-closed boundary around this call, so nothing in here needs its own
+    exception handling to keep the exit-1 contract in the module docstring.
+    """
     if resolve_mode() == _MODE_ENGINE_GATE and not _engine_gate_relevant(
         command, tool_name
     ):
@@ -840,6 +909,51 @@ def main() -> int:
     )
     print(json.dumps(decision("deny", reason)))
     return 0
+
+
+def main() -> int:
+    try:
+        payload = json.load(sys.stdin)
+        tool_name = payload.get("tool_name", "")
+        command = payload["tool_input"]["command"]
+        if not isinstance(command, str):
+            raise TypeError("command is not text")
+    except (KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
+        print(
+            json.dumps(
+                decision(
+                    "deny",
+                    f"disk-hygiene guard could not validate the shell call: {exc}",
+                )
+            )
+        )
+        return 0
+
+    # Fail-closed safety boundary (#1423): only 0 and 2 are reachable past this
+    # point. The watchdog denies fast on an internal deadline instead of
+    # letting a stalled syscall run toward a harness-level, non-blocking kill
+    # (module docstring, AC 5); the broad except denies on any exception
+    # _decide (or anything it calls) still manages to raise, replacing the
+    # interpreter's default "uncaught exception -> exit 1, proceed" behavior
+    # with "exit 2, deny" (AC 1-2). BaseException is deliberate — a
+    # KeyboardInterrupt reaching a security guard mid-decision is exactly the
+    # kind of "not a deliberate, reasoned allow" path AC 1 requires to deny,
+    # not to propagate.
+    deadline = _watchdog_seconds()
+    watchdog = threading.Timer(deadline, _watchdog_fire, args=(deadline,))
+    watchdog.daemon = True
+    watchdog.start()
+    try:
+        return _decide(command, tool_name)
+    except BaseException as exc:
+        print(
+            f"destructive_guard: internal error, denying by default "
+            f"({type(exc).__name__}: {exc})",
+            file=sys.stderr,
+        )
+        return 2
+    finally:
+        watchdog.cancel()
 
 
 if __name__ == "__main__":
