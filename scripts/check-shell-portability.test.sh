@@ -317,6 +317,24 @@ else
 fi
 rm -f "$f" "$tok"
 
+# --- an OPENING quote after a short-option cluster is not a word terminator
+# (#1546). The shell concatenates it into the same word, so the flag never
+# activates: bash prints `echo -e"mail"` as the literal `-email`, and
+# `echo -e"mail\tX"` as `-email\tX` with no escape interpretation. Flagging
+# these would be a false positive on portable code, so quotes and backticks are
+# excluded from the short-option boundary — unlike `--sort=WORD` above, where
+# the quote follows the option's VALUE and is unambiguously closing.
+f="$(tmpsh "$(printf '%s\n' \
+  'echo -e"mail"' \
+  'grep -P"attern" file' \
+  'sort -V"ersion" file')")"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  ok "an opening quote after a short-option cluster is not flagged (word continues, flag never set)"
+else
+  fail "opening-quote concatenations must not be flagged, got: $out"
+fi
+rm -f "$f"
+
 # =============================================================================
 # sed -i without a backup-suffix argument
 # =============================================================================

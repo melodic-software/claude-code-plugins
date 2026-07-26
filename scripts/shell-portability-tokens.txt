@@ -66,12 +66,24 @@
 # without PCRE support. `P` may appear anywhere in a combined short-option
 # cluster (`-riP`, `-nP`), not only as the cluster's last letter. Boundary
 # after the cluster is every character that can actually END a shell word —
-# whitespace, a control operator, a redirection, a subshell close, a quote —
-# or end of line (the same class #1530 landed for `--sort=WORD` below), so an
-# operator-terminated form with no trailing whitespace (`x=$(grep -P ...)`,
-# `grep -P ...|head`, `grep -P ...; echo`) is still detected — a whitespace-
-# only boundary silently missed those (#1537).
-grep[^\n]*[[:space:]]-[A-Za-z]*P[A-Za-z]*([[:space:]|&;()<>'"`]|$)
+# whitespace, a control operator, a redirection, a subshell close — or end of
+# line, so an operator-terminated form with no trailing whitespace
+# (`x=$(grep -P ...)`, `grep -P ...|head`, `grep -P ...; echo`) is still
+# detected; a whitespace-only boundary silently missed those (#1537).
+#
+# Quotes and backticks are deliberately NOT in this class, unlike the
+# `--sort=WORD` boundary below (#1546). After a SHORT-OPTION CLUSTER a quote is
+# an OPENING delimiter, not a terminator: the shell concatenates it into the
+# same word, so `grep -P"x"` passes the single argument `-Px` and never enables
+# `-P` at all. Verified on bash: `echo -e"mail"` prints the literal `-email`,
+# and `echo -e"mail\tX"` prints `-email\tX` with no escape interpretation.
+# Flagging those is a false positive on portable code. Accepted narrowing: a
+# genuine GNU use terminated by a CLOSING quote (`alias g='grep -P'`) is no
+# longer matched — an ERE cannot tell an opening delimiter from a closing one,
+# and a gate that rejects correct code gets switched off, which costs more than
+# this residue. `--sort=WORD` keeps quotes because there the quote follows the
+# option's VALUE and is unambiguously closing.
+grep[^\n]*[[:space:]]-[A-Za-z]*P[A-Za-z]*([[:space:]|&;()<>]|$)
 --perl-regexp
 
 # `echo -e` — POSIX leaves echo's flag handling unspecified; BSD/macOS sh/bash
@@ -82,7 +94,7 @@ grep[^\n]*[[:space:]]-[A-Za-z]*P[A-Za-z]*([[:space:]|&;()<>'"`]|$)
 # operator-terminated boundary as `grep -P` above (#1537): `x=$(echo -e ...)`,
 # `echo -e ...|cat`, `echo -e ...; echo` are detected, not only the
 # whitespace-terminated form.
-echo[[:space:]]+-[a-zA-Z]*e[a-zA-Z]*([[:space:]|&;()<>'"`]|$)
+echo[[:space:]]+-[a-zA-Z]*e[a-zA-Z]*([[:space:]|&;()<>]|$)
 
 # `sort -V` (natural/version sort) — a GNU coreutils extension; BSD sort has no
 # `-V`. `V` may appear anywhere in a combined short-option cluster (`-Vr`),
@@ -108,7 +120,7 @@ echo[[:space:]]+-[a-zA-Z]*e[a-zA-Z]*([[:space:]|&;()<>'"`]|$)
 # of false negative the `--sort=WORD` boundary above was built to avoid, now
 # widened to match it (#1537, found while auditing #1530's own new token for
 # the same defect).
-sort[^\n]*[[:space:]]-[A-Za-z]*V[A-Za-z]*([[:space:]|&;()<>'"`]|$)
+sort[^\n]*[[:space:]]-[A-Za-z]*V[A-Za-z]*([[:space:]|&;()<>]|$)
 --version-sort
 sort[^\n]*[[:space:]]--sort(=|[[:space:]]+)['"]?version([[:space:]|&;()<>'"`]|$)
 
