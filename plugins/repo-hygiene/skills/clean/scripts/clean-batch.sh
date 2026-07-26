@@ -30,8 +30,10 @@
 # Default: --dry-run.
 #
 # Exit: 0 ran to completion (skips/blocks are normal outcomes);
-#       1 one or more repos failed mid-apply (a child rm failure);
-#       2 usage/validation error (no tier, no repos, bad flag, apply without plan).
+#       1 one or more repos failed mid-apply (a child rm failure, or a structurally
+#         corrupt plan record failed closed);
+#       2 usage/validation error (no tier, no repos, bad flag, apply without plan,
+#         or a plan whose records do not match the requested --tier).
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -76,8 +78,12 @@ Gate:
   --apply --batch-plan P
                      apply the gated plan P from a prior dry-run. Required: apply
                      without --batch-plan is a usage error (the gate is mandatory).
-                     Prints `Summary: removed=N failed=M bytes=K` (plus gitdirs=G
-                     for the git/all tiers). Exits non-zero if any repo failed.
+                     P must have been built for the SAME --tier: a plan whose
+                     records the requested tier does not authorize (e.g. a build
+                     plan under --tier caches, or a GITDIR record under a non-git
+                     tier) is refused before anything is removed. Prints `Summary:
+                     removed=N failed=M bytes=K` (plus gitdirs=G for the git/all
+                     tiers). Exits non-zero if any repo failed.
 
 Exit: 0 ran to completion; 1 a repo failed mid-apply; 2 usage error.
 EOF
@@ -163,12 +169,95 @@ tier_has_git() { [[ "$TIER" == git || "$TIER" == all ]]; }
 # Manifest child token written into the plan (apply picks the script from it).
 manifest_child_token() { [[ "$TIER" == caches ]] && printf 'caches' || printf 'build'; }
 
+# The REPO manifest token the requested tier AUTHORIZES at apply, or empty for a
+# tier that authorizes no REPO record (git). Distinct from manifest_child_token,
+# which never returns empty and would wrongly authorize a build REPO record under
+# --tier git: authorization must fail closed for a tier that plans no REPO work.
+tier_repo_token() {
+  case "$TIER" in
+  caches) printf 'caches' ;;
+  build | all) printf 'build' ;;
+  *) printf '' ;;
+  esac
+}
+
+# Is a plan record structurally well-formed — does it carry the fields the dry-run
+# writer emits? Shared by the tier pre-scan and the apply loop so both agree on
+# what counts as a record: a truncated or hand-edited line (a GITDIR naming no
+# representative worktree, a REPO naming no manifest) must neither satisfy the
+# `all` both-kinds-present requirement nor reach a child. Field SHAPE only —
+# whether the referenced manifest still EXISTS is deliberately not judged here,
+# because a manifest that vanished after the dry-run is a per-record runtime
+# failure the apply loop reports (exit 1), not a plan built for the wrong tier, and
+# judging it in the pre-scan would refuse the whole apply with the wrong diagnosis.
+plan_repo_record_wellformed() {
+  local top="$1" token="$2" manifest="$3"
+  [[ -n "$top" && ("$token" == caches || "$token" == build) && -n "$manifest" ]]
+}
+# A GITDIR record's only load-bearing field is the representative worktree toplevel
+# to cd into; its common-dir key is informational.
+plan_gitdir_record_wellformed() { [[ -n "$1" ]]; }
+
 # ---------------------------------------------------------------------------
 # APPLY: consume the gated plan only (never re-enumerate).
 # ---------------------------------------------------------------------------
 if [[ "$DRY_RUN" -eq 0 ]]; then
   [[ -n "$BATCH_PLAN_ARG" ]] || fail_usage "--apply requires --batch-plan <path> from a prior --dry-run"
   [[ -f "$BATCH_PLAN_ARG" ]] || fail_usage "batch plan not found: $BATCH_PLAN_ARG"
+
+  # Tier-authorization pre-scan: refuse the whole apply — before the banner, before
+  # touching any disk — if the plan carries a record the requested --tier does not
+  # authorize. A plan built for a broader tier (e.g. a build plan, whose REPO
+  # records fold caches) applied under a narrower --tier caches would otherwise
+  # execute the broader gated content while the banner names the narrower tier —
+  # scope misrepresentation. Atomic refusal (exit 2, nothing removed, no banner)
+  # makes that structurally impossible. A malformed/unrecognized token is NOT judged
+  # here; the apply loop fails those closed per-record (exit 1) as structural
+  # corruption, a different error class from a well-formed plan for the wrong tier.
+  #
+  # Authorization alone is only half the match: `all` authorizes BOTH record kinds,
+  # so a narrower plan (a `build` plan with no GITDIR records, or a `git` plan with
+  # no REPO records) would pass every per-record test and then apply only part of
+  # the requested tier while the banner named `all`. The same misrepresentation,
+  # from the other direction. So the plan's record-kind SET must also be the set the
+  # tier plans: `all` requires both kinds present. Presence is required only when
+  # the plan carries records at all — a fleet where every repo was skipped or
+  # blocked plans nothing for either kind, and an empty plan removes nothing under
+  # any tier.
+  #
+  # Presence is satisfied only by a STRUCTURALLY WELL-FORMED record. A truncated
+  # line names no target, so counting it would let a narrower plan clear the `all`
+  # requirement on a record that removes nothing — apply would print `Tier: all` and
+  # `gitdirs=1` while performing no Git cleanup, the same misrepresentation this
+  # pre-scan exists to close. The record KIND is still authorization-judged
+  # regardless of its fields: a GITDIR line under a non-git tier is a wrong-tier
+  # plan however malformed it is.
+  PLAN_HAS_REPO=0
+  PLAN_HAS_GITDIR=0
+  while IFS=$'\t' read -r kind a b c; do
+    [[ -n "$kind" ]] || continue
+    case "$kind" in
+    REPO)
+      [[ "$b" == caches || "$b" == build ]] || continue
+      if [[ "$b" != "$(tier_repo_token)" ]]; then
+        fail_usage "plan record does not match --tier $TIER: a '$b' REPO record is not authorized (plan built for a different tier?). Re-run --dry-run --tier $TIER."
+      fi
+      plan_repo_record_wellformed "$a" "$b" "$c" && PLAN_HAS_REPO=1
+      ;;
+    GITDIR)
+      tier_has_git || fail_usage "plan record does not match --tier $TIER: a GITDIR record requires --tier git or all (plan built for a different tier?). Re-run --dry-run --tier $TIER."
+      plan_gitdir_record_wellformed "$a" && PLAN_HAS_GITDIR=1
+      ;;
+    *) ;;
+    esac
+  done <"$BATCH_PLAN_ARG"
+
+  if [[ "$TIER" == all && "$PLAN_HAS_REPO" -ne "$PLAN_HAS_GITDIR" ]]; then
+    if [[ "$PLAN_HAS_GITDIR" -eq 0 ]]; then
+      fail_usage "plan record does not match --tier all: the plan carries no well-formed GITDIR record, so applying it would skip the git tier entirely (plan built for a different tier?). Re-run --dry-run --tier all."
+    fi
+    fail_usage "plan record does not match --tier all: the plan carries no well-formed REPO record, so applying it would skip the build tier entirely (plan built for a different tier?). Re-run --dry-run --tier all."
+  fi
 
   printf 'Fleet Clean (apply)\n'
   printf 'Tier: %s\n' "$TIER"
@@ -188,7 +277,9 @@ if [[ "$DRY_RUN" -eq 0 ]]; then
       # field would pass --manifest "" to the child, which reads that as "no
       # manifest" and RE-WALKS the live repo, removing artifacts never shown in the
       # gated dry-run. Fail closed — the batch contract is "apply the plan only".
-      if [[ -z "$a" || ("$b" != caches && "$b" != build) || -z "$c" || ! -f "$c" ]]; then
+      # The field-shape half is the pre-scan's predicate; the manifest must also
+      # still be on disk by the time apply reads it.
+      if ! plan_repo_record_wellformed "$a" "$b" "$c" || [[ ! -f "$c" ]]; then
         batch_emit "${a:-<empty>}" failed "malformed plan record (tier='$b' manifest='$c')"
         FAILED=$((FAILED + 1))
         continue
@@ -229,7 +320,17 @@ if [[ "$DRY_RUN" -eq 0 ]]; then
       fi
       ;;
     GITDIR)
-      # a=representative worktree toplevel (b=common-dir key, informational)
+      # a=representative worktree toplevel (b=common-dir key, informational).
+      # Validate before counting, as the REPO arm does: a truncated line names no
+      # representative, so an empty `a` would count toward gitdirs= and then read as
+      # `! -d` — reporting a prune "skipped (vanished)" for a store that never had a
+      # target, and a gitdirs= tally larger than the prunes actually attempted. Fail
+      # closed as structural corruption instead.
+      if ! plan_gitdir_record_wellformed "$a"; then
+        batch_emit "<empty>" failed "malformed plan record (GITDIR names no representative worktree)"
+        FAILED=$((FAILED + 1))
+        continue
+      fi
       GITDIRS=$((GITDIRS + 1))
       if [[ ! -d "$a" ]]; then
         batch_emit "$a" skipped "vanished after dry-run (gone from fleet)"
