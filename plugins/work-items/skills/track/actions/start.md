@@ -57,14 +57,16 @@ Claim a work item through the seam (assignee + lease record).
      CURRENT_N="${BASH_REMATCH[2]}"
    fi
    # Resolve <base-ref> for the suggestions below from the remote's OWN default
-   # branch. The local symbolic ref is only a cache — a clone made by
-   # `git remote add` + `git fetch` never has it — so fall through to asking the
-   # remote itself. No literal default is guessed at either rung.
-   BASE_REF="$(git symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null || true)"
-   if [[ -z "$BASE_REF" ]]; then
-     REMOTE_HEAD="$(git ls-remote --symref origin HEAD 2>/dev/null |
-       sed -n 's|^ref: refs/heads/\([^[:space:]]*\).*|\1|p' | head -n1)"
-     [[ -n "$REMOTE_HEAD" ]] && BASE_REF="origin/$REMOTE_HEAD"
+   # branch. Ask the REMOTE first: refs/remotes/origin/HEAD is a local cache that
+   # is never refreshed on its own, so a repo that renamed its default branch
+   # keeps answering with the old one. The cache is the offline fallback, not the
+   # authority. No literal default is guessed at either rung.
+   REMOTE_HEAD="$(git ls-remote --symref origin HEAD 2>/dev/null |
+     sed -n 's|^ref: refs/heads/\([^[:space:]]*\).*|\1|p' | head -n1)"
+   if [[ -n "$REMOTE_HEAD" ]]; then
+     BASE_REF="origin/$REMOTE_HEAD"
+   else
+     BASE_REF="$(git symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null || true)"
    fi
    ```
 
