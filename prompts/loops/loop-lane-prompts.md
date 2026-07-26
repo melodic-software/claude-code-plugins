@@ -19,11 +19,14 @@ Replace every `{{...}}` occurrence in the block you are pasting.
 
 `{{TIER}}` widens discovery, fixing, threads, drafts, barriers, and
 escalation. *Standing* merge authority binds only from the target repo's
-tracked config (below). The skill carries one named exception — typing the
-literal `autopilot` keyword widens that invocation's merge rung to C3 in an
-already-adopted repository. `{{MERGE}}` is the cap that governs it: an
-explicitly argued lower rung is applied *after* the widening, so
-`--merge human-only` disables autonomous merging whatever `{{TIER}}` says.
+tracked config (below). The skill carries one named exception — an
+invocation line typing both the `autopilot` tier keyword and the dedicated
+raise argument `--merge c3-this-run` widens that invocation's merge rung to
+C3 in an already-adopted repository. The raise cannot happen by accident
+from this template: `{{MERGE}}` fills the merge-dimension argument, every
+value other than `c3-this-run` only ever lowers, and the tier keyword alone
+is merge-inert, so `--merge human-only` disables autonomous merging
+whatever `{{TIER}}` says.
 Leave `{{MERGE}}` at `--merge human-only` unless the target repository's rung
 question has been decided the other way — this repository's was decided
 against raising (#1388, "Tier is not the rung" below).
@@ -770,13 +773,15 @@ autonomy dimensions — discovery scope, fixing, thread resolution, draft
 elevation, barrier handling, escalation posture. It does **not** raise
 *standing* merge authority, which binds from the tracked config alone.
 
-The skill carries one named exception: typing the literal `autopilot`
-keyword widens that one invocation's merge rung to C3. It changes nothing
-here, for two independent reasons — the exception is floored by an
-explicitly argued lower rung, and every copy-block below passes
-`--merge human-only`; and the rung question itself was decided against
-raising (below). Treat it as dormant in this repository, and do not remove
-`--merge human-only` from a copy-block to wake it.
+The skill carries one named exception: an invocation line typing both the
+`autopilot` tier keyword and the dedicated raise argument
+`--merge c3-this-run` widens that one invocation's merge rung to C3. It
+changes nothing here, for two independent reasons — every copy-block below
+passes `--merge human-only`, and the raise fires only on its own dedicated
+token, which no copy-block carries; and the rung question itself was
+decided against raising (below). Treat it as dormant in this repository,
+and do not swap a copy-block's `--merge human-only` for the raise token to
+wake it.
 
 So the two knobs are independent, and both are needed for "merge things
 overnight without me":

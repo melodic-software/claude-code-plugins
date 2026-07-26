@@ -58,25 +58,31 @@ C3-autonomous merge is therefore reachable only through a recorded, reviewable f
 default — the matrix's promotion contract honored by construction. Demotion stays automatic and
 fail-closed, per the same owner doc.
 
-**Merge-rung raises are seam-only, with one named, explicit-argument exception.** Invocation
+**Merge-rung raises are seam-only, with one named, explicit paired-argument exception.** Invocation
 arguments never raise the merge rung *implicitly*: a raise binds only from the tracked seam config
 layer, so every increase in the *standing* merge authority is the recorded, reviewable act above. An
 argument may otherwise only select a *lower* (safer) rung for a single run, never a higher one.
 
-The one exception: a caller who explicitly types the literal `autopilot` tier keyword as an
-invocation argument (never inherited, never defaulted, never supplied by a config layer) — in a
-repository that has already adopted the baseline rung above — widens that single run's merge
-authority to cover every work class up to and including C3, still short of the unconditional C4/C5
-floor. This is a **per-invocation, single-run widening**, not a standing rung change: it persists
-nothing to config, ratifies nothing on the governance surface, and reverts the moment the caller
-stops typing `autopilot` explicitly. It is not a substitute for the recorded C3-autonomous flip above
-— a repository wanting *standing* C3 autonomy still needs that seam config change; this exception
-only ever covers the one invocation that named it.
+The one exception: an invocation whose own argument line explicitly types **both** the literal
+`autopilot` tier keyword **and** the dedicated raise argument `--merge c3-this-run` (each never
+inherited, never defaulted, never supplied by a config layer, never composed by a model on the
+caller's behalf) — in a repository that has already adopted the baseline rung above — widens that
+single run's merge authority to cover every work class up to and including C3, still short of the
+unconditional C4/C5 floor. The pair is deliberate: `autopilot` predates the exception as a
+merge-inert tier keyword, so a saved invocation, alias, or expanded template that already carries
+it must acquire no merge authority — the tier keyword alone leaves the merge rung at the seam
+value. `c3-this-run` exists for this exception alone, so its presence is never a leftover; it is
+not a rung name and is invalid in seam config. This is a **per-invocation, single-run widening**,
+not a standing rung change: it persists nothing to config, ratifies nothing on the governance
+surface, and reverts the moment a launched invocation omits either token. It is not a substitute
+for the recorded C3-autonomous flip above — a repository wanting *standing* C3 autonomy still needs
+that seam config change; this exception only ever covers the one invocation that named it.
 
-**A safer argument still wins.** The exception lifts only the *raise* restriction. An argument
-selecting a lower rung is honored after the widening, so an invocation naming both `autopilot` and an
-explicit `human-only` merge rung merges nothing — the resolution order is tracked rung, then the
-`autopilot` raise, then any explicitly argued lower rung, then the C4/C5 ceiling.
+**A safer argument still wins.** The exception lifts only the *raise* restriction, and the raise is
+mutually exclusive with a safer cap by grammar: every merge-dimension argument value other than
+`c3-this-run` only ever selects a lower rung, so an invocation naming `autopilot` and an explicit
+`human-only` merge rung merges nothing — the resolution order is tracked rung, then the paired
+raise, then the C4/C5 ceiling.
 
 **The C4/C5 floor tests the PR, not the item's stamp.** `work-classes.md` assigns a class from the
 risk-property bundle, "not the task's surface description", so a lane implementing the floor derives

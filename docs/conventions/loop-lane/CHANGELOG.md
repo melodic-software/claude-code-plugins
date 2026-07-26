@@ -12,13 +12,19 @@ rung, requested and scoped in
 [melodic-software/claude-code-plugins#1309](https://github.com/melodic-software/claude-code-plugins/issues/1309).
 A change to the autonomy-ladder invariant is a major bump per this file's own rule.
 
-- **Autonomy ladder** — a caller who explicitly types the literal `autopilot` tier keyword (never
-  inherited, never defaulted, never seam-supplied) widens that single invocation's merge authority up
-  to and including C3, in a repository that has already adopted the baseline rung. Persists nothing
+- **Autonomy ladder** — an invocation whose own argument line explicitly types both the literal
+  `autopilot` tier keyword and the dedicated raise argument `--merge c3-this-run` (each never
+  inherited, never defaulted, never seam-supplied, never model-composed on the caller's behalf)
+  widens that single invocation's merge authority up
+  to and including C3, in a repository that has already adopted the baseline rung. The raise token
+  exists for this exception alone — `autopilot` predates it as a merge-inert tier keyword, so a
+  saved invocation or expanded template carrying the tier keyword alone acquires no merge
+  authority. Persists nothing
   to config; is not a substitute for the recorded C3-autonomous seam flip. **C4 (structural) and C5
   (untrusted-provenance) stay unconditionally human-gated** — no rung, seam, or argument, including
   this one, ever reaches them, per the autonomy matrix's own "never promotes" cells. The exception
-  lifts only the *raise* restriction: an explicitly argued lower rung is still honored after it, and
+  lifts only the *raise* restriction: every other merge-dimension value still only selects a lower
+  rung, and
   C5 is derived from the PR's own provenance rather than the linked item's recorded class, so a fork
   PR closing an internally-classified C2/C3 item is outside the exception.
 - **Human blocking feedback, operator-parked items, and merge conflicts stay outside the dispatch.**

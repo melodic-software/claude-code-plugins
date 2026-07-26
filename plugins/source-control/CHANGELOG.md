@@ -7,11 +7,14 @@ All notable changes to the `source-control` plugin are documented here. Format f
 
 ### Added
 
-- **`babysit-loop` gains the loop-lane convention's one named, explicit-argument merge-rung
+- **`babysit-loop` gains the loop-lane convention's one named, explicit paired-argument merge-rung
   exception (#1309).** Standing merge-rung raises still bind from the team-tracked seam layer only.
-  The exception: a caller who types the literal `autopilot` tier keyword as this invocation's own
-  argument — never inherited from `babysit_loop_tier`, never defaulted, never supplied by a config
-  layer — widens *that single invocation's* merge dimension up to and including C3, in a repository
+  The exception: an invocation whose own argument line types both the literal `autopilot` tier
+  keyword and the dedicated raise argument `--merge c3-this-run` — each never inherited from
+  `babysit_loop_tier`, never defaulted, never supplied by a config layer, never model-composed on
+  the caller's behalf; the raise token exists for this exception alone, so a saved invocation or
+  template carrying the merge-inert `autopilot` tier keyword alone acquires no merge authority —
+  widens *that single invocation's* merge dimension up to and including C3, in a repository
   that has already adopted the baseline rung. It persists nothing, ratifies nothing, and is not a
   substitute for the recorded `c3-autonomous` seam flip. A merge-eligible PR blocked on a
   `needs-human` label, an open finding, or a contradictory thread gets one fresh frontier-tier
@@ -21,9 +24,9 @@ All notable changes to the `source-control` plugin are documented here. Format f
   uncertain blocker still escalates. `babysit-prs`'s "escalate security/P1 even in autopilot" rule
   carries a matching named exception for that one dispatch path only. Tracks loop-lane convention
   3.0.0.
-- **The widening lifts only the raise restriction.** An explicitly argued *lower* rung is applied
-  after it, so `autopilot --merge human-only` merges nothing; the order is tracked rung → the
-  `autopilot` raise → any explicitly argued lower rung → the C4/C5 ceiling.
+- **The widening lifts only the raise restriction.** Every merge-dimension argument value other
+  than `c3-this-run` still only selects a *lower* rung, so `autopilot --merge human-only` merges
+  nothing; the order is tracked rung → the paired raise → the C4/C5 ceiling.
 - **The C4/C5 floor reads the pull request, not the linked item's stamp.** `work-classes.md` assigns
   a class from the risk-property bundle, "not the task's surface description". C5 is two executable
   snapshot tests, either marking C5 and each failing closed when its field is unavailable: a
@@ -62,7 +65,7 @@ All notable changes to the `source-control` plugin are documented here. Format f
 - **The widening lasts the invocation that typed it, not one cycle.** Every `/loop` wakeup
   re-invokes the same prompt in the same session and carries the same explicit authorization, so the
   rung does not silently drop after the first cycle and no operator input is awaited that a loop
-  cannot supply. It ends when a newly launched invocation omits the keyword.
+  cannot supply. It ends when a newly launched invocation omits either token of the pair.
 - **The dispatch is leased and its tier is resolved, not named.** It acquires, heartbeats, and
   releases the PR's own worker lease around itself — the guarded-mutation wrappers pin comment
   state, they do not confer concurrency ownership — and a lease another worker holds means no

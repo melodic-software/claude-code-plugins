@@ -121,27 +121,35 @@ convention's "Merge-rung raises are seam-only" rule. The user-global layer, the 
 invocation argument may each select a *lower* (safer) rung than the effective team-tracked value,
 never a higher one; a raise supplied by any of them is ignored and reported.
 
-**The one named exception: the literal `autopilot` tier argument.** Per the loop-lane convention's
-"one named, explicit-argument exception" (§1), a caller who types `autopilot` as the tier argument
-itself — widens *that single invocation's* merge dimension up to and including C3, still bounded by
-the unconditional C4/C5 floor (below). This is not a config value and is never persisted: the next
-invocation that doesn't type `autopilot` explicitly reverts to whatever `babysit_loop_merge` resolves
-to through the normal precedence above. It requires baseline adoption (next paragraph) exactly like
+**The one named exception: the typed pair `autopilot` + `--merge c3-this-run`.** Per the loop-lane
+convention's "one named, explicit paired-argument exception" (§1), an invocation whose own argument
+line types both the literal `autopilot` tier keyword and the explicit raise argument
+`--merge c3-this-run` widens *that single invocation's* merge dimension up to and including C3,
+still bounded by the unconditional C4/C5 floor (below). Either token alone does nothing to the
+merge dimension: `autopilot` predates the exception as a merge-inert tier keyword, so a saved
+invocation or template carrying it acquires no merge authority, and `c3-this-run` without the typed
+`autopilot` tier is reported and ignored. This is not a config value and is never persisted: the
+next invocation that doesn't type the pair reverts to whatever `babysit_loop_merge` resolves to
+through the normal precedence above. It requires baseline adoption (next paragraph) exactly like
 every other rung.
 
-**The exception lifts the raise restriction only — a safer argument still wins.** The sentence above
-("an invocation argument may each select a *lower* (safer) rung … never a higher one") keeps its
-lower half intact: an argument naming a lower rung is applied *after* the widening, so
-`autopilot --merge human-only` merges nothing. The order is tracked rung → the `autopilot` raise →
-any explicitly argued lower rung → the C4/C5 ceiling below.
+**The exception lifts the raise restriction only — a safer argument still wins, and is mutually
+exclusive with the raise by grammar.** The sentence above ("an invocation argument may each select
+a *lower* (safer) rung … never a higher one") keeps its lower half intact for every `--merge` value
+other than `c3-this-run`, so `autopilot --merge human-only` merges nothing. The order is tracked
+rung → the paired raise → the C4/C5 ceiling below.
 
-**No config layer or key ever supplies the exception's keyword.** The exception reads the literal
-token on the invocation line and nothing else: `babysit_loop_tier: autopilot` in any of the three
+**No config layer or key ever supplies the exception's tokens.** The exception reads the literal
+tokens on the invocation line and nothing else: `babysit_loop_tier: autopilot` in any of the three
 layers resolves the *tier* (dimensions 1-5 and 7) without widening the merge dimension, the tier
-default never supplies it, and `babysit_default_tier` — the `userConfig` scalar governing a bare
+default never supplies it, `c3-this-run` is not a rung name and is invalid as a
+`babysit_loop_merge` value in any layer (an appearance there is reported and ignored, never
+honored), and `babysit_default_tier` — the `userConfig` scalar governing a bare
 `/source-control:babysit-prs` invocation's tier — is not a loop-lane key and never supplies this
-lane's tier at all. If the keyword did not appear on this invocation's own argument line, the merge
-dimension resolves through the normal precedence above with no widening.
+lane's tier at all. If either token did not appear on this invocation's own argument line, the
+merge dimension resolves through the normal precedence above with no widening. The raise token is
+also never composed on the caller's behalf: a model-routed launch of the lane runs without it or
+asks the operator, so a drain or merge phrasing never becomes a merge-authority raise by inference.
 
 **Baseline activation is tracked adoption.** The convention's baseline rung — human merge for
 everything except gate-proven C2-mechanical PRs — is the value a repository gets by *adopting* the
@@ -162,7 +170,8 @@ explicit-`autopilot` exception above — ever grants merge authority over a `wor
 a ceiling the resolved rung composes under, always, per the autonomy matrix's "never promotes" cells
 (`work-classes.md#suggested-default-predicates`). Both classes are decided from the pull request,
 not the class stamped on the item it closes: C5 from the code's own provenance — a cross-repository
-head, or another external-contribution signal on the PR — because provenance "dominates every other
+head, or an `authorAssociation` other than `OWNER`/`MEMBER`, each failing closed to C5 when its
+field is unavailable — because provenance "dominates every other
 property" (`work-classes.md`, `C5`), and C4 from the diff's blast radius, with a class/diff mismatch
 failing closed. **Never derive C5 by testing the PR author's login against `babysit_watched_owners`**
 — that key is a repository-owner allowlist, not a trusted-author list, so on an organization-owned

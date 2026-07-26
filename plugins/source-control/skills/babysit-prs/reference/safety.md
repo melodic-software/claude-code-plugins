@@ -353,13 +353,13 @@ Autopilot step 3 describes.
 ### Security/P1 escalation: the one named exception
 
 Escalating a security/P1 thread instead of resolving it holds in every tier, autopilot included.
-The loop-lane convention carries exactly one named exception (§1, "one named, explicit-argument
-exception"), and it is this narrow:
+The loop-lane convention carries exactly one named exception (§1, "one named, explicit
+paired-argument exception"), and it is this narrow:
 
 - **Only one dispatch path.** The `source-control:babysit-loop` explicit-`autopilot` pre-escalation
-  resolver — the subagent that lane dispatches when a caller typed the literal `autopilot` tier
-  argument on that invocation's own line. No other invocation of this skill, at any tier, ever
-  reaches this exception.
+  resolver — the subagent that lane dispatches when a caller typed both the literal `autopilot`
+  tier argument and the dedicated raise argument `--merge c3-this-run` on that invocation's own
+  line. No other invocation of this skill, at any tier, ever reaches this exception.
 - **Only a fresh, independent context.** The dispatch must share no conversation history with
   whatever produced the PR or previously replied on the blocking thread (the convention's §3
   independence requirement). A continuation of the authoring session, or a re-invocation of the
