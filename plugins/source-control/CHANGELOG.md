@@ -3,6 +3,20 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.31.1]
+
+### Fixed
+
+- **`babysit-prs`'s one-verdict-per-run claim now scopes out `--help` (#1434).**
+  `reference/safety.md`'s Lane-Script Reachability section said `babysit-readiness-gate.sh` emits
+  exactly one `READINESS_*` line on stdout on every run, failure paths included — but
+  `skills/setup/SKILL.md`'s reachability canary runs the gate with `--help`, which prints usage and
+  exits 0 with no verdict. That form was always the intended non-mutating canary target, and `#787`
+  already carried this exemption in the script's own header; `safety.md`'s wording was never updated
+  to say so, leaving a reader to treat the canary as a contract violation. Narrowed the claim to
+  every run that attempts a check and named `--help` as the stated exemption. Documentation only; no
+  script behavior change.
+
 ## [0.31.0]
 
 ### Changed
