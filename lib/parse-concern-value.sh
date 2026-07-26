@@ -102,17 +102,37 @@ strip_value() {
 
 resolved=""
 if [[ -f "$concern_file" ]]; then
-  # sed anchors on the literal key; keys are `[a-z_]+` identifiers, no metachars.
-  # YAML permits whitespace before the `:` (`memory_dir : .work`) and permits a
-  # root block mapping to sit at a uniform indent, so neither shape may be read
-  # as "key absent" — a consumer that silently took its fallback over a key the
-  # file really declares would act on a value the repo never chose. An
-  # unindented key is preferred, so a nested key of the same name cannot outrank
-  # the top-level one.
-  raw_line=$(sed -n "s/^${key}[[:space:]]*:[[:space:]]*//p" "$concern_file" | head -1)
-  if [[ -z "$raw_line" ]]; then
-    raw_line=$(sed -n "s/^[[:space:]]\{1,\}${key}[[:space:]]*:[[:space:]]*//p" "$concern_file" | head -1)
-  fi
+  # Only a ROOT key of the document counts. YAML permits whitespace before the
+  # `:` (`memory_dir : .work`) and permits the root block mapping to sit at a
+  # uniform indent, so neither shape may be read as "key absent" — a consumer
+  # that silently took its fallback over a key the file really declares would act
+  # on a value the repo never chose. Equally, a same-named key nested under
+  # another mapping is a DIFFERENT key and must never answer for the root one,
+  # including when the root key is present but deliberately empty.
+  #
+  # The document's base indentation is that of its first key line; every root key
+  # shares it, and anything deeper belongs to some other mapping. Matching on
+  # that, rather than on "unindented, else any indent", is what separates an
+  # indented root mapping from a nested one. Keys are `[a-z_]+` identifiers, so
+  # they carry no regex metacharacters.
+  raw_line=$(awk -v key="$key" '
+    BEGIN { base = -1 }
+    /^[[:space:]]*$/ { next }
+    /^[[:space:]]*#/ { next }
+    /^---[[:space:]]*$/ { next }
+    {
+      match($0, /^[[:space:]]*/)
+      indent = RLENGTH
+      if (base < 0) base = indent
+      if (indent != base) next
+      line = substr($0, indent + 1)
+      if (line ~ "^" key "[[:space:]]*:") {
+        sub("^" key "[[:space:]]*:[[:space:]]*", "", line)
+        print line
+        exit
+      }
+    }
+  ' "$concern_file")
   if [[ -n "$raw_line" ]]; then
     resolved=$(strip_value "$raw_line")
   fi

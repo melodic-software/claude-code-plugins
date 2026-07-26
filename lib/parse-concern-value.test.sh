@@ -63,9 +63,17 @@ assert_eq 'indented root mapping resolves' ".scratch" "$(resolve '  memory_dir: 
 assert_eq 'tab-indented key resolves' ".scratch" "$(resolve "$(printf '\tmemory_dir: .scratch')")"
 assert_eq 'space before colon does not defeat the fallback path' \
   ".notes" "$(resolve 'memory_dir :' memory_dir '.notes')"
-# An unindented key outranks a nested key of the same name.
-assert_eq 'top-level key wins over a nested one' "top" \
+# A same-named key nested under another mapping is a DIFFERENT key.
+assert_eq 'root key wins over a nested one' "top" \
   "$(resolve "$(printf 'other:\n  memory_dir: nested\nmemory_dir: top')")"
+assert_eq 'a nested key never answers for an empty root key' ".notes" \
+  "$(resolve "$(printf 'other:\n  memory_dir: nested\nmemory_dir:')" memory_dir '.notes')"
+assert_eq 'a nested key never answers for an absent root key' ".notes" \
+  "$(resolve "$(printf 'other:\n  memory_dir: nested\n')" memory_dir '.notes')"
+assert_eq 'a key deeper than an indented root mapping is still nested' ".notes" \
+  "$(resolve "$(printf '  other:\n    memory_dir: nested\n  contract_dir: docs/x')" memory_dir '.notes')"
+assert_eq 'a leading document marker does not become the base indent' ".scratch" \
+  "$(resolve "$(printf -- '---\nmemory_dir: .scratch')")"
 # A key that only appears as a SUBSTRING of another key must not match.
 assert_eq 'a longer key is not matched by a shorter one' \
   ".notes" "$(resolve 'memory_dir_extra: .scratch' memory_dir '.notes')"

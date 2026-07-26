@@ -8,8 +8,9 @@
   `parse-concern-value.sh` anchored on the exact regex `^<key>:`, so `memory_dir : .work` (YAML
   permits whitespace before the `:`) and a root block mapping written at a uniform indent both
   resolved to the caller's fallback — substituting a value the repo never chose for one it did.
-  Both shapes now resolve, with an unindented key preferred so a nested key of the same name cannot
-  outrank the top-level one. Synced from `lib/parse-concern-value.sh`; version bumped so installed
+  Both shapes now resolve, matched at the document's own base indentation so a same-named key
+  nested under another mapping never answers for the root one — including when the root key is
+  present but deliberately empty. Synced from `lib/parse-concern-value.sh`; version bumped so installed
   copies receive it.
 
 ## [0.9.1]
