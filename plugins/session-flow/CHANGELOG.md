@@ -1,6 +1,6 @@
 # Changelog — session-flow plugin
 
-## [0.17.7]
+## [0.17.9]
 
 ### Added
 
@@ -37,6 +37,91 @@
   schema change deferred out of that PR. This supersedes the headless prompt's 0.17.5 caveat that
   `summarize_record()` never preserves a message id: it now does, so the prompt's absent-key wording
   is scoped to the per-record case (the raw record carried no id) rather than to the schema.
+
+## [0.17.8]
+
+### Fixed
+
+- **The save-point engine's resume prompt dropped the `/loop` wrapper.** The engine doc's
+  goal-aware re-arm rule ("Emit the copy/paste resume prompt") had no loop-aware counterpart, so a
+  resume prompt written for a session running under `/loop` read as a bare continuation task.
+  Pasted after `/clear` — which clears every session-scoped scheduled task
+  (<https://code.claude.com/docs/en/scheduled-tasks#limitations>) — that ran the continuation once
+  and silently dropped the recurring behavior, with no error to signal it. `save-point.md` now
+  carries a loop-aware re-arm rule: the rails block stays the unwrapped resume directive, and a note
+  below the bottom rail has the reader send `/loop [<interval>] <original prompt>` as a SEPARATE
+  follow-up message, quoting the interval and prompt verbatim from the launch turn. The re-arm
+  carries the ORIGINAL loop prompt rather than the resume directive because `/loop` re-runs the
+  prompt it was given on *every* iteration
+  (<https://code.claude.com/docs/en/scheduled-tasks#run-a-prompt-repeatedly-with-%2Floop>) while a
+  save-point is an immutable record of one moment — wrapping the directive would make every later
+  tick re-read that frozen file and replay an already-finished remainder instead of doing the loop's
+  actual recurring job. Order is stated (bootstrap first, re-arm second) so the re-armed loop's first
+  iteration cannot run ahead of the continuation it resumes into. Both re-arm rules now key off a
+  concrete conversational signal — this session's own `/loop` launch turn (corroborated, never
+  gated, by a later `ScheduleWakeup` reschedule) and an established `/goal` call — rather than
+  "infer from conversation" prose. Neither re-arm can ride inside the other's prompt argument, since
+  a command is recognized only at a message's start
+  (<https://code.claude.com/docs/en/commands>), so each is its own message: `/goal` keeps the first
+  line between the rails, `/loop` follows separately. The launch-turn signal is read as a set rather
+  than a single find: a session can hold up to 50 scheduled tasks at once
+  (<https://code.claude.com/docs/en/scheduled-tasks#manage-scheduled-tasks>) and `/clear` takes all
+  of them, so the rule enumerates every surviving loop and emits one re-arm message per loop —
+  a singular rule would have preserved one and silently dropped the rest. Elapsed time retires a
+  launch from that set alongside an explicit stop: a recurring task expires seven days after creation
+  (<https://code.claude.com/docs/en/scheduled-tasks#seven-day-expiry>), so a launch turn older than
+  that is already gone and re-arming it would resurrect a schedule that had already ended.
+  `handoff/SKILL.md`'s two enforcement checklists and `handoff/context/gotchas.md` are updated to
+  match.
+- **Lost-handoff recovery dropped that same `/loop` re-arm.** The re-arm note is the one piece of a
+  resume prompt that cannot sit between the rails — a command is recognized only at a message's
+  start (<https://code.claude.com/docs/en/commands>), so it is a separate follow-up message and its
+  instruction lives below the bottom rail. `find-handoff` recovered only the block between the
+  rails, so an operator who ran `/clear` before copying and then recovered the handoff got the
+  continuation back and the loop not at all — the very failure the re-arm rule exists to prevent,
+  reintroduced one layer down. `save-point.md`'s detection contract now defines the recoverable
+  resume prompt as the rails block PLUS the below-rail re-arm note, and `find-handoff` captures it
+  (shape-matched and anchored to the bottom rail, on both file and prompt-only modes) and surfaces
+  it at the confirm gate. The capture is deliberately not a detection key — it is read only from an
+  already-qualified candidate, so it admits no new false positives — and it runs through the same
+  redaction pass as everything else, since it quotes the operator's original loop prompt verbatim.
+  The capture also runs on the known-location glob short-circuit, which reaches the confirm gate
+  without a transcript in hand: it pulls step 5's `session_id` → `<session_id>.jsonl` lookup ahead
+  of the gate and reads that one file's tail, so the default discovery path surfaces the note too
+  rather than promising it and delivering nothing.
+  The note is bound to its candidate by content — the rails block whose `Read @…` directive names
+  that exact file — rather than by reading the transcript's tail, since one session can emit
+  several handoffs and a loop stopped and relaunched between them would otherwise re-arm the wrong
+  recurring work. Same correlate-by-content rule the background-delivery screening already uses.
+- **The `/loop` re-arm note is now conditioned on the paste, not on the citing skill.** The engine
+  is shared with `/session-flow:continue-in-background`, whose successful launch clears nothing and
+  pastes nothing — it hands the rails prompt straight to a detached agent, so the loop stays armed
+  on the foreground session and the note's unconditional "after pasting the block above" wording
+  described a paste that never happens. Keying the note off the citing skill would have been just
+  as wrong in the other direction: the engine emits the prompt BEFORE that skill's dirty-tree gate
+  and launch run, and either can fall back to `/clear`-then-paste, which does clear. The note is
+  therefore worded conditionally — re-arm if you paste after `/clear`, including on those
+  fallbacks; a launch that succeeds needs none. Transferring the loop *into* the launched agent is
+  deliberately not done: arming a recurring schedule inside a detached session the operator is not
+  watching is a behavior to decide on its own merits, not a side effect of writing a save-point.
+
+## [0.17.7]
+
+### Fixed
+
+- **`observer.py`'s `_pid_alive` Windows liveness check now decodes `tasklist` output as UTF-8
+  explicitly.** Its `subprocess.run` call passed `text=True` with no `encoding=`, so Python fell
+  back to the platform code page (cp1252 on Windows) instead of UTF-8 — the same class of defect
+  `_run_analysis`'s subprocess call was fixed for (#1472). Currently harmless in practice (the only
+  check is an ASCII integer substring match against `tasklist`'s stdout), but left implicit it
+  risked the same silent-corruption pattern if the check's output-parsing ever changed.
+  `errors="replace"` is set alongside it for the same reason as `_run_analysis`'s fix: a
+  truncated/invalid byte sequence decodes rather than raising. A full sweep of every other
+  `subprocess.run`/`subprocess.Popen` and `open()`/`read_text`/`write_text` call across
+  `session-flow`'s production scripts (`observer.py`, `arm_observer.py`,
+  `retro/scripts/parse_transcript.py`) found every other text-mode call site already
+  UTF-8-explicit or intentionally binary (`"rb"` mode, or a raw `os.open` file descriptor with no
+  text decoding involved) (#1483).
 
 ## [0.17.6]
 
