@@ -66,7 +66,8 @@ Official contract: <https://code.claude.com/docs/en/plugins-reference#user-confi
    invocation.
 6. **Full-batch prerequisite.** INFO: the batch's mid-session pass dispatches
    conversation-inheriting fork subagents, which need fork-spawning enabled
-   (`CLAUDE_CODE_FORK_SUBAGENT`, which a server-side rollout can also enable).
+   (`CLAUDE_CODE_FORK_SUBAGENT`, which a server-side staged rollout can also enable —
+   <https://code.claude.com/docs/en/sub-agents#fork-the-current-conversation>).
    `sweep-all` preflights this itself and degrades when the fan-out cannot inherit —
    that runbook owns the behavior; report the prerequisite here only so an unavailable
    fan-out reads as expected rather than as a misconfiguration, and do not restate what

@@ -82,6 +82,13 @@ say nothing about what the server-side rollout does to the parameter, so no
 branch is conclusive in either direction. It explains what stage 2 finds; it
 never replaces stage 2 and never aborts on its own.
 
+**Take a working-tree baseline before the first dispatch.** The canary is a
+fork with the same unconstrained tool pool as every later member, so the
+baseline has to precede it, not wave 1. In a git project, `git status
+--porcelain`. Where the project is not a git repository, there is no cheap
+baseline to take — skip the comparison and say so in the final report, rather
+than omitting the check silently and leaving the reader to assume it ran.
+
 **Stage 2 — an inheritance-proof canary. The decider, at no extra cost.** Fold
 it into the first member's real audit: dispatch the in-scope corrector with the
 lowest `discipline-batch-rank` **value** — the one step 4 would correct first —
@@ -173,10 +180,11 @@ unchanged and bind every member.
    skill-level `context: fork` also discards it — neither can audit this
    conversation. The forks read the live working tree — do NOT isolate them
    (see Gotchas: isolation would hide the uncommitted work in flight, which is
-   usually the thing under audit). Instead, record the working tree's state
-   immediately before dispatch (in a git project, `git status --porcelain`)
-   and compare after collection: the no-writes rule is trusted, not enforced,
-   so verify it rather than assume it. Instruct
+   usually the thing under audit). Compare the working tree against the
+   baseline the preflight took, once every ledger is collected: the no-writes
+   rule is trusted, not enforced, so verify it rather than assume it. Any
+   difference is a fork that wrote — report it as its own finding and hold it
+   out of the correction pass; never fold it in silently. Instruct
    each fork: answer the preflight's inheritance-proof question first, then
    load exactly this ONE corrector's
    `SKILL.md`, run shared-loop steps 1–2 only (re-anchor + self-audit), make
