@@ -14,9 +14,12 @@ All notable changes to the `rate-limit-guard` plugin are documented here. Format
   the read returned a truncated payload and rc 1, and this plugin's hooks took their `|| exit 0`
   branch — the hook did not run at all, with no diagnostic, on exactly the large writes it was
   most wanted for. The read is now chunked (`read -N`), which bash satisfies with block reads, and
-  the bound became an idle bound that arms per chunk: a read still making progress is never cut
-  off, while a pipe that goes silent for `stdin_read_timeout` seconds still stops the read the
-  same way. Measured: 50 KB drops from ~2100 ms to ~20 ms, 200 KB from ~6800 ms to ~85 ms. Synced
+  the bound became a true idle bound: `read -t` is a deadline for the whole requested read rather
+  than an inactivity timer, so a timed-out read that nevertheless returned bytes is now treated as
+  progress — its partial chunk is kept and a fresh window is armed. Only a window that delivers
+  nothing at all is a stall. `read -N` is Bash 4.1+, and these hooks support Bash 3.2+ (macOS
+  system bash), so the pre-4.1 path falls back to the delimiter read inside the same re-arming
+  loop. Measured: 50 KB drops from ~2100 ms to ~20 ms, 200 KB from ~6800 ms to ~85 ms. Synced
   from `lib/hook-utils.sh`; this plugin's own hook behavior is otherwise unchanged.
 
 ## [0.3.2]

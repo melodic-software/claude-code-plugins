@@ -17,10 +17,15 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   write whose content was never even scanned. Observed in the field as a full-file write of an
   844-line document being blocked repeatedly, forcing the author to write it in five chunks;
   reproduced here end-to-end with a benign 100 KB payload.
-  The read is now chunked (`read -N`), which bash satisfies with block reads, and the bound became an
-  **idle** bound that arms per chunk: a read still making progress is never cut off, while a pipe
-  that goes silent for `stdin_read_timeout` seconds still fails closed with rc 2 exactly as before.
-  Measured: 50 KB drops from ~2100 ms to ~20 ms, 200 KB from ~6800 ms to ~85 ms.
+  The read is now chunked (`read -N`), which bash satisfies with block reads, and the bound became a
+  true **idle** bound: `read -t` is a deadline for the whole requested read rather than an inactivity
+  timer, so a timed-out read that nevertheless returned bytes is now treated as progress — its
+  partial chunk is kept and a fresh window is armed. Only a window that delivers nothing at all is a
+  stall, and that still fails closed with rc 2 exactly as before. Measured: 50 KB drops from
+  ~2100 ms to ~20 ms, 200 KB from ~6800 ms to ~85 ms.
+  `read -N` is Bash 4.1+, and these hooks support Bash 3.2+ (macOS system bash), so the pre-4.1 path
+  falls back to the delimiter read inside the same re-arming loop — same guard and rationale as
+  `context-guard`'s `statusline-tee.sh`.
   **The fail-closed posture is unchanged** — a stalled pipe still yields rc 2 (regression test in
   `lib/hook-utils.test.sh`), a payload containing a violation is still blocked, and a violation
   sitting at the very end of a 200 KB payload is now *caught* rather than swept up in a

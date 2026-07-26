@@ -332,7 +332,7 @@ assert_norm cygwin "/c/Repo" "C:/repo" "cygwin folds like msys"
 assert_norm linux-gnu "/c/Repo" "/c/Repo" "linux leaves /c/Repo unchanged"
 assert_norm linux-gnu "/c/repo" "/c/repo" "linux leaves /c/repo unchanged"
 assert_norm linux-gnu "/opt/App/Sub" "/opt/App/Sub" "linux leaves normal path unchanged"
-assert_norm linux-gnu 'a\b' "a/b" "linux still converts backslashes"
+assert_norm linux-gnu 'a\b' "a/b" "linux still converts backslashes" # portability-ok: literal backslash in a path fixture, not a GNU grep \b word boundary
 
 # Explicit guard: on POSIX the two casings must NOT collapse to one value.
 if [[ "$(norm_as linux-gnu /c/Repo)" != "$(norm_as linux-gnu /c/repo)" ]]; then
@@ -886,6 +886,112 @@ if [[ "$bs_rc" == "0" ]] && ((bs_content_len == 262144)); then
   ok "buffer_stdin: 256 KB payload on a pipe → rc 0, payload intact ($bs_len bytes)"
 else
   fail "buffer_stdin large payload: rc=$bs_rc content_len=$bs_content_len buffered=$bs_len bytes"
+fi
+rm -f "$bs_big_file" "$bs_payload_file" "$bs_rc_file" "$bs_out_file"
+
+# --- Test 18d: hook::buffer_stdin — the bound is IDLE, not per-read total -----
+# `read -t` is a deadline for the whole requested read, not an inactivity timer,
+# so a producer that keeps delivering but slower than one chunk per window would
+# trip it even though the pipe is never idle. buffer_stdin must keep a timed-out
+# read's partial bytes and re-arm. Producer emits one character every 100 ms
+# against a 300 ms timeout — far too slow to fill a chunk in any single window —
+# then closes. Expect the whole payload back with rc 0.
+bs_rc_file="$(mktemp)"
+bs_out_file="$(mktemp)"
+{
+  printf '{"a":"'
+  for _ in 1 2 3 4 5 6 7 8 9 10; do
+    sleep 0.1
+    printf 'x'
+  done
+  printf '"}'
+} | {
+  CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT=0.3 hook::buffer_stdin >"$bs_out_file" 2>/dev/null
+  echo "$?" >"$bs_rc_file"
+}
+bs_rc=$(cat "$bs_rc_file")
+if [[ "$bs_rc" == "0" ]] && [[ "$(cat "$bs_out_file")" == '{"a":"xxxxxxxxxx"}' ]]; then
+  ok "buffer_stdin: steady trickle slower than one chunk per window → rc 0 (idle bound)"
+else
+  fail "buffer_stdin trickle: rc=$bs_rc out=$(cat "$bs_out_file")"
+fi
+
+# And the other side of the same contract: a trickle that then goes SILENT with
+# an incomplete payload must still fail closed. Re-arming on progress must not
+# become "never time out".
+: >"$bs_out_file"
+{
+  printf '{"a":"'
+  for _ in 1 2 3 4 5; do
+    sleep 0.1
+    printf 'x'
+  done
+  sleep 2
+} | {
+  CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT=0.3 hook::buffer_stdin >"$bs_out_file" 2>/dev/null
+  echo "$?" >"$bs_rc_file"
+}
+bs_rc=$(cat "$bs_rc_file")
+if [[ "$bs_rc" == "2" ]]; then
+  ok "buffer_stdin: trickle that then goes silent mid-payload → still rc 2"
+else
+  fail "buffer_stdin trickle-then-stall: rc=$bs_rc out=$(cat "$bs_out_file")"
+fi
+rm -f "$bs_rc_file" "$bs_out_file"
+
+# --- Test 18e: hook::buffer_stdin — the pre-4.1 (`read -d ''`) branch ---------
+# `read -N` is Bash 4.1+; macOS ships 3.2 and these hooks document 3.2+ support,
+# so the function falls back to the delimiter read below 4.1. CI and this host
+# run a modern bash, and BASH_VERSINFO is readonly so it cannot be shadowed —
+# hence the guard lives in its own predicate, which the child shell overrides to
+# select the fallback path FOR REAL rather than simulating it. First assert the
+# override actually flips the branch (otherwise these cases would be vacuous),
+# then that the fallback buffers a whole large payload and still fails closed.
+bs_big_file="$(mktemp)"
+bs_payload_file="$(mktemp)"
+bs_rc_file="$(mktemp)"
+bs_out_file="$(mktemp)"
+# shellcheck disable=SC2016 # $1 is deliberately the CHILD shell's positional, not this one's
+force_legacy='source "$1"; hook::read_supports_nchars() { return 1; }; '
+
+bs_branch=$(bash -c "${force_legacy}"'hook::read_supports_nchars && echo modern || echo legacy' \
+  _ "$HOOK_DIR/hook-utils.sh")
+if [[ "$bs_branch" == "legacy" ]]; then
+  ok "buffer_stdin: pre-4.1 guard override selects the delimiter-read branch"
+else
+  fail "pre-4.1 override did not flip the branch (got '$bs_branch'); cases below are vacuous"
+fi
+
+yes 'portable content with no delimiters of interest' | head -c 131072 >"$bs_big_file"
+jq -cn --rawfile c "$bs_big_file" \
+  '{hook_event_name:"PreToolUse",tool_name:"Write",tool_input:{file_path:"/tmp/big.md",content:$c}}' \
+  >"$bs_payload_file"
+# shellcheck disable=SC2002 # `cat |` is the point: it forces a real pipe on fd 0.
+cat "$bs_payload_file" | {
+  bash -c "${force_legacy}"'hook::buffer_stdin' _ "$HOOK_DIR/hook-utils.sh" \
+    >"$bs_out_file" 2>/dev/null
+  echo "$?" >"$bs_rc_file"
+}
+bs_rc=$(cat "$bs_rc_file")
+bs_content_len=$(jq -r '.tool_input.content | length' "$bs_out_file" 2>/dev/null || echo 0)
+if [[ "$bs_rc" == "0" ]] && ((bs_content_len == 131072)); then
+  ok "buffer_stdin: pre-4.1 delimiter-read fallback buffers a 128 KB payload (rc 0)"
+else
+  fail "buffer_stdin pre-4.1 fallback: rc=$bs_rc content_len=$bs_content_len"
+fi
+
+: >"$bs_out_file"
+{ printf '{"incomplete":'; sleep 2; } | {
+  CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT=0.4 \
+    bash -c "${force_legacy}"'hook::buffer_stdin' _ "$HOOK_DIR/hook-utils.sh" \
+    >"$bs_out_file" 2>/dev/null
+  echo "$?" >"$bs_rc_file"
+}
+bs_rc=$(cat "$bs_rc_file")
+if [[ "$bs_rc" == "2" ]]; then
+  ok "buffer_stdin: pre-4.1 fallback still fails closed on a stalled pipe (rc 2)"
+else
+  fail "buffer_stdin pre-4.1 stall: rc=$bs_rc"
 fi
 rm -f "$bs_big_file" "$bs_payload_file" "$bs_rc_file" "$bs_out_file"
 

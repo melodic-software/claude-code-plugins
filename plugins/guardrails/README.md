@@ -131,12 +131,12 @@ plugin in that project's `enabledPlugins` instead.
 One further option tunes the hooks' shared plumbing rather than a single guard:
 
 - **`stdin_read_timeout`** (number, default `2`, minimum `1`) — idle bound in
-  seconds on reading the hook payload from stdin. It arms per chunk, not over
-  the whole read, so a large payload that keeps arriving is never cut off; it
-  fires only when the pipe goes silent for that long, at which point a blocking
-  guard fails **closed** (`exit 2` with a `BLOCKED:` reason) rather than letting
-  an unscanned tool call through. Raise it only if a genuinely slow producer
-  trips it.
+  seconds on reading the hook payload from stdin. It re-arms whenever bytes
+  arrive, not once over the whole read, so a large or slowly-delivered payload
+  is never cut off while it is still coming; it fires only when the pipe goes
+  silent for that long, at which point a blocking guard fails **closed**
+  (`exit 2` with a `BLOCKED:` reason) rather than letting an unscanned tool call
+  through. You should not need to change it.
 
 ## Consumer seams
 

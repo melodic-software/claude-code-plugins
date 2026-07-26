@@ -235,41 +235,79 @@ hook::repo_root() {
 #
 # The bound (stdin_read_timeout userConfig option, in seconds, read via
 # CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT, default 2) is an IDLE bound, not a
-# total one: it arms per chunk, so a read that keeps making progress is never
-# cut off, while a pipe that goes silent for that long still fails closed. The
-# distinction is load-bearing. `read -d ''` consumes a pipe one byte at a time
-# (~32 KB/s on Git Bash), so a total bound was really a ~64 KB throughput
-# ceiling — every larger payload tripped the timeout branch and every
-# fail-closed caller blocked a legitimate write. `read -N` lets bash satisfy
-# the read in blocks instead: 50 KB drops from ~2100 ms to ~20 ms, 200 KB from
-# ~6800 ms to ~85 ms. Claude Code's own default `command` hook timeout is 600 s
-# (https://code.claude.com/docs/en/hooks), so the idle bound is not tracking
-# any harness limit.
+# total one: only a window in which NOTHING arrives ends the read. A single
+# `read -d ''` bounded by -t was a total bound, and because bash consumes
+# `read -d ''` on a pipe one byte at a time (~32 KB/s on Git Bash) that made it
+# a ~64 KB THROUGHPUT ceiling — every larger payload tripped the timeout branch,
+# so fail-closed callers blocked a legitimate write and fail-open callers
+# skipped silently. Two things together make the bound mean what it says:
+#
+#   * The read is chunked. `read -N` lets bash satisfy it in blocks instead of
+#     byte-at-a-time: 50 KB drops from ~2100 ms to ~20 ms, 200 KB from ~6800 ms
+#     to ~85 ms.
+#   * The timer re-arms on progress. `read -t` is a deadline for the WHOLE
+#     requested read, not an inactivity timer, so a producer that keeps
+#     delivering but slower than one chunk per window would still trip it. `read`
+#     assigns whatever it did receive even when it times out, so a timed-out read
+#     that returned bytes is progress, not a stall: the loop keeps that partial
+#     chunk and arms a fresh window. Only a window that delivers nothing at all
+#     is a stall.
+#
+# The trade this makes: a producer trickling bytes indefinitely is never cut off
+# here. That is deliberate — the harness already caps a `command` hook at 600 s
+# by default (https://code.claude.com/docs/en/hooks), and blocking a live
+# producer is exactly the failure this function had.
 #
 # `read` reports which stop condition it hit — EOF returns 1, an exceeded -t
-# returns >128 — and assigns whatever it did read either way, so the loop reads
-# the stall verdict off $? instead of inferring it from elapsed-time arithmetic.
-# jq (when present) is still the completeness backstop: a stall that neverthe-
-# less delivered a complete payload is the Win32 late-EOF case this function
-# exists for and must succeed, not block. A missing/broken jq (exit 127) fails
-# open like absent jq. Requires Bash 4.1+ for `read -N` (this library already
-# requires 4.0+ for the `${var^}` case operators in hook::normalize_path).
+# returns >128 — so the loop takes the verdict off $? rather than inferring it
+# from elapsed-time arithmetic. jq (when present) is still the completeness
+# backstop: a stall that nevertheless delivered a complete payload is the Win32
+# late-EOF case this function exists for and must succeed, not block. A
+# missing/broken jq (exit 127) fails open like absent jq.
+#
+# `read -N` is Bash 4.1+; macOS ships Bash 3.2 and these hooks document 3.2+
+# support, so the pre-4.1 branch falls back to the delimiter read, which already
+# reads to EOF and is fast enough on native POSIX pipes. Same guard and same
+# rationale as plugins/context-guard/scripts/statusline-tee.sh. The re-arming
+# loop wraps both forms, so 3.2 gets the progress semantics too — just in
+# byte-at-a-time-sized steps.
 #   INPUT=$(hook::buffer_stdin) || exit 0
+
+# The `read -N` availability guard, split out as its own predicate so the
+# pre-4.1 path stays reachable in tests on a modern host: BASH_VERSINFO is
+# readonly, so it cannot be shadowed, but a test can override this function
+# after sourcing. Not a consumer seam — nothing reads it from the environment.
+hook::read_supports_nchars() {
+  ((BASH_VERSINFO[0] > 4 || (BASH_VERSINFO[0] == 4 && BASH_VERSINFO[1] >= 1)))
+}
+
 hook::buffer_stdin() {
   local input="" chunk="" read_rc=0 stalled=0
   local read_timeout="${CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT:-2}"
+  local -a read_opts=(-r -t "$read_timeout")
+  if hook::read_supports_nchars; then
+    read_opts+=(-N 65536)
+  else
+    read_opts+=(-d '')
+  fi
   while :; do
     chunk=""
     read_rc=0
-    IFS= read -r -t "$read_timeout" -N 65536 chunk || read_rc=$?
+    # shellcheck disable=SC2162 # -r is in read_opts; shellcheck cannot see through the array
+    IFS= read "${read_opts[@]}" chunk || read_rc=$?
     input+="$chunk"
     if ((read_rc == 0)); then
-      continue # a full chunk — more may still be coming
+      continue # a full chunk (or a delimiter) — more may still be coming
     fi
     if ((read_rc > 128)); then
+      # Timed out. Bytes in this window mean the producer is alive: keep them
+      # and re-arm. An empty window is the stall this guard exists to catch.
+      if [[ -n "$chunk" ]]; then
+        continue
+      fi
       stalled=1
     fi
-    break # EOF (rc 1), a stall (rc >128), or a read error
+    break # EOF (rc 1), an empty timed-out window, or a read error
   done
   input=$(printf '%s' "$input" | tr -d '\r')
   [[ -n "$input" ]] || return 1
@@ -1138,7 +1176,7 @@ hook::bash_parse_segments() {
         # the '(' separator splits it into a segment that gets scanned.
         skipnext=0
       else
-        while ((i + 1 < n)) && [[ "${chars[i + 1]}" == [\<\>] ]]; do ((i++)); done
+        while ((i + 1 < n)) && [[ "${chars[i + 1]}" == [\<\>] ]]; do ((i++)); done # portability-ok: bash glob bracket class matching a literal < or > character, not a GNU grep \< \> word boundary
         if ((i + 1 < n)) && [[ "${chars[i + 1]}" == '&' ]]; then
           ((i++))
           if ((i + 1 < n)) && [[ "${chars[i + 1]}" == [0-9-] ]]; then
