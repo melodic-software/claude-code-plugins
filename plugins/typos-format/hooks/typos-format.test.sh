@@ -310,6 +310,31 @@ else
   fail "stub/cap: count/remainder missing: $CTX_MANY"
 fi
 
+# --- Scale: disclosure must still arrive on a heavily-corrected file ---------
+# The hook's handler declares a 15-second timeout. An implementation that spawns
+# a subprocess per finding rewrites the file and then times out with empty
+# stdout — reproducing the silent mutation at scale, on exactly the files where
+# the disclosure matters most. Classification is therefore one jq pass, and this
+# case pins that: 120 corrections in one file, well inside the budget.
+: >"$STUB_REPO/scale.txt"
+for _i in $(seq 1 120); do
+  printf 'line %s has teh typo\n' "$_i" >>"$STUB_REPO/scale.txt" # spellchecker:disable-line
+done
+SCALE_START=$(date +%s)
+OUT_SC=$(run_stub "$STUB_REPO/scale.txt")
+SCALE_ELAPSED=$(($(date +%s) - SCALE_START))
+CTX_SC=$(printf '%s' "$OUT_SC" | jq -r '.hookSpecificOutput.additionalContext // empty' 2>/dev/null)
+if printf '%s' "$CTX_SC" | grep -q 'REWROTE 120 word'; then
+  ok "stub/scale: 120 corrections are disclosed, not dropped"
+else
+  fail "stub/scale: disclosure missing on a 120-correction file: $CTX_SC"
+fi
+if [[ "$SCALE_ELAPSED" -lt 10 ]]; then
+  ok "stub/scale: completed in ${SCALE_ELAPSED}s, inside the handler's 15s timeout"
+else
+  fail "stub/scale: took ${SCALE_ELAPSED}s — at or over the handler's 15s timeout budget"
+fi
+
 # --- A broken write pass must not be read as "everything was applied" --------
 printf 'this has teh typo and wnat too\n' >"$STUB_REPO/break.txt" # spellchecker:disable-line
 OUT_BR=$(run_stub "$STUB_REPO/break.txt" STUB_BREAK=1)

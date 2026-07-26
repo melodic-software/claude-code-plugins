@@ -261,86 +261,76 @@ if [[ "$WRITE_CHANGES" != "false" ]]; then
   [[ $WRITE_RC -eq 0 ]] && RESIDUAL_OUTPUT=""
 fi
 
+# Classify both finding sets in ONE jq invocation.
+#
+# The per-finding shell loop this replaces spawned jq several times per finding,
+# which is the difference between a hook that discloses and a hook that does
+# not: a 120-correction file rewrote the file and then hit the handler's
+# 15-second timeout with empty stdout — recreating, at scale, exactly the silent
+# mutation this change exists to end. Process-spawn cost dominates everything
+# else here (typos itself runs in ~80 ms on a 68 KB file), so the loop is gone
+# and the total spawn count is constant in the number of findings.
+#
 # Residual identity key: line number + the flagged token. Byte offsets shift as
 # earlier corrections on the same line change its length, so an offset-keyed
-# comparison would classify wrongly; a line/token pair is stable across the write
-# because a repeated token on one line always shares one fix decision.
-RESIDUAL_KEYS=$'\n'
-while IFS= read -r line; do
-  [[ -n "$line" ]] || continue
-  key=$(printf '%s' "$line" | jq -r 'select(.type == "typo") | "\(.line_num // 0)\t\(.typo // "")"' 2>/dev/null) || continue
-  [[ -n "$key" ]] || continue
-  RESIDUAL_KEYS+="$key"$'\n'
-done <<<"$RESIDUAL_OUTPUT"
+# comparison would classify wrongly; a line/token pair is stable across the
+# write because a repeated token on one line always shares one fix decision.
+# The key is built and compared inside jq as a JSON string, so a token carrying
+# a shell or glob metacharacter is data throughout and can never widen a match.
+#
+# The display lines are rendered here too, capped, so the shell never has to
+# walk the finding set at all.
+CLASSIFIED=$(jq -c -n \
+  --arg scan "$SCAN_OUTPUT" \
+  --arg residual "$RESIDUAL_OUTPUT" \
+  --argjson max "$MAX_REPORT" '
+    def parse($s): [$s | split("\n")[] | select(length > 0) | (fromjson? // empty) | select(.type == "typo")];
+    def keyof: "\(.line_num // 0)\t\(.typo // "")";
+    def corr1: (.corrections[0] // "");
+    (parse($residual) | map(keyof)) as $res
+    | parse($scan) as $all
+    | ($all | map(select((keyof) as $key | ($res | index($key)) != null))) as $r
+    | ($all | map(select((keyof) as $key | ($res | index($key)) == null))) as $a
+    | {
+        appliedCount: ($a | length),
+        residualCount: ($r | length),
+        applied: ($a | map({typo: (.typo // ""), correction: corr1, line: (.line_num // 0)})),
+        findings: ($r | map({typo: (.typo // ""), corrections: .corrections})),
+        appliedText: ([limit($max; $a[])] | map("  \"\(.typo)\" -> \"\(corr1)\" (line \(.line_num // 0))") | join("\n")),
+        appliedInline: ([limit($max; $a[])] | map("\"\(.typo)\" -> \"\(corr1)\" (line \(.line_num // 0))") | join("; ")),
+        residualText: ([limit($max; $r[])] | map(
+            if .corrections == null then
+              "  \"\(.typo)\" (line \(.line_num // 0)) is disallowed with no known correction — if intentional, add it to extend-words / extend-identifiers (or an extend-ignore-re pattern) in your typos config."
+            else
+              "  \"\(.typo)\" (line \(.line_num // 0)) should be \"\(corr1)\" — if intentional, add it to extend-words / extend-identifiers in your typos config."
+            end) | join("\n"))
+      }' 2>/dev/null) || CLASSIFIED=""
 
-APPLIED_LINES=""
-APPLIED_INLINE=""
-APPLIED_COUNT=0
-APPLIED_OBJS=""
-RESIDUAL_LINES=""
-RESIDUAL_COUNT=0
-FINDING_OBJS=""
-
-# One jq per scanned finding extracts every field at once, and each classified
-# object is APPENDED to a newline-delimited buffer that a single `jq -s` folds
-# into an array at the end. Re-reading and rewriting an accumulating array once
-# per finding would be quadratic in a hook that fires on every edit; the
-# telemetry arrays are uncapped, so that cost is paid on the whole finding set,
-# not on the ten lines the report shows.
-while IFS= read -r line; do
-  [[ -n "$line" ]] || continue
-  fields=$(printf '%s' "$line" |
-    jq -r 'select(.type == "typo") | [(.line_num // 0), (.typo // ""), (.corrections[0] // ""), (.corrections | tojson)] | @tsv' 2>/dev/null) || continue
-  [[ -n "$fields" ]] || continue
-  IFS=$'\t' read -r line_num typo first_correction corrections <<<"$fields"
-  [[ -n "$typo" ]] || continue
-  [[ -n "$corrections" ]] || corrections="null"
-
-  # A quoted expansion inside a `case` pattern is matched LITERALLY — POSIX
-  # requires quoted pattern characters not to act as pattern specials, and this
-  # was verified here against bash 5.3 for `*`, `?` and `[…]` in both
-  # directions. So a token carrying a glob metacharacter cannot widen this
-  # match, and no separate escaping pass is needed. Do not "fix" this into an
-  # unquoted expansion or a `grep -F` pipeline: `grep -F` splits a pattern on
-  # newlines, and this key is newline-delimited on both sides, which would
-  # match an empty pattern against everything.
-  case "$RESIDUAL_KEYS" in
-  *$'\n'"$line_num"$'\t'"$typo"$'\n'*)
-    # Survived the write (or nothing was written) — advisory only.
-    RESIDUAL_COUNT=$((RESIDUAL_COUNT + 1))
-    if ((RESIDUAL_COUNT <= MAX_REPORT)); then
-      if [[ "$corrections" == "null" ]]; then
-        RESIDUAL_LINES+="  \"$typo\" (line $line_num) is disallowed with no known correction — if intentional, add it to extend-words / extend-identifiers (or an extend-ignore-re pattern) in your typos config."$'\n'
-      else
-        RESIDUAL_LINES+="  \"$typo\" (line $line_num) should be \"$first_correction\" — if intentional, add it to extend-words / extend-identifiers in your typos config."$'\n'
-      fi
-    fi
-    parsed=$(jq -c -n --arg typo "$typo" --argjson corrections "$corrections" \
-      '{typo:$typo,corrections:$corrections}' 2>/dev/null) || continue
-    FINDING_OBJS+="$parsed"$'\n'
-    ;;
-  *)
-    # Present before the write, gone after it: this hook rewrote it.
-    APPLIED_COUNT=$((APPLIED_COUNT + 1))
-    if ((APPLIED_COUNT <= MAX_REPORT)); then
-      APPLIED_LINES+="  \"$typo\" -> \"$first_correction\" (line $line_num)"$'\n'
-      APPLIED_INLINE+="${APPLIED_INLINE:+; }\"$typo\" -> \"$first_correction\" (line $line_num)"
-    fi
-    parsed=$(jq -c -n --arg typo "$typo" --arg correction "$first_correction" --argjson line "${line_num:-0}" \
-      '{typo:$typo,correction:$correction,line:$line}' 2>/dev/null) || continue
-    APPLIED_OBJS+="$parsed"$'\n'
-    ;;
-  esac
-done <<<"$SCAN_OUTPUT"
-
-FINDINGS_JSON="[]"
-if [[ -n "$FINDING_OBJS" ]]; then
-  FINDINGS_JSON=$(printf '%s' "$FINDING_OBJS" | jq -c -s . 2>/dev/null) || FINDINGS_JSON="[]"
+if [[ -z "$CLASSIFIED" ]]; then
+  # jq is already a hard prerequisite (hook::require_jq above), so this is
+  # near-unreachable. It still must not degrade into silence: the file may
+  # already have been rewritten, and "changed, details unavailable" is a far
+  # better answer than nothing.
+  hook::ctx_reset
+  hook::ctx_append "typos-format ran on $(basename "$FILE") and its findings could not be summarized (internal parse failure). If the file was rewritten, review it — this run cannot say what changed."
+  hook::ctx_flush PostToolUse
+  data_json=$(build_data_json '[]')
+  emit_tel "typos-format" "PostToolUse" "skipped" "$start" "$data_json" "$REPO_ROOT"
+  exit 0
 fi
-APPLIED_JSON="[]"
-if [[ -n "$APPLIED_OBJS" ]]; then
-  APPLIED_JSON=$(printf '%s' "$APPLIED_OBJS" | jq -c -s . 2>/dev/null) || APPLIED_JSON="[]"
-fi
+
+read_field() { printf '%s' "$CLASSIFIED" | jq -r "$1" 2>/dev/null; }
+APPLIED_COUNT=$(read_field '.appliedCount')
+RESIDUAL_COUNT=$(read_field '.residualCount')
+APPLIED_LINES=$(read_field '.appliedText')
+APPLIED_INLINE=$(read_field '.appliedInline')
+RESIDUAL_LINES=$(read_field '.residualText')
+APPLIED_JSON=$(printf '%s' "$CLASSIFIED" | jq -c '.applied' 2>/dev/null) || APPLIED_JSON='[]'
+FINDINGS_JSON=$(printf '%s' "$CLASSIFIED" | jq -c '.findings' 2>/dev/null) || FINDINGS_JSON='[]'
+[[ "$APPLIED_COUNT" =~ ^[0-9]+$ ]] || APPLIED_COUNT=0
+[[ "$RESIDUAL_COUNT" =~ ^[0-9]+$ ]] || RESIDUAL_COUNT=0
+[[ -n "$APPLIED_LINES" ]] && APPLIED_LINES="$APPLIED_LINES"$'\n'
+[[ -n "$RESIDUAL_LINES" ]] && RESIDUAL_LINES="$RESIDUAL_LINES"$'\n'
 
 # Compose ONE stdout document. Claude Code parses a hook's entire stdout as a
 # single JSON document, so the agent-channel context and the user-channel

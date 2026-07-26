@@ -58,10 +58,16 @@ All notable changes to the `typos-format` plugin are documented here. Format fol
   Both passes are guarded identically: an exit 2 with no output is a typos break,
   not an empty residual set, so a write that broke mid-run is reported as a tool
   break instead of being read as "every finding was applied".
-- Telemetry arrays are folded once at the end rather than re-serialized per
-  finding, so a file with many findings costs a linear number of subprocesses
-  rather than a quadratic one. The disclosure is capped; the telemetry arrays
-  are not, so that cost is paid over the whole finding set.
+- **Classification is one `jq` pass, not a shell loop.** Process-spawn cost, not
+  typos, dominates this hook, and a per-finding loop turns a heavily-corrected
+  file into the very defect being fixed: the file is rewritten, the handler's
+  15-second timeout fires, and stdout is empty — silent mutation again, on
+  exactly the files where the disclosure matters most. The scan set, the
+  residual set, the split between them, and the capped display text are all
+  produced by a single invocation, so the subprocess count is constant in the
+  number of findings. A 120-correction file is asserted to disclose inside the
+  budget. The residual key is built and compared as a JSON string inside `jq`,
+  so a token carrying a shell or glob metacharacter is data throughout.
 
 ## [0.3.4]
 
