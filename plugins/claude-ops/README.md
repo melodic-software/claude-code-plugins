@@ -145,8 +145,12 @@ your own repository's context:
   (`${CLAUDE_PLUGIN_DATA}`): the known-issues registry
   (`registry.json`), `check-all` output, `--write` observability reports, and
   the `lanes` skill's per-lane launch-commit markers
-  (`${CLAUDE_PLUGIN_DATA}/lanes/<lane>-launch-commit`, overridable via
-  `lane-launcher.sh --data-dir`). By default nothing is written into your
+  (`${CLAUDE_PLUGIN_DATA}/lanes/<repo-key>/<lane>-launch-commit`, overridable
+  via `lane-launcher.sh --data-dir`). `<repo-key>` namespaces markers by
+  repository — the data directory is plugin-wide, while a lane name like `work`
+  is only unique within one checkout. It is a digest of the repository's
+  canonical path; print the one for a given checkout with
+  `printf '%s' "$(git rev-parse --show-toplevel)" | git hash-object --stdin`. By default nothing is written into your
   repository. Opt in for the registry via the `registry_dir` option (see
   Configuration) to keep it git-tracked and team-shared inside your repo
   instead.

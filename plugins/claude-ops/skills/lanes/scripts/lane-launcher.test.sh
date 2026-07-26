@@ -34,6 +34,7 @@ fail() {
   FAILED=$((FAILED + 1))
 }
 assert_eq() { if [[ "$3" == "$2" ]]; then pass "$1"; else fail "$1" "$2" "$3"; fi; }
+assert_not_eq() { if [[ "$3" != "$2" ]]; then pass "$1"; else fail "$1" "anything but: $2" "$3"; fi; }
 assert_contains() { if [[ "$2" == *"$3"* ]]; then pass "$1"; else fail "$1" "contains: $3" "$2"; fi; }
 assert_not_contains() { if [[ "$2" != *"$3"* ]]; then pass "$1"; else fail "$1" "absent: $3" "$2"; fi; }
 
@@ -56,11 +57,6 @@ printf 'You are the babysit lane.\n' >"$REPO/.work/babysit.md"
 printf 'You are the decide lane.\n' >"$REPO/.work/decide.md"
 
 CONFIG="$REPO/.work/lanes.json"
-
-# Launch-commit markers are namespaced by repo (#792 review): the data dir is
-# plugin-wide, but `work` is a conventional lane name in every repo. Mirrors
-# the launcher's own repo_marker_key.
-REPO_KEY="$(printf '%s' "$REPO" | tr -c 'A-Za-z0-9_-' '-')"
 
 # agents --json fixture: "work" running as a background session, others absent.
 AGENTS_RUNNING="$TMP/agents-running.json"
@@ -107,15 +103,31 @@ if [[ "\$1" == "stop" ]]; then exit "\${STUB_CLAUDE_STOP_RC:-0}"; fi
 # STUB_CLAUDE_UPDATE_RC to exercise the refresh-failure abort path.
 if [[ "\$1" == "plugin" ]]; then exit "\${STUB_CLAUDE_UPDATE_RC:-0}"; fi
 STUB
+REAL_GIT="$(command -v git)"
 cat >"$STUB_BIN/git" <<STUB
 #!/usr/bin/env bash
 printf 'git %s\n' "\$*" >>"$CLAUDE_LOG"
 # A test can force a failed \`git pull\` via STUB_GIT_PULL_RC to exercise the
-# refresh-failure abort path. git is only ever invoked for pull or rev-parse
-# here (repos are passed via --repo), so matching on those subcommands is
-# sufficient.
+# refresh-failure abort path. git is invoked for pull, rev-parse, and
+# hash-object here (repos are passed via --repo), so matching on those
+# subcommands is sufficient.
+#
+# hash-object delegates to the real git: the marker's repo key is a genuine
+# digest, and stubbing it would let a broken keying scheme pass. --show-toplevel
+# stands in for a real checkout (the fixture repos are plain directories, not
+# git repos) by echoing the -C directory; STUB_GIT_TOPLEVEL overrides it with a
+# different path, standing in for the canonicalization real git performs when
+# --repo names a symlink. STUB_GIT_REVPARSE_RC deliberately does NOT apply here:
+# an unresolvable HEAD says nothing about the working tree's location.
 case "\$*" in
 *pull*) exit "\${STUB_GIT_PULL_RC:-0}" ;;
+*hash-object*) exec "$REAL_GIT" "\$@" ;;
+*--show-toplevel*)
+  if [[ -n "\${STUB_GIT_TOPLEVEL:-}" ]]; then printf '%s\n' "\$STUB_GIT_TOPLEVEL"; exit 0; fi
+  [[ "\$1" == "-C" ]] || exit 1
+  printf '%s\n' "\$2"
+  exit 0
+  ;;
 *rev-parse*)
   [[ "\${STUB_GIT_REVPARSE_RC:-0}" != 0 ]] && exit "\${STUB_GIT_REVPARSE_RC}"
   printf '%s\n' "\${STUB_GIT_REVPARSE_SHA:-deadbeefcafefeedfacefeeddeadbeefcafefeed}"
@@ -130,6 +142,14 @@ chmod +x "$STUB_BIN/claude" "$STUB_BIN/git"
 # inspect the log reset it first. Real git is never needed — repos are passed
 # via --repo, so resolve_repo never shells out.
 export PATH="$STUB_BIN:$PATH"
+
+# Launch-commit markers are namespaced by repo (#792 review): the data dir is
+# plugin-wide, but `work` is a conventional lane name in every repo. Mirrors the
+# launcher's own repo_marker_key — a digest of the canonical repo path, not a
+# character fold, so two paths differing only in a folded character keep
+# distinct keys.
+marker_repo_key() { printf '%s' "$1" | git hash-object --stdin; }
+REPO_KEY="$(marker_repo_key "$REPO")"
 
 run_launcher() { bash "$SCRIPT" "$@"; }
 
@@ -558,7 +578,7 @@ REPO_B="$TMP/repo-b"
 mkdir -p "$REPO_B/.work"
 cp "$REPO/.work/lanes.json" "$REPO_B/.work/lanes.json"
 cp "$REPO/.work/work.md" "$REPO/.work/babysit.md" "$REPO/.work/decide.md" "$REPO_B/.work/"
-REPO_B_KEY="$(printf '%s' "$REPO_B" | tr -c 'A-Za-z0-9_-' '-')"
+REPO_B_KEY="$(marker_repo_key "$REPO_B")"
 DATA_DIR7="$TMP/data7"
 mkdir -p "$DATA_DIR7/lanes/$REPO_KEY"
 printf 'repo-a-sha\n' >"$DATA_DIR7/lanes/$REPO_KEY/work-launch-commit"
@@ -567,6 +587,26 @@ marker="$(cat "$DATA_DIR7/lanes/$REPO_KEY/work-launch-commit" 2>/dev/null)"
 assert_eq "marker: launching 'work' in another repo leaves repo A's marker intact" "repo-a-sha" "$marker"
 marker="$(cat "$DATA_DIR7/lanes/$REPO_B_KEY/work-launch-commit" 2>/dev/null)"
 assert_eq "marker: the other repo gets its own namespaced marker" "deadbeefcafefeedfacefeeddeadbeefcafefeed" "$marker"
+
+# The repo key must be injective. A character fold (`tr -c 'A-Za-z0-9_-' '-'`)
+# collapses these two real, distinct checkout paths onto one key — the exact
+# collision the repo namespace exists to prevent.
+fold_key_a="$(printf '%s' "$TMP/repos/foo-bar" | git hash-object --stdin)"
+fold_key_b="$(printf '%s' "$TMP/repos/foo/bar" | git hash-object --stdin)"
+assert_not_eq "marker: repo key does not collide across fold-equivalent paths" \
+  "$fold_key_a" "$fold_key_b"
+
+# The key must come from git's canonical toplevel, not the --repo argument
+# verbatim: when --repo names a symlink, git resolves it and the documented
+# probe (which asks git directly) would otherwise look under a different key.
+# STUB_GIT_TOPLEVEL stands in for that resolution.
+DATA_DIR8="$TMP/data8"
+CANONICAL="$TMP/canonical-repo"
+out="$(STUB_GIT_TOPLEVEL="$CANONICAL" run_launcher start --repo "$REPO" --config "$CONFIG" --agents-json "$AGENTS_EMPTY" --data-dir "$DATA_DIR8" 2>&1)"
+marker="$(cat "$DATA_DIR8/lanes/$(marker_repo_key "$CANONICAL")/work-launch-commit" 2>/dev/null)"
+assert_eq "marker: keys on git's canonical toplevel, not the --repo argument" "deadbeefcafefeedfacefeeddeadbeefcafefeed" "$marker"
+if [[ -e "$DATA_DIR8/lanes/$REPO_KEY/work-launch-commit" ]]; then usedarg=1; else usedarg=0; fi
+assert_eq "marker: nothing is written under the un-canonicalized --repo key" 0 "$usedarg"
 
 # ============================================================================
 echo

@@ -62,8 +62,9 @@
 #   After the pre-launch `git pull` (start/restart), the repo HEAD is captured
 #   once and, for every lane actually (re)started this run, written to
 #   `<data-dir>/lanes/<repo-key>/<lane>-launch-commit` (bare 40/64-hex SHA +
-#   newline; <repo-key> is the resolved repo path folded to [A-Za-z0-9_-], so
-#   same-named lanes in different repos never share a marker) —
+#   newline; <repo-key> digests the canonical repo path, so same-named lanes in
+#   different repos never share a marker — recompute it by hand with
+#   `printf '%s' "$(git rev-parse --show-toplevel)" | git hash-object --stdin`) —
 #   the `<lane-launch-commit>` context/refresh.md's staleness probe reads. A
 #   lane skipped by `start` (already running) keeps its existing marker
 #   untouched. Best-effort: a write failure (or an unresolvable HEAD) warns on
@@ -308,14 +309,30 @@ resolve_data_dir() {
 # conventional name everywhere. Without a repo component, starting `work` in
 # repo B would overwrite repo A's marker, and A's probe would then diff against
 # a SHA from an unrelated history — usually an "invalid revision" error, at best
-# a silently wrong answer. Key on the resolved absolute repo path, with every
-# character outside [A-Za-z0-9_-] folded to `-` (the same shape Claude Code uses
-# for its own per-project directories). The marker is already documented as
-# per-machine, so a per-machine path is the right identity; folding is not
-# injective for paths differing only in separator-vs-dash, which no real pair of
-# checkouts is.
+# a silently wrong answer.
+#
+# Two properties the key must have, both learned the hard way:
+#   * Injective. A character-folding scheme (e.g. `tr -c 'A-Za-z0-9_-' '-'`)
+#     collapses `/repos/foo-bar` and `/repos/foo/bar` onto one key, which is the
+#     very collision this component exists to prevent. `git hash-object` over
+#     the exact path string cannot.
+#   * Derived from the CANONICAL path. `--repo` may name a symlink, which
+#     `resolve_repo` preserves; context/refresh.md's probe independently asks
+#     git for the toplevel. Both sides therefore key on `git rev-parse
+#     --show-toplevel` — git reports the physical, symlink-resolved working
+#     tree — so the probe always looks where the launcher wrote.
+# Falls back to $REPO only when the directory is not a git repo at all, where
+# the probe could not run anyway. Computed once per run.
+REPO_MARKER_KEY=""
 repo_marker_key() {
-  printf '%s' "$REPO" | tr -c 'A-Za-z0-9_-' '-'
+  if [[ -z "$REPO_MARKER_KEY" ]]; then
+    local top
+    top="$(git -C "$REPO" rev-parse --show-toplevel 2>/dev/null)" || top=""
+    [[ -n "$top" ]] || top="$REPO"
+    REPO_MARKER_KEY="$(printf '%s' "$top" | git hash-object --stdin 2>/dev/null)"
+    [[ -n "$REPO_MARKER_KEY" ]] || REPO_MARKER_KEY="unkeyed"
+  fi
+  printf '%s' "$REPO_MARKER_KEY"
 }
 
 launch_commit_marker_path() {

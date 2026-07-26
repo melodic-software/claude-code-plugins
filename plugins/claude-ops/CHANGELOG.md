@@ -58,9 +58,13 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
     conventional `work` lane in two checkouts would otherwise share a marker and
     each repo's probe would diff against the other's unrelated history — usually
     an invalid-revision error, at best a silently wrong answer. `<repo-key>` is
-    the resolved absolute repo path with every character outside `[A-Za-z0-9_-]`
-    folded to `-`, the same shape Claude Code uses for its own per-project
-    directories.
+    `git hash-object` over `git rev-parse --show-toplevel`: a digest rather than
+    a character fold, because folding collapses two real checkout paths like
+    `/repos/foo-bar` and `/repos/foo/bar` onto one key, and git's canonical
+    (symlink-resolved) toplevel rather than the `--repo` argument, because the
+    documented probe asks git directly and both sides must land on the same key.
+    Print the key for a checkout with
+    `printf '%s' "$(git rev-parse --show-toplevel)" | git hash-object --stdin`.
   - A (re)start that cannot record its own commit (unresolvable HEAD, or a failed
     write) now removes any marker the previous launch left. Leaving it made the
     probe treat that older commit as the new session's launch point and report

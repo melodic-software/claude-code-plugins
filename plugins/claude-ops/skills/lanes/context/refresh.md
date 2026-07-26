@@ -51,8 +51,11 @@ default="$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null || echo
 # restart cadence" section carries — it is the ONLY place the real directory is
 # resolvable (see the paragraph below). Do not substitute an env var here.
 # Markers are namespaced by repo: the data dir is plugin-wide, but `work` is a
-# conventional lane name in every repo this launcher manages.
-repo_key="$(printf '%s' "$(git rev-parse --show-toplevel)" | tr -c 'A-Za-z0-9_-' '-')"
+# conventional lane name in every repo this launcher manages. Digest, not a
+# character fold, so two paths differing only in a folded character keep
+# distinct keys; keyed on git's canonical (symlink-resolved) toplevel, which is
+# exactly what lane-launcher.sh hashes.
+repo_key="$(printf '%s' "$(git rev-parse --show-toplevel)" | git hash-object --stdin)"
 # the commit lane-launcher.sh recorded when this lane last (re)started (#792)
 # tr -d '\r': strip a Windows CRLF read hazard on any captured value (the
 # repo's standing convention — see the CHANGELOG's #1176/F2 note) before it
@@ -88,7 +91,12 @@ not a single path component — the path above is literally true for every
 accepted name. `<repo-key>` namespaces the marker by repo, because the data
 directory is plugin-wide while a lane name is only unique within one repo: a
 conventional `work` lane in two checkouts would otherwise share one marker and
-each probe would diff against the other repo's unrelated history. An empty
+each probe would diff against the other repo's unrelated history. It is a digest
+of git's canonical toplevel rather than a readable slug, deliberately — a
+character fold would collapse `/repos/foo-bar` and `/repos/foo/bar` onto one
+key, and the canonical toplevel keeps a symlinked `--repo` argument pointing at
+the same key both sides use. Recompute it for a by-hand inspection with the
+`repo_key=` line above. An empty
 `lane_launch_commit` means no marker exists for that
 lane (never started/restarted through `lane-launcher.sh` on this machine, or the
 last (re)start could not record one) — the probe has nothing to diff against and
