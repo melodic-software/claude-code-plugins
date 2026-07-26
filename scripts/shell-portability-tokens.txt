@@ -48,23 +48,29 @@
 \\W
 
 # `grep -P` (PCRE mode) — absent in BSD grep, and in some GNU builds compiled
-# without PCRE support.
-grep[^\n]*[[:space:]]-[A-Za-z]*P([[:space:]]|$)
+# without PCRE support. `P` may appear anywhere in a combined short-option
+# cluster (`-riP`, `-Pn`, `-nP`), not only as the cluster's last letter.
+grep[^\n]*[[:space:]]-[A-Za-z]*P[A-Za-z]*([[:space:]]|$)
 --perl-regexp
 
 # `echo -e` — POSIX leaves echo's flag handling unspecified; BSD/macOS sh/bash
 # builtin `echo` treats `-e` as a literal argument, not an escape-interpretation
 # flag. `printf '%b\n'` (or a literal `$'...'` ANSI-C string) is the portable
-# replacement.
-echo[[:space:]]+-e([[:space:]]|$)
+# replacement. `e` may appear anywhere in echo's short-option cluster
+# (bash advertises `echo [-neE]`), not only as a standalone `-e`.
+echo[[:space:]]+-[a-zA-Z]*e[a-zA-Z]*([[:space:]]|$)
 
 # `sort -V` (natural/version sort) — a GNU coreutils extension; BSD sort has no
-# `-V`.
-sort[^\n]*[[:space:]]-[A-Za-z]*V([[:space:]]|$)
+# `-V`. `V` may appear anywhere in a combined short-option cluster (`-Vr`),
+# not only as the cluster's last letter.
+sort[^\n]*[[:space:]]-[A-Za-z]*V[A-Za-z]*([[:space:]]|$)
 
 # `sed -i` with no suffix argument attached — GNU treats the suffix as
-# optional; BSD sed requires one immediately after `-i` (even an explicit empty
-# string, `-i ''`, which this pattern does not flag — see is_guarded()).
+# optional; BSD sed requires one immediately after `-i` (even an explicit
+# empty string, `-i ''` / `-i ""`, auto-guarded by is_guarded() so the
+# portable BSD-safe idiom is not itself flagged). Does not yet cover every
+# GNU spelling (`-Ei`, `--in-place`, an attached-not-space-separated empty
+# suffix) — see #1513.
 sed[^\n]*-i[[:space:]]+[^[:space:]]
 
 # `readlink -f` (canonicalize) — a GNU coreutils extension; BSD/macOS readlink

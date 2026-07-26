@@ -46,10 +46,10 @@
 # contiguous block directly above a hit) — comment-skip is for CONSTRUCT
 # matching only, never for annotation detection.
 #
-# This is a grep-level tripwire, not a semantic proof. Guard markers are seeded
-# for the one class that needs one against the live corpus today (readlink -f);
-# a further class enables its own guard here, proven against an `--all` audit
-# first — see the token file's STAGED section.
+# This is a grep-level tripwire, not a semantic proof. Guard markers are
+# seeded for the two classes that need one today (readlink -f, sed -i's
+# empty-suffix idiom); a further class enables its own guard here, proven
+# against an `--all` audit first — see the token file's STAGED section.
 #
 # Exit 0 = clean (or nothing in scope); 1 = one or more violations; 2 = usage /
 # environment error (fail closed — never a silent skip).
@@ -142,13 +142,30 @@ scan_file() {
     function is_annotated(l) { return l ~ /portability-ok:/ }
     function is_comment(l) { return l ~ /^[[:space:]]*#/ }
     # Same-line auto-guard: a portable BSD-side attempt already co-located on
-    # the hit line. Scoped to the one active class that needs it today
-    # (readlink -f, guarded by a co-located realpath attempt — the shape
-    # lib/hook-utils.sh already uses: `realpath ... || readlink -f ...`). A
-    # further class enables its own marker here when it is activated (see the
-    # token file STAGED section) — this is deliberately not a generic
-    # heuristic, the same posture check-skill-portability.sh takes.
-    function is_guarded(l) { return l ~ /realpath/ }
+    # the hit line. Scoped to the two active shapes that need one today:
+    #   - readlink -f, guarded by a co-located realpath attempt — the shape
+    #     lib/hook-utils.sh already uses: `realpath ... || readlink -f ...`;
+    #   - sed -i, guarded by an explicit empty-suffix argument (a quoted empty
+    #     string immediately following -i) — the portable BSD-safe idiom this
+    #     class exists to encourage; without this guard the gate would flag
+    #     the CORRECT form.
+    # Takes the matched pattern text too, so the realpath guard applies only
+    # when the readlink pattern itself matched — a line that merely mentions
+    # "realpath" elsewhere must not blanket-excuse an unrelated hit on the
+    # same line. A further class enables its own marker here when it is
+    # activated (see the token file STAGED section) — this is deliberately
+    # not a generic heuristic, the same posture check-skill-portability.sh
+    # takes.
+    function is_guarded(l, p,    q1, q2, empty_suffix) {
+      if (p ~ /readlink/ && l ~ /realpath/) return 1
+      if (p ~ /sed\[/) {
+        q1 = sprintf("%c", 39) # single quote, kept out of the literal source
+        q2 = sprintf("%c", 34) # double quote, kept out of the literal source
+        empty_suffix = "-i[[:space:]]+(" q1 q1 "|" q2 q2 ")([[:space:]]|$)"
+        if (l ~ empty_suffix) return 1
+      }
+      return 0
+    }
     # Pass 1: collect active ERE patterns from the token list.
     FNR == NR {
       line = $0
@@ -173,7 +190,7 @@ scan_file() {
       for (i = 1; i <= np; i++) {
         if (line ~ patterns[i]) {
           if (is_annotated(line) || annotated_above) continue
-          if (is_guarded(line)) continue
+          if (is_guarded(line, patterns[i])) continue
           printf "%d: %s -> %s\n", FNR, patterns[i], line
         }
       }

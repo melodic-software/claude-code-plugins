@@ -107,7 +107,7 @@ done
 # grep -P / --perl-regexp
 # =============================================================================
 
-tok="$(one_token_list 'grep[^\n]*[[:space:]]-[A-Za-z]*P([[:space:]]|$)')"
+tok="$(one_token_list 'grep[^\n]*[[:space:]]-[A-Za-z]*P[A-Za-z]*([[:space:]]|$)')"
 
 f="$(tmpsh 'grep -P "\\d+" "$file"')"
 if out="$(scan_paths "$tok" "$f" 2>&1)"; then
@@ -119,9 +119,18 @@ rm -f "$f"
 
 f="$(tmpsh 'grep -riP "\\d+" "$file"')"
 if scan_paths "$tok" "$f" >/dev/null 2>&1; then
-  fail "grep -riP (combined flags) should fail"
+  fail "grep -riP (combined flags, P last) should fail"
 else
   ok "grep -riP (combined flags, P last) is detected"
+fi
+rm -f "$f"
+
+# --- P need not be the LAST letter in the flag cluster ("grep -Pn") --------
+f="$(tmpsh 'grep -Pn "\\d+" "$file"')"
+if scan_paths "$tok" "$f" >/dev/null 2>&1; then
+  fail "grep -Pn (P not last in the cluster) should fail"
+else
+  ok "grep -Pn (P not last in the cluster) is detected"
 fi
 rm -f "$f"
 
@@ -137,21 +146,41 @@ rm -f "$f" "$tok"
 # echo -e / sort -V
 # =============================================================================
 
-tok="$(one_token_list 'echo[[:space:]]+-e([[:space:]]|$)')"
+tok="$(one_token_list 'echo[[:space:]]+-[a-zA-Z]*e[a-zA-Z]*([[:space:]]|$)')"
+
 f="$(tmpsh 'echo -e "line1\nline2"')"
 if out="$(scan_paths "$tok" "$f" 2>&1)"; then
   fail "echo -e should fail, got success: $out"
 else
   ok "echo -e is detected"
 fi
+rm -f "$f"
+
+# --- e need not be the only letter in the cluster ("echo -ne") -------------
+f="$(tmpsh "echo -ne 'a\\nb'")"
+if scan_paths "$tok" "$f" >/dev/null 2>&1; then
+  fail "echo -ne (combined flags) should fail"
+else
+  ok "echo -ne (combined flags) is detected"
+fi
 rm -f "$f" "$tok"
 
-tok="$(one_token_list 'sort[^\n]*[[:space:]]-[A-Za-z]*V([[:space:]]|$)')"
+tok="$(one_token_list 'sort[^\n]*[[:space:]]-[A-Za-z]*V[A-Za-z]*([[:space:]]|$)')"
+
 f="$(tmpsh 'sort -V "$file"')"
 if out="$(scan_paths "$tok" "$f" 2>&1)"; then
   fail "sort -V should fail, got success: $out"
 else
   ok "sort -V is detected"
+fi
+rm -f "$f"
+
+# --- V need not be the LAST letter in the flag cluster ("sort -Vr") --------
+f="$(tmpsh 'sort -Vr "$file"')"
+if scan_paths "$tok" "$f" >/dev/null 2>&1; then
+  fail "sort -Vr (V not last in the cluster) should fail"
+else
+  ok "sort -Vr (V not last in the cluster) is detected"
 fi
 rm -f "$f" "$tok"
 
@@ -175,6 +204,23 @@ if scan_paths "$tok" "$f" >/dev/null 2>&1; then
 else
   fail "sed -i.bak must not be flagged"
 fi
+rm -f "$f"
+
+# --- the portable BSD-safe -i '' / -i "" idiom is auto-guarded, not flagged
+f="$(tmpsh "sed -i '' 's/foo/bar/' \"\$file\"")"
+if scan_paths "$tok" "$f" >/dev/null 2>&1; then
+  ok "sed -i '' (explicit empty-suffix, single-quoted) is not flagged"
+else
+  fail "sed -i '' must not be flagged -- it is the portable BSD-safe idiom"
+fi
+rm -f "$f"
+
+f="$(tmpsh 'sed -i "" -E "s/foo/bar/" "$file"')"
+if scan_paths "$tok" "$f" >/dev/null 2>&1; then
+  ok "sed -i \"\" (explicit empty-suffix, double-quoted) is not flagged"
+else
+  fail 'sed -i "" must not be flagged -- it is the portable BSD-safe idiom'
+fi
 rm -f "$f" "$tok"
 
 # =============================================================================
@@ -196,6 +242,18 @@ if scan_paths "$tok" "$f" >/dev/null 2>&1; then
   ok "readlink -f co-located with a realpath attempt is auto-guarded"
 else
   fail "the realpath-first fallback ladder must not be flagged"
+fi
+rm -f "$f" "$tok"
+
+# --- the realpath guard is scoped to the readlink pattern, not the whole line
+# A line mentioning "realpath" for an unrelated reason must not blanket-excuse
+# a DIFFERENT active token's hit on that same line.
+tok="$(one_token_list "$(printf '%s\n%s' '\\b' 'readlink[[:space:]]+(-[A-Za-z]*f|--canonicalize)')")"
+f="$(tmpsh 'echo "realpath is a coreutils tool"; grep -Eq "\\bfoo\\b" "$file"')"
+if out="$(scan_paths "$tok" "$f" 2>&1)"; then
+  fail "an unrelated realpath mention should not excuse the \\b hit, got success: $out"
+else
+  ok "the realpath guard is scoped to the readlink pattern, not the whole line"
 fi
 rm -f "$f" "$tok"
 
