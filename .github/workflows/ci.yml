@@ -396,6 +396,32 @@ jobs:
       - name: Run silent-skip-gate tests
         run: bash scripts/check-silent-skips.test.sh
 
+  # #1547: a routine `git merge origin/main` silently dropped
+  # plugins/guardrails/.claude-plugin/plugin.json for ~14 minutes on a branch
+  # while .claude-plugin/marketplace.json still catalogued "guardrails" at that
+  # directory — no conflict markers, nothing to alert the author; an AI
+  # reviewer reading the diff caught it, not CI. check-jsonschema (the
+  # marketplace_schema/plugin_schema steps in `hygiene`) validates the SHAPE of
+  # a manifest that exists; it cannot see one that is simply absent. This gate
+  # asserts every catalog entry resolves to a present, name-matching plugin
+  # manifest, and (paired, lower severity) that every plugins/*/ directory is
+  # itself catalogued. Repo-wide and static, so it always runs (no docs-only or
+  # PR-diff scoping — a manifest going missing is not confined to a diff). The
+  # self-test runs first so a broken detector cannot mask a regression behind a
+  # green gate.
+  plugin-manifest-presence-gate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - name: Test the plugin-manifest-presence gate
+        run: bash scripts/check-plugin-manifest-presence.test.sh
+      - name: Check every catalog entry resolves to a present, name-matching plugin manifest
+        run: scripts/check-plugin-manifest-presence.sh
+
   # Every file under a skill's evals/fixtures/ must be consumed by a grader — an
   # eval files[] entry or a test assertion — so an ungraded suite cannot sit in
   # the tree reading as tested. The check is repo-wide and static; existing debt
@@ -900,6 +926,7 @@ jobs:
       - skill-leaf-name-gate
       - userconfig-argv-gate
       - silent-skip-gate
+      - plugin-manifest-presence-gate
       - orphaned-fixture-gate
       - changelog-parity-gate
       - contract-slice-prune-gate

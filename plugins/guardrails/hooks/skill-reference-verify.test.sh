@@ -395,7 +395,7 @@ assert_contains "repo root is file-anchored" "$HOOK_SRC" 'hook::repo_root "$(dir
 
 # ============================ TELEMETRY =====================================
 
-TEL="$(mktemp -p "$TEST_TMPDIR")"
+TEL="$(mktemp "$TEST_TMPDIR/tmp.XXXXXXXXXX")"
 SINK="$(make_sink "cat >\"$TEL\"")"
 CLAUDE_PROJECT_DIR="$REPO" HOOK_TELEMETRY_SINK="$SINK" \
   bash "$HOOK" <<<"$(write_json "$TARGET" 'Run `/alpha:nonexistent`.')" >/dev/null 2>&1 || true

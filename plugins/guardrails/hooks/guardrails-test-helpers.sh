@@ -73,7 +73,7 @@ pwsh_command_json() {
 make_sink() {
   local s
   # shellcheck disable=SC2154  # TEST_TMPDIR is a caller contract (set by each test file)
-  s="$(mktemp -p "$TEST_TMPDIR" sink.XXXXXX)"
+  s="$(mktemp "$TEST_TMPDIR/sink.XXXXXX")"
   {
     printf '#!/usr/bin/env bash\n'
     printf '%s\n' "$1"

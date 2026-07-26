@@ -24,7 +24,7 @@ source "$HOOK_DIR/guardrails-test-helpers.sh"
 # enablement from files, never this repo's own settings.
 make_project() {
   local dir enabled="${1:-}" local_val="${2:-}"
-  dir="$(mktemp -d -p "$TEST_TMPDIR")"
+  dir="$(mktemp -d "$TEST_TMPDIR/tmp.XXXXXXXXXX")"
   mkdir -p "$dir/.claude"
   if [[ -n "$enabled" ]]; then
     jq -n --argjson v "$enabled" '{enabledPlugins:{"source-control@melodic-software":$v}}' \
@@ -47,7 +47,7 @@ NO_KEY_PROJECT="$(make_project)"
 # so a user-global enablement can be exercised hermetically.
 make_home() {
   local dir enabled="$1"
-  dir="$(mktemp -d -p "$TEST_TMPDIR")"
+  dir="$(mktemp -d "$TEST_TMPDIR/tmp.XXXXXXXXXX")"
   mkdir -p "$dir/.claude"
   jq -n --argjson v "$enabled" '{enabledPlugins:{"source-control@melodic-software":$v}}' \
     >"$dir/.claude/settings.json"
@@ -57,12 +57,12 @@ make_home() {
 # A clean HOME with no ~/.claude, so a case that does not set its own HOME never
 # reads the CI runner's real user-global settings. Cases exercising user-global
 # scope pass HOME=<make_home ...> through run_hook's trailing env args.
-HERMETIC_HOME="$(mktemp -d -p "$TEST_TMPDIR")"
+HERMETIC_HOME="$(mktemp -d "$TEST_TMPDIR/tmp.XXXXXXXXXX")"
 
 # settings.json directly in the dir (the CLAUDE_CONFIG_DIR layout, no `.claude/`).
 make_config_dir() {
   local dir enabled="$1"
-  dir="$(mktemp -d -p "$TEST_TMPDIR")"
+  dir="$(mktemp -d "$TEST_TMPDIR/tmp.XXXXXXXXXX")"
   jq -n --argjson v "$enabled" '{enabledPlugins:{"source-control@melodic-software":$v}}' \
     >"$dir/settings.json"
   printf '%s' "$dir"
@@ -105,7 +105,7 @@ assert_silent "source-control explicitly disabled stays silent" "$out"
 out=$(run_hook "$(command_json 'gh pr create --title x --body y')" "$NO_KEY_PROJECT")
 assert_silent "source-control key absent stays silent" "$out"
 
-NO_SETTINGS_PROJECT="$(mktemp -d -p "$TEST_TMPDIR")"
+NO_SETTINGS_PROJECT="$(mktemp -d "$TEST_TMPDIR/tmp.XXXXXXXXXX")"
 out=$(run_hook "$(command_json 'gh pr create --title x --body y')" "$NO_SETTINGS_PROJECT")
 assert_silent "no .claude/settings.json at all stays silent" "$out"
 
@@ -161,10 +161,10 @@ assert_contains "user-global via CLAUDE_CONFIG_DIR fires" "$out" "gh pr create"
 
 # Multiple source-control@ keys (marketplace migration): ANY enabled key means
 # the skill is available, resolved per exact key — not collapsed to one value.
-MK_HOME="$(mktemp -d -p "$TEST_TMPDIR")"
+MK_HOME="$(mktemp -d "$TEST_TMPDIR/tmp.XXXXXXXXXX")"
 mkdir -p "$MK_HOME/.claude"
 jq -n '{enabledPlugins:{"source-control@old":true}}' >"$MK_HOME/.claude/settings.json"
-MK_PROJ="$(mktemp -d -p "$TEST_TMPDIR")"
+MK_PROJ="$(mktemp -d "$TEST_TMPDIR/tmp.XXXXXXXXXX")"
 mkdir -p "$MK_PROJ/.claude"
 jq -n '{enabledPlugins:{"source-control@new":false}}' >"$MK_PROJ/.claude/settings.json"
 out=$(run_hook "$(command_json 'gh pr create --title x --body y')" "$MK_PROJ" HOME="$MK_HOME")
@@ -180,7 +180,7 @@ out=$(env CLAUDE_PROJECT_DIR="$ENABLED_PROJECT" bash "$HOOK" <<<"" 2>&1)
 assert_silent "empty stdin is a no-op" "$out"
 
 # --- telemetry: fired case emits an `ok` envelope with a category label ------
-TEL="$(mktemp -p "$TEST_TMPDIR")"
+TEL="$(mktemp "$TEST_TMPDIR/tmp.XXXXXXXXXX")"
 SINK="$(make_sink "cat >>\"$TEL\"")"
 env HOOK_TELEMETRY_SINK="$SINK" CLAUDE_PROJECT_DIR="$ENABLED_PROJECT" \
   bash "$HOOK" <<<"$(command_json 'gh pr create --title x --body y')" >/dev/null 2>&1 || true

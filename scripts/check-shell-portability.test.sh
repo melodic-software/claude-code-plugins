@@ -574,9 +574,11 @@ fi
 rm -f "$f"
 
 # --- operator-terminated forms: no trailing whitespace before a control
-# operator, redirection, subshell close or quote must still be detected
-# (#1545 — the boundary originally accepted only whitespace or end of line,
-# the same class of false negative #1537 fixed for sort -V/grep -P/echo -e) -
+# operator, redirection, or subshell close must still be detected (#1545 —
+# the boundary originally accepted only whitespace or end of line, the same
+# class of false negative #1537 fixed for sort -V/grep -P/echo -e). Quotes
+# are NOT in this token's boundary (unlike the sibling tokens above) — see
+# the "sed -Ei'' must not be flagged" test above for why. --------------------
 while IFS= read -r case; do
   f="$(tmpsh "$case")"
   if out="$(scan_paths "$tok" "$f" 2>&1)"; then
@@ -891,10 +893,10 @@ else
   fail "markdown-format.sh must stay clean under the shipped token list, got: $out"
 fi
 
-# --- staged (commented) classes stay inactive under the shipped list -------
-f="$(tmpsh 'x=$(date -d "$s" +%s); y=$(stat -c%s "$f"); t=$(mktemp -p "$d")')"
+# --- remaining staged (commented) classes stay inactive under the shipped list
+f="$(tmpsh 'x=$(date -d "$s" +%s); y=$(stat -c%s "$f")')"
 if scan_paths "$REAL_TOKENS" "$f" >/dev/null 2>&1; then
-  ok "staged classes (date -d, stat -c, mktemp -p) are inactive in the shipped list"
+  ok "remaining staged classes (date -d, stat -c) are inactive in the shipped list"
 else
   fail "shipped list should only enforce the active classes"
 fi
@@ -940,22 +942,149 @@ else
 fi
 rm -f "$f"
 
+# --- mktemp -p is now ACTIVE (#1527) ----------------------------------------
+f="$(tmpsh 't=$(mktemp -p "$d")')"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "shipped list should flag mktemp -p now that it is active: $out"
+else
+  ok "shipped list flags mktemp -p (active class, #1527)"
+fi
+rm -f "$f"
+
+f="$(tmpsh 't=$(mktemp -dp "$d" tmp.XXXXXX)')"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "shipped list should flag mktemp -dp combined cluster: $out"
+else
+  ok "shipped list flags mktemp -dp combined short-option cluster"
+fi
+rm -f "$f"
+
+f="$(tmpsh 't=$(mktemp "$d/tmp.XXXXXX")')"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  ok "the portable mktemp \"\$DIR/template\" form (no -p) is not flagged"
+else
+  fail "the portable mktemp form should not be flagged, got: $out"
+fi
+rm -f "$f"
+
+# --- attached-value and long-form parent-directory spellings (#1543). GNU
+# getopt takes -p's DIR joined to the cluster, and documents --tmpdir[=DIR] as
+# the equivalent; both are as BSD-incompatible as the whitespace-delimited form
+# a cluster-plus-whitespace boundary alone matched. The attached DIR is an
+# arbitrary string, so one whose first segment is alphabetic must flag exactly
+# like `-p/tmp` — verified against GNU coreutils 8.32, where
+# `mktemp -prel/sub name.XXXXXX` creates `rel/sub/name.XXXXXX`.
+f="$(tmpsh "$(printf '%s\n' \
+  'mktemp -p/tmp name.XXXXXX' \
+  'mktemp -prel/sub name.XXXXXX' \
+  'mktemp --tmpdir=/tmp name.XXXXXX' \
+  'mktemp --tmpdir name.XXXXXX')")"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "attached -p<DIR> and --tmpdir spellings should be flagged, got success: $out"
+elif [[ "$(echo "$out" | grep -c "PORTABILITY: ${f}:")" -eq 4 ]]; then
+  ok "the shipped list flags both attached -p<DIR> forms and both --tmpdir spellings"
+else
+  fail "expected all 4 parent-directory spellings flagged, got: $out"
+fi
+rm -f "$f"
+
+# --- ...and the option scan stops at a shell command separator (#1543): a
+# physical line is not a command, so a later command's `-p` is not mktemp's.
+f="$(tmpsh 'tmp=$(mktemp); cp -p source "$tmp"')"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  ok "cp -p after a portable mktemp on the same line is not flagged"
+else
+  fail "a later command's -p must not be attributed to mktemp, got: $out"
+fi
+rm -f "$f"
+
+# --- ...including the legacy backtick spelling of that substitution (#1543).
+# A closing backtick ends the substitution exactly as `)` ends `$(...)`, so in
+# the VAR=value-prefixed command below the `-p` is cp's, not mktemp's.
+f="$(tmpsh 'tmp=`mktemp` cp -p source target')"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  ok "cp -p after a backtick-substituted portable mktemp is not flagged"
+else
+  fail "a closing backtick must end the option scan, got: $out"
+fi
+rm -f "$f"
+
+# --- ...without over-stopping: a `-p` INSIDE the backtick substitution is
+# mktemp's own and must keep flagging.
+f="$(tmpsh 'tmp=`mktemp -p "$d"`')"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "mktemp -p inside a backtick substitution must still be flagged: $out"
+else
+  ok "mktemp -p inside a backtick substitution is still flagged"
+fi
+rm -f "$f"
+
+# --- both mktemp tokens are anchored to the COMMAND TOKEN (#1543): `-p` and
+# `--tmpdir` are GNU mktemp's flags, not a flag of every command whose name
+# merely contains "mktemp". The boundary is a shell WORD POSITION rather than
+# an enumeration of legal name characters -- `+` and `@` are as legal in a
+# command name as `-` and `.`, so any such enumeration is unfinishable.
+f="$(tmpsh "$(printf '%s\n' \
+  'mktemp_wrapper -p /tmp' \
+  'my_mktemp -p /tmp' \
+  'mktempfoo -p /tmp' \
+  'safe-mktemp -p /tmp' \
+  'my.mktemp -p /tmp' \
+  'safe+mktemp -p /tmp' \
+  'safe@mktemp --tmpdir=/tmp' \
+  'safe-mktemp --tmpdir=/tmp' \
+  'xmktemp --tmpdir=/tmp')")"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  ok "commands whose name merely contains mktemp are not flagged"
+else
+  fail "mktemp's tokens must not match a different command's name, got: $out"
+fi
+rm -f "$f"
+
+# --- ...and the real command still flags at every position the anchor admits:
+# line start, after a separator, inside a substitution, reached by absolute
+# path (`/` is a path separator, not part of a name), and with the command
+# token itself quoted -- the shell strips those quotes and runs the same
+# GNU-only mktemp.
+f="$(tmpsh "$(printf '%s\n' \
+  'mktemp -p /tmp' \
+  'cd /tmp && mktemp -p sub' \
+  't=$(mktemp --tmpdir=/tmp)' \
+  '/usr/bin/mktemp -p /tmp' \
+  '"/usr/bin/mktemp" -p /tmp' \
+  "'mktemp' --tmpdir /tmp")")"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "the anchored tokens must still flag real mktemp calls, got success: $out"
+elif [[ "$(echo "$out" | grep -c "PORTABILITY: ${f}:")" -eq 6 ]]; then
+  ok "the anchored tokens flag mktemp at a line start, after &&, in \$(), by path and quoted"
+else
+  fail "expected all 6 anchored mktemp positions flagged, got: $out"
+fi
+rm -f "$f"
+
 # --- operator-terminated sed -Ei / --in-place forms are active in the
-# SHIPPED list too (#1545): both tokens widened to the same boundary
-# `--sort=WORD` (#1530) and `sort -V`/`grep -P`/`echo -e` (#1537) already use,
-# proven here against the real token list rather than only the isolated-token
-# mechanism above -------------------------------------------------------------
+# SHIPPED list too (#1545): both tokens use the control-operator/redirection/
+# subshell-close boundary, the same one `sort -V`/`grep -P`/`echo -e` now carry
+# after #1546 removed quotes and backticks from the short-option classes — a
+# quote after a short-option CLUSTER opens a word rather than ending it, so
+# `echo -e"mail"` passes the literal `-email` and the flag never activates.
+# `--sort=WORD` (#1530) is the one token that still includes quotes, because
+# there the quote follows the option's VALUE and is unambiguously closing.
+# Proven here against the real token list rather than only the isolated-token
+# mechanism above ------------------------------------------------------------
 f="$(tmpsh "$(printf '%s\n' \
   'x=$(sed -Ei)' \
   'sed -Ei|cat' \
+  'sed -Ei; echo done' \
   'x=$(sed --in-place)' \
-  'sed --in-place|cat')")"
+  'sed --in-place|cat' \
+  'sed --in-place; echo done')")"
 if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
   fail "operator-terminated sed -Ei/--in-place should fail under the shipped list, got success: $out"
-elif [[ "$(echo "$out" | grep -c "PORTABILITY: ${f}:")" -eq 4 ]]; then
+elif [[ "$(echo "$out" | grep -c "PORTABILITY: ${f}:")" -eq 6 ]]; then
   ok "the shipped list detects every operator-terminated sed -Ei/--in-place form"
 else
-  fail "expected all 4 operator-terminated forms flagged, got: $out"
+  fail "expected all 6 operator-terminated forms flagged, got: $out"
 fi
 rm -f "$f"
 

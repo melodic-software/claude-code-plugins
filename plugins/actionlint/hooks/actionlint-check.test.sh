@@ -44,7 +44,7 @@ trap cleanup EXIT
 # single executable path, not a command-with-args, so tests point it at a stub.
 make_sink() {
   local s
-  s="$(mktemp -p "$WORK" sink.XXXXXX)"
+  s="$(mktemp "$WORK/sink.XXXXXX")"
   {
     printf '#!/usr/bin/env bash\n'
     printf '%s\n' "$1"
@@ -239,7 +239,7 @@ fi
 # --- Case 10: actionlint hard failure -> telemetry status error, never ok ----
 # Stub actionlint exits 3 (fatal) -- the lint DID NOT run; the old code read
 # empty-output-as-clean. PATH keeps real tools via exec wrappers.
-ERRBIN="$(mktemp -d -p "$WORK" errbin.XXXXXX)"
+ERRBIN="$(mktemp -d "$WORK/errbin.XXXXXX")"
 for t in bash jq git dirname basename cat env printf mktemp mkdir find tr awk grep sed uname sleep cygpath realpath readlink; do
   real_t="$(command -v "$t" 2>/dev/null)" || continue
   [[ -n "$real_t" ]] || continue
@@ -334,14 +334,14 @@ rm -f "$TELC"
 # be silent; telemetry still records status "skipped".
 ABSENT_TEL="$(mktemp)"
 ABSENT_SINK="$(make_sink "cat >\"$ABSENT_TEL\"")"
-FAKEBIN="$(mktemp -d -p "$WORK" fakebin.XXXXXX)"
+FAKEBIN="$(mktemp -d "$WORK/fakebin.XXXXXX")"
 for t in bash jq git dirname basename cat env printf mktemp mkdir find tr awk grep sed uname sleep cygpath realpath readlink; do
   real_t="$(command -v "$t" 2>/dev/null)" || continue
   [[ -n "$real_t" ]] || continue
   printf '#!/bin/sh\nexec "%s" "$@"\n' "$real_t" >"$FAKEBIN/$t"
   chmod +x "$FAKEBIN/$t"
 done
-ABSENT_DATA="$(mktemp -d -p "$WORK" plugdata.XXXXXX)"
+ABSENT_DATA="$(mktemp -d "$WORK/plugdata.XXXXXX")"
 run_absent() {
   (
     cd "$UNRELATED" || return 1
@@ -377,7 +377,7 @@ rm -f "$ABSENT_TEL"
 # Same fake-bin, minus jq: the hook cannot parse its input at all, so the gate
 # must surface the skip instead of silently no-opping on every edit.
 rm -f "$FAKEBIN/jq"
-JQ_DATA="$(mktemp -d -p "$WORK" plugdata.XXXXXX)"
+JQ_DATA="$(mktemp -d "$WORK/plugdata.XXXXXX")"
 run_nojq() {
   (
     cd "$UNRELATED" || return 1
@@ -401,7 +401,7 @@ else
 fi
 # Out-of-scope edit (README, not a workflow file) with jq absent -> fully
 # silent: the jq-free applicability pre-filter must run before the jq gate.
-JQ_DATA2="$(mktemp -d -p "$WORK" plugdata.XXXXXX)"
+JQ_DATA2="$(mktemp -d "$WORK/plugdata.XXXXXX")"
 OUT_OOS=$(
   cd "$UNRELATED" || exit 1
   printf '{"session_id":"test-oos-1","tool_input":{"file_path":"%s"},"tool_name":"Write"}' "$REPO/README.md" |
