@@ -3,6 +3,15 @@
 All notable changes to the `rate-limit-guard` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.1]
+
+### Fixed
+
+- **Setup's headless reconfigure recipe no longer claims `-y` is CLI-required for a non-TTY
+  `uninstall`.** Verified against the live CLI (2.1.220) and current docs: `-y` only skips
+  `uninstall`'s `--prune` confirmation, and this recipe never passes `--prune` — so `-y` had no
+  effect and is no longer part of the recipe (#1410).
+
 ## [0.3.0]
 
 ### Added

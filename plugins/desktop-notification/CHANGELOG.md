@@ -3,6 +3,29 @@
 All notable changes to the `desktop-notification` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.3]
+
+### Fixed
+
+- C1 fd1-leak detector in `desktop-notification.test.sh`: the threshold that was
+  supposed to widen the slow-sink margin (`#751`, closing `#448`) could not actually
+  widen it — `THRESHOLD_MS` was derived as `SINK_SLEEP * 1000 / 2`, so widening
+  `SINK_SLEEP` widened the threshold by the same ratio and left the margin unchanged
+  by construction. `#448` was reopened after this reproduced on clean `main`
+  (delta=3697ms false-fail, no leak present). `THRESHOLD_MS` now asserts the real
+  invariant directly — sink-sleep-minus-a-safety-margin, not half the sleep — and
+  `SINK_SLEEP` is widened from 6s to 8s (still comfortably under the 10s ceiling
+  documented against EXIT-cleanup file-locking on Windows) for more absolute
+  separation between ambient noise and the leak signal. The safety margin is sized so
+  BOTH sides of the threshold clear the 2150ms of worst observed no-leak noise, not
+  just the noise side: a threshold too close to the leak signal lets a load shift that
+  inflates every baseline sample and then subsides before the slow run subtract real
+  leak signal out of the delta, and the detector reports no leak. At `SINK_SLEEP`=8s
+  and a 3000ms margin the threshold sits at 5000ms — 2850ms of noise-side margin,
+  3000ms of leak-side margin. Verified on Windows Git Bash: 10 consecutive clean runs,
+  40 runs under heavy concurrent load (worst observed no-leak delta ~1590ms), and a
+  deliberately reintroduced fd1 leak still fails the case (observed delta ~8065ms).
+
 ## [0.5.2]
 
 ### Fixed

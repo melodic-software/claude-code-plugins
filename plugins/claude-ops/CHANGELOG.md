@@ -3,6 +3,16 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.21.2]
+
+### Fixed
+
+- **`plugins` skill's `converge.md` no longer overstates when `uninstall` needs `-y`.** It claimed
+  any non-TTY `uninstall` requires `-y` "by the CLI itself." Verified against the live CLI (2.1.220)
+  and current docs: `-y` only skips `uninstall`'s `--prune` confirmation, and this action's
+  `uninstall` calls never pass `--prune` — so `-y` was never warranted here and adding it would only
+  ever bypass a different, unused prompt, not Step 3's per-plugin confirm (#1410).
+
 ## [0.21.1]
 
 ### Fixed
