@@ -53,6 +53,9 @@ gates:
   # `git diff --cached` compares the *index* to the last commit, so it sees the staged entry that
   # `git diff HEAD` cannot. Neither form subsumes the other — `--cached` alone would miss drift that
   # is only in the working tree — so the `cmd` chains both rather than substituting one for the other.
+  # `git diff <commit>` is documented as showing "the changes you have in your working tree relative
+  # to the named <commit>" and `git diff --cached` as "the changes you staged for the next commit
+  # relative to the named <commit>". Ref: https://git-scm.com/docs/git-diff
   # Known property of any regenerate-and-diff gate, not a defect of this one: `buf generate --clean`
   # deletes and rewrites the plugins' output directories before any check reads them, so a hand-edit
   # to a generated file that was never staged or committed is destroyed by running the gate rather
