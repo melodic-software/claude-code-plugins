@@ -23,11 +23,13 @@
     believe for what.
   - `SKILL.md`'s depth paragraph re-attributes the depth-3 default to the changelog (which carries
     it) rather than the `sub-agents` page (which currently contradicts it), pins each state to its
-    version, and adds a **confirm-nesting-from-behavior** rule: dispatch one worker and check
-    whether it actually holds `Agent` before committing a design to a second layer — a tree
-    authored from either page alone can be wrong in both directions. Also records that a denied
-    spawn is a permission verdict, not a depth verdict, because spawns are classifier-evaluated
-    before launch (v2.1.178).
+    version, and adds a **confirm-nesting-from-behavior** rule: have one worker attempt a trivial
+    nested spawn and report the exact outcome before committing a design to a second layer — a tree
+    authored from either page alone can be wrong in both directions, and holding `Agent` is
+    necessary but not sufficient, since the tool can be listed while the spawn is still refused.
+    A refusal is then read rather than assumed: a depth rejection names depth, while a permission
+    refusal says nothing about the ceiling, because spawns are classifier-evaluated before launch
+    (v2.1.178).
 
 ### Added
 
