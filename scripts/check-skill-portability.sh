@@ -152,6 +152,18 @@ scan_file() {
   if grep -qE '^[[:space:]]*(#|<!--)[[:space:]]*portability-scope:' -- "$file"; then
     return 0
   fi
+  # awk operand disambiguation: a bare relative operand shaped like
+  # identifier=value (e.g. a top-level file literally named FOO=bar.md) is
+  # parsed by awk as a command-line variable assignment, not opened as a
+  # file — silently dropping it from the scan. Prefixing an unrooted operand
+  # with `./` breaks the identifier=value shape (`./` is never a valid awk
+  # identifier lead character) so it is unambiguously a filename. Shared fix
+  # with check-shell-portability.sh's identical mechanism — see #1513, #1531.
+  local awk_file="$file"
+  case "$awk_file" in
+  ./* | /*) ;;
+  *) awk_file="./$awk_file" ;;
+  esac
   awk '
     function is_annotated(l) { return l ~ /portability-ok:/ }
     # Block-level only: a content line that merely happens to carry an inline
@@ -202,7 +214,7 @@ scan_file() {
         }
       }
     }
-  ' "$TOKENS" "$file"
+  ' "$TOKENS" "$awk_file"
 }
 
 violations=0
