@@ -217,13 +217,49 @@ else
 fi
 rm -f "$f" "$tok"
 
-# --- the --version-sort long form is a separate literal token -------------
+# --- sort -V's long-form spellings: --version-sort and --sort=version ------
 tok="$(one_token_list '--version-sort')"
 f="$(tmpsh 'sort --version-sort "$file"')"
 if out="$(scan_paths "$tok" "$f" 2>&1)"; then
   fail "sort --version-sort should fail, got success: $out"
 else
   ok "sort --version-sort (long form) is detected"
+fi
+rm -f "$f" "$tok"
+
+tok="$(one_token_list 'sort[^\n]*[[:space:]]--sort(=|[[:space:]]+)['"'"'"]?version([[:space:]|&;()<>'"'"'"`]|$)')"
+
+# --- every spelling of --sort's mandatory WORD: attached after `=` or handed
+# over as the next argv element, bare or shell-quoted, and terminated by a
+# control operator rather than whitespace ---------------------------------
+while IFS= read -r case; do
+  f="$(tmpsh "$case")"
+  if out="$(scan_paths "$tok" "$f" 2>&1)"; then
+    fail "[$case] should fail, got success: $out"
+  else
+    ok "[$case] is detected"
+  fi
+  rm -f "$f"
+done <<'CASES'
+sort --sort=version "$file"
+sort --sort version "$file"
+sort --sort='version' "$file"
+sort --sort="version" "$file"
+sort --sort 'version' "$file"
+sort --sort=version
+x=$(sort --sort=version)
+sort --sort=version|head -n1
+sort --sort=version; echo done
+sort --sort=version >"$out"
+CASES
+
+# --- ...but `--sort=<key>` belongs to portable commands too: Git's own
+# version-aware tag ordering must not be reported as a GNU `sort` violation
+f="$(tmpsh 'git tag --sort=version:refname --list')"
+if scan_paths "$tok" "$f" >/dev/null 2>&1; then
+  ok "git tag --sort=version:refname is not flagged (no sort command, no WORD boundary)"
+else
+  fail "git tag --sort=version:refname must not be flagged"
 fi
 rm -f "$f" "$tok"
 
@@ -652,6 +688,26 @@ if scan_paths "$REAL_TOKENS" "$f" >/dev/null 2>&1; then
   ok "staged classes (date -d, stat -c, mktemp -p) are inactive in the shipped list"
 else
   fail "shipped list should only enforce the active classes"
+fi
+rm -f "$f"
+
+# --- sort's long-form spellings are active in the SHIPPED list (not just the
+# isolated-token mechanism proven above): every flagged spelling on its own
+# line, plus Git's portable `--sort=<key>` which must stay clean -----------
+f="$(tmpsh "$(printf '%s\n' \
+  'sort --version-sort "$file"' \
+  'sort --sort=version "$file"' \
+  'sort --sort version "$file"' \
+  'sort --sort='"'"'version'"'"' "$file"' \
+  'x=$(sort --sort=version)' \
+  'git tag --sort=version:refname --list')")"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "sort long forms should fail under the shipped list, got success: $out"
+elif [[ "$(echo "$out" | grep -c "PORTABILITY: ${f}:")" -eq 5 ]] &&
+  ! echo "$out" | grep -q "PORTABILITY: ${f}:6:"; then
+  ok "the shipped list detects every sort long form and spares git tag --sort=<key>"
+else
+  fail "expected hits on lines 1-5 only, got: $out"
 fi
 rm -f "$f"
 

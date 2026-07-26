@@ -77,10 +77,25 @@ echo[[:space:]]+-[a-zA-Z]*e[a-zA-Z]*([[:space:]]|$)
 
 # `sort -V` (natural/version sort) — a GNU coreutils extension; BSD sort has no
 # `-V`. `V` may appear anywhere in a combined short-option cluster (`-Vr`),
-# not only as the cluster's last letter. `--version-sort` is the long-form
-# alias GNU documents for the same flag.
+# not only as the cluster's last letter. `--version-sort` and `--sort=version`
+# are GNU's documented long-form spellings of the same option (man7.org
+# sort(1): "-V, --version-sort" and "--sort=WORD ... version -V").
+# `--version-sort` is an unambiguous literal, so (like --perl-regexp above) it
+# needs no command-context prefix. `--sort=WORD` is NOT: `git tag`,
+# `git for-each-ref` and `git branch` all take a portable `--sort=<key>`, whose
+# keys include `version:refname`. So that spelling carries the same
+# `sort`-command prefix the short-flag pattern uses, and requires a boundary
+# after the WORD (else `version:refname` matches as a prefix). That boundary is
+# every character that can actually END a shell word — whitespace, a control
+# operator, a redirection, a subshell close, a quote — or end of line, so the
+# no-whitespace forms (`$(sort --sort=version)`, `... |head`, `...; echo`) are
+# matched, while a longer word like `version:refname` still is not. WORD is a
+# MANDATORY argument, so GNU's getopt_long takes it attached after `=` or as
+# the next argv element, and the shell may hand it over quoted — every one of
+# those spellings is the same GNU-only operation.
 sort[^\n]*[[:space:]]-[A-Za-z]*V[A-Za-z]*([[:space:]]|$)
 --version-sort
+sort[^\n]*[[:space:]]--sort(=|[[:space:]]+)['"]?version([[:space:]|&;()<>'"`]|$)
 
 # `sed -i` with no suffix argument attached — GNU treats the suffix as
 # optional; BSD sed requires one immediately after `-i`. This intentionally
