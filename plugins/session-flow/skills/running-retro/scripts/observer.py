@@ -572,12 +572,34 @@ class Observer:
         # so nested tooling can also tell this is the observer's own analysis.
         env = dict(os.environ, SESSION_FLOW_OBSERVER_ANALYSIS="1")
         self.log(f"firing analysis: {self.model} over {self.obs_path.name}")
+        run_kwargs: dict = {}
+        if os.name == "nt":
+            # CREATE_NO_WINDOW -- the observer process itself is already spawned
+            # windowless (arm_observer.py's spawn_detached), but that flag set was
+            # never carried to this later, in-process subprocess.run call, so a
+            # console window flashed on the desktop for the run's duration. This
+            # is a waited (not detached) child, so only suppress the window --
+            # no DETACHED_PROCESS/CREATE_NEW_PROCESS_GROUP, which are for escaping
+            # the parent's process tree, not needed here.
+            run_kwargs["creationflags"] = 0x08000000
         try:
             # Own short timeout, NOT max_secs -- otherwise the observer could live
             # up to ~2x its documented absolute lifetime cap. The measured run is
             # ~20-40s; this bounds a stuck run to minutes.
+            #
+            # encoding="utf-8" is explicit because `claude -p --output-format
+            # json` always writes UTF-8, but Python's default text encoding for
+            # subprocess capture is the platform code page -- cp1252 on Windows --
+            # which corrupts non-ASCII output (mojibake) into the ledger.
+            # errors="replace" (rather than the default "strict") keeps a
+            # truncated/invalid byte sequence -- e.g. multi-byte UTF-8 split at
+            # a timeout boundary during decode -- from raising UnicodeDecodeError
+            # out of this try block, which is caught only for
+            # TimeoutExpired/OSError; an uncaught decode error would skip the
+            # designed "return False -> retain observations" fallback entirely.
             proc = subprocess.run(cmd, input=prompt, capture_output=True, text=True,
-                                  env=env, timeout=self.analysis_timeout_secs)
+                                  encoding="utf-8", errors="replace", env=env,
+                                  timeout=self.analysis_timeout_secs, **run_kwargs)
         except (subprocess.TimeoutExpired, OSError) as e:
             self.log(f"analysis run failed: {e}")
             return False
@@ -749,27 +771,35 @@ it lands in a durable, portable ledger, so it is critical: sweep every finding, 
 quoted snippet for secrets, tokens, credentials, connection strings, and PII, replacing \
 each with a shape marker.
 
-Compute, don't assert, a structural claim -- a finding describing tool-call sequencing, \
-batching, or delegation must be COMPUTED from these observation fields, never asserted from \
-a narrative impression of the "say"/"human" text. Group an assistant event's tool calls by \
-its "mid" field (the transcript's own API message id): events sharing one "mid" ran as ONE \
-batched turn; events with different "mid"s -- or with no "mid" at all, which happens when \
-the raw record didn't carry one, making that pair's ordering uncomputable -- ran as separate, \
-sequential turns. Before routing a computed sequential/unbatched pair as a missed-batching \
-Efficiency finding, check for a genuine dependency between the calls: compare each \
-assistant event's "calls[].in" preview against the "results[].out" previews of the user \
-events between them (matched by the result's "id" to the EARLIER call's own "calls[].id", \
-to identify which prior call each result belongs to) for a data dependency (a later call's \
-input referencing an earlier call's output), and read the surrounding "say" narration for an \
-evident control/resource/side-effect dependency (e.g. a directory created before a file is \
-written into it). A pair that was genuinely dependent was correctly sequential, not a missed \
-batch. A "calls[].in" or "results[].out" preview ending in "{_TRUNC_MARKER}" was CUT, not \
-empty -- a value past character {_PREVIEW_LIMIT} may still be there; treat a truncated \
-preview as an UNKNOWN dependency \
-check, never as a clean "no match" that licenses the missed-batching finding. Drop a \
-structural claim you cannot compute this way (grouping key absent, or the only preview that \
-could show a dependency was truncated) rather than asserting it uncomputed -- an \
-asserted-and-wrong structural claim routes as if verified and is worse than a missed finding.
+Compute, don't assert, any structural claim (mandatory -- you have no delegation prompt to \
+fall back on): a finding describing transcript/tool-call structure -- sequencing, batching, \
+delegation, or an occurrence count -- MUST be computed from these observation fields before \
+you write it, never asserted from a narrative impression of the "say"/"human" text. Derive \
+an ordering or batching claim (e.g. "ran sequentially," "no subagent delegation") by \
+grouping an assistant event's tool calls by its "mid" field (the transcript's own API \
+message id): events sharing one "mid" ran as ONE batched turn; events with different \
+"mid"s -- or with no "mid" at all, which happens when the raw record didn't carry one, \
+making that pair's ordering uncomputable -- ran as separate, sequential turns. Derive a \
+delegation claim from the "tools" field, which carries each event's tool-call names: a \
+subagent delegation appears there as a "Task"/"Agent" tool name. Derive an occurrence count \
+backing an "Emerging pattern" finding by actually counting matched occurrences. Before \
+routing a computed sequential/unbatched pair as a missed-batching Efficiency finding, check \
+for a genuine dependency between the calls: compare each assistant event's "calls[].in" \
+preview against the "results[].out" previews of the user events between them (matched by \
+the result's "id" to the EARLIER call's own "calls[].id", to identify which prior call each \
+result belongs to) for a data dependency (a later call's input referencing an earlier \
+call's output), and read the surrounding "say" narration for an evident control, resource, \
+or side-effect dependency (a directory created before a file is written into it, an edit \
+made before a test that exercises it runs). A correctly computed sequencing fact is not by \
+itself proof of a missed batching opportunity: a pair that was genuinely dependent was \
+correctly sequential, not a miss. A "calls[].in" or "results[].out" preview ending in \
+"{_TRUNC_MARKER}" was CUT, not empty -- a value past character {_PREVIEW_LIMIT} may still \
+be there; treat a truncated preview as an UNKNOWN dependency check, never as a clean "no \
+match" that licenses the missed-batching finding. When you cannot compute a structural \
+claim from these fields -- grouping key absent, occurrences not actually countable, or the \
+only preview that could show a dependency was truncated -- drop the claim rather than \
+assert it uncomputed: an asserted-and-wrong structural claim routes as if verified and is \
+worse than a missed finding.
 
 Inputs (absolute):
 - Distilled observations (pre-filtered event stream, one JSON event per line): {observations}
@@ -778,8 +808,9 @@ Inputs (absolute):
 Do: Read the observations; produce the compact "Checkpoint findings" block exactly as \
 {checkpoint} specifies (metrics line, findings table with category + suggested route, \
 subjective-state assessment noted as unavailable for an autonomous run, new-skill \
-candidates); compute rather than assert any sequencing/batching/delegation claim via the \
-"mid"/"calls"/"results" fields, dropping it if it can't be computed, and checking for a \
+candidates); compute rather than assert any structural claim (sequencing, batching, \
+delegation, occurrence counts) from the "mid"/"tools"/"calls"/"results" fields, dropping it \
+if it can't be computed, and checking for a data, control, resource, or side-effect \
 dependency before routing a computed sequential pair as a missed-batching Efficiency \
 finding; run the mandatory redaction pass. Return ONLY that block -- no preamble, no echo \
 of the observations."""
