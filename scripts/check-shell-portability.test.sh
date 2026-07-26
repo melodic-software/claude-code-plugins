@@ -59,15 +59,6 @@ tmpsh() {
   printf '%s' "$f"
 }
 
-# escape_token <esc> — builds the shipped grep/sed-context-required ERE for
-# one regex-escape class, matching scripts/shell-portability-tokens.txt's
-# active pattern shape exactly (kept here rather than sourced, so a fixture
-# is not coupled to the shipping list's other active classes).
-escape_token() {
-  local esc="$1"
-  printf '(grep|sed)[^\\n]*%s|%s[^\\n]*(grep|sed)' "$esc" "$esc"
-}
-
 # =============================================================================
 # Regex-escape classes (\b \< \> \s \S \w \W) — the exact near-miss family.
 # =============================================================================
@@ -77,7 +68,7 @@ escape_token() {
 # backspace BYTE, not a boundary, when used as a boundary anchor — verify the
 # LITERAL-TWO-CHARACTER-SEQUENCE form this gate uses is not silently inert
 # under whichever awk resolves on the runner) -------------------------------
-tok="$(one_token_list "$(escape_token '\\b')")"
+tok="$(one_token_list '\\b')"
 f="$(tmpsh "grep -Eq '\\brequire\\b' \"\$file\"")"
 if out="$(scan_paths "$tok" "$f" 2>&1)"; then
   fail "literal \\\\b in a grep pattern should fail, got success: $out"
@@ -97,21 +88,43 @@ else
 fi
 rm -f "$f"
 
-# --- a co-located printf/$'...' use of the SAME two characters is NOT
-# regex-pattern syntax and must not fire, even though it is not inside a
-# grep/sed invocation on this line (confirmed against a real shell: printf
-# '\b' emits an actual backspace byte, on GNU and BSD alike) ----------------
+# --- a pattern BUILT on one line and CONSUMED on another still fires. This
+# is the shape a grep/sed-same-line context requirement silently un-catches,
+# and it is live in this repo (instruction-scan.sh's I6_ERE/RATIONALE_ERE),
+# so the class deliberately stays bare — see the token file's note. ---------
+f="$(tmpsh "PAT=\"\\brequire\\b\"
+grep -Eq \"\$PAT\" \"\$file\"")"
+if out="$(scan_paths "$tok" "$f" 2>&1)"; then
+  fail "a \\\\b pattern assigned to a variable should fail, got success: $out"
+elif echo "$out" | grep -q "PORTABILITY: ${f}:1:"; then
+  ok "a \\\\b pattern built in a variable and used later is detected"
+else
+  fail "expected PORTABILITY on the assignment line, got: $out"
+fi
+rm -f "$f"
+
+# --- the mirror-image cost of staying bare: portable printf escape syntax
+# carrying the same two characters DOES fire (over-flag, the documented
+# direction), and `portability-ok:` is the recorded one-line escape for it --
 f="$(tmpsh "printf '\\bspinner-frame\\n'")"
 if scan_paths "$tok" "$f" >/dev/null 2>&1; then
-  ok "printf '\\b' (no grep/sed on the line) is not flagged"
+  fail "printf '\\b' must still fire -- the class is bare by design"
 else
-  fail "printf '\\b' must not be flagged -- it is portable escape-sequence syntax, not a regex pattern"
+  ok "printf '\\b' fires (accepted over-flag, excusable per site)"
+fi
+rm -f "$f"
+
+f="$(tmpsh "printf '\\bspinner-frame\\n'  # portability-ok: printf escape, not a regex")"
+if scan_paths "$tok" "$f" >/dev/null 2>&1; then
+  ok "printf '\\b' with a portability-ok: annotation is excused"
+else
+  fail "an annotated printf '\\b' must be excused"
 fi
 rm -f "$f" "$tok"
 
-# --- \s \w \S \W \< \> each fire individually, only with grep/sed context --
+# --- \s \w \S \W \< \> each fire individually -------------------------------
 for esc in '\\s' '\\S' '\\w' '\\W' '\\<' '\\>'; do
-  tok="$(one_token_list "$(escape_token "$esc")")"
+  tok="$(one_token_list "$esc")"
   f="$(tmpsh "sed -E 's/${esc}foo${esc}/bar/' \"\$file\"")"
   if out="$(scan_paths "$tok" "$f" 2>&1)"; then
     fail "literal $esc should fail, got success: $out"

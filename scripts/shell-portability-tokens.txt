@@ -38,19 +38,29 @@
 # ERE/BRE define no `\b`/`\<`/`\>`/`\s`/`\S`/`\w`/`\W`; BSD grep/sed either
 # rejects them or (worse) reads `\b` as a literal `b`, silently turning
 # `\brequire\b` into `brequireb` — matches nothing, exactly the near-miss above.
-# Each token requires a co-located `grep` or `sed` invocation on the same
-# line (either order) — these escapes are meaningful ONLY as regex-pattern
-# syntax; the bare two-character sequence is also legitimate, portable
-# `printf`/`$'...'` escape-sequence syntax (`printf '\b'` — a real backspace
-# byte, identical on GNU and BSD) that must not be flagged just for
-# containing the same two characters.
-(grep|sed)[^\n]*\\b|\\b[^\n]*(grep|sed)
-(grep|sed)[^\n]*\\<|\\<[^\n]*(grep|sed)
-(grep|sed)[^\n]*\\>|\\>[^\n]*(grep|sed)
-(grep|sed)[^\n]*\\s|\\s[^\n]*(grep|sed)
-(grep|sed)[^\n]*\\S|\\S[^\n]*(grep|sed)
-(grep|sed)[^\n]*\\w|\\w[^\n]*(grep|sed)
-(grep|sed)[^\n]*\\W|\\W[^\n]*(grep|sed)
+# Each token matches the literal two-character escape sequence, with NO
+# required co-located `grep`/`sed` on the line. Requiring one was tried and
+# reverted: a pattern is very often built on its own line and consumed
+# several lines later, so the requirement silently un-catches exactly the
+# near-miss shape above. The live proof is in this repo —
+# plugins/claude-config/skills/audit-instructions/scripts/instruction-scan.sh
+# assigns `\b`-bearing EREs to I6_ERE/RATIONALE_ERE and only later passes
+# them to `grep -niE`; a grep/sed-context requirement reports that file
+# clean. The cost of staying bare is the mirror-image false positive: the
+# same two characters are also legitimate, portable `printf`/`$'...'`
+# escape-sequence syntax (`printf '\b'` — a real backspace byte, identical
+# on GNU and BSD), which this list DOES flag. That is the documented
+# over-flag direction, and `portability-ok: <reason>` is the one-line escape
+# for it. Narrowing the class precisely — knowing which operand of which
+# command is a regex — needs real shell parsing, not a token edit; tracked
+# in #1517.
+\\b
+\\<
+\\>
+\\s
+\\S
+\\w
+\\W
 
 # `grep -P` (PCRE mode) — absent in BSD grep, and in some GNU builds compiled
 # without PCRE support. `P` may appear anywhere in a combined short-option
