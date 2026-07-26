@@ -18,7 +18,11 @@
   headless prompt's message-id-grouping guidance now notes explicitly that the distilled
   observations it receives may not carry a message-id field at all — `summarize_record()` never
   preserves one — so an absent field reads as uncomputable rather than as license to assert from
-  impression.
+  impression. The compute-don't-assert rule now also covers the judgment built on top of a
+  computed structural fact: a correctly computed sequencing fact does not by itself prove a missed
+  batching opportunity (genuinely dependent calls are correctly sequential, not a miss), so both
+  prompts now require checking the calls' inputs/results for a data dependency before routing an
+  Efficiency finding for unbatched/sequential calls.
 
 ## [0.17.3]
 

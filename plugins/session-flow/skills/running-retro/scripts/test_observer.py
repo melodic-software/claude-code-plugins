@@ -121,6 +121,19 @@ class AnalysisPrompt(unittest.TestCase):
              "message": {"content": [{"type": "tool_use", "name": "Read"}]}})
         self.assertNotIn("id", rec)
 
+    def test_dependency_check_before_batching_finding_present(self):
+        # A correctly computed sequencing fact doesn't by itself prove a missed
+        # batching opportunity -- genuinely dependent calls (a later call
+        # consumes an earlier call's result) are correctly sequential, not a
+        # miss. Codex's PR #1482 review found the compute-don't-assert rule
+        # covered the structural fact but not the Efficiency judgment built on
+        # top of it.
+        prompt = observer._analysis_prompt(
+            observations="/abs/obs.jsonl", checkpoint="/abs/checkpoint.md",
+            session_id="sid")
+        self.assertIn("missed batching opportunity", prompt)
+        self.assertIn("dependency", prompt)
+
     def test_redaction_rule_still_present(self):
         # Guard against the new instruction crowding out the pre-existing
         # mandatory redaction pass.

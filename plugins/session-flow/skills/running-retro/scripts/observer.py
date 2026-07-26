@@ -649,7 +649,11 @@ from impression. Derive an occurrence count backing an "Emerging pattern" findin
 actually counting matched occurrences. If the observations don't carry what's needed to \
 compute a structural claim, drop the claim rather than assert it uncomputed -- an \
 asserted-and-wrong structural claim routes as if verified and is worse than a missed \
-finding.
+finding. A correctly computed sequencing fact is not by itself proof of a missed batching \
+opportunity: calls that ran separately may be genuinely dependent (a later call's input \
+consumes an earlier call's result), which makes the sequencing correct, not a miss -- \
+before routing an Efficiency finding for unbatched/sequential calls, check the calls' \
+tool inputs/results for that dependency.
 
 Inputs (absolute):
 - Distilled observations (pre-filtered event stream, one JSON event per line): {observations}
@@ -659,9 +663,10 @@ Do: Read the observations; produce the compact "Checkpoint findings" block exact
 {checkpoint} specifies (metrics line, findings table with category + suggested route, \
 subjective-state assessment noted as unavailable for an autonomous run, new-skill \
 candidates); compute rather than assert any structural claim (sequencing, batching, \
-delegation, occurrence counts), dropping it if it can't be computed from the observations; \
-run the mandatory redaction pass. Return ONLY that block -- no preamble, no echo of the \
-observations."""
+delegation, occurrence counts), dropping it if it can't be computed from the observations, \
+and checking for a data dependency before routing a computed sequential claim as a missed- \
+batching Efficiency finding; run the mandatory redaction pass. Return ONLY that block -- no \
+preamble, no echo of the observations."""
 
 
 def build_parser() -> argparse.ArgumentParser:
