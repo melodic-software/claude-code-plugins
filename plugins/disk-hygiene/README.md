@@ -64,6 +64,18 @@ at preview. Backups remain the recovery boundary for user data.
   commands are denied after a clean run ends, start a new session and see that issue. PreToolUse
   hooks also fire inside subagents, so fanned-out workers run under the same guards. The plugin
   never downloads a runtime.
+- **A silent engine-gate launch/runtime failure is now surfaced (since 0.9.5, #1416).** A `Stop`-event
+  detector (`skills/clean/scripts/guard_launch_monitor.py`, a second hook entry in `hooks/hooks.json`,
+  independent of the engine-gate guard itself) scans the session transcript for
+  `hook_non_blocking_error` records naming the engine gate's own command string and warns once per
+  session with the failure count and the most recent failure's exit code, duration, and stderr — so a
+  guard that never ran or died mid-run no longer looks identical to a guard that ran and approved.
+  This covers only the `destructive_guard.py` command string in the current session's transcript: it
+  does not cover repo-hygiene's own guard (a separate plugin, verified working independently), and it
+  never retroactively scans a prior session's transcript. It is also wired with the same literal
+  `python3` command as the guard it watches, so the interpreter-resolution failure below — the
+  WindowsApps alias stub, or a missing/broken `python3` — takes the detector down with the guard and
+  goes unreported (#1504).
 - Git is optional for ordinary trees. If a target contains or sits inside a Git worktree, Git becomes
   required so tracked content can be proven safe; otherwise cleanup for that subtree is blocked.
 - Windows has the full **audit** lane (Python 3.11's `lstat` reparse metadata plus Win32 APIs

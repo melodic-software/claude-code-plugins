@@ -786,6 +786,32 @@ jobs:
           BASE_REF: ${{ github.base_ref }}
         run: scripts/check-skill-portability.sh "origin/$BASE_REF"
 
+  # Shell-portability lint (#1491): flags GNU-only constructs in changed
+  # **/*.sh files — a class neither shellcheck (syntax/style) nor
+  # portability-lint (skill-coupling tokens, skill files only) covers, and no
+  # runner here uses BSD userland (macOS system grep/sed/date/stat/mktemp/sort
+  # — a Windows runner's Git Bash still ships GNU grep/sed, so it would not
+  # help either). Same shape as portability-lint: changed-file scoped so
+  # enabling a class never red-lines main, self-test-first so a broken
+  # detector cannot mask a regression behind a green gate, job never skips.
+  shell-portability-lint:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          # Full history so the PR base ref resolves for the changed-file diff.
+          fetch-depth: 0
+      - name: Test the shell-portability gate
+        run: bash scripts/check-shell-portability.test.sh
+      - name: Gate changed shell files for GNU-only constructs
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: scripts/check-shell-portability.sh "origin/$BASE_REF"
+
   runner-policy:
     name: Runner policy
     runs-on: ubuntu-24.04
@@ -831,6 +857,7 @@ jobs:
       - runner-policy
       - skill-quality-gate
       - portability-lint
+      - shell-portability-lint
       - zizmor
     # Fail-closed through execution: !cancelled() (never a success-guard) so a
     # lane failure still runs this required aggregate and the result join below
