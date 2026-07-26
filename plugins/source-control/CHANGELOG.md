@@ -47,12 +47,25 @@ All notable changes to the `source-control` plugin are documented here. Format f
     fails with "missing but already registered" — a directory removal alone was never the self-heal
     it reported. Each dropped orphan now carries `registration_pruned`: `pruned` when the entry's own
     `gitdir:` pointer named its repository and `git worktree prune` cleared the record there,
-    `not-applicable` when git answers for an ancestor checkout so no record for the path can exist,
-    `skipped` while the directory survives, and `unresolved` when the pointer is gone — a deleted
-    pointer leaves a record behind while a directory that was never a worktree never had one, and
-    the two are indistinguishable at the path, so the state is reported rather than assumed. Anything
-    but `pruned`/`not-applicable` also sets `stale_registration` and warns on stderr naming
+    `skipped` while the directory survives, and `unresolved` when the pointer is gone. Recovering
+    ownership is the only thing that clears the uncertainty — an ancestor checkout answering for the
+    path proves nothing, because a real linked worktree nested under another checkout resolves to
+    that ancestor once its pointer is lost while its owning repository still holds a prunable record
+    — so "never registered" and "registered, pointer gone" both stay `unresolved` rather than being
+    assumed apart. Anything but `pruned` also sets `stale_registration` and warns on stderr naming
     `git worktree prune`. `dropped` keeps its existing directory-scoped meaning.
+  - **A lone dangling `.git` gitfile no longer counts as directory contents.** The emptiness check
+    that guards orphan removal treated the pointer file as user work, so the one orphan whose owner
+    *is* knowable — pointer readable, contents gone — always reported `directory_removed: false` and
+    never reached the prune, making the recoverable self-heal unreachable exactly where it works. A
+    sole `.git` **file** is now unlinked as the bookkeeping it is; a `.git` **directory** is still
+    never touched, since that is a standalone repository rather than a linked worktree's pointer.
+  - **A corrupted pointer is an orphan, not a hard error.** git answers a malformed `.git` with
+    `fatal: invalid gitfile format`, not the missing-repository wording, so the detector re-raised
+    and every run reported `action: error` for that entry instead of healing it — despite a
+    corrupted pointer being one of the states this change exists to clear. The marker set now covers
+    it (verified against git's actual C-locale output for a deleted, dangling, and malformed
+    pointer) while still re-raising every unrelated git failure.
   - **Orphan detection no longer depends on the operator's locale.** `worktree_toplevel` recognized a
     missing repository by matching git's English `not a git repository` text. Git translates its
     diagnostics, so on a localized machine every orphan surfaced as an unrelated error and never

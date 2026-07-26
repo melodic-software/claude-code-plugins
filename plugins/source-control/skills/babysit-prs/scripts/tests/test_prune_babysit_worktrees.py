@@ -311,64 +311,70 @@ class StaleWorktreeRegistrationTests(unittest.TestCase):
     then fails as "missing but already registered". The record path is readable
     off the entry's own pointer, which is what makes the prune possible."""
 
-    def test_prunes_the_owning_repository_record_via_the_gitdir_pointer(
-        self,
-    ) -> None:
+    def test_self_heals_a_registered_orphan_end_to_end(self) -> None:
+        """The whole recoverable path: an entry whose contents are gone but
+        whose `.git` pointer survives must lose its directory AND its record,
+        so the deterministic path is genuinely reusable afterwards."""
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as td:
             tmp = pathlib.Path(td)
             main = make_repo(tmp)
             root = tmp / "root"
             wt = add_worktree(main, root, "owner__repo__pr-7")
-            worktree = prune.Worktree(
-                path=wt, owner="owner", repo="repo", number=7
-            )
-            # Corrupt the entry into an orphan the way #816 describes: the
-            # administrative record survives, the checkout's own contents do
-            # not. The `.git` pointer is deliberately left intact -- it is the
-            # only thing still naming the owning repository.
+            worktree = prune.Worktree(path=wt, owner="owner", repo="repo", number=7)
+            # #816's shape: the administrative record survives, the checkout's
+            # own contents do not. The pointer is left intact -- it is the only
+            # thing still naming the owning repository.
             for child in wt.iterdir():
                 if child.name != ".git":
                     child.unlink()
-            recorded = prune.registered_repo_from_gitdir_pointer(wt)
-            self.assertEqual(recorded, main.resolve())
-            wt.joinpath(".git").unlink()
+            self.assertEqual(
+                prune.registered_repo_from_gitdir_pointer(wt), main.resolve()
+            )
+            listed = git("-C", str(main), "worktree", "list", "--porcelain")
+            self.assertIn(wt.name, listed)
 
             state_dir = tmp / "state"
             lease_path = leases.lease_path(state_dir, "worker", worktree.key)
-            info = prune.orphan_registration_state(
-                recorded, never_registered=False, directory_removed=True
+            info = prune.drop_orphaned_worktree(
+                worktree, lease_path, root, preserve_lease=False
             )
-            self.assertEqual(info, "pruned")
+
+            # The lone dangling pointer must not read as user content, or the
+            # self-heal would strand exactly the orphan it can fully repair.
+            self.assertTrue(info["directory_removed"])
+            self.assertEqual(info["registration_pruned"], "pruned")
+            self.assertFalse(wt.exists())
             self.assertNotIn(
-                str(wt), git("-C", str(main), "worktree", "list", "--porcelain")
+                wt.name, git("-C", str(main), "worktree", "list", "--porcelain")
             )
-            self.assertFalse(lease_path.exists())
+            # The proof that matters: the path accepts a worktree again.
+            git("-C", str(main), "worktree", "add", "-q", str(wt), "-b", "feat/redo")
+            self.assertTrue(wt.exists())
+
+    def test_a_corrupted_pointer_is_an_orphan_not_an_error(self) -> None:
+        # `fatal: invalid gitfile format` is a different message from the
+        # missing-repository one, and a malformed pointer is one of the states
+        # this self-heal exists to clear -- so it must not re-raise.
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as td:
+            wt = pathlib.Path(td) / "owner__repo__pr-8"
+            wt.mkdir()
+            wt.joinpath(".git").write_text("garbage not a pointer\n", encoding="utf-8")
+
+            self.assertTrue(prune.is_orphaned_entry(wt))
 
     def test_reports_unresolved_when_the_pointer_is_gone(self) -> None:
-        # A bare directory and a deleted-pointer orphan are indistinguishable
-        # at the path, so the state is reported rather than assumed either way.
+        # "Never registered" and "registered, pointer gone" are
+        # indistinguishable from the path alone -- including when an ancestor
+        # checkout answers for it -- so neither is assumed.
         self.assertEqual(
-            prune.orphan_registration_state(
-                None, never_registered=False, directory_removed=True
-            ),
+            prune.orphan_registration_state(None, directory_removed=True),
             "unresolved",
-        )
-
-    def test_reports_not_applicable_when_git_answers_for_an_ancestor(self) -> None:
-        # The path was never its own worktree, so no record for it can exist.
-        self.assertEqual(
-            prune.orphan_registration_state(
-                None, never_registered=True, directory_removed=True
-            ),
-            "not-applicable",
         )
 
     def test_skips_the_prune_while_the_directory_survives(self) -> None:
         # `git worktree prune` only drops records whose directory is missing.
         self.assertEqual(
-            prune.orphan_registration_state(
-                None, never_registered=False, directory_removed=False
-            ),
+            prune.orphan_registration_state(None, directory_removed=False),
             "skipped",
         )
 

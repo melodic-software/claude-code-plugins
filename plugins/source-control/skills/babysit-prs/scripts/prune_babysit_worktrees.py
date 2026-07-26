@@ -22,12 +22,18 @@ from babysit_util import configure_stdio, run_command
 WORKTREE_RE = re.compile(r"^(?P<owner>.+?)__(?P<repo>.+?)__pr-(?P<number>\d+)$")
 ALLOWED_EXECUTABLES = ("git", "gh")
 UNRECOGNIZED_REASON = "directory name does not match <owner>__<repo>__pr-<number>"
-# Substring `git` emits (case-insensitive) when a path is no longer a valid
-# repository/worktree -- e.g. `fatal: not a git repository (or any of the
-# parent directories): .git`. Used to recognize an orphaned worktree entry
-# rather than an unrelated git failure (#816). Only ever matched against output
-# produced under `C_LOCALE_ENV`, which pins git's diagnostics to this wording.
-NOT_A_GIT_REPO_MARKER = "not a git repository"
+# Substrings `git` emits (case-insensitive) when a path is no longer a usable
+# repository/worktree, each observed from `rev-parse --show-toplevel` under
+# `C_LOCALE_ENV`, which pins the wording. Used to recognize an orphaned entry
+# rather than an unrelated git failure (#816); anything else still raises.
+#   deleted pointer  -> fatal: not a git repository (or any of the parent
+#                       directories): .git
+#   dangling target  -> fatal: not a git repository: (NULL)
+#   corrupted pointer-> fatal: invalid gitfile format: <path>
+# The third is why this is a tuple: a malformed `.git` is one of the states
+# this self-heal exists to clear, so matching only the first two would re-raise
+# and report `action: error` forever on exactly that entry.
+NOT_A_WORKTREE_MARKERS = ("not a git repository", "invalid gitfile format")
 # Git localizes its diagnostics, so any probe whose result is read out of a
 # message must pin the locale first. `LC_ALL` outranks the other category
 # variables; `LANGUAGE` outranks `LC_ALL` for GNU gettext specifically, so it is
@@ -195,12 +201,13 @@ def is_missing_repo_error(exc: Exception) -> bool:
     surface as a real error rather than being silently swallowed.
 
     Only sound for a failure produced under `C_LOCALE_ENV`. Git translates its
-    diagnostics, so on a localized machine the untranslated marker would never
+    diagnostics, so on a localized machine the untranslated markers would never
     match and every orphan would surface as an unrelated error instead of
     reaching the self-healing path -- the caller pins the locale rather than
     hoping the operator's is English.
     """
-    return NOT_A_GIT_REPO_MARKER in str(exc).lower()
+    text = str(exc).lower()
+    return any(marker in text for marker in NOT_A_WORKTREE_MARKERS)
 
 
 def attempt_directory_removal(path: Path) -> bool:
@@ -233,6 +240,14 @@ def remove_empty_orphan_directory(path: Path, root: Path) -> bool:
     touch directory contents: an orphan's `.git` pointer could have been
     corrupted or deleted while real, uncommitted work still sits there. A
     non-empty orphan is left in place and reported, not force-deleted.
+
+    A lone dangling `.git` **gitfile** does not count as contents. It is git's
+    own bookkeeping -- the very pointer the entry orphaned around, and the one
+    `registered_repo_from_gitdir_pointer` has already read by this point -- so
+    counting it as user work would make every *recoverable* orphan look
+    non-empty and strand the self-heal precisely where ownership is knowable.
+    A `.git` **directory** is never touched: that is a standalone repository,
+    not a linked worktree's pointer.
     """
     if not path.exists():
         return True
@@ -240,7 +255,11 @@ def remove_empty_orphan_directory(path: Path, root: Path) -> bool:
     if root.resolve() not in resolved.parents:
         return False
     try:
-        if not any(path.iterdir()):
+        children = list(path.iterdir())
+        if len(children) == 1 and children[0].name == ".git" and children[0].is_file():
+            children[0].unlink()
+            children = list(path.iterdir())
+        if not children:
             path.rmdir()
     except OSError:
         pass
@@ -373,38 +392,38 @@ def drop_orphaned_worktree(
     # Read the owning repository off the pointer BEFORE the directory goes --
     # afterwards nothing at that path names it any more.
     registered_repo = registered_repo_from_gitdir_pointer(worktree.path)
-    never_registered = worktree_toplevel(worktree.path) is not None
     removed = remove_empty_orphan_directory(worktree.path, root)
     info["directory_removed"] = removed
     info["registration_pruned"] = orphan_registration_state(
-        registered_repo, never_registered=never_registered, directory_removed=removed
+        registered_repo, directory_removed=removed
     )
     return info
 
 
 def orphan_registration_state(
-    registered_repo: Path | None, *, never_registered: bool, directory_removed: bool
+    registered_repo: Path | None, *, directory_removed: bool
 ) -> str:
     """How the owning repository's worktree record ended up, for the report.
 
-    Four outcomes, because "the directory is gone" and "the path is reusable"
+    Three outcomes, because "the directory is gone" and "the path is reusable"
     are different claims and only the second needs a repository:
 
     - `skipped` -- the directory survives, so there is nothing to prune yet;
       `git worktree prune` only drops records whose directory is missing.
-    - `not-applicable` -- git answers for an ancestor checkout, so this path
-      was never its own worktree and no record for it can exist.
     - `pruned` / `failed` -- the entry's own `gitdir:` pointer named its
       repository and the prune there succeeded or did not.
     - `unresolved` -- the pointer is gone, so whether a stale record survives
-      is not knowable from here. Reported rather than assumed either way: a
-      deleted pointer leaves a record behind, while a directory that was never
-      a worktree never had one, and the two are indistinguishable at this path.
+      is not knowable from here, and it is reported rather than assumed.
+
+    Recovering ownership is the *only* thing that clears the uncertainty. In
+    particular an ancestor checkout answering for the path proves nothing: a
+    real linked worktree nested under another checkout resolves to that
+    ancestor once its pointer is lost, while its owning repository still holds
+    a prunable record. "Never registered" and "registered, pointer gone" are
+    indistinguishable from the path alone, so both stay `unresolved`.
     """
     if not directory_removed:
         return "skipped"
-    if never_registered:
-        return "not-applicable"
     if registered_repo is None:
         return "unresolved"
     return prune_repo_worktree_records(registered_repo)
@@ -544,7 +563,7 @@ def main() -> int:
                                 f"(inspect and clear it by hand): {worktree.path}",
                                 file=sys.stderr,
                             )
-                        elif registration not in ("pruned", "not-applicable"):
+                        elif registration != "pruned":
                             # The directory is gone but the owning repository's
                             # record was not confirmed cleared, so the path may
                             # still reject `git worktree add` as "missing but
