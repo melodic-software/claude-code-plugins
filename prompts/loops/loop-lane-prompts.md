@@ -830,6 +830,48 @@ with the operator's signature on them.
 >    populations: an autonomous-eligible item or a raw-intake item with
 >    trigger-shaped text belongs to its own lane, not here.
 >
+>    **A fired trigger is spent once, and only the newest one counts.**
+>    Acting on a trigger is not idempotent: the text stays in comment
+>    history, and a past date or a now-true condition stays permanently
+>    true. Record the action on the carrier in the same pass you take it —
+>    a comment on the item you reopened, one on the closed source when you
+>    file a successor instead, and one on an already-open carrier when its
+>    row reaches a disposition — carrying, on the line after the provenance
+>    line,
+>    `<!-- work-items:trigger-consumed kind=reopened|successor|disposed item=<number> -->`
+>    and naming the successor where there is one. The open-carrier case is
+>    the easy one to miss: a trigger that fired into the queue is spent by
+>    the decision that answers it, and without the record a Decide and close
+>    or a Re-home drops that item into the 90-day closed window still
+>    carrying a permanently true trigger, so the next sweep reopens what I
+>    just decided. A trigger quoted inside a successor's body is a citation
+>    of where that successor came from, never a live trigger of its own —
+>    the successor exists because that trigger already fired, so it is spent
+>    by construction and no sweep fires on it. That record, not the
+>    reopening, is what spends the trigger, and it has to be
+>    action-specific: the provenance line rides on every comment I have you
+>    write, so keying off that alone would let an unrelated clarification
+>    retire a trigger nobody acted on and strand its decision for good.
+>    Trust the record by the same author-and-kind test population 1 applies
+>    to escalation markers; an untrusted or malformed one leaves the trigger
+>    live, because a re-fire is recoverable and a suppressed revisit is not.
+>    Skip the record entirely and a pass that stops after acting (cycle
+>    budget, a rate-limit pause, my attention) leaves the trigger live too,
+>    so the next pass re-briefs the same row on every pass inside the 90-day
+>    window.
+>
+>    Filing a successor is two calls — create the item, then record it — and
+>    a pass can die between them, which no wording makes atomic. So the
+>    successor's body names its source item and quotes the trigger it
+>    inherits, written into the body AT creation and never added afterward:
+>    when the source-side record is the call that went missing, that backlink
+>    is the only thing a later pass can find. Before filing a successor, look
+>    for one that already backlinks this source and this trigger; where one
+>    exists, adopt it and post the missing record instead of filing a second. Where an item carries several triggers, only
+>    the newest live one counts — the fresh trigger a Re-park records
+>    supersedes the one it just retired. Report a spent trigger with the
+>    action that retired it; never act on one twice.
+>
 > **Bounded queries only.** Every `gh issue list` call carries an explicit
 > `--limit` and computes `truncated: (length >= limit)`; a truncated count
 > is a floor, not a total — raise the limit and re-run until it reports
@@ -849,7 +891,12 @@ with the operator's signature on them.
 > candidate whatever else it carries, so the resolved human-gated role — not
 > the decision-pending label — is the only marker that actually parks
 > anything. Apply it in the same operation that exposes the item, never
-> role-less first and labelled after:
+> role-less first and labelled after — and in that same edit remove the
+> resolved autonomous-eligible role if the item carries it. Closing an item
+> never cleared its labels, so a carrier closed while autonomous-eligible
+> comes back still wearing that role, and an item wearing both canonical
+> roles is a contradiction every consumer reads differently: this is Flip's
+> clearing rule run in the opposite direction. Two surfaces:
 >
 > - population-2 rows carrying no human-gated role that the exclusions above
 >   did not remove — propose it as that row's FIRST action, ahead of the
@@ -858,6 +905,18 @@ with the operator's signature on them.
 > - a closed-item trigger carrier being reopened, and any successor item
 >   filed instead of reopening one — population 3 above, and the Re-park
 >   successor below.
+>
+> Then converge what is already broken: any inventoried row ALREADY wearing
+> both canonical roles gets the resolved autonomous-eligible role removed and
+> keeps the human-gated one, independently of whatever outcome that row
+> reaches. Nothing else repairs those — the population-2 first action fires
+> only where no human-gated role is present, and Re-park clears neither
+> marker by design — so a row that arrived contradictory from an earlier
+> template or another writer would stay contradictory forever. Converging
+> toward human-gated is the same direction the worker lane converges: while
+> neither machine-marked path is satisfied, the item's correct role IS
+> human-gated. It is idempotent, so a row already in the right state needs no
+> edit and no comment.
 >
 > Flip clears both markers together afterward, per the Flip rule below.
 >
@@ -1549,6 +1608,48 @@ to the template re-renders here too.
 >    populations: an autonomous-eligible item or a raw-intake item with
 >    trigger-shaped text belongs to its own lane, not here.
 >
+>    **A fired trigger is spent once, and only the newest one counts.**
+>    Acting on a trigger is not idempotent: the text stays in comment
+>    history, and a past date or a now-true condition stays permanently
+>    true. Record the action on the carrier in the same pass you take it —
+>    a comment on the item you reopened, one on the closed source when you
+>    file a successor instead, and one on an already-open carrier when its
+>    row reaches a disposition — carrying, on the line after the provenance
+>    line,
+>    `<!-- work-items:trigger-consumed kind=reopened|successor|disposed item=<number> -->`
+>    and naming the successor where there is one. The open-carrier case is
+>    the easy one to miss: a trigger that fired into the queue is spent by
+>    the decision that answers it, and without the record a Decide and close
+>    or a Re-home drops that item into the 90-day closed window still
+>    carrying a permanently true trigger, so the next sweep reopens what I
+>    just decided. A trigger quoted inside a successor's body is a citation
+>    of where that successor came from, never a live trigger of its own —
+>    the successor exists because that trigger already fired, so it is spent
+>    by construction and no sweep fires on it. That record, not the
+>    reopening, is what spends the trigger, and it has to be
+>    action-specific: the provenance line rides on every comment I have you
+>    write, so keying off that alone would let an unrelated clarification
+>    retire a trigger nobody acted on and strand its decision for good.
+>    Trust the record by the same author-and-kind test population 1 applies
+>    to escalation markers; an untrusted or malformed one leaves the trigger
+>    live, because a re-fire is recoverable and a suppressed revisit is not.
+>    Skip the record entirely and a pass that stops after acting (cycle
+>    budget, a rate-limit pause, my attention) leaves the trigger live too,
+>    so the next pass re-briefs the same row on every pass inside the 90-day
+>    window.
+>
+>    Filing a successor is two calls — create the item, then record it — and
+>    a pass can die between them, which no wording makes atomic. So the
+>    successor's body names its source item and quotes the trigger it
+>    inherits, written into the body AT creation and never added afterward:
+>    when the source-side record is the call that went missing, that backlink
+>    is the only thing a later pass can find. Before filing a successor, look
+>    for one that already backlinks this source and this trigger; where one
+>    exists, adopt it and post the missing record instead of filing a second. Where an item carries several triggers, only
+>    the newest live one counts — the fresh trigger a Re-park records
+>    supersedes the one it just retired. Report a spent trigger with the
+>    action that retired it; never act on one twice.
+>
 > **Bounded queries only.** Every `gh issue list` call carries an explicit
 > `--limit` and computes `truncated: (length >= limit)`; a truncated count
 > is a floor, not a total — raise the limit and re-run until it reports
@@ -1568,7 +1669,12 @@ to the template re-renders here too.
 > candidate whatever else it carries, so the resolved human-gated role — not
 > the decision-pending label — is the only marker that actually parks
 > anything. Apply it in the same operation that exposes the item, never
-> role-less first and labelled after:
+> role-less first and labelled after — and in that same edit remove the
+> resolved autonomous-eligible role if the item carries it. Closing an item
+> never cleared its labels, so a carrier closed while autonomous-eligible
+> comes back still wearing that role, and an item wearing both canonical
+> roles is a contradiction every consumer reads differently: this is Flip's
+> clearing rule run in the opposite direction. Two surfaces:
 >
 > - population-2 rows carrying no human-gated role that the exclusions above
 >   did not remove — propose it as that row's FIRST action, ahead of the
@@ -1577,6 +1683,18 @@ to the template re-renders here too.
 > - a closed-item trigger carrier being reopened, and any successor item
 >   filed instead of reopening one — population 3 above, and the Re-park
 >   successor below.
+>
+> Then converge what is already broken: any inventoried row ALREADY wearing
+> both canonical roles gets the resolved autonomous-eligible role removed and
+> keeps the human-gated one, independently of whatever outcome that row
+> reaches. Nothing else repairs those — the population-2 first action fires
+> only where no human-gated role is present, and Re-park clears neither
+> marker by design — so a row that arrived contradictory from an earlier
+> template or another writer would stay contradictory forever. Converging
+> toward human-gated is the same direction the worker lane converges: while
+> neither machine-marked path is satisfied, the item's correct role IS
+> human-gated. It is idempotent, so a row already in the right state needs no
+> edit and no comment.
 >
 > Flip clears both markers together afterward, per the Flip rule below.
 >
