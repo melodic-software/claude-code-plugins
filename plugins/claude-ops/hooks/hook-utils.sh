@@ -301,8 +301,22 @@ hook::read_supports_nchars() {
 # caller must keep reading rather than guess, and the caller's own fail-open
 # handling for absent jq is unaffected.
 hook::json_complete() {
+  # Structural pre-filter before paying for a jq process: a hook payload is a
+  # JSON object, so a complete one ends in `}` (possibly with trailing newline
+  # or CR). Testing the last few characters is O(1) and skips the spawn for
+  # every mid-payload buffer, which is what keeps this off the hot path of a
+  # large or slow read. A false negative here costs only the early break — the
+  # read continues and the caller's final completeness check still decides — so
+  # the pre-filter can never turn a whole payload into a wrong verdict.
+  [[ "${1: -4}" == *"}"* ]] || return 1
   command -v jq >/dev/null 2>&1 || return 1
-  jq -e . >/dev/null 2>&1 <<<"$1"
+  # `printf | jq`, never `jq <<< "$1"`. A here-string is delivered through a pipe
+  # that bash fills itself, so a payload at or above the pipe capacity (65536
+  # bytes on this platform — exactly one read chunk) blocks the shell forever
+  # before jq is ever exec'd. Reproduced: a 65536-byte buffer hung here
+  # indefinitely while 65000 returned immediately. A separate writer process
+  # cannot deadlock that way.
+  printf '%s' "$1" | jq -e . >/dev/null 2>&1
 }
 
 # Resolve the read timeout to a value THIS shell's `read -t` will actually
@@ -409,6 +423,20 @@ hook::buffer_stdin() {
         hook::json_complete "${input//$'\r'/}" && break
         continue
       fi
+      # An EMPTY slice can also be the late-EOF case: the payload may have been
+      # completed by the PREVIOUS read, which returned rc 0 and so never reached
+      # the completeness check above. That happens whenever the payload ends on a
+      # 65536-character boundary, and without this the helper would wait out the
+      # whole bound instead of a single slice. Checking here rather than on the
+      # rc-0 path keeps jq off the hot path — a large payload costs one check
+      # when the producer first pauses, not one per 64 KB chunk.
+      #
+      # Only on the FIRST empty slice of a quiet period: the buffer cannot grow
+      # while nothing is arriving, so re-checking an unchanged buffer would spend
+      # a jq process per slice to re-derive the same answer — enough overhead on
+      # a slow-spawning host to cost more than slicing saves. idle_slices resets
+      # the moment a byte lands, so the next quiet period checks again.
+      ((idle_slices == 0)) && hook::json_complete "${input//$'\r'/}" && break
       ((idle_slices++))
       ((idle_slices >= slice_count)) || continue
       stalled=1
@@ -419,7 +447,10 @@ hook::buffer_stdin() {
   [[ -n "$input" ]] || return 1
   local jq_rc=0
   if command -v jq >/dev/null 2>&1; then
-    jq -e . >/dev/null 2>&1 <<<"$input" || jq_rc=$?
+    # `printf | jq`, not a here-string — see hook::json_complete: a here-string
+    # at or above the pipe capacity deadlocks the shell before jq is exec'd, and
+    # a hook payload routinely exceeds it.
+    printf '%s' "$input" | jq -e . >/dev/null 2>&1 || jq_rc=$?
   fi
   if ((jq_rc != 0 && jq_rc != 127)); then
     if ((stalled)); then
@@ -433,10 +464,16 @@ hook::buffer_stdin() {
 
 # Extract a single jq field from a buffered input string. CR-stripped. Returns 1
 # when the field is empty or jq fails, so the caller can skip.
+#
+# Fed through `printf | jq`, never a here-string: bash fills a here-string's pipe
+# itself, so a payload at or above the pipe capacity (65536 bytes here) blocks
+# before jq is exec'd. Callers pass the WHOLE buffered hook payload, which now
+# routinely exceeds that — a bounded stdin read used to reject anything that
+# large before it reached this helper.
 #   FIELD=$(hook::jq_field "$INPUT" '.tool_input.file_path') || exit 0
 hook::jq_field() {
   local field
-  field=$(jq -r "(${2} // empty)"' | gsub("\r";"")' <<<"$1" 2>/dev/null)
+  field=$(printf '%s' "$1" | jq -r "(${2} // empty)"' | gsub("\r";"")' 2>/dev/null)
   [[ -n "$field" ]] || return 1
   printf '%s' "$field"
 }

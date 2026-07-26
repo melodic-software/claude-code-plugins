@@ -20,7 +20,23 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   nothing at all is a stall. `read -N` is Bash 4.1+, and these hooks support Bash 3.2+ (macOS
   system bash), so the pre-4.1 path falls back to the delimiter read inside the same re-arming
   loop. Measured: 50 KB drops from ~2100 ms to ~20 ms, 200 KB from ~6800 ms to ~85 ms. Synced
-  from `lib/hook-utils.sh`; this plugin's own hook behavior is otherwise unchanged.
+  from `lib/hook-utils.sh`.
+- **`skill-usage-expansion-audit` could hang on a large payload.** It read `expansion_type` with a
+  jq here-string. Bash fills a here-string's pipe itself, so a payload at or above the pipe capacity
+  (65536 bytes) blocks the hook forever before jq is exec'd. The bounded stdin read used to reject
+  anything that large before it got here; now that it does not, the call goes through
+  `printf | jq` instead. Reproduced on the shared library's own equivalent call: a 65536-byte buffer
+  hung indefinitely while 65000 returned immediately.
+
+### Changed
+
+- **`stdin_read_timeout` is documented as the idle bound it now is.** This plugin already exposed
+  the option, and its README and manifest description both described it as bounding "how long each
+  hook waits for its payload before failing open" — a total read deadline. It is now an inactivity
+  deadline: any byte resets it, so a producer that keeps emitting is bounded by Claude Code's own
+  hook timeout rather than by this value, and the bound is read in four slices so a stall is detected
+  within a quarter of the configured interval. Documentation only — the configuration contract users
+  read was materially misleading after the shared-library change above.
 
 ## [0.21.5]
 

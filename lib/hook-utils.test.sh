@@ -1124,6 +1124,68 @@ if [[ "$bs_slices" == "0.300 4" ]] && [[ "$bs_slices_forced" == "1.2 1" ]]; then
 else
   fail "slice resolution: got '$bs_slices' / forced '$bs_slices_forced'; cases below are vacuous"
 fi
+# A late-EOF payload whose length lands exactly on a 65536-character read
+# boundary completes on a read that returns rc 0, so it never reaches the
+# with-bytes completeness check — only the empty-slice one catches it. Without
+# that, this case waits out the whole bound instead of a slice. Asserted against
+# a deliberately NON-boundary length of the same shape, so the comparison isolates
+# the boundary rather than measuring absolute latency.
+bs_make_payload() { # $1 = exact payload length in bytes, $2 = destination file
+  # `{"p":"` + pad + `"}` — 8 bytes of envelope. Built with pure parameter
+  # expansion rather than a `yes | … | head -c` pipeline: the exact length is the
+  # entire point of this case, and a generator whose length depends on where the
+  # newline stripping happens (or on a pipeline terminating cleanly under MSYS)
+  # is one that can silently produce the wrong fixture.
+  local pad
+  printf -v pad '%*s' "$(($1 - 8))" ''
+  printf '{"p":"%s"}' "${pad// /a}" >"$2"
+}
+bs_time_held_open() { # $1 = exact payload length in bytes; prints elapsed ms
+  local payload_file t_file
+  payload_file="$(mktemp)"
+  t_file="$(mktemp)"
+  bs_make_payload "$1" "$payload_file"
+  { cat "$payload_file"; sleep 3; } | {
+    CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT=1.2 bash -c '
+      source "$1"
+      printf "%s\n" "${EPOCHREALTIME:-0}"
+      hook::buffer_stdin >/dev/null 2>&1
+      printf "%s\n" "${EPOCHREALTIME:-0}"
+    ' _ "$HOOK_DIR/hook-utils.sh" >"$t_file"
+  }
+  awk 'NR==1 {s=$0} NR==2 {e=$0}
+       END { if (s == 0 || e == 0 || NR < 2) print ""; else printf "%.0f", (e - s) * 1000 }' \
+    "$t_file"
+  rm -f "$payload_file" "$t_file"
+}
+# The whole case turns on the payload being EXACTLY chunk-sized, and an off-by-a-
+# few generator would quietly compare two non-boundary payloads. Assert the
+# lengths first.
+bs_len_file="$(mktemp)"
+bs_make_payload 65536 "$bs_len_file"
+bs_len_a=$(wc -c <"$bs_len_file")
+bs_make_payload 65000 "$bs_len_file"
+bs_len_b=$(wc -c <"$bs_len_file")
+rm -f "$bs_len_file"
+if ((bs_len_a == 65536)) && ((bs_len_b == 65000)); then
+  ok "buffer_stdin: chunk-boundary fixtures are exactly sized ($bs_len_a / $bs_len_b)"
+else
+  fail "chunk-boundary fixtures wrong size ($bs_len_a / $bs_len_b); the case below is vacuous"
+fi
+bs_boundary_ms=$(bs_time_held_open 65536)
+bs_offset_ms=$(bs_time_held_open 65000)
+if [[ -z "$bs_boundary_ms" || -z "$bs_offset_ms" ]]; then
+  if [[ -n "${EPOCHREALTIME:-}" ]]; then
+    fail "boundary timing harness produced no measurement ('$bs_boundary_ms' / '$bs_offset_ms')"
+  else
+    ok "buffer_stdin: chunk-boundary latency not timed (EPOCHREALTIME absent, Bash < 5.0)"
+  fi
+elif ((bs_boundary_ms < bs_offset_ms + 400)); then
+  ok "buffer_stdin: a 65536-char payload costs no more than a non-boundary one (${bs_boundary_ms} ms vs ${bs_offset_ms} ms)"
+else
+  fail "buffer_stdin chunk boundary: ${bs_boundary_ms} ms vs ${bs_offset_ms} ms non-boundary — boundary payload waits out the bound"
+fi
+
 bs_sliced_ms=$(bs_time_stall "")
 bs_unsliced_ms=$(bs_time_stall "$bs_unsliced")
 if [[ -z "$bs_sliced_ms" || -z "$bs_unsliced_ms" ]]; then

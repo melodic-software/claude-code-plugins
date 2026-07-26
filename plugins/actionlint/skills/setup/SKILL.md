@@ -47,7 +47,9 @@ restores the FAIL semantics.
    other than `true` disables the hook).
 5b. **Stdin read timeout** — INFO: report the effective `stdin_read_timeout` value:
    `${user_config.stdin_read_timeout}` (unexpanded or empty means default `2` seconds,
-   minimum `1`; bounds reading the hook payload before failing open).
+   minimum `1`). It is an IDLE bound — any byte arriving resets it, so it fires only once
+   the pipe has gone silent for that long, at which point this hook fails open. A value
+   `read -t` will not accept, or `0`, falls back to the default.
 6. **Hook registration** — INFO: confirm the plugin is enabled for this project
    (`/plugin` → Installed) rather than parsing settings files.
 

@@ -22,6 +22,16 @@ All notable changes to the `actionlint` plugin are documented here. Format follo
   loop. Measured: 50 KB drops from ~2100 ms to ~20 ms, 200 KB from ~6800 ms to ~85 ms. Synced
   from `lib/hook-utils.sh`; this plugin's own hook behavior is otherwise unchanged.
 
+### Changed
+
+- **`stdin_read_timeout` is documented as the idle bound it now is.** This plugin already exposed
+  the option, and its README, manifest description, and setup skill all described it as bounding
+  "reading the hook payload from stdin before failing open" — a total read deadline. It is now an
+  inactivity deadline: any byte resets it, so a producer that keeps emitting is bounded by Claude
+  Code's own hook timeout rather than by this value, and the bound is read in four slices so a stall
+  is detected within a quarter of the configured interval. Documentation only — the configuration
+  contract users read was materially misleading after the shared-library change above.
+
 ## [0.7.3]
 
 ### Changed
