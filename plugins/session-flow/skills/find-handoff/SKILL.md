@@ -163,24 +163,33 @@ one, since the producer emits a separate re-arm message per surviving loop, so "
      never disqualifies an earlier manual block in the same transcript. A delivered block is not a
      lost handoff (its work is already running — `claude agents` lists it); exclude it and keep
      scanning.
-   - **Capture the below-rail `/loop` re-arm notes — every mode, every discovery path, every
+   - **Capture the below-rail `/loop` re-arm entries — every mode, every discovery path, every
      loop.** Once a candidate qualifies on the signals above, also take the re-arm instructions the
-     producer emits
-     directly after the bottom rail (`send /loop [<interval>] <original prompt> as a separate message`, or its
-     no-launch-signal variant `if a loop was active, re-arm it with …`). Anchor them to the bottom
-     rail and match the note's own wording — never "the lines after the rail", which would widen
-     this skill into the raw-transcript dump it forbids. **Keep matching past the first hit.** A
-     session can hold several loops and the producer emits "one re-arm message per loop left
-     standing" (save-point.md "Loop-aware re-arm"), so the capture ends at the first line below the
-     rail that does *not* match the note's wording — not at the first line that does. Recovering one
-     of three re-arms drops two schedules while looking like it worked, which is the producer-side
-     failure this contract exists to mirror, not repeat. **This is a capture, never a detection
+     producer emits below the bottom rail. **Scan for the `Re-arm <i> of <n>:` counters, not for the
+     command wording.** The producer opens every entry with one and puts the block last in the
+     message (save-point.md "Loop-aware re-arm"), so entry `i` runs from its counter to the line
+     before counter `i+1`, and entry `n` runs to the end of that message. Anchor the search to the
+     bottom rail — never "the lines after the rail" unbounded, which would widen this skill into the
+     raw-transcript dump it forbids.
+
+     Two failure modes the counters exist to close, both of which look like success:
+
+     - **A quoted prompt spans several lines.** The prompt is reproduced exactly as the operator
+       typed it, so its continuation lines match no command wording. Bounding an entry by the first
+       line that stops looking like a re-arm would cut that prompt in half and lose every entry
+       behind it. Only the next counter, or the end of the message, ends an entry.
+     - **Several loops were armed.** `<n>` is the count the producer wrote. Recover all `n`. Finding
+       fewer means the transcript is truncated or the shape drifted — surface what was found and say
+       `n` were expected, rather than presenting a subset as the whole.
+
+     **This is a capture, never a detection
      key:** it is taken only from an already-qualified candidate, so it cannot admit a candidate
-     the rails markers rejected. No note at all → the session was not looping; surface nothing extra.
+     the rails markers rejected. No counter at all → the session was not looping; surface nothing extra.
      **Do not add the note's placeholder tokens to the template-rejection list.** Unlike the rails
      template, the producer *really does* emit `<interval>` and `<the prompt you originally
-     launched it with>` verbatim on its no-launch-signal branch (save-point.md "Loop-aware
-     re-arm"), so rejecting on them would discard a genuine note; a transcript that merely read
+     launched it with>` verbatim on its no-launch-signal branch, under a `Re-arm 1 of 1:` counter
+     like any other entry (save-point.md "Loop-aware re-arm"), so rejecting on them would discard a
+     genuine note; a transcript that merely read
      `save-point.md` is already rejected by the existing rails-template filter.
    - **Un-escape before surfacing.** Each transcript message is ONE physical JSONL line with its
      text JSON-string-escaped (`\n` for newlines, `\"` for quotes, `\\` for backslashes). A raw grep

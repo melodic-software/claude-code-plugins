@@ -13,11 +13,19 @@
   surviving loops therefore recovered one of them and dropped two after `/clear` — the producer-side
   failure 0.17.8 fixed, reintroduced one layer down in the consumer, which is the same shape as the
   two recovery defects already fixed in this series. The capture now keeps matching past the first
-  hit, ending at the first line below the rail that does *not* match the note's wording rather than
-  at the first that does; the confirm gate surfaces all of them; the redaction invariant and the
+  hit; the confirm gate surfaces all of them; the redaction invariant and the
   *does NOT do* list are pluralized so they cannot be read as licensing a single-note recovery; and
   `save-point.md`'s own detection contract names the recoverable unit as every re-arm message the
   producer wrote, so the two sides state one rule.
+- **The re-arm entries are delimited, so a multi-line loop prompt no longer truncates recovery.**
+  The producer quotes the original prompt verbatim and a `/loop` prompt can carry newlines, so an
+  entry is not reliably one physical line and no wording-match rule can find its end — bounding a
+  capture at "the first line that stops looking like a re-arm" cuts the first multi-line prompt in
+  half and silently swallows every entry behind it. Each entry now opens with a literal
+  `Re-arm <i> of <n>:` counter and the block is emitted last in the message, so entry `i` ends at
+  counter `i+1` and entry `n` ends at the message. `<n>` also makes the recovery self-checking:
+  `find-handoff` scans counters instead of command wording and reports what it found against what
+  the producer said it wrote, rather than presenting a subset as the whole set.
 
 ## [0.17.8]
 

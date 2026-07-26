@@ -125,6 +125,23 @@ copy, which goes stale the moment disk moved on without this conversation seeing
   with `/loop [<interval>] <the prompt you originally launched it with>` after pasting the block
   above."
 
+  **Delimit the re-arm entries; a verbatim prompt can be several lines long.** The prompt is quoted
+  exactly as the operator typed it, and a message can carry newlines, so an entry is not reliably
+  one physical line and "the next line that stops looking like a re-arm" is not a boundary a
+  consumer can trust — it truncates the first multi-line prompt it meets and swallows the entries
+  after it. Give the block real edges instead:
+
+  - Open each entry with a literal `Re-arm <i> of <n>:` counter, `<n>` being the number of surviving
+    loops. The counter is what a consumer scans for, so it never has to guess where a quoted prompt
+    ends, and `<n>` lets it prove it recovered the whole set rather than hope so.
+  - Put the re-arm block LAST in the message. Nothing follows the final entry, so its end is the end
+    of the message — the one boundary that needs no marker of its own.
+  - The no-launch-signal fallback is a single entry and carries the same counter (`Re-arm 1 of 1:`),
+    so a consumer parses one shape rather than two.
+
+  Changing this shape is a knowing break of the detection contract below, and must move
+  `find-handoff` with it.
+
   **The note is conditioned on the paste, not on the citing skill.** Re-arming exists only because
   `/clear` destroys the session-scoped schedule, so a delivery that never clears needs none: a
   successful `/session-flow:continue-in-background` launch hands the rails prompt straight to a
