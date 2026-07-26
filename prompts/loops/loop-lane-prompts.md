@@ -833,12 +833,21 @@ with the operator's signature on them.
 >    **A fired trigger is spent once, and only the newest one counts.**
 >    Acting on a trigger is not idempotent: the text stays in comment
 >    history, and a past date or a now-true condition stays permanently
->    true. Record the action on the carrier in the same pass you take it — a
->    comment on the item you reopened, and one on the closed source when you
->    file a successor instead — carrying, on the line after the provenance
+>    true. Record the action on the carrier in the same pass you take it —
+>    a comment on the item you reopened, one on the closed source when you
+>    file a successor instead, and one on an already-open carrier when its
+>    row reaches a disposition — carrying, on the line after the provenance
 >    line,
->    `<!-- work-items:trigger-consumed kind=reopened|successor item=<number> -->`
->    and naming the successor where there is one. That record, not the
+>    `<!-- work-items:trigger-consumed kind=reopened|successor|disposed item=<number> -->`
+>    and naming the successor where there is one. The open-carrier case is
+>    the easy one to miss: a trigger that fired into the queue is spent by
+>    the decision that answers it, and without the record a Decide and close
+>    or a Re-home drops that item into the 90-day closed window still
+>    carrying a permanently true trigger, so the next sweep reopens what I
+>    just decided. A trigger quoted inside a successor's body is a citation
+>    of where that successor came from, never a live trigger of its own —
+>    the successor exists because that trigger already fired, so it is spent
+>    by construction and no sweep fires on it. That record, not the
 >    reopening, is what spends the trigger, and it has to be
 >    action-specific: the provenance line rides on every comment I have you
 >    write, so keying off that alone would let an unrelated clarification
@@ -1611,12 +1620,21 @@ to the template re-renders here too.
 >    **A fired trigger is spent once, and only the newest one counts.**
 >    Acting on a trigger is not idempotent: the text stays in comment
 >    history, and a past date or a now-true condition stays permanently
->    true. Record the action on the carrier in the same pass you take it — a
->    comment on the item you reopened, and one on the closed source when you
->    file a successor instead — carrying, on the line after the provenance
+>    true. Record the action on the carrier in the same pass you take it —
+>    a comment on the item you reopened, one on the closed source when you
+>    file a successor instead, and one on an already-open carrier when its
+>    row reaches a disposition — carrying, on the line after the provenance
 >    line,
->    `<!-- work-items:trigger-consumed kind=reopened|successor item=<number> -->`
->    and naming the successor where there is one. That record, not the
+>    `<!-- work-items:trigger-consumed kind=reopened|successor|disposed item=<number> -->`
+>    and naming the successor where there is one. The open-carrier case is
+>    the easy one to miss: a trigger that fired into the queue is spent by
+>    the decision that answers it, and without the record a Decide and close
+>    or a Re-home drops that item into the 90-day closed window still
+>    carrying a permanently true trigger, so the next sweep reopens what I
+>    just decided. A trigger quoted inside a successor's body is a citation
+>    of where that successor came from, never a live trigger of its own —
+>    the successor exists because that trigger already fired, so it is spent
+>    by construction and no sweep fires on it. That record, not the
 >    reopening, is what spends the trigger, and it has to be
 >    action-specific: the provenance line rides on every comment I have you
 >    write, so keying off that alone would let an unrelated clarification
