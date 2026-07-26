@@ -86,6 +86,18 @@
   keeps it from becoming a mass-rewrite vector. A YAML block-mapping catalog key stays a
   documented gap: it opens with nothing, so the only pattern reaching it would match every nested
   YAML key.
+- **The survey enumerates every token span INSIDE each match.** Form 7's pattern swallows a whole
+  frontmatter field and its greedy prefix binds the capture to one occurrence, so
+  `description: "first <old> and then <old>"` produced a single match for two references — and no
+  cursor advance recovers the other, since re-matching from inside the field cannot reproduce the
+  `description:` prefix. The whole-pattern match now establishes THAT a form applies and over what
+  extent; the token spans within it are the references.
+- **Form 14 accepts closed ATX headings.** `# <old> #` is valid ATX and its entire content is
+  still the token, but the anchor rejected the trailing hash run, leaving the title as Form 2
+  residue. The run is decoration, not reference: only the token span is replaced.
+- **The default hand-off discloses confirmed skips.** Phase 7 required reporting them; the success
+  template at the bottom of `apply.md` listed only the residue count, so a normal run said "0
+  actionable stragglers" without disclosing that occurrences were preserved by request.
 - **The rescan cursor advances to the end of the captured token, not the end of the match.**
   Forms 3, 13, 15 and both delimiter-anchored Form 14 alternatives CONSUME a trailing delimiter
   rather than asserting it, because ripgrep's default engine rejects look-around — and that

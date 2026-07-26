@@ -282,7 +282,7 @@ existing "Frozen historical records" rule already excludes. See `triage.md`
 ## Form 14: Document title / declared name
 
 ```regex
-^#{1,6}\s+`?<old>`?\s*$
+^#{1,6}\s+`?<old>`?\s*(#+\s*)?$
 ^`?<old>`?\s*$\n^(=+|-+)\s*$
 ^\s*(name|title|id):\s*("<old>"|'<old>'|<old>)\s*$
 (^|[{,])\s*"(name|title|id)"\s*:\s*"<old>"\s*(,|}|$)
@@ -299,6 +299,11 @@ existing "Frozen historical records" rule already excludes. See `triage.md`
   ambiguous. A heading that merely *contains* the token (`## How re-anchor works`) may well
   be verb usage and belongs in Form 2's ambiguous bucket; a heading that IS the token can
   only be naming it.
+- **Closed ATX headings still ARE the token.** `# <old> #` is valid ATX — the trailing hash run
+  is decoration, not content, so the heading's entire content is still `<old>` and the reasoning
+  above applies unchanged. Without the optional `(#+\s*)?` the anchor rejected it, the title's
+  only hit was Form 2, and container mode excluded that as residue. The closing run is not part
+  of the reference: replace only the captured `<old>` span and leave the hashes in place.
 - **Setext titles count.** A README may underline its title (`<old>` then a line of `=` or `-`)
   instead of using an ATX `#`. Both render as the document's primary heading, so missing the
   Setext shape meant a container's own title had only a Form 2 hit — which container mode

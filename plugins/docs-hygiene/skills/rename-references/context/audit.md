@@ -57,7 +57,20 @@ ALL occurrences of the form's pattern and emit one record per occurrence:
 `{file, line, start, end, pattern_form, snippet}`. A line with two `<old>` occurrences produces
 two records.
 
-**Advance the rescan cursor to the end of the CAPTURED `<old>` span, not the end of the match.**
+**Enumerate every `<old>` span INSIDE each match — do not rely on repeated whole-pattern
+matching.** Some forms match a span far wider than the token: Form 7's
+`description:\s*"[^"]*\b<old>\b[^"]*"` swallows the entire field, and its greedy prefix binds the
+captured group to just ONE occurrence. On `description: "first <old> and then <old>"` the pattern
+yields a single match for two references, and no amount of cursor advancing recovers the other —
+re-matching from inside the field cannot reproduce the `description:` prefix the pattern requires.
+So for each match, scan its text for every occurrence of `<old>` and emit one record per
+occurrence, all attributed to the matching form. The whole-pattern match establishes THAT the form
+applies and to what extent; the token spans inside it are the references. Under container mode a
+lost occurrence becomes suppressed Form 2 residue, so this drops silently and the rename can
+falsely complete.
+
+**Then advance the rescan cursor to the end of the LAST enumerated `<old>` span, not the end of
+the match.**
 Several forms deliberately CONSUME a trailing delimiter instead of using a lookahead, because
 ripgrep's default engine rejects look-around — Forms 3, 13, 15 and both delimiter-anchored Form 14
 alternatives all do. That consumed delimiter is frequently the LEADING delimiter the next
@@ -75,10 +88,11 @@ Two details that make the cursor rule correct rather than merely different:
 - **Advance a cursor; do not slice the string.** Re-running the pattern against a substring makes
   `^` match at the cursor, which would admit a member with no delimiter in front of it. Keep `^`
   bound to the real start of line or block.
-- **The cursor is the captured token's end, not the match's start + 1.** Advancing by one
+- **The cursor is the last enumerated token's end, not the match's start + 1.** Advancing by one
   character re-finds the same occurrence through a different alternative and doubles the record;
   the captured span is the unit of identity everywhere else in this pipeline, so it is the unit
-  here too.
+  here too. Advancing past the whole match is the adjacency bug above; advancing past only the
+  FIRST token in a wide match re-emits the ones already enumerated.
 
 **Rescan the returned BLOCK, not a line, for the multiline forms.** For Form 7 and Form 14's
 Setext alternative the unit Grep returns is a multi-line block, and the pattern only matches

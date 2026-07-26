@@ -508,6 +508,43 @@
         "The remedy is the survey's cursor rule, not removing the consumed terminator",
         "The rescan advances a cursor rather than slicing, so `^` is not re-anchored mid-line"
       ]
+    },
+    {
+      "id": 42,
+      "name": "wide-match-enumerates-every-token-span",
+      "prompt": "Rename `docs-hygiene` to `doc-care`. A SKILL.md frontmatter field reads: description: \"first docs-hygiene and then docs-hygiene\". How many occurrence records does the survey emit?",
+      "expected_output": "Two. Form 7's pattern swallows the whole field and its greedy prefix binds the captured group to a single occurrence, so the whole-pattern match is ONE for two references -- and no cursor advance recovers the other, because re-matching from inside the field cannot reproduce the `description:` prefix the pattern requires. The survey therefore scans each match's text for every occurrence of the token and emits one record per occurrence, all attributed to the matching form: the whole-pattern match establishes THAT the form applies and over what extent, the token spans inside it are the references. Relying on repeated whole-pattern matching loses the earlier occurrence, and under container mode it becomes suppressed Form-2 residue, so the drop is silent and the rename can falsely complete.",
+      "files": [],
+      "expectations": [
+        "Both occurrences inside the single wide match produce records",
+        "The greedy prefix binding the capture to one occurrence is identified as the cause",
+        "Enumeration inside the match is used rather than repeated whole-pattern matching",
+        "The cursor then advances past the LAST enumerated span, not the first"
+      ]
+    },
+    {
+      "id": 43,
+      "name": "closed-atx-heading-is-a-title-match",
+      "prompt": "Rename the `docs-hygiene` plugin to `doc-care`. Its README titles itself `# docs-hygiene #` using the closed ATX form.",
+      "expected_output": "Form 14's ATX alternative matches it. The trailing hash run is ATX decoration rather than content, so the heading's entire content is still the token and the Certain reasoning applies unchanged; without the optional closing-hash group the anchor rejected it, the title's only hit was Form 2, and container mode excluded that as residue while reporting completion with the landing-page title stale. The closing run is not part of the reference -- only the captured token span is replaced, and the hashes stay. Discrimination is unchanged: `## How docs-hygiene works`, `# docs-hygiene extra` and `# docs-hygiene-extra #` are still not matched.",
+      "files": [],
+      "expectations": [
+        "The closed ATX form is matched",
+        "The closing hash run is not rewritten as part of the reference",
+        "Headings that merely contain the token are still rejected"
+      ]
+    },
+    {
+      "id": 44,
+      "name": "default-handoff-discloses-confirmed-skips",
+      "prompt": "I skipped two matches during the rename and the run finished. The summary says \"Phase 6 re-sweep: 0 actionable stragglers\". Is that the whole story?",
+      "expected_output": "No, and the default hand-off template carries a skipped-count line for exactly this reason. The zero is true -- a confirmed skip is not actionable -- but on its own it is misleading, because the run preserved stale occurrences BY REQUEST and a reader cannot distinguish that from a sweep that found nothing. The template emits `Skipped <S> matches at your confirmation` whenever <S> is non-zero, in either mode, on a line separate from the container-mode residue count: residue was never proposed, a skip was proposed and declined, and a reader asking why a surviving occurrence was left alone needs to know which of the two it was.",
+      "files": [],
+      "expectations": [
+        "The skipped count appears in the default success hand-off, not only in the Phase 7 prose",
+        "Skips and container-mode residue are reported on separate lines",
+        "The zero-stragglers line is explained as true but insufficient on its own"
+      ]
     }
   ]
 }

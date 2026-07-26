@@ -234,8 +234,15 @@ Rename `<old>` → `<new>` complete.
 - Excluded <K> plan-doc/historical/memory paths (preserved by design)
 - Left <R> bare-token occurrences as ordinary use of the word (container-rename mode; omit this
   line for an identifier rename or when <R> is 0)
+- Skipped <S> matches at your confirmation (omit when <S> is 0)
 
 Next: run your verification workflow (build + test + lint) to confirm no semantic regression.
 ```
+
+The `<S>` line is not optional formatting. "0 actionable stragglers" is true after a skip and
+still misleading on its own — the run preserved stale occurrences BY REQUEST, and a reader who
+sees only the zero has no way to tell that from a sweep that found nothing. Same reason `<R>`
+exists, different fact: residue was never proposed, a skip was proposed and declined, so the two
+stay on separate lines in both this template and the Phase 7 summary.
 
 User decides whether to commit immediately or continue work first (the consuming repository's own commit policy governs).
