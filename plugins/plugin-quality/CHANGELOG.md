@@ -38,6 +38,15 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   than guessed — with a per-decision table for scope, severity calibration, named assumptions, and
   emit target. `contract.md` records `autonomous: true` so a later reader can tell which answers
   came from a human.
+
+  The emit-target row does **not** block when the ladder's rungs 1–2 both miss. An earlier revision
+  of this entry called an unresolved target a blocker, which contradicted step 6 — that step sends
+  every unattended run to rung 4 regardless of whether 1–2 resolved, and `reference/config.md`
+  names "no repo" as one of rung 4's own entry conditions. Blocking would have stranded exactly the
+  targetless runs rung 4 exists for: a plugin loaded with `--plugin-dir` has no marketplace
+  registration to infer from and no tracked config, and is the case most likely to be audited
+  unattended. The row now records which rung would have been taken, or that none resolved, and the
+  emit lands on rung 4 either way.
 - **Step 6 (egress gate) gains an autonomous-invocation clause that does NOT relax the gate
   (#1566).** The originating report proposed treating step 6 as having "the identical issue" as
   step 4; that half is **refuted**. Step 4 has no external side effect, so deriving its answers is
