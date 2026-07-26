@@ -396,10 +396,31 @@ scan_file() {
     # side: a `stat "--" -f` counterpart is accepted as a fallback although the
     # `-f` names a file there. That direction fails OPEN, which is the argument
     # for honoring `--` properly rather than partially.
-    function is_guarded(q, p, at,   CMDPOS, SEG, PRE) {
+    # A `!` in front of the GNU call inverts its status, so the `||` fires when
+    # the call SUCCEEDS and is skipped when it fails — the fallback never runs
+    # on the dialect that needs it. A negated probe therefore has no guard at
+    # all, however well-formed the ladder after it looks.
+    function blanks(n,   s) {
+      s = ""
+      while (length(s) < n) s = s " "
+      return s
+    }
+    function is_negated(q, at,   head) {
+      head = substr(q, 1, at - 1)
+      if (match(head, /.*[;|&()]/)) head = substr(head, RSTART + RLENGTH)
+      return head ~ /(^|[[:space:]])![[:space:]]+$/
+    }
+    function is_guarded(q, p, at,   CMDPOS, SEG, PRE, ASSIGN) {
+      if (is_negated(q, at)) return 0
+      # An environment assignment prefix does not change WHICH command the `||`
+      # runs, so `|| LANG=C stat -f …` is the same fallback as `|| stat -f …`
+      # and must not be forced into a hand-written exemption. Repeatable, and
+      # admissible on either side of an invocation wrapper.
+      ASSIGN = "([A-Za-z_][A-Za-z0-9_]*=[^;|&[:space:]]*[[:space:]]+)*"
       # A substitution opener after the `||` may be either spelling, since
-      # both make the command that follows what the `||` actually runs.
-      CMDPOS = "\\|\\|[[:space:]]*([A-Za-z_][A-Za-z0-9_]*=)?(\\$\\(|" BT ")?[[:space:]]*((command|env)[[:space:]]+|\\\\)?[[:space:]]*"
+      # both make the command that follows what the `||` actually runs. The
+      # bare `NAME=` (no value, no trailing space) is the `x=$(stat …)` shape.
+      CMDPOS = "\\|\\|[[:space:]]*" ASSIGN "([A-Za-z_][A-Za-z0-9_]*=)?(\\$\\(|" BT ")?[[:space:]]*((command|env)[[:space:]]+)?" ASSIGN "(\\\\)?[[:space:]]*"
       SEG = "([^;|&]|[<>]&|&>|&&)*"
       # A word inside PRE is any single argument that is not a control
       # operator. Excluding the operators matters as much here as in SEG: a gap
@@ -438,12 +459,27 @@ scan_file() {
       if (is_cmt) next
       mask = mask_quotes(line)
       qline = neutralize(line, mask)
+      if (is_annotated(line) || annotated_above) next
       for (i = 1; i <= np; i++) {
-        at = hit_offset(qline, mask, patterns[i])
-        if (at == 0) continue
-        if (is_annotated(line) || annotated_above) continue
-        if (is_guarded(qline, patterns[i], at)) continue
-        printf "%d: %s -> %s\n", FNR, patterns[i], line
+        # EVERY occurrence is evaluated, not just the first. A guarded ladder
+        # earlier on the line says nothing about an unconditional call after
+        # it: `stat -c … || stat -f … ; stat -c …` guards only the first pair,
+        # and stopping at it reported the line clean (#1544). Consumed extents
+        # are blanked in a scratch copy so the next `match()` finds the NEXT
+        # occurrence; the guard still reads the untouched line, and blanking
+        # preserves length so offsets stay aligned.
+        scan = qline
+        while (match(scan, patterns[i])) {
+          st = RSTART
+          len = RLENGTH
+          at = st
+          if (substr(scan, at, 1) !~ /[A-Za-z]/) at++
+          if (!is_guarded(qline, patterns[i], at)) {
+            printf "%d: %s -> %s\n", FNR, patterns[i], line
+            break
+          }
+          scan = substr(scan, 1, st - 1) blanks(len) substr(scan, st + len)
+        }
       }
     }
   ' "$TOKENS" "$awk_file"
