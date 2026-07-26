@@ -3,6 +3,54 @@
 All notable changes to the `markdown-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.0]
+
+### Fixed
+
+- **Lint reporting is bounded instead of unbounded.** The hook appended every
+  line of markdownlint's whole-file output to `additionalContext` on every
+  touch — no cap, no baseline, no dedup — so a file edited repeatedly produced
+  a full re-dump each time. Measured in one consuming session: 21 dumps,
+  ~378 KB (~95K tokens), one file dumped eight times with byte-identical
+  content, and 97% of one real file's 324 findings from a single rule that
+  repository intentionally violates. Now every run reports the finding count
+  and a rule histogram (which rules dominate, highest first), lists at most 20
+  individual violations, and reports the omitted remainder as a count.
+  markdownlint's own banner lines (its version, the resolved `Finding:` glob
+  list, `Linting:`, `Summary:`) no longer enter the report at all — they say
+  nothing about the edited file and cost context on every edit.
+- **An unchanged finding set no longer repeats its detail.** The finding set is
+  content-hashed per file per session under `CLAUDE_PLUGIN_DATA`; a repeat with
+  the same set reports its summary and omits the per-finding lines. The
+  **summary always goes out** — suppressing the message entirely would
+  reproduce, on this plugin, exactly the invisible-hook defect the disclosure
+  below fixes.
+- **A run that rewrote the file is no longer silent about it.** On the
+  clean-after-fix path the hook emitted nothing at all, so `--fix` rewriting the
+  user's file was indistinguishable from the hook not running. The count
+  markdownlint-cli2 reports (`Attempted: N fixes in 1 file`) is now surfaced on
+  both channels. It is only a count: `markdownlint-cli2` offers no per-fix
+  detail, so neither can this hook.
+
+### Added
+
+- **`markdown_format_max_findings` userConfig (default `20`, `0` = unlimited).**
+  Bounds the per-run violation listing only; the count and rule histogram are
+  always reported. Read from the
+  `CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_MAX_FINDINGS` environment mirror, because
+  shell-form hook commands reject `${user_config.*}` substitution outright. A
+  value that is not a non-negative integer falls back to the default and is
+  never interpolated anywhere.
+- Contract tests for the cap, the configurable cap (including a garbage value),
+  the rule histogram, banner exclusion, the delta gate in both directions,
+  uncapped telemetry, and the applied-fix disclosure.
+
+### Changed
+
+- The telemetry payload is deliberately **not** capped — a sink is a machine,
+  and the cap exists to protect the model's context, not a log file.
+  `data.findings` keeps its shape and its full contents.
+
 ## [0.7.1]
 
 ### Changed
