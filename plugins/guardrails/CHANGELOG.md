@@ -7,6 +7,31 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
 
 ### Fixed
 
+- **`skill-reference-verify`'s partial-Edit reconstruction now anchors on the hunk's own text, and
+  only where that text occurs exactly once, instead of on its word tokens (#1453).** The guard's
+  header comment claimed the token filter held the diff-scope contract — a pre-existing unrelated
+  reference sharing a recovered line never fires — but a 4+ character word token is short enough to
+  occur where the edit never landed: a hunk of unrelated prose containing `legacy` grepped back every
+  `*-legacy` reference in the file, including an untouched broken one, which then passed the
+  substring gate and fired from an edit that never touched it. Anchors are now the hunk's own lines,
+  each on disk verbatim by `PostToolUse` time, and an anchor is used only when it **occurs exactly
+  once**; anything repeated cannot say which copy the edit landed on and is dropped rather than
+  unioned. Occurrences, not matching lines — two copies on one physical line are a single `grep` hit,
+  so inserting `legacy` into a line that already carried an untouched `` `/alpha:ghost-legacy` ``
+  would otherwise still fire. The token filter survives as a second gate on what the locator returns,
+  never as the locator. `replace_all` is read from the payload and exempted: there every occurrence
+  is a site this call edited, so requiring uniqueness would silence the guard on a genuine multi-site
+  break. Costs, stated rather than papered over — an edit landing in text that repeats verbatim
+  elsewhere goes unreported, and under `replace_all` a line that independently read the same is kept
+  even though the edit never touched it. Both are the right side of the trade for a detect-then-judge
+  guard, degraded far worse by speaking wrongly than by staying quiet, and reconstruction stays a
+  best effort rather than a proof. Four regression tests cover the shared-token, bare-token,
+  same-line-double-occurrence, and `replace_all` shapes; the existing partial-replacement
+  true-positive cases keep passing, with the composite (complete-reference-plus-bare-word) case
+  reshaped onto a realistic multi-line hunk since a single Edit's `new_string` cannot land in two
+  disjoint places on disk. `stale-path-verify` and `cli-flag-verify` carry the same reconstruction
+  shape and are not fixed here; the guard-wide false-positive class they belong to is tracked on
+  `#547`, and `#1432` (`65b4f67c`) is the sibling fix this ports from.
 - **Shared `hook-utils.sh`: a bare or trailing unquoted `NAME=value` Bash
   command no longer leaks the assignment value into the privacy-safe
   telemetry/audit subject.** `hook::extract_bash_subject` stripped a leading
