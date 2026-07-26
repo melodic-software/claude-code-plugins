@@ -83,7 +83,15 @@
 # and a gate that rejects correct code gets switched off, which costs more than
 # this residue. `--sort=WORD` keeps quotes because there the quote follows the
 # option's VALUE and is unambiguously closing.
-grep[^\n]*[[:space:]]-[A-Za-z]*P[A-Za-z]*([[:space:]|&;()<>]|$)
+#
+# `<` and `>` terminate a word only when they open a REDIRECTION. `<(` and `>(`
+# open a process substitution, which the shell concatenates into the current
+# word exactly as a quote does (#1546): bash expands `echo -e<(printf x)` to
+# the single argument `-e/dev/fd/63` and prints it literally, so `-e` is never
+# passed. `[<>]([^(]|$)` therefore keeps the redirection boundary
+# (`grep -P ... <file`) while excluding the process-substitution one. Every
+# boundary below that admits `<`/`>` carries the same shape.
+grep[^\n]*[[:space:]]-[A-Za-z]*P[A-Za-z]*([[:space:]|&;()]|[<>]([^(]|$)|$)
 --perl-regexp
 
 # `echo -e` — POSIX leaves echo's flag handling unspecified; BSD/macOS sh/bash
@@ -94,7 +102,7 @@ grep[^\n]*[[:space:]]-[A-Za-z]*P[A-Za-z]*([[:space:]|&;()<>]|$)
 # operator-terminated boundary as `grep -P` above (#1537): `x=$(echo -e ...)`,
 # `echo -e ...|cat`, `echo -e ...; echo` are detected, not only the
 # whitespace-terminated form.
-echo[[:space:]]+-[a-zA-Z]*e[a-zA-Z]*([[:space:]|&;()<>]|$)
+echo[[:space:]]+-[a-zA-Z]*e[a-zA-Z]*([[:space:]|&;()]|[<>]([^(]|$)|$)
 
 # `sort -V` (natural/version sort) — a GNU coreutils extension; BSD sort has no
 # `-V`. `V` may appear anywhere in a combined short-option cluster (`-Vr`),
@@ -120,9 +128,9 @@ echo[[:space:]]+-[a-zA-Z]*e[a-zA-Z]*([[:space:]|&;()<>]|$)
 # of false negative the `--sort=WORD` boundary above was built to avoid, now
 # widened to match it (#1537, found while auditing #1530's own new token for
 # the same defect).
-sort[^\n]*[[:space:]]-[A-Za-z]*V[A-Za-z]*([[:space:]|&;()<>]|$)
+sort[^\n]*[[:space:]]-[A-Za-z]*V[A-Za-z]*([[:space:]|&;()]|[<>]([^(]|$)|$)
 --version-sort
-sort[^\n]*[[:space:]]--sort(=|[[:space:]]+)['"]?version([[:space:]|&;()<>'"`]|$)
+sort[^\n]*[[:space:]]--sort(=|[[:space:]]+)['"]?version([[:space:]|&;()'"`]|[<>]([^(]|$)|$)
 
 # `sed -i` with no suffix argument attached — GNU treats the suffix as
 # optional; BSD sed requires one immediately after `-i`. This intentionally

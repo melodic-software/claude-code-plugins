@@ -335,6 +335,40 @@ else
 fi
 rm -f "$f"
 
+# --- a process substitution attached to an option word is the same shape as an
+# attached quote, not a redirection (#1546): the shell concatenates `<(`/`>(`
+# into the current word, so bash runs `echo -e<(printf x)` as the single
+# argument `-e/dev/fd/63` and prints it literally -- the flag never activates.
+f="$(tmpsh "$(printf '%s\n' \
+  'echo -e<(printf x)' \
+  'grep -P<(printf x) foo' \
+  'sort -V<(printf x)' \
+  'sort --sort=version<(printf x)' \
+  'grep -P>(cat) foo')")"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  ok "a process substitution attached to an option cluster is not flagged"
+else
+  fail "attached process substitutions must not be flagged, got: $out"
+fi
+rm -f "$f"
+
+# --- ...but a bare `<`/`>` still opens a REDIRECTION, which does terminate the
+# word, so the operator-terminated detections #1537 added must all survive.
+f="$(tmpsh "$(printf '%s\n' \
+  'sort -V <file' \
+  'sort -V >out' \
+  'grep -P<file' \
+  'echo -e>out' \
+  'sort --sort=version<file')")"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "redirection-terminated GNU options should fail, got success: $out"
+elif [[ "$(echo "$out" | grep -c "PORTABILITY: ${f}:")" -eq 5 ]]; then
+  ok "a redirection after an option cluster still terminates the word and is flagged"
+else
+  fail "expected all 5 redirection forms flagged, got: $out"
+fi
+rm -f "$f"
+
 # =============================================================================
 # sed -i without a backup-suffix argument
 # =============================================================================
