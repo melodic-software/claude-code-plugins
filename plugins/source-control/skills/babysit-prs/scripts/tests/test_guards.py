@@ -12,6 +12,9 @@ The contract's markdown rendering in `../reference/guard-contract.md` is what
 consumers cite; `GeneratedDocIsCurrent` is what keeps it honest.
 """
 
+import argparse
+import contextlib
+import io
 import json
 import os
 import pathlib
@@ -357,6 +360,79 @@ class MechanismsMatchTheSource(unittest.TestCase):
                     self.assertNotIn(
                         token, source, because(row.id, row.claim, f"{token!r} appeared")
                     )
+
+
+class NoParserResolvesAnAbbreviation(unittest.TestCase):
+    """`allow_abbrev=False` on every catalogued Python entry point, not two of them.
+
+    A permission grant states its condition as the literal presence or absence of
+    a flag in the command text. Argparse's default prefix abbreviation lets
+    `--app` resolve to `--apply` while the text contains no such flag, so the
+    written command and the resolved behavior diverge -- which is precisely what
+    such a condition has to be able to rule out. The merge gate and the thread
+    resolver were hardened individually; the property belongs to the directory,
+    because the next entry point inherits the default unless something fails.
+
+    ABBREVIATION_PROBE is the universal one: argparse registers `--help` on every
+    parser here, so with abbreviation on it resolves and exits 0, and with
+    abbreviation off it is an unrecognized argument at exit 2. No per-CLI
+    argument shape is needed, which is what makes this a gate over the catalogue
+    rather than a hand-maintained list of cases.
+
+    Three characters, not one or two: `manage_babysit_lease.py` also registers
+    `--heartbeat-interval-seconds`, so a shorter prefix is AMBIGUOUS there and
+    exits 2 even with abbreviation on -- the probe would pass on that entry point
+    while proving nothing.
+    """
+
+    ABBREVIATION_PROBE = "--hel"  # spellchecker:disable-line
+
+    def test_every_python_entry_point_refuses_an_abbreviated_flag(self) -> None:
+        catalogued = [
+            entry.path for entry in contract.ENTRY_POINTS if entry.path.endswith(".py")
+        ]
+        self.assertTrue(catalogued, "no Python entry points catalogued")
+        for path in catalogued:
+            with self.subTest(entry_point=path):
+                proc = subprocess.run(
+                    [
+                        sys.executable,
+                        str(contract.plugin_path(path)),
+                        self.ABBREVIATION_PROBE,
+                    ],
+                    capture_output=True,
+                    text=True,
+                    cwd=tempfile.gettempdir(),
+                )
+                self.assertNotEqual(
+                    proc.returncode,
+                    0,
+                    f"`{path}` resolved `{self.ABBREVIATION_PROBE}` to `--help` and"
+                    " exited 0; its parser needs allow_abbrev=False",
+                )
+
+    def test_the_probe_separates_the_two_parsers(self) -> None:
+        # Guards the guard. The probe reads an exit code, and a CLI can exit 2
+        # for reasons of its own -- several here have a required mutually
+        # exclusive group that errors before any unrecognized argument is
+        # reported, so the message is not a reliable discriminator and the code
+        # is. What makes the code sufficient is that `--help` short-circuits
+        # parsing: an abbreviation that resolves exits 0 before required-argument
+        # validation ever runs. Asserted against argparse itself rather than
+        # assumed, because the whole gate rests on it.
+        strict = argparse.ArgumentParser(prog="probe", allow_abbrev=False)
+        strict.add_argument("--required-thing", required=True)
+        with self.assertRaises(SystemExit) as refused:
+            strict.parse_args([self.ABBREVIATION_PROBE])
+        self.assertEqual(refused.exception.code, 2)
+
+        lenient = argparse.ArgumentParser(prog="probe")
+        lenient.add_argument("--required-thing", required=True)
+        # The resolved `--help` prints to stdout; keep it out of the test log.
+        with contextlib.redirect_stdout(io.StringIO()):
+            with self.assertRaises(SystemExit) as resolved:
+                lenient.parse_args([self.ABBREVIATION_PROBE])
+        self.assertEqual(resolved.exception.code, 0)
 
 
 class EntryPointCatalogueIsComplete(unittest.TestCase):

@@ -3,7 +3,7 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.31.0]
+## [0.32.0]
 
 ### Added
 
@@ -41,6 +41,34 @@ All notable changes to the `source-control` plugin are documented here. Format f
   This was already the autonomy matrix's promotion contract ("never promotes"); `babysit-loop`,
   `reference/config-resolution.md`, and the convention now say so explicitly rather than leaving it
   to be inferred from a rung name.
+
+## [0.31.0]
+
+### Changed
+
+- **No babysit parser resolves a flag abbreviation any more, and the property is now the
+  directory's rather than two files' (`#1371`).** A permission grant states its condition as the
+  literal presence or absence of a flag in the command text — above all "no `--merge` means
+  check-only". Argparse's default prefix abbreviation lets `--mer` resolve to `--merge` while the
+  command text contains no such flag, so the written command and the resolved behavior diverge,
+  which is exactly what such a condition must be able to rule out. `#1354` closed this on
+  `babysit_merge.py` and `babysit_resolve_thread.py`; the remaining seven entry points —
+  `babysit_findings.py`, `manage_babysit_lease.py`, `manage_feedback_ledger.py`,
+  `pr_queue_snapshot.py`, `prune_babysit_worktrees.py`, `refresh_pr_branch.py`, and
+  `request_review.py` — still inherited the default. All nine now set `allow_abbrev=False`.
+
+  Hardening them one at a time is what let the gap persist, so the guard contract gains a gate over
+  the whole catalogue: every Python entry point is invoked with an unambiguous three-character
+  prefix of `--help` and must not exit 0. `--help` is registered on every parser, and it
+  short-circuits parsing — so an abbreviation that resolves exits 0 before required-argument
+  validation runs, while one that does not is a usage error. That makes the exit code a sufficient
+  discriminator without a per-CLI argument shape, and a companion test asserts the discrimination
+  against argparse itself rather than assuming it. Three characters because
+  `manage_babysit_lease.py` also registers `--heartbeat-interval-seconds`, so a shorter prefix is
+  ambiguous there and exits 2 regardless — the probe would have passed on that entry point while
+  proving nothing. A tenth entry point arriving with the default now fails CI instead of shipping.
+
+  Abbreviated invocations that previously worked are now usage errors, which is the point.
 
 ## [0.30.0]
 
