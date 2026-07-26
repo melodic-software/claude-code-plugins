@@ -77,15 +77,48 @@ elif echo "$out" | grep -q "PORTABILITY: ${f}:1:"; then
 else
   fail "expected PORTABILITY with file:line, got: $out"
 fi
-rm -f "$f" "$tok"
+rm -f "$f"
 
 # --- the POSIX-portable bracket-expression replacement does NOT fire -------
-tok="$(one_token_list '\\b')"
 f="$(tmpsh 'grep -Eq "(^|[^A-Za-z0-9_\$])require($|[^A-Za-z0-9_\$])" "$file"')"
 if scan_paths "$tok" "$f" >/dev/null 2>&1; then
   ok "the bracket-expression word-boundary replacement does not fire"
 else
   fail "the POSIX-portable replacement must not be flagged"
+fi
+rm -f "$f"
+
+# --- a pattern BUILT on one line and CONSUMED on another still fires. This
+# is the shape a grep/sed-same-line context requirement silently un-catches,
+# and it is live in this repo (instruction-scan.sh's I6_ERE/RATIONALE_ERE),
+# so the class deliberately stays bare — see the token file's note. ---------
+f="$(tmpsh "PAT=\"\\brequire\\b\"
+grep -Eq \"\$PAT\" \"\$file\"")"
+if out="$(scan_paths "$tok" "$f" 2>&1)"; then
+  fail "a \\\\b pattern assigned to a variable should fail, got success: $out"
+elif echo "$out" | grep -q "PORTABILITY: ${f}:1:"; then
+  ok "a \\\\b pattern built in a variable and used later is detected"
+else
+  fail "expected PORTABILITY on the assignment line, got: $out"
+fi
+rm -f "$f"
+
+# --- the mirror-image cost of staying bare: portable printf escape syntax
+# carrying the same two characters DOES fire (over-flag, the documented
+# direction), and `portability-ok:` is the recorded one-line escape for it --
+f="$(tmpsh "printf '\\bspinner-frame\\n'")"
+if scan_paths "$tok" "$f" >/dev/null 2>&1; then
+  fail "printf '\\b' must still fire -- the class is bare by design"
+else
+  ok "printf '\\b' fires (accepted over-flag, excusable per site)"
+fi
+rm -f "$f"
+
+f="$(tmpsh "printf '\\bspinner-frame\\n'  # portability-ok: printf escape, not a regex")"
+if scan_paths "$tok" "$f" >/dev/null 2>&1; then
+  ok "printf '\\b' with a portability-ok: annotation is excused"
+else
+  fail "an annotated printf '\\b' must be excused"
 fi
 rm -f "$f" "$tok"
 
@@ -184,6 +217,16 @@ else
 fi
 rm -f "$f" "$tok"
 
+# --- the --version-sort long form is a separate literal token -------------
+tok="$(one_token_list '--version-sort')"
+f="$(tmpsh 'sort --version-sort "$file"')"
+if out="$(scan_paths "$tok" "$f" 2>&1)"; then
+  fail "sort --version-sort should fail, got success: $out"
+else
+  ok "sort --version-sort (long form) is detected"
+fi
+rm -f "$f" "$tok"
+
 # =============================================================================
 # sed -i without a backup-suffix argument
 # =============================================================================
@@ -206,20 +249,23 @@ else
 fi
 rm -f "$f"
 
-# --- the portable BSD-safe -i '' / -i "" idiom is auto-guarded, not flagged
+# --- the space-separated empty-suffix idiom (-i '' / -i "") is NOT the
+# portable form it looks like -- verified against a real GNU sed 4.9, that
+# exact invocation exits 2 (the empty string is consumed as sed's SCRIPT
+# argument, not as -i's suffix), so it must stay flagged, not be excused.
 f="$(tmpsh "sed -i '' 's/foo/bar/' \"\$file\"")"
-if scan_paths "$tok" "$f" >/dev/null 2>&1; then
-  ok "sed -i '' (explicit empty-suffix, single-quoted) is not flagged"
+if out="$(scan_paths "$tok" "$f" 2>&1)"; then
+  fail "sed -i '' should fail -- it is GNU-incompatible despite looking BSD-safe, got success: $out"
 else
-  fail "sed -i '' must not be flagged -- it is the portable BSD-safe idiom"
+  ok "sed -i '' (space-separated empty-suffix, single-quoted) is detected, not excused"
 fi
 rm -f "$f"
 
 f="$(tmpsh 'sed -i "" -E "s/foo/bar/" "$file"')"
-if scan_paths "$tok" "$f" >/dev/null 2>&1; then
-  ok "sed -i \"\" (explicit empty-suffix, double-quoted) is not flagged"
+if out="$(scan_paths "$tok" "$f" 2>&1)"; then
+  fail "sed -i \"\" should fail -- it is GNU-incompatible despite looking BSD-safe, got success: $out"
 else
-  fail 'sed -i "" must not be flagged -- it is the portable BSD-safe idiom'
+  ok "sed -i \"\" (space-separated empty-suffix, double-quoted) is detected, not excused"
 fi
 rm -f "$f" "$tok"
 
@@ -242,6 +288,19 @@ if scan_paths "$tok" "$f" >/dev/null 2>&1; then
   ok "readlink -f co-located with a realpath attempt is auto-guarded"
 else
   fail "the realpath-first fallback ladder must not be flagged"
+fi
+rm -f "$f"
+
+# --- mere co-location is not enough -- the guard requires an actual `||`
+# fallback relationship. Two unconditional statements (semicolon-separated,
+# no ||) both mentioning realpath/readlink on one line must still flag: the
+# GNU-only readlink -f call runs unconditionally regardless of what realpath
+# did, so there is no real fallback protecting it.
+f="$(tmpsh 'realpath -- "$1" >/dev/null; readlink -f -- "$1"')"
+if out="$(scan_paths "$tok" "$f" 2>&1)"; then
+  fail "realpath;readlink with no || fallback relationship should fail, got success: $out"
+else
+  ok "realpath and readlink with no actual || fallback relationship is still flagged"
 fi
 rm -f "$f" "$tok"
 

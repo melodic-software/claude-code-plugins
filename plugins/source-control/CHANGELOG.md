@@ -3,6 +3,90 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.32.0]
+
+### Added
+
+- **`babysit-loop` gains the loop-lane convention's one named, explicit paired-argument merge-rung
+  exception (#1309).** Standing merge-rung raises still bind from the team-tracked seam layer only.
+  The exception: an invocation whose own argument line types both the literal `autopilot` tier
+  keyword and the dedicated raise argument `--merge c3-this-run` — each never inherited from
+  `babysit_loop_tier`, never defaulted, never supplied by a config layer, never model-composed on
+  the caller's behalf; the raise token exists for this exception alone, so a saved invocation or
+  template carrying the merge-inert `autopilot` tier keyword alone acquires no merge authority —
+  widens *that single invocation's* merge dimension up to and including C3, in a repository
+  that has already adopted the baseline rung. It persists nothing, ratifies nothing, and is not a
+  substitute for the recorded `c3-autonomous` seam flip. A merge-eligible PR blocked on a
+  `needs-human` label, an open finding, or a contradictory thread gets one fresh frontier-tier
+  subagent — sharing no conversation context with whatever produced or previously reviewed the PR —
+  dispatched to resolve that blocker through `babysit-prs`'s guarded-mutation path before the
+  deterministic gate runs; the gate itself is never bypassed or weakened, and an unresolved or
+  uncertain blocker still escalates. `babysit-prs`'s "escalate security/P1 even in autopilot" rule
+  carries a matching named exception for that one dispatch path only. Tracks loop-lane convention
+  3.0.0.
+- **The widening lifts only the raise restriction.** Every merge-dimension argument value other
+  than `c3-this-run` still only selects a *lower* rung, so `autopilot --merge human-only` merges
+  nothing; the order is tracked rung → the paired raise → the C4/C5 ceiling.
+- **The C4/C5 floor reads the pull request, not the linked item's stamp.** `work-classes.md` assigns
+  a class from the risk-property bundle, "not the task's surface description". C5 is two executable
+  snapshot tests, either marking C5 and each failing closed when its field is unavailable: a
+  cross-repository head (`isCrossRepository` / `headRepositoryOwner`), or an `authorAssociation`
+  other than `OWNER`/`MEMBER` — catching the outside collaborator whose base-repository branch
+  passes the fork test while still being an external contribution. A fork PR closing an internally
+  classified C2/C3 issue is still C5; the partition never tests the author
+  login against `babysit_watched_owners`, which is a repository-owner allowlist rather than a
+  trusted-author list and would call every internally authored PR on an org-owned repo C5. C4
+  follows the diff's blast radius: a refactor, migration, or contract change is C4 however its item
+  is stamped, and a PR whose shape no longer matches its recorded class fails closed to escalation.
+- **Human blocking feedback, operator-parked items, and merge conflicts stay outside the dispatch —
+  and outside the merge-capable set.** A human `CHANGES_REQUESTED` review, explicit human blocking
+  language, or an unresolved inline
+  human thread remains a stop-and-ask condition per `reference/feedback.md`'s "Human Feedback" — the
+  exception does not amend it, no dispatch is made, and the rung partition withholds the PR from
+  the merge-capable set entirely (routed to `safe`), because a merge-capable tier's own runbook
+  widens thread scope to human threads and the base merge gate does not inspect ordinary human
+  blocking comments. An item wearing the `needs-human` role label
+  without the machine escalation marker is operator-*parked*, belongs to the attended queue, never
+  draws a dispatch on the label alone, and its PR is likewise withheld from the merge-capable set —
+  the merge gate does not inspect the linked item's labels. Conflicts route to the dedicated
+  merge-only conflict
+  worker; the dispatch never rebases a PR branch, which would need the force-push forbidden
+  cross-tier.
+- **Edit-capable resolution runs the per-PR worker lifecycle, and the partition reruns after it.**
+  A blocker needing a code change gets the isolated PR worktree, the HEAD assertion at the live PR
+  head, and the commit/refspec push `reference/safety.md` requires — the guarded wrappers implement
+  merge and thread resolution and create no worktree, which a lane launched from a neutral directory
+  has no substitute for. After any resolver mutation the PR is re-snapshotted and step 3's
+  provenance, C4-diff, and rung partition rerun before the merge-capable invocation, so a resolution
+  that expanded a C2/C3 change into a refactor or contract change leaves the eligible set rather
+  than merging under a stale classification.
+- **Partition eligibility is pinned to the head SHA it examined — for every push, not only the
+  resolver's.** The merge-capable invocation carries the partitioned head as its merge gate's
+  `--expected-head`; a normal worker fix-push (babysit-prs Autopilot steps 1–2) moves the head off
+  the pin, the pinned gate's head-match refusal blocks the merge deterministically, and the
+  invocation reports the new head instead of re-pinning (babysit-prs gains the matching named
+  "Lane-pinned merge authorization" exception in `reference/safety.md`). The lane reruns the
+  partition on the post-push head and only a still-eligible PR gets a fresh merge-capable
+  invocation pinned to it — no head merges that the partition did not class-check.
+- **The widening lasts the invocation that typed it, not one cycle.** Every `/loop` wakeup
+  re-invokes the same prompt in the same session and carries the same explicit authorization, so the
+  rung does not silently drop after the first cycle and no operator input is awaited that a loop
+  cannot supply. It ends when a newly launched invocation omits either token of the pair.
+- **The dispatch is leased and its tier is resolved, not named.** It acquires, heartbeats, and
+  releases the PR's own worker lease around itself — the guarded-mutation wrappers pin comment
+  state, they do not confer concurrency ownership — and a lease another worker holds means no
+  dispatch. Its capability tier is requested as the convention's §3 frontier row and resolved to a
+  live-updating model alias by that section's runtime-resolution rule, rather than a `fable`/`opus`
+  family alias written into the lane as the tier's definition; a run that cannot establish which
+  alias currently satisfies `frontier` escalates instead of dispatching, because inheriting the
+  session's model would forfeit the capability the dispatch stands on.
+- **C4/C5 floor stated as unconditional across the merge surface.** No rung, no seam config, and no
+  invocation argument — including this exception and including `full-autonomy` — ever grants merge
+  authority over a `work-class: structural` (C4) or `work-class: untrusted-provenance` (C5) item.
+  This was already the autonomy matrix's promotion contract ("never promotes"); `babysit-loop`,
+  `reference/config-resolution.md`, and the convention now say so explicitly rather than leaving it
+  to be inferred from a rung name.
+
 ## [0.31.8]
 
 ### Fixed
