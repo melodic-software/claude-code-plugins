@@ -97,28 +97,35 @@ sort[^\n]*[[:space:]]-[A-Za-z]*V[A-Za-z]*([[:space:]]|$)
 # before encoding, not a quick pattern tweak — see #1513.
 sed[^\n]*-i[[:space:]]+[^[:space:]]
 
-# `sed -Ei` / `-iE` (extended-regex and in-place combined into one short-flag
-# cluster, unsuffixed) — the `-i[[:space:]]+[^[:space:]]` token above only
+# `sed -Ei` (extended-regex and in-place combined into one short-flag cluster,
+# with `-i` UNSUFFIXED) — the `-i[[:space:]]+[^[:space:]]` token above only
 # catches a literal standalone `-i`; it does not match a cluster like `-Ei`
-# (no literal `-i` substring — the char after `-` is `E`, not `i`) or `-iE`
-# unsuffixed (`-i` is immediately followed by `E`, not whitespace). `E` and
-# `i` may appear anywhere in the cluster, in either order (mirrors the
-# combined-cluster treatment #1511 already applies to `grep -P` / `sort -V` /
-# `echo -e`). Anchored to a `sed` mention earlier on the line — `-i` alone is
-# common across tools (`grep -i`, `sort -i`...), so a bare cluster-scan would
-# over-match without the anchor. Requires the cluster to end at whitespace or
-# end-of-line (unsuffixed): an attached suffix (`-Ei.bak`, nonempty) is
-# dual-compatible and correctly not flagged, same as plain `-i.bak` above; an
-# attached EMPTY suffix (`-Ei''`) is the same ambiguous shape `-i''` is,
-# deferred above, and likewise not flagged here.
-sed[^\n]*[[:space:]]-[A-Za-z]*(E[A-Za-z]*i|i[A-Za-z]*E)[A-Za-z]*([[:space:]]|$)
+# (no literal `-i` substring — the char after `-` is `E`, not `i`). `E` and
+# `i` need not be adjacent and need not be the cluster's only letters
+# (`-nEi`), mirroring the combined-cluster treatment #1511 already applies to
+# `grep -P` / `sort -V` / `echo -e` — but `i` MUST be the cluster's last
+# letter. GNU's own syntax is `-i[SUFFIX]`, so any letter after `i` is an
+# attached backup suffix, not another option: `sed -iE` writes `fileE`
+# (verified against a real GNU sed 4.9), making it the dual-compatible
+# attached-nonempty-suffix form, correctly never flagged — same as `-i.bak`
+# and `-Ei.bak`. An attached EMPTY suffix (`-Ei''`) is the same ambiguous
+# shape `-i''` is, deferred above, and likewise not flagged here. Anchored to
+# a `sed` COMMAND token (start of line or a non-identifier character before
+# it, whitespace after) — `-i` alone is common across tools (`grep -i`,
+# `sort -i`...), and a bare `sed` substring match would fire on identifiers
+# that merely contain those three letters (`used="$(grep -Ei ...)"`).
+(^|[^[:alnum:]_])sed([[:space:]][^\n]*)?[[:space:]]-[A-Za-z]*E[A-Za-z]*i([[:space:]]|$)
 
 # `sed --in-place[=SUFFIX]` (GNU long-form spelling of `-i`) — BSD sed has no
-# long options at all, so this flags unconditionally, suffixed or not (unlike
-# short `-i`, where BSD requires an attached suffix and only the unsuffixed
-# form is GNU-only, `--in-place` has no portable BSD equivalent in either
-# shape).
---in-place
+# long options at all, so this flags suffixed or not (unlike short `-i`, where
+# BSD requires an attached suffix and only the unsuffixed form is GNU-only,
+# `--in-place` has no portable BSD equivalent in either shape). Scoped to a
+# `sed` command token for the same reason as the cluster token above: unlike
+# `--perl-regexp` / `--version-sort`, the option name `--in-place` is not
+# unique to one tool (several formatters spell their own in-place flag that
+# way), so a bare token would flag a script that merely defines or forwards an
+# unrelated `--in-place` option of its own.
+(^|[^[:alnum:]_])sed([[:space:]][^\n]*)?[[:space:]]--in-place([[:space:]]|=|$)
 
 # `readlink -f` (canonicalize) — a GNU coreutils extension; BSD/macOS readlink
 # has no `-f`/`--canonicalize`. Auto-guarded when a `realpath` attempt is

@@ -270,11 +270,11 @@ fi
 rm -f "$f" "$tok"
 
 # =============================================================================
-# sed -Ei / -iE (extended-regex + in-place combined into one flag cluster),
-# and --in-place (GNU long form) — #1513
+# sed -Ei (extended-regex + unsuffixed in-place combined into one flag
+# cluster), and --in-place (GNU long form) — #1513
 # =============================================================================
 
-tok="$(one_token_list 'sed[^\n]*[[:space:]]-[A-Za-z]*(E[A-Za-z]*i|i[A-Za-z]*E)[A-Za-z]*([[:space:]]|$)')"
+tok="$(one_token_list '(^|[^[:alnum:]_])sed([[:space:]][^\n]*)?[[:space:]]-[A-Za-z]*E[A-Za-z]*i([[:space:]]|$)')"
 
 f="$(tmpsh "sed -Ei 's/foo/bar/' \"\$file\"")"
 if out="$(scan_paths "$tok" "$f" 2>&1)"; then
@@ -284,20 +284,34 @@ else
 fi
 rm -f "$f"
 
-f="$(tmpsh "sed -iE 's/foo/bar/' \"\$file\"")"
+# --- an indented invocation still matches (the non-identifier branch of the
+# command-token anchor, not the start-of-line branch) -----------------------
+f="$(tmpsh "  sed -Ei 's/foo/bar/' \"\$file\"")"
 if out="$(scan_paths "$tok" "$f" 2>&1)"; then
-  fail "sed -iE (unsuffixed) should fail, got success: $out"
+  fail "indented sed -Ei should fail, got success: $out"
 else
-  ok "sed -iE (unsuffixed) is detected"
+  ok "indented sed -Ei is detected (command-token anchor allows a leading separator)"
 fi
 rm -f "$f"
 
-# --- E/i need not be adjacent or the only letters in the cluster -----------
-f="$(tmpsh "sed -niE 's/foo/bar/' \"\$file\"")"
+# --- E/i need not be adjacent or the only letters in the cluster, but i must
+# be the cluster's LAST letter (GNU syntax is -i[SUFFIX]) -------------------
+f="$(tmpsh "sed -nEi 's/foo/bar/' \"\$file\"")"
 if out="$(scan_paths "$tok" "$f" 2>&1)"; then
-  fail "sed -niE (E/i not adjacent, extra letter in cluster) should fail, got success: $out"
+  fail "sed -nEi (E/i not adjacent, extra letter in cluster) should fail, got success: $out"
 else
-  ok "sed -niE (E/i not adjacent, extra letter in cluster) is detected"
+  ok "sed -nEi (E/i not adjacent, extra letter in cluster) is detected"
+fi
+rm -f "$f"
+
+# --- -iE is NOT the unsuffixed form: GNU's syntax is -i[SUFFIX], so the E is
+# an attached backup suffix (verified against GNU sed 4.9: `sed -iE ... f`
+# writes the backup `fE`), i.e. the dual-compatible shape -------------------
+f="$(tmpsh "sed -iE 's/foo/bar/' \"\$file\"")"
+if scan_paths "$tok" "$f" >/dev/null 2>&1; then
+  ok "sed -iE (E is an attached backup suffix, not a flag) is not flagged"
+else
+  fail "sed -iE must not be flagged -- E is an attached nonempty suffix, which is dual-compatible"
 fi
 rm -f "$f"
 
@@ -323,7 +337,7 @@ rm -f "$f"
 # --- plain -i (no E) does not double-fire this cluster token ---------------
 f="$(tmpsh "sed -i 's/foo/bar/' \"\$file\"")"
 if scan_paths "$tok" "$f" >/dev/null 2>&1; then
-  ok "plain sed -i (no E in the cluster) does not fire the -Ei/-iE token"
+  ok "plain sed -i (no E in the cluster) does not fire the -Ei token"
 else
   fail "plain sed -i must not fire the E+i combined-cluster token"
 fi
@@ -337,9 +351,19 @@ if scan_paths "$tok" "$f" >/dev/null 2>&1; then
 else
   fail "grep -Ei must not fire a sed-scoped token -- it has no 'sed' mention on the line"
 fi
+rm -f "$f"
+
+# --- the anchor is a sed COMMAND token, not any occurrence of the three
+# characters: an identifier that merely contains 'sed' must not arm it ------
+f="$(tmpsh "used=\"\$(grep -Ei 'pattern' \"\$file\")\"")"
+if scan_paths "$tok" "$f" >/dev/null 2>&1; then
+  ok "an identifier containing 'sed' (used=) does not arm the sed-scoped token"
+else
+  fail "used=\"\$(grep -Ei ...)\" must not fire -- 'sed' inside an identifier is not a sed command"
+fi
 rm -f "$f" "$tok"
 
-tok="$(one_token_list '--in-place')"
+tok="$(one_token_list '(^|[^[:alnum:]_])sed([[:space:]][^\n]*)?[[:space:]]--in-place([[:space:]]|=|$)')"
 
 f="$(tmpsh "sed --in-place 's/foo/bar/' \"\$file\"")"
 if out="$(scan_paths "$tok" "$f" 2>&1)"; then
@@ -354,6 +378,16 @@ if out="$(scan_paths "$tok" "$f" 2>&1)"; then
   fail "sed --in-place=SUFFIX should fail, got success: $out"
 else
   ok "sed --in-place=SUFFIX (long form has no portable BSD equivalent, suffixed or not) is detected"
+fi
+rm -f "$f"
+
+# --- an unrelated tool's own --in-place option (defined or forwarded by the
+# script itself) is not a GNU sed invocation and must not be flagged --------
+f="$(tmpsh "case \"\$1\" in --in-place) in_place=1 ;; esac")"
+if scan_paths "$tok" "$f" >/dev/null 2>&1; then
+  ok "a script's own --in-place option arm is not flagged (no sed command on the line)"
+else
+  fail "--in-place must be scoped to a sed invocation -- an unrelated option arm must not fire"
 fi
 rm -f "$f" "$tok"
 
