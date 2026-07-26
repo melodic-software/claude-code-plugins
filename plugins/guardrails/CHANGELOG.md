@@ -3,6 +3,55 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.17.1]
+
+### Fixed
+
+- **`stale-path-verify`: partial-`Edit` reconstruction adjudicated citations on
+  lines the edit never touched**, violating the diff-scope contract the hook
+  states it holds. The anchor match is `grep -F`, a substring match, so when the
+  whole `new_string` is a bare fragment the line anchor collapses onto the token
+  anchor it was introduced to replace: an `Edit` whose hunk is `docs` recovered
+  every line containing `docs` and reported a pre-existing stale citation among
+  them.
+
+  Reconstruction says it mirrors `skill-reference-verify`, and that sibling
+  already carries the gate this guard omitted: an anchor is used only when it
+  **occurs exactly once** in the file. Occurrences, not matching lines — two
+  occurrences on one physical line are a single `grep` hit, and a line-uniqueness
+  gate would adjudicate a citation sharing that line. Per the
+  [tools reference](https://code.claude.com/docs/en/tools-reference) an `Edit`'s
+  `old_string` "must appear exactly once", so a unique anchor pins the edit to
+  the line carrying it; a non-unique anchor cannot say which occurrence the edit
+  landed on and is dropped rather than guessed at. `replace_all: true` is read as
+  the one shape where repetition is the edit's own footprint rather than an
+  ambiguity, so uniqueness is not required there.
+
+  Partially addresses
+  [#1455](https://github.com/melodic-software/claude-code-plugins/issues/1455) —
+  its Face B (over-recovery at or above the four-character token floor). Face A,
+  the floor itself swallowing a sub-four-character replacement such as `js` →
+  `md`, is untouched and remains open.
+
+  **This narrows what the guard reports.** Dropping an ambiguous anchor can cost
+  a true positive when an edit lands in text that repeats verbatim elsewhere in
+  the file, so 0.17.0's measured firing envelope (0.20% of tracked markdown at
+  50% precision) no longer describes the guard exactly. For a detect-then-judge
+  advisory that is the right side of the trade — it is degraded far worse by
+  being wrong when it speaks than by staying quiet.
+- **`stale-path-verify`: an unstaged deletion was silently exempted.** The
+  sparse-checkout exemption tested `git ls-files --error-unmatch`, which reports
+  an index entry for an ordinary unstaged deletion exactly as it does for a
+  skip-worktree entry — it cannot tell the two apart. A genuine uncommitted
+  removal, which is the working-tree disappearance this guard exists to
+  adjudicate, was therefore skipped. The test is now the skip-worktree bit
+  itself: `ls-files -v` tags a sparse entry `S`, an unstaged deletion `H`.
+
+Both were raised in review on
+[#1432](https://github.com/melodic-software/claude-code-plugins/pull/1432) and
+merged before they were resolved. Three behavioral cases pin them, verified red
+against the 0.17.0 guard (`PASS=78 FAIL=3`) and green after (`PASS=81 FAIL=0`).
+
 ## [0.17.0]
 
 ### Added
@@ -53,29 +102,18 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   complete span to scan and a newly-stale citation would otherwise be missed
   entirely. Only the lines the hunk's own text occurs in are read back, and only
   candidates containing one of the hunk's 4+ character word tokens are
-  adjudicated. A word token alone is short enough to occur in lines the edit
-  never touched — a bare `docs` in unrelated prose matches every citation under
-  `docs/` — so an untouched stale citation elsewhere in the file would fire.
-  What bounds the recovered set to the edit is an **occurrence-uniqueness gate**,
-  mirroring the same gate `skill-reference-verify` already carries: an anchor is
-  used only when it occurs exactly once in the file. Occurrences, not matching
-  lines — two occurrences on one physical line are a single grep hit, and a
-  line-uniqueness gate would adjudicate a citation sharing that line. Per the
-  [tools reference](https://code.claude.com/docs/en/tools-reference) an Edit's
-  `old_string` "must appear exactly once", so a unique anchor pins the edit to
-  the line carrying it; a non-unique anchor cannot say which occurrence the edit
-  landed on and is dropped rather than guessed at. `replace_all: true` is the one
-  shape where repetition is the edit's own footprint rather than an ambiguity, so
-  uniqueness is not required there.
+  adjudicated. Both filters are needed to hold diff-scope: a word token alone is
+  short enough to occur in lines the edit never touched — a bare `docs` in
+  unrelated prose matches every citation under `docs/` — so an untouched stale
+  citation elsewhere in the file would fire. Every line of `new_string` is on
+  disk verbatim by `PostToolUse` time, so anchoring on the line can only ever
+  select a subset of what the token would, and the edited line is always in it.
 - The existence gate reads **present**, not reachable. `-e` alone reports false
   for two paths that are deliberately there: a dangling symlink, where the link
   exists and only its target does not, and a path tracked at `HEAD` but left
   unmaterialized by a sparse checkout. Both would otherwise clear the provenance
   gate and be reported stale, so the gate also accepts `-L` and, for a candidate
-  that has already satisfied provenance, consults the index. The sparse test is
-  the **skip-worktree bit** (`ls-files -v` tag `S`), not mere index membership:
-  an entry is also present for an ordinary unstaged deletion, which is a genuine
-  working-tree disappearance and must still be adjudicated.
+  that has already satisfied provenance, consults index membership.
 - Markdown **link destinations are out of scope**; only inline code spans are
   scanned. On-disk link integrity belongs to the repo's offline link checker,
   and under the provenance oracle no link-kind candidate contributed a finding.
@@ -89,22 +127,6 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   the cited basename. Basename matching is far too weak to trigger on — `README.md`
   and `SKILL.md` match hundreds of paths — but once history has established the
   path was removed, a unique match is very likely where it went.
-
-- Partial-`Edit` reconstruction no longer adjudicates a citation on a line the
-  edit never touched. `grep -F` is a substring match, so when the whole
-  `new_string` is a bare fragment the line anchor collapsed onto the token anchor
-  it was meant to replace: an `Edit` whose hunk is `docs` recovered every line
-  containing `docs` and reported a pre-existing stale citation among them,
-  violating the diff-scope contract. This guard had omitted the
-  occurrence-uniqueness gate that the sibling it mirrors already carried. Three
-  behavioral cases pin it — a bare-fragment hunk, two occurrences on one physical
-  line, and a `replace_all` edit whose repetition must still be adjudicated
-  (review-caught).
-- A path absent from the working tree through an **unstaged deletion** is
-  adjudicated again. The sparse-checkout exemption tested `ls-files
-  --error-unmatch`, which reports an index entry for an unstaged deletion exactly
-  as it does for a skip-worktree entry, so a genuine uncommitted removal was
-  silently exempted. The test is now the `S` tag (review-caught).
 
 ### Changed
 
