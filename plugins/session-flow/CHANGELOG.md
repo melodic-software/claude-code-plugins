@@ -41,7 +41,8 @@
   one you are overriding when your sizing and the anchor disagree by an order of magnitude.
 - **The priming addendum now reads the session's own effort level** via the documented
   `${CLAUDE_EFFORT}` substitution, closing one of the two calibration factors imperative 7 named
-  with no consumable signal. It is the parent level every unspecified spawn inherits, which is
+  with no consumable signal. It is the level a spawn inherits when neither the call nor the agent
+  definition sets one — a definition's own `effort` frontmatter overrides the session — which is
   precisely the over-provisioning imperative 7 exists to stop. Priming-only and export-omitted, so
   the pasted brief stays agnostic; the addendum also notes `ultracode` reports as `xhigh` and so
   cannot reveal whether script-held workflow orchestration is active.

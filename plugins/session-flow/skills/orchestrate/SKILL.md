@@ -86,11 +86,11 @@ never label a claim "known" / "from memory" / "obvious".
 **Priming addendum (current session only).** As the main session — not a spawned worker — you may
 also reach orchestration surfaces a worker cannot: agent teams (lead-only) and dynamic workflows
 (main-session-only). This session's reasoning effort is `${CLAUDE_EFFORT}` — feed it into imperative
-7's per-worker tier calibration rather than guessing: it is the level every unspecified spawn
-inherits, so its gap from what a subtask needs IS the over-provisioning imperative 7 exists to stop.
-(`ultracode` reports as `xhigh`, so it cannot tell you whether script-held orchestration is active.)
-The export modes omit this whole addendum — a pasted target reaches none of those surfaces, and the
-substitution would travel as dead literal text.
+7's tier calibration: it is the level a spawn inherits when neither the call nor the agent
+definition sets one (a definition's own `effort` overrides the session), so its gap from what a
+subtask needs IS the over-provisioning imperative 7 exists to stop. (`ultracode` reports as
+`xhigh`, so it cannot reveal script-held orchestration.) Export modes omit this addendum — a
+pasted target reaches none of those surfaces, and the substitution would travel as dead text.
 
 ## Tiered delegation — the shape of a deep tree
 
