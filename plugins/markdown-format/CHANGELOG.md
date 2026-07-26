@@ -26,7 +26,11 @@ All notable changes to the `markdown-format` plugin are documented here. Format 
   repository — a symlink aimed out of the tree, or a `../` escape — refuses
   approval rather than being skipped: no signature over repository content can
   cover it, so re-aiming the symlink at a different existing external target
-  would otherwise leave the approval valid while Node follows the new one. Module-key detection in declarative
+  would otherwise leave the approval valid while Node follows the new one. On a
+  host with no canonicalizer the resolution degrades to the lexical path, which
+  would read an escaping symlink as in-repository; a symlink whose physical path
+  came back unchanged is the signature of that degradation and refuses approval
+  too — the same fail-closed answer the membership scope already gives. Module-key detection in declarative
   configs is a fail-closed textual over-approximation rather than a second
   parser (which would only open a differential-parsing gap against
   markdownlint-cli2's own parser): the literal key words anywhere in the file

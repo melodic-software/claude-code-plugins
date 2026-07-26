@@ -462,6 +462,18 @@ collect_module_files() {
           resolved=""
           if [[ -f "$candidate" ]]; then
             resolved="$(hook::physical_path "$candidate")"
+            # hook::physical_path degrades to the unchanged lexical path when no
+            # canonicalizer resolves it. A symlink whose physical path came back
+            # unchanged is the observable signature of that degradation — a
+            # symlink never canonicalizes to itself — and the boundary check
+            # below would then read an escaping symlink as in-repository and pin
+            # it by its lexical path, leaving the external target free to change
+            # under a live approval. Same test the membership scope above uses,
+            # and the same fail-closed answer.
+            if [[ -L "$candidate" && "$resolved" == "$candidate" ]]; then
+              RISK_UNPINNABLE=1
+              return 1
+            fi
           elif [[ "$candidate" == "$base" && -d "$candidate" ]]; then
             for entry in package.json index.js index.cjs index.mjs; do
               if [[ -f "$candidate/$entry" ]]; then
