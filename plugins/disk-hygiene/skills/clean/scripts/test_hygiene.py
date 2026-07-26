@@ -6,6 +6,7 @@ from __future__ import annotations
 import importlib.util
 import io
 import json
+import math
 import os
 import re
 import shutil
@@ -3791,6 +3792,51 @@ class GuardTests(unittest.TestCase):
                     self.assertEqual(
                         guard._WATCHDOG_DEFAULT_SECONDS, guard._watchdog_seconds()
                     )
+
+    def test_watchdog_seconds_rejects_non_finite_overrides(self) -> None:
+        """Non-finite overrides must fall back, not disarm the watchdog.
+
+        `inf` parses through `float` and passes a bare `> 0` test, but
+        `threading.Timer(inf, ...)` accepts `start()` and then dies in the
+        timer thread with `OverflowError` — silently removing the watchdog on
+        a fail-closed guard. `nan` fails `> 0` already; asserted here so the
+        whole non-finite class is pinned by test, not by luck.
+        """
+        for raw in ("inf", "-inf", "Infinity", "nan", "1e400"):
+            with self.subTest(raw=raw):
+                with mock.patch.dict(os.environ, {guard._WATCHDOG_ENV_VAR: raw}):
+                    resolved = guard._watchdog_seconds()
+                self.assertEqual(guard._WATCHDOG_DEFAULT_SECONDS, resolved)
+                self.assertTrue(math.isfinite(resolved))
+
+    def test_main_denies_at_exit_2_when_watchdog_cannot_be_constructed(self) -> None:
+        """Timer construction is inside the fail-closed boundary.
+
+        Under OS thread/memory exhaustion `threading.Timer(...)` raises before
+        `_decide` is ever reached; from outside the `try` that would reach the
+        interpreter default (exit 1, non-blocking, destructive command runs).
+        """
+        with mock.patch.object(
+            guard.threading, "Timer", side_effect=RuntimeError("can't start new thread")
+        ):
+            exit_code, stdout, stderr = self._invoke_guard_raw("rm -rf /tmp/example")
+        self.assertEqual(2, exit_code)
+        self.assertNotEqual(1, exit_code)
+        self.assertTrue(stderr.strip())
+        self.assertEqual("", stdout)
+
+    def test_main_denies_at_exit_2_when_watchdog_thread_cannot_start(self) -> None:
+        """`.start()` failing is the same fail-closed case as construction
+        failing — the guard could not arm its own deadline, so it denies."""
+        fake_timer = mock.Mock()
+        fake_timer.start.side_effect = RuntimeError("can't start new thread")
+        with mock.patch.object(guard.threading, "Timer", return_value=fake_timer):
+            exit_code, stdout, stderr = self._invoke_guard_raw("rm -rf /tmp/example")
+        self.assertEqual(2, exit_code)
+        self.assertNotEqual(1, exit_code)
+        self.assertTrue(stderr.strip())
+        self.assertEqual("", stdout)
+        fake_timer.cancel.assert_called_once()
 
     def test_main_arms_watchdog_at_resolved_deadline_and_cancels_on_return(
         self,

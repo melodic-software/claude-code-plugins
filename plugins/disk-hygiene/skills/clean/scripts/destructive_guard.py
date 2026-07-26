@@ -40,6 +40,7 @@ those already caught by a narrower ``except OSError``).
 from __future__ import annotations
 
 import json
+import math
 import os
 import re
 import sys
@@ -812,11 +813,21 @@ _WATCHDOG_DEFAULT_SECONDS = 10.0
 def _watchdog_seconds() -> float:
     """The guard's own internal deadline, in seconds (module docstring, AC 5).
 
-    Every legitimate invocation completes in milliseconds; a positive value
-    from ``DISK_HYGIENE_GUARD_WATCHDOG_SECONDS`` lets an operator raise the
-    deadline on a known-slow filesystem, and any absent, non-numeric, or
-    non-positive override falls back to the default rather than disarming the
-    watchdog or raising.
+    Every legitimate invocation completes in milliseconds; a finite positive
+    value from ``DISK_HYGIENE_GUARD_WATCHDOG_SECONDS`` lets an operator raise
+    the deadline on a known-slow filesystem, and any absent, non-numeric,
+    non-finite, or non-positive override falls back to the default rather than
+    disarming the watchdog or raising.
+
+    The non-finite rejection is load-bearing, not defensive tidiness: ``inf``,
+    ``nan``, and overflowing literals such as ``1e400`` all parse cleanly
+    through ``float`` and ``inf`` passes a bare ``> 0`` test, but
+    ``threading.Timer(inf, ...)`` accepts ``start()`` and then dies inside the
+    timer thread with ``OverflowError: timestamp out of range for platform
+    time_t``. Because that raises on the *background* thread it never reaches
+    ``main``'s exit-2 boundary — it would silently disarm the watchdog while
+    leaving the guard apparently armed, the exact fail-open shape #1423 exists
+    to close.
     """
     raw = os.environ.get(_WATCHDOG_ENV_VAR)
     if not raw:
@@ -825,7 +836,9 @@ def _watchdog_seconds() -> float:
         value = float(raw)
     except ValueError:
         return _WATCHDOG_DEFAULT_SECONDS
-    return value if value > 0 else _WATCHDOG_DEFAULT_SECONDS
+    if not math.isfinite(value) or value <= 0:
+        return _WATCHDOG_DEFAULT_SECONDS
+    return value
 
 
 def _watchdog_fire(deadline: float) -> None:
@@ -939,11 +952,20 @@ def main() -> int:
     # KeyboardInterrupt reaching a security guard mid-decision is exactly the
     # kind of "not a deliberate, reasoned allow" path AC 1 requires to deny,
     # not to propagate.
+    #
+    # Arming the watchdog is INSIDE the boundary, not before it: under OS
+    # thread or memory exhaustion `threading.Timer(...)` / `.start()` raises
+    # `RuntimeError: can't start new thread`, and from outside the `try` that
+    # exception would reach the interpreter's default handler — exit 1,
+    # non-blocking, destructive command proceeds. Failing to arm the guard's
+    # own deadline is precisely when the guard must deny, so construction and
+    # startup fail closed at exit 2 like every other internal failure.
     deadline = _watchdog_seconds()
-    watchdog = threading.Timer(deadline, _watchdog_fire, args=(deadline,))
-    watchdog.daemon = True
-    watchdog.start()
+    watchdog: threading.Timer | None = None
     try:
+        watchdog = threading.Timer(deadline, _watchdog_fire, args=(deadline,))
+        watchdog.daemon = True
+        watchdog.start()
         return _decide(command, tool_name)
     except BaseException as exc:
         print(
@@ -953,7 +975,10 @@ def main() -> int:
         )
         return 2
     finally:
-        watchdog.cancel()
+        # `watchdog` stays None if construction itself raised; cancelling an
+        # armed-but-unstarted timer is harmless.
+        if watchdog is not None:
+            watchdog.cancel()
 
 
 if __name__ == "__main__":

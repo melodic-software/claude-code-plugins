@@ -52,6 +52,19 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
   below the previous implicit 600s default, in case the internal watchdog itself is ever prevented
   from running.
 
+- **Two residual fail-open paths in the new watchdog itself, both reported in review.** (1) Arming
+  the watchdog sat *outside* the exit-2 boundary it protects: under OS thread or memory exhaustion
+  `threading.Timer(...)` / `.start()` raises `RuntimeError: can't start new thread`, which reached
+  the interpreter's default handler — exit `1`, non-blocking, destructive command proceeds. Failing
+  to arm the guard's own deadline is exactly when the guard must deny, so construction and startup
+  now run inside the protected boundary and fail closed at exit `2`. (2) `_watchdog_seconds`
+  validated its `DISK_HYGIENE_GUARD_WATCHDOG_SECONDS` override with a bare `> 0` test, which `inf`
+  (and `1e400`, which parses to `inf`) passes; `threading.Timer(inf, ...)` then accepts `start()`
+  and dies *in the timer thread* with `OverflowError: timestamp out of range for platform time_t`,
+  silently disarming the watchdog while the guard looks armed — and because it raises off the main
+  thread, the exit-2 boundary never sees it. Non-finite overrides now fall back to the default like
+  every other invalid value. Both paths are covered by new `GuardTests` cases (205 tests pass).
+
 ## [0.9.4]
 
 ### Fixed
