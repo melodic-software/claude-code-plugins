@@ -31,11 +31,16 @@
 #      `realpath ... || readlink -f ...`;
 #   2. a per-site recorded exemption `portability-ok: <reason>` on the hit line
 #      or in the contiguous comment block directly above it;
-#   3. a whole-file `portability-scope: <reason>` declaration anywhere in the
-#      file — for a file that IS this gate's own fixture/test corpus and so
-#      necessarily contains the literal constructs it detects as test data
-#      (this script's own check-shell-portability.test.sh uses it), not for
-#      excusing a real shipped script's real coupling.
+#   3. a whole-file `portability-scope: <reason>` declaration — a dedicated
+#      `#`-comment line whose content (after the `#` and optional whitespace)
+#      STARTS with the literal token, e.g. `# portability-scope: <reason>` —
+#      not merely a line that mentions the string somewhere (a doc-block
+#      sentence explaining this very mechanism, or a string literal), which
+#      would wrongly exempt a whole file for a reason it never actually
+#      declared. For a file that IS this gate's own fixture/test corpus and
+#      so necessarily contains the literal constructs it detects as test
+#      data (this script's own check-shell-portability.test.sh uses it), not
+#      for excusing a real shipped script's real coupling.
 #
 # Construct matching skips comment-only lines entirely (a `#`-prefixed line,
 # after leading whitespace) — this class is live command syntax, not prose;
@@ -135,9 +140,26 @@ scan_file() {
   # necessarily contains the literal GNU-only constructs this gate detects as
   # test data — e.g. this script's own check-shell-portability.test.sh)
   # excuses every hit in the file; the declaration is visible in the diff.
-  if grep -qE 'portability-scope:' -- "$file"; then
+  # Anchored to a genuine `#`-comment line whose content actually STARTS with
+  # the token, not a bare substring match anywhere in the file — an
+  # unanchored search would also match this very sentence (a doc-block
+  # comment merely explaining the mechanism) or a `portability-scope:`
+  # mention inside a string literal, wrongly exempting the whole file for a
+  # reason it never declared. See #1513.
+  if grep -qE '^[[:space:]]*#[[:space:]]*portability-scope:' -- "$file"; then
     return 0
   fi
+  # awk operand disambiguation: a bare relative operand shaped like
+  # identifier=value (e.g. a top-level file literally named FOO=bar.sh) is
+  # parsed by awk as a command-line variable assignment, not opened as a
+  # file — silently dropping it from the scan. Prefixing an unrooted operand
+  # with `./` breaks the identifier=value shape (`./` is never a valid awk
+  # identifier lead character) so it is unambiguously a filename. See #1513.
+  local awk_file="$file"
+  case "$awk_file" in
+  ./* | /*) ;;
+  *) awk_file="./$awk_file" ;;
+  esac
   awk '
     function is_annotated(l) { return l ~ /portability-ok:/ }
     function is_comment(l) { return l ~ /^[[:space:]]*#/ }
@@ -195,7 +217,7 @@ scan_file() {
         }
       }
     }
-  ' "$TOKENS" "$file"
+  ' "$TOKENS" "$awk_file"
 }
 
 violations=0

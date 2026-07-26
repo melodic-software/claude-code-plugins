@@ -68,10 +68,34 @@ sort[^\n]*[[:space:]]-[A-Za-z]*V[A-Za-z]*([[:space:]]|$)
 # `sed -i` with no suffix argument attached — GNU treats the suffix as
 # optional; BSD sed requires one immediately after `-i` (even an explicit
 # empty string, `-i ''` / `-i ""`, auto-guarded by is_guarded() so the
-# portable BSD-safe idiom is not itself flagged). Does not yet cover every
-# GNU spelling (`-Ei`, `--in-place`, an attached-not-space-separated empty
-# suffix) — see #1513.
+# portable BSD-safe idiom is not itself flagged). Still does not cover an
+# attached-not-space-separated empty suffix (`-i''`) — ambiguous with BSD's
+# own attached-suffix syntax, needs real sed-dialect research before
+# encoding, not a quick pattern tweak — see #1513.
 sed[^\n]*-i[[:space:]]+[^[:space:]]
+
+# `sed -Ei` / `-iE` (extended-regex and in-place combined into one short-flag
+# cluster, unsuffixed) — the `-i[[:space:]]+[^[:space:]]` token above only
+# catches a literal standalone `-i`; it does not match a cluster like `-Ei`
+# (no literal `-i` substring — the char after `-` is `E`, not `i`) or `-iE`
+# unsuffixed (`-i` is immediately followed by `E`, not whitespace). `E` and
+# `i` may appear anywhere in the cluster, in either order (mirrors the
+# combined-cluster treatment #1511 already applies to `grep -P` / `sort -V` /
+# `echo -e`). Anchored to a `sed` mention earlier on the line — `-i` alone is
+# common across tools (`grep -i`, `sort -i`...), so a bare cluster-scan would
+# over-match without the anchor. Requires the cluster to end at whitespace or
+# end-of-line (unsuffixed): an attached suffix (`-Ei.bak`, nonempty) is
+# dual-compatible and correctly not flagged, same as plain `-i.bak` above; an
+# attached EMPTY suffix (`-Ei''`) is the same ambiguous shape `-i''` is,
+# deferred above, and likewise not flagged here.
+sed[^\n]*[[:space:]]-[A-Za-z]*(E[A-Za-z]*i|i[A-Za-z]*E)[A-Za-z]*([[:space:]]|$)
+
+# `sed --in-place[=SUFFIX]` (GNU long-form spelling of `-i`) — BSD sed has no
+# long options at all, so this flags unconditionally, suffixed or not (unlike
+# short `-i`, where BSD requires an attached suffix and only the unsuffixed
+# form is GNU-only, `--in-place` has no portable BSD equivalent in either
+# shape).
+--in-place
 
 # `readlink -f` (canonicalize) — a GNU coreutils extension; BSD/macOS readlink
 # has no `-f`/`--canonicalize`. Auto-guarded when a `realpath` attempt sits on
