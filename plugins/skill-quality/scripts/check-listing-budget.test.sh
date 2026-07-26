@@ -27,33 +27,63 @@ git -C "$TMP" config user.name test
 ROOT_A="$TMP/plugin-a/skills"
 
 make_skill() {
-  local root="$1" name="$2" desc="$3" wtu="${4:-}"
+  local root="$1" name="$2" desc="$3" wtu="${4:-}" dmi="${5:-}"
   mkdir -p "$root/$name"
   {
     printf -- '---\n'
     printf 'name: %s\n' "$name"
     printf 'description: "%s"\n' "$desc"
     [[ -n "$wtu" ]] && printf 'when_to_use: "%s"\n' "$wtu"
+    [[ -n "$dmi" ]] && printf 'disable-model-invocation: %s\n' "$dmi"
     printf -- '---\n\n## Purpose\n\nFixture.\n'
   } >"$root/$name/SKILL.md"
 }
 
 run() { (cd "$TMP" && bash "$SUT" "$@"); }
 
-# 1. --help exits 0.
-if run --help >/dev/null 2>&1; then
-  pass "--help exits 0"
+# 1. --help exits 0 and prints the WHOLE header block — no clipping, no
+#    overrun past the header into code. usage() derives its range from the
+#    comment block itself, so adding header lines can never desync it again.
+out="$(run --help 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] &&
+  grep -q 'in the issue this script closes' <<<"$out" &&
+  ! grep -q 'set -uo pipefail' <<<"$out"; then
+  pass "--help exits 0 and prints the full header without spilling into code"
 else
-  fail "--help should exit 0"
+  fail "--help should print the complete header and stop at the first code line (rc=$rc): $out"
 fi
 
-# 2. No matching root at all is a usage/env error (exit 2).
+# 2. An explicit root that does not exist is a usage/env error (exit 2).
 out="$(run "$TMP/does-not-exist" 2>&1)"
 rc=$?
-if [[ $rc -eq 2 ]] && grep -q 'no skills root found' <<<"$out"; then
-  pass "missing root(s) exits 2 with a clear message"
+if [[ $rc -eq 2 ]] && grep -q 'skills root does not exist' <<<"$out"; then
+  pass "a missing explicit root exits 2 with a clear message"
 else
-  fail "missing root(s) should exit 2 (rc=$rc): $out"
+  fail "a missing explicit root should exit 2 (rc=$rc): $out"
+fi
+
+# 2b. A missing explicit root is rejected even when ANOTHER root is valid.
+#     Silently skipping it would omit a whole plugin subtree and report a
+#     falsely low aggregate under an "OK" — the failure mode this guards.
+mkdir -p "$TMP/valid-root/only-skill"
+make_skill "$TMP/valid-root" only-skill "A fixture."
+out="$(run "$TMP/valid-root" "$TMP/does-not-exist" 2>&1)"
+rc=$?
+if [[ $rc -eq 2 ]] && grep -q 'skills root does not exist' <<<"$out"; then
+  pass "a missing explicit root is rejected even when another root is valid"
+else
+  fail "a partially-missing explicit root list should exit 2, not silently skip (rc=$rc): $out"
+fi
+
+# 2c. The no-args resolution path still reports "no skills root found" rather
+#     than the explicit-root error — the two branches stay distinct.
+out="$(cd "$TMP" && CHECK_SKILL_SKILLS_ROOT="$TMP/nope-root" bash "$SUT" 2>&1)"
+rc=$?
+if [[ $rc -eq 2 ]] && grep -q 'no skills root found' <<<"$out"; then
+  pass "an unresolvable no-args root exits 2 via the resolution-path message"
+else
+  fail "no-args resolution failure should exit 2 with 'no skills root found' (rc=$rc): $out"
 fi
 
 # 3. A root that exists but has no skills reports zero and exits 0.
@@ -126,10 +156,100 @@ mkdir -p "$TMP/root-x" "$TMP/root-y"
 make_skill "$TMP/root-x" x-skill "12345"
 make_skill "$TMP/root-y" y-skill "67890"
 out="$(run "$TMP/root-x" "$TMP/root-y" 2>&1)"
-if grep -q 'over 2 skill(s) across 2 root(s)' <<<"$out" && grep -q 'aggregate: 10 chars' <<<"$out"; then
+if grep -q 'over 2 listing-eligible skill(s) across 2 root(s)' <<<"$out" && grep -q 'aggregate: 10 chars' <<<"$out"; then
   pass "multiple roots pool into one shared aggregate"
 else
   fail "multiple roots should pool into one aggregate of 10 chars across 2 skills: $out"
+fi
+
+# 9. `disable-model-invocation: true` skills are excluded from the aggregate.
+#    Their descriptions are never loaded into the model-visible listing
+#    (https://code.claude.com/docs/en/skills — "Description not in context"),
+#    so counting them would overstate the shared budget.
+mkdir -p "$TMP/dmi-root"
+make_skill "$TMP/dmi-root" eligible-skill "12345"
+make_skill "$TMP/dmi-root" manual-skill "9999999999999999999999999" "" "true"
+make_skill "$TMP/dmi-root" explicit-false-skill "67890" "" "false"
+out="$(run "$TMP/dmi-root" 2>&1)"
+if grep -q 'over 2 listing-eligible skill(s)' <<<"$out" && grep -q 'aggregate: 10 chars' <<<"$out"; then
+  pass "disable-model-invocation: true skills are excluded; false is still counted"
+else
+  fail "expected 2 eligible skills totalling 10 chars (the dmi:true skill excluded): $out"
+fi
+
+# 10. A nonnumeric override is an environment error (exit 2), never a silent
+#     awk coercion to zero (which fabricated a 0-char budget and a bogus
+#     overflow WARN while still exiting 0) and never an undocumented exit 1.
+#     Each case names the variable it expects to be blamed. The two ratio vars
+#     are only consulted when CONTEXT_TOKENS selects the reconstruction branch,
+#     so those cases set a valid CONTEXT_TOKENS alongside.
+assert_env_error() {
+  local var="$1" desc="$2"
+  shift 2
+  local out rc
+  out="$(cd "$TMP" && env "$@" bash "$SUT" "$ROOT_A" 2>&1)"
+  rc=$?
+  if [[ $rc -eq 2 ]] && grep -q "$var must be a positive number" <<<"$out"; then
+    pass "$desc is rejected as an environment error (exit 2)"
+  else
+    fail "$desc should exit 2 blaming $var (rc=$rc): $out"
+  fi
+}
+
+assert_env_error CHECK_SKILL_LISTING_CONTEXT_TOKENS "a nonnumeric context-token count" \
+  CHECK_SKILL_LISTING_CONTEXT_TOKENS=nope
+assert_env_error CHECK_SKILL_LISTING_BUDGET_FRACTION "a nonnumeric budget fraction" \
+  CHECK_SKILL_LISTING_CONTEXT_TOKENS=200000 CHECK_SKILL_LISTING_BUDGET_FRACTION=nope
+assert_env_error CHECK_SKILL_LISTING_CHARS_PER_TOKEN "a nonnumeric chars-per-token ratio" \
+  CHECK_SKILL_LISTING_CONTEXT_TOKENS=200000 CHECK_SKILL_LISTING_CHARS_PER_TOKEN=nope
+assert_env_error CHECK_SKILL_LISTING_MAX_DESC_CHARS "a nonnumeric per-entry cap" \
+  CHECK_SKILL_LISTING_MAX_DESC_CHARS=nope
+assert_env_error CHECK_SKILL_LISTING_BUDGET_CHARS "a nonnumeric fixed budget" \
+  CHECK_SKILL_LISTING_BUDGET_CHARS=nope
+assert_env_error CHECK_SKILL_LISTING_BUDGET_CHARS "a zero fixed budget" \
+  CHECK_SKILL_LISTING_BUDGET_CHARS=0
+
+# 11. A valid decimal ratio/fraction is NOT rejected by the numeric guard —
+#     the validation must accept the documented 0.01 default shape.
+out="$(cd "$TMP" && CHECK_SKILL_LISTING_CONTEXT_TOKENS=1000000 CHECK_SKILL_LISTING_BUDGET_FRACTION=0.02 \
+  CHECK_SKILL_LISTING_CHARS_PER_TOKEN=3.5 bash "$SUT" "$ROOT_A" 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q 'reconstructed: 1000000 tokens x 3.5 chars/token x 0.02' <<<"$out"; then
+  pass "decimal ratio and fraction overrides are accepted and reconstructed"
+else
+  fail "decimal overrides should reconstruct the budget and exit 0 (rc=$rc): $out"
+fi
+
+# 12. A supplied CHECK_SKILL_LISTING_BUDGET_CHARS is labelled an override, not
+#     the "documented default" — the provenance the report promises to state.
+out="$(cd "$TMP" && CHECK_SKILL_LISTING_BUDGET_CHARS=4000 bash "$SUT" "$ROOT_A" 2>&1)"
+if grep -q 'budget:.*4000 chars (override (CHECK_SKILL_LISTING_BUDGET_CHARS))' <<<"$out"; then
+  pass "a supplied fixed budget is labelled an override, not the documented default"
+else
+  fail "an overridden budget should not be labelled the documented default: $out"
+fi
+
+# 12b. With no override, the default IS labelled the documented default.
+out="$(run "$ROOT_A" 2>&1)"
+if grep -q 'budget:.*8000 chars (documented default' <<<"$out"; then
+  pass "the unoverridden budget is labelled the documented default"
+else
+  fail "the default budget should carry the documented-default label: $out"
+fi
+
+# 13. The fixed budget takes precedence over the token reconstruction, per the
+#     documented contract ("skips the token/fraction reconstruction"). The
+#     reconstruction branch used to win and silently discard the fixed value,
+#     which could flip the OK/WARN verdict.
+out="$(cd "$TMP" && CHECK_SKILL_LISTING_BUDGET_CHARS=99999 CHECK_SKILL_LISTING_CONTEXT_TOKENS=200000 \
+  bash "$SUT" "$ROOT_A" 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] &&
+  grep -q 'budget:.*99999 chars (override (CHECK_SKILL_LISTING_BUDGET_CHARS))' <<<"$out" &&
+  grep -q 'takes precedence; ignoring CHECK_SKILL_LISTING_CONTEXT_TOKENS=200000' <<<"$out"; then
+  pass "a fixed budget wins over the token reconstruction and says so"
+else
+  fail "the fixed budget should win and announce the ignored reconstruction input (rc=$rc): $out"
 fi
 
 if [[ $fails -ne 0 ]]; then

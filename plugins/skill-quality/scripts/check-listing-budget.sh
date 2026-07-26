@@ -17,6 +17,24 @@
 #   skillListingMaxDescChars, SLASH_COMMAND_TOOL_CHAR_BUDGET) — fetched and
 #   verified current at authoring time.
 #
+# What counts, and what deliberately does not:
+#   - This models DESCRIPTION characters only. The listing "always contains
+#     every skill name" (docs, above), so names are a floor this report does
+#     not estimate; the budget is spent on description + when_to_use text,
+#     which is what is summed here.
+#   - Skills with `disable-model-invocation: true` are SKIPPED. Per
+#     https://code.claude.com/docs/en/skills the invocation-control table
+#     records "Description not in context" for that frontmatter, and "Hide
+#     individual skills" states it "removes the skill from Claude's context
+#     entirely" — such a skill spends none of the shared description budget,
+#     so counting it overstates the aggregate. (Fetched and verified current
+#     when this filter was added.)
+#   - A consumer's `skillOverrides` can collapse further entries to
+#     `"name-only"`, which also frees their description characters. That is
+#     consumer settings.json state, not repository content, so a static check
+#     cannot observe it — this report is therefore an UPPER bound for any
+#     consumer who sets it.
+#
 # The aggregate budget is inherently a MACHINE-DEPENDENT estimate: it scales
 # with the live model's context window and the resolved
 # skillListingBudgetFraction, which a consumer's settings.json can override.
@@ -42,7 +60,11 @@
 #
 # No args: resolves ONE root via the same convention ladder as check-skill.sh
 #   (CHECK_SKILL_SKILLS_ROOT, then ${CLAUDE_PROJECT_DIR}/.claude/skills, then
-#   <git-root>/.claude/skills) — the shape a single consumer project has.
+#   <git-root>/.claude/skills) — the shape a single consumer project has. A
+#   resolved root that does not exist is reported as "no skills root found".
+# One or more args: EVERY explicit root must exist — a missing one is an
+#   environment error (exit 2), never a silent skip, because skipping it
+#   would omit a whole plugin subtree and report a falsely low aggregate.
 # One or more args: each is scanned as an independent skills root and every
 #   skill under every root is pooled into ONE shared aggregate. This is how a
 #   consumer who installs multiple plugins actually experiences the listing
@@ -75,6 +97,11 @@
 #   CHECK_SKILL_SKILLS_ROOT              - single-root resolution override,
 #                                          only consulted in the no-args form
 #
+# Every numeric override above is validated as a positive number before use.
+# A nonnumeric value is an environment error (exit 2) — never a silent
+# coercion to zero, which would fabricate a zero-character budget and an
+# overflow WARN out of a typo.
+#
 # Exit 0 always (report-only), except a usage/env error (exit 2) — this is an
 # advisory rollup, not a pass/fail gate; see the "reported aggregate" framing
 # in the issue this script closes.
@@ -82,8 +109,11 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+# The header comment block above IS the --help text. Print from line 2 to the
+# last consecutive `#` line rather than a hardcoded range, so editing the
+# header can never again silently clip or overrun the help output.
 usage() {
-  sed -n '2,80p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+  awk 'NR == 1 { next } /^#/ { sub(/^# ?/, ""); print; next } { exit }' "${BASH_SOURCE[0]}"
 }
 
 if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
@@ -100,30 +130,63 @@ fi
 # shellcheck source=./skill-frontmatter.sh
 source "$SCRIPT_DIR/skill-frontmatter.sh"
 
+# Reject a nonnumeric override up front. Without this, `awk` coerces a typo to
+# 0 and the report exits 0 announcing a zero-character budget and a bogus
+# overflow, while the bash-arithmetic call sites die with an undocumented
+# exit 1. Both failure modes are routed into the documented env error (exit 2).
+# `kind` is `int` for counts and `num` for ratios/fractions, which are decimal.
+require_positive_number() {
+  local name="$1" val="$2" kind="${3:-int}"
+  local pattern='^[0-9]+$'
+  [[ "$kind" == "num" ]] && pattern='^([0-9]+(\.[0-9]+)?|\.[0-9]+)$'
+  if [[ ! "$val" =~ $pattern ]] || ! awk -v v="$val" 'BEGIN { exit (v > 0) ? 0 : 1 }'; then
+    printf 'Error: %s must be a positive number, got: %s\n' "$name" "$val" >&2
+    exit 2
+  fi
+}
+
 MAX_DESC_CHARS="${CHECK_SKILL_LISTING_MAX_DESC_CHARS:-1536}"
+require_positive_number CHECK_SKILL_LISTING_MAX_DESC_CHARS "$MAX_DESC_CHARS" int
 JOINER_CHARS=3 # the literal " - " the harness inserts between description and when_to_use
 
-if [[ -n "${CHECK_SKILL_LISTING_CONTEXT_TOKENS:-}" ]]; then
+# Precedence matches the documented contract above: a fixed aggregate budget
+# SKIPS the token/fraction reconstruction. Checking it first is what makes that
+# sentence true — the reconstruction branch used to win and silently discard a
+# supplied fixed budget, which could flip the OK/WARN verdict.
+if [[ -n "${CHECK_SKILL_LISTING_BUDGET_CHARS:-}" ]]; then
+  BUDGET_CHARS="$CHECK_SKILL_LISTING_BUDGET_CHARS"
+  require_positive_number CHECK_SKILL_LISTING_BUDGET_CHARS "$BUDGET_CHARS" int
+  BUDGET_SOURCE="override (CHECK_SKILL_LISTING_BUDGET_CHARS)"
+  if [[ -n "${CHECK_SKILL_LISTING_CONTEXT_TOKENS:-}" ]]; then
+    printf 'Note: CHECK_SKILL_LISTING_BUDGET_CHARS takes precedence; ignoring CHECK_SKILL_LISTING_CONTEXT_TOKENS=%s\n' \
+      "$CHECK_SKILL_LISTING_CONTEXT_TOKENS" >&2
+  fi
+elif [[ -n "${CHECK_SKILL_LISTING_CONTEXT_TOKENS:-}" ]]; then
   CONTEXT_TOKENS="$CHECK_SKILL_LISTING_CONTEXT_TOKENS"
   CHARS_PER_TOKEN="${CHECK_SKILL_LISTING_CHARS_PER_TOKEN:-4}"
   FRACTION="${CHECK_SKILL_LISTING_BUDGET_FRACTION:-0.01}"
+  require_positive_number CHECK_SKILL_LISTING_CONTEXT_TOKENS "$CONTEXT_TOKENS" int
+  require_positive_number CHECK_SKILL_LISTING_CHARS_PER_TOKEN "$CHARS_PER_TOKEN" num
+  require_positive_number CHECK_SKILL_LISTING_BUDGET_FRACTION "$FRACTION" num
   if ! BUDGET_CHARS="$(awk -v t="$CONTEXT_TOKENS" -v c="$CHARS_PER_TOKEN" -v f="$FRACTION" \
-    'BEGIN { printf "%d", t * c * f }' 2>/dev/null)" || [[ -z "$BUDGET_CHARS" ]]; then
+    'BEGIN { printf "%d", t * c * f }' 2>/dev/null)" || [[ -z "$BUDGET_CHARS" ]] || ((BUDGET_CHARS <= 0)); then
     printf 'Error: could not compute a budget from CHECK_SKILL_LISTING_CONTEXT_TOKENS=%s CHECK_SKILL_LISTING_CHARS_PER_TOKEN=%s CHECK_SKILL_LISTING_BUDGET_FRACTION=%s\n' \
       "$CONTEXT_TOKENS" "$CHARS_PER_TOKEN" "$FRACTION" >&2
     exit 2
   fi
   BUDGET_SOURCE="reconstructed: $CONTEXT_TOKENS tokens x $CHARS_PER_TOKEN chars/token x $FRACTION"
 else
-  BUDGET_CHARS="${CHECK_SKILL_LISTING_BUDGET_CHARS:-8000}"
+  BUDGET_CHARS=8000
   BUDGET_SOURCE="documented default (SLASH_COMMAND_TOOL_CHAR_BUDGET fallback)"
 fi
 
 # --- Resolve the roots to scan ----------------------------------------------
 
 ROOTS=()
+EXPLICIT_ROOTS=0
 if (($# > 0)); then
   ROOTS=("$@")
+  EXPLICIT_ROOTS=1
 else
   if [[ -n "${CHECK_SKILL_SKILLS_ROOT:-}" ]]; then
     SINGLE_ROOT="$CHECK_SKILL_SKILLS_ROOT"
@@ -145,16 +208,31 @@ ENTRY_COUNT=0
 CONTRIB_FILE="$(mktemp)"
 trap 'rm -f "$CONTRIB_FILE"' EXIT
 
-found_any_root=0
+FOUND_ROOTS=0
 for root in "${ROOTS[@]}"; do
-  [[ -d "$root" ]] || continue
-  found_any_root=1
+  if [[ ! -d "$root" ]]; then
+    # An EXPLICIT root that does not exist is an environment error: silently
+    # skipping it omits a whole subtree and reports a falsely low aggregate
+    # under an "OK". The no-args resolved root falls through to the
+    # "no skills root found" check below instead.
+    if ((EXPLICIT_ROOTS)); then
+      printf 'Error: skills root does not exist: %s\n' "$root" >&2
+      exit 2
+    fi
+    continue
+  fi
+  FOUND_ROOTS=$((FOUND_ROOTS + 1))
   for skill_md in "$root"/*/SKILL.md; do
     [[ -f "$skill_md" ]] || continue
     skill_name="${skill_md%/SKILL.md}"
     skill_name="${skill_name##*/}"
     fm="$(skill_frontmatter::extract <"$skill_md")"
     [[ -n "$fm" ]] || continue
+    # `disable-model-invocation: true` keeps this skill's description out of
+    # the model-visible listing entirely, so it spends none of the shared
+    # budget — counting it would overstate the aggregate. See the header.
+    dmi="$(skill_frontmatter::strip_quotes "$(skill_frontmatter::field disable-model-invocation <<<"$fm")")"
+    [[ "$dmi" == "true" ]] && continue
     desc="$(skill_frontmatter::strip_quotes "$(skill_frontmatter::field description <<<"$fm")")"
     wtu="$(skill_frontmatter::strip_quotes "$(skill_frontmatter::field when_to_use <<<"$fm")")"
     desc_len=${#desc}
@@ -173,20 +251,20 @@ for root in "${ROOTS[@]}"; do
   done
 done
 
-if ((found_any_root == 0)); then
+if ((FOUND_ROOTS == 0)); then
   printf 'Error: no skills root found among: %s\n' "${ROOTS[*]}" >&2
   exit 2
 fi
 
 if ((ENTRY_COUNT == 0)); then
-  printf 'No skills found under: %s\n' "${ROOTS[*]}"
+  printf 'No listing-eligible skills found under: %s\n' "${ROOTS[*]}"
   printf '\nCHECK-LISTING-BUDGET: 0 skills, nothing to report\n'
   exit 0
 fi
 
 # --- Report ------------------------------------------------------------------
 
-printf 'Shared listing-budget estimate over %d skill(s) across %d root(s):\n' "$ENTRY_COUNT" "${#ROOTS[@]}"
+printf 'Shared listing-budget estimate over %d listing-eligible skill(s) across %d root(s):\n' "$ENTRY_COUNT" "$FOUND_ROOTS"
 printf '  aggregate: %d chars\n' "$TOTAL"
 printf '  budget:    %d chars (%s)\n' "$BUDGET_CHARS" "$BUDGET_SOURCE"
 

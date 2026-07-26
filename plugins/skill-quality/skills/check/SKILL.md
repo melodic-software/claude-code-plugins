@@ -1,6 +1,6 @@
 ---
 name: check
-description: "Skill-authoring QA for Claude Code skills. Use when: 'check this skill', 'skill quality', 'lint my skill', 'is this SKILL.md valid', 'validate skill frontmatter', 'check skill before publishing', 'validate evals.json', 'shared listing budget', 'is the skill listing overflowing', or before shipping a skill or plugin. Actions: `check [<skill-name>]` runs a twenty-check static contract gate (frontmatter, per-skill listing-entry cap, trigger-keyword preservation vs HEAD, line caps, broken internal refs, markdownlint, gotchas surface, evals presence, precompute opportunity, injection shell-declaration) and reports PASS/FAIL with warnings; `validate-evals [<skill-name>]` checks a skill's evals/evals.json against the bundled schema; `listing-budget [<root> ...]` reports the SHARED aggregate listing-budget estimate across every skill under the resolved root(s) — advisory only, never blocks. Not for: writing new skills, or running model-graded evals."
+description: "Skill-authoring QA for Claude Code skills. Use when: 'check this skill', 'skill quality', 'lint my skill', 'is this SKILL.md valid', 'validate skill frontmatter', 'check skill before publishing', 'validate evals.json', 'shared listing budget', 'is the skill listing overflowing', or before shipping a skill or plugin. Actions: `check [<skill-name>]` runs a twenty-check static contract gate (frontmatter, per-skill listing-entry cap, trigger-keyword preservation vs HEAD, line caps, broken internal refs, markdownlint, gotchas surface, evals presence, precompute opportunity, injection shell-declaration) and reports PASS/FAIL with warnings; `validate-evals [<skill-name>]` checks a skill's evals/evals.json against the bundled schema; `listing-budget [<root> ...]` reports the SHARED aggregate listing-budget estimate across every listing-eligible skill under the resolved root(s) — advisory only, never blocks. Not for: writing new skills, or running model-graded evals."
 argument-hint: "[check|validate-evals|listing-budget] [<skill-name-or-root> ...] — omit the action for check; omit the name/root to run over every skill under the resolved root"
 user-invocable: true
 disable-model-invocation: false
@@ -61,10 +61,11 @@ Parse `$ARGUMENTS`:
 - **`check`** *(no name)* — run the gate over every skill under the resolved root.
 - **`validate-evals <skill-name>`** — validate one skill's `<skill>/evals/evals.json` against the schema.
 - **`validate-evals`** *(no name)* — validate every skill's `<skill>/evals/evals.json` that exists.
-- **`listing-budget`** *(no root)* — report the shared listing-budget estimate over every skill under
-  the resolved root.
-- **`listing-budget <root> [<root> ...]`** — pool every skill under each given root into ONE shared
-  aggregate (e.g. every plugin's skills dir in a marketplace repo).
+- **`listing-budget`** *(no root)* — report the shared listing-budget estimate over every
+  listing-eligible skill under the resolved root.
+- **`listing-budget <root> [<root> ...]`** — pool every listing-eligible skill under each given root
+  into ONE shared aggregate (e.g. every plugin's skills dir in a marketplace repo). Every root given
+  must exist.
 
 ## Action: check
 
@@ -114,8 +115,8 @@ that line before editing, since it may be an illustrative example path rather th
    ```
 
 3. Report the printed aggregate, the budget it was compared against (and whether that budget is the
-   documented default or a reconstructed override — see the script's own header), and the biggest
-   contributors when it overflows.
+   documented default, a fixed override, or a reconstructed one — the script labels which), and the
+   biggest contributors when it overflows.
 
 This is a **different, cross-skill limit** from `check`'s per-skill entry cap (`description` +
 `when_to_use` <= 1536 chars): the shared budget every loaded skill draws from together
@@ -123,6 +124,14 @@ This is a **different, cross-skill limit** from `check`'s per-skill entry cap (`
 exit 0 regardless of overflow — because the live budget depends on the model's context window and a
 consumer's own settings, neither of which this static check can observe. Point `/doctor` at the live
 session for the authoritative resolved cost.
+
+**Only listing-eligible skills count.** A skill with `disable-model-invocation: true` has its
+description kept out of the model-visible listing entirely, so it spends none of the shared budget
+and the report skips it — counting those would overstate the aggregate. A consumer's
+`skillOverrides` can free further descriptions by collapsing entries to `"name-only"`, which
+repository content cannot reveal, so the reported figure is an upper bound for anyone who sets it.
+A missing explicit root and a nonnumeric override are both environment errors (exit 2), never a
+silent skip or a coerced-to-zero budget.
 
 ## Gotchas
 

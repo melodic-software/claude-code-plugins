@@ -43,6 +43,11 @@ signal. It never asserts a live value it cannot observe (the model's context win
 settings are both unknowable statically) — it reports against a documented, overridable default and
 always exits 0.
 
+Only **listing-eligible** skills are counted: `disable-model-invocation: true` keeps a skill's
+description out of the model-visible listing entirely, so it spends none of the shared budget. A
+consumer's `skillOverrides` can free further descriptions with `"name-only"`, which repository
+content cannot reveal — so the reported figure is an upper bound for anyone who sets it.
+
 ```shell
 /skill-quality:check my-skill                  # gate one skill
 /skill-quality:check                           # gate every skill under the resolved root

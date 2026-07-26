@@ -21,6 +21,28 @@ All notable changes to the `skill-quality` plugin are documented here. Format fo
   authoritative source per machine. Wired into this repo's `skill-quality-gate` CI job as a report-only
   step pooling every plugin's `skills/` root into one marketplace-wide aggregate.
 
+  The report counts only **listing-eligible** skills. A skill with `disable-model-invocation: true`
+  is skipped: the invocation-control table at <https://code.claude.com/docs/en/skills> records
+  "Description not in context" for that frontmatter, and "Hide individual skills" states it
+  "removes the skill from Claude's context entirely" — such a skill spends none of the shared
+  description budget, so counting it overstates the aggregate. A consumer's `skillOverrides` can
+  free further descriptions via `"name-only"`, which repository content cannot reveal, so the
+  figure is an upper bound for anyone who sets it. On this marketplace the filter moves the reported
+  aggregate from 183 skills / 109,205 chars to 132 / 83,594 — still an order of magnitude over the
+  8000-char default, so the finding the check exists to surface is unchanged.
+
+  Input handling is fail-closed on operator error, while the budget verdict stays advisory: every
+  numeric override is validated as a positive number and every explicit root must exist, both
+  reported as the documented environment error (exit 2). Previously a nonnumeric override was
+  either coerced to zero by `awk` — fabricating a zero-character budget and a bogus overflow WARN
+  while still exiting 0 — or crashed with an undocumented exit 1, and a misspelled root among
+  several was silently skipped while its subtree vanished from an "OK" aggregate. A fixed
+  `CHECK_SKILL_LISTING_BUDGET_CHARS` now takes precedence over the token/fraction reconstruction as
+  its own documentation always claimed, announcing the ignored input rather than discarding it
+  silently, and is labelled an override instead of the "documented default". The report header
+  counts roots actually scanned rather than arguments given, and `--help` derives its range from the
+  header block so editing that block can no longer clip or overrun the help text.
+
 ### Fixed
 
 - **Check 2 now counts the description/when_to_use joiner (#1404).** The harness assembles a skill's
