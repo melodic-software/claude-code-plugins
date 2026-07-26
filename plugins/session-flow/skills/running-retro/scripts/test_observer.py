@@ -9,9 +9,13 @@ rule (collect-only keeps observations, a consumed analysis deletes them).
 """
 from __future__ import annotations
 
+import contextlib
 import importlib.util
+import io
 import json
 import os
+import shutil
+import sys
 import tempfile
 import threading
 import time
@@ -86,6 +90,65 @@ class ResultParsing(unittest.TestCase):
     def test_error(self):
         self.assertTrue(observer._result_error('{"is_error":true,"result":"Not logged in"}'))
         self.assertEqual(observer._result_error('{"is_error":false,"result":"ok"}'), "")
+
+
+class AnalysisPrompt(unittest.TestCase):
+    """The headless run has no delegation prompt to fall back on -- the
+    compute-don't-assert rule (issue #1473) must be inline in this prompt
+    text itself, not only documented in checkpoint.md's Method section."""
+
+    def test_compute_dont_assert_rule_present(self):
+        prompt = observer._analysis_prompt(
+            observations="/abs/obs.jsonl", checkpoint="/abs/checkpoint.md",
+            session_id="sid")
+        self.assertIn("Compute, don't assert", prompt)
+        # Names the failure modes the validation report actually observed.
+        self.assertIn("sequencing", prompt)
+        self.assertIn("batching", prompt)
+        self.assertIn("delegation", prompt)
+        self.assertIn("occurrence count", prompt)
+        self.assertIn("message id", prompt)
+        # Uncomputable structural claims must be dropped, not asserted anyway.
+        self.assertIn("drop the claim", prompt)
+
+    def test_message_id_absence_caveat_present(self):
+        # summarize_record() never carries a message-id field into the
+        # distilled observations the headless run receives (see its distillation
+        # below) -- the prompt must say so explicitly, or the agent is told to
+        # group by a field that never exists in its own input.
+        prompt = observer._analysis_prompt(
+            observations="/abs/obs.jsonl", checkpoint="/abs/checkpoint.md",
+            session_id="sid")
+        self.assertIn("may not carry a message-id field", prompt)
+        rec = observer.summarize_record(
+            {"type": "assistant",
+             "message": {"content": [{"type": "tool_use", "name": "Read"}]}})
+        self.assertNotIn("id", rec)
+
+    def test_dependency_check_before_batching_finding_present(self):
+        # A correctly computed sequencing fact doesn't by itself prove a missed
+        # batching opportunity -- genuinely dependent calls are correctly
+        # sequential, not a miss. The compute-don't-assert rule must cover the
+        # Efficiency judgment built on top of a computed structural fact, not
+        # only the fact itself, and "dependent" must not be narrowed to data
+        # flow alone -- control, resource, and side-effect dependencies are
+        # just as real a reason two calls had to run in order.
+        prompt = observer._analysis_prompt(
+            observations="/abs/obs.jsonl", checkpoint="/abs/checkpoint.md",
+            session_id="sid")
+        self.assertIn("missed batching opportunity", prompt)
+        self.assertIn("dependency", prompt)
+        self.assertIn("control", prompt)
+        self.assertIn("resource", prompt)
+        self.assertIn("side-effect", prompt)
+
+    def test_redaction_rule_still_present(self):
+        # Guard against the new instruction crowding out the pre-existing
+        # mandatory redaction pass.
+        prompt = observer._analysis_prompt(
+            observations="/abs/obs.jsonl", checkpoint="/abs/checkpoint.md",
+            session_id="sid")
+        self.assertIn("MANDATORY redaction pass", prompt)
 
 
 class Locking(unittest.TestCase):
@@ -246,6 +309,55 @@ class LedgerAndRetention(unittest.TestCase):
             self.assertNotIn("--bare", cmd)
             self.assertIsNotNone(ob._find_session_ledger())
 
+    def test_analysis_subprocess_encoding_and_creationflags(self):
+        # #1472: the analysis subprocess.run must (a) always decode captured
+        # output as UTF-8 explicitly, with errors="replace" so a truncated
+        # byte sequence decodes rather than raising past the try block's
+        # TimeoutExpired/OSError handling -- claude -p writes UTF-8, but
+        # Python's default text encoding is the platform code page (cp1252 on
+        # Windows), which corrupted non-ASCII ledger entries into mojibake --
+        # and (b) on Windows only, pass CREATE_NO_WINDOW so the run doesn't
+        # flash a console window, matching arm_observer.py's spawn_detached
+        # windowless spawn. Runs on every platform: the encoding/errors
+        # assertions are unconditional, and the creationflags assertion
+        # branches on the real os.name rather than skipping off-Windows.
+        with tempfile.TemporaryDirectory() as d:
+            tmp = Path(d)
+            ob = make_observer(tmp, analysis=True, session_id="enc")
+            ob.obs_path.write_text('{"t":"user"}\n', encoding="utf-8")
+            captured = {}
+
+            class FakeProc:
+                returncode = 0
+                stdout = json.dumps({"is_error": False,
+                                     "result": "### Checkpoint findings\n\nok"})
+                stderr = ""
+
+            def fake_run(cmd, **kw):
+                captured.update(kw)
+                return FakeProc()
+
+            of, orr = observer._find_claude, observer.subprocess.run
+            observer._find_claude = lambda: "claude"
+            observer.subprocess.run = fake_run
+            try:
+                self.assertTrue(ob._run_analysis())
+            finally:
+                observer._find_claude, observer.subprocess.run = of, orr
+            # encoding="utf-8" and errors="replace" are unconditional --
+            # required on every platform, not just Windows (Linux/mac default
+            # UTF-8 already, but explicit beats implicit and keeps behavior
+            # identical everywhere).
+            self.assertEqual(captured.get("encoding"), "utf-8")
+            self.assertEqual(captured.get("errors"), "replace")
+            if os.name == "nt":
+                # CREATE_NO_WINDOW only -- not DETACHED_PROCESS/CREATE_NEW_PROCESS_GROUP,
+                # which are for escaping the parent's process tree and unneeded for a
+                # waited (non-detached) child.
+                self.assertEqual(captured.get("creationflags"), 0x08000000)
+            else:
+                self.assertNotIn("creationflags", captured)
+
     def test_analysis_unavailable_retains(self):
         # claude CLI absent -> _run_analysis must report "not consumed" so run()
         # keeps the observations as the collect fallback rather than deleting them.
@@ -387,6 +499,181 @@ class ArmLauncher(unittest.TestCase):
             (tmp / "observer-s.lock").write_text(
                 json.dumps({"pid": 2 ** 30}), encoding="utf-8")  # dead pid
             self.assertIsNone(arm.live_observer_pid(str(tmp), "s"))
+
+    def _run_main(self, argv: list[str], arm=None) -> tuple[int, str]:
+        """Run arm_observer.py's main() with `argv` and capture its stdout.
+
+        Drives `main()` all the way through to the `spawn_detached` call (not
+        just argument parsing or an early-return branch) -- the real spawn
+        call is exercised, not mocked, so a regression at that call site
+        (e.g. an undefined name) surfaces exactly as it does for a live
+        caller. Pass a pre-built `arm` module (from `self._arm()`) to run
+        `main()` against a module a caller already monkeypatched (e.g. to
+        force a spawn-time exception) -- `_arm()` re-execs the file fresh
+        each time, so a patch applied to a separately-loaded module would
+        never reach the module this method actually runs.
+        """
+        if arm is None:
+            arm = self._arm()
+        old_argv = sys.argv
+        buf = io.StringIO()
+        try:
+            sys.argv = ["arm_observer.py", *argv]
+            with contextlib.redirect_stdout(buf):
+                rc = arm.main()
+        finally:
+            sys.argv = old_argv
+        return rc, buf.getvalue()
+
+    @staticmethod
+    def _terminate_and_wait(pid: int, timeout: float = 5.0):
+        """Best-effort cleanup for a spawned detached observer.
+
+        `os.kill` maps onto `TerminateProcess` for a non-Windows-specific
+        signal like SIGTERM even on Windows (CPython's `os.kill` docs), so
+        this is portable. Errors are swallowed -- the process may already
+        have exited on its own (it is armed with a tiny --idle-seconds) --
+        and we wait briefly afterward so the caller's tempdir teardown does
+        not race a still-open file handle held by the child (observed on
+        Windows: a live child holding `observations-<sid>.ndjson` open makes
+        `TemporaryDirectory.cleanup()` raise `PermissionError`).
+
+        The wait is per-platform because liveness and reaping differ. On
+        POSIX the detached child is still a direct child of this test
+        process, so after SIGTERM it lingers as a zombie until reaped and
+        `_pid_alive`'s `os.kill(pid, 0)` keeps reporting it alive -- polling
+        liveness there would burn the whole timeout and leave the zombie
+        behind. `waitpid` is the correct wait on that platform: it returns
+        as soon as the child dies and reaps it in the same call. Windows has
+        no zombie state and no `waitpid`, so liveness polling stays.
+        """
+        import signal
+        with contextlib.suppress(OSError, ProcessLookupError):
+            os.kill(pid, signal.SIGTERM)
+        deadline = time.time() + timeout
+        if os.name != "nt":
+            while time.time() < deadline:
+                try:
+                    if os.waitpid(pid, os.WNOHANG)[0] == pid:
+                        return
+                except ChildProcessError:
+                    return  # already reaped (subprocess's own _active cleanup)
+                except OSError:
+                    return
+                time.sleep(0.05)
+            return
+        arm = ArmLauncher._arm()
+        while time.time() < deadline and arm._observer_mod()._pid_alive(pid):
+            time.sleep(0.05)
+
+    def _assert_reaches_spawn_success(self, sid: str, extra_args: list[str]):
+        """Shared body: drive `main()` through the real spawn call and assert
+        the success-path outcome (armed message + a real live child pid) for
+        one caller's flag shape. Both entry points -- the running-retro `arm`
+        action and the opt-in SessionStart auto-arm hook
+        (`hooks/observer-arm.sh`) -- invoke this same launcher `main()` and
+        differ only in which flags they pass, never in the code path
+        executed; `extra_args` supplies each caller's distinguishing shape.
+        """
+        d = tempfile.mkdtemp()
+        pid = None
+        try:
+            tmp = Path(d)
+            transcript = tmp / "sess.jsonl"
+            transcript.write_text("", encoding="utf-8")
+            argv = [
+                "--transcript", str(transcript),
+                "--work-dir", str(tmp / "work"),
+                "--ledger-dir", str(tmp / "ledger"),
+                "--session-id", sid,
+                "--plugin-root", str(tmp),
+                "--model", "claude-haiku-4-5",
+                # Analysis-free (no `claude -p` call) keeps this fast and
+                # hermetic; the spawn call itself -- the site of the bug --
+                # is still real. --idle-seconds is set well above the time
+                # this test needs to parse output, reload arm_observer.py,
+                # and probe liveness after spawn_detached returns, so the
+                # child cannot legitimately self-exit mid-assertion (that
+                # raced intermittently at 0.05s under load); --max-seconds
+                # is the leak backstop, short enough that a missed
+                # _terminate_and_wait still dies fast on its own.
+                "--idle-seconds", "30",
+                "--max-seconds", "15",
+                *extra_args,
+            ]
+            rc, out = self._run_main(argv)
+            self.assertEqual(rc, 0)
+            self.assertIn(f"observer: armed for session {sid} (pid ", out)
+            self.assertNotIn("NameError", out)
+            self.assertNotIn("Traceback", out)
+            pid = int(out.rsplit("(pid ", 1)[1].rstrip(")\n"))
+            arm = self._arm()
+            self.assertTrue(
+                arm._observer_mod()._pid_alive(pid),
+                f"spawned observer pid {pid} is not alive right after spawn",
+            )
+        finally:
+            if pid is not None:
+                self._terminate_and_wait(pid)
+            shutil.rmtree(d, ignore_errors=True)
+
+    def test_manual_arm_reaches_spawn_success(self):
+        """Manual `arm` action's flag shape (SKILL.md): no --poll-seconds,
+        includes --previous-running-retro / --previous-session-id (empty when
+        there is no continuity chain)."""
+        self._assert_reaches_spawn_success(
+            "manual-sid",
+            ["--previous-running-retro", "", "--previous-session-id", ""],
+        )
+
+    def test_sessionstart_autoarm_reaches_spawn_success(self):
+        """SessionStart auto-arm hook's flag shape (hooks/observer-arm.sh):
+        includes --poll-seconds, omits --previous-running-retro /
+        --previous-session-id / --topic (the headless hook cannot infer
+        continuity in-session)."""
+        self._assert_reaches_spawn_success(
+            "autoarm-sid",
+            ["--poll-seconds", "0.05"],
+        )
+
+    def test_non_oserror_at_spawn_degrades_gracefully(self):
+        """A non-OSError exception at the spawn call (e.g. a resurfaced
+        undefined-name regression) must degrade the same as any other spawn
+        failure -- a graceful `observer: failed to spawn: ...` message and
+        exit 0, never a raw traceback escaping to the caller.
+
+        Forces the failure by monkeypatching `spawn_detached` on an
+        already-loaded module (rather than relying on a real crash), so this
+        test is independent of whatever the current spawn-call implementation
+        is. Uses `_run_main(argv, arm=...)` -- passing a *pre-built* module
+        -- because `_run_main`'s own default re-execs arm_observer.py fresh
+        each call; patching a separately-loaded module would never reach the
+        module `main()` actually runs from.
+        """
+        arm = self._arm()
+
+        def _boom(*_args, **_kwargs):
+            raise RuntimeError("boom")
+
+        arm.spawn_detached = _boom
+
+        with tempfile.TemporaryDirectory() as d:
+            tmp = Path(d)
+            transcript = tmp / "sess.jsonl"
+            transcript.write_text("", encoding="utf-8")
+            argv = [
+                "--transcript", str(transcript),
+                "--work-dir", str(tmp / "work"),
+                "--ledger-dir", str(tmp / "ledger"),
+                "--session-id", "boom-sid",
+                "--idle-seconds", "30",
+                "--max-seconds", "15",
+            ]
+            rc, out = self._run_main(argv, arm=arm)
+            self.assertEqual(rc, 0)
+            self.assertIn("observer: failed to spawn: boom", out)
+            self.assertNotIn("Traceback", out)
+            self.assertNotIn("armed for session", out)
 
 
 if __name__ == "__main__":

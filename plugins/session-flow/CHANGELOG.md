@@ -1,6 +1,6 @@
 # Changelog — session-flow plugin
 
-## [0.17.4]
+## [0.17.7]
 
 ### Fixed
 
@@ -17,6 +17,58 @@
   `retro/scripts/parse_transcript.py`) found every other text-mode call site already
   UTF-8-explicit or intentionally binary (`"rb"` mode, or a raw `os.open` file descriptor with no
   text decoding involved) (#1483).
+
+## [0.17.6]
+
+### Fixed
+
+- **`running-retro`'s detached observer launcher can spawn again — both the manual `arm` action and
+  the opt-in SessionStart auto-arm hook were dead.** `arm_observer.py`'s spawn call referenced an
+  undefined `observer` name for the child process's working directory (the resolved script-path
+  variable is `observer_py`), raising an unhandled `NameError` on every invocation. Both entry points
+  route through this same launcher, so the entire detached-observer feature was inoperable on any
+  platform. Fixed the undefined name and widened the narrow `except OSError` guard around the spawn
+  call to catch any spawn-time exception, so a future failure at that call site degrades gracefully
+  (`observer: failed to spawn: ...`, exit 0) instead of escaping as a raw traceback.
+
+## [0.17.5]
+
+### Fixed
+
+- **running-retro's analysis prompts had no rule requiring structural transcript claims to be
+  computed rather than asserted.** An independent fresh-context validation found the checkpoint
+  analyzer accurate on findings that harvested the session's own self-declared observations but
+  0/2 on independently inferred structural claims (tool-call sequencing/batching/delegation,
+  "emerging pattern" occurrence counts) — one asserted-and-wrong claim routed as a tracker issue a
+  human would have filed for a non-problem. Both callers of the checkpoint method now carry a
+  compute-don't-assert rule naming the observed failure modes: the in-session checkpoint
+  delegation (`context/checkpoint.md`'s Method section and delegation prompt template) and the
+  detached observer's headless analysis prompt (`observer.py`'s `_analysis_prompt`, which has no
+  delegation prompt to fall back on and needed the rule inline). A structural claim that can't be
+  computed from the record must now be dropped rather than asserted uncomputed (#1473). The
+  headless prompt's message-id-grouping guidance now notes explicitly that the distilled
+  observations it receives may not carry a message-id field at all — `summarize_record()` never
+  preserves one — so an absent field reads as uncomputable rather than as license to assert from
+  impression. The compute-don't-assert rule now also covers the judgment built on top of a
+  computed structural fact: a correctly computed sequencing fact does not by itself prove a missed
+  batching opportunity (genuinely dependent calls are correctly sequential, not a miss), so both
+  prompts now require checking for a dependency before routing an Efficiency finding for
+  unbatched/sequential calls — and that check is not narrowed to data flow alone: a control,
+  resource, or side-effect dependency (e.g. a directory created before a file is written into it)
+  is just as real a reason two calls had to run in order.
+
+## [0.17.4]
+
+### Fixed
+
+- **The running-retro detached observer's analysis subprocess no longer flashes a visible console
+  window on Windows, and no longer corrupts non-ASCII ledger entries into mojibake.** `observer.py`'s
+  `_run_analysis` called `subprocess.run` for the headless `claude -p` analysis pass with no
+  `creationflags` (unlike `arm_observer.py`'s own windowless `spawn_detached`, whose flag set was
+  never carried to this later call) and no explicit `encoding=`, so Windows decoded UTF-8 output with
+  the platform's cp1252 default. Both are now set explicitly: `CREATE_NO_WINDOW` on Windows only, and
+  `encoding="utf-8", errors="replace"` unconditionally — `errors="replace"` keeps a truncated/invalid
+  byte sequence from raising past the surrounding `TimeoutExpired`/`OSError` handling (#1472).
 
 ## [0.17.3]
 
