@@ -7,9 +7,14 @@ All notable changes to the `miro` plugin are documented here. Format follows
 
 ### Added
 
-- Setup skill documents the headless `claude plugin install --config miro_api_token=<token>`
-  seeding path, its fresh-install-only caveat, and the shell-history/process-table exposure
-  caveat (`docs/PLUGIN-PHILOSOPHY.md` userConfig conformance).
+- Setup skill documents the headless bootstrap: `marketplace add`, then
+  `claude plugin install --config miro_api_token=<token>`, then `claude plugin enable`. The enable
+  step is spelled out because the plugin ships `defaultEnabled: false` and therefore installs
+  disabled — a bootstrap that stops after `install` looks successful and delivers no tools. Also
+  covered: the `--config` fresh-install-only caveat, the headless rotation path (uninstall then
+  reinstall carrying the SAME `-s <scope>`, read from `claude plugin list`, run from the project
+  directory for project/local scope), and the shell-history/process-table exposure caveat
+  (`docs/PLUGIN-PHILOSOPHY.md` userConfig conformance).
 
 ### Changed
 

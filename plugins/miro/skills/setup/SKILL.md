@@ -49,22 +49,42 @@ Official contracts:
 ## Headless installation
 
 For a non-interactive install — CI, a fleet bootstrap, a scripted machine setup — seed the token
-on the initial install instead of the interactive `/plugin` prompt:
+on the initial install instead of the interactive `/plugin` prompt. Three steps, all required:
 
 ```shell
+claude plugin marketplace add <source>
 claude plugin install miro@<marketplace> -s <scope> --config miro_api_token=<token>
+claude plugin enable miro -s <scope>
 ```
 
-`<marketplace>` is whichever marketplace this plugin was added from, and `<scope>` is the scope
-the install should land at — read both from `claude plugin list` rather than assuming them.
+Both placeholders are bootstrap inputs, not lookups: before the first install there is no record
+to read them from. `<marketplace>` is the name the catalog registers under when it is added, and
+`<scope>` is the scope the bootstrap chooses — `user`, `project`, or `local`; `install` defaults
+to `user` when the flag is omitted. Use the same `<scope>` in every command of the sequence.
+
+**The enable step is not optional.** This plugin ships `defaultEnabled: false`, so it installs
+DISABLED — the install seeds the token but leaves the MCP server, and therefore every `miro` tool,
+unavailable until it is enabled ([Default enablement](https://code.claude.com/docs/en/plugins-reference#default-enablement),
+which also notes `claude plugin enable` auto-detects the scope when `-s` is omitted; passing it
+explicitly keeps the sequence deterministic in CI). A bootstrap that stops after `install` looks
+successful and delivers no tools.
 
 **Fresh-install-only:** `--config` seeds a value only on a fresh install. Re-running it against
 an already-installed `miro` does not update the stored token. To rotate or clear the token later,
-use `/plugin configure miro` (interactive, any time) or uninstall then reinstall with a new
-`--config` value (headless) — never re-run `install --config` against an existing install
-expecting it to take effect. Carry the SAME `-s <scope>` through both halves of the
-uninstall/reinstall: defaulting either to `user` uninstalls a different record than the one that
-is loading, and reinstalls at a scope that does not load.
+use `/plugin configure miro` (interactive, any time), or headlessly:
+
+```shell
+claude plugin list                                  # read the CURRENT scope for miro
+claude plugin uninstall miro -s <scope>
+claude plugin install miro@<marketplace> -s <scope> --config miro_api_token=<new-token>
+```
+
+Never re-run `install --config` against an existing install expecting it to take effect. Read the
+scope from `claude plugin list` and carry that SAME `-s <scope>` through both commands — both
+default to `user`, so omitting it against a `project`- or `local`-scope install removes a
+different record than the one that is loading and reinstalls at a scope that does not load,
+leaving the old token in use. For a `project`- or `local`-scope install, run both commands from
+that project directory, since those scopes resolve against the current project.
 
 **Security note:** passing the token as a CLI argument records it in shell history
 (`.bash_history`, `.zsh_history`) and briefly exposes it in the process table
