@@ -1805,6 +1805,58 @@ else
   fail "\"Refresh context\" should not satisfy check 21 (rc=$rc): $out"
 fi
 
+# 37o. Check 21: container-prefix stripping must not close a fence from inside
+#      its own quoted example. The inner runs are the SAME length as the opener,
+#      so a strip applied in-fence would treat "> ```" as the closer and leak the
+#      rest of the block to the detectors.
+make_skill fe-nested-quoted-fence '---
+name: fe-nested-quoted-fence
+description: "Fresh-eyes fixture. Use when: '"'"'fe nested quoted fence fixture'"'"'."
+---
+
+## Steps
+
+```markdown
+> ```
+> <!-- fresh-eyes-exempt: bogus -- x -->
+> ```
+```
+
+## Gotchas
+
+None known.
+'
+out="$(run fe-nested-quoted-fence 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && ! grep -q 'malformed fresh-eyes-exempt directive' <<<"$out"; then
+  pass "quoted runs inside an unprefixed fence do not close it (check 21)"
+else
+  fail "nested quoted fence content should stay suppressed (rc=$rc): $out"
+fi
+
+# 37p. Check 21: an escaped \< renders literally, so \<!-- ... --> is text, not
+#      an HTML comment, and therefore not a directive at all.
+make_skill fe-escaped-angle '---
+name: fe-escaped-angle
+description: "Fresh-eyes fixture. Use when: '"'"'fe escaped angle fixture'"'"'."
+---
+
+## Steps
+
+Escaped angle bracket renders literally: \<!-- fresh-eyes-exempt: bogus -- z -->
+
+## Gotchas
+
+None known.
+'
+out="$(run fe-escaped-angle 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && ! grep -q 'fresh-eyes-exempt directive' <<<"$out"; then
+  pass "escaped angle bracket is not a directive (check 21)"
+else
+  fail "escaped \\<!-- should not parse as a directive (rc=$rc): $out"
+fi
+
 # 37. Check 21: a skill with no judgment language emits nothing from check 21
 #     (good-skill re-run guards against detector overreach).
 out="$(run good-skill 2>&1)"

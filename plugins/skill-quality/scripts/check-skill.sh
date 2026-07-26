@@ -805,14 +805,24 @@ for fe_file in "${FRESH_EYES_FILES[@]}"; do
     # a quoted or listed example leaked into the detectors and failed the skill on
     # its own documentation. Stripping the markers makes container content parse
     # exactly like top-level content: the fence opens, `fe_fence` swallows the
-    # body whatever its indentation, and the same-indent closer still closes.
+    # body whatever its indentation, and the same-length closer still closes.
     # Markers interleave (`> - ```), so strip until neither form matches.
+    #
+    # Inside a fence the strip applies only when the OPENER itself carried a
+    # prefix. An unprefixed fence must not be closed by a run inside its own
+    # quoted example: stripping there turns a nested `> ``` ` into a closer,
+    # leaks the rest of the block to the detectors, and FAILs the skill on a
+    # documentation example — the very failure this strip exists to prevent.
     {
-      do {
-        fe_pre = $0
-        sub(/^ {0,3}> ?/, "", $0)
-        sub(/^ {0,3}([-*+]|[0-9]{1,9}[.)])[ \t]+/, "", $0)
-      } while ($0 != fe_pre)
+      fe_raw = $0
+      if (!fe_fence || fe_open_pre) {
+        do {
+          fe_pre = $0
+          sub(/^ {0,3}> ?/, "", $0)
+          sub(/^ {0,3}([-*+]|[0-9]{1,9}[.)])[ \t]+/, "", $0)
+        } while ($0 != fe_pre)
+      }
+      fe_stripped = ($0 != fe_raw)
     }
     # CommonMark fence matching: a fence closes only on a same-character run at
     # least as long as its opener with nothing but spaces after it — a nested
@@ -841,20 +851,23 @@ for fe_file in "${FRESH_EYES_FILES[@]}"; do
         # its closer expires here rather than blinding the first paragraph
         # after the fence closes.
         fe_fence = 1; fe_open_char = fe_char; fe_open_len = fe_len; sp_open = 0
+        fe_open_pre = fe_stripped
         next
       }
     }
     fe_fence { next }
     {
       line = $0
-      # CommonMark backslash escapes: a backslash-escaped backtick is literal
-      # text, never a code-span delimiter. Left unhandled, prose showing a
-      # directive between \` marks masked it and the malformed directive passed
-      # silently. Blank each escape pair to the SAME width so every offset the
-      # span masker computes below stays valid, and consume pairs left to right
-      # so an escaped backslash cannot escape the character after it.
+      # CommonMark backslash escapes render the escaped character literally, so
+      # it can never be markup. Three characters matter to this scanner and the
+      # set is complete for it: a backtick (a span delimiter — prose showing a
+      # directive between \` marks was masking it into a silent pass), a `<` (an
+      # escaped \<!-- is literal text, not an HTML comment, so it is no
+      # directive), and a backslash (so an escaped backslash cannot escape what
+      # follows it). Blank each escape pair to the SAME width so every offset the
+      # span masker computes below stays valid, consuming pairs left to right.
       esc_out = ""
-      while (match(line, /\\[\\`]/)) {
+      while (match(line, /\\[\\`<]/)) {
         esc_out = esc_out substr(line, 1, RSTART - 1) "  "
         line = substr(line, RSTART + 2)
       }

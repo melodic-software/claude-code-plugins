@@ -92,9 +92,12 @@ Scan mechanics (all constraints normative for implementation):
   carry is deliberately optimistic: masking risks missing a declaration, whereas scanning risks
   failing a skill on legitimate code-span text.)* *(Amended 2026-07-25, Phase-1 review round 4:
   blockquote and list-marker prefixes are stripped before fence matching — a container-nested fence
-  never entered fence mode, so a quoted example failed the skill on its own documentation; and a
-  backslash-escaped backtick is literal text, not a span delimiter, which had been masking a
-  malformed directive into a silent pass.)* **Accepted gap:** indented code blocks are NOT
+  never entered fence mode, so a quoted example failed the skill on its own documentation. The strip
+  applies in-fence only when the OPENER carried a prefix — otherwise a quoted run inside an
+  unprefixed fence's own example would close it and leak the block, reintroducing the same failure
+  it fixes. Backslash escapes are also honored for the three characters this scanner keys on:
+  backtick, `<`, and backslash — an escaped backtick was masking a malformed directive into a silent
+  pass, and an escaped `\<!--` is literal text that was wrongly parsed as a directive.)* **Accepted gap:** indented code blocks are NOT
   suppressed — telling one apart from indented list-item continuation needs a block parser this
   scanner does not have, and guessing would silently drop declarations inside nested lists, the
   worse direction. The contract tells authors to fence literal examples.
