@@ -154,6 +154,16 @@ Use `pass`, `FAIL`, `skip` (tool missing), `skip (opt-in unmet: ...)` (config co
 
 If any CI-parity gates fired, summarize each by name + outcome below the per-ecosystem block, with the remediation pointer on failure. A fired gate that failed flips Overall to `FAIL` and is counted in it — including when every ecosystem's build/test/lint cell passed (e.g. `Overall: FAIL (0 of 2 ecosystems failed, 1 gate failed)`). The Overall line names both counts whenever a gate fires, pass or fail — a fired-and-passed gate still reports its count (e.g. `Overall: PASS (2 of 2 ecosystems passed, 1 gate passed)`), so the report is unambiguous about whether a gate ran.
 
+A gate declared under a `project-discovery` ecosystem without `run-from: repo-root` runs once per discovered project root (§2 "Run"); per the aggregation rule (§2 "Outcome"), that still reports **one** `Gates:` line per gate name, with each failing root's output shown underneath, labeled by its execution root:
+
+```text
+Gates: go-mod-tidy-drift — FAIL (run go mod tidy and commit the updated go.mod/go.sum)
+  [services/auth] go: updates to go.sum needed, disabled by -mod=readonly
+  [services/billing] go.mod: missing go.sum entry for module golang.org/x/text v0.14.0
+```
+
+Only the roots that actually failed are listed — a root whose invocation passed contributes nothing below the line. A gate declaring `run-from: repo-root` never produces this per-root breakdown (it runs exactly once), so its `FAIL` line stands alone as in the first example above.
+
 ## For other skills referencing /toolchain:check
 
 When composing `/toolchain:check` from another skill (like `/verification:confirm` or `/toolchain:lint`):

@@ -3,6 +3,20 @@
 All notable changes to the `toolchain` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.1]
+
+### Changed
+
+- **`/toolchain:check` report-results template now illustrates the aggregated multi-root gate
+  failure format.** §3's `## Build Results` example previously showed only a single-invocation
+  `Gates:` line; §2's "Outcome" bullet already stated the aggregation rule in prose (one line per
+  gate name, `FAIL` if any invocation failed, each failing invocation's output shown below labeled
+  by its execution root) but had no worked anchor. Added a second illustrative block showing that
+  shape, with the `Gates:` paragraph now citing §2 "Outcome" by name. Docs-only, no runtime behavior
+  change. Follows the ecosystem-commands convention bump to 1.2.1, which adds the companion worked
+  `run-from: repo-root` example (`proto-gen-freshness` in `examples/go.yaml`). Closes #1462,
+  deferred from #1460's review (itself closing #1361).
+
 ## [0.11.0]
 
 ### Added
