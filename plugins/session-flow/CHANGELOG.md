@@ -21,12 +21,16 @@
   call's input/result, keyed by a bounded correlation id, so a later call's input can be checked
   against an earlier call's output for a genuine dependency. Both fields are omitted (not padded) when
   the underlying data isn't present, and ids are shortened to an 8-char correlation key rather than
-  persisting the full opaque id. This measurably grows the observations file on tool-heavy sessions
-  (roughly 70-150% larger against real transcripts, driven almost entirely by the preview content
-  itself, which is the point) — a real, bounded, single-analysis-call cost against a cheap model, not
-  an unbounded one; redundant/wasteful bytes (verbose ids, a `tool_results` count now superseded by
-  `len(results)`, JSON-dumping a tool-result content-block list instead of extracting its text) were
-  cut wherever doing so didn't reduce the analyzer's actual computing capability.
+  persisting the full opaque id. This measurably grows the observations file on tool-heavy sessions:
+  re-measured against the final schema over 24 real session transcripts carrying 20+ tool-bearing
+  records each, distilled by this version and by the version it replaces, the observations grow
+  **61.9% in aggregate** (per-file mean 63.0%, median 61.4%, range 43.7–116.0%). The growth is
+  almost entirely the preview content itself, which is the point — a real, bounded,
+  single-analysis-call cost against a cheap model, not an unbounded one. Every field has a hard cap,
+  and the flags below are emitted only when they apply. Redundant/wasteful bytes (verbose ids, a
+  `tool_results` count now superseded by `len(results)`, JSON-dumping a tool-result content-block
+  list instead of extracting its text) were cut wherever doing so didn't reduce the analyzer's
+  actual computing capability.
   Every bounded field pairs with an out-of-band flag when the preview is incomplete (`cut` on a
   `calls`/`results` entry, `say_cut`/`human_cut` beside the narration), so a value cut short of a
   dependency reads as unknown rather than as a clean absence that would license an
