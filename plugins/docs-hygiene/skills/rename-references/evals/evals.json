@@ -513,7 +513,7 @@
       "id": 42,
       "name": "wide-match-enumerates-every-token-span",
       "prompt": "Rename `docs-hygiene` to `doc-care`. A SKILL.md frontmatter field reads: description: \"first docs-hygiene and then docs-hygiene\". How many occurrence records does the survey emit?",
-      "expected_output": "Two. Form 7's pattern swallows the whole field and its greedy prefix binds the captured group to a single occurrence, so the whole-pattern match is ONE for two references -- and no cursor advance recovers the other, because re-matching from inside the field cannot reproduce the `description:` prefix the pattern requires. The survey therefore scans each match's text for every occurrence of the token and emits one record per occurrence, all attributed to the matching form: the whole-pattern match establishes THAT the form applies and over what extent, the token spans inside it are the references. Relying on repeated whole-pattern matching loses the earlier occurrence, and under container mode it becomes suppressed Form-2 residue, so the drop is silent and the rename can falsely complete.",
+      "expected_output": "Two. Form 7's pattern swallows the whole field and its greedy prefix binds the captured group to a single occurrence, so the whole-pattern match is ONE for two references -- and no cursor advance recovers the other, because re-matching from inside the field cannot reproduce the `description:` prefix the pattern requires. The survey therefore scans each match's REFERENCE REGION for every occurrence of the token and emits one record per occurrence, all attributed to the matching form: the whole-pattern match establishes THAT the form applies and over what extent, the token spans inside its reference region are the references. For Form 7 that region is the whole quoted field, since its occurrences are all real references; other forms narrow it, so enumeration never reaches text the match spans but does not refer through. Relying on repeated whole-pattern matching loses the earlier occurrence, and under container mode it becomes suppressed Form-2 residue, so the drop is silent and the rename can falsely complete.",
       "files": [],
       "expectations": [
         "Both occurrences inside the single wide match produce records",
@@ -544,6 +544,57 @@
         "The skipped count appears in the default success hand-off, not only in the Phase 7 prose",
         "Skips and container-mode residue are reported on separate lines",
         "The zero-stragglers line is explained as true but insufficient on its own"
+      ]
+    },
+    {
+      "id": 45,
+      "name": "slash-token-does-not-match-hyphenated-command",
+      "prompt": "Rename the `context` plugin to `context-tools`. The repo documents an unrelated `/context-guard` command. Is it safe to auto-apply the Certain bucket?",
+      "expected_output": "Yes, now that Form 1's trailing boundary excludes a hyphen. A bare `\\b` treats a hyphen as a word boundary, so `\\B/<old>\\b` matched `/context-guard` as a `context` reference -- and Form 1 is on container mode's Certain allowlist, so the default auto-apply path would have rewritten another command's name to `/context-tools-guard`. The consumed `([^\\w-]|$)` terminator rules it out, the same shape Forms 13 and 15 use for the same reason. Discrimination is otherwise unchanged: `/context`, the namespaced `/context:sub` (a colon is a valid terminator) and `see /context.` still match, while `/context-guard`, `/contextual` and `path/context` do not. The consumed character is not part of the reference and is left in place, and Form 1 now participates in the survey's rescan-cursor rule like the other consume-the-delimiter forms.",
+      "files": [],
+      "expectations": [
+        "`/context-guard` is not matched as a `context` reference",
+        "A namespaced `/context:sub` invocation still matches",
+        "The danger is tied to Form 1 being auto-applied rather than merely reported",
+        "The consumed terminator is not rewritten as part of the reference"
+      ]
+    },
+    {
+      "id": 46,
+      "name": "manifest-declaration-with-inline-comment-is-matched",
+      "prompt": "Rename `docs-hygiene` to `doc-care`. The manifest documents its own field: name: docs-hygiene # package name. And the TOML one reads name = \"docs-hygiene\"  # package name.",
+      "expected_output": "Both match. The declaration alternatives accept a trailing comment, because an end anchor otherwise rejected the whole line while filesystem evidence still selected container mode for the manifest -- leaving the registration unmatched and suppressed as residue while apply mode reported completion. The whitespace before the YAML `#` is required rather than decorative: YAML starts a comment only when `#` follows whitespace, so `name: docs-hygiene#x` is the single scalar `docs-hygiene#x` and must NOT match. The TOML alternative allows optional whitespace instead, because its value is quoted and the closing quote already ends the string unambiguously. JSON is excluded from this entirely, having no comment syntax.",
+      "files": [],
+      "expectations": [
+        "A YAML declaration with a trailing comment is matched",
+        "A TOML declaration with a trailing comment is matched",
+        "`name: <old>#x` is NOT matched, because YAML requires whitespace before a comment",
+        "JSON is excluded, with the absence of comment syntax given as the reason"
+      ]
+    },
+    {
+      "id": 47,
+      "name": "inline-comment-text-is-not-rewritten",
+      "prompt": "Rename the `test` plugin to `test-suite`. A manifest line reads: name: test # test before publishing. What gets rewritten?",
+      "expected_output": "Only the declaration value. The widened alternative makes the match span the comment as well, and the survey enumerates every token span inside a match -- so blind enumeration would emit TWO records, both attributed to Form 14, which is Certain and exempt from the common-word demotion inside a manifest, and apply mode would rewrite the ordinary prose to `test-suite before publishing`. Enumeration is therefore bounded to each form's REFERENCE REGION, and for the YAML and TOML declaration alternatives that region is the declaration VALUE, not the trailing comment: a comment is documentation ABOUT the declaration, never a second declaration. Form 7's region is by contrast the whole quoted field, because its multiple occurrences are all genuine references -- the region is per form, not a blanket narrowing.",
+      "files": [],
+      "expectations": [
+        "The comment text is not rewritten",
+        "The declaration value is still rewritten",
+        "Enumeration is bounded by a per-form reference region rather than the whole match",
+        "The TOML alternative is given the same region as the YAML one"
+      ]
+    },
+    {
+      "id": 48,
+      "name": "skill-md-slash-token-directive-matches-form-1",
+      "prompt": "SKILL.md's Gotchas tell me to use a particular regex for slash-token specificity. Does it still match what patterns.md defines for Form 1?",
+      "expected_output": "Yes -- both state `\\B/<old>([^\\w-]|$)`. The gotcha previously said `\\B/<old>\\b`, which is the bug Form 1 was fixed for: a trailing word boundary treats a hyphen as a boundary, so it matches inside kebab-case sibling commands like `/confirm-changes`, and Form 1 is Certain so that auto-applies. SKILL.md is always loaded, so a stale executable directive there outranks the corrected pattern in practice -- an agent following the gotcha would reintroduce the defect while patterns.md claimed it was fixed. The gotcha now also records that the terminator is CONSUMED and is not part of the reference.",
+      "files": [],
+      "expectations": [
+        "The SKILL.md gotcha and the patterns.md Form 1 definition state the same expression",
+        "`/confirm-changes` is named as what a trailing `\\b` wrongly matches",
+        "The always-loaded surface is identified as the reason a stale directive there is worse than elsewhere"
       ]
     }
   ]
