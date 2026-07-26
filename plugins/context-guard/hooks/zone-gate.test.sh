@@ -126,7 +126,7 @@ if [[ $RC -eq 0 && -z "$OUT" ]]; then ok "malformed grace falls back to default 
 write_snapshot "$H" sbig 95
 BIG=$(printf 'x%.0s' $(seq 1 130000))
 OUT=$(printf '{"session_id":"sbig","hook_event_name":"PreToolUse","tool_name":"Write","tool_input":{"file_path":"/w/big.txt","content":"%s"}}' "$BIG" |
-  HOME="$H" CLAUDE_PLUGIN_DATA="$D" HOOK_TELEMETRY_SINK=""     CLAUDE_PLUGIN_OPTION_ZONE_HOOK_MODE=blocking CLAUDE_PLUGIN_OPTION_ZONE_GATE_GRACE_CALLS=0 bash "$HOOK" 2>/dev/null)
+  HOME="$H" CLAUDE_PLUGIN_DATA="$D" HOOK_TELEMETRY_SINK="" CLAUDE_PLUGIN_OPTION_ZONE_HOOK_MODE=blocking CLAUDE_PLUGIN_OPTION_ZONE_GATE_GRACE_CALLS=0 bash "$HOOK" 2>/dev/null)
 RC=$?
 if jq -e '.hookSpecificOutput.permissionDecision == "deny"' <<<"$OUT" >/dev/null 2>&1; then
   ok "130KB Write payload still denied (chunked stdin read)"
@@ -145,6 +145,63 @@ if jq -e '.hookSpecificOutput.permissionDecision == "deny"' <<<"$OUT" >/dev/null
   ok "marker + smart snapshot still gates (evidence-degraded wins)"
 else
   fail "marker ignored by gate: rc=$RC out=${OUT:0:120}"
+fi
+
+# 12. Leading-zero grace budget is read as base 10, not octal. `08` clears the
+# digit-only validation but is an invalid octal literal, which made the
+# arithmetic error out and deny call 1 instead of allowing 8.
+write_snapshot "$H" soct 95
+run "$H" "$D" soct '' blocking '08'
+if [[ $RC -eq 0 && -z "$OUT" ]]; then ok "leading-zero grace parses base 10 (call 1 allowed)"; else fail "octal grace: rc=$RC out=$OUT"; fi
+for _ in 2 3 4 5 6 7 8; do run "$H" "$D" soct '' blocking '08'; done
+if [[ $RC -eq 0 && -z "$OUT" ]]; then ok "leading-zero grace allows the full 8 calls"; else fail "octal grace call 8: rc=$RC out=$OUT"; fi
+run "$H" "$D" soct '' blocking '08'
+if jq -e '.hookSpecificOutput.permissionDecision == "deny"' <<<"$OUT" >/dev/null 2>&1; then
+  ok "leading-zero grace denies call 9"
+else
+  fail "octal grace call 9: rc=$RC out=$OUT"
+fi
+if [[ "$OUT" == *"(8 matched calls)"* ]]; then
+  ok "deny reason reports the normalized budget"
+else
+  fail "deny reason kept the non-canonical budget: $OUT"
+fi
+
+# 13. Concurrent matched calls must not overspend the grace budget. Claude
+# starts matched tools in parallel; a read-modify-write counter lets those
+# hook processes all read the same value and record the same increment, so
+# more than GRACE of them land inside the budget (measured 6–7 allowed of 24
+# against a budget of 4 before the fix). The atomic counter must allow at
+# most GRACE. Over-denial is the conservative direction and is not asserted
+# against — only the ceiling is.
+write_snapshot "$H" spar 95
+CONC=24
+GRACE_N=4
+PAR_OUT="$WORK/par"
+mkdir -p "$PAR_OUT"
+for i in $(seq 1 "$CONC"); do
+  printf '{"session_id":"spar","hook_event_name":"PreToolUse","tool_name":"Write"}' |
+    HOME="$H" CLAUDE_PLUGIN_DATA="$D" HOOK_TELEMETRY_SINK="" \
+      CLAUDE_PLUGIN_OPTION_ZONE_HOOK_MODE=blocking \
+      CLAUDE_PLUGIN_OPTION_ZONE_GATE_GRACE_CALLS="$GRACE_N" \
+      bash "$HOOK" >"$PAR_OUT/$i.out" 2>/dev/null &
+done
+wait
+allowed=0
+for f in "$PAR_OUT"/*.out; do
+  # An allowed call prints nothing; a denied one prints the deny JSON.
+  [[ -s "$f" ]] || allowed=$((allowed + 1))
+done
+if [[ "$allowed" -le "$GRACE_N" ]]; then
+  ok "concurrent calls never exceed the grace budget ($allowed allowed of $CONC, budget $GRACE_N)"
+else
+  fail "concurrent overspend: $allowed allowed of $CONC with budget $GRACE_N"
+fi
+denied=$((CONC - allowed))
+if [[ "$denied" -ge $((CONC - GRACE_N)) ]]; then
+  ok "concurrent calls past the budget are denied ($denied denied)"
+else
+  fail "concurrent under-denial: only $denied denied of $CONC"
 fi
 
 echo

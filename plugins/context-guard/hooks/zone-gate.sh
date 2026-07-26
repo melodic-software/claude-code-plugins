@@ -92,16 +92,44 @@ if [[ -n "$target" && "$target" == *handoff* ]]; then
 fi
 shopt -u nocasematch
 
+# Digit-count bound and explicit base-10 normalization, both load-bearing:
+# a digit-only value is still not a usable decimal. `08` is octal in every
+# arithmetic context (`((count <= GRACE))` errors on the invalid digit,
+# evaluates false, and denies call 1 instead of allowing 8), and it is also
+# an invalid JSON number in the telemetry payload below. A very long digit
+# string overflows to a negative in the same contexts. Normalizing once here
+# makes the arithmetic, the operator-facing reason string, and the telemetry
+# all carry the same canonical decimal.
 GRACE="${CLAUDE_PLUGIN_OPTION_ZONE_GATE_GRACE_CALLS:-20}"
-[[ "$GRACE" =~ ^[0-9]+$ ]] || GRACE=20
+[[ "$GRACE" =~ ^[0-9]{1,9}$ ]] || GRACE=20
+GRACE=$((10#$GRACE))
 
 umask 077
 mkdir -p "$STATE_DIR" 2>/dev/null || exit 0
-count=0
-[[ -r "$COUNT_FILE" ]] && count=$(tr -cd '0-9' <"$COUNT_FILE" 2>/dev/null | head -c 9)
-[[ "$count" =~ ^[0-9]+$ ]] || count=0
-count=$((count + 1))
-printf '%s\n' "$count" >"$COUNT_FILE" 2>/dev/null || true
+
+# ATOMIC COUNTER (why not read-modify-write): Claude starts matched tools in
+# PARALLEL, so several PreToolUse hook processes run concurrently against one
+# session's counter. A read-then-write of a decimal count lets all of them
+# read the same value and record the same increment — N calls starting at 0
+# each record 1, each pass the budget, and blocking mode silently allows far
+# more than the configured grace. Instead each call APPENDS one byte and
+# takes the file's size as its count: O_APPEND writes of a single byte do not
+# interleave, so the calls occupy distinct byte positions 1..N and the call
+# landing at position k always reads a size >= k. At most GRACE calls can
+# therefore observe count <= GRACE. The scheme can only over-count under a
+# racing read (a later append landing first), which allows FEWER calls than
+# the budget — the conservative direction for a gate.
+#
+# Residuals, accepted: Git Bash on Windows relies on MSYS honoring O_APPEND
+# for the single-byte write; a failure there is no worse than the
+# read-modify-write it replaces. A counter file left by a pre-0.4.0 decimal
+# writer is measured as bytes for the rest of that one session (a stored "5\n"
+# reads as 2), which under-counts once and self-heals on the next zone exit,
+# which unlinks the file.
+printf 'x' >>"$COUNT_FILE" 2>/dev/null || exit 0
+count=$(wc -c <"$COUNT_FILE" 2>/dev/null | tr -cd '0-9')
+[[ "$count" =~ ^[0-9]{1,9}$ ]] || exit 0
+count=$((10#$count))
 
 if ((count <= GRACE)); then
   exit 0
