@@ -63,16 +63,26 @@ Claim a work item through the seam (assignee + lease record).
    # authority. No literal default is guessed at either rung.
    REMOTE_HEAD="$(git ls-remote --symref origin HEAD 2>/dev/null |
      sed -n 's|^ref: refs/heads/\([^[:space:]]*\).*|\1|p' | head -n1)"
-   if [[ -n "$REMOTE_HEAD" ]]; then
-     BASE_REF="origin/$REMOTE_HEAD"
-   else
+   BASE_REF="${REMOTE_HEAD:+origin/$REMOTE_HEAD}"
+   [[ -n "$BASE_REF" ]] ||
      BASE_REF="$(git symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null || true)"
+   # This name came from the REMOTE and is about to be pasted into the user's
+   # terminal. Git accepts branch names carrying shell metacharacters, so accept
+   # only the conservative charset a branch name normally uses — refuse the rest
+   # rather than escaping it.
+   [[ "$BASE_REF" =~ ^[A-Za-z0-9][A-Za-z0-9._/-]*$ ]] || BASE_REF=""
+   # ls-remote can name a branch this clone has never fetched (created or renamed
+   # since), so origin/<name> would not resolve and the emitted checkout would
+   # fail with "not a commit". Fetch it once; give up the base if it still misses.
+   if [[ -n "$BASE_REF" ]] && ! git rev-parse --verify --quiet "$BASE_REF^{commit}" >/dev/null; then
+     git fetch --quiet origin "+refs/heads/${BASE_REF#origin/}:refs/remotes/$BASE_REF" 2>/dev/null || true
+     git rev-parse --verify --quiet "$BASE_REF^{commit}" >/dev/null || BASE_REF=""
    fi
    ```
 
    `<base-ref>` below is a placeholder the agent substitutes with the resolved value, exactly as it substitutes `<type>` / `<N>` / `<slug>`. The emitted command runs in the USER's terminal, which never saw the agent's `BASE_REF` assignment — emitting the variable unexpanded would hand over an empty pathspec.
 
-   **`BASE_REF` still empty** (offline, no `origin` remote, or a remote with no HEAD) — do NOT substitute a guessed default branch, which is the failure this resolution exists to prevent. Emit the command with no start-point (`git checkout -b <type>/<N>-<slug>`, which branches from the current `HEAD`) and say the default branch could not be resolved, so the user can supply a base explicitly.
+   **`BASE_REF` empty** (offline, no `origin` remote, a remote with no HEAD, a name outside the accepted charset, or one that still does not resolve after a fetch) — do NOT substitute a guessed default branch, which is the failure this resolution exists to prevent. Emit the command with no start-point (`git checkout -b <type>/<N>-<slug>`, which branches from the current `HEAD`) and say the default branch could not be resolved, so the user can supply a base explicitly.
 
    - **`CURRENT_N` == claimed `<N>`** → acknowledge: "Already on `<current-branch>` — branch matches claimed #N. No rename needed." Skip prompt. Done.
    - **`CURRENT_N` is a different number** → multi-claim 3-option (below).

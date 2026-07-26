@@ -15,9 +15,14 @@ All notable changes to the `work-items` plugin are documented here. Format follo
   (`git ls-remote --symref origin HEAD`), falling back to `refs/remotes/origin/HEAD` only when the
   remote is unreachable: that local symbolic ref is a cache no clone refreshes on its own, so a repo
   that renamed its default branch keeps answering with the old name, and a `git remote add` +
-  `git fetch` clone never has it at all. Neither rung guesses a literal: when both come back empty
-  the suggestion is emitted with no start-point and the unresolved default branch is stated, rather
-  than reintroducing the assumption under a different name. `templates/checklist.md`, which
+  `git fetch` clone never has it at all. The resolved name is remote-controlled input on its way
+  into a command the user pastes, and Git accepts branch names carrying shell metacharacters
+  (`main;id`), so it is accepted only against a conservative branch-name charset and refused —
+  never escaped — otherwise. `ls-remote` can also name a branch this clone has never fetched, whose
+  `origin/<name>` would not resolve; that is fetched once and dropped if it still misses. Neither
+  rung guesses a literal: whenever the resolution ends empty the suggestion is emitted with no
+  start-point and the unresolved default branch is stated, rather than reintroducing the assumption
+  under a different name. `templates/checklist.md`, which
   `/work-items:work` copies verbatim for every run, said "from origin/main" and would have
   contradicted this in the agent's own working ledger; it now names the resolved base.
   Both suggestions emit `<base-ref>` — a placeholder the agent substitutes with the resolved value,
