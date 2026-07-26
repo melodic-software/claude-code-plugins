@@ -258,9 +258,22 @@ Two facts about the wrappers' bare names, both load-bearing:
   strips only a fixed wrapper set — `timeout`, `time`, `nice`, `nohup`, `stdbuf`, `command`,
   `builtin`, `noglob`, and bare `xargs` ([permissions](https://code.claude.com/docs/en/permissions)).
   `bash` is not among them, so `bash "…/bin/source-control-babysit-merge" …` matches as a `bash`
-  command and never satisfies a pre-approved `Bash(source-control-babysit-merge:*)`. Expect a
-  per-call prompt on these invocations: that rule does not cover them, and cannot until bare-name
-  resolution is dependable enough to invoke bare.
+  command and never satisfies a pre-approved `Bash(source-control-babysit-merge:*)`. That rule does
+  not cover these invocations, and cannot until bare-name resolution is dependable enough to invoke
+  bare — so **what happens next is the permission mode's call, not the allow rule's:**
+  - **In a mode that prompts** (Manual, accept-edits, plan without auto mode), expect a per-call
+    permission prompt. It is expected behavior, not a misconfiguration.
+  - **In auto mode, expect no prompt.** Auto mode "lets Claude execute without routine permission
+    prompts", routing uncovered actions to a classifier that approves or blocks them
+    ([permission modes](https://code.claude.com/docs/en/permission-modes#eliminate-prompts-with-auto-mode)).
+    So a merge or thread-resolution call can be **denied without ever surfacing** — do not wait on a
+    prompt that will not arrive; read the denial in `/permissions` → **Recently denied**. Only an
+    explicit `permissions.ask` rule still forces a prompt in auto mode.
+
+  A narrow allow rule would not rescue this even if one matched: narrow Bash allow rules do carry
+  into auto mode and resolve before the classifier, but `autoMode.classifyAllShell: true` suspends
+  every one of them while auto mode is active
+  ([auto-mode config](https://code.claude.com/docs/en/auto-mode-config#route-all-shell-commands-through-the-classifier)).
 
 The `${CLAUDE_PLUGIN_ROOT}/bin/` path — resolved exactly as the sibling
 `${CLAUDE_PLUGIN_ROOT}/scripts/` invocations are — is nonetheless the form to use: it is the only
