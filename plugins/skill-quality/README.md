@@ -2,7 +2,7 @@
 
 A Claude Code plugin for **skill-authoring QA**: it runs a static, deterministic contract gate over a
 skill directory, reports the shared listing-budget estimate across a set of skills, and validates a
-skill's `evals.json` against a bundled schema. No model invocation in the gate — the same twenty checks
+skill's `evals.json` against a bundled schema. No model invocation in the gate — the same twenty-one checks
 run identically in a session, a pre-commit hook, or CI.
 
 The one failure static analysis catches best is a rewrite silently dropping a `description` trigger
@@ -16,7 +16,7 @@ phrase, which quietly degrades a skill's auto-invocation. Check 3 compares the t
 
 ## Checks
 
-`check` runs `check-skill.sh` — twenty checks, reported as `FAIL:` (blocking) or `WARN:` (advisory):
+`check` runs `check-skill.sh` — twenty-one checks, reported as `FAIL:` (blocking) or `WARN:` (advisory):
 
 - Frontmatter parses; `name` + `description` present.
 - `description` + `when_to_use` within the 1536-char **per-skill** listing-entry cap (overflow
@@ -32,8 +32,11 @@ phrase, which quietly degrades a skill's auto-invocation. Check 3 compares the t
 - Precompute opportunity (advisory) — a fenced shell block gathers read-only context the skill could
   inline at load time via [`!` injection](https://code.claude.com/docs/en/skills#inject-dynamic-context)
   instead of a per-invocation tool call.
-- Dynamic-context injection portability (a bash-only `!` command with no `shell:` declared) and
-  defensive-fallback presence (`|| <fallback>` on every injected command).
+- `!`-injection portability — bash-only syntax without a `shell:` declaration fails; portable-looking
+  but undeclared warns; an injected command with no `|| <fallback>` continuation warns.
+- Fresh-eyes declaration conformance — same-context judgment language (a curated, advisory heuristic)
+  expects fresh-context delegation wording or a `fresh-eyes-exempt` directive nearby; malformed or
+  reason-less directives fail. Contract: `skills/check/reference/fresh-eyes-declarations.md`.
 
 `listing-budget` runs `check-listing-budget.sh` — an always-advisory report on the **shared** budget
 every loaded skill draws from together (`skillListingBudgetFraction`, default 1% of the model's context
@@ -84,4 +87,4 @@ Evals are warranted, not mandatory — a skill shipping none is not a failure.
 - A git repository — several checks read `git show HEAD:` / `git ls-files`; outside a repo the script
   exits 2.
 - `npx` (Node) is optional; without it the markdownlint check downgrades to a warning and the other
-  nineteen still gate.
+  twenty still gate.

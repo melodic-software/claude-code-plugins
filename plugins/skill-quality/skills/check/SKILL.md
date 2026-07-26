@@ -1,6 +1,6 @@
 ---
 name: check
-description: "Skill-authoring QA for Claude Code skills. Use when: 'check this skill', 'skill quality', 'lint my skill', 'is this SKILL.md valid', 'validate skill frontmatter', 'check skill before publishing', 'validate evals.json', 'shared listing budget', 'is the skill listing overflowing', or before shipping a skill or plugin. Actions: `check [<skill-name>]` runs a twenty-check static contract gate (frontmatter, per-skill listing-entry cap, trigger-keyword preservation vs HEAD, line caps, broken internal refs, markdownlint, gotchas surface, evals presence, precompute opportunity, injection shell-declaration) and reports PASS/FAIL with warnings; `validate-evals [<skill-name>]` checks a skill's evals/evals.json against the bundled schema; `listing-budget [<root> ...]` reports the SHARED aggregate listing-budget estimate across every listing-eligible skill under the resolved root(s) — advisory only, never blocks. Not for: writing new skills, or running model-graded evals."
+description: "Skill-authoring QA for Claude Code skills. Use when: 'check this skill', 'skill quality', 'lint my skill', 'is this SKILL.md valid', 'validate skill frontmatter', 'check skill before publishing', 'validate evals.json', 'shared listing budget', 'is the skill listing overflowing', or before shipping a skill or plugin. Actions: `check [<skill-name>]` runs a twenty-one-check static contract gate (frontmatter, per-skill listing-entry cap, trigger-keyword preservation vs HEAD, line caps, broken internal refs, markdownlint, gotchas surface, evals presence, precompute opportunity, injection shell-declaration, fresh-eyes declaration conformance) and reports PASS/FAIL with warnings; `validate-evals [<skill-name>]` checks a skill's evals/evals.json against the bundled schema; `listing-budget [<root> ...]` reports the SHARED aggregate listing-budget estimate across every listing-eligible skill under the resolved root(s) — advisory only, never blocks. Not for: writing new skills, or running model-graded evals."
 argument-hint: "[check|validate-evals|listing-budget] [<skill-name-or-root> ...] — omit the action for check; omit the name/root to run over every skill under the resolved root"
 user-invocable: true
 disable-model-invocation: false
@@ -10,7 +10,7 @@ shell: bash
 ## Purpose
 
 Static, deterministic quality gate for skill authoring. The `check` action runs the bundled
-`check-skill.sh` — twenty checks with no model invocation, so results are reproducible in CI or a
+`check-skill.sh` — twenty-one checks with no model invocation, so results are reproducible in CI or a
 pre-commit hook. The `validate-evals` action checks a skill's `<skill>/evals/evals.json` against the bundled
 JSON schema. The `listing-budget` action runs `check-listing-budget.sh` — a separate, always-advisory
 report on the SHARED listing budget every loaded skill draws from together (a different, cross-skill
@@ -84,7 +84,8 @@ Parse `$ARGUMENTS`:
    - The `FAIL:` lines verbatim (each is an actionable defect).
    - `WARN:` lines grouped after failures (advisory — soft line target, missing gotchas surface,
      action-router without evals, orphan spokes, an injection with no `shell:` whose commands
-     only *look* portable, and an injected command carrying no `|| <fallback>`).
+     only *look* portable, an injected command carrying no `|| <fallback>`, and same-context
+     judgment language with no fresh-eyes declaration or a stale exemption directive).
 4. For a multi-skill run, end with a one-line rollup: `N passed, M failed`.
 
 The `FAIL:` messages are self-describing. Do not re-derive their meaning; surface them and, when the
@@ -139,7 +140,7 @@ silent skip or a coerced-to-zero budget.
   byte-identity, committed-artifact scan) read `git show HEAD:` / `git ls-files`. Outside a repo it
   exits 2 (env error).
 - `check-skill.sh` runs `npx markdownlint-cli2` for check 6; when `npx` is absent that check downgrades
-  to a WARN rather than failing, so a run on a machine without Node still gates on the other sixteen.
+  to a WARN rather than failing, so a run on a machine without Node still gates on the other twenty.
 - **Check 6 defers to the repo's markdownlint config — run it from inside that repo.** `markdownlint-cli2`
   discovers the nearest `.markdownlint-cli2.jsonc` from its working directory. Run the checker from
   *outside* the target repo (or against a marketplace-installed skill in the plugin cache, which has no
@@ -170,6 +171,12 @@ silent skip or a coerced-to-zero budget.
   injected commands actually match the declared shell (so `shell: pwsh` with bash-only commands is
   out of scope). Both checks 19 and 20 scan the injected command text only — a bash-only token in a
   plain `` ```bash `` example or in prose never trips them.
+- Check 21 (fresh-eyes declaration conformance) is WARN-only on its judgment-language heuristic;
+  only a malformed or reason-less `fresh-eyes-exempt` directive FAILs. Its proximity window is
+  per-file, so a declaration living in a referenced spoke file cannot satisfy it — the WARN says
+  so; hand-verify before editing. Literal directive examples belong inside code fences (both
+  detectors are fence- and inline-span-aware); a bare `<class>` placeholder in prose FAILs as an
+  unknown class. Spec: `reference/fresh-eyes-declarations.md`.
 - Check 18 (precompute opportunity) is an advisory heuristic, never a FAIL. It cannot tell an
   instruction-to-run shell block from an illustrative example, so a WARN is a candidate to judge, not a
   defect — like a check-5 ref, hand-verify the block before converting it. It reads only fenced shell
