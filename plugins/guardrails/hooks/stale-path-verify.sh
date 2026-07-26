@@ -139,6 +139,14 @@ normalize_candidate() {
 
   # A bare directory reference with no extension and no trailing slash is
   # ambiguous with a namespace, a module path, or a URL path fragment.
+  #
+  # A TRAILING SLASH clears that ambiguity but buys no finding: git records file
+  # deletions, never directory ones, so no DELETED key can ever carry a slash and
+  # the exact provenance lookup below can never match `docs/old/`. An absent
+  # directory citation therefore only ever reaches ABSENT — enough to trip the
+  # shallow-clone and failed-walk notices, never enough to emit a STALE_PATH.
+  # Directory citations are OUT OF SCOPE for adjudication; making them work means
+  # deriving deleted ancestors from the file entries, tracked in #1452.
   local last="${t##*/}"
   if [[ "$t" != */ && "$last" != *.* ]]; then
     return 0
@@ -158,9 +166,16 @@ normalize_candidate() {
 #
 # Recover bounded context: the edit is already applied by PostToolUse time, so pull
 # from disk only the lines the hunk's OWN TEXT appears in, scan those, and keep only
-# candidates containing one of the hunk's word tokens. Two filters compose to hold
-# the diff-scope contract: the line must be one this hunk's text landed in, and the
-# reported candidate must contain edited text.
+# candidates containing one of the hunk's word tokens.
+#
+# What those two filters DO guarantee: the line the edit landed in is always
+# recovered, and the reported candidate always contains edited text. What they do
+# NOT guarantee is the converse — that every recovered line was touched. The anchor
+# match below is a SUBSTRING match, so when the hunk is a single bare fragment the
+# anchor IS that fragment and the line filter degenerates to the token filter: an
+# `Edit` whose whole `new_string` is `docs` recovers every line containing `docs`,
+# and a pre-existing stale citation on an untouched one among them fires. Closing
+# that means anchoring on `old_string`'s surrounding context, tracked in #1455.
 reconstruct_partial_edit() {
   [[ "$TOOL" == "Edit" && -f "$FILE" ]] || return 0
   # The token filter reads the hunk with any COMPLETE code span removed first. A
@@ -182,7 +197,9 @@ reconstruct_partial_edit() {
   # token, being shorter, also matches lines the edit never touched — a bare `docs`
   # in unrelated prose pulls in every citation under docs/, and an untouched stale
   # one among them would fire. Line-anchoring can only ever select a subset of what
-  # token-anchoring would, and the edited line is always in that subset.
+  # token-anchoring would, and the edited line is always in that subset. That
+  # subset is STRICT only while an anchor line is longer than its own tokens; a
+  # bare-fragment hunk collapses the two, which is the residual noted above (#1455).
   local -a anchors=()
   mapfile -t anchors < <(printf '%s' "$SCAN_CONTENT" | grep -vE '^[[:space:]]*$' 2>/dev/null)
   ((${#anchors[@]})) || return 0
