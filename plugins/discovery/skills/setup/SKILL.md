@@ -64,7 +64,10 @@ Report the effective concern and the guard result as a PASS/FAIL/INFO table. Do 
    - **`CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH`** — present or absent. Absent is INFO plus the
      recommendation to set it (`"5"` matches the default depth that applied through 2.1.216), because
      it only buys **throughput**: without it a dispatched agent fans out sequentially — slower, same
-     coverage. It is not a correctness prerequisite here, because the one control that needs a context
+     coverage. Note the variable is one of **two** conditions: it lifts the harness filter that
+     removes `Agent` from every non-fork subagent, but it cannot add a tool an agent definition left
+     out. The shipped `discovery:explorer` / `discovery:researcher` definitions list `Agent` for
+     exactly this reason; a third-party agent that does not is unaffected by setting it. It is not a correctness prerequisite here, because the one control that needs a context
      which has not seen the work is the outcome-gate verifier, and the parent dispatches that as a
      **sibling** rather than the agent as a child. Note that env vars are read at session start, so a
      value set now takes effect next session.
