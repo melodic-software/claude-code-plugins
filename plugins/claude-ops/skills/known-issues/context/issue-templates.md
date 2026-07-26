@@ -195,6 +195,6 @@ These fields can be pre-filled automatically:
 ## Contact links (non-issue options)
 
 - Discord: https://anthropic.com/discord
-- Docs: https://docs.claude.com/en/docs/claude-code
-- Getting Started: https://docs.claude.com/en/docs/claude-code/quickstart
-- Troubleshooting: https://docs.claude.com/en/docs/claude-code/troubleshooting
+- Docs: https://code.claude.com/docs/en/overview
+- Getting Started: https://code.claude.com/docs/en/quickstart
+- Troubleshooting: https://code.claude.com/docs/en/troubleshooting
