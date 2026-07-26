@@ -85,13 +85,17 @@ echo[[:space:]]+-[a-zA-Z]*e[a-zA-Z]*([[:space:]]|$)
 # `git for-each-ref` and `git branch` all take a portable `--sort=<key>`, whose
 # keys include `version:refname`. So that spelling carries the same
 # `sort`-command prefix the short-flag pattern uses, and requires a boundary
-# after the WORD (else `version:refname` matches as a prefix). WORD is a
+# after the WORD (else `version:refname` matches as a prefix). That boundary is
+# every character that can actually END a shell word — whitespace, a control
+# operator, a redirection, a subshell close, a quote — or end of line, so the
+# no-whitespace forms (`$(sort --sort=version)`, `... |head`, `...; echo`) are
+# matched, while a longer word like `version:refname` still is not. WORD is a
 # MANDATORY argument, so GNU's getopt_long takes it attached after `=` or as
-# the next argv element, and the shell may hand it over quoted — all four
-# spellings are the same GNU-only operation.
+# the next argv element, and the shell may hand it over quoted — every one of
+# those spellings is the same GNU-only operation.
 sort[^\n]*[[:space:]]-[A-Za-z]*V[A-Za-z]*([[:space:]]|$)
 --version-sort
-sort[^\n]*[[:space:]]--sort(=|[[:space:]]+)('version'|"version"|version)([[:space:]]|$)
+sort[^\n]*[[:space:]]--sort(=|[[:space:]]+)['"]?version([[:space:]|&;()<>'"`]|$)
 
 # `sed -i` with no suffix argument attached — GNU treats the suffix as
 # optional; BSD sed requires one immediately after `-i`. This intentionally

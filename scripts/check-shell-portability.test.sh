@@ -227,10 +227,11 @@ else
 fi
 rm -f "$f" "$tok"
 
-tok="$(one_token_list 'sort[^\n]*[[:space:]]--sort(=|[[:space:]]+)('"'"'version'"'"'|"version"|version)([[:space:]]|$)')"
+tok="$(one_token_list 'sort[^\n]*[[:space:]]--sort(=|[[:space:]]+)['"'"'"]?version([[:space:]|&;()<>'"'"'"`]|$)')"
 
 # --- every spelling of --sort's mandatory WORD: attached after `=` or handed
-# over as the next argv element, bare or shell-quoted --------------------
+# over as the next argv element, bare or shell-quoted, and terminated by a
+# control operator rather than whitespace ---------------------------------
 while IFS= read -r case; do
   f="$(tmpsh "$case")"
   if out="$(scan_paths "$tok" "$f" 2>&1)"; then
@@ -245,6 +246,11 @@ sort --sort version "$file"
 sort --sort='version' "$file"
 sort --sort="version" "$file"
 sort --sort 'version' "$file"
+sort --sort=version
+x=$(sort --sort=version)
+sort --sort=version|head -n1
+sort --sort=version; echo done
+sort --sort=version >"$out"
 CASES
 
 # --- ...but `--sort=<key>` belongs to portable commands too: Git's own
@@ -512,14 +518,15 @@ f="$(tmpsh "$(printf '%s\n' \
   'sort --sort=version "$file"' \
   'sort --sort version "$file"' \
   'sort --sort='"'"'version'"'"' "$file"' \
+  'x=$(sort --sort=version)' \
   'git tag --sort=version:refname --list')")"
 if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
   fail "sort long forms should fail under the shipped list, got success: $out"
-elif [[ "$(echo "$out" | grep -c "PORTABILITY: ${f}:")" -eq 4 ]] &&
-  ! echo "$out" | grep -q "PORTABILITY: ${f}:5:"; then
+elif [[ "$(echo "$out" | grep -c "PORTABILITY: ${f}:")" -eq 5 ]] &&
+  ! echo "$out" | grep -q "PORTABILITY: ${f}:6:"; then
   ok "the shipped list detects every sort long form and spares git tag --sort=<key>"
 else
-  fail "expected hits on lines 1-4 only, got: $out"
+  fail "expected hits on lines 1-5 only, got: $out"
 fi
 rm -f "$f"
 
