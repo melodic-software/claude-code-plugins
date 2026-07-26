@@ -1183,6 +1183,29 @@ else
 fi
 rm -f "$f"
 
+# --- registered cross-plugin sync copies are exempt (their dedicated drift
+# gate owns byte-identity with the in-repo source; the source itself stays
+# scannable, so a lib change is still gated exactly once — at the pressure
+# point where a fix or annotation can propagate to every copy). The script
+# pins cwd to its own repo root, so the sandbox gets its own copy of the
+# script plus a one-line registry, exercising --all against a synthetic tree --
+TOK="$(one_token_list 'grep[[:space:]]+-P')"
+TREE="$(mktemp -d)"
+mkdir -p "$TREE/scripts" "$TREE/plugins/demo/hooks"
+cp "$SCRIPT" "$TREE/scripts/"
+printf 'hooks/hook-utils.sh\n' >"$TREE/scripts/cross-plugin-source-registry.txt"
+printf 'grep -P x\n' >"$TREE/plugins/demo/hooks/hook-utils.sh"
+printf 'grep -P x\n' >"$TREE/plugins/demo/hooks/not-registered.sh"
+out="$(SHELL_PORTABILITY_TOKENS="$TOK" bash "$TREE/scripts/check-shell-portability.sh" --all 2>&1)"
+rc=$?
+if [[ $rc -ne 0 && "$out" == *"not-registered.sh"* && "$out" != *"hook-utils.sh"* ]]; then
+  ok "a registered sync copy (plugins/*/hooks/hook-utils.sh) is exempt while an unregistered sibling still flags"
+else
+  fail "registered-sync-copy exemption: rc=$rc out=$out"
+fi
+rm -rf "$TREE"
+rm -f "$TOK"
+
 echo
 echo "PASS=$PASS FAIL=$FAIL"
 [[ "$FAIL" -eq 0 ]]
