@@ -256,6 +256,126 @@ r=$(run_gate "$F")
 assert_contains "self classification row repeating severity -> findings=1" "$r" "findings=1"
 assert_contains "self classification row repeating severity -> OK" "$r" "READINESS_OK"
 
+# --- Case: lowercase / natural-language classification token counts (#619) ---
+# A worker's classification-table reply that writes a natural-language
+# disposition like "Valid (defer)" instead of the mandated all-caps VALID must
+# still count as a classification, or the gate reports a false BLOCKED even
+# though the finding genuinely was classified.
+F=$(mkjson lowercase-classify '[
+  {author:"claude[bot]", body:"### 1. [CRITICAL] a"},
+  {author:"me[bot]", body:"| 1 | a | Valid (defer) | noted |"}
+]')
+r=$(run_gate "$F")
+assert_contains "lowercase classification token -> classified=1" "$r" "classified=1"
+assert_contains "lowercase classification token -> READINESS_OK" "$r" "READINESS_OK"
+
+# --- Case: table PROSE containing "valid" is NOT a classification (#619) -----
+# The discriminating case for anchoring case-folding to the disposition cell:
+# two findings, ONE real disposition row, and an unrelated self-authored table
+# row whose prose happens to contain the word "valid". Folding case across the
+# whole line would credit that prose row, report classified=2, and let the
+# second, genuinely unclassified finding past the under-decomposition gate —
+# codex on #1347. The cell anchor must score it classified=1 and BLOCK.
+F=$(mkjson prose-valid-not-classification '[
+  {author:"claude[bot]", body:"### 1. [CRITICAL] a\n### 2. [CRITICAL] b"},
+  {author:"me[bot]", body:"| 1 | a | VALID | fixed |\n| CI check | result is valid |"}
+]')
+r=$(run_gate "$F")
+assert_contains "table prose is not a classification -> classified=1" "$r" "classified=1"
+assert_contains "table prose is not a classification -> BLOCKED" "$r" "READINESS_BLOCKED reason=under-decomposed"
+
+# --- Case: prose OPENING a cell with "Valid" is NOT a classification (#619) --
+# Anchoring the token to the start of a cell is not enough: prose can open a
+# cell too. Two findings, one real VALID row, and a row whose Finding cell
+# begins with "Valid ..." — codex on #1347. The whole-cell rule must score it
+# classified=1 and BLOCK.
+F=$(mkjson cell-opening-prose '[
+  {author:"claude[bot]", body:"### 1. [CRITICAL] a\n### 2. [CRITICAL] b"},
+  {author:"me[bot]", body:"| 1 | comment 1 | VALID | fixed |\n| 2 | comment 2 | Valid cache entries are rejected | | | | |"}
+]')
+r=$(run_gate "$F")
+assert_contains "cell-opening prose is not a classification -> classified=1" "$r" "classified=1"
+assert_contains "cell-opening prose is not a classification -> BLOCKED" "$r" "READINESS_BLOCKED reason=under-decomposed"
+
+# --- Case: word-like continuations do NOT satisfy the token (#619) ----------
+# Digits and underscores are not letters, so a letters-only boundary accepted
+# `valid2` / `VALID_TOKEN` and credited the row — codex on #1347. Such a row
+# would be credited AND stripped from the finding corpus, turning one
+# unclassified finding into READINESS_OK.
+F=$(mkjson word-continuation '[
+  {author:"claude[bot]", body:"### 1. [CRITICAL] a"},
+  {author:"me[bot]", body:"| 1 | finding | valid2 | pending |"}
+]')
+r=$(run_gate "$F")
+assert_contains "valid2 is not a classification -> classified=0" "$r" "classified=0"
+assert_contains "valid2 is not a classification -> findings=1" "$r" "findings=1"
+assert_contains "valid2 is not a classification -> BLOCKED" "$r" "READINESS_BLOCKED reason=under-decomposed"
+F=$(mkjson word-continuation-underscore '[
+  {author:"claude[bot]", body:"### 1. [CRITICAL] a"},
+  {author:"me[bot]", body:"| 1 | finding | VALID_TOKEN | pending |"}
+]')
+r=$(run_gate "$F")
+assert_contains "VALID_TOKEN is not a classification -> classified=0" "$r" "classified=0"
+assert_contains "VALID_TOKEN is not a classification -> BLOCKED" "$r" "READINESS_BLOCKED reason=under-decomposed"
+# ... and the same on the leading side: a digit before the token is a word
+# character, not decoration.
+F=$(mkjson word-continuation-leading '[
+  {author:"claude[bot]", body:"### 1. [CRITICAL] a"},
+  {author:"me[bot]", body:"| 1 | finding | 2valid | pending |"}
+]')
+r=$(run_gate "$F")
+assert_contains "2valid is not a classification -> classified=0" "$r" "classified=0"
+assert_contains "2valid is not a classification -> BLOCKED" "$r" "READINESS_BLOCKED reason=under-decomposed"
+
+# --- Case: the DOCUMENTED annotated dispositions count (#619) ---------------
+# reference/review-discipline.md specifies `VALID — fixing`, `VALID (defer)` and
+# `VALID — fix now` as canonical disposition values. A rule that demanded the
+# token be the whole cell rejected the dash-annotated forms, so a reply written
+# exactly as documented scored unclassified — codex on #1347. Punctuation is
+# what introduces an annotation, so all three count.
+F=$(mkjson documented-dispositions '[
+  {author:"claude[bot]", body:"### 1. [CRITICAL] a\n### 2. [CRITICAL] b\n### 3. [CRITICAL] c"},
+  {author:"me[bot]", body:"| 1 | a | VALID — fixing | x |\n| 2 | b | VALID (defer) | y |\n| 3 | c | VALID — fix now | z |"}
+]')
+r=$(run_gate "$F")
+assert_contains "documented dispositions -> classified=3" "$r" "classified=3"
+assert_contains "documented dispositions -> READINESS_OK" "$r" "READINESS_OK"
+
+# --- Case: a decorated disposition cell still counts (#619) -----------------
+# The cell anchor permits leading non-letter decoration, so a bolded
+# `| **VALID** |` cell — countable before this change under the
+# anywhere-in-the-row match — must not silently stop counting.
+F=$(mkjson bold-classify '[
+  {author:"claude[bot]", body:"### 1. [CRITICAL] a"},
+  {author:"me[bot]", body:"| 1 | a | **VALID** | fixed |"}
+]')
+r=$(run_gate "$F")
+assert_contains "bolded disposition cell -> classified=1" "$r" "classified=1"
+assert_contains "bolded disposition cell -> READINESS_OK" "$r" "READINESS_OK"
+
+# --- Case: lowercase "invalid" in a self row still does NOT count as valid ---
+# Case-insensitive matching must stay whole-word: "invalid" must not false-match
+# "valid" merely because casing is no longer significant.
+F=$(mkjson lowercase-invalid '[
+  {author:"claude[bot]", body:"### 1. [CRITICAL] a"},
+  {author:"me[bot]", body:"| 1 | a | invalid claim, no fix needed | noted |"}
+]')
+r=$(run_gate "$F")
+assert_contains "lowercase invalid does not count -> classified=0" "$r" "classified=0"
+assert_contains "lowercase invalid -> BLOCKED" "$r" "READINESS_BLOCKED reason=under-decomposed"
+
+# --- Case: lowercase self classification row repeating severity is NOT a finding
+# Mirrors the self-row-severity case above but with a natural-language lowercase
+# token -- the exclusion regex must also match case-insensitively, or the row
+# leaks into the finding corpus and re-counts its own embedded CRITICAL.
+F=$(mkjson self-row-severity-lowercase '[
+  {author:"claude[bot]", body:"CRITICAL null deref in handler"},
+  {author:"me[bot]", body:"| 1 | CRITICAL: null deref | Valid | fixed abc123 |"}
+]')
+r=$(run_gate "$F")
+assert_contains "lowercase self classification row repeating severity -> findings=1" "$r" "findings=1"
+assert_contains "lowercase self classification row repeating severity -> OK" "$r" "READINESS_OK"
+
 # --- Case: plain bracketed [P1]/[P2] severity markers count as findings ------
 # Reviewers that emit neither a severity word nor a shields badge use bare
 # `[P1]` markers — the gate must not report findings=0 for them
@@ -442,6 +562,47 @@ F=$(mkjson conv-overclassified '[
   {author:"me[bot]", body:"| 1 | a | VALID | x |\n| 2 | spurious | INCORRECT | y |"}
 ]')
 converge "over-classified-cap" "$F"
+# Lowercase/natural-language classification token (#619): the bash grep -i and
+# the Python CLASSIFY_TOKEN_RE/CLASSIFY_ROW_RE re.IGNORECASE must count it
+# identically, or the safe-tier degrade and the engine-backed tier disagree on
+# readiness for a reply that never uses the mandated all-caps token.
+F=$(mkjson conv-lowercase '[
+  {author:"claude[bot]", body:"CRITICAL a"},
+  {author:"me[bot]", body:"| 1 | a | Valid (defer) | x |"}
+]')
+converge "lowercase-classify" "$F"
+# Table prose carrying "valid" (#619): case-folding is anchored to the
+# disposition cell in both paths, so neither may credit a prose row as a
+# classification — a divergence here would let the safe-tier degrade pass a PR
+# the engine-backed tier blocks (or the reverse).
+F=$(mkjson conv-prose-valid '[
+  {author:"claude[bot]", body:"CRITICAL a\nCRITICAL b"},
+  {author:"me[bot]", body:"| 1 | a | VALID | x |\n| CI check | result is valid |"}
+]')
+converge "prose-valid-not-classification" "$F"
+# Prose OPENING a cell (#619): the whole-cell rule, not a cell-start anchor, is
+# what rejects this — both paths must reject it identically.
+F=$(mkjson conv-cell-opening-prose '[
+  {author:"claude[bot]", body:"CRITICAL a\nCRITICAL b"},
+  {author:"me[bot]", body:"| 1 | c1 | VALID | x |\n| 2 | c2 | Valid cache entries are rejected | | | | |"}
+]')
+converge "cell-opening-prose" "$F"
+# Word-like continuation (#619): `valid2` must not satisfy the token in either
+# path — a divergence here would let the degrade credit a row the engine does
+# not, and the row is ALSO stripped from the finding corpus when credited.
+F=$(mkjson conv-word-continuation '[
+  {author:"claude[bot]", body:"CRITICAL a"},
+  {author:"me[bot]", body:"| 1 | finding | valid2 | pending |"}
+]')
+converge "word-continuation" "$F"
+# The documented annotated dispositions (#619): both paths must accept the
+# punctuated annotation reference/review-discipline.md specifies, or the safe
+# tier and the engine disagree on a reply written exactly as documented.
+F=$(mkjson conv-documented '[
+  {author:"claude[bot]", body:"CRITICAL a\nCRITICAL b"},
+  {author:"me[bot]", body:"| 1 | a | VALID — fixing | x |\n| 2 | b | Valid (defer) | y |"}
+]')
+converge "documented-dispositions" "$F"
 
 # --- Case: live fetch failure emits an actionable owner/repo diagnostic ------
 # Run WITHOUT --comments-json from a cwd `gh repo view` cannot resolve: the gate's
