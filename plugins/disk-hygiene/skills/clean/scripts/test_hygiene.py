@@ -2792,16 +2792,26 @@ class GuardTests(unittest.TestCase):
         ):
             self.assertIsNone(self.run_guard_engine_gate(command), command)
 
-    def test_engine_gate_still_gates_metacharacter_glued_engine_names(self) -> None:
-        """Narrowing to a filename boundary must not open a concatenation seam.
+    def test_engine_gate_still_gates_glued_engine_names(self) -> None:
+        """Narrowing to a filename boundary must not open a gluing seam.
 
-        `_carries_marker` tests a token's basename, so the tokens it reads have
-        to split on shell metacharacters too — otherwise `foo;hygiene.py` is one
-        token named `foo;hygiene.py` and slips a gate that bare-substring
-        matching used to catch.
+        `_carries_marker` tests a token's BASENAME, so whatever produces those
+        tokens decides what the gate can still see. Splitting on shell
+        metacharacters alone is not enough: an assignment glues the filename to
+        its variable with `=`, which is not a metacharacter, so
+        `engine=hygiene.py && python3 "$engine" apply` runs the real engine
+        while presenting no token whose basename is the marker.
+        `_MARKER_TOKEN_SPLIT` therefore keeps only path-legal characters, which
+        the marker is itself spelled from — so any glue at all falls away.
+
+        Runs from the scripts dir, where the bare name RESOLVES to the bundled
+        engine: that is the shape an evasion actually takes.
         """
-        with tempfile.TemporaryDirectory() as tmp, chdir_context(tmp):
+        with chdir_context(SCRIPT_DIR):
             for command in (
+                'engine=hygiene.py && python3 "$engine" apply --plan p --token t',
+                'FOO=1 BAR=hygiene.py python3 "$BAR" apply --plan p --token t',
+                'bash -c "engine=hygiene.py; python3 $engine apply"',
                 "foo;hygiene.py",
                 "python3 foo;hygiene.py",
                 "echo $(hygiene.py scan)",

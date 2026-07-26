@@ -19,16 +19,22 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
   Relevance now uses that same basename equality everywhere, via one `_carries_marker` helper, so
   the two paths agree on what "is the engine" means.
 
-  **This is a precision change, not a relaxation.** The narrowing is paid for by splitting
-  candidate tokens on this module's own shell-metacharacter set as well as whitespace, so a
-  separator-free concatenation (`foo;hygiene.py`, `$(hygiene.py scan)`, `true|hygiene.py`) still
-  exposes the engine filename as its own token and still gates — a naive per-word basename test
-  would have opened exactly that seam. Copy-evasion coverage is untouched because it never routed
-  through the marker: a link to the engine under any other name gates by `os.path.samefile`
-  identity, and a byte copy remains the accepted residual the function's docstring already names.
-  Verified as a 26-case differential over the shapes the gate distinguishes — every engine,
-  wrapper, concatenation, substitution, pipe, backtick, and redirect case holds its prior verdict;
-  only the two `test_hygiene.py` shapes change, from deny to defer.
+  **This is a precision change, not a relaxation.** A basename test is only as good as the tokens
+  it reads, so the narrowing is paid for by deriving those tokens as maximal runs of path-legal
+  characters (`[^A-Za-z0-9._\-/\\]+` as the delimiter). Enumerating shell syntax instead would be a
+  losing game — an assignment glues the filename with `=`, a list with `:`, a metacharacter with
+  `;` — and missing any one of them silently un-gates a real invocation. Inverting the question is
+  total: `hygiene.py` is spelled entirely from the kept characters, so splitting on everything else
+  can only expose the engine filename, never hide it. `engine=hygiene.py && python3 "$engine"
+  apply`, `FOO=1 BAR=hygiene.py python3 "$BAR" apply`, `foo;hygiene.py`, `$(hygiene.py scan)`, and
+  `true|hygiene.py` all still gate.
+
+  Copy-evasion coverage is untouched because it never routed through the marker: a link to the
+  engine under any other name gates by `os.path.samefile` identity, and a byte copy remains the
+  accepted residual the function's docstring already names. Verified as a differential against the
+  pre-change guard over 36 command shapes — every engine, wrapper, assignment, concatenation,
+  substitution, pipe, backtick, redirect, and mention case holds its prior verdict; the only
+  movement is the two `test_hygiene.py` shapes, from deny to defer.
 
 ## [0.9.7]
 

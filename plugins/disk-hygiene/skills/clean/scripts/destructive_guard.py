@@ -215,21 +215,20 @@ _MODE_BELT = "belt"
 _MODE_ENGINE_GATE = "engine-gate"
 _ENGINE_MARKER = "hygiene.py"
 
-# Delimiters for the marker scan: this module's own shell-metacharacter set plus
-# whitespace and quotes. Splitting on the metacharacters too is what keeps a
-# separator-free concatenation (`foo;hygiene.py`, `$(hygiene.py scan)`) exposing
-# the engine filename as a token of its own.
-_MARKER_TOKEN_SPLIT = re.compile(
-    "[{}]+".format(
-        re.escape(
-            "".join(sorted(_SHELL_EXPANSION_OR_OPERATOR_CHARS | set(" '\"")))
-        )
-    )
-)
+# Everything a path we care about cannot contain. Enumerating SHELL syntax here
+# would be a losing game — an assignment (`engine=hygiene.py`), a list separator
+# (`PATH=/x:hygiene.py`), and a metacharacter (`foo;hygiene.py`) each glue the
+# filename to its neighbour differently, and missing one silently un-gates a real
+# invocation. Inverting the question is total: `hygiene.py` is spelled entirely
+# from this class's KEPT characters, so splitting on everything else can only
+# ever EXPOSE the engine filename as its own token, never destroy an occurrence.
+# Over-splitting is safe in both directions — a shredded path merely fails the
+# identity check and falls through to the marker test, which gates.
+_MARKER_TOKEN_SPLIT = re.compile(r"[^A-Za-z0-9._\-/\\]+")
 
 
 def _marker_tokens(command: str) -> list[str]:
-    """Candidate filename tokens, split on whitespace AND shell metacharacters."""
+    """Candidate filename tokens: maximal runs of path-legal characters."""
     return [token for token in _MARKER_TOKEN_SPLIT.split(command) if token]
 
 
