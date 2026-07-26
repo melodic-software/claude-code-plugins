@@ -494,8 +494,11 @@ mandates (§Guarded Mutation Wrappers), run without a denial. The operator confi
 configuration with `claude auto-mode config`.
 
 **A denied gate is never downgraded to weaker evidence — and the gate now says so itself.**
-`babysit-readiness-gate.sh` emits exactly one `READINESS_*` line on stdout on **every** run,
-failure paths included:
+`babysit-readiness-gate.sh` emits exactly one `READINESS_*` line on stdout on **every** run that
+attempts a check, failure paths included — the sole exception is the help form (`--help` or its
+`-h` alias, which share one branch), which prints usage and
+exits 0 with no verdict; that form is not a check run, it is the non-mutating setup canary
+([`skills/setup/SKILL.md`](../../setup/SKILL.md) "Lane-script reachability"):
 `READINESS_UNPROVEN reason=<bad-args|identity-unresolved|prereq-missing|comments-unreadable|checklist-unreadable|fetch-failed> pr=<n>`
 is a third verdict alongside `READINESS_OK` and `READINESS_BLOCKED`, and it means readiness was not
 proven. Readiness is declared by quoting the verdict line verbatim in the iteration report

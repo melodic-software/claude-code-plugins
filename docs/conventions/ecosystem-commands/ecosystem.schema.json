@@ -69,7 +69,7 @@
           "trigger-globs": {
             "type": "array",
             "items": { "type": "string", "minLength": 1 },
-            "description": "Run the gate only when a changed file matches; omit to run whenever the ecosystem runs."
+            "description": "Run the gate only when a changed file matches (matched against the full changed-file set); omit to run whenever the ecosystem runs. Never selects the ecosystem under auto-targeting — to make a cross-ecosystem trigger select its ecosystem, add the pattern to the ecosystem's own `globs`."
           },
           "remediation": { "type": "string", "description": "Pointer shown on failure." }
         }

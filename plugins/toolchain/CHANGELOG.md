@@ -3,6 +3,20 @@
 All notable changes to the `toolchain` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.2]
+
+### Changed
+
+- **`/toolchain:check` §2 Reachability bullet now states the settled cross-ecosystem-trigger
+  pattern.** A gate's `trigger-globs` narrows a run *within* its already-affected ecosystem and never
+  selects an ecosystem under auto-targeting — that subordinate model was already the implemented
+  behavior (#1020) but was left as an open design question in the schema and skill docs. Decided by
+  #1339: the docs now state explicitly that a consumer with a cross-ecosystem gate trigger (e.g. a Go
+  gate keyed off `*.proto`) adds the trigger pattern to the ecosystem's own `globs` to make it
+  auto-targeting-visible. Docs-only; no runtime behavior change; `ecosystem.schema.json`'s
+  `trigger-globs` description bumped to convention v1.1.1 in lockstep (docs/conventions/
+  ecosystem-commands/CHANGELOG.md).
+
 ## [0.10.1]
 
 ### Fixed
