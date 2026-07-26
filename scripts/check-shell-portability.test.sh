@@ -452,6 +452,39 @@ else
 fi
 rm -f "$f"
 
+# --- ...but echo's cluster admits only its own letters, quoted or not (#1546).
+# `help echo` advertises `echo [-neE]`, so any other letter makes the word an
+# unrecognized option that bash prints literally rather than a longer cluster
+# -- verified: `echo -em "a\tb"`, `echo -me "a\tb"` and
+# `echo -e"n"mail "a\tb"` each emit the option word followed by the literal
+# `a\tb`. All three are working portable code. grep and sort need no such
+# narrowing: an unrecognized cluster aborts them, so there is nothing working
+# to break.
+f="$(tmpsh "$(printf '%s\n' \
+  "echo -e\"n\"mail 'a\\tb'" \
+  "echo -em 'a\\tb'" \
+  "echo -me 'a\\tb'")")"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  ok "a non-[neE] letter in echo's cluster is printed literally and is not flagged"
+else
+  fail "echo clusters with a non-[neE] letter must not be flagged, got: $out"
+fi
+rm -f "$f"
+
+# --- ...while every genuine [neE] cluster still is.
+f="$(tmpsh "$(printf '%s\n' \
+  "echo -ne 'a\\tb'" \
+  "echo -eE 'a\\tb'" \
+  "echo -e\"n\"E 'a\\tb'")")"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "genuine [neE] clusters should still be flagged, got success: $out"
+elif [[ "$(echo "$out" | grep -c "PORTABILITY: ${f}:")" -eq 3 ]]; then
+  ok "echo clusters built only from n/e/E are still flagged"
+else
+  fail "expected all 3 [neE] clusters flagged, got: $out"
+fi
+rm -f "$f"
+
 # --- ...and the option scan stops at a shell command separator (#1546), the
 # same rule the mktemp -p token carries: a physical line is not a command, so
 # with `|` and `;` in the boundary a LATER command's option-shaped argument

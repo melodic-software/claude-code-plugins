@@ -134,11 +134,15 @@ grep[^;&|\n]*[[:space:]]-[A-Za-z]*P([A-Za-z]|['"][A-Za-z]*['"])*([[:space:]|&;()
 # `echo -e ...|cat`, `echo -e ...; echo` are detected, not only the
 # whitespace-terminated form.
 # echo is the exception to the quoted-continuation class above: bash advertises
-# `echo [-neE]`, so only those letters extend the cluster. `echo -e"n" 'a\tb'`
-# emits a real tab (`-en` is live), while `echo -e"mail"` is not a cluster at
-# all and — unlike grep and sort, which abort — echo just prints the literal
-# `-email`. That last form is working portable code and must stay unflagged.
-echo[[:space:]]+-[a-zA-Z]*e([a-zA-Z]|['"][neE]*['"])*([[:space:]|&;()]|[<>]([^(]|$)|$)
+# `echo [-neE]`, so only those letters extend the cluster — QUOTED OR NOT
+# (#1546). A letter outside that set makes the word an unrecognized option
+# rather than a longer cluster, and bash then just prints it: `echo -em`,
+# `echo -me` and `echo -e"n"mail` all emit the option word literally, so every
+# one of them is working portable code that must stay unflagged. `echo -e"n"`
+# and `echo -ne` do emit a real tab. Unlike grep and sort — which abort on an
+# unrecognized cluster, leaving nothing working to break — a too-liberal class
+# here rejects code that runs correctly on both dialects.
+echo[[:space:]]+-[neE]*e([neE]|['"][neE]*['"])*([[:space:]|&;()]|[<>]([^(]|$)|$)
 
 # `sort -V` (natural/version sort) — a GNU coreutils extension; BSD sort has no
 # `-V`. `V` may appear anywhere in a combined short-option cluster (`-Vr`),
