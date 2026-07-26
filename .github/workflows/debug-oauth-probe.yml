@@ -1,7 +1,7 @@
 name: debug-oauth-probe
 on:
-  push:
-    branches: [debug/oauth-probe]
+  pull_request:
+    paths: ['.github/workflows/debug-oauth-probe.yml']
 permissions:
   contents: read
   id-token: write
