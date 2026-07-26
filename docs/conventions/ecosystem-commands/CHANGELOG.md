@@ -1,5 +1,20 @@
 # Changelog — ecosystem-commands convention
 
+## 1.2.2 — 2026-07-26
+
+Docs-only, no schema shape change: `examples/go.yaml`'s illustrative `proto-gen-freshness` gate
+states the precondition `buf generate --clean` carries and the example can state but not enforce.
+`--clean` deletes whole output directories, not files matching the checks' pathspecs, so every `out`
+in a consuming repo's `buf.gen.yaml` must hold nothing but generated output. A hand-maintained file
+inside one — a README, a BUILD file, a scratch note — is deleted with the rest, and neither
+bracketing `git status --porcelain` check reports it: they are scoped to the plugins' output
+suffixes, while the `out` directories themselves live in the consumer's `buf.gen.yaml` where no
+example can name them. A repo that cannot dedicate its `out` directories has to drop `--clean`, and
+loses orphan detection with it. Documented rather than enforced: melodic-software/claude-code-plugins#1523
+closed the enforcement remedies as not-planned, because both are redesigns that would bury the
+`run-from: repo-root` shape the example exists to demonstrate, and an example cannot know a
+consuming repo's real output directories.
+
 ## 1.2.1 — 2026-07-25
 
 Docs-only, no schema shape change: `examples/go.yaml` gains a clearly-commented illustrative gate
@@ -33,11 +48,7 @@ worktree matches HEAD while the staged entry survives — [`git diff <commit>` c
 tree, never the index](https://git-scm.com/docs/git-diff) — a false pass no post-generation diff
 form can reach. Untracked output stays outside the guard, since regeneration reproduces it
 identically, so the ordinary "forgot to regenerate" flow still fails at the post-generation check
-rather than the guard. The comment also states `--clean`'s own precondition, which the example can
-state but not enforce: it deletes whole output directories, so every `out` must be dedicated to
-generated output — a hand-maintained file inside one is deleted with the rest and no pathspec the
-example can write would report it, and a repo that cannot dedicate its `out` directories has to
-drop `--clean` and give up orphan detection. The example's `install-hint` gains the Buf CLI beside
+rather than the guard. The example's `install-hint` gains the Buf CLI alongside
 golangci-lint and the Go toolchain: `install-hint` is per-ecosystem, so a tool-presence skip on the
 new gate would otherwise reuse a hint that cannot install the executable it is missing.
 Deferred from melodic-software/claude-code-plugins#1361 via #1462 (a
