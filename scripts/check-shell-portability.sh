@@ -142,20 +142,23 @@ scan_file() {
     function is_annotated(l) { return l ~ /portability-ok:/ }
     function is_comment(l) { return l ~ /^[[:space:]]*#/ }
     # Same-line auto-guard: a portable BSD-side attempt already co-located on
-    # the hit line. Scoped to the two active shapes that need one today:
+    # the hit line. Scoped to the three active shapes that need one today:
     #   - readlink -f, guarded by a co-located realpath attempt — the shape
     #     lib/hook-utils.sh already uses: `realpath ... || readlink -f ...`;
     #   - sed -i, guarded by an explicit empty-suffix argument (a quoted empty
     #     string immediately following -i) — the portable BSD-safe idiom this
     #     class exists to encourage; without this guard the gate would flag
     #     the CORRECT form.
-    # Takes the matched pattern text too, so the realpath guard applies only
-    # when the readlink pattern itself matched — a line that merely mentions
-    # "realpath" elsewhere must not blanket-excuse an unrelated hit on the
-    # same line. A further class enables its own marker here when it is
-    # activated (see the token file STAGED section) — this is deliberately
-    # not a generic heuristic, the same posture check-skill-portability.sh
-    # takes.
+    #   - stat -c, guarded by a co-located stat -f attempt — the shape
+    #     remove-path.sh dev_of() already uses: stat -c ... || stat -f ...
+    #     (#1510).
+    # Takes the matched pattern text too, so the realpath/stat -f guards apply
+    # only when their own pattern matched — a line that merely mentions
+    # "realpath" or "stat -f" elsewhere must not blanket-excuse a different
+    # active pattern hit on the same line. A further class enables its own
+    # marker here when it is activated (see the token file STAGED section) —
+    # this is deliberately not a generic heuristic, the same posture
+    # check-skill-portability.sh takes.
     function is_guarded(l, p,    q1, q2, empty_suffix) {
       if (p ~ /readlink/ && l ~ /realpath/) return 1
       if (p ~ /sed\[/) {
@@ -164,6 +167,7 @@ scan_file() {
         empty_suffix = "-i[[:space:]]+(" q1 q1 "|" q2 q2 ")([[:space:]]|$)"
         if (l ~ empty_suffix) return 1
       }
+      if (p ~ /^stat\[/ && l ~ /stat[[:space:]]+-[A-Za-z]*f/) return 1
       return 0
     }
     # Pass 1: collect active ERE patterns from the token list.

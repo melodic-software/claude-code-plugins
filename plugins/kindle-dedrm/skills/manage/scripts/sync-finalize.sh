@@ -32,6 +32,8 @@ fi
 
 # Step 3 — delete any cached installer (this is what the firewall didn't catch)
 if [[ -f "${KINDLE_UPDATES_DIR}/KindleForPC-installer.exe" ]]; then
+  # portability-ok: Windows-only script (Git Bash + PowerShell + LOCALAPPDATA
+  # above already require Windows) — a BSD stat fallback would be dead code.
   SIZE=$(stat -c%s "${KINDLE_UPDATES_DIR}/KindleForPC-installer.exe" 2>/dev/null || echo unknown)
   echo "[sync-finalize] cached installer present (${SIZE} bytes) — deleting"
   rm -f "${KINDLE_UPDATES_DIR}/KindleForPC-installer.exe"

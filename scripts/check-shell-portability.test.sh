@@ -258,6 +258,94 @@ fi
 rm -f "$f" "$tok"
 
 # =============================================================================
+# date -d (GNU date-string parsing) -- #1510
+# =============================================================================
+
+tok="$(one_token_list 'date[[:space:]]+[^\n]*-d([[:space:]]|$)')"
+
+f="$(tmpsh 'e=$(date -u -d "$s" +%s 2>/dev/null)')"
+if out="$(scan_paths "$tok" "$f" 2>&1)"; then
+  fail "date -d should fail, got success: $out"
+else
+  ok "date -d is detected"
+fi
+rm -f "$f"
+
+f="$(tmpsh 'e=$(date -u -d "@$e" +%s 2>/dev/null)')"
+if out="$(scan_paths "$tok" "$f" 2>&1)"; then
+  fail "date -d with an @-epoch argument should fail, got success: $out"
+else
+  ok "date -d with an @-epoch argument is detected"
+fi
+rm -f "$f" "$tok"
+
+# --- a comment merely naming date -d is not flagged (construct matching skips comments)
+tok="$(one_token_list 'date[[:space:]]+[^\n]*-d([[:space:]]|$)')"
+f="$(tmpsh '# GNU date -d and BSD date -j -f are mutually exclusive dialects.')"
+if scan_paths "$tok" "$f" >/dev/null 2>&1; then
+  ok "a comment merely naming date -d is not flagged"
+else
+  fail "a comment-only mention of date -d must not fire"
+fi
+rm -f "$f" "$tok"
+
+# --- "date" as a mere substring of an identifier (e.g. "candidate") followed
+# later by an unrelated -d flag on the same line must not fire.
+tok="$(one_token_list 'date[[:space:]]+[^\n]*-d([[:space:]]|$)')"
+f="$(tmpsh 'elif [[ "$candidate" == "$base" && -d "$candidate" ]]; then')"
+if scan_paths "$tok" "$f" >/dev/null 2>&1; then
+  ok "\"date\" as a substring of \"candidate\" does not spuriously match -d"
+else
+  fail "the candidate/-d false positive must not fire"
+fi
+rm -f "$f" "$tok"
+
+# =============================================================================
+# stat -c, auto-guarded by a co-located stat -f attempt -- #1510
+# =============================================================================
+
+tok="$(one_token_list 'stat[[:space:]]+[^\n]*-c')"
+
+f="$(tmpsh 'size=$(stat -c%s "$f" 2>/dev/null)')"
+if out="$(scan_paths "$tok" "$f" 2>&1)"; then
+  fail "bare stat -c should fail, got success: $out"
+else
+  ok "bare stat -c (no stat -f attempt) is detected"
+fi
+rm -f "$f"
+
+f="$(tmpsh "dev_of() { stat -c '%d' \"\$1\" 2>/dev/null || stat -f '%d' \"\$1\" 2>/dev/null; }")"
+if scan_paths "$tok" "$f" >/dev/null 2>&1; then
+  ok "stat -c co-located with a stat -f fallback is auto-guarded"
+else
+  fail "the stat -f fallback must not be flagged"
+fi
+rm -f "$f" "$tok"
+
+# --- "stat" as a mere prefix of an identifier ("status") followed later by an
+# unrelated -c flag on the same line must not fire (git's own -c name=value).
+tok="$(one_token_list 'stat[[:space:]]+[^\n]*-c')"
+f="$(tmpsh 'run "safe alias" "git -c alias.st=status st" 0')"
+if scan_paths "$tok" "$f" >/dev/null 2>&1; then
+  ok "\"stat\" as a prefix of \"status\" does not spuriously match -c"
+else
+  fail "the status/-c false positive must not fire"
+fi
+rm -f "$f" "$tok"
+
+# --- the stat -f guard is scoped to the stat -c pattern, not the whole line
+# A line mentioning "stat -f" for an unrelated reason must not blanket-excuse a
+# DIFFERENT active token's hit on that same line.
+tok="$(one_token_list "$(printf '%s\n%s' '\\b' 'stat[[:space:]]+[^\n]*-c')")"
+f="$(tmpsh 'echo "stat -f is the BSD form"; grep -Eq "\\bfoo\\b" "$file"')"
+if out="$(scan_paths "$tok" "$f" 2>&1)"; then
+  fail "an unrelated stat -f mention should not excuse the \\b hit, got success: $out"
+else
+  ok "the stat -f guard is scoped to the stat -c pattern, not the whole line"
+fi
+rm -f "$f" "$tok"
+
+# =============================================================================
 # Opt-out annotation
 # =============================================================================
 
@@ -406,12 +494,29 @@ else
   fail "markdown-format.sh must stay clean under the shipped token list, got: $out"
 fi
 
-# --- staged (commented) classes stay inactive under the shipped list -------
-f="$(tmpsh 'x=$(date -d "$s" +%s); y=$(stat -c%s "$f"); t=$(mktemp -p "$d")')"
-if scan_paths "$REAL_TOKENS" "$f" >/dev/null 2>&1; then
-  ok "staged classes (date -d, stat -c, mktemp -p) are inactive in the shipped list"
+# --- date -d and stat -c are now ACTIVE in the shipped list (#1510) --------
+f="$(tmpsh 'x=$(date -d "$s" +%s)')"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "date -d should now be enforced by the shipped list, got success: $out"
 else
-  fail "shipped list should only enforce the active classes"
+  ok "date -d is enforced in the shipped list (#1510)"
+fi
+rm -f "$f"
+
+f="$(tmpsh 'y=$(stat -c%s "$f")')"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "stat -c should now be enforced by the shipped list, got success: $out"
+else
+  ok "stat -c is enforced in the shipped list (#1510)"
+fi
+rm -f "$f"
+
+# --- mktemp -p is the one remaining STAGED class; stays inactive (#1528) ---
+f="$(tmpsh 't=$(mktemp -p "$d")')"
+if scan_paths "$REAL_TOKENS" "$f" >/dev/null 2>&1; then
+  ok "mktemp -p is still inactive in the shipped list (staged for #1528)"
+else
+  fail "mktemp -p should stay inactive until #1528 lands"
 fi
 rm -f "$f"
 

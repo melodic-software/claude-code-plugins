@@ -51,6 +51,7 @@ write_snapshot() {
 }
 
 old_ts() { # ISO timestamp N minutes in the past
+  # portability-ok: GNU-first, BSD fallback on the continuation line below (#1510)
   date -u -d "$1 minutes ago" '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null ||
     date -u -v "-$1M" '+%Y-%m-%dT%H:%M:%SZ'
 }
@@ -120,6 +121,9 @@ done
 
 # --- Snapshot session_id must match the requested id -------------------------
 write_snapshot "$H" simposter 40
+# portability-ok: GNU sed -i (no suffix) fails on BSD; perl -pi -e below is the
+# actual portable fallback (perl's -i needs no backup-suffix argument on
+# either dialect) — not the auto-recognized -i ''/-i "" guard shape.
 sed -i 's/"session_id":"simposter"/"session_id":"someone-else"/' "$H/$CTX_REL/simposter.json" 2>/dev/null ||
   perl -pi -e 's/"session_id":"simposter"/"session_id":"someone-else"/' "$H/$CTX_REL/simposter.json"
 expect "snapshot session_id mismatch (copied/renamed file)" unknown "$H" simposter

@@ -25,9 +25,10 @@ wit_lease_json() {
 # tries BSD `-j -f` first, falls back to GNU `-d`. Returns 1 if neither parses.
 wit_iso_to_epoch() {
   local iso="$1"
-  date -j -u -f '%Y-%m-%dT%H:%M:%SZ' "$iso" '+%s' 2>/dev/null \
-    || date -u -d "$iso" '+%s' 2>/dev/null \
-    || return 1
+  date -j -u -f '%Y-%m-%dT%H:%M:%SZ' "$iso" '+%s' 2>/dev/null ||
+    # portability-ok: BSD attempt above failed (non-BSD host); GNU fallback here (#1510)
+    date -u -d "$iso" '+%s' 2>/dev/null ||
+    return 1
 }
 
 # wit_select_active_lease <lease-comment-rows-json> — from a JSON array of lease

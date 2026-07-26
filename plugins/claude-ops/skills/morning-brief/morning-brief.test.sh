@@ -18,7 +18,7 @@ fi
 # BSD/macOS (`date -j -f`) dialect, so the staleness path runs on both. Run the
 # suite whenever either dialect is present; skip only when the host has neither
 # (the age fixtures genuinely cannot be evaluated then).
-have_gnu_date() { date -u -d "2026-01-01T00:00Z" +%s >/dev/null 2>&1; }
+have_gnu_date() { date -u -d "2026-01-01T00:00Z" +%s >/dev/null 2>&1; } # portability-ok: dialect probe, BSD probe below (#1510)
 have_bsd_date() { date -u -j -f "%Y-%m-%dT%H:%MZ" "2026-01-01T00:00Z" +%s >/dev/null 2>&1; }
 if ! have_gnu_date && ! have_bsd_date; then
   echo "SKIP: no supported date dialect (need GNU 'date -d' or BSD 'date -j -f')" >&2

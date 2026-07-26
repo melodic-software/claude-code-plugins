@@ -3,6 +3,20 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.21.4]
+
+### Changed
+
+- **`morning-brief`/`observability` scripts annotated for the
+  shell-portability-lint gate's newly-active `date -d` class (#1510).** The
+  gate (#1491) began enforcing GNU `date -d` usage repo-wide; this plugin's
+  `morning-brief.sh` `to_epoch`/`from_epoch` helpers and the
+  `observability` skill's `clean.sh` cutoff-timestamp resolution are
+  already-correct dual-dialect code (GNU `date -d` tried first, BSD
+  fallback in an `else` branch or a separate statement) but not
+  same-line-guardable, so each `date -d` call site now carries a
+  `portability-ok:` annotation documenting why. No behavior change.
+
 ## [0.21.3]
 
 ### Fixed

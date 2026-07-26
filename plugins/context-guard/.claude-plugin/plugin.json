@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "context-guard",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Per-session context-window observability: a statusline wrapper tees each session's context_window fields to a per-session snapshot file, a zone resolver classifies usage into smart/acceptable/dumb bands (zones.json SSOT with shipped defaults), and a reader contract fixes how consuming sessions interpret the snapshots.",
   "author": {
     "name": "Melodic Software",

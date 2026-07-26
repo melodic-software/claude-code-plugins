@@ -86,9 +86,10 @@ HOOK_LOG="${OBS_DIR}/hook-events.jsonl"
 
 # Cutoff timestamp — ISO-8601 UTC. GNU date (Linux/Git Bash) and BSD date (macOS)
 # require different flags for relative time and epoch-to-ISO conversion.
+# portability-ok: GNU-first dual-dialect probe, BSD branch in the else below (#1510)
 if date -u -d "1 day ago" +%s >/dev/null 2>&1; then
-  CUTOFF_EPOCH=$(date -u -d "${KEEP_DAYS} days ago" +%s)
-  CUTOFF_ISO=$(date -u -d "@$CUTOFF_EPOCH" +%Y-%m-%dT%H:%M:%SZ)
+  CUTOFF_EPOCH=$(date -u -d "${KEEP_DAYS} days ago" +%s) # portability-ok: see if-guard above (#1510)
+  CUTOFF_ISO=$(date -u -d "@$CUTOFF_EPOCH" +%Y-%m-%dT%H:%M:%SZ) # portability-ok: see if-guard above (#1510)
 else
   # macOS BSD date
   CUTOFF_EPOCH=$(date -u -v-"${KEEP_DAYS}"d +%s)

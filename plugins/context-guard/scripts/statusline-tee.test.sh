@@ -301,7 +301,7 @@ fi
 HOME16B="$WORK/home16b"
 CTXDIR16B="$HOME16B/$CTX_REL"
 mkdir -p "$CTXDIR16B"
-FUTURE_TS=$(date -u -d '2 minutes' '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null || date -u -v '+2M' '+%Y-%m-%dT%H:%M:%SZ')
+FUTURE_TS=$(date -u -d '2 minutes' '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null || date -u -v '+2M' '+%Y-%m-%dT%H:%M:%SZ') # portability-ok: GNU-first, BSD fallback co-located (#1510)
 printf '{"captured_at":"%s","session_id":"sess-42","context_window":{"used_percentage":66}}\n' "$FUTURE_TS" >"$CTXDIR16B/sess-42.json"
 run "$HOME16B" "$(build_input)" cat >/dev/null
 if [[ "$(jq -r '.context_window.used_percentage' <"$CTXDIR16B/sess-42.json")" == "66" ]]; then
