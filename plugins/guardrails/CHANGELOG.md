@@ -3,6 +3,55 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.18.0]
+
+### Fixed
+
+- **A large but legitimate `Write` is no longer BLOCKED by the stdin read bound (#1563).**
+  `hook::buffer_stdin` read the hook payload with `read -d ''`, which consumes a pipe one byte at a
+  time (~32 KB/s on Git Bash), so the `stdin_read_timeout` bound was really a **~64 KB throughput
+  ceiling** rather than the stall detector it was written to be. Past that ceiling the read returned
+  a truncated payload and returned rc 2, and all seven blocking guards here — `hardcoded-path-check`,
+  `secret-pattern-detection`, `block-no-verify`, `block-dangerous-git`, `block-hook-bypass`,
+  `block-noncanonical-commit`, `block-convention-violation` — mapped that to `exit 2`, blocking a
+  write whose content was never even scanned. Observed in the field as a full-file write of an
+  844-line document being blocked repeatedly, forcing the author to write it in five chunks;
+  reproduced here end-to-end with a benign 100 KB payload.
+  The read is now chunked (`read -N`), which bash satisfies with block reads, and the bound became a
+  true **idle** bound: `read -t` is a deadline for the whole requested read rather than an inactivity
+  timer, so a timed-out read that nevertheless returned bytes is now treated as progress — its
+  partial chunk is kept and the read continues. Only the absence of bytes for a whole
+  `stdin_read_timeout` is a stall, and that still fails closed with rc 2 exactly as before. The bound
+  is read in four slices, because `read -t` reports only that its window expired and never when
+  inside it the last byte arrived — armed as one window, a stall would be declared anywhere between
+  one and *two* bounds after the pipe went quiet. Slicing caps that overshoot at a quarter-bound;
+  that residual quarter is the limit of the approximation and always errs toward waiting. Slicing
+  needs fractional `read -t`, so on a shell without it (Bash 3.2, the macOS system shell) the bound
+  is read as one window and the one-to-two-bound overshoot remains — documented as such rather than
+  claimed away. Reading on
+  stops once the buffer already parses as whole JSON, so the Win32 late-EOF case (payload complete,
+  pipe simply never closed) settles at the payload rather than at the bound. Measured: 50 KB drops
+  from ~2100 ms to ~20 ms, 200 KB from ~6800 ms to ~85 ms.
+  `read -N` is Bash 4.1+, and these hooks support Bash 3.2+ (macOS system bash), so the pre-4.1 path
+  falls back to the delimiter read inside the same re-arming loop — same guard and rationale as
+  `context-guard`'s `statusline-tee.sh`.
+  **The fail-closed posture is unchanged** — a stalled pipe still yields rc 2 (regression test in
+  `lib/hook-utils.test.sh`), a payload containing a violation is still blocked, and a violation
+  sitting at the very end of a 200 KB payload is now *caught* rather than swept up in a
+  content-blind block. Synced from `lib/hook-utils.sh`.
+
+### Added
+
+- **`stdin_read_timeout` userConfig option.** This plugin's hooks already read
+  `CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT` through the shared library but never declared the option,
+  so consumers had no supported way to set it — `actionlint` and `claude-ops` both declare it.
+  Declaring it exposes the same knob here. The effective default when a consumer sets nothing remains
+  the shell-level `:-2` fallback inside `hook-utils.sh`. A configured value the running shell's
+  `read -t` will not accept — including a fractional value on a Bash release that has no fractional
+  timeouts — falls back to that default instead of failing every read, and `0` is rejected outright
+  because it would make `read` return without consuming anything. Acceptance is settled by probing
+  the running shell rather than a Bash version table.
+
 ## [0.17.3]
 
 ### Changed

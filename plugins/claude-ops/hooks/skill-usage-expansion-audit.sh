@@ -44,7 +44,9 @@ SKILL=$(hook::jq_field "$INPUT" '.command_name') || exit 0
 SKILL="${SKILL#/}"
 
 # Optional: slash_command | mcp_prompt. Recorded when present, never gated on.
-EXP_TYPE=$(jq -r '(.expansion_type // empty) | gsub("\r";"")' <<<"$INPUT" 2>/dev/null)
+# Fed through `printf | jq` rather than a here-string: bash fills a here-string's
+# pipe itself, so a payload at or above the pipe capacity blocks before jq runs.
+EXP_TYPE=$(printf '%s' "$INPUT" | jq -r '(.expansion_type // empty) | gsub("\r";"")' 2>/dev/null)
 
 # --- Second store: skill-usage.jsonl (unconditional) ------------------------
 project_dir=$(hook::repo_root "${CLAUDE_PROJECT_DIR:-.}")
