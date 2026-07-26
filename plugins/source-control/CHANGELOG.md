@@ -19,12 +19,15 @@ All notable changes to the `source-control` plugin are documented here. Format f
   `request_review.py` — still inherited the default. All nine now set `allow_abbrev=False`.
 
   Hardening them one at a time is what let the gap persist, so the guard contract gains a gate over
-  the whole catalogue: every Python entry point is invoked with `--hel` and must not exit 0.
-  `--help` is registered on every parser, and it short-circuits parsing — so an abbreviation that
-  resolves exits 0 before required-argument validation runs, while one that does not is a usage
-  error. That makes the exit code a sufficient discriminator without a per-CLI argument shape, and
-  a companion test asserts the discrimination against argparse itself rather than assuming it. A
-  tenth entry point arriving with the default now fails CI instead of shipping.
+  the whole catalogue: every Python entry point is invoked with an unambiguous three-character
+  prefix of `--help` and must not exit 0. `--help` is registered on every parser, and it
+  short-circuits parsing — so an abbreviation that resolves exits 0 before required-argument
+  validation runs, while one that does not is a usage error. That makes the exit code a sufficient
+  discriminator without a per-CLI argument shape, and a companion test asserts the discrimination
+  against argparse itself rather than assuming it. Three characters because
+  `manage_babysit_lease.py` also registers `--heartbeat-interval-seconds`, so a shorter prefix is
+  ambiguous there and exits 2 regardless — the probe would have passed on that entry point while
+  proving nothing. A tenth entry point arriving with the default now fails CI instead of shipping.
 
   Abbreviated invocations that previously worked are now usage errors, which is the point.
 

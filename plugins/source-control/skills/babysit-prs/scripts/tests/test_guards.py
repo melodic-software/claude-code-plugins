@@ -373,12 +373,19 @@ class NoParserResolvesAnAbbreviation(unittest.TestCase):
     resolver were hardened individually; the property belongs to the directory,
     because the next entry point inherits the default unless something fails.
 
-    `--hel` is the universal probe: argparse registers `--help` on every parser
-    here, so with abbreviation on it resolves and exits 0, and with abbreviation
-    off it is an unrecognized argument at exit 2. No per-CLI argument shape is
-    needed, which is what makes this a gate over the catalogue rather than a
-    hand-maintained list of cases.
+    ABBREVIATION_PROBE is the universal one: argparse registers `--help` on every
+    parser here, so with abbreviation on it resolves and exits 0, and with
+    abbreviation off it is an unrecognized argument at exit 2. No per-CLI
+    argument shape is needed, which is what makes this a gate over the catalogue
+    rather than a hand-maintained list of cases.
+
+    Three characters, not one or two: `manage_babysit_lease.py` also registers
+    `--heartbeat-interval-seconds`, so a shorter prefix is AMBIGUOUS there and
+    exits 2 even with abbreviation on -- the probe would pass on that entry point
+    while proving nothing.
     """
+
+    ABBREVIATION_PROBE = "--hel"  # spellchecker:disable-line
 
     def test_every_python_entry_point_refuses_an_abbreviated_flag(self) -> None:
         catalogued = [
@@ -388,7 +395,11 @@ class NoParserResolvesAnAbbreviation(unittest.TestCase):
         for path in catalogued:
             with self.subTest(entry_point=path):
                 proc = subprocess.run(
-                    [sys.executable, str(contract.plugin_path(path)), "--hel"],
+                    [
+                        sys.executable,
+                        str(contract.plugin_path(path)),
+                        self.ABBREVIATION_PROBE,
+                    ],
                     capture_output=True,
                     text=True,
                     cwd=tempfile.gettempdir(),
@@ -396,7 +407,7 @@ class NoParserResolvesAnAbbreviation(unittest.TestCase):
                 self.assertNotEqual(
                     proc.returncode,
                     0,
-                    f"`{path}` resolved the abbreviation `--hel` to `--help` and"
+                    f"`{path}` resolved `{self.ABBREVIATION_PROBE}` to `--help` and"
                     " exited 0; its parser needs allow_abbrev=False",
                 )
 
@@ -412,7 +423,7 @@ class NoParserResolvesAnAbbreviation(unittest.TestCase):
         strict = argparse.ArgumentParser(prog="probe", allow_abbrev=False)
         strict.add_argument("--required-thing", required=True)
         with self.assertRaises(SystemExit) as refused:
-            strict.parse_args(["--hel"])
+            strict.parse_args([self.ABBREVIATION_PROBE])
         self.assertEqual(refused.exception.code, 2)
 
         lenient = argparse.ArgumentParser(prog="probe")
@@ -420,7 +431,7 @@ class NoParserResolvesAnAbbreviation(unittest.TestCase):
         # The resolved `--help` prints to stdout; keep it out of the test log.
         with contextlib.redirect_stdout(io.StringIO()):
             with self.assertRaises(SystemExit) as resolved:
-                lenient.parse_args(["--hel"])
+                lenient.parse_args([self.ABBREVIATION_PROBE])
         self.assertEqual(resolved.exception.code, 0)
 
 
