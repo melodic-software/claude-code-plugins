@@ -1,5 +1,16 @@
 # Changelog — ecosystem-commands convention
 
+## 1.2.1 — 2026-07-25
+
+Docs-only, no schema shape change: `examples/go.yaml` gains a clearly-commented illustrative gate
+(`proto-gen-freshness`) demonstrating the `run-from: repo-root` shape added in 1.2.0 — no bundled
+default or example repo needs it yet, so it is documentation, not a functioning gate. Its
+`trigger-globs` (`*.proto`, `buf.gen.yaml`) are also added to the file's own `globs`, per the 1.1.1
+reachability rule, so the worked example is actually reachable under auto-targeting rather than
+silently unfired. Deferred from melodic-software/claude-code-plugins#1361 via #1462 (a
+documentation-depth finding from #1460's review): a worked `run-from: repo-root` example was still
+missing.
+
 ## 1.2.0 — 2026-07-25
 
 Additive: optional `gates[].run-from` key (`"ecosystem"` default | `"repo-root"`) — lets a gate

@@ -1,6 +1,6 @@
 # Example .claude/ecosystems/go.yaml — a consuming repo's Go command surface.
 # Contract: docs/conventions/ecosystem-commands/README.md (schema: ecosystem.schema.json).
-globs: ["*.go", "go.mod", "go.sum"]
+globs: ["*.go", "go.mod", "go.sum", "*.proto", "buf.gen.yaml"]
 project-discovery: ["go.mod"]
 build-cmd: "go build ./..."
 test-cmd: "go test ./..."
@@ -13,4 +13,20 @@ gates:
     cmd: "go mod tidy -diff"
     trigger-globs: ["go.mod", "go.sum", "*.go"]
     remediation: "Run go mod tidy and commit the updated go.mod/go.sum. (go mod tidy -diff requires Go 1.23+; an older toolchain rejects the flag, so the gate reports skip rather than drift.)"
+  # Illustrative only — no bundled default or example repo currently needs this gate (see the
+  # ecosystem-commands CHANGELOG 1.2.0 entry and #1361's Trigger: "revisit when a consumer needs a
+  # repo-wide gate ... or when a bundled default wants one"). Shown here purely to document the
+  # `run-from: repo-root` shape (README.md "Gate execution scope"): this ecosystem declares
+  # `project-discovery: ["go.mod"]`, so without `run-from: repo-root` a repo-wide check like
+  # protobuf-generated-code freshness would run once per discovered go.mod root instead of once
+  # from $REPO_ROOT — redundant at best, failing in roots that lack a buf.gen.yaml at worst.
+  # `*.proto`/`buf.gen.yaml` are added to this file's own `globs` above (not just this gate's
+  # `trigger-globs`) per the 1.1.1 reachability rule — trigger-globs alone never selects an
+  # ecosystem under auto-targeting, so without that `globs` entry a change touching only `.proto`
+  # files would never reach this gate outside `/toolchain:check go` or `check all`.
+  - name: proto-gen-freshness
+    cmd: "buf generate && git diff --exit-code -- '*.pb.go'"
+    trigger-globs: ["*.proto", "buf.gen.yaml"]
+    run-from: repo-root
+    remediation: "Run buf generate from the repo root and commit the regenerated *.pb.go files."
 notes: "govulncheck is intentionally not a rung-4 default (per the epic brief's \"optional\" framing) — add it as a consumer-local gate via .claude/ecosystems/go.local.yaml if desired."
