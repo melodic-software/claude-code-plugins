@@ -41,6 +41,16 @@ import json
 import sys
 from pathlib import Path
 
+# `object_pairs_hook` itself has no meaningful version floor (it has existed
+# since Python 2.7), but this file's own syntax does: `from __future__ import
+# annotations` above requires 3.7+ (PEP 563) and fails as a SyntaxError at
+# PARSE time on an older interpreter -- before any runtime check in this file
+# could ever run. The sibling check-manifest-duplicate-keys.test.sh therefore
+# parses this tuple via a plain text match (never by executing this file) to
+# pick a qualifying interpreter BEFORE invoking it, rather than accepting the
+# first `python`/`python3` it finds and hard-failing on an old one.
+MIN_PYTHON = (3, 7)
+
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
 # Same file set the hygiene job's schema-validation steps already cover
