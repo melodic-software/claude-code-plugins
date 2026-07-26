@@ -218,13 +218,18 @@ class LedgerAndRetention(unittest.TestCase):
             self.assertNotIn("--bare", cmd)
             self.assertIsNotNone(ob._find_session_ledger())
 
-    def test_analysis_subprocess_utf8_and_windowless_on_windows(self):
+    def test_analysis_subprocess_encoding_and_creationflags(self):
         # #1472: the analysis subprocess.run must (a) always decode captured
-        # output as UTF-8 explicitly -- claude -p writes UTF-8, but Python's
-        # default text encoding is the platform code page (cp1252 on Windows),
-        # which corrupted non-ASCII ledger entries into mojibake -- and (b) on
-        # Windows only, pass CREATE_NO_WINDOW so the run doesn't flash a console
-        # window, matching arm_observer.py's spawn_detached windowless spawn.
+        # output as UTF-8 explicitly, with errors="replace" so a truncated
+        # byte sequence decodes rather than raising past the try block's
+        # TimeoutExpired/OSError handling -- claude -p writes UTF-8, but
+        # Python's default text encoding is the platform code page (cp1252 on
+        # Windows), which corrupted non-ASCII ledger entries into mojibake --
+        # and (b) on Windows only, pass CREATE_NO_WINDOW so the run doesn't
+        # flash a console window, matching arm_observer.py's spawn_detached
+        # windowless spawn. Runs on every platform: the encoding/errors
+        # assertions are unconditional, and the creationflags assertion
+        # branches on the real os.name rather than skipping off-Windows.
         with tempfile.TemporaryDirectory() as d:
             tmp = Path(d)
             ob = make_observer(tmp, analysis=True, session_id="enc")
@@ -248,10 +253,12 @@ class LedgerAndRetention(unittest.TestCase):
                 self.assertTrue(ob._run_analysis())
             finally:
                 observer._find_claude, observer.subprocess.run = of, orr
-            # encoding="utf-8" is unconditional -- required on every platform,
-            # not just Windows (Linux/mac default UTF-8 already, but explicit
-            # beats implicit and keeps behavior identical everywhere).
+            # encoding="utf-8" and errors="replace" are unconditional --
+            # required on every platform, not just Windows (Linux/mac default
+            # UTF-8 already, but explicit beats implicit and keeps behavior
+            # identical everywhere).
             self.assertEqual(captured.get("encoding"), "utf-8")
+            self.assertEqual(captured.get("errors"), "replace")
             if os.name == "nt":
                 # CREATE_NO_WINDOW only -- not DETACHED_PROCESS/CREATE_NEW_PROCESS_GROUP,
                 # which are for escaping the parent's process tree and unneeded for a

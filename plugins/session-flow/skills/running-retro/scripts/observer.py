@@ -479,8 +479,14 @@ class Observer:
             # json` always writes UTF-8, but Python's default text encoding for
             # subprocess capture is the platform code page -- cp1252 on Windows --
             # which corrupts non-ASCII output (mojibake) into the ledger.
+            # errors="replace" (rather than the default "strict") keeps a
+            # truncated/invalid byte sequence -- e.g. multi-byte UTF-8 split at
+            # a timeout boundary during decode -- from raising UnicodeDecodeError
+            # out of this try block, which is caught only for
+            # TimeoutExpired/OSError; an uncaught decode error would skip the
+            # designed "return False -> retain observations" fallback entirely.
             proc = subprocess.run(cmd, input=prompt, capture_output=True, text=True,
-                                  encoding="utf-8", env=env,
+                                  encoding="utf-8", errors="replace", env=env,
                                   timeout=self.analysis_timeout_secs, **run_kwargs)
         except (subprocess.TimeoutExpired, OSError) as e:
             self.log(f"analysis run failed: {e}")
