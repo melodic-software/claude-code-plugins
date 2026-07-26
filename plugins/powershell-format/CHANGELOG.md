@@ -36,7 +36,11 @@ All notable changes to the `powershell-format` plugin are documented here. Forma
   `Import-Module`/`Add-Type`/`Invoke-Expression`-class command) rather than from
   a text pattern, so it cannot be evaded by quoting or comment placement and
   needs no file-extension guessing — the extensionless
-  `Import-Module "$root/MyModule"` form is caught without one. A target the
+  `Import-Module "$root/MyModule"` form is caught without one. A loader fed by a
+  PIPELINE is refused too: it takes its source from the upstream element rather
+  than from its own arguments, so `Get-Content (Join-Path $PSScriptRoot deps
+  helper.ps1) -Raw | Invoke-Expression` would otherwise present nothing but a
+  constant command name to inspect. A target the
   parser accepts is pinned from the parser too, not left to the quoted-literal
   scan: PowerShell does not require quotes around a command argument, so
   `. $PSScriptRoot\helper.ps1` would otherwise be judged pinnable and then never

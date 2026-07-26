@@ -622,7 +622,9 @@ done
 #   bareimport Import-Module with no extension, so extension matching cannot see it
 #   lookalike  a DIFFERENT variable whose name merely starts with PSScriptRoot,
 #              which an unbounded expansion would rewrite and then call pinnable
-for form in composed envvar othervar bareimport lookalike; do
+#   pipeline   the loader takes its source from the UPSTREAM pipeline element,
+#              so its own arguments are just a constant command name
+for form in composed envvar othervar bareimport lookalike pipeline; do
   cp "$REPO_CRP/rules/CleanRules.psm1" "$WORK/CleanRules.psm1.bak"
   case "$form" in
   composed)
@@ -653,6 +655,11 @@ EOF
     cat >>"$REPO_CRP/rules/CleanRules.psm1" <<'EOF'
 $PSScriptRootFoo = $env:PSSA_ALT_ROOT
 . "$PSScriptRootFoo/helper.ps1"
+EOF
+    ;;
+  pipeline)
+    cat >>"$REPO_CRP/rules/CleanRules.psm1" <<'EOF'
+Get-Content (Join-Path $PSScriptRoot "deps" "PipeSrc.ps1") -Raw | Invoke-Expression
 EOF
     ;;
   *) fail "unknown unpinnable fixture: $form" ;;

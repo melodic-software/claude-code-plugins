@@ -22,7 +22,11 @@ All notable changes to the `markdown-format` plugin are documented here. Format 
   change to the configuration or to a referenced repository module — e.g. a
   branch switch swapping rule-module bytes under an unchanged config — revokes
   the approval; the gate fails closed when `CLAUDE_PLUGIN_DATA` is unavailable
-  or the module scan overflows its bound. Module-key detection in declarative
+  or the module scan overflows its bound. A reference that RESOLVES outside the
+  repository — a symlink aimed out of the tree, or a `../` escape — refuses
+  approval rather than being skipped: no signature over repository content can
+  cover it, so re-aiming the symlink at a different existing external target
+  would otherwise leave the approval valid while Node follows the new one. Module-key detection in declarative
   configs is a fail-closed textual over-approximation rather than a second
   parser (which would only open a differential-parsing gap against
   markdownlint-cli2's own parser): the literal key words anywhere in the file

@@ -474,7 +474,20 @@ collect_module_files() {
           fi
           case "$resolved" in
           "$CONFIG_ROOT"/*) ;;
-          *) continue ;;
+          *)
+            # A repository path that RESOLVES outside the repository — a symlink
+            # aimed out of the tree, or a `../` escape — names code no signature
+            # over repository content can cover: the approval state is unchanged
+            # when the external target changes, or when the symlink is re-aimed
+            # at a different existing target, yet Node follows it and executes
+            # the new code. Hashing the external file instead would extend the
+            # signature beyond the repository the approval is scoped to, so the
+            # state is refused rather than signed. CONFIG_ROOT is itself a
+            # physical path (`pwd -P`), so this compares like with like and a
+            # symlinked checkout does not read as an escape.
+            RISK_UNPINNABLE=1
+            return 1
+            ;;
           esac
           case "$seen_module" in
           *$'\n'"$resolved"$'\n'*) ;;

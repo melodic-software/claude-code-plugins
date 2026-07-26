@@ -369,6 +369,21 @@ PSSA_OUTPUT=$(PSSA_FILE="$PSSA_FILE_ARG" PSSA_SETTINGS="$PSSA_SETTINGS_ARG" \
                             $loaders -contains $cmdName
                     }
                     if (-not $isLoad) { continue }
+                    # A loader fed by a PIPELINE takes its source from the
+                    # upstream element, not from its own arguments, so the loop
+                    # below would see only a constant command name and accept:
+                    # Get-Content (Join-Path $PSScriptRoot deps helper.ps1) | iex
+                    # executes a file this scan never reconstructs, and
+                    # Get-ChildItem *.psm1 | Import-Module has the same shape.
+                    # Anything but the first element of its own pipeline is
+                    # refused.
+                    if ($null -ne $cmdAst.Parent -and
+                        $cmdAst.Parent -is [System.Management.Automation.Language.PipelineAst] -and
+                        $cmdAst.Parent.PipelineElements.Count -gt 1 -and
+                        -not [object]::ReferenceEquals($cmdAst.Parent.PipelineElements[0], $cmdAst)) {
+                        Write-Output "PSSA_TRUST UNPINNABLE"
+                        exit 6
+                    }
                     foreach ($el in $cmdAst.CommandElements) {
                         if ($el -is [System.Management.Automation.Language.CommandParameterAst]) { continue }
                         if ($el -is [System.Management.Automation.Language.StringConstantExpressionAst]) {

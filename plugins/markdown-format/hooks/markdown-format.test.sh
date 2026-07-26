@@ -965,6 +965,70 @@ else
 fi
 rm -rf "$REPO/rules"
 
+# The same escape without needing symlink support: a `../` reference reaching a
+# file outside the repository. Runs on every host, so the branch stays covered
+# where the symlink fixture below has to skip.
+mkdir -p "$WORK/outside-repo"
+printf '%s
+' 'module.exports = { names: ["a"], description: "x", tags: [], function: () => {} };' >"$WORK/outside-repo/ext.cjs"
+cat >"$ORIGINAL_CONFIG" <<'JSONC'
+{
+  "config": { "MD013": false },
+  "customRules": ["../outside-repo/ext.cjs"],
+  "noBanner": true,
+  "noProgress": true
+}
+JSONC
+printf '# Executable config
+
+Clean text.' >"$TRUST_FILE"
+OUT_ESCAPE_REL="$(cd "$UNRELATED" && printf '{"session_id":"dotdot-escape","tool_input":{"file_path":"%s"}}' "$TRUST_FILE" |
+  env -u CLAUDE_PROJECT_DIR CLAUDE_PLUGIN_DATA="$TRUST_DATA" CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true bash "$HOOK")"
+if printf '%s' "$OUT_ESCAPE_REL" | jq -e '(.systemMessage | contains("trust gate") and contains("cannot pin")) and (.systemMessage | contains("mkdir -p") | not)' >/dev/null 2>&1 &&
+  ! has_final_newline "$TRUST_FILE"; then
+  ok "module reference escaping the repository refuses approval"
+else
+  fail "out-of-repository module reference was not refused: $OUT_ESCAPE_REL"
+fi
+rm -f "$ORIGINAL_CONFIG"
+rm -rf "$WORK/outside-repo"
+
+# A repository module symlink whose target resolves OUTSIDE the repository names
+# code no repository-content signature can cover: re-aiming the symlink at a
+# different existing external target leaves the signature identical while Node
+# follows the new one. Such a state must refuse approval rather than sign it.
+if OUTSIDE_DIR="$(mktemp -d)" &&
+  printf '%s
+' 'module.exports = { names: ["a"], description: "x", tags: [], function: () => {} };' >"$OUTSIDE_DIR/ext.cjs" &&
+  mkdir -p "$REPO/rules" &&
+  ln -s "$OUTSIDE_DIR/ext.cjs" "$REPO/rules/escaping.cjs" 2>/dev/null &&
+  [[ -L "$REPO/rules/escaping.cjs" ]]; then
+  cat >"$ORIGINAL_CONFIG" <<'JSONC'
+{
+  "config": { "MD013": false },
+  "customRules": ["./rules/escaping.cjs"],
+  "noBanner": true,
+  "noProgress": true
+}
+JSONC
+  printf '# Executable config
+
+Clean text.' >"$TRUST_FILE"
+  OUT_ESCAPE_LINK="$(cd "$UNRELATED" && printf '{"session_id":"symlink-escape","tool_input":{"file_path":"%s"}}' "$TRUST_FILE" |
+    env -u CLAUDE_PROJECT_DIR CLAUDE_PLUGIN_DATA="$TRUST_DATA" CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true bash "$HOOK")"
+  if printf '%s' "$OUT_ESCAPE_LINK" | jq -e '(.systemMessage | contains("trust gate") and contains("cannot pin")) and (.systemMessage | contains("mkdir -p") | not)' >/dev/null 2>&1 &&
+    ! has_final_newline "$TRUST_FILE"; then
+    ok "module symlink resolving outside the repository refuses approval"
+  else
+    fail "out-of-repository module symlink was not refused: $OUT_ESCAPE_LINK"
+  fi
+  rm -f "$ORIGINAL_CONFIG"
+  rm -rf "$REPO/rules" "$OUTSIDE_DIR"
+else
+  echo "SKIP: host cannot create real symlinks for the escape fixture"
+  rm -rf "$REPO/rules" "${OUTSIDE_DIR:-}"
+fi
+
 # Negative control: a declarative rule-only config is not executable and loads
 # no modules, so linting proceeds immediately with no gate noise.
 mv "$SAVED_CONFIG" "$ORIGINAL_CONFIG"
