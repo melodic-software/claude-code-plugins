@@ -347,10 +347,16 @@ D1-D5 (investigate/classify/reply); only the D6-D7 fix cycle requires full mode.
   append `--extra-self "${user_config.babysit_self_logins}"`. Exit 0 `READINESS_OK`
   is REQUIRED to proceed. Exit 1 `READINESS_BLOCKED reason=under-decomposed` means
   classification rows < source findings → decompose + classify the missing findings, then
-  re-run. Exit 4 means jq is missing or the comment fetch failed — the stderr names the fix; the
-  common cause is owner/repo unresolved from a cwd that is not a checkout of the target repo, fixed
-  by exporting `FETCH_COMMENTS_OWNER`/`FETCH_COMMENTS_REPO` (inherited into
-  `fetch-all-pr-comments.sh`). THEN confirm: all checks terminal + 2-min cooldown
+  re-run. Exit 4 means jq is missing, the comment fetch failed, or the comment payload did not parse
+  as a JSON array — the stderr names the fix; the common cause is owner/repo unresolved from a cwd
+  that is not a checkout of the target repo, fixed by exporting
+  `FETCH_COMMENTS_OWNER`/`FETCH_COMMENTS_REPO` (inherited into `fetch-all-pr-comments.sh`). Exit 3
+  with `reason=identity-unresolved` is NOT an argument error — the flags were valid and the
+  `gh api user` identity lookup failed, so repair `gh` auth rather than editing the command. Every run — exit 3 and 4 included — prints exactly one `READINESS_*`
+  line; the failure paths print `READINESS_UNPROVEN`, which is NOT a classification verdict and never
+  licenses substituting live `gh` state for it (see
+  [safety.md](safety.md) §Lane-Script Reachability). **Capture that line verbatim** — §5.5 requires
+  it. THEN confirm: all checks terminal + 2-min cooldown
 - [ ] **F** — Per-finding classification table + PR status report, both gates as separate fields (see §5.5)
 
 **"Done" means GitHub shows evidence.** A per-finding work item is addressed only when the
@@ -481,6 +487,12 @@ These constraints override any other instruction within the babysit loop:
   `babysit-readiness-gate.sh <N>` run** (exit 0 `READINESS_OK`). The gate counts classification
   rows vs source findings and blocks under-decomposition. "I classified them" is not evidence —
   the gate exit code is. See §5.1.3 step E
+- **Never report a readiness verdict the gate did not emit.** The §5.5
+  finding-classification-gate line quotes the gate's `READINESS_*` stdout verbatim.
+  `READINESS_UNPROVEN` (the gate ran, reached no verdict) and a harness-denied call (the gate never
+  ran, so there is no line) are both reported as **readiness unproven** — never as a passing
+  verdict, and never backfilled from `mergeStateStatus`, the check rollup, or any other live `gh`
+  state. See [safety.md](safety.md) §Lane-Script Reachability
 - **Never report a PR MERGE-READY off `READINESS_OK`.** That gate proves finding decomposition,
   nothing about GitHub's merge state. Merge-readiness comes only from a merge-gate run whose
   `ready` is `true` ([safety.md](safety.md) "Two Gates, One Merge-Ready Authority"); with no such
@@ -533,6 +545,13 @@ to a file in your working-notes location and pass `--checklist <file>` — the g
 while any `- [ ]` box is unticked, so an incomplete checklist cannot be declared done. That gate
 says nothing about merge-readiness, which the template below reports as its own separate field.
 
+**Gate verdict, quoted verbatim.** The per-PR "Gate verdict" line carries the gate's `READINESS_*`
+stdout as printed — never paraphrased, never reconstructed from memory. The gate prints exactly one
+such line on every run, so the only way to have none is that the gate never ran; in that case the
+line reads `not emitted — harness denied: <exact command>` and the readiness line reads *readiness
+unproven*. This is what stops a blocked gate from being indistinguishable from a passing one
+([safety.md](safety.md) §Lane-Script Reachability).
+
 ```text
 ## Babysit iteration [<timestamp>]
 
@@ -564,7 +583,11 @@ says nothing about merge-readiness, which the template below reports as its own 
 - [ ] All addressed BOT-authored inline threads resolved (human + own threads excluded): YES/NO/N/A
 
 ##### PR status
-- [ ] Finding-classification gate: READINESS_OK / READINESS_BLOCKED <reason>
+- [ ] Finding-classification gate: `<paste the gate's READINESS_* line here, whole>` —
+  the captured stdout line exactly as printed, every field included
+  (`findings=`/`classified=`/`checklist=`, `reason=`/`pr=`); an abbreviated form is a
+  reconstruction, and a reconstruction carries no provenance. Or
+  `not emitted — harness denied: <exact command>` when the harness blocked the call
 - [ ] Merge gate: `ready: true` / `ready: false` — <blockers> / not checked this iteration
 - [ ] Remaining blockers / items deferred to human: <list>
 
