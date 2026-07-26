@@ -3867,16 +3867,23 @@ class GuardTests(unittest.TestCase):
         can deliver the complete JSON payload but delay the EOF signal — a
         late-EOF stall with nothing armed to bound it would run past the
         declared hook `timeout` toward the harness's own non-blocking kill,
-        the same shape #1423 exists to close. Wiring check via call order, no
-        real stdin stall or timer thread.
+        the same shape #1423 exists to close. Wiring check via a mocked
+        `Timer`, no real stdin stall or timer thread — the invariant is
+        asserted from inside the read spy itself (not derived from a
+        call-order list after the fact), so a future second `json.load` call
+        earlier in the path could not silently satisfy it.
+        `test_stdin_stall_denies_at_exit_2_via_real_watchdog` below proves the
+        actual outcome (a real stalled read really exits 2) that this wiring
+        check cannot.
         """
         fake_timer = mock.Mock()
-        call_order: list[str] = []
-        fake_timer.start.side_effect = lambda: call_order.append("watchdog_start")
         real_load = guard.json.load
 
         def _spy_load(*args: object, **kwargs: object) -> object:
-            call_order.append("stdin_read")
+            self.assertTrue(
+                fake_timer.start.called,
+                "watchdog must already be armed before the stdin read begins",
+            )
             return real_load(*args, **kwargs)
 
         with (
@@ -3885,7 +3892,48 @@ class GuardTests(unittest.TestCase):
         ):
             exit_code, _stdout, _stderr = self._invoke_guard_raw("rm -rf /tmp/example")
         self.assertEqual(0, exit_code)
-        self.assertEqual(["watchdog_start", "stdin_read"], call_order)
+        fake_timer.start.assert_called_once()
+
+    def test_stdin_stall_denies_at_exit_2_via_real_watchdog(self) -> None:
+        """Prove the OUTCOME on a real stalled stdin read, not just wiring order.
+
+        Spawns the real script (mirroring
+        `test_watchdog_fire_hard_exits_2_with_diagnostic_never_1`'s
+        real-subprocess approach) with stdin opened as a pipe that is never
+        written to or closed — the general "blocked in read" shape a Windows
+        Win32-pipe late EOF produces, and one this test's host (whatever CI
+        runs it on) can reproduce without needing an actual Win32 pipe. This
+        fails against the pre-fix ordering (watchdog armed only after the
+        stdin read returned): that code would hang past the deadline instead
+        of denying, which
+        `test_main_arms_watchdog_before_reading_stdin`'s mocked `Timer` can
+        never demonstrate.
+        """
+        env = dict(os.environ)
+        env[guard._WATCHDOG_ENV_VAR] = "1"
+        with subprocess.Popen(
+            [self.python_command(), str(SCRIPT_DIR / "destructive_guard.py")],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            env=env,
+        ) as proc:
+            try:
+                proc.wait(timeout=20)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+                proc.wait()
+                self.fail(
+                    "guard did not exit within the watchdog deadline on a "
+                    "stalled stdin read — the pre-fix fail-open regression"
+                )
+            stdout = proc.stdout.read()
+            stderr = proc.stderr.read()
+        self.assertEqual(2, proc.returncode)
+        self.assertNotEqual(1, proc.returncode)
+        self.assertIn("internal deadline", stderr)
+        self.assertEqual("", stdout)
 
     def test_main_cancels_watchdog_even_when_decide_raises(self) -> None:
         """The `finally` must cancel the timer on the exit-2 path too, so a

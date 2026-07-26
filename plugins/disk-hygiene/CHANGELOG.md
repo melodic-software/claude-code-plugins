@@ -72,7 +72,10 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
   at all, so the declared hook `timeout` would fire first and the harness would cancel the hook with
   no `permissionDecision`, the exact non-blocking fail-open #1423 exists to close. The watchdog now
   arms as the first action inside `main`'s fail-closed boundary, before the stdin read. All three
-  paths are covered by new `GuardTests` cases (206 tests pass).
+  paths are covered by new `GuardTests` cases, including a real-subprocess test with stdin opened as
+  a pipe that is never written to or closed (a stalled read on the host running the suite, not only a
+  Windows Win32-pipe late EOF, reproducing the general "blocked in read" shape without needing that
+  platform specifically); 207 tests pass.
 
 ## [0.9.4]
 
