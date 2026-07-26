@@ -61,13 +61,18 @@ Report the effective concern and the guard result as a PASS/FAIL/INFO table. Do 
      blocked the invoking turn and the narrow background tool set did not apply to it. Report the
      observed version and, when it is under the floor, name which of those the session does not have.
      The skills still run — inline is always available — so this is INFO, not FAIL.
-   - **`CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH`** — present or absent. Absent is INFO plus the
-     recommendation to set it (`"5"` matches the default depth that applied through 2.1.216), because
-     it only buys **throughput**: without it a dispatched agent fans out sequentially — slower, same
-     coverage. Note the variable is one of **two** conditions: it lifts the harness filter that
-     removes `Agent` from every non-fork subagent, but it cannot add a tool an agent definition left
-     out. The shipped `discovery:explorer` / `discovery:researcher` definitions list `Agent` for
-     exactly this reason; a third-party agent that does not is unaffected by setting it. It is not a correctness prerequisite here, because the one control that needs a context
+   - **`CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH`** — report the value, present or absent, and say what
+     the running harness does with it rather than assuming. This default has moved three times:
+     nesting shipped at a fixed five layers (2.1.172), went **off** by default (2.1.217), then
+     returned at **a configurable default of three** (2.1.219) — so on 2.1.219 or later, absent
+     means nesting is *available*, and the variable now lowers the ceiling (`"1"` disables nesting)
+     as readily as it raises one. Below 2.1.217, absent also meant available. Only in the
+     2.1.217–2.1.218 window did absent mean *off*. Report absent as INFO either way: nesting buys
+     **throughput**, not coverage — without it a dispatched agent fans out sequentially, slower for
+     the same result. The variable is still only one of **two** conditions: it cannot add a tool an
+     agent definition left out. The shipped `discovery:explorer` / `discovery:researcher` definitions
+     list `Agent` for exactly this reason; a third-party agent that does not is unaffected by setting
+     it. It is not a correctness prerequisite here, because the one control that needs a context
      which has not seen the work is the outcome-gate verifier, and the parent dispatches that as a
      **sibling** rather than the agent as a child. Note that env vars are read at session start, so a
      value set now takes effect next session.

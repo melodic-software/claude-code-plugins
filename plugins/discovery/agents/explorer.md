@@ -72,11 +72,14 @@ existing repo file in a single call. It does **not** make you read-only, and it 
 mechanically enforce the memory-tier boundary. The boundary above holds by instruction. Honor it
 deliberately.
 
-`Agent` is listed, but **listing is necessary and not sufficient**: the harness filters it out of
-every non-fork subagent unless `CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH` is set in the session. Both
-conditions must hold, which is why your dispatch prompt carries a nesting flag rather than leaving
-you to infer one — and why you check whether the tool is actually there rather than treating the
-flag as a guarantee.
+`Agent` is listed, but **listing is necessary and not sufficient**: the harness also has to be
+allowing nested spawning at your depth, and that default has moved repeatedly (fixed five layers,
+then off, then a configurable default of three as of Claude Code v2.1.219 — tunable via
+`CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH`, which now *lowers* the ceiling as readily as it raises one).
+Both conditions must hold, which is why your dispatch prompt carries a nesting flag rather than
+leaving you to infer one — and why you check whether the tool is **actually there** rather than
+treating either the flag or a version number as a guarantee. A spawn that comes back denied is not
+an answer about depth: spawns are permission-classified before launch, so read the error text.
 
 ## Untrusted-content posture (standing instruction)
 
