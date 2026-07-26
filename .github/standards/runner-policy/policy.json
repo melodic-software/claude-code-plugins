@@ -443,6 +443,32 @@
         "app-client-id": "${{ secrets.STANDARDS_SYNC_APP_CLIENT_ID }}",
         "app-private-key": "${{ secrets.STANDARDS_SYNC_APP_PRIVATE_KEY }}"
       }
+    },
+    "melodic-software/ci-workflows/.github/workflows/claude-review.yml@e2951077a7b43c09fc5a8dee4da52ba6f0fb39ed": {
+      "routing": "runner-input",
+      "runnerInput": "runner",
+      "allowedInputs": ["runner", "skip-actors"],
+      "allowedSecrets": {
+        "CLAUDE_CODE_OAUTH_TOKEN": "${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}"
+      },
+      "allowedCallerPermissions": {
+        "contents": "read",
+        "pull-requests": "write",
+        "id-token": "write"
+      }
+    },
+    "melodic-software/ci-workflows/.github/workflows/claude-security-review.yml@e2951077a7b43c09fc5a8dee4da52ba6f0fb39ed": {
+      "routing": "runner-input",
+      "runnerInput": "runner",
+      "allowedInputs": ["runner", "skip-actors", "paths"],
+      "allowedSecrets": {
+        "CLAUDE_CODE_OAUTH_TOKEN": "${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}"
+      },
+      "allowedCallerPermissions": {
+        "contents": "read",
+        "pull-requests": "write",
+        "id-token": "write"
+      }
     }
   },
   "canonicalSelectorInputs": {
