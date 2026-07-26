@@ -177,6 +177,11 @@ scan_file() {
     #     substrings present) matters: `realpath "$1"; readlink -f "$1"` runs
     #     the GNU-only call unconditionally right after a realpath attempt
     #     with no fallback relationship at all, and must still flag.
+    #     The counterpart must also sit at COMMAND POSITION after that `||`,
+    #     not merely somewhere to its right. A line whose failure branch only
+    #     PRINTS the BSD form names it inside a diagnostic string, so treating
+    #     that as a guard would suppress a real GNU-only call behind a
+    #     fallback that does not exist (#1544).
     #   - stat -c, guarded by a co-located `stat -c ... || stat -f ...`
     #     fallback ladder (the shape
     #     plugins/repo-hygiene/skills/clean/scripts/remove-path.sh dev_of()
@@ -201,9 +206,18 @@ scan_file() {
     # ATTACHED nonempty suffix (sed -i.bak ... && rm -f the backup after),
     # which this token never matches (attached, no separating whitespace)
     # and so is correctly never flagged.
-    function is_guarded(l, p) {
-      if (p ~ /readlink/ && l ~ /realpath[^|]*\|\|[^|]*readlink/) return 1
-      if (p ~ /^stat\[/ && l ~ /stat[[:space:]]+-[A-Za-z]*c[^|]*\|\|[^|]*stat[[:space:]]+-[A-Za-z]*f/) return 1
+    # CMDPOS is everything allowed between the || and the BSD-side command
+    # name for that command to be what the || actually RUNS: whitespace, an
+    # optional name= assignment prefix, and an optional $( opening a command
+    # substitution (the shape lib/hook-utils.sh uses). Anything else means the
+    # counterpart is an ARGUMENT to some other command, not an invocation.
+    # Keyed on index() of the pattern core rather than an anchored ^stat[
+    # match, so a token that grows a leading word boundary still selects its
+    # own guard.
+    function is_guarded(l, p, CMDPOS) {
+      CMDPOS = "\\|\\|[[:space:]]*([A-Za-z_][A-Za-z0-9_]*=)?(\\$\\()?[[:space:]]*"
+      if (p ~ /readlink/ && l ~ ("realpath[^|]*" CMDPOS "readlink")) return 1
+      if (index(p, "stat[[:space:]]") && l ~ ("stat[[:space:]]+-[A-Za-z]*c[^|]*" CMDPOS "stat[[:space:]]+-[A-Za-z]*f")) return 1
       return 0
     }
     # Pass 1: collect active ERE patterns from the token list.

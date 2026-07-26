@@ -167,7 +167,12 @@ readlink[[:space:]]+(-[A-Za-z]*f|--canonicalize)
 # reported even though `date` never received `-d`. Scoping the gap to `date`'s
 # own command segment keeps `date -d @0`, `x=$(date -d @0)` and
 # `date --utc -d @0` matched while that shape is not.
-date[[:space:]]+[^;&|()\n]*-d([[:space:]]|$)
+# The leading boundary keeps `date` a whole command WORD rather than any word
+# merely ending in it (#1544): without it `validate -d config` and
+# `update -d /tmp` were both reported, since "date" is a tail substring of
+# "validate" and "update". `/` is deliberately outside the excluded class, so
+# a path-qualified `/usr/bin/date -d @0` still matches.
+(^|[^A-Za-z0-9_-])date[[:space:]]+[^;&|()\n]*-d([[:space:]]|$)
 
 # `stat -c` (GNU format string) — a GNU coreutils extension; BSD/macOS stat
 # uses `-f`. Requires whitespace immediately after `stat` so the token matches
@@ -186,7 +191,10 @@ date[[:space:]]+[^;&|()\n]*-d([[:space:]]|$)
 # `stat "$file"; tool -c x` was reported. The auto-guard still sees the
 # co-located BSD fallback, since `stat -c ... || stat -f ...` matches on the
 # first segment and the guard inspects the whole line.
-stat[[:space:]]+[^;&|()\n]*-c
+# Same leading word boundary as `date -d` above (#1544). Trailing whitespace
+# after `stat` already excluded a word STARTING with it ("status"), but not one
+# ENDING with it: `mystat -c foo` was reported.
+(^|[^A-Za-z0-9_-])stat[[:space:]]+[^;&|()\n]*-c
 
 # --- STAGED (commented until enabled — see #1528 for the enable trigger) ---
 #

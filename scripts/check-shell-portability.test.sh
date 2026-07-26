@@ -460,6 +460,18 @@ if out="$(scan_paths "$tok" "$f" 2>&1)"; then
 else
   ok "realpath and readlink with no actual || fallback relationship is still flagged"
 fi
+rm -f "$f"
+
+# --- nor is a `||` enough on its own: the counterpart must sit at COMMAND
+# POSITION after it. A failure branch that merely PRINTS the portable form
+# names it inside a diagnostic string, so no portable command ever runs and
+# the GNU-only call must still flag (#1544).
+f="$(tmpsh 'realpath -- "$1" || echo "readlink -f is unavailable"')"
+if out="$(scan_paths "$tok" "$f" 2>&1)"; then
+  fail "a printed-only readlink counterpart should fail, got success: $out"
+else
+  ok "a readlink counterpart that is only printed, not run, is still flagged"
+fi
 rm -f "$f" "$tok"
 
 # --- the realpath guard is scoped to the readlink pattern, not the whole line
@@ -547,6 +559,29 @@ if out="$(scan_paths "$tok" "$f" 2>&1)"; then
   fail "stat -f;stat -c with no || fallback relationship should fail, got success: $out"
 else
   ok "stat -f and stat -c with no actual || fallback relationship is still flagged"
+fi
+rm -f "$f"
+
+# --- and the `stat -f` counterpart must sit at COMMAND POSITION after the
+# `||`, not merely somewhere to its right: a failure branch that only PRINTS
+# the BSD form runs no portable command at all, so suppressing the hit would
+# hide a real GNU-only call behind a fallback that does not exist (#1544).
+f="$(tmpsh "stat -c '%s' \"\$f\" || echo 'stat -f is unavailable'")"
+if out="$(scan_paths "$tok" "$f" 2>&1)"; then
+  fail "a printed-only stat -f counterpart should fail, got success: $out"
+else
+  ok "a stat -f counterpart that is only printed, not run, is still flagged"
+fi
+rm -f "$f"
+
+# --- ...while the assignment/command-substitution shape the corpus really
+# uses for a fallback ladder stays guarded (lib/hook-utils.sh resolves through
+# `name=$(cmd) || name=$(fallback)`, replicated in 15 hook-utils.sh copies).
+f="$(tmpsh 'size=$(stat -c "%s" "$1") || size=$(stat -f "%z" "$1")')"
+if scan_paths "$tok" "$f" >/dev/null 2>&1; then
+  ok "a name=\$(stat -f ...) fallback after || is still recognized as a guard"
+else
+  fail "the assignment-wrapped stat -f fallback ladder must not be flagged"
 fi
 rm -f "$f" "$tok"
 
@@ -795,6 +830,29 @@ if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
   fail "stat -c should now be enforced by the shipped list, got success: $out"
 else
   ok "stat -c is enforced in the shipped list (#1510)"
+fi
+rm -f "$f"
+
+# --- both tokens match a whole command WORD, not any word ending in it: the
+# gap-scoping alone left "date"/"stat" unanchored on the left, so words merely
+# ENDING in them took the flag of a genuinely different command (#1544). A
+# path-qualified invocation is still the command itself and must stay flagged.
+f="$(tmpsh "$(printf '%s\n' \
+  'validate -d config' \
+  'update -d /tmp' \
+  'mystat -c foo')")"
+if scan_paths "$REAL_TOKENS" "$f" >/dev/null 2>&1; then
+  ok "a word merely ENDING in date/stat is not mistaken for the command"
+else
+  fail "validate/update/mystat must not be flagged: $(scan_paths "$REAL_TOKENS" "$f" 2>&1)"
+fi
+rm -f "$f"
+
+f="$(tmpsh '/usr/bin/date -d @0')"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "a path-qualified date -d should still fail, got success: $out"
+else
+  ok "the leading boundary still admits a path-qualified /usr/bin/date -d"
 fi
 rm -f "$f"
 
