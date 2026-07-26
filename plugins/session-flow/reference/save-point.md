@@ -222,11 +222,16 @@ exact failure the re-arm rule exists to prevent, reintroduced one layer down. So
 that directly follows the bottom rail is part of what a recovery must surface, not commentary it may
 discard. Nor is one of them enough: the rule above emits one re-arm message per loop left standing,
 so the recoverable unit is however many the producer wrote, and a consumer that stops at the first
-loses the rest exactly as quietly. It is recovered as a **shape-matched, bounded** element — the
-note's own wording anchored to the bottom rail, never "whatever follows the rail" — and it carries
-the operator's original prompt
-verbatim, so the same redaction pass applies to it as to everything else surfaced from a transcript.
+loses the rest exactly as quietly.
 
-Changing this prompt/marker format is a
+Each entry is recovered by its `Re-arm <i> of <n> — <L> lines:` header and the `<L>` body lines that
+follow it — **a length boundary, never a wording match**. The entry carries the operator's original
+prompt verbatim, so any content test can be defeated by the content: matching the note's wording
+truncates a prompt whose continuation lines do not resemble a re-arm, and matching a marker fails on
+a prompt that quotes the marker. A count cannot collide with what it delimits. `<n>` is the
+self-check that the whole set came back, not the scanner. The verbatim prompt also means the same
+redaction pass applies here as to everything else surfaced from a transcript.
+
+Changing this prompt/marker format — the rails, the header, or the meaning of `<L>` — is a
 **knowing** break of that contract, not a cosmetic edit; update `find-handoff`'s detection in the
 same change.

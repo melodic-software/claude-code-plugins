@@ -27,7 +27,8 @@
   emitted last in the message. Counting lines is the one boundary that cannot collide with what it
   delimits. `<n>` is retained as a self-check rather than a scanner: `find-handoff` reports what it
   recovered against what the producer said it wrote, instead of presenting a subset as the whole
-  set.
+  set. `save-point.md`'s detection contract states the same boundary, so the stable contract an
+  agent reads cannot send it back to the wording match its consumer no longer performs.
 
 ## [0.17.8]
 
