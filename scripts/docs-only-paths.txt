@@ -20,6 +20,9 @@
 #        and plugins/knowledge/vendor/**;
 #      - ai-briefing-build: reads only
 #        plugins/ai-briefing/skills/generate/output/build/**;
+#      - course-digest-extraction: reads only
+#        plugins/knowledge/skills/course-digest/** and
+#        plugins/knowledge/vendor/**;
 #      - hygiene's path-scoped subset — actionlint + the workflow
 #        check-jsonschema (read .github/workflows/**), and the marketplace /
 #        plugin / dependabot check-jsonschema steps (read
