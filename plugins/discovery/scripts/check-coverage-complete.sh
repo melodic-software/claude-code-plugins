@@ -78,17 +78,35 @@ fi
 #
 # awk exit codes mirror this script's: 0 complete, 1 incomplete, 2 ungradeable.
 awk -v OFS=' ' '
+BEGIN {
+  # The mandated ledger header, lowercased. Every one must appear exactly once
+  # before a table is accepted as the coverage ledger.
+  required[1] = "#"; required[2] = "corpus item"
+  required[3] = "depth criterion"; required[4] = "done"
+}
+
 function trim(s) { gsub(/^[ \t]+|[ \t]+$/, "", s); return s }
 
 # Split a markdown table row into cells, dropping the empty fields the leading
 # and trailing pipes produce. Returns the cell count.
-function cells(line, out,   n, i, raw, c) {
+#
+# A backslash-escaped pipe is CONTENT, not a delimiter — a corpus item or depth
+# criterion legitimately carries one (a TypeScript union `foo \| bar`, an alternation
+# in a pattern). Splitting on it would inflate the cell count, and this gate treats a
+# row whose width disagrees with the header as ungradeable, so a real ledger over a
+# real corpus would be permanently unable to pass criterion 11 unless it was rewritten
+# to say something less accurate. Protect them behind SUBSEP (\034, which markdown
+# cannot produce) across the split, then restore.
+function cells(line, out,   n, i, raw, c, cell_text) {
+  gsub(/\\\|/, SUBSEP, line)
   n = split(line, raw, "|")
   c = 0
   for (i = 1; i <= n; i++) {
     if (i == 1 && trim(raw[i]) == "") continue
     if (i == n && trim(raw[i]) == "") continue
-    out[++c] = trim(raw[i])
+    cell_text = trim(raw[i])
+    gsub(SUBSEP, "|", cell_text)
+    out[++c] = cell_text
   }
   return c
 }
@@ -110,17 +128,20 @@ function is_separator(line,   probe) {
     for (i = 1; i <= ncell; i++) {
       header_name[i] = cell[i]
       h = tolower(cell[i])
+      seen_head[h]++
       if (h == "done") { done_col = i }
-      if (h == "corpus item") { has_item = 1 }
-      if (h == "depth criterion") { has_criterion = 1 }
     }
-    # The FULL mandated header is required, not just a Done column. A document
-    # may hold any number of tables, and an unrelated status table that happens
-    # to carry a Done column would otherwise be graded as the coverage ledger —
-    # exiting 0 without a single corpus item ever having been enumerated, which
-    # is criterion 11 satisfied by a table about something else entirely.
-    if (done_col == 0 || !has_item || !has_criterion) {
-      done_col = 0; has_item = 0; has_criterion = 0
+    # The FULL mandated header is required — `#`, `Corpus item`, `Depth criterion`,
+    # `Done` — each exactly once. A document may hold any number of tables, and a
+    # near-miss would otherwise be graded as the coverage ledger, exiting 0 as proof
+    # that a ledger this script never actually read was completed. Requiring each
+    # column exactly once also rejects a duplicated header, where the column that a
+    # given row value lands in is ambiguous.
+    ok = 1
+    for (r = 1; r <= 4; r++) if (seen_head[required[r]] != 1) ok = 0
+    if (!ok) {
+      done_col = 0
+      delete seen_head
       next
     }
     header_cols = ncell

@@ -29,6 +29,11 @@ load-time machinery, no user turn, no unresolved scope.
   silence is not an empty topic; it is a missing one.
 - **The memory-slice path** to write into (`<memory_dir>/<topic-slug>/`, resolved by the parent
   against the consuming repo's topic-docs binding).
+- **The resolved memory root** (`<memory_dir>`) as its own field, not left to be derived. When the
+  slice path is nested — a sub-slice for a collision or a parallel fan-out — you cannot tell from the
+  path alone which ancestor is the configured root, and the root is where the self-ignoring
+  `.gitignore` guard belongs. Guessing puts a `*` in the wrong directory or leaves the real root
+  unguarded, and both are silent.
 - **The budget** — how much depth the parent authorized.
 - **Capability flags** the parent probed, notably whether nested spawning is available.
 

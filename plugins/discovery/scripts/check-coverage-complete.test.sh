@@ -116,6 +116,33 @@ foreign_then_real="$WORK/foreign-then-real.md"
 } >"$foreign_then_real"
 run 0 "a real ledger after an unrelated table is still graded" "$foreign_then_real"
 
+# A backslash-escaped pipe is content, not a delimiter. A corpus item carrying a
+# TypeScript union must not be unparseable — the alternative is rewriting the
+# ledger to say something less accurate so the gate will read it.
+escaped_pipe="$WORK/escaped-pipe.md"
+{
+  printf '| # | Corpus item | Depth criterion | Done |\n'
+  printf '|---|-------------|-----------------|------|\n'
+  printf '%s\n' '| 1 | the read \| grep \| inferred union | every member documented | [x] |'
+} >"$escaped_pipe"
+run 0 "escaped pipes inside a cell are content, not delimiters" "$escaped_pipe"
+
+no_hash="$WORK/no-hash-column.md"
+{
+  printf '| Corpus item | Depth criterion | Done |\n'
+  printf '|-------------|-----------------|------|\n'
+  printf '| alpha | criterion | [x] |\n'
+} >"$no_hash"
+run 2 "header missing the # column fails closed" "$no_hash"
+
+dup_header="$WORK/duplicate-header.md"
+{
+  printf '| # | Corpus item | Depth criterion | Done | Done |\n'
+  printf '|---|-------------|-----------------|------|------|\n'
+  printf '| 1 | alpha | criterion | [x] | [x] |\n'
+} >"$dup_header"
+run 2 "duplicated required column fails closed" "$dup_header"
+
 partial_header="$WORK/partial-header.md"
 {
   printf '| # | Corpus item | Done |\n'

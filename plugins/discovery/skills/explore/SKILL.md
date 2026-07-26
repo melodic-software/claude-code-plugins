@@ -17,7 +17,7 @@ These values orient this session only. The project root is an absolute machine p
 
 ## Routing — dispatch by default
 
-**From the main conversation, this skill dispatches the `discovery:explorer` subagent.** Exploration reads many files; keeping that out of the orchestrator's context window is the point. The agent loads the project's path-scoped rules, runs the six dimensions, writes the artifact set, and returns a bounded summary plus a file pointer — not the reads. The parent resolves the **pre-dispatch envelope** first (scope, memory-slice path, budget, capability flags) and owns the **post-dispatch boundary** after: re-surfacing `open_questions` to the user, and dispatching the sibling verifier.
+**From the main conversation, this skill dispatches the `discovery:explorer` subagent.** Exploration reads many files; keeping that out of the orchestrator's context window is the point. The agent loads the project's path-scoped rules, runs the six dimensions, writes the artifact set, and returns a bounded summary plus a file pointer — not the reads. The parent resolves the **pre-dispatch envelope** first (scope, memory-slice path, memory root, budget, capability flags) and owns the **post-dispatch boundary** after: re-surfacing `open_questions` to the user, and dispatching the sibling verifier.
 
 **Run inline instead when any of these holds** — inline runs the identical workflow, and the escape hatch relaxes nothing:
 
