@@ -3,6 +3,31 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.31.1]
+
+### Fixed
+
+- **`babysit_resolve_thread.py`'s two `is_bot` call sites now thread `extra_bot_logins` through
+  (#637).** The bot-only classifier (`project_thread`'s `botOnly` computation) and the
+  `humanThreadsActed` reporting counter both called the shared `is_bot` without the caller's
+  `extra_bot_logins` config, unlike every other classifier call site (e.g. `actor_kind` in
+  `babysit_classify.py`). An operator who registered a non-structural bot account via
+  `babysit_extra_bot_logins` (no `[bot]` login suffix, API `__typename` reports `User`) had that
+  account's threads miscategorized at both sites — pre-existing relative to #534/#634, which
+  migrated these call sites to the shared classifier without introducing the omission. The script
+  now accepts `--extra-bot-logins` (same comma-separated shape as the snapshot wrapper) and passes
+  it to both sites; `babysit_extra_bot_logins`'s flag-delivery mapping in SKILL.md now lists
+  `resolve-thread` alongside `snapshot`. Because configuration reaches these scripts only through
+  CLI flags, the mapping alone would have left the flag unused: every exact resolver command form
+  the agent copies — the two pinned degradation commands in `reference/safety.md`, the Worker
+  Contract clause and the Worker Prompt Template in `reference/orchestration.md`, and the
+  thread-resolution bullet in SKILL.md — now carries `--extra-bot-logins <extra-bot-logins>`, and
+  `safety.md` states the rule so a future command form does not drop it again. The module docstring
+  argparse renders as `--help` no longer claims bot identity comes from API signals alone: it now
+  names `--extra-bot-logins` as the one operator-supplied exception, so someone auditing this
+  privileged helper reads the capability it actually has. Low severity — dormant unless an operator
+  has configured the userConfig key for a non-structurally-detected bot account.
+
 ## [0.31.0]
 
 ### Changed
