@@ -251,7 +251,12 @@ sanctioned paths:
   commands default to `-s user` — pass the scope `claude plugin list` reports for this plugin,
   and run from that project's directory for a `project`/`local` scope. Defaulting instead
   uninstalls a separate user-scope record while the effective install stays in place, so the
-  reinstall lands at a scope that does not load.
+  reinstall lands at a scope that does not load. Uninstalling also drops the stored
+  `pluginConfigs` entry, so the reinstall must re-supply **every** key whose value should stay
+  non-default, not only the key being changed — this plugin declares twenty-nine, so a reinstall
+  that passes one silently resets the babysit fleet's owners, logins, tiers, caps, and worktree
+  roots to their manifest defaults. Record the current values before uninstalling; afterwards
+  there is nothing left to read them from.
 
 Reconfiguring `userConfig` does not reach the already-running session — after either path, the new
 values become visible only in a fresh session. Do not re-run the babysit `check` in the same session

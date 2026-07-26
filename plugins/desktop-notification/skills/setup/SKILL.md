@@ -76,8 +76,11 @@ nothing and writes nothing, so every remediation is a pointer the user acts on:
   Both commands default to `-s user` — pass the install scope `claude plugin list` reports for
   this plugin, and run from that project's directory for a `project`/`local` scope. Defaulting
   instead uninstalls a separate user-scope record while the effective install stays in place, so
-  the reinstall lands at a scope that does not load. These options are personal `userConfig`
-  values, so this skill never writes user settings or `pluginConfigs`.
+  the reinstall lands at a scope that does not load. Uninstalling also drops the stored
+  `pluginConfigs` entry, so the reinstall must re-supply **every** one of the four toggles whose
+  value should stay non-default, not only the one being flipped; record the current values before
+  uninstalling, because afterwards there is nothing left to read them from. These options are
+  personal `userConfig` values, so this skill never writes user settings or `pluginConfigs`.
 
 After the user reports acting on any system-tool remediation, re-run the relevant `check`
 probe and report its actual result — never claim resolved on the user's say-so alone.
