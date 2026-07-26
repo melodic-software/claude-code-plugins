@@ -26,9 +26,12 @@ Entries below `0.9.0` were released under the plugin's former name, `re-anchor`.
   removes it from "Bash and subagent tools" (<https://code.claude.com/docs/en/env-vars>), so
   the pair discriminates those two causes — but the docs tie removal to the env-var path only
   and say nothing about the server-side rollout, so no branch is conclusive and shipping it as
-  a gate would silently downgrade a working sweep. Stage 2 is the decider: an inheritance-proof
-  canary folded into the real audit of the member with the lowest `discipline-batch-rank` value,
-  so it costs nothing the batch would not have spent and that member is never dispatched twice.
+  a gate would silently downgrade a working sweep. Stage 2 is the decider: ONE proof-only canary
+  fork, dispatched alone ahead of the first wave, carrying no corrector and returning no ledger.
+  Folding the canary into a member's real audit would look free and is not — a fork inherits
+  everything the session holds when it spawns, so a member ledger returned before wave 1 would
+  sit in every later fork's context and anchor its audit, breaking the independence the dedup
+  step relies on. The guard costs one extra fork, and the skill says so.
   The runbook specifies the proof question's four *properties* — the answer exists only in
   conversation history, the prompt neither contains nor paraphrases it, it keys on ordinary
   inherited material, and it cannot be guessed — rather than a fixed question, and the main

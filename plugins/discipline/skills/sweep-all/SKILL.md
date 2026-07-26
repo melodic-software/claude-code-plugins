@@ -82,12 +82,18 @@ say nothing about what the server-side rollout does to the parameter, so no
 branch is conclusive in either direction. It explains what stage 2 finds; it
 never replaces stage 2 and never aborts on its own.
 
-**Stage 2 — an inheritance-proof canary. The decider, at no extra cost.** Fold
-it into the first member's real audit: dispatch the in-scope corrector with the
-lowest `discipline-batch-rank` **value** — the one step 4 would correct first —
-ALONE, ahead of the first wave, and gate the rest of the fan-out on it. It is a
-full member audit, so nothing is spent that the batch would not have spent
-anyway, and that member is not dispatched again.
+**Stage 2 — an inheritance-proof canary. The decider, and it costs one fork.**
+Dispatch ONE fork alone, ahead of the first wave, that answers the proof
+question and **nothing else** — no corrector, no audit, no ledger. Gate the
+whole fan-out on it.
+
+It is deliberately not folded into a member's real audit, which would look free
+and is not: a fork inherits everything the session holds when it spawns, so a
+member ledger returned before wave 1 would sit in every later fork's inherited
+context and anchor its audit — breaking the independence step 3 relies on (see
+"the forks stay independent by design"). A proof-only canary returns nothing
+that can anchor anyone. Budget the guard as one extra fork; that is what it
+costs to know the other ledgers are real.
 
 Every fork — canary and members alike — answers one inheritance-proof question
 FIRST, before any audit content, and stops and says so plainly if it cannot.
@@ -127,9 +133,8 @@ costs the user the audit they asked for.
 **Verify on the main thread, and fail closed.** Check the answer against what
 this context knows. Absent, ambiguous, or unverifiable proof counts as NOT
 inherited — a plausible-looking answer is not a pass, because fabrication is the
-exposure being defended against. Canary verified → keep its ledger (it is a
-real member audit) and fan the remaining members out. Canary unproven →
-degrade; never re-dispatch the batch blind.
+exposure being defended against. Canary verified → fan the members out. Canary
+unproven → degrade; never re-dispatch the batch blind.
 
 A member that returns unproven LATER, mid-fan-out, is a different case: the
 canary already established that inheritance works here, and earlier waves'
@@ -178,8 +183,7 @@ merged pass lets order matter. The shared method's Non-negotiables are
 unchanged and bind every member.
 
 1. **Fan out, audit-only** — after the preflight above has proved inheritance.
-   For each REMAINING in-scope corrector (the canary member already returned a
-   real ledger; never dispatch it twice), dispatch a
+   For each in-scope corrector, dispatch a
    conversation-inheriting **fork** subagent — the Agent tool's
    `subagent_type: "fork"`, which inherits the full conversation history the
    audit must read. A fresh/typed subagent receives no history, and a
@@ -347,8 +351,8 @@ relevance-gated. Report the net effect whenever the overlay changes the set.
   the situational tier are what hold the fan-out small. Order of magnitude from
   a real full-batch run on a mid-length session: each fork consumed
   ~170K tokens (inherited transcript), so an 8-in-scope pass ran ~1.4M tokens
-  for the audit phase alone — eight forks either way, whether the batch spends
-  them as the canary plus two waves or all at once. Budget the sweep as a
+  for the audit phase alone, plus one more fork for the proof-only canary.
+  Budget the sweep as a
   deliberate spend, not a reflex — on a long transcript the per-fork cost only
   grows.
 - **`tighten-your-output` stays last** — tightening before the other
