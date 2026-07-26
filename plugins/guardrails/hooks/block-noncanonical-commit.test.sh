@@ -716,6 +716,38 @@ if [[ -d "$LAUNCH/a/out/child/.git" && -d "$LAUNCH/b/out/child/.git" ]]; then
   done
 fi
 
+# --- a NEWLINE in the repository path must not move the probe's field boundary -
+# The launch-directory probe asks git for two values in ONE `rev-parse`. Splitting
+# two variable-length fields let a newline INSIDE the path move that boundary: the
+# top level truncated at the newline and the remainder read as a non-empty prefix,
+# so the walk switched to a directory that does not exist, the persisted alias
+# behind the `!` body was never found, and a `commit -m` returned 0. Asking
+# `--is-inside-work-tree` FIRST makes the leading field fixed vocabulary, so only
+# the separator can be the separator and everything after it is the path verbatim.
+# Newlines are legal in POSIX path components and rejected by Win32, so the fixture
+# is gated on git ITSELF operating on such a path — creating the directory is not
+# enough, since MSYS makes one that Win32 git then refuses.
+NLREPO="$TEST_TMPDIR/newline/repo"$'\n'"evil"
+nested_repo "$NLREPO" 2>/dev/null
+if [[ "$(git -C "$NLREPO" rev-parse --show-toplevel 2>/dev/null | tr -d '\r')" == *$'\n'* ]]; then
+  git -C "$NLREPO" config alias.a '!git p'
+  for spec in \
+    "commit --allow-empty -m bypass|2|newline in the repository path: the ! body still reaches commit -m" \
+    "commit -F -|0|newline in the repository path: the canonical twin is still allowed"; do
+    IFS='|' read -r pexp want label <<<"$spec"
+    git -C "$NLREPO" config alias.p "$pexp"
+    MSYS_NO_PATHCONV=1 jq -n --arg c "git a" --arg d "$NLREPO" \
+      '{tool_name:"Bash",tool_input:{command:$c},cwd:$d}' |
+      timeout 30 bash "$HOOK" >/dev/null 2>&1
+    rc=$?
+    ((rc == 124)) && bad "$label: exceeded the 30s ceiling" && continue
+    assert_exit "$label" "$want" "$rc"
+  done
+else
+  echo "ok: newline-path fixture skipped (this platform's git cannot operate on a path containing a newline)"
+  PASS=$((PASS + 1))
+fi
+
 # --- PowerShell tool coverage ------------------------------------------------
 # The canonical PowerShell commit form (a here-string piped to `git commit -F -`)
 # must be allowed exactly as the Bash `-F -` form is; a `-m` PowerShell commit

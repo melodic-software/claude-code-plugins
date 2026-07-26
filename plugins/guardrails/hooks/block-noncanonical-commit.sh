@@ -184,22 +184,27 @@ explicit_git_dir() { explicit_global git-dir "$@"; }
 #     enters, which is the same defect wearing the opposite bias.
 #
 # So the launch directory too is derived from git's own answers — one probe,
-# `rev-parse --show-toplevel --show-prefix` — never from modelled containment:
+# `rev-parse --is-inside-work-tree --show-toplevel` — never from modelled containment:
 #
-#   - prefix NONEMPTY: git computed a cd-up path, i.e. it chdirs the body to
-#     the top level. Return the top level, which also canonicalizes for free —
-#     `-C .`, `link/..`, a subdirectory, and any other spelling of one
-#     repository all collapse to a single identity, which is what lets the
-#     shell-alias cycle key below detect a repeat instead of walking forever.
-#   - prefix EMPTY, no locating globals: pure discovery from the top level
-#     itself, so the caller's directory IS the top level; return its canonical
-#     spelling for the same cycle-key collapse.
-#   - prefix EMPTY under explicit locating globals: git does not chdir, so the
-#     body runs in the caller's composed directory, returned LITERALLY for git
-#     to apply its own path semantics downstream. A non-canonical spelling can
-#     mint distinct cycle keys here, so a self-rewriting chain in this shape
-#     terminates on the fail-closed traversal budget, exactly as `-C .`-style
-#     bodies already do.
+#   - INSIDE the work tree: git chdirs the body to the top level. Return the top
+#     level, which also canonicalizes for free — `-C .`, `link/..`, a
+#     subdirectory, and any other spelling of one repository all collapse to a
+#     single identity, which is what lets the shell-alias cycle key below detect
+#     a repeat instead of walking forever. Repository DISCOVERY always lands here,
+#     as does an explicit work tree that does contain the caller.
+#   - OUTSIDE it: git does not chdir, so the body runs in the caller's composed
+#     directory, returned LITERALLY for git to apply its own path semantics
+#     downstream. A non-canonical spelling can mint distinct cycle keys here, so a
+#     self-rewriting chain in this shape terminates on the fail-closed traversal
+#     budget, exactly as `-C .`-style bodies already do.
+#
+# `--is-inside-work-tree` is git's own answer to the condition setup_explicit_git_dir
+# tests, and it is asked FIRST on purpose: its vocabulary is fixed (`true`/`false`),
+# so the newline that separates it from the path cannot be confused with a newline
+# INSIDE that path. Splitting two variable-length fields instead let a repository
+# whose path contains a newline truncate the top level and read an empty prefix as a
+# non-empty one, which aimed the walk at a directory that does not exist. Everything
+# after the first newline is the top level verbatim, embedded newlines included.
 #
 # The invocation's LOCATING globals are replayed onto the probe, not just its `-C`.
 # `--git-dir` and `--work-tree` locate a repository as surely as `-C` does (git's
@@ -226,19 +231,21 @@ declare -A _alias_launch_dir=()
 HOOK_ALIAS_LAUNCH_DIR=""
 # shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
 alias_launch_dir() {
-  local dir="$1" key out toplevel prefix
+  local dir="$1" key out inside toplevel
   shift
   key="$dir"$'\n'"$*"
   if [[ -z "${_alias_launch_dir[$key]+x}" ]]; then
-    out=$(git -C "$dir" "$@" rev-parse --show-toplevel --show-prefix 2>/dev/null | tr -d '\r')
-    toplevel="${out%%$'\n'*}"
-    prefix=""
-    [[ "$out" == *$'\n'* ]] && prefix="${out#*$'\n'}"
-    if [[ -z "$toplevel" ]]; then
+    out=$(git -C "$dir" "$@" rev-parse --is-inside-work-tree --show-toplevel 2>/dev/null | tr -d '\r')
+    inside="${out%%$'\n'*}"
+    toplevel=""
+    [[ "$out" == *$'\n'* ]] && toplevel="${out#*$'\n'}"
+    if [[ -z "$out" ]]; then
       _alias_launch_dir["$key"]=""
-    elif [[ -n "$prefix" || $# -eq 0 ]]; then
+    elif [[ "$inside" == true && -n "$toplevel" ]]; then
       _alias_launch_dir["$key"]="$toplevel"
     else
+      # Outside the work tree, or a bare repository (`false`, no top level): git
+      # performs no chdir, so the body runs where the caller stands.
       _alias_launch_dir["$key"]="$dir"
     fi
   fi

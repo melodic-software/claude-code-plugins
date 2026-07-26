@@ -138,6 +138,25 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
     caller's composed directory. The inside-the-work-tree branch is unchanged, so
     a subdirectory caller still resolves from the top level, as git does.
 
+  - **A newline in the repository path no longer moves that probe's field
+    boundary** (`block-noncanonical-commit`; review finding on the fix above). The
+    probe asks git for two values in one `rev-parse` and split them at the first
+    newline — but with `--show-toplevel --show-prefix` BOTH fields are
+    variable-length and the path comes first, so a newline inside the path (legal
+    in a POSIX path component) truncated the top level and made an empty prefix
+    read as a non-empty one. The walk then switched to a directory that does not
+    exist: in a repository whose leaf is `repo\nevil`, a persisted `a = !git p`
+    with `p = commit --allow-empty -m bypass` returned 0 while git created the
+    non-canonical commit (verified fail-open on Linux, git 2.45.4). The probe is
+    now `--is-inside-work-tree --show-toplevel`: the leading field has a FIXED
+    vocabulary (`true`/`false`), so only the separator can be the separator and
+    everything after it is the path verbatim, embedded newlines included. Asking
+    whether the caller is inside the work tree is also git's own answer to the very
+    condition `setup_explicit_git_dir` tests, so the launch-directory rule is read
+    off git rather than inferred from a prefix being empty — one fork either way,
+    and the outside-the-work-tree, inside-the-work-tree and bare-repository
+    branches all keep their previous verdicts.
+
     The invocation's LOCATING globals are replayed onto that probe, not just its
     `-C`. `--git-dir` and `--work-tree` locate a repository as surely as `-C` does
     (git's own usage lists both as globals before `<command>`), and asking without
@@ -211,7 +230,10 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   `--git-dir`/`--work-tree` whose caller sits OUTSIDE the work tree that must
   launch in the caller's own child repository (bypass + false-block twins), with
   the inside-work-tree pair proving the top-level branch is unchanged, a
-  symlinked-parent `-C link/..`
+  repository whose path CONTAINS A NEWLINE that must still reach the `commit -m`
+  behind a persisted `!` hop (canonical twin allowed), gated on git itself
+  operating on such a path — asserted on POSIX, skipped loudly on Windows, where
+  Win32 rejects the name — a symlinked-parent `-C link/..`
   fixture gated on the platform actually resolving through the symlink (asserted on
   POSIX, skipped loudly on Windows, where git is itself textual), `-C ./././.`
   collapsing to a cycle without a `.`-cancelling pass, `-C sub/..` reaching a
