@@ -1,0 +1,17 @@
+name: debug-oauth-probe
+on: workflow_dispatch
+permissions: {}
+jobs:
+  probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Probe Claude CLI auth from hosted runner
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        run: |
+          npm install -g @anthropic-ai/claude-code@2.1.210 >/dev/null 2>&1
+          claude -p "reply with exactly: PROBE_OK" --model claude-sonnet-4-6 --output-format json > out.json 2> err.txt || true
+          echo "--- stderr (first 20 lines) ---"; head -20 err.txt || true
+          echo "--- structured result ---"
+          jq '{subtype, is_error, api_error_status, num_turns, duration_ms, total_cost_usd, result: ((.result // "")|tostring|.[0:400])}' out.json || head -5 out.json
