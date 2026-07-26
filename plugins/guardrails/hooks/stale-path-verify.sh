@@ -152,32 +152,38 @@ normalize_candidate() {
 # its content is the whole file, already fully scanned.
 #
 # Recover bounded context: the edit is already applied by PostToolUse time, so pull
-# from disk only the lines carrying one of the hunk's word tokens, scan those, and
-# keep only candidates containing one of those tokens. That token filter is what
-# preserves the diff-scope contract — a pre-existing unrelated citation sharing one
-# of those lines never fires. The anchor is the token, not the line, since a
-# bare-word hunk carries no positional information.
+# from disk only the lines the hunk's OWN TEXT appears in, scan those, and keep only
+# candidates containing one of the hunk's word tokens. Two filters compose to hold
+# the diff-scope contract: the line must be one this hunk's text landed in, and the
+# reported candidate must contain edited text.
 reconstruct_partial_edit() {
   [[ "$TOOL" == "Edit" && -f "$FILE" ]] || return 0
-  # Anchor tokens come from the hunk with any COMPLETE code span removed first. A
+  # The token filter reads the hunk with any COMPLETE code span removed first. A
   # complete span is already handled by the direct scan, and leaving it in would
-  # contribute its own path segments as anchors — `docs` then matches every
-  # citation under that directory, including untouched ones on neighbouring lines,
-  # which breaks diff-scope. What remains is the genuinely bare edited text.
+  # contribute its own path segments as tokens — `docs` then passes every citation
+  # under that directory. What remains is the genuinely bare edited text.
   local residue
   # shellcheck disable=SC2016  # backticks are literal ERE data, not expansions
   residue=$(printf '%s' "$SCAN_CONTENT" | sed -E 's/`[^`]*`//g')
-  # Minimum anchor length. A substring match on a very short token matches almost
-  # any path segment, so below 4 characters the token carries no locating power.
+  # Minimum token length. A substring match on a very short token matches almost
+  # any path segment, so below 4 characters the token carries no filtering power.
   # Path separators are deliberately NOT in the token charset: a prose fragment
-  # like `and/or` would then anchor on a slash and match far more candidates than
-  # a bare word does.
+  # like `and/or` would then match far more candidates than a bare word does.
   local -a toks=()
   mapfile -t toks < <(printf '%s' "$residue" | grep -oE '[A-Za-z0-9][A-Za-z0-9._-]{3,}' 2>/dev/null | sort -u)
   ((${#toks[@]})) || return 0
-  local tok lines ctx=""
-  for tok in "${toks[@]}"; do
-    lines=$(grep -F -- "$tok" "$FILE" 2>/dev/null)
+  # Lines are located by the hunk's own lines, never by its tokens. Every line of
+  # new_string is on disk verbatim, so it matches the line the edit landed in; a
+  # token, being shorter, also matches lines the edit never touched — a bare `docs`
+  # in unrelated prose pulls in every citation under docs/, and an untouched stale
+  # one among them would fire. Line-anchoring can only ever select a subset of what
+  # token-anchoring would, and the edited line is always in that subset.
+  local -a anchors=()
+  mapfile -t anchors < <(printf '%s' "$SCAN_CONTENT" | grep -vE '^[[:space:]]*$' 2>/dev/null)
+  ((${#anchors[@]})) || return 0
+  local anchor lines ctx=""
+  for anchor in "${anchors[@]}"; do
+    lines=$(grep -F -- "$anchor" "$FILE" 2>/dev/null)
     [[ -n "$lines" ]] && ctx+="$lines"$'\n'
   done
   [[ -n "$ctx" ]] || return 0
@@ -285,13 +291,22 @@ for raw in "${RAW_TOKENS[@]}"; do
   [[ -n "${CHECKED[$cand]:-}" ]] && continue
   CHECKED["$cand"]=1
 
-  [[ -e "$REPO_ROOT/${cand%/}" ]] && continue
+  # Present, not merely reachable: -L keeps a dangling symlink — the link itself is
+  # there, only its target is not — from reading as a removal.
+  [[ -e "$REPO_ROOT/${cand%/}" || -L "$REPO_ROOT/${cand%/}" ]] && continue
   ABSENT=1
 
   # PROVENANCE GATE: adjudicate only a path this repository demonstrably once
   # had. Anything else is somebody else's tree, an example, or a plan.
   build_deleted_set
   [[ -n "${DELETED[$cand]:-}" ]] || continue
+
+  # Deleted once, tracked again now. Under a sparse checkout such a path is absent
+  # from the working tree BY DESIGN, so the filesystem alone cannot separate it from
+  # a real removal and the index has to be consulted. Placed after the provenance
+  # gate, not before it: only a path already headed for a finding pays for the call,
+  # which keeps the quiet path free of any per-candidate git invocation.
+  git -C "$REPO_ROOT" ls-files --error-unmatch -- ":(literal)${cand%/}" >/dev/null 2>&1 && continue
 
   MISSING+=("$cand")
 done

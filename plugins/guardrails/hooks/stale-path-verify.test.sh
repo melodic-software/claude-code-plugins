@@ -140,7 +140,7 @@ assert_contains "Edit hunk scanned via new_string" "$OUT" \
 # existing code span: the surrounding backticks are pre-existing and never enter
 # new_string, so the hunk holds no complete span for the direct scan to find. The
 # edit is already applied by PostToolUse time, so the containing citation is
-# recovered from disk, anchored to the hunk's tokens.
+# recovered from disk, anchored to the hunk's own text.
 #
 # `docs/gone.md` is in the deleted set; `docs/real.md` survives. The fixture holds
 # the post-edit state (`real` -> `gone`), which is what disk carries when the hook
@@ -157,6 +157,18 @@ assert_contains "bare-substring Edit hunk → containing citation recovered" "$O
 # just because reconstruction read from disk.
 assert_absent "reconstruction does NOT report an untouched neighbour" "$OUT" \
   "legacy-emit"
+
+# Diff-scope again, against the harder shape: the hunk is unrelated prose that
+# merely SHARES a path segment with an untouched stale citation elsewhere in the
+# same file. Anchoring on a word token pulls that citation in — `docs` occurs in
+# both — so the anchor has to be the hunk's own line, which occurs in one line only.
+SEGSHARE="$REPO/segshare.md"
+printf 'Untouched `docs/gone.md` here.\nThe docs folder was reorganized today.\n' >"$SEGSHARE"
+OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" \
+  <<<"$(edit_json "$SEGSHARE" 'The docs folder was reorganized today.')" 2>&1)
+RC=$?
+assert_exit "prose hunk sharing a path segment → exit 0" 0 "$RC"
+assert_silent "hunk sharing only a path SEGMENT does not drag in an untouched citation" "$OUT"
 
 # A line-citation suffix is stripped for resolution; the finding names the path
 # without it.
@@ -298,6 +310,73 @@ OUT=$(CLAUDE_PROJECT_DIR="$NOGIT" bash "$HOOK" \
 RC=$?
 assert_exit "non-git directory → exit 0" 0 "$RC"
 assert_silent "non-git directory → silent" "$OUT"
+
+# ============================ PRESENT BUT NOT ON DISK =======================
+#
+# Two shapes where the working tree does not answer "is this path here". Both need
+# a repo whose history deletes the path, so the provenance gate is satisfied and
+# only the existence gate stands between the citation and a false finding.
+
+# A path deleted historically and then restored is BOTH in the deleted set and
+# tracked at HEAD. A sparse checkout leaves such a path unmaterialized on purpose;
+# skip-worktree is the index bit sparse checkout itself sets to mark that.
+SPARSE="$TEST_TMPDIR/sparse"
+mkdir -p "$SPARSE/docs"
+git -C "$SPARSE" init -q
+echo v1 >"$SPARSE/docs/restored.md"
+echo v1 >"$SPARSE/docs/truly-gone.md"
+git_c "$SPARSE" add -A >/dev/null 2>&1
+git_c "$SPARSE" commit -qm seed >/dev/null 2>&1
+git_c "$SPARSE" rm -q docs/restored.md docs/truly-gone.md >/dev/null 2>&1
+git_c "$SPARSE" commit -qm delete >/dev/null 2>&1
+# `git rm` prunes the parent it emptied, so the directory has to come back first.
+mkdir -p "$SPARSE/docs"
+echo v2 >"$SPARSE/docs/restored.md"
+git_c "$SPARSE" add docs/restored.md >/dev/null 2>&1
+git_c "$SPARSE" commit -qm restore >/dev/null 2>&1
+SPARSE_TARGET="$SPARSE/notes.md"
+: >"$SPARSE_TARGET"
+
+git -C "$SPARSE" update-index --skip-worktree docs/restored.md >/dev/null 2>&1
+rm -f "$SPARSE/docs/restored.md"
+OUT=$(CLAUDE_PROJECT_DIR="$SPARSE" bash "$HOOK" \
+  <<<"$(write_json "$SPARSE_TARGET" 'Read `docs/restored.md` first.')" 2>&1)
+RC=$?
+assert_exit "unmaterialized sparse path → exit 0" 0 "$RC"
+assert_silent "tracked at HEAD but not materialized → silent (index consulted)" "$OUT"
+
+# The index check must not swallow a genuine removal. Same repo, same absence from
+# disk — the only difference is that this one is in no index entry either.
+OUT=$(CLAUDE_PROJECT_DIR="$SPARSE" bash "$HOOK" \
+  <<<"$(write_json "$SPARSE_TARGET" 'Read `docs/truly-gone.md` first.')" 2>&1)
+assert_contains "deleted and never restored → still fires" "$OUT" \
+  "STALE_PATH: docs/truly-gone.md"
+
+# A deleted path reintroduced as a symlink whose target is unavailable is present
+# in the working tree, but `-e` reports false for it.
+DANGLE="$TEST_TMPDIR/dangle"
+mkdir -p "$DANGLE/docs"
+git -C "$DANGLE" init -q
+echo v1 >"$DANGLE/docs/link.md"
+git_c "$DANGLE" add -A >/dev/null 2>&1
+git_c "$DANGLE" commit -qm seed >/dev/null 2>&1
+git_c "$DANGLE" rm -q docs/link.md >/dev/null 2>&1
+git_c "$DANGLE" commit -qm delete >/dev/null 2>&1
+DANGLE_TARGET="$DANGLE/notes.md"
+: >"$DANGLE_TARGET"
+if ln -s "missing-target.md" "$DANGLE/docs/link.md" 2>/dev/null && [[ -L "$DANGLE/docs/link.md" ]]; then
+  OUT=$(CLAUDE_PROJECT_DIR="$DANGLE" bash "$HOOK" \
+    <<<"$(write_json "$DANGLE_TARGET" 'Read `docs/link.md` first.')" 2>&1)
+  RC=$?
+  assert_exit "dangling symlink → exit 0" 0 "$RC"
+  assert_silent "dangling symlink is a present path → silent" "$OUT"
+else
+  # A Windows box without the symlink privilege cannot build the fixture at all, so
+  # the arm is pinned in source instead — the same fallback the jq-removal case
+  # takes for its own non-simulable condition.
+  assert_contains "existence gate accepts the link itself" "$(cat "$HOOK")" \
+    '|| -L "$REPO_ROOT/${cand%/}"'
+fi
 
 # ============================ SHALLOW CLONE =================================
 

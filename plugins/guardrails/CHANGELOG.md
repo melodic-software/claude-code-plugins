@@ -51,9 +51,20 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   reconstructed from disk, mirroring `skill-reference-verify`. The surrounding
   backticks are pre-existing and never enter `new_string`, so the hunk holds no
   complete span to scan and a newly-stale citation would otherwise be missed
-  entirely. Only the lines carrying one of the hunk's word tokens are read back,
-  and only candidates containing such a token are adjudicated, so diff-scope
-  holds: an untouched citation sharing a recovered line does not fire.
+  entirely. Only the lines the hunk's own text occurs in are read back, and only
+  candidates containing one of the hunk's 4+ character word tokens are
+  adjudicated. Both filters are needed to hold diff-scope: a word token alone is
+  short enough to occur in lines the edit never touched — a bare `docs` in
+  unrelated prose matches every citation under `docs/` — so an untouched stale
+  citation elsewhere in the file would fire. Every line of `new_string` is on
+  disk verbatim by `PostToolUse` time, so anchoring on the line can only ever
+  select a subset of what the token would, and the edited line is always in it.
+- The existence gate reads **present**, not reachable. `-e` alone reports false
+  for two paths that are deliberately there: a dangling symlink, where the link
+  exists and only its target does not, and a path tracked at `HEAD` but left
+  unmaterialized by a sparse checkout. Both would otherwise clear the provenance
+  gate and be reported stale, so the gate also accepts `-L` and, for a candidate
+  that has already satisfied provenance, consults index membership.
 - Markdown **link destinations are out of scope**; only inline code spans are
   scanned. On-disk link integrity belongs to the repo's offline link checker,
   and under the provenance oracle no link-kind candidate contributed a finding.
