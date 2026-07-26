@@ -15,9 +15,32 @@
       "type": "string",
       "description": "Path of the checked file, relative to the consuming repo root."
     },
+    "applied": {
+      "type": "array",
+      "description": "Corrections this run wrote into the file. Empty array = nothing was modified (clean, or the hook is in report-only mode).",
+      "items": {
+        "type": "object",
+        "required": ["typo", "correction", "line"],
+        "additionalProperties": false,
+        "properties": {
+          "typo": {
+            "type": "string",
+            "description": "The token as it appeared before the rewrite."
+          },
+          "correction": {
+            "type": "string",
+            "description": "The token it was rewritten to."
+          },
+          "line": {
+            "type": "integer",
+            "description": "1-based line number of the rewritten token, as reported before the write."
+          }
+        }
+      }
+    },
     "findings": {
       "type": "array",
-      "description": "Residual (unfixable) typos findings remaining after --write-changes. Empty array = clean or fully fixed.",
+      "description": "typos findings the run did NOT apply — no known correction, more than one candidate correction, or report-only mode. Empty array = clean or fully fixed.",
       "items": {
         "type": "object",
         "required": ["typo", "corrections"],

@@ -34,16 +34,6 @@ ok() {
   PASS=$((PASS + 1))
 }
 
-# Resolve a real typos binary. Skip the suite when none is available.
-if [[ -n "${TYPOS_TEST_BIN:-}" && -x "${TYPOS_TEST_BIN}" ]]; then
-  REAL_TYPOS="${TYPOS_TEST_BIN}"
-elif command -v typos >/dev/null 2>&1; then
-  REAL_TYPOS="$(command -v typos)"
-else
-  echo "SKIP: no typos binary (set TYPOS_TEST_BIN or put typos on PATH) -- typos-format hook tests skipped"
-  exit 0
-fi
-
 WORK="$(mktemp -d)"
 UNRELATED="$(mktemp -d)"
 cleanup() { rm -rf "$WORK" "$UNRELATED"; }
@@ -112,6 +102,243 @@ run_hook_env() {
       env -u CLAUDE_PROJECT_DIR "$@" bash "$HOOK"
   )
 }
+
+# ============================================================================
+# Disclosure contract — driven by a STUB typos, so it runs everywhere
+# ============================================================================
+# The cases below assert the contract that matters most about this hook: it
+# changes the content of the user's files, and every change it makes must be
+# reported on both channels. A real typos binary is not installed on the CI
+# runner, so the real-binary suite further down SKIPs there — asserting this
+# contract only against a real binary would leave it ungated in exactly the
+# place a regression would land unnoticed. The stub implements the slice of
+# typos' documented contract this hook depends on and nothing more:
+#
+# spellchecker:off
+#   token       corrections            --write-changes behavior
+#   ----------- ---------------------- ---------------------------------------
+#   teh         ["the"]                applied
+#   wnat        ["want","what"]        NOT applied (ambiguous), stays residual
+#   disallowme  null                   NOT applied (no correction), residual
+#
+# Exit codes mirror typos-cli 1.44.0 as verified against the real binary:
+# 0 = nothing left to report, 2 = findings remain. jsonlines on stdout.
+STUB_BIN="$(mktemp -d "$WORK/stubbin.XXXXXX")"
+cat >"$STUB_BIN/typos" <<'STUB'
+#!/usr/bin/env bash
+set -uo pipefail
+write=0
+target=""
+for arg in "$@"; do
+  case "$arg" in
+  --write-changes) write=1 ;;
+  --force-exclude | --format | json) ;;
+  *) target="$arg" ;;
+  esac
+done
+[[ -n "$target" && -f "$target" ]] || exit 0
+
+residual=0
+out=""
+lineno=0
+tmp="$target.stubtmp"
+: >"$tmp"
+while IFS= read -r line || [[ -n "$line" ]]; do
+  lineno=$((lineno + 1))
+  for tok in teh wnat disallowme; do
+    case " $line " in
+    *" $tok "*) ;;
+    *) continue ;;
+    esac
+    case "$tok" in
+    teh)
+      out+='{"type":"typo","path":"'"$target"'","line_num":'"$lineno"',"byte_offset":0,"typo":"teh","corrections":["the"]}'$'\n'
+      if ((write == 1)); then line="${line//" teh "/" the "}"; else residual=1; fi
+      ;;
+    wnat)
+      out+='{"type":"typo","path":"'"$target"'","line_num":'"$lineno"',"byte_offset":0,"typo":"wnat","corrections":["want","what"]}'$'\n'
+      residual=1
+      ;;
+    disallowme)
+      out+='{"type":"typo","path":"'"$target"'","line_num":'"$lineno"',"byte_offset":0,"typo":"disallowme","corrections":null}'$'\n'
+      residual=1
+      ;;
+    esac
+  done
+  printf '%s\n' "$line" >>"$tmp"
+done <"$target"
+
+if ((write == 1)); then
+  mv -f "$tmp" "$target"
+  # Re-emit only what survived the write.
+  printf '%s' "$out" | grep -v '"typo":"teh"'
+  ((residual == 1)) && exit 2
+  exit 0
+fi
+rm -f "$tmp"
+printf '%s' "$out"
+[[ -n "$out" ]] && exit 2
+exit 0
+STUB
+# spellchecker:on
+chmod +x "$STUB_BIN/typos"
+
+# Invoke the hook with the stub on PATH.
+run_stub() {
+  local file_path="$1"
+  shift
+  (
+    cd "$UNRELATED" || return 1
+    printf '{"session_id":"stub-1","tool_input":{"file_path":"%s"},"tool_name":"Write"}' "$file_path" |
+      env -u CLAUDE_PROJECT_DIR PATH="$STUB_BIN:$PATH" \
+        CLAUDE_PLUGIN_OPTION_TYPOS_FORMAT_ENABLED=true "$@" bash "$HOOK"
+  )
+}
+
+STUB_REPO="$WORK/stub-repo"
+new_typos_repo "$STUB_REPO" NO_CONFIG
+
+# --- Applied correction is disclosed on BOTH channels ------------------------
+# The defect this closes: on the all-fixed path the hook emitted no stdout at
+# all, so a dictionary rewrite of a domain term reached the file with the only
+# trace being the harness's generic "a hook modified this file" line — no hook
+# name, no word, no diff.
+printf 'this has teh typo\n' >"$STUB_REPO/applied.txt" # spellchecker:disable-line
+OUT_AP=$(run_stub "$STUB_REPO/applied.txt")
+RC_AP=$?
+if [[ $RC_AP -eq 0 ]]; then ok "stub/applied: exit 0 (advisory)"; else fail "stub/applied: exit $RC_AP"; fi
+if grep -q ' the ' "$STUB_REPO/applied.txt"; then
+  ok "stub/applied: correction written to the file"
+else
+  fail "stub/applied: file not rewritten: $(cat "$STUB_REPO/applied.txt")"
+fi
+if printf '%s' "$OUT_AP" | jq -e . >/dev/null 2>&1; then
+  ok "stub/applied: stdout is one parseable JSON document"
+else
+  fail "stub/applied: stdout is not a single JSON document: $OUT_AP"
+fi
+CTX_AP=$(printf '%s' "$OUT_AP" | jq -r '.hookSpecificOutput.additionalContext // empty' 2>/dev/null)
+SYS_AP=$(printf '%s' "$OUT_AP" | jq -r '.systemMessage // empty' 2>/dev/null)
+if printf '%s' "$CTX_AP" | grep -qF '"teh" -> "the"'; then # spellchecker:disable-line
+  ok "stub/applied: rewrite disclosed on the agent channel"
+else
+  fail "stub/applied: no agent-channel disclosure: $CTX_AP"
+fi
+if printf '%s' "$SYS_AP" | grep -qF '"teh" -> "the"'; then # spellchecker:disable-line
+  ok "stub/applied: rewrite disclosed on the user channel"
+else
+  fail "stub/applied: no user-channel disclosure: $SYS_AP"
+fi
+if printf '%s' "$CTX_AP" | grep -qi 'extend-words'; then
+  ok "stub/applied: allow-list remediation rides on the APPLIED path (not just the residual one)"
+else
+  fail "stub/applied: no extend-words guidance on the applied path: $CTX_AP"
+fi
+
+# --- Report-only mode never touches the file ---------------------------------
+printf 'this has teh typo\n' >"$STUB_REPO/readonly.txt" # spellchecker:disable-line
+BEFORE_RO="$(cat "$STUB_REPO/readonly.txt")"
+OUT_RO=$(run_stub "$STUB_REPO/readonly.txt" CLAUDE_PLUGIN_OPTION_TYPOS_FORMAT_WRITE_CHANGES=false)
+RC_RO=$?
+if [[ $RC_RO -eq 0 ]]; then ok "stub/report-only: exit 0"; else fail "stub/report-only: exit $RC_RO"; fi
+if [[ "$(cat "$STUB_REPO/readonly.txt")" == "$BEFORE_RO" ]]; then
+  ok "stub/report-only: file left byte-identical"
+else
+  fail "stub/report-only: file was modified: $(cat "$STUB_REPO/readonly.txt")"
+fi
+CTX_RO=$(printf '%s' "$OUT_RO" | jq -r '.hookSpecificOutput.additionalContext // empty' 2>/dev/null)
+if printf '%s' "$CTX_RO" | grep -q 'report-only' && printf '%s' "$CTX_RO" | grep -q 'NOT modified'; then
+  ok "stub/report-only: mode is stated in the report"
+else
+  fail "stub/report-only: mode not stated: $CTX_RO"
+fi
+if [[ -z "$(printf '%s' "$OUT_RO" | jq -r '.systemMessage // empty' 2>/dev/null)" ]]; then
+  ok "stub/report-only: no user-channel message (nothing was mutated)"
+else
+  fail "stub/report-only: emitted a systemMessage without mutating anything"
+fi
+
+# --- Applied + residual in one run: both sections, one document --------------
+printf 'this has teh typo and wnat and a disallowme term\n' >"$STUB_REPO/both.txt" # spellchecker:disable-line
+OUT_BOTH=$(run_stub "$STUB_REPO/both.txt")
+CTX_BOTH=$(printf '%s' "$OUT_BOTH" | jq -r '.hookSpecificOutput.additionalContext // empty' 2>/dev/null)
+if printf '%s' "$CTX_BOTH" | grep -qF '"teh" -> "the"' && # spellchecker:disable-line
+  printf '%s' "$CTX_BOTH" | grep -q 'disallowme' &&
+  printf '%s' "$CTX_BOTH" | grep -q 'wnat'; then # spellchecker:disable-line
+  ok "stub/both: applied rewrite and both residual findings reported together"
+else
+  fail "stub/both: sections missing: $CTX_BOTH"
+fi
+if printf '%s' "$OUT_BOTH" | jq -e '.systemMessage and .hookSpecificOutput.additionalContext' >/dev/null 2>&1; then
+  ok "stub/both: both channels composed into ONE stdout document"
+else
+  fail "stub/both: channels not composed: $OUT_BOTH"
+fi
+
+# --- Disclosure is capped ----------------------------------------------------
+# A file with hundreds of corrections must not turn the disclosure into the
+# unbounded context flood it exists to prevent.
+: >"$STUB_REPO/many.txt"
+for _i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do
+  printf 'line with teh typo\n' >>"$STUB_REPO/many.txt" # spellchecker:disable-line
+done
+OUT_MANY=$(run_stub "$STUB_REPO/many.txt")
+CTX_MANY=$(printf '%s' "$OUT_MANY" | jq -r '.hookSpecificOutput.additionalContext // empty' 2>/dev/null)
+DETAIL_LINES=$(printf '%s' "$CTX_MANY" | grep -cF '(line ')
+if [[ "$DETAIL_LINES" -eq 10 ]]; then
+  ok "stub/cap: per-word detail capped at 10 lines (got $DETAIL_LINES)"
+else
+  fail "stub/cap: expected 10 detail lines, got $DETAIL_LINES: $CTX_MANY"
+fi
+if printf '%s' "$CTX_MANY" | grep -q 'REWROTE 15 word' && printf '%s' "$CTX_MANY" | grep -q 'and 5 more'; then
+  ok "stub/cap: full count and remainder still reported"
+else
+  fail "stub/cap: count/remainder missing: $CTX_MANY"
+fi
+
+# --- Telemetry carries the applied rewrites ----------------------------------
+printf 'this has teh typo and a disallowme term\n' >"$STUB_REPO/tel-applied.txt" # spellchecker:disable-line
+TELA="$(mktemp)"
+SINKA="$(make_sink "cat >\"$TELA\"")"
+run_stub "$STUB_REPO/tel-applied.txt" HOOK_TELEMETRY_SINK="$SINKA" >/dev/null
+wait_for_sink "$TELA"
+if [[ -s "$TELA" ]]; then
+  if [[ "$(jq -r '.data.applied[0].typo' "$TELA")" == "teh" ]]; then # spellchecker:disable-line
+    ok "stub/telemetry: data.applied records the rewritten token"
+  else
+    fail "stub/telemetry: data.applied wrong: $(jq -c '.data.applied' "$TELA")"
+  fi
+  if [[ "$(jq -r '.data.applied[0].correction' "$TELA")" == "the" ]]; then
+    ok "stub/telemetry: data.applied records the replacement"
+  else
+    fail "stub/telemetry: data.applied.correction wrong: $(jq -c '.data.applied' "$TELA")"
+  fi
+  if [[ "$(jq -r '.data.findings[0].typo' "$TELA")" == "disallowme" ]]; then
+    ok "stub/telemetry: data.findings still carries residual findings only"
+  else
+    fail "stub/telemetry: data.findings wrong: $(jq -c '.data.findings' "$TELA")"
+  fi
+else
+  fail "stub/telemetry: no envelope written"
+fi
+rm -f "$TELA"
+
+# ============================================================================
+# Real-binary suite — wiring, config discovery, exclusion, kill switch
+# ============================================================================
+# Resolve a real typos binary. Skip the REST of the suite when none is
+# available; the stub-driven contract cases above have already run.
+if [[ -n "${TYPOS_TEST_BIN:-}" && -x "${TYPOS_TEST_BIN}" ]]; then
+  REAL_TYPOS="${TYPOS_TEST_BIN}"
+elif command -v typos >/dev/null 2>&1; then
+  REAL_TYPOS="$(command -v typos)"
+else
+  echo "SKIP: no typos binary (set TYPOS_TEST_BIN or put typos on PATH) -- real-binary typos-format cases skipped"
+  echo
+  echo "PASS=$PASS FAIL=$FAIL"
+  [[ $FAIL -eq 0 ]]
+  exit
+fi
 
 # --- Case 1: no typos config anywhere -> hook still fixes unconditionally ---
 # typos ships a built-in spelling dictionary and runs with zero configuration.
@@ -215,10 +442,20 @@ else
 fi
 CTX_MIXED=$(printf '%s' "$OUT" | jq -r '.hookSpecificOutput.additionalContext' 2>/dev/null)
 FIXED_TYPO='teh' # spellchecker:disable-line
-if printf '%s' "$CTX_MIXED" | grep -q 'disallowme' && ! printf '%s' "$CTX_MIXED" | grep -qF "\"$FIXED_TYPO\""; then
-  ok "mixed fixable+unfixable -> only unfixable reported (fixed typo absent)"
+# BOTH halves are reported now: the residual finding as advisory, and the
+# correction the hook APPLIED as a disclosed content mutation. A rewrite the
+# user never asked for and never saw is the defect this reporting exists to
+# close, so the applied word must appear, not be filtered out.
+if printf '%s' "$CTX_MIXED" | grep -q 'disallowme' && printf '%s' "$CTX_MIXED" | grep -qF "\"$FIXED_TYPO\" -> \"the\""; then
+  ok "mixed fixable+unfixable -> applied rewrite disclosed AND residual reported"
 else
   fail "mixed case: reporting wrong: $CTX_MIXED"
+fi
+SYS_MIXED=$(printf '%s' "$OUT" | jq -r '.systemMessage // empty' 2>/dev/null)
+if printf '%s' "$SYS_MIXED" | grep -qF "\"$FIXED_TYPO\" -> \"the\""; then
+  ok "mixed fixable+unfixable -> applied rewrite also disclosed on the user channel"
+else
+  fail "mixed case: no user-channel disclosure of the rewrite: $SYS_MIXED"
 fi
 
 # --- Case 7: config excludes the edited file -> untouched, no nag ------------

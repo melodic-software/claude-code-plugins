@@ -3,6 +3,59 @@
 All notable changes to the `typos-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.0]
+
+### Fixed
+
+- **Every correction the hook applies is now disclosed on both channels.** On the
+  all-fixed path the hook emitted nothing at all — no `additionalContext`, no
+  `systemMessage`, telemetry only — so a rewrite drawn from typos' built-in
+  dictionary reached the file with the only trace being the harness's generic
+  "a PostToolUse hook modified this file" notice: no hook name, no word, no
+  diff. An acronym or identifier the dictionary maps to an unrelated English
+  word was therefore corrupted invisibly, indistinguishably from a benign
+  reformat. The hook now reports each applied rewrite — token, replacement, and
+  line — to Claude via `additionalContext` and to the user via `systemMessage`,
+  capped at ten per run with a count of the remainder so the disclosure cannot
+  itself become a context flood.
+- **The allow-list remediation moved onto the applied-correction path.** The
+  "if intentional, add it to `extend-words` / `extend-identifiers`" guidance sat
+  only on the residual branch, so it never fired for the corrections that
+  actually change file content — the one case where it is load-bearing. A
+  dictionary autocorrect has no memory: a word repaired by hand is rewritten
+  again on the next edit until the repo allow-lists it, and until now nothing
+  said so.
+
+### Added
+
+- **`typos_format_write_changes` userConfig (default `true`).** Set it to
+  `false` for a report-only hook: findings are reported and no file is
+  modified. Read from the `CLAUDE_PLUGIN_OPTION_TYPOS_FORMAT_WRITE_CHANGES`
+  environment mirror, because shell-form hook commands reject
+  `${user_config.*}` substitution outright.
+- **`data.applied` on the telemetry envelope** — the corrections this run wrote,
+  as `{typo, correction, line}`. Additive; `data.findings` keeps its existing
+  residual-only meaning and shape.
+- **Stub-driven contract tests for the disclosure surface.** The suite
+  previously skipped in full when no `typos` binary was installed, which is the
+  CI runner's state — so nothing about this hook was gated there. The
+  disclosure, report-only, cap, and telemetry cases now run against a stub
+  binary and execute everywhere; the config-discovery and exclusion cases still
+  require a real `typos`.
+
+### Changed
+
+- **The hook now scans read-only before it writes.** `typos --write-changes`
+  emits nothing for a correction it applies (verified against typos-cli 1.44.0:
+  a fully-fixable file exits 0 with empty stdout after rewriting), so a
+  write-only run has no information about what it changed. A read-only pass
+  captures the pre-write finding set; the applied set is derived as scan minus
+  what survived the write, rather than by guessing which findings typos
+  considers safe to auto-fix. Cost is one extra typos invocation only on files
+  that actually have findings — measured at roughly 80 ms on a 68 KB file,
+  against the handler's 15-second timeout. The read-only pass runs first, so a
+  run killed at the timeout between the two passes has modified nothing.
+
 ## [0.3.4]
 
 ### Changed

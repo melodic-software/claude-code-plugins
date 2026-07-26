@@ -8,6 +8,16 @@
 # entry) findings surface via additionalContext but never block the edit. A
 # commit hook or CI is the hard gate.
 #
+# DISCLOSURE: every correction this hook APPLIES is reported on both channels —
+# additionalContext for the agent, systemMessage for the person whose file was
+# rewritten. A dictionary autocorrect is a content mutation the user never asked
+# for (a domain acronym rewritten into an unrelated English word is the failure
+# mode this exists to make visible), and it has no memory: repairing a word by
+# hand gets it re-corrected on the next save unless the repo allow-lists it. The
+# disclosure therefore carries the allow-list remediation with it. Set the
+# `typos_format_write_changes` userConfig to false for a report-only hook that
+# never modifies a file.
+#
 # Unconditional: typos ships a built-in spelling dictionary and runs with zero
 # configuration, so this hook runs on every edit regardless of whether the
 # repo has adopted a typos config — matching the sibling markdown-format
@@ -104,16 +114,19 @@ else
 fi
 
 # Build the telemetry data object for the current TOOL/FILE_REL. $1 is the
-# findings JSON array. jq is authoritative. The fallback is a fixed empty-shape
-# object — NOT an interpolation of TOOL/FILE_REL, which could inject quotes or
-# backslashes from a path and corrupt the envelope.
+# residual-findings JSON array; optional $2 is the applied-corrections JSON
+# array (additive schema property, defaults to empty). jq is authoritative. The
+# fallback is a fixed empty-shape object — NOT an interpolation of
+# TOOL/FILE_REL, which could inject quotes or backslashes from a path and
+# corrupt the envelope.
 build_data_json() {
   jq -n \
     --arg tool "$TOOL" \
     --arg file "$FILE_REL" \
     --argjson findings "$1" \
-    '{tool:$tool,file:$file,findings:$findings}' 2>/dev/null ||
-    printf '{"tool":"","file":"","findings":[]}'
+    --argjson applied "${2:-[]}" \
+    '{tool:$tool,file:$file,findings:$findings,applied:$applied}' 2>/dev/null ||
+    printf '{"tool":"","file":"","findings":[],"applied":[]}'
 }
 
 emit_skipped() {
@@ -154,67 +167,199 @@ if [[ -n "$root" && -n "$FILE_REL" && "$FILE_REL" != "$FILE" ]]; then
   TYPOS_ARG="$FILE_REL"
 fi
 
-# Apply every correction typos has confidence in, in place. --force-exclude
-# honors the config's own exclude/extend-exclude even for this explicitly-passed
-# path, so a file the repo excludes (generated or vendored code, intentional-
-# misspelling fixtures) is left untouched with no advisory noise — same
-# rationale as ruff-format.sh's identical flag. jsonlines output captured for
-# the residual-findings pass below. Verified against typos-cli 1.44.0: exit 0 =
-# clean or fully fixed; exit 2 = residual (unfixable, e.g. a blank-correction
-# "disallowed" entry) findings remain even after write; any other code = typos
-# itself failed (bad config, internal error) — not a judgment, no findings.
-OUTPUT=$(cd "$RUN_DIR" && "$TYPOS_BIN" --write-changes --force-exclude --format json "$TYPOS_ARG" 2>&1)
-RC=$?
+# Report-only switch. Writing is the default; a consumer that wants the findings
+# without the rewrites sets the `typos_format_write_changes` userConfig to
+# false. Read from the CLAUDE_PLUGIN_OPTION_<KEY> environment mirror rather than
+# a `${user_config.*}` placeholder: shell-form hook commands REJECT
+# `${user_config.*}` substitution outright — "substituting a configured value
+# into a shell command would let the shell run whatever that value contains, so
+# the component fails" — and every option is exported to hook processes as
+# CLAUDE_PLUGIN_OPTION_<KEY> anyway (Plugins reference, "User configuration",
+# https://code.claude.com/docs/en/plugins-reference, fetched 2026-07-26). Same
+# idiom as hook::check_enabled's kill switch. Any value other than the literal
+# "false" means write.
+WRITE_CHANGES="${CLAUDE_PLUGIN_OPTION_TYPOS_FORMAT_WRITE_CHANGES:-true}"
 
-if [[ $RC -eq 0 ]]; then
+# Disclosure cap. A file with hundreds of corrections must not turn this hook's
+# own report into the context flood it exists to prevent, so each list is capped
+# and the remainder is summarized as a count.
+MAX_REPORT=10
+
+# --- Pass 1: read-only scan ---------------------------------------------------
+# --write-changes emits NOTHING for a correction it applies: verified against
+# typos-cli 1.44.0, a file whose every finding is auto-fixable exits 0 with
+# empty stdout after rewriting the file. A write-only run therefore cannot tell
+# anyone what it changed — which is exactly how this hook came to rewrite file
+# content invisibly. The read-only pass below is the only place the pre-write
+# finding set exists; it never touches the file, so a run killed by the
+# handler's `timeout` between the two passes has mutated nothing.
+#
+# --force-exclude honors the config's own exclude/extend-exclude even for this
+# explicitly-passed path, so a file the repo excludes (generated or vendored
+# code, intentional-misspelling fixtures) is left untouched with no advisory
+# noise — same rationale as ruff-format.sh's identical flag. Verified against
+# typos-cli 1.44.0: exit 0 = clean (or excluded); exit 2 = findings; any other
+# code = typos itself failed (bad config, internal error) — not a judgment.
+SCAN_OUTPUT=$(cd "$RUN_DIR" && "$TYPOS_BIN" --force-exclude --format json "$TYPOS_ARG" 2>&1)
+SCAN_RC=$?
+
+# Emit the tool-break diagnostic for $1 and exit. typos broke for non-lint
+# reasons (config parse error, internal error) — no judgment was made. Surfaced
+# via additionalContext (NOT stderr — an advisory hook's exit-0 stderr can trip
+# a false "Hook Error" label). Recorded as "skipped" (typos never ran to
+# judgment), the same status as the no-binary path.
+emit_tool_break() {
+  hook::ctx_reset
+  hook::ctx_append "typos-format: typos failed for $(basename "$FILE") (no diagnostics; tool break, not a finding):"
+  local line
+  while IFS= read -r line; do
+    [[ -n "$line" ]] || continue
+    hook::ctx_append "  $line"
+  done <<<"$1"
+  hook::ctx_flush PostToolUse
+  local data_json
+  data_json=$(build_data_json '[]')
+  emit_tel "typos-format" "PostToolUse" "skipped" "$start" "$data_json" "$REPO_ROOT"
+  exit 0
+}
+
+if [[ $SCAN_RC -eq 0 ]]; then
+  # Clean, or excluded by the repo's own typos config. Nothing was changed and
+  # there is nothing to disclose.
   data_json=$(build_data_json '[]')
   emit_tel "typos-format" "PostToolUse" "ok" "$start" "$data_json" "$REPO_ROOT"
   exit 0
 fi
 
-if [[ $RC -eq 2 && -n "$OUTPUT" ]]; then
-  hook::ctx_reset
-  hook::ctx_append "typos-format: $(basename "$FILE") has residual typos findings (advisory):"
-  findings_raw="[]"
-  parsed=""
-  while IFS= read -r line; do
-    [[ -n "$line" ]] || continue
-    obj=$(printf '%s' "$line" | jq -c 'select(.type == "typo")' 2>/dev/null) || continue
-    [[ -n "$obj" ]] || continue
-    typo=$(printf '%s' "$obj" | jq -r '.typo // empty' 2>/dev/null)
-    [[ -n "$typo" ]] || continue
-    corrections=$(printf '%s' "$obj" | jq -c '.corrections // null' 2>/dev/null)
-    if [[ "$corrections" == "null" ]]; then
-      hook::ctx_append "  \"$typo\" is disallowed with no known correction — if intentional, add it to extend-words / extend-identifiers (or an extend-ignore-re pattern) in your typos config."
-    else
-      first_correction=$(printf '%s' "$obj" | jq -r '.corrections[0] // empty' 2>/dev/null)
-      hook::ctx_append "  \"$typo\" should be \"$first_correction\" — if intentional, add it to extend-words / extend-identifiers in your typos config."
-    fi
-    parsed=$(printf '%s' "$obj" | jq -c --arg typo "$typo" --argjson corrections "$corrections" '{typo:$typo,corrections:$corrections}' 2>/dev/null) || continue
-    findings_raw=$(printf '%s' "$findings_raw" | jq -c --argjson f "$parsed" '. + [$f]' 2>/dev/null) || true
-  done <<<"$OUTPUT"
-  hook::ctx_flush PostToolUse
-
-  data_json=$(build_data_json "$findings_raw")
-  # Status "ok" — typos RAN and produced a judgment (findings live in
-  # data.findings), mirroring the sibling formatter plugins where status
-  # reflects whether the tool ran, not whether it was clean.
-  emit_tel "typos-format" "PostToolUse" "ok" "$start" "$data_json" "$REPO_ROOT"
-  exit 0
+if [[ $SCAN_RC -ne 2 || -z "$SCAN_OUTPUT" ]]; then
+  emit_tool_break "$SCAN_OUTPUT"
 fi
 
-# typos broke for non-lint reasons (config parse error, internal error) — no
-# judgment was made. Surface the diagnostic via additionalContext (NOT stderr —
-# an advisory hook's exit-0 stderr can trip a false "Hook Error" label). Record
-# as "skipped" (typos never ran to judgment), the same status as the
-# no-binary path.
-hook::ctx_reset
-hook::ctx_append "typos-format: typos failed for $(basename "$FILE") (no diagnostics; tool break, not a finding):"
+# --- Pass 2: apply ------------------------------------------------------------
+# In report-only mode no write happens at all, so every scanned finding stays in
+# the file and the residual set IS the scan set. Otherwise the write pass runs
+# and its own output is authoritative for what SURVIVED the write: exit 0 = all
+# fixed, nothing residual; exit 2 = the listed findings remain. Deriving the
+# applied set as scan-minus-residual keeps this correct without guessing which
+# findings typos considers safe to auto-fix (it declines ambiguous ones — a
+# finding with more than one candidate correction stays put), and stays correct
+# if that judgment changes in a future typos release.
+RESIDUAL_OUTPUT="$SCAN_OUTPUT"
+if [[ "$WRITE_CHANGES" != "false" ]]; then
+  WRITE_OUTPUT=$(cd "$RUN_DIR" && "$TYPOS_BIN" --write-changes --force-exclude --format json "$TYPOS_ARG" 2>&1)
+  WRITE_RC=$?
+  if [[ $WRITE_RC -ne 0 && $WRITE_RC -ne 2 ]]; then
+    emit_tool_break "$WRITE_OUTPUT"
+  fi
+  RESIDUAL_OUTPUT="$WRITE_OUTPUT"
+  [[ $WRITE_RC -eq 0 ]] && RESIDUAL_OUTPUT=""
+fi
+
+# Residual identity key: line number + the flagged token. Byte offsets shift as
+# earlier corrections on the same line change its length, so an offset-keyed
+# comparison would classify wrongly; a line/token pair is stable across the write
+# because a repeated token on one line always shares one fix decision.
+RESIDUAL_KEYS=$'\n'
 while IFS= read -r line; do
   [[ -n "$line" ]] || continue
-  hook::ctx_append "  $line"
-done <<<"$OUTPUT"
-hook::ctx_flush PostToolUse
-data_json=$(build_data_json '[]')
-emit_tel "typos-format" "PostToolUse" "skipped" "$start" "$data_json" "$REPO_ROOT"
+  key=$(printf '%s' "$line" | jq -r 'select(.type == "typo") | "\(.line_num // 0)\t\(.typo // "")"' 2>/dev/null) || continue
+  [[ -n "$key" ]] || continue
+  RESIDUAL_KEYS+="$key"$'\n'
+done <<<"$RESIDUAL_OUTPUT"
+
+APPLIED_LINES=""
+APPLIED_INLINE=""
+APPLIED_COUNT=0
+APPLIED_JSON="[]"
+RESIDUAL_LINES=""
+RESIDUAL_COUNT=0
+FINDINGS_JSON="[]"
+
+while IFS= read -r line; do
+  [[ -n "$line" ]] || continue
+  obj=$(printf '%s' "$line" | jq -c 'select(.type == "typo")' 2>/dev/null) || continue
+  [[ -n "$obj" ]] || continue
+  typo=$(printf '%s' "$obj" | jq -r '.typo // empty' 2>/dev/null)
+  [[ -n "$typo" ]] || continue
+  line_num=$(printf '%s' "$obj" | jq -r '.line_num // 0' 2>/dev/null)
+  corrections=$(printf '%s' "$obj" | jq -c '.corrections // null' 2>/dev/null)
+  first_correction=$(printf '%s' "$obj" | jq -r '.corrections[0] // empty' 2>/dev/null)
+
+  case "$RESIDUAL_KEYS" in
+  *$'\n'"$line_num"$'\t'"$typo"$'\n'*)
+    # Survived the write (or nothing was written) — advisory only.
+    RESIDUAL_COUNT=$((RESIDUAL_COUNT + 1))
+    if ((RESIDUAL_COUNT <= MAX_REPORT)); then
+      if [[ "$corrections" == "null" ]]; then
+        RESIDUAL_LINES+="  \"$typo\" (line $line_num) is disallowed with no known correction — if intentional, add it to extend-words / extend-identifiers (or an extend-ignore-re pattern) in your typos config."$'\n'
+      else
+        RESIDUAL_LINES+="  \"$typo\" (line $line_num) should be \"$first_correction\" — if intentional, add it to extend-words / extend-identifiers in your typos config."$'\n'
+      fi
+    fi
+    parsed=$(printf '%s' "$obj" | jq -c --arg typo "$typo" --argjson corrections "$corrections" '{typo:$typo,corrections:$corrections}' 2>/dev/null) || continue
+    FINDINGS_JSON=$(printf '%s' "$FINDINGS_JSON" | jq -c --argjson f "$parsed" '. + [$f]' 2>/dev/null) || true
+    ;;
+  *)
+    # Present before the write, gone after it: this hook rewrote it.
+    APPLIED_COUNT=$((APPLIED_COUNT + 1))
+    if ((APPLIED_COUNT <= MAX_REPORT)); then
+      APPLIED_LINES+="  \"$typo\" -> \"$first_correction\" (line $line_num)"$'\n'
+      APPLIED_INLINE+="${APPLIED_INLINE:+; }\"$typo\" -> \"$first_correction\" (line $line_num)"
+    fi
+    parsed=$(jq -n --arg typo "$typo" --arg correction "$first_correction" --argjson line "${line_num:-0}" \
+      '{typo:$typo,correction:$correction,line:$line}' 2>/dev/null) || continue
+    APPLIED_JSON=$(printf '%s' "$APPLIED_JSON" | jq -c --argjson a "$parsed" '. + [$a]' 2>/dev/null) || true
+    ;;
+  esac
+done <<<"$SCAN_OUTPUT"
+
+# Compose ONE stdout document. Claude Code parses a hook's entire stdout as a
+# single JSON document, so the agent-channel context and the user-channel
+# message are built here and emitted together — printing twice would make the
+# second document unreadable and silently drop half the disclosure.
+CTX=""
+SYSMSG=""
+BASE="$(basename "$FILE")"
+
+if ((APPLIED_COUNT > 0)); then
+  CTX+="typos-format REWROTE $APPLIED_COUNT word(s) in $BASE after your edit:"$'\n'
+  CTX+="$APPLIED_LINES"
+  if ((APPLIED_COUNT > MAX_REPORT)); then
+    CTX+="  ... and $((APPLIED_COUNT - MAX_REPORT)) more."$'\n'
+  fi
+  CTX+="  These come from typos' built-in dictionary, not from this repository. If any is wrong here (an acronym, an identifier, a proper noun), add it to extend-words / extend-identifiers in your typos config — the autocorrect has no memory, so repairing the word by hand alone gets it rewritten again on the next edit."$'\n'
+  # The person whose file was just changed is the one who has to judge whether
+  # the change was correct, and they never asked for it. This is a content
+  # mutation, not a lint finding, so it goes to the user channel too.
+  SYSMSG="typos-format rewrote $APPLIED_COUNT word(s) in $BASE: $APPLIED_INLINE"
+  if ((APPLIED_COUNT > MAX_REPORT)); then
+    SYSMSG+="; ... and $((APPLIED_COUNT - MAX_REPORT)) more"
+  fi
+  SYSMSG+=". Add any wrong rewrite to extend-words / extend-identifiers in your typos config, or set the typos_format_write_changes option to false for report-only mode."
+elif [[ "$WRITE_CHANGES" == "false" ]]; then
+  CTX+="typos-format is in report-only mode (typos_format_write_changes = false) — $BASE was NOT modified. Findings:"$'\n'
+fi
+
+if ((RESIDUAL_COUNT > 0)); then
+  if ((APPLIED_COUNT > 0)); then
+    CTX+="typos-format: $BASE also has $RESIDUAL_COUNT finding(s) it did not rewrite (advisory):"$'\n'
+  elif [[ "$WRITE_CHANGES" != "false" ]]; then
+    CTX+="typos-format: $BASE has residual typos findings (advisory):"$'\n'
+  fi
+  CTX+="$RESIDUAL_LINES"
+  if ((RESIDUAL_COUNT > MAX_REPORT)); then
+    CTX+="  ... and $((RESIDUAL_COUNT - MAX_REPORT)) more."$'\n'
+  fi
+fi
+
+# Trim the trailing newline the same way hook::ctx_flush does.
+CTX="${CTX%"${CTX##*[![:space:]]}"}"
+hook::emit_channels PostToolUse "$CTX" "$SYSMSG"
+
+data_json=$(build_data_json "$FINDINGS_JSON" "$APPLIED_JSON")
+# Status "ok" — typos RAN and produced a judgment (findings live in
+# data.findings, applied rewrites in data.applied), mirroring the sibling
+# formatter plugins where status reflects whether the tool ran, not whether it
+# was clean.
+emit_tel "typos-format" "PostToolUse" "ok" "$start" "$data_json" "$REPO_ROOT"
 exit 0
