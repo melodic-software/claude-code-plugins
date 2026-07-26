@@ -393,8 +393,10 @@ class StaleWorktreeRegistrationTests(unittest.TestCase):
             )
 
     def test_a_locked_record_is_not_reported_as_pruned(self) -> None:
-        # `git worktree prune` deliberately keeps a locked record and still
-        # exits 0, so the verdict must come from re-reading `worktree list`.
+        # A locked record is deliberately kept: `git worktree prune` kept it
+        # while exiting 0, and `git worktree remove` refuses it with a nonzero
+        # exit. Neither exit status is the answer -- the verdict must come from
+        # re-reading `worktree list`.
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as td:
             tmp = pathlib.Path(td)
             main = make_repo(tmp)
@@ -407,6 +409,85 @@ class StaleWorktreeRegistrationTests(unittest.TestCase):
                 prune.prune_repo_worktree_records(main.resolve(), wt), "failed"
             )
             git("-C", str(main), "worktree", "unlock", str(wt))
+
+    def test_clearing_one_record_leaves_an_unrelated_stale_one_alone(self) -> None:
+        # The scoping guarantee. `git worktree prune` takes no path and drops
+        # every prunable record in the repository, so a scoped `--pr` cleanup
+        # would also discard the registration of an unrelated worktree whose
+        # directory is only temporarily unavailable. Removal must name its one
+        # target; this fails against a repo-wide prune.
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as td:
+            tmp = pathlib.Path(td)
+            main = make_repo(tmp)
+            root = tmp / "root"
+            target = add_worktree(main, root, "owner__repo__pr-11")
+            bystander = add_worktree(main, root, "owner__repo__pr-12")
+            shutil.rmtree(target)
+            shutil.rmtree(bystander)
+
+            self.assertEqual(
+                prune.prune_repo_worktree_records(main.resolve(), target), "pruned"
+            )
+
+            listed = git("-C", str(main), "worktree", "list", "--porcelain")
+            self.assertNotIn(target.name, listed)
+            self.assertIn(bystander.name, listed)
+
+    def test_clearing_a_bare_hubs_record_is_targeted_too(self) -> None:
+        # `repo_path` and `registered_repo_from_gitdir_pointer` both support a
+        # bare hub, whose common directory is `hub.git` rather than a `.git`.
+        # The removal has to behave identically there or every bare-hub
+        # self-heal would silently report `failed`.
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as td:
+            tmp = pathlib.Path(td)
+            bare = make_bare_hub(tmp)
+            root = tmp / "root"
+            target = add_worktree(bare, root, "owner__repo__pr-13")
+            bystander = add_worktree(bare, root, "owner__repo__pr-14")
+            shutil.rmtree(target)
+            shutil.rmtree(bystander)
+
+            self.assertEqual(
+                prune.prune_repo_worktree_records(bare.resolve(), target), "pruned"
+            )
+
+            listed = git("-C", str(bare), "worktree", "list", "--porcelain")
+            self.assertNotIn(target.name, listed)
+            self.assertIn(bystander.name, listed)
+
+    def test_an_already_absent_record_reads_as_pruned(self) -> None:
+        # `git worktree remove` exits nonzero for a path it does not know, but
+        # "no record survives" is the desired end state -- the verdict comes
+        # from re-reading `worktree list`, never from that exit status.
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as td:
+            tmp = pathlib.Path(td)
+            main = make_repo(tmp)
+            never_registered = tmp / "root" / "owner__repo__pr-15"
+
+            self.assertEqual(
+                prune.prune_repo_worktree_records(main.resolve(), never_registered),
+                "pruned",
+            )
+
+    def test_a_surviving_directory_is_never_handed_to_git_to_delete(self) -> None:
+        # Unlike `prune`, `remove` deletes a worktree's contents. The caller
+        # only reaches here once the directory is gone; enforcing that here
+        # keeps a future caller from turning this into a content-deleting path.
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as td:
+            tmp = pathlib.Path(td)
+            main = make_repo(tmp)
+            root = tmp / "root"
+            wt = add_worktree(main, root, "owner__repo__pr-16")
+            keeper = wt / "uncommitted.txt"
+            keeper.write_text("work in progress\n", encoding="utf-8")
+
+            self.assertEqual(
+                prune.prune_repo_worktree_records(main.resolve(), wt), "skipped"
+            )
+            self.assertTrue(keeper.is_file())
+            self.assertIn(
+                wt.name, git("-C", str(main), "worktree", "list", "--porcelain")
+            )
 
     def test_a_corrupted_pointer_is_an_orphan_not_an_error(self) -> None:
         # `fatal: invalid gitfile format` is a different message from the
@@ -431,7 +512,7 @@ class StaleWorktreeRegistrationTests(unittest.TestCase):
         )
 
     def test_skips_the_prune_while_the_directory_survives(self) -> None:
-        # `git worktree prune` only drops records whose directory is missing.
+        # The registration is only cleared once the directory is gone from disk.
         self.assertEqual(
             prune.orphan_registration_state(
                 None, pathlib.Path("x"), directory_removed=False

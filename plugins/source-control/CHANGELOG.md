@@ -46,7 +46,7 @@ All notable changes to the `source-control` plugin are documented here. Format f
     `$GIT_DIR/worktrees/<name>` record, so a later `git worktree add` at the same deterministic path
     fails with "missing but already registered" — a directory removal alone was never the self-heal
     it reported. Each dropped orphan now carries `registration_pruned`: `pruned` when the entry's own
-    `gitdir:` pointer named its repository and `git worktree prune` cleared the record there,
+    `gitdir:` pointer named its repository and the record was cleared there,
     `skipped` while the directory survives, and `unresolved` when the pointer is gone. Recovering
     ownership is the only thing that clears the uncertainty — an ancestor checkout answering for the
     path proves nothing, because a real linked worktree nested under another checkout resolves to
@@ -73,6 +73,21 @@ All notable changes to the `source-control` plugin are documented here. Format f
     `git worktree list --porcelain` and confirming the entry is gone, comparing resolved paths (git
     prints POSIX separators and long filenames; the caller's path may carry native separators and a
     Windows 8.3 short name for the same directory).
+  - **The registration cleanup is targeted, so a scoped run cannot drop an unrelated record.**
+    `git worktree prune` takes no path and drops *every* prunable record in the repository, so a
+    `--pr <one PR> --apply` cleanup also discarded the administrative record of any other worktree
+    whose directory happened to be missing at that moment — an unmounted share, a removable drive, a
+    checkout mid-restore — despite it being outside the requested scope. Reproduced on git
+    2.55.0.windows.3: register two worktrees, delete both directories, prune on behalf of one, and
+    both records vanish. The record is now cleared with `git worktree remove <path>`, which names its
+    one target and behaves identically from a standard clone and a bare hub. Deliberate consequence:
+    unrelated stale records are no longer swept up as a side effect — clearing those stays
+    `git worktree prune`'s job, run by the operator or by `git gc`, not a decision a single-PR
+    cleanup makes. The verification-by-`worktree list` rule above is what keeps the swap honest in
+    both directions, since `remove` exits nonzero both for a locked record (correctly `failed`) and
+    for a record that is already gone (correctly `pruned`). `--force` is never passed, and a
+    still-present directory returns `skipped` rather than being handed to a command that — unlike
+    `prune` — would delete its contents.
   - **A corrupted pointer is an orphan, not a hard error.** git answers a malformed `.git` with
     `fatal: invalid gitfile format`, not the missing-repository wording, so the detector re-raised
     and every run reported `action: error` for that entry instead of healing it — despite a

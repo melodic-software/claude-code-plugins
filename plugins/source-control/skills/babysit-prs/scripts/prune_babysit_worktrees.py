@@ -319,23 +319,58 @@ def registered_repo_from_gitdir_pointer(path: Path) -> Path | None:
 
 
 def prune_repo_worktree_records(repo: Path, worktree_path: Path) -> str:
-    """Clear `worktree_path`'s stale record in `repo`; `pruned` or `failed`.
+    """Clear `worktree_path`'s stale record in `repo`; `pruned`/`failed`/`skipped`.
 
     Removing an orphan's directory is only half the cleanup. When the entry
     orphaned because its `.git` pointer was corrupted, the repository still
     holds the registration, and `git worktree add` at the same deterministic
     path then fails with "missing but already registered worktree" -- so a bare
-    directory removal is not the self-heal it looks like. `git worktree prune`
-    is git's own command for dropping records whose directory is gone, which is
-    why the caller removes the directory first and prunes second.
+    directory removal is not the self-heal it looks like. The record is dropped
+    after the directory is gone, which is why the caller removes first and
+    clears the registration second.
 
-    The verdict comes from re-reading `worktree list`, never from the prune's
-    exit status: a **locked** record (`git worktree lock`) is deliberately kept
-    by prune, which still exits 0, so trusting the exit code would report a
-    completed repair while the path keeps rejecting `git worktree add`.
+    **Targeted, not repo-wide.** `git worktree remove <path>` names the one
+    record to drop; `git worktree prune` takes no path and drops *every*
+    prunable record in the repository. Under a scoped `--pr` cleanup that
+    difference is real damage: an unrelated worktree whose directory is only
+    temporarily unavailable (an unmounted share, a removable drive, a checkout
+    mid-restore) would lose its administrative record even though it was never
+    in scope. Reproduced on git 2.55.0.windows.3 -- register two worktrees,
+    delete both directories, prune on behalf of one, and both records vanish;
+    `git worktree remove` on the same fixture drops only the named entry, from a
+    standard clone and from a bare hub alike. The deliberate consequence is that
+    unrelated stale records are no longer swept up as a side effect: clearing
+    them is `git worktree prune`'s job, run by the operator or by `git gc`, not
+    something a single-PR cleanup should decide.
+
+    Only ever reached with the directory already gone (`orphan_registration_state`
+    gates on `directory_removed`), and that precondition is enforced here rather
+    than assumed: unlike `prune`, `remove` deletes a worktree's *contents*, so a
+    surviving directory returns `skipped` instead of handing git something to
+    delete. `--force` is never passed either, so a locked or dirty worktree is
+    refused rather than discarded.
+
+    The verdict comes from re-reading `worktree list`, never from the removal's
+    exit status -- the status is wrong in both directions. A **locked** record
+    (`git worktree lock`) is deliberately kept: `prune` kept it while exiting 0,
+    and `remove` refuses it with a nonzero exit. A record that is *already* gone
+    also makes `remove` exit nonzero ("is not a working tree") even though that
+    is precisely the desired end state. Both read correctly only from the list.
     """
+    if worktree_path.exists():
+        return "skipped"
     try:
-        run(["git", "-C", str(repo), "worktree", "prune"])
+        run(
+            [
+                "git",
+                "-C",
+                str(repo),
+                "worktree",
+                "remove",
+                str(worktree_path.resolve()),
+            ],
+            check=False,
+        )
         listed = run(["git", "-C", str(repo), "worktree", "list", "--porcelain"])
     except (RuntimeError, OSError):
         return "failed"
@@ -447,10 +482,10 @@ def orphan_registration_state(
     Three outcomes, because "the directory is gone" and "the path is reusable"
     are different claims and only the second needs a repository:
 
-    - `skipped` -- the directory survives, so there is nothing to prune yet;
-      `git worktree prune` only drops records whose directory is missing.
+    - `skipped` -- the directory survives, so the record is left alone; the
+      registration is only cleared for a directory already gone from disk.
     - `pruned` / `failed` -- the entry's own `gitdir:` pointer named its
-      repository and the prune there succeeded or did not.
+      repository and clearing the record there succeeded or did not.
     - `unresolved` -- the pointer is gone, so whether a stale record survives
       is not knowable from here, and it is reported rather than assumed.
 
