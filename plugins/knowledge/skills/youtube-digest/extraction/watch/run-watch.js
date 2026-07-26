@@ -2,7 +2,7 @@
 /**
  * CLI: acquire + transcript + watching selection + harvest for `/youtube-digest watch`.
  *
- * Usage: node watch/run-watch.js <youtube-url> [--skip-research] [--recover <slice-dir>]
+ * Usage: node watch/run-watch.js <youtube-url> [--skip-research] [--target <repo>] [--recover <slice-dir>]
  *
  * Vision absorption, research, and synthesis run in the skill session (not this script).
  */
@@ -67,12 +67,18 @@ export async function runWatchCli(argv) {
   const url = argv[2];
   if (!url || url.startsWith("--")) {
     writeStderr(
-      "Usage: node watch/run-watch.js <youtube-url> [--skip-research] [--recover <slice-dir>]",
+      "Usage: node watch/run-watch.js <youtube-url> [--skip-research] [--target <repo>] [--recover <slice-dir>]",
     );
     return 1;
   }
 
   const skipResearch = argv.includes("--skip-research");
+  const targetIndex = argv.indexOf("--target");
+  if (targetIndex !== -1 && !argv[targetIndex + 1]) {
+    writeStderr("`--target` requires a value");
+    return 1;
+  }
+  const target = targetIndex !== -1 ? argv[targetIndex + 1] : undefined;
 
   const workDir = await fs.mkdtemp(path.join(os.tmpdir(), "youtube-extraction-"));
   const framesDir = await fs.mkdtemp(path.join(os.tmpdir(), "youtube-frames-"));
@@ -101,6 +107,7 @@ export async function runWatchCli(argv) {
       videoSlug,
       sourceUrl: url,
       title: metadata.title,
+      target,
     });
     state.tempSession = tempSession;
     state.status = "acquiring";

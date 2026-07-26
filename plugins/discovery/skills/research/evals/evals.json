@@ -89,7 +89,7 @@
         "Each Phase 2 query traces to a named entry in the written gap/conflict block — no padding queries beyond the gap surface either",
         "Phase 2 includes exactly one falsification query against the Phase 1 leading hypothesis (e.g., searching for 'deprecated', 'known limitations', or a maintainer disclaimer contradicting the hypothesis)",
         "Each claim's primary is fetched directly (the library's official docs / GitHub repo / changelog) this turn — not accepted from a synthesis or SERP summary",
-        "Recency gate is satisfied — the latest upstream changelog/release is fetched this turn and cross-checked against the claims",
+        "Recency gate is satisfied — the latest upstream changelog/release is fetched this turn and cross-checked against the claims, and the fetch log carries that changelog entry per claim even for a claim sourced from a rung above the changelog, so criterion 6 is graded from the log rather than from recollection",
         "Runs the outcome gate before presenting — any claim below the 1-primary + 2-corroborator bar is reported as a Gap, not a finding",
         "Includes a project-fit check against the consuming project's own conventions"
       ]
@@ -97,8 +97,8 @@
     {
       "id": 8,
       "name": "broad-topic-triple-tool-comparison",
-      "prompt": "We're choosing among three competing message-queue libraries for a new service — RabbitMQ, Apache Kafka, and NATS. Research which is the better fit for our throughput and durability requirements.",
-      "expected_output": "Broad-topic auto-detect fires — 3 tools named in an explicit X vs Y vs Z comparison — so doubled minimums apply: 6+ queries per phase, 12+ total, 5+ distinct tool types across the topic, 4+ Tier 0/1 sources per claim. A written Phase 1 gap/conflict/hypothesis block drives Phase 2, which includes the mandatory falsification query. Phase 3 uses the tool-ecosystem fallback (Path B) since no preferred-source author covers these three tools (no consumer preferred-source roster exists in a bare checkout). Outcome gate runs before presenting.",
+      "prompt": "We're choosing among three competing message-queue libraries for a new service — RabbitMQ, Apache Kafka, and NATS. Our requirements are sustained 50k messages/sec and at-least-once delivery persisted to disk across a broker restart. Research which is the better fit, and state for each one which of those two requirements it does NOT meet and which of them its own official docs do NOT document.",
+      "expected_output": "Broad-topic auto-detect fires — 3 tools named in an explicit X vs Y vs Z comparison — so doubled minimums apply: 6+ queries per phase, 12+ total, 5+ distinct tool types across the topic, 4+ Tier 0/1 sources per claim. A written Phase 1 gap/conflict/hypothesis block drives Phase 2, which includes the mandatory falsification query. Phase 3 uses the tool-ecosystem fallback (Path B) since no preferred-source author covers these three tools (no consumer preferred-source roster exists in a bare checkout). The prompt states concrete thresholds and asks what each tool does NOT meet and what its docs do NOT document, so criterion 10's enumeration is exercised against a real negative rather than passing vacuously — while a tool that meets both requirements is still answerable truthfully, since the clause is answered per tool rather than requiring an absence per tool. Outcome gate runs before presenting.",
       "files": [],
       "expectations": [
         "Detects the broad-topic trigger (3 distinct tools named, explicit comparison) and applies DOUBLED minimums — 6+ Phase 1 queries, 12+ total queries across all phases, 5+ distinct tool types, 4+ Tier 0/1 sources per accepted claim",
@@ -111,8 +111,41 @@
         "Evidence table tracks Tier + tool-diversity + confidence per claim; rejects any claim whose sources are all Tier 2 or all from one tool category",
         "Source-tier ratio enforced — every accepted claim has >=1 Tier 0/1 source plus >=2 independent corroborators; three citations of the same secondary pool count as one source, not three",
         "Confidence calibration applied — every comparison claim marked HIGH/MEDIUM/LOW; LOW-confidence claims are not used as the basis for a recommendation",
-        "Runs the outcome gate before presenting — all 8 binary criteria checked against the evidence table and written gap lists; reports pass or the failing criterion and what was re-run",
+        "Runs the outcome gate before presenting — all 10 binary criteria checked against the evidence table, written gap lists, and fetch log; reports pass or the failing criterion and what was re-run",
+        "Walks the artifact ladder per tool rather than stopping at an announcement or landing page — the fetch log accounts for every rung ABOVE the one each accepted claim came from, each recorded as probed-and-not-existing, as fetched-and-lacking-the-claim, or as unreachable-and-enumerated as a Gap. Nominating a landing page as topmost without probing deeper fails criterion 9; so does recording a rung that exists as lacking the claim on a title, index entry, or snippet rather than fetching and searching the artifact; and so does logging a deeper artifact as discovered while still sourcing the claim from a shallower rung",
+        "Answers the does-NOT-meet / does-NOT-document clause explicitly for each of the three tools rather than silently omitting a tool that meets both requirements, and every absence it reports — an unmet requirement, or a requirement the official docs do not cover — names both the sources checked and the sources left unchecked. A bare 'not found' fails criterion 10; so does an unanswered clause. A tool the evidence shows meets both is reported as such against the sources checked — the expectation never demands an invented negative",
         "Output names an explicit per-tool comparison conclusion, or explicitly reports insufficient evidence as a Gap, rather than picking a favorite without evidence backing"
+      ]
+    },
+    {
+      "id": 9,
+      "name": "dispatch-by-default-and-return-payload",
+      "prompt": "Research how Rust edition 2024 changes the behaviour of the `gen` keyword.",
+      "expected_output": "Dispatches the discovery:researcher subagent rather than running the discipline in the main conversation, so the main conversation gains a file pointer plus a short summary rather than the research transcript. The dispatch prompt carries the resolved topic and the memory-slice path, because $ARGUMENTS is empty under preload and a non-fork subagent has no conversation to infer from. The returned payload echoes the preload token verbatim, reports verification: pending, and lists any open questions for the parent to re-surface.",
+      "files": [],
+      "expectations": [
+        "Dispatches the discovery:researcher agent by default rather than running the phases inline in the main conversation",
+        "Passes the resolved topic and the memory-slice path in the dispatch prompt rather than relying on $ARGUMENTS or conversation context, neither of which reaches a preloaded skill in a non-fork subagent",
+        "The main conversation receives an artifact pointer and a short summary, NOT the phase-by-phase research transcript",
+        "The returned payload echoes the preload token discovery-research-preload-4c1f9a verbatim as preload_token; a missing or mismatched token is a hard failure that discards the run rather than downgrading or accepting it",
+        "The returned payload carries verification: pending and renders no verdict on outcome-gate criteria 4 or 7 — the parent dispatches a sibling verifier for those, and applies criterion 8 itself",
+        "Open questions come back as text in the payload for the parent to surface, rather than being resolved silently or surfaced with AskUserQuestion, which is unavailable to a non-fork subagent",
+        "Choosing the inline escape hatch instead is acceptable ONLY when the run names the condition that justifies it — tight turn-by-turn iteration, cost on a trivially small lookup, or an invoking context that is itself a subagent — and running inline relaxes no discipline"
+      ]
+    },
+    {
+      "id": 10,
+      "name": "bounded-corpus-coverage-ledger",
+      "prompt": "Research which skills shipped by the discovery plugin declare a shell: frontmatter field, and what each one uses it for.",
+      "expected_output": "Recognises the corpus as bounded, enumerates every discovery skill from an exhaustive surface rather than from search results, writes research-checklist.md before any query with a per-item depth criterion fixed at enumeration time, marks rows only as their own criterion is met, and cites the coverage script's exit status at the outcome gate.",
+      "files": [],
+      "expectations": [
+        "Records an explicit bounded-or-unbounded verdict for the corpus rather than leaving it unexamined, and judges this corpus bounded",
+        "Writes research-checklist.md into the topic memory slice BEFORE running any query, one row per corpus item",
+        "Enumerates from an exhaustive surface such as a directory or tree listing of the skills, never from search results or a curated index, both of which are partial by construction",
+        "Each row carries a per-item depth criterion that is fixed at enumeration time and gradeable from the artifact, such as naming the frontmatter block as the thing to read, rather than an after-the-fact standard such as researched or understood",
+        "Outcome-gate criterion 11 cites the exit status of check-coverage-complete.sh rather than a reading of the table, and treats any non-zero exit — including exit 2 for a ledger the script cannot parse — as a FAIL",
+        "Does NOT report coverage as complete while any row is unmarked; narrowing the corpus is acceptable only when the ledger records what was cut and why"
       ]
     }
   ]

@@ -1,6 +1,6 @@
 ---
 name: blindspot
-description: "Surface the USER's unknown-unknowns before they work in unfamiliar territory — an unfamiliar codebase area OR an unfamiliar domain vocabulary — and coach a sharper prompt. Scans for gaps the user's framing missed, emits one blindspot card per gap (the gap, why it matters here, a copyable prompt-fix line), then assembles the fixes into one improved implementation prompt. Use when about to work somewhere you don't know well and the goal is a better prompt, not the codebase handoff artifact /discovery:explore produces."
+description: "Surface the USER's unknown-unknowns before they work in unfamiliar territory — an unfamiliar codebase area OR an unfamiliar domain vocabulary — and coach a sharper prompt. Scans for gaps the user's framing missed, emits one blindspot card per gap (the gap, why it matters here, a copyable prompt-fix line), then assembles the fixes into one improved implementation prompt. Use when: 'what am I missing', 'find my blindspots', 'what do I not know here', 'sharpen this prompt', 'I am new to this area', or about to work somewhere you do not know well and the goal is a better prompt — not the codebase handoff artifact /discovery:explore produces."
 argument-hint: "[area-or-domain] (e.g., /discovery:blindspot geofencing, /discovery:blindspot payments module, /discovery:blindspot <domain-vocabulary>)"
 user-invocable: true
 disable-model-invocation: false
@@ -61,7 +61,7 @@ copy-start / copy-end markers so the exact text to reuse is unambiguous.
 
 This skill does NOT write `EXPLORE.md` — its deliverable is the user's understanding plus the improved
 prompt. When the scan's findings also serve as stage-1 codebase exploration, offer to hand off to
-`/discovery:explore` (or `/discovery:explore-deep`) to persist the `EXPLORE.md` artifact rather than
+`/discovery:explore` to persist the `EXPLORE.md` artifact rather than
 duplicating that responsibility here.
 
 ## Gotchas
