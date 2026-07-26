@@ -836,6 +836,59 @@ else
 fi
 rm -f "$bs_rc_file" "$bs_err_file"
 
+# --- Test 18b: hook::buffer_stdin — stall AFTER a complete payload succeeds ---
+# The Win32-pipe late-EOF case the bounded read exists for: the producer emits a
+# COMPLETE JSON payload and then holds the pipe open past the read timeout. The
+# read still stalls, but jq confirms the payload is whole, so the function must
+# return it (rc 0) rather than block. This is the half of the contract that keeps
+# the chunked read from turning every slow producer into a blocked tool call.
+bs_rc_file="$(mktemp)"
+bs_out_file="$(mktemp)"
+{ printf '{"complete":true}'; sleep 1; } | {
+  CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT=0.4 hook::buffer_stdin >"$bs_out_file" 2>/dev/null
+  echo "$?" >"$bs_rc_file"
+}
+bs_rc=$(cat "$bs_rc_file")
+if [[ "$bs_rc" == "0" ]] && [[ "$(cat "$bs_out_file")" == '{"complete":true}' ]]; then
+  ok "buffer_stdin: complete JSON on a pipe held open past timeout → rc 0 + payload"
+else
+  fail "buffer_stdin late-EOF: rc=$bs_rc out=$(cat "$bs_out_file")"
+fi
+rm -f "$bs_rc_file" "$bs_out_file"
+
+# --- Test 18c: hook::buffer_stdin — a large payload is neither blocked nor slow -
+# Regression for the defect the chunked read fixes: `read -d ''` consumed a pipe
+# byte-at-a-time, so the timeout was a throughput ceiling and a ~100 KB payload —
+# an ordinary full-file Write of a long document — tripped the stall branch and
+# every fail-closed caller blocked it. Drives a 256 KB payload (comfortably past
+# the old ~64 KB ceiling and past the 64 KB chunk size, so the read loop iterates)
+# through the real function on a real pipe, at the DEFAULT timeout: it must come
+# back whole, with rc 0. Asserted on content, not on wall-clock, so a loaded CI
+# runner cannot flake it — but if the byte-at-a-time read ever returns, this case
+# fails outright rather than merely slowing down.
+bs_big_file="$(mktemp)"
+bs_payload_file="$(mktemp)"
+bs_rc_file="$(mktemp)"
+bs_out_file="$(mktemp)"
+yes 'portable content with no delimiters of interest' | head -c 262144 >"$bs_big_file"
+jq -cn --rawfile c "$bs_big_file" \
+  '{hook_event_name:"PreToolUse",tool_name:"Write",tool_input:{file_path:"/tmp/big.md",content:$c}}' \
+  >"$bs_payload_file"
+# shellcheck disable=SC2002 # `cat |` is the point: it forces a real pipe on fd 0.
+cat "$bs_payload_file" | {
+  hook::buffer_stdin >"$bs_out_file" 2>/dev/null
+  echo "$?" >"$bs_rc_file"
+}
+bs_rc=$(cat "$bs_rc_file")
+bs_len=$(wc -c <"$bs_out_file")
+bs_content_len=$(jq -r '.tool_input.content | length' "$bs_out_file" 2>/dev/null || echo 0)
+if [[ "$bs_rc" == "0" ]] && ((bs_content_len == 262144)); then
+  ok "buffer_stdin: 256 KB payload on a pipe → rc 0, payload intact ($bs_len bytes)"
+else
+  fail "buffer_stdin large payload: rc=$bs_rc content_len=$bs_content_len buffered=$bs_len bytes"
+fi
+rm -f "$bs_big_file" "$bs_payload_file" "$bs_rc_file" "$bs_out_file"
+
 # --- Test 19: hook::emit_telemetry — EPOCHREALTIME-absent (Bash < 5.0) skip ---
 # On Bash < 5.0 EPOCHREALTIME is unset, so the caller's `start=${EPOCHREALTIME:-}`
 # snapshot is empty. emit_telemetry must then skip fail-open (return 0, emit no

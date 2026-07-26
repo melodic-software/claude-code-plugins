@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "guardrails",
-  "version": "0.17.3",
+  "version": "0.18.0",
   "description": "Twelve safety guards that block secret/credential writes, hardcoded machine-specific paths, git hook-bypass attempts, irreversible git operations (force-push, reset --hard, worktree-wide checkout/restore discards), Bash file-write workarounds that circumvent Write/Edit hooks, commit subjects and gh pr create titles that violate the repo's tracked team convention (when one is declared in .claude/source-control.md), (advisory) hallucinated CLI flags, (advisory) /plugin:skill references that do not resolve, (advisory) markdown citing a repo path the repo's own history shows was removed, (advisory) un-throttled Workflow fan-out that risks burst 529s, and (advisory) direct git commit/gh pr create calls bypassing this marketplace's own commit/pull-request skills — each independently toggleable.",
   "author": {
     "name": "Melodic Software",
@@ -121,6 +121,13 @@
       "title": "block-no-verify hook-manager prefixes",
       "description": "Comma-separated hook-manager env-var name prefixes block-no-verify treats as a bypass when set to 0/false (e.g. lefthook,husky); empty uses the built-in default set (lefthook, husky, pre_commit, simple_git_hooks)",
       "default": ""
+    },
+    "stdin_read_timeout": {
+      "type": "number",
+      "title": "Hook stdin read timeout (seconds)",
+      "description": "Idle bound on reading the hook payload from stdin — how long a silent pipe is tolerated before a blocking guard fails closed",
+      "default": 2,
+      "min": 1
     }
   }
 }

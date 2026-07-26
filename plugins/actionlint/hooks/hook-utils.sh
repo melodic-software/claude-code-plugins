@@ -231,27 +231,54 @@ hook::repo_root() {
 # Buffer a complete JSON payload from stdin, tolerating Windows Win32-pipe
 # late-EOF stalls via a bounded read on the inherited fd0. Returns the payload
 # on success; returns 1 on empty/incomplete stdin (caller skips), or 2 when the
-# read timed out before a complete JSON payload arrived (caller may block).
-# Bound is the stdin_read_timeout userConfig option in seconds (read via
-# CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT, default 2). jq (when present)
-# distinguishes a truncated read from a genuinely small-but-complete payload; a
-# missing/broken jq (exit 127) fails open like absent jq.
+# read stalled before a complete JSON payload arrived (caller may block).
+#
+# The bound (stdin_read_timeout userConfig option, in seconds, read via
+# CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT, default 2) is an IDLE bound, not a
+# total one: it arms per chunk, so a read that keeps making progress is never
+# cut off, while a pipe that goes silent for that long still fails closed. The
+# distinction is load-bearing. `read -d ''` consumes a pipe one byte at a time
+# (~32 KB/s on Git Bash), so a total bound was really a ~64 KB throughput
+# ceiling — every larger payload tripped the timeout branch and every
+# fail-closed caller blocked a legitimate write. `read -N` lets bash satisfy
+# the read in blocks instead: 50 KB drops from ~2100 ms to ~20 ms, 200 KB from
+# ~6800 ms to ~85 ms. Claude Code's own default `command` hook timeout is 600 s
+# (https://code.claude.com/docs/en/hooks), so the idle bound is not tracking
+# any harness limit.
+#
+# `read` reports which stop condition it hit — EOF returns 1, an exceeded -t
+# returns >128 — and assigns whatever it did read either way, so the loop reads
+# the stall verdict off $? instead of inferring it from elapsed-time arithmetic.
+# jq (when present) is still the completeness backstop: a stall that neverthe-
+# less delivered a complete payload is the Win32 late-EOF case this function
+# exists for and must succeed, not block. A missing/broken jq (exit 127) fails
+# open like absent jq. Requires Bash 4.1+ for `read -N` (this library already
+# requires 4.0+ for the `${var^}` case operators in hook::normalize_path).
 #   INPUT=$(hook::buffer_stdin) || exit 0
 hook::buffer_stdin() {
-  local input="" read_status=0 read_timeout="${CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT:-2}" start_epoch elapsed_ms timeout_ms
-  start_epoch=${EPOCHREALTIME:-}
-  IFS= read -r -d '' -t "$read_timeout" input || read_status=$?
+  local input="" chunk="" read_rc=0 stalled=0
+  local read_timeout="${CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT:-2}"
+  while :; do
+    chunk=""
+    read_rc=0
+    IFS= read -r -t "$read_timeout" -N 65536 chunk || read_rc=$?
+    input+="$chunk"
+    if ((read_rc == 0)); then
+      continue # a full chunk — more may still be coming
+    fi
+    if ((read_rc > 128)); then
+      stalled=1
+    fi
+    break # EOF (rc 1), a stall (rc >128), or a read error
+  done
   input=$(printf '%s' "$input" | tr -d '\r')
   [[ -n "$input" ]] || return 1
   local jq_rc=0
-  if [[ "$read_status" -ne 0 ]] && command -v jq >/dev/null 2>&1; then
+  if command -v jq >/dev/null 2>&1; then
     jq -e . >/dev/null 2>&1 <<<"$input" || jq_rc=$?
   fi
-  if [[ "$read_status" -ne 0 && "$jq_rc" -ne 0 && "$jq_rc" -ne 127 ]]; then
-    elapsed_ms=$(awk -v start="$start_epoch" -v end="$EPOCHREALTIME" 'BEGIN { printf "%.0f", (end - start) * 1000 }')
-    timeout_ms=$(awk -v timeout="$read_timeout" 'BEGIN { printf "%.0f", timeout * 1000 }')
-    if [[ "$elapsed_ms" =~ ^[0-9]+$ && "$timeout_ms" =~ ^[0-9]+$ ]] &&
-      ((elapsed_ms + 100 >= timeout_ms)); then
+  if ((jq_rc != 0 && jq_rc != 127)); then
+    if ((stalled)); then
       echo "BLOCKED: hook stdin timed out before a complete JSON payload arrived." >&2
       return 2
     fi
