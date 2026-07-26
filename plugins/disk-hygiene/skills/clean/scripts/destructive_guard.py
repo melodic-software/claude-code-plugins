@@ -892,12 +892,26 @@ def _write_diagnostic(message: str) -> None:
     try:
         print(message, file=sys.stderr, flush=True)
     except BaseException:  # noqa: BLE001 -- deny must outrank the diagnostic; see docstring
-        with contextlib.suppress(BaseException):
-            null_fd = os.open(os.devnull, os.O_WRONLY)
-            try:
-                os.dup2(null_fd, sys.stderr.fileno())
-            finally:
-                os.close(null_fd)
+        _discard_stream(sys.stderr)
+
+
+def _discard_stream(stream: object) -> None:
+    """Point a broken stream's fd at the null device, best-effort.
+
+    A failed write can leave data buffered, and the interpreter's own shutdown
+    flush of that buffer then raises too — which CPython reports as exit 120,
+    another status PreToolUse treats as non-blocking. Redirecting the
+    underlying fd lets the shutdown flush succeed into nothing, so the exit
+    code stays the one this module chose. Best-effort throughout: ``fileno``
+    itself raises for a stream with no fd (a redirected in-process test
+    stream), and there is nowhere left to report a failure to report.
+    """
+    with contextlib.suppress(BaseException):
+        null_fd = os.open(os.devnull, os.O_WRONLY)
+        try:
+            os.dup2(null_fd, stream.fileno())
+        finally:
+            os.close(null_fd)
 
 
 def _watchdog_fire(deadline: float) -> None:
@@ -1038,6 +1052,14 @@ def main() -> int:
             f"destructive_guard: internal error, denying by default "
             f"({type(exc).__name__}: {exc})"
         )
+        # stdout gets the same treatment as a broken stderr, and for the same
+        # reason. A closed stdout pipe makes `_decide`'s decision `print` raise
+        # into this handler; the partially-written JSON stays buffered, the
+        # shutdown flush of it fails, and CPython replaces this deliberate `2`
+        # with `120` — non-blocking, destructive command runs. Nothing on
+        # stdout is wanted on the exit-2 path anyway, so discarding it costs
+        # nothing and keeps the deny.
+        _discard_stream(sys.stdout)
         return 2
     finally:
         # `watchdog` stays None if construction itself raised; cancelling an
@@ -1047,4 +1069,26 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    _exit_code = main()
+    try:
+        sys.stdout.flush()
+    except BaseException:
+        # A decision the host never received is not a decision. `_decide`'s
+        # `print` only buffers, so a closed stdout pipe surfaces here rather
+        # than at that call — outside `main`'s boundary, where an allow would
+        # otherwise sail out as exit 0 with nothing delivered.
+        _write_diagnostic(
+            "destructive_guard: the decision could not be written to stdout; "
+            "denying by default."
+        )
+        _discard_stream(sys.stdout)
+        _exit_code = 2
+    with contextlib.suppress(BaseException):
+        sys.stderr.flush()
+    # `os._exit`, not `SystemExit`: interpreter shutdown flushes the std
+    # streams again and CPython replaces the exit status with 120 when that
+    # flush fails — non-blocking under PreToolUse, so a deliberate `2` would
+    # let the destructive command run. Both streams are already flushed as far
+    # as they can be, so nothing deliverable is lost by exiting hard. Same
+    # reasoning as `_watchdog_fire`'s exit.
+    os._exit(_exit_code)  # noqa: SLF001 -- see comment above

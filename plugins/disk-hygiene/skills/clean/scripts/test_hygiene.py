@@ -2882,7 +2882,7 @@ class GuardTests(unittest.TestCase):
     def test_engine_gate_catches_engine_after_wrapper_with_option_operands(self) -> None:
         """Wrapper option operands must not hide the bare engine name (P1 r9)."""
         result = self.run_guard_engine_gate(
-            f"env -i PATH=/usr/bin nice -n 10 hygiene.py apply --plan p --token t",
+            "env -i PATH=/usr/bin nice -n 10 hygiene.py apply --plan p --token t",
             "Bash",
             enabled=False,
         )
@@ -3951,6 +3951,47 @@ class GuardTests(unittest.TestCase):
         ):
             guard._watchdog_fire(1.0)
         fake_exit.assert_called_once_with(2)
+
+    def test_undeliverable_stdout_decision_denies_at_exit_2_in_a_real_process(
+        self,
+    ) -> None:
+        """A decision the host never received must deny, not exit 0 or 120.
+
+        The sibling cases above cover a broken *stderr*. Broken *stdout* is the
+        other half and cannot be observed in-process: `_decide`'s decision
+        `print` only buffers, so a closed stdout pipe raises nowhere inside
+        `main` — it surfaces at interpreter shutdown, which CPython reports by
+        replacing the exit status with 120. Non-blocking under the PreToolUse
+        contract, so the destructive command runs even though the guard had
+        decided to deny it. Only a real process with a real closed pipe shows
+        this; against the pre-fix module tail it exits 120.
+        """
+        env = dict(os.environ)
+        read_fd, write_fd = os.pipe()
+        os.close(read_fd)
+        try:
+            proc = subprocess.Popen(
+                [self.python_command(), str(SCRIPT_DIR / "destructive_guard.py")],
+                stdin=subprocess.PIPE,
+                stdout=write_fd,
+                stderr=subprocess.PIPE,
+                text=True,
+                env=env,
+            )
+        finally:
+            os.close(write_fd)
+        with proc:
+            proc.stdin.write(
+                json.dumps(
+                    {"tool_name": "Bash", "tool_input": {"command": "rm -rf /tmp/x"}}
+                )
+            )
+            proc.stdin.close()
+            proc.wait(timeout=30)
+            stderr = proc.stderr.read()
+        self.assertEqual(2, proc.returncode)
+        self.assertNotEqual(120, proc.returncode)
+        self.assertIn("could not be written to stdout", stderr)
 
     def test_main_arms_watchdog_at_resolved_deadline_and_cancels_on_return(
         self,
