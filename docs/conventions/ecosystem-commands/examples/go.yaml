@@ -1,6 +1,6 @@
 # Example .claude/ecosystems/go.yaml — a consuming repo's Go command surface.
 # Contract: docs/conventions/ecosystem-commands/README.md (schema: ecosystem.schema.json).
-globs: ["*.go", "go.mod", "go.sum", "*.proto", "buf.gen.yaml", "buf.yaml", "buf.work.yaml"]
+globs: ["*.go", "go.mod", "go.sum", "*.proto", "buf.gen.yaml", "buf.yaml", "buf.work.yaml", "buf.lock"]
 project-discovery: ["go.mod"]
 build-cmd: "go build ./..."
 test-cmd: "go test ./..."
@@ -24,12 +24,18 @@ gates:
   # above (not just this gate's `trigger-globs`) per the 1.1.1 reachability rule — trigger-globs
   # alone never selects an ecosystem under auto-targeting, so without a `globs` entry a change
   # touching only that file would never reach this gate outside `/toolchain:check go` or
-  # `check all`. That is `*.proto` and `buf.gen.yaml` (which plugins run and where they write),
-  # plus `buf.yaml` and v1's `buf.work.yaml`: those define the workspace modules, `includes`, and
-  # `excludes` that decide which Protobuf files generation discovers at all, so editing one alone
-  # can strand or orphan generated output. Refs:
-  # https://buf.build/docs/configuration/v2/buf-yaml/ and
-  # https://buf.build/docs/configuration/v1/buf-work-yaml/. The gate's
+  # `check all`. Apply that rule to buf's whole documented input surface, not a favourite subset —
+  # the sources plus every file that changes what generation sees or emits:
+  #   - `*.proto` — the sources themselves.
+  #   - `buf.gen.yaml` — which plugins run and where they write.
+  #   - `buf.yaml` (v1 also `buf.work.yaml`) — the workspace `modules`/`includes`/`excludes` that
+  #     decide which Protobuf files generation discovers at all.
+  #   - `buf.lock` — the resolved external-dependency pins; `buf dep update` can change imported
+  #     descriptors and options with no local `.proto` edit at all.
+  # Editing any one of them alone can strand or orphan generated output, so each needs its own
+  # `globs` entry. Refs: https://buf.build/docs/configuration/v2/buf-yaml/,
+  # https://buf.build/docs/configuration/v1/buf-work-yaml/, and
+  # https://buf.build/docs/configuration/v2/buf-lock/. The gate's
   # `trigger-globs` below also lists the plugins' own generated-output patterns (`*.pb.go`,
   # `*.pb.gw.go`), so a hand-edit that drifts a generated file from what `buf generate` would
   # produce still fires this gate — unlike the buf inputs above, they need no separate `globs`
@@ -78,7 +84,7 @@ gates:
   # (which the gate reports on FAIL) names the listing command.
   - name: proto-gen-freshness
     cmd: "buf generate --clean && git diff HEAD --exit-code -- '*.pb.go' '*.pb.gw.go' && git diff --cached --exit-code -- '*.pb.go' '*.pb.gw.go' && test -z \"$(git ls-files --others --exclude-standard -- '*.pb.go' '*.pb.gw.go')\""
-    trigger-globs: ["*.proto", "buf.gen.yaml", "buf.yaml", "buf.work.yaml", "*.pb.go", "*.pb.gw.go"]
+    trigger-globs: ["*.proto", "buf.gen.yaml", "buf.yaml", "buf.work.yaml", "buf.lock", "*.pb.go", "*.pb.gw.go"]
     run-from: repo-root
     remediation: "Run buf generate --clean from the repo root, then stage and commit every resulting change to every buf.gen.yaml-configured plugin's output (this example's *.pb.go and grpc-gateway's *.pb.gw.go — extend to match this repo's plugins) — modified, newly generated, and deleted (an output whose .proto is gone). The gate fails until the regenerated output is committed, whether the drift sits in the working tree, the index, or both. `git status --short -- '*.pb.go' '*.pb.gw.go'` lists all three, its first column reporting the index and its second the working tree (extend the same way)."
 notes: "govulncheck is intentionally not a rung-4 default (per the epic brief's \"optional\" framing) — add it as a consumer-local gate via .claude/ecosystems/go.local.yaml if desired."
