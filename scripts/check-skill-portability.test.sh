@@ -172,6 +172,30 @@ else
 fi
 rm -f "$f"
 
+# --- a mere MENTION of the token (not a genuine comment-line declaration) --
+# does NOT exempt the file -- #1513, shared fix with
+# check-shell-portability.sh's identical mechanism.
+f="$(tmpfile 'This gate supports a whole-file portability-scope: <reason> declaration.
+Base the diff on origin/main for the review.')"
+if out="$(scan_paths "$f" 2>&1)"; then
+  fail "prose merely mentioning portability-scope: should not exempt the file, got success: $out"
+elif echo "$out" | grep -q "COUPLING: ${f}:2:"; then
+  ok "prose mentioning portability-scope: (not a genuine declaration) does not exempt the file"
+else
+  fail "expected line 2 flagged (not exempted), got: $out"
+fi
+rm -f "$f"
+
+# --- a genuine # -comment declaration (not only <!-- -->) also exempts -----
+f="$(tmpfile '# portability-scope: shell-script skill file, hash-comment style
+Base the diff on origin/main for the review.')"
+if scan_paths "$f" >/dev/null 2>&1; then
+  ok "a genuine #-comment portability-scope declaration also exempts the file"
+else
+  fail "a genuine #-comment portability-scope declaration should exempt the file"
+fi
+rm -f "$f"
+
 # --- staged (commented) tokens stay inactive under the REAL token list -----
 f="$(mktemp --suffix=.md)"
 printf '%s\n' 'This agnostic skill mentions dotnet and raw.githubusercontent.com.' >"$f"

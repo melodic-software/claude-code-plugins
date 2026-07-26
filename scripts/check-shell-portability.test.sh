@@ -270,6 +270,128 @@ fi
 rm -f "$f" "$tok"
 
 # =============================================================================
+# sed -Ei (extended-regex + unsuffixed in-place combined into one flag
+# cluster), and --in-place (GNU long form) — #1513
+# =============================================================================
+
+tok="$(one_token_list '(^|[^[:alnum:]_])sed([[:space:]][^\n]*)?[[:space:]]-[A-Za-z]*E[A-Za-z]*i([[:space:]]|$)')"
+
+f="$(tmpsh "sed -Ei 's/foo/bar/' \"\$file\"")"
+if out="$(scan_paths "$tok" "$f" 2>&1)"; then
+  fail "sed -Ei (unsuffixed) should fail, got success: $out"
+else
+  ok "sed -Ei (unsuffixed) is detected"
+fi
+rm -f "$f"
+
+# --- an indented invocation still matches (the non-identifier branch of the
+# command-token anchor, not the start-of-line branch) -----------------------
+f="$(tmpsh "  sed -Ei 's/foo/bar/' \"\$file\"")"
+if out="$(scan_paths "$tok" "$f" 2>&1)"; then
+  fail "indented sed -Ei should fail, got success: $out"
+else
+  ok "indented sed -Ei is detected (command-token anchor allows a leading separator)"
+fi
+rm -f "$f"
+
+# --- E/i need not be adjacent or the only letters in the cluster, but i must
+# be the cluster's LAST letter (GNU syntax is -i[SUFFIX]) -------------------
+f="$(tmpsh "sed -nEi 's/foo/bar/' \"\$file\"")"
+if out="$(scan_paths "$tok" "$f" 2>&1)"; then
+  fail "sed -nEi (E/i not adjacent, extra letter in cluster) should fail, got success: $out"
+else
+  ok "sed -nEi (E/i not adjacent, extra letter in cluster) is detected"
+fi
+rm -f "$f"
+
+# --- -iE is NOT the unsuffixed form: GNU's syntax is -i[SUFFIX], so the E is
+# an attached backup suffix (verified against GNU sed 4.9: `sed -iE ... f`
+# writes the backup `fE`), i.e. the dual-compatible shape -------------------
+f="$(tmpsh "sed -iE 's/foo/bar/' \"\$file\"")"
+if scan_paths "$tok" "$f" >/dev/null 2>&1; then
+  ok "sed -iE (E is an attached backup suffix, not a flag) is not flagged"
+else
+  fail "sed -iE must not be flagged -- E is an attached nonempty suffix, which is dual-compatible"
+fi
+rm -f "$f"
+
+# --- an attached NONEMPTY suffix is dual-compatible, not flagged -----------
+f="$(tmpsh "sed -Ei.bak 's/foo/bar/' \"\$file\"")"
+if scan_paths "$tok" "$f" >/dev/null 2>&1; then
+  ok "sed -Ei.bak (attached nonempty suffix) is not flagged"
+else
+  fail "sed -Ei.bak must not be flagged -- attached suffix is dual-compatible"
+fi
+rm -f "$f"
+
+# --- an attached EMPTY suffix is the same ambiguous shape as -i'' (deferred,
+# see the token file) -- must not be flagged -------------------------------
+f="$(tmpsh "sed -Ei'' 's/foo/bar/' \"\$file\"")"
+if scan_paths "$tok" "$f" >/dev/null 2>&1; then
+  ok "sed -Ei'' (attached empty suffix) is not flagged -- deferred ambiguous shape"
+else
+  fail "sed -Ei'' must not be flagged -- it is the same deferred ambiguous shape as -i''"
+fi
+rm -f "$f"
+
+# --- plain -i (no E) does not double-fire this cluster token ---------------
+f="$(tmpsh "sed -i 's/foo/bar/' \"\$file\"")"
+if scan_paths "$tok" "$f" >/dev/null 2>&1; then
+  ok "plain sed -i (no E in the cluster) does not fire the -Ei token"
+else
+  fail "plain sed -i must not fire the E+i combined-cluster token"
+fi
+rm -f "$f"
+
+# --- anchored to a sed mention on the line: bare -Ei from an unrelated tool
+# name is not itself sufficient (grep also has -E and -i, commonly combined)
+f="$(tmpsh "grep -Ei 'pattern' \"\$file\"")"
+if scan_paths "$tok" "$f" >/dev/null 2>&1; then
+  ok "grep -Ei (no 'sed' on the line) does not fire the sed-scoped token"
+else
+  fail "grep -Ei must not fire a sed-scoped token -- it has no 'sed' mention on the line"
+fi
+rm -f "$f"
+
+# --- the anchor is a sed COMMAND token, not any occurrence of the three
+# characters: an identifier that merely contains 'sed' must not arm it ------
+f="$(tmpsh "used=\"\$(grep -Ei 'pattern' \"\$file\")\"")"
+if scan_paths "$tok" "$f" >/dev/null 2>&1; then
+  ok "an identifier containing 'sed' (used=) does not arm the sed-scoped token"
+else
+  fail "used=\"\$(grep -Ei ...)\" must not fire -- 'sed' inside an identifier is not a sed command"
+fi
+rm -f "$f" "$tok"
+
+tok="$(one_token_list '(^|[^[:alnum:]_])sed([[:space:]][^\n]*)?[[:space:]]--in-place([[:space:]]|=|$)')"
+
+f="$(tmpsh "sed --in-place 's/foo/bar/' \"\$file\"")"
+if out="$(scan_paths "$tok" "$f" 2>&1)"; then
+  fail "sed --in-place (bare) should fail, got success: $out"
+else
+  ok "sed --in-place (bare) is detected"
+fi
+rm -f "$f"
+
+f="$(tmpsh "sed --in-place=.bak 's/foo/bar/' \"\$file\"")"
+if out="$(scan_paths "$tok" "$f" 2>&1)"; then
+  fail "sed --in-place=SUFFIX should fail, got success: $out"
+else
+  ok "sed --in-place=SUFFIX (long form has no portable BSD equivalent, suffixed or not) is detected"
+fi
+rm -f "$f"
+
+# --- an unrelated tool's own --in-place option (defined or forwarded by the
+# script itself) is not a GNU sed invocation and must not be flagged --------
+f="$(tmpsh "case \"\$1\" in --in-place) in_place=1 ;; esac")"
+if scan_paths "$tok" "$f" >/dev/null 2>&1; then
+  ok "a script's own --in-place option arm is not flagged (no sed command on the line)"
+else
+  fail "--in-place must be scoped to a sed invocation -- an unrelated option arm must not fire"
+fi
+rm -f "$f" "$tok"
+
+# =============================================================================
 # readlink -f / --canonicalize, auto-guarded by a co-located realpath attempt
 # =============================================================================
 
@@ -363,6 +485,65 @@ else
   fail "whole-file portability-scope should pass"
 fi
 rm -f "$f" "$tok"
+
+# --- a mere MENTION of the token (not a genuine comment-line declaration) --
+# does NOT exempt the file -- #1513: a doc-block sentence explaining the
+# mechanism, or a string literal containing the words, must not wrongly
+# excuse a real hit.
+tok="$(one_token_list '\\b')"
+f="$(tmpsh '# This script supports a whole-file portability-scope: <reason> declaration.
+grep -Eq "\\bfoo\\b" "$file"')"
+if out="$(scan_paths "$tok" "$f" 2>&1)"; then
+  fail "a doc-comment merely mentioning portability-scope: should not exempt the file, got success: $out"
+elif echo "$out" | grep -q "PORTABILITY: ${f}:2:"; then
+  ok "a doc-comment mentioning portability-scope: (not a genuine declaration) does not exempt the file"
+else
+  fail "expected line 2 flagged (not exempted), got: $out"
+fi
+rm -f "$f"
+
+f="$(tmpsh 'msg="see portability-scope: docs for details"
+grep -Eq "\\bfoo\\b" "$file"')"
+if out="$(scan_paths "$tok" "$f" 2>&1)"; then
+  fail "a string literal mentioning portability-scope: should not exempt the file, got success: $out"
+elif echo "$out" | grep -q "PORTABILITY: ${f}:2:"; then
+  ok "a string literal mentioning portability-scope: (not a comment) does not exempt the file"
+else
+  fail "expected line 2 flagged (not exempted), got: $out"
+fi
+rm -f "$f" "$tok"
+
+# --- a genuine declaration mid-file (not necessarily line 1) still works ---
+tok="$(one_token_list '\\b')"
+f="$(tmpsh 'plain_line=1
+  # portability-scope: indented declaration still counts
+grep -Eq "\\bfoo\\b" "$file"')"
+if scan_paths "$tok" "$f" >/dev/null 2>&1; then
+  ok "an indented genuine portability-scope declaration anywhere in the file still exempts it"
+else
+  fail "an indented genuine portability-scope declaration should still exempt the file"
+fi
+rm -f "$f" "$tok"
+
+# =============================================================================
+# awk operand disambiguation: a scanned file whose name is shaped like an
+# identifier=value assignment must not be silently dropped from the scan
+# (#1513)
+# =============================================================================
+
+tok="$(one_token_list '\\b')"
+fx="$(mktemp -d)"
+mkdir -p "$fx/scripts"
+cp "$SCRIPT" "$fx/scripts/"
+printf 'grep -Eq "\\bfoo\\b" "$file"\n' >"$fx/FOO=bar.sh"
+out="$(cd "$fx" && SHELL_PORTABILITY_TOKENS="$tok" bash scripts/check-shell-portability.sh --paths "FOO=bar.sh" 2>&1)"
+rc=$?
+if [[ "$rc" -ne 0 ]] && echo "$out" | grep -q 'PORTABILITY: FOO=bar\.sh:1:'; then
+  ok "a filename shaped like identifier=value is scanned, not silently dropped by awk"
+else
+  fail "an identifier=value-shaped filename must be scanned, not dropped (rc=$rc): $out"
+fi
+rm -rf "$fx" "$tok"
 
 # =============================================================================
 # Fail-closed behavior
