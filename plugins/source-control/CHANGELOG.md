@@ -21,6 +21,20 @@ All notable changes to the `source-control` plugin are documented here. Format f
   uncertain blocker still escalates. `babysit-prs`'s "escalate security/P1 even in autopilot" rule
   carries a matching named exception for that one dispatch path only. Tracks loop-lane convention
   3.0.0.
+- **The widening lifts only the raise restriction.** An explicitly argued *lower* rung is applied
+  after it, so `autopilot --merge human-only` merges nothing; the order is tracked rung → the
+  `autopilot` raise → any explicitly argued lower rung → the C4/C5 ceiling.
+- **C5 is derived from the PR's own provenance, not the linked item's stamp.** A cross-repository
+  fork PR, or one authored outside the watched owners, is C5 even when the item it closes is
+  internally classified C2 or C3 — `work-classes.md` defines the class by input provenance, which
+  "dominates every other property". The rung partition derives that override from the cycle-start
+  snapshot before comparing any recorded class to the rung.
+- **Human blocking feedback and merge conflicts stay outside the dispatch.** A human
+  `CHANGES_REQUESTED` review, explicit human blocking language, or an unresolved inline human thread
+  remains a stop-and-ask condition per `reference/feedback.md`'s "Human Feedback" — the exception
+  does not amend it, and no dispatch is made. Conflicts route to the dedicated merge-only conflict
+  worker; the dispatch never rebases a PR branch, which would need the force-push forbidden
+  cross-tier.
 - **C4/C5 floor stated as unconditional across the merge surface.** No rung, no seam config, and no
   invocation argument — including this exception and including `full-autonomy` — ever grants merge
   authority over a `work-class: structural` (C4) or `work-class: untrusted-provenance` (C5) item.

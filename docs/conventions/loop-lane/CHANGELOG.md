@@ -17,7 +17,14 @@ A change to the autonomy-ladder invariant is a major bump per this file's own ru
   to and including C3, in a repository that has already adopted the baseline rung. Persists nothing
   to config; is not a substitute for the recorded C3-autonomous seam flip. **C4 (structural) and C5
   (untrusted-provenance) stay unconditionally human-gated** — no rung, seam, or argument, including
-  this one, ever reaches them, per the autonomy matrix's own "never promotes" cells.
+  this one, ever reaches them, per the autonomy matrix's own "never promotes" cells. The exception
+  lifts only the *raise* restriction: an explicitly argued lower rung is still honored after it, and
+  C5 is derived from the PR's own provenance rather than the linked item's recorded class, so a fork
+  PR closing an internally-classified C2/C3 item is outside the exception.
+- **Human blocking feedback and merge conflicts stay outside the dispatch.** A
+  `CHANGES_REQUESTED` review, explicit human blocking language, or an unresolved inline human thread
+  remains a stop-and-ask condition the exception does not amend; conflicts route to a lane's
+  merge-only conflict path, never a rebase.
 - **Capability tiers** — the explicit-`autopilot` exception's frontier-tier dispatch additionally
   requires context independence: no shared conversation history with whatever produced or previously
   reviewed the PR. A same-context or self-continuation dispatch does not satisfy the exception even at

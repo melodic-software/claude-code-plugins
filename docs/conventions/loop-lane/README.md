@@ -71,12 +71,31 @@ floor. This is a **per-invocation, single-run widening**, not a standing rung ch
 nothing to config, ratifies nothing on the governance surface, and reverts the moment the caller
 stops typing `autopilot` explicitly. It is not a substitute for the recorded C3-autonomous flip above
 — a repository wanting *standing* C3 autonomy still needs that seam config change; this exception
-only ever covers the one invocation that named it. Every PR this exception reaches that is blocked on
-a `needs-human` label, a contradictory or security-relevant review thread, or an open finding gets a
-**fresh frontier-tier subagent** dispatched to resolve the blocker — sharing no context with whatever
-produced the PR (§3) — before the deterministic merge gate runs; the gate itself is never bypassed or
-weakened by this exception, only the human-ratification step ahead of it is replaced by an
-independent agent's resolution for this single run.
+only ever covers the one invocation that named it.
+
+**A safer argument still wins.** The exception lifts only the *raise* restriction. An argument
+selecting a lower rung is honored after the widening, so an invocation naming both `autopilot` and an
+explicit `human-only` merge rung merges nothing — the resolution order is tracked rung, then the
+`autopilot` raise, then any explicitly argued lower rung, then the C4/C5 ceiling.
+
+**C5 is a provenance test, not a stamp lookup.** A fork PR or external contribution is C5 by its own
+provenance, which "dominates every other property" — so it is outside this exception even when the
+item it closes is internally classified C2 or C3. A lane implementing the floor derives the C5
+override from the PR itself, before comparing any recorded class to the rung.
+
+Every PR this exception reaches that is blocked on a `needs-human` label, a contradictory or
+security-relevant **machine-authored** review thread, or an open finding gets a **fresh frontier-tier
+subagent** dispatched to resolve the blocker — sharing no context with whatever produced the PR (§3)
+— before the deterministic merge gate runs; the gate itself is never bypassed or weakened by this
+exception, only the human-ratification step ahead of it is replaced by an independent agent's
+resolution for this single run.
+
+**What the dispatch never reaches.** Human blocking feedback — a `CHANGES_REQUESTED` review,
+explicit human blocking language, an unresolved inline human thread — remains a stop-and-ask
+condition that escalates and is never resolved past; this exception does not amend a lane's own
+human-feedback contract. Merge conflicts route to a lane's dedicated conflict-resolution path and
+integrate merge-only; this exception never authorizes rebasing a PR branch, which would need a
+force-push the lanes forbid.
 
 ## 2. Escalation contract
 

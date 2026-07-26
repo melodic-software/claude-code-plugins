@@ -127,20 +127,40 @@ invocations only ever receive rung-eligible PR refs — never by standing instru
 skill is trusted to honor.
 
 **Explicit-`autopilot` widening (single-invocation, non-standing).** Independent of the tracked
-rung, an invocation that types `autopilot` as its own tier argument (in an adopted repo) computes
-this cycle's effective merge rung as at least C3-equivalent — never lower than whatever the tracked
-rung already grants, never reaching C4/C5. The deterministic gate is not weakened: checks, thread
-resolution, and mergeability still all have to pass. What changes is what happens to a PR that's
-otherwise eligible (C1-C3) but blocked on a `needs-human` label, an open security/P1 finding, or a
-contradictory/unresolved review thread: instead of falling through to Escalation, the cycle
-dispatches a **fresh frontier-tier subagent sharing no context with the PR's authoring or reviewing
-sessions** (per the convention's capability-tier independence rule) to resolve that specific blocker
-— through babysit-prs's own guarded-mutation path (`babysit-prs/SKILL.md`'s explicit-autopilot
-exception to "escalate security/P1 even in autopilot"), never a raw/unguarded mutation. Only after
-that resolution attempt does the PR proceed to the normal gate; if the blocker is unresolved, or the
-PR is C4/C5, or the resolution attempt itself is uncertain, it still escalates exactly as it would
-without this exception — this widens *who tries first*, never what the gate requires or what the
-C4/C5 floor forbids.
+rung, an invocation that types `autopilot` as its own tier argument (in an adopted repo) raises this
+cycle's merge rung to C3-equivalent when that is higher than the tracked rung, never reaching
+C4/C5.
+
+**An explicit safer argument still wins — the widening is applied first, the safer cap last.**
+`--merge <rung>` selecting a *lower* rung than the widening (or than the tracked rung) is honored, so
+`/source-control:babysit-loop <owner/repo> autopilot --merge human-only` merges nothing at all. The
+order is: tracked rung → raise to C3 if `autopilot` was typed → floor to any explicitly argued lower
+rung → floor to the unconditional C4/C5 ceiling. The exception only ever removes a *raise*
+restriction; it never overrides a caller asking for less authority, per
+the config-resolution reference's "an invocation argument may select a lower (safer) rung".
+
+The deterministic gate is not weakened: checks, thread resolution, and mergeability still all have to
+pass. What changes is what happens to a PR that's otherwise eligible (C1-C3) but blocked on a
+`needs-human` label, an open non-human finding, or a contradictory/unresolved **bot** review thread:
+instead of falling through to Escalation, the cycle dispatches a **fresh frontier-tier subagent
+sharing no context with the PR's authoring or reviewing sessions** (per the convention's
+capability-tier independence rule) to resolve that specific blocker — through babysit-prs's own
+guarded-mutation path, never a raw/unguarded mutation.
+
+**Human blocking feedback is out of the dispatch's reach, unchanged.** A human
+`CHANGES_REQUESTED` review, explicit human blocking language, and an unresolved inline human thread
+stay stop-and-ask conditions that escalate and are never fixed or resolved past — the invoked
+mechanic's own rule (`babysit-prs/reference/feedback.md`, "Human Feedback"), which this exception
+does not touch. The dispatch is for machine-authored blockers; a PR whose blocker is human blocking
+feedback escalates without a dispatch. Merge conflicts likewise stay outside it: they route to the
+dedicated merge-based conflict worker (`babysit-prs/reference/orchestration.md`), integrating
+**merge-only, never rebase** — rebasing a PR branch needs the force-push babysit-prs forbids
+cross-tier.
+
+Only after a resolution attempt does the PR proceed to the normal gate; if the blocker is unresolved,
+or the PR is C4/C5, or the resolution attempt itself is uncertain, it still escalates exactly as it
+would without this exception — this widens *who tries first*, never what the gate requires or what
+the C4/C5 floor forbids.
 
 **Always-on safety knobs** — never configurable off, whatever the tier or rung: the activity grace
 window (width configurable, existence not), babysit-prs's head-move yield and expected-head
@@ -184,9 +204,10 @@ new intake arriving mid-cycle is reported, never chased.
    A PR is merge-eligible only when its item's class sits within the effective rung: at
    `c2-mechanical`, C2 mechanical only; at `c3-autonomous`, C2 and C3; at `full-autonomy`, every
    class up to and including C3 — **`full-autonomy` never reaches C4/C5, per the unconditional
-   floor below; there is no rung name that does.** The effective rung for this computation is the
-   tracked rung, OR C3-equivalent when this invocation explicitly typed the `autopilot` tier
-   argument (whichever is higher) — see "Explicit-`autopilot` widening" above. A PR with no
+   floor below; there is no rung name that does.** The effective rung for this computation resolves
+   in four ordered steps: the tracked rung, raised to C3-equivalent if this invocation explicitly
+   typed the `autopilot` tier argument, then floored to any explicitly argued lower rung, then
+   floored to the unconditional C4/C5 ceiling — see "Explicit-`autopilot` widening" above. A PR with no
    close-linked item, or an item with no recorded classification, is NOT eligible — no
    classification = no merge, at any rung, including the explicit-`autopilot` widening. A PR still
    carrying the do-not-merge label at partition time is NOT eligible at any rung or class — the
@@ -201,9 +222,17 @@ new intake arriving mid-cycle is reported, never chased.
    `human-only` (including the no-tracked-adoption default), or under a non-merge-capable tier, the
    eligible set is empty — the explicit-`autopilot` widening does not apply without tracked
    adoption either (config-resolution.md, "Baseline activation is tracked adoption").
-   **C4/C5 floor:** a PR whose item classifies C4 (structural) or C5 (untrusted-provenance) is
-   NEVER in the eligible set, at any rung, under any invocation argument — this is checked before,
-   and independent of, the rung comparison above.
+   **C4/C5 floor:** a PR that is C4 (structural) or C5 (untrusted-provenance) is NEVER in the
+   eligible set, at any rung, under any invocation argument — this is checked before, and
+   independent of, the rung comparison above. **C5 is a provenance test on the PR, not a lookup of
+   the linked item's stamp.** `work-classes.md` defines C5 as fork PRs, external contributions, and
+   unvetted repositories: the input's own provenance, which "dominates every other property". So
+   before comparing any recorded class to the rung, derive a C5 override from the cycle-start
+   snapshot itself — a head repository other than the base (`headRepositoryOwner` / `isCrossRepository`
+   on the PR), or an author outside the watched owners — and treat such a PR as C5 whatever its
+   close-linked item says. An external fork PR that closes an internally-classified C2 or C3 issue is
+   C5, because the class travels with the code's provenance, not with the issue it closes. C4 remains
+   the item-stamp test.
 4. **Invoke the mechanic.** Every invocation uses babysit-prs's own `[mode] [scope]` grammar in
    its single-PR scope form (`owner/repo#N`) — the lane's own step-2 snapshot is the discovery
    surface, so no repo-wide invocation ever runs and a PR the lane withheld is never presented
@@ -260,19 +289,36 @@ babysit escalations surface in the same attention view as worker escalations. Te
 report surface, never the escalation channel.
 
 **Pre-escalation resolution attempt, explicit-`autopilot` only.** Before a merge-eligible (C1-C3)
-PR is escalated for a `needs-human` label, an open finding, or a contradictory/unresolved review
-thread, and only when this invocation typed the literal `autopilot` tier argument: dispatch a fresh
-frontier-tier subagent (`fable`/`opus` alias, per the convention's capability tiers) that shares no
-conversation context with whatever produced the PR or previously replied on the blocking thread.
-Brief it with the specific blocker, the PR, and the loop-lane convention's independence and
-frontier-tier requirements; it resolves through babysit-prs's own guarded-mutation path (never a
-raw mutation outside that skill's wrappers), replying to and resolving threads, fixing findings, or
-rebasing conflicts as the blocker requires. C4/C5 PRs never reach this dispatch — they were already
-excluded at the rung partition (Cycle shape, step 3) and escalate normally. If the dispatch resolves
-the blocker, the PR proceeds to its normal `autopilot`-tier invocation and gate. If it cannot —
-including any case where the subagent itself is uncertain the resolution is correct — the PR
-escalates exactly as it would without this exception; this dispatch adds one resolution attempt, it
-never removes the escalation path or lowers the deterministic gate's bar.
+PR is escalated for a `needs-human` label, an open machine-authored finding, or a
+contradictory/unresolved **bot** review thread, and only when this invocation typed the literal
+`autopilot` tier argument: dispatch a fresh frontier-tier subagent (`fable`/`opus` alias, per the
+convention's capability tiers) that shares no conversation context with whatever produced the PR or
+previously replied on the blocking thread. Brief it with the specific blocker, the PR, and the
+loop-lane convention's independence and frontier-tier requirements; it resolves through babysit-prs's
+own guarded-mutation path (never a raw mutation outside that skill's wrappers), replying to and
+resolving threads or fixing findings as the blocker requires.
+
+**Three blocker classes this dispatch never touches**, each because the invoked mechanic's own
+contract already owns them and this exception does not amend those contracts:
+
+- **Human blocking feedback.** A human `CHANGES_REQUESTED` review, explicit human blocking language,
+  or an unresolved inline human thread stays a stop-and-ask condition until GitHub state resolves it
+  — escalate, never fix or resolve past it (`babysit-prs/reference/feedback.md`, "Human Feedback").
+  No dispatch is made; the PR escalates. The one exception `babysit-prs` gained in this change is
+  scoped to security/P1 escalation and to that dispatch path alone
+  (`babysit-prs/reference/safety.md`, "Security/P1 escalation"); it does not widen to human blocks.
+- **Merge conflicts.** These route to the dedicated fresh conflict-resolution worker
+  (`babysit-prs/reference/orchestration.md`, Merge Conflict Resolution), which integrates
+  **merge-only and never rebases** — rebasing a PR branch needs the force-push babysit-prs forbids
+  cross-tier (`babysit-prs/SKILL.md` step 0.3). This dispatch never resolves a conflict itself and
+  never rebases.
+- **C4/C5 PRs.** Already excluded at the rung partition (Cycle shape, step 3), including the
+  provenance-derived C5 override, and they escalate normally.
+
+If the dispatch resolves the blocker, the PR proceeds to its normal `autopilot`-tier invocation and
+gate. If it cannot — including any case where the subagent itself is uncertain the resolution is
+correct — the PR escalates exactly as it would without this exception; this dispatch adds one
+resolution attempt, it never removes the escalation path or lowers the deterministic gate's bar.
 
 ## Telemetry and durable loop state
 

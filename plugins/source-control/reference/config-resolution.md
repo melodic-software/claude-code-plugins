@@ -129,6 +129,12 @@ invocation that doesn't type `autopilot` explicitly reverts to whatever `babysit
 to through the normal precedence above. It requires baseline adoption (next paragraph) exactly like
 every other rung.
 
+**The exception lifts the raise restriction only — a safer argument still wins.** The sentence above
+("an invocation argument may each select a *lower* (safer) rung … never a higher one") keeps its
+lower half intact: an argument naming a lower rung is applied *after* the widening, so
+`autopilot --merge human-only` merges nothing. The order is tracked rung → the `autopilot` raise →
+any explicitly argued lower rung → the C4/C5 ceiling below.
+
 **No config layer or key ever supplies the exception's keyword.** The exception reads the literal
 token on the invocation line and nothing else: `babysit_loop_tier: autopilot` in any of the three
 layers resolves the *tier* (dimensions 1-5 and 7) without widening the merge dimension, the tier
@@ -154,7 +160,9 @@ the lane reports why.
 explicit-`autopilot` exception above — ever grants merge authority over a `work-class: structural`
 (C4) or `work-class: untrusted-provenance` (C5) item. This is not a `babysit_loop_merge` value; it is
 a ceiling the resolved rung composes under, always, per the autonomy matrix's "never promotes" cells
-(`work-classes.md#suggested-default-predicates`).
+(`work-classes.md#suggested-default-predicates`). C5 is decided by the PR's own provenance — a
+cross-repository head or an author outside the watched owners — not by the class stamped on the item
+it closes, because provenance "dominates every other property" (`work-classes.md`, `C5`).
 
 ## The three layers
 
