@@ -3,6 +3,67 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.14.0]
+
+### Added
+
+- **"Scope of a Read deny" in `audit`'s `reference/required-permissions.md`.** The
+  `sensitive-file-deny` table recommended `Read(./.env)` / `Read(./secrets/**)` /
+  `Read(./.claude/settings.local.json)` with no statement of what a `Read` deny actually reaches, so a
+  reader came away believing the file was protected. The new subsection splits covered from not
+  covered against current official docs: the rule reaches the built-in file tools (Read, Grep, Glob,
+  LSP), `@file` mentions, IDE selection context, Edit on the same path, **and the file commands Claude
+  Code recognizes inside a Bash command such as `cat`, `head`, `tail`, and `sed`** — but *not* an
+  arbitrary subprocess that opens the path itself, which is how a `python -c` or `node -e` one-liner
+  reads a denied file with no deny firing. Remedies are ranked rather than listed: the sandbox
+  (`sandbox.filesystem.denyRead`, `sandbox.credentials.files` with `"mode": "deny"`) is the documented
+  OS-level enforcement path, carrying the platform limit that it does not run on native Windows; a
+  `PreToolUse` hook on `Bash|PowerShell` is explicitly a speed bump, not a boundary, because it
+  inspects the same evadable command string; and where no OS-level boundary exists the durable control
+  is that the secret is not in a file the session's OS principal can read at all — directory location
+  is explicitly named as *not* a boundary, since a subprocess opens absolute paths and relocation
+  changes nothing about who can read the file. Enumerating shell readers as `Bash(cat *)`
+  deny globs is named as a non-remedy, since upstream documents argument-constraining Bash patterns as
+  fragile. Two facts are flagged unverified rather than asserted: whether PowerShell-tool reads
+  (`Get-Content`, `type`) are covered at all, and the full membership of the recognized-command set,
+  which upstream gives with "such as".
+- **The sandbox's four escape surfaces, tabled alongside the recommendation.** `sandbox.enabled: true`
+  on its own is not a boundary: `allowUnsandboxedCommands` lets a failing command be retried outside
+  it, `failIfUnavailable` defaults to warning and running unsandboxed, `excludedCommands` runs listed
+  commands outside and can always be appended to, and `filesystem.disabled` lifts the `denyRead` and
+  `credentials.files` read protections outright. All four are open at their defaults, so an
+  enabled-but-default sandbox is reported as partial — recommending it without them would repeat the
+  defect this release fixes.
+- **`check-structure.sh` now separates unreadable from malformed.** A `Read` deny merged into a
+  sandbox boundary, or plain filesystem permissions, makes the script's `open()` fail; it previously
+  surfaced as `Valid JSON: no` and failed the run, i.e. a false malformed-config finding. The script
+  now reports `Present: yes` / `Readable: no` with a `not inspectable` note and exits cleanly, and
+  both `SKILL.md` Phase 1 and `context/procedures.md` say that is a correct result to record rather
+  than a reason to find another reader. Covered by a new test case that announces a skip where the
+  platform does not enforce `chmod 000`.
+- **Eval 7 on the `audit` skill (`read-deny-scope-not-overstated`).** Asks whether present deny
+  patterns mean the secrets are protected; expects the scope split, the ranked remedies, and no
+  `Bash(cat *)` enumeration.
+
+### Changed
+
+- **Category B now reports the secret-file Read denies with their scope.** `SKILL.md`'s "Required
+  permission patterns" section routes the finding write-up through the new subsection, in both
+  directions — a present baseline is not reported as proof the file is unreachable.
+- **`context/procedures.md` no longer implies its own `settings.local.json` recipes escape the
+  baseline deny.** It now states that the safety is in what gets emitted, not what gets opened:
+  `check-structure.sh` reads the file from a subprocess and is safe because it emits counts only,
+  while the supplemental `cat … | jq` recipes are blocked in a project carrying the recommended deny —
+  correctly so. Routing around that block with an interpreter one-liner is prohibited; the audit
+  reports the file as not inspectable under the project's own rule instead.
+- **"Interaction with hook-based gates" now states the ordering in both directions.** "A deny rule
+  fires before any `PreToolUse` hook" was true only of the loosening direction, and the two hook cases
+  are now kept apart. A *returned decision* cannot loosen a rule: deny and ask rules are evaluated
+  regardless of which decision the hook returns. *Exit 2* short-circuits instead: it stops the call
+  before permission rules are evaluated at all, so it blocks past an allow rule and nothing downstream
+  runs, including an otherwise-matching ask rule. The consequence for this baseline — a deny entry
+  suppressing a project hook's ask escalation — is unchanged.
+
 ## [0.13.0]
 
 ### Added
