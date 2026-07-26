@@ -82,14 +82,12 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
     from the set: a body with no `-C` leaves the directory alone, so
     `a = !git a` and mutually referential pairs still stop on the first repeat.
     A body naming the directory it is already in (`-C .`) would otherwise mint a
-    fresh key per hop, so composed directories are lexically normalized (`.` and
-    `x/..` cancelled, fork-free) and collapse to a repeat instead of walking
-    (measured 34.6s before, 0.8s after). Known residual: git runs a `!` body from
-    the repository's TOP LEVEL, so a relative `-C` in a body invoked from a
-    subdirectory composes one level deeper here than git would; alias resolution
-    is unaffected, and this guard resolves no other path either (see the `cd`
-    gap). `block-dangerous-git` is not affected — it resolves inline aliases
-    only, with no persisted lookup and no shell-alias seen-set.
+    fresh key per hop and walk instead of stopping (measured 34.6s); it now
+    collapses to a repeat (0.8s) via the identity described in the next bullet,
+    which is also what supplies the `!` body's base — so a body invoked from a
+    SUBDIRECTORY composes from the outer repository's top level, as git does.
+    `block-dangerous-git` is not affected — it resolves inline aliases only, with
+    no persisted lookup and no shell-alias seen-set.
   - **The guard no longer MODELS git's path semantics; it asks git**
     (`block-noncanonical-commit`; two review findings on the fix above, one root
     cause). Modelling resolution in shell text produced a bypass every time it was
@@ -128,6 +126,23 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
     legitimate `git -C sub/.. commit -F -`, which is now a regression case
     alongside its `commit -m` twin — asking git separates the two, blanket refusal
     cannot.
+
+    Words after the subcommand are no longer read as repository globals. They are
+    that subcommand's own arguments — or, for an alias, text git APPENDS to the
+    expansion — so a trailing `-C` is not a global:
+    `git -c alias.a='!git b #' a -C <other-repo>` resolved to `<other-repo>` and
+    missed a `commit -m` reached in the CURRENT one, because git starts the body at
+    the current repository's top level and the `#` discards the appended words.
+    Directory resolution now sees only the invocation prefix, which also stops
+    `git commit -C HEAD` (`--reuse-message`) reading as a directory named `HEAD`.
+
+    **Standing limitation, unchanged and still open:** the guard does not evaluate
+    shell relocation, so a `!` body that moves the process (`!cd child && git …`)
+    is analyzed against the invoking repository rather than the destination. Real
+    git resolves the destination's aliases, so an alias defined only there is not
+    seen. Modelling this means evaluating arbitrary shell word expansion, which
+    this guard deliberately does not do; asking git cannot help either, because
+    git is never told about the `cd`. Tracked separately.
 
     Behavior change to note: an aliased git command invoked where git cannot
     resolve a work tree now blocks instead of proceeding on a guessed directory.

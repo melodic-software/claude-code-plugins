@@ -613,6 +613,37 @@ if [[ -d "$DOTS/.git" ]]; then
   done
 fi
 
+# --- trailing alias arguments are NOT repository globals ----------------------
+# Words after the subcommand belong to that subcommand — or, for an alias, are text
+# git APPENDS to the expansion. Resolving the directory from the whole argv read a
+# trailing `-C` as a global and inspected the wrong repository, while git started
+# the body at the current repo's top level and the `#` threw the appended words
+# away. Directory resolution sees only the invocation prefix now.
+TRAIL="$TEST_TMPDIR/trailing"
+nested_repo "$TRAIL/cur"
+nested_repo "$TRAIL/safe"
+
+if [[ -d "$TRAIL/cur/.git" && -d "$TRAIL/safe/.git" ]]; then
+  git -C "$TRAIL/cur" config alias.b 'commit --allow-empty -m bypass'
+  # A trailing `-C` also lands in the commit-argument scan, where `-C` is
+  # `--reuse-message` and exempts — so the prefix slice has no independently
+  # observable effect on this guard's verdicts today, and there is deliberately no
+  # test asserting one. What is pinned is that a post-subcommand `-C` keeps reading
+  # as --reuse-message rather than as a directory, so a future change cannot
+  # quietly start resolving `HEAD` as a path.
+  for spec in \
+    "git commit -C HEAD|0|commit -C HEAD is --reuse-message, not a directory" \
+    "git -C $TRAIL/safe commit -F -|0|a real leading -C global still resolves"; do
+    IFS='|' read -r cmd want label <<<"$spec"
+    MSYS_NO_PATHCONV=1 jq -n --arg c "$cmd" --arg d "$TRAIL/cur" \
+      '{tool_name:"Bash",tool_input:{command:$c},cwd:$d}' |
+      timeout 30 bash "$HOOK" >/dev/null 2>&1
+    rc=$?
+    ((rc == 124)) && bad "$label: exceeded the 30s ceiling" && continue
+    assert_exit "$label" "$want" "$rc"
+  done
+fi
+
 # --- PowerShell tool coverage ------------------------------------------------
 # The canonical PowerShell commit form (a here-string piped to `git commit -F -`)
 # must be allowed exactly as the Bash `-F -` form is; a `-m` PowerShell commit

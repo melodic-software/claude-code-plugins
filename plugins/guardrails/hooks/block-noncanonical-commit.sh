@@ -204,6 +204,15 @@ repo_identity() {
 # What this function returns is a LITERAL composed path, deliberately not a
 # resolved one: it is handed straight to `git -C`, so git applies its own path
 # semantics to it. The guard never normalizes it (see repo_identity).
+#
+# Callers must pass only the invocation PREFIX (indices 0..sub_idx), never the whole
+# argv. Words after the subcommand are that subcommand's own arguments — or, for an
+# alias, text git APPENDS to the expansion — not global options. Handing the full
+# argv here read a trailing `-C` as a repository global: `git -c alias.a='!git b #' a
+# -C <other-repo>` resolved to <other-repo> and missed a `commit -m` reached in the
+# CURRENT one, because git starts the body at the current repo's top level and the
+# `#` discards the appended words. The same slice keeps `git commit -C HEAD`
+# (--reuse-message) from being read as a directory named HEAD.
 # shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
 effective_dir() {
   local base="${HOOK_EFFECTIVE_BASE:-${HOOK_CWD:-${CLAUDE_PROJECT_DIR:-.}}}" i n=$# arg
@@ -440,7 +449,7 @@ check_segment() {
           # segment's repository, so the body's relative `-C` composes onto it.
           reparse="${exp#!}"
           for a in "${w[@]:sub_idx+1}"; do reparse+=" $(printf '%q' "$a")"; done
-          [[ -n "$seg_dir" ]] || seg_dir="$(effective_dir "${w[@]}")"
+          [[ -n "$seg_dir" ]] || seg_dir="$(effective_dir "${w[@]:0:sub_idx}")"
           repo_identity "$seg_dir" || block_unresolvable_dir "$seg_dir"
           HOOK_ALIAS_SEEN=()
           HOOK_EFFECTIVE_BASE="$HOOK_REPO_IDENTITY"
@@ -463,7 +472,7 @@ check_segment() {
     # (its own precedence applies) only when no inline alias already matched.
     if ((inline_alias_handled == 0)) && [[ "$sub" != "commit" ]]; then
       local pexp
-      [[ -n "$seg_dir" ]] || seg_dir="$(effective_dir "${w[@]}")"
+      [[ -n "$seg_dir" ]] || seg_dir="$(effective_dir "${w[@]:0:sub_idx}")"
       persisted_alias "$seg_dir" "$sub"
       pexp="$HOOK_PERSISTED_ALIAS"
       if [[ -n "$pexp" ]]; then
@@ -570,8 +579,8 @@ check_segment() {
   ((saw_commit)) || return 0
   ((stdin_form || exempt)) && return 0
   allowed "message-flag" && return 0
-  [[ -n "$seg_dir" ]] || seg_dir="$(effective_dir "${w[@]}")"
-  sequencer_in_progress "$seg_dir" "$(explicit_git_dir "${w[@]}")" && return 0
+  [[ -n "$seg_dir" ]] || seg_dir="$(effective_dir "${w[@]:0:sub_idx}")"
+  sequencer_in_progress "$seg_dir" "$(explicit_git_dir "${w[@]:0:sub_idx}")" && return 0
 
   echo "BLOCKED: \`git commit\` without \`-F -\` — the message must be piped via stdin." >&2
   echo "Use the /commit skill (source-control plugin), or its canonical form directly:" >&2
