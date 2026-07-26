@@ -202,6 +202,27 @@ Even when the switch resolves enabled, the PowerShell lane is a raised bar, not 
 mutation spelling passes it, so the engine's own containment, revalidation, and platform gates remain the
 deletion authority.
 
+**Guard launch/runtime failures are now surfaced, not silently indistinguishable from approval (since
+0.9.5, #1416).** A `PreToolUse` hook that fails to launch, or launches and then exits non-zero, denies
+nothing — Claude Code treats a non-blocking hook result as approval, so "the guard denied nothing because
+it approved" and "the guard denied nothing because it never ran, or ran and silently died" looked
+identical from outside the harness. `skills/clean/scripts/guard_launch_monitor.py` closes that gap with a
+second, independent hook registered on `Stop` in `hooks/hooks.json` (deliberately not `PreToolUse`, to
+avoid taxing every guarded tool call the way `docs/adr/0004-...`'s D-12 did): it scans the session
+transcript's tail for `hook_non_blocking_error` records whose command string names
+`destructive_guard.py`, and if it finds any, emits a `systemMessage` — never a block, never a
+`permissionDecision` — naming the guard, the total failure count, and the most recent failure's exit
+code, duration, and truncated stderr, at most once per session. It is a separate, stdlib-only process
+that imports nothing from the guard: a guard that cannot launch cannot report that it did not launch, so
+the detector cannot depend on the guard's own code path, and it fails silently closed (exit 0, no output)
+on any transcript-read or parse error so it can never itself become the reason a turn is blocked. What
+this does **not** cover: repo-hygiene ships its own, structurally different guard, verified working
+independently and out of scope here; the detector's command-substring filter matches only
+`destructive_guard.py` invocations, so a renamed or unrelated guard script is invisible to it the same
+way it is invisible to the engine gate's own coverage marker (see above); and it never retroactively
+scans a prior session's transcript — only the transcript named by the current `Stop` event's own
+`transcript_path`.
+
 A depth-limited scan records every directory it declined to enter in `truncated_paths`. Truncated
 directories have no captured descendant set, so the preview blocks them (and anything beneath them)
 as `truncated-not-inventoried`; they are coverage gaps, never candidates.
