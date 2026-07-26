@@ -256,11 +256,25 @@ def remove_empty_orphan_directory(path: Path, root: Path) -> bool:
         return False
     try:
         children = list(path.iterdir())
-        if len(children) == 1 and children[0].name == ".git" and children[0].is_file():
-            children[0].unlink()
+        pointer = children[0] if len(children) == 1 else None
+        if pointer is not None and (pointer.name != ".git" or not pointer.is_file()):
+            pointer = None
+        saved = pointer.read_bytes() if pointer is not None else None
+        if pointer is not None:
+            pointer.unlink()
             children = list(path.iterdir())
-        if not children:
-            path.rmdir()
+        try:
+            if not children:
+                path.rmdir()
+        except OSError:
+            # The directory outlived its pointer -- a Windows handle, most
+            # likely. Put the gitfile back: it is the only record of the owning
+            # repository, so discarding it would leave the next run unable to
+            # prune the registration at all, turning a retryable failure into a
+            # permanent `unresolved`.
+            if pointer is not None and saved is not None and not pointer.exists():
+                pointer.write_bytes(saved)
+            raise
     except OSError:
         pass
     return not path.exists()
@@ -288,15 +302,24 @@ def registered_repo_from_gitdir_pointer(path: Path) -> Path | None:
     recorded = Path(text[len(prefix) :].strip())
     if not recorded.is_absolute():
         recorded = (path / recorded).resolve()
-    # `<repo>/.git/worktrees/<name>` -> the checkout git commands run from.
+    # The record always sits at `<common-dir>/worktrees/<name>`, so the common
+    # directory is the parent of the `worktrees` segment. Derive it from that
+    # structure rather than from a `.git` ancestor: a bare-clone hub's common
+    # directory is `hub.git`, which `repo_path` already supports and which no
+    # `.git`-named-ancestor search would ever find.
     for parent in recorded.parents:
-        if parent.name == ".git":
-            return parent.parent
+        if parent.name != "worktrees":
+            continue
+        common = parent.parent
+        # Same rule `repo_path` applies: a standard clone's common directory is
+        # the main working tree's `.git`, so git commands run from its parent;
+        # a bare hub has no working tree, so they run from the directory itself.
+        return common.parent if common.name == ".git" else common
     return None
 
 
-def prune_repo_worktree_records(repo: Path) -> str:
-    """Clear stale `$GIT_DIR/worktrees/` records in `repo`; `pruned` or `failed`.
+def prune_repo_worktree_records(repo: Path, worktree_path: Path) -> str:
+    """Clear `worktree_path`'s stale record in `repo`; `pruned` or `failed`.
 
     Removing an orphan's directory is only half the cleanup. When the entry
     orphaned because its `.git` pointer was corrupted, the repository still
@@ -305,11 +328,27 @@ def prune_repo_worktree_records(repo: Path) -> str:
     directory removal is not the self-heal it looks like. `git worktree prune`
     is git's own command for dropping records whose directory is gone, which is
     why the caller removes the directory first and prunes second.
+
+    The verdict comes from re-reading `worktree list`, never from the prune's
+    exit status: a **locked** record (`git worktree lock`) is deliberately kept
+    by prune, which still exits 0, so trusting the exit code would report a
+    completed repair while the path keeps rejecting `git worktree add`.
     """
     try:
         run(["git", "-C", str(repo), "worktree", "prune"])
+        listed = run(["git", "-C", str(repo), "worktree", "list", "--porcelain"])
     except (RuntimeError, OSError):
         return "failed"
+    # Compare resolved paths, never raw strings: git prints POSIX separators and
+    # long filenames, while the caller's path can carry native separators and a
+    # Windows 8.3 short name for the same directory.
+    target = os.path.normcase(str(worktree_path.resolve()))
+    for line in listed.stdout.splitlines():
+        if not line.startswith("worktree "):
+            continue
+        recorded = Path(line[len("worktree ") :].strip())
+        if os.path.normcase(str(recorded.resolve())) == target:
+            return "failed"
     return "pruned"
 
 
@@ -395,13 +434,13 @@ def drop_orphaned_worktree(
     removed = remove_empty_orphan_directory(worktree.path, root)
     info["directory_removed"] = removed
     info["registration_pruned"] = orphan_registration_state(
-        registered_repo, directory_removed=removed
+        registered_repo, worktree.path, directory_removed=removed
     )
     return info
 
 
 def orphan_registration_state(
-    registered_repo: Path | None, *, directory_removed: bool
+    registered_repo: Path | None, worktree_path: Path, *, directory_removed: bool
 ) -> str:
     """How the owning repository's worktree record ended up, for the report.
 
@@ -426,7 +465,7 @@ def orphan_registration_state(
         return "skipped"
     if registered_repo is None:
         return "unresolved"
-    return prune_repo_worktree_records(registered_repo)
+    return prune_repo_worktree_records(registered_repo, worktree_path)
 
 
 def active_worker_lease(

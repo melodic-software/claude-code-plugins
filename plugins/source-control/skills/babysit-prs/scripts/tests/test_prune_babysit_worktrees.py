@@ -19,6 +19,7 @@ import contextlib
 import io
 import json
 import pathlib
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -351,6 +352,62 @@ class StaleWorktreeRegistrationTests(unittest.TestCase):
             git("-C", str(main), "worktree", "add", "-q", str(wt), "-b", "feat/redo")
             self.assertTrue(wt.exists())
 
+    def test_recovers_a_bare_hubs_repository_from_the_pointer(self) -> None:
+        # A bare hub's record sits at `<hub>.git/worktrees/<name>`, which has no
+        # `.git`-named ancestor -- the repository has to come from the
+        # `worktrees/` segment or a bare-hub orphan is never prunable.
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as td:
+            tmp = pathlib.Path(td)
+            bare = make_bare_hub(tmp)
+            wt = add_worktree(bare, tmp / "root", "owner__repo__pr-6")
+
+            self.assertEqual(
+                prune.registered_repo_from_gitdir_pointer(wt), bare.resolve()
+            )
+
+    def test_restores_the_pointer_when_the_directory_will_not_go(self) -> None:
+        # Losing the gitfile to a failed rmdir would strand the registration
+        # permanently: the next run finds an empty directory and no way back to
+        # the owning repository.
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as td:
+            tmp = pathlib.Path(td)
+            root = tmp / "root"
+            root.mkdir()
+            wt = root / "owner__repo__pr-5"
+            wt.mkdir()
+            owner_repo = tmp / "somerepo"
+            pointer = wt / ".git"
+            pointer.write_text(
+                f"gitdir: {owner_repo}/.git/worktrees/x\n", encoding="utf-8"
+            )
+
+            with mock.patch.object(
+                pathlib.Path, "rmdir", side_effect=OSError("locked")
+            ):
+                removed = prune.remove_empty_orphan_directory(wt, root)
+
+            self.assertFalse(removed)
+            self.assertTrue(pointer.is_file())
+            self.assertEqual(
+                prune.registered_repo_from_gitdir_pointer(wt), owner_repo
+            )
+
+    def test_a_locked_record_is_not_reported_as_pruned(self) -> None:
+        # `git worktree prune` deliberately keeps a locked record and still
+        # exits 0, so the verdict must come from re-reading `worktree list`.
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as td:
+            tmp = pathlib.Path(td)
+            main = make_repo(tmp)
+            root = tmp / "root"
+            wt = add_worktree(main, root, "owner__repo__pr-4")
+            git("-C", str(main), "worktree", "lock", str(wt))
+            shutil.rmtree(wt)
+
+            self.assertEqual(
+                prune.prune_repo_worktree_records(main.resolve(), wt), "failed"
+            )
+            git("-C", str(main), "worktree", "unlock", str(wt))
+
     def test_a_corrupted_pointer_is_an_orphan_not_an_error(self) -> None:
         # `fatal: invalid gitfile format` is a different message from the
         # missing-repository one, and a malformed pointer is one of the states
@@ -367,14 +424,18 @@ class StaleWorktreeRegistrationTests(unittest.TestCase):
         # indistinguishable from the path alone -- including when an ancestor
         # checkout answers for it -- so neither is assumed.
         self.assertEqual(
-            prune.orphan_registration_state(None, directory_removed=True),
+            prune.orphan_registration_state(
+                None, pathlib.Path("x"), directory_removed=True
+            ),
             "unresolved",
         )
 
     def test_skips_the_prune_while_the_directory_survives(self) -> None:
         # `git worktree prune` only drops records whose directory is missing.
         self.assertEqual(
-            prune.orphan_registration_state(None, directory_removed=False),
+            prune.orphan_registration_state(
+                None, pathlib.Path("x"), directory_removed=False
+            ),
             "skipped",
         )
 

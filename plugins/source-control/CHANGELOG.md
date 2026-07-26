@@ -60,6 +60,19 @@ All notable changes to the `source-control` plugin are documented here. Format f
     never reached the prune, making the recoverable self-heal unreachable exactly where it works. A
     sole `.git` **file** is now unlinked as the bookkeeping it is; a `.git` **directory** is still
     never touched, since that is a standalone repository rather than a linked worktree's pointer.
+    The pointer is **restored** when the subsequent `rmdir` fails — it is the only record of the
+    owning repository, so discarding it on a lock would turn a retryable failure into a permanent
+    `unresolved` for every later run.
+  - **A bare-clone hub's registration is recoverable too.** The owning repository is derived from the
+    record's own `worktrees/<name>` structure rather than from a `.git`-named ancestor, so a hub
+    whose common directory is `hub.git` — a layout `repo_path` already supports — no longer resolves
+    to nothing and goes unpruned.
+  - **`pruned` is now verified, not inferred from the exit status.** `git worktree prune`
+    deliberately keeps a **locked** record and still exits 0, so a locked orphan reported a completed
+    repair while the path kept rejecting `git worktree add`. The verdict now comes from re-reading
+    `git worktree list --porcelain` and confirming the entry is gone, comparing resolved paths (git
+    prints POSIX separators and long filenames; the caller's path may carry native separators and a
+    Windows 8.3 short name for the same directory).
   - **A corrupted pointer is an orphan, not a hard error.** git answers a malformed `.git` with
     `fatal: invalid gitfile format`, not the missing-repository wording, so the detector re-raised
     and every run reported `action: error` for that entry instead of healing it — despite a
