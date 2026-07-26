@@ -117,6 +117,21 @@ of the ladder with a warning, never a hard stop. Tolerant reading has a known ed
 key (`check_cmd` for `check-cmd`) passes the default schema check as an inert unknown key — repos
 that want typo protection run `check-jsonschema --no-additional-properties` in their gate.
 
+### Gate execution scope
+
+A `gates[]` item's `cmd` runs, by default (`run-from: ecosystem`, the implicit default when the key
+is omitted), from the same location the ecosystem's own `build-cmd`/`test-cmd`/`check-cmd` use: once
+per `project-discovery` root, the `anchor`'s directory, or `$REPO_ROOT` when the ecosystem defines
+neither — unchanged from pre-`run-from` behavior. Set `run-from: repo-root` to force a single run
+from `$REPO_ROOT` regardless of the ecosystem's `project-discovery` or `anchor`, for a repo-wide
+check (protobuf generation, schema freshness) declared under a `project-discovery` ecosystem that
+would otherwise run once per discovered project root — redundantly at best, failing in roots that
+lack its config at worst. `run-from` is canonical-verb metadata, not a context binding: like `anchor`
+and `project-discovery` (which already fix a gate's default execution location per repo), it is a
+repo-invariant fact about *this* gate's `cmd` that every execution surface must agree on, not a
+per-surface wrapper choice — so it belongs in the ecosystem file alongside them, not in a consuming
+surface's own config.
+
 ## Task-runner deferral (recorded decision)
 
 A task-runner verb SSOT (go-task / just / `lefthook run` wrappers) was evaluated and **deferred**:
