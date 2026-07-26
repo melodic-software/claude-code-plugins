@@ -173,16 +173,24 @@ than grading them. **Name the resolved controls in the pass's tier-transparency 
 finding whose liveness depends on a machine-local setting is not reproducible elsewhere, and a reader
 comparing two machines' reports needs to know which inputs differed.
 
-Phase A enumerates two roots — user `${CLAUDE_CONFIG_DIR:-~/.claude}` and project `.claude/**`. In a
-marketplace repository that never reaches `plugins/`, so this pass currently runs against the
-surfaces Phase A collects and **several pairs have no second side available**: a skill's stated
-default against its plugin README, and agent definitions shipped inside plugins against the memory
-layer.
+## Known limit: Phase A does not reach the plugin-source tree
 
-ADR 0005 makes extending Phase A a precondition of this placement, and it is tracked as
+**Installed plugins are covered; a marketplace repository's own `plugins/` source tree is not.**
+These are different surfaces and only one of them is a limit. Phase A's read-only tier reads the
+*installed cache* of every enabled plugin at its selected install record — skill bodies, agent
+definitions, `type: "prompt"` handler text, and the active output style — so an agent definition
+shipped by an enabled plugin does have its second side, and an agent-versus-memory pair is
+available rather than missing.
+
+What Phase A still does not enumerate is the **authoring** tree: `plugins/**` in a marketplace
+repository is plugin *source*, not an installed plugin, and nothing there is loaded into the session
+being audited. Pairs drawn wholly from it — a skill's stated default against its own plugin README —
+therefore have no second side. ADR 0005 makes extending Phase A a precondition of that placement,
+and it is tracked as
 [#1421](https://github.com/melodic-software/claude-code-plugins/issues/1421) rather than folded in
-here — it widens what *every* phase reads, not only this one. **Report the limit in the pass's
-tier-transparency line** so a clean result is not read as coverage it does not have.
+here, since it widens what *every* phase reads. **Report that narrower limit in the pass's
+tier-transparency line** — and only that one: reporting installed-plugin surfaces as uncovered would
+understate coverage the pass now has.
 
 ## Scope filters findings, never reads
 

@@ -110,6 +110,15 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   absent from the corpus entirely. Phase A now inventories the loaded part of `MEMORY.md` at the
   effective auto-memory location and the one style that resolves active, both read-only, with
   ownership and routing unchanged.
+- **The plugin-source known limit no longer contradicts the read-only tier.** It said Phase A "never
+  reaches `plugins/`" and that agent-versus-memory pairs have no second side, which the new tier
+  makes false for every *installed, enabled* plugin — two executable instructions disagreeing about
+  whether the same data is available. The limit is narrowed to what is still true: a marketplace
+  repository's `plugins/**` **authoring** tree is plugin source, not an installed plugin, and nothing
+  there loads into the session being audited, so pairs drawn wholly from it (a skill's stated default
+  against its own plugin README) still have no counterpart and stay with #1421. The
+  tier-transparency line reports that narrower limit only — reporting installed-plugin surfaces as
+  uncovered would understate the coverage the pass now has.
 - **Auto memory is inventoried only when it is effectively on.** It is on by default, but
   `autoMemoryEnabled: false` at any settings scope or `CLAUDE_CODE_DISABLE_AUTO_MEMORY=1` turns it
   off, and a `MEMORY.md` left on disk from before is then neither loaded nor written. Phase A
