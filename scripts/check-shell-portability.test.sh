@@ -140,7 +140,7 @@ done
 # grep -P / --perl-regexp
 # =============================================================================
 
-tok="$(one_token_list 'grep[^\n]*[[:space:]]-[A-Za-z]*P[A-Za-z]*([[:space:]]|$)')"
+tok="$(one_token_list 'grep[^\n]*[[:space:]]-[A-Za-z]*P[A-Za-z]*([[:space:]|&;()<>'"'"'"`]|$)')"
 
 f="$(tmpsh 'grep -P "\\d+" "$file"')"
 if out="$(scan_paths "$tok" "$f" 2>&1)"; then
@@ -175,11 +175,30 @@ else
 fi
 rm -f "$f" "$tok"
 
+# --- operator-terminated forms: no trailing whitespace before a control
+# operator, redirection, subshell close or quote must still be detected
+# (#1537 — the boundary originally accepted only whitespace or end of line) -
+tok="$(one_token_list 'grep[^\n]*[[:space:]]-[A-Za-z]*P[A-Za-z]*([[:space:]|&;()<>'"'"'"`]|$)')"
+while IFS= read -r case; do
+  f="$(tmpsh "$case")"
+  if out="$(scan_paths "$tok" "$f" 2>&1)"; then
+    fail "[$case] should fail, got success: $out"
+  else
+    ok "[$case] is detected"
+  fi
+  rm -f "$f"
+done <<'CASES'
+x=$(grep -P)
+grep -P|head -n1
+grep -P; echo done
+CASES
+rm -f "$tok"
+
 # =============================================================================
 # echo -e / sort -V
 # =============================================================================
 
-tok="$(one_token_list 'echo[[:space:]]+-[a-zA-Z]*e[a-zA-Z]*([[:space:]]|$)')"
+tok="$(one_token_list 'echo[[:space:]]+-[a-zA-Z]*e[a-zA-Z]*([[:space:]|&;()<>'"'"'"`]|$)')"
 
 f="$(tmpsh 'echo -e "line1\nline2"')"
 if out="$(scan_paths "$tok" "$f" 2>&1)"; then
@@ -196,9 +215,25 @@ if scan_paths "$tok" "$f" >/dev/null 2>&1; then
 else
   ok "echo -ne (combined flags) is detected"
 fi
-rm -f "$f" "$tok"
+rm -f "$f"
 
-tok="$(one_token_list 'sort[^\n]*[[:space:]]-[A-Za-z]*V[A-Za-z]*([[:space:]]|$)')"
+# --- operator-terminated forms (#1537) --------------------------------------
+while IFS= read -r case; do
+  f="$(tmpsh "$case")"
+  if out="$(scan_paths "$tok" "$f" 2>&1)"; then
+    fail "[$case] should fail, got success: $out"
+  else
+    ok "[$case] is detected"
+  fi
+  rm -f "$f"
+done <<'CASES'
+x=$(echo -e)
+echo -e|cat
+echo -e; echo done
+CASES
+rm -f "$tok"
+
+tok="$(one_token_list 'sort[^\n]*[[:space:]]-[A-Za-z]*V[A-Za-z]*([[:space:]|&;()<>'"'"'"`]|$)')"
 
 f="$(tmpsh 'sort -V "$file"')"
 if out="$(scan_paths "$tok" "$f" 2>&1)"; then
@@ -215,7 +250,26 @@ if scan_paths "$tok" "$f" >/dev/null 2>&1; then
 else
   ok "sort -Vr (V not last in the cluster) is detected"
 fi
-rm -f "$f" "$tok"
+rm -f "$f"
+
+# --- operator-terminated forms: no trailing whitespace before a control
+# operator, redirection, subshell close or quote must still be detected
+# (#1537 — the boundary originally accepted only whitespace or end of line,
+# missing exactly these three forms cited in the issue) ---------------------
+while IFS= read -r case; do
+  f="$(tmpsh "$case")"
+  if out="$(scan_paths "$tok" "$f" 2>&1)"; then
+    fail "[$case] should fail, got success: $out"
+  else
+    ok "[$case] is detected"
+  fi
+  rm -f "$f"
+done <<'CASES'
+x=$(sort -V)
+sort -V|head -n1
+sort -V; echo done
+CASES
+rm -f "$tok"
 
 # --- sort -V's long-form spellings: --version-sort and --sort=version ------
 tok="$(one_token_list '--version-sort')"
@@ -708,6 +762,26 @@ elif [[ "$(echo "$out" | grep -c "PORTABILITY: ${f}:")" -eq 5 ]] &&
   ok "the shipped list detects every sort long form and spares git tag --sort=<key>"
 else
   fail "expected hits on lines 1-5 only, got: $out"
+fi
+rm -f "$f"
+
+# --- operator-terminated short-flag forms are active in the SHIPPED list too
+# (#1537): sort -V, grep -P, echo -e each widened to the same boundary
+# `--sort=WORD` already used, proven here against the real token list rather
+# than only the isolated-token mechanism above ------------------------------
+f="$(tmpsh "$(printf '%s\n' \
+  'x=$(sort -V)' \
+  'sort -V|head -n1' \
+  'x=$(grep -P)' \
+  'grep -P|head -n1' \
+  'x=$(echo -e)' \
+  'echo -e|cat')")"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "operator-terminated sort -V/grep -P/echo -e should fail under the shipped list, got success: $out"
+elif [[ "$(echo "$out" | grep -c "PORTABILITY: ${f}:")" -eq 6 ]]; then
+  ok "the shipped list detects every operator-terminated sort -V/grep -P/echo -e form"
+else
+  fail "expected all 6 operator-terminated forms flagged, got: $out"
 fi
 rm -f "$f"
 

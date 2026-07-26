@@ -64,16 +64,25 @@
 
 # `grep -P` (PCRE mode) — absent in BSD grep, and in some GNU builds compiled
 # without PCRE support. `P` may appear anywhere in a combined short-option
-# cluster (`-riP`, `-nP`), not only as the cluster's last letter.
-grep[^\n]*[[:space:]]-[A-Za-z]*P[A-Za-z]*([[:space:]]|$)
+# cluster (`-riP`, `-nP`), not only as the cluster's last letter. Boundary
+# after the cluster is every character that can actually END a shell word —
+# whitespace, a control operator, a redirection, a subshell close, a quote —
+# or end of line (the same class #1530 landed for `--sort=WORD` below), so an
+# operator-terminated form with no trailing whitespace (`x=$(grep -P ...)`,
+# `grep -P ...|head`, `grep -P ...; echo`) is still detected — a whitespace-
+# only boundary silently missed those (#1537).
+grep[^\n]*[[:space:]]-[A-Za-z]*P[A-Za-z]*([[:space:]|&;()<>'"`]|$)
 --perl-regexp
 
 # `echo -e` — POSIX leaves echo's flag handling unspecified; BSD/macOS sh/bash
 # builtin `echo` treats `-e` as a literal argument, not an escape-interpretation
 # flag. `printf '%b\n'` (or a literal `$'...'` ANSI-C string) is the portable
 # replacement. `e` may appear anywhere in echo's short-option cluster
-# (bash advertises `echo [-neE]`), not only as a standalone `-e`.
-echo[[:space:]]+-[a-zA-Z]*e[a-zA-Z]*([[:space:]]|$)
+# (bash advertises `echo [-neE]`), not only as a standalone `-e`. Same
+# operator-terminated boundary as `grep -P` above (#1537): `x=$(echo -e ...)`,
+# `echo -e ...|cat`, `echo -e ...; echo` are detected, not only the
+# whitespace-terminated form.
+echo[[:space:]]+-[a-zA-Z]*e[a-zA-Z]*([[:space:]|&;()<>'"`]|$)
 
 # `sort -V` (natural/version sort) — a GNU coreutils extension; BSD sort has no
 # `-V`. `V` may appear anywhere in a combined short-option cluster (`-Vr`),
@@ -92,8 +101,14 @@ echo[[:space:]]+-[a-zA-Z]*e[a-zA-Z]*([[:space:]]|$)
 # matched, while a longer word like `version:refname` still is not. WORD is a
 # MANDATORY argument, so GNU's getopt_long takes it attached after `=` or as
 # the next argv element, and the shell may hand it over quoted — every one of
-# those spellings is the same GNU-only operation.
-sort[^\n]*[[:space:]]-[A-Za-z]*V[A-Za-z]*([[:space:]]|$)
+# those spellings is the same GNU-only operation. The short-flag cluster
+# pattern below carries the identical operator-terminated boundary: it
+# originally accepted only trailing whitespace or end of line, missing
+# `x=$(sort -V)` / `sort -V|head -n1` / `sort -V; echo done` — the same class
+# of false negative the `--sort=WORD` boundary above was built to avoid, now
+# widened to match it (#1537, found while auditing #1530's own new token for
+# the same defect).
+sort[^\n]*[[:space:]]-[A-Za-z]*V[A-Za-z]*([[:space:]|&;()<>'"`]|$)
 --version-sort
 sort[^\n]*[[:space:]]--sort(=|[[:space:]]+)['"]?version([[:space:]|&;()<>'"`]|$)
 
