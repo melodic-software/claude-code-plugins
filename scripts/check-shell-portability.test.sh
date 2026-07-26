@@ -59,6 +59,15 @@ tmpsh() {
   printf '%s' "$f"
 }
 
+# escape_token <esc> — builds the shipped grep/sed-context-required ERE for
+# one regex-escape class, matching scripts/shell-portability-tokens.txt's
+# active pattern shape exactly (kept here rather than sourced, so a fixture
+# is not coupled to the shipping list's other active classes).
+escape_token() {
+  local esc="$1"
+  printf '(grep|sed)[^\\n]*%s|%s[^\\n]*(grep|sed)' "$esc" "$esc"
+}
+
 # =============================================================================
 # Regex-escape classes (\b \< \> \s \S \w \W) — the exact near-miss family.
 # =============================================================================
@@ -68,7 +77,7 @@ tmpsh() {
 # backspace BYTE, not a boundary, when used as a boundary anchor — verify the
 # LITERAL-TWO-CHARACTER-SEQUENCE form this gate uses is not silently inert
 # under whichever awk resolves on the runner) -------------------------------
-tok="$(one_token_list '\\b')"
+tok="$(one_token_list "$(escape_token '\\b')")"
 f="$(tmpsh "grep -Eq '\\brequire\\b' \"\$file\"")"
 if out="$(scan_paths "$tok" "$f" 2>&1)"; then
   fail "literal \\\\b in a grep pattern should fail, got success: $out"
@@ -77,21 +86,32 @@ elif echo "$out" | grep -q "PORTABILITY: ${f}:1:"; then
 else
   fail "expected PORTABILITY with file:line, got: $out"
 fi
-rm -f "$f" "$tok"
+rm -f "$f"
 
 # --- the POSIX-portable bracket-expression replacement does NOT fire -------
-tok="$(one_token_list '\\b')"
 f="$(tmpsh 'grep -Eq "(^|[^A-Za-z0-9_\$])require($|[^A-Za-z0-9_\$])" "$file"')"
 if scan_paths "$tok" "$f" >/dev/null 2>&1; then
   ok "the bracket-expression word-boundary replacement does not fire"
 else
   fail "the POSIX-portable replacement must not be flagged"
 fi
+rm -f "$f"
+
+# --- a co-located printf/$'...' use of the SAME two characters is NOT
+# regex-pattern syntax and must not fire, even though it is not inside a
+# grep/sed invocation on this line (confirmed against a real shell: printf
+# '\b' emits an actual backspace byte, on GNU and BSD alike) ----------------
+f="$(tmpsh "printf '\\bspinner-frame\\n'")"
+if scan_paths "$tok" "$f" >/dev/null 2>&1; then
+  ok "printf '\\b' (no grep/sed on the line) is not flagged"
+else
+  fail "printf '\\b' must not be flagged -- it is portable escape-sequence syntax, not a regex pattern"
+fi
 rm -f "$f" "$tok"
 
-# --- \s \w \S \W \< \> each fire individually -------------------------------
+# --- \s \w \S \W \< \> each fire individually, only with grep/sed context --
 for esc in '\\s' '\\S' '\\w' '\\W' '\\<' '\\>'; do
-  tok="$(one_token_list "$esc")"
+  tok="$(one_token_list "$(escape_token "$esc")")"
   f="$(tmpsh "sed -E 's/${esc}foo${esc}/bar/' \"\$file\"")"
   if out="$(scan_paths "$tok" "$f" 2>&1)"; then
     fail "literal $esc should fail, got success: $out"
@@ -184,6 +204,16 @@ else
 fi
 rm -f "$f" "$tok"
 
+# --- the --version-sort long form is a separate literal token -------------
+tok="$(one_token_list '--version-sort')"
+f="$(tmpsh 'sort --version-sort "$file"')"
+if out="$(scan_paths "$tok" "$f" 2>&1)"; then
+  fail "sort --version-sort should fail, got success: $out"
+else
+  ok "sort --version-sort (long form) is detected"
+fi
+rm -f "$f" "$tok"
+
 # =============================================================================
 # sed -i without a backup-suffix argument
 # =============================================================================
@@ -206,20 +236,23 @@ else
 fi
 rm -f "$f"
 
-# --- the portable BSD-safe -i '' / -i "" idiom is auto-guarded, not flagged
+# --- the space-separated empty-suffix idiom (-i '' / -i "") is NOT the
+# portable form it looks like -- verified against a real GNU sed 4.9, that
+# exact invocation exits 2 (the empty string is consumed as sed's SCRIPT
+# argument, not as -i's suffix), so it must stay flagged, not be excused.
 f="$(tmpsh "sed -i '' 's/foo/bar/' \"\$file\"")"
-if scan_paths "$tok" "$f" >/dev/null 2>&1; then
-  ok "sed -i '' (explicit empty-suffix, single-quoted) is not flagged"
+if out="$(scan_paths "$tok" "$f" 2>&1)"; then
+  fail "sed -i '' should fail -- it is GNU-incompatible despite looking BSD-safe, got success: $out"
 else
-  fail "sed -i '' must not be flagged -- it is the portable BSD-safe idiom"
+  ok "sed -i '' (space-separated empty-suffix, single-quoted) is detected, not excused"
 fi
 rm -f "$f"
 
 f="$(tmpsh 'sed -i "" -E "s/foo/bar/" "$file"')"
-if scan_paths "$tok" "$f" >/dev/null 2>&1; then
-  ok "sed -i \"\" (explicit empty-suffix, double-quoted) is not flagged"
+if out="$(scan_paths "$tok" "$f" 2>&1)"; then
+  fail "sed -i \"\" should fail -- it is GNU-incompatible despite looking BSD-safe, got success: $out"
 else
-  fail 'sed -i "" must not be flagged -- it is the portable BSD-safe idiom'
+  ok "sed -i \"\" (space-separated empty-suffix, double-quoted) is detected, not excused"
 fi
 rm -f "$f" "$tok"
 
@@ -242,6 +275,19 @@ if scan_paths "$tok" "$f" >/dev/null 2>&1; then
   ok "readlink -f co-located with a realpath attempt is auto-guarded"
 else
   fail "the realpath-first fallback ladder must not be flagged"
+fi
+rm -f "$f"
+
+# --- mere co-location is not enough -- the guard requires an actual `||`
+# fallback relationship. Two unconditional statements (semicolon-separated,
+# no ||) both mentioning realpath/readlink on one line must still flag: the
+# GNU-only readlink -f call runs unconditionally regardless of what realpath
+# did, so there is no real fallback protecting it.
+f="$(tmpsh 'realpath -- "$1" >/dev/null; readlink -f -- "$1"')"
+if out="$(scan_paths "$tok" "$f" 2>&1)"; then
+  fail "realpath;readlink with no || fallback relationship should fail, got success: $out"
+else
+  ok "realpath and readlink with no actual || fallback relationship is still flagged"
 fi
 rm -f "$f" "$tok"
 
