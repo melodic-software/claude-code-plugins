@@ -1063,15 +1063,12 @@ fi
 rm -f "$f"
 
 # --- operator-terminated sed -Ei / --in-place forms are active in the
-# SHIPPED list too (#1545): both tokens use the control-operator/redirection/
-# subshell-close boundary, the same one `sort -V`/`grep -P`/`echo -e` now carry
-# after #1546 removed quotes and backticks from the short-option classes — a
-# quote after a short-option CLUSTER opens a word rather than ending it, so
-# `echo -e"mail"` passes the literal `-email` and the flag never activates.
-# `--sort=WORD` (#1530) is the one token that still includes quotes, because
-# there the quote follows the option's VALUE and is unambiguously closing.
-# Proven here against the real token list rather than only the isolated-token
-# mechanism above ------------------------------------------------------------
+# SHIPPED list too (#1545): both tokens end at a control operator, redirection
+# or subshell close, and -- like the `sort -V` / `grep -P` / `echo -e` classes
+# after #1546 -- not at a quote. Each token's own reason for excluding one is
+# recorded in shell-portability-tokens.txt; `--sort=WORD` (#1530) is the one
+# token that still admits a quote. Proven here against the real token list
+# rather than only the isolated-token mechanism above -----------------------
 f="$(tmpsh "$(printf '%s\n' \
   'x=$(sed -Ei)' \
   'sed -Ei|cat' \
