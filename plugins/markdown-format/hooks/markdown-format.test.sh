@@ -1512,6 +1512,11 @@ if printf '%s' "$CTX_N" | grep -q 'MD013 x48' && printf '%s' "$CTX_N" | grep -q 
 else
   fail "bounded/cap: rule histogram missing or wrong: $CTX_N"
 fi
+if printf '%s' "$CTX_N" | grep -q 'more rule(s)'; then
+  fail "bounded/cap: claimed omitted rules when only two rules fired: $CTX_N"
+else
+  ok "bounded/cap: no omitted-rule suffix when every rule fits in the histogram"
+fi
 if printf '%s' "$CTX_N" | grep -q 'and 30 more finding'; then
   ok "bounded/cap: the omitted remainder is reported as a count"
 else
@@ -1536,6 +1541,53 @@ else
   fail "bounded/telemetry: expected 50, got $(jq '.data.findings | length' "$TELN" 2>/dev/null)"
 fi
 rm -f "$TELN"
+
+# --- Scale: a large payload may be LOST, but must never be FALSIFIED ---------
+# The 50-finding case above cannot see this. Windows caps a process command line
+# at 32767 characters; a findings array handed to jq as an --argjson value blows
+# that somewhere past ~300 entries (reproduced with the hooks' own jq: 300 pass,
+# 600 fail, rc=126 "argument list too long").
+#
+# There are two such call sites, and only one is this plugin's to fix.
+# build_data_json is local and now feeds jq on stdin. hook::emit_telemetry then
+# passes the FINISHED payload the same way from the shared lib/hook-utils.sh,
+# which is byte-synced into every carrying plugin — fixing it there is a
+# fleet-wide wave, tracked as #1595.
+#
+# So the assertion is the invariant that holds either way, and keeps holding
+# after #1595 lands: telemetry is documented best-effort and lossy, so a dropped
+# envelope is inside contract. An envelope that ARRIVES claiming zero findings
+# for a 600-finding file is not — that is the local fallback firing, and it
+# reports the noisiest files in the repository as clean.
+FS="$REPO/scale.md"
+printf '# Scale\n\nbody\n' >"$FS"
+TELS="$(mktemp)"
+SINKS="$(make_sink "cat >\"$TELS\"")"
+run_noisy "$FS" STUB_FINDINGS=600 HOOK_TELEMETRY_SINK="$SINKS" >/dev/null
+wait_for_sink "$TELS" 50
+if [[ -s "$TELS" ]]; then
+  SCALE_LEN=$(jq '.data.findings | length' "$TELS" 2>/dev/null)
+  if [[ "$SCALE_LEN" == "600" ]]; then
+    ok "bounded/scale: the envelope arrived carrying all 600 findings"
+  else
+    fail "bounded/scale: an envelope arrived claiming ${SCALE_LEN:-?} findings for a 600-finding file — a payload that lies is worse than none"
+  fi
+else
+  ok "bounded/scale: oversized payload was dropped, not falsified (envelope loss is in contract; see #1595)"
+fi
+rm -f "$TELS"
+OUT_SCALE=$(run_noisy "$FS" STUB_FINDINGS=601)
+CTX_SCALE=$(printf '%s' "$OUT_SCALE" | jq -r '.hookSpecificOutput.additionalContext // empty' 2>/dev/null)
+if printf '%s' "$CTX_SCALE" | grep -q '601 markdownlint finding'; then
+  ok "bounded/scale: the report still states the true count at 601 findings"
+else
+  fail "bounded/scale: count wrong or missing at 601 findings: $CTX_SCALE"
+fi
+if printf '%s' "$CTX_SCALE" | grep -q $'\r'; then
+  fail "bounded/scale: carriage returns leaked into the report text"
+else
+  ok "bounded/scale: report text carries no stray carriage returns"
+fi
 
 # --- The cap is configurable, and 0 means unlimited -------------------------
 # Raising the cap must bring the detail back on an OTHERWISE UNCHANGED finding
