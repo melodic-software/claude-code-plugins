@@ -24,9 +24,16 @@
 #   run on a clean tree with CHECK_SKILL_BASE_REF pointing before the change
 #   (e.g. HEAD^ or a merge-base).
 #
+# NOT covered here: the SHARED listing budget (skillListingBudgetFraction) that
+# every loaded skill draws from together, a different cross-skill limit from
+# check 2's per-skill entry cap below. See the companion
+# check-listing-budget.sh for that aggregate report (always advisory).
+#
 # Checks:
 #   1. Frontmatter parses; name matches dir; description present
-#   2. description + when_to_use <= 1536 chars (listing-truncation guard)
+#   2. description + when_to_use <= 1536 chars (per-skill listing-entry cap;
+#      counts the literal " - " joiner the harness inserts when when_to_use is
+#      populated)
 #   3. Trigger-keyword preservation vs the base ref (skipped for new skills;
 #      a phrase moved verbatim to a sibling skill's listing text — one the
 #      sibling did not carry at the base ref — WARNs, since the marketplace
@@ -222,17 +229,21 @@ fi
 
 # --- Check 2: description + when_to_use <= DESC_CHAR_CAP chars --------------
 # Cap is per-skill listing entry (description + when_to_use combined) — overflow
-# truncates the listing and degrades auto-invocation.
-
+# truncates the listing and degrades auto-invocation. The harness assembles the
+# entry as description + " - " + when_to_use — a literal 3-char joiner — so the
+# combined length must include it whenever when_to_use is populated, or this
+# check under-counts by 3 and can pass an entry that actually overflows.
+JOINER_LEN=0
 CUR_DESC="$(skill_frontmatter::strip_quotes "$(skill_frontmatter::field description <<<"$FRONTMATTER")")"
 CUR_WTU="$(skill_frontmatter::strip_quotes "$(skill_frontmatter::field when_to_use <<<"$FRONTMATTER")")"
 DESC_LEN=${#CUR_DESC}
 WTU_LEN=${#CUR_WTU}
-COMBINED_LEN=$((DESC_LEN + WTU_LEN))
+((WTU_LEN > 0)) && JOINER_LEN=3
+COMBINED_LEN=$((DESC_LEN + JOINER_LEN + WTU_LEN))
 if ((COMBINED_LEN > DESC_CHAR_CAP)); then
   err "description+when_to_use is $COMBINED_LEN chars (cap $DESC_CHAR_CAP — overflow truncates the listing)"
 elif ((WTU_LEN > 0)); then
-  note "description+when_to_use $COMBINED_LEN/$DESC_CHAR_CAP chars (desc $DESC_LEN + when_to_use $WTU_LEN)"
+  note "description+when_to_use $COMBINED_LEN/$DESC_CHAR_CAP chars (desc $DESC_LEN + joiner $JOINER_LEN + when_to_use $WTU_LEN)"
 else
   note "description length $DESC_LEN/$DESC_CHAR_CAP chars"
 fi

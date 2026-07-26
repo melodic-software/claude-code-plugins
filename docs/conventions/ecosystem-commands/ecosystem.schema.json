@@ -71,6 +71,12 @@
             "items": { "type": "string", "minLength": 1 },
             "description": "Run the gate only when a changed file matches (matched against the full changed-file set); omit to run whenever the ecosystem runs. Never selects the ecosystem under auto-targeting — to make a cross-ecosystem trigger select its ecosystem, add the pattern to the ecosystem's own `globs`."
           },
+          "run-from": {
+            "type": "string",
+            "enum": ["ecosystem", "repo-root"],
+            "default": "ecosystem",
+            "description": "Execution scope for this gate's cmd. 'ecosystem' (default) runs from the same location the ecosystem's own build/test/lint use — once per project-discovery root, the anchor's directory, or $REPO_ROOT when neither is defined; unchanged from pre-run-from behavior. 'repo-root' forces a single run from $REPO_ROOT regardless of the ecosystem's project-discovery or anchor, for a repo-wide check (e.g. protobuf generation, schema freshness) declared under a project-discovery ecosystem that would otherwise run redundantly, or fail, once per project root. Under 'repo-root', a cmd using the <files> placeholder gets the full ecosystem-scoped changed-files set, not one project's subset, and <project-dir> is undefined — a cmd using it under 'repo-root' is a configuration error a resolver reports as a failure rather than guessing an expansion."
+          },
           "remediation": { "type": "string", "description": "Pointer shown on failure." }
         }
       }

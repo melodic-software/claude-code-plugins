@@ -73,7 +73,7 @@ Audits instruction *content* against current model capability — a different qu
 sibling audits (config-file correctness) and from `skill-quality:check` (structural lint) or
 `docs-hygiene:compress` (token brevity). It sweeps the locally-owned surfaces (user + project
 `CLAUDE.md`, `.claude/rules`, skill bodies, agent definitions, prompt-type hooks, output styles)
-against a fifteen-check catalog cited to current official prompting and harness doctrine, running
+against a sixteen-check catalog cited to current official prompting and harness doctrine, running
 a fresh read-only subagent per surface, then a fresh-context verify pass that re-judges every removal
 proposal before it is surfaced. Findings are tiered mechanical vs behavioral and delivered as a
 report plus proposed diffs — report-only, never auto-applied. On memory-layer surfaces it runs only
@@ -90,6 +90,7 @@ pass alone, so a scheduled hygiene routine can compose it on its own token budge
 /claude-config:audit-instructions              # every locally-owned surface, plus the conflict pass
 /claude-config:audit-instructions skills       # one surface (claude-md|rules|skills|agents|hooks|output-styles)
 /claude-config:audit-instructions conflicts    # the cross-surface conflict pass only
+/claude-config:audit-instructions --opinion    # also run the default-off OPINION-tier checks
 ```
 
 ### audit-pass

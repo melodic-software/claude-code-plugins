@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "dometrain",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Dometrain course-content grounding over a third-party remote MCP server (Dometrain-hosted, Bearer auth): search lessons, pull curated lesson documents with on-screen code, and cite timestamped deep links. Requires an active Dometrain Pro subscription. Credential entered once through Claude Code's native masked userConfig prompt and stored in secure credential storage. Ships with a grounding usage skill kept in sync with Dometrain's own official Claude Code plugin.",
   "author": {
     "name": "Melodic Software",

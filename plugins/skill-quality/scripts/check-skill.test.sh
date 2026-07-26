@@ -2033,6 +2033,33 @@ else
   fail "check 21 should stay silent on good-skill (rc=$rc): $out"
 fi
 
+# 29. Check 2 counts the 3-char " - " joiner: desc(1500) + wtu(34) = 1534,
+#     under the 1536 cap WITHOUT the joiner (the pre-fix bug would pass this),
+#     but + the 3-char joiner = 1537 — one char over. FAILing here proves
+#     item 2's fix (check-skill.sh:227) at the exact boundary, not merely an
+#     already-overflowing entry that would fail either way.
+desc_1500="$(printf 'd%.0s' $(seq 1 1500))"
+wtu_34="$(printf 'w%.0s' $(seq 1 34))"
+make_skill joiner-boundary "---
+name: joiner-boundary
+description: \"$desc_1500\"
+when_to_use: \"$wtu_34\"
+---
+
+## Purpose
+
+Boundary fixture: desc(1500) + wtu(34) = 1534 (would pass check 2 if the
+joiner were omitted, per the pre-fix bug); + the 3-char joiner = 1537, one
+char over the 1536 cap.
+"
+out="$(run joiner-boundary 2>&1)"
+rc=$?
+if [[ $rc -eq 1 ]] && grep -q 'description+when_to_use is 1537 chars (cap 1536' <<<"$out"; then
+  pass "check 2 counts the joiner: a desc+wtu sum at the cap without it now fails at 1537"
+else
+  fail "check 2 should count the 3-char joiner and fail at 1537/1536 (rc=$rc): $out"
+fi
+
 if [[ $fails -ne 0 ]]; then
   printf '%d assertion(s) failed\n' "$fails" >&2
   exit 1
