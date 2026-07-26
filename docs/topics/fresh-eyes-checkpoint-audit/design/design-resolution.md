@@ -22,9 +22,22 @@ the spec owner (convention-registry style). No cross-plugin or cross-repo file r
 A same-context judgment step delegates by matching the POSIX ERE **`fresh[- ]context`** (both the
 hyphenated and spaced forms are canonical — already-compliant skills use both), plus the
 dispatch-ladder conventions the doctrine specifies: generic-fallback rung when a named agent is
-preferred, artifact-not-story inputs, degrade-when-absent. Visible prose, not a marker: the
-wording IS the model's instruction, so it must be visible regardless — a parallel marker would be
-a second source of truth that drifts.
+preferred, artifact-not-story inputs, degrade-when-absent. *(Amended 2026-07-22, Phase-1 review:
+the matching line must also name the worker or dispatch — `agent|worker|advisor|reviewer|`
+`verif|dispatch|delegat` — because a bare "in a fresh context" phrase assigns the judgment to no one;
+surfaced by external review on the Phase-1 PR.)* *(Amended 2026-07-23, Phase-1 review: worker
+token `verif` narrowed to `verifier` — the stem matched bare "verification" prose that dispatches
+no worker; surfaced by external review on the Phase-1 PR.)* *(Amended 2026-07-23, Phase-1 review
+round 3: worker terms match as whole words with explicit inflections — substring stems let
+"agentless" satisfy the worker requirement; surfaced by external review on the Phase-1 PR.)*
+*(Amended 2026-07-25, Phase-1 review round 4: the `fresh[- ]context` half is bounded as a whole
+word too — unbounded, it matched inside "Refresh context", so ordinary refresh prose next to any
+worker term satisfied the gate; surfaced by external review on the Phase-1 PR.)* *(Amended
+2026-07-26, Phase-1 review round 5: HTML comments are stripped before this detector, enforcing the
+visible-prose requirement the form already states — a hidden `<!-- ... fresh-context agent -->` was
+satisfying it, which is precisely the parallel marker this form exists to rule out.)*
+Visible prose, not a marker: the wording IS the model's instruction, so it must be visible
+regardless — a parallel marker would be a second source of truth that drifts.
 
 ### Exemption directive — namespaced HTML comment
 
@@ -72,7 +85,51 @@ Scan mechanics (all constraints normative for implementation):
   in shipped docs MUST sit inside fenced blocks — never in tables or bare prose (a table cell
   cannot hold a fence; a placeholder `<class>` literal would otherwise FAIL as unknown-class).
   Directive parsing tolerates an optional trailing `\r` (third-party repos without `eol=lf`
-  checkout normalization).
+  checkout normalization). *(Amended 2026-07-23, Phase-1 review round 3: a backtick fence opener
+  carrying a backtick in its info string is prose, not a fence — CommonMark forbids such an info
+  string, and treating it as an opener suppressed every following line until a closing run.)*
+  *(Amended 2026-07-23, Phase-1 review round 3: an unclosed backtick run carries across the
+  newline, because a span may cross a line boundary and its content was reaching the parser as a
+  blocking malformed directive. The carry expires at the next blank line or fence — a CommonMark
+  span cannot outlive its paragraph — so a stray backtick cannot blind the scanner past it. The
+  carry is deliberately optimistic: masking risks missing a declaration, whereas scanning risks
+  failing a skill on legitimate code-span text.)* *(Amended 2026-07-25, Phase-1 review round 4:
+  blockquote and list-marker prefixes are stripped before fence matching — a container-nested fence
+  never entered fence mode, so a quoted example failed the skill on its own documentation. The strip
+  applies in-fence only when the OPENER carried a prefix — otherwise a quoted run inside an
+  unprefixed fence's own example would close it and leak the block, reintroducing the same failure
+  it fixes. A container-nested fence also ends with its container — a blockquote when the quote DEPTH
+  drops below the opener's, a list item on a dedent — since the fence flag is global and an unclosed
+  nested opener would otherwise swallow every following top-level line. *(Amended 2026-07-26,
+  Phase-1 review round 5: depth, not mere marker presence — a fence opened at quote depth two lives
+  in the inner quote, so a later depth-one line has left it.)* Backslash escapes and code spans resolve in ONE
+  left-to-right pass because CommonMark couples them: outside a span an escape makes the next
+  character literal (an escaped backtick was masking a malformed directive into a silent pass, and an
+  escaped `\<!--` is text that was wrongly parsed as a directive), while inside a span nothing is
+  escaped, so a literal backslash before the closing run does not stop it closing. Two independent
+  passes cannot express that coupling — the escape-blind pass misreads an escaped backtick as a
+  delimiter and the escape-first pass destroys a legitimate closer.)* **Accepted gap:** indented code blocks are NOT
+  suppressed — telling one apart from indented list-item continuation needs a block parser this
+  scanner does not have, and guessing would silently drop declarations inside nested lists, the
+  worse direction. *(Superseded 2026-07-26: rather than guess, the scanner now declines its HARD
+verdicts on a four-space-indented line — see the stated parsing contract. Not deciding dissolves the
+gap that could not be decided.)*
+- **Stated parsing contract, and ambiguity declines rather than guesses** (added 2026-07-26). The
+  scanner enumerates the markdown constructs it models and names the ones it does not attempt, so a
+  finding is measured against a bounded claim instead of full CommonMark. Where structure cannot be
+  resolved it withholds `DIRECTIVE_MALFORMED` / `DIRECTIVE_NOREASON` and the stale WARN; the judgment
+  path still runs. Rationale is the verdict asymmetry: those two FAIL the skill, so a false positive
+  blocks a legitimate author on a parser artifact, whereas a missed judgment WARN costs one nudge.
+  Six consecutive review rounds each found a distinct CommonMark edge case in this hand-written
+  structure pass, and several were defects in the previous round's own fix; the unbounded surface, not
+  any individual case, was the root cause. A real markdown parser was rejected deliberately: the check
+  must run with nothing but a POSIX shell and `awk`. **Scope note:** this under-claim posture belongs
+  to check 21, whose verdicts are authoring nudges. A gate whose verdict is a security decision stays
+  fail-closed, because there a miss is a bypass.
+- **One classification per directive, not per line** (amended 2026-07-25, Phase-1 review round 4):
+  each `<!-- fresh-eyes-exempt ... -->` occurrence is classified independently, bounded at its own
+  terminator. Classifying the whole line let a well-formed directive lend its class and reason to a
+  malformed neighbour, so an unknown-class suppression could hide beside a valid one.
 - **Proximity is per-file and line-based** (tunable constant beside the script's existing caps).
   Known limitation, documented in the WARN message: a declaration living in a referenced spoke
   file cannot satisfy proximity — "declaration may live in a referenced spoke — hand-verify".

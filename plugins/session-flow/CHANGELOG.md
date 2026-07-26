@@ -1,6 +1,6 @@
 # Changelog — session-flow plugin
 
-## [0.17.4]
+## [0.17.5]
 
 ### Fixed
 
@@ -25,6 +25,19 @@
   unbatched/sequential calls — and that check is not narrowed to data flow alone: a control,
   resource, or side-effect dependency (e.g. a directory created before a file is written into it)
   is just as real a reason two calls had to run in order.
+
+## [0.17.4]
+
+### Fixed
+
+- **The running-retro detached observer's analysis subprocess no longer flashes a visible console
+  window on Windows, and no longer corrupts non-ASCII ledger entries into mojibake.** `observer.py`'s
+  `_run_analysis` called `subprocess.run` for the headless `claude -p` analysis pass with no
+  `creationflags` (unlike `arm_observer.py`'s own windowless `spawn_detached`, whose flag set was
+  never carried to this later call) and no explicit `encoding=`, so Windows decoded UTF-8 output with
+  the platform's cp1252 default. Both are now set explicitly: `CREATE_NO_WINDOW` on Windows only, and
+  `encoding="utf-8", errors="replace"` unconditionally — `errors="replace"` keeps a truncated/invalid
+  byte sequence from raising past the surrounding `TimeoutExpired`/`OSError` handling (#1472).
 
 ## [0.17.3]
 

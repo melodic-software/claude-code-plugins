@@ -3,6 +3,70 @@
 All notable changes to the `skill-quality` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.12.0]
+
+### Added
+
+- **Check 21 — fresh-eyes declaration conformance.** A skill step whose text reads as
+  same-context judgment (curated POSIX-ERE heuristic, WARN-only) is expected to carry
+  fresh-context delegation wording (`fresh-context` / `fresh context`) or a
+  `fresh-eyes-exempt` directive within a per-file proximity window. Directive syntax is
+  enforced: an unknown class or a missing `-- <reason>` FAILs; a directive with no
+  judgment-language hit nearby WARNs as stale (advisory). Both detectors are fence- and
+  inline-code-span-aware (literal examples in docs never trip them) and tolerate CRLF.
+  Contract spec for authors: `skills/check/reference/fresh-eyes-declarations.md`; the
+  heuristic list's curation policy lives there too. Fence matching follows CommonMark
+  (an info-string line inside a fence is content, not a closer; a backtick opener
+  carrying a backtick in its info string is prose, not a fence; opener indentation caps
+  at three spaces; blockquote and list-marker prefixes are stripped first, so a
+  container-nested fence still suppresses its body, while only a prefixed opener strips
+  them in-fence so a quoted run cannot close an unprefixed fence, and a nested fence ends
+  with its container — blockquote DEPTH, not mere marker presence — so an unclosed one
+  cannot swallow the rest of the file), spans pair
+  backtick runs of exactly equal length and carry an unclosed opener across line boundaries
+  to the end of the paragraph (multi-backtick and multi-line spans hide their content).
+  Escapes and spans resolve in one pass because CommonMark couples them: outside a span a
+  backslash escape makes the next character literal (`` \` `` opens no span, `\<!-- ... -->`
+  is text rather than a directive), while inside a span nothing is escaped, so a literal
+  backslash before the closing run does not stop it closing. Each directive on a line is
+  classified independently (a malformed one cannot borrow a valid neighbour's class), and
+  delegation wording only counts when the same line names the worker or dispatch as a whole
+  word — embedded stems satisfy neither half ("agentless" is no worker, "Refresh context" is
+  not the fresh-context wording).
+- **Check 21 ships a stated parsing contract**
+  (`skills/check/reference/fresh-eyes-declarations.md`, "Parsing contract"). It enumerates the
+  markdown constructs the scanner models, names the ones it does not attempt (indented code
+  blocks, mixed container stacks, paragraph-interrupting headings, multi-line HTML comments,
+  reference definitions and link syntax), and states what happens when structure cannot be
+  resolved. The scanner is a hand-written `awk` structure pass, not a CommonMark implementation,
+  because the check has to run with nothing but a POSIX shell and `awk`; the contract makes that
+  a bounded claim instead of an implicit promise to parse everything.
+- **Structurally ambiguous placement withholds the hard verdicts.** A four-space-indented
+  directive is either indented code or a list-item continuation, and the scanner cannot tell, so
+  it emits neither `DIRECTIVE_MALFORMED` nor `DIRECTIVE_NOREASON` there (nor the stale WARN)
+  rather than failing an author on a parser artifact. The judgment path still runs. The asymmetry
+  is the whole argument: those two verdicts are hard FAILs, while the judgment verdicts are WARNs
+  where a miss costs one nudge. Ambiguity cuts both ways: such a directive also cannot satisfy a
+  nearby judgment step, so a literal exemption inside an indented example does not silence the
+  warning that step deserves. This posture is specific to check 21 — it must not be carried into
+  a gate whose verdict is a security decision.
+
+### Fixed
+
+- **The directive name requires a terminator.** A prefix-only match read an ordinary comment about
+  a longer identifier (`<!-- fresh-eyes-exemption is explained here -->`) as a directive and FAILed
+  the skill on prose. The name must now be followed by `:`, whitespace, or `-->`.
+- **YAML frontmatter is no longer parsed as markdown.** A block-scalar `description` carrying an
+  example fence opened a fence that the closing `---` never ended, so the whole body was suppressed
+  and the file passed silently with its judgment language and any malformed directive unexamined.
+  The region is skipped and every structural carry resets at its terminator. Skipping it also drops
+  four spurious judgment hits measured across this marketplace — all in a `description` field, which
+  is listing metadata rather than a procedural step, so three advisory WARNs and one note go with
+  them. No skill's pass/fail verdict changes.
+- README check-count references were stale (still "eighteen"/"seventeen" after checks
+  19–20 shipped); counts now derive from the current twenty-one and the checks list
+  includes the injection-portability and fresh-eyes rows.
+
 ## [0.11.0]
 
 ### Added
