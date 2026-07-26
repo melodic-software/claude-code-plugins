@@ -96,9 +96,8 @@ check_wrapper_refusal "merge wrapper rejects --allow-unpinned-hea=1 (=value pref
   "owner/repo#1" --merge --allow-unpinned-hea=1
 # No over-refusal: sibling flags that share the --allow prefix, including with
 # an =value tail, still reach the fail-closed CLI rather than the wrapper.
-# --allowed-owners deliberately names an owner NOT in scope (matching the
-# owner-scope refusal PR #1382 used) so the assertion holds without a network
-# call -- the owner-scope check runs before any gh access.
+# --allowed-owners deliberately names an owner NOT in scope, so the owner-scope
+# refusal fires and the assertion holds without any network call.
 check_exit "merge wrapper does not over-refuse --allow-dependency" 3 \
   bash "$MERGE_WRAPPER" "owner/repo#1" --allowed-owners someone-else --allow-dependency
 check_exit "merge wrapper does not over-refuse --allow-unprotected" 3 \
