@@ -569,8 +569,11 @@ def _pid_alive(pid: int) -> bool:
     if pid <= 0:
         return False
     if os.name == "nt":
+        # encoding= must be explicit -- Python's default text-mode decoding is
+        # the platform code page, not UTF-8 (same class of defect as #1472).
         out = subprocess.run(["tasklist", "/FI", f"PID eq {pid}", "/NH"],
-                            capture_output=True, text=True)
+                            capture_output=True, text=True,
+                            encoding="utf-8", errors="replace")
         return str(pid) in out.stdout
     try:
         os.kill(pid, 0)
