@@ -39,8 +39,14 @@
 #      co-located on the line flags and uses a per-site portability-ok escape;
 #   2. a per-site recorded exemption `portability-ok: <reason>` on the hit line
 #      or in the contiguous comment block directly above it;
-#   3. a whole-file `portability-scope: <reason>` declaration anywhere in the
-#      file (the inherent, declared narrower boundary).
+#   3. a whole-file `portability-scope: <reason>` declaration — a dedicated
+#      `#` or `<!--` comment line whose content (after the marker and
+#      optional whitespace) STARTS with the literal token, e.g.
+#      `<!-- portability-scope: <reason> -->` — not merely a line that
+#      mentions the string somewhere (a doc-block sentence explaining this
+#      very mechanism, or a string literal), which would wrongly exempt a
+#      whole file for a reason it never actually declared (the inherent,
+#      declared narrower boundary).
 #
 # This is a grep-level tripwire, not a semantic proof. Guard markers are seeded
 # for the one active class (branch/default-branch); enabling a further class
@@ -137,10 +143,27 @@ fi
 scan_file() {
   local file="$1"
   # A whole-file declared narrower scope (the inherent-boundary case) excuses
-  # every hit in the file; the declaration is visible in the diff.
-  if grep -qE 'portability-scope:' -- "$file"; then
+  # every hit in the file; the declaration is visible in the diff. Anchored
+  # to a genuine comment line whose content actually STARTS with the token
+  # (shared fix with check-shell-portability.sh's identical mechanism — see
+  # #1513), not a bare substring match anywhere in the file: an unanchored
+  # search would also match this very sentence (a doc-block comment merely
+  # explaining the mechanism) or a mention inside prose/a string literal.
+  if grep -qE '^[[:space:]]*(#|<!--)[[:space:]]*portability-scope:' -- "$file"; then
     return 0
   fi
+  # awk operand disambiguation: a bare relative operand shaped like
+  # identifier=value (e.g. a top-level file literally named FOO=bar.md) is
+  # parsed by awk as a command-line variable assignment, not opened as a
+  # file — silently dropping it from the scan. Prefixing an unrooted operand
+  # with `./` breaks the identifier=value shape (`./` is never a valid awk
+  # identifier lead character) so it is unambiguously a filename. Shared fix
+  # with check-shell-portability.sh's identical mechanism — see #1513, #1531.
+  local awk_file="$file"
+  case "$awk_file" in
+  ./* | /*) ;;
+  *) awk_file="./$awk_file" ;;
+  esac
   awk '
     function is_annotated(l) { return l ~ /portability-ok:/ }
     # Block-level only: a content line that merely happens to carry an inline
@@ -191,7 +214,7 @@ scan_file() {
         }
       }
     }
-  ' "$TOKENS" "$file"
+  ' "$TOKENS" "$awk_file"
 }
 
 violations=0

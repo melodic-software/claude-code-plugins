@@ -26,7 +26,7 @@
 #
 # Escaping a legitimate hit (see the script header for detection detail):
 #   - an auto-recognized same-line BSD-counterpart guard (readlink -f tried
-#     only after a co-located realpath attempt already failed);
+#     only as the `||` fallback after a co-located realpath attempt);
 #   - a per-site recorded exemption: `portability-ok: <reason>`.
 # Direction is deliberately over-flag, not under-flag (see the linked issue's
 # "Two design notes"): a justified false positive costs a reviewer one line: a
@@ -38,7 +38,22 @@
 # ERE/BRE define no `\b`/`\<`/`\>`/`\s`/`\S`/`\w`/`\W`; BSD grep/sed either
 # rejects them or (worse) reads `\b` as a literal `b`, silently turning
 # `\brequire\b` into `brequireb` — matches nothing, exactly the near-miss above.
-# Each token below matches the literal two-character escape sequence.
+# Each token matches the literal two-character escape sequence, with NO
+# required co-located `grep`/`sed` on the line. Requiring one was tried and
+# reverted: a pattern is very often built on its own line and consumed
+# several lines later, so the requirement silently un-catches exactly the
+# near-miss shape above. The live proof is in this repo —
+# plugins/claude-config/skills/audit-instructions/scripts/instruction-scan.sh
+# assigns `\b`-bearing EREs to I6_ERE/RATIONALE_ERE and only later passes
+# them to `grep -niE`; a grep/sed-context requirement reports that file
+# clean. The cost of staying bare is the mirror-image false positive: the
+# same two characters are also legitimate, portable `printf`/`$'...'`
+# escape-sequence syntax (`printf '\b'` — a real backspace byte, identical
+# on GNU and BSD), which this list DOES flag. That is the documented
+# over-flag direction, and `portability-ok: <reason>` is the one-line escape
+# for it. Narrowing the class precisely — knowing which operand of which
+# command is a regex — needs real shell parsing, not a token edit; tracked
+# in #1517.
 \\b
 \\<
 \\>
@@ -62,21 +77,77 @@ echo[[:space:]]+-[a-zA-Z]*e[a-zA-Z]*([[:space:]]|$)
 
 # `sort -V` (natural/version sort) — a GNU coreutils extension; BSD sort has no
 # `-V`. `V` may appear anywhere in a combined short-option cluster (`-Vr`),
-# not only as the cluster's last letter.
+# not only as the cluster's last letter. `--version-sort` and `--sort=version`
+# are GNU's documented long-form spellings of the same option (man7.org
+# sort(1): "-V, --version-sort" and "--sort=WORD ... version -V").
+# `--version-sort` is an unambiguous literal, so (like --perl-regexp above) it
+# needs no command-context prefix. `--sort=WORD` is NOT: `git tag`,
+# `git for-each-ref` and `git branch` all take a portable `--sort=<key>`, whose
+# keys include `version:refname`. So that spelling carries the same
+# `sort`-command prefix the short-flag pattern uses, and requires a boundary
+# after the WORD (else `version:refname` matches as a prefix). That boundary is
+# every character that can actually END a shell word — whitespace, a control
+# operator, a redirection, a subshell close, a quote — or end of line, so the
+# no-whitespace forms (`$(sort --sort=version)`, `... |head`, `...; echo`) are
+# matched, while a longer word like `version:refname` still is not. WORD is a
+# MANDATORY argument, so GNU's getopt_long takes it attached after `=` or as
+# the next argv element, and the shell may hand it over quoted — every one of
+# those spellings is the same GNU-only operation.
 sort[^\n]*[[:space:]]-[A-Za-z]*V[A-Za-z]*([[:space:]]|$)
+--version-sort
+sort[^\n]*[[:space:]]--sort(=|[[:space:]]+)['"]?version([[:space:]|&;()<>'"`]|$)
 
 # `sed -i` with no suffix argument attached — GNU treats the suffix as
-# optional; BSD sed requires one immediately after `-i` (even an explicit
-# empty string, `-i ''` / `-i ""`, auto-guarded by is_guarded() so the
-# portable BSD-safe idiom is not itself flagged). Does not yet cover every
-# GNU spelling (`-Ei`, `--in-place`, an attached-not-space-separated empty
-# suffix) — see #1513.
+# optional; BSD sed requires one immediately after `-i`. This intentionally
+# ALSO flags the space-separated empty-suffix idiom (`-i ''` / `-i ""`): it
+# looks BSD-safe but is not actually portable — verified against a real GNU
+# sed 4.9, that exact invocation exits 2, because GNU consumes the
+# space-separated empty string as sed's SCRIPT argument, silently shifting
+# the real script and target file to be opened as filenames. The one
+# genuinely dual-compatible spelling is an ATTACHED nonempty suffix
+# (`sed -i.bak '...' file && rm -f file.bak`), which this token does not
+# match (no separating whitespace) — correctly never flagged. Still does not
+# cover an attached-not-space-separated EMPTY suffix (`-i''`) — ambiguous
+# with BSD's own attached-suffix syntax, needs real sed-dialect research
+# before encoding, not a quick pattern tweak — see #1513.
 sed[^\n]*-i[[:space:]]+[^[:space:]]
 
+# `sed -Ei` (extended-regex and in-place combined into one short-flag cluster,
+# with `-i` UNSUFFIXED) — the `-i[[:space:]]+[^[:space:]]` token above only
+# catches a literal standalone `-i`; it does not match a cluster like `-Ei`
+# (no literal `-i` substring — the char after `-` is `E`, not `i`). `E` and
+# `i` need not be adjacent and need not be the cluster's only letters
+# (`-nEi`), mirroring the combined-cluster treatment #1511 already applies to
+# `grep -P` / `sort -V` / `echo -e` — but `i` MUST be the cluster's last
+# letter. GNU's own syntax is `-i[SUFFIX]`, so any letter after `i` is an
+# attached backup suffix, not another option: `sed -iE` writes `fileE`
+# (verified against a real GNU sed 4.9), making it the dual-compatible
+# attached-nonempty-suffix form, correctly never flagged — same as `-i.bak`
+# and `-Ei.bak`. An attached EMPTY suffix (`-Ei''`) is the same ambiguous
+# shape `-i''` is, deferred above, and likewise not flagged here. Anchored to
+# a `sed` COMMAND token (start of line or a non-identifier character before
+# it, whitespace after) — `-i` alone is common across tools (`grep -i`,
+# `sort -i`...), and a bare `sed` substring match would fire on identifiers
+# that merely contain those three letters (`used="$(grep -Ei ...)"`).
+(^|[^[:alnum:]_])sed([[:space:]][^\n]*)?[[:space:]]-[A-Za-z]*E[A-Za-z]*i([[:space:]]|$)
+
+# `sed --in-place[=SUFFIX]` (GNU long-form spelling of `-i`) — BSD sed has no
+# long options at all, so this flags suffixed or not (unlike short `-i`, where
+# BSD requires an attached suffix and only the unsuffixed form is GNU-only,
+# `--in-place` has no portable BSD equivalent in either shape). Scoped to a
+# `sed` command token for the same reason as the cluster token above: unlike
+# `--perl-regexp` / `--version-sort`, the option name `--in-place` is not
+# unique to one tool (several formatters spell their own in-place flag that
+# way), so a bare token would flag a script that merely defines or forwards an
+# unrelated `--in-place` option of its own.
+(^|[^[:alnum:]_])sed([[:space:]][^\n]*)?[[:space:]]--in-place([[:space:]]|=|$)
+
 # `readlink -f` (canonicalize) — a GNU coreutils extension; BSD/macOS readlink
-# has no `-f`/`--canonicalize`. Auto-guarded when a `realpath` attempt sits on
-# the same line (the portable-first pattern this repo's own lib/hook-utils.sh
-# already uses: `realpath ... || readlink -f ...`).
+# has no `-f`/`--canonicalize`. Auto-guarded when a `realpath` attempt is
+# ACTUALLY WIRED as its fallback via `||` on the same line (the pattern this
+# repo's own lib/hook-utils.sh already uses: `realpath ... || readlink -f
+# ...`) — a realpath call merely mentioned nearby with no `||` relationship
+# (e.g. two unconditional statements in sequence) still flags.
 readlink[[:space:]]+(-[A-Za-z]*f|--canonicalize)
 
 # --- STAGED (commented until enabled — see #1510 for the enable trigger) ---

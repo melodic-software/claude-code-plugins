@@ -53,19 +53,470 @@ def make_observer(tmp: Path, **overrides):
 class Distillation(unittest.TestCase):
     def test_assistant(self):
         out = observer.summarize_record({"type": "assistant", "message": {
-            "content": [{"type": "tool_use", "name": "Bash"},
+            "id": "msg_01ABC",
+            "content": [{"type": "tool_use", "id": "call_1", "name": "Bash",
+                         "input": {"command": "ls"}},
                         {"type": "text", "text": "x" * 300}],
             "stop_reason": "tool_use"}})
         self.assertEqual(out["tools"], ["Bash"])
         self.assertEqual(out["stop_reason"], "tool_use")
         self.assertLessEqual(len(out["say"]), 160)
+        # Grouping key + bounded per-call preview -- see summarize_record()'s
+        # docstring. Both ids go through _short_id(), so compare against it
+        # rather than the raw value ("call_1" is <= _ID_TAIL_LEN so it happens
+        # to pass through unchanged; "msg_01ABC" does not).
+        self.assertEqual(out["mid"], observer._short_id("msg_01ABC"))
+        self.assertEqual(out["calls"],
+                         [{"id": observer._short_id("call_1"), "in": '{"command":"ls"}'}])
+
+    def test_assistant_no_tools_omits_grouping_fields(self):
+        """A text-only turn has nothing to group/preview -- no mid/calls noise."""
+        out = observer.summarize_record({"type": "assistant", "message": {
+            "id": "msg_01ABC", "content": [{"type": "text", "text": "hi"}]}})
+        self.assertNotIn("tools", out)
+        self.assertNotIn("calls", out)
+        self.assertNotIn("mid", out)
+
+    def test_assistant_missing_message_id_omits_mid(self):
+        """A record with no API message id makes that pair's ordering uncomputable --
+        the field is simply absent, never a placeholder that looks computed."""
+        out = observer.summarize_record({"type": "assistant", "message": {
+            "content": [{"type": "tool_use", "id": "call_1", "name": "Bash"}]}})
+        self.assertNotIn("mid", out)
+        self.assertIn("calls", out)
+
+    def test_assistant_two_tool_uses_in_one_record_share_one_mid(self):
+        """Two tool_use blocks in ONE assistant record is a schema-level case the
+        code must still handle correctly, even though a scan of real transcripts
+        for #1485 found zero examples of it in practice (see test below for the
+        pattern that IS common) -- both calls carry the SAME mid regardless."""
+        out = observer.summarize_record({"type": "assistant", "message": {
+            "id": "msg_batch", "content": [
+                {"type": "tool_use", "id": "call_1", "name": "Read",
+                 "input": {"file_path": "a.py"}},
+                {"type": "tool_use", "id": "call_2", "name": "Read",
+                 "input": {"file_path": "b.py"}},
+            ]}})
+        self.assertEqual(out["tools"], ["Read", "Read"])
+        self.assertEqual([c["id"] for c in out["calls"]],
+                         [observer._short_id("call_1"), observer._short_id("call_2")])
+        self.assertEqual(out["mid"], observer._short_id("msg_batch"))
+
+    def test_assistant_one_message_spans_multiple_tool_bearing_records_shares_one_mid(self):
+        """The pattern real transcripts actually exhibit (verified for #1485: of
+        6352 tool-bearing message ids across 200 live session transcripts, 1412
+        (~22%) span 2+ tool-bearing records -- confirmed again as a positive
+        control against this repo's OWN session transcripts, 580/5431, ~11%): a
+        SINGLE API message's tool calls are frequently split across MULTIPLE
+        assistant records rather than packed into one record's content list.
+        `mid` is what makes these recognizable as the SAME batched turn -- record
+        adjacency alone is NOT reliable, since other records (tool results, text-
+        only records) interleave. This is the invariant the analysis prompt's
+        batching computation actually depends on, so both records here carry a
+        tool_use (not one text-only + one tool-bearing, which wouldn't exercise
+        cross-record mid-sharing between two calls at all)."""
+        r1 = observer.summarize_record({"type": "assistant", "message": {
+            "id": "msg_shared", "content": [
+                {"type": "tool_use", "id": "call_1", "name": "Read",
+                 "input": {"file_path": "a.py"}}]}})
+        r2 = observer.summarize_record({"type": "assistant", "message": {
+            "id": "msg_shared", "content": [
+                {"type": "tool_use", "id": "call_2", "name": "Read",
+                 "input": {"file_path": "b.py"}}]}})
+        self.assertEqual(r1["mid"], r2["mid"])
+        self.assertEqual(r1["mid"], observer._short_id("msg_shared"))
 
     def test_user_and_system(self):
         u = observer.summarize_record({"type": "user", "message": {
-            "content": [{"type": "tool_result"}, {"type": "tool_result"}]}})
-        self.assertEqual(u["tool_results"], 2)
+            "content": [{"type": "tool_result", "tool_use_id": "call_1",
+                        "content": "file contents here"},
+                       {"type": "tool_result", "tool_use_id": "call_2",
+                        "content": "more content"}]}})
+        self.assertNotIn("tool_results", u)  # superseded by len(results) -- see docstring
+        self.assertEqual(u["results"], [
+            {"id": observer._short_id("call_1"), "out": "file contents here"},
+            {"id": observer._short_id("call_2"), "out": "more content"},
+        ])
         s = observer.summarize_record({"type": "system", "subtype": "stop_hook_summary"})
         self.assertTrue(s["turn_boundary"])
+
+    def test_user_tool_result_content_as_block_list(self):
+        """A real transcript's tool_result.content is a list of content blocks
+        about as often as a plain string (verified for #1485) -- the preview
+        must extract the text, not JSON-dump the block wrapper structure."""
+        u = observer.summarize_record({"type": "user", "message": {
+            "content": [{"type": "tool_result", "tool_use_id": "call_1",
+                        "content": [{"type": "text", "text": "the actual result text"}]}]}})
+        self.assertEqual(u["results"][0]["out"], "the actual result text")
+
+    def test_user_no_tool_results_omits_results_field(self):
+        u = observer.summarize_record({"type": "user", "message": {
+            "content": [{"type": "text", "text": "go ahead"}]}})
+        self.assertNotIn("results", u)
+        self.assertNotIn("tool_results", u)
+
+    def test_user_bare_string_in_content_list_is_a_human_message(self):
+        """`content: ["next request"]` is a human prompt, the shape retro's own
+        parser counts as one (`parse_transcript.py`). Extracting only dict `text`
+        blocks emitted neither `human` nor `turn_boundary`, so in a session with
+        no `stop_hook_summary` records the analysis prompt's "same user turn"
+        precondition saw no boundary at all and calls answering prompts on either
+        side of it became a candidate pair (#1485 review)."""
+        u = observer.summarize_record({"type": "user", "message": {
+            "content": ["next request"]}})
+        self.assertEqual(u["human"], "next request")
+
+    def test_user_bare_string_and_text_block_mix(self):
+        u = observer.summarize_record({"type": "user", "message": {
+            "content": ["first", {"type": "text", "text": "second"}]}})
+        self.assertEqual(u["human"], "first second")
+
+    def test_non_tool_result_user_content_is_a_turn_boundary(self):
+        """The boundary is structural, not text-dependent. An image- or
+        document-only prompt yields no readable `human` narration at all, so
+        keying the boundary off extractable text let the dependency check span a
+        new human request in transcripts with no `stop_hook_summary` at that
+        point (#1485 review). Anything in a user record that is not a
+        `tool_result` is the human speaking -- including a block type that does
+        not exist yet."""
+        for content in (
+            [{"type": "image", "source": {"type": "base64", "data": "..."}}],
+            [{"type": "document", "source": {"type": "base64", "data": "..."}}],
+            [{"type": "some_future_block"}],
+            ["a bare string"],
+            [{"type": "text", "text": "plain text"}],
+            "a plain string content",
+        ):
+            with self.subTest(content=content):
+                u = observer.summarize_record(
+                    {"type": "user", "message": {"content": content}})
+                self.assertTrue(u.get("turn_boundary"))
+
+    def test_tool_result_only_user_record_is_not_a_turn_boundary(self):
+        """The counterpart: a pure tool-result record is the harness answering a
+        call, not the human speaking. Marking it a boundary would split every
+        genuinely batched turn and suppress real findings."""
+        u = observer.summarize_record({"type": "user", "message": {
+            "content": [{"type": "tool_result", "tool_use_id": "call_1",
+                         "content": "ok"},
+                        {"type": "tool_result", "tool_use_id": "call_2",
+                         "content": "ok"}]}})
+        self.assertNotIn("turn_boundary", u)
+
+    def test_sequencing_and_dependency_round_trip(self):
+        """Builds observations from real transcript-shaped records for a genuinely
+        DEPENDENT sequential pair (a Write, then a Read of a path the Write's own
+        result content names) and checks that the distilled fields alone -- without
+        the raw transcript -- let a reader (a) tell the two calls were sequential
+        (different `mid`s) and (b) find the dependency (the second call's `in`
+        preview overlaps the first result's `out` preview), covering both acceptance
+        criteria for #1485 in one round trip.
+        """
+        write_call = observer.summarize_record({"type": "assistant", "message": {
+            "id": "msg_1", "content": [
+                {"type": "tool_use", "id": "call_w", "name": "Write",
+                 "input": {"file_path": "/tmp/out/report.md"}},
+            ]}})
+        write_result = observer.summarize_record({"type": "user", "message": {
+            "content": [{"type": "tool_result", "tool_use_id": "call_w",
+                        "content": "wrote /tmp/out/report.md"}]}})
+        read_call = observer.summarize_record({"type": "assistant", "message": {
+            "id": "msg_2", "content": [
+                {"type": "tool_use", "id": "call_r", "name": "Read",
+                 "input": {"file_path": "/tmp/out/report.md"}},
+            ]}})
+
+        # (a) Sequential, not batched: different `mid`s.
+        self.assertNotEqual(write_call["mid"], read_call["mid"])
+        # (b) Dependency is findable purely from the bounded previews: the later
+        # call's input preview and the earlier result's output preview share the
+        # dependent path, without ever reading the raw transcript.
+        later_in = read_call["calls"][0]["in"]
+        earlier_out = write_result["results"][0]["out"]
+        self.assertIn("/tmp/out/report.md", later_in)
+        self.assertIn("/tmp/out/report.md", earlier_out)
+
+    def test_preview_bounded_for_large_input(self):
+        """No meaningful token-cost regression: an oversized tool input/result is
+        truncated to the bounded preview limit, not carried in full."""
+        big = observer.summarize_record({"type": "assistant", "message": {
+            "id": "msg_big", "content": [
+                {"type": "tool_use", "id": "call_big", "name": "Write",
+                 "input": {"content": "x" * 10_000}},
+            ]}})
+        self.assertLessEqual(len(big["calls"][0]["in"]), observer._PREVIEW_LIMIT)
+
+    def test_preview_helper(self):
+        self.assertEqual(observer._preview(None), ("", False))
+        self.assertEqual(observer._preview("  hi  "), ("hi", False))
+        self.assertEqual(observer._preview({"a": 1}), ('{"a":1}', False))
+        self.assertEqual(observer._preview("y" * 500, limit=10), ("y" * 10, True))
+
+    def test_preview_extracts_text_from_content_block_list(self):
+        """A real tool_result.content is a list of blocks about as often as a
+        plain string (verified for #1485) -- the text must be extracted, not
+        the block wrapper JSON-dumped, or the preview budget is spent on
+        `{"type":"text","text":...}` syntax instead of the actual content."""
+        self.assertEqual(
+            observer._preview([{"type": "text", "text": "hello world"}]),
+            ("hello world", False))
+
+    def test_preview_list_with_no_text_blocks_falls_back_to_json(self):
+        """A block list with nothing extractable (e.g. only an image block)
+        still gets SOME preview rather than an empty string."""
+        preview, _ = observer._preview([{"type": "image", "source": "x"}])
+        self.assertIn("image", preview)
+
+    def test_untruncated_entry_omits_cut_flag(self):
+        out = observer.summarize_record({"type": "assistant", "message": {
+            "id": "msg_1", "content": [
+                {"type": "tool_use", "id": "call_1", "name": "Bash",
+                 "input": {"command": "ls"}}]}})
+        self.assertNotIn("cut", out["calls"][0])
+
+    def test_truncated_entry_carries_cut_flag(self):
+        """A cut preview must be DISTINGUISHABLE from a short, complete one -- a
+        silent slice would make a dependency-bearing value past the limit look
+        like a clean 'no match' rather than 'unknown', see #1485 Codex review."""
+        out = observer.summarize_record({"type": "assistant", "message": {
+            "id": "msg_1", "content": [
+                {"type": "tool_use", "id": "call_1", "name": "Write",
+                 "input": {"content": "x" * 10_000}}]}})
+        self.assertTrue(out["calls"][0]["cut"])
+        self.assertEqual(len(out["calls"][0]["in"]), observer._PREVIEW_LIMIT)
+
+    def test_value_ending_in_ellipsis_is_not_reported_cut(self):
+        """An in-band trailing marker is ambiguous: a complete tool result that
+        naturally ends in `...` would read as truncated and wrongly suppress an
+        otherwise computable sequencing finding, see #1485 Codex review. The
+        cut signal is out-of-band, so a literal trailing `...` is just text."""
+        u = observer.summarize_record({"type": "user", "message": {
+            "content": [{"type": "tool_result", "tool_use_id": "call_1",
+                         "content": "Processing complete..."}]}})
+        self.assertEqual(u["results"][0]["out"], "Processing complete...")
+        self.assertNotIn("cut", u["results"][0])
+
+    def test_failed_tool_result_carries_err_flag(self):
+        """A failed call's own output is routinely empty or generic, so without
+        `err` a retry reads as an independent unbatched sibling rather than a
+        call that could only be chosen after the failure, see #1485 Codex
+        review."""
+        u = observer.summarize_record({"type": "user", "message": {
+            "content": [
+                {"type": "tool_result", "tool_use_id": "call_1", "content": "",
+                 "is_error": True},
+                {"type": "tool_result", "tool_use_id": "call_2", "content": "ok"},
+            ]}})
+        self.assertTrue(u["results"][0]["err"])
+        self.assertNotIn("err", u["results"][1])
+
+    def test_mixed_block_result_reported_incomplete(self):
+        """Text alongside an image block keeps only the text -- the omitted
+        block could carry the dependency, so the preview is not complete even
+        though it fits the limit, see #1485 Codex review."""
+        u = observer.summarize_record({"type": "user", "message": {
+            "content": [{"type": "tool_result", "tool_use_id": "call_1", "content": [
+                {"type": "text", "text": "see attached"},
+                {"type": "image", "source": "x"},
+            ]}]}})
+        self.assertEqual(u["results"][0]["out"], "see attached")
+        self.assertTrue(u["results"][0]["cut"])
+
+    def test_text_only_block_list_not_reported_incomplete(self):
+        """The mixed-block rule must not fire on an all-text block list."""
+        u = observer.summarize_record({"type": "user", "message": {
+            "content": [{"type": "tool_result", "tool_use_id": "call_1", "content": [
+                {"type": "text", "text": "a"}, {"type": "text", "text": "b"},
+            ]}]}})
+        self.assertNotIn("cut", u["results"][0])
+
+    def test_narration_cut_flag(self):
+        """The dependency check reads `say` for a control/resource/side-effect
+        dependency, so a silently cut narration would read as showing none."""
+        short = observer.summarize_record({"type": "assistant", "message": {
+            "id": "msg_1", "content": [{"type": "text", "text": "brief"}]}})
+        self.assertNotIn("say_cut", short)
+        long = observer.summarize_record({"type": "assistant", "message": {
+            "id": "msg_2", "content": [{"type": "text", "text": "z" * 500}]}})
+        self.assertTrue(long["say_cut"])
+        self.assertEqual(len(long["say"]), observer._NARRATION_LIMIT)
+
+    def test_mid_preserved_for_falsy_but_not_none_id(self):
+        """`mid` must be omitted only when the record truly carries none -- a
+        `mid: 0` (an integer id format) or `mid: ""` must NOT be dropped by an
+        `if mid:` truthy guard, see #1485 code review finding #1. `_short_id`
+        stringifies (`0` -> `"0"`), so compare against the same helper."""
+        out = observer.summarize_record({"type": "assistant", "message": {
+            "id": 0, "content": [{"type": "tool_use", "id": "call_1", "name": "Bash"}]}})
+        self.assertIn("mid", out)
+        self.assertEqual(out["mid"], observer._short_id(0))
+
+
+class ShortId(unittest.TestCase):
+    """`_short_id` trades the full verbatim id for a bounded correlation key --
+    measured against a real transcript for #1485 to cut the new fields' token
+    cost roughly in half without losing the ability to match a result back to
+    the call that produced it (see summarize_record()'s docstring)."""
+
+    def test_none_passes_through(self):
+        self.assertIsNone(observer._short_id(None))
+
+    def test_short_value_unchanged(self):
+        self.assertEqual(observer._short_id("call_1"), "call_1")
+
+    def test_long_value_truncated_to_tail(self):
+        full = "msg_014Jvov2xG6zPgLAhpByQwaC"
+        short = observer._short_id(full)
+        self.assertEqual(len(short), observer._ID_TAIL_LEN)
+        self.assertTrue(full.endswith(short))
+
+    def test_deterministic_for_correlation(self):
+        """The SAME full id must always shorten to the SAME short id, or a
+        call's `calls[].id` could never be matched to its `results[].id`."""
+        full = "toolu_01AbCdEfGhIjKlMnOpQrSt"
+        self.assertEqual(observer._short_id(full), observer._short_id(full))
+
+    def test_non_string_stringified(self):
+        self.assertEqual(observer._short_id(0), "0")
+
+
+class AnalysisPrompt(unittest.TestCase):
+    """The headless run has no delegation prompt to fall back on, so the
+    compute-don't-assert rule (#1473) must be inline in this prompt text itself,
+    not only documented in checkpoint.md's Method section -- and the prompt must
+    reference the distilled fields #1485 added, otherwise the analyzer has the
+    capability but is never told to use it, which reproduces the original "can
+    only ever drop the finding" gap under a different cause."""
+
+    def setUp(self):
+        self.prompt = observer._analysis_prompt(
+            observations="/obs.ndjson", checkpoint="/checkpoint.md", session_id="sid")
+
+    def test_compute_dont_assert_rule_present(self):
+        self.assertIn("Compute, don't assert", self.prompt)
+        # Names the failure modes the validation report actually observed.
+        self.assertIn("sequencing", self.prompt)
+        self.assertIn("batching", self.prompt)
+        self.assertIn("delegation", self.prompt)
+        self.assertIn("occurrence count", self.prompt)
+        self.assertIn("message id", self.prompt)
+        # Uncomputable structural claims must be dropped, not asserted anyway.
+        self.assertIn("drop the claim", self.prompt)
+
+    def test_absent_grouping_key_reads_as_uncomputable(self):
+        """`summarize_record()` now carries a message id as `mid`, but only when
+        the raw record had one -- so the prompt must still say that an ABSENT
+        grouping key makes the claim uncomputable rather than licensing an
+        assertion from impression."""
+        self.assertIn('NO "mid" at all', self.prompt)
+        self.assertIn("UNCOMPUTABLE", self.prompt)
+        rec = observer.summarize_record(
+            {"type": "assistant",
+             "message": {"content": [{"type": "tool_use", "name": "Read"}]}})
+        self.assertNotIn("mid", rec)
+
+    def test_dependency_check_before_batching_finding_present(self):
+        # A correctly computed sequencing fact doesn't by itself prove a missed
+        # batching opportunity -- genuinely dependent calls are correctly
+        # sequential, not a miss. The compute-don't-assert rule must cover the
+        # Efficiency judgment built on top of a computed structural fact, not
+        # only the fact itself, and "dependent" must not be narrowed to data
+        # flow alone -- control, resource, and side-effect dependencies are
+        # just as real a reason two calls had to run in order.
+        self.assertIn("missed batching opportunity", self.prompt)
+        self.assertIn("dependency", self.prompt)
+        self.assertIn("control", self.prompt)
+        self.assertIn("resource", self.prompt)
+        self.assertIn("side-effect", self.prompt)
+
+    def test_references_grouping_key(self):
+        self.assertIn('"mid"', self.prompt)
+        self.assertIn("batched", self.prompt)
+        self.assertIn("sequential", self.prompt)
+
+    def test_references_call_result_preview_fields(self):
+        self.assertIn('"calls', self.prompt)
+        self.assertIn('"results', self.prompt)
+        self.assertIn("dependency", self.prompt)
+
+    def test_references_cut_flags_as_unknown_not_absent(self):
+        """A cut value must be treated as UNKNOWN, never a clean 'no dependency'
+        -- otherwise the silent-slice gap Codex flagged reproduces the exact
+        asserted-and-wrong finding this whole prompt exists to stop. The rule
+        must key off the out-of-band flags, not off how a preview ends."""
+        self.assertIn('"cut": true', self.prompt)
+        self.assertIn('"say_cut"', self.prompt)
+        self.assertIn('"human_cut"', self.prompt)
+        self.assertIn("UNKNOWN", self.prompt)
+        self.assertIn("never by how a preview happens to end", self.prompt)
+
+    def test_missing_grouping_key_is_not_asserted_sequential(self):
+        """The no-`mid` case must NOT also be listed as "ran sequentially" --
+        the same clause asserting sequential execution and the drop rule calling
+        it uncomputable are contradictory instructions, see #1485 Codex review."""
+        self.assertIn("never evidence of sequential execution", self.prompt)
+
+    def test_candidate_pair_confined_to_one_user_turn(self):
+        """Calls answering two different human prompts have different `mid`s but
+        could never have been batched -- the later request didn't exist yet. The
+        turn-boundary gate must run before the dependency test, see #1485 Codex
+        review. Both signals it names are real distilled fields."""
+        self.assertIn("ONE user turn", self.prompt)
+        self.assertIn('"turn_boundary": true', self.prompt)
+        boundary = observer.summarize_record(
+            {"type": "system", "subtype": "stop_hook_summary"})
+        self.assertTrue(boundary["turn_boundary"])
+        human = observer.summarize_record(
+            {"type": "user", "message": {"content": "do the next thing"}})
+        self.assertIn("human", human)
+
+    def test_error_retry_treated_as_control_dependent(self):
+        """An error-then-retry pair sits in two `mid` groups with no data
+        dependency to find, so without an explicit rule it routes as a missed
+        batch, see #1485 Codex review."""
+        self.assertIn('"err": true', self.prompt)
+        self.assertIn("retry", self.prompt)
+        self.assertIn("control-dependent", self.prompt)
+        # Tool-name equality alone is not a retry -- a failed Read of one file
+        # followed by a Read of another is two independent calls, and calling
+        # that control-dependent suppresses a genuine finding (#1485 review).
+        self.assertIn("NOT evidence", self.prompt)
+        # ...but a corrected-argument retry (`git stats` -> `git status`) names
+        # no shared resource and repeats no argument, so requiring either would
+        # swing the rule too far the other way (#1485 review).
+        self.assertIn("CORRECTION", self.prompt)
+        # Neither over-suppress nor over-report: an illegible pair around a
+        # failure is unknown, and unknown means drop.
+        self.assertIn("UNKNOWN, not independent", self.prompt)
+
+    def test_state_wide_consumer_after_a_mutation_is_dependent(self):
+        """`Edit foo.py` then `Bash pytest` shares no path, echoes nothing, and
+        need not be narrated, yet the test had to observe the edit -- the most
+        common sequential pair in a coding session, and the one the resource
+        check (which needs a shared named resource) structurally cannot see
+        (#1485 review)."""
+        self.assertIn("STATE-WIDE CONSUMER", self.prompt)
+        self.assertIn("MUTATED state", self.prompt)
+        # Undecidable mutation drops rather than routing, like every other guard.
+        self.assertIn("whether the earlier call mutated anything", self.prompt)
+        # The clause count in the lead-in must move with the clause list.
+        self.assertIn("all five of these places", self.prompt)
+
+    def test_resource_dependency_compares_call_inputs(self):
+        """A side-effecting call (`mkdir /tmp/out` before `Write /tmp/out/x.md`)
+        returns nothing and narrates nothing, so comparing the later input only
+        against earlier RESULTS and narration reads a required sequence as a
+        missed batch -- the earlier call's own input must be in the comparison,
+        see #1485 Codex review."""
+        self.assertIn("against the later call's \"calls[].in\"", self.prompt)
+        self.assertIn("creates or mutates", self.prompt)
+
+    def test_drop_if_uncomputable_still_present(self):
+        self.assertIn("drop the claim", self.prompt)
+        self.assertIn("uncomputed", self.prompt)
+
+    def test_mandatory_redaction_pass_not_crowded_out(self):
+        self.assertIn("MANDATORY redaction pass", self.prompt)
 
 
 class Redaction(unittest.TestCase):
@@ -90,65 +541,6 @@ class ResultParsing(unittest.TestCase):
     def test_error(self):
         self.assertTrue(observer._result_error('{"is_error":true,"result":"Not logged in"}'))
         self.assertEqual(observer._result_error('{"is_error":false,"result":"ok"}'), "")
-
-
-class AnalysisPrompt(unittest.TestCase):
-    """The headless run has no delegation prompt to fall back on -- the
-    compute-don't-assert rule (issue #1473) must be inline in this prompt
-    text itself, not only documented in checkpoint.md's Method section."""
-
-    def test_compute_dont_assert_rule_present(self):
-        prompt = observer._analysis_prompt(
-            observations="/abs/obs.jsonl", checkpoint="/abs/checkpoint.md",
-            session_id="sid")
-        self.assertIn("Compute, don't assert", prompt)
-        # Names the failure modes the validation report actually observed.
-        self.assertIn("sequencing", prompt)
-        self.assertIn("batching", prompt)
-        self.assertIn("delegation", prompt)
-        self.assertIn("occurrence count", prompt)
-        self.assertIn("message id", prompt)
-        # Uncomputable structural claims must be dropped, not asserted anyway.
-        self.assertIn("drop the claim", prompt)
-
-    def test_message_id_absence_caveat_present(self):
-        # summarize_record() never carries a message-id field into the
-        # distilled observations the headless run receives (see its distillation
-        # below) -- the prompt must say so explicitly, or the agent is told to
-        # group by a field that never exists in its own input.
-        prompt = observer._analysis_prompt(
-            observations="/abs/obs.jsonl", checkpoint="/abs/checkpoint.md",
-            session_id="sid")
-        self.assertIn("may not carry a message-id field", prompt)
-        rec = observer.summarize_record(
-            {"type": "assistant",
-             "message": {"content": [{"type": "tool_use", "name": "Read"}]}})
-        self.assertNotIn("id", rec)
-
-    def test_dependency_check_before_batching_finding_present(self):
-        # A correctly computed sequencing fact doesn't by itself prove a missed
-        # batching opportunity -- genuinely dependent calls are correctly
-        # sequential, not a miss. The compute-don't-assert rule must cover the
-        # Efficiency judgment built on top of a computed structural fact, not
-        # only the fact itself, and "dependent" must not be narrowed to data
-        # flow alone -- control, resource, and side-effect dependencies are
-        # just as real a reason two calls had to run in order.
-        prompt = observer._analysis_prompt(
-            observations="/abs/obs.jsonl", checkpoint="/abs/checkpoint.md",
-            session_id="sid")
-        self.assertIn("missed batching opportunity", prompt)
-        self.assertIn("dependency", prompt)
-        self.assertIn("control", prompt)
-        self.assertIn("resource", prompt)
-        self.assertIn("side-effect", prompt)
-
-    def test_redaction_rule_still_present(self):
-        # Guard against the new instruction crowding out the pre-existing
-        # mandatory redaction pass.
-        prompt = observer._analysis_prompt(
-            observations="/abs/obs.jsonl", checkpoint="/abs/checkpoint.md",
-            session_id="sid")
-        self.assertIn("MANDATORY redaction pass", prompt)
 
 
 class Locking(unittest.TestCase):
@@ -222,17 +614,19 @@ class Locking(unittest.TestCase):
 
 
 class PidAlive(unittest.TestCase):
-    def test_tasklist_call_is_utf8_explicit(self):
-        # #1483: _pid_alive's Windows branch shells out to `tasklist`, whose
-        # subprocess.run call (unlike #1472's already-fixed _run_analysis) had no
-        # explicit encoding= -- Python's default text-mode decode is the platform
-        # code page (cp1252 on Windows), not UTF-8. Force the "nt" branch
-        # regardless of the host platform running this test so the assertion is
-        # not skipped on Linux/mac CI.
+    def test_tasklist_call_uses_no_fixed_decoder(self):
+        # #1512: tasklist's piped output follows the console output code page,
+        # which is not fixed -- it varies by locale/session and can even
+        # differ between shells in the same session, so neither a hardcoded
+        # "utf-8" (the earlier #1483 fix) nor a hardcoded "oem" decodes
+        # correctly everywhere. _pid_alive must not pass any encoding/text
+        # kwarg to subprocess.run and must match the PID against raw bytes.
+        # Force the "nt" branch regardless of the host platform running this
+        # test so the assertion is not skipped on Linux/mac CI.
         captured = {}
 
         class FakeProc:
-            stdout = "12345 Console 1 10,000 K"
+            stdout = b"12345 Console 1 10,000 K"
 
         def fake_run(cmd, **kw):
             captured.update(kw)
@@ -245,8 +639,46 @@ class PidAlive(unittest.TestCase):
             self.assertTrue(observer._pid_alive(12345))
         finally:
             observer.os.name, observer.subprocess.run = on, orr
-        self.assertEqual(captured.get("encoding"), "utf-8")
-        self.assertEqual(captured.get("errors"), "replace")
+        self.assertNotIn("encoding", captured)
+        self.assertNotIn("text", captured)
+        self.assertNotIn("errors", captured)
+
+    def test_tasklist_call_matches_pid_despite_undecodable_process_name(self):
+        # A cp437 console plus a process name containing characters undefined
+        # in cp1252 (e.g. \x81) used to raise UnicodeDecodeError inside
+        # subprocess's reader thread when a fixed "utf-8" decoder was used,
+        # leaving out.stdout as None (the #1512-described crash class that
+        # #1496's errors="replace" merely papered over). Raw-bytes matching
+        # sidesteps decoding entirely, so this mojibake name must not affect
+        # the ASCII-digit PID match.
+        class FakeProc:
+            stdout = b"\r\nt\x81st\x82.exe" + b" " * 20 + b"12345 Console 1  10,000 K"
+
+        def fake_run(cmd, **kw):
+            return FakeProc()
+
+        on, orr = observer.os.name, observer.subprocess.run
+        observer.os.name = "nt"
+        observer.subprocess.run = fake_run
+        try:
+            self.assertTrue(observer._pid_alive(12345))
+        finally:
+            observer.os.name, observer.subprocess.run = on, orr
+
+    def test_tasklist_call_no_match_when_pid_absent(self):
+        class FakeProc:
+            stdout = b"INFO: No tasks are running which match the specified criteria."
+
+        def fake_run(cmd, **kw):
+            return FakeProc()
+
+        on, orr = observer.os.name, observer.subprocess.run
+        observer.os.name = "nt"
+        observer.subprocess.run = fake_run
+        try:
+            self.assertFalse(observer._pid_alive(12345))
+        finally:
+            observer.os.name, observer.subprocess.run = on, orr
 
 
 class LedgerAndRetention(unittest.TestCase):

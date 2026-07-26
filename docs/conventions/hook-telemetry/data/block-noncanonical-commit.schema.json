@@ -17,7 +17,7 @@
     },
     "form": {
       "type": "string",
-      "description": "The non-canonical commit-message form when blocked (e.g. \"message-flag\" for a bare -m/-F not paired with the canonical marker). Empty string when the command was allowed (status ok)."
+      "description": "The non-canonical commit-message form when blocked (e.g. \"message-flag\" for a bare -m/-F not paired with the canonical marker), or \"alias-traversal-cap\" when checking the command's git alias chain exceeded the re-expansion budget. Empty string when the command was allowed (status ok)."
     }
   }
 }

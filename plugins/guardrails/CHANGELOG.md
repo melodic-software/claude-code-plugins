@@ -3,7 +3,7 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.17.1]
+## [0.17.2]
 
 ### Fixed
 
@@ -50,7 +50,264 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
 Both were raised in review on
 [#1432](https://github.com/melodic-software/claude-code-plugins/pull/1432) and
 merged before they were resolved. Three behavioral cases pin them, verified red
-against the 0.17.0 guard (`PASS=78 FAIL=3`) and green after (`PASS=81 FAIL=0`).
+against the 0.17.1 guard (`PASS=78 FAIL=3`) and green after (`PASS=81 FAIL=0`).
+
+## [0.17.1]
+
+### Fixed
+
+- **Git-alias CHAINS no longer bypass the git guards (`block-dangerous-git`,
+  `block-noncanonical-commit`).** Both guards re-expand an inline/persisted git
+  alias to re-check the real subcommand, but two coupled defects in that
+  re-expansion let a dangerous op or a non-canonical commit reached through a
+  SECOND alias hop slip past (verified rc=0 → fail open):
+  - **The nested re-parse dropped the command-line globals.** The splice fed the
+    recursive check words `0..gi` (wrappers + `git`) plus the expansion, dropping
+    everything between `git` and the subcommand — i.e. the `-c` / `--config` /
+    `--config-env` options. So the nested hop saw empty config: no second-hop
+    alias definition and no `--config-env` shape to refuse. The splice now spans
+    `0..sub_idx`, carrying every command-line global into each hop, so the
+    already-value-blind `--config-env` shape refusal and the plain/`.command`
+    max-danger union fire at every depth (closes the `--config-env`-second-hop
+    manifestation and its `.command`-spelled variant by construction).
+  - **Re-expansion was capped at one level** on the false premise that git does
+    not chain aliases (it does — an expansion whose first word is itself an alias
+    is expanded again). The one-level cap is replaced by a save/restore seen-set
+    of resolved subcommand names: recursion follows the chain to the real op, and
+    a repeat is git's own alias-loop stop (nothing runs — allow-safe), with
+    termination guaranteed by the finite set of distinct alias keys. Covers plain
+    inline chains, `--config-env` hops, the `alias.<sub>.command` spelling, and
+    the commit guard's persisted-config alias chain.
+  - **A `!` shell-alias body no longer inherits the outer chain's alias-loop
+    state** (review finding on the fix above). git's alias-loop guard is
+    in-process only: a `!` alias spawns a NEW git process whose loop guard
+    starts empty, so a body that re-invokes a name from the outer chain
+    (`git -c alias.a='!git -c alias.a="reset --hard" a' a`) is re-expanded
+    there, not stopped. Every `!` reparse now runs under an emptied seen-set
+    (restored afterwards). Termination: inline definitions reachable from a
+    reparse are strict substrings of the parent segment's text, and the commit
+    guard's persisted-config `!` hops — whose bodies never shrink — are bounded
+    by a second save/restore seen-set of persisted name/expansion pairs, where
+    a repeat models real git's endless fork of a self-referential persisted
+    shell alias (`a = !git a`): nothing ever runs, so skipping is allow-safe.
+  - **Chain traversal is now proportional to the chain's LENGTH, not exponential
+    in it** (review finding on the fix above). Because each hop re-checks BOTH
+    alias spellings independently, following the chain to the real op branched 2x
+    per hop: a *benign* 10-hop, 402-character command cost 5.4s in
+    `block-dangerous-git`, and an 8-hop, 356-character one cost 14.6s in
+    `block-noncanonical-commit` (every leaf forked a `git config`) — and a hook
+    that stalls stops guarding. Two bounds, both guard-local:
+    - **Equivalent analysis states collapse.** A verdict is a pure function of
+      (alias seen-set, argv); every other input is invocation-constant, and a
+      block is a process-wide `exit 2`, so a state reached a second time while
+      the process still runs provably did not block and cannot decide otherwise
+      now. Skipping the repeat is exact, not a coverage trade — and it is what
+      collapses the common shape, where both spellings of a hop expand to the
+      same thing, to one path per hop. Persisted-alias lookups are cached per
+      (directory, subcommand) for the same reason, removing the per-leaf fork.
+    - **A total re-expansion budget, fail-CLOSED.** Collapsing cannot bound a
+      chain whose two spellings DIFFER, because each path carries its own
+      trailing text forward and no two states are equal. The ceiling counts
+      ANALYSES, not seconds — a wall clock is host- and command-length-dependent
+      — and is calibrated against the linear walk the guards already accept: a
+      memoized traversal spends one analysis per hop, so a branching walk is
+      capped at the same order as a long non-branching chain (in
+      `block-dangerous-git`, at strictly less than the ~430-hop chain its 16 KB
+      command ceiling admits). It sits far above real usage; every legitimate
+      command measured spends single digits. Exhausting it blocks: the guard
+      could not finish deciding, so it must not allow.
+  - **A persisted `!` alias chain that DESCENDS through nested repositories is no
+    longer mistaken for a self-cycle** (`block-noncanonical-commit`; review
+    finding on the fix above). One alias text can mean a different hop in every
+    repository it appears in: with `alias.a = !git -C child a` in a repository
+    *and* in its child, plus `alias.a = commit --allow-empty -m bypass` in the
+    grandchild, real git descends twice and creates the non-canonical commit —
+    but the cycle key was the name and expansion only, so the second hop read as
+    a repeat, the walk stopped, and the guard returned 0 (verified fail-open).
+    The effective repository is now part of that key, and it is COMPOSED across
+    each `!` reparse rather than restarting from the payload cwd, because a `!`
+    body runs as a new git invocation from the repository the outer one resolved
+    — so a relative `-C` inside it stacks. Termination is unchanged where it came
+    from the set: a body with no `-C` leaves the directory alone, so
+    `a = !git a` and mutually referential pairs still stop on the first repeat.
+    A body naming the directory it is already in (`-C .`) would otherwise mint a
+    fresh key per hop and walk instead of stopping (measured 34.6s); it now
+    collapses to a repeat (0.8s) via the identity described in the next bullet,
+    which is also what supplies the `!` body's base — so a body invoked from a
+    SUBDIRECTORY composes from the outer repository's top level, as git does.
+    `block-dangerous-git` is not affected — it resolves inline aliases only, with
+    no persisted lookup and no shell-alias seen-set.
+  - **The guard no longer MODELS git's path semantics; it asks git**
+    (`block-noncanonical-commit`; two review findings on the fix above, one root
+    cause). Modelling resolution in shell text produced a bypass every time it was
+    attempted, in both directions:
+    - **Lexical `x/..` cancellation is wrong when `x` is a symlink.** With
+      `base/link -> target/child`, `git -C link/.. …` enters `target` on a POSIX
+      host, but textual cancellation reduced the lookup to `base` — so a
+      `commit -m` alias in `target` went unseen.
+    - **Resolving physically instead would be just as wrong, with the opposite
+      bias.** Verified on git 2.54.0.windows.1: `cd -P link/..` reports the link
+      target's parent while `git -C link/..` reports "not a git repository",
+      because Win32 normalizes `..` textually. A shell resolver would send the
+      guard to a repository git never enters.
+    - **A `!` body starts at the outer repository's TOP LEVEL**, not where the
+      outer command ran. Invoked from `<repo>/sub` with `alias.a = !git -C child
+      a`, git reaches `<repo>/child`; carrying the subdirectory forward made the
+      guard probe `<repo>/sub/child` and miss a nested repository's `commit -m`.
+
+    The lexical normalizer is deleted rather than patched. Composed `-C` paths are
+    now handed to git verbatim, and one primitive —
+    `git -C <dir> rev-parse --show-toplevel --show-prefix` — supplies both the `!`
+    body's launch directory and the canonical repository identity in the
+    shell-alias cycle key, so the guard tracks git's behavior on every platform by
+    construction. Where git chdirs the body (a nonempty prefix, or pure discovery)
+    identity canonicalizes for free: `-C .`, `link/..`, a subdirectory, and every
+    other spelling of one repository collapse to a single key, which is what stops
+    a self-rewriting `-C` chain. Resolution failure **falls back to the literal
+    composed directory** (best-available, not a gate), scoped to the alias walk
+    only, so an ordinary `git commit -F -` resolves nothing and forks nothing
+    (measured: 0 git subprocesses; the `-C .` chain stops after 4, not the 128
+    traversal budget; a 20-hop inline chain still forks 0).
+
+  - **A `!` shell-alias body under explicit locating globals launches where the
+    CALLER stands, not at the work-tree top level** (`block-noncanonical-commit`;
+    review finding on the fix above). git chdirs a `!` body to the top level only
+    when it can compute a prefix — when the caller's directory sits INSIDE the
+    effective work tree, which repository discovery always satisfies. An explicit
+    `--git-dir`/`--work-tree` whose work tree does not contain the caller skips
+    that chdir: verified on git 2.54.0.windows.1 (reported by review on 2.43.0),
+    from `<out>`, `git --git-dir <g> --work-tree <w> -c alias.a='!git -C child p'
+    a` runs `<out>/child`'s persisted `p`, while the same invocation from
+    `<w>/sub` runs from `<w>`. Collapsing to the top level UNCONDITIONALLY probed
+    the benign `<w>/child` and allowed while real git ran `<out>/child`'s
+    `commit -m` (verified fail-open) — and its mirror false-blocked a canonical
+    commit. The launch directory is now read from git's own answer: nonempty
+    `--show-prefix` (or a probe with no locating globals, i.e. pure discovery)
+    returns the top level, an empty prefix under explicit globals returns the
+    caller's composed directory. The inside-the-work-tree branch is unchanged, so
+    a subdirectory caller still resolves from the top level, as git does.
+
+  - **The launch-directory probe is boundary- and newline-safe** (two review
+    findings on the fix above). Both were fail-open holes in the launch-directory
+    lookup itself:
+    - **The launch-directory CACHE key encoded each argv word `%q`, not `$*`.**
+      Joining the replayed locating globals with `$*` flattened argv boundaries,
+      so `--git-dir 'X --work-tree' --namespace Z` and `--git-dir X --work-tree
+      '--namespace Z'` — which git interprets as different repositories — produced
+      one key. In a payload with two git segments, the first poisoned the shared
+      cache for the second, handing it the first segment's directory while git
+      launched the second elsewhere and ran the caller's non-canonical alias.
+      Keying each word `%q`-encoded makes the key injective on the argv, so no two
+      distinct argvs collide.
+    - **The toplevel and prefix are read in SEPARATE `rev-parse` calls.** One
+      combined `--show-toplevel --show-prefix` call split on the first newline; a
+      repository path containing an INTERIOR newline truncated the toplevel and
+      misread the remainder as a prefix, switching the walk to the wrong directory.
+      Two calls put each field in its own capture, so an interior newline can no
+      longer be read as the boundary into the next field. The prefix call is
+      skipped when the toplevel is empty, so the common allow path pays no extra
+      fork.
+    - **Each field is captured byte-exact through a sentinel** (a third review
+      finding, on the two-call fix above). `$(…)` strips EVERY trailing newline,
+      but a top-level path may itself END in one (POSIX permits any byte but NUL
+      and `/`), so the strip returned a different sibling directory — the same
+      fail-open, now at the tail rather than the interior. A sentinel byte printed
+      after git's output absorbs the strip; git's terminator is then removed
+      explicitly. git ends these two `rev-parse` forms with a BARE LF, not a CRLF,
+      even on Windows (verified on git 2.54.0.windows.1 via `od -c`), so exactly
+      one trailing `\n` is peeled and nothing else — a `tr -d '\r'`/`%$'\r'` peel
+      would corrupt a path that legitimately ends in `\r`, the identical hole one
+      byte over. Interior and trailing newlines (and a trailing `\r`) now survive
+      in both fields. The framing is unit-verified against every newline position
+      (interior, single- and double-trailing, CRLF terminator); an end-to-end
+      fixture is impractical because reaching a newline top level requires either a
+      literal newline in the parsed command or a newline-ending payload `cwd`, and
+      the latter is stripped one layer earlier — a SEPARATE, pre-existing entry
+      point shared with `main`, tracked as
+      [#1536](https://github.com/melodic-software/claude-code-plugins/issues/1536)
+      rather than absorbed here.
+
+    The invocation's LOCATING globals are replayed onto that probe, not just its
+    `-C`. `--git-dir` and `--work-tree` locate a repository as surely as `-C` does
+    (git's own usage lists both as globals before `<command>`), and asking without
+    them answered "no work tree" for a perfectly locatable one — so
+    `git --git-dir=<r>/.git --work-tree=<r> -c alias.a='!git commit -F -' a` run
+    outside a tree had a **valid canonical commit refused**. The replay keeps the
+    ask-git property intact: `git --git-dir=X --work-tree=Y rev-parse
+    --show-toplevel` is still git's answer, not a reconstruction of one. Its `-m`
+    twin is pinned too, so the replay did not simply switch the fail-closed branch
+    off.
+
+    `.` and `..` both need special handling only if the guard resolves paths
+    itself, and it no longer does. Every `.` spelling (`.`, `./././.`) resolves to
+    one identity, so a self-rewriting chain stops on the cycle key without a
+    `.`-cancelling pass. `..` is left to git as well rather than refused outright:
+    refusing every `..` path would be cheap and fork-free, but it false-blocks a
+    legitimate `git -C sub/.. commit -F -`, which is now a regression case
+    alongside its `commit -m` twin — asking git separates the two, blanket refusal
+    cannot.
+
+    Words after the subcommand are no longer read as repository globals. They are
+    that subcommand's own arguments — or, for an alias, text git APPENDS to the
+    expansion — so a trailing `-C` is not a global:
+    `git -c alias.a='!git b #' a -C <other-repo>` resolved to `<other-repo>` and
+    missed a `commit -m` reached in the CURRENT one, because git starts the body at
+    the current repository's top level and the `#` discards the appended words.
+    Directory resolution now sees only the invocation prefix, which also stops
+    `git commit -C HEAD` (`--reuse-message`) reading as a directory named `HEAD`.
+
+    **Standing limitation, unchanged and still open:** the guard does not evaluate
+    shell relocation, so a `!` body that moves the process (`!cd child && git …`)
+    is analyzed against the invoking repository rather than the destination. Real
+    git resolves the destination's aliases, so an alias defined only there is not
+    seen. Modelling this means evaluating arbitrary shell word expansion, which
+    this guard deliberately does not do; asking git cannot help either, because
+    git is never told about the `cd`. Tracked in
+    [#1486](https://github.com/melodic-software/claude-code-plugins/issues/1486),
+    with a reverted working attempt and the four findings that landed against it as
+    a map of what a real fix must handle.
+
+    Identity is a **best-available answer, not a gate**: when git cannot resolve a
+    work tree the walk continues with the literal composed directory, which is the
+    behavior this guard already had. An interim revision failed CLOSED there and was
+    dropped, because it never earned its place — its own justification was that a
+    commit could not have succeeded there anyway (so it protected against nothing),
+    while it produced three separate false positives, each refusing a VALID
+    canonical commit reached through a repository the OUTER probe could not see:
+    `--git-dir`/`--work-tree` on the invocation, then `-C` inside the body. The class
+    it was added for is open either way — the persisted-alias lookup still drops the
+    locating globals, here and on `main` alike
+    ([#1501](https://github.com/melodic-software/claude-code-plugins/issues/1501)).
+    Deferring resolution to the nested invocation is the real fix and is tracked as
+    its own design question
+    ([#1500](https://github.com/melodic-software/claude-code-plugins/issues/1500))
+    rather than bolted on at this depth.
+
+  Guard-local change only (no `hook-utils.sh` change, no cross-plugin sync).
+  Test matrices extended in both guards with two- and three-hop chains, the
+  `--config-env` and `.command` second-hop variants, a persisted-config alias
+  chain (fixture repo), the shell-alias outer-chain re-invocation (blocked) with
+  its canonical/undefined twins (allowed), a persisted chain crossing a `!` hop
+  (blocked / `-F -` allowed), 20-hop dual-spelling chains under a hard wall-clock
+  ceiling (safe terminal allowed, dangerous terminal still blocked — the collapse
+  costs no coverage), a 60-hop single-spelling chain (allowed: the budget bounds
+  branching, not depth), a divergent-spelling chain (blocked on the budget), a
+  three-level nested-repository fixture whose grandchild `commit -m` must block
+  (with its canonical twin allowed), a `-C .` self-reference that must collapse to
+  a cycle (with a twin proving a real `commit -m` behind a `-C .` hop still
+  blocks), a `!` body invoked from a SUBDIRECTORY that must resolve from the outer
+  repository's top level (canonical twin allowed), a `!` body under explicit
+  `--git-dir`/`--work-tree` whose caller sits OUTSIDE the work tree that must
+  launch in the caller's own child repository (bypass + false-block twins), with
+  the inside-work-tree pair proving the top-level branch is unchanged, a
+  symlinked-parent `-C link/..`
+  fixture gated on the platform actually resolving through the symlink (asserted on
+  POSIX, skipped loudly on Windows, where git is itself textual), `-C ./././.`
+  collapsing to a cycle without a `.`-cancelling pass, `-C sub/..` reaching a
+  `commit -m` (blocked) beside its canonical twin (allowed, which is why `..` is
+  not refused outright), and benign controls (safe multi-hop chain allowed; alias cycle, self-
+  and mutually referential persisted shell aliases terminate and allow without
+  hanging). Closes #964.
 
 ## [0.17.0]
 
