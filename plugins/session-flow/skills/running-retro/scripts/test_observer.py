@@ -446,15 +446,35 @@ class ArmLauncher(unittest.TestCase):
         signal like SIGTERM even on Windows (CPython's `os.kill` docs), so
         this is portable. Errors are swallowed -- the process may already
         have exited on its own (it is armed with a tiny --idle-seconds) --
-        and we poll briefly afterward so the caller's tempdir teardown does
+        and we wait briefly afterward so the caller's tempdir teardown does
         not race a still-open file handle held by the child (observed on
         Windows: a live child holding `observations-<sid>.ndjson` open makes
         `TemporaryDirectory.cleanup()` raise `PermissionError`).
+
+        The wait is per-platform because liveness and reaping differ. On
+        POSIX the detached child is still a direct child of this test
+        process, so after SIGTERM it lingers as a zombie until reaped and
+        `_pid_alive`'s `os.kill(pid, 0)` keeps reporting it alive -- polling
+        liveness there would burn the whole timeout and leave the zombie
+        behind. `waitpid` is the correct wait on that platform: it returns
+        as soon as the child dies and reaps it in the same call. Windows has
+        no zombie state and no `waitpid`, so liveness polling stays.
         """
         import signal
         with contextlib.suppress(OSError, ProcessLookupError):
             os.kill(pid, signal.SIGTERM)
         deadline = time.time() + timeout
+        if os.name != "nt":
+            while time.time() < deadline:
+                try:
+                    if os.waitpid(pid, os.WNOHANG)[0] == pid:
+                        return
+                except ChildProcessError:
+                    return  # already reaped (subprocess's own _active cleanup)
+                except OSError:
+                    return
+                time.sleep(0.05)
+            return
         arm = ArmLauncher._arm()
         while time.time() < deadline and arm._observer_mod()._pid_alive(pid):
             time.sleep(0.05)
