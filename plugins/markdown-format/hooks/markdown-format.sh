@@ -145,12 +145,20 @@ fi
 # unreachable in practice (it fires only if `jq -n` fails, and when jq is absent
 # hook::emit_telemetry drops the envelope anyway), so losing the values here is
 # harmless and strictly safer than emitting malformed JSON.
+#
+# The findings array arrives on STDIN, never as an --argjson value. Windows caps
+# a process command line at 32767 characters, and this array is deliberately
+# uncapped — a real file with a few hundred findings serializes past that,
+# `jq -n` then fails with "argument list too long" (reproduced: 300 findings
+# pass, 600 fail), and the fallback below would emit an envelope claiming ZERO
+# findings for the noisiest files in the repository. A payload that lies is
+# worse than no payload. TOOL and FILE_REL stay as arguments: both are bounded
+# by a path length.
 build_data_json() {
-  jq -n \
+  printf '%s' "$1" | jq -c \
     --arg tool "$TOOL" \
     --arg file "$FILE_REL" \
-    --argjson findings "$1" \
-    '{tool:$tool,file:$file,findings:$findings}' 2>/dev/null ||
+    '{tool:$tool,file:$file,findings:.}' 2>/dev/null ||
     printf '{"tool":"","file":"","findings":[]}'
 }
 
@@ -705,8 +713,11 @@ if ((FINDING_COUNT > 0)); then
   # Rule histogram, highest count first, so a report truncated to N lines still
   # says WHICH rules dominate — the single most useful thing about a 300-finding
   # set, and the thing a raw first-N truncation destroys.
+  # Only the top five rules are named, but the count of the rest rides along:
+  # a bare truncation would leave "MD013 x48" reading as the whole story on a
+  # file that also has twelve other rules firing.
   RULE_SUMMARY=$(printf '%s' "$RULE_TALLY" | sort | uniq -c | sort -rn |
-    awk 'NR<=5 {printf "%s%s x%s", (NR>1 ? ", " : ""), $2, $1} END {print ""}' 2>/dev/null) || RULE_SUMMARY=""
+    awk 'NR<=5 {printf "%s%s x%s", (NR>1 ? ", " : ""), $2, $1} NR>5 {extra++} END {if (extra) printf ", +%s more rule(s)", extra; print ""}' 2>/dev/null) || RULE_SUMMARY=""
 
   # Delta gate. A file edited eight times in a session produced eight
   # byte-identical whole-file dumps; re-sending an unchanged finding set is pure
@@ -727,10 +738,19 @@ if ((FINDING_COUNT > 0)); then
     if [[ -n "$file_key" && -n "$digest_now" ]]; then
       digest_dir="${CLAUDE_PLUGIN_DATA%/}/finding-digests"
       if mkdir -p "$digest_dir" 2>/dev/null; then
-        find "$digest_dir" -type f -mtime +7 -delete 2>/dev/null
         DIGEST_FILE="$digest_dir/${session_key}.${file_key}"
-        if [[ -f "$DIGEST_FILE" ]] && [[ "$(cat "$DIGEST_FILE" 2>/dev/null)" == "$digest_now" ]]; then
-          SAME_AS_LAST=1
+        if [[ -f "$DIGEST_FILE" ]]; then
+          [[ "$(cat "$DIGEST_FILE" 2>/dev/null)" == "$digest_now" ]] && SAME_AS_LAST=1
+        else
+          # Prune only when a new digest is created — the steady state for a
+          # file edited repeatedly in one session is a digest that already
+          # exists, and sweeping the whole directory on every Markdown edit
+          # would cost a directory walk for nothing. -maxdepth 1 keeps the
+          # sweep to this hook's own flat store: CLAUDE_PLUGIN_DATA is shared
+          # with the trust-approvals tree and anything a future version of this
+          # plugin puts there, and a recursive age-based delete has no business
+          # reaching into a sibling's state.
+          find "$digest_dir" -maxdepth 1 -type f -mtime +7 -delete 2>/dev/null
         fi
         printf '%s' "$digest_now" >"$DIGEST_FILE" 2>/dev/null || DIGEST_FILE=""
       fi
@@ -772,6 +792,13 @@ fi
 # Compose ONE stdout document: Claude Code parses a hook's entire stdout as a
 # single JSON document, so the agent-channel report and the user-channel
 # mutation notice are emitted together rather than printed twice.
+#
+# Carriage returns are dropped first. markdownlint-cli2 is a Node process whose
+# stdout is CRLF-terminated on Windows, and command substitution strips only the
+# trailing newline — so every retained violation line arrives with a CR that
+# would survive JSON-escaping into the report as a literal \r.
+CTX="${CTX//$'\r'/}"
+SYSMSG="${SYSMSG//$'\r'/}"
 CTX="${CTX%"${CTX##*[![:space:]]}"}"
 hook::emit_channels PostToolUse "$CTX" "$SYSMSG"
 

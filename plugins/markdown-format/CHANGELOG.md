@@ -3,6 +3,44 @@
 All notable changes to the `markdown-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.1]
+
+### Fixed
+
+- **The telemetry payload could be falsified rather than merely lost.**
+  `build_data_json` handed the findings array to `jq -n` as an `--argjson`
+  value. Windows caps a process command line at 32767 characters, and
+  `data.findings` is deliberately uncapped, so the array blew past that
+  somewhere between 300 and 600 entries (reproduced with the hooks' own jq:
+  300 pass, 600 fail with `rc=126`, "argument list too long"). `jq` never ran
+  and the fallback emitted an envelope claiming **zero** findings, with `tool`
+  and `file` blanked — for the noisiest files in the repository, which are the
+  ones a sink is most likely wired for. Telemetry is documented best-effort and
+  lossy, so a *dropped* envelope is inside contract; one that *arrives*
+  reporting a 600-finding file as clean is not. The array now reaches `jq` on
+  stdin; `tool` and `file` stay as arguments, both bounded by a path length.
+  The shared `hook::emit_telemetry` hands the finished payload over the same
+  way (#1595), so an oversized envelope is currently dropped rather than
+  delivered — the correct failure direction, and the one this change
+  establishes. The 600-finding case asserts the invariant that holds either way
+  and keeps holding once #1595 lands: lost, never falsified.
+- **Carriage returns leaked into the report.** `markdownlint-cli2` is a Node
+  process whose stdout is CRLF-terminated on Windows, and command substitution
+  strips only the trailing newline — so every retained violation line carried a
+  CR that survived JSON-escaping into `additionalContext` as a literal `\r`.
+- **The digest-store prune ran on every Markdown edit and was unbounded in
+  depth.** It now runs only when a *new* digest file is created — the steady
+  state for a repeatedly-edited file already has one, so the common path no
+  longer walks the directory at all — and carries `-maxdepth 1`.
+  `CLAUDE_PLUGIN_DATA` is shared with the `trust-approvals` tree and with
+  whatever a future version of this plugin puts there; a recursive age-based
+  `-delete` has no business reaching into a sibling's state.
+- **The rule histogram truncated silently.** It named the top five rules and
+  stopped, so `MD013 x48` read as the whole story on a file where twelve more
+  rules were firing. It now carries `+N more rule(s)`, the same way the finding
+  list already reported its own remainder. A test asserts the suffix is absent
+  when every rule fits, so it cannot become permanent decoration.
+
 ## [0.8.0]
 
 ### Fixed
