@@ -325,19 +325,29 @@ def _engine_gate_relevant(command: str, tool_name: str = "Bash") -> bool:
         return _samefile(word)
 
     allow_backslash = tool_name == "PowerShell"
-    if not any(_carries_marker(token) for token in _marker_tokens(command)):
+    marker_candidates = _marker_tokens(command)
+    if not any(_carries_marker(token) for token in marker_candidates):
         # No marker: the only relevant shape is a linked alias of the bundled
         # engine invoked by path. Unparsable marker-free commands cannot fail
         # closed (that would gate every command with an operator), so scan
         # their whitespace tokens for separator-carrying words and identity-
         # check those — a literal alias path gates even beside an operator.
+        #
+        # The path-legal tokens are scanned as well, and carry this branch's
+        # weight now that a name merely CONTAINING the marker lands here: a
+        # link to the engine called `test_hygiene.py` beside an operator
+        # (`/tmp/test_hygiene.py;echo done`) leaves `command.split()` holding
+        # `/tmp/test_hygiene.py;echo`, which resolves to nothing, so identity
+        # would miss the engine under a name that is not the marker. Adding
+        # candidates can only ever gate more, never less.
+        candidates = list(marker_candidates)
         words = _literal_shell_words(command, allow_backslash=allow_backslash)
-        if words is None:
-            return any(
-                _same_file_as_bundled(token.strip("'\""))
-                for token in command.split()
-            )
-        return any(_same_file_as_bundled(word) for word in words)
+        candidates += (
+            [token.strip("'\"") for token in command.split()]
+            if words is None
+            else list(words)
+        )
+        return any(_same_file_as_bundled(candidate) for candidate in candidates)
     words = _literal_shell_words(command, allow_backslash=allow_backslash)
     if words is None:
         # Marker present but not literally parseable (operators, compounds).

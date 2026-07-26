@@ -29,6 +29,14 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
   apply`, `FOO=1 BAR=hygiene.py python3 "$BAR" apply`, `foo;hygiene.py`, `$(hygiene.py scan)`, and
   `true|hygiene.py` all still gate.
 
+  Identity still outranks the filename for the newly-deferred name. Because `test_hygiene.py` no
+  longer carries the marker, it routes to the marker-free branch, whose job is to catch a LINK to
+  the engine under another name — and that branch scanned only whitespace tokens, so an operator
+  glued to the path (`/tmp/test_hygiene.py;echo done`) left `...;echo` attached, `samefile` resolved
+  nothing, and a link to the real engine deferred. The path-legal tokens are scanned there too now,
+  which can only ever gate more. A link to the engine named like the suite gates beside `;`, `|`,
+  and `&&`, and now also gates with no operator at all, where it deferred before this release.
+
   A relative marker path in an operator-carrying command is now treated as unknowable rather than
   provable. The "provably a DIFFERENT file" escape resolves a token against the **guard's** working
   directory, but that branch is reached precisely because the command carries an operator — and an

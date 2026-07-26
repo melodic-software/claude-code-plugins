@@ -2906,6 +2906,41 @@ class GuardTests(unittest.TestCase):
         ):
             self.assertFalse(guard._carries_marker(token), token)
 
+    def test_engine_gate_catches_a_link_named_like_the_suite_beside_an_operator(
+        self,
+    ) -> None:
+        """Identity outranks the filename, including for the deferred name.
+
+        Deferring `test_hygiene.py` (#1611) routes it to the marker-free
+        branch, whose job is to catch a LINK to the engine under another name.
+        That branch scanned only `command.split()` tokens, so an operator glued
+        to the path (`/tmp/test_hygiene.py;echo done`) left `...;echo`
+        attached, `samefile` resolved nothing, and a link to the real engine
+        deferred — the deferral turned into a bypass under the one name this
+        change makes non-marker. The path-legal tokens are scanned too now.
+        """
+        script = SCRIPT_DIR / "hygiene.py"
+        with tempfile.TemporaryDirectory(dir=SCRIPT_DIR) as tmp:
+            alias = Path(tmp) / "test_hygiene.py"
+            try:
+                os.link(script, alias)
+            except OSError as exc:  # pragma: no cover - filesystem-dependent
+                self.skipTest(f"hard links unavailable here: {exc}")
+            posix_alias = str(alias).replace("\\", "/")
+            for command in (
+                f"{posix_alias};echo done",
+                f"{posix_alias}|cat",
+                f"{posix_alias} apply && echo done",
+            ):
+                result = self.run_guard_engine_gate(command, "Bash", enabled=False)
+                assert result is not None, command
+                self.assertEqual(
+                    "deny",
+                    result["hookSpecificOutput"]["permissionDecision"],
+                    command,
+                )
+            os.unlink(alias)
+
     def test_engine_gate_catches_wrapper_launchers_of_the_bundled_engine(self) -> None:
         """env / sh -c wrappers around the absolute engine path must gate (P1 review)."""
         script = SCRIPT_DIR / "hygiene.py"
