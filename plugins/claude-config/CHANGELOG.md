@@ -43,11 +43,12 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   correctly so. Routing around that block with an interpreter one-liner is prohibited; the audit
   reports the file as not inspectable under the project's own rule instead.
 - **"Interaction with hook-based gates" now states the ordering in both directions.** "A deny rule
-  fires before any `PreToolUse` hook" was true only of the loosening direction. Deny and ask rules are
-  evaluated regardless of what a hook returns, so a hook cannot loosen them; a hook exiting 2 stops
-  the call before permission rules are evaluated, so it can tighten past an allow rule. The
-  consequence for this baseline — a deny entry suppressing a project hook's ask escalation — is
-  unchanged.
+  fires before any `PreToolUse` hook" was true only of the loosening direction, and the two hook cases
+  are now kept apart. A *returned decision* cannot loosen a rule: deny and ask rules are evaluated
+  regardless of which decision the hook returns. *Exit 2* short-circuits instead: it stops the call
+  before permission rules are evaluated at all, so it blocks past an allow rule and nothing downstream
+  runs, including an otherwise-matching ask rule. The consequence for this baseline — a deny entry
+  suppressing a project hook's ask escalation — is unchanged.
 
 ## [0.13.0]
 

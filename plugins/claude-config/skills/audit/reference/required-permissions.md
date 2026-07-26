@@ -72,8 +72,8 @@ do not offer it there as the fix.
 
 **A `PreToolUse` hook on `Bash|PowerShell` is a speed bump, not a boundary.** It can inspect the
 command string and deny the call, and a hook exiting 2 blocks a call an *allow* rule would otherwise
-have permitted. It cannot loosen a deny — see "Interaction with hook-based gates" below for the
-precise ordering. But it inspects that same command string, so it inherits the evasion surface of a
+have permitted. A decision it returns cannot loosen a deny — see "Interaction with hook-based gates"
+below for the precise ordering. But it inspects that same command string, so it inherits the evasion surface of a
 Bash deny glob. Rank it below the sandbox and never describe it as protection.
 
 **Residual risk, stated plainly.** Where no OS-level boundary is available, a deny glob cannot keep a
@@ -129,11 +129,16 @@ still a finding.
 
 ## Interaction with hook-based gates
 
-The ordering runs both ways, so state it precisely. A hook cannot loosen a rule: deny and ask rules
-are evaluated regardless of what a `PreToolUse` hook returns, so a matching deny blocks the call even
-when the hook returned `allow`, and a matching ask still prompts. A hook can tighten one: a hook that
-exits 2 stops the call before permission rules are evaluated, so it blocks even where an allow rule
-would have let the call through.
+The ordering runs both ways, so state it precisely, and keep the two cases apart — a hook that
+*returns a decision* is not a hook that *exits 2*.
+
+- **A returned decision cannot loosen a rule.** Deny and ask rules are evaluated regardless of which
+  decision a `PreToolUse` hook returns, so a matching deny blocks the call even when the hook returned
+  `allow`, and a matching ask still prompts.
+- **Exit 2 short-circuits instead of feeding in a decision.** A hook that exits 2 stops the tool call
+  before permission rules are evaluated at all, so it blocks where an allow rule would have let the
+  call through — and nothing downstream runs, including an otherwise-matching ask rule, which never
+  gets to prompt. The bullet above describes returned decisions only; it does not apply here.
 
 The consequence for this baseline is the first direction. When a project escalates an operation to a
 permission prompt via its own safety hook (e.g. a git-safety hook that turns `git branch -D` into an
