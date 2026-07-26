@@ -170,6 +170,13 @@ scan_file() {
     BEGIN {
       SQ = "\047"; DQ = "\042"; BS = "\134"; BT = "\140"
       SEPS = ";&|()" BT
+      # What may sit between a pipeline position and the command name that
+      # position runs: environment assignments (repeatable, either side of a
+      # wrapper), an invocation wrapper, or a leading backslash. None changes
+      # WHICH command runs, so all are transparent both to the fallback guard
+      # after a `||` and to the negation check before a `!`-prefixed call.
+      ASSIGN = "([A-Za-z_][A-Za-z0-9_]*=[^;|&[:space:]]*[[:space:]]+)*"
+      PREFIXES = ASSIGN "((command|env)[[:space:]]+)?" ASSIGN "(\\\\)?[[:space:]]*"
     }
     function is_annotated(l) { return l ~ /portability-ok:/ }
     function is_comment(l) { return l ~ /^[[:space:]]*#/ }
@@ -405,22 +412,28 @@ scan_file() {
       while (length(s) < n) s = s " "
       return s
     }
+    # The `!` may be separated from the command name by the same prefixes
+    # CMDPOS admits after a `||` — an invocation wrapper, an environment
+    # assignment, or both — and none of them changes that the negation applies
+    # to the pipeline (#1544). Matching only bare whitespace let
+    # `! command stat -c …` and `! LANG=C stat -c …` read as unnegated.
     function is_negated(q, at,   head) {
       head = substr(q, 1, at - 1)
       if (match(head, /.*[;|&()]/)) head = substr(head, RSTART + RLENGTH)
-      return head ~ /(^|[[:space:]])![[:space:]]+$/
+      return head ~ ("(^|[[:space:]])![[:space:]]+" PREFIXES "$")
     }
-    function is_guarded(q, p, at,   CMDPOS, SEG, PRE, ASSIGN) {
+    function is_guarded(q, p, at,   CMDPOS, SEG, PRE, NAME) {
       if (is_negated(q, at)) return 0
-      # An environment assignment prefix does not change WHICH command the `||`
-      # runs, so `|| LANG=C stat -f …` is the same fallback as `|| stat -f …`
-      # and must not be forced into a hand-written exemption. Repeatable, and
-      # admissible on either side of an invocation wrapper.
-      ASSIGN = "([A-Za-z_][A-Za-z0-9_]*=[^;|&[:space:]]*[[:space:]]+)*"
       # A substitution opener after the `||` may be either spelling, since
       # both make the command that follows what the `||` actually runs. The
       # bare `NAME=` (no value, no trailing space) is the `x=$(stat …)` shape.
-      CMDPOS = "\\|\\|[[:space:]]*" ASSIGN "([A-Za-z_][A-Za-z0-9_]*=)?(\\$\\(|" BT ")?[[:space:]]*((command|env)[[:space:]]+)?" ASSIGN "(\\\\)?[[:space:]]*"
+      CMDPOS = "\\|\\|[[:space:]]*([A-Za-z_][A-Za-z0-9_]*=)?(\\$\\(|" BT ")?[[:space:]]*" PREFIXES
+      SEG = "([^;|&]|[<>]&|&>|&&)*"
+      # The fallback command word carries the same optional quote and path
+      # spellings the token patterns already admit — quote removal invokes the
+      # same BSD utility, so `|| "stat" -f …` and `|| "/usr/bin/stat" -f …` are
+      # real ladders and were being forced into an exemption (#1544).
+      NAME = "[" SQ DQ "]?(/[^;|&[:space:]]*/)?"
       SEG = "([^;|&]|[<>]&|&>|&&)*"
       # A word inside PRE is any single argument that is not a control
       # operator. Excluding the operators matters as much here as in SEG: a gap
@@ -429,10 +442,10 @@ scan_file() {
       # line-wide behaviour this anchoring replaced.
       PRE = "[" SQ DQ "]?[[:space:]]+([^;|&\n]*[[:space:]])?"
       if (p ~ /readlink/) {
-        return substr(q, 1, at + 7) ~ ("realpath" SEG CMDPOS "readlink$")
+        return substr(q, 1, at + 7) ~ ("realpath" SEG CMDPOS NAME "readlink$")
       }
       if (index(p, "stat")) {
-        return substr(q, at) ~ ("^stat" PRE "(-[A-Za-z]*c|--format|--printf)" SEG CMDPOS "stat" PRE "-[A-Za-z]*f")
+        return substr(q, at) ~ ("^stat" PRE "(-[A-Za-z]*c|--format|--printf)" SEG CMDPOS NAME "stat" PRE "-[A-Za-z]*f")
       }
       return 0
     }
