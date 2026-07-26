@@ -3,6 +3,39 @@
 All notable changes to the `miro` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.2.2]
+
+### Added
+
+- Setup skill documents the headless bootstrap: `marketplace add`, then
+  `claude plugin install --config miro_api_token=<token>`, then `claude plugin enable`. The enable
+  step is spelled out because the plugin ships `defaultEnabled: false` and therefore installs
+  disabled — a bootstrap that stops after `install` looks successful and delivers no tools. Also
+  covered: the `--config` fresh-install-only caveat, the headless rotation path (uninstall then
+  reinstall carrying the SAME `-s <scope>`, read from `claude plugin list`, run from the project
+  directory for project/local scope), and the shell-history/process-table exposure caveat
+  (`docs/PLUGIN-PHILOSOPHY.md` userConfig conformance).
+
+### Changed
+
+- MCP server version kept aligned with the plugin: `package.json`, the
+  server's MCP `Implementation` version, the lockfile, and the committed
+  bundle all report `0.2.2`.
+
+## [0.2.1]
+
+### Added
+
+- **README section "Rotating or clearing the token"** naming
+  `/plugin configure miro` as the rotation/clear path for the stored
+  `miro_api_token`, per the repo's sensitive-`userConfig` README convention.
+
+### Changed
+
+- MCP server version kept aligned with the plugin: `package.json`, the
+  server's MCP `Implementation` version, the lockfile, and the committed
+  bundle all report `0.2.1`.
+
 ## [0.2.0]
 
 ### Changed

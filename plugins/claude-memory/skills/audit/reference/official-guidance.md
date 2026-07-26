@@ -140,7 +140,14 @@ Additional features:
 - User-level rules in `~/.claude/rules/` apply to every project (loaded before project rules)
 - Path-specific rules use `paths:` YAML frontmatter with glob patterns
 
-**Path scoping status (2026-04-01):** Official docs describe path scoping as working. In practice, issues #16299, #16853, #38487, #32906 remain open — rules load unconditionally at session start regardless of `paths:` frontmatter.
+**Path scoping status (verified working 2026-07-24 on Claude Code 2.1.219):** Path scoping defers as documented — a path-scoped rule is not in context at session start and loads when Claude reads a matching file. A first-party repro on 2.1.219 with `paths: ["**/*.tsx"]` found the rule absent at session start, present after reading a matching `.tsx` file, and absent again after reading a non-matching one: deferral works in both directions. No version can be cited for when this began working — no changelog entry or maintainer comment pins one, so do not assume a floor. This supersedes an earlier claim here (dated 2026-04-01) that rules load unconditionally regardless of `paths:`; that claim's cited evidence does not support it either — #38487 and #32906 are closed NOT_PLANNED (#38487 asks that Write/Edit *also* trigger injection, which presupposes deferral works; #32906 is a docs issue about subagents), and the two still-open issues assert opposite failure modes, so they cannot jointly support one conclusion.
+
+Caveats that do survive, each verified:
+
+- An `@import` **inside** a path-scoped rule defeats the scoping: the imported content inlines at session start whether or not a matching file is ever read. Per the docs, "Imported files are expanded and loaded into context at launch" — code.claude.com/docs/en/memory.
+- Path-scoped content is invisible to subagents, teammates, and skill-forked contexts. Issue #32906 covers this and is closed NOT_PLANNED — accepted behavior, not a pending fix.
+- Writing a NEW file does not trigger the rule. The trigger is a read: "Path-scoped rules trigger when Claude reads files matching the pattern, not on every tool use" — code.claude.com/docs/en/memory.
+- Before v2.1.211, on-demand rules — path-scoped rules and rules in nested `.claude/rules/` directories — loaded even when `project` was excluded from `--setting-sources` (code.claude.com/docs/en/memory).
 
 ## Auto-memory limits
 
@@ -215,7 +222,7 @@ Per [Steering Claude Code](https://claude.com/blog/steering-claude-code-skills-h
 
 | Method | Session start | After compaction | On-demand trigger |
 |--------|---------------|------------------|-------------------|
-| CLAUDE.md / AGENTS.md | Full load | Re-injected | — |
+| CLAUDE.md | Full load | Project-root re-injected; nested reload on demand | Nested: file read in that subdirectory |
 | Path-scoped rules | Matching paths only | Re-injected when paths match again | File read / edit |
 | Unscoped rules | Full load | Re-injected | — |
 | Skills | Name + description | Listing re-injected; body on invoke | `/skill` or model choice |
@@ -223,6 +230,11 @@ Per [Steering Claude Code](https://claude.com/blog/steering-claude-code-skills-h
 | Hooks | N/A (deterministic) | N/A | Every tool call |
 | Auto-memory MEMORY.md | First 200 lines / 25KB | Persists on disk | — |
 | Output style | If non-default | Persists for session | `/config` |
+
+`AGENTS.md` is deliberately absent from that table: the memory doc's `AGENTS.md` section states
+"Claude Code reads `CLAUDE.md`, not `AGENTS.md`", and prescribes an `@AGENTS.md` import or a symlink
+as the way to make one load. So an `AGENTS.md` loads only through a `CLAUDE.md` that references it,
+on that `CLAUDE.md`'s row — never as a surface of its own.
 
 ## No official scoring rubric
 

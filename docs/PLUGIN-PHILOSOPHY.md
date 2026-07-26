@@ -62,7 +62,7 @@ topic qualifier follows the verb with a hyphen (`audit-noise` beside `audit-enca
 Nouns are reserved for knowledge routers (`principles`, `methodology`) and lifecycle-object routers
 (`worktree`, `pull-request`). Five further documented exceptions: a single-skill vendor-CLI wrapper
 repeats its tool name (`firecrawl:firecrawl`); a `-deep` suffix marks the heavier
-isolated-execution tier of a sibling skill (`explore`/`explore-deep`); a knowledge router named by
+isolated-execution tier of a sibling skill (`research`/`research-deep`); a knowledge router named by
 its method's own literature term keeps that term when renaming would destroy recognized craft
 vocabulary (`songwriting:object-writing`, `meter-prosody`, `song-form` — Pattison's terms); a
 playbook router named by its source keeps the source's own identifier, because provenance is the
@@ -129,7 +129,7 @@ native one matures into fitness.
 | [MCP servers](https://code.claude.com/docs/en/mcp) | Adopt on need | Clears the plugin-acceptance security review for egress and trust delegation. | 2026-07-17 |
 | [LSP servers](https://code.claude.com/docs/en/plugins-reference) | Adopt on need | Consumer must have the language-server binary; declare the prerequisite per the failure-behavior rules. | 2026-07-17 |
 | [Output styles](https://code.claude.com/docs/en/plugins-reference) | Adopt on need | — | 2026-07-17 |
-| [`bin/`](https://code.claude.com/docs/en/plugins) | Adopt on need | Executables join the Bash tool's `PATH` while the plugin is enabled; names must be collision-safe (plugin-prefixed) — the platform does not namespace them. | 2026-07-17 |
+| [`bin/`](https://code.claude.com/docs/en/plugins) | Adopt on need | Executables join the Bash tool's `PATH` while the plugin is enabled; names must be collision-safe (plugin-prefixed) — the platform does not namespace them. That `PATH` delivery is per-session and can silently fail ([anthropics/claude-code#68066](https://github.com/anthropics/claude-code/issues/68066)), so never make bare-name invocation load-bearing: invoke via `${CLAUDE_PLUGIN_ROOT}/bin/`, and note that a `bash "…/bin/x"` invocation does not match a `Bash(x:*)` allow rule. | 2026-07-17 |
 | [Plugin `settings.json`](https://code.claude.com/docs/en/plugins) | `agent` prohibited by default | Supports only `agent` and `subagentStatusLine`. `agent` takes over the main thread — a consumer-hostile default for a marketplace plugin; any exception requires documented justification in the plugin README. | 2026-07-17 |
 | [Monitors](https://code.claude.com/docs/en/plugins-reference) | Wait | Experimental (`experimental.monitors`); interactive-CLI-only, unsandboxed at hook trust level, no `${user_config.*}` and no `CLAUDE_PLUGIN_OPTION_*` in monitor processes; keep running after mid-session disable. Re-verify before each audit. | 2026-07-17 |
 | [Themes](https://code.claude.com/docs/en/plugins-reference) | Wait | Experimental (`experimental.themes`); schema may change between releases. Re-verify before each audit. | 2026-07-17 |
@@ -231,6 +231,31 @@ zero-prerequisite plugins are exempt — setup is never blanket ceremony. For fo
 plugins the requirement is a thin check-centric setup; where one is not yet shipped, the fleet
 conformance audit tracks the gap.
 
+`userConfig` is **non-trivial** when at least one option has a correct value that Claude Code's
+native configuration prompt alone cannot establish. An option is non-trivial when it
+
+- names an external referent whose existence, writability, validity, or identity must be verified
+  before the plugin behaves as advertised — a path, file, credential, token, account, or model
+  identifier;
+- carries no default preserving documented zero-config behavior, so the plugin is degraded or blocked
+  until the consumer supplies a value; or
+- is coupled — its correct value depends on another option's value, or on state outside the manifest
+  (wiring, a tracked file, a repository convention) — so the set cannot be settled option by option.
+
+Every other option is trivial: a self-contained scalar — boolean, number, or closed enum — with a
+default preserving zero-config behavior and no illegal value to get wrong, including one whose
+out-of-set values are documented as falling back to that default. A manifest is trivial when all its
+options are, however many it holds: count is not the test and neither is declared `type`.
+
+The line follows from what the native prompt is — a collector, not a verifier. It stores what the
+consumer typed; it never confirms the path exists, the token authenticates, or two options agree. A
+`setup` skill's `check` is the only surface that can, which is why a non-trivial option requires one.
+A trivial option requires none: every legal value is valid by construction and the default already
+works, so a `setup` skill would have nothing to verify and nothing to advise. Criterion (c) is the
+only criterion this definition governs — a plugin whose `userConfig` is trivial still requires setup
+whenever (a) or (b) holds, which is the ordinary case for a plugin whose real surface is a project
+config file or an external tool and whose manifest carries only a kill switch.
+
 The uniform contract: the skill is named `setup`, sets `disable-model-invocation: true`, and offers
 `check` (read-only inspect and verify) and `apply` (idempotent configure) actions. This is a
 normative target — setup skills that predate this contract are nonconforming until brought into
@@ -269,11 +294,38 @@ shape behind the user's back. `reset` decomposes to teardown plus `apply`.
 Setup may inspect the repository and create or update the plugin's tracked project configuration. It
 must not write into the installed plugin cache, mutate Claude Code user settings, or write
 `pluginConfigs`. Personal scalar configuration is collected through Claude Code's native plugin
-configuration surface. Where that native surface is a plugin's entire configuration — nothing but
-`userConfig`, no tracked project config, no external prerequisite setup can resolve — a check-only
-setup is conforming: `check` verifies and reports, reconfiguration routes through the native flow
-(`/plugin configure <plugin>` — see above), and no `apply` is offered, because the only thing it
-could write is the `pluginConfigs` this contract forbids.
+configuration surface.
+
+`apply` is owed wherever the plugin owns a **writable artifact**, and only there. The test is
+ownership plus permission, not location: an artifact whose schema this plugin defines and documents
+*and* which this contract permits setup to write — its tracked project config, or a machine-scope
+file the plugin owns and the operator may edit — is reachable through `apply`, scoped to exactly that
+artifact and nothing adjacent to it.
+
+**Check-only carve-out.** Where a plugin's configuration surface contains no writable artifact, a
+check-only setup is conforming: `check` verifies and reports, and no `apply` is offered because there
+is nothing it could conformingly write. Three kinds of surface qualify, in any combination:
+
+- **Native `userConfig`.** Reconfiguration routes through the native flow (`/plugin configure
+  <plugin>` — see above); the only thing an `apply` could write is the `pluginConfigs` this contract
+  forbids.
+- **Claude Code settings this contract forbids setup to mutate** — statusline wiring, a settings-level
+  key, anything in the user's own `settings.json`. This surface is neither `userConfig` nor tracked
+  project config; the prohibition two paragraphs above is what makes it unwritable, and a plugin
+  whose behavior is delivered through it is a normal shape, not an exception. Silence is not the
+  conforming response: `check` prints the exact edit, fully resolved and ready to paste, states that
+  it is the operator's to apply, and names what re-invalidates it (a plugin update moving
+  `${CLAUDE_PLUGIN_ROOT}`, say).
+- **External prerequisites setup can only verify** — a system tool, service, or credential, per the
+  prerequisites section. `check` probes and reports the remediation; installing is the operator's.
+
+Check-only is therefore a consequence of having nothing conforming to write, never a preference and
+never a shortcut. A plugin with even one writable owned artifact takes the narrow-write shape
+instead — `apply` bounded to that artifact, while every unwritable surface is still handled the
+check-only way above. Which shape a plugin takes is settled by its surface, not by its author, and
+both are conforming when the surface is what selected them. Two plugins with the same unwritable
+settings surface can therefore differ legitimately: the one that also owns a documented machine-scope
+file must offer the narrow `apply`; the one that owns nothing writable must not invent one.
 
 Bare `apply` converges to the configured state and never removes; genuine teardown — converging to
 the *absence* of the plugin's own tracked project config — is the one thing `apply` will not do
@@ -353,6 +405,7 @@ doc before a second plugin adopts it. Fleet audits check conformance per row.
 | Seam phrasing (presence-gated fallbacks) | [`docs/conventions/seam-phrasing/`](conventions/seam-phrasing/README.md) |
 | Loop-lane topology, escalation, capability tiers, loop invariants | [`docs/conventions/loop-lane/`](conventions/loop-lane/README.md) |
 | Shell test-helper duplication and exit-code divergence | [`docs/conventions/shell-test-helpers/`](conventions/shell-test-helpers/README.md) |
+| Finding suppression (deliberately-kept audit findings) | [`docs/conventions/finding-suppression/`](conventions/finding-suppression/README.md) |
 
 ## Cross-platform contract
 

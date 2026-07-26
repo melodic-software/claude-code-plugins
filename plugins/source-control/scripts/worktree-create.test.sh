@@ -18,6 +18,22 @@ command -v git >/dev/null 2>&1 || skip_suite "git not available"
 TEST_TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TEST_TMPDIR"' EXIT
 
+# TEST_TMPDIR_NATIVE — a drive-letter-anchored form of TEST_TMPDIR on a Windows
+# shell (MSYS/Cygwin), used only where a fixture path also carries a
+# special shell-metacharacter byte (', $, `). MSYS auto-converts a bare
+# POSIX-style argument like /tmp/tmp.a1b2c3 into the real Windows path when it
+# invokes a native binary (git.exe) — but that conversion heuristic can miss
+# on an argument containing those bytes, and git.exe then treats a leading
+# `/` as drive-relative (`C:/tmp/...`), silently landing the worktree
+# somewhere other than the printed path. A path that already carries a drive
+# letter needs no such conversion, so it never hits the miss. Off Windows
+# (no cygpath), TEST_TMPDIR is already a real native path.
+if command -v cygpath >/dev/null 2>&1; then
+  TEST_TMPDIR_NATIVE="$(cygpath -m "$TEST_TMPDIR")"
+else
+  TEST_TMPDIR_NATIVE="$TEST_TMPDIR"
+fi
+
 # mkrepo [--origin <url>] [--no-head] — create a fresh git repo fixture with one
 # commit; unless --no-head, origin/HEAD is pointed at the default branch. Echoes
 # the repo path (the sole stdout line; all git noise is discarded so command
@@ -273,6 +289,36 @@ assert_contains "unsafe-char refusal explains the rule" "$err" "not a valid work
 # An over-long name (>64 chars) is likewise refused.
 bash "$HELPER" --name "feat/$(printf 'a%.0s' {1..70})" --root "$TEST_TMPDIR/wtroot10" --repo-dir "$repo" >/dev/null 2>&1
 assert_exit "over-64-char name refused (exit 2)" 2 "$?"
+# A name whose characters are all in the allowed class but which git rejects as a
+# branch is refused here (exit 2) rather than reaching `git worktree add` and
+# surfacing as environment exit 4 — the correction flow keys on the usage error.
+for badref in 'feat/foo..bar' 'feat/.' 'foo.lock' 'feat/x.lock' '.foo' 'foo.' 'HEAD' '-lead'; do
+  code=0
+  err=$(bash "$HELPER" --name "$badref" --root "$TEST_TMPDIR/wtroot10c" --repo-dir "$repo" 2>&1 >/dev/null) || code=$?
+  assert_exit "git-invalid ref name $badref refused (exit 2, not 4)" 2 "$code"
+  assert_contains "git-invalid $badref refusal names the branch grammar" "$err" "not a valid git branch name"
+done
+# The ref check must not eat stdout: `git check-ref-format --branch` echoes the
+# name on success, which would corrupt the sole-stdout-line path contract.
+root="$TEST_TMPDIR/wtroot10d"
+out=$(bash "$HELPER" --name "feat/refok" --root "$root" --repo-dir "$repo" 2>/dev/null)
+assert_exit "ref-valid name still creates (exit 0)" 0 "$?"
+assert_eq "ref check leaves stdout as the sole path line" "$root/acme-widget-feat-refok" "$out"
+# `check-ref-format --branch` takes a branchname-shorthand, so it does repository
+# discovery and dies when the process CWD is a stale checkout (a .git file naming
+# a gitdir that no longer exists). Scoping it to $toplevel keeps a VALID name from
+# being rejected because of where the caller happened to stand — the documented
+# invocation omits --repo-dir, so the CWD is the default.
+stale="$(mktemp -d "$TEST_TMPDIR/staleXXXXXX")"
+printf 'gitdir: %s/definitely-not-here\n' "$TEST_TMPDIR" > "$stale/.git"
+root="$TEST_TMPDIR/wtroot10e"
+out=$(cd "$stale" && bash "$HELPER" --name "feat/cwdok" --root "$root" --repo-dir "$repo" 2>/dev/null)
+assert_exit "valid name unaffected by a stale .git in the CWD (exit 0)" 0 "$?"
+assert_eq "stale-CWD run still prints the worktree path" "$root/acme-widget-feat-cwdok" "$out"
+# ...and an invalid name is still caught from that same stale CWD.
+code=0
+(cd "$stale" && bash "$HELPER" --name 'feat/foo..bar' --root "$TEST_TMPDIR/wtroot10f" --repo-dir "$repo") >/dev/null 2>&1 || code=$?
+assert_exit "stale CWD still rejects a git-invalid name (exit 2)" 2 "$code"
 # A valid multi-segment name keeps the branch verbatim but transforms the slug.
 root="$TEST_TMPDIR/wtroot10b"
 out=$(bash "$HELPER" --name "feat/scope.v2_final-1" --root "$root" --repo-dir "$repo" 2>/dev/null)
@@ -291,5 +337,112 @@ root="$TEST_TMPDIR/wtroot12"
 out=$(bash "$HELPER" --name feat/trail --root "$root/" --repo-dir "$repo" 2>/dev/null)
 assert_eq "trailing-slash root yields a single separator" \
   "$root/acme-widget-feat-trail" "$out"
+
+# --- Case: --root and --root-file together are a usage error (exit 2) ---
+repo=$(mkrepo --origin "git@github.com:acme/widget.git")
+root_file="$TEST_TMPDIR/rootfile-both"
+printf '%s' "$TEST_TMPDIR/wtroot-both" > "$root_file"
+bash "$HELPER" --name feat/both --root "$TEST_TMPDIR/wtroot-both" --root-file "$root_file" --repo-dir "$repo" >/dev/null 2>&1
+assert_exit "--root and --root-file together exit 2" 2 "$?"
+
+# --- Case: an EMPTY value does not make a supplied flag count as absent ---
+# The exclusion keys off whether each flag appeared, not whether its value is
+# non-empty; otherwise `--root ''` would let --root-file quietly win (and vice
+# versa) despite the caller naming two sources.
+bash "$HELPER" --name feat/both2 --root "" --root-file "$root_file" --repo-dir "$repo" >/dev/null 2>&1
+assert_exit "--root '' with --root-file still exits 2" 2 "$?"
+bash "$HELPER" --name feat/both3 --root "$TEST_TMPDIR/wtroot-both" --root-file "" --repo-dir "$repo" >/dev/null 2>&1
+assert_exit "--root with --root-file '' still exits 2" 2 "$?"
+
+# --- Case: --root-file pointing at a missing file is a usage error (exit 2) ---
+bash "$HELPER" --name feat/missingfile --root-file "$TEST_TMPDIR/does-not-exist" --repo-dir "$repo" >/dev/null 2>&1
+assert_exit "--root-file missing file exit 2" 2 "$?"
+
+# --- Case: --root-file carries a special-character root safely (exit 0) ---
+# This is the out-of-band handoff the skill uses: ${user_config.worktree_root}
+# substitution into skill markdown is raw text, not shell-escaped, so a root
+# containing a single quote, `$`, or a backtick would break an inline --root
+# shell literal. --root-file sidesteps that entirely — the value never passes
+# through a shell literal we write; the file's bytes ARE the root.
+repo=$(mkrepo --origin "git@github.com:acme/widget.git")
+root="$TEST_TMPDIR_NATIVE/wtroot13-O'Connor \$weird \`root\`"
+root_file="$TEST_TMPDIR/rootfile-special"
+printf '%s' "$root" > "$root_file"
+out=$(bash "$HELPER" --name feat/special --root-file "$root_file" --repo-dir "$repo" 2>/dev/null)
+assert_exit "--root-file special-char root creates (exit 0)" 0 "$?"
+assert_eq "--root-file special-char root computes the exact path" \
+  "$root/acme-widget-feat-special" "$out"
+assert_file_exists "--root-file special-char worktree materialized" "$out/README.md"
+
+# --- Case: --root-file with empty content refuses exit 3 (reuses the unset guard) ---
+repo=$(mkrepo --origin "git@github.com:acme/widget.git")
+root_file="$TEST_TMPDIR/rootfile-empty"
+: > "$root_file"
+err=$(bash "$HELPER" --name feat/empty --root-file "$root_file" --repo-dir "$repo" 2>&1 >/dev/null)
+assert_exit "--root-file empty content refuses exit 3" 3 "$?"
+assert_contains "--root-file empty content names worktree_root key" "$err" "worktree_root"
+
+# --- Case: --root-file holding the literal unexpanded token refuses exit 3 ---
+# When the key is unset the caller writes ${user_config.worktree_root} verbatim
+# — same literal-token detection the existing --root path already covers, now
+# reached through the file.
+repo=$(mkrepo --origin "git@github.com:acme/widget.git")
+root_file="$TEST_TMPDIR/rootfile-token"
+# shellcheck disable=SC2016
+printf '%s' '${user_config.worktree_root}' > "$root_file"
+bash "$HELPER" --name feat/token --root-file "$root_file" --repo-dir "$repo" >/dev/null 2>&1
+assert_exit "--root-file unexpanded token refuses exit 3" 3 "$?"
+
+# --- Case: a root whose last byte is significant survives intact (exit 0) ---
+# The file's bytes ARE the root, so nothing is stripped from the end. A trailing
+# dot would vanish under any "strip the terminator" reader that guessed wrong.
+repo=$(mkrepo --origin "git@github.com:acme/widget.git")
+root="$TEST_TMPDIR_NATIVE/wtroot14-noeol.d"
+root_file="$TEST_TMPDIR/rootfile-noeol"
+printf '%s' "$root" > "$root_file"
+out=$(bash "$HELPER" --name feat/noeol --root-file "$root_file" --repo-dir "$repo" 2>/dev/null)
+assert_exit "--root-file unterminated value creates (exit 0)" 0 "$?"
+assert_eq "--root-file unterminated value keeps every byte" "$root/acme-widget-feat-noeol" "$out"
+assert_file_exists "--root-file unterminated value materialized" "$out/README.md"
+
+# --- Case: --root-file holding an embedded newline is a usage error (exit 2) ---
+# A newline inside worktree_root is never a valid root. Taking only the first
+# line would silently proceed with a root the caller never asked for, and the
+# second line here is exactly the payload a heredoc-delimiter collision would
+# have smuggled into shell source — which is why the handoff is non-shell now.
+repo=$(mkrepo --origin "git@github.com:acme/widget.git")
+root_file="$TEST_TMPDIR/rootfile-multiline"
+printf '%s\n%s\n' "$TEST_TMPDIR/wtroot15-multi" "touch $TEST_TMPDIR/pwned" > "$root_file"
+err=$(bash "$HELPER" --name feat/multi --root-file "$root_file" --repo-dir "$repo" 2>&1 >/dev/null)
+assert_exit "--root-file embedded newline is a usage error (exit 2)" 2 "$?"
+assert_contains "--root-file newline error names the newline" "$err" "newline"
+assert_file_absent "--root-file newline payload never executed" "$TEST_TMPDIR/pwned"
+
+# --- Case: a TRAILING newline is rejected too, not trimmed (exit 2) ---
+# Trimming one terminator is a guess: it is indistinguishable from a root whose
+# own last byte is a newline, and guessing wrong silently creates the worktree
+# somewhere the caller never named. The handoff writes the value unterminated,
+# so a trailing newline means the value really carries one.
+repo=$(mkrepo --origin "git@github.com:acme/widget.git")
+root_file="$TEST_TMPDIR/rootfile-trailing-eol"
+printf '%s\n' "$TEST_TMPDIR/wtroot16-trailing" > "$root_file"
+err=$(bash "$HELPER" --name feat/trailing --root-file "$root_file" --repo-dir "$repo" 2>&1 >/dev/null)
+assert_exit "--root-file trailing newline is a usage error (exit 2)" 2 "$?"
+assert_contains "--root-file trailing-newline error names the newline" "$err" "newline"
+assert_file_absent "--root-file trailing-newline root never materialized" \
+  "$TEST_TMPDIR/wtroot16-trailing/acme-widget-feat-trailing/README.md"
+
+# --- Case: a NUL byte in the root file is a usage error (exit 2) ---
+# Command substitution DROPS NUL bytes, so `<root>-<NUL>suffix` would silently
+# collapse to `<root>-suffix` and create a worktree at a path nobody supplied.
+# The check therefore runs on the file, before the value reaches a variable.
+repo=$(mkrepo --origin "git@github.com:acme/widget.git")
+root_file="$TEST_TMPDIR/rootfile-nul"
+printf '%s\000%s' "$TEST_TMPDIR/wtroot17-nul" "suffix" > "$root_file"
+err=$(bash "$HELPER" --name feat/nul --root-file "$root_file" --repo-dir "$repo" 2>&1 >/dev/null)
+assert_exit "--root-file NUL byte is a usage error (exit 2)" 2 "$?"
+assert_contains "--root-file NUL error names the NUL byte" "$err" "NUL"
+assert_file_absent "--root-file NUL-collapsed path never materialized" \
+  "$TEST_TMPDIR/wtroot17-nulsuffix/acme-widget-feat-nul/README.md"
 
 [[ $FAILED -eq 0 ]] || exit 1

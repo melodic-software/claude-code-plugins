@@ -16,7 +16,8 @@ value and its unset fallback.
   release it only after the result is integrated.
 - The orchestrator may discover PRs, classify state, request guarded branch refreshes
   (`freshness.md`), post one guarded review-trigger comment per head SHA (`review-trigger.md`,
-  when that module is configured), spawn workers, and report.
+  when that module is configured), spawn workers, push a dispatched conflict worker's verified
+  resolution (`orchestration.md`, Merge Conflict Resolution — the one push it owns), and report.
 - A worker may only inspect and fix the single PR assigned to it.
 - A worker must not refresh branches, post review triggers, merge, enable auto-merge, force-push,
   change GitHub settings, spawn more workers, or resolve any thread outside the constrained
@@ -45,7 +46,13 @@ value and its unset fallback.
   other branch locally carrying this PR's work. Require the checkout to be on the PR branch or in
   detached HEAD (a coincidental same-tip match on another branch heals via `gh pr checkout`). This
   extends the head-SHA re-check below — which covered only the head moving *mid-work* — to the moment
-  the worktree is first assigned.
+  the worktree is first assigned. **One codified exception:** the conflict-resolution push in
+  `orchestration.md`'s Orchestrator Contract. There `HEAD` is by construction the local merge commit
+  the conflict worker produced, which the live PR does not carry yet, so the assertion is checked
+  one commit back: the merge commit must have exactly two parents, its **first parent** must equal
+  the live `headRefOid` (re-checked immediately before the push), and its second parent the
+  reported base. Every other condition of that contract still binds, and everywhere outside that
+  push the assertion remains on `HEAD` itself.
 - Re-check the PR head SHA immediately before editing and again immediately before pushing. Stop
   if it changed unexpectedly — someone else moved the branch.
 - **Refspec push to the branch's upstream, never branch checkout.** Do not depend on `git checkout
@@ -120,13 +127,19 @@ value and its unset fallback.
 - A merge conflict appears. In default (safe) mode this is always a stop: report it as a blocker
   and take no resolution action. In worker or autopilot mode only, a textual/mechanical conflict
   (formatting, adjacent unrelated changes, both sides adding different items to the same list) is
-  not an automatic stop: hand it off to a dedicated, fresh conflict-resolution worker per
+  not an automatic stop: hand it off to a dedicated, fresh conflict worker per
   `orchestration.md`'s Merge Conflict Resolution section — never resolved by the worker that
-  discovered it mid-fix-round, and never resolved inline by the orchestrator. In worker or
-  autopilot, stop and ask only when that fresh worker finds the conflict genuinely semantically
-  ambiguous (both sides made incompatible design/behavioral decisions about the same logic, not
-  just textually overlapping edits) or when the same conflict recurs across repeated resolution
-  attempts.
+  discovered it mid-fix-round. The orchestrator never resolves a conflict dispatched to a conflict
+  worker: it does not touch conflict markers or edit a resolution. (The safe tier's own inline
+  handling of a simple conflict met while freshening a branch is separate and unaffected —
+  `loop.md` §5.1.2.) It does own the conflict worker's one outward step — after re-asserting the
+  live head against the merge commit's first parent and re-running the affected-file verification
+  itself, it performs the push, which the conflict worker never does (same section, Orchestrator
+  Contract). In worker or
+  autopilot, stop and ask only when that fresh conflict worker finds the conflict genuinely
+  semantically ambiguous (both sides made incompatible design/behavioral decisions about the same
+  logic, not just textually overlapping edits) or when the same conflict recurs across repeated
+  resolution attempts.
 - A change would alter secrets, branch protection, repo settings, GitHub Apps, runners, billing,
   or organization policy.
 - A branch refresh returns `403` or `422`, conflicts, lacks permissions, remains unchanged, or
@@ -156,6 +169,64 @@ escalate on unresolved-thread count or round number alone.
   against actual thread content, never a conclusion to act on or escalate over.
 - See the Fix-Round Cap in `orchestration.md` for the mechanical cap this verification gates.
 
+## Two Gates, One Merge-Ready Authority
+
+Two different scripts produce a verdict this skill's prose has historically called "readiness".
+They answer different questions and are not interchangeable:
+
+| Script | Question it answers | What it never checks |
+| --- | --- | --- |
+| `${CLAUDE_PLUGIN_ROOT}/scripts/babysit-readiness-gate.sh` — the **finding-classification gate** | Did this iteration individually classify every source finding, and is the iteration checklist complete? | Branch rules, review decision, unresolved threads, required checks, head match — nothing about GitHub's merge state |
+| `source-control-babysit-merge` — the **merge gate** | May this PR be merged right now under the plugin's full merge policy — GitHub's own mergeability *and* the plugin's policy holds? | Nothing about finding decomposition |
+
+`ready` is the plugin's **merge-policy** verdict, not a readout of GitHub's mergeability alone.
+`babysit_merge.py` appends its own policy blockers after the GitHub-derived ones: a
+dependency-manager author is held in every tier without `--allow-dependency`, a non-self author's
+PR on an unprotected base is held without `--allow-unprotected`, and an enabled autopilot merge
+tier adds that tier's own criteria. So `ready: false` can mean "GitHub would merge this; the plugin
+will not." Read the `blockers` list to tell the two apart, and never restate a plugin policy hold
+as a GitHub restriction — that mislabel is the same terminology ambiguity this section exists to
+remove.
+
+**Only the merge gate's `ready` field determines merge-readiness.** Any `MERGE-READY` claim —
+a human-facing report, a worker's return, or an autonomous merge decision — must cite a
+merge-gate run whose `ready` is `true`, never `READINESS_OK` from the finding-classification
+gate and never an agent's own reading of the PR. A PR can pass the classification gate and still
+be unmergeable: the classification gate is blind to, for example, a `required_review_thread_resolution`
+ruleset plus deliberately-open review threads, which blocks merge mechanically regardless of
+severity or whether a human already replied. Reporting `MERGE-READY` off the classification gate
+alone has produced a false human-facing report (`#601`).
+
+The classification gate is a **pre-gate**, not a weaker merge gate: it must pass before an
+iteration reports at all, and passing it says only that the findings were decomposed. Both gates
+must be satisfied before a PR is called merge-ready, and only the merge gate can say so.
+
+"Both gates satisfied" binds the decomposition claim, not a mandatory second script run on every
+path. The classification gate blocks on `findings > 0` with `classified < findings` (or an
+unticked `--checklist`), so it constrains any iteration that actually processed findings. The
+orchestrator's direct zero-blocker path — a non-draft PR the engine snapshot reports with zero
+blockers *and* no untriaged material feedback (`SKILL.md`, "Fan out") — goes straight to a
+merge-gate check without a worker, and so without the worker's per-PR iteration
+classification-gate run (`SKILL.md`, Steps A–F). What keeps that path from
+producing a false `MERGE-READY` is the `untriaged_material_feedback` exclusion in
+`pr_clean_ready_for_direct_gate` (`scripts/babysit_delta.py`): the merge gate never inspects finding
+content, so a PR carrying an undisposed material bot finding is held out of the direct gate rather
+than merged over it. That exclusion is *not* a guarantee the classification gate would pass there —
+it counts severity markers across *all* comment bodies with no bot/human split, while
+`collect_feedback` routes a top-level human comment or `COMMENTED` review carrying only a
+`SUGGESTION`/`CRITICAL`/`IMPORTANT` marker into `feedback["human"]` (non-blocking, and not material
+feedback), so such a PR can reach the direct gate while a classification-gate run would report
+`READINESS_BLOCKED`. Nor does the exclusion by itself force a worker: a *new* material item does
+(`unsuppressible_delta`, absent a refresh or foreign-activity hold), but an already-known,
+still-undisposed one re-dispatches a worker only through `quiet_recheck_due`'s periodic fallback,
+so such a PR may get neither a worker nor the direct gate that cycle. That path is gated on the engine's deterministic `needs_worker` delta, never
+on an agent's own reading that a PR has nothing outstanding, and merge-readiness on it still comes
+only from the merge gate's `ready` field.
+
+The merge gate is Python, so the Python-free degrade (`loop.md`) cannot run it at all. That path
+reports merge-readiness as **unchecked** — an unavailable merge gate is never grounds to promote
+`READINESS_OK` into a merge-ready claim.
+
 ## Guarded Mutation Wrappers
 
 The two guarded mutations run **only through their wrapper scripts** —
@@ -173,11 +244,45 @@ bash "${CLAUDE_PLUGIN_ROOT}/bin/source-control-babysit-resolve-thread" <args>
 ```
 
 Launching the wrapper by path still runs the wrapper itself, so every wrapper guard stays intact
-— it is not a guard-dodging re-spelling (only invoking the raw Python is). The bundled wrappers'
-bare names are not on the Bash tool's `PATH`, so a bare `source-control-babysit-merge …` fails
-`command not found`; the `${CLAUDE_PLUGIN_ROOT}/bin/` path — resolved exactly as the sibling
-`${CLAUDE_PLUGIN_ROOT}/scripts/` invocations are — is the reliable form. Every command spelled
-below as `source-control-babysit-<x> …` is launched this way.
+— it is not a guard-dodging re-spelling (only invoking the raw Python is).
+
+Two facts about the wrappers' bare names, both load-bearing:
+
+- **Bare-name resolution is unreliable, not absent.** A plugin's `bin/` reaches the Bash tool's
+  `PATH` only through the session shell snapshot's final `export PATH=` line; when that line does
+  not land, every enabled plugin's `bin/` goes with it and a bare `source-control-babysit-merge …`
+  fails `command not found`
+  ([anthropics/claude-code#68066](https://github.com/anthropics/claude-code/issues/68066)). The
+  loss is per-session and silent, so a bare name that resolves today can be gone next session.
+- **The path form cannot match a bare-name allow rule.** Before matching Bash rules Claude Code
+  strips only a fixed wrapper set — `timeout`, `time`, `nice`, `nohup`, `stdbuf`, `command`,
+  `builtin`, `noglob`, and bare `xargs` ([permissions](https://code.claude.com/docs/en/permissions)).
+  `bash` is not among them, so `bash "…/bin/source-control-babysit-merge" …` matches as a `bash`
+  command and never satisfies a pre-approved `Bash(source-control-babysit-merge:*)`. That rule does
+  not cover these invocations, and cannot until bare-name resolution is dependable enough to invoke
+  bare — so **what happens next is the permission mode's call, not the allow rule's:**
+  - **In a mode that prompts** — Manual and accept-edits, and plan mode only on its no-classifier
+    branch — expect a per-call permission prompt. It is expected behavior, not a misconfiguration.
+    Plan mode still *runs* shell commands (it blocks source edits, not commands), but when auto mode
+    is available and `useAutoModeDuringPlan` is on, which is the default, the classifier reviews
+    them "instead of prompting you"; only otherwise do commands outside the read-only set prompt
+    ([plan mode](https://code.claude.com/docs/en/permission-modes#analyze-before-you-edit-with-plan-mode)).
+  - **In auto mode, expect no prompt.** Auto mode "lets Claude execute without routine permission
+    prompts", routing uncovered actions to a classifier that approves or blocks them
+    ([permission modes](https://code.claude.com/docs/en/permission-modes#eliminate-prompts-with-auto-mode)).
+    So a merge or thread-resolution call can be **denied without ever surfacing** — do not wait on a
+    prompt that will not arrive; read the denial in `/permissions` → **Recently denied**. Only an
+    explicit `permissions.ask` rule still forces a prompt in auto mode.
+
+  A narrow allow rule would not rescue this even if one matched: narrow Bash allow rules do carry
+  into auto mode and resolve before the classifier, but `autoMode.classifyAllShell: true` suspends
+  every one of them while auto mode is active
+  ([auto-mode config](https://code.claude.com/docs/en/auto-mode-config#route-all-shell-commands-through-the-classifier)).
+
+The `${CLAUDE_PLUGIN_ROOT}/bin/` path — resolved exactly as the sibling
+`${CLAUDE_PLUGIN_ROOT}/scripts/` invocations are — is nonetheless the form to use: it is the only
+one that runs in both `PATH` states. Every command spelled below as `source-control-babysit-<x> …`
+is launched this way.
 
 Capture the wrapper's output first, then parse its JSON in a *separate* step — never pipe the
 wrapper into an interpreter (`… | python`, `… | jq`): an interpreter-in-pipeline trips the
@@ -186,7 +291,14 @@ auto-mode safety classifier and blocks the call before the wrapper runs.
 - Both wrappers **fail closed**: invoked without `--allowed-owners`, they exit `3` and refuse to
   act. The read-only forms are `source-control-babysit-merge owner/repo#42 --allowed-owners
   <watched-owners>` (merge-readiness gate) and `source-control-babysit-resolve-thread
-  owner/repo#42 --allowed-owners <watched-owners>` (thread list).
+  owner/repo#42 --allowed-owners <watched-owners> --extra-bot-logins <extra-bot-logins>`
+  (thread list).
+- **`--extra-bot-logins <extra-bot-logins>` rides on every resolve-thread form**, listing and
+  mutating alike, whenever `babysit_extra_bot_logins` is configured. Bot classification is what
+  decides which threads the resolver may touch at all, and structural detection cannot see a
+  registered non-structural bot account (no `[bot]` suffix, API `__typename` of `User`); omitting
+  the flag silently reclassifies that account's threads as human and skips them in worker tier.
+  Omit the flag only when the key is unset.
 - The merge wrapper mutates only with `--merge --expected-head <post-push-head-sha> --method
   <merge-method>`, and rejects `--allow-unpinned-head` outright — there is no unpinned merge. The
   expected-head pin semantics live in `SKILL.md`; do not re-derive them here.
@@ -317,6 +429,94 @@ the wrapper gate has already proven ready and in-tier. That denial is an environ
 ceiling this skill's own contract has no authority over — a normal, expected outcome to plan for,
 not a bug in this skill, a stalled worker, or a reason to retry with broader permissions.
 
+Configuring that host layer means deciding which of this lane's entry points mutate, which flags
+gate which guard, and where each refusal is enforced. Those facts are in
+[reference/guard-contract.md](guard-contract.md), generated from the table
+`scripts/tests/test_guards.py` executes against the real entry points — so a rule written against
+a row cannot silently outlive the guard it cites. Cite a row ID; do not restate the behavior in
+the consuming configuration.
+
+**The never-retry rule is disputed for the classifier case, and nothing below settles it.**
+[claude-code-plugins#455](https://github.com/melodic-software/claude-code-plugins/issues/455) is
+open against the first bullet above: it records an auto-mode *classifier* denial that was retried,
+where the retry succeeded — evidence that a classifier verdict may not carry the same finality as a
+rules-layer denial. The Lane-Script Reachability section that follows is about whether the lane's
+own scripts are reachable at all, not about what to do after a denial; read its restatement of the
+denial contract as inherited from the bullet above, not as fresh confirmation of it. Until #455 is
+resolved, treat the retry semantics of a classifier denial specifically as an open question.
+
+### Lane-Script Reachability (operator prerequisite)
+
+That ceiling reaches the lane's own scripts, not just GitHub-mutating commands. Every tier proves
+readiness with a bundled script — the Python engine and gates under `skills/babysit-prs/scripts/`,
+the guarded wrappers under `bin/`, and the plugin-scope helpers under `scripts/` that the
+Python-free degrade path itself depends on — including the **read-only** merge-readiness check,
+which mutates nothing and is still a shell invocation the host may deny. So those scripts being
+invocable without a per-call denial is a declared prerequisite of the lane, on the same footing as
+Python.
+
+**The no-degrade half is narrower than the prerequisite, and that distinction is the point.** It
+binds the paths that *prove readiness* — the readiness gate and the read-only merge-readiness
+check. Unlike Python those have no degrade tier, because there is no permission-free path to a
+proven readiness verdict, and a verdict that was never produced cannot be handed to anyone. A
+denied *mutation* is not in that set: there the gate has already proven the PR ready, so
+Pinned-Command Degradation below degrades it to a ready-to-execute operator handoff. So the
+prerequisite covers reachability of every bundled script; the no-degrade rule covers the check
+paths only.
+
+**What this prerequisite rests on — and what it does not.** The denial recorded in
+[claude-code-plugins#787](https://github.com/melodic-software/claude-code-plugins/issues/787) was
+of a raw wildcarded-interpreter invocation (`python …/babysit_merge.py …`) — a form auto mode drops
+by design, and a form this file already forbids. #787's own body says the orchestrator reached for
+it *because* the bare `bin/` wrapper was not on PATH; the commit that made the `bin/`-path form the
+mandated spelling landed after that report. So #787 does **not** demonstrate that the sanctioned
+form gets denied, and this section is a generalization from other evidence rather than a
+reproduction of that ticket. The evidence that does hold is
+[dotfiles#315](https://github.com/melodic-software/dotfiles/issues/315): with
+`autoMode.classifyAllShell` enabled, every narrow Bash allow rule is suspended — including twelve
+grants purpose-built for this lane's scripts — so under that configuration even the compliant
+`bash "${CLAUDE_PLUGIN_ROOT}/bin/…"` form reaches the classifier like any other command.
+Reachability is therefore a property of the operator's configuration, never of the path form alone.
+
+The grant is the operator's, never the plugin's — a plugin cannot ship permission rules, and an
+agent must not broaden its own. The allow-rule shape guidance, and the official sources behind it,
+are owned by the marketplace's permission-rule-hygiene convention:
+<https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/permission-rule-hygiene/README.md>.
+
+Reachability is **not** implied by a `permissions.allow` rule. Whether shell allow rules resolve at
+all while a host safety classifier is active is governed by the host's own auto-mode configuration
+— read [auto-mode-config](https://code.claude.com/docs/en/auto-mode-config) for the current
+semantics of `autoMode.classifyAllShell`, of the prose `autoMode.allow` exceptions, and of which
+settings scopes the classifier reads `autoMode` from; never infer them from this file, and never
+assume a prose entry guarantees a given command runs. What the lane requires is only the outcome:
+a configuration under which this plugin's bundled scripts, invoked in the path forms this file
+mandates (§Guarded Mutation Wrappers), run without a denial. The operator confirms the effective
+configuration with `claude auto-mode config`.
+
+**A denied gate is never downgraded to weaker evidence — and the gate now says so itself.**
+`babysit-readiness-gate.sh` emits exactly one `READINESS_*` line on stdout on **every** run that
+attempts a check, failure paths included — the sole exception is the help form (`--help` or its
+`-h` alias, which share one branch), which prints usage and
+exits 0 with no verdict; that form is not a check run, it is the non-mutating setup canary
+([`skills/setup/SKILL.md`](../../setup/SKILL.md) "Lane-script reachability"):
+`READINESS_UNPROVEN reason=<bad-args|identity-unresolved|prereq-missing|comments-unreadable|checklist-unreadable|fetch-failed> pr=<n>`
+is a third verdict alongside `READINESS_OK` and `READINESS_BLOCKED`, and it means readiness was not
+proven. Readiness is declared by quoting the verdict line verbatim in the iteration report
+([loop.md](loop.md) §5.5), so a readiness claim with no verdict line to quote is unproven on its
+face. That is both the mechanical half of this rule and its limit: a gate the harness never let run
+cannot report its own non-invocation, which is why the quoted-verdict requirement lives on the
+report rather than inside the script.
+
+When readiness is not gate-proven — an emitted `READINESS_UNPROVEN`, or a call the harness denied
+outright — `mergeStateStatus`, the check rollup, or any other live `gh` state a worker reports is
+NOT a substitute verdict: it misses exactly the cross-checks the gate exists to run (dependency
+author, unprotected base, self-login exemption, head match). Report that PR as **readiness
+unproven**, quoting the verdict line when there is one and naming the exact command attempted when
+the harness blocked the call, and surface the prerequisite above once for the cycle rather than
+re-attempting the call per PR. Pinned-Command Degradation below covers the denied-*mutation* case;
+this clause covers the denied-*check* case, which has no ready-to-execute handoff precisely because
+nothing was ever proven ready.
+
 ### Pinned-Command Degradation
 
 When the runtime denies a guarded mutation that this skill's own gate already proved ready —
@@ -346,13 +546,13 @@ assessment. Pin each vetted thread individually (the wrapper accepts exactly one
 per invocation; issue one pinned command per thread) with the thread-pin pair rule above:
 
 ```text
-bash "${CLAUDE_PLUGIN_ROOT}/bin/source-control-babysit-resolve-thread" owner/repo#42 --allowed-owners <watched-owners> --autonomous --resolve --thread-id <id> --expected-comment-count <n> --expected-last-updated <ts>
+bash "${CLAUDE_PLUGIN_ROOT}/bin/source-control-babysit-resolve-thread" owner/repo#42 --allowed-owners <watched-owners> --extra-bot-logins <extra-bot-logins> --autonomous --resolve --thread-id <id> --expected-comment-count <n> --expected-last-updated <ts>
 ```
 
 for the unattended-worker case, or
 
 ```text
-bash "${CLAUDE_PLUGIN_ROOT}/bin/source-control-babysit-resolve-thread" owner/repo#42 --allowed-owners <watched-owners> --resolve --include-human --thread-id <id> --expected-comment-count <n> --expected-last-updated <ts>
+bash "${CLAUDE_PLUGIN_ROOT}/bin/source-control-babysit-resolve-thread" owner/repo#42 --allowed-owners <watched-owners> --extra-bot-logins <extra-bot-logins> --resolve --include-human --thread-id <id> --expected-comment-count <n> --expected-last-updated <ts>
 ```
 
 for the autopilot case. This degradation is a successful, material finding to report, not a

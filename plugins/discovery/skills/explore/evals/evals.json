@@ -61,6 +61,23 @@
         "Output asks the user before performing git archaeology on the intentionally-deleted file",
         "Output does not silently reconstruct the deleted file's contents as if the deletion were accidental"
       ]
+    },
+    {
+      "id": 6,
+      "name": "dispatch-by-default-and-open-question-handback",
+      "prompt": "Explore how the payments module resolves currency conversion before I change the rounding rule.",
+      "expected_output": "Dispatches the discovery:explorer subagent rather than running the six dimensions in the main conversation, so the main conversation gains a bounded summary and a file pointer rather than the file reads. The dispatch prompt carries the resolved scope and the memory-slice path, because $ARGUMENTS is empty under preload and a non-fork subagent sees no conversation. The agent loads path-scoped project rules explicitly, writes EXPLORE.md as an index with sidecars, echoes the preload token, and returns open questions as payload entries for the parent to surface.",
+      "files": [],
+      "expectations": [
+        "Dispatches the discovery:explorer agent by default rather than running the six dimensions inline in the main conversation",
+        "Passes the resolved scope and the memory-slice path in the dispatch prompt rather than relying on $ARGUMENTS or conversation context, neither of which reaches a preloaded skill in a non-fork subagent; an absent scope is reported as a parent-envelope failure rather than replaced with a general repository sweep",
+        "The dispatched run explicitly Reads the consuming project's path-scoped rule files relevant to the scope, since a subagent does not auto-load them, and skips any that do not exist rather than inventing paths",
+        "The main conversation receives an artifact pointer and a 3-5 sentence summary, NOT the seven-section report or the underlying file reads",
+        "The returned payload echoes the preload token discovery-explore-preload-8e2b7d verbatim as preload_token; a missing or mismatched token is a hard failure that discards the run",
+        "Open questions come back as open_questions entries for the parent to surface, each with a recommended default, rather than being surfaced with AskUserQuestion or resolved silently",
+        "A referenced-but-missing file becomes an open_questions entry rather than triggering git archaeology, because the ask-first rule that protects an intentional deletion cannot be satisfied from a subagent",
+        "EXPLORE.md is written as an index with per-sidecar abstracts and a section-to-file table regardless of total size, with sidecars named EXPLORE-<section>.md inside the same memory slice; when the slice root already holds an unrelated EXPLORE.md the whole artifact set goes into a sub-slice under its normal names rather than renaming the index into the sidecar pattern, and the return names the path actually written"
+      ]
     }
   ]
 }

@@ -218,7 +218,7 @@ def build_snapshot(args: argparse.Namespace) -> dict[str, Any]:
             pr = gh.view_pr(repo, number)
             pr["comments"] = gh.fetch_issue_comments(repo, number)
             pr["_issue_comments_complete"] = True
-            pr["reviews"] = gh.fetch_pull_request_reviews(repo, number)
+            gh.rest_hydrate_reviews(pr, repo, number)
             inline_comments = gh.fetch_unresolved_review_comments(repo, number)
             checks = checks_engine.classify_checks(pr.get("statusCheckRollup"))
             gate_state = trigger.review_gate_state(checks, trigger_config)
@@ -410,7 +410,7 @@ def exit_code_for(snapshot: dict[str, Any]) -> int:
 def main() -> int:
     configure_stdio()
     parser = argparse.ArgumentParser(
-        description="Read-only GitHub PR babysitting snapshot."
+        description="Read-only GitHub PR babysitting snapshot.", allow_abbrev=False
     )
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument(

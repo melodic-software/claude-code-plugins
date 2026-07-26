@@ -1,5 +1,204 @@
 # Changelog — discovery plugin
 
+## [0.9.0]
+
+### Removed
+
+- **BREAKING: `/discovery:explore-deep` is retired.** Callers use `/discovery:explore`, which now
+  dispatches `discovery:explorer` by default and provides the same isolation — project memory
+  loaded, artifact persisted by the worker, only a bounded summary returning. The retirement was
+  gated on the agent reproducing what the skill carried beyond `/explore`, and it does, including
+  the two conditions that were load-bearing: path-scoped project rules Read explicitly (a subagent
+  does not auto-load them, and convention-blind findings are how a downstream edit lands against the
+  project's declared direction), and sidecar-on-collision with the chosen filename surfaced in the
+  return (a prior exploration lost to a filename collision is silent and unrecoverable). Two
+  behaviors were deliberately NOT carried over: the empty-scope repository-orientation pass, because
+  a dispatched agent with no scope is a parent-envelope failure rather than a mode, and the `!`
+  precompute, which fires at every spawn before the agent knows it needs the data and multiplies
+  under fan-out.
+
+### Added
+
+- **`discovery:explorer` and `discovery:researcher` — the plugin's first agents.** Each preloads its
+  skill through `skills:`, so the discipline arrives as content at turn zero rather than as a
+  recollection the agent may or may not reach for. Neither declares `memory`, and that omission is
+  load-bearing: declaring it auto-enables `Edit` regardless of the `tools` list, which would falsify
+  each agent's own tool-honesty note. That note states only what the tool set actually buys — no
+  single-call in-place mutation of an existing repo file — and explicitly not read-only status,
+  because `Bash` and `Write` both write.
+- **Dispatch by default for `/discovery:explore` and `/discovery:research`.** From the main
+  conversation each dispatches its agent; the conversation gains a file pointer and a summary rather
+  than the transcript. Three documented conditions send a run inline instead — tight turn-by-turn
+  iteration, cost on a lookup too small to justify an envelope, and an invoking context that is
+  itself a subagent (hoisting: the outer dispatch already supplied the fresh context, so an inner
+  hop only spends the inner window). Running inline relaxes no discipline.
+- **A preload-liveness sentinel on both skills.** A `skills:` entry that fails to resolve is skipped
+  **silently** — logged to the debug log and nowhere else — producing an undisciplined run that
+  still writes an artifact and still reports complete coverage, indistinguishable from success at
+  every other seam. Each skill now carries a token the dispatched agent echoes verbatim into its
+  return payload, and the parent discards any run whose token is missing or mismatched rather than
+  downgrading or accepting it.
+- **Phase 0 corpus enumeration and a scripted coverage gate.** When a topic has a finite, knowable
+  set to cover, `/discovery:research` writes `research-checklist.md` before the first query, one row
+  per corpus item with a depth criterion fixed at enumeration time — a criterion written afterwards
+  drifts down to whatever the run managed. The enumeration surface must be exhaustive by
+  construction (a sitemap, an in-repo tree, a release list); a ledger built from search results
+  certifies the blind spot it exists to close. New outcome-gate criterion 11 cites the exit status of
+  `scripts/check-coverage-complete.sh` rather than a reading of the table, because the context most
+  motivated to call a checklist finished is the one reading it. The script fails closed: a ledger it
+  cannot parse exits 2, and 2 is a FAIL.
+- **`discovery:setup check` reports dispatch capability** — harness version against the 2.1.219
+  floor, `CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH`, and fork availability — as PASS/INFO rows only.
+  Absence degrades rather than blocks: nesting buys throughput, not coverage, because the one control
+  needing a context that has not seen the work is the outcome-gate verifier, which the parent
+  dispatches as a sibling.
+
+### Changed
+
+- **`EXPLORE.md` and `RESEARCH.md` are always an index**, at every size rather than past an overflow
+  threshold, with content in sibling sidecars carrying a machine-readable YAML header. A size
+  threshold makes the artifact's shape depend on how much a run happened to write, and it arrives
+  exactly when the artifact is already too big to skim. Sidecar headers carry per-claim `sources[]`
+  with `url`, `tier`, and `pool` — that is what makes the independent-corroboration criterion
+  gradeable by a verifier that never saw the run, since independence is a property of publishing
+  pools and a bare tier list encodes neither.
+- **The outcome gate grows an Owner column.** Criteria asking the run to judge the quality of its own
+  choices — independent corroboration, and HIGH confidence per accepted claim — move to a sibling
+  verifier the parent dispatches; project fit stays with the parent, which alone holds the consuming
+  project's conventions. A dispatched run returns `verification: pending` and renders no verdict on
+  those rows.
+- **The Tier-3 rule for subagent returns gains a scoped exception.** It targets an ad-hoc subagent
+  handing back synthesis with no captured primaries, and stays in force for that. It does not reach a
+  `discovery:researcher` run that executed the discipline and wrote every primary URL into the
+  artifact: the tier attaches to the artifact and its captured sources, never to the transport.
+  Without this, dispatch-by-default would demote every run to the tier the gate's first criterion
+  refuses.
+- **Three statements preferring inline execution are overturned**, not softened — dispatch-by-default
+  contradicts them outright. Two were making a real point badly and are restated in terms that hold
+  in either posture: the run that judges a claim should be the run that read the source, and
+  summarization loss is bounded by what the artifact persists.
+- **Open questions hand back instead of being surfaced directly.** `AskUserQuestion` is unavailable
+  in every non-fork subagent, so a dispatched run returns them in its payload and the parent surfaces
+  them. The anti-pattern being guarded — silent downstream resolution — is unchanged; only the
+  hand-off moves. Same for the ask-before-git-archaeology rule on deleted files, which a dispatched
+  run records as an open question rather than proceeding past.
+
+## [0.8.5]
+
+### Added
+
+- **`/discovery:research` — artifact ladder for the primary-source-first protocol.** A SEARCH order
+  over the artifact CLASSES the same claim is published at (deepest technical artifact — for a model
+  or benchmark claim the system/model card — → platform reference → product docs → changelog →
+  announcement → third-party), complementing the doc-index probe that enumerates pages. It does not
+  reorder authority: the tier table still ranks that, and the recency gate's changelog cross-check
+  stays unconditional. Stopping at an announcement page — the shallowest rung that still carries the
+  claim — and reporting a figure as unsourced is the failure this closes. Gate criterion 9 checks it.
+- **Outcome-gate criteria 9 and 10** — 9: for every ACCEPTED claim taken from a publisher's own
+  artifacts (vendor, OSS maintainer, or standards body — matching the ladder's own reach), the fetch
+  log must account for every rung above the one the claim came from, each recorded as
+  probed-and-not-existing, fetched-and-lacking-the-claim, or unreachable-and-enumerated as a Gap. An
+  unprobed "nothing deeper
+  exists" would let the shallow run this criterion targets nominate its own landing page as the top,
+  while the not-existing outcome keeps the common legitimate case — most claim classes ship no rung-1
+  artifact — representable without fabricating a fetch. That outcome carries its own evidence bar so
+  it cannot become the escape hatch the criterion exists to close: it is earned against an exhaustive
+  first-party surface (a sitemap, the in-repo docs tree, a releases listing), never against a search
+  miss or a curated `llms.txt`, which the doc-index table itself calls deliberately partial. A rung
+  those fail to surface is unresolved — a Gap naming the discovery surfaces checked and unchecked. A probe locates a rung; it does not grade
+  one, so it can establish a rung's absence but never that a rung which exists lacks the claim: a
+  title, index entry, or search snippet is exactly what omits the section being chased, and a
+  probe-only lacks-the-claim outcome is how a system card gets walked past with the gate still
+  passing. A bare fetch record, equally, would
+  let a run log the deeper artifact it found and source from a
+  shallower rung anyway; the unreachable route keeps the graceful-degradation contract intact. 10:
+  every reported absence must name both the checked
+  and the unchecked set. The broad-topic eval gains concrete thresholds and a does-NOT-meet clause so
+  criterion 10 is exercised against a real negative rather than passing vacuously, and its
+  outcome-gate expectation is updated to match.
+
+- **The fetch log is now a written output-contract section**, not a term the gate referred to without
+  anything producing it. Criteria 6 and 9 are graded against it, so it exists as
+  `Claim | URL or command | artifact-ladder rung | tool used | outcome` with, per accepted claim, an
+  entry for the rung the claim came from and one per rung above it — plus, for a claim whose subject
+  ships releases, its latest-release/changelog entry, because criterion 6's cross-check does not
+  depend on which rung supplied the claim, and a claim sourced above the changelog rung would
+  otherwise leave the recency gate graded from recollection. That entry's outcome is composite,
+  because one changelog fetch can serve the ladder walk and the cross-check at once: the ladder value
+  where the walk reaches that rung, plus the confirmed-latest version and date and a verdict of
+  `current`, `invalidated`, or `unresolved`. Criterion 9 reads the first half and criterion 6 the
+  second, so neither stands in for the other; recording the rung as fetched without its verdict was
+  the same recollection hole one level down — criterion 6 is graded off this log, so a run could file
+  the required row and still derive the currency judgement from memory. Entries are keyed by claim
+  because
+  criterion 9 is evaluated per claim and one artifact routinely carries claim A while lacking claim B. Without it criterion 9 could only be
+  answered from recollection — which the gate's own preamble says does not bite — and a fresh session
+  could not audit the ladder evidence at all.
+
+### Changed
+
+- **A fetch size failure now routes into the existing escalate-on-block ladder** rather than reading
+  as a dead end: a content-length rejection or a silent truncation is a fetcher limit, not a source
+  limit. Recipe — download out of context, confirm the file is the artifact and not a 200
+  login/consent/bot-challenge page, extract with whatever extractor the machine has, grep. Each
+  download lands under a claim-and-URL-derived filename inside its own `mktemp -d` directory —
+  parallel workers sharing a fixed `doc.pdf` could overwrite one another mid-validation and cite the
+  wrong document, a claim slug alone collides as soon as one claim is chased across two URLs, and
+  even the full stem collides when two parallel queries chase the same claim to the same URL. The
+  uniqueness rides the directory rather than the filename because BSD `mktemp` replaces only trailing
+  `X`s, so a `…-XXXXXX.<ext>` template fails outright on macOS. The discovered URL is bound as
+  single-quoted data rather than interpolated into the `curl` line: `$()` and backticks are legal in
+  a URL path and expand inside double quotes, so a hostile link would otherwise run as code before
+  the fetch. `curl -g` covers the same ground on curl's side: `{}` and `[]` are legal URL characters
+  that curl reads as sequence syntax no matter how the shell quoted them, expanding one URL into
+  several requests over a single output path. The artifact downloads extensionless with `-D` capturing the headers from the same
+  transfer — naming the file by type up front is circular, since the path must exist before the
+  response that reveals the type, and re-fetching to learn it costs a second full transfer of a
+  large or single-use signed download. The recorded `Content-Type` is corroborating evidence in both
+  directions and decisive in neither: a challenge page and the real spec are both `text/html`, and a
+  valid PDF served as `application/octet-stream` is confirmed by its signature rather than rejected
+  for its type — otherwise a complete local download gets reported as unreachable. The same
+  asymmetry applies to the challenge-shape rejections: a consent surface disqualifies the download
+  when it stands in place of the artifact, not when a cookie banner merely sits alongside a document
+  whose title, headings, and body are all present. Extraction is checked for usable text
+  before it counts as a search: an extractor exits 0 on a scanned or image-only PDF and returns
+  nothing, so empty or garbled output routes to another extractor, OCR, then escalation rather than
+  becoming a false "not found" about a source nobody read. An
+  unconfirmed download routes back through the full escalate-on-block order and does not count as the
+  recipe having run, so it can never manufacture a premature "unreachable". "Unreachable" is reserved
+  for exhaustion, of which there are two kinds: extraction that failed after escalation also failed,
+  and acquisition that failed through every rung — a source answering the direct fetch and every
+  fallback with a login, challenge, or block never yields an artifact to confirm, and the recorded
+  full walk is what earns the status. Neither covers the opposite mistake: an artifact that WAS
+  confirmed, extracted, and searched is a REACHED source that belongs in the checked set even when
+  the claim is not in it.
+- **Absence claims ship their enumeration.** A negative finding states the sources actually checked
+  AND the sources left unchecked, never a bare "unsourced" / "not found" — an absence claim is only
+  as strong as the set it was checked against. Stated at the `Gaps` output contract, gated by
+  criterion 10.
+
+## [0.8.4]
+
+### Changed
+
+- **Setup no longer hardcodes a publisher and repository name in the schema reference.** The skill
+  pointed at a `raw.githubusercontent.com/<publisher>/<repo>` URL for `topic-docs.schema.json`,
+  binding a runtime-consulted reference to one forge account inside a plugin that is otherwise
+  publisher-agnostic — a fork, a mirror, or a rename leaves the skill citing someone else's schema.
+  It now names the schema by the convention's own filename and defers to
+  `reference/topic-docs.md`, this plugin's binding, which already carries the single pointer to the
+  published convention. One coupling site per plugin instead of two, and the one that remains is the
+  file whose job is to cite upstream.
+- **The setup skill now says why its body matches `verification`'s byte-for-byte.** Most of it does,
+  and nothing on the page said whether that was a shared source to extract or a coincidence to
+  leave alone — so the next reader either re-litigates it or "deduplicates" two skills that are
+  supposed to be free to diverge. They are: both restate rules the topic-docs contract and the
+  marketplace setup contract already own, which is what a `SKILL.md` must do since it cannot defer
+  at runtime to a document the consuming repo lacks. `planning` renders the same rules in its own
+  prose and already disagrees with both on two of them. A maintainer note at the block points at
+  the contract's new "Implementers restate the rules" section, which carries the reasoning and the
+  trigger that would reopen extraction.
+
 ## [0.8.3] — 2026-07-24
 
 ### Fixed

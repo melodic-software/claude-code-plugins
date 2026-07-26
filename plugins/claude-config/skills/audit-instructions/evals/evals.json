@@ -17,11 +17,11 @@
       "id": 2,
       "name": "scope-boundary-routes-out",
       "prompt": "/claude-config:audit-instructions is my CLAUDE.md too long, and can you prune the always-loaded hygiene lines out of it?",
-      "expected_output": "Recognizes memory-layer hygiene — line budget, whether CLAUDE.md is too long, pruning always-loaded content — as the claude-memory plugin's audit skill's concern. On memory-layer surfaces (CLAUDE.md, CLAUDE.local.md, .claude/rules) this skill runs only the model-era checks I6-I11 and routes the I1-I5 hygiene findings to claude-memory:audit when that plugin is installed, falling back to the official CLAUDE.md include/exclude guidance pointer when it is not, rather than answering the hygiene question itself.",
+      "expected_output": "Recognizes memory-layer hygiene — line budget, whether CLAUDE.md is too long, pruning always-loaded content — as the claude-memory plugin's audit skill's concern. On memory-layer surfaces (CLAUDE.md, CLAUDE.local.md, .claude/rules) this skill runs only the model-era checks I6-I16 and routes the I1-I5 hygiene findings to claude-memory:audit when that plugin is installed, falling back to the official CLAUDE.md include/exclude guidance pointer when it is not, rather than answering the hygiene question itself.",
       "files": [],
       "expectations": [
         "Routes memory-layer hygiene (line budget, 'CLAUDE.md too long', pruning) to the claude-memory plugin's audit skill when installed",
-        "On memory-layer surfaces runs only the model-era checks I6-I11, not the I1-I5 hygiene checks",
+        "On memory-layer surfaces runs only the model-era checks I6-I16 (I16 only under --opinion), not the I1-I5 hygiene checks",
         "Falls back to the official CLAUDE.md include/exclude guidance pointer when claude-memory is not installed instead of silently skipping"
       ]
     },
@@ -73,6 +73,90 @@
         "Keeps the test-gate step (run tests, stop on failure) and the CI-enforced Conventional Commits PR-title step as load-bearing",
         "Culls narration steps (git status/diff/add/commit/push) that a current model sequences correctly from intent",
         "Surfaces the cull as a behavioral proposal that passed the fresh-context verify pass, not an unverified confident removal"
+      ]
+    },
+    {
+      "id": 7,
+      "name": "memory-layer-conflict-routes-to-c6",
+      "prompt": "/claude-config:audit-instructions my CLAUDE.md says \"always run the full test suite before committing\" and .claude/rules/testing.md says \"never run the full suite locally, let CI do it\". Which one is wrong?",
+      "expected_output": "Recognizes that both sides of the contradiction sit inside the memory layer (CLAUDE.md and a rules file), which is check C6 Consistency in the claude-memory plugin's audit skill, not check I15 here. Routes the finding there when claude-memory is installed — reporting the pair as an observation and pointing at /claude-memory:audit rather than grading it — so one finding is emitted rather than two. When claude-memory is NOT installed it keeps the pair as an I15 finding instead, per the fallback contract in conflict-criteria.md, so a real contradiction is never silently dropped just because the incumbent is absent.",
+      "files": [],
+      "expectations": [
+        "Identifies both sides as root-level project memory surfaces and, when claude-memory is installed, does NOT emit an I15 conflict finding for them",
+        "Routes the contradiction to the claude-memory plugin's audit skill check C6 when that plugin is installed",
+        "When claude-memory is NOT installed, emits the I15 fallback finding for the pair rather than reporting it unchecked — the routing exists to avoid duplicate findings, not to drop the only one"
+      ]
+    },
+    {
+      "id": 8,
+      "name": "cross-layer-conflict-reported-with-both-locations",
+      "prompt": "/claude-config:audit-instructions my CLAUDE.md says \"every public function must carry a doc comment explaining why it exists\" and .claude/skills/refactor/SKILL.md says \"DO NOT add comments to any code you touch\". Sort this out.",
+      "expected_output": "Reports an I15 cross-surface conflict, because the two instructions cannot both be satisfied on a public function the refactor skill touches — one requires a comment the other forbids — and one side is a skill body, therefore outside the memory layer, which no incumbent covers. The finding names both participating locations rather than a single line. Remediation reports the pair as `unresolved` with both anchors quoted and leaves the choice to the operator: the precedence table classifies skill body versus any CLAUDE.md as unresolved — the skills page states no authority relation between them, and silence is not a winner — so naming a side would be inventing precedence the docs decline to state. It does not default to proposing deletion of either side either, because a conflict is evidence that two intentions exist and which is correct is not derivable from the text. Offering the mechanism route (moving one side to a hook, a permissions.deny rule, or the skill's own disallowed-tools) is acceptable as an option, never as a verdict.",
+      "files": [],
+      "expectations": [
+        "Emits an I15 conflict finding because the two instructions are impossible to satisfy together and at least one side (the skill body) is outside the memory layer",
+        "The finding names BOTH participating locations, not one line",
+        "Reports the pair as unresolved and leaves the choice to the operator rather than naming a winner, since the precedence table classifies this pair as unresolved, and does NOT default to proposing deletion of either side"
+      ]
+    },
+    {
+      "id": 9,
+      "name": "managed-policy-conflict-is-report-only",
+      "prompt": "/claude-config:audit-instructions our org policy CLAUDE.md forbids committing generated files, but our project skill tells Claude to commit the generated client. Fix whichever one is wrong.",
+      "expected_output": "Reports the conflict as conflicting with org policy at the managed-policy path and proposes no edit at all: not to the policy side, and not to the lower-scope side on the strength of the conflict alone. Explains that claudeMdExcludes cannot reach the managed tier, so seeking an exception may be the correct resolution, which is an organizational decision rather than a linting one.",
+      "files": [],
+      "expectations": [
+        "Reports the finding as a conflict with org policy and names the managed-policy path",
+        "Proposes NO edit to the managed-policy side",
+        "Proposes NO edit to the lower-scope side justified by the conflict alone, and says the resolution is an organizational decision"
+      ]
+    },
+    {
+      "id": 10,
+      "name": "shadowed-skill-is-not-a-conflict",
+      "prompt": "/claude-config:audit-instructions I have a skill named deploy in ~/.claude/skills and another named deploy in .claude/skills, and they say opposite things about tagging releases.",
+      "expected_output": "Does not report this as an I15 conflict: skills override by name, so exactly one definition is live and the other is inert, which is a resolved override rather than an unresolved conflict. Reports it instead in the separate info-severity shadowed-definition section, naming which definition is live and which is inert.",
+      "files": [],
+      "expectations": [
+        "Does NOT emit an I15 conflict finding for the same-named shadowed skill",
+        "Explains that override-by-name makes exactly one definition live and the other inert",
+        "Reports it in the separate shadowed-definition section at info severity, naming the live definition and the inert one"
+      ]
+    },
+    {
+      "id": 11,
+      "name": "opinion-tier-off-by-default-but-discoverable",
+      "prompt": "/claude-config:audit-instructions skills",
+      "expected_output": "Runs the default catalog over the skills surface and emits no I16 definition-site-locality finding, because I16 is OPINION-tier and off on bare invocation. The run still reports the one-line OPINION discovery note: how many OPINION-tier checks were available, how many did not run, and the --opinion argument that enables them.",
+      "files": [],
+      "expectations": [
+        "Emits no I16 definition-site-locality finding on bare invocation",
+        "Reports the OPINION discovery line naming how many OPINION-tier checks were available and did not run",
+        "Names --opinion as the exact argument that enables them, rather than leaving the mechanism to be inferred"
+      ]
+    },
+    {
+      "id": 12,
+      "name": "stopping-condition-withholds-and-reports",
+      "prompt": "/claude-config:audit-instructions .claude/skills/release/SKILL.md says \"NEVER push to main without a green CI run\" and spells out the release gate step by step. Trim the prior-model scaffolding out of it.",
+      "expected_output": "Applies the stopping condition, which is enabled by default because it withholds findings rather than emitting them. The CI gate guards a high-consequence area (a safety gate on an irreversible action), so the I6 bare-prohibition rewrite and the I8 de-prescription proposal against it are withheld rather than reported. Every withholding is reported with the check it moderated and the ground, so a suppressed finding does not read as coverage. Trimming still proceeds on the parts that guard nothing high-consequence.",
+      "files": [],
+      "expectations": [
+        "Withholds the I6 and I8 proposals that target the CI safety gate rather than proposing its rewrite or removal",
+        "Reports each withholding, naming the check it moderated and the ground for withholding",
+        "Applies the stopping condition without being asked, because it is enabled by default and opting out requires --no-stopping-condition"
+      ]
+    },
+    {
+      "id": 13,
+      "name": "split-destination-must-defer-loading",
+      "prompt": "/claude-config:audit-instructions my general-purpose reviewer agent — I dispatch it for every code review, infra or not — has a long section of Terraform-specific gotchas that only matters on infra work. Its whole body loads on every dispatch. Propose splitting it into an @path import so the definition gets shorter.",
+      "expected_output": "Flags the only-sometimes-relevant content as an I3 finding on the second detect case: the agent's body loads in full on every dispatch, and the agent's own scope (all code review) is broader than the content's (infra), so the Terraform section is in context for every non-infra review. It refuses the @path import as the destination, and for the reason that actually applies on this surface: @path carries no import meaning in an agent definition, so the referenced file would not load at all — the split does not merely fail to save context, it silently removes the gotchas from every dispatch. Names a load-deferring destination the agent itself can still reach — a skill the agent definition invokes — and rejects a paths:-scoped rule for agent-originated content, because path-scoped rules are invisible inside a subagent context, so that destination would remove the gotchas from every dispatch rather than defer them. States the move cost with the recommendation, including that the new skill adds an always-in-context listing entry.",
+      "files": [],
+      "expectations": [
+        "Flags the section under I3 because the agent's body loads on every dispatch and the agent's scope is broader than the content's, not merely because the file is long",
+        "Refuses the @path import because @path does not import on an agent definition, so the referenced file would never load — not because imported files load at launch, which is the memory-layer behavior and not this surface's",
+        "Names an agent-reachable load-deferring destination (a skill the agent invokes), rejects a paths:-scoped rule because path-scoped content is invisible to subagents, and states that destination cost alongside the recommendation"
       ]
     }
   ]

@@ -1,6 +1,6 @@
 {
   "name": "@melodic-software/miro-mcp",
-  "version": "0.2.0",
+  "version": "0.2.2",
   "description": "General-purpose Miro MCP server. Creates and manages sticky notes, shapes, frames, connectors, and tags on Miro boards via the Model Context Protocol.",
   "type": "module",
   "private": true,

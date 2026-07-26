@@ -54,9 +54,32 @@ semantics.
 
 ## `apply`
 
-No write path. Run `check`, then for each FAIL offer the remediation (install the missing tool, or route
-observer reconfiguration through Claude Code's native `/plugin configure session-flow` flow). Never write
-`pluginConfigs`, mutate user settings, or edit the installed plugin cache.
+No write path. Run `check`, then for each FAIL offer the remediation: install the missing tool, or route
+observer reconfiguration through Claude Code's native flow. Never write `pluginConfigs`, mutate user
+settings, or edit the installed plugin cache.
+
+Reconfiguring the observer's `userConfig` keys has exactly two routes, and only the first works on an
+installed plugin:
+
+- **Interactive, any time:** `/plugin configure session-flow`.
+- **Headless:** `claude plugin install ... --config observer_enabled=true` seeds a value on a *fresh
+  install only* — re-running it against an already-installed plugin does not update the stored value.
+  So a headless reconfigure is `claude plugin uninstall session-flow -s <scope>` then `claude
+  plugin install session-flow@<marketplace> -s <scope> --config <key>=<value> ...`, supplying
+  **every key whose value should be non-default — not only the keys being changed**.
+
+  Both commands default to `-s user`. Pass the scope the plugin is *actually* installed at —
+  `claude plugin list` reports it per plugin — and run from that project's directory when the scope
+  is `project` or `local`. Defaulting instead removes a separate user record while the effective
+  project or local install stays in place, so the reinstall lands at a scope that does not load.
+  `-y` only skips `uninstall`'s `--prune` confirmation; this recipe never passes `--prune`, so `-y`
+  has no effect here and should not be added.
+
+  Uninstalling drops the stored `pluginConfigs` entry, so any key omitted from the reinstall
+  silently falls back to the manifest default: reinstalling purely to enable the observer resets a
+  customized `observer_analysis_model`, `observer_idle_seconds`, `observer_analysis_bare`, and
+  `observer_max_seconds`. Run `check` first and record the current values, because after the
+  uninstall there is nothing left to read them from.
 
 ## Gotchas
 

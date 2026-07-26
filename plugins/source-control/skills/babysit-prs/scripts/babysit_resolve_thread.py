@@ -16,7 +16,14 @@ Deterministic guards encoded here:
 - HUMAN-authored threads are NEVER touched. Only threads whose participants are
   all Bots (GraphQL `__typename == "Bot"`, or the structural `*[bot]` App-login
   suffix) are eligible; a human thread is always skipped + reported. Bot identity
-  comes only from API-provided signals -- no hardcoded login list to go stale.
+  comes from API-provided signals, with no hardcoded login list to go stale --
+  the sole exception is `--extra-bot-logins`, the operator-supplied logins
+  (`babysit_extra_bot_logins`) for bot accounts structural detection cannot see
+  (a plain `User` with no `[bot]` suffix). Those logins are treated as bots for
+  eligibility, so a login named there that is actually a human's account makes
+  that human's threads resolvable -- the flag is a deliberate operator opt-in,
+  not a heuristic, and omitting it instead classifies a configured bot's threads
+  as human.
 - Default action is READ-ONLY: list eligible/ineligible threads and what WOULD
   happen. Nothing is resolved without `--resolve`.
 - `--autonomous` is the UNATTENDED-worker guard: a self-resolved thread would
@@ -38,6 +45,19 @@ Deterministic guards encoded here:
   machine-enforced displacement fix is tracked in #571. `--allow-unpinned-thread`
   is likewise refused in `--autonomous` mode -- there is no unpinned autonomous
   resolve.
+- `--autonomous` additionally refuses any thread whose fetched comments carry
+  a forbidden-class severity marker: any word-bounded P0/P1 token in any case
+  (shields badge, bracketed marker, or bare prose form such as "P1: ..." /
+  "p1 must fix"), the word CRITICAL, or the word "security" in any case.
+  The permission grants that cover this helper state "never a security or P1
+  thread" as an absolute condition; this guard is the code behind that
+  sentence for the unattended path, and it is deliberately narrower than the
+  shared P0-P3 vocabulary -- advisory P2/P3 threads are exactly what the
+  worker is documented to resolve once outdated, so a wider guard would
+  self-block the merge gate on its own advisory threads. It fails closed: a
+  thread whose comment page is truncated cannot prove the absence of a marker
+  and is refused the same way. Interactive modes are unaffected -- severity
+  judgment there stays with the evaluating agent.
 - `--only-outdated` independently restricts to `isOutdated` threads in any mode.
 - `--thread-id` operates on one agent-vetted thread. Combined with `--resolve`,
   it requires `--expected-comment-count` AND `--expected-last-updated` to pin
@@ -72,11 +92,46 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 from typing import Any, cast
 
 from babysit_classify import is_bot
 from babysit_gh import fetch_review_threads, gh_capture, parse_repo_number
 from babysit_util import configure_stdio, dig, is_json_object
+
+
+# Deterministic proxies for "a security or P1 thread" — deliberately NARROWER
+# than the shared P0-P3 vocabulary in babysit_classify: the permission grants
+# forbid the unattended path only for security/P1-class findings, while
+# advisory P2/P3 threads are exactly what the worker is documented to resolve
+# once outdated (reference/orchestration.md), so a P0-P3-wide guard would
+# permanently self-block the merge gate on its own advisory threads. The word
+# "security" is matched as prose (the shared vocabulary ignores prose words to
+# avoid false READINESS counts, but the grant names it); uppercase CRITICAL is
+# the word-form of the same forbidden class. A false positive only routes the
+# thread to interactive judgment.
+# One word-bounded token covers every supported P0/P1 spelling at once --
+# shields badge (/badge/P1-), bracketed marker ([P1]), the bare prose forms
+# bots also emit ("P1: blocking regression", "P1 must fix"), and lowercase
+# variants such as "p1:" or a priority:p1 label fragment -- while the boundary
+# keeps P2/P3 markers and embedded strings like AP1000 out. A thread that
+# merely MENTIONS a p1 token (prose, or a code identifier in a snippet) does
+# flag; that false positive only routes the thread to interactive judgment,
+# which is the safe direction for a resolve guard.
+SEVERITY_BLOCK_P01_RE = re.compile(r"\bP[01]\b", re.IGNORECASE)
+SEVERITY_BLOCK_WORD_RE = re.compile(r"\bCRITICAL\b")
+SECURITY_TEXT_RE = re.compile(r"security", re.IGNORECASE)
+
+
+def _has_severity_marker(body: str) -> bool:
+    """True for the forbidden class only: any word-bounded P0/P1 token
+    (badge, bracket, or bare prose form), the word CRITICAL, or the word
+    "security"."""
+    return (
+        bool(SEVERITY_BLOCK_P01_RE.search(body))
+        or bool(SEVERITY_BLOCK_WORD_RE.search(body))
+        or bool(SECURITY_TEXT_RE.search(body))
+    )
 
 
 def _comment_author(comment: object) -> dict[str, object]:
@@ -98,14 +153,19 @@ def _latest_comment_update(comments: list[Any]) -> str | None:
     return max(values) if values else None
 
 
-def project_thread(record: dict[str, Any]) -> dict[str, object]:
+def project_thread(
+    record: dict[str, Any], *, extra_bot_logins: frozenset[str] = frozenset()
+) -> dict[str, object]:
     """Map one shared-paginator record to this CLI's thread shape.
 
     Inspects EVERY fetched participant -- not just the first comment -- so a
     bot-started thread with a human reply is not mistaken for a pure-bot thread.
     `botOnly` and `lastCommentUpdatedAt` fail closed (False / None) when a
     comment page is undisclosed (`comments_truncated`), since a human reply or
-    an edit could be hiding beyond the fetched page.
+    an edit could be hiding beyond the fetched page. `extra_bot_logins` extends
+    structural bot detection the same way it does everywhere else `is_bot` is
+    called (e.g. `actor_kind` in `babysit_classify.py`); it ships empty, so an
+    unconfigured caller still relies on structure alone.
     """
     comments = cast(list[Any], record.get("comments") or [])
     truncated = bool(record.get("comments_truncated"))
@@ -117,11 +177,19 @@ def project_thread(record: dict[str, Any]) -> dict[str, object]:
             is_bot(
                 _comment_author(c).get("login"),
                 _comment_author(c).get("__typename"),
+                extra_bot_logins,
             )
             for c in comments
         )
     )
     total_count = record.get("comments_total_count")
+    # Fail closed on truncation: an unfetched comment could carry the marker,
+    # so a truncated thread is treated as severity-flagged, not as clean.
+    severity_flagged = truncated or any(
+        isinstance(body := (c.get("body") if is_json_object(c) else None), str)
+        and _has_severity_marker(body)
+        for c in comments
+    )
     return {
         "id": record.get("id"),
         "isResolved": record.get("isResolved", False),
@@ -129,6 +197,7 @@ def project_thread(record: dict[str, Any]) -> dict[str, object]:
         "author": first_author.get("login"),
         "authorType": first_author.get("__typename"),
         "botOnly": bot_only,
+        "severityFlagged": severity_flagged,
         # Live count of ALL comments (not just the fetched page) -- the TOCTOU
         # comparison signal, so a reply beyond the first fetched page is detected.
         "commentCount": total_count if isinstance(total_count, int) else None,
@@ -145,9 +214,14 @@ def project_thread(record: dict[str, Any]) -> dict[str, object]:
     }
 
 
-def fetch_threads(repo: str, number: int) -> list[dict[str, object]]:
+def fetch_threads(
+    repo: str, number: int, *, extra_bot_logins: frozenset[str] = frozenset()
+) -> list[dict[str, object]]:
     # include_resolved so the caller can see (and skip) already-resolved threads;
     # comments_first=100 to inspect every participant for the bot-only test.
+    def _project(record: dict[str, Any]) -> dict[str, object]:
+        return project_thread(record, extra_bot_logins=extra_bot_logins)
+
     return [
         cast(dict[str, object], record)
         for record in fetch_review_threads(
@@ -155,7 +229,7 @@ def fetch_threads(repo: str, number: int) -> list[dict[str, object]]:
             number,
             include_resolved=True,
             comments_first=100,
-            projection=project_thread,
+            projection=_project,
         )
     ]
 
@@ -194,6 +268,10 @@ def classify(
         # unattended: require a deterministic "addressed" signal so the worker
         # cannot resolve a still-current finding and self-satisfy the merge gate
         return "skipped-not-outdated"
+    if autonomous and thread.get("severityFlagged", True):
+        # unattended: never a security or P1 thread. Default True fails closed
+        # when the projection did not compute the signal.
+        return "skipped-severity-marked"
     return "eligible"
 
 
@@ -203,9 +281,21 @@ def parse_allowed_owners(raw: str | None) -> set[str]:
     return {part.strip().casefold() for part in raw.split(",") if part.strip()}
 
 
+def parse_extra_bot_logins(raw: str | None) -> frozenset[str]:
+    if not raw:
+        return frozenset()
+    return frozenset(part.strip() for part in raw.split(",") if part.strip())
+
+
 def main() -> int:
     configure_stdio()
-    parser = argparse.ArgumentParser(description=__doc__)
+    # allow_abbrev=False: the permission grants covering this helper state
+    # their conditions as the literal presence or absence of a flag in the
+    # command text. Prefix abbreviation (argparse's default) lets `--i` resolve
+    # to --include-human while the text contains neither, so the written
+    # command and the resolved behavior diverge -- exactly what those
+    # conditions must be able to rule out.
+    parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=False)
     parser.add_argument("pr", help="owner/repo#number or PR URL")
     parser.add_argument(
         "--allowed-owners",
@@ -268,8 +358,17 @@ def main() -> int:
             "judgment that each finding is addressed."
         ),
     )
+    parser.add_argument(
+        "--extra-bot-logins",
+        default=None,
+        help=(
+            "Comma-separated logins to treat as bots when structural detection "
+            "cannot classify them (ships empty)."
+        ),
+    )
     args = parser.parse_args()
 
+    extra_bot_logins = parse_extra_bot_logins(args.extra_bot_logins)
     allowed = parse_allowed_owners(args.allowed_owners)
     if not allowed:
         print(
@@ -400,7 +499,7 @@ def main() -> int:
         return 3
 
     try:
-        threads = fetch_threads(repo, number)
+        threads = fetch_threads(repo, number, extra_bot_logins=extra_bot_logins)
     except (RuntimeError, ValueError, json.JSONDecodeError) as exc:
         print(json.dumps({"pr": args.pr, "error": f"{type(exc).__name__}: {exc}"}))
         return 2
@@ -422,6 +521,7 @@ def main() -> int:
             "path": thread["path"],
             "isOutdated": thread["isOutdated"],
             "botOnly": thread["botOnly"],
+            "severityFlagged": thread.get("severityFlagged"),
             "commentCount": thread.get("commentCount"),
             "lastCommentUpdatedAt": thread.get("lastCommentUpdatedAt"),
         }
@@ -474,7 +574,7 @@ def main() -> int:
                     [
                         r
                         for r in results
-                        if not is_bot(r["author"], r["authorType"])
+                        if not is_bot(r["author"], r["authorType"], extra_bot_logins)
                         and r["action"] in ("would-resolve", "resolved")
                     ]
                 ),
@@ -484,6 +584,9 @@ def main() -> int:
                 "resolvedCount": resolved_count,
                 "skippedNotOutdated": len(
                     [r for r in results if r["action"] == "skipped-not-outdated"]
+                ),
+                "skippedSeverityMarked": len(
+                    [r for r in results if r["action"] == "skipped-severity-marked"]
                 ),
                 "humanThreads": len(
                     [r for r in results if r["action"] == "skipped-human-thread"]
