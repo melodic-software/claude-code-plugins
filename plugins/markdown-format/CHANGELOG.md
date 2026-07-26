@@ -3,7 +3,7 @@
 All notable changes to the `markdown-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.6.3]
+## [0.6.4]
 
 ### Fixed
 
@@ -14,6 +14,28 @@ All notable changes to the `markdown-format` plugin are documented here. Format 
   loading, and the reinstall landed at a scope that does not load. Both commands now carry
   `-s <scope>`, sourced from what `claude plugin list` reports for this plugin — the same fix
   already applied to `session-flow` and `rate-limit-guard` in #1393.
+
+## [0.6.3]
+
+### Fixed
+
+- **Out-of-tree Markdown is no longer linted when `CLAUDE_PROJECT_DIR` is
+  unset.** In an autonomous session whose working directory is not a repository,
+  `CLAUDE_PROJECT_DIR` is unset and the hook previously linted the `.md`
+  wherever it lived — including a lane's temporary comment-body composed outside
+  any repository (e.g. for `gh issue comment --body-file`), firing repo-doc rules
+  (MD041, MD013) that do not apply to it. The hook now falls back to
+  git-working-tree membership when `CLAUDE_PROJECT_DIR` is unset: a file under no
+  git working tree is skipped, while a repository file edited in such a session
+  is still linted. Membership is decided on the physical path (symlinks
+  resolved), matching the set-`CLAUDE_PROJECT_DIR` guard, so an in-repository
+  symlink to an out-of-tree file cannot pull the external target into `--fix`.
+  Where no canonicalizer is available the membership test fails closed: a
+  symlink whose physical path could not be resolved is skipped rather than
+  admitted on its lexical parent. The membership probe also clears Git's
+  repository-selection and discovery environment variables, so an inherited
+  `GIT_DIR`/`GIT_WORK_TREE` cannot answer for a directory that is not in a
+  working tree. Behavior when `CLAUDE_PROJECT_DIR` is set is unchanged.
 
 ## [0.6.2]
 

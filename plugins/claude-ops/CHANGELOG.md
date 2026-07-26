@@ -3,7 +3,7 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.19.4]
+## [0.20.1]
 
 ### Fixed
 
@@ -14,6 +14,22 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   loading, and the reinstall landed at a scope that does not load. Both commands now carry
   `-s <scope>`, sourced from what `claude plugin list` reports for this plugin — the same fix
   already applied to `session-flow` and `rate-limit-guard` in #1393.
+
+## [0.20.0]
+
+### Added
+
+- **`lanes`: per-lane `settings` passthrough, wiring the autonomy lane-stop gate into the shipped
+  launch flow (#535 review follow-up).** The autonomy plugin's `Stop`-hook lane-stop gate is
+  default-OFF and documents a per-session opt-in via `claude --settings`, but the lane launcher —
+  the repository's shipped standing-lane flow — built only `claude --bg -n … [--model] [--effort]`
+  and never supplied that override, so no launched lane ever received the gate or its operator
+  notification. The lane config now takes an optional per-lane `settings` JSON object that the
+  launcher passes verbatim as `--settings` (session-only, never persisted) on `start`/`restart`,
+  validated as an object at preflight so a malformed value skips the lane instead of failing the
+  launch with an opaque CLI error. Generic by design: any session-only settings override rides the
+  same field; the gate opt-in (`pluginConfigs` → `autonomy@<marketplace>` → `options`) is the
+  motivating example documented in `context/config.md`.
 
 ## [0.19.3]
 
