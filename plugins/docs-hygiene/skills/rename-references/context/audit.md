@@ -63,11 +63,27 @@ matching.** Some forms match a span far wider than the token: Form 7's
 captured group to just ONE occurrence. On `description: "first <old> and then <old>"` the pattern
 yields a single match for two references, and no amount of cursor advancing recovers the other —
 re-matching from inside the field cannot reproduce the `description:` prefix the pattern requires.
-So for each match, scan its text for every occurrence of `<old>` and emit one record per
-occurrence, all attributed to the matching form. The whole-pattern match establishes THAT the form
-applies and to what extent; the token spans inside it are the references. Under container mode a
-lost occurrence becomes suppressed Form 2 residue, so this drops silently and the rename can
-falsely complete.
+So for each match, scan its REFERENCE REGION for every occurrence of `<old>` and emit one record
+per occurrence, all attributed to the matching form. The whole-pattern match establishes THAT the
+form applies and to what extent; the token spans inside its reference region are the references.
+Under container mode a lost occurrence becomes suppressed Form 2 residue, so this drops silently
+and the rename can falsely complete.
+
+**The reference region is the whole match ONLY when the whole match is reference-bearing.**
+Enumerating blindly is as wrong as enumerating too little, and in the more dangerous direction —
+these forms are Certain, so a spurious record auto-applies. Each form's region:
+
+| Form | Reference region | Excluded from enumeration |
+|---|---|---|
+| 7 (frontmatter chain) | the whole quoted field | — the field's occurrences are all real references |
+| 14 declaration alternatives | the declaration VALUE only | the trailing inline comment |
+| 1, 3, 13, 15, Form 14 key-position | the token span the alternative anchors | the consumed delimiter and surrounding syntax |
+
+The comment case is the live hazard: `name: <old> # <old> before publishing` is one declaration
+and one piece of ordinary prose. Enumerating the whole match emits two records, both attributed to
+Form 14 — which is Certain and exempt from the common-word demotion in a manifest — so apply mode
+rewrites the comment text too. The TOML alternative has the identical shape and the identical
+region. A comment is documentation ABOUT the declaration, never a second declaration.
 
 **Then advance the rescan cursor to the end of the LAST enumerated `<old>` span, not the end of
 the match.**

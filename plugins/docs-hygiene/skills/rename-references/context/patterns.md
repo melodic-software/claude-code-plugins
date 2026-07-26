@@ -347,6 +347,15 @@ existing "Frozen historical records" rule already excludes. See `triage.md`
   `name = "<old>"#c` all match;
   `name: <old>#x` and `name: <old>-extra # c` do not. JSON is excluded from this because JSON has
   no comment syntax.
+- **The comment is INSIDE the match but OUTSIDE the reference region.** Widening the anchor means
+  the match now spans text that is documentation rather than declaration, and a comment routinely
+  mentions the thing it documents: `name: <old> # <old> before publishing`. The survey enumerates
+  every `<old>` span inside a match (`audit.md` Phase 2), and these alternatives are Certain and
+  exempt from the common-word demotion inside a manifest — so blind enumeration would emit a
+  second record for the prose and apply mode would rewrite it. **Enumerate only within the
+  declaration VALUE for these two alternatives**; the comment is documentation ABOUT the
+  declaration, never a second declaration. `audit.md` carries the per-form reference-region table
+  this belongs to.
 - **The YAML and TOML alternatives keep their `$` anchor deliberately.** Both grammars are
   line-oriented for the shapes manifests actually use — block mappings and top-level key/value
   pairs — so the end-of-line anchor is a real discriminator there rather than an accident of
