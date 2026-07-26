@@ -193,8 +193,15 @@ readlink[[:space:]]+(-[A-Za-z]*f|--canonicalize)
 #
 #   - LONG form — `--tmpdir[=DIR]`, documented as the equivalent of `-p`, needs
 #     its own token since it shares no short-cluster shape.
-mktemp[^;&|()`\n]*[[:space:]]-[A-Za-z]*p
-mktemp[^;&|()`\n]*[[:space:]]--tmpdir([[:space:]|&;()<>]|=|$)
+#
+# Both are anchored to the mktemp COMMAND TOKEN the way the `sed -Ei` /
+# `sed --in-place` tokens above are (#1543): `-p` and `--tmpdir` are GNU
+# mktemp's flags, not a flag of every command whose name merely contains
+# "mktemp". Without the leading `(^|[^[:alnum:]_])` and the whitespace that
+# must follow the name, `mktemp_wrapper -p /tmp`, `my_mktemp -p /tmp`,
+# `mktempfoo -p /tmp` and `xmktemp --tmpdir=/tmp` all failed the gate.
+(^|[^[:alnum:]_])mktemp([[:space:]][^;&|()`\n]*)?[[:space:]]-[A-Za-z]*p
+(^|[^[:alnum:]_])mktemp([[:space:]][^;&|()`\n]*)?[[:space:]]--tmpdir([[:space:]|&;()<>]|=|$)
 
 # --- STAGED (commented until enabled — see #1510 for the enable trigger) ---
 #

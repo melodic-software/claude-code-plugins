@@ -825,6 +825,38 @@ else
 fi
 rm -f "$f"
 
+# --- both mktemp tokens are anchored to the COMMAND TOKEN (#1543), the same
+# way the sed -Ei / --in-place tokens are: `-p` and `--tmpdir` are GNU
+# mktemp's flags, not a flag of every command whose name merely contains
+# "mktemp". A wrapper, a prefixed name and a suffixed name must all stay
+# clean.
+f="$(tmpsh "$(printf '%s\n' \
+  'mktemp_wrapper -p /tmp' \
+  'my_mktemp -p /tmp' \
+  'mktempfoo -p /tmp' \
+  'xmktemp --tmpdir=/tmp')")"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  ok "commands whose name merely contains mktemp are not flagged"
+else
+  fail "mktemp's tokens must not match a different command's name, got: $out"
+fi
+rm -f "$f"
+
+# --- ...and the real command still flags at every position the anchor admits:
+# line start, after a separator, and inside a substitution.
+f="$(tmpsh "$(printf '%s\n' \
+  'mktemp -p /tmp' \
+  'cd /tmp && mktemp -p sub' \
+  't=$(mktemp --tmpdir=/tmp)')")"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "the anchored tokens must still flag real mktemp calls, got success: $out"
+elif [[ "$(echo "$out" | grep -c "PORTABILITY: ${f}:")" -eq 3 ]]; then
+  ok "the anchored tokens still flag mktemp at a line start, after && and in \$()"
+else
+  fail "expected all 3 anchored mktemp positions flagged, got: $out"
+fi
+rm -f "$f"
+
 # --- operator-terminated sed -Ei / --in-place forms are active in the
 # SHIPPED list too (#1545): both tokens widened to the control-operator/
 # redirection/subshell-close boundary (deliberately narrower than
