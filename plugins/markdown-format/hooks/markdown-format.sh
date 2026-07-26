@@ -145,12 +145,20 @@ fi
 # unreachable in practice (it fires only if `jq -n` fails, and when jq is absent
 # hook::emit_telemetry drops the envelope anyway), so losing the values here is
 # harmless and strictly safer than emitting malformed JSON.
+#
+# The findings array arrives on STDIN, never as an --argjson value. Windows caps
+# a process command line at 32767 characters, and this array is deliberately
+# uncapped — a real file with a few hundred findings serializes past that,
+# `jq -n` then fails with "argument list too long" (reproduced: 300 findings
+# pass, 600 fail), and the fallback below would emit an envelope claiming ZERO
+# findings for the noisiest files in the repository. A payload that lies is
+# worse than no payload. TOOL and FILE_REL stay as arguments: both are bounded
+# by a path length.
 build_data_json() {
-  jq -n \
+  printf '%s' "$1" | jq -c \
     --arg tool "$TOOL" \
     --arg file "$FILE_REL" \
-    --argjson findings "$1" \
-    '{tool:$tool,file:$file,findings:$findings}' 2>/dev/null ||
+    '{tool:$tool,file:$file,findings:.}' 2>/dev/null ||
     printf '{"tool":"","file":"","findings":[]}'
 }
 
@@ -635,31 +643,194 @@ if ((${#RISK_CONFIGS[@]} > 0)); then
   fi
 fi
 
-if FIX_OUTPUT=$(cd "$REPO_ROOT" && "${MDLINT[@]}" --fix "$FILE" 2>&1); then
-  # Clean after fix — emit ok with empty findings.
-  hook::ctx_flush PostToolUse
-  emit_tel "ok" '[]'
-  exit 0
-fi
+# Per-run cap on how many individual violation lines reach the context. The
+# whole finding set is ALWAYS summarized — count plus the leading rule codes —
+# so raising or lowering this never hides the fact that findings exist; it only
+# bounds the detail. 0 means unlimited.
+#
+# Read from the CLAUDE_PLUGIN_OPTION_<KEY> environment mirror, not a
+# `${user_config.*}` placeholder: shell-form hook commands reject
+# `${user_config.*}` substitution outright — "substituting a configured value
+# into a shell command would let the shell run whatever that value contains, so
+# the component fails" — while every option is exported to hook processes as
+# CLAUDE_PLUGIN_OPTION_<KEY> anyway (Plugins reference, "User configuration",
+# https://code.claude.com/docs/en/plugins-reference, fetched 2026-07-26). A
+# value that is not a non-negative integer falls back to the default rather
+# than being interpolated anywhere.
+MAX_FINDINGS=20
+case "${CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_MAX_FINDINGS:-}" in
+"") ;;
+*[!0-9]*) ;;
+*) MAX_FINDINGS="${CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_MAX_FINDINGS}" ;;
+esac
 
-# Residual findings — surface one JSON object via additionalContext, then
-# emit ok with findings.
-# ctx_append receives all output lines (human-readable context for Claude Code).
-# FINDINGS_JSON is filtered to violation lines only — schema requires
-# "Unfixable markdownlint violations remaining after --fix, one per line";
-# banner/diagnostic lines (version, Finding:, Linting:, Summary:) are excluded.
-# Violation lines are identified by the " MD<digits>/" rule-code pattern.
-hook::ctx_append "markdown-format: $(basename "$FILE") has markdownlint findings:"
-findings_raw=""
+FIX_OUTPUT=$(cd "$REPO_ROOT" && "${MDLINT[@]}" --fix "$FILE" 2>&1)
+LINT_RC=$?
+BASE="$(basename "$FILE")"
+
+# Normalize carriage returns ONCE, here, before anything reads this output.
+# markdownlint-cli2 is a Node process whose stdout is CRLF-terminated on
+# Windows, and command substitution strips only the trailing newline — so every
+# line below would otherwise carry a CR that survives JSON-escaping into the
+# emitted document as a literal \r. Verified by removing this line: the report
+# and the user-channel message both regain \r escapes.
+#
+# The telemetry `data.findings` array behaves differently, and the honest
+# version is worth recording because it is platform-specific. That array is
+# built by piping into `jq -R`, and measured against a WINDOWS jq build the CRs
+# are gone by the time jq emits — the reader appears to apply text-mode stdio
+# translation itself, so on that platform the array never carried a CR even
+# without this line. That is NOT established for a Linux jq, which has no
+# text/binary mode distinction and is documented not to strip a trailing CR from
+# CRLF input; there this line may well be what keeps the array clean. CI runs on
+# Linux, so the untested half is the half that gates merges.
+#
+# Which is precisely the argument for normalizing here rather than downstream:
+# the payload should not depend on which platform's stdio implementation is
+# reading it, and the next person should not have to work that out to reason
+# about this code. The single normalization also replaces four downstream strips
+# that would each have to be remembered when a fifth consumer is added.
+#
+# Side effect worth naming: `digest_now` below is hashed over `findings_raw`, so
+# this changes that hash. Every digest recorded before this version invalidates
+# once, producing one extra full-detail report per file. Self-correcting, and
+# not a regression.
+FIX_OUTPUT="${FIX_OUTPUT//$'\r'/}"
+
+# markdownlint-cli2 reports the fixes it WROTE as a bare count line and nothing
+# more — it has no per-fix detail to offer. That count is still the only signal
+# that this hook changed the file, so it is reported rather than dropped; the
+# clean-after-fix path used to emit nothing at all, which made a rewrite of the
+# user's file indistinguishable from the hook not running.
+FIXES_LINE=""
 while IFS= read -r line; do
-  hook::ctx_append "  $line"
-  if [[ "$line" =~ [[:space:]]MD[0-9]+/ ]]; then
+  case "$line" in
+  "Attempted: 0 fixes"*) ;;
+  "Attempted:"*) FIXES_LINE="$line" ;;
+  *) ;;
+  esac
+done <<<"$FIX_OUTPUT"
+
+# Split the output into violation lines and everything else. The banner lines
+# markdownlint-cli2 always prints (its version, the resolved `Finding:` glob
+# list, `Linting: N files`, `Summary: N issues`) carry no information about the
+# file being edited and cost context on every single edit, so they do not enter
+# the report — the counts below are derived here instead. Violation lines are
+# identified by the " MD<digits>/" rule-code pattern, matching what the
+# telemetry schema calls a finding.
+findings_raw=""
+FINDING_COUNT=0
+RULE_TALLY=""
+while IFS= read -r line; do
+  if [[ "$line" =~ [[:space:]](MD[0-9]+)/ ]]; then
     findings_raw+="$line"$'\n'
+    FINDING_COUNT=$((FINDING_COUNT + 1))
+    RULE_TALLY+="${BASH_REMATCH[1]}"$'\n'
   fi
 done <<<"$FIX_OUTPUT"
-hook::ctx_flush PostToolUse
+
+hook::ctx_reset
+CTX=""
+SYSMSG=""
+
+if [[ -n "$FIXES_LINE" ]]; then
+  CTX+="markdown-format rewrote $BASE after your edit — markdownlint-cli2 reports \"$FIXES_LINE\" (structural fixes only; it reports no per-fix detail)."$'\n'
+  SYSMSG="markdown-format rewrote $BASE: $FIXES_LINE."
+fi
+
+if ((FINDING_COUNT > 0)); then
+  # Rule histogram, highest count first, so a report truncated to N lines still
+  # says WHICH rules dominate — the single most useful thing about a 300-finding
+  # set, and the thing a raw first-N truncation destroys.
+  # Only the top five rules are named, but the count of the rest rides along:
+  # a bare truncation would leave "MD013 x48" reading as the whole story on a
+  # file that also has twelve other rules firing.
+  RULE_SUMMARY=$(printf '%s' "$RULE_TALLY" | sort | uniq -c | sort -rn |
+    awk 'NR<=5 {printf "%s%s x%s", (NR>1 ? ", " : ""), $2, $1} NR>5 {extra++} END {if (extra) printf ", +%s more rule(s)", extra; print ""}' 2>/dev/null) || RULE_SUMMARY=""
+
+  # Delta gate. A file edited eight times in a session produced eight
+  # byte-identical whole-file dumps; re-sending an unchanged finding set is pure
+  # cost. The SUMMARY still goes out every time — suppressing the message
+  # entirely would recreate, on this plugin, exactly the invisible-hook problem
+  # the disclosure above exists to fix.
+  SAME_AS_LAST=0
+  DIGEST_FILE=""
+  if [[ -n "${CLAUDE_PLUGIN_DATA:-}" ]] && command -v git >/dev/null 2>&1; then
+    session_key=$(printf '%s' "$INPUT" | jq -r '.session_id // "no-session"' 2>/dev/null) || session_key="no-session"
+    session_key="${session_key//[^A-Za-z0-9_-]/-}"
+    file_key=$(printf '%s' "$FILE" | git hash-object --stdin 2>/dev/null) || file_key=""
+    # The cap is part of the digest input: the truncation hint tells the user to
+    # raise markdown_format_max_findings to see the rest, and a digest over the
+    # finding set alone would then answer that with "unchanged, detail omitted"
+    # — making the advice this hook gives impossible to act on.
+    digest_now=$(printf '%s\n%s' "$MAX_FINDINGS" "$findings_raw" | git hash-object --stdin 2>/dev/null) || digest_now=""
+    if [[ -n "$file_key" && -n "$digest_now" ]]; then
+      digest_dir="${CLAUDE_PLUGIN_DATA%/}/finding-digests"
+      if mkdir -p "$digest_dir" 2>/dev/null; then
+        DIGEST_FILE="$digest_dir/${session_key}.${file_key}"
+        if [[ -f "$DIGEST_FILE" ]]; then
+          [[ "$(cat "$DIGEST_FILE" 2>/dev/null)" == "$digest_now" ]] && SAME_AS_LAST=1
+        else
+          # Prune only when a new digest is created — the steady state for a
+          # file edited repeatedly in one session is a digest that already
+          # exists, and sweeping the whole directory on every Markdown edit
+          # would cost a directory walk for nothing. -maxdepth 1 keeps the
+          # sweep to this hook's own flat store: CLAUDE_PLUGIN_DATA is shared
+          # with the trust-approvals tree and anything a future version of this
+          # plugin puts there, and a recursive age-based delete has no business
+          # reaching into a sibling's state.
+          find "$digest_dir" -maxdepth 1 -type f -mtime +7 -delete 2>/dev/null
+        fi
+        printf '%s' "$digest_now" >"$DIGEST_FILE" 2>/dev/null || DIGEST_FILE=""
+      fi
+    fi
+  fi
+
+  CTX+="markdown-format: $BASE has $FINDING_COUNT markdownlint finding(s)${RULE_SUMMARY:+ — $RULE_SUMMARY}."$'\n'
+  if ((SAME_AS_LAST == 1)); then
+    CTX+="  Unchanged from the previous run on this file; per-finding detail omitted. A rule firing in bulk here (a house style markdownlint does not know about) is configured away once in this repository's markdownlint config, not re-read every edit."$'\n'
+  else
+    shown=0
+    while IFS= read -r line; do
+      [[ -n "$line" ]] || continue
+      if ((MAX_FINDINGS > 0 && shown >= MAX_FINDINGS)); then break; fi
+      CTX+="  $line"$'\n'
+      shown=$((shown + 1))
+    done <<<"$findings_raw"
+    if ((FINDING_COUNT > shown)); then
+      CTX+="  ... and $((FINDING_COUNT - shown)) more finding(s), omitted to bound context. Raise markdown_format_max_findings to see them, or configure the dominant rule in this repository's markdownlint config."$'\n'
+    fi
+  fi
+elif ((LINT_RC != 0)) && [[ -n "$FIX_OUTPUT" ]]; then
+  # Non-zero exit with no parseable violation line: markdownlint itself broke
+  # (bad config, unreadable file). That diagnostic must never be swallowed by
+  # the banner filter above, so the raw output goes through, still bounded.
+  CTX+="markdown-format: markdownlint-cli2 failed for $BASE (tool break, not a finding):"$'\n'
+  shown=0
+  while IFS= read -r line; do
+    [[ -n "$line" ]] || continue
+    if ((MAX_FINDINGS > 0 && shown >= MAX_FINDINGS)); then
+      CTX+="  ... output truncated."$'\n'
+      break
+    fi
+    CTX+="  $line"$'\n'
+    shown=$((shown + 1))
+  done <<<"$FIX_OUTPUT"
+fi
+
+# Compose ONE stdout document: Claude Code parses a hook's entire stdout as a
+# single JSON document, so the agent-channel report and the user-channel
+# mutation notice are emitted together rather than printed twice.
+#
+# Carriage returns are already gone: FIX_OUTPUT is normalized at the source, so
+# every string derived from it — this report, the user-channel message, and the
+# telemetry findings array — is clean without a per-string strip.
+CTX="${CTX%"${CTX##*[![:space:]]}"}"
+hook::emit_channels PostToolUse "$CTX" "$SYSMSG"
 
 # Build the findings array in one jq pass (one JSON string per matched line).
+# The telemetry payload is NOT capped — a sink is a machine, and the cap exists
+# to protect the model's context, not a log file.
 FINDINGS_JSON='[]'
 if [[ -n "$findings_raw" ]]; then
   FINDINGS_JSON=$(printf '%s' "$findings_raw" | jq -R . | jq -s . 2>/dev/null) || FINDINGS_JSON='[]'

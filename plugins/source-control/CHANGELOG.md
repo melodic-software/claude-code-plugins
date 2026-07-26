@@ -3,6 +3,115 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.33.0]
+
+### Added
+
+- **`/commit` ships a deterministic exec-bit backstop (#1579).** The skill's ordered exec-bit
+  procedure was advisory prose with no tier under it, and prose is what a long session stops
+  executing: four new shebang scripts once shipped `100644` with only the consuming repo's CI
+  catching it. Two tiers now sit under it. A pre-computed probe line at the TOP of the skill —
+  inside the documented 5,000-token compaction re-attach window — reports staged newly-added shebang
+  files still at `100644`; and `skills/commit/scripts/exec-bit-check.sh` (`--list` / `--probe` /
+  `--fix`, with a 47-case `.test.sh`) makes the per-commit step a command with an exit code. Both,
+  because the probe is only a snapshot at invocation and cannot see files staged later in the flow.
+
+  Hardened in review before merge, all found by the PR reviewer on #1590:
+
+  - **Every mode anchors at the repository root.** `git diff --cached --name-status` emits
+    repo-root-relative paths while a `git ls-files` pathspec resolves against the cwd; run from a
+    subdirectory those disagreed, every lookup missed, and the check reported no offenders even when
+    they existed — a fail-open backstop. Caller pathspecs are re-anchored via `--show-prefix` before
+    the directory change so a scoped `--fix` from a subdirectory still matches. The skill's
+    config-layer probes anchor the same way, matching the root-resolution rule
+    `reference/config-resolution.md` already states; unanchored, a session started in a
+    subdirectory silently dropped the team convention and `trailer_policy`.
+  - **A worktree symlink over a staged regular file is refused, not chmod-ed.** `-e` follows a
+    symlink, so an unguarded `chmod +x` would have made the link's target executable — a file that
+    can sit entirely outside the repository. The `-L` test now runs before `-e`.
+  - **The exec bit does not survive a pathspec (`--only`) commit under `core.filemode=false`, and
+    that is now documented as a hard constraint** rather than silently losing the fix. `--only`
+    records the working-tree mode, and with filemode off git cannot see the `chmod +x`, so a
+    correctly-set `100755` index entry is rebuilt as `100644`. Verified both directions on a fixture:
+    plain index commit preserves `100755`, pathspec commit loses it. Two candidate workarounds were
+    tested and **both failed** on that platform — `-c core.fileMode=true` on the commit, and a
+    post-commit `update-index` plus `--amend --only` — so neither is offered. The guidance is
+    instead to commit an exec-bit-corrected path with the plain index form (splitting the commit if
+    the rest needs a pathspec) and to confirm with `git ls-tree HEAD`, never the index. Both
+    behaviors are pinned as characterization tests so a future git change fails loudly.
+  - **`--list0`** (NUL-delimited) added for pathnames containing a newline, which would otherwise
+    break `--list`'s one-record-per-line contract; `--list` and `--probe` shell-quote such a path so
+    the ambiguity is visible rather than silent.
+
+  `--fix` **requires an explicit scope** — `-- <path>...` or a deliberate `--all` — and exits 2
+  otherwise, changing nothing. It mutates index entries, and the staged set can hold a concurrent
+  session's work (the whole premise of the pathspec-limited commit form), so an unscoped default
+  would have inverted this skill's own surgical-staging discipline. `--list` and `--probe` stay
+  unscoped because they only read; the asymmetry is deliberate.
+
+  A new cross-platform hazard was found and pinned while implementing this: under
+  `core.filemode=false` — **the default on Windows/NTFS** — git ignores worktree permission bits
+  entirely and stages every file `100644`, so `chmod +x` alone NEVER reaches the index and
+  `git update-index --chmod=+x` is the only thing that can produce a `100755` entry. The script
+  always performs both writes, and the test suite pins the case with `core.filemode` set explicitly
+  so it tests the same thing on every platform. Demonstrated live: this change's own two new scripts
+  staged at `100644` despite `chmod +x`, and the new check caught them pre-commit.
+
+- **A per-commit checklist at the top of the hub (#1583)**, as the cheap re-anchor for a session
+  that has drifted — seven numbered steps, stated as commands rather than facts to recall.
+
+- **Pre-computed probes of all three config layers (#1583).** A skipped resolution was previously
+  invisible. The tracked-team probe tests **tracked-ness** via `git ls-files --error-unmatch`, not
+  file existence, and reports an untracked file at that path as `present but UNTRACKED — not a
+  config layer` — preserving the rule 0.25.1 established, rather than reintroducing it as a
+  drafting-surface bug.
+
+### Changed
+
+- **The `Co-Authored-By` context clause is now OPTIONAL, and the harness is named in the ladder
+  (#1581).** The default template mandated `(<context>)`; a census of this repo found compliance not
+  merely low but collapsing — 41.6% of trailers carry the clause over the last 150 commits, 12.1%
+  over the last 40. A mandate nobody follows is worse than no mandate, so the default is now the
+  context-free form with the clause as an optional addition.
+
+  The ladder also gains the rung it never had. Harness-injected commit guidance is neither a config
+  layer nor a project convention, so a session receiving both it and this skill had no stated
+  tiebreak. It is now rung 3, with an explicit rule: adopt its **shape**, never its **literal text**.
+  Observed first-hand — that injected guidance can carry a **hardcoded model name that does not match
+  the running session** (a `Fable 5` trailer injected into an Opus 5 session), and copying it verbatim
+  writes a false provenance claim into durable git history, which is precisely the harm the template
+  exists to prevent.
+
+  The originating audit's "62 of 74 trailers" figure does **not** reproduce on any window of this
+  branch (at the window where the total is 74, the non-compliant count is 49); the figures were
+  wrong, the direction right, the trend worse than claimed. Its suggestion to "have setup write an
+  explicit `trailer_policy`" is **refuted as already-done** — `trailer_policy` is a documented key
+  and `/source-control:setup` already interviews for and writes it.
+
+- **Composition is now two named forms, and "remembered convention" is neither (#1583).** "Compose by
+  natural-language reference" was ambiguous between re-invoking `/commit` and following an absorbed
+  convention from memory. A composing skill must now name which it is doing: re-invoke, or run the
+  per-commit checklist itself as commands. The policy also names *what* decays — not the message
+  shape, which is reinforced visibly every commit, but the ordered per-commit checks, which produce
+  no signal when skipped.
+
+- **The hub is split into `reference/` spokes with load-when pointers (#1583).** Auto-compaction
+  re-attaches only the first 5,000 tokens of each invoked skill
+  (<https://code.claude.com/docs/en/skills>, "Skill content lifecycle", fetched 2026-07-26), and the
+  hub was spending that window on ~130 lines of pathspec/hide-restore and format-check edge
+  machinery while the per-commit checks sat in the tail that gets dropped first. Four spokes now
+  carry the depth — `reference/format-check.md`, `reference/exec-bit.md`,
+  `reference/pathspec-commits.md`, `reference/staging-preconditions.md` — and the hub leads with the
+  checklist, staging rules, and commit mechanic. No rule was dropped; the staging preconditions keep
+  their detection command and action inline as a table, with only the per-condition rationale moved.
+
+- **`disable-model-invocation: false` is now declared explicitly, with the deviation recorded
+  (#1584).** Same effective behavior as the omitted default, but the choice is visible. A
+  `/commit`-shaped skill is the canonical archetype for `disable-model-invocation: true`, and every
+  other skill in this plugin declares the field; this one deviates deliberately because its
+  composition design requires the model to be able to reach it. The skill body now records the
+  deviation, the reason, and the compensating controls.
+
 ## [0.32.1]
 
 ### Fixed

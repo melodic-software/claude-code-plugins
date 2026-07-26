@@ -1442,6 +1442,342 @@ else
 fi
 rm -f "$TEL_GATE"
 
+# ============================================================================
+# Bounded emission — cap, rule histogram, delta gate, mutation disclosure
+# ============================================================================
+# The defect: the hook appended EVERY line of markdownlint's whole-file output
+# to additionalContext on every touch, with no cap, no baseline and no dedup.
+# One measured session burned roughly 95K tokens across 21 byte-identical
+# whole-file dumps, 97% of them one rule the repository intentionally violates.
+#
+# A second stub is used rather than the fixture stub above: these cases need a
+# controllable finding COUNT and the "Attempted: N fixes" line markdownlint-cli2
+# prints when it rewrites a file, neither of which the fixture stub produces.
+NOISY_BIN="$(mktemp -d "$WORK/noisybin.XXXXXX")"
+cat >"$NOISY_BIN/markdownlint-cli2" <<'NOISY'
+#!/usr/bin/env bash
+set -uo pipefail
+file="${2:-}"
+[[ -n "$file" && -f "$file" ]] || exit 2
+
+# markdownlint-cli2 is a Node process, and on Windows its stdout is
+# CRLF-terminated. STUB_CRLF reproduces that, because a stub that only ever
+# emits LF makes any "no carriage returns in the report" assertion pass whether
+# the hook strips them or not.
+emit() {
+  if [[ -n "${STUB_CRLF:-}" ]]; then
+    printf '%s\r\n' "$1"
+  else
+    printf '%s\n' "$1"
+  fi
+}
+
+# Banner lines markdownlint-cli2 always prints. None of them says anything
+# about the edited file; the hook must keep them out of the report.
+emit "markdownlint-cli2 v0.23.1 (markdownlint v0.41.1)"
+emit "Finding: $file !**/node_modules/** !**/.venv/** !**/bin/** !**/obj/**"
+emit "Linting: 1 file"
+[[ -n "${STUB_FIX_COUNT:-}" ]] && emit "Attempted: $STUB_FIX_COUNT fixes in 1 file"
+n="${STUB_FINDINGS:-0}"
+((n > 0)) || exit 0
+emit "Summary: $n issues in 1 file"
+
+# STUB_RULE_KINDS spreads the findings across that many DISTINCT rule codes.
+# The default of 2 keeps every existing case's histogram unchanged; raising it
+# past the histogram's top-five cut is the only way to reach the overflow
+# suffix, which no fixture could otherwise trigger.
+kinds="${STUB_RULE_KINDS:-2}"
+codes="MD013 MD032 MD022 MD031 MD040 MD041 MD047 MD009"
+set -- $codes
+# Fail loudly rather than expanding an out-of-range positional parameter, which
+# under `set -u` is a fatal unbound-variable abort several frames from the cause.
+if ((kinds > $#)); then
+  echo "stub: STUB_RULE_KINDS=$kinds exceeds the $# rule codes this stub knows" >&2
+  exit 2
+fi
+i=1
+while ((i <= n)); do
+  if ((kinds <= 2)); then
+    if ((i <= n - 2)); then
+      emit "$file:$i:81 error MD013/line-length Line length [Expected: 80]"
+    else
+      emit "$file:$i:1 error MD032/blanks-around-lists Lists should be surrounded by blank lines"
+    fi
+  else
+    idx=$((i % kinds + 1))
+    eval "code=\${$idx}"
+    emit "$file:$i:1 error $code/stub-rule Stub rule violation"
+  fi
+  i=$((i + 1))
+done
+exit 1
+NOISY
+chmod +x "$NOISY_BIN/markdownlint-cli2"
+
+NOISY_DATA="$(mktemp -d "$WORK/noisydata.XXXXXX")"
+run_noisy() {
+  local file_path="$1"
+  shift
+  (cd "$UNRELATED" && printf '{"session_id":"noisy-1","tool_input":{"file_path":"%s"},"tool_name":"Write"}' "$file_path" |
+    env -u CLAUDE_PROJECT_DIR CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true \
+      CLAUDE_PLUGIN_DATA="$NOISY_DATA" PATH="$NOISY_BIN:$PATH" "$@" bash "$HOOK")
+}
+
+FN="$REPO/noisy.md"
+printf '# Noisy\n\nbody\n' >"$FN"
+
+# --- 50 findings: capped detail, but the count and the rules always survive ---
+OUT_N=$(run_noisy "$FN" STUB_FINDINGS=50)
+CTX_N=$(printf '%s' "$OUT_N" | jq -r '.hookSpecificOutput.additionalContext // empty' 2>/dev/null)
+DETAIL_N=$(printf '%s' "$CTX_N" | grep -c 'error MD')
+if [[ "$DETAIL_N" -eq 20 ]]; then
+  ok "bounded/cap: per-finding detail capped at the 20-line default (got $DETAIL_N)"
+else
+  fail "bounded/cap: expected 20 detail lines, got $DETAIL_N"
+fi
+if printf '%s' "$CTX_N" | grep -q '50 markdownlint finding'; then
+  ok "bounded/cap: the full finding count is still reported"
+else
+  fail "bounded/cap: total count missing: $CTX_N"
+fi
+if printf '%s' "$CTX_N" | grep -q 'MD013 x48' && printf '%s' "$CTX_N" | grep -q 'MD032 x2'; then
+  ok "bounded/cap: rule histogram names which rules dominate the truncated set"
+else
+  fail "bounded/cap: rule histogram missing or wrong: $CTX_N"
+fi
+if printf '%s' "$CTX_N" | grep -q 'more rule(s)'; then
+  fail "bounded/cap: claimed omitted rules when only two rules fired: $CTX_N"
+else
+  ok "bounded/cap: no omitted-rule suffix when every rule fits in the histogram"
+fi
+if printf '%s' "$CTX_N" | grep -q 'and 30 more finding'; then
+  ok "bounded/cap: the omitted remainder is reported as a count"
+else
+  fail "bounded/cap: remainder not reported: $CTX_N"
+fi
+if printf '%s' "$CTX_N" | grep -q 'markdownlint-cli2 v0.23.1' ||
+  printf '%s' "$CTX_N" | grep -q 'Finding:' ||
+  printf '%s' "$CTX_N" | grep -q 'Linting: 1 file'; then
+  fail "bounded/cap: banner noise leaked into the report: $CTX_N"
+else
+  ok "bounded/cap: markdownlint banner lines kept out of the report"
+fi
+
+# --- Telemetry is NOT capped: a sink is a machine, the cap protects context ---
+TELN="$(mktemp)"
+SINKN="$(make_sink "cat >\"$TELN\"")"
+run_noisy "$FN" STUB_FINDINGS=50 HOOK_TELEMETRY_SINK="$SINKN" >/dev/null
+wait_for_sink "$TELN"
+if [[ "$(jq '.data.findings | length' "$TELN" 2>/dev/null)" -eq 50 ]]; then
+  ok "bounded/telemetry: all 50 findings still reach the sink uncapped"
+else
+  fail "bounded/telemetry: expected 50, got $(jq '.data.findings | length' "$TELN" 2>/dev/null)"
+fi
+rm -f "$TELN"
+
+# --- Scale: a large payload may be LOST, but must never be FALSIFIED ---------
+# The 50-finding case above cannot see this. Windows caps a process command line
+# at 32767 characters; a findings array handed to jq as an --argjson value blows
+# that somewhere past ~300 entries (reproduced with the hooks' own jq: 300 pass,
+# 600 fail, rc=126 "argument list too long").
+#
+# There are two such call sites, and only one is this plugin's to fix.
+# build_data_json is local and now feeds jq on stdin. hook::emit_telemetry then
+# passes the FINISHED payload the same way from the shared lib/hook-utils.sh,
+# which is byte-synced into every carrying plugin — fixing it there is a
+# fleet-wide wave, tracked as #1595.
+#
+# So the assertion is the invariant that holds either way, and keeps holding
+# after #1595 lands: telemetry is documented best-effort and lossy, so a dropped
+# envelope is inside contract. An envelope that ARRIVES claiming zero findings
+# for a 600-finding file is not — that is the local fallback firing, and it
+# reports the noisiest files in the repository as clean.
+FS="$REPO/scale.md"
+printf '# Scale\n\nbody\n' >"$FS"
+TELS="$(mktemp)"
+SINKS="$(make_sink "cat >\"$TELS\"")"
+run_noisy "$FS" STUB_FINDINGS=600 HOOK_TELEMETRY_SINK="$SINKS" >/dev/null
+wait_for_sink "$TELS" 50
+if [[ -s "$TELS" ]]; then
+  SCALE_LEN=$(jq '.data.findings | length' "$TELS" 2>/dev/null)
+  if [[ "$SCALE_LEN" == "600" ]]; then
+    ok "bounded/scale: the envelope arrived carrying all 600 findings"
+  else
+    fail "bounded/scale: an envelope arrived claiming ${SCALE_LEN:-?} findings for a 600-finding file — a payload that lies is worse than none"
+  fi
+else
+  ok "bounded/scale: oversized payload was dropped, not falsified (envelope loss is in contract; see #1595)"
+fi
+rm -f "$TELS"
+OUT_SCALE=$(run_noisy "$FS" STUB_FINDINGS=601)
+CTX_SCALE=$(printf '%s' "$OUT_SCALE" | jq -r '.hookSpecificOutput.additionalContext // empty' 2>/dev/null)
+if printf '%s' "$CTX_SCALE" | grep -q '601 markdownlint finding'; then
+  ok "bounded/scale: the report still states the true count at 601 findings"
+else
+  fail "bounded/scale: count wrong or missing at 601 findings: $CTX_SCALE"
+fi
+
+# --- Carriage returns: on EVERY channel, against a stub that emits them ------
+# markdownlint-cli2 is a Node process with CRLF stdout on Windows. A stub that
+# only ever emits LF makes any of this vacuous, so STUB_CRLF makes it emit the
+# real thing. The strip must also cover the telemetry findings array, not just
+# the rendered report: that array is built from the same output and goes to a
+# different consumer.
+#
+# The assertion looks for the two-character JSON escape `\r` in the RAW emitted
+# document, NOT for a real CR in a jq-decoded value. That is not fussiness: on
+# Git Bash, reading a value back through `printf | jq -r | $(…)` normalizes CRLF
+# pairs away, so a decoded-value check silently cannot see exactly the CRs this
+# is about — every CR here sits at end-of-line. Verified by revert-probe: with
+# the fix removed, the decoded-value form still passed while the raw-escape form
+# fails. Testing the bytes the hook actually emits is the only honest check.
+crlf_escaped() { case "$1" in *'\r'*) return 0 ;; *) return 1 ;; esac; }
+
+FCR="$REPO/crlf.md"
+printf '# CRLF\n\nbody\n' >"$FCR"
+TELCR="$(mktemp)"
+SINKCR="$(make_sink "cat >\"$TELCR\"")"
+OUT_CR=$(run_noisy "$FCR" STUB_FINDINGS=4 STUB_FIX_COUNT=3 STUB_CRLF=1 HOOK_TELEMETRY_SINK="$SINKCR")
+wait_for_sink "$TELCR"
+CTX_RAW=$(printf '%s' "$OUT_CR" | jq -c '.hookSpecificOutput.additionalContext // ""' 2>/dev/null)
+SYS_RAW=$(printf '%s' "$OUT_CR" | jq -c '.systemMessage // ""' 2>/dev/null)
+if crlf_escaped "$CTX_RAW"; then
+  fail "bounded/crlf: carriage returns leaked into additionalContext"
+else
+  ok "bounded/crlf: additionalContext carries no carriage returns (stub emitted CRLF)"
+fi
+if crlf_escaped "$SYS_RAW"; then
+  fail "bounded/crlf: carriage returns leaked into systemMessage"
+else
+  ok "bounded/crlf: systemMessage carries no carriage returns"
+fi
+# This one is labelled because its discriminating power is PLATFORM-DEPENDENT,
+# and an assertion whose strength varies by host must say so rather than be
+# taken for uniform coverage. `findings_raw` reaches the envelope through a pipe
+# into `jq -R`. Measured on a Windows jq build: with the hook's normalization
+# removed, the two assertions above fail while this one still passes — the CRs
+# are already gone by the time jq emits, so there was nothing here to catch.
+# That is NOT established for the Linux jq this repo's CI runs, which has no
+# text/binary mode distinction and is documented not to strip a trailing CR from
+# CRLF input; there this assertion may genuinely discriminate. Kept either way:
+# on Linux it guards, on Windows it documents.
+TEL_FINDINGS_RAW=$(jq -c '.data.findings' "$TELCR" 2>/dev/null)
+if [[ -n "$TEL_FINDINGS_RAW" ]] && ! crlf_escaped "$TEL_FINDINGS_RAW"; then
+  ok "bounded/crlf: telemetry data.findings carries no carriage returns (discriminating power is platform-dependent)"
+else
+  fail "bounded/crlf: carriage returns leaked into data.findings: $TEL_FINDINGS_RAW"
+fi
+if [[ "$(jq '.data.findings | length' "$TELCR" 2>/dev/null)" -eq 4 ]]; then
+  ok "bounded/crlf: CRLF output is still parsed into the right number of findings"
+else
+  fail "bounded/crlf: CRLF parsing lost findings: $TEL_FINDINGS_RAW"
+fi
+rm -f "$TELCR"
+
+# --- The histogram overflow suffix, positively -------------------------------
+# The negative case (no suffix at two rule kinds) already exists. Nothing
+# exercised the suffix itself, because the stub could only ever emit two rule
+# codes — so the behavior in this feature's headline was unverified.
+FRULES="$REPO/manyrules.md"
+printf '# Rules\n\nbody\n' >"$FRULES"
+OUT_RK=$(run_noisy "$FRULES" STUB_FINDINGS=40 STUB_RULE_KINDS=8)
+CTX_RK=$(printf '%s' "$OUT_RK" | jq -r '.hookSpecificOutput.additionalContext // empty' 2>/dev/null)
+if printf '%s' "$CTX_RK" | grep -q '+3 more rule(s)'; then
+  ok "bounded/rules: eight rule kinds report the three the histogram omitted"
+else
+  fail "bounded/rules: overflow suffix missing or miscounted: $CTX_RK"
+fi
+if [[ "$(printf '%s' "$CTX_RK" | grep -oE 'MD[0-9]+ x[0-9]+' | wc -l)" -eq 5 ]]; then
+  ok "bounded/rules: the histogram still names exactly its top five"
+else
+  fail "bounded/rules: histogram entry count wrong: $CTX_RK"
+fi
+
+# --- The cap is configurable, and 0 means unlimited -------------------------
+# Raising the cap must bring the detail back on an OTHERWISE UNCHANGED finding
+# set: the truncation hint tells the user to raise it, so a delta gate keyed on
+# the finding set alone would make that advice impossible to act on. Run against
+# the same file and the same 50 findings the capped run above already digested.
+OUT_C=$(run_noisy "$FN" STUB_FINDINGS=50 CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_MAX_FINDINGS=3)
+CTX_C=$(printf '%s' "$OUT_C" | jq -r '.hookSpecificOutput.additionalContext // empty' 2>/dev/null)
+if [[ "$(printf '%s' "$CTX_C" | grep -c 'error MD')" -eq 3 ]]; then
+  ok "bounded/config: markdown_format_max_findings lowers the cap, and a cap change defeats the delta gate"
+else
+  fail "bounded/config: cap not honored: $CTX_C"
+fi
+OUT_U=$(run_noisy "$FN" STUB_FINDINGS=50 CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_MAX_FINDINGS=0)
+CTX_U=$(printf '%s' "$OUT_U" | jq -r '.hookSpecificOutput.additionalContext // empty' 2>/dev/null)
+if [[ "$(printf '%s' "$CTX_U" | grep -c 'error MD')" -eq 50 ]]; then
+  ok "bounded/config: 0 means unlimited"
+else
+  fail "bounded/config: 0 did not disable the cap: $(printf '%s' "$CTX_U" | grep -c 'error MD')"
+fi
+FG="$REPO/garbage.md"
+printf '# Garbage\n\nbody\n' >"$FG"
+OUT_G=$(run_noisy "$FG" STUB_FINDINGS=5 CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_MAX_FINDINGS="not-a-number; rm -rf /")
+CTX_G=$(printf '%s' "$OUT_G" | jq -r '.hookSpecificOutput.additionalContext // empty' 2>/dev/null)
+if [[ "$(printf '%s' "$CTX_G" | grep -c 'error MD')" -eq 5 ]]; then
+  ok "bounded/config: a non-integer value falls back to the default, never interpolated"
+else
+  fail "bounded/config: garbage value not rejected: $CTX_G"
+fi
+
+# --- Delta gate: repeats drop the detail, never the message -----------------
+# Suppressing the whole message on a repeat would recreate the invisible-hook
+# defect on this plugin, so the summary must survive every run.
+FD="$REPO/delta.md"
+printf '# Delta\n\nbody\n' >"$FD"
+OUT_D1=$(run_noisy "$FD" STUB_FINDINGS=30)
+CTX_D1=$(printf '%s' "$OUT_D1" | jq -r '.hookSpecificOutput.additionalContext // empty' 2>/dev/null)
+OUT_D2=$(run_noisy "$FD" STUB_FINDINGS=30)
+CTX_D2=$(printf '%s' "$OUT_D2" | jq -r '.hookSpecificOutput.additionalContext // empty' 2>/dev/null)
+if [[ "$(printf '%s' "$CTX_D1" | grep -c 'error MD')" -eq 20 ]]; then
+  ok "bounded/delta: first run carries the (capped) detail"
+else
+  fail "bounded/delta: first run detail missing: $CTX_D1"
+fi
+if [[ "$(printf '%s' "$CTX_D2" | grep -c 'error MD')" -eq 0 ]]; then
+  ok "bounded/delta: unchanged repeat drops the per-finding detail"
+else
+  fail "bounded/delta: repeat still dumped detail: $CTX_D2"
+fi
+if printf '%s' "$CTX_D2" | grep -q '30 markdownlint finding' &&
+  printf '%s' "$CTX_D2" | grep -q 'Unchanged from the previous run'; then
+  ok "bounded/delta: the repeat still reports the count and says why it is short"
+else
+  fail "bounded/delta: repeat went silent — that is the defect, not the fix: $CTX_D2"
+fi
+OUT_D3=$(run_noisy "$FD" STUB_FINDINGS=31)
+CTX_D3=$(printf '%s' "$OUT_D3" | jq -r '.hookSpecificOutput.additionalContext // empty' 2>/dev/null)
+if [[ "$(printf '%s' "$CTX_D3" | grep -c 'error MD')" -eq 20 ]]; then
+  ok "bounded/delta: a changed finding set brings the detail back"
+else
+  fail "bounded/delta: changed set stayed suppressed: $CTX_D3"
+fi
+
+# --- Applied fixes are disclosed on both channels ---------------------------
+FF="$REPO/fixed.md"
+printf '# Fixed\n\nbody\n' >"$FF"
+OUT_F=$(run_noisy "$FF" STUB_FIX_COUNT=7)
+CTX_F=$(printf '%s' "$OUT_F" | jq -r '.hookSpecificOutput.additionalContext // empty' 2>/dev/null)
+SYS_F=$(printf '%s' "$OUT_F" | jq -r '.systemMessage // empty' 2>/dev/null)
+if printf '%s' "$CTX_F" | grep -q 'Attempted: 7 fixes'; then
+  ok "bounded/fixes: a clean-after-fix run no longer stays silent about the rewrite"
+else
+  fail "bounded/fixes: no agent-channel disclosure of the rewrite: $CTX_F"
+fi
+if printf '%s' "$SYS_F" | grep -q 'Attempted: 7 fixes'; then
+  ok "bounded/fixes: the rewrite is disclosed on the user channel too"
+else
+  fail "bounded/fixes: no user-channel disclosure: $SYS_F"
+fi
+OUT_F0=$(run_noisy "$FF" STUB_FIX_COUNT=0)
+if [[ -z "$OUT_F0" ]]; then
+  ok "bounded/fixes: a run that changed nothing stays silent"
+else
+  fail "bounded/fixes: no-op run emitted output: $OUT_F0"
+fi
+
 echo
 echo "PASS=$PASS FAIL=$FAIL"
 [[ $FAIL -eq 0 ]]

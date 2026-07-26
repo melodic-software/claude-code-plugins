@@ -231,27 +231,229 @@ hook::repo_root() {
 # Buffer a complete JSON payload from stdin, tolerating Windows Win32-pipe
 # late-EOF stalls via a bounded read on the inherited fd0. Returns the payload
 # on success; returns 1 on empty/incomplete stdin (caller skips), or 2 when the
-# read timed out before a complete JSON payload arrived (caller may block).
-# Bound is the stdin_read_timeout userConfig option in seconds (read via
-# CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT, default 2). jq (when present)
-# distinguishes a truncated read from a genuinely small-but-complete payload; a
+# read stalled before a complete JSON payload arrived (caller may block).
+#
+# The bound (stdin_read_timeout userConfig option, in seconds, read via
+# CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT, default 2) is an IDLE bound, not a
+# total one: only a window in which NOTHING arrives ends the read. A single
+# `read -d ''` bounded by -t was a total bound, and because bash consumes
+# `read -d ''` on a pipe one byte at a time (~32 KB/s on Git Bash) that made it
+# a ~64 KB THROUGHPUT ceiling — every larger payload tripped the timeout branch,
+# so fail-closed callers blocked a legitimate write and fail-open callers
+# skipped silently. Two things together make the bound mean what it says:
+#
+#   * The read is chunked. `read -N` lets bash satisfy it in blocks instead of
+#     byte-at-a-time: 50 KB drops from ~2100 ms to ~20 ms, 200 KB from ~6800 ms
+#     to ~85 ms.
+#   * The timer measures inactivity, not the read. `read -t` is a deadline for
+#     the WHOLE requested read, so a producer that keeps delivering but slower
+#     than one chunk per window would still trip it. `read` assigns whatever it
+#     did receive even when it times out, so any byte counts as progress: the
+#     loop keeps that partial chunk and reads on. Only the absence of bytes for a
+#     whole stdin_read_timeout is a stall.
+#   * The bound is read in HOOK_STDIN_READ_SLICES slices. `read -t` reports only
+#     that its window expired, never WHEN inside it the last byte arrived, so a
+#     bound armed as one window would declare a stall anywhere between one and
+#     TWO bounds after the pipe actually went quiet. Slicing bounds that
+#     overshoot: with four slices a stall lands within a quarter-bound of the
+#     configured interval. That residual quarter is the honest limit of the
+#     approximation, and it errs toward waiting — never toward declaring a live
+#     producer dead. On a shell whose `read -t` rejects the fractional slice the
+#     count degrades to 1, i.e. the unsliced one-to-two-bound behavior.
+#
+# Reading on is skipped once the buffer already parses as whole JSON, so the
+# late-EOF case costs ONE slice past the payload rather than the rest of the
+# bound — a producer holding the pipe open cannot be distinguished from a slow
+# one until a window expires, so some wait there is the floor.
+#
+# The trade this makes: a producer trickling bytes indefinitely is never cut off
+# here. That is deliberate — the harness already caps a `command` hook at 600 s
+# by default (https://code.claude.com/docs/en/hooks), and blocking a live
+# producer is exactly the failure this function had.
+#
+# `read` reports which stop condition it hit — EOF returns 1, an exceeded -t
+# returns >128 — so the loop takes the verdict off $? rather than inferring it
+# from elapsed-time arithmetic. jq (when present) is still the completeness
+# backstop: a stall that nevertheless delivered a complete payload is the Win32
+# late-EOF case this function exists for and must succeed, not block. A
 # missing/broken jq (exit 127) fails open like absent jq.
+#
+# `read -N` is Bash 4.1+; macOS ships Bash 3.2 and these hooks document 3.2+
+# support, so the pre-4.1 branch falls back to the delimiter read, which already
+# reads to EOF and is fast enough on native POSIX pipes. Same guard and same
+# rationale as plugins/context-guard/scripts/statusline-tee.sh. The re-arming
+# loop wraps both forms, so 3.2 gets the progress semantics too — just in
+# byte-at-a-time-sized steps.
 #   INPUT=$(hook::buffer_stdin) || exit 0
+
+# The `read -N` availability guard, split out as its own predicate so the
+# pre-4.1 path stays reachable in tests on a modern host: BASH_VERSINFO is
+# readonly, so it cannot be shadowed, but a test can override this function
+# after sourcing. Not a consumer seam — nothing reads it from the environment.
+hook::read_supports_nchars() {
+  ((BASH_VERSINFO[0] > 4 || (BASH_VERSINFO[0] == 4 && BASH_VERSINFO[1] >= 1)))
+}
+
+# Is the buffered text already a complete JSON document? Lets the read stop the
+# moment the payload is whole instead of spending another idle window waiting
+# for an EOF a Win32 pipe may never deliver. Returns non-zero when jq is
+# unavailable or broken (exit 127) as well as when the text is incomplete — the
+# caller must keep reading rather than guess, and the caller's own fail-open
+# handling for absent jq is unaffected.
+hook::json_complete() {
+  # Structural pre-filter before paying for a jq process: a hook payload is a
+  # JSON object, so a complete one ends in `}` (possibly with trailing newline
+  # or CR). Testing the last few characters is O(1) and skips the spawn for
+  # every mid-payload buffer, which is what keeps this off the hot path of a
+  # large or slow read. A false negative here costs only the early break — the
+  # read continues and the caller's final completeness check still decides — so
+  # the pre-filter can never turn a whole payload into a wrong verdict.
+  [[ "${1: -4}" == *"}"* ]] || return 1
+  command -v jq >/dev/null 2>&1 || return 1
+  # `printf | jq`, never `jq <<< "$1"`. A here-string is delivered through a pipe
+  # that bash fills itself, so a payload at or above the pipe capacity (65536
+  # bytes on this platform — exactly one read chunk) blocks the shell forever
+  # before jq is ever exec'd. Reproduced: a 65536-byte buffer hung here
+  # indefinitely while 65000 returned immediately. A separate writer process
+  # cannot deadlock that way.
+  printf '%s' "$1" | jq -e . >/dev/null 2>&1
+}
+
+# Resolve the read timeout to a value THIS shell's `read -t` will actually
+# accept, falling back to the documented default of 2 otherwise.
+#
+# The configured value reaches `read -t` directly, and an unusable one is not a
+# tuning mistake — it is a silent disable. `read` rejects a bad spec with rc 1
+# plus a usage error on stderr for EVERY hook invocation; the buffer loop reads
+# rc 1 as EOF, produces an empty payload, and every caller skips. `0` is worse
+# still: it makes `read` return immediately having consumed nothing, which would
+# spin the loop.
+#
+# Acceptance is settled by PROBING this shell rather than consulting a version
+# table: which spellings `read -t` accepts varies across the Bash releases these
+# hooks support (fractional values are not universally available, and the
+# upstream changelog does not date their introduction), so asking the running
+# shell is exact where a version check would be a guess. Reading /dev/null hits
+# EOF immediately, so a valid timeout produces no stderr at all. The probe is
+# skipped for the default, which is known-good everywhere.
+hook::resolve_read_timeout() {
+  local t="${CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT:-2}"
+  if [[ "$t" != "2" ]]; then
+    local probe
+    # shellcheck disable=SC2034 # `discard` is the read target; only stderr matters
+    probe=$(read -r -t "$t" discard </dev/null 2>&1)
+    if ! [[ "$t" =~ ^[0-9]+(\.[0-9]+)?$ ]] || [[ "$t" =~ ^0+(\.0+)?$ ]] || [[ -n "$probe" ]]; then
+      t=2
+    fi
+  fi
+  printf '%s' "$t"
+}
+
+# How many slices the idle bound is divided into. `read -t` reports only that a
+# window expired, never WHEN inside it the last byte arrived, so a bound armed as
+# one window declares a stall anywhere between one and two bounds after the pipe
+# actually went quiet. Asking more often shrinks that: with N slices, a stall is
+# declared within one slice of the configured interval. Four is the compromise —
+# it cuts worst-case overshoot from 100% of the bound to 25% while keeping the
+# idle path to four cheap builtin reads.
+HOOK_STDIN_READ_SLICES=4
+
+# Resolve the per-read slice for an already-resolved timeout, printing
+# "<slice> <count>". Falls back to "<timeout> 1" — exactly the unsliced
+# behavior — when this shell's `read -t` will not accept the fractional slice,
+# which is the pre-4.1/no-fractional-timeout case the delimiter-read branch
+# already covers. Probed, not version-tested, for the same reason as
+# hook::resolve_read_timeout.
+hook::resolve_read_slice() {
+  local t="$1" slice
+  slice=$(awk -v t="$t" -v n="$HOOK_STDIN_READ_SLICES" \
+    'BEGIN { printf "%.3f", t / n }' 2>/dev/null) || slice=""
+  if [[ -n "$slice" && "$slice" =~ ^[0-9]+\.[0-9]+$ ]] && ! [[ "$slice" =~ ^0+\.0+$ ]]; then
+    local probe
+    # shellcheck disable=SC2034 # `discard` is the read target; only stderr matters
+    probe=$(read -r -t "$slice" discard </dev/null 2>&1)
+    if [[ -z "$probe" ]]; then
+      printf '%s %s' "$slice" "$HOOK_STDIN_READ_SLICES"
+      return 0
+    fi
+  fi
+  printf '%s 1' "$t"
+}
+
 hook::buffer_stdin() {
-  local input="" read_status=0 read_timeout="${CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT:-2}" start_epoch elapsed_ms timeout_ms
-  start_epoch=${EPOCHREALTIME:-}
-  IFS= read -r -d '' -t "$read_timeout" input || read_status=$?
+  local input="" chunk="" read_rc=0 stalled=0 idle_slices=0
+  local read_timeout read_slice slice_count
+  read_timeout=$(hook::resolve_read_timeout)
+  read -r read_slice slice_count < <(hook::resolve_read_slice "$read_timeout")
+  local -a read_opts=(-r -t "$read_slice")
+  if hook::read_supports_nchars; then
+    read_opts+=(-N 65536)
+  else
+    read_opts+=(-d '')
+  fi
+  while :; do
+    chunk=""
+    read_rc=0
+    # shellcheck disable=SC2162 # -r is in read_opts; shellcheck cannot see through the array
+    IFS= read "${read_opts[@]}" chunk || read_rc=$?
+    input+="$chunk"
+    # Any byte at all resets the idle count — that, not the read's exit status,
+    # is what makes this an idle timer rather than a per-read deadline.
+    [[ -n "$chunk" ]] && idle_slices=0
+    if ((read_rc == 0)); then
+      # A full chunk (or a delimiter) — more may still be coming. A SUCCESSFUL
+      # read that consumed nothing, however, cannot make progress, so continuing
+      # would spin: break instead. hook::resolve_read_timeout already excludes
+      # the only known way to reach that (`read -t 0`, which returns success
+      # without consuming); this keeps loop termination a structural property
+      # rather than a consequence of validation staying correct.
+      [[ -n "$chunk" ]] || break
+      continue
+    fi
+    if ((read_rc > 128)); then
+      # A slice expired. Bytes in it mean the producer is alive: keep them and
+      # read on. Only slice_count CONSECUTIVE empty slices — one whole
+      # stdin_read_timeout with nothing arriving — is the stall this guard
+      # exists to catch, which is why the count is not reset here.
+      if [[ -n "$chunk" ]]; then
+        # ... but stop immediately if what we already hold is a whole JSON
+        # document. That is the Win32 late-EOF case — the payload arrived, the
+        # pipe just never closed — and reading on there would spend the rest of
+        # the bound waiting for an EOF that is not coming.
+        hook::json_complete "${input//$'\r'/}" && break
+        continue
+      fi
+      # An EMPTY slice can also be the late-EOF case: the payload may have been
+      # completed by the PREVIOUS read, which returned rc 0 and so never reached
+      # the completeness check above. That happens whenever the payload ends on a
+      # 65536-character boundary, and without this the helper would wait out the
+      # whole bound instead of a single slice. Checking here rather than on the
+      # rc-0 path keeps jq off the hot path — a large payload costs one check
+      # when the producer first pauses, not one per 64 KB chunk.
+      #
+      # Only on the FIRST empty slice of a quiet period: the buffer cannot grow
+      # while nothing is arriving, so re-checking an unchanged buffer would spend
+      # a jq process per slice to re-derive the same answer — enough overhead on
+      # a slow-spawning host to cost more than slicing saves. idle_slices resets
+      # the moment a byte lands, so the next quiet period checks again.
+      ((idle_slices == 0)) && hook::json_complete "${input//$'\r'/}" && break
+      ((idle_slices++))
+      ((idle_slices >= slice_count)) || continue
+      stalled=1
+    fi
+    break # EOF (rc 1), a full idle bound with no bytes, or a read error
+  done
   input=$(printf '%s' "$input" | tr -d '\r')
   [[ -n "$input" ]] || return 1
   local jq_rc=0
-  if [[ "$read_status" -ne 0 ]] && command -v jq >/dev/null 2>&1; then
-    jq -e . >/dev/null 2>&1 <<<"$input" || jq_rc=$?
+  if command -v jq >/dev/null 2>&1; then
+    # `printf | jq`, not a here-string — see hook::json_complete: a here-string
+    # at or above the pipe capacity deadlocks the shell before jq is exec'd, and
+    # a hook payload routinely exceeds it.
+    printf '%s' "$input" | jq -e . >/dev/null 2>&1 || jq_rc=$?
   fi
-  if [[ "$read_status" -ne 0 && "$jq_rc" -ne 0 && "$jq_rc" -ne 127 ]]; then
-    elapsed_ms=$(awk -v start="$start_epoch" -v end="$EPOCHREALTIME" 'BEGIN { printf "%.0f", (end - start) * 1000 }')
-    timeout_ms=$(awk -v timeout="$read_timeout" 'BEGIN { printf "%.0f", timeout * 1000 }')
-    if [[ "$elapsed_ms" =~ ^[0-9]+$ && "$timeout_ms" =~ ^[0-9]+$ ]] &&
-      ((elapsed_ms + 100 >= timeout_ms)); then
+  if ((jq_rc != 0 && jq_rc != 127)); then
+    if ((stalled)); then
       echo "BLOCKED: hook stdin timed out before a complete JSON payload arrived." >&2
       return 2
     fi
@@ -262,10 +464,16 @@ hook::buffer_stdin() {
 
 # Extract a single jq field from a buffered input string. CR-stripped. Returns 1
 # when the field is empty or jq fails, so the caller can skip.
+#
+# Fed through `printf | jq`, never a here-string: bash fills a here-string's pipe
+# itself, so a payload at or above the pipe capacity (65536 bytes here) blocks
+# before jq is exec'd. Callers pass the WHOLE buffered hook payload, which now
+# routinely exceeds that — a bounded stdin read used to reject anything that
+# large before it reached this helper.
 #   FIELD=$(hook::jq_field "$INPUT" '.tool_input.file_path') || exit 0
 hook::jq_field() {
   local field
-  field=$(jq -r "(${2} // empty)"' | gsub("\r";"")' <<<"$1" 2>/dev/null)
+  field=$(printf '%s' "$1" | jq -r "(${2} // empty)"' | gsub("\r";"")' 2>/dev/null)
   [[ -n "$field" ]] || return 1
   printf '%s' "$field"
 }
@@ -1111,7 +1319,7 @@ hook::bash_parse_segments() {
         # the '(' separator splits it into a segment that gets scanned.
         skipnext=0
       else
-        while ((i + 1 < n)) && [[ "${chars[i + 1]}" == [\<\>] ]]; do ((i++)); done
+        while ((i + 1 < n)) && [[ "${chars[i + 1]}" == [\<\>] ]]; do ((i++)); done # portability-ok: bash glob bracket class matching a literal < or > character, not a GNU grep \< \> word boundary
         if ((i + 1 < n)) && [[ "${chars[i + 1]}" == '&' ]]; then
           ((i++))
           if ((i + 1 < n)) && [[ "${chars[i + 1]}" == [0-9-] ]]; then

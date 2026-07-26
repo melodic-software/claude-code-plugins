@@ -24,14 +24,14 @@ assert_exit() {
 }
 assert_contains() {
   case "$2" in
-    *"$3"*) pass "$1" ;;
-    *) fail "$1" "expected to contain: $3" ;;
+  *"$3"*) pass "$1" ;;
+  *) fail "$1" "expected to contain: $3" ;;
   esac
 }
 assert_not_contains() {
   case "$2" in
-    *"$3"*) fail "$1" "unexpected substring: $3" ;;
-    *) pass "$1" ;;
+  *"$3"*) fail "$1" "unexpected substring: $3" ;;
+  *) pass "$1" ;;
   esac
 }
 
@@ -67,6 +67,33 @@ out=$(
 ) || rc=$?
 assert_exit "case 2: exit 1 on invalid JSON" 1 "$rc"
 assert_contains "case 2: invalid json reported" "$out" "Valid JSON: no"
+
+# --- Case 4: present-but-unreadable is not reported as invalid JSON -------------
+# A Read deny rule, a sandbox denyRead path, or filesystem permissions all make the
+# script's open() fail. That must read as "not inspectable", never as malformed
+# config, and must not fail the run. chmod is the only portable way to simulate it;
+# where the platform or user does not enforce it (Windows, root), the case is
+# announced as skipped rather than silently dropped.
+fixture_dir="$TEST_TMPDIR/unreadable"
+mkdir -p "$fixture_dir/.claude"
+printf '{"env":{"TOKEN":"sk-not-a-real-secret"}}\n' >"$fixture_dir/.claude/settings.local.json"
+printf '{"permissions":{"deny":[]}}\n' >"$fixture_dir/.claude/settings.json"
+chmod 000 "$fixture_dir/.claude/settings.local.json" 2>/dev/null
+if [[ -r "$fixture_dir/.claude/settings.local.json" ]]; then
+  echo "SKIP: case 4 — this platform/user does not enforce chmod 000 on the fixture" >&2
+else
+  rc=0
+  out=$(
+    SETTINGS_AUDIT_STRUCTURE_FIXTURE_DIR="$fixture_dir" \
+      bash "$SCRIPT" 2>/dev/null
+  ) || rc=$?
+  assert_exit "case 4: unreadable file does not fail the run" 0 "$rc"
+  assert_contains "case 4: reported unreadable" "$out" "Readable: no"
+  assert_contains "case 4: reported not inspectable" "$out" "not inspectable"
+  assert_not_contains "case 4: not reported as invalid JSON" "$out" "Valid JSON: no"
+  assert_not_contains "case 4: no secret leaked" "$out" "sk-"
+fi
+chmod 600 "$fixture_dir/.claude/settings.local.json" 2>/dev/null
 
 # --- Case 3: missing jq exits 2 -------------------------------------------------
 # Run the script under an EMPTY PATH so its `command -v jq` resolves nothing. The
