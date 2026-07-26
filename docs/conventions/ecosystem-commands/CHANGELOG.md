@@ -10,14 +10,19 @@ worked example is actually reachable under auto-targeting rather than silently u
 `trigger-globs` (`*.proto`, `buf.gen.yaml`, `*.pb.go`, `*.pb.gw.go`) additionally list the plugins'
 own generated-output patterns, so a hand-edit that drifts a generated file from what `buf generate`
 would produce still fires the gate — those two need no separate `globs` entry since they already end
-in `.go`. Its freshness `cmd` runs `buf generate --clean` and pairs `git diff HEAD --exit-code` with
-`git ls-files --others --exclude-standard` scoped to every buf.gen.yaml-configured plugin's output
-(`*.pb.go` and grpc-gateway's `*.pb.gw.go` in this example, extended per additional plugin), so the
-example demonstrates a gate that actually catches stale generated code: a bare `git diff` compares
-only against the index (a staged regeneration reports clean) and never reports untracked paths at all
-(a newly generated output false-passes), and without `--clean` — whose `buf.gen.yaml` counterpart
-[defaults to `false`](https://buf.build/docs/configuration/v2/buf-gen-yaml/) — an output orphaned by a
-deleted `.proto` is left in place and passes both git checks.
+in `.go`. Its freshness `cmd` runs `buf generate --clean` and chains `git diff HEAD --exit-code`,
+`git diff --cached --exit-code`, and `git ls-files --others --exclude-standard`, each scoped to every
+buf.gen.yaml-configured plugin's output (`*.pb.go` and grpc-gateway's `*.pb.gw.go` in this example,
+extended per additional plugin), so the example demonstrates a gate that actually catches stale
+generated code: a bare `git diff` compares only against the index (a staged regeneration reports
+clean) and never reports untracked paths at all (a newly generated output false-passes); `git diff
+HEAD` compares the working tree to the last commit and never inspects the index, so it closes the
+staged-regeneration case but needs the `--cached` companion to catch a hand-edit staged in the index
+whose working-tree copy `--clean` has since overwritten; and without `--clean` — whose `buf.gen.yaml`
+counterpart [defaults to `false`](https://buf.build/docs/configuration/v2/buf-gen-yaml/) — an output
+orphaned by a deleted `.proto` is left in place and passes every git check. The comment also records
+what no regenerate-and-diff gate can catch: an unstaged hand-edit to a generated file is overwritten
+by `--clean` before any check reads it.
 Deferred from melodic-software/claude-code-plugins#1361 via #1462 (a
 documentation-depth finding from #1460's review): a worked `run-from: repo-root` example was still
 missing.

@@ -28,33 +28,48 @@ gates:
   # `*.pb.gw.go`), so a hand-edit that drifts a generated file from what `buf generate` would
   # produce still fires this gate — unlike `*.proto`/`buf.gen.yaml`, they need no separate `globs`
   # entry: both already end in `.go`, so the ecosystem's own `*.go` glob already selects them.
-  # Every part of the `cmd` closes one way stale generated code slips past a naive freshness check —
-  # a bare `buf generate && git diff --exit-code` false-passes all three:
+  # Every part of the `cmd` closes one way stale generated code slips past a naive freshness check.
+  # Three are ways a bare `buf generate && git diff --exit-code` false-passes; the fourth is a gap
+  # `git diff HEAD` itself introduces, covered in the paragraph below the list:
   #   1. Staged regeneration. `git diff` with no commit argument compares the working tree to the
   #      *index*, so output the consumer already staged reports clean. `git diff HEAD` compares the
-  #      worktree AND the index against the last commit.
+  #      working tree to the last commit — it never inspects the index — so a regeneration that is
+  #      staged but not yet committed still differs from the stale commit and the gate fires.
   #   2. Newly generated output. `git diff` never reports untracked paths, so a brand-new `.proto`'s
-  #      generated output false-passes either diff form. `git ls-files --others --exclude-standard`
+  #      generated output false-passes every diff form. `git ls-files --others --exclude-standard`
   #      catches it, honoring .gitignore so a repo that deliberately ignores generated code passes.
   #   3. Orphaned output. When a `.proto` is deleted or renamed, generation writes nothing over the
-  #      now-sourceless output, so both git checks pass a file that should no longer exist. The
+  #      now-sourceless output, so every git check passes a file that should no longer exist. The
   #      `clean` field in buf.gen.yaml "defaults to false", and `--clean` deletes "the directories,
   #      jar files, or zip files that the plugins will write to" before generating, so the orphan
   #      surfaces as a deletion `git diff HEAD` reports. Passing the flag keeps the gate correct
   #      regardless of the consumer's buf.gen.yaml. Refs:
   #      https://buf.build/docs/reference/cli/buf/generate/ and
   #      https://buf.build/docs/configuration/v2/buf-gen-yaml/
+  # Swapping bare `git diff` for `git diff HEAD` closes case 1 but opens a gap the bare form did not
+  # have: a hand-edit staged in the index, whose worktree copy `buf generate --clean` then overwrites
+  # with correct output. The worktree now matches HEAD, so `git diff HEAD --exit-code` exits 0 while
+  # the bad entry sits in the index, still committable — the very drift the gate exists to stop.
+  # `git diff --cached` compares the *index* to the last commit, so it sees the staged entry that
+  # `git diff HEAD` cannot. Neither form subsumes the other — `--cached` alone would miss drift that
+  # is only in the working tree — so the `cmd` chains both rather than substituting one for the other.
+  # Known property of any regenerate-and-diff gate, not a defect of this one: `buf generate --clean`
+  # deletes and rewrites the plugins' output directories before any check reads them, so a hand-edit
+  # to a generated file that was never staged or committed is destroyed by running the gate rather
+  # than reported by it. Only staged or committed drift survives to be caught — treat generated
+  # output as read-only rather than a place to hold in-progress edits.
   # The pathspec after `--` must cover every plugin buf.gen.yaml configures, not just protoc-gen-go's
   # `*.pb.go` — a repo that also runs grpc-gateway writes `*.pb.gw.go`, and every other configured
   # plugin writes its own extension again, so scoping to one plugin's output would leave --clean's
   # deletion of the others undetected. This example covers `*.pb.go` and grpc-gateway's `*.pb.gw.go`;
   # add one pathspec per additional plugin this repo's buf.gen.yaml configures.
-  # The two git checks leave the index untouched — `git add --intent-to-add` would fold case 2 into
-  # the diff, but it leaves index residue in the consumer's worktree. Neither prints filenames on
-  # failure, so the `remediation` (which the gate reports on FAIL) names the listing command.
+  # The three git checks leave the index untouched (`git diff --cached` reads the index, never writes
+  # it) — `git add --intent-to-add` would fold case 2 into the diff, but it leaves index residue in
+  # the consumer's worktree. None of the three prints filenames on failure, so the `remediation`
+  # (which the gate reports on FAIL) names the listing command.
   - name: proto-gen-freshness
-    cmd: "buf generate --clean && git diff HEAD --exit-code -- '*.pb.go' '*.pb.gw.go' && test -z \"$(git ls-files --others --exclude-standard -- '*.pb.go' '*.pb.gw.go')\""
+    cmd: "buf generate --clean && git diff HEAD --exit-code -- '*.pb.go' '*.pb.gw.go' && git diff --cached --exit-code -- '*.pb.go' '*.pb.gw.go' && test -z \"$(git ls-files --others --exclude-standard -- '*.pb.go' '*.pb.gw.go')\""
     trigger-globs: ["*.proto", "buf.gen.yaml", "*.pb.go", "*.pb.gw.go"]
     run-from: repo-root
-    remediation: "Run buf generate --clean from the repo root, then commit every resulting change to every buf.gen.yaml-configured plugin's output (this example's *.pb.go and grpc-gateway's *.pb.gw.go — extend to match this repo's plugins) — modified, newly generated, and deleted (an output whose .proto is gone). `git status --short -- '*.pb.go' '*.pb.gw.go'` lists all three (extend the same way)."
+    remediation: "Run buf generate --clean from the repo root, then stage and commit every resulting change to every buf.gen.yaml-configured plugin's output (this example's *.pb.go and grpc-gateway's *.pb.gw.go — extend to match this repo's plugins) — modified, newly generated, and deleted (an output whose .proto is gone). The gate fails until the regenerated output is committed, whether the drift sits in the working tree, the index, or both. `git status --short -- '*.pb.go' '*.pb.gw.go'` lists all three, its first column reporting the index and its second the working tree (extend the same way)."
 notes: "govulncheck is intentionally not a rung-4 default (per the epic brief's \"optional\" framing) — add it as a consumer-local gate via .claude/ecosystems/go.local.yaml if desired."
