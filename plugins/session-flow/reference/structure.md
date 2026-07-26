@@ -40,6 +40,13 @@ disclosure governs the ORDER facts are met in, never whether they survive. Secti
 exist specifically for what a summarizer discards first — rationale, negative knowledge, and
 hard-won facts — because those read as "old" while being the most expensive to rediscover.
 
+**Provenance: verified this session, or marked.** A status claim earns plain statement only when
+this session verified it — a command run, a file read, an output observed. Anything inherited — a
+prior handoff's assertion, an issue label, a remembered state — is written with an explicit
+`UNVERIFIED (<source>)` marker, because the resuming session treats an unmarked claim as fact and
+builds on it: an inherited claim is a claim to falsify, not a fact to forward. The met/unmet marks
+in Completion criteria carry the same rule (see the evidence rule in the citing skill's gotchas).
+
 ### Resumption brief
 
 Six lines maximum. The one section a reader may stop at.
@@ -74,6 +81,10 @@ Invariants whose violation breaks the work. One testable assertion per line, eac
 consequence of violating it.
 
 Only things that would actually break something. A preference is a decision — section 7.
+
+Before closing the section, re-scan the conversation for *but*, *except*, *unless*, "the exception
+is", "the corner case" — those words mark constraints that emerged mid-discussion and never rose to
+a top-line bullet, and an omitted one is exactly what the resuming session ships as a bug.
 
 ```markdown
 - The public `IOrderReader` signature is frozen — three downstream repos compile against it.

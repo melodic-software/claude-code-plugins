@@ -1,5 +1,26 @@
 # Changelog — session-flow plugin
 
+## [0.17.13]
+
+### Added
+
+- **Handoff structure doc hardened from the upstream handoff-failure corpus audit
+  (melodic-software/claude-code-plugins#1477).** Two write-side rules added to
+  `reference/structure.md`, both adopted because a real failure mode upstream demonstrated the gap
+  and nothing in the existing template guarded it:
+  - **Claim provenance.** A status claim may be stated plainly only when this session verified it;
+    anything inherited (a prior handoff's assertion, an issue label, a remembered state) carries an
+    explicit `UNVERIFIED (<source>)` marker — an inherited claim is a claim to falsify, not a fact
+    to forward. Closes the laundering gap where an unverified "not built yet" forwarded as fact
+    causes the resuming session to rebuild something that already exists. The existing
+    fresh-reads-this-turn checklist items governed only what the writing session could probe; they
+    said nothing about claims the session inherited and could not probe.
+  - **Edge-case re-scan for Constraints that must hold.** Before closing the section, re-scan the
+    conversation for *but* / *except* / *unless* / "the exception is" / "the corner case" — those
+    words mark mid-discussion constraints that never rose to a top-line bullet, the category a
+    resuming session ships as a bug. The template forced the section to exist but had no recall
+    step for constraints buried inside accepted decisions.
+
 ## [0.17.12]
 
 ### Added
