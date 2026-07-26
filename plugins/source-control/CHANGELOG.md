@@ -3,6 +3,39 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.34.0]
+
+### Added
+
+- **The merge gate can hold a PR while a review of the live head is still in flight (#1629).** A
+  review bot that re-reviews on every push posts minutes after the head moves, and GitHub reports
+  the PR mergeable for that whole window — the review does not exist yet, so there is no unresolved
+  thread to block on. The gate read only that mergeability, so it could merge past findings landing
+  seconds later: #1594 merged 4m40s after its final commit and the reviewer's round arrived 26
+  seconds afterward with two valid findings, one a regression that PR had introduced (#1613).
+  Configuring `babysit_review_bot_logins` together with the new `babysit_review_settle_minutes`
+  adds a merge-gate policy blocker while a configured reviewer still owes the live head a review
+  and that head is younger than the window. A review of the live head — a submitted review or an
+  inline review comment carrying the head's commit id, reusing `review-trigger.md`'s existing
+  current-head test — clears the hold before the clock is read, so the already-reviewed case adds
+  no latency. The window bounds the wait so a reviewer that never engages cannot wedge a PR, and an
+  unreadable head date holds rather than merging on an unverifiable clock. Both keys or neither:
+  either alone is a usage error, never a silently inert flag, and the gate defaults no duration of
+  its own because how long a reviewer takes is a property of that reviewer.
+
+  Unconfigured, the gate is byte-for-byte its prior self and issues no request it did not issue
+  before — asserted against recorded call counts, not just the verdict. The reviewer corpus is now
+  fetched once per run and shared with the autopilot merge tier rather than fetched twice.
+
+### Changed
+
+- **`babysit-prs/SKILL.md` has headroom under the skill line cap again.** It sat at 499 of a hard
+  500 — the same wall #1620 described for `babysit-loop`, which #1627 relieved for that skill only —
+  so any net-positive edit failed `skill-quality-gate`. The autopilot tier's per-PR steps,
+  exclusions, draft handling, and widened scopes move verbatim to
+  `skills/babysit-prs/reference/autopilot.md`, leaving a pointer; the body goes to 463. Nothing is
+  deleted, and the tier's operative commands stay where they already lived, in `reference/safety.md`.
+
 ## [0.33.1]
 
 ### Fixed
