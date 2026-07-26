@@ -311,7 +311,7 @@ class StaleWorktreeRegistrationTests(unittest.TestCase):
     then fails as "missing but already registered". The record path is readable
     off the entry's own pointer, which is what makes the prune possible."""
 
-    def test_prunes_the_owning_repositorys_record_via_the_gitdir_pointer(
+    def test_prunes_the_owning_repository_record_via_the_gitdir_pointer(
         self,
     ) -> None:
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as td:
