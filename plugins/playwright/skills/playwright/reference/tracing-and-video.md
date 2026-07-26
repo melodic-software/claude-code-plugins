@@ -65,7 +65,7 @@ playwright-cli video-hide-actions
 
 `--position` accepts `top-left|top|top-right|bottom-left|bottom|bottom-right` (default `top-right`); `--cursor=pointer` (default) animates a mouse pointer between action points, `--cursor=none` disables it.
 
-## Frame size — two levers, not one
+## Frame size (two levers, not one)
 
 **A bare `video-start <name>.webm` does not record at your viewport size.** Upstream's default is
 "the size of the recorded video will fit 800x800" (`playwright-cli video-start --help`), so the CLI's
@@ -83,6 +83,10 @@ Two independent levers control the result. A full-resolution recording needs **b
 
 The viewport must be set on `open`, because that is the command that creates the browser context the
 recorder derives its geometry from.
+
+The `VAR=value <command>` prefix shown here is POSIX shell syntax (Git Bash, WSL, macOS, Linux).
+PowerShell has no inline env prefix — set `$env:PLAYWRIGHT_MCP_VIEWPORT_SIZE = '<W>x<H>'` on its own
+line before the `open`, then clear it afterwards if later sessions should use the default.
 
 Measured outcomes (ffprobe on the resulting `.webm`, `@playwright/cli` 0.1.14):
 

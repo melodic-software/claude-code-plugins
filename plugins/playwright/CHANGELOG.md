@@ -7,7 +7,7 @@ All notable changes to the `playwright` plugin are documented here. Format follo
 
 ### Added
 
-- `reference/tracing-and-video.md` gains a **Frame size — two levers, not one**
+- `reference/tracing-and-video.md` gains a **Frame size (two levers, not one)**
   section documenting `playwright-cli video-start --size "<W>x<H>"`, which the
   skill had never mentioned. Video frame size is derived from the viewport at
   browser-context creation and fitted into an 800×800 box, so the previously
