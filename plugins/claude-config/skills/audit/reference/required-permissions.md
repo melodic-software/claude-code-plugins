@@ -71,15 +71,21 @@ among its preview limitations. On a native-Windows workstation the OS-level reme
 do not offer it there as the fix.
 
 **A `PreToolUse` hook on `Bash|PowerShell` is a speed bump, not a boundary.** It can inspect the
-command string and deny the call, and a hook exiting 2 blocks the call before permission rules are
-evaluated. But it inspects that same command string, so it inherits the evasion surface of a Bash
-deny glob. Rank it below the sandbox and never describe it as protection.
+command string and deny the call, and a hook exiting 2 blocks a call an *allow* rule would otherwise
+have permitted. It cannot loosen a deny — see "Interaction with hook-based gates" below for the
+precise ordering. But it inspects that same command string, so it inherits the evasion surface of a
+Bash deny glob. Rank it below the sandbox and never describe it as protection.
 
 **Residual risk, stated plainly.** Where no OS-level boundary is available, a deny glob cannot keep a
-secret from a session that has shell execution. The durable control is to put the secret out of the
-session's reach — outside the working directory and `additionalDirectories`, in an OS credential
-store or a secrets manager, injected at use time rather than sitting in a readable file. Keep the
-deny rules above; do not report them as proof the file is protected.
+secret from a session that has shell execution. **Directory location is not a boundary**: a
+subprocess opens absolute paths, so moving the file outside the working directory and
+`additionalDirectories` changes nothing about who can read it — never present relocation as
+protection. The boundary that holds is the OS principal. A file readable by the account the session
+runs as is reachable, wherever it sits. So the durable control is that the secret is not sitting in a
+file that account can read at all: keep it in an OS credential store or a secrets manager and inject
+it at use time, scope it to a short-lived credential whose theft expires, or run the session as a
+different principal or inside a container that never receives it. Keep the deny rules above; do not
+report them as proof the file is protected.
 
 **Unverified — flag it rather than asserting either way.** No fetched page states whether reads
 through the **PowerShell tool** (`Get-Content`, `type`) are covered: the permissions page scopes the
@@ -123,7 +129,13 @@ still a finding.
 
 ## Interaction with hook-based gates
 
-A deny rule fires before any PreToolUse hook. When a project escalates an operation to a permission
-prompt via its own safety hook (e.g. a git-safety hook that turns `git branch -D` into an ask), adding
-a deny entry for the same pattern would suppress that prompt — audit such patterns against the
-project's own documented hook conventions rather than flagging their absence here.
+The ordering runs both ways, so state it precisely. A hook cannot loosen a rule: deny and ask rules
+are evaluated regardless of what a `PreToolUse` hook returns, so a matching deny blocks the call even
+when the hook returned `allow`, and a matching ask still prompts. A hook can tighten one: a hook that
+exits 2 stops the call before permission rules are evaluated, so it blocks even where an allow rule
+would have let the call through.
+
+The consequence for this baseline is the first direction. When a project escalates an operation to a
+permission prompt via its own safety hook (e.g. a git-safety hook that turns `git branch -D` into an
+ask), adding a deny entry for the same pattern suppresses that prompt — audit such patterns against
+the project's own documented hook conventions rather than flagging their absence here.

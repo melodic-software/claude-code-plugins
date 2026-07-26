@@ -20,7 +20,9 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   OS-level enforcement path, carrying the platform limit that it does not run on native Windows; a
   `PreToolUse` hook on `Bash|PowerShell` is explicitly a speed bump, not a boundary, because it
   inspects the same evadable command string; and where no OS-level boundary exists the durable control
-  is keeping the secret out of the session's reach at all. Enumerating shell readers as `Bash(cat *)`
+  is that the secret is not in a file the session's OS principal can read at all — directory location
+  is explicitly named as *not* a boundary, since a subprocess opens absolute paths and relocation
+  changes nothing about who can read the file. Enumerating shell readers as `Bash(cat *)`
   deny globs is named as a non-remedy, since upstream documents argument-constraining Bash patterns as
   fragile. Two facts are flagged unverified rather than asserted: whether PowerShell-tool reads
   (`Get-Content`, `type`) are covered at all, and the full membership of the recognized-command set,
@@ -40,6 +42,12 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   while the supplemental `cat … | jq` recipes are blocked in a project carrying the recommended deny —
   correctly so. Routing around that block with an interpreter one-liner is prohibited; the audit
   reports the file as not inspectable under the project's own rule instead.
+- **"Interaction with hook-based gates" now states the ordering in both directions.** "A deny rule
+  fires before any `PreToolUse` hook" was true only of the loosening direction. Deny and ask rules are
+  evaluated regardless of what a hook returns, so a hook cannot loosen them; a hook exiting 2 stops
+  the call before permission rules are evaluated, so it can tighten past an allow rule. The
+  consequence for this baseline — a deny entry suppressing a project hook's ask escalation — is
+  unchanged.
 
 ## [0.13.0]
 
