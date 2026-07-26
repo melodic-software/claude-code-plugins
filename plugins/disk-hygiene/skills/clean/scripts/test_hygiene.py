@@ -2319,6 +2319,13 @@ class HandoffVerifyTests(unittest.TestCase):
             self.assertTrue(junk.exists())
 
 
+class _ClosedPipeStderr(io.StringIO):
+    """A stderr stand-in whose writes fail the way a lost hook-host pipe does."""
+
+    def write(self, s: str) -> int:
+        raise BrokenPipeError(32, "Broken pipe")
+
+
 class GuardTests(unittest.TestCase):
     @staticmethod
     def python_command() -> str:
@@ -3659,11 +3666,20 @@ class GuardTests(unittest.TestCase):
     # stderr diagnostic, no stdout JSON, and exit 1 never reachable.
 
     def _invoke_guard_raw(
-        self, command: str, *, tool_name: str = "Bash", argv_extra: list[str] | None = None
+        self,
+        command: str,
+        *,
+        tool_name: str = "Bash",
+        argv_extra: list[str] | None = None,
+        stderr_stream: io.StringIO | None = None,
     ) -> tuple[int, str, str]:
         """Like `_invoke_guard`, but returns (exit_code, stdout, stderr) instead
         of asserting exit 0 — the exit-1/exit-2 regression tests need to see a
-        non-zero code and its diagnostic, not just the decision JSON."""
+        non-zero code and its diagnostic, not just the decision JSON.
+
+        `stderr_stream` substitutes the capture buffer, so a test can hand the
+        guard a stream whose writes fail the way a closed hook-host pipe does.
+        """
         self._set_kill_switch(True)
         argv = [str(SCRIPT_DIR / "destructive_guard.py"), *(argv_extra or [])]
         payload: dict[str, object] = {"tool_input": {"command": command}}
@@ -3671,7 +3687,7 @@ class GuardTests(unittest.TestCase):
             payload["tool_name"] = tool_name
         stdin = io.StringIO(json.dumps(payload))
         stdout = io.StringIO()
-        stderr = io.StringIO()
+        stderr = stderr_stream if stderr_stream is not None else io.StringIO()
         with (
             mock.patch("sys.stdin", stdin),
             redirect_stdout(stdout),
@@ -3903,6 +3919,38 @@ class GuardTests(unittest.TestCase):
         self.assertTrue(stderr.strip())
         self.assertEqual("", stdout)
         fake_timer.cancel.assert_called_once()
+
+    def test_main_denies_at_exit_2_when_the_diagnostic_write_fails(self) -> None:
+        """A failed diagnostic write must not cost the deny.
+
+        The deny is carried by the exit code; the stderr line only explains it.
+        If the hook host has closed or lost the stderr pipe, the `print` inside
+        the fail-closed handler raises `BrokenPipeError` and — unsuppressed —
+        escapes before `return 2` runs, so the process exits with a status
+        PreToolUse treats as non-blocking and the destructive command proceeds
+        ungated: the exact fail-open this handler exists to close, reintroduced
+        by its own diagnostic.
+        """
+        with mock.patch.object(
+            guard, "_decide", side_effect=RuntimeError("injected failure")
+        ):
+            exit_code, stdout, _stderr = self._invoke_guard_raw(
+                "rm -rf /tmp/example", stderr_stream=_ClosedPipeStderr()
+            )
+        self.assertEqual(2, exit_code)
+        self.assertNotEqual(1, exit_code)
+        self.assertEqual("", stdout)
+
+    def test_watchdog_fire_hard_exits_2_when_the_diagnostic_write_fails(self) -> None:
+        """Same protection on the timer thread, where the write would preempt
+        `os._exit(2)` — and an exception on a background thread never reaches
+        `main`'s exit-2 boundary at all, so the process would run on undenied."""
+        with (
+            mock.patch.object(guard.os, "_exit") as fake_exit,
+            redirect_stderr(_ClosedPipeStderr()),
+        ):
+            guard._watchdog_fire(1.0)
+        fake_exit.assert_called_once_with(2)
 
     def test_main_arms_watchdog_at_resolved_deadline_and_cancels_on_return(
         self,

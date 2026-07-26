@@ -39,6 +39,7 @@ those already caught by a narrower ``except OSError``).
 
 from __future__ import annotations
 
+import contextlib
 import json
 import math
 import os
@@ -870,6 +871,35 @@ def _watchdog_seconds() -> float:
     return min(value, _WATCHDOG_MAX_SECONDS)
 
 
+def _write_diagnostic(message: str) -> None:
+    """Write a deny diagnostic to stderr without ever preempting the deny.
+
+    The deny is carried by the exit code; this line only explains it. Writing
+    it is therefore best-effort, and the suppression below is the fail-closed
+    behavior rather than a swallowed error: if the hook host has closed or lost
+    the stderr pipe, ``print`` raises (``BrokenPipeError``, or ``ValueError`` on
+    an already-closed stream) from inside the very handler that is about to
+    deny — the exception escapes, ``return 2`` / ``os._exit(2)`` never runs, and
+    the process exits with something PreToolUse treats as non-blocking
+    (https://code.claude.com/docs/en/hooks), running the destructive command
+    ungated. Losing the message is acceptable; losing the deny is not.
+
+    On failure fd 2 is pointed at the null device, because a write failure can
+    leave data buffered and the interpreter's own shutdown flush of ``sys.stderr``
+    would then raise too — that failure exits 120, likewise non-blocking. Both
+    fallback steps are best-effort for the same reason as the write itself.
+    """
+    try:
+        print(message, file=sys.stderr, flush=True)
+    except BaseException:  # noqa: BLE001 -- deny must outrank the diagnostic; see docstring
+        with contextlib.suppress(BaseException):
+            null_fd = os.open(os.devnull, os.O_WRONLY)
+            try:
+                os.dup2(null_fd, sys.stderr.fileno())
+            finally:
+                os.close(null_fd)
+
+
 def _watchdog_fire(deadline: float) -> None:
     """Watchdog callback (background timer thread): deny fast, never hang silently.
 
@@ -879,13 +909,11 @@ def _watchdog_fire(deadline: float) -> None:
     guarantee "deny, with a diagnostic" once cooperative return is no longer
     an option.
     """
-    print(
+    _write_diagnostic(
         f"destructive_guard: internal deadline of {deadline:g}s exceeded; "
         f"denying by default. Raise {_WATCHDOG_ENV_VAR} (up to "
         f"{_WATCHDOG_MAX_SECONDS:g}s) if this guard legitimately needs longer "
-        "on this filesystem.",
-        file=sys.stderr,
-        flush=True,
+        "on this filesystem."
     )
     os._exit(2)  # noqa: SLF001 -- hard exit is the point; see docstring
 
@@ -1006,10 +1034,9 @@ def main() -> int:
             return 0
         return _decide(command, tool_name)
     except BaseException as exc:
-        print(
+        _write_diagnostic(
             f"destructive_guard: internal error, denying by default "
-            f"({type(exc).__name__}: {exc})",
-            file=sys.stderr,
+            f"({type(exc).__name__}: {exc})"
         )
         return 2
     finally:

@@ -85,6 +85,18 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
   opened as a pipe that is never written to or closed (a stalled read on the host running the suite,
   not only a Windows Win32-pipe late EOF, reproducing the general "blocked in read" shape without
   needing that platform specifically); 209 tests pass.
+- **A fifth fail-open path: the deny diagnostic could preempt the deny itself.** Both fail-closed
+  exits write a one-line explanation to stderr first, and both wrote it with a bare `print`. If the
+  hook host has closed or lost the stderr pipe, that `print` raises `BrokenPipeError` from inside the
+  very handler about to deny — the exception escapes before `return 2` in `main` or `os._exit(2)` in
+  `_watchdog_fire` runs, and the process exits with a status PreToolUse treats as non-blocking, so
+  the destructive command proceeds ungated. On the timer thread it is worse: an exception there never
+  reaches `main`'s exit-2 boundary at all. Both sites now route through `_write_diagnostic`, which
+  makes the write best-effort — the deny is carried by the exit code, and losing the message is
+  acceptable where losing the deny is not — and, on a failed write, points fd 2 at the null device so
+  the interpreter's own shutdown flush of a still-buffered stderr cannot raise either (that failure
+  exits 120, likewise non-blocking). Covered by two new `GuardTests` cases, one per exit site; 211
+  tests pass.
 - **`GuardTests` no longer reads an operator's own watchdog override as the default.** The deadline
   is overridable by environment variable — the guard's own timeout diagnostic tells operators to
   export it — so a value already exported in the shell running the suite leaked into every
