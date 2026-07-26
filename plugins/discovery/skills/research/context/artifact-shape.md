@@ -71,6 +71,16 @@ Adding a header *field* does — keep the header small enough that widening it s
 2. **`RESEARCH.md` stays the entry point.** Renaming it, or demoting it to one sidecar among several,
    breaks every consumer that was handed the declared filename.
 
+**A sub-slice satisfies both, and is the only sanctioned way to put two runs in one slice.** When a
+slice root is already occupied, or a parent is fanning out over several topics, each run writes its
+whole set — index and sidecars, under their normal names — into `<memory_dir>/<slug>/<topic-slug>/`.
+That is still inside the slice, so rule 1 holds; and the index inside it is still `RESEARCH.md`, so
+rule 2 holds. What is **not** sanctioned is renaming the index to dodge a collision: `RESEARCH-*.md`
+is the sidecar pattern, so a renamed index collides with its own sidecars and every consumer handed
+the declared filename gets the *other* run's artifact. The run reports the path it actually wrote,
+and the parent assigns sub-slices rather than letting workers pick — two workers choosing
+independently can choose the same one.
+
 A worktree that carries the index without its sidecars is strictly worse than a self-contained
 artifact, so any glob that ships `RESEARCH.md` must also ship `RESEARCH-*.md` and `*-checklist.md`.
 The topic-docs convention's `.worktreeinclude` recipe already does.
