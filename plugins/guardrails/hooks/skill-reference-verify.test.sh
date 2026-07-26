@@ -296,6 +296,37 @@ RC=$?
 assert_exit "bare-token hunk matching several lines → exit 0" 0 "$RC"
 assert_silent "ambiguous anchor is dropped, not unioned" "$OUT"
 
+# Same defect one level finer: both occurrences of the anchor are on ONE physical
+# line, so `grep` reports a single matching line and a line-count uniqueness check
+# sees nothing wrong. Inserting `legacy` into a line that already carried an
+# untouched reference must not report that reference — this call never wrote it.
+# The gate therefore counts OCCURRENCES, which subsumes counting lines.
+SAMELINE="$REPO/sameline.md"
+printf 'Run `/alpha:ghost-sameline` and note the sameline convention.\n' >"$SAMELINE"
+OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" <<<"$(edit_json "$SAMELINE" 'sameline')" 2>&1)
+RC=$?
+assert_exit "anchor occurring twice on one line → exit 0" 0 "$RC"
+assert_silent "two occurrences on a single line are ambiguous, not unique" "$OUT"
+
+# `replace_all` is the one shape where repetition is EXPECTED, not ambiguous:
+# every occurrence is a place this call edited, so uniqueness must not be
+# required or the guard goes silent on a genuine multi-site break. Built inline
+# rather than through edit_json — that helper is shared across guard suites and
+# gated by hook-utils-sync, so this suite's payload variant stays local to it.
+replall_json() {
+  MSYS_NO_PATHCONV=1 jq -n --arg fp "$1" --arg s "$2" \
+    '{tool_name:"Edit",tool_input:{file_path:$fp,new_string:$s,replace_all:true}}'
+}
+REPLALL="$REPO/replall.md"
+printf 'First `/alpha:ghost-one` here.\nSecond `/alpha:ghost-two` there.\n' >"$REPLALL"
+OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" <<<"$(replall_json "$REPLALL" 'ghost')" 2>&1)
+RC=$?
+assert_exit "replace_all Edit → exit 0" 0 "$RC"
+assert_contains "replace_all → first edited reference reported" "$OUT" \
+  "UNRESOLVED_SKILL: /alpha:ghost-one"
+assert_contains "replace_all → second edited reference reported" "$OUT" \
+  "UNRESOLVED_SKILL: /alpha:ghost-two"
+
 # A hunk that already carries a full command is scanned directly.
 OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" <<<"$(edit_json "$PARTIAL2" 'Run `/alpha:ghost-three` now.')" 2>&1)
 assert_contains "full-command hunk → scanned directly" "$OUT" \

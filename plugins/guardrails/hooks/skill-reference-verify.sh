@@ -66,8 +66,18 @@ esac
 # Diff-scope: verify only the content THIS tool call wrote, never re-read the
 # whole file from disk.
 TOOL=$(printf '%s' "$INPUT" | jq -r '.tool_name // empty' 2>/dev/null | tr -d '\r')
+# Edit's `replace_all` (documented at
+# https://code.claude.com/docs/en/tools-reference — Edit requires `old_string` to
+# occur exactly once, and `replace_all: true` is how Claude edits every occurrence
+# instead). Reconstruction needs it: with `replace_all` the same `new_string`
+# lands in several places on purpose, so several matches are the edit's own
+# footprint rather than an ambiguity. Absent or false on every ordinary Edit.
+REPLACE_ALL=false
 case "$TOOL" in
-Edit) SCAN_CONTENT=$(printf '%s' "$INPUT" | jq -r '.tool_input.new_string // empty' 2>/dev/null | tr -d '\r') ;;
+Edit)
+  SCAN_CONTENT=$(printf '%s' "$INPUT" | jq -r '.tool_input.new_string // empty' 2>/dev/null | tr -d '\r')
+  REPLACE_ALL=$(printf '%s' "$INPUT" | jq -r '(.tool_input.replace_all // false) | tostring' 2>/dev/null | tr -d '\r')
+  ;;
 Write) SCAN_CONTENT=$(printf '%s' "$INPUT" | jq -r '.tool_input.content // empty' 2>/dev/null | tr -d '\r') ;;
 *) exit 0 ;;
 esac
@@ -160,21 +170,26 @@ emit_refs() {
 # Recover bounded context: the edit is already applied by PostToolUse time, so
 # pull from disk only the lines the hunk's OWN TEXT UNIQUELY locates, scan those,
 # and keep only references whose plugin or skill segment contains one of the
-# hunk's word tokens. Two independent gates, and the first one is where the
-# diff-scope contract actually lives:
+# hunk's word tokens. Two gates, and the first is where diff-scope actually lives:
 #
-#   1. LOCATE by the hunk's own lines, and only where a line matches exactly once.
-#      Every line of new_string is on disk verbatim, so a unique match IS the line
-#      the edit landed in. A hunk line that matches several lines — most sharply
-#      when the whole hunk is one short word — cannot distinguish them, so it is
-#      dropped rather than unioned; unioning is exactly how a token-length anchor
-#      drags in an untouched reference elsewhere in the file.
+#   1. LOCATE by the hunk's own lines, and only where a line OCCURS exactly once
+#      in the file. Every line of new_string is on disk verbatim, so a unique
+#      occurrence IS where the edit landed. Anything repeated cannot say which
+#      copy that was, so it is dropped rather than unioned. Occurrences, not
+#      matching lines — two copies on one physical line are a single grep hit and
+#      would otherwise slip through. Exception: under `replace_all` every
+#      occurrence is a place this call edited, so all are kept.
 #   2. FILTER the references found there by the hunk's word tokens.
 #
 # Gate 2 alone is not sufficient and was never the guarantee: a token short
 # enough to occur in unrelated prose is also short enough to be a substring of an
 # untouched skill segment, so it would pass the reference through. Uniqueness at
 # gate 1 is what keeps the guard inside the diff.
+#
+# What this does NOT claim: the `replace_all` branch keeps every occurrence,
+# including one that pre-existed the edit and merely happens to read the same —
+# nothing in the payload separates those. Reconstruction is a best effort under an
+# advisory guard, not a proof that every reported line was written by this call.
 reconstruct_partial_edit() {
   [[ "$TOOL" == "Edit" && -f "$FILE" ]] || return 0
   # The token filter reads the hunk with any COMPLETE reference removed first. A
@@ -199,21 +214,35 @@ reconstruct_partial_edit() {
   local -a anchors=()
   mapfile -t anchors < <(printf '%s' "$SCAN_CONTENT" | grep -vE '^[[:space:]]*$' 2>/dev/null)
   ((${#anchors[@]})) || return 0
-  # An anchor is used ONLY when it locates exactly ONE line. Several matches mean
-  # the anchor cannot say which of them the edit landed in, and unioning them
-  # re-opens the very false positive line-anchoring exists to close: a hunk that
-  # is itself just `legacy` matches both the edited prose line and an untouched
-  # `` `/alpha:ghost-legacy` `` line, and the token filter — `legacy` being a
-  # substring of that skill segment — passes it straight through. So ambiguous
-  # anchors are dropped, not unioned. The cost is a missed advisory when an edit
-  # lands in a line duplicated verbatim elsewhere in the same file; for a
-  # detect-then-judge guard that is the right side of the trade, which is
-  # degraded far worse by being wrong when it speaks than by staying quiet.
-  local anchor ctx=""
+  # An anchor is used ONLY when it OCCURS exactly once in the file — occurrences,
+  # not matching lines. Counting lines is not enough: two occurrences on one
+  # physical line are one grep hit, and that is a real shape — inserting `legacy`
+  # into a line that already carries an untouched `` `/alpha:ghost-legacy` ``
+  # leaves the anchor twice on that line, and reporting the reference would be an
+  # advisory about text this call never wrote. Occurrence uniqueness subsumes line
+  # uniqueness (one occurrence can only be on one line), so it is the only gate.
+  #
+  # A non-unique anchor cannot say WHICH occurrence the edit landed on, so it is
+  # dropped rather than unioned. Cost: a missed advisory when an edit lands in
+  # text that repeats verbatim elsewhere in the file. For a detect-then-judge
+  # guard that is the right side of the trade — it is degraded far worse by being
+  # wrong when it speaks than by staying quiet.
+  local anchor occ ctx=""
   local -a hits=()
   for anchor in "${anchors[@]}"; do
     mapfile -t hits < <(grep -F -- "$anchor" "$FILE" 2>/dev/null)
-    ((${#hits[@]} == 1)) || continue
+    ((${#hits[@]})) || continue
+    # `replace_all` is the one case where repetition is expected rather than
+    # ambiguous: every occurrence is a place THIS call edited, so all of them are
+    # in scope and uniqueness must not be required. Accepted narrowing — a line
+    # that independently contained `new_string` and was never touched is kept too,
+    # since nothing in the payload distinguishes it from an edited one.
+    if [[ "$REPLACE_ALL" == "true" ]]; then
+      for occ in "${hits[@]}"; do ctx+="$occ"$'\n'; done
+      continue
+    fi
+    occ=$(grep -o -F -- "$anchor" "$FILE" 2>/dev/null | grep -c .)
+    ((occ == 1)) || continue
     ctx+="${hits[0]}"$'\n'
   done
   [[ -n "$ctx" ]] || return 0
