@@ -187,7 +187,7 @@ and (3) the `Prior session: <UUID>` line, which — together with the `type: han
 but is not required of prompt-only output, so consumers treat it as corroboration, never a
 required key.
 
-**The recoverable unit is the rails prompt PLUS the below-rail `/loop` re-arm note.** Every other
+**The recoverable unit is the rails prompt PLUS every below-rail `/loop` re-arm message.** Every other
 element of a resume prompt sits between the rails, so recovering the copy region recovers the whole
 contract — `/goal` included, since it is the first line inside the block. The `/loop` re-arm is the
 one exception, and not by choice: a command is recognized only at a message's start
@@ -196,8 +196,11 @@ lives below the bottom rail, outside the copy region. A recovery that surfaces o
 between the rails hands back a continuation that runs once and drops the recurring behavior — the
 exact failure the re-arm rule exists to prevent, reintroduced one layer down. So the re-arm note
 that directly follows the bottom rail is part of what a recovery must surface, not commentary it may
-discard. It is recovered as a **shape-matched, bounded** element — the note's own wording anchored to
-the bottom rail, never "whatever follows the rail" — and it carries the operator's original prompt
+discard. Nor is one of them enough: the rule above emits one re-arm message per loop left standing,
+so the recoverable unit is however many the producer wrote, and a consumer that stops at the first
+loses the rest exactly as quietly. It is recovered as a **shape-matched, bounded** element — the
+note's own wording anchored to the bottom rail, never "whatever follows the rail" — and it carries
+the operator's original prompt
 verbatim, so the same redaction pass applies to it as to everything else surfaced from a transcript.
 
 Changing this prompt/marker format is a

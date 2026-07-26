@@ -1,5 +1,24 @@
 # Changelog — session-flow plugin
 
+## [0.17.9]
+
+### Fixed
+
+- **The multi-loop re-arm landed on the producer only, so recovery and the handoff checklists still
+  spoke of one loop.** 0.17.8 taught `save-point.md` to emit "one re-arm message per loop left
+  standing", but the surfaces that consume that output were not moved with it: `find-handoff`'s
+  capture step asked for "the re-arm instruction" and matched a single `send /loop …` shape, its
+  confirm gate surfaced the note "when one was found", and both of `handoff`'s enforcement
+  checklists still read "if a loop is active, a below-the-rails note". A handoff written with three
+  surviving loops therefore recovered one of them and dropped two after `/clear` — the producer-side
+  failure 0.17.8 fixed, reintroduced one layer down in the consumer, which is the same shape as the
+  two recovery defects already fixed in this series. The capture now keeps matching past the first
+  hit, ending at the first line below the rail that does *not* match the note's wording rather than
+  at the first that does; the confirm gate surfaces all of them; the redaction invariant and the
+  *does NOT do* list are pluralized so they cannot be read as licensing a single-note recovery; and
+  `save-point.md`'s own detection contract names the recoverable unit as every re-arm message the
+  producer wrote, so the two sides state one rule.
+
 ## [0.17.8]
 
 ### Fixed
