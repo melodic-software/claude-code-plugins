@@ -28,11 +28,14 @@ jobs:
   # churn.
   # Docs-linting lane. Markdownlint / typos / editorconfig / gitleaks /
   # eol-renormalize / comment-hygiene / machine-specific-paths read the changed
-  # docs themselves and run on every diff. actionlint and the four
-  # check-jsonschema steps read fixed, path-scoped inputs (.github/workflows/**
-  # and the named manifests) that a diff confined to the docs-only allowlist
-  # (scripts/docs-only-paths.txt) cannot touch, so on such a diff they report an
-  # honest evaluated-and-not-applicable success. ShellCheck and exec-bit are NOT
+  # docs themselves and run on every diff. actionlint, the four
+  # check-jsonschema steps, and the manifest duplicate-key detector (which
+  # reads the exact same manifest files as the schema steps, just via
+  # object_pairs_hook instead of a schema — see #1498) read fixed, path-scoped
+  # inputs (.github/workflows/** and the named manifests) that a diff confined
+  # to the docs-only allowlist (scripts/docs-only-paths.txt) cannot touch, so
+  # on such a diff they report an honest evaluated-and-not-applicable success.
+  # ShellCheck and exec-bit are NOT
   # gated: both scan the whole repo extension- and directory-agnostically
   # (ShellCheck lints every tracked *.sh/*.bash, exec-bit flags every tracked
   # shebang file recorded 100644), so a shell/shebang file added under an
@@ -122,6 +125,23 @@ jobs:
         with:
           schemafile: https://json.schemastore.org/claude-code-plugin-manifest.json
           files: plugins/*/.claude-plugin/plugin.json
+
+      # JSON Schema validates the ALREADY-PARSED document, so it structurally
+      # cannot see a duplicate object key -- by the time a schema runs, the
+      # earlier member is already gone (every JSON parser resolves a repeated
+      # key last-wins). #1492 shipped plugins/skill-quality/.claude-plugin/
+      # plugin.json with two "version" members through this exact schema step
+      # green. scripts/check-manifest-duplicate-keys.py reads the raw
+      # key/value pairs via object_pairs_hook, BEFORE that collapse, so it
+      # catches what the schema step next to it cannot. See #1498.
+      - name: Test the manifest duplicate-key detector
+        run: bash scripts/check-manifest-duplicate-keys.test.sh
+      - name: Detect duplicate keys in plugin/marketplace manifests
+        id: duplicate_keys
+        if: steps.scope.outputs.docs_only != 'true'
+        continue-on-error: true
+        run: python3 scripts/check-manifest-duplicate-keys.py
+
       - name: Validate dependabot.yml
         id: dependabot_schema
         if: steps.scope.outputs.docs_only != 'true'
@@ -190,7 +210,7 @@ jobs:
 
       - name: Report docs-irrelevant checks not applicable to a docs-only diff
         if: steps.scope.outputs.docs_only == 'true'
-        run: echo "Diff is within the docs-only allowlist (scripts/docs-only-paths.txt); the path-scoped linters (actionlint, check-jsonschema x4) cannot be affected — reporting success for them. ShellCheck and exec-bit scan the whole repo and stay unconditional."
+        run: echo "Diff is within the docs-only allowlist (scripts/docs-only-paths.txt); the path-scoped linters (actionlint, check-jsonschema x4, the manifest duplicate-key detector) cannot be affected — reporting success for them. ShellCheck and exec-bit scan the whole repo and stay unconditional."
 
       - name: Test hygiene result aggregation
         run: scripts/aggregate-hygiene-results.sh --self-test
@@ -217,6 +237,7 @@ jobs:
             actionlint=${{ steps.scope.outputs.docs_only == 'true' && 'success' || steps.actionlint.outcome }}
             marketplace-schema=${{ steps.scope.outputs.docs_only == 'true' && 'success' || steps.marketplace_schema.outcome }}
             plugin-schema=${{ steps.scope.outputs.docs_only == 'true' && 'success' || steps.plugin_schema.outcome }}
+            manifest-duplicate-keys=${{ steps.scope.outputs.docs_only == 'true' && 'success' || steps.duplicate_keys.outcome }}
             dependabot-schema=${{ steps.scope.outputs.docs_only == 'true' && 'success' || steps.dependabot_schema.outcome }}
             workflow-schema=${{ steps.scope.outputs.docs_only == 'true' && 'success' || steps.workflow_schema.outcome }}
             exec-bit=${{ steps.exec_bit.outcome }}
