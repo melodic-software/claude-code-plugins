@@ -27,10 +27,14 @@ Entries below `0.9.0` were released under the plugin's former name, `re-anchor`.
   the pair discriminates those two causes — but the docs tie removal to the env-var path only
   and say nothing about the server-side rollout, so no branch is conclusive and shipping it as
   a gate would silently downgrade a working sweep. Stage 2 is the decider: an inheritance-proof
-  canary folded into the lowest-ranked member's real audit, so it costs nothing the batch would
-  not have spent. The runbook specifies the proof question's *properties* rather than a fixed
-  question, and the main thread **fails closed** — absent, ambiguous, or unverifiable proof
-  counts as not inherited.
+  canary folded into the real audit of the member with the lowest `discipline-batch-rank` value,
+  so it costs nothing the batch would not have spent and that member is never dispatched twice.
+  The runbook specifies the proof question's four *properties* — the answer exists only in
+  conversation history, the prompt neither contains nor paraphrases it, it keys on ordinary
+  inherited material, and it cannot be guessed — rather than a fixed question, and the main
+  thread **fails closed**: absent, ambiguous, or unverifiable proof counts as not inherited. A
+  conversation too thin to supply such a detail does not lose its audit — the main thread mints
+  a high-entropy value into the transcript before the canary spawns and asks for it back.
 
 - **`sweep-all`: the degraded mode existed only in `setup`, a file a sweep never loads
   (`#1621`).** `setup` declared "where it is off, only the session-start posture digest runs"

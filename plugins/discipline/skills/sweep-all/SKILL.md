@@ -114,8 +114,15 @@ question. All four are required:
   verbatim string, an exact count, a specific identifier, or several
   independent details together.
 
-If the conversation is too thin for any question to satisfy all four, it is
-also too thin to audit: report that and run mode 1 instead.
+When the conversation offers no detail meeting all four — a thin session that
+opened straight into a full batch over an already-dirty tree — do not degrade.
+**Mint one.** "A fork inherits everything the main session has at the moment it
+spawns" (<https://code.claude.com/docs/en/sub-agents>), so emit a fresh
+high-entropy value into the transcript as an ordinary main-thread tool result
+BEFORE the canary spawns, and ask for it back. It is unguessable by
+construction, exists in no file, and a non-inheriting subagent cannot produce
+it — so the proof works at any conversation length, and thin history never
+costs the user the audit they asked for.
 
 **Verify on the main thread, and fail closed.** Check the answer against what
 this context knows. Absent, ambiguous, or unverifiable proof counts as NOT
