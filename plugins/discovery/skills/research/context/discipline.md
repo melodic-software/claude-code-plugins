@@ -76,6 +76,39 @@ The per-phase minimums (3+ standard, 6+ broad-topic) are FLOORS to start from, n
 
 Depth scales to the topic's actual open-question surface, not to a higher flat floor. A simple topic with 3 gaps runs ~3 Phase 2 queries; a gnarly one with 9 gaps runs 9.
 
+## Corpus enumeration (Phase 0 recipe)
+
+Query scaling above answers *how deep*. This answers *how wide*, and it is the other half: a run can hit every query floor, close every numbered gap, and still have silently covered eleven of a plugin's thirty-nine skills. Gaps are found by searching; a bounded corpus is knowable before searching, and anything knowable up front that is discovered late was skipped.
+
+**Step 1 — decide whether the corpus is bounded.** Bounded means finite and enumerable *before* the first query: every skill in a plugin, every endpoint in an API reference, every rule in a linter catalogue, every release between two versions, every vendor named in a comparison. Unbounded means there is no such set — "is this approach sound?", "what are the tradeoffs". Record the verdict in one line either way; an unrecorded verdict becomes an unexamined assumption that the corpus was unbounded, which is the convenient answer.
+
+**Step 2 — enumerate from an EXHAUSTIVE surface.** The enumeration source decides the ledger's ceiling, so it must be complete by construction, not by luck:
+
+| Corpus | Exhaustive surface | NOT exhaustive |
+|---|---|---|
+| Pages of a doc site | `sitemap.xml` / `sitemap_index.xml` | `llms.txt` (curated, deliberately partial), site search |
+| Files in a repo | `git ls-tree`, `gh api .../contents` | a code-search hit list |
+| Releases / versions | `gh api repos/<o>/<r>/releases`, tag list | a changelog page's visible entries |
+| API surface | the reference's own index or an OpenAPI document | search results for endpoint names |
+| A named finite set (vendors, options) | the naming source itself — the prompt, the comparison, the spec | "top N" listicles |
+
+A ledger built from search results inherits exactly the blind spot the ledger exists to close. When no exhaustive surface exists, say so in the ledger — the corpus is then *unbounded in practice*, and coverage is reported as a Gap rather than claimed.
+
+**Step 3 — write the ledger before the first query**, into the same memory slice as the artifact, as `research-checklist.md`:
+
+```markdown
+| # | Corpus item | Depth criterion | Done |
+|---|-------------|-----------------|------|
+| 1 | skills/foo/SKILL.md | frontmatter + routing section read end to end | [ ] |
+| 2 | skills/bar/SKILL.md | frontmatter + routing section read end to end | [ ] |
+```
+
+**The depth criterion is per-item and fixed at enumeration time.** Per-item, because "covered" differs across a corpus — a config reference needs its defaults table read; a 900-line spec needs one section. Fixed up front, because a criterion written after the results are in drifts down to whatever the run managed, which is self-certification with extra steps. Write criteria you can grade from the artifact: "its `frontmatter` section read end to end", never "researched" or "understood".
+
+**Step 4 — mark rows as their own criterion is met**, and let the script grade the ledger: `${CLAUDE_PLUGIN_ROOT}/scripts/check-coverage-complete.sh <ledger>` exits 0 only when every row is marked, non-zero otherwise, and 2 when the ledger cannot be parsed at all. Outcome-gate criterion 11 cites that exit status rather than a reading of the table, because the context most motivated to call the table finished is the one that would be reading it.
+
+**Narrowing is legitimate; quiet narrowing is not.** If enumeration turns up more than the budget covers, cut the corpus explicitly and record what was cut and why — a 12-row ledger over a 40-item corpus is a scoped answer a reader can act on, while 40 rows with 28 unmarked is an unfinished one. Enumerating only what you already intended to reach produces a ledger that passes the gate and means nothing.
+
 ## Tool-ecosystem Phase 3 fallback
 
 Mandate: when no preferred-source author covers the topic's domain (typical for tool-ecosystem topics — AI coding tools, MCP servers, CI-platform specifics), Phase 3 MUST cite all three:

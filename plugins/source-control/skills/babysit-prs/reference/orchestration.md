@@ -754,7 +754,7 @@ Each worker must:
 - **auto-resolve only pre-push-outdated threads.** A worker may resolve a review thread only when
   that thread was already `isOutdated` in the pre-push snapshot it was dispatched with, and only
   through `bash "${CLAUDE_PLUGIN_ROOT}/bin/source-control-babysit-resolve-thread" owner/repo#42 --allowed-owners <watched-owners>
-  --autonomous --resolve` pinned with `--thread-id`, `--expected-comment-count`, and
+  --extra-bot-logins <extra-bot-logins> --autonomous --resolve` pinned with `--thread-id`, `--expected-comment-count`, and
   `--expected-last-updated` taken from that same snapshot (`safety.md`, thread-pin pair rule). A
   thread that became outdated only because of the worker's own push has not thereby been addressed
   — the push moving the diff under a finding does not answer the finding — so it is never
@@ -831,8 +831,9 @@ Never refresh branches, post review triggers, merge, enable auto-merge, force-pu
 GitHub settings, or auto-fix human-authored feedback — classify, reply with evidence, and
 surface human items instead. You may resolve a review thread only if it appears in the pre-push
 outdated-thread list above, via bash "${CLAUDE_PLUGIN_ROOT}/bin/source-control-babysit-resolve-thread"
-owner/repo#42 --allowed-owners <watched-owners> --autonomous --resolve --thread-id <id>
---expected-comment-count <n> --expected-last-updated <ts>, with the pins taken from that list; a
+owner/repo#42 --allowed-owners <watched-owners> --extra-bot-logins <extra-bot-logins> --autonomous
+--resolve --thread-id <id> --expected-comment-count <n> --expected-last-updated <ts>, with the pins
+taken from that list; a
 thread that becomes outdated only because of your own push is not addressed by that push — leave
 it. Never arm a background monitor or poll loop waiting on CI — check once, report exactly what
 you found (including "still pending"), and stop. Advisory (P2/nonblocking) fix rounds for this

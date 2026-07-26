@@ -1,8 +1,8 @@
 # Topic-docs placement — where discovery artifacts land
 
-How `/discovery:explore`, `/discovery:explore-deep`, `/discovery:research`, and
-`/discovery:research-deep` resolve where generated documents land in a consuming repo. These skills
-read this one document; none bakes its own paths.
+How `/discovery:explore`, `/discovery:research`, and `/discovery:research-deep` — and the
+`discovery:explorer` / `discovery:researcher` agents they dispatch — resolve where generated
+documents land in a consuming repo. These skills read this one document; none bakes its own paths.
 
 Implements the topic-docs convention:
 <https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/topic-docs/README.md>.
@@ -19,12 +19,13 @@ Discovery writes **memory tier only** — working documents nothing downstream e
 
 | Artifact | Location |
 |---|---|
-| `EXPLORE.md` (+ `EXPLORE-<scope>.md` sidecars and overflow) | `<memory_dir>/<slug>/` (default `.work/<slug>/`) — never committed |
-| `RESEARCH.md` (+ `RESEARCH-<topic>.md` sidecars and overflow) | `<memory_dir>/<slug>/` — never committed |
+| `EXPLORE.md` (+ `EXPLORE-<section>.md` sidecars and overflow) | `<memory_dir>/<slug>/` (default `.work/<slug>/`) — never committed |
+| `RESEARCH.md` (+ `RESEARCH-<section>.md` sidecars and overflow) | `<memory_dir>/<slug>/` — never committed |
 
 Discovery never writes the contract tier; the `contract_tier` setting does not change where its
-artifacts land. `/discovery:explore-deep` and a Tier-2 research subagent operate under the
-contract's **non-interactive / forked mode** rule.
+artifacts land. The dispatched `discovery:explorer` / `discovery:researcher` agents, and a Tier-2
+`research-deep` subagent, all operate under the contract's **non-interactive / forked mode** rule:
+they cannot ask, so any assumed destination is flagged in the return rather than silently adopted.
 
 ## Visibility (contract ≥ 2.0.0)
 

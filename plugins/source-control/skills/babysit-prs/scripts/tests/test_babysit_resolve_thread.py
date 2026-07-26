@@ -5,6 +5,13 @@ OPENING author is human, gated through the shared `is_bot` authorship
 classifier -- not `botOnly` (every comment is a bot), which mislabels a
 bot-opened thread carrying a later human reply as a human-thread action that
 never happened.
+
+Golden regression for #637: both `is_bot` call sites -- `project_thread`'s
+`botOnly` computation and the `humanThreadsActed` counter -- must thread the
+caller's `extra_bot_logins` through, consistent with every other classifier
+call site (e.g. `actor_kind` in `babysit_classify.py`). Before the fix, an
+operator-registered non-structural bot account (no `[bot]` suffix, API
+`__typename` reports `User`) was miscategorized at both sites.
 """
 
 from __future__ import annotations
@@ -85,6 +92,64 @@ class HumanThreadsActedCounter(unittest.TestCase):
             ["owner/repo#1", "--allowed-owners", "owner", "--include-human"],
         )
         self.assertEqual(result["eligibleCount"], 2)
+        self.assertEqual(result["humanThreadsActed"], 1)
+
+
+def _comment(login: str, typename: str) -> dict[str, object]:
+    return {"author": {"login": login, "__typename": typename}}
+
+
+class ProjectThreadExtraBotLogins(unittest.TestCase):
+    """#637 site 1: `project_thread`'s `botOnly` computation (L117-120)."""
+
+    def test_configured_login_is_bot_only(self) -> None:
+        record = {
+            "id": "T1",
+            "comments": [_comment("svc-account", "User")],
+            "comments_truncated": False,
+        }
+        projected = rt.project_thread(
+            record, extra_bot_logins=frozenset({"svc-account"})
+        )
+        self.assertTrue(projected["botOnly"])
+
+    def test_unconfigured_login_is_not_bot_only(self) -> None:
+        # Same non-structural account, but the caller never registered it --
+        # falls back to structural detection alone and is correctly a human
+        # thread.
+        record = {
+            "id": "T1",
+            "comments": [_comment("svc-account", "User")],
+            "comments_truncated": False,
+        }
+        projected = rt.project_thread(record)
+        self.assertFalse(projected["botOnly"])
+
+
+class HumanThreadsActedExtraBotLogins(unittest.TestCase):
+    """#637 site 2: the `humanThreadsActed` counter's `is_bot` call (L477)."""
+
+    def test_configured_login_excluded_from_human_count(self) -> None:
+        # A non-structural bot account, pre-classified botOnly=True (as
+        # project_thread would produce once site 1 is fixed) so it is
+        # eligible without --include-human. With --extra-bot-logins naming
+        # it, the opening-author is_bot check must also recognize it as a
+        # bot and exclude it from humanThreadsActed.
+        result = _run(
+            [_thread("T1", "svc-account", "User", bot_only=True)],
+            ["owner/repo#1", "--allowed-owners", "owner", "--extra-bot-logins", "svc-account"],
+        )
+        self.assertEqual(result["eligibleCount"], 1)
+        self.assertEqual(result["humanThreadsActed"], 0)
+
+    def test_unconfigured_login_counts_as_human(self) -> None:
+        # Same account, but the caller never registered it -- the counter
+        # falls back to structural detection alone and correctly counts it.
+        result = _run(
+            [_thread("T1", "svc-account", "User", bot_only=True)],
+            ["owner/repo#1", "--allowed-owners", "owner"],
+        )
+        self.assertEqual(result["eligibleCount"], 1)
         self.assertEqual(result["humanThreadsActed"], 1)
 
 

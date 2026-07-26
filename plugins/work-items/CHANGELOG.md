@@ -3,6 +3,55 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.25.2]
+
+### Fixed
+
+- **`track start` suggests a branch based on the remote's OWN default branch.** Both branch-switch
+  suggestions emitted `git checkout -b <type>/<N>-<slug> origin/main`, hardcoding a default-branch
+  name into a forge-agnostic skill: on a repo whose default branch is `master`, `trunk`, or
+  `develop`, the user was handed a command that either fails or silently bases the work on the wrong
+  ref. The existing-branch check now resolves `BASE_REF` by asking the REMOTE first
+  (`git ls-remote --symref origin HEAD`), falling back to `refs/remotes/origin/HEAD` only when the
+  remote is unreachable: that local symbolic ref is a cache no clone refreshes on its own, so a repo
+  that renamed its default branch keeps answering with the old name, and a `git remote add` +
+  `git fetch` clone never has it at all. The resolved name is remote-controlled input on its way
+  into a command the user pastes, and Git accepts branch names carrying shell metacharacters
+  (`main;id`), so it is accepted only against a conservative branch-name charset and refused —
+  never escaped — otherwise. `ls-remote` can also name a branch this clone has never fetched, whose
+  `origin/<name>` would not resolve; that is fetched once and dropped if it still misses. Neither
+  rung guesses a literal: whenever the resolution ends empty the suggestion is emitted with no
+  start-point and the unresolved default branch is stated, rather than reintroducing the assumption
+  under a different name. `templates/checklist.md`, which
+  `/work-items:work` copies verbatim for every run, said "from origin/main" and would have
+  contradicted this in the agent's own working ledger; it now names the resolved base.
+  Both suggestions emit `<base-ref>` — a placeholder the agent substitutes with the resolved value,
+  like `<type>` / `<N>` / `<slug>` beside it. Emitting the shell variable itself would have shipped
+  a broken command: the suggestion is pasted into the USER's terminal, which never saw the agent's
+  assignment, so `"$BASE_REF"` would expand to an empty pathspec. Surfaced by `portability-lint`,
+  which reads the whole file once the file is touched.
+
+## [0.25.1]
+
+### Documented
+
+- **`reclaim` classifier denial is now a documented, non-blocking condition (`#1381`).** A
+  work-loop self-observation found the seam `reclaim` verb refused by the Claude Code auto-mode
+  classifier while the sibling `claim` verb on the same script was not, with neither verb carrying
+  an explicit `permissions.allow`/`deny` rule — a harness-level tool-call denial that produces no
+  script exit code, distinct from the existing exit-`6` capability-unsupported case.
+  All three `reclaim` callers — `skills/work/SKILL.md` "Step 0", `skills/track/actions/start.md`,
+  and `skills/track/actions/audit.md` — now instruct treating it the same as exit `6` (report once,
+  skip, proceed; never retry, never self-widen permissions). `start` still catches a live foreign
+  lease through `claim`'s exit-`7` back-off; `audit` reports the stale-claim pass as **skipped**
+  rather than as zero stale claims, since a denied call checked nothing.
+  `tools/work-item-tracker/CONTRACT.md` "Exit codes" now notes this out-of-band failure mode
+  explicitly. `reference/permission-preflight.md` records the finding and flags whether an explicit
+  allow rule would bypass the classifier for this command shape as an open, unverified question
+  (official docs describe allow rules bypassing the classifier by default, but also describe an
+  unspecified "arbitrary-code-execution patterns" carve-out that still routes through it) — any
+  operator-side permission-floor fix needs that confirmed first.
+
 ## [0.25.0]
 
 ### Added

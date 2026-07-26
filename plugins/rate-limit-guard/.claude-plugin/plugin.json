@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "rate-limit-guard",
-  "version": "0.2.1",
+  "version": "0.3.1",
   "description": "Shared rate-limit guard for loop lanes: a statusline wrapper tees the subscription rate-limit windows to a fixed machine-scope file, a StopFailure hook records rate-limit stops reactively, and a reader contract fixes how consuming sessions pause and resume.",
   "author": {
     "name": "Melodic Software",

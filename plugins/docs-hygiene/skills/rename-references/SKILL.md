@@ -131,7 +131,7 @@ Paths skipped from sweeps automatically:
 - **Self-reference in plan docs** — the active plan/work-notes document mentions the rename pair as part of *documenting* the migration. Auto-excluded; never modify.
 - **Concurrent sessions** — Edit tool's read-before-write guard catches racing edits. If guard fails, report to user and abort.
 - **Word-boundary trap** — `confirm` inside `confirmation` MUST NOT match. All bare-token patterns use `\b`.
-- **Slash-token specificity** — `/confirm` should match but not `/confirmation` or `path/confirm`. Use `\B/<old>\b` (non-word-boundary before slash, word-boundary after).
+- **Slash-token specificity** — `/confirm` should match but not `/confirmation`, `/confirm-changes`, or `path/confirm`. Use `\B/<old>([^\w-]|$)` (non-word-boundary before the slash; a CONSUMED terminator after that excludes a hyphen). A trailing `\b` is not enough: it treats a hyphen as a boundary, so it matches inside kebab-case sibling commands — and Form 1 is Certain, so that auto-applies. The consumed character is not part of the reference.
 - **Frontmatter trailing newline** — YAML frontmatter description strings can span lines. Patterns must handle multi-line. Use `multiline: true` on the Grep tool.
 - **Renames with overlap** — `test` → `test e2e` is a substring expansion. Apply most-specific match first, mark already-edited regions to prevent double-edit.
 - **Pattern false negative** — if Phase 6 re-sweep reveals a NEW syntactic form, that's a feature gap. Add the pattern to `context/patterns.md`, re-iterate. Do NOT silently apply.

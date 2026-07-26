@@ -244,11 +244,45 @@ bash "${CLAUDE_PLUGIN_ROOT}/bin/source-control-babysit-resolve-thread" <args>
 ```
 
 Launching the wrapper by path still runs the wrapper itself, so every wrapper guard stays intact
-— it is not a guard-dodging re-spelling (only invoking the raw Python is). The bundled wrappers'
-bare names are not on the Bash tool's `PATH`, so a bare `source-control-babysit-merge …` fails
-`command not found`; the `${CLAUDE_PLUGIN_ROOT}/bin/` path — resolved exactly as the sibling
-`${CLAUDE_PLUGIN_ROOT}/scripts/` invocations are — is the reliable form. Every command spelled
-below as `source-control-babysit-<x> …` is launched this way.
+— it is not a guard-dodging re-spelling (only invoking the raw Python is).
+
+Two facts about the wrappers' bare names, both load-bearing:
+
+- **Bare-name resolution is unreliable, not absent.** A plugin's `bin/` reaches the Bash tool's
+  `PATH` only through the session shell snapshot's final `export PATH=` line; when that line does
+  not land, every enabled plugin's `bin/` goes with it and a bare `source-control-babysit-merge …`
+  fails `command not found`
+  ([anthropics/claude-code#68066](https://github.com/anthropics/claude-code/issues/68066)). The
+  loss is per-session and silent, so a bare name that resolves today can be gone next session.
+- **The path form cannot match a bare-name allow rule.** Before matching Bash rules Claude Code
+  strips only a fixed wrapper set — `timeout`, `time`, `nice`, `nohup`, `stdbuf`, `command`,
+  `builtin`, `noglob`, and bare `xargs` ([permissions](https://code.claude.com/docs/en/permissions)).
+  `bash` is not among them, so `bash "…/bin/source-control-babysit-merge" …` matches as a `bash`
+  command and never satisfies a pre-approved `Bash(source-control-babysit-merge:*)`. That rule does
+  not cover these invocations, and cannot until bare-name resolution is dependable enough to invoke
+  bare — so **what happens next is the permission mode's call, not the allow rule's:**
+  - **In a mode that prompts** — Manual and accept-edits, and plan mode only on its no-classifier
+    branch — expect a per-call permission prompt. It is expected behavior, not a misconfiguration.
+    Plan mode still *runs* shell commands (it blocks source edits, not commands), but when auto mode
+    is available and `useAutoModeDuringPlan` is on, which is the default, the classifier reviews
+    them "instead of prompting you"; only otherwise do commands outside the read-only set prompt
+    ([plan mode](https://code.claude.com/docs/en/permission-modes#analyze-before-you-edit-with-plan-mode)).
+  - **In auto mode, expect no prompt.** Auto mode "lets Claude execute without routine permission
+    prompts", routing uncovered actions to a classifier that approves or blocks them
+    ([permission modes](https://code.claude.com/docs/en/permission-modes#eliminate-prompts-with-auto-mode)).
+    So a merge or thread-resolution call can be **denied without ever surfacing** — do not wait on a
+    prompt that will not arrive; read the denial in `/permissions` → **Recently denied**. Only an
+    explicit `permissions.ask` rule still forces a prompt in auto mode.
+
+  A narrow allow rule would not rescue this even if one matched: narrow Bash allow rules do carry
+  into auto mode and resolve before the classifier, but `autoMode.classifyAllShell: true` suspends
+  every one of them while auto mode is active
+  ([auto-mode config](https://code.claude.com/docs/en/auto-mode-config#route-all-shell-commands-through-the-classifier)).
+
+The `${CLAUDE_PLUGIN_ROOT}/bin/` path — resolved exactly as the sibling
+`${CLAUDE_PLUGIN_ROOT}/scripts/` invocations are — is nonetheless the form to use: it is the only
+one that runs in both `PATH` states. Every command spelled below as `source-control-babysit-<x> …`
+is launched this way.
 
 Capture the wrapper's output first, then parse its JSON in a *separate* step — never pipe the
 wrapper into an interpreter (`… | python`, `… | jq`): an interpreter-in-pipeline trips the
@@ -257,7 +291,14 @@ auto-mode safety classifier and blocks the call before the wrapper runs.
 - Both wrappers **fail closed**: invoked without `--allowed-owners`, they exit `3` and refuse to
   act. The read-only forms are `source-control-babysit-merge owner/repo#42 --allowed-owners
   <watched-owners>` (merge-readiness gate) and `source-control-babysit-resolve-thread
-  owner/repo#42 --allowed-owners <watched-owners>` (thread list).
+  owner/repo#42 --allowed-owners <watched-owners> --extra-bot-logins <extra-bot-logins>`
+  (thread list).
+- **`--extra-bot-logins <extra-bot-logins>` rides on every resolve-thread form**, listing and
+  mutating alike, whenever `babysit_extra_bot_logins` is configured. Bot classification is what
+  decides which threads the resolver may touch at all, and structural detection cannot see a
+  registered non-structural bot account (no `[bot]` suffix, API `__typename` of `User`); omitting
+  the flag silently reclassifies that account's threads as human and skips them in worker tier.
+  Omit the flag only when the key is unset.
 - The merge wrapper mutates only with `--merge --expected-head <post-push-head-sha> --method
   <merge-method>`, and rejects `--allow-unpinned-head` outright — there is no unpinned merge. The
   expected-head pin semantics live in `SKILL.md`; do not re-derive them here.
@@ -504,13 +545,13 @@ assessment. Pin each vetted thread individually (the wrapper accepts exactly one
 per invocation; issue one pinned command per thread) with the thread-pin pair rule above:
 
 ```text
-bash "${CLAUDE_PLUGIN_ROOT}/bin/source-control-babysit-resolve-thread" owner/repo#42 --allowed-owners <watched-owners> --autonomous --resolve --thread-id <id> --expected-comment-count <n> --expected-last-updated <ts>
+bash "${CLAUDE_PLUGIN_ROOT}/bin/source-control-babysit-resolve-thread" owner/repo#42 --allowed-owners <watched-owners> --extra-bot-logins <extra-bot-logins> --autonomous --resolve --thread-id <id> --expected-comment-count <n> --expected-last-updated <ts>
 ```
 
 for the unattended-worker case, or
 
 ```text
-bash "${CLAUDE_PLUGIN_ROOT}/bin/source-control-babysit-resolve-thread" owner/repo#42 --allowed-owners <watched-owners> --resolve --include-human --thread-id <id> --expected-comment-count <n> --expected-last-updated <ts>
+bash "${CLAUDE_PLUGIN_ROOT}/bin/source-control-babysit-resolve-thread" owner/repo#42 --allowed-owners <watched-owners> --extra-bot-logins <extra-bot-logins> --resolve --include-human --thread-id <id> --expected-comment-count <n> --expected-last-updated <ts>
 ```
 
 for the autopilot case. This degradation is a successful, material finding to report, not a
