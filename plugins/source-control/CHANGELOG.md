@@ -3,6 +3,26 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.32.1]
+
+### Fixed
+
+- **`source-control-babysit-merge`'s `--allow-unpinned-head` guard now strips an `=value` tail
+  before the prefix comparison (#1522).** The guard refuses the flag and every long-option prefix
+  of it via `"--allow-unpinned-head" == "$arg"*`, but `--allow-unpinned-head=true` is not itself a
+  prefix of `--allow-unpinned-head` — the `=true` suffix broke the match, so the wrapper let the
+  argument through and argparse rejected it instead (the flag is `store_true`, which never accepts
+  an explicit argument). The refusal was still real today, but incidentally so: it depended on the
+  interpreter behind the wrapper exactly as this guard exists to not do — the moment the guarded
+  flag (or an equivalent guarded flag) accepted a value, the same test would have stopped refusing
+  anything, silently. Fixed by stemming each argument on its first `=` before the prefix test.
+  `engine.test.sh` gains a `check_wrapper_refusal` helper that asserts the wrapper's own refusal
+  text on stderr (not just exit code — exit 2 is shared between the wrapper's refusal and
+  argparse's own usage/rejection errors, so an exit-code-only assertion would have passed before
+  and after this fix for different reasons) and new rows for `--allow-unpinned-head=true`,
+  `--allow-unpinned=1`, and `--allow-unpinned-hea=1`, plus no-over-refusal rows for
+  `--allow-dependency`, `--allow-unprotected`, and `--allowed-owners=owner`.
+
 ## [0.32.0]
 
 ### Added

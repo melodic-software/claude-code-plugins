@@ -339,6 +339,40 @@ REFUSALS: tuple[Refusal, ...] = (
         enforced_at="bin/source-control-babysit-merge (argument filter loop)",
     ),
     Refusal(
+        id="merge.equals-value-unpinned-head-refused-by-wrapper",
+        claim=(
+            "The wrapper refusal covers an =value spelling of the flag or of any "
+            "prefix of it, not just a bare long option. `--allow-unpinned-head=true` "
+            "is not itself a PREFIX of `--allow-unpinned-head` -- the `=true` tail "
+            "breaks a plain prefix comparison, so an unstemmed filter (#1522) let "
+            "the argument reach argparse, which happens to also reject it today "
+            "only because the guarded flag is store_true and takes no explicit "
+            "value. That made the wrapper's refusal depend on the interpreter "
+            "behind it, exactly what this guard exists to not do."
+        ),
+        entry_point=MERGE_WRAPPER,
+        argv=("owner/repo#1", "--merge", "--allow-unpinned-head=true"),
+        exit_code=2,
+        error_contains=("--allow-unpinned-head=true",),
+        refused_by=BASH_WRAPPER,
+        enforced_at="bin/source-control-babysit-merge (argument filter loop)",
+    ),
+    Refusal(
+        id="merge.equals-value-abbreviated-unpinned-head-refused-by-wrapper",
+        claim=(
+            "The =value stripping composes with the prefix family: "
+            "`--allow-unpinned=1` (a prefix of --allow-unpinned-head with an "
+            "=value tail) is refused by the wrapper too, not only the exact "
+            "flag's =value spelling."
+        ),
+        entry_point=MERGE_WRAPPER,
+        argv=("owner/repo#1", "--merge", "--allow-unpinned=1"),
+        exit_code=2,
+        error_contains=("--allow-unpinned=1",),
+        refused_by=BASH_WRAPPER,
+        enforced_at="bin/source-control-babysit-merge (argument filter loop)",
+    ),
+    Refusal(
         id="merge.abbreviation-is-not-resolved-by-the-cli",
         claim=(
             "The wrapper's prefix filter is belt to the CLI's braces: the parser "
@@ -1072,8 +1106,15 @@ WRAPPER_DENIED_FLAGS: dict[str, tuple[str, ...]] = {
 
 
 def wrapper_denies(wrapper: str, flag: str) -> bool:
-    """Whether `flag`, as spelled, cannot survive `wrapper`'s argument filter."""
-    return any(denied.startswith(flag) for denied in WRAPPER_DENIED_FLAGS[wrapper])
+    """Whether `flag`, as spelled, cannot survive `wrapper`'s argument filter.
+
+    Strips an `=value` tail before the prefix check, mirroring the wrapper's
+    own bash filter (#1522): `--allow-unpinned-head=true` is refused because
+    its STEM `--allow-unpinned-head` is a denied prefix, even though the full
+    `=value` string is not itself a prefix of any denied entry.
+    """
+    stem = flag.split("=", 1)[0]
+    return any(denied.startswith(stem) for denied in WRAPPER_DENIED_FLAGS[wrapper])
 
 _PREAMBLE = """# Guard contract
 
