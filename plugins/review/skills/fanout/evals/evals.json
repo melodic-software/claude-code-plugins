@@ -65,10 +65,10 @@
       "id": 6,
       "name": "pr-comment-gate-opt-in",
       "prompt": "Fan out a full review on this branch — it has an open PR.",
-      "expected_output": "The skill withholds every surface that would post to the PR — the `code-review` plugin's comment-posting PR mode, `/code-review --comment`, and the managed Code Review GitHub App service — unless the user explicitly opts in, naming each skip in the surfaces list instead.",
+      "expected_output": "The skill withholds every surface that would post to the PR — the `code-review` plugin (which always ends by commenting on the PR), `/code-review --comment`, and the managed Code Review GitHub App service — unless the user explicitly opts in, naming each skip in the surfaces list instead.",
       "files": [],
       "expectations": [
-        "Output does NOT dispatch `/code-review:code-review`'s comment-posting PR mode, invoke `/code-review --comment`, or trigger the managed Code Review service without explicit user opt-in",
+        "Output does NOT dispatch `/code-review:code-review`, invoke `/code-review --comment`, or trigger the managed Code Review service without explicit user opt-in",
         "Output names every skipped PR-mutation surface in its surfaces list rather than silently omitting it",
         "Output keeps the review report-only, posting nothing to the open PR absent an explicit opt-in"
       ]

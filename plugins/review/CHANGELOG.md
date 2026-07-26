@@ -16,12 +16,14 @@ All notable changes to the `review` plugin are documented here. Format follows
   are left as written — history is corrected forward, not rewritten. Three surfaces overlap a PR
   review and are now enumerated as three everywhere: the installable `code-review` marketplace
   plugin, the bundled `/code-review` command, and the managed Code Review GitHub App service.
-  `pr.md`'s Boundary covers all three and its mutation gate again covers the plugin's
-  comment-posting PR mode; `fanout`'s orchestrator roster is back to three plugins and
-  `findings-normalization.md` carries the `code-review` parse contract again, which restores the
-  only referent for the Stage-1 "surfaces emitting no severity → DERIVE" rule; the README's
-  optional-orchestrator roster names it again. The `pr-comment-gate-opt-in` eval covers the plugin's
-  PR mode alongside the other two mutating surfaces. Re-verified against the live marketplace
+  `pr.md`'s Boundary covers all three and its mutation gate again covers the plugin, which takes a
+  PR as its only target and ends every run by commenting the surviving findings back onto it — the
+  gate is unconditional because the plugin has no session-returning mode; `fanout`'s orchestrator
+  roster is back to three plugins and `findings-normalization.md` carries the `code-review` parse
+  contract again, which restores the only referent for the Stage-1 "surfaces emitting no severity →
+  DERIVE" rule; the README's optional-orchestrator roster names it again. The
+  `pr-comment-gate-opt-in` eval covers the plugin alongside the other two mutating surfaces.
+  Re-verified against the live marketplace
   manifest and <https://code.claude.com/docs/en/code-review> (#1402).
 - The behavioral corrections `0.15.1` and `0.15.2` got right are unchanged: bare
   `/code-review <target>` stays ungated (report-only; only `--fix` and `--comment` mutate), the
