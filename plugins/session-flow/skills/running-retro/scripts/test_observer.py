@@ -161,6 +161,27 @@ class Distillation(unittest.TestCase):
         self.assertEqual(observer._preview({"a": 1}), '{"a":1}')
         self.assertLessEqual(len(observer._preview("y" * 500, limit=10)), 10)
 
+    def test_preview_untruncated_value_has_no_marker(self):
+        self.assertEqual(observer._preview("short"), "short")
+        self.assertFalse(observer._preview("short").endswith(observer._TRUNC_MARKER))
+
+    def test_preview_truncated_value_ends_in_marker(self):
+        """A cut preview must be DISTINGUISHABLE from a short, complete one -- a
+        silent slice would make a dependency-bearing value past the limit look
+        like a clean 'no match' rather than 'unknown', see #1485 Codex review."""
+        cut = observer._preview("y" * 500, limit=10)
+        self.assertEqual(len(cut), 10)
+        self.assertTrue(cut.endswith(observer._TRUNC_MARKER))
+
+    def test_mid_preserved_for_falsy_but_not_none_id(self):
+        """`mid` must be omitted only when the record truly carries none -- a
+        `mid: 0` (an integer id format) or `mid: ""` must NOT be dropped by an
+        `if mid:` truthy guard, see #1485 code review finding #1."""
+        out = observer.summarize_record({"type": "assistant", "message": {
+            "id": 0, "content": [{"type": "tool_use", "id": "call_1", "name": "Bash"}]}})
+        self.assertIn("mid", out)
+        self.assertEqual(out["mid"], 0)
+
 
 class AnalysisPrompt(unittest.TestCase):
     """The headless analysis prompt must actually reference the distilled fields
@@ -181,6 +202,13 @@ class AnalysisPrompt(unittest.TestCase):
         self.assertIn('"calls', self.prompt)
         self.assertIn('"results', self.prompt)
         self.assertIn("dependency", self.prompt)
+
+    def test_references_truncation_marker_as_unknown_not_absent(self):
+        """A truncated preview must be treated as UNKNOWN, never a clean 'no
+        dependency' -- otherwise the silent-slice gap Codex flagged reproduces
+        the exact asserted-and-wrong finding this whole prompt exists to stop."""
+        self.assertIn(observer._TRUNC_MARKER, self.prompt)
+        self.assertIn("UNKNOWN", self.prompt)
 
     def test_drop_if_uncomputable_still_present(self):
         self.assertIn("Drop", self.prompt)

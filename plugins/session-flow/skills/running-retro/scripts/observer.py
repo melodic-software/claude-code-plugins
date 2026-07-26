@@ -49,6 +49,7 @@ def now_ts() -> str:
 
 
 _PREVIEW_LIMIT = 80  # bounded per-call arg/result preview -- see _preview()
+_TRUNC_MARKER = "…"  # trailing marker on a cut preview -- see _preview()
 
 
 def _preview(value: object, limit: int = _PREVIEW_LIMIT) -> str:
@@ -60,6 +61,13 @@ def _preview(value: object, limit: int = _PREVIEW_LIMIT) -> str:
     paying full transcript token cost. A dict/list is compacted to JSON first so
     the preview keeps recognizable keys/values (e.g. a `file_path`) instead of
     Python's `repr` spacing.
+
+    A cut preview ends in `_TRUNC_MARKER` -- a silent slice would make a
+    dependency-bearing value that happens to fall past the limit look like a
+    clean "no match" (no dependency) rather than "unknown, wasn't in the
+    preview," which would let the analysis prompt assert independence it
+    cannot actually compute. The marker lets the prompt tell the two apart and
+    drop the claim instead, per this module's compute-don't-assert contract.
     """
     if value is None:
         return ""
@@ -72,7 +80,10 @@ def _preview(value: object, limit: int = _PREVIEW_LIMIT) -> str:
             s = str(value)
     else:
         s = str(value)
-    return s.strip()[:limit]
+    s = s.strip()
+    if len(s) <= limit:
+        return s
+    return s[:max(limit - len(_TRUNC_MARKER), 0)] + _TRUNC_MARKER
 
 
 def summarize_record(rec: dict) -> dict:
@@ -112,7 +123,7 @@ def summarize_record(rec: dict) -> dict:
             out["calls"] = [{"id": c.get("id"), "in": _preview(c.get("input"))}
                             for c in tool_uses]
             mid = msg.get("id")
-            if mid:
+            if mid is not None:
                 out["mid"] = mid
         if text.strip():
             out["say"] = text.strip()[:160]
@@ -695,13 +706,17 @@ the raw record didn't carry one, making that pair's ordering uncomputable -- ran
 sequential turns. Before routing a computed sequential/unbatched pair as a missed-batching \
 Efficiency finding, check for a genuine dependency between the calls: compare each \
 assistant event's "calls[].in" preview against the "results[].out" previews of the user \
-events between them (matched by the result's "id" to the call's own "calls[].id") for a data \
-dependency (a later call's input referencing an earlier call's output), and read the \
-surrounding "say" narration for an evident control/resource/side-effect dependency (e.g. a \
-directory created before a file is written into it). A pair that was genuinely dependent was \
-correctly sequential, not a missed batch. Drop a structural claim you cannot compute this way \
-rather than asserting it uncomputed -- an asserted-and-wrong structural claim routes as if \
-verified and is worse than a missed finding.
+events between them (matched by the result's "id" to the EARLIER call's own "calls[].id", \
+to identify which prior call each result belongs to) for a data dependency (a later call's \
+input referencing an earlier call's output), and read the surrounding "say" narration for an \
+evident control/resource/side-effect dependency (e.g. a directory created before a file is \
+written into it). A pair that was genuinely dependent was correctly sequential, not a missed \
+batch. A "calls[].in" or "results[].out" preview ending in "…" was CUT, not empty -- a value \
+past character 80 may still be there; treat a truncated preview as an UNKNOWN dependency \
+check, never as a clean "no match" that licenses the missed-batching finding. Drop a \
+structural claim you cannot compute this way (grouping key absent, or the only preview that \
+could show a dependency was truncated) rather than asserting it uncomputed -- an \
+asserted-and-wrong structural claim routes as if verified and is worse than a missed finding.
 
 Inputs (absolute):
 - Distilled observations (pre-filtered event stream, one JSON event per line): {observations}
