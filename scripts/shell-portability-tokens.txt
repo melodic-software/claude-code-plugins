@@ -92,14 +92,23 @@
 # (`grep -P ... <file`) while excluding the process-substitution one. Every
 # boundary below that admits `<`/`>` carries the same shape.
 #
-# An EMPTY quote pair is the one quoted form that must still match (#1546).
-# Quote removal deletes it outright, so `grep -P'' pattern` passes the argument
-# `-P` exactly — verified on bash: `printf '[%s]\n' -P'' pattern` prints `[-P]`
-# and `[pattern]`, `grep -P'' '\d'` matches a digit where a `-P`-less grep does
-# not, and `echo -e'' 'a\tb'` emits a real tab. A NONEMPTY pair still opens a
-# word and is still ignored, so `(''|"")?` sits before the boundary rather than
-# inside it: the empty pair is skipped, then a genuine terminator must follow.
-grep[^\n]*[[:space:]]-[A-Za-z]*P[A-Za-z]*(''|"")?([[:space:]|&;()]|[<>]([^(]|$)|$)
+# What a quoted continuation does depends on what is INSIDE it, so the rule is
+# not "ignore every quote" (#1546). Quote removal splices the content straight
+# into the word, and for a flag that takes no argument the result is a longer
+# OPTION CLUSTER rather than a value:
+#   - an EMPTY pair, however many — spliced away entirely, so the bare flag is
+#     what runs: `printf '[%s]\n' -P'''' pattern` prints `[-P]` then `[pattern]`.
+#   - option LETTERS — a valid longer cluster with the GNU flag still set:
+#     `grep -P"x"` runs as `grep -Px`, and `grep -P"i" '\d'` matches a digit
+#     where the same grep without `-P` does not; `sort -V"r"` reverse
+#     version-sorts.
+#   - anything else — not a cluster at all, and not portable code either:
+#     `grep -P"attern"` and `sort -V"ersion"` both abort with `unknown option`,
+#     so there is no GNU-only behaviour to report and nothing working to break.
+# `(['"][A-Za-z]*['"])*` admits the first two and excludes the third, and being
+# starred it accepts repeated pairs. `echo` is the exception and narrows the
+# class to its own cluster letters — see its token below.
+grep[^\n]*[[:space:]]-[A-Za-z]*P[A-Za-z]*(['"][A-Za-z]*['"])*([[:space:]|&;()]|[<>]([^(]|$)|$)
 --perl-regexp
 
 # `echo -e` — POSIX leaves echo's flag handling unspecified; BSD/macOS sh/bash
@@ -110,7 +119,12 @@ grep[^\n]*[[:space:]]-[A-Za-z]*P[A-Za-z]*(''|"")?([[:space:]|&;()]|[<>]([^(]|$)|
 # operator-terminated boundary as `grep -P` above (#1537): `x=$(echo -e ...)`,
 # `echo -e ...|cat`, `echo -e ...; echo` are detected, not only the
 # whitespace-terminated form.
-echo[[:space:]]+-[a-zA-Z]*e[a-zA-Z]*(''|"")?([[:space:]|&;()]|[<>]([^(]|$)|$)
+# echo is the exception to the quoted-continuation class above: bash advertises
+# `echo [-neE]`, so only those letters extend the cluster. `echo -e"n" 'a\tb'`
+# emits a real tab (`-en` is live), while `echo -e"mail"` is not a cluster at
+# all and — unlike grep and sort, which abort — echo just prints the literal
+# `-email`. That last form is working portable code and must stay unflagged.
+echo[[:space:]]+-[a-zA-Z]*e[a-zA-Z]*(['"][neE]*['"])*([[:space:]|&;()]|[<>]([^(]|$)|$)
 
 # `sort -V` (natural/version sort) — a GNU coreutils extension; BSD sort has no
 # `-V`. `V` may appear anywhere in a combined short-option cluster (`-Vr`),
@@ -136,7 +150,7 @@ echo[[:space:]]+-[a-zA-Z]*e[a-zA-Z]*(''|"")?([[:space:]|&;()]|[<>]([^(]|$)|$)
 # of false negative the `--sort=WORD` boundary above was built to avoid, now
 # widened to match it (#1537, found while auditing #1530's own new token for
 # the same defect).
-sort[^\n]*[[:space:]]-[A-Za-z]*V[A-Za-z]*(''|"")?([[:space:]|&;()]|[<>]([^(]|$)|$)
+sort[^\n]*[[:space:]]-[A-Za-z]*V[A-Za-z]*(['"][A-Za-z]*['"])*([[:space:]|&;()]|[<>]([^(]|$)|$)
 --version-sort
 sort[^\n]*[[:space:]]--sort(=|[[:space:]]+)['"]?version([[:space:]|&;()'"`]|[<>]([^(]|$)|$)
 

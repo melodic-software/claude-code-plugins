@@ -318,20 +318,52 @@ fi
 rm -f "$f" "$tok"
 
 # --- an OPENING quote after a short-option cluster is not a word terminator
-# (#1546). The shell concatenates it into the same word, so the flag never
-# activates: bash prints `echo -e"mail"` as the literal `-email`, and
-# `echo -e"mail\tX"` as `-email\tX` with no escape interpretation. Flagging
-# these would be a false positive on portable code, so quotes and backticks are
-# excluded from the short-option boundary — unlike `--sort=WORD` above, where
-# the quote follows the option's VALUE and is unambiguously closing.
+# (#1546): the shell splices it into the same word. For `echo` that ends the
+# matter, because a non-cluster splice is simply printed -- bash prints
+# `echo -e"mail"` as the literal `-email` and `echo -e"mail\tX"` as
+# `-email\tX` with no escape interpretation. That is working portable code and
+# flagging it would be a false positive, so echo's continuation class is
+# limited to its own cluster letters (bash advertises `echo [-neE]`).
 f="$(tmpsh "$(printf '%s\n' \
   'echo -e"mail"' \
-  'grep -P"attern" file' \
-  'sort -V"ersion" file')")"
+  'echo -e"mail\tX"')")"
 if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
-  ok "an opening quote after a short-option cluster is not flagged (word continues, flag never set)"
+  ok "a non-cluster quoted splice after echo -e is not flagged (printed literally)"
 else
-  fail "opening-quote concatenations must not be flagged, got: $out"
+  fail "echo -e non-cluster splices must not be flagged, got: $out"
+fi
+rm -f "$f"
+
+# --- ...but the splice DOES keep the flag live when the content is option
+# letters, so grep and sort must still be flagged there (#1546). Verified on
+# bash: `grep -P"i" '\d'` matches a digit where the same grep without -P does
+# not, `grep -Px '.*\d.*'` likewise, and `sort -V"r"` reverse version-sorts.
+f="$(tmpsh "$(printf '%s\n' \
+  'grep -P"x" file' \
+  "grep -P'x' file" \
+  'sort -V"r" file' \
+  "echo -e\"n\" 'a\\tb'")")"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "letter splices keep the GNU flag live and should fail, got success: $out"
+elif [[ "$(echo "$out" | grep -c "PORTABILITY: ${f}:")" -eq 4 ]]; then
+  ok "a quoted splice of option letters still reports the live GNU flag"
+else
+  fail "expected all 4 letter splices flagged, got: $out"
+fi
+rm -f "$f"
+
+# --- a splice that is neither empty nor option letters is not a cluster at
+# all, and for grep/sort it is not working code either (`grep -P"attern"` and
+# `sort -V"ersion"` both abort with `unknown option`), so a variable or a
+# multi-word value stays unflagged rather than guessing at its expansion.
+f="$(tmpsh "$(printf '%s\n' \
+  'grep -P"$re" file' \
+  'sort -V"$v" file' \
+  'grep -P"x y" file')")"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  ok "a non-letter quoted splice is not treated as a cluster"
+else
+  fail "variable and multi-word splices must not be flagged, got: $out"
 fi
 rm -f "$f"
 
@@ -352,6 +384,22 @@ elif [[ "$(echo "$out" | grep -c "PORTABILITY: ${f}:")" -eq 5 ]]; then
   ok "an empty quote pair after an option cluster is still detected"
 else
   fail "expected all 5 empty-pair forms flagged, got: $out"
+fi
+rm -f "$f"
+
+# --- REPEATED empty pairs are removed just the same, so the class is starred
+# rather than optional (#1546): `printf '[%s]\n' -P'''' pattern` prints `[-P]`
+# then `[pattern]`, exactly as the single-pair form does.
+f="$(tmpsh "$(printf '%s\n' \
+  "grep -P'''' pattern" \
+  'sort -V'"''"'"" file' \
+  "echo -e\"\"'' value")")"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "repeated empty quote pairs should be detected, got success: $out"
+elif [[ "$(echo "$out" | grep -c "PORTABILITY: ${f}:")" -eq 3 ]]; then
+  ok "repeated empty quote pairs are detected, not just a single pair"
+else
+  fail "expected all 3 repeated-pair forms flagged, got: $out"
 fi
 rm -f "$f"
 
