@@ -171,7 +171,22 @@ readlink[[:space:]]+(-[A-Za-z]*f|--canonicalize)
 # shared hook-test-scaffolding sites off `-p` before this class went active.
 # `p` may appear anywhere in a combined short-option cluster (`-dp`, `-pd`),
 # not only as a standalone `-p`.
-mktemp[^\n]*[[:space:]]-[A-Za-z]*p[A-Za-z]*([[:space:]]|$)
+#
+# The gap excludes shell command separators (#1543): a physical line is not a
+# command, so `[^\n]*` walked past `;`/`&`/`|` and attributed a later command's
+# flag to mktemp — `tmp=$(mktemp); cp -p source "$tmp"` was reported even
+# though `-p` belongs to `cp`.
+#
+# Two spellings beyond the whitespace-delimited cluster, both equally
+# GNU-only (#1543):
+#   - ATTACHED value — GNU getopt takes the DIR argument joined to the cluster,
+#     `mktemp -p/tmp name.XXXXXX`. A boundary of `[[:space:]]|$` missed it
+#     entirely, so the cluster may instead be followed by any character that
+#     starts an attached value.
+#   - LONG form — `--tmpdir[=DIR]`, documented as the equivalent of `-p`, needs
+#     its own alternative since it shares no short-cluster shape.
+mktemp[^;&|()\n]*[[:space:]]-[A-Za-z]*p([A-Za-z]*([[:space:]|&;()<>]|$)|[^A-Za-z[:space:]])
+mktemp[^;&|()\n]*[[:space:]]--tmpdir([[:space:]|&;()<>]|=|$)
 
 # --- STAGED (commented until enabled — see #1510 for the enable trigger) ---
 #

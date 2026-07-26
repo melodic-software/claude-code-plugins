@@ -757,7 +757,7 @@ else
 fi
 rm -f "$f"
 
-f="$(tmpsh 't=$(mktemp -dp "$d" tmp.XXXXXX)'; )"
+f="$(tmpsh 't=$(mktemp -dp "$d" tmp.XXXXXX)')"
 if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
   fail "shipped list should flag mktemp -dp combined cluster: $out"
 else
@@ -765,11 +765,38 @@ else
 fi
 rm -f "$f"
 
-f="$(tmpsh 't=$(mktemp "$d/tmp.XXXXXX")'; )"
+f="$(tmpsh 't=$(mktemp "$d/tmp.XXXXXX")')"
 if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
   ok "the portable mktemp \"\$DIR/template\" form (no -p) is not flagged"
 else
   fail "the portable mktemp form should not be flagged, got: $out"
+fi
+rm -f "$f"
+
+# --- attached-value and long-form parent-directory spellings (#1543). GNU
+# getopt takes -p's DIR joined to the cluster, and documents --tmpdir[=DIR] as
+# the equivalent; both are as BSD-incompatible as the whitespace-delimited form
+# a cluster-plus-whitespace boundary alone matched.
+f="$(tmpsh "$(printf '%s\n' \
+  'mktemp -p/tmp name.XXXXXX' \
+  'mktemp --tmpdir=/tmp name.XXXXXX' \
+  'mktemp --tmpdir name.XXXXXX')")"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "attached -p/DIR and --tmpdir spellings should be flagged, got success: $out"
+elif [[ "$(echo "$out" | grep -c "PORTABILITY: ${f}:")" -eq 3 ]]; then
+  ok "the shipped list flags attached -p/DIR and both --tmpdir spellings"
+else
+  fail "expected all 3 parent-directory spellings flagged, got: $out"
+fi
+rm -f "$f"
+
+# --- ...and the option scan stops at a shell command separator (#1543): a
+# physical line is not a command, so a later command's `-p` is not mktemp's.
+f="$(tmpsh 'tmp=$(mktemp); cp -p source "$tmp"')"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  ok "cp -p after a portable mktemp on the same line is not flagged"
+else
+  fail "a later command's -p must not be attributed to mktemp, got: $out"
 fi
 rm -f "$f"
 
