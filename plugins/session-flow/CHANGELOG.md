@@ -1,6 +1,6 @@
 # Changelog — session-flow plugin
 
-## [0.17.5]
+## [0.17.6]
 
 ### Fixed
 
@@ -12,6 +12,32 @@
   platform. Fixed the undefined name and widened the narrow `except OSError` guard around the spawn
   call to catch any spawn-time exception, so a future failure at that call site degrades gracefully
   (`observer: failed to spawn: ...`, exit 0) instead of escaping as a raw traceback.
+
+## [0.17.5]
+
+### Fixed
+
+- **running-retro's analysis prompts had no rule requiring structural transcript claims to be
+  computed rather than asserted.** An independent fresh-context validation found the checkpoint
+  analyzer accurate on findings that harvested the session's own self-declared observations but
+  0/2 on independently inferred structural claims (tool-call sequencing/batching/delegation,
+  "emerging pattern" occurrence counts) — one asserted-and-wrong claim routed as a tracker issue a
+  human would have filed for a non-problem. Both callers of the checkpoint method now carry a
+  compute-don't-assert rule naming the observed failure modes: the in-session checkpoint
+  delegation (`context/checkpoint.md`'s Method section and delegation prompt template) and the
+  detached observer's headless analysis prompt (`observer.py`'s `_analysis_prompt`, which has no
+  delegation prompt to fall back on and needed the rule inline). A structural claim that can't be
+  computed from the record must now be dropped rather than asserted uncomputed (#1473). The
+  headless prompt's message-id-grouping guidance now notes explicitly that the distilled
+  observations it receives may not carry a message-id field at all — `summarize_record()` never
+  preserves one — so an absent field reads as uncomputable rather than as license to assert from
+  impression. The compute-don't-assert rule now also covers the judgment built on top of a
+  computed structural fact: a correctly computed sequencing fact does not by itself prove a missed
+  batching opportunity (genuinely dependent calls are correctly sequential, not a miss), so both
+  prompts now require checking for a dependency before routing an Efficiency finding for
+  unbatched/sequential calls — and that check is not narrowed to data flow alone: a control,
+  resource, or side-effect dependency (e.g. a directory created before a file is written into it)
+  is just as real a reason two calls had to run in order.
 
 ## [0.17.4]
 
