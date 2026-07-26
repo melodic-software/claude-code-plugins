@@ -3967,6 +3967,11 @@ class GuardTests(unittest.TestCase):
         this; against the pre-fix module tail it exits 120.
         """
         env = dict(os.environ)
+        # Inherited unbuffered mode would make the decision `print` raise inside
+        # `main`, denying at exit 2 by the generic internal-error path and never
+        # reaching the shutdown-flush handler under test. Dropped so the child's
+        # buffering never depends on how the suite itself was invoked.
+        env.pop("PYTHONUNBUFFERED", None)
         read_fd, write_fd = os.pipe()
         os.close(read_fd)
         try:
