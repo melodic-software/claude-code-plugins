@@ -62,9 +62,17 @@ Run `check`, then for each FAIL point at the resolution — this skill installs 
   time). Headless: current official docs document `--config` only as a
   `claude plugin install` flag that sets manifest-declared options; its
   behavior against an already-installed plugin is undocumented, and in
-  practice the reliable headless path is `claude plugin uninstall actionlint`
-  then `claude plugin install actionlint@<marketplace> --config actionlint_enabled=true`;
-  this skill never writes user settings or `pluginConfigs`.
+  practice the reliable headless path is `claude plugin uninstall actionlint -s <scope>`
+  then `claude plugin install actionlint@<marketplace> -s <scope> --config actionlint_enabled=true`;
+  this skill never writes user settings or `pluginConfigs`. Both commands default to
+  `-s user` — pass the scope `claude plugin list` reports for this plugin (`user`, `project`,
+  or `local`), and run from that project's directory for a `project`/`local` scope. Defaulting
+  instead uninstalls a separate user-scope record while the effective install stays in place,
+  so the reinstall lands at a scope that does not load. Uninstalling also drops the stored
+  `pluginConfigs` entry, so the reinstall must re-supply **every** key whose value should stay
+  non-default — both `actionlint_enabled` and `stdin_read_timeout`, not only the key being
+  changed. Record the current values before uninstalling; afterwards there is nothing left to
+  read them from.
 
 After pointing at a remediation, re-run the relevant `check` probe and report its actual
 result — never claim resolved on the reader's report that they installed something.

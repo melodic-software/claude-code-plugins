@@ -1,5 +1,88 @@
 # Changelog — discovery plugin
 
+## [0.9.0]
+
+### Removed
+
+- **BREAKING: `/discovery:explore-deep` is retired.** Callers use `/discovery:explore`, which now
+  dispatches `discovery:explorer` by default and provides the same isolation — project memory
+  loaded, artifact persisted by the worker, only a bounded summary returning. The retirement was
+  gated on the agent reproducing what the skill carried beyond `/explore`, and it does, including
+  the two conditions that were load-bearing: path-scoped project rules Read explicitly (a subagent
+  does not auto-load them, and convention-blind findings are how a downstream edit lands against the
+  project's declared direction), and sidecar-on-collision with the chosen filename surfaced in the
+  return (a prior exploration lost to a filename collision is silent and unrecoverable). Two
+  behaviors were deliberately NOT carried over: the empty-scope repository-orientation pass, because
+  a dispatched agent with no scope is a parent-envelope failure rather than a mode, and the `!`
+  precompute, which fires at every spawn before the agent knows it needs the data and multiplies
+  under fan-out.
+
+### Added
+
+- **`discovery:explorer` and `discovery:researcher` — the plugin's first agents.** Each preloads its
+  skill through `skills:`, so the discipline arrives as content at turn zero rather than as a
+  recollection the agent may or may not reach for. Neither declares `memory`, and that omission is
+  load-bearing: declaring it auto-enables `Edit` regardless of the `tools` list, which would falsify
+  each agent's own tool-honesty note. That note states only what the tool set actually buys — no
+  single-call in-place mutation of an existing repo file — and explicitly not read-only status,
+  because `Bash` and `Write` both write.
+- **Dispatch by default for `/discovery:explore` and `/discovery:research`.** From the main
+  conversation each dispatches its agent; the conversation gains a file pointer and a summary rather
+  than the transcript. Three documented conditions send a run inline instead — tight turn-by-turn
+  iteration, cost on a lookup too small to justify an envelope, and an invoking context that is
+  itself a subagent (hoisting: the outer dispatch already supplied the fresh context, so an inner
+  hop only spends the inner window). Running inline relaxes no discipline.
+- **A preload-liveness sentinel on both skills.** A `skills:` entry that fails to resolve is skipped
+  **silently** — logged to the debug log and nowhere else — producing an undisciplined run that
+  still writes an artifact and still reports complete coverage, indistinguishable from success at
+  every other seam. Each skill now carries a token the dispatched agent echoes verbatim into its
+  return payload, and the parent discards any run whose token is missing or mismatched rather than
+  downgrading or accepting it.
+- **Phase 0 corpus enumeration and a scripted coverage gate.** When a topic has a finite, knowable
+  set to cover, `/discovery:research` writes `research-checklist.md` before the first query, one row
+  per corpus item with a depth criterion fixed at enumeration time — a criterion written afterwards
+  drifts down to whatever the run managed. The enumeration surface must be exhaustive by
+  construction (a sitemap, an in-repo tree, a release list); a ledger built from search results
+  certifies the blind spot it exists to close. New outcome-gate criterion 11 cites the exit status of
+  `scripts/check-coverage-complete.sh` rather than a reading of the table, because the context most
+  motivated to call a checklist finished is the one reading it. The script fails closed: a ledger it
+  cannot parse exits 2, and 2 is a FAIL.
+- **`discovery:setup check` reports dispatch capability** — harness version against the 2.1.219
+  floor, `CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH`, and fork availability — as PASS/INFO rows only.
+  Absence degrades rather than blocks: nesting buys throughput, not coverage, because the one control
+  needing a context that has not seen the work is the outcome-gate verifier, which the parent
+  dispatches as a sibling.
+
+### Changed
+
+- **`EXPLORE.md` and `RESEARCH.md` are always an index**, at every size rather than past an overflow
+  threshold, with content in sibling sidecars carrying a machine-readable YAML header. A size
+  threshold makes the artifact's shape depend on how much a run happened to write, and it arrives
+  exactly when the artifact is already too big to skim. Sidecar headers carry per-claim `sources[]`
+  with `url`, `tier`, and `pool` — that is what makes the independent-corroboration criterion
+  gradeable by a verifier that never saw the run, since independence is a property of publishing
+  pools and a bare tier list encodes neither.
+- **The outcome gate grows an Owner column.** Criteria asking the run to judge the quality of its own
+  choices — independent corroboration, and HIGH confidence per accepted claim — move to a sibling
+  verifier the parent dispatches; project fit stays with the parent, which alone holds the consuming
+  project's conventions. A dispatched run returns `verification: pending` and renders no verdict on
+  those rows.
+- **The Tier-3 rule for subagent returns gains a scoped exception.** It targets an ad-hoc subagent
+  handing back synthesis with no captured primaries, and stays in force for that. It does not reach a
+  `discovery:researcher` run that executed the discipline and wrote every primary URL into the
+  artifact: the tier attaches to the artifact and its captured sources, never to the transport.
+  Without this, dispatch-by-default would demote every run to the tier the gate's first criterion
+  refuses.
+- **Three statements preferring inline execution are overturned**, not softened — dispatch-by-default
+  contradicts them outright. Two were making a real point badly and are restated in terms that hold
+  in either posture: the run that judges a claim should be the run that read the source, and
+  summarization loss is bounded by what the artifact persists.
+- **Open questions hand back instead of being surfaced directly.** `AskUserQuestion` is unavailable
+  in every non-fork subagent, so a dispatched run returns them in its payload and the parent surfaces
+  them. The anti-pattern being guarded — silent downstream resolution — is unchanged; only the
+  hand-off moves. Same for the ask-before-git-archaeology rule on deleted files, which a dispatched
+  run records as an open question rather than proceeding past.
+
 ## [0.8.5]
 
 ### Added

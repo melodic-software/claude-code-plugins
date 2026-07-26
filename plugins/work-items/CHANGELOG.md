@@ -3,6 +3,100 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.25.2]
+
+### Fixed
+
+- **`track start` suggests a branch based on the remote's OWN default branch.** Both branch-switch
+  suggestions emitted `git checkout -b <type>/<N>-<slug> origin/main`, hardcoding a default-branch
+  name into a forge-agnostic skill: on a repo whose default branch is `master`, `trunk`, or
+  `develop`, the user was handed a command that either fails or silently bases the work on the wrong
+  ref. The existing-branch check now resolves `BASE_REF` by asking the REMOTE first
+  (`git ls-remote --symref origin HEAD`), falling back to `refs/remotes/origin/HEAD` only when the
+  remote is unreachable: that local symbolic ref is a cache no clone refreshes on its own, so a repo
+  that renamed its default branch keeps answering with the old name, and a `git remote add` +
+  `git fetch` clone never has it at all. The resolved name is remote-controlled input on its way
+  into a command the user pastes, and Git accepts branch names carrying shell metacharacters
+  (`main;id`), so it is accepted only against a conservative branch-name charset and refused —
+  never escaped — otherwise. `ls-remote` can also name a branch this clone has never fetched, whose
+  `origin/<name>` would not resolve; that is fetched once and dropped if it still misses. Neither
+  rung guesses a literal: whenever the resolution ends empty the suggestion is emitted with no
+  start-point and the unresolved default branch is stated, rather than reintroducing the assumption
+  under a different name. `templates/checklist.md`, which
+  `/work-items:work` copies verbatim for every run, said "from origin/main" and would have
+  contradicted this in the agent's own working ledger; it now names the resolved base.
+  Both suggestions emit `<base-ref>` — a placeholder the agent substitutes with the resolved value,
+  like `<type>` / `<N>` / `<slug>` beside it. Emitting the shell variable itself would have shipped
+  a broken command: the suggestion is pasted into the USER's terminal, which never saw the agent's
+  assignment, so `"$BASE_REF"` would expand to an empty pathspec. Surfaced by `portability-lint`,
+  which reads the whole file once the file is touched.
+
+## [0.25.1]
+
+### Documented
+
+- **`reclaim` classifier denial is now a documented, non-blocking condition (`#1381`).** A
+  work-loop self-observation found the seam `reclaim` verb refused by the Claude Code auto-mode
+  classifier while the sibling `claim` verb on the same script was not, with neither verb carrying
+  an explicit `permissions.allow`/`deny` rule — a harness-level tool-call denial that produces no
+  script exit code, distinct from the existing exit-`6` capability-unsupported case.
+  All three `reclaim` callers — `skills/work/SKILL.md` "Step 0", `skills/track/actions/start.md`,
+  and `skills/track/actions/audit.md` — now instruct treating it the same as exit `6` (report once,
+  skip, proceed; never retry, never self-widen permissions). `start` still catches a live foreign
+  lease through `claim`'s exit-`7` back-off; `audit` reports the stale-claim pass as **skipped**
+  rather than as zero stale claims, since a denied call checked nothing.
+  `tools/work-item-tracker/CONTRACT.md` "Exit codes" now notes this out-of-band failure mode
+  explicitly. `reference/permission-preflight.md` records the finding and flags whether an explicit
+  allow rule would bypass the classifier for this command shape as an open, unverified question
+  (official docs describe allow rules bypassing the classifier by default, but also describe an
+  unspecified "arbitrary-code-execution patterns" carve-out that still routes through it) — any
+  operator-side permission-floor fix needs that confirmed first.
+
+## [0.25.0]
+
+### Added
+
+- **Brief-before-ask requirement in the interactive gates (`#1202`).** `triage`'s interactive
+  direction gate (both the initial recommendation and each step-4 interview question) and
+  `attend-queue`'s row-working loop (`[intake]`, `[escalated]`, `[ratify]` rows) now require
+  restating, before any operator-facing decision question, (1) which item, (2) the decision being
+  asked, and (3) the consequence of each option **presented** — an open-ended question, which has no
+  option set to enumerate, states what the answer will determine instead of being narrowed into a
+  closed list to satisfy the restatement. Previously an operator could be asked to decide with only
+  option labels and no restated item context, forcing them to halt the pass and ask "what issue are
+  you looking at."
+
+## [0.24.7]
+
+### Fixed
+
+- **`work-loop`'s first-drain C3 ratification gate no longer posts a duplicate `kind=ratify-c3`
+  queue comment on every cycle (`#1348`).** An item whose ratification was recorded directly in
+  the issue body (an `attended triage <date>, operator-ratified` line) — even one already
+  corrected once by a same-day comment restoring it to the frontier — collected a fresh queue
+  comment each pass, reproducing the noise the correction had already cleaned up (observed on
+  `#815`, `#816`, `#965`). The gate now separates the two queue actions: the `kind=ratify-c3`
+  comment is posted **at most once ever** (keyed on a marker comment authored by the tracker
+  seam's configured write identity — a marker pasted by any other commenter is untrusted
+  provenance and never suppresses the queue event), while the role labels converge idempotently on
+  the item's correct state rather than being counted as a repeated event: human-gated applied and
+  autonomous-eligible cleared in the same edit, mirroring `attend-queue`'s
+  never-flip-without-clearing rule. The comment is written before the labels are touched, and a
+  failed comment write leaves the labels alone — an item parked human-gated with no marker sits
+  outside both `list-frontier --autonomous` and `attend-queue`'s `[ratify]` view, which nothing
+  could repair.
+
+  Body prose is context for the operator, never dispatch authority. Free-form issue bodies are
+  editable by any author or agent and the work-class table already routes untrusted provenance to
+  human-gated, so a body marker is now surfaced in the queue comment — letting the operator
+  confirm and record it machine-marked in one step — instead of admitting the item. Dispatch
+  still requires the `/work-items:attend-queue` ratification reply or `first_drain_complete`. The
+  human-gated label is deliberately kept while machine ratification is absent: `attend-queue`
+  lists a `[ratify]` row only for an item carrying that label plus the marker, so stripping it
+  would make the item invisible to the operator and unratifiable. The autonomous-eligible role
+  label is likewise **not** ratification evidence — unattended `/work-items:triage` applies it to
+  every briefed delegable item.
+
 ## [0.24.6]
 
 ### Documentation

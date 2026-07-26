@@ -1,5 +1,14 @@
 # Changelog — session-flow plugin
 
+## [0.17.2]
+
+### Fixed
+
+- **Setup's headless reconfigure recipe no longer claims `-y` is CLI-required for a non-TTY
+  `uninstall`.** Verified against the live CLI (2.1.220) and current docs: `-y` only skips
+  `uninstall`'s `--prune` confirmation, and this recipe never passes `--prune` — so `-y` had no
+  effect and is no longer part of the recipe (#1410).
+
 ## [0.17.1]
 
 ### Changed
