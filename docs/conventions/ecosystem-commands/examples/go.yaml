@@ -24,19 +24,28 @@ gates:
   # `trigger-globs`) per the 1.1.1 reachability rule — trigger-globs alone never selects an
   # ecosystem under auto-targeting, so without that `globs` entry a change touching only `.proto`
   # files would never reach this gate outside `/toolchain:check go` or `check all`.
-  # The freshness `cmd` is deliberately three parts, because a bare `git diff --exit-code` misses two
-  # ways generated output can be stale. `git diff` with no commit argument compares the working tree
-  # to the *index*, so a regeneration the consumer already staged reports clean — hence `git diff
-  # HEAD`, which compares both the worktree and the index against the last commit. And `git diff`
-  # never reports untracked paths at all, so a *newly* generated `.pb.go` (the output of a brand-new
-  # `.proto`) would false-pass either form — `git ls-files --others --exclude-standard` is what
-  # catches that, honoring .gitignore so a repo that deliberately ignores generated output still
-  # passes. Neither check writes to the index: `git add --intent-to-add` would fold the untracked
-  # case into the diff, but it leaves index residue in the consumer's worktree, and a CI-parity gate
-  # stays read-only. On failure the gate reports its `remediation`, which names the listing command.
+  # Every part of the `cmd` closes one way stale generated code slips past a naive freshness check —
+  # a bare `buf generate && git diff --exit-code` false-passes all three:
+  #   1. Staged regeneration. `git diff` with no commit argument compares the working tree to the
+  #      *index*, so output the consumer already staged reports clean. `git diff HEAD` compares the
+  #      worktree AND the index against the last commit.
+  #   2. Newly generated output. `git diff` never reports untracked paths, so the `.pb.go` for a
+  #      brand-new `.proto` false-passes either diff form. `git ls-files --others --exclude-standard`
+  #      catches it, honoring .gitignore so a repo that deliberately ignores generated code passes.
+  #   3. Orphaned output. When a `.proto` is deleted or renamed, generation writes nothing over the
+  #      now-sourceless `.pb.go`, so both git checks pass a file that should no longer exist. The
+  #      `clean` field in buf.gen.yaml "defaults to false", and `--clean` deletes "the directories,
+  #      jar files, or zip files that the plugins will write to" before generating, so the orphan
+  #      surfaces as a deletion `git diff HEAD` reports. Passing the flag keeps the gate correct
+  #      regardless of the consumer's buf.gen.yaml. Refs:
+  #      https://buf.build/docs/reference/cli/buf/generate/ and
+  #      https://buf.build/docs/configuration/v2/buf-gen-yaml/
+  # The two git checks leave the index untouched — `git add --intent-to-add` would fold case 2 into
+  # the diff, but it leaves index residue in the consumer's worktree. Neither prints filenames on
+  # failure, so the `remediation` (which the gate reports on FAIL) names the listing command.
   - name: proto-gen-freshness
-    cmd: "buf generate && git diff HEAD --exit-code -- '*.pb.go' && test -z \"$(git ls-files --others --exclude-standard -- '*.pb.go')\""
+    cmd: "buf generate --clean && git diff HEAD --exit-code -- '*.pb.go' && test -z \"$(git ls-files --others --exclude-standard -- '*.pb.go')\""
     trigger-globs: ["*.proto", "buf.gen.yaml"]
     run-from: repo-root
-    remediation: "Run buf generate from the repo root and commit the regenerated *.pb.go files, including any newly generated ones — `git status --short -- '*.pb.go'` lists both the modified and the untracked outputs."
+    remediation: "Run buf generate --clean from the repo root, then commit every resulting change to *.pb.go — modified, newly generated, and deleted (a .pb.go whose .proto is gone). `git status --short -- '*.pb.go'` lists all three."
 notes: "govulncheck is intentionally not a rung-4 default (per the epic brief's \"optional\" framing) — add it as a consumer-local gate via .claude/ecosystems/go.local.yaml if desired."

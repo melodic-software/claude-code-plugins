@@ -7,11 +7,14 @@ Docs-only, no schema shape change: `examples/go.yaml` gains a clearly-commented 
 default or example repo needs it yet, so it is documentation, not a functioning gate. Its
 `trigger-globs` (`*.proto`, `buf.gen.yaml`) are also added to the file's own `globs`, per the 1.1.1
 reachability rule, so the worked example is actually reachable under auto-targeting rather than
-silently unfired. Its freshness `cmd` pairs `git diff HEAD --exit-code` with
-`git ls-files --others --exclude-standard`: a bare `git diff` compares only against the index (a
-staged regeneration reports clean) and never reports untracked paths at all (a newly generated
-output false-passes), so both forms are needed for the example to demonstrate a gate that actually
-catches stale generated code. Deferred from melodic-software/claude-code-plugins#1361 via #1462 (a
+silently unfired. Its freshness `cmd` runs `buf generate --clean` and pairs `git diff HEAD
+--exit-code` with `git ls-files --others --exclude-standard`, so the example demonstrates a gate that
+actually catches stale generated code: a bare `git diff` compares only against the index (a staged
+regeneration reports clean) and never reports untracked paths at all (a newly generated output
+false-passes), and without `--clean` — whose `buf.gen.yaml` counterpart
+[defaults to `false`](https://buf.build/docs/configuration/v2/buf-gen-yaml/) — a `.pb.go` orphaned by
+a deleted `.proto` is left in place and passes both git checks.
+Deferred from melodic-software/claude-code-plugins#1361 via #1462 (a
 documentation-depth finding from #1460's review): a worked `run-from: repo-root` example was still
 missing.
 
