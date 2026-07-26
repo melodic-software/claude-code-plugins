@@ -48,6 +48,128 @@ def now_ts() -> str:
     return datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
 
 
+_PREVIEW_LIMIT = 80  # bounded per-call arg/result preview -- see _preview()
+_NARRATION_LIMIT = 160  # bounded `say`/`human` narration -- see _bounded()
+_ID_TAIL_LEN = 8  # bounded id correlation key -- see _short_id()
+
+
+def _short_id(value: object) -> object:
+    """Bounded tail of an opaque id (an API message id or tool-call id), for
+    cross-event correlation (`mid` grouping, `calls[].id` <-> `results[].id`)
+    without persisting the full verbatim id.
+
+    These ids are high-entropy random strings (e.g. `msg_014Jvov2xG...`,
+    `toolu_01AbCdEf...`), not sequential or guessable, so an 8-char tail is
+    still effectively collision-free within one session's observation stream
+    while cutting the per-id cost roughly 3-4x -- verified against real
+    transcripts (see PR #1497's measurement). `None` passes through unchanged
+    (nothing to shorten, and `mid`'s absence must stay distinguishable from a
+    real id -- see summarize_record()'s docstring).
+    """
+    if value is None:
+        return None
+    s = str(value)
+    return s[-_ID_TAIL_LEN:] if len(s) > _ID_TAIL_LEN else s
+
+
+def _bounded(text: str, limit: int) -> tuple[str, bool]:
+    """Cut `text` to `limit`, reporting whether it was cut.
+
+    The flag is out-of-band on purpose. An in-band trailing marker cannot be
+    told apart from a value that genuinely ends in those characters (a tool
+    result reading `Processing complete...` is not truncated), and the analysis
+    prompt keys its unknown-vs-absent dependency rule off this signal -- so an
+    ambiguous one either suppresses a computable finding or licenses an
+    asserted-and-wrong one, depending on which way it is misread.
+    """
+    return (text, False) if len(text) <= limit else (text[:limit], True)
+
+
+def _preview(value: object, limit: int = _PREVIEW_LIMIT) -> tuple[str, bool]:
+    """Bounded, compact preview of a tool-call input or result value, paired
+    with whether it was cut (see `_bounded`).
+
+    Token-cheap by design, matching this module's other truncated fields (`say`,
+    `human`): never the full value, just enough of it for a headless dependency
+    check (does a later call's input reference an earlier call's result) without
+    paying full transcript token cost.
+
+    A content-block list (a real transcript's `tool_result.content` is a list
+    of blocks about as often as a plain string -- verified against real
+    transcripts) has its `text` blocks joined, so the preview spends its
+    budget on the actual result text rather than JSON-dumping the block
+    wrapper structure (`[{"type":"text","text":...}]`). A dict, or a list with
+    no text blocks (e.g. an image block), falls back to compact JSON so the
+    preview keeps recognizable keys/values (e.g. a `file_path`) instead of
+    Python's `repr` spacing. A MIXED list -- text alongside an image or
+    document block -- keeps only the text and so is reported cut even when it
+    fits the limit: the omitted block could be the one carrying the dependency,
+    and a preview that dropped content is not a complete one.
+
+    The cut flag is what lets the analysis prompt tell "no dependency in this
+    value" from "the dependency may be past the preview" and drop the claim
+    instead of asserting independence it cannot compute -- this module's
+    compute-don't-assert contract.
+    """
+    if value is None:
+        return "", False
+    dropped_blocks = False
+    if isinstance(value, str):
+        s = value
+    elif isinstance(value, list):
+        texts = [b.get("text", "") for b in value
+                if isinstance(b, dict) and b.get("type") == "text"]
+        s = " ".join(t for t in texts if t)
+        if s.strip():
+            dropped_blocks = any(not (isinstance(b, dict) and b.get("type") == "text")
+                                 for b in value)
+        else:
+            s = _compact_json(value)
+    elif isinstance(value, dict):
+        s = _compact_json(value)
+    else:
+        s = str(value)
+    text, cut = _bounded(s.strip(), limit)
+    return text, cut or dropped_blocks
+
+
+def _compact_json(value: object) -> str:
+    try:
+        return json.dumps(value, separators=(",", ":"), default=str)
+    except (TypeError, ValueError):
+        return str(value)
+
+
+def _call_entry(short_id: object, key: str, value: object) -> dict:
+    """One `calls`/`results` entry: correlation id, bounded preview, cut flag."""
+    text, cut = _preview(value)
+    entry = {"id": short_id, key: text}
+    if cut:
+        entry["cut"] = True
+    return entry
+
+
+def _result_entry(block: dict) -> dict:
+    """One `results` entry: the call entry plus `err` when the call FAILED.
+
+    A failed call's own output is often empty or generic, so the failure is
+    invisible in the preview alone -- and a later call that retries it is
+    control-dependent on having seen the error, not an unbatched sibling.
+    """
+    entry = _call_entry(_short_id(block.get("tool_use_id")), "out", block.get("content"))
+    if block.get("is_error"):
+        entry["err"] = True
+    return entry
+
+
+def _set_narration(out: dict, key: str, text: str) -> None:
+    """Write a bounded `say`/`human` narration and its `<key>_cut` flag."""
+    bounded, cut = _bounded(text, _NARRATION_LIMIT)
+    out[key] = bounded
+    if cut:
+        out[f"{key}_cut"] = True
+
+
 def summarize_record(rec: dict) -> dict:
     """Token-cheap distillation of one transcript line into a compact event.
 
@@ -56,36 +178,90 @@ def summarize_record(rec: dict) -> dict:
     paying full transcript token cost. Text is truncated to bound size; this is
     NOT redaction -- the observations stay machine-local and are deleted after
     the analysis run.
+
+    Two fields exist ONLY to let a headless analysis run (which never sees the
+    raw transcript) COMPUTE structural claims instead of asserting them --
+    verified against real transcripts (a message id is always present in the
+    schema; a SINGLE API message frequently spans MULTIPLE transcript records,
+    so grouping by `mid` alone, not by record adjacency, is what makes
+    batching/sequencing computable at all):
+      - `mid`: a bounded correlation key derived from the assistant record's
+        own API message id (see `_short_id`), when the raw record carries one.
+        Tool-use events sharing one `mid` came from the SAME assistant turn
+        (their calls were batched into one API call, however many transcript
+        records that turn spans); events with DIFFERENT `mid`s ran as separate,
+        sequential turns. A MISSING `mid` (the raw record carried no id) is
+        neither -- it makes that pair's ordering uncomputable, and the analysis
+        prompt must drop the claim rather than read the absent key as evidence
+        of sequential execution.
+      - `calls` / `results`: a bounded preview of each tool call's input and
+        each tool result's output, keyed by the call's own bounded id (the
+        result's key is its `tool_use_id`), so a later call's input can be
+        checked against an earlier call's output for a genuine data dependency
+        before a sequential/unbatched pair is flagged as a missed-batching
+        Efficiency finding. `tool_results` (a bare count) is intentionally
+        NOT also emitted -- `len(results)` already carries it, and doubling
+        the count into two fields is dead cost the token-cheap contract can't
+        justify.
+
+    Every bounded field pairs with an out-of-band cut flag when the preview is
+    incomplete -- `cut` on a `calls`/`results` entry, `say_cut`/`human_cut`
+    beside the narration -- so the analysis prompt can tell "the dependency
+    isn't there" from "the dependency may be past the cut". A `results` entry
+    additionally carries `err` when the call FAILED, since a retry after a
+    failure is control-dependent on it while the failed call's own output
+    preview is routinely empty. Each flag is omitted, never set false, when it
+    does not apply.
     """
     t = rec.get("type")
     out: dict = {"t": t, "ts": rec.get("timestamp")}
     if t == "assistant":
         msg = rec.get("message") or {}
         content = msg.get("content") or []
-        tools = [c.get("name") for c in content
-                 if isinstance(c, dict) and c.get("type") == "tool_use"]
+        tool_uses = [c for c in content
+                     if isinstance(c, dict) and c.get("type") == "tool_use"]
         text = " ".join(c.get("text", "") for c in content
                         if isinstance(c, dict) and c.get("type") == "text")
-        if tools:
-            out["tools"] = tools
+        if tool_uses:
+            out["tools"] = [c.get("name") for c in tool_uses]
+            out["calls"] = [_call_entry(_short_id(c.get("id")), "in", c.get("input"))
+                            for c in tool_uses]
+            mid = _short_id(msg.get("id"))
+            if mid is not None:
+                out["mid"] = mid
         if text.strip():
-            out["say"] = text.strip()[:160]
+            _set_narration(out, "say", text.strip())
         if msg.get("stop_reason"):
             out["stop_reason"] = msg["stop_reason"]
     elif t == "user":
         msg = rec.get("message") or {}
         content = msg.get("content")
         if isinstance(content, str):
-            out["human"] = content[:160]
+            _set_narration(out, "human", content)
+            out["turn_boundary"] = True
         elif isinstance(content, list):
-            results = sum(1 for c in content
-                          if isinstance(c, dict) and c.get("type") == "tool_result")
-            humans = [c.get("text", "") for c in content
-                      if isinstance(c, dict) and c.get("type") == "text"]
-            if results:
-                out["tool_results"] = results
+            tool_results = [c for c in content
+                            if isinstance(c, dict) and c.get("type") == "tool_result"]
+            # A bare string inside the content list is a human message, the same
+            # as a `text` block -- retro's canonical `parse_transcript.py` counts
+            # it as one.
+            humans = [c if isinstance(c, str) else c.get("text", "")
+                      for c in content
+                      if isinstance(c, str)
+                      or (isinstance(c, dict) and c.get("type") == "text")]
+            if tool_results:
+                out["results"] = [_result_entry(c) for c in tool_results]
             if humans and any(h.strip() for h in humans):
-                out["human"] = " ".join(humans).strip()[:160]
+                _set_narration(out, "human", " ".join(humans).strip())
+            # Anything in a user record that is not a tool_result is the human
+            # speaking: text, a bare string, an image, a document, or a block
+            # type that does not exist yet. Only some of those yield readable
+            # narration, so the boundary is marked structurally rather than
+            # inferred from whether text happened to be extractable -- an
+            # image-only prompt would otherwise carry neither `human` nor
+            # `turn_boundary` and let the dependency check span a new request.
+            if len(tool_results) < len(content):
+                out["turn_boundary"] = True
     elif t == "system":
         out["subtype"] = rec.get("subtype")
         if rec.get("subtype") == "stop_hook_summary":
@@ -668,25 +844,71 @@ quoted snippet for secrets, tokens, credentials, connection strings, and PII, re
 each with a shape marker.
 
 Compute, don't assert, any structural claim (mandatory -- you have no delegation prompt to \
-fall back on): a finding describing transcript/tool-call structure -- \
-sequencing, batching, delegation, or an occurrence count -- MUST be computed from the \
-distilled observations before you write it, never asserted from a narrative impression of \
-the read. Derive an ordering or batching claim (e.g. "ran sequentially," "no subagent \
-delegation") by grouping tool-use events by API message id and inspecting the grouping. \
-Note: the distilled observations you have here may not carry a message-id field at all -- \
-if it's absent, that claim is uncomputable from what you have, not a license to assert it \
-from impression. Derive an occurrence count backing an "Emerging pattern" finding by \
-actually counting matched occurrences. If the observations don't carry what's needed to \
-compute a structural claim, drop the claim rather than assert it uncomputed -- an \
-asserted-and-wrong structural claim routes as if verified and is worse than a missed \
-finding. A correctly computed sequencing fact is not by itself proof of a missed batching \
-opportunity: calls that ran separately may be genuinely dependent, which makes the \
-sequencing correct, not a miss. Dependence isn't limited to a later call's input consuming \
-an earlier call's result -- a control, resource, or side-effect dependency (a directory \
-created before a file is written into it, an edit made before a test that exercises it \
-runs) is just as real a reason the calls had to be sequential. Before routing an \
-Efficiency finding for unbatched/sequential calls, check for any of these -- data, \
-control, resource, or side-effect -- dependency between them.
+fall back on): a finding describing transcript/tool-call structure -- sequencing, batching, \
+delegation, or an occurrence count -- MUST be computed from these observation fields before \
+you write it, never asserted from a narrative impression of the "say"/"human" text. Derive \
+an ordering or batching claim (e.g. "ran sequentially," "no subagent delegation") by \
+grouping an assistant event's tool calls by its "mid" field (the transcript's own API \
+message id): events sharing one "mid" ran as ONE batched turn; events with DIFFERENT \
+"mid"s ran as separate, sequential turns. An event with NO "mid" at all -- the raw record \
+carried no id -- is neither: that pair's ordering is UNCOMPUTABLE and the claim must be \
+dropped. A missing grouping key is never evidence of sequential execution. Different "mid"s \
+alone do NOT make a missed-batching candidate: two calls separated by a user turn could \
+never have been batched, because the later request did not exist when the earlier call was \
+issued. Before applying the dependency test, require the pair to sit inside ONE user turn \
+-- no event carrying "human", and no event with "turn_boundary": true, anywhere between \
+them. A pair spanning a turn boundary is correctly sequential by construction; drop it \
+without testing. Derive a delegation claim from the "tools" field, which carries each event's tool-call names: a \
+subagent delegation appears there as a "Task"/"Agent" tool name. Derive an occurrence count \
+backing an "Emerging pattern" finding by actually counting matched occurrences. Before \
+routing a computed sequential/unbatched pair as a missed-batching Efficiency finding, check \
+for a genuine dependency between the calls, in all five of these places -- any one of them \
+is enough to make the pair correctly sequential: (a) DATA -- compare the later assistant \
+event's "calls[].in" preview against the "results[].out" previews of the user events \
+between them (matched by the result's "id" to the EARLIER call's own "calls[].id", to \
+identify which prior call each result belongs to), for a later input referencing an earlier \
+output; (b) RESOURCE/SIDE-EFFECT -- compare the EARLIER call's own "calls[].in" preview \
+against the later call's "calls[].in", for a resource the earlier call creates or mutates \
+that the later one names (a shared path, directory, file, or url). A side-effecting call \
+often returns nothing and narrates nothing, so its result preview is empty and (a) alone \
+would read the pair as independent; (c) FAILURE/RETRY -- a "results" entry with "err": true \
+marks a call that FAILED. A later call is a RETRY of it when their "calls[].in" previews \
+name the SAME resource, repeat the same arguments, or the later input is a visible \
+CORRECTION of the failed one -- the same command or argument shape with a small edit, e.g. \
+"git stats" then "git status". The same tool name alone is NOT evidence: a failed "Read" of \
+one file followed by a "Read" of a different file is two independent calls, and treating \
+them as control-dependent would suppress a genuine finding. A real retry could only be \
+chosen once the failure was seen, so it is control-dependent and correctly sequential, \
+never a missed batch. Where a failure sits in the pair and NONE of that evidence is legible \
+(a failed call's "out" preview is routinely empty or generic, so (a) shows nothing for \
+exactly these pairs), the pair is UNKNOWN, not independent -- drop the claim. A failure \
+between two calls is never license to report a missed batch; (d) NARRATION -- \
+read the surrounding "say" text for an evident control, resource, or side-effect dependency \
+(an edit made before a test that exercises it runs); (e) STATE-WIDE CONSUMER -- a later \
+call that reads or verifies the WHOLE working state rather than a named resource (a build, \
+test, lint, typecheck, or VCS command -- "pytest", "go build ./...", "git status") is \
+dependent on any earlier call in the pair that MUTATED state (a Write/Edit, or a Bash \
+command that writes), even though neither input names a shared path and (b) therefore finds \
+nothing: the verification had to observe the mutation, so the two could not have run in \
+parallel. This is the most common sequential pair in a coding session, so treating it as a \
+missed batch is exactly the asserted-and-wrong finding these rules exist to prevent. When \
+you cannot tell from the previews whether the earlier call mutated anything, treat this \
+check as UNKNOWN and drop the pair rather than reporting a missed batch. A correctly \
+computed sequencing fact \
+is not by itself proof of a missed batching opportunity: a pair that was genuinely \
+dependent was correctly sequential, not a miss. Any preview or narration whose own event \
+carries a cut flag is INCOMPLETE, not empty -- a "calls"/"results" entry with "cut": true \
+holds at most the first {_PREVIEW_LIMIT} characters of that value (and, for a tool result \
+that mixed text with an image or document block, only the text), and an event with \
+"say_cut": true or "human_cut": true holds only the first {_NARRATION_LIMIT} characters of \
+that narration; what is missing may carry the dependency. Treat every check that rests on a \
+cut value as an UNKNOWN dependency check, never as a clean "no match" that licenses the \
+missed-batching finding. Absence of a cut flag means the value is complete -- judge only by \
+the flag, never by how a preview happens to end. When you cannot \
+compute a structural claim from these fields -- grouping key absent, occurrences not \
+actually countable, or every value that could show a dependency was cut -- drop the claim \
+rather than assert it uncomputed: an asserted-and-wrong structural claim routes as if \
+verified and is worse than a missed finding.
 
 Inputs (absolute):
 - Distilled observations (pre-filtered event stream, one JSON event per line): {observations}
@@ -696,10 +918,11 @@ Do: Read the observations; produce the compact "Checkpoint findings" block exact
 {checkpoint} specifies (metrics line, findings table with category + suggested route, \
 subjective-state assessment noted as unavailable for an autonomous run, new-skill \
 candidates); compute rather than assert any structural claim (sequencing, batching, \
-delegation, occurrence counts), dropping it if it can't be computed from the observations, \
-and checking for a data, control, resource, or side-effect dependency before routing a \
-computed sequential claim as a missed-batching Efficiency finding; run the mandatory \
-redaction pass. Return ONLY that block -- no preamble, no echo of the observations."""
+delegation, occurrence counts) from the "mid"/"tools"/"calls"/"results" fields, dropping it \
+if it can't be computed, and checking for a data, control, resource, or side-effect \
+dependency before routing a computed sequential pair as a missed-batching Efficiency \
+finding; run the mandatory redaction pass. Return ONLY that block -- no preamble, no echo \
+of the observations."""
 
 
 def build_parser() -> argparse.ArgumentParser:

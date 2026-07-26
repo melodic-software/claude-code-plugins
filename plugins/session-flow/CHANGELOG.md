@@ -1,5 +1,85 @@
 # Changelog — session-flow plugin
 
+## [0.17.12]
+
+### Added
+
+- **The detached observer's distilled observations now carry enough structure for the headless
+  running-retro analysis to COMPUTE sequencing/batching/dependency claims, not just drop them.**
+  `summarize_record()` previously stripped every tool call down to its name and every tool result
+  down to a bare count, so `observer.py`'s headless `_analysis_prompt` — despite instructing the
+  analyzer to "group tool-use events by API message id" and check for a dependency before flagging a
+  missed-batching Efficiency finding — had no field it could actually compute either claim from. Two
+  additions close the gap: an assistant event now carries `mid` (a bounded correlation key derived
+  from the transcript's own API message id, when present) so events sharing one `mid` can be
+  recognized as one batched turn versus separate sequential turns — verified against real session
+  transcripts (of 6,352 tool-bearing message ids across 200 live sessions, 1,412 (~22%) spanned 2+
+  tool-bearing records, confirmed again as a positive control against this repo's own session
+  transcripts, 580/5,431 (~11%)), so `mid` — not record adjacency — is what makes batching computable
+  at all — and both assistant
+  (`calls[].in`) and user (`results[].out`) events now carry a bounded (80-char) preview of each tool
+  call's input/result, keyed by a bounded correlation id, so a later call's input can be checked
+  against an earlier call's output for a genuine dependency. Both fields are omitted (not padded) when
+  the underlying data isn't present, and ids are shortened to an 8-char correlation key rather than
+  persisting the full opaque id. This measurably grows the observations file on tool-heavy sessions:
+  re-measured against the final schema over 24 real session transcripts carrying 20+ tool-bearing
+  records each, distilled by this version and by the version it replaces, the observations grow
+  **61.9% in aggregate** (per-file mean 63.0%, median 61.4%, range 43.7–116.0%). The growth is
+  almost entirely the preview content itself, which is the point — a real, bounded,
+  single-analysis-call cost against a cheap model, not an unbounded one. Every field has a hard cap,
+  and the flags below are emitted only when they apply. Redundant/wasteful bytes (verbose ids, a
+  `tool_results` count now superseded by `len(results)`, JSON-dumping a tool-result content-block
+  list instead of extracting its text) were cut wherever doing so didn't reduce the analyzer's
+  actual computing capability.
+  Every bounded field pairs with an out-of-band flag when the preview is incomplete (`cut` on a
+  `calls`/`results` entry, `say_cut`/`human_cut` beside the narration), so a value cut short of a
+  dependency reads as unknown rather than as a clean absence that would license an
+  asserted-and-wrong finding. The flag is out-of-band rather than a trailing marker in the text
+  because an in-band marker can't be told apart from a value that genuinely ends in those characters
+  (a complete tool result reading `Processing complete...`), which would suppress computable
+  findings in the other direction. `cut` also covers a mixed content-block result — text alongside
+  an image or document block keeps only the text, so the preview is incomplete even though it fits
+  the limit. A `results` entry additionally carries `err` when the call failed, because a failed
+  call's own output preview is routinely empty and a later retry is control-dependent on having
+  seen that failure.
+  `_analysis_prompt` updated to reference the new fields and flags. Its dependency check is now five
+  explicit places rather than two, any one of which makes a sequential pair correctly sequential:
+  it compares the earlier call's own `calls[].in` against the later call's, since a side-effecting
+  call (`mkdir` before a `Write` into that directory) returns nothing and narrates nothing so a
+  result-only comparison read a required sequence as a missed batch; it treats a state-wide consumer
+  (a build, test, lint, typecheck, or VCS command) after a state mutation as dependent even though
+  neither input names a shared path, since `Edit foo.py` then `Bash pytest` is the most common
+  sequential pair in a coding session and the resource comparison structurally cannot see it, with an
+  undecidable mutation dropping rather than routing; and it treats a retry after an
+  `err` result as control-dependent — recognized by a shared resource, repeated arguments, or a
+  visible correction of the failed input (`git stats` → `git status`), but never by tool name alone,
+  since a failed `Read` of one file followed by a `Read` of another is two independent calls.
+  Where a failure sits in the pair and none of that evidence is legible, the pair is unknown rather
+  than independent and the claim is dropped — a failure between two calls is never license to report
+  a missed batch. A candidate pair must also sit inside one user turn — no
+  intervening `human` or `turn_boundary` event — before the dependency test runs at all, since two
+  calls answering different human prompts could never have been batched however independent they
+  are. That precondition needs the boundary to be visible, and keying it off extractable text left it
+  invisible in every session carrying no `stop_hook_summary` record at that point — a prompt encoded
+  as `content: ["next request"]` (a bare string, which retro's canonical `parse_transcript.py`
+  already counts as a human message) emitted no `human`, and an image- or document-only prompt yields
+  no readable narration at all, so calls answering prompts on either side became a candidate pair.
+  `summarize_record()` now reads a bare string as a human message like a `text` block, and marks the
+  boundary STRUCTURALLY: any user record carrying content that is not a `tool_result` is the human
+  speaking — text, a bare string, an image, a document, or a block type that does not exist yet —
+  while a pure tool-result record stays inside the turn, since marking those would split every
+  genuinely batched turn and suppress real findings. Its grouping rule no longer both asserts sequential
+  execution for a missing `mid` and calls
+  that case uncomputable — a missing grouping key is now uniformly uncomputable, never evidence of
+  sequential execution.
+  `tools` is unaffected and still carries the tool-call names a "delegation" finding needs (a Task/
+  Agent tool name), so delegation required no new field — the gap #1485 closes is sequencing/batching/
+  dependency only. The in-session checkpoint path (which reads the raw transcript directly) is
+  unaffected. Follow-up from #1473 (PR #1482) and Codex's review of it — filed as #1485, scoped to the
+  schema change deferred out of that PR. This supersedes the headless prompt's 0.17.5 caveat that
+  `summarize_record()` never preserves a message id: it now does, so the prompt's absent-key wording
+  is scoped to the per-record case (the raw record carried no id) rather than to the schema.
+
 ## [0.17.11]
 
 ### Fixed
