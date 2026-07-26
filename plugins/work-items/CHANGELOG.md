@@ -3,6 +3,41 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.25.3]
+
+### Changed
+
+- **`setup apply` no longer seeds recurring schedule rows by default on a first-time bind (`#1211`).**
+  A bare `apply` against an absent or empty schedule now writes only the minimum viable config — the
+  provider binding, the canonical role-label pass, and the empty `{"items": []}` skeleton that stops
+  `due` / `recheck` / `work` degrading to "no recurring schedule configured". The candidate-inference
+  and per-item interview pass, previously unconditional, is opt-in: the new `apply --seed-schedule`
+  argument, an explicit in-invocation request to seed, or a single yes/no offer whose RECOMMENDED
+  default is skip. With no interactive user (a loop lane or other unattended context) the skip default
+  applies silently; `--seed-schedule` carries the opt-in decision without the offer prompt, but the
+  pass it selects is still the per-item interview, so seeding stays an attended operation. A
+  first-time bind is usually a detour from another verb reporting "no binding", so the operator who
+  came to do something else is no longer walked through an interview per candidate item to get there. The gate keys on the
+  schedule carrying **no items**, not on the file being absent, so a skipped bind's `{"items": []}` is
+  still reachable by re-running `apply` — a schedule that already carries ≥1 item is summarized and
+  offered updates exactly as before, unchanged. The role-label pass is re-anchored to the bind rather
+  than to the interview so it still runs on the skipped path; with zero schedule rows a missing
+  `recurring-maintenance` label is reported as informational rather than gating, since no
+  `[Maintenance]` item can be created from an empty schedule.
+- **`setup apply` now defines its unattended behavior for every pass, not only the seeding offer.**
+  The seeding offer is the last question in `apply`'s flow; the provider/config interview and the
+  role-label remap offer ahead of it had no unattended resolution, so an unattended first-time bind
+  blocked before it could reach the skip default. The rule is now stated once for the whole flow: a
+  decision whose RECOMMENDED answer is safe resolves to it silently (and the summary names which
+  defaults were taken), while a decision with no safe default is never guessed — `apply` stops and
+  reports it as a named blocker. Provider binding is where the second branch applies, and only when
+  the repo has **no** binding yet: `github` is RECOMMENDED but needs `gh`, and `local-markdown` /
+  `jira` need `storage_dir` / `config.jira` values that have no defaults and cannot be inferred, so
+  with `gh` absent `apply` writes no binding rather than making every seam verb resolve a provider
+  the repo never chose. An unattended re-run against a repo that is **already** bound keeps its
+  existing provider and config — re-binding is a switch-providers decision, so a working `gh` never
+  moves a `local-markdown`, `jira`, or consumer-local repo onto `github` behind the operator's back.
+
 ## [0.25.2]
 
 ### Fixed
