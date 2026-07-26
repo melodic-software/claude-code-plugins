@@ -33,8 +33,10 @@ All notable changes to the `markdown-format` plugin are documented here. Format 
   specifier the scan cannot pin to a file likewise refuses approval, because a
   signature that omits the module would keep honoring an approval across
   arbitrary edits to it: any path-building machinery in a JS source
-  (`path.join`/`path.resolve`, `require.resolve`, `import.meta`, `__dirname`/
-  `__filename`, `process.*`, template interpolation, string concatenation), a
+  (an import of the `path` module — refused at the import, because a call site
+  can be spelled through any alias while the import cannot; `require.resolve`,
+  `import.meta`, `__dirname`/`__filename`, `process.*`, template
+  interpolation, string concatenation), a
   loader whose argument is not a plain quoted specifier, and a string literal
   carrying a letter-capable escape sequence (which Node decodes to a different
   path than the raw text). Detection is file-wide rather than anchored on a

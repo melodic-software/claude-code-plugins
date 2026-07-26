@@ -61,7 +61,7 @@ const hextetRe = /^[0-9a-f]{1,4}$/i;
 // or null when it is not a well-formed address. Accepts RFC 4291 form 3 — a
 // trailing dotted quad standing for the last two groups — because the DNS
 // resolver feeding this gate can answer in that form, and reading the quad as
-// hex would silently mis-parse the address (`192.168.1.1` as 0x192).
+// hex would silently misread the address (`192.168.1.1` as 0x192).
 function expandIPv6(address) {
 	const halves = address.split("::");
 	if (halves.length > 2) return null;

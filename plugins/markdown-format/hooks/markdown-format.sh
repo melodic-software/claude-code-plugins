@@ -337,6 +337,12 @@ collect_risky_configs() {
 #    across several lines, so no line-scoped anchor could see the key and the
 #    expression together either. String concatenation and template
 #    interpolation assemble a specifier the same way and are refused with it.
+#    The `path` module is refused at its IMPORT rather than at its call sites,
+#    because a call site can be spelled through any alias — `p.join(...)`,
+#    `const { join } = require("path")` — while the import cannot: a file that
+#    pulls in `path` is building paths, and this scan cannot pin what it builds.
+#    Matching bare `.join(`/`.resolve(` instead would refuse every
+#    `array.join(",")` and `Promise.resolve`, which is collateral, not caution.
 #
 # 2. A LOADER RESIDUE. Delete every plainly-written loader call — `require("x")`
 #    / `import("x")` — from the text, then look for a loader token in what
@@ -367,6 +373,7 @@ collect_risky_configs() {
 unpinnable_js_specifier() {
   local file="$1"
   if grep -Eq \
+    -e "(require[[:space:]]*\([[:space:]]*|from[[:space:]]*)[\"'](node:)?path[\"']" \
     -e 'path[[:space:]]*\.[[:space:]]*(join|resolve|normalize)[[:space:]]*\(' \
     -e 'require[[:space:]]*\.[[:space:]]*resolve[[:space:]]*\(' \
     -e 'import[[:space:]]*\.[[:space:]]*meta' \

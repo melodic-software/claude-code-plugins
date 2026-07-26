@@ -41,7 +41,7 @@ All notable changes to the `ai-briefing` plugin are documented here. Format foll
   translation prefix `64:ff9b:1::/48` is refused outright, while IPv4-mapped and
   NAT64 `64:ff9b::/96` forms are judged by their embedded IPv4 address. Literal
   parsing also accepts RFC 4291 form 3 (a trailing dotted quad), which a
-  resolver can answer with and which reading as hex silently mis-parsed
+  resolver can answer with and which reading as hex silently misread
   (`192.168.1.1` as `0x192`). A DNS-name
   host is additionally resolved at gate time (every A/AAAA record) and refused
   when ANY resolved address is non-global, so a hostname whose record points

@@ -732,7 +732,10 @@ rm "$REPO/.markdownlint-cli2.cjs"
 #              separating it from the loader
 #   envkey     the specifier comes straight from the environment: no loader call
 #              and no path helper, so only the process.* token sees it
-for evasion in comment nocall concat bare envkey; do
+#   alias      path reached through an alias and a destructured import, with no
+#              __dirname, process, template or concatenation to fall back on, so
+#              only refusing the path IMPORT sees it
+for evasion in comment nocall concat bare envkey alias; do
   case "$evasion" in
   comment)
     cat >"$REPO/.markdownlint-cli2.cjs" <<'CJS'
@@ -785,6 +788,18 @@ CJS
 module.exports = {
   config: { "MD013": false },
   customRules: [process.env.MDLINT_RULE_MODULE],
+  noBanner: true,
+  noProgress: true
+};
+CJS
+    ;;
+  alias)
+    cat >"$REPO/.markdownlint-cli2.cjs" <<'CJS'
+const { join, resolve } = require("path");
+const base = resolve("rules");
+module.exports = {
+  config: { "MD013": false },
+  customRules: [join(base, "local.cjs")],
   noBanner: true,
   noProgress: true
 };

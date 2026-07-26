@@ -279,6 +279,18 @@ PSSA_OUTPUT=$(PSSA_FILE="$PSSA_FILE_ARG" PSSA_SETTINGS="$PSSA_SETTINGS_ARG" \
         $sq = [char]39
         $dq = [char]34
         $litPattern = "$sq([^$sq]+)$sq|$dq([^$dq]+)$dq"
+        # Substitute the automatic variables whose values are known here -
+        # anywhere in the reference, not just as a leading prefix - so the
+        # standard interpolated dependency . "$PSScriptRoot/x.ps1" resolves.
+        # Without it Join-Path reads PSScriptRoot as a directory name and the
+        # helper escapes the signature. Shared by the parser and text passes so
+        # both judge and resolve the same string.
+        function expandKnownVars([string]$value, [string]$scriptRoot, [string]$commandPath) {
+            $out = [regex]::Replace(
+                $value, "(?i)\`$\{?PSScriptRoot\}?", $scriptRoot.Replace("`$", "`$`$"))
+            [regex]::Replace(
+                $out, "(?i)\`$\{?PSCommandPath\}?", $commandPath.Replace("`$", "`$`$"))
+        }
         $seen = [System.Collections.Generic.HashSet[string]]::new(
             [System.StringComparer]::OrdinalIgnoreCase)
         $allFiles = [System.Collections.Generic.List[string]]::new()
@@ -299,17 +311,28 @@ PSSA_OUTPUT=$(PSSA_FILE="$PSSA_FILE_ARG" PSSA_SETTINGS="$PSSA_SETTINGS_ARG" \
                 Write-Output "PSSA_TRUST UNVERIFIABLE"
                 exit 6
             }
-            # Refuse a load whose target cannot be pinned to a file. The literal
-            # scan below reads quoted text only, so a COMPOSED target - a
-            # variable, an env lookup, or an expression such as
+            # Candidate paths to resolve for this file: every load target the
+            # parser reports plus every quoted literal the text scan finds.
+            $pending = [System.Collections.Generic.List[string]]::new()
+
+            # Refuse a load whose target cannot be pinned to a file. A COMPOSED
+            # target - a variable, an env lookup, or an expression such as
             # . (Join-Path $PSScriptRoot "deps" "helper.ps1") - names a
-            # dependency that never enters the signature, and an approval would
-            # then survive arbitrary edits to it. The PowerShell parser decides
-            # pinnability exactly: the target must be a constant string, or an
-            # interpolated string whose every variable this scan can expand.
-            # Unlike a text pattern it cannot be evaded by quoting or comment
-            # placement, and it needs no file-extension guessing, so the
+            # dependency that could never enter the signature, and an approval
+            # would then survive arbitrary edits to it. The PowerShell parser
+            # decides pinnability exactly: the target must be a constant string,
+            # or an interpolated string whose every variable this scan can
+            # expand. Unlike a text pattern it cannot be evaded by quoting or
+            # comment placement, and it needs no file-extension guessing, so the
             # extensionless Import-Module "$root/MyModule" form is caught too.
+            #
+            # A target the parser accepts is queued HERE rather than left to the
+            # quoted-literal scan below, which sees only quoted text: PowerShell
+            # does not require quotes around a command argument, so
+            # . $PSScriptRoot\helper.ps1 and Import-Module ./rules/helper.ps1
+            # would otherwise be judged pinnable and then never pinned - the one
+            # direction this gate must not fail in.
+            #
             # Scoped to PowerShell source because the collector also pins
             # non-code data files, which the parser would reject wholesale.
             if ($cur -match "\.ps(m|d)?1$") {
@@ -339,56 +362,51 @@ PSSA_OUTPUT=$(PSSA_FILE="$PSSA_FILE_ARG" PSSA_SETTINGS="$PSSA_SETTINGS_ARG" \
                     if (-not $isLoad) { continue }
                     foreach ($el in $cmdAst.CommandElements) {
                         if ($el -is [System.Management.Automation.Language.CommandParameterAst]) { continue }
-                        if ($el -is [System.Management.Automation.Language.StringConstantExpressionAst]) { continue }
+                        if ($el -is [System.Management.Automation.Language.StringConstantExpressionAst]) {
+                            [void]$pending.Add($el.Value)
+                            continue
+                        }
                         # An inline script block is part of the text already
                         # hashed here; FindAll recursed into it, so a composed
                         # load nested inside is still judged on its own.
                         if ($el -is [System.Management.Automation.Language.ScriptBlockExpressionAst]) { continue }
-                        $pinnable = $false
                         if ($el -is [System.Management.Automation.Language.ExpandableStringExpressionAst]) {
-                            $probe = [regex]::Replace($el.Value, "(?i)\`$\{?PSScriptRoot\}?", "x")
-                            $probe = [regex]::Replace($probe, "(?i)\`$\{?PSCommandPath\}?", "x")
-                            $pinnable = -not $probe.Contains("`$")
+                            $target = expandKnownVars $el.Value $curDir $cur
+                            if (-not $target.Contains("`$")) {
+                                [void]$pending.Add($target)
+                                continue
+                            }
                         }
-                        if (-not $pinnable) {
-                            Write-Output "PSSA_TRUST UNPINNABLE"
-                            exit 6
-                        }
+                        Write-Output "PSSA_TRUST UNPINNABLE"
+                        exit 6
                     }
                 }
             }
             foreach ($hit in [regex]::Matches($text, $litPattern)) {
                 $lit = if ($hit.Groups[1].Success) { $hit.Groups[1].Value } else { $hit.Groups[2].Value }
                 if ([string]::IsNullOrWhiteSpace($lit) -or $lit.Contains("`n")) { continue }
-                # Expand the automatic variables whose values are known here, so
-                # the standard interpolated dependency - . "$PSScriptRoot/x.ps1"
-                # - resolves. Without it Join-Path would read PSScriptRoot as a
-                # directory name and the helper would escape the signature.
-                # Substituted anywhere in the string, not just as a prefix; a
-                # variable that remains was already refused as UNPINNABLE above.
-                # The raw literal is kept as a candidate too, so a file whose
-                # name genuinely contains the text still resolves.
-                $cands = @($lit)
+                # The raw literal AND its expansion are both candidates: a file
+                # whose name genuinely contains the text still resolves, and the
+                # standard interpolated dependency resolves too.
+                [void]$pending.Add($lit)
                 if ($lit.Contains("`$")) {
-                    $expanded = [regex]::Replace(
-                        $lit, "(?i)\`$\{?PSScriptRoot\}?", $curDir.Replace("`$", "`$`$"))
-                    $expanded = [regex]::Replace(
-                        $expanded, "(?i)\`$\{?PSCommandPath\}?", $cur.Replace("`$", "`$`$"))
-                    if ($expanded -ne $lit) { $cands += $expanded }
+                    $expanded = expandKnownVars $lit $curDir $cur
+                    if ($expanded -ne $lit) { [void]$pending.Add($expanded) }
                 }
-                foreach ($cand0 in $cands) {
-                    foreach ($baseDir in @($curDir, $settingsDir)) {
-                        $cand = $cand0
-                        try {
-                            if (-not [System.IO.Path]::IsPathRooted($cand)) {
-                                $cand = Join-Path $baseDir $cand
-                            }
-                            if (Test-Path -LiteralPath $cand -PathType Leaf) {
-                                $full = Convert-Path -LiteralPath $cand
-                                if ($seen.Add($full)) { $allFiles.Add($full); $scanQueue.Enqueue($full) }
-                            }
-                        } catch { continue }
-                    }
+            }
+            foreach ($cand0 in $pending) {
+                if ([string]::IsNullOrWhiteSpace($cand0)) { continue }
+                foreach ($baseDir in @($curDir, $settingsDir)) {
+                    $cand = $cand0
+                    try {
+                        if (-not [System.IO.Path]::IsPathRooted($cand)) {
+                            $cand = Join-Path $baseDir $cand
+                        }
+                        if (Test-Path -LiteralPath $cand -PathType Leaf) {
+                            $full = Convert-Path -LiteralPath $cand
+                            if ($seen.Add($full)) { $allFiles.Add($full); $scanQueue.Enqueue($full) }
+                        }
+                    } catch { continue }
                 }
             }
         }

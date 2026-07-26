@@ -535,6 +535,28 @@ else
   fail "non-prefix \$PSScriptRoot reference not pinned: m=$R_MARKER out=$OUT_GATE_R2 $(cat "$REPO_CRP/crp9.ps1")"
 fi
 
+# PowerShell does not require quotes around a command argument, so an UNQUOTED
+# load target is invisible to a quoted-literal scan. The parser reports it, so it
+# must be pinned from there: changing only that helper revokes the approval.
+# Without this the target would be judged pinnable and then never pinned.
+cat >>"$REPO_CRP/rules/CleanRules.psm1" <<'EOF'
+. $PSScriptRoot\helper4.ps1
+EOF
+printf '%s\n' 'function Get-CrpHelperFour { return 4 }' >"$REPO_CRP/rules/helper4.ps1"
+printf "%s\n" "get-childitem -Path '.'" >"$REPO_CRP/crp10.ps1"
+OUT_GATE_Q1=$(run_hook_env "$REPO_CRP/crp10.ps1" CLAUDE_PLUGIN_DATA="$CRP_DATA" CLAUDE_PLUGIN_OPTION_POWERSHELL_FORMAT_ENABLED=true)
+Q_MARKER="$(printf '%s' "$OUT_GATE_Q1" | jq -r '.systemMessage' | sed -n "s/.*mkdir -p '\([^']*\)'.*/\1/p")"
+mkdir -p "$Q_MARKER"
+printf '%s\n' '# unreviewed helper4 revision' >>"$REPO_CRP/rules/helper4.ps1"
+printf "%s\n" "get-childitem -Path '.'" >"$REPO_CRP/crp11.ps1"
+OUT_GATE_Q2=$(run_hook_env "$REPO_CRP/crp11.ps1" CLAUDE_PLUGIN_DATA="$CRP_DATA" CLAUDE_PLUGIN_OPTION_POWERSHELL_FORMAT_ENABLED=true)
+if [[ -n "$Q_MARKER" ]] && printf '%s' "$OUT_GATE_Q2" | jq -e '.hookSpecificOutput.additionalContext | contains("trust gate")' >/dev/null 2>&1 &&
+  grep -q 'get-childitem' "$REPO_CRP/crp11.ps1"; then
+  ok "unquoted load target is pinned; helper change revokes approval"
+else
+  fail "unquoted load target not pinned: m=$Q_MARKER out=$OUT_GATE_Q2 $(cat "$REPO_CRP/crp11.ps1")"
+fi
+
 # A load target the scan cannot resolve to a file cannot be bound to any
 # approval, so each of these must gate AND refuse approval (no mkdir hint)
 # rather than sign a signature that omits the code that would execute. Each

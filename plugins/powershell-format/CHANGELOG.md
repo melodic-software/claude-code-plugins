@@ -36,9 +36,13 @@ All notable changes to the `powershell-format` plugin are documented here. Forma
   `Import-Module`/`Add-Type`/`Invoke-Expression`-class command) rather than from
   a text pattern, so it cannot be evaded by quoting or comment placement and
   needs no file-extension guessing — the extensionless
-  `Import-Module "$root/MyModule"` form is caught without one. An inline script
-  block is exempt because it is part of the already-hashed file, and a composed
-  load nested inside it is still judged on its own.
+  `Import-Module "$root/MyModule"` form is caught without one. A target the
+  parser accepts is pinned from the parser too, not left to the quoted-literal
+  scan: PowerShell does not require quotes around a command argument, so
+  `. $PSScriptRoot\helper.ps1` would otherwise be judged pinnable and then never
+  pinned. An inline script block is exempt because it is part of the
+  already-hashed file, and a composed load nested inside it is still judged on
+  its own.
   Detection uses PowerShell's restricted data-file parser
   (`Import-PowerShellDataFile`), not a textual scan, so quoting/escape
   obfuscation of the key cannot evade it — and a settings file the restricted
