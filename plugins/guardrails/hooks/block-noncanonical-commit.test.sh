@@ -716,6 +716,52 @@ if [[ -d "$LAUNCH/a/out/child/.git" && -d "$LAUNCH/b/out/child/.git" ]]; then
   done
 fi
 
+# --- a repository whose top-level path ENDS in a newline ----------------------
+# `$(…)` strips every trailing newline, so a launch-directory probe that captured
+# the top level through a bare command substitution would drop a newline that is
+# PART of the path and resolve a different sibling directory. POSIX permits a
+# newline anywhere in a path but NUL and `/`; Windows does not, so this is gated
+# on the fixture being creatable and skips loudly where it is not. The real repo
+# lives at `work<LF>` with a NON-canonical grandchild; the sibling the strip would
+# land on (`work`, no newline) has a canonical one, so a lost trailing byte flips
+# the verdict to fail-open — which the sentinel-framed probe prevents.
+NL="$TEST_TMPDIR/newline"
+mkdir -p "$NL"
+nlreal=$'work\n'
+nl_ok=0
+if mkdir "$NL/$nlreal" 2>/dev/null; then
+  nested_repo "$NL/$nlreal"
+  nested_repo "$NL/$nlreal/child"
+  nested_repo "$NL/work"
+  nested_repo "$NL/work/child"
+  git -C "$NL/$nlreal/child" config alias.p 'commit --allow-empty -m bypass' 2>/dev/null
+  git -C "$NL/work/child" config alias.p 'commit -F -' 2>/dev/null
+  # Only proceed if the platform actually preserved the trailing newline AND git
+  # can operate there: ask git for the top level (sentinel-framed so a real
+  # trailing newline survives the capture) and require it to end in one. A
+  # platform that stripped or rejected the newline resolves a name ending in `k`,
+  # or nothing at all, and the assertion is skipped loudly.
+  nltop=$(git -C "$NL/$nlreal" rev-parse --show-toplevel 2>/dev/null; printf x)
+  nltop="${nltop%x}"
+  nltop="${nltop%$'\n'}"
+  [[ "$nltop" == *$'\n' && -d "$NL/work/child/.git" ]] && nl_ok=1
+fi
+if ((nl_ok == 1)); then
+  MSYS_NO_PATHCONV=1 jq -n \
+    --arg c "git -c alias.a='!git -C child p' a" --arg d "$NL/$nlreal" \
+    '{tool_name:"Bash",tool_input:{command:$c},cwd:$d}' |
+    timeout 30 bash "$HOOK" >/dev/null 2>&1
+  rc=$?
+  if ((rc == 124)); then
+    bad "newline-suffixed toplevel: exceeded the 30s ceiling"
+  else
+    assert_exit "newline-suffixed toplevel resolves the real repo, not the stripped sibling" 2 "$rc"
+  fi
+else
+  echo "ok: newline-suffixed-toplevel fixture skipped (this platform cannot host a repository whose top-level path ends in a newline)"
+  PASS=$((PASS + 1))
+fi
+
 # --- PowerShell tool coverage ------------------------------------------------
 # The canonical PowerShell commit form (a here-string piped to `git commit -F -`)
 # must be allowed exactly as the Bash `-F -` form is; a `-m` PowerShell commit

@@ -152,12 +152,24 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
       distinct argvs collide.
     - **The toplevel and prefix are read in SEPARATE `rev-parse` calls.** One
       combined `--show-toplevel --show-prefix` call split on the first newline; a
-      repository path containing a newline truncated the toplevel and misread the
-      remainder as a prefix, switching the walk to the wrong directory. Two calls
-      leave each value delimited by nothing but the command substitution's own
-      trailing-newline strip, which cannot corrupt an interior newline. The prefix
-      call is skipped when the toplevel is empty, so the common allow path pays no
-      extra fork.
+      repository path containing an INTERIOR newline truncated the toplevel and
+      misread the remainder as a prefix, switching the walk to the wrong directory.
+      Two calls put each field in its own capture, so an interior newline can no
+      longer be read as the boundary into the next field. The prefix call is
+      skipped when the toplevel is empty, so the common allow path pays no extra
+      fork.
+    - **Each field is captured byte-exact through a sentinel** (a third review
+      finding, on the two-call fix above). `$(…)` strips EVERY trailing newline,
+      but a top-level path may itself END in one (POSIX permits any byte but NUL
+      and `/`), so the strip returned a different sibling directory — the same
+      fail-open, now at the tail rather than the interior. A sentinel byte printed
+      after git's output absorbs the strip; git's terminator is then removed
+      explicitly. git ends these two `rev-parse` forms with a BARE LF, not a CRLF,
+      even on Windows (verified on git 2.54.0.windows.1 via `od -c`), so exactly
+      one trailing `\n` is peeled and nothing else — a `tr -d '\r'`/`%$'\r'` peel
+      would corrupt a path that legitimately ends in `\r`, the identical hole one
+      byte over. Interior and trailing newlines (and a trailing `\r`) now survive
+      in both fields.
 
     The invocation's LOCATING globals are replayed onto that probe, not just its
     `-C`. `--git-dir` and `--work-tree` locate a repository as surely as `-C` does

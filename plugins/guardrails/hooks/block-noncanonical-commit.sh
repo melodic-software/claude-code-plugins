@@ -228,24 +228,32 @@ explicit_git_dir() { explicit_global git-dir "$@"; }
 # end in one (POSIX allows any byte but NUL and `/` in a path), and dropping it
 # returns a DIFFERENT sibling directory — a wrong repository, decided fail-open on
 # the alias walk. A sentinel byte printed right after git's output absorbs the
-# strip; git's single line terminator (`\n`, or `\r\n` on Windows) is then removed
-# explicitly, leaving every byte of the path — interior OR trailing newline —
-# intact. Separate calls per field (never one `--show-toplevel --show-prefix`
-# call split on a newline) keep an interior newline in one field from being read
-# as the boundary into the next.
+# strip; git's single line terminator is then removed explicitly, leaving every
+# byte of the path — interior OR trailing newline OR trailing CR — intact.
+#
+# git terminates `rev-parse --show-toplevel`/`--show-prefix` with a BARE LF, not a
+# CRLF, even on Windows — verified on git 2.54.0.windows.1 (`od -c`: the output
+# ends `… w o r k \n`, no `\r` byte). So exactly ONE trailing `\n` is git's, and
+# nothing else is stripped: a `tr -d '\r'` or a `%$'\r'` peel would corrupt a POSIX
+# path that legitimately ends in `\r`, the same class of fail-open one byte over.
+# Separate calls per field (never one `--show-toplevel --show-prefix` call split
+# on a newline) keep an interior newline in one field from being read as the
+# boundary into the next.
 # Call as: git_rev_parse_field <dir> <path-flag> [locating-global...]
 HOOK_REV_PARSE_FIELD=""
 # shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
 git_rev_parse_field() {
   local dir="$1" flag="$2" out
   shift 2
+  # No errexit here (`set -uo pipefail` only, no `-e`), so git's nonzero exit on a
+  # non-repo does not abort the subshell before `printf` — the sentinel is always
+  # emitted, and an empty git answer frames to "".
   out=$(
     git -C "$dir" "$@" rev-parse "$flag" 2>/dev/null
     printf 'x'
   )
-  out="${out%x}"       # drop the sentinel, keeping any real trailing newline
-  out="${out%$'\n'}"   # git's line terminator (the LF, or the LF of a CRLF)
-  out="${out%$'\r'}"   # …and its CR on Windows
+  out="${out%x}"       # drop the sentinel, keeping any real trailing byte
+  out="${out%$'\n'}"   # git's single bare-LF line terminator (see od note above)
   HOOK_REV_PARSE_FIELD="$out"
 }
 
