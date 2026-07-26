@@ -110,6 +110,20 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   absent from the corpus entirely. Phase A now inventories the loaded part of `MEMORY.md` at the
   effective auto-memory location and the one style that resolves active, both read-only, with
   ownership and routing unchanged.
+- **Auto memory's enabled state is resolved by precedence, not by any one scope.**
+  `CLAUDE_CODE_DISABLE_AUTO_MEMORY` is authoritative wherever it is set (`=1` off, `=0` on, even
+  against `autoMemoryEnabled: false`); with it unset, settings precedence (managed > local > project
+  > user) decides, defaulting to on. Reading a lower-scope `false` as decisive would have dropped a
+  `MEMORY.md` that a higher-precedence scope re-enabled. `/claude-memory:stateless` owns the
+  resolver and reports the effective state, including a variable/setting disagreement.
+- **An agent definition no longer pairs against the main conversation's auto memory.** The residency
+  table listed `MEMORY.md` as resident every session and made every agent-definition pair guaranteed,
+  but "the main conversation's auto memory isn't loaded into subagents; the exception is a fork"
+  ([memory](https://code.claude.com/docs/en/memory)) — so those two never occupy one context and the
+  pass was reporting conflicts between contexts that do not coexist. The row, the guaranteed-pairs
+  set, and the co-residency prose now carry the exception, while keeping the two pairs that are real:
+  a fork inherits the parent, and a subagent that enables its own `memory` field can contradict the
+  definition it runs under.
 - **The plugin-source known limit no longer contradicts the read-only tier.** It said Phase A "never
   reaches `plugins/`" and that agent-versus-memory pairs have no second side, which the new tier
   makes false for every *installed, enabled* plugin — two executable instructions disagreeing about

@@ -129,13 +129,17 @@ nothing about ownership: these surfaces still produce no proposal of their own, 
 involving one still carries the no-change representation and its routing recommendation.
 
 - **Auto memory, when it is on** — the `MEMORY.md` entrypoint at the effective auto-memory location
-  (the `autoMemoryDirectory` setting where one is resolved, otherwise
-  `~/.claude/projects/<project>/memory/`). **Resolve the effective enabled state first:** auto memory
-  is on by default, but `autoMemoryEnabled: false` at any settings scope or
-  `CLAUDE_CODE_DISABLE_AUTO_MEMORY=1` turns it off, and a `MEMORY.md` left on disk from before it was
-  disabled is then neither loaded nor written — inventorying it unconditionally would pair live
-  instructions against text no session sees, the same defect as reading a disabled plugin's cache.
-  When it is on it loads into every session, and
+  (the highest-precedence scope that sets `autoMemoryDirectory`, otherwise
+  `~/.claude/projects/<project>/memory/`). **Resolve the effective enabled state first, by
+  precedence — not by any single scope's value.** `CLAUDE_CODE_DISABLE_AUTO_MEMORY` is authoritative
+  wherever it is set (`=1` off, `=0` on, even against `autoMemoryEnabled: false`); with the variable
+  unset, apply settings precedence (managed > local > project > user) to `autoMemoryEnabled`, which
+  defaults to on. Reading a lower-scope `false` as decisive would drop a `MEMORY.md` a
+  higher-precedence scope re-enabled, and inventorying unconditionally would pair live instructions
+  against a file left on disk after auto memory was turned off — the same defect as reading a
+  disabled plugin's cache. `/claude-memory:stateless` owns this resolver; its `status` action reports
+  the effective state, including a disagreement between the variable and the setting. When auto
+  memory is on it loads into every session, and
   [reference/conflict-criteria.md](reference/conflict-criteria.md) assigns every pair involving it to
   I15 precisely because `claude-memory`'s C6 does not read it — so excluding it outright would leave
   a `MEMORY.md`-versus-`CLAUDE.md` contradiction audited by neither skill. Only the content that

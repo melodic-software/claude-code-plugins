@@ -84,18 +84,27 @@ shapes without this gate produces noise, because most surface pairs never co-loa
 | `.claude/rules/*` without `paths` | Every session | memory: "loaded at launch with the same priority as `.claude/CLAUDE.md`" |
 | `.claude/rules/*` with `paths` | Only when a matching file is read | memory: "only apply when Claude is working with files matching the specified patterns" |
 | Skill body | Only once invoked, then for the rest of the session | skills: "a skill's body loads only when it's used" |
-| Auto memory `MEMORY.md` | Every session, first 200 lines or 25KB | memory |
+| Auto memory `MEMORY.md` | Every **main** session, first 200 lines or 25KB — **not** in a subagent, except a fork | memory: "The main conversation's auto memory isn't loaded into subagents; the exception is a fork" |
 | Skill bundled `reference/`, `context/` file | Only when Claude reads it | skills: "letting Claude access detailed reference material only when needed" |
 | Agent definition (its own subagent) | Always, as that subagent's system prompt — **alongside the full CLAUDE.md hierarchy** | subagents, "What loads at startup" |
 | Skill named in an agent's `skills:` field | Always, in that subagent | subagents: "The full content of each listed skill is injected, not only the description" |
 | Prompt-type hook text | **Never** — see "A prompt hook's text is not an instruction" below | hooks: a `prompt` hook "send[s] a prompt to a Claude model for single-turn evaluation" |
 | Output style (the **active** one) | Every session in the main conversation, appended to the system prompt | output-styles: "Output styles directly modify Claude Code's system prompt"; "read once at session start" |
 
-**An agent definition co-resides with the whole memory layer, and that is a guaranteed pair.** A
-non-fork subagent's initial context contains "every level of the CLAUDE.md hierarchy the main
+**An agent definition co-resides with the whole CLAUDE.md hierarchy, and that is a guaranteed pair.**
+A non-fork subagent's initial context contains "every level of the CLAUDE.md hierarchy the main
 conversation loads, including `~/.claude/CLAUDE.md`, project rules, `CLAUDE.local.md`, and managed
 policy files". So an agent definition contradicting a `CLAUDE.md` clears gate 1 outright — it does not
 need the conditional treatment a skill body gets.
+
+**Auto memory is the exception inside that hierarchy.** "The main conversation's auto memory isn't
+loaded into subagents; the exception is a fork, which inherits the parent conversation and system
+prompt. A subagent's own auto memory, enabled with the subagent `memory` field, is a separate
+directory" (memory). So an agent definition against the **main** `MEMORY.md` fails gate 1 — the two
+never occupy one context — and pairing them reports a conflict between contexts that do not coexist.
+Two pairs remain real and should not be swept away with it: a **fork** does inherit the parent, and a
+subagent that enables its own `memory` can contradict the definition it runs under, but that is the
+subagent's own memory directory, not the main conversation's.
 
 **The two exceptions are `Explore` and `Plan`**, which "skip your CLAUDE.md files and the parent
 session's git status", and "there is no frontmatter field or per-agent setting to change which agents
@@ -133,7 +142,8 @@ directive addressed to the evaluator is not. Command-type hooks are outside this
 (context-window doc: "hooks run as code, not context").
 
 **Guaranteed pairs** are any two of {user `CLAUDE.md`, project `CLAUDE.md`, unscoped rules,
-`MEMORY.md`}, and any agent definition against any of them except via `Explore` / `Plan`.
+`MEMORY.md`}, and any agent definition against any of them **except `MEMORY.md`**, and except via
+`Explore` / `Plan`.
 **Conditional pairs** involve a skill body, a path-scoped rule, or a nested `CLAUDE.md` — real, but
 they only bite once that surface loads. Report the distinction; do not drop conditional pairs, because
 the worked example below is one.
