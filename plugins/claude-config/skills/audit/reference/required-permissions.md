@@ -65,6 +65,20 @@ its child processes: `sandbox.filesystem.denyRead`, or `sandbox.credentials.file
 boundary. The sandbox's default read policy still allows credential files such as `~/.aws/credentials`
 and `~/.ssh/` unless they are listed.
 
+**`sandbox.enabled: true` alone is not a boundary — check the escape surfaces before calling it one.**
+Upstream documents four, all open at their defaults, and each puts a subprocess back outside the OS
+boundary where it can read the denied path:
+
+| Setting | Why it matters | What a boundary requires |
+| --- | --- | --- |
+| `allowUnsandboxedCommands` | A command that fails under the sandbox may be retried with `dangerouslyDisableSandbox`, which runs it outside | set to `false` |
+| `failIfUnavailable` | A missing dependency or an unsupported platform warns and then runs commands unsandboxed | set to `true` |
+| `excludedCommands` | Anything listed runs outside the sandbox, and upstream notes a developer can always append entries | kept narrow, and reviewed |
+| `filesystem.disabled` | Turning the filesystem layer off lifts the `denyRead` and `credentials.files` read protections entirely | not set |
+
+Report an enabled-but-default sandbox as partial, not as protection. Recommending it without these is
+the same defect as recommending the deny globs without their scope.
+
 **Platform limit — check before recommending it.** The sandbox runs on macOS, Linux, and WSL2; native
 Windows is not supported, and the PowerShell tool lists "On Windows, sandboxing is not supported"
 among its preview limitations. On a native-Windows workstation the OS-level remedy is unavailable, so

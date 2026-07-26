@@ -27,6 +27,20 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   fragile. Two facts are flagged unverified rather than asserted: whether PowerShell-tool reads
   (`Get-Content`, `type`) are covered at all, and the full membership of the recognized-command set,
   which upstream gives with "such as".
+- **The sandbox's four escape surfaces, tabled alongside the recommendation.** `sandbox.enabled: true`
+  on its own is not a boundary: `allowUnsandboxedCommands` lets a failing command be retried outside
+  it, `failIfUnavailable` defaults to warning and running unsandboxed, `excludedCommands` runs listed
+  commands outside and can always be appended to, and `filesystem.disabled` lifts the `denyRead` and
+  `credentials.files` read protections outright. All four are open at their defaults, so an
+  enabled-but-default sandbox is reported as partial — recommending it without them would repeat the
+  defect this release fixes.
+- **`check-structure.sh` now separates unreadable from malformed.** A `Read` deny merged into a
+  sandbox boundary, or plain filesystem permissions, makes the script's `open()` fail; it previously
+  surfaced as `Valid JSON: no` and failed the run, i.e. a false malformed-config finding. The script
+  now reports `Present: yes` / `Readable: no` with a `not inspectable` note and exits cleanly, and
+  both `SKILL.md` Phase 1 and `context/procedures.md` say that is a correct result to record rather
+  than a reason to find another reader. Covered by a new test case that announces a skip where the
+  platform does not enforce `chmod 000`.
 - **Eval 7 on the `audit` skill (`read-deny-scope-not-overstated`).** Asks whether present deny
   patterns mean the secrets are protected; expects the scope split, the ranked remedies, and no
   `Bash(cat *)` enumeration.

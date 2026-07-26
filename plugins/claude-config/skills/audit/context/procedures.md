@@ -13,10 +13,16 @@ inside a subprocess, which a `Read(...)` deny does not cover — it is safe beca
 never values. The `cat … | jq` recipes below go the other way: `cat` is a file command Claude Code
 recognizes in Bash, so a project carrying the baseline `Read(./.claude/settings.local.json)` deny will
 block them. That is the correct outcome — do not route around it with an interpreter one-liner
-(`python -c`, `node -e`) to dump content the sanctioned script will not emit. Take the counts
-`check-structure.sh` gives you, and where a check genuinely needs more, report it as not inspectable
-under the project's own deny rule. See "Scope of a Read deny" in
-[reference/required-permissions.md](../reference/required-permissions.md).
+(`python -c`, `node -e`) to dump content the sanctioned script will not emit. See "Scope of a Read
+deny" in [reference/required-permissions.md](../reference/required-permissions.md).
+
+**Counts are not guaranteed.** Where the project also enables the sandbox, the baseline `Read` deny
+merges into the sandbox filesystem boundary and the OS blocks `check-structure.sh` and its `tr`/`jq`
+children too — the subprocess route closes. The script distinguishes that case: it reports
+`Readable: no` with a `not inspectable` note rather than `Valid JSON: no`, and does not fail the run.
+Treat that output as the answer. Record the file as not inspectable under the project's own
+configuration, carry that into the report, and do not escalate to another reader to get the counts
+anyway. A `Present: yes` / `Readable: no` pair is a correct result, not a broken audit.
 
 ```bash
 # Key inventory (no values)

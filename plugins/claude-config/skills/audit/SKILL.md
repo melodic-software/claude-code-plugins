@@ -60,6 +60,11 @@ Even when no deny rule blocks it, treat `settings.local.json` as secret-bearing:
 validity, never dump its contents. Supplemental jq recipes: [context/procedures.md](context/procedures.md)
 "Reading settings.local.json safely".
 
+The counts are not guaranteed. Where the project's configuration blocks the read — a sandbox
+`denyRead` merged from the baseline `Read` deny, or filesystem permissions — the script reports
+`Readable: no` and a `not inspectable` note instead of failing. Record the file as not inspectable,
+carry that into the report, and do not reach for another reader to get the counts anyway.
+
 ---
 
 ## Track progress
