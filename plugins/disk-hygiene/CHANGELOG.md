@@ -3,6 +3,33 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.8]
+
+### Fixed
+
+- **The engine gate no longer denies commands naming a DIFFERENT file whose name ends in
+  `hygiene.py` (#1611).** `_engine_gate_relevant` decided marker relevance with a bare substring
+  test over the command string, so `test_hygiene.py` — this plugin's own test suite — read as an
+  engine invocation. In any consumer session with the plugin enabled, that denied the natural
+  commands for working on it: `python3 -m unittest -v .../test_hygiene.py` and
+  `ruff check .../test_hygiene.py` were both refused, on the Bash tool and on PowerShell. The
+  literal-parse path was already correct — it basename-matched (`Path(word).name == _ENGINE_MARKER`)
+  and deferred — so only the operator-carrying path misfired, which is why the failure looked
+  arbitrary: the same command gated or deferred depending on whether it contained a `&&`.
+  Relevance now uses that same basename equality everywhere, via one `_carries_marker` helper, so
+  the two paths agree on what "is the engine" means.
+
+  **This is a precision change, not a relaxation.** The narrowing is paid for by splitting
+  candidate tokens on this module's own shell-metacharacter set as well as whitespace, so a
+  separator-free concatenation (`foo;hygiene.py`, `$(hygiene.py scan)`, `true|hygiene.py`) still
+  exposes the engine filename as its own token and still gates — a naive per-word basename test
+  would have opened exactly that seam. Copy-evasion coverage is untouched because it never routed
+  through the marker: a link to the engine under any other name gates by `os.path.samefile`
+  identity, and a byte copy remains the accepted residual the function's docstring already names.
+  Verified as a 26-case differential over the shapes the gate distinguishes — every engine,
+  wrapper, concatenation, substitution, pipe, backtick, and redirect case holds its prior verdict;
+  only the two `test_hygiene.py` shapes change, from deny to defer.
+
 ## [0.9.7]
 
 ### Fixed

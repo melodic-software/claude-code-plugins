@@ -2771,6 +2771,50 @@ class GuardTests(unittest.TestCase):
                 self.run_guard_engine_gate(f'python3 "{consumer}" --help')
             )
 
+    def test_engine_gate_defers_files_whose_name_merely_ends_in_the_marker(
+        self,
+    ) -> None:
+        """A DIFFERENT filename containing the marker is not this engine (#1611).
+
+        The gate's own suite lives in `test_hygiene.py`, whose name contains
+        `hygiene.py`. A bare-substring marker test read that as an engine
+        invocation and denied every Bash command naming it — including the
+        command this plugin's contributors run to execute these very tests.
+        The parseable path always basename-matched and deferred correctly; the
+        operator-carrying path did not, so both shapes are pinned here.
+        """
+        suite = "plugins/disk-hygiene/skills/clean/scripts/test_hygiene.py"
+        for command in (
+            f"python3 -m unittest -v {suite}",
+            f"cd /repo && python3 -m unittest -v {suite}",
+            f"pytest {suite} -k guard",
+            "python3 myhygiene.py --help",
+        ):
+            self.assertIsNone(self.run_guard_engine_gate(command), command)
+
+    def test_engine_gate_still_gates_metacharacter_glued_engine_names(self) -> None:
+        """Narrowing to a filename boundary must not open a concatenation seam.
+
+        `_carries_marker` tests a token's basename, so the tokens it reads have
+        to split on shell metacharacters too — otherwise `foo;hygiene.py` is one
+        token named `foo;hygiene.py` and slips a gate that bare-substring
+        matching used to catch.
+        """
+        with tempfile.TemporaryDirectory() as tmp, chdir_context(tmp):
+            for command in (
+                "foo;hygiene.py",
+                "python3 foo;hygiene.py",
+                "echo $(hygiene.py scan)",
+                "true|hygiene.py",
+            ):
+                result = self.run_guard_engine_gate(command, "Bash", enabled=False)
+                assert result is not None, command
+                self.assertEqual(
+                    "deny",
+                    result["hookSpecificOutput"]["permissionDecision"],
+                    command,
+                )
+
     def test_engine_gate_catches_wrapper_launchers_of_the_bundled_engine(self) -> None:
         """env / sh -c wrappers around the absolute engine path must gate (P1 review)."""
         script = SCRIPT_DIR / "hygiene.py"

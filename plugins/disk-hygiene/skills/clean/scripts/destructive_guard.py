@@ -215,6 +215,35 @@ _MODE_BELT = "belt"
 _MODE_ENGINE_GATE = "engine-gate"
 _ENGINE_MARKER = "hygiene.py"
 
+# Delimiters for the marker scan: this module's own shell-metacharacter set plus
+# whitespace and quotes. Splitting on the metacharacters too is what keeps a
+# separator-free concatenation (`foo;hygiene.py`, `$(hygiene.py scan)`) exposing
+# the engine filename as a token of its own.
+_MARKER_TOKEN_SPLIT = re.compile(
+    "[{}]+".format(
+        re.escape(
+            "".join(sorted(_SHELL_EXPANSION_OR_OPERATOR_CHARS | set(" '\"")))
+        )
+    )
+)
+
+
+def _marker_tokens(command: str) -> list[str]:
+    """Candidate filename tokens, split on whitespace AND shell metacharacters."""
+    return [token for token in _MARKER_TOKEN_SPLIT.split(command) if token]
+
+
+def _carries_marker(word: str) -> bool:
+    """Whether ``word``'s FILENAME is the engine, not merely ends with its name.
+
+    `test_hygiene.py` and `myhygiene.py` are different files whose names happen
+    to contain the marker; a bare-substring test reads them as this engine and
+    gates unrelated work (#1611) — including the plugin's own test suite. This
+    is the same basename equality the literal branch below already applies, so
+    the two paths now agree on what "is the engine" means.
+    """
+    return Path(word.casefold()).name == _ENGINE_MARKER
+
 
 def _engine_gate_relevant(command: str, tool_name: str = "Bash") -> bool:
     """Decide whether the plugin-level engine gate should act on ``command``.
@@ -223,7 +252,16 @@ def _engine_gate_relevant(command: str, tool_name: str = "Bash") -> bool:
     mention of the engine's filename (``git diff -- hygiene.py``,
     ``rg hygiene.py README.md``, ``echo hygiene.py``) must defer — routing
     mentions into the belt's fail-closed parser would block ordinary work
-    session-wide. The gate acts only on what parses as an INVOCATION:
+    session-wide.
+
+    Throughout, a word "carries the marker" when its FILENAME is
+    ``hygiene.py`` (``_carries_marker``), never when its name merely contains
+    that string — ``test_hygiene.py`` and ``myhygiene.py`` are different files.
+    Tokens for that test are split on shell metacharacters as well as
+    whitespace, so a concatenation like ``foo;hygiene.py`` still exposes the
+    engine as a token of its own.
+
+    The gate acts only on what parses as an INVOCATION:
 
     - a literal word carrying the engine's filename that is not provably a
       DIFFERENT file: a word that resolves to an existing file other than the
@@ -270,8 +308,7 @@ def _engine_gate_relevant(command: str, tool_name: str = "Bash") -> bool:
         return _samefile(word)
 
     allow_backslash = tool_name == "PowerShell"
-    lowered = command.casefold()
-    if _ENGINE_MARKER not in lowered:
+    if not any(_carries_marker(token) for token in _marker_tokens(command)):
         # No marker: the only relevant shape is a linked alias of the bundled
         # engine invoked by path. Unparsable marker-free commands cannot fail
         # closed (that would gate every command with an operator), so scan
@@ -290,12 +327,10 @@ def _engine_gate_relevant(command: str, tool_name: str = "Bash") -> bool:
         # Fail closed UNLESS every marker-carrying token is provably a
         # DIFFERENT existing file (a consumer's own hygiene.py in a compound
         # command) and no token is the bundled engine under any name.
-        tokens = [token.strip("'\"") for token in command.split()]
+        tokens = _marker_tokens(command)
         if any(_same_file_as_bundled(token) for token in tokens):
             return True
-        marker_tokens = [
-            token for token in tokens if _ENGINE_MARKER in token.casefold()
-        ]
+        marker_tokens = [token for token in tokens if _carries_marker(token)]
         if marker_tokens and all(
             _script_path_key(token) is not None and not _samefile(token)
             for token in marker_tokens
