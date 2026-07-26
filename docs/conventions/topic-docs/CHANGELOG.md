@@ -1,5 +1,20 @@
 # Changelog — topic-docs convention
 
+## 2.3.0 — 2026-07-26
+
+- **The `.worktreeinclude` template carries sub-slices** (additive). Its
+  patterns matched one level — `.work/*/RESEARCH.md` — while a producer
+  may write `<memory_dir>/<slug>/<sub-slug>/`, the layout used when one
+  slice holds more than one run: a parallel fan-out assigning a sub-slice
+  per topic, or a run that found the slice root already occupied by
+  unrelated work. Glob patterns do not descend on their own, so a spawned
+  worktree carried the top-level index and silently dropped every nested
+  index, sidecar, and ledger. That partial set is worse than carrying
+  nothing, because the receiving session sees an artifact and cannot tell
+  it is incomplete. Five nested patterns are added; nothing existing
+  changes meaning and no visibility guarantee moves — a sub-slice was
+  always inside the slice, it was simply unreachable by the template.
+
 ## 2.2.0 — 2026-07-25
 
 - **"Implementers restate the rules; they do not share a source"** (new,
