@@ -11,9 +11,12 @@ All notable changes to the `work-items` plugin are documented here. Format follo
   suggestions emitted `git checkout -b <type>/<N>-<slug> origin/main`, hardcoding a default-branch
   name into a forge-agnostic skill: on a repo whose default branch is `master`, `trunk`, or
   `develop`, the user was handed a command that either fails or silently bases the work on the wrong
-  ref. The existing-branch check now resolves `BASE_REF` from `refs/remotes/origin/HEAD`
-  (detection-first), falling back to the literal only for a clone that has no `origin/HEAD`, and
-  both suggestions emit `<base-ref>` — a placeholder the agent substitutes with the resolved value,
+  ref. The existing-branch check now resolves `BASE_REF` from `refs/remotes/origin/HEAD`, then —
+  because that local symbolic ref is only a cache a `git remote add` + `git fetch` clone never
+  populates — from `git ls-remote --symref origin HEAD`, which asks the remote itself. Neither rung
+  guesses a literal: when both come back empty the suggestion is emitted with no start-point and the
+  unresolved default branch is stated, rather than reintroducing the assumption under a different
+  name. Both suggestions emit `<base-ref>` — a placeholder the agent substitutes with the resolved value,
   like `<type>` / `<N>` / `<slug>` beside it. Emitting the shell variable itself would have shipped
   a broken command: the suggestion is pasted into the USER's terminal, which never saw the agent's
   assignment, so `"$BASE_REF"` would expand to an empty pathspec. Surfaced by `portability-lint`,

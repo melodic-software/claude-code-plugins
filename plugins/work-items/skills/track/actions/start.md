@@ -57,12 +57,20 @@ Claim a work item through the seam (assignee + lease record).
      CURRENT_N="${BASH_REMATCH[2]}"
    fi
    # Resolve <base-ref> for the suggestions below from the remote's OWN default
-   # branch; the literal is the last-resort fallback for a clone with no
-   # origin/HEAD, not the assumption.
-   BASE_REF="$(git symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null)" || BASE_REF="origin/main"
+   # branch. The local symbolic ref is only a cache — a clone made by
+   # `git remote add` + `git fetch` never has it — so fall through to asking the
+   # remote itself. No literal default is guessed at either rung.
+   BASE_REF="$(git symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null || true)"
+   if [[ -z "$BASE_REF" ]]; then
+     REMOTE_HEAD="$(git ls-remote --symref origin HEAD 2>/dev/null |
+       sed -n 's|^ref: refs/heads/\([^[:space:]]*\).*|\1|p' | head -n1)"
+     [[ -n "$REMOTE_HEAD" ]] && BASE_REF="origin/$REMOTE_HEAD"
+   fi
    ```
 
    `<base-ref>` below is a placeholder the agent substitutes with the resolved value, exactly as it substitutes `<type>` / `<N>` / `<slug>`. The emitted command runs in the USER's terminal, which never saw the agent's `BASE_REF` assignment — emitting the variable unexpanded would hand over an empty pathspec.
+
+   **`BASE_REF` still empty** (offline, no `origin` remote, or a remote with no HEAD) — do NOT substitute a guessed default branch, which is the failure this resolution exists to prevent. Emit the command with no start-point (`git checkout -b <type>/<N>-<slug>`, which branches from the current `HEAD`) and say the default branch could not be resolved, so the user can supply a base explicitly.
 
    - **`CURRENT_N` == claimed `<N>`** → acknowledge: "Already on `<current-branch>` — branch matches claimed #N. No rename needed." Skip prompt. Done.
    - **`CURRENT_N` is a different number** → multi-claim 3-option (below).
