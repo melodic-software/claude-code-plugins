@@ -221,6 +221,34 @@ explicit_git_dir() { explicit_global git-dir "$@"; }
 # guard never moves a repository mid-analysis. Published in a global and assigned by
 # a PLAIN call, never `$(…)`: a command substitution would run it in a subshell and
 # discard the cache.
+# One `git rev-parse <path-flag>` field, captured byte-exact into
+# HOOK_REV_PARSE_FIELD — empty when git cannot answer.
+#
+# `$(…)` strips EVERY trailing newline, but a repository top-level path may itself
+# end in one (POSIX allows any byte but NUL and `/` in a path), and dropping it
+# returns a DIFFERENT sibling directory — a wrong repository, decided fail-open on
+# the alias walk. A sentinel byte printed right after git's output absorbs the
+# strip; git's single line terminator (`\n`, or `\r\n` on Windows) is then removed
+# explicitly, leaving every byte of the path — interior OR trailing newline —
+# intact. Separate calls per field (never one `--show-toplevel --show-prefix`
+# call split on a newline) keep an interior newline in one field from being read
+# as the boundary into the next.
+# Call as: git_rev_parse_field <dir> <path-flag> [locating-global...]
+HOOK_REV_PARSE_FIELD=""
+# shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
+git_rev_parse_field() {
+  local dir="$1" flag="$2" out
+  shift 2
+  out=$(
+    git -C "$dir" "$@" rev-parse "$flag" 2>/dev/null
+    printf 'x'
+  )
+  out="${out%x}"       # drop the sentinel, keeping any real trailing newline
+  out="${out%$'\n'}"   # git's line terminator (the LF, or the LF of a CRLF)
+  out="${out%$'\r'}"   # …and its CR on Windows
+  HOOK_REV_PARSE_FIELD="$out"
+}
+
 # Call as: alias_launch_dir <dir> [locating-global...]
 declare -A _alias_launch_dir=()
 HOOK_ALIAS_LAUNCH_DIR=""
@@ -242,18 +270,16 @@ alias_launch_dir() {
     key+=$'\n'"$q"
   done
   if [[ -z "${_alias_launch_dir[$key]+x}" ]]; then
-    # --show-toplevel and --show-prefix are read in SEPARATE calls, not one
-    # newline-delimited call: a repository path may contain a newline, and
-    # splitting a combined `<toplevel>\n<prefix>` on the first newline would
-    # truncate the toplevel and misread the remainder as a prefix — switching
-    # the walk to the wrong directory, fail-open. `$(…)` strips only the trailing
-    # newline, so each value survives intact including any interior newline. The
-    # prefix call is skipped when the toplevel is empty (git could not answer).
-    toplevel=$(git -C "$dir" "$@" rev-parse --show-toplevel 2>/dev/null | tr -d '\r')
+    # Each field is read byte-exact (git_rev_parse_field) — the top level may
+    # contain, or end in, a newline. The prefix call is skipped when the toplevel
+    # is empty (git could not answer).
+    git_rev_parse_field "$dir" --show-toplevel "$@"
+    toplevel="$HOOK_REV_PARSE_FIELD"
     if [[ -z "$toplevel" ]]; then
       _alias_launch_dir["$key"]=""
     else
-      prefix=$(git -C "$dir" "$@" rev-parse --show-prefix 2>/dev/null | tr -d '\r')
+      git_rev_parse_field "$dir" --show-prefix "$@"
+      prefix="$HOOK_REV_PARSE_FIELD"
       if [[ -n "$prefix" || $nglob -eq 0 ]]; then
         _alias_launch_dir["$key"]="$toplevel"
       else
