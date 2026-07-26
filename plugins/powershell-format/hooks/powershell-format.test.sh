@@ -566,7 +566,9 @@ fi
 #   envvar     the target comes from the environment
 #   othervar   an interpolated string holding a variable that is not expandable
 #   bareimport Import-Module with no extension, so extension matching cannot see it
-for form in composed envvar othervar bareimport; do
+#   lookalike  a DIFFERENT variable whose name merely starts with PSScriptRoot,
+#              which an unbounded expansion would rewrite and then call pinnable
+for form in composed envvar othervar bareimport lookalike; do
   cp "$REPO_CRP/rules/CleanRules.psm1" "$WORK/CleanRules.psm1.bak"
   case "$form" in
   composed)
@@ -591,6 +593,12 @@ EOF
     cat >>"$REPO_CRP/rules/CleanRules.psm1" <<'EOF'
 $modRoot = $env:PSSA_MOD_ROOT
 Import-Module "$modRoot/MyModule"
+EOF
+    ;;
+  lookalike)
+    cat >>"$REPO_CRP/rules/CleanRules.psm1" <<'EOF'
+$PSScriptRootFoo = $env:PSSA_ALT_ROOT
+. "$PSScriptRootFoo/helper.ps1"
 EOF
     ;;
   *) fail "unknown unpinnable fixture: $form" ;;

@@ -285,11 +285,20 @@ PSSA_OUTPUT=$(PSSA_FILE="$PSSA_FILE_ARG" PSSA_SETTINGS="$PSSA_SETTINGS_ARG" \
         # Without it Join-Path reads PSScriptRoot as a directory name and the
         # helper escapes the signature. Shared by the parser and text passes so
         # both judge and resolve the same string.
+        # The name is BOUNDED, so a longer variable that merely starts with the
+        # same text is not mistaken for it: PowerShell continues a variable name
+        # through [A-Za-z0-9_] and reads a colon as a scope qualifier, so an
+        # unbounded pattern would rewrite $PSScriptRootFoo to <dir>Foo and the
+        # caller would then judge that reference pinnable and never pin it.
         function expandKnownVars([string]$value, [string]$scriptRoot, [string]$commandPath) {
             $out = [regex]::Replace(
-                $value, "(?i)\`$\{?PSScriptRoot\}?", $scriptRoot.Replace("`$", "`$`$"))
+                $value,
+                "(?i)\`$(?:\{PSScriptRoot\}|PSScriptRoot(?![A-Za-z0-9_:]))",
+                $scriptRoot.Replace("`$", "`$`$"))
             [regex]::Replace(
-                $out, "(?i)\`$\{?PSCommandPath\}?", $commandPath.Replace("`$", "`$`$"))
+                $out,
+                "(?i)\`$(?:\{PSCommandPath\}|PSCommandPath(?![A-Za-z0-9_:]))",
+                $commandPath.Replace("`$", "`$`$"))
         }
         $seen = [System.Collections.Generic.HashSet[string]]::new(
             [System.StringComparer]::OrdinalIgnoreCase)
