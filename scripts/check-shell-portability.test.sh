@@ -1496,12 +1496,14 @@ fi
 rm -f "$f"
 
 # =============================================================================
-# Quote-aware command segmentation -- #1544 review round
+# Quote-aware matching -- #1544 review round
 #
-# Each shape below was reproduced against the real gate before the segmenter
-# replaced the `[^;&|()\n]*` gap. Two were false positives; three were the
-# gate failing OPEN, the worse direction -- a GNU-only call reaching a BSD
-# userland unreported.
+# Each shape below was reproduced against the real gate before the fix. Two
+# were false positives; three were the gate failing OPEN, the worse direction
+# -- a GNU-only call reaching a BSD userland unreported. The gap still
+# excludes separators; what changed is that it now matches a line whose
+# QUOTED separators have been neutralized first, so a `;` in a filename and a
+# `;` between commands stop being the same character to it.
 # =============================================================================
 
 # --- `--` ends option parsing, so a flag-shaped word after it is an operand.
@@ -1600,6 +1602,109 @@ elif [[ "$(echo "$out" | grep -c "PORTABILITY: ${f}:")" -eq 2 ]]; then
   ok "GNU escape classes inside string literals still match after masking"
 else
   fail "expected the quoted-escape and sort -V forms flagged, got: $out"
+fi
+rm -f "$f"
+
+# =============================================================================
+# Offset-anchored matching -- #1544 review round 2
+#
+# End-of-options and the fallback guard both have to apply to ONE invocation,
+# not to the physical line: an outer command `--` must not reach a nested
+# call, and a `||` further along the line must not excuse a call that cannot
+# reach it. Both are scoped to the matched extent and the matched offset.
+# Three of the shapes below were fail-OPEN, two of those introduced by the
+# first revision of this fix.
+# =============================================================================
+
+# --- an outer `--` belongs to the outer command; it must not hide a nested
+# invocation. FAIL-OPEN before the fix.
+f="$(tmpsh 'printf -- "%s\n" "$(stat -c "%s" "$g")"')"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "a nested stat -c under an outer -- should fail, got success: $out"
+else
+  ok "an outer -- no longer hides a GNU-only call inside a substitution"
+fi
+rm -f "$f"
+
+# --- ... and the inner one is still honored, which needs the mask to see the
+# substitution through the surrounding double quotes at all.
+f="$(tmpsh 'printf "%s\n" "$(stat -- -c)"')"
+if scan_paths "$REAL_TOKENS" "$f" >/dev/null 2>&1; then
+  ok "an -- inside a double-quoted substitution is still honored"
+else
+  fail "the mask must parse substitutions nested in double quotes"
+fi
+rm -f "$f"
+
+# --- a trailing command inside the substitution takes over its exit status,
+# so the outer || is not the GNU call fallback. FAIL-OPEN before the fix.
+f="$(tmpsh 'x=$(stat -c "%s" "$g"; true) || stat -f "%z" "$g"')"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "a substitution whose status comes from a later command should fail, got success: $out"
+else
+  ok "an inner command list no longer lets an outer || excuse the GNU call"
+fi
+rm -f "$f"
+
+# --- ... while the genuine substitution ladder, whose status IS the GNU call,
+# stays guarded in both the modern and the legacy backquote spelling.
+f="$(tmpsh 'x=$(stat -c "%s" "$g") || y=$(stat -f "%z" "$g")')"
+if scan_paths "$REAL_TOKENS" "$f" >/dev/null 2>&1; then
+  ok "the substitution-wrapped stat ladder is still auto-guarded"
+else
+  fail "the command-substitution fallback ladder must not be flagged"
+fi
+rm -f "$f"
+
+f="$(tmpsh 'size=`stat -c "%s" "$g"` || size=`stat -f "%z" "$g"`')"
+if scan_paths "$REAL_TOKENS" "$f" >/dev/null 2>&1; then
+  ok "the backquoted stat ladder is auto-guarded too"
+else
+  fail "the backquote fallback ladder must not be flagged"
+fi
+rm -f "$f"
+
+# --- a closing backquote ends the command inside it, so a later command
+# option is not attributed to date/stat.
+f="$(tmpsh "$(printf '%s\n' \
+  'stamp=`date +%s` test -d "$dir"' \
+  'meta=`stat "$file"` tool -c x')")"
+if scan_paths "$REAL_TOKENS" "$f" >/dev/null 2>&1; then
+  ok "a closing backquote bounds the command segment"
+else
+  fail "a later command option must not cross a closing backquote"
+fi
+rm -f "$f"
+
+# --- bash &>/&>> redirect both streams; the & is not a control operator, so
+# the ladder after it is still a ladder.
+f="$(tmpsh "$(printf '%s\n' \
+  'stat -c "%s" "$g" &>/dev/null || stat -f "%z" "$g"' \
+  'stat -c "%s" "$g" &>>log || stat -f "%z" "$g"')")"
+if scan_paths "$REAL_TOKENS" "$f" >/dev/null 2>&1; then
+  ok "bash &> and &>> are read as redirections, not as a background separator"
+else
+  fail "&> and &>> must not disconnect a genuine BSD fallback"
+fi
+rm -f "$f"
+
+# --- ... but a real backgrounding & still hands the || to the next command,
+# so the backgrounded GNU call has no fallback.
+f="$(tmpsh 'stat -c "%s" "$g" & true || stat -f "%z" "$g"')"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "a backgrounded GNU call should fail, got success: $out"
+else
+  ok "a lone control & still separates the GNU call from the later ||"
+fi
+rm -f "$f"
+
+# --- the fallback -f must itself be an option: after --, it names a file.
+# FAIL-OPEN before the fix.
+f="$(tmpsh 'stat -c "%s" "$g" || stat -- -f')"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "a fallback whose -f follows -- should fail, got success: $out"
+else
+  ok "end-of-options is applied to the candidate fallback segment too"
 fi
 rm -f "$f"
 
