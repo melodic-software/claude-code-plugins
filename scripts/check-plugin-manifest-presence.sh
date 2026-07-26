@@ -61,33 +61,52 @@ declare -A catalog_sources=()
 while IFS=$'\t' read -r name source; do
   [[ -n "$name" ]] || continue
   rel="${source#./}"
+
+  # Trust boundary: "source" is catalog data, not free-form input -- but a
+  # marketplace entry is still something a PR diff could carry, so treat it
+  # the same as check-hook-userconfig-argv.sh's manifest-pointed hooks path:
+  # reject an absolute path or a ".." segment before it is ever used to build
+  # a filesystem path, rather than letting a stray "../../etc" probe outside
+  # the repository root. Unlike that script's silent skip, an out-of-tree
+  # catalog entry is itself invalid content, so this fails the gate loudly
+  # instead of quietly ignoring the entry.
+  if [[ "$rel" == /* || "$rel" =~ ^[A-Za-z]: || "/$rel/" == *"/../"* || "$rel" == ".." || "$rel" == "../"* || "$rel" == *"/.." ]]; then
+    printf 'UNSAFE CATALOG SOURCE: %s entry %s has source %s, which resolves outside the repository -- refusing to probe it.\n' \
+      "$MARKETPLACE" "$name" "$source" >&2
+    errors=$((errors + 1))
+    continue
+  fi
+
   catalog_sources["$rel"]=1
 
   dir="$rel"
   manifest="$dir/.claude-plugin/plugin.json"
 
   if [[ ! -d "$dir" ]]; then
-    echo "MISSING PLUGIN DIRECTORY: catalog entry '$name' points $MARKETPLACE at '$source', but that directory does not exist." >&2
+    printf "MISSING PLUGIN DIRECTORY: catalog entry '%s' points %s at '%s', but that directory does not exist.\n" \
+      "$name" "$MARKETPLACE" "$source" >&2
     errors=$((errors + 1))
     continue
   fi
 
   if [[ ! -f "$manifest" ]]; then
-    echo "MISSING MANIFEST: catalog entry '$name' points $MARKETPLACE at '$source', but $manifest does not exist (or is not a regular file)." >&2
-    echo "  A fresh install or marketplace update cannot load '$name' without it." >&2
+    printf "MISSING MANIFEST: catalog entry '%s' points %s at '%s', but %s does not exist (or is not a regular file).\n" \
+      "$name" "$MARKETPLACE" "$source" "$manifest" >&2
+    printf "  A fresh install or marketplace update cannot load '%s' without it.\n" "$name" >&2
     errors=$((errors + 1))
     continue
   fi
 
   manifest_name="$(jq -r '.name // empty' "$manifest" 2>/dev/null | tr -d '\r' || true)"
   if [[ -z "$manifest_name" ]]; then
-    echo "MALFORMED MANIFEST: $manifest has no readable \"name\" field (catalog key: '$name')." >&2
+    printf "MALFORMED MANIFEST: %s has no readable \"name\" field (catalog key: '%s').\n" "$manifest" "$name" >&2
     errors=$((errors + 1))
     continue
   fi
 
   if [[ "$manifest_name" != "$name" ]]; then
-    echo "NAME MISMATCH: $MARKETPLACE catalogs '$name' at '$source', but $manifest declares \"name\": \"$manifest_name\"." >&2
+    printf "NAME MISMATCH: %s catalogs '%s' at '%s', but %s declares \"name\": \"%s\".\n" \
+      "$MARKETPLACE" "$name" "$source" "$manifest" "$manifest_name" >&2
     errors=$((errors + 1))
   fi
 done <<<"$entries"
@@ -101,7 +120,7 @@ if [[ -d "$PLUGINS_ROOT" ]]; then
     [[ -d "$plugin_dir" ]] || continue
     rel="${plugin_dir%/}"
     if [[ -z "${catalog_sources[$rel]:-}" ]]; then
-      echo "UNREGISTERED PLUGIN DIRECTORY: '$rel' exists but no $MARKETPLACE entry names it as its source." >&2
+      printf "UNREGISTERED PLUGIN DIRECTORY: '%s' exists but no %s entry names it as its source.\n" "$rel" "$MARKETPLACE" >&2
       errors=$((errors + 1))
     fi
   done

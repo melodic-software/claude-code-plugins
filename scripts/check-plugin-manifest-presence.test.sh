@@ -127,6 +127,20 @@ else
 fi
 rm -rf "$TMP/plugins/gamma"
 
+# --- 6b. A catalog "source" that escapes the repo root (a ".." segment or an
+#     absolute path) must fail loudly rather than be probed or silently
+#     skipped -- the path-traversal defense-in-depth the gate applies before
+#     ever using catalog data to build a filesystem path.
+printf 'alpha\t./plugins/alpha\nbeta\t./plugins/beta\nevil\t../../etc\n' | write_marketplace
+out="$(run)"
+rc=$?
+if [[ $rc -eq 1 ]] && grep -q 'UNSAFE CATALOG SOURCE' <<<"$out" && grep -q 'evil' <<<"$out"; then
+  pass "a catalog source escaping the repo root fails the gate"
+else
+  fail "path-escaping catalog source should fail (rc=$rc): $out"
+fi
+printf 'alpha\t./plugins/alpha\nbeta\t./plugins/beta\n' | write_marketplace # restore
+
 # --- 7. Back to green after every fixture is restored/removed. -------------
 out="$(run)"
 rc=$?
