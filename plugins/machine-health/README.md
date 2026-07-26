@@ -61,7 +61,11 @@ output base (default `Documents\MachineHealth`):
 2. Move machine state into the plugin data directory so trend history and approvals carry over:
    `<old output base>\state\` → `${CLAUDE_PLUGIN_DATA}\state\` (`history.jsonl`, `latest.json`,
    `approvals.json`). Old logs may stay behind or move to `${CLAUDE_PLUGIN_DATA}\logs\`.
-3. `${CLAUDE_PLUGIN_DATA}` resolves to `~/.claude/plugins/data/machine-health`.
+3. `${CLAUDE_PLUGIN_DATA}` resolves under `~/.claude/plugins/data/`, in a directory named for the
+   plugin's install identity (`machine-health-<marketplace>`, or `machine-health-inline` for a
+   `--plugin-dir` session) — not `machine-health`. Run `/machine-health:setup check` to have the
+   resolved path printed rather than guessing it; a state root guessed wrong splits the overlay from
+   the state and logs.
 
 ## Configuration
 

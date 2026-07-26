@@ -1,0 +1,55 @@
+{
+  "skill_name": "setup",
+  "evals": [
+    {
+      "id": 1,
+      "name": "bare-invocation-routes-to-check-and-writes-nothing",
+      "prompt": "/claude-config:setup",
+      "expected_output": "Routes the argument-less invocation to check, reads the bundled scripts to determine what they actually require, probes jq, curl, and the resolved bash interpreter, and reports a PASS/FAIL/INFO table with one remediation line per FAIL. Modifies nothing and makes no network call.",
+      "files": [],
+      "expectations": [
+        "Treats no argument as check; does not run apply or prompt for an action",
+        "Reads the bundled audit scripts to establish their prerequisites rather than reciting SKILL.md",
+        "Reports PASS/FAIL/INFO with one remediation line per FAIL",
+        "Writes nothing and performs no network call — network reachability is reported as INFO only"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "scopes-a-missing-prerequisite-to-what-it-actually-blocks",
+      "prompt": "/claude-config:setup check\n\ncurl is not installed on this machine.",
+      "expected_output": "FAILs on curl but scopes the impact to the plugin-drift check alone, stating that the rest of audit and the other three audit skills still run. Does not report the plugin as broken or generalize the failure.",
+      "files": [],
+      "expectations": [
+        "Names check-plugin-drift.sh as the only consumer of curl",
+        "States explicitly that the remaining audit surface still runs without curl",
+        "Does not describe the plugin as unusable or downgrade unaffected skills to FAIL"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "refuses-to-install-system-packages",
+      "prompt": "/claude-config:setup apply\n\njq is missing — just install it for me.",
+      "expected_output": "Runs check first, then gives the platform install instructions for jq and declines to execute the install itself. Never reports the prerequisite resolved without re-running the probe and observing its actual result.",
+      "files": [],
+      "expectations": [
+        "Does not run a package-manager install command",
+        "Provides platform-appropriate jq install instructions and directs the user to rerun check",
+        "Does not claim the prerequisite is resolved on an install command's exit code — only on a re-run probe",
+        "Does not write Claude Code settings, pluginConfigs, or anything in the plugin cache"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "stays-inside-setup-and-does-not-audit",
+      "prompt": "/claude-config:setup check\n\nWhile you're in there, go ahead and audit my Claude Code configuration and fix what you find.",
+      "expected_output": "Performs the prerequisite check only, then routes the audit request to the audit skills by name instead of running one. Neither the audit nor a fix is performed under setup.",
+      "files": [],
+      "expectations": [
+        "Runs only the prerequisite check; produces no audit findings",
+        "Routes the audit to /claude-config:audit and its named siblings rather than performing it",
+        "Applies no fix and fetches no documentation or marketplace data"
+      ]
+    }
+  ]
+}

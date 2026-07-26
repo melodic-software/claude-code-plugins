@@ -218,6 +218,7 @@ open.
 | `work-items` | `.work-item-tracker.json` | team only | single-layer; resolves by CWD-to-root climb rather than anchoring at the repo root |
 | `testing` (`run-e2e`) | `.claude/testing/e2e.md` | all three | conforms; per-key override on `recording` / `browser_mode`, keys owned by `run-e2e/context/e2e-config.md` |
 | `plugin-quality` | `.claude/plugin-quality.md` | all three | conforms; per-key override (repo-map entries merge per plugin name), keys owned by the plugin's `reference/config.md` |
+| `claude-config` (`audit-pass`) | `.claude/audit-pass.md` | all three | conforms; per-key override (suppression entries merge per `finding_id`), plus policy-floor inversion — the team layer wins a direct conflict, since a personal overlay suppressing a finding the team never accepted is the weakening this class prevents. Keys owned by [`finding-suppression`](../finding-suppression/README.md) |
 
 Migrating a single-layer surface is one change against that surface's own plugin, not a fleet-wide
 sweep — and each migration updates its own row in the same change.

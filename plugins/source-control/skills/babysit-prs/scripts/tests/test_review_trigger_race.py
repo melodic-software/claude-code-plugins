@@ -120,6 +120,49 @@ class ReviewGateStateTests(unittest.TestCase):
         self.assertTrue(gate["non_review_checks_green"])
 
 
+class FailingGateIsNotAnEngagementSignalTests(unittest.TestCase):
+    """A failing `<review-gate-context>` never becomes a trigger candidate; it
+    is passed through as its own reported state for the operator to act on."""
+
+    def _rollup(self) -> list[dict[str, object]]:
+        # The gate StatusContext is the ONLY non-success check, and it is
+        # excluded from `non_review_checks`, so every other conjunct of
+        # `request_eligible` holds -- the gate state is the isolated variable.
+        return [
+            {"__typename": "StatusContext", "context": "review-gate",
+             "state": "FAILURE", "targetUrl": ""},
+            {"__typename": "CheckRun", "name": "ci-gate", "conclusion": "SUCCESS"},
+        ]
+
+    def test_failing_gate_is_not_a_pending_request_signal(self) -> None:
+        gate = review_trigger.review_gate_state(
+            checks.classify_checks(self._rollup()), configured())
+        self.assertEqual(gate["gate_state"], "failing")
+        self.assertFalse(gate["request_signal_pending"])
+        self.assertTrue(gate["ci_gateway_green"])
+        self.assertTrue(gate["non_review_checks_green"])
+
+    def test_failing_gate_never_becomes_a_candidate(self) -> None:
+        gate = review_trigger.review_gate_state(
+            checks.classify_checks(self._rollup()), configured())
+        pr = {"headRefOid": HEAD, "mergeStateStatus": "CLEAN",
+              "mergeable": "MERGEABLE", "state": "OPEN", "isDraft": False,
+              "reviews": []}
+        result = review_trigger.classify_review_request(
+            pr, gate, {}, "2026-07-10T00:00:00Z",
+            review_trigger_allowed=True, config=configured())
+        self.assertFalse(result["request_eligible"])
+        self.assertEqual(result["missing_head_sha"], "")
+        self.assertEqual(result["state"], "failing")
+
+    def test_failing_gate_surfaces_as_an_ordinary_failing_check(self) -> None:
+        # Why excluding it from candidacy is not a silent dead-end: the gate
+        # StatusContext is bucketed like any other check, so babysit_delta
+        # raises its failing-check blocker.
+        classified = checks.classify_checks(self._rollup())
+        self.assertEqual(classified["failing"], ["review-gate"])
+
+
 class ReviewBotItemTests(unittest.TestCase):
     def test_configured_reviewer_bot_is_recognized(self) -> None:
         item = {"author": {"__typename": "Bot", "login": "reviewbot[bot]"}}
