@@ -88,6 +88,34 @@ class ResultParsing(unittest.TestCase):
         self.assertEqual(observer._result_error('{"is_error":false,"result":"ok"}'), "")
 
 
+class AnalysisPrompt(unittest.TestCase):
+    """The headless run has no delegation prompt to fall back on -- the
+    compute-don't-assert rule (issue #1473) must be inline in this prompt
+    text itself, not only documented in checkpoint.md's Method section."""
+
+    def test_compute_dont_assert_rule_present(self):
+        prompt = observer._analysis_prompt(
+            observations="/abs/obs.jsonl", checkpoint="/abs/checkpoint.md",
+            session_id="sid")
+        self.assertIn("Compute, don't assert", prompt)
+        # Names the failure modes the validation report actually observed.
+        self.assertIn("sequencing", prompt)
+        self.assertIn("batching", prompt)
+        self.assertIn("delegation", prompt)
+        self.assertIn("occurrence count", prompt)
+        self.assertIn("message id", prompt)
+        # Uncomputable structural claims must be dropped, not asserted anyway.
+        self.assertIn("drop the claim", prompt)
+
+    def test_redaction_rule_still_present(self):
+        # Guard against the new instruction crowding out the pre-existing
+        # mandatory redaction pass.
+        prompt = observer._analysis_prompt(
+            observations="/abs/obs.jsonl", checkpoint="/abs/checkpoint.md",
+            session_id="sid")
+        self.assertIn("MANDATORY redaction pass", prompt)
+
+
 class Locking(unittest.TestCase):
     def test_single_and_release(self):
         with tempfile.TemporaryDirectory() as d:

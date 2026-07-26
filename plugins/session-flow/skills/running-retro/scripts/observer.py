@@ -637,6 +637,17 @@ it lands in a durable, portable ledger, so it is critical: sweep every finding, 
 quoted snippet for secrets, tokens, credentials, connection strings, and PII, replacing \
 each with a shape marker.
 
+Compute, don't assert, any structural claim (mandatory -- you have no delegation prompt to \
+fall back on): a finding describing transcript/tool-call structure -- \
+sequencing, batching, delegation, or an occurrence count -- MUST be computed from the \
+distilled observations before you write it, never asserted from a narrative impression of \
+the read. Derive an ordering or batching claim (e.g. "ran sequentially," "no subagent \
+delegation") by grouping tool-use events by API message id and inspecting the grouping. \
+Derive an occurrence count backing an "Emerging pattern" finding by actually counting \
+matched occurrences. If the observations don't carry what's needed to compute a structural \
+claim, drop the claim rather than assert it uncomputed -- an asserted-and-wrong structural \
+claim routes as if verified and is worse than a missed finding.
+
 Inputs (absolute):
 - Distilled observations (pre-filtered event stream, one JSON event per line): {observations}
 - Session id: {session_id}
@@ -644,8 +655,10 @@ Inputs (absolute):
 Do: Read the observations; produce the compact "Checkpoint findings" block exactly as \
 {checkpoint} specifies (metrics line, findings table with category + suggested route, \
 subjective-state assessment noted as unavailable for an autonomous run, new-skill \
-candidates); run the mandatory redaction pass. Return ONLY that block -- no preamble, no \
-echo of the observations."""
+candidates); compute rather than assert any structural claim (sequencing, batching, \
+delegation, occurrence counts), dropping it if it can't be computed from the observations; \
+run the mandatory redaction pass. Return ONLY that block -- no preamble, no echo of the \
+observations."""
 
 
 def build_parser() -> argparse.ArgumentParser:

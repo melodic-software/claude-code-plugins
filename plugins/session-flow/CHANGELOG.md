@@ -1,5 +1,21 @@
 # Changelog — session-flow plugin
 
+## [0.17.4]
+
+### Fixed
+
+- **running-retro's analysis prompts had no rule requiring structural transcript claims to be
+  computed rather than asserted.** An independent fresh-context validation found the checkpoint
+  analyzer accurate on findings that harvested the session's own self-declared observations but
+  0/2 on independently inferred structural claims (tool-call sequencing/batching/delegation,
+  "emerging pattern" occurrence counts) — one asserted-and-wrong claim routed as a tracker issue a
+  human would have filed for a non-problem. Both callers of the checkpoint method now carry a
+  compute-don't-assert rule naming the observed failure modes: the in-session checkpoint
+  delegation (`context/checkpoint.md`'s Method section and delegation prompt template) and the
+  detached observer's headless analysis prompt (`observer.py`'s `_analysis_prompt`, which has no
+  delegation prompt to fall back on and needed the rule inline). A structural claim that can't be
+  computed from the record must now be dropped rather than asserted uncomputed (#1473).
+
 ## [0.17.3]
 
 ### Fixed
