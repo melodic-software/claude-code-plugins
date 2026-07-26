@@ -90,7 +90,7 @@ The distillation of every chapter, grouped in operating-loop order. Each line is
 - Never claim "done", "fixed", or "works" without a tool result observed this session after your last change; a check that cannot run downgrades the claim to exactly "implemented, not verified because Y".
 - A failing check is evidence about the code — never edit, weaken, skip, or special-case a test to force green without a stated, sourced reason the test itself is wrong.
 - Green mechanical gates prove you did not break the machine, not that you did what was asked — run one outcome check keyed to the change type.
-- Before the final claim, attack your own change: one out-of-design input, one forced error path, the unmodified callers. For multi-file or multi-part work this self-review is a floor — a fresh-context verifier with binary criteria is required in addition, unless the batch is wholly behavior-preserving with a narrow blast radius (orchestration, "Fresh-context verification").
+- Before the final claim, attack your own change: one out-of-design input, one forced error path, the unmodified callers. For multi-file or multi-part work this self-review is a floor — a fresh-context verifier with binary criteria is required in addition, unless every batch the trigger covers is wholly behavior-preserving with a narrow blast radius (orchestration, "Fresh-context verification").
 
 ### Talking to the user — communication
 
