@@ -3,6 +3,24 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.7]
+
+### Fixed
+
+- **A broken *stdout* turned the guard's deny into a fail-open, the seventh of the class #1449
+  closed and the one none of its in-process tests could see.** `_decide`'s decision `print` only
+  buffers, so a closed stdout pipe raises nowhere inside `main` — the failure surfaces at interpreter
+  shutdown, and CPython reports that by replacing the exit status with `120`. Measured on the merged
+  code: a `deny` decision with stdout wired to a pipe whose reader is closed exited `120`, which
+  PreToolUse treats as non-blocking, so the destructive command runs even though the guard decided to
+  deny it. The module tail now flushes stdout itself, catching an undeliverable decision while there
+  is still a decision to make — it denies at exit `2` with a diagnostic, because a decision the host
+  never received is not a decision — then flushes stderr best-effort and `os._exit`s the resolved
+  code, so a shutdown flush can no longer rewrite it. Reuses `_write_diagnostic`'s null-device
+  fallback, extracted as `_discard_stream`. Covered by a real-subprocess `GuardTests` case against a
+  genuinely closed stdout pipe (the in-process helpers never reach interpreter shutdown, so they
+  cannot reproduce it); 212 tests pass.
+
 ## [0.9.6]
 
 ### Fixed
