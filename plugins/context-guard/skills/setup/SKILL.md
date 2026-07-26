@@ -94,10 +94,14 @@ zone bands, zones.json shape) are owned by
    - If the literal string `${CLAUDE_SESSION_ID}` appears unexpanded above, report that this
      Claude Code version lacks the substitution and consumers will take the conservative path —
      probe the newest file in `~/.claude/context-guard/context/` instead, labeled as such.
-5. **zones.json state** — read-only report: absent (shipped defaults 50/75 in effect — valid
-   zero-config state, not a defect), present and valid (report the bands in effect), or present
-   but malformed (report that the resolver falls back to shipped defaults with a stderr notice;
-   remediation: `apply`).
+5. **zones.json state** — read-only report: absent (shipped defaults in effect — percentage 50/75
+   plus the window-class token bands; valid zero-config state, not a defect), present and valid
+   (report the bands in effect, both shapes), or present with a malformed shape (report per shape
+   — the resolver validates percentage keys and `token_bands` independently and falls back per
+   shape with a stderr notice; a v1 file without `token_bands` is valid, with shipped token bands
+   silently in effect; remediation: `apply`). Also report whether the hooks are active (plugin
+   enabled = hooks registered) and that they resolve zones through this same data — a machine
+   with no snapshots gets silent hooks, not errors.
 6. **Print the operator edit** — always print the applicable statusline edit for the settings
    file that owns the effective command (step 3), marked clearly as the operator's to apply. The
    wiring target is the SHIM's fixed path — never `${CLAUDE_PLUGIN_ROOT}`, which is version-pinned
@@ -235,27 +239,34 @@ result (a no-op on Windows ACL volumes; the wiring invokes it through `bash` any
 ### B. Seed or refresh the zones SSOT
 
 Seed or refresh `~/.claude/context-guard/zones.json` from the shipped defaults
-(`smart_max_used_percentage: 50`, `acceptable_max_used_percentage: 75` — the reader contract owns
-these numbers; read them from `${CLAUDE_PLUGIN_ROOT}/reference/reader-contract.md` rather than this
-file if they ever disagree):
+(`smart_max_used_percentage: 50`, `acceptable_max_used_percentage: 75`, and the window-class
+`token_bands` — the reader contract owns these numbers; read them from
+`${CLAUDE_PLUGIN_ROOT}/reference/reader-contract.md` rather than this file if they ever disagree):
 
 1. **File absent** — create the directory if needed and write exactly:
 
    ```json
    {
      "smart_max_used_percentage": 50,
-     "acceptable_max_used_percentage": 75
+     "acceptable_max_used_percentage": 75,
+     "token_bands": {
+       "200000": { "smart_max_tokens": 100000, "acceptable_max_tokens": 160000 },
+       "1000000": { "smart_max_tokens": 200000, "acceptable_max_tokens": 400000 }
+     }
    }
    ```
 
 2. **File present** — behavior is mode-explicit, never ambiguous:
    - `apply` (no argument): REPAIR-ONLY. Valid recognized band values are left untouched and
-     reported; recognized keys that are missing or invalid (non-numeric, inverted, out of range)
-     are set to the shipped defaults. An operator's custom-but-valid thresholds are never
-     overwritten by a bare `apply`.
-   - `apply defaults`: set BOTH recognized band keys to the shipped defaults explicitly. This
-     converges forward to a known state; it is not teardown, and it never removes the file or any
-     key it does not recognize.
+     reported; recognized keys that are missing or invalid (non-numeric, inverted, out of range —
+     for `token_bands`, invalid per the reader contract's per-shape validity rules) are set to the
+     shipped defaults. A v1 file's ABSENT `token_bands` is repaired by adding the shipped token
+     bands (absence is valid zero-config for the resolver, but the seeded SSOT should carry the
+     full tunable surface). An operator's custom-but-valid thresholds are never overwritten by a
+     bare `apply`.
+   - `apply defaults`: set ALL recognized band keys (both percentage keys and `token_bands`) to
+     the shipped defaults explicitly. This converges forward to a known state; it is not teardown,
+     and it never removes the file or any key it does not recognize.
    - Both modes **preserve every unrecognized key semantically** — same keys, same JSON values —
      (the file is a shared SSOT the operator's own statusline may extend). Preservation is
      value-level, not lexical: a `jq` merge reserializes the document, so formatting and escape

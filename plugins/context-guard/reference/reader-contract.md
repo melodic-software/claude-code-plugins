@@ -18,10 +18,20 @@ grep-matches its inlined values against this file.
 - **Zones file (fixed path, optional):** `~/.claude/context-guard/zones.json`
 - **Staleness rule:** a snapshot whose `captured_at` is older than **10 minutes** is stale — treat
   the zone as **unknown** for that decision.
-- **Default zone bands (over `context_window.used_percentage`, uppers inclusive):**
+- **Default percentage bands (over `context_window.used_percentage`, uppers inclusive):**
   `smart` ≤ **50** < `acceptable` ≤ **75** < `dumb`. These shipped defaults apply only when
   `zones.json` is absent or malformed; when the file is present and valid, its bands win (see
   Zones below).
+- **Default token bands (over occupancy = `total_input_tokens` + `total_output_tokens`, uppers
+  inclusive, selected by window class — see "Occupancy and combination rule"):**
+  window class **200000**: `smart` ≤ **100000** < `acceptable` ≤ **160000** < `dumb`;
+  window class **1000000**: `smart` ≤ **200000** < `acceptable` ≤ **400000** < `dumb`.
+- **Combination rule (verbatim — consumers inline this sentence):** when both shapes are
+  computable, the worse zone wins (conservative-min); when only one is computable, it stands
+  alone; when neither is, the zone is unknown.
+- **Evidence-degraded marker (fixed path, optional):**
+  `~/.claude/context-guard/context/<session_id>.compacted` — presence means the session was
+  compacted; treat it as evidence-degraded regardless of zone.
 - **Zone vocabulary:** `smart` / `acceptable` / `dumb` / `unknown` — `unknown` is the conservative
   word; consumers treat it as "assume degraded".
 
@@ -87,6 +97,88 @@ A consumer classifies before every zone-informed decision:
 Absurd values fail open, never closed: the consumer never skips its conservative path on data it
 cannot trust, and never fabricates a zone. `unknown` always means "take the conservative route".
 
+## Occupancy and combination rule
+
+The contract carries TWO zone shapes because the two underlying measures answer different
+questions — never equate them without normalizing:
+
+- **Percentage shape** — `context_window.used_percentage` against the percentage bands. Upstream
+  computes it from **input tokens only** (`input_tokens + cache_creation_input_tokens +
+  cache_read_input_tokens`, no output — statusline doc, verified 2026-07-26). It answers
+  *distance to compaction*, because compaction thresholds key off the same accounting.
+- **Token shape** — **occupancy**, defined as `total_input_tokens + total_output_tokens`, against
+  the window-class token bands. Occupancy counts both directions because both occupy the window,
+  and the degradation evidence (Chroma context-rot report; Anthropic system-card fixed-point
+  evals) tracks **absolute tokens in context, not window fraction**. It answers *distance to
+  quality loss*. That is also why the token bands are absolute numbers selected by window class
+  rather than percentages: 50% of a 1M window is a materially different cognitive state than 50%
+  of a 200k window.
+
+**Window-class selection:** use the band row whose class key is the **largest one ≤
+`context_window_size`**. A window smaller than every configured class has no row — the token
+shape is then not computable (never borrow a larger class's looser bands).
+
+**Combination rule (consumers inline this sentence verbatim):** when both shapes are computable,
+the worse zone wins (conservative-min); when only one is computable, it stands alone; when
+neither is, the zone is unknown. Rationale: the two shapes disagree exactly when one measure has
+information the other lacks (a deep-but-cache-heavy window, a small window near compaction), and
+a routing hint must degrade toward caution, never toward optimism.
+
+**Version floor / plausibility guard:** `total_input_tokens` / `total_output_tokens` mean
+*current context occupancy* only since Claude Code **2.1.132** — before that they were cumulative
+session totals ("Before v2.1.132 these were cumulative session totals", statusline doc, verified
+2026-07-26), which would misfire the token bands badly. The snapshot carries no CLI version, so
+readers apply the observable guard instead: **occupancy greater than `context_window_size` marks
+the token shape not-computable** (cumulative semantics or corrupt data), leaving the percentage
+shape to stand alone. The bundled resolver implements exactly this.
+
+**Percentage-key retirement trigger:** the percentage vocabulary is retained because it answers a
+question the token shape cannot (distance to compaction) and because shipped consumers inline its
+floor today. It retires when no shipped consumer inlines the percentage floor any longer —
+recorded here so back-compat alone never makes the second vocabulary permanent.
+
+**Band provenance:** all shipped band numbers are **declared judgment defaults with named
+anchors** (issue #1475 carries the full provenance table), not benchmark-derived constants. The
+1M row's anchor is a named-staff informal range (self-hedged "highly task-dependent"); the 200k
+row is declared judgment near — but deliberately below — practitioner folklore values. Both rows
+carry equally low confidence; `zones.json` is the correction path, and the numeric agreement of
+the 200k row's percentage translation with the shipped 50/75 percentage defaults is coincidence,
+not validation.
+
+## Zone-crossing hooks (first shipped consumer)
+
+Since 0.4.0 the plugin itself ships hooks over its own seam — the first shipped consumer:
+
+- **Advisory injection** (`PostToolBatch` + `UserPromptSubmit`): once per transition into a worse
+  zone, inject continuation guidance (a minimal generic continuation tree plus a presence-gated
+  pointer to `session-flow:workflow`'s router). Silent while the zone is unchanged, improving, or
+  `unknown`.
+- **Blocking gate** (`PreToolUse`, only when the `zone_hook_mode` userConfig option is
+  `blocking`): denies new `Write|Edit|NotebookEdit|Agent|Workflow` calls on a **fresh dumb-zone
+  snapshot** past a small grace budget. Fail-open on `unknown`; handoff-path writes, read-only
+  tools, Bash, and Skill invocations are never gated, so a durable handoff is always writable.
+- **PostCompact marker**: writes the evidence-degraded marker file (below).
+
+Hook state (last-seen zone, gate counters) lives under `${CLAUDE_PLUGIN_DATA}` — plugin-private,
+NOT part of this contract. The hooks consume the seam through the same resolver consumers
+re-implement; they add no new snapshot semantics.
+
+## Evidence-degraded marker
+
+`~/.claude/context-guard/context/<session_id>.compacted` — written by the PostCompact hook,
+last-write-wins per session:
+
+```json
+{ "compacted_at": "2026-07-26T12:00:00Z", "trigger": "auto", "hook_event_name": "PostCompact" }
+```
+
+`trigger` is `manual` | `auto` | `unknown`. **Presence alone is the signal**: a consumer that
+finds the marker treats the session as evidence-degraded regardless of a green zone (see the next
+section for why). Consumers should not gate on `compacted_at` freshness — compaction's evidence
+loss does not expire with time in the same session. The marker is part of this contract's seam
+(fixed path, same character-class and trust rules as snapshots); it closes the documented gap
+that the snapshot alone cannot reveal compaction.
+
 ## Zone is NOT a compaction indicator
 
 A compacted session's `used_percentage` **resets downward** while the evidence in its
@@ -121,14 +213,28 @@ what the human sees and what consumers decide on. Zones say *where you are*; con
 ```json
 {
   "smart_max_used_percentage": 50,
-  "acceptable_max_used_percentage": 75
+  "acceptable_max_used_percentage": 75,
+  "token_bands": {
+    "200000": { "smart_max_tokens": 100000, "acceptable_max_tokens": 160000 },
+    "1000000": { "smart_max_tokens": 200000, "acceptable_max_tokens": 400000 }
+  }
 }
 ```
 
-Validity: both values numeric, `0 < smart_max < acceptable_max ≤ 100`. A malformed file (unparsable,
-non-numeric, inverted, out of range) falls back to the shipped defaults with a visible stderr
-notice from the resolver. Unrecognized keys are permitted and preserved (the setup skill's `apply`
-seeds/refreshes this file idempotently; the resolver only reads it).
+Validity is **per shape, independently**:
+
+- **Percentage keys:** both values numeric, `0 < smart_max < acceptable_max ≤ 100`. Malformed
+  (unparsable file, non-numeric, inverted, out of range) → shipped percentage defaults with a
+  visible stderr notice from the resolver (unchanged v1 behavior, including when the keys are
+  simply absent from an otherwise-parsable file).
+- **`token_bands` (optional):** when present, an object whose every key is a decimal window-class
+  string and every value carries numeric `smart_max_tokens` and `acceptable_max_tokens` with
+  `0 < smart < acceptable ≤ class`. Malformed as a whole → shipped token bands with its own
+  visible stderr notice. **Absent is zero-config** (shipped token bands, silently) — a v1
+  percentage-only file keeps working unchanged.
+
+Unrecognized keys are permitted and preserved (the setup skill's `apply` seeds/refreshes this
+file idempotently; the resolver only reads it).
 
 **Consumers read `zones.json` directly** (it is a data seam): under plugin cache isolation a
 consumer cannot invoke this plugin's `context-zone.sh`, so it re-implements the band lookup —
@@ -179,6 +285,8 @@ above the staleness window, so idle sessions' files are never deleted out from u
 
 ## Consumers
 
-First consumer: the `plugin-quality` audit skill (context-gate: zone-informed dispatch and
-evidence-flush decisions, conservative on `unknown`). Its inlined floor values are drift-checked
-against this file in its own lane.
+- The plugin's own zone-crossing hooks (first shipped consumer — see "Zone-crossing hooks").
+- The `plugin-quality` audit skill (context-gate: zone-informed dispatch and evidence-flush
+  decisions, conservative on `unknown`). Its inlined floor values are drift-checked against this
+  file by its co-located `zones-inline-drift.test.sh` lane, which runs in the repo's plugin-gate
+  CI job.

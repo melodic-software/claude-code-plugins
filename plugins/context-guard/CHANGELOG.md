@@ -5,6 +5,63 @@ All notable changes to the `context-guard` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0]
+
+### Added
+
+- **Zone-crossing hooks — the first shipped consumer of the plugin's own seam (#1475).**
+  `hooks/hooks.json` registers four handlers, all fail-open, all covered by co-located
+  `*.test.sh` contract tests:
+  - `zone-crossing-inject.sh` (`PostToolBatch` + `UserPromptSubmit`): injects continuation
+    guidance via `additionalContext` ONCE per transition into a worse zone — silent while the
+    zone is unchanged, improving, or `unknown` (no data is not a transition, and `unknown` never
+    updates the per-session state). PostToolBatch fires once per parallel batch before the next
+    model call, which replaces the per-tool dedupe a PostToolUse design would have needed;
+    UserPromptSubmit covers turns that begin without a prior batch. The injected message carries
+    a minimal generic continuation tree plus presence-gated pointers to `session-flow:handoff`
+    and `session-flow:workflow`.
+  - `zone-gate.sh` (`PreToolUse`, matcher `Write|Edit|NotebookEdit|Agent|Workflow`): the
+    `blocking` posture — inert under the default `advisory` mode; in `blocking` mode it denies
+    matched calls only on a FRESH dumb-zone snapshot past a per-session grace budget
+    (`zone_gate_grace_calls`, in-script default 20). Fail-open on `unknown` and on every missing
+    prerequisite. Handoff-path writes are exempt, and read-only tools, Bash, and Skill
+    invocations never match — a session told to stop can always write its handoff and always run
+    the handoff skill (no deadlock by construction).
+  - `post-compact-mark.sh` (`PostCompact`, side-effect-only per the upstream event contract):
+    persists the evidence-degraded marker
+    `~/.claude/context-guard/context/<session_id>.compacted` (`compacted_at`, `trigger`
+    manual|auto|unknown), closing the reader contract's documented "the snapshot cannot tell you
+    compaction happened" gap, and re-arms the blocking gate's grace budget. jq-free by design,
+    mirroring the rate-limit-guard StopFailure recorder.
+  - Config per `docs/conventions/hook-config-delivery`: non-safety knobs over channel B
+    (`CLAUDE_PLUGIN_OPTION_<KEY>` env mirrors) with in-script defaults (the declared `default`
+    field is not delivered to hook processes). New `userConfig`: `context_guard_hooks_enabled`,
+    `zone_hook_mode` (`advisory` | `blocking`, matching the repo's shipped gate-posture enum),
+    `zone_gate_grace_calls`. Telemetry envelopes registered as `zone-crossing-inject`,
+    `zone-gate`, and `post-compact-mark` producers with data schemas under
+    `docs/conventions/hook-telemetry/data/`. Hook state (last-seen zone, gate counters) lives
+    under `${CLAUDE_PLUGIN_DATA}` — plugin-private, not part of the reader-contract seam.
+- **Window-class token bands + combination rule in the zone resolver (#1475).** The resolver now
+  computes two zone shapes and combines them conservatively (the worse computable zone wins; one
+  computable shape stands alone; neither → `unknown` — the rule is stated verbatim in the reader
+  contract for consumers to inline): the existing percentage shape over `used_percentage`
+  (distance to compaction; upstream computes it input-only), and a token shape over occupancy
+  `total_input_tokens + total_output_tokens` (distance to quality loss — degradation evidence
+  tracks absolute tokens, not window fraction) against per-window-class bands selected by the
+  largest class key ≤ `context_window_size`. Shipped token defaults: 200k class 100000/160000,
+  1M class 200000/400000 — declared judgment defaults with named anchors (provenance table on
+  #1475), equally low confidence on both rows; `zones.json` is the correction path. A
+  plausibility guard (occupancy > window size → token shape not computable) covers the
+  pre-2.1.132 cumulative-totals field semantics the snapshot cannot version-detect. `zones.json`
+  gains an optional `token_bands` object validated independently of the percentage keys — absent
+  is zero-config, so every existing v1 file keeps working unchanged; the percentage keys are
+  retained with a recorded retirement trigger (they answer distance-to-compaction, which the
+  token shape cannot; they retire when no shipped consumer inlines the percentage floor).
+- Setup skill seeds/repairs the v2 `zones.json` shape (including adding shipped `token_bands` to
+  a v1 file on `apply`); reader contract documents the occupancy definition, combination rule,
+  version floor/plausibility guard, evidence-degraded marker, hook surface, and band provenance;
+  README updated to the five-part overview.
+
 ## [0.3.0]
 
 ### Added

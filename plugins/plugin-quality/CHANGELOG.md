@@ -5,6 +5,33 @@ All notable changes to the `plugin-quality` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2026-07-26
+
+### Changed
+
+- **Context-gate migrated to the context-guard reader contract's v2 band shape (#1475).** The
+  gate now understands the token shape: `zones.json` validity is evaluated per shape (percentage
+  keys as before; optional `token_bands` with per-window-class rows — absent is valid
+  zero-config), the inlined fallback floor carries both the percentage bands (50/75) and the
+  window-class token bands (200k class 100000/160000, 1M class 200000/400000, over occupancy =
+  `total_input_tokens + total_output_tokens`), and the reader contract's combination rule is
+  inlined verbatim: when both shapes are computable, the worse zone wins (conservative-min); when
+  only one is computable, it stands alone; when neither is, the zone is unknown. This removes the
+  documented split-brain hazard where a token-shape `zones.json` would have been rejected
+  wholesale in favor of the stale inlined 50/75 table. The compaction override now also
+  recognizes context-guard's new evidence-degraded marker
+  (`~/.claude/context-guard/context/<session_id>.compacted`).
+
+### Added
+
+- **`scripts/zones-inline-drift.test.sh`** — the consumer-lane drift check the reader contract's
+  "Inline-floor ownership" rule has always named but nothing implemented: asserts every
+  load-bearing inlined floor phrase (staleness window, snapshot/zones/marker paths, both band
+  shapes, the combination-rule sentence) appears in BOTH this skill and the context-guard reader
+  contract after normalization. Runs in the repo's plugin-gate CI job via the shared
+  `*.test.sh` discovery; SKIPs cleanly in an installed plugin cache where the sibling contract
+  file is unreachable.
+
 ## [0.2.1] - 2026-07-26
 
 ### Fixed
@@ -90,6 +117,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   no external effect.
 - Two evals covering both clauses, including an anti-pattern eval asserting that an unattended
   invocation must not emit externally.
+||||||| parent of 8bef41e051 (feat(context-guard): zone-crossing hooks, token bands, and the workflow continuation router (#1475, #1476))
 
 ## [0.1.2] - 2026-07-25
 
