@@ -133,7 +133,8 @@ copy, which goes stale the moment disk moved on without this conversation seeing
 
   - Head each entry with a literal `Re-arm <i> of <n> — <L> lines:` line, then the entry body on
     exactly the next `<L>` lines. `<n>` is the number of surviving loops; `<L>` counts the body
-    lines only, never the header.
+    lines only, never the header. The word `lines` does not inflect — a one-line entry still reads
+    `1 lines`, because a parser should not have to know English plurals to find a boundary.
   - **`<L>` is the boundary, and it is a length, not a pattern.** No marker, sentinel, or
     "looks like a re-arm" test can bound a region whose content is reproduced verbatim: whatever
     string is chosen, a prompt is allowed to contain it, and the delimiter then fires inside the
@@ -143,8 +144,8 @@ copy, which goes stale the moment disk moved on without this conversation seeing
     self-checking: a consumer can prove it holds the whole set instead of hoping so.
   - Put the re-arm block LAST in the message, after the paste-condition note, so the entries are
     contiguous and nothing interleaves them.
-  - The no-launch-signal fallback is a single entry with the same header (`Re-arm 1 of 1 — 1
-    lines:`), so a consumer parses one shape rather than two.
+  - The no-launch-signal fallback is a single entry with the same header, so a consumer parses one
+    shape rather than two.
 
   Changing this shape is a knowing break of the detection contract below, and must move
   `find-handoff` with it.

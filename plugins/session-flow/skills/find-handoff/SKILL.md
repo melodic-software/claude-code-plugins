@@ -182,6 +182,9 @@ one, since the producer emits a separate re-arm message per surviving loop, so "
      - **Stopping at the first hit** recovers one of three re-arms and drops two schedules while
        looking like it worked.
 
+     Read `<L>` as a literal count — `lines` never inflects, so `1 lines` is a well-formed header
+     and not a shape drift.
+
      `<n>` is the self-check, not the scanner: recover all `n`. Finding fewer, or an `<L>` that runs
      past the end of the message, means the transcript is truncated or the shape drifted — surface
      what was found and say `n` were expected, rather than presenting a subset as the whole.
@@ -191,8 +194,8 @@ one, since the producer emits a separate re-arm message per surviving loop, so "
      the rails markers rejected. No header at all → the session was not looping; surface nothing extra.
      **Do not add the note's placeholder tokens to the template-rejection list.** Unlike the rails
      template, the producer *really does* emit `<interval>` and `<the prompt you originally
-     launched it with>` verbatim on its no-launch-signal branch, under a `Re-arm 1 of 1 — 1 lines:`
-     header like any other entry (save-point.md "Loop-aware re-arm"), so rejecting on them would discard a
+     launched it with>` verbatim on its no-launch-signal branch, under a `Re-arm <i> of <n> — <L>
+     lines:` header like any other entry (save-point.md "Loop-aware re-arm"), so rejecting on them would discard a
      genuine note; a transcript that merely read
      `save-point.md` is already rejected by the existing rails-template filter.
    - **Un-escape before surfacing.** Each transcript message is ONE physical JSONL line with its

@@ -1,5 +1,22 @@
 # Changelog — session-flow plugin
 
+## [0.17.10]
+
+### Fixed
+
+- **Two surfaces still described the pre-0.17.9 re-arm shape.** 0.17.9 made the loop re-arm one
+  counted, length-delimited entry per surviving loop, but `handoff`'s gotcha entry was not swept
+  with the rest — it still warned about "an active `/loop`" singular and called the re-arm a single
+  unstructured follow-up message, which is the shape the engine stopped emitting. It now names the
+  one-per-loop rule and the counted header, so the checklist, the engine doc, and the gotcha say the
+  same thing.
+- **The entry header no longer spells out an ungrammatical worked example.** `<L>` is a fixed
+  `lines` token deliberately — a parser should not need English plurals to find a boundary — but the
+  no-launch-signal fallback illustrated it as the literal `Re-arm 1 of 1 — 1 lines:`, putting
+  "1 lines" into terminal output an operator reads. The invariance is now stated once as a property
+  of the header, and both the engine doc and `find-handoff` reference the generic form, so the
+  fallback needs no example of its own and `1 lines` reads as well-formed rather than as drift.
+
 ## [0.17.9]
 
 ### Fixed
