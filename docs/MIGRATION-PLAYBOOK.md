@@ -127,13 +127,16 @@ Applying that precedence, the grammar of an invocation is `/<namespace>:<skill>`
   first (`design`, `design-handoff`, `implement`, `implement-dispatch`) so prefix typeahead and
   sorted listings group the family. A standalone skill keeps natural English order (`batch-simplify`, `quality-gate`).
   A structural variant earns a new sibling name; a depth/intensity variant takes an argument, never
-  a sibling. **Execution tier counts as structural:** a variant that changes execution *topology* — an
-  isolated forked subagent (`context: fork`) or a heavier dispatch tier (workflow engine, forked
-  subagent, or inline fallback) — is fixed in frontmatter and cannot be a runtime argument, so it earns
-  a sibling. `discovery`'s `explore-deep` (a `context: fork` variant of `explore`) and `research-deep`
-  (a dispatch variant of `research`) are siblings on this axis; the `-deep` suffix names that isolation
-  tier, not a depth knob on the same execution path — a true effort knob on one execution path still
-  takes an argument.
+  a sibling. **Execution tier counts as structural when the tier is genuinely not reachable from the
+  base skill's execution path:** `discovery`'s `research-deep` is a sibling because its heaviest tier
+  needs the `Workflow` tool and its multi-topic path needs the `Agent` tool, neither of which a
+  dispatched context can reach — so the tier cannot be selected at runtime by `research` itself. The
+  `-deep` suffix names that isolation tier, not a depth knob on the same execution path; a true effort
+  knob on one execution path still takes an argument.
+  **The converse is equally binding: a tier the base skill CAN reach at runtime does not earn a
+  sibling.** `discovery` retired `explore-deep` for exactly this reason — once `/discovery:explore`
+  dispatched a named agent by default, the `-deep` variant was a second door onto an execution path
+  the base skill already had, and the test is same-execution-path vs. a genuinely second one.
 - **A vendor-CLI plugin that decomposes names its skills after the vendor's own CLI verbs.** When a
   tool-scoped plugin splits into multiple skills, it mirrors that CLI's verb vocabulary —
   `/playwright:test` would mirror `npx playwright test`; a firecrawl decomposition would use

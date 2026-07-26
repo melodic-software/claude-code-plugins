@@ -257,7 +257,14 @@ auto-mode safety classifier and blocks the call before the wrapper runs.
 - Both wrappers **fail closed**: invoked without `--allowed-owners`, they exit `3` and refuse to
   act. The read-only forms are `source-control-babysit-merge owner/repo#42 --allowed-owners
   <watched-owners>` (merge-readiness gate) and `source-control-babysit-resolve-thread
-  owner/repo#42 --allowed-owners <watched-owners>` (thread list).
+  owner/repo#42 --allowed-owners <watched-owners> --extra-bot-logins <extra-bot-logins>`
+  (thread list).
+- **`--extra-bot-logins <extra-bot-logins>` rides on every resolve-thread form**, listing and
+  mutating alike, whenever `babysit_extra_bot_logins` is configured. Bot classification is what
+  decides which threads the resolver may touch at all, and structural detection cannot see a
+  registered non-structural bot account (no `[bot]` suffix, API `__typename` of `User`); omitting
+  the flag silently reclassifies that account's threads as human and skips them in worker tier.
+  Omit the flag only when the key is unset.
 - The merge wrapper mutates only with `--merge --expected-head <post-push-head-sha> --method
   <merge-method>`, and rejects `--allow-unpinned-head` outright — there is no unpinned merge. The
   expected-head pin semantics live in `SKILL.md`; do not re-derive them here.
@@ -502,13 +509,13 @@ assessment. Pin each vetted thread individually (the wrapper accepts exactly one
 per invocation; issue one pinned command per thread) with the thread-pin pair rule above:
 
 ```text
-bash "${CLAUDE_PLUGIN_ROOT}/bin/source-control-babysit-resolve-thread" owner/repo#42 --allowed-owners <watched-owners> --autonomous --resolve --thread-id <id> --expected-comment-count <n> --expected-last-updated <ts>
+bash "${CLAUDE_PLUGIN_ROOT}/bin/source-control-babysit-resolve-thread" owner/repo#42 --allowed-owners <watched-owners> --extra-bot-logins <extra-bot-logins> --autonomous --resolve --thread-id <id> --expected-comment-count <n> --expected-last-updated <ts>
 ```
 
 for the unattended-worker case, or
 
 ```text
-bash "${CLAUDE_PLUGIN_ROOT}/bin/source-control-babysit-resolve-thread" owner/repo#42 --allowed-owners <watched-owners> --resolve --include-human --thread-id <id> --expected-comment-count <n> --expected-last-updated <ts>
+bash "${CLAUDE_PLUGIN_ROOT}/bin/source-control-babysit-resolve-thread" owner/repo#42 --allowed-owners <watched-owners> --extra-bot-logins <extra-bot-logins> --resolve --include-human --thread-id <id> --expected-comment-count <n> --expected-last-updated <ts>
 ```
 
 for the autopilot case. This degradation is a successful, material finding to report, not a

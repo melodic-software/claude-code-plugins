@@ -3,6 +3,67 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.31.3]
+
+### Changed
+
+- **`test_pr_queue_snapshot.py`'s Approve-with-nits integration test now pins the routing by
+  elimination (#578).** The test asserted only that `blocking` and `material` were empty, which does
+  not distinguish "routed to `ignored`" from "routed to a human bucket". It now also asserts
+  `human_blocking` and `human` are empty; since `collect_feedback` places every record in exactly one
+  bucket and `classify_pr` surfaces four, all four empty rules out every bucket the snapshot projects.
+  Elimination alone still could not tell "routed to `ignored`" from "dropped before reaching any
+  bucket", so the test now also calls `collect_feedback` directly on the same fixture — under the
+  same `FeedbackConfig` `classify_pr` passes down — and asserts the record is in `ignored` carrying
+  the `approval_verdict` downgrade marker, which pins the arrival branch rather than only the
+  destination. #578 asked for a direct assertion on `feedback["ignored"]`: that holds at the
+  `collect_feedback` layer, but not on the snapshot's `feedback` mapping, which deliberately does not
+  project `ignored`. Test-only; no behavior change.
+
+## [0.31.2]
+
+### Fixed
+
+- **`babysit-prs` worktree pruning no longer gives a false all-clear for a non-conforming directory
+  name (#555).** `prune_babysit_worktrees.py` derives each worktree's PR identity from its directory
+  name, and a directory that did not match `<owner>__<repo>__pr-<number>` was dropped before the
+  report was built — not kept, not removed, not an error, simply absent. A caller reading the JSON to
+  answer "is anything left to clean up?" saw an empty list while merged PRs' worktrees sat on disk,
+  and had to find and `git worktree remove` them by hand. Every directory under `<worktree-root>` now
+  appears in the report; an unmappable one is an explicit `action: unrecognized` row carrying its path
+  and the reason, in every mode including `--pr` — an unrecognized entry has no key to match a target
+  against, so leaving it to that filter would hide it from every scoped run (a recognized non-target
+  worktree is out of the caller's declared scope and still appears in an unscoped run). Unrecognized
+  entries are never removed — identity is a precondition for the PR-state and worker-lease checks
+  that authorize removal — and do not fail the run. `reference/worktrees.md` now states the naming
+  convention that was previously only implied by the helper's regex, plus what happens to a
+  directory that breaks it.
+
+## [0.31.1]
+
+### Fixed
+
+- **`babysit_resolve_thread.py`'s two `is_bot` call sites now thread `extra_bot_logins` through
+  (#637).** The bot-only classifier (`project_thread`'s `botOnly` computation) and the
+  `humanThreadsActed` reporting counter both called the shared `is_bot` without the caller's
+  `extra_bot_logins` config, unlike every other classifier call site (e.g. `actor_kind` in
+  `babysit_classify.py`). An operator who registered a non-structural bot account via
+  `babysit_extra_bot_logins` (no `[bot]` login suffix, API `__typename` reports `User`) had that
+  account's threads miscategorized at both sites — pre-existing relative to #534/#634, which
+  migrated these call sites to the shared classifier without introducing the omission. The script
+  now accepts `--extra-bot-logins` (same comma-separated shape as the snapshot wrapper) and passes
+  it to both sites; `babysit_extra_bot_logins`'s flag-delivery mapping in SKILL.md now lists
+  `resolve-thread` alongside `snapshot`. Because configuration reaches these scripts only through
+  CLI flags, the mapping alone would have left the flag unused: every exact resolver command form
+  the agent copies — the two pinned degradation commands in `reference/safety.md`, the Worker
+  Contract clause and the Worker Prompt Template in `reference/orchestration.md`, and the
+  thread-resolution bullet in SKILL.md — now carries `--extra-bot-logins <extra-bot-logins>`, and
+  `safety.md` states the rule so a future command form does not drop it again. The module docstring
+  argparse renders as `--help` no longer claims bot identity comes from API signals alone: it now
+  names `--extra-bot-logins` as the one operator-supplied exception, so someone auditing this
+  privileged helper reads the capability it actually has. Low severity — dormant unless an operator
+  has configured the userConfig key for a non-structurally-detected bot account.
+
 ## [0.31.0]
 
 ### Changed

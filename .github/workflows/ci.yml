@@ -422,6 +422,36 @@ jobs:
           BASE_REF: ${{ github.base_ref }}
         run: scripts/check-changelog-parity.sh --check-bump "origin/$BASE_REF"
 
+  # Contract-slice prune: docs/topics/<slug>/ is Contract tier per
+  # docs/conventions/topic-docs/README.md — committed on a task branch only,
+  # pruned before merge. The convention specified this required check but it was
+  # never wired, so 17 slices reached main (#1417). The gate keys on where a path
+  # LANDS, so the prune commit itself and a history-preserving graduation out of
+  # docs/topics/ both pass; only an add, edit, or rename-into is red-lined. The
+  # pre-existing 17 are grandfathered by slug in
+  # scripts/contract-slice-baseline.txt with a stale guard, and burn down under
+  # #1419. The self-test runs unconditionally so a broken gate cannot mask a
+  # regression, and the PR-diff step is event-gated.
+  contract-slice-prune-gate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          # Full history so the PR base ref is resolvable for the diff gate.
+          fetch-depth: 0
+      - name: Test the contract-slice prune gate
+        run: bash scripts/check-contract-slice-prune.test.sh
+      - name: Verify no baseline entry outlives its slice
+        run: scripts/check-contract-slice-prune.sh --check
+      - name: Verify the change set prunes its contract slice
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: scripts/check-contract-slice-prune.sh --check-diff "origin/$BASE_REF"
+
   # Deep plugin-contract lane and the heaviest suite (Node + Python installs,
   # every plugins/**/*.test.sh, manifest + catalog validation). A PR whose diff
   # is confined to the docs-only allowlist (scripts/docs-only-paths.txt) cannot
@@ -714,6 +744,7 @@ jobs:
       - silent-skip-gate
       - orphaned-fixture-gate
       - changelog-parity-gate
+      - contract-slice-prune-gate
       - plugin-gate
       - miro-plugin
       - youtube-extraction
