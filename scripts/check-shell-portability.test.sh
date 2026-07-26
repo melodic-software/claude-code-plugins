@@ -434,6 +434,19 @@ else
 fi
 rm -f "$f"
 
+# --- sort's long-form spellings are active in the SHIPPED list (not just the
+# isolated-token mechanism proven above) — one file, both forms, one violation
+# line each -------------------------------------------------------------
+f="$(tmpsh "$(printf '%s\n%s\n' 'sort --version-sort "$file"' 'sort --sort=version "$file"')")"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "sort long forms should fail under the shipped list, got success: $out"
+elif echo "$out" | grep -q "PORTABILITY: ${f}:1:" && echo "$out" | grep -q "PORTABILITY: ${f}:2:"; then
+  ok "the shipped token list detects both sort --version-sort and --sort=version"
+else
+  fail "expected a PORTABILITY hit on both lines, got: $out"
+fi
+rm -f "$f"
+
 echo
 echo "PASS=$PASS FAIL=$FAIL"
 [[ "$FAIL" -eq 0 ]]
