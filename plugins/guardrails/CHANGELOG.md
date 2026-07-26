@@ -169,7 +169,14 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
       one trailing `\n` is peeled and nothing else — a `tr -d '\r'`/`%$'\r'` peel
       would corrupt a path that legitimately ends in `\r`, the identical hole one
       byte over. Interior and trailing newlines (and a trailing `\r`) now survive
-      in both fields.
+      in both fields. The framing is unit-verified against every newline position
+      (interior, single- and double-trailing, CRLF terminator); an end-to-end
+      fixture is impractical because reaching a newline top level requires either a
+      literal newline in the parsed command or a newline-ending payload `cwd`, and
+      the latter is stripped one layer earlier — a SEPARATE, pre-existing entry
+      point shared with `main`, tracked as
+      [#1536](https://github.com/melodic-software/claude-code-plugins/issues/1536)
+      rather than absorbed here.
 
     The invocation's LOCATING globals are replayed onto that probe, not just its
     `-C`. `--git-dir` and `--work-tree` locate a repository as surely as `-C` does
