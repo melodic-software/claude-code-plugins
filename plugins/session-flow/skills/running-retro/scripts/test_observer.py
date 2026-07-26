@@ -155,6 +155,22 @@ class Distillation(unittest.TestCase):
         self.assertNotIn("results", u)
         self.assertNotIn("tool_results", u)
 
+    def test_user_bare_string_in_content_list_is_a_human_message(self):
+        """`content: ["next request"]` is a human prompt, the shape retro's own
+        parser counts as one (`parse_transcript.py`). Extracting only dict `text`
+        blocks emitted neither `human` nor `turn_boundary`, so in a session with
+        no `stop_hook_summary` records the analysis prompt's "same user turn"
+        precondition saw no boundary at all and calls answering prompts on either
+        side of it became a candidate pair (#1485 review)."""
+        u = observer.summarize_record({"type": "user", "message": {
+            "content": ["next request"]}})
+        self.assertEqual(u["human"], "next request")
+
+    def test_user_bare_string_and_text_block_mix(self):
+        u = observer.summarize_record({"type": "user", "message": {
+            "content": ["first", {"type": "text", "text": "second"}]}})
+        self.assertEqual(u["human"], "first second")
+
     def test_sequencing_and_dependency_round_trip(self):
         """Builds observations from real transcript-shaped records for a genuinely
         DEPENDENT sequential pair (a Write, then a Read of a path the Write's own

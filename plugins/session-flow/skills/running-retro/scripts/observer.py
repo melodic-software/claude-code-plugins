@@ -241,8 +241,15 @@ def summarize_record(rec: dict) -> dict:
         elif isinstance(content, list):
             tool_results = [c for c in content
                             if isinstance(c, dict) and c.get("type") == "tool_result"]
-            humans = [c.get("text", "") for c in content
-                      if isinstance(c, dict) and c.get("type") == "text"]
+            # A bare string inside the content list is a human message, the same
+            # as a `text` block -- retro's canonical parser counts it as one, and
+            # missing it emits neither `human` nor `turn_boundary`, so a session
+            # without `stop_hook_summary` records loses the turn boundary the
+            # dependency check refuses to cross.
+            humans = [c if isinstance(c, str) else c.get("text", "")
+                      for c in content
+                      if isinstance(c, str)
+                      or (isinstance(c, dict) and c.get("type") == "text")]
             if tool_results:
                 out["results"] = [_result_entry(c) for c in tool_results]
             if humans and any(h.strip() for h in humans):

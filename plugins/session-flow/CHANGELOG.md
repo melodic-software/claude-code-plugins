@@ -55,7 +55,13 @@
   a missed batch. A candidate pair must also sit inside one user turn — no
   intervening `human` or `turn_boundary` event — before the dependency test runs at all, since two
   calls answering different human prompts could never have been batched however independent they
-  are. Its grouping rule no longer both asserts sequential execution for a missing `mid` and calls
+  are. That precondition needs the boundary to be visible, so `summarize_record()` now reads a bare
+  string inside a user `content` list as a human message, matching what retro's canonical
+  `parse_transcript.py` already counts: extracting only dict `text` blocks meant a prompt encoded as
+  `content: ["next request"]` emitted neither `human` nor `turn_boundary`, so in a session carrying
+  no `stop_hook_summary` records the turn boundary was invisible and calls answering prompts on
+  either side of it became a candidate pair. Its grouping rule no longer both asserts sequential
+  execution for a missing `mid` and calls
   that case uncomputable — a missing grouping key is now uniformly uncomputable, never evidence of
   sequential execution.
   `tools` is unaffected and still carries the tool-call names a "delegation" finding needs (a Task/
