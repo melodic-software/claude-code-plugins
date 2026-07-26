@@ -76,7 +76,7 @@
         "The returned payload echoes the preload token discovery-explore-preload-8e2b7d verbatim as preload_token; a missing or mismatched token is a hard failure that discards the run",
         "Open questions come back as open_questions entries for the parent to surface, each with a recommended default, rather than being surfaced with AskUserQuestion or resolved silently",
         "A referenced-but-missing file becomes an open_questions entry rather than triggering git archaeology, because the ask-first rule that protects an intentional deletion cannot be satisfied from a subagent",
-        "EXPLORE.md is written as an index with per-sidecar abstracts and a section-to-file table regardless of total size, with sidecars inside the same memory slice; an unrelated existing EXPLORE.md diverts the write to EXPLORE-<scope>.md and the chosen filename is named in the return"
+        "EXPLORE.md is written as an index with per-sidecar abstracts and a section-to-file table regardless of total size, with sidecars named EXPLORE-<section>.md inside the same memory slice; when the slice root already holds an unrelated EXPLORE.md the whole artifact set goes into a sub-slice under its normal names rather than renaming the index into the sidecar pattern, and the return names the path actually written"
       ]
     }
   ]

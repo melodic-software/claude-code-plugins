@@ -109,9 +109,21 @@ function is_separator(line,   probe) {
   if (!header_seen) {
     for (i = 1; i <= ncell; i++) {
       header_name[i] = cell[i]
-      if (tolower(cell[i]) == "done") { done_col = i; header_cols = ncell }
+      h = tolower(cell[i])
+      if (h == "done") { done_col = i }
+      if (h == "corpus item") { has_item = 1 }
+      if (h == "depth criterion") { has_criterion = 1 }
     }
-    if (done_col == 0) next   # a table without a Done column is not the ledger
+    # The FULL mandated header is required, not just a Done column. A document
+    # may hold any number of tables, and an unrelated status table that happens
+    # to carry a Done column would otherwise be graded as the coverage ledger —
+    # exiting 0 without a single corpus item ever having been enumerated, which
+    # is criterion 11 satisfied by a table about something else entirely.
+    if (done_col == 0 || !has_item || !has_criterion) {
+      done_col = 0; has_item = 0; has_criterion = 0
+      next
+    }
+    header_cols = ncell
     header_seen = 1
     next
   }

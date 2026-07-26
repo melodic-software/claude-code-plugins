@@ -92,6 +92,38 @@ no_rows="$WORK/no-rows.md"
 } >"$no_rows"
 run 2 "header with zero data rows fails closed" "$no_rows"
 
+# A Done column alone does not make a table the ledger. An unrelated status table
+# would otherwise be graded as coverage — criterion 11 satisfied by a table about
+# something else, with no corpus item ever enumerated.
+foreign_table="$WORK/foreign-table.md"
+{
+  printf '# Notes\n\n'
+  printf '| Done | Note |\n'
+  printf '|------|------|\n'
+  printf '| [x] | status |\n'
+} >"$foreign_table"
+run 2 "unrelated table with a Done column is not the ledger" "$foreign_table"
+
+# ...and a real ledger later in the same document is still found.
+foreign_then_real="$WORK/foreign-then-real.md"
+{
+  printf '| Done | Note |\n'
+  printf '|------|------|\n'
+  printf '| [x] | status |\n\n'
+  printf '| # | Corpus item | Depth criterion | Done |\n'
+  printf '|---|-------------|-----------------|------|\n'
+  printf '| 1 | alpha | criterion | [x] |\n'
+} >"$foreign_then_real"
+run 0 "a real ledger after an unrelated table is still graded" "$foreign_then_real"
+
+partial_header="$WORK/partial-header.md"
+{
+  printf '| # | Corpus item | Done |\n'
+  printf '|---|-------------|------|\n'
+  printf '| 1 | alpha | [x] |\n'
+} >"$partial_header"
+run 2 "header missing the depth-criterion column fails closed" "$partial_header"
+
 no_done_col="$WORK/no-done-column.md"
 {
   printf '| # | Corpus item | Depth criterion |\n'
