@@ -3,6 +3,31 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.31.5]
+
+### Fixed
+
+- **A readiness-gate classification is now a table CELL that OPENS with a disposition, matched
+  case-insensitively (#619).** Both the bash safe-tier degrade and the preferred Python classifier
+  (`babysit_classify.py`) matched the classification tokens exact-case only, anywhere in a
+  `|`-prefixed line. A worker reply that wrote a natural-language disposition like "Valid (defer)"
+  instead of the mandated all-caps `VALID` scored as unclassified, so the gate reported
+  `READINESS_BLOCKED reason=under-decomposed` even though the finding genuinely was classified.
+  Matching is now case-insensitive, and the token must open a table cell, optionally followed by an
+  annotation introduced by punctuation. That punctuation requirement is what separates the
+  disposition values `reference/review-discipline.md` documents — `VALID — fixing`, `VALID (defer)`,
+  `VALID — fix now` — from prose that merely starts with a disposition word. Scanning the whole line
+  instead credited `| CI check | result is valid |`, and accepting a bare space before the
+  annotation credited `| 2 | c2 | Valid cache entries are rejected | | |`; either miss lets an
+  unclassified finding past the under-decomposition gate. The decoration allowed before the token
+  and the character required after it exclude word characters rather than only letters, so `valid2`,
+  `2valid` and `VALID_TOKEN` no longer satisfy the token, and "invalid"/"INVALID" still does not
+  false-match "valid"/"VALID". One predicate drives both the classified count and the self-row
+  exclusion that keeps a classification row's own severity word from re-counting as a phantom
+  finding, so the two counts cannot drift apart. New convergence fixtures pin the bash degrade and
+  the Python classifier to the same counts on a lowercase disposition, both prose false positives, a
+  word-like continuation, and the documented annotated forms.
+
 ## [0.31.4]
 
 ### Fixed
