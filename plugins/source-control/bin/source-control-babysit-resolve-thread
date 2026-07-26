@@ -1,8 +1,12 @@
 #!/usr/bin/env bash
 # Canonical, self-locating wrapper for the guarded babysit-prs thread resolver.
-# Exposing the resolver as a stable bare command lets a narrow, non-interpreter
-# allow rule -- Bash(source-control-babysit-resolve-thread:*) -- survive Claude
-# Code auto mode, which drops wildcarded-interpreter rules like Bash(python*).
+# The stable bare name exists so a narrow, non-interpreter allow rule --
+# Bash(source-control-babysit-resolve-thread:*) -- could survive Claude Code auto
+# mode, which drops wildcarded-interpreter rules like Bash(python*). That benefit
+# is currently unrealized: bare-name PATH delivery is unreliable, so callers
+# invoke this by its ${CLAUDE_PLUGIN_ROOT}/bin/ path, and a path invocation cannot
+# match the bare-name rule. Both halves are spelled out under "Guarded Mutation
+# Wrappers" in skills/babysit-prs/reference/safety.md.
 # Adds no capability of its own: the deterministic guards in
 # babysit_resolve_thread.py stay the only resolve path.
 set -euo pipefail
