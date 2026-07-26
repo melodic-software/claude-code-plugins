@@ -25,8 +25,9 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   bare-token shapes; the existing partial-replacement true-positive cases keep passing, with the
   composite (complete-reference-plus-bare-word) case reshaped onto a realistic multi-line hunk since
   a single Edit's `new_string` cannot land in two disjoint places on disk. `stale-path-verify` and
-  `cli-flag-verify` carry the same reconstruction shape and are tracked separately — see `#1432`
-  (`65b4f67c`) for the sibling fix this ports from.
+  `cli-flag-verify` carry the same reconstruction shape and are not fixed here; the guard-wide
+  false-positive class they belong to is tracked on `#547`, and `#1432` (`65b4f67c`) is the sibling
+  fix this ports from.
 
 ## [0.16.1]
 
