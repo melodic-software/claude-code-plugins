@@ -88,6 +88,65 @@ class ResultParsing(unittest.TestCase):
         self.assertEqual(observer._result_error('{"is_error":false,"result":"ok"}'), "")
 
 
+class AnalysisPrompt(unittest.TestCase):
+    """The headless run has no delegation prompt to fall back on -- the
+    compute-don't-assert rule (issue #1473) must be inline in this prompt
+    text itself, not only documented in checkpoint.md's Method section."""
+
+    def test_compute_dont_assert_rule_present(self):
+        prompt = observer._analysis_prompt(
+            observations="/abs/obs.jsonl", checkpoint="/abs/checkpoint.md",
+            session_id="sid")
+        self.assertIn("Compute, don't assert", prompt)
+        # Names the failure modes the validation report actually observed.
+        self.assertIn("sequencing", prompt)
+        self.assertIn("batching", prompt)
+        self.assertIn("delegation", prompt)
+        self.assertIn("occurrence count", prompt)
+        self.assertIn("message id", prompt)
+        # Uncomputable structural claims must be dropped, not asserted anyway.
+        self.assertIn("drop the claim", prompt)
+
+    def test_message_id_absence_caveat_present(self):
+        # summarize_record() never carries a message-id field into the
+        # distilled observations the headless run receives (see its distillation
+        # below) -- the prompt must say so explicitly, or the agent is told to
+        # group by a field that never exists in its own input.
+        prompt = observer._analysis_prompt(
+            observations="/abs/obs.jsonl", checkpoint="/abs/checkpoint.md",
+            session_id="sid")
+        self.assertIn("may not carry a message-id field", prompt)
+        rec = observer.summarize_record(
+            {"type": "assistant",
+             "message": {"content": [{"type": "tool_use", "name": "Read"}]}})
+        self.assertNotIn("id", rec)
+
+    def test_dependency_check_before_batching_finding_present(self):
+        # A correctly computed sequencing fact doesn't by itself prove a missed
+        # batching opportunity -- genuinely dependent calls are correctly
+        # sequential, not a miss. The compute-don't-assert rule must cover the
+        # Efficiency judgment built on top of a computed structural fact, not
+        # only the fact itself, and "dependent" must not be narrowed to data
+        # flow alone -- control, resource, and side-effect dependencies are
+        # just as real a reason two calls had to run in order.
+        prompt = observer._analysis_prompt(
+            observations="/abs/obs.jsonl", checkpoint="/abs/checkpoint.md",
+            session_id="sid")
+        self.assertIn("missed batching opportunity", prompt)
+        self.assertIn("dependency", prompt)
+        self.assertIn("control", prompt)
+        self.assertIn("resource", prompt)
+        self.assertIn("side-effect", prompt)
+
+    def test_redaction_rule_still_present(self):
+        # Guard against the new instruction crowding out the pre-existing
+        # mandatory redaction pass.
+        prompt = observer._analysis_prompt(
+            observations="/abs/obs.jsonl", checkpoint="/abs/checkpoint.md",
+            session_id="sid")
+        self.assertIn("MANDATORY redaction pass", prompt)
+
+
 class Locking(unittest.TestCase):
     def test_single_and_release(self):
         with tempfile.TemporaryDirectory() as d:
