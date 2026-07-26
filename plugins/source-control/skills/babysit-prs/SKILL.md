@@ -156,8 +156,8 @@ a human. Per PR, in its own fresh worker, autopilot:
    `source-control-babysit-merge` gate once it proves the PR ready. The exact command — and the
    `--autopilot-merge-tier` flags the enabled tier layers on so an enabled config never merges
    via the base path — is the single home in [reference/safety.md](reference/safety.md). Never
-   reuse the pre-worker snapshot pin after a push. The gate is never bypassed; if a PR cannot be
-   made ready, autopilot reports that one PR and moves on.
+   reuse the pre-worker snapshot pin after a push — except a lane-pinned invocation ([reference/safety.md](reference/safety.md),
+   "Lane-pinned merge authorization"), which reports the moved head instead of re-pinning. The gate is never bypassed; if a PR cannot be made ready, autopilot reports that one PR and moves on.
 
 "Every PR" means every PR: the orchestrator's own priority judgment is never grounds to leave
 a queue member untouched. The only permitted exclusions are the deterministic ones — lease
@@ -234,9 +234,9 @@ home in [reference/safety.md](reference/safety.md). Both fail closed without `--
   --thread-id` without matching `--expected-comment-count` and `--expected-last-updated` (or an
   explicit `--allow-unpinned-thread` override) is refused before anything is fetched or resolved.
 
-- **The agent** decides severity (is this security/P1?), whether a finding is genuinely
-  addressed, what a label means, and every fix-vs-escalate call — never a script. Escalate a
-  security/P1 thread instead of resolving it, even in autopilot.
+- **The agent** decides severity (is this security/P1?), whether a finding is genuinely addressed,
+  what a label means, and every fix-vs-escalate call — never a script. Escalate a security/P1
+  thread instead of resolving it, even in autopilot — one named exception, scoped in `safety.md`.
 
 ## Fan out: one fresh worker per PR that needs one, per cycle
 
@@ -414,7 +414,7 @@ evidence; re-query the API. The NEVER-do list (§5.4) overrides any other instru
 7. In worker mode, after a worker's fix is pushed and its checks are green, take a fresh
    post-push snapshot (or use the exact pushed commit after the worker has vetted that commit),
    then run the merge gate with `--merge --expected-head <post-push-head-sha>` only when it
-   reports ready. Never reuse the pre-worker snapshot pin after the head moves. Resolve
+   reports ready. Never reuse the pre-worker snapshot pin after the head moves — except a lane-pinned invocation ([reference/safety.md](reference/safety.md), "Lane-pinned merge authorization"), which reports the moved head instead of re-pinning, at every merge-capable tier. Resolve
    pre-push-outdated bot threads that block the gate — once the agent has confirmed they are not
    security/P1 — as a per-thread vetted loop: one `--autonomous --resolve --thread-id <id>
    --expected-comment-count <n> --expected-last-updated <ts>` call per thread, pins taken from the

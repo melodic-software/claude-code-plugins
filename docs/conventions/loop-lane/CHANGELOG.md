@@ -5,6 +5,49 @@ topology, the escalation contract, the capability-tier vocabulary, or any loop-l
 major bump, and additive guidance is a minor bump. A new model release re-audits the capability-tier
 table (§3) and is recorded here.
 
+## 3.0.0 — 2026-07-25
+
+Repo-owner-ratified addition of a single named, explicit-argument exception to the seam-only merge
+rung, requested and scoped in
+[melodic-software/claude-code-plugins#1309](https://github.com/melodic-software/claude-code-plugins/issues/1309).
+A change to the autonomy-ladder invariant is a major bump per this file's own rule.
+
+- **Autonomy ladder** — an invocation whose own argument line explicitly types both the literal
+  `autopilot` tier keyword and the dedicated raise argument `--merge c3-this-run` (each never
+  inherited, never defaulted, never seam-supplied, never model-composed on the caller's behalf)
+  widens that single invocation's merge authority up
+  to and including C3, in a repository that has already adopted the baseline rung. The raise token
+  exists for this exception alone — `autopilot` predates it as a merge-inert tier keyword, so a
+  saved invocation or expanded template carrying the tier keyword alone acquires no merge
+  authority. Persists nothing
+  to config; is not a substitute for the recorded C3-autonomous seam flip. **C4 (structural) and C5
+  (untrusted-provenance) stay unconditionally human-gated** — no rung, seam, or argument, including
+  this one, ever reaches them, per the autonomy matrix's own "never promotes" cells. The exception
+  lifts only the *raise* restriction: every other merge-dimension value still only selects a lower
+  rung, and
+  C5 is derived from the PR's own provenance rather than the linked item's recorded class, so a fork
+  PR closing an internally-classified C2/C3 item is outside the exception.
+- **Human blocking feedback, operator-parked items, and merge conflicts stay outside the dispatch.**
+  A `CHANGES_REQUESTED` review, explicit human blocking language, or an unresolved inline human
+  thread remains a stop-and-ask condition the exception does not amend. An item wearing the §2 role
+  label *without* the machine escalation marker is operator-parked and belongs to the attended
+  queue, so the label alone never authorizes a dispatch. Conflicts route to a lane's merge-only
+  conflict path, never a rebase.
+- **The floor reads the pull request, and the dispatch holds its lease.** C5 follows the code's
+  provenance and C4 the diff's blast radius, both derived from the PR rather than the linked item's
+  stamp, with a class/diff mismatch failing closed; a repository-owner allowlist never substitutes
+  for the provenance test. The provenance test is executable, not a vibe: a cross-repository head,
+  or an author the provider does not attest as an owner or member of the base repository — an
+  outside collaborator on a base-repository branch is external despite a same-repository head — and
+  an unavailable signal fails closed to C5. The floor's verdict attaches to the exact head SHA it
+  examined: any later push, the resolver's or the merge-capable worker's own, re-derives the
+  verdict before any merge. The dispatch runs under the PR's own worker lease and resolves its
+  capability tier through §3's binding, never a family alias fixed in a lane.
+- **Capability tiers** — the explicit-`autopilot` exception's frontier-tier dispatch additionally
+  requires context independence: no shared conversation history with whatever produced or previously
+  reviewed the PR. A same-context or self-continuation dispatch does not satisfy the exception even at
+  the frontier tier.
+
 ## 2.0.0 — 2026-07-24
 
 Tier ratified as **major**. Both corrections touch a shared invariant: B4 replaces a stated
