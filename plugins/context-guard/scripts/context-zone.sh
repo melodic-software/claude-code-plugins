@@ -36,14 +36,17 @@
 #   (conservative-min). When only one is computable, it stands alone. When
 #   neither is, the zone is unknown.
 #
-# TOKEN-FIELD PLAUSIBILITY GUARD (version floor): total_input_tokens /
-# total_output_tokens mean *current context occupancy* only since Claude
-# Code 2.1.132 — before that they were cumulative session totals, which
-# would misfire the bands badly. The snapshot carries no CLI version, so the
-# resolver applies the observable guard instead: occupancy greater than
-# context_window_size is impossible as current occupancy and marks the token
-# shape not-computable (cumulative semantics or corrupt data), leaving the
-# percentage shape to stand alone.
+# TOKEN-SHAPE VERSION GATE: total_input_tokens / total_output_tokens mean
+# *current context occupancy* only since Claude Code 2.1.132 — before that
+# they were cumulative session totals, which would misfire the bands badly.
+# A cumulative total is NOT observable from the numbers alone: 170k
+# cumulative in a 200k window is a perfectly plausible current occupancy and
+# resolves dumb while the live context may be nowhere near it. So the token
+# shape requires the snapshot's cli_version to be >= 2.1.132; an absent,
+# malformed, or older version marks it not-computable and leaves the
+# percentage shape to stand alone. A second, independent plausibility guard
+# still rejects occupancy greater than context_window_size (corrupt data, or
+# a snapshot whose version field was forged).
 #
 # SHIPPED DEFAULT BANDS (zones.json absent = zero-config): percentage bands
 # smart ≤ 50 < acceptable ≤ 75 < dumb over used_percentage, and per
@@ -105,8 +108,9 @@ snap="$HOME/.claude/context-guard/context/$sid.json"
 # embedded session_id equal to the REQUESTED id — the seam is per-session and
 # a copied/renamed snapshot must not answer for another session, non-null
 # current_usage) emit "invalid"; past them it emits one line
-# "captured_at pct ti to cws" where each measurement field is a number or the
-# literal x when that field is null / missing / out of documented range.
+# "captured_at ver pct ti to cws" where each measurement field is a number or
+# the literal x when that field is null / missing / out of documented range,
+# and ver is the snapshot's cli_version string or x.
 parsed=$(jq -r --arg sid "$sid" '
   if (type != "object") then "invalid"
   elif ((.captured_at? // null) | type) != "string" then "invalid"
@@ -115,6 +119,8 @@ parsed=$(jq -r --arg sid "$sid" '
   elif (.context_window.current_usage? // null) == null then "invalid"
   else
     [ .captured_at,
+      (if ((.cli_version? // null) | type) == "string" and (.cli_version | test("^[0-9]+(\\.[0-9]+)*$"))
+        then .cli_version else "x" end),
       (if ((.context_window.used_percentage? // null) | type) == "number"
           and (.context_window.used_percentage >= 0)
           and (.context_window.used_percentage <= 100)
@@ -131,7 +137,7 @@ parsed=$(jq -r --arg sid "$sid" '
     ] | join(" ")
   end' "$snap" 2>/dev/null) || unknown
 [[ -n "$parsed" && "$parsed" != "invalid" ]] || unknown
-read -r ts pct ti to cws <<<"$parsed" || unknown
+read -r ts ver pct ti to cws <<<"$parsed" || unknown
 
 # Strict ISO-8601 UTC format gate BEFORE any date parsing: GNU date -d also
 # accepts natural-language values ("now", "1 second ago") that would let a
@@ -212,12 +218,34 @@ if [[ "$pct" != "x" ]]; then
   }' 2>/dev/null) || pct_zone="x"
 fi
 
+# Token-shape version gate: the token fields carry current-occupancy
+# semantics only from TOKEN_SEMANTICS_MIN_VERSION on. Compared component by
+# component in awk — deliberately NOT `sort -V`, which is a GNU-only
+# construct this repo's portability lane rejects. Missing components compare
+# as 0, so "2.2" reads as 2.2.0; a version the jq gate already rejected
+# arrives as x and fails here.
+TOKEN_SEMANTICS_MIN_VERSION="2.1.132"
+version_at_least() { # <candidate> <minimum>
+  [[ "$1" =~ ^[0-9]+(\.[0-9]+)*$ ]] || return 1
+  awk -F. -v a="$1" -v b="$2" 'BEGIN {
+    na = split(a, x, "."); nb = split(b, y, ".")
+    n = (na > nb ? na : nb)
+    for (i = 1; i <= n; i++) {
+      av = (i <= na ? x[i] + 0 : 0); bv = (i <= nb ? y[i] + 0 : 0)
+      if (av > bv) exit 0
+      if (av < bv) exit 1
+    }
+    exit 0
+  }' 2>/dev/null
+}
+
 # Token shape: occupancy = total_input_tokens + total_output_tokens against
-# the selected window-class row. Plausibility guard: occupancy above the
-# window size is impossible as current occupancy (pre-2.1.132 cumulative
-# semantics or corrupt data) — the token shape is then not computable.
+# the selected window-class row. Requires the version gate above, plus the
+# independent plausibility guard that occupancy above the window size is
+# impossible as current occupancy (corrupt or forged data).
 tok_zone="x"
-if [[ "$ti" != "x" && "$to" != "x" && "$cws" != "x" ]]; then
+if [[ "$ti" != "x" && "$to" != "x" && "$cws" != "x" ]] &&
+  version_at_least "$ver" "$TOKEN_SEMANTICS_MIN_VERSION"; then
   tok_zone=$(awk -v ti="$ti" -v to="$to" -v cws="$cws" '
     BEGIN { occ = ti + to; cls = -1 }
     {

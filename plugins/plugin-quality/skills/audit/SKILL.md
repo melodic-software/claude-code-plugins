@@ -71,6 +71,10 @@ Resolve the zone with `jq` (a data seam — never invoke another plugin's script
    `acceptable` ≤ **160000** < `dumb`, window class **1000000**: `smart` ≤ **200000** <
    `acceptable` ≤ **400000** < `dumb` (class = largest key ≤ `context_window_size`; occupancy >
    `context_window_size`, or a window below every class, makes the token shape not computable).
+   The token shape ALSO requires the snapshot's `cli_version` to be present, purely numeric dotted,
+   and **≥ 2.1.132** — before that release the token fields were cumulative session totals, and a
+   cumulative value below the window size is indistinguishable from a real occupancy, so an absent,
+   malformed, or older version makes the token shape not computable.
 5. **Combination rule** (verbatim from the reader contract): when both shapes are computable, the
    worse zone wins (conservative-min); when only one is computable, it stands alone; when neither
    is, the zone is unknown. Null/missing/out-of-range `used_percentage` therefore drops only the

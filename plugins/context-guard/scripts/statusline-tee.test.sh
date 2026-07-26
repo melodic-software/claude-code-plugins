@@ -91,6 +91,32 @@ else
 fi
 if [[ "$(jq -r '.session_id' <"$SNAP1")" == "sess-42" ]]; then ok "session_id recorded"; else fail "session_id = $(jq -r '.session_id' <"$SNAP1")"; fi
 
+# --- Case 2b: cli_version — the reader's token-shape version gate ------------
+# The token fields carry current-occupancy semantics only from 2.1.132; without
+# the version the reader cannot tell current from pre-2.1.132 cumulative, so an
+# absent version must leave the key absent rather than be guessed.
+HOMEV="$WORK/home-version"
+run "$HOMEV" "$(build_input sess-ver '"version":"2.1.218"')" cat >/dev/null
+SNAPV="$HOMEV/.claude/context-guard/context/sess-ver.json"
+if [[ "$(jq -r '.cli_version' <"$SNAPV" 2>/dev/null)" == "2.1.218" ]]; then
+  ok "cli_version teed from the payload's top-level version"
+else
+  fail "cli_version = $(jq -c '.cli_version' <"$SNAPV" 2>/dev/null)"
+fi
+if jq -e 'has("cli_version") | not' <"$SNAP1" >/dev/null 2>&1; then
+  ok "no version on stdin → cli_version honestly absent (never fabricated)"
+else
+  fail "cli_version fabricated: $(jq -c '.cli_version' <"$SNAP1")"
+fi
+HOMEVB="$WORK/home-version-bad"
+run "$HOMEVB" "$(build_input sess-verbad '"version":42')" cat >/dev/null
+SNAPVB="$HOMEVB/.claude/context-guard/context/sess-verbad.json"
+if jq -e 'has("cli_version") | not' <"$SNAPVB" >/dev/null 2>&1; then
+  ok "non-string version dropped (reader gates on a version string)"
+else
+  fail "non-string version teed: $(jq -c '.cli_version' <"$SNAPVB")"
+fi
+
 # --- Case 3: bounded snapshot — unrelated top-level fields not teed ----------
 if jq -e 'has("model") or has("rate_limits") | not' <"$SNAP1" >/dev/null 2>&1; then
   ok "unrelated fields not teed (bounded snapshot)"

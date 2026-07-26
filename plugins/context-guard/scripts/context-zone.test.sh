@@ -160,14 +160,18 @@ printf '{"smart_max_used_percentage":"low","acceptable_max_used_percentage":60}\
 GOT="$(HOME="$HM" bash "$ZONE" m40 2>/dev/null)"
 if [[ "$GOT" == "smart" ]]; then ok "non-numeric band → shipped defaults applied"; else fail "non-numeric band: got '$GOT'"; fi
 
-# --- Token shape: window-class bands, combination rule, plausibility ---------
-# write_snapshot_tok <home> <sid> <used-json> <ti-json> <to-json> <cws-json> [<captured_at>]
+# --- Token shape: version gate, window-class bands, combination, plausibility -
+# write_snapshot_tok <home> <sid> <used-json> <ti-json> <to-json> <cws-json> [<captured_at>] [<cli_version-json>]
+# cli_version defaults to a version at or above the current-occupancy floor;
+# pass the literal `omit` to write a snapshot with no cli_version at all.
 write_snapshot_tok() {
-  local home="$1" sid="$2" used="$3" ti="$4" to="$5" cws="$6" ts="${7:-}"
+  local home="$1" sid="$2" used="$3" ti="$4" to="$5" cws="$6" ts="${7:-}" ver="${8:-\"2.1.218\"}"
   [[ -n "$ts" ]] || ts=$(date -u '+%Y-%m-%dT%H:%M:%SZ')
+  local verfield=""
+  [[ "$ver" == "omit" ]] || verfield=",\"cli_version\":$ver"
   mkdir -p "$home/$CTX_REL"
-  printf '{"captured_at":"%s","session_id":"%s","context_window":{"total_input_tokens":%s,"total_output_tokens":%s,"context_window_size":%s,"used_percentage":%s,"remaining_percentage":50,"current_usage":{"input_tokens":100}}}\n' \
-    "$ts" "$sid" "$ti" "$to" "$cws" "$used" >"$home/$CTX_REL/$sid.json"
+  printf '{"captured_at":"%s","session_id":"%s"%s,"context_window":{"total_input_tokens":%s,"total_output_tokens":%s,"context_window_size":%s,"used_percentage":%s,"remaining_percentage":50,"current_usage":{"input_tokens":100}}}\n' \
+    "$ts" "$sid" "$verfield" "$ti" "$to" "$cws" "$used" >"$home/$CTX_REL/$sid.json"
 }
 
 HT="$WORK/h-token"
@@ -184,10 +188,35 @@ write_snapshot_tok "$HT" c1 40 150000 20000 200000 && expect "pct smart + tokens
 write_snapshot_tok "$HT" c2 80 40000 10000 200000 && expect "pct dumb + tokens smart → dumb" dumb "$HT" c2
 write_snapshot_tok "$HT" c3 40 40000 10000 200000 && expect "pct smart + tokens smart → smart" smart "$HT" c3
 write_snapshot_tok "$HT" c4 60 40000 10000 200000 && expect "pct acceptable + tokens smart → acceptable" acceptable "$HT" c4
-# Plausibility guard: occupancy above the window size (pre-2.1.132 cumulative
-# semantics) drops the token shape; the percentage shape stands alone.
+# Plausibility guard: occupancy above the window size is impossible as current
+# occupancy (corrupt or forged data); the percentage shape stands alone.
 write_snapshot_tok "$HT" p1 40 450000 50000 200000 && expect "implausible occ=500k>200k: pct stands alone" smart "$HT" p1
 write_snapshot_tok "$HT" p2 null 450000 50000 200000 && expect "implausible occ + null pct → unknown" unknown "$HT" p2
+
+# Version gate. Before 2.1.132 the token fields were CUMULATIVE session totals,
+# and a cumulative total below the window size is indistinguishable from a real
+# occupancy — the occupancy>window guard alone never catches it. The regression
+# case is exactly that: 170k cumulative in a 200k window sits inside the window,
+# passes the plausibility guard, and would resolve dumb while the live context
+# is smart-zone.
+write_snapshot_tok "$HT" g1 10 160000 10000 200000 '' '"2.1.131"' &&
+  expect "pre-2.1.132 cumulative 170k in a 200k window: token shape dropped, pct stands alone" smart "$HT" g1
+write_snapshot_tok "$HT" g2 null 160000 10000 200000 '' '"2.1.131"' &&
+  expect "pre-2.1.132 + null pct → unknown, never a token-band zone" unknown "$HT" g2
+write_snapshot_tok "$HT" g3 null 160000 10000 200000 '' '"2.1.132"' &&
+  expect "2.1.132 exactly (floor, inclusive): token shape computable" dumb "$HT" g3
+write_snapshot_tok "$HT" g4 null 160000 10000 200000 '' '"2.2"' &&
+  expect "2.2 (short form, > floor): token shape computable" dumb "$HT" g4
+write_snapshot_tok "$HT" g5 null 160000 10000 200000 '' '"3.0.0"' &&
+  expect "3.0.0 (major bump): token shape computable" dumb "$HT" g5
+write_snapshot_tok "$HT" g6 null 160000 10000 200000 '' '"2.1.99"' &&
+  expect "2.1.99 (numeric, not lexical, comparison): token shape dropped" unknown "$HT" g6
+write_snapshot_tok "$HT" g7 null 160000 10000 200000 '' omit &&
+  expect "cli_version absent (older tee, or no version on stdin): token shape dropped" unknown "$HT" g7
+write_snapshot_tok "$HT" g8 null 160000 10000 200000 '' '"2.1.132-beta"' &&
+  expect "non-numeric version string: token shape dropped" unknown "$HT" g8
+write_snapshot_tok "$HT" g9 null 160000 10000 200000 '' 2 &&
+  expect "cli_version not a string: token shape dropped" unknown "$HT" g9
 # Window smaller than every configured class: token shape not computable.
 write_snapshot_tok "$HT" w1 null 40000 10000 100000 && expect "window below all classes + null pct → unknown" unknown "$HT" w1
 write_snapshot_tok "$HT" w2 40 40000 10000 100000 && expect "window below all classes: pct stands alone" smart "$HT" w2

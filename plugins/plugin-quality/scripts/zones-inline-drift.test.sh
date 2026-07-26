@@ -64,6 +64,8 @@ both "percentage floor" "smart ≤ 50 < acceptable ≤ 75 < dumb"
 both "200k-class token band" "200000: smart ≤ 100000 < acceptable ≤ 160000 < dumb"
 both "1M-class token band" "1000000: smart ≤ 200000 < acceptable ≤ 400000 < dumb"
 both "occupancy definition" "total_input_tokens + total_output_tokens"
+both "token-shape version floor" "cli_version"
+both "token-shape version floor value" "2.1.132"
 both "combination rule sentence" \
   "when both shapes are computable, the worse zone wins (conservative-min); when only one is computable, it stands alone; when neither is, the zone is unknown"
 

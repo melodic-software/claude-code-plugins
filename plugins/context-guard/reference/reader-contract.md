@@ -26,6 +26,9 @@ grep-matches its inlined values against this file.
   inclusive, selected by window class — see "Occupancy and combination rule"):**
   window class **200000**: `smart` ≤ **100000** < `acceptable` ≤ **160000** < `dumb`;
   window class **1000000**: `smart` ≤ **200000** < `acceptable` ≤ **400000** < `dumb`.
+- **Token-shape version floor (fixed):** the token shape is computable only when the snapshot's
+  `cli_version` is present, purely numeric dotted, and **≥ 2.1.132** — the release from which the
+  token fields mean current occupancy rather than cumulative session totals.
 - **Combination rule (verbatim — consumers inline this sentence):** when both shapes are
   computable, the worse zone wins (conservative-min); when only one is computable, it stands
   alone; when neither is, the zone is unknown.
@@ -45,6 +48,7 @@ concurrent sessions each own the file named by their `session_id`.
 {
   "captured_at": "2026-07-24T05:32:48Z",
   "session_id": "abc123",
+  "cli_version": "2.1.218",
   "context_window": {
     "total_input_tokens": 15500,
     "total_output_tokens": 1200,
@@ -64,6 +68,9 @@ concurrent sessions each own the file named by their `session_id`.
 - `captured_at` — ISO-8601 UTC write time; always present. Drives the staleness rule.
 - `session_id` — always present (the tee refuses to write without one); also the filename stem,
   sanitized to `[A-Za-z0-9_-]`.
+- `cli_version` — the statusline payload's top-level `version` (the Claude Code version), copied
+  only when it is a string; absent otherwise, never guessed. It gates the token shape (see "Version
+  floor"), so an absent one is not a defect — it just leaves the percentage shape standing alone.
 - `context_window` — copied **verbatim** from the statusline stdin schema
   (<https://code.claude.com/docs/en/statusline>, verified 2026-07-24), so upstream field additions
   flow through without a plugin change. The key is absent when the session's statusline payload
@@ -84,18 +91,28 @@ concurrent sessions each own the file named by their `session_id`.
 
 ## Capability detection (fail-open)
 
-A consumer classifies before every zone-informed decision:
+A consumer classifies before every zone-informed decision. Capability is **per shape**, because the
+combination rule below already says what to do when only one shape is computable — a row that
+dropped straight to `unknown` on a single missing field would contradict it. Only the snapshot-wide
+rows answer `unknown` on their own:
 
-| Observation | Zone |
+| Observation | Effect |
 |---|---|
-| Fresh snapshot, numeric `used_percentage` 0–100, non-null `current_usage` | resolve bands normally |
-| Snapshot absent, stale, or unparsable | **unknown** |
-| `used_percentage` null / missing / non-numeric / outside 0–100 | **unknown** |
-| `current_usage` null or missing (early-session or post-`/compact` state) | **unknown** |
-| jq (or equivalent JSON parsing) unavailable to the consumer | **unknown** |
+| Snapshot absent, stale, or unparsable | **unknown** (snapshot-wide) |
+| Embedded `session_id` not equal to the requested id | **unknown** (snapshot-wide) |
+| `current_usage` null or missing (early-session or post-`/compact` state) | **unknown** (snapshot-wide — a compacted session's numbers are not evidence for either shape) |
+| jq (or equivalent JSON parsing) unavailable to the consumer | **unknown** (snapshot-wide) |
+| `used_percentage` null / missing / non-numeric / outside 0–100 | **percentage shape not computable** |
+| `total_input_tokens` / `total_output_tokens` null, missing, non-numeric, or negative | **token shape not computable** |
+| `context_window_size` null, missing, non-positive, or below every configured band class | **token shape not computable** |
+| `cli_version` absent, non-numeric, or below the version floor (see below) | **token shape not computable** |
+| occupancy greater than `context_window_size` | **token shape not computable** |
+| Both shapes computable | combine per the combination rule (worse zone wins) |
 
-Absurd values fail open, never closed: the consumer never skips its conservative path on data it
-cannot trust, and never fabricates a zone. `unknown` always means "take the conservative route".
+A "not computable" shape drops out of the combination rule; the surviving shape stands alone, and
+`unknown` follows only when neither survives. Absurd values fail open, never closed: the consumer
+never skips its conservative path on data it cannot trust, and never fabricates a zone. `unknown`
+always means "take the conservative route".
 
 ## Occupancy and combination rule
 
@@ -124,13 +141,21 @@ neither is, the zone is unknown. Rationale: the two shapes disagree exactly when
 information the other lacks (a deep-but-cache-heavy window, a small window near compaction), and
 a routing hint must degrade toward caution, never toward optimism.
 
-**Version floor / plausibility guard:** `total_input_tokens` / `total_output_tokens` mean
-*current context occupancy* only since Claude Code **2.1.132** — before that they were cumulative
-session totals ("Before v2.1.132 these were cumulative session totals", statusline doc, verified
-2026-07-26), which would misfire the token bands badly. The snapshot carries no CLI version, so
-readers apply the observable guard instead: **occupancy greater than `context_window_size` marks
-the token shape not-computable** (cumulative semantics or corrupt data), leaving the percentage
-shape to stand alone. The bundled resolver implements exactly this.
+**Version floor:** `total_input_tokens` / `total_output_tokens` mean *current context occupancy*
+only since Claude Code **2.1.132** — before that they were cumulative session totals ("Before
+v2.1.132 these were cumulative session totals", statusline doc, verified 2026-07-26), which would
+misfire the token bands badly. Cumulative semantics are **not observable from the numbers**: a
+cumulative 170k in a 200k window is a perfectly plausible current occupancy, sits inside the
+window, and resolves `dumb` while the live context may be smart-zone. So the token shape requires
+an explicit version signal — the snapshot's `cli_version`, which the tee copies from the
+statusline payload's top-level `version` field (Claude Code version — statusline doc, verified
+2026-07-26). **The token shape is computable only when `cli_version` is present, purely numeric
+dotted, and ≥ 2.1.132**; absent, malformed, or older leaves the percentage shape to stand alone.
+
+**Plausibility guard (independent, retained):** **occupancy greater than `context_window_size`
+also marks the token shape not-computable** — that is corrupt or forged data, and it catches what
+a version field cannot (there is no writer authentication, so `cli_version` is untrusted like
+every other snapshot value). The bundled resolver implements both gates.
 
 **Percentage-key retirement trigger:** the percentage vocabulary is retained because it answers a
 question the token shape cannot (distance to compaction) and because shipped consumers inline its
