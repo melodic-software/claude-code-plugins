@@ -219,9 +219,13 @@ on any transcript-read or parse error so it can never itself become the reason a
 this does **not** cover: repo-hygiene ships its own, structurally different guard, verified working
 independently and out of scope here; the detector's command-substring filter matches only
 `destructive_guard.py` invocations, so a renamed or unrelated guard script is invisible to it the same
-way it is invisible to the engine gate's own coverage marker (see above); and it never retroactively
+way it is invisible to the engine gate's own coverage marker (see above); it never retroactively
 scans a prior session's transcript — only the transcript named by the current `Stop` event's own
-`transcript_path`.
+`transcript_path`; and it is wired with the same literal `python3` command as the guard it watches,
+so the interpreter-resolution fail-open the plugin README documents (the WindowsApps
+`python3.exe` alias stub, or a missing/broken `python3`) takes the detector down with the guard and
+leaves that one vector unreported. Closing that requires a launcher whose availability does not
+depend on the same lookup, which is tracked separately (#1504).
 
 A depth-limited scan records every directory it declined to enter in `truncated_paths`. Truncated
 directories have no captured descendant set, so the preview blocks them (and anything beneath them)

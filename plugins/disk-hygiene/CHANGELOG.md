@@ -24,8 +24,11 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
   through the guard's own code, since a guard that cannot launch cannot report that it did not
   launch — and fails silently closed on any read/parse error so it can never itself become the
   reason a turn is blocked. It covers only `destructive_guard.py`'s own command string: repo-hygiene's
-  guard is out of scope (verified working separately), and there is no retroactive scan of prior
-  sessions.
+  guard is out of scope (verified working separately), there is no retroactive scan of prior
+  sessions, and — because both hooks are wired with the same literal `python3` command — the
+  interpreter-resolution fail-open documented in the README (the WindowsApps alias stub, or a
+  missing/broken `python3`) takes the detector down with the guard, so that one vector stays
+  unreported until the detector gets a launcher independent of the guarded interpreter (#1504).
 
 ## [0.9.4]
 

@@ -72,7 +72,10 @@ at preview. Backups remain the recovery boundary for user data.
   guard that never ran or died mid-run no longer looks identical to a guard that ran and approved.
   This covers only the `destructive_guard.py` command string in the current session's transcript: it
   does not cover repo-hygiene's own guard (a separate plugin, verified working independently), and it
-  never retroactively scans a prior session's transcript.
+  never retroactively scans a prior session's transcript. It is also wired with the same literal
+  `python3` command as the guard it watches, so the interpreter-resolution failure below — the
+  WindowsApps alias stub, or a missing/broken `python3` — takes the detector down with the guard and
+  goes unreported (#1504).
 - Git is optional for ordinary trees. If a target contains or sits inside a Git worktree, Git becomes
   required so tracked content can be proven safe; otherwise cleanup for that subtree is blocked.
 - Windows has the full **audit** lane (Python 3.11's `lstat` reparse metadata plus Win32 APIs
