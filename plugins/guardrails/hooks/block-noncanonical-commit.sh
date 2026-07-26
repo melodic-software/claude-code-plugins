@@ -123,32 +123,161 @@ allowed() {
 # conflict resolution driven at another repo via `-C` reads the WRONG repo's
 # state — the sequencer probe and the alias lookup would both answer for the
 # session cwd instead of the repo actually being committed to.
-# Value of an explicit `--git-dir` (attached or separated), empty when absent.
-# A commit driven with --git-dir concludes a sequencer in THAT git dir, so
-# probing the cwd's state would refuse to exempt a real in-progress merge.
+# Value of a named git global (attached `--opt=v` or separated `--opt v`), empty
+# when absent. One extractor for every locating global rather than a loop per
+# option — `explicit_git_dir` below is the original caller, and the alias-identity
+# probe needs `--work-tree` through the same shape.
+# Call as: explicit_global <option-name-without-dashes> <invocation-prefix words...>
 # shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
-explicit_git_dir() {
-  local i n=$# arg
+# The LAST occurrence wins, as git itself does — scanning does not stop at the
+# first match. A repeated `--git-dir` otherwise aimed the sequencer probe at the
+# wrong git dir, which decides an exemption.
+explicit_global() {
+  local opt="--$1"
+  shift
+  local i n=$# arg found=""
   local -a a=("$@")
   for ((i = 0; i < n; i++)); do
     arg="${a[i]}"
     case "$arg" in
-    --git-dir)
-      ((i + 1 < n)) && printf '%s' "${a[i + 1]}"
-      return 0
+    "$opt")
+      ((i + 1 < n)) && found="${a[i + 1]}"
+      ((i++))
       ;;
-    --git-dir=*)
-      printf '%s' "${arg#--git-dir=}"
-      return 0
-      ;;
+    "$opt"=*) found="${arg#"$opt"=}" ;;
     *) ;;
     esac
   done
+  printf '%s' "$found"
 }
 
+# Value of an explicit `--git-dir` (attached or separated), empty when absent.
+# A commit driven with --git-dir concludes a sequencer in THAT git dir, so
+# probing the cwd's state would refuse to exempt a real in-progress merge.
+# shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
+explicit_git_dir() { explicit_global git-dir "$@"; }
+
+# Canonical identity of the repository a composed `-C` path lands in, as GIT
+# resolves it. This guard does not model git's path semantics anywhere — it asks
+# git, because every attempt to model them has been a bypass:
+#
+#   - Lexically cancelling `x/..` is wrong when `x` is a symlink: on a POSIX host
+#     `git -C link/.. …` enters the symlink's parent, not the textual one.
+#   - Resolving PHYSICALLY instead (`cd -P` + `pwd -P`) is equally a model, and a
+#     wrong one on Windows: verified on git 2.54.0.windows.1, `cd -P link/..`
+#     reports the link target's parent while `git -C link/..` reports "not a git
+#     repository" — Win32 normalizes `..` textually, so git itself is lexical
+#     there. A shell resolver would send the guard to a repository git never
+#     enters, which is the same defect wearing the opposite bias.
+#
+# `rev-parse --show-toplevel` is git's own answer on whatever platform, so it
+# cannot drift from git's behavior by construction. It also canonicalizes for
+# free: `-C .`, `link/..`, a subdirectory, and any other spelling of one
+# repository all collapse to a single identity, which is what lets the
+# shell-alias cycle key below detect a repeat instead of walking forever.
+#
+# The invocation's LOCATING globals are replayed onto the probe, not just its `-C`.
+# `--git-dir` and `--work-tree` locate a repository as surely as `-C` does (git's
+# own usage lists both as globals before `<command>`), so asking without them
+# answered "no work tree" for a perfectly locatable one: `git --git-dir=<r>/.git
+# --work-tree=<r> -c alias.a='!git commit -F -' a` run outside a tree resolved to
+# nothing and the fail-closed path refused a VALID canonical commit. Replaying them
+# keeps the ask-git property — `git --git-dir=X --work-tree=Y rev-parse
+# --show-toplevel` is still git's own answer, not a reconstruction of one.
+#
+# Empty means git could not answer — no such directory, or genuinely no work tree.
+# Callers on the alias-walk path FAIL CLOSED on empty: a guard that cannot determine
+# which repository a command will execute in must not allow it. Nothing off that
+# path calls this, so an ordinary `git commit -F -` never pays a fork.
+#
+# Cached per (path + replayed globals), since the same path under a different
+# --git-dir is a different question. The fork is the expensive step and a static
+# guard never moves a repository mid-analysis. Published in a global and assigned by
+# a PLAIN call, never `$(…)`: a command substitution would run it in a subshell and
+# discard the cache.
+# Call as: repo_identity <dir> [locating-global...]
+declare -A _repo_identity=()
+HOOK_REPO_IDENTITY=""
+# shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
+repo_identity() {
+  local dir="$1" key
+  shift
+  key="$dir"$'\n'"$*"
+  [[ -n "${_repo_identity[$key]+x}" ]] ||
+    _repo_identity["$key"]=$(git -C "$dir" "$@" rev-parse --show-toplevel 2>/dev/null | tr -d '\r')
+  HOOK_REPO_IDENTITY="${_repo_identity[$key]}"
+  [[ -n "$HOOK_REPO_IDENTITY" ]]
+}
+
+# The locating globals carried by an invocation prefix, as an argv array ready to
+# replay onto a git probe.
+#
+# The SET is the sibling guard's, not a second list invented here: `block-dangerous-git`'s
+# collect_git_locating_opts already defines git's repository-locating options as
+# `-C`, `--git-dir`, `--work-tree`, `--namespace`. `-C` is the one deliberate
+# omission — effective_dir already folds it into the composed base, so replaying it
+# would apply it twice.
+#
+# EVERY occurrence is collected in command-line order rather than the first match,
+# for the same reason the sibling does it: git applies last-wins itself, so handing
+# it the whole sequence lets git decide precedence instead of this guard modelling
+# it. Taking the first match would replay the wrong repository for
+# `git --git-dir=<a> --git-dir=<b> …` — a wrong identity can wrongly collapse the
+# shell-alias cycle key and skip an analysis, so this is a correctness question, not
+# a tidiness one.
+# Call as: collect_locating_globals <invocation-prefix words...> -> $locating_globals
+# shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
+collect_locating_globals() {
+  local -a w=("$@")
+  local n=$# j=0
+  locating_globals=()
+  while ((j < n)); do
+    case "${w[j]}" in
+    --git-dir | --work-tree | --namespace)
+      ((j + 1 < n)) && locating_globals+=("${w[j]}" "${w[j + 1]}")
+      ((j += 2))
+      ;;
+    --git-dir=* | --work-tree=* | --namespace=*)
+      locating_globals+=("${w[j]}")
+      ((j++))
+      ;;
+    *) ((j++)) ;;
+    esac
+  done
+  return 0
+}
+
+# The base is HOOK_EFFECTIVE_BASE, not the payload cwd directly, because a `!`
+# shell alias's body runs as a NEW git invocation from the repository the OUTER
+# one resolved — so a relative `-C` in that body composes onto the parent's
+# directory instead of restarting from the session cwd. Resetting to the payload
+# cwd at every hop made the walk stand still: `alias.a = !git -C child a` in a
+# repo and its child resolved to the same directory twice, the second hop read as
+# a self-cycle, and the grandchild's `commit -m` was never reached while real git
+# committed there. HOOK_EFFECTIVE_BASE is save/restored around each `!` reparse.
+#
+# The base a `!` reparse inherits is the outer repository's TOP LEVEL, which is
+# where git documents it runs a shell body from — not the directory the outer
+# command was invoked in. Invoked from `<repo>/sub` with `alias.a = !git -C child
+# a`, git reaches `<repo>/child`; carrying the subdirectory forward made the guard
+# probe `<repo>/sub/child` and miss the nested repository's `commit -m` entirely.
+# repo_identity supplies that top level from git itself.
+#
+# What this function returns is a LITERAL composed path, deliberately not a
+# resolved one: it is handed straight to `git -C`, so git applies its own path
+# semantics to it. The guard never normalizes it (see repo_identity).
+#
+# Callers must pass only the invocation PREFIX (indices 0..sub_idx), never the whole
+# argv. Words after the subcommand are that subcommand's own arguments — or, for an
+# alias, text git APPENDS to the expansion — not global options. Handing the full
+# argv here read a trailing `-C` as a repository global: `git -c alias.a='!git b #' a
+# -C <other-repo>` resolved to <other-repo> and missed a `commit -m` reached in the
+# CURRENT one, because git starts the body at the current repo's top level and the
+# `#` discards the appended words. The same slice keeps `git commit -C HEAD`
+# (--reuse-message) from being read as a directory named HEAD.
 # shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
 effective_dir() {
-  local base="${HOOK_CWD:-${CLAUDE_PROJECT_DIR:-.}}" i n=$# arg
+  local base="${HOOK_EFFECTIVE_BASE:-${HOOK_CWD:-${CLAUDE_PROJECT_DIR:-.}}}" i n=$# arg
   local -a a=("$@")
   for ((i = 0; i < n; i++)); do
     arg="${a[i]}"
@@ -190,11 +319,112 @@ sequencer_in_progress() {
   return 1
 }
 
+# Resolved persisted alias for a subcommand, cached per (directory, subcommand).
+# The lookup forks a `git config`, by far the costliest step on the re-expansion
+# path, and this guard never writes config — so the answer for a given directory
+# and name cannot change mid-analysis and one fork per analysis path is waste.
+# The result is published in a global and assigned by a PLAIN call, never through
+# `$(…)`: a command substitution would run this in a subshell and discard the
+# cache with it.
+declare -A _persisted_alias=()
+HOOK_PERSISTED_ALIAS=""
+# shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
+persisted_alias() {
+  local dir="$1" sub="$2" key
+  key="$dir"$'\n'"$sub"
+  [[ -n "${_persisted_alias[$key]+x}" ]] ||
+    _persisted_alias["$key"]=$(git -C "$dir" config --get "alias.$sub" 2>/dev/null)
+  HOOK_PERSISTED_ALIAS="${_persisted_alias[$key]}"
+}
+
+# Identity is a BEST-AVAILABLE answer, not a gate. When git cannot resolve a work
+# tree the walk continues with the literal composed directory instead of refusing
+# the command, which is main's behavior on this path.
+#
+# An earlier revision failed CLOSED here. It was dropped because it never earned its
+# place: its justification was that "a commit could not have succeeded there anyway"
+# — which, if true, means it protected against nothing — while it produced three
+# separate false positives, each refusing a VALID canonical commit reached through a
+# repository the OUTER probe could not see (`--git-dir`/`--work-tree` on the
+# invocation, then `-C` inside the body). The class it was added for is still open
+# regardless: the persisted-alias lookup drops the locating globals on both this
+# guard and main. Deferring resolution to the nested invocation is the real fix and
+# is tracked as its own design question rather than bolted on here.
+
+# Alias re-expansion is this guard's only recursive path, and it BRANCHES: every
+# hop re-checks both alias spellings (`alias.<sub>` and `alias.<sub>.command`)
+# independently, so a chain where each hop defines both walks 2^depth analysis
+# paths — a benign 8-hop, 356-character command measured 14.6s, and a guard that
+# stalls stops guarding. Every recursion is admitted through this one gate, which
+# applies two bounds:
+#
+# MEMO — a verdict is a pure function of (analysis state, argv). Every other input
+# is invocation-constant: the payload's command and cwd, and the on-disk config and
+# sequencer state, which this static guard only ever reads (effective_dir and
+# explicit_git_dir derive their answers from the argv alone). A block is a
+# process-wide `exit 2`, so a state reached a SECOND time while this process still
+# runs provably did not block the first time and cannot decide differently now.
+# Skipping the repeat is exact rather than a coverage trade, and it is what
+# collapses the common blowup — both spellings of a hop expanding to the same
+# thing — to one path per hop.
+#
+# BUDGET — memoization alone cannot bound a chain whose two spellings DIFFER: the
+# splice carries each path's own trailing text forward, so every argv is distinct
+# and the 2^depth walk survives. A total re-expansion budget for the invocation
+# caps the work, and exhausting it fails CLOSED — the guard could not finish
+# deciding, so it must not allow.
+#
+# The ceiling counts ANALYSES rather than seconds, because a wall clock is
+# host- and command-length-dependent. It is calibrated against the linear walk the
+# guard already accepts: a memoized traversal spends one analysis per hop, and a
+# 60-hop chain measured ~0.5s of guard work here, so this ceiling caps a branching
+# walk at the same order as a chain twice that long. It sits far above real usage —
+# a chain deeper than a couple of hops is already exotic, and every legitimate
+# command measured spends single digits.
+HOOK_ALIAS_WORK_MAX=128
+
+# Call as: alias_reexpand_admit <kind> <state-word>... — returns 1 when this exact
+# state was already analyzed. The kind tag keeps a `!` reparse STRING from ever
+# keying the same as a one-word argv, `%q` keeps a word containing a newline from
+# merging into its neighbour, and each seen-set's length prefixes its own words so
+# no boundary in the key can shift. Both seen-sets are keyed at every call, even
+# where the persisted branch cannot run, so the key shape is uniform.
+# `printf -v` keeps the whole key build fork-free — a `$(printf …)` per word would
+# cost more than the walk it bounds.
+# shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
+alias_reexpand_admit() {
+  local kind="$1" key q w
+  shift
+  # The effective base belongs in the key for the same reason it belongs in the
+  # shell-alias cycle key: one reparse STRING reached in two different
+  # repositories is two different analyses, and collapsing them would skip one.
+  printf -v q '%q' "${HOOK_EFFECTIVE_BASE-}"
+  key="$kind"$'\n'"$q"$'\n'"${#HOOK_ALIAS_SEEN[@]}"$'\n'"${#HOOK_SHELL_ALIAS_SEEN[@]}"$'\n'
+  for w in ${HOOK_ALIAS_SEEN[@]+"${HOOK_ALIAS_SEEN[@]}"} \
+    ${HOOK_SHELL_ALIAS_SEEN[@]+"${HOOK_SHELL_ALIAS_SEEN[@]}"} "$@"; do
+    printf -v q '%q' "$w"
+    key+="$q"$'\n'
+  done
+  [[ -n "${HOOK_ALIAS_MEMO[$key]+x}" ]] && return 1
+  HOOK_ALIAS_MEMO["$key"]=1
+  ((++HOOK_ALIAS_WORK <= HOOK_ALIAS_WORK_MAX)) && return 0
+  echo "BLOCKED: checking this command's git alias chain needs more than $HOOK_ALIAS_WORK_MAX re-expansions — failing closed rather than stalling the guard." >&2
+  echo "Commit with \`git commit -F -\` (or the /commit skill), shorten the alias chain, or set the guardrails block_noncanonical_commit_enabled option to false to bypass." >&2
+  emit_tel "blocked" "alias-traversal-cap"
+  exit 2
+}
+
 # shellcheck disable=SC2329  # invoked indirectly as the hook::bash_parse_segments callback
 check_segment() {
   local -a w=()
   local gi sub sub_idx nseg k word next stdin_form=0 exempt=0 saw_commit=0
   local inline_alias_handled=0
+  # This segment's effective repo directory, resolved at most once per frame and
+  # only where a path is actually needed — a segment carrying no alias and no
+  # commit must not pay effective_dir's subshell.
+  local seg_dir=""
+  # Locating globals this invocation carries, replayed onto the identity probe.
+  local -a locating_globals=()
 
   # A shell -c wrapper (`bash -lc 'git commit -m x'`) executes its operand as a
   # full shell command — re-parse it with the same tokenizer.
@@ -216,18 +446,22 @@ check_segment() {
   # so re-check the expanded command BEFORE concluding the subcommand is not
   # `commit` — otherwise the alias name is simply not "commit" and the guard
   # waves it through. A shell alias (leading !) re-parses as a full shell
-  # command; a git alias splices its words in place of the alias name. One level
-  # only — git does not expand the first word of an expansion as another alias —
-  # enforced through HOOK_NO_ALIAS, which dynamic scoping carries into the
-  # recursive call.
+  # command; a git alias splices its words in place of the alias name.
   # The --config-env SHAPE refusal is value-blind, terminal, and must fire at EVERY
   # recursion depth: a wrapping inline alias can expand to `--config-env=alias.<sub>=…`
   # that defines the invoked subcommand (`git -c alias.c='--config-env=alias.foo=AV foo'
-  # c`), which git runs. It is therefore NOT gated by HOOK_NO_ALIAS. The inline-alias
-  # re-expansion and the gitconfig-alias probe below ARE one-level (HOOK_NO_ALIAS bounds
-  # the recursion — git does not re-expand an expansion's first word as another alias).
-  local exp reparse a alias_rc
-  local -a expw=()
+  # c`), which git runs.
+  # git DOES chain aliases (an expansion whose first word is another alias is
+  # expanded again), so both the inline re-expansion and the gitconfig-alias probe
+  # below recurse at EVERY hop, carrying the command-line -c/--config/--config-env
+  # globals through each hop (the splice keeps indices 0..sub_idx, not gi+1),
+  # TERMINATING on HOOK_ALIAS_SEEN — a save/restore seen-set of resolved subcommand
+  # names: a repeat is git's own alias-loop stop (runs nothing, allow-safe), and
+  # finite distinct alias keys guarantee termination. Terminating is not the same as
+  # tractable — the walk branches per hop, and alias_reexpand_admit is what keeps
+  # its cost proportional to the chain's length.
+  local exp reparse a alias_rc s seen_hit=0 saved_base=""
+  local -a expw=() saved_seen=() saved_shell_seen=() nextw=()
   hook::git_alias_expansion "$sub"
   alias_rc=$?
   if ((alias_rc == 2)); then
@@ -241,25 +475,59 @@ check_segment() {
     emit_tel "blocked" "config-env-alias"
     exit 2
   fi
-  if ((${HOOK_NO_ALIAS:-0} == 0)); then
+  # git stops (runs nothing) if the resolved subcommand is one it already expanded
+  # in this chain, so skip the re-expansion on a repeat and let the plain scan
+  # decide. Save/restore the seen-sets around BOTH branches so sibling segments
+  # and unwound hops start clean. The set models git's IN-PROCESS alias-loop
+  # guard only: a `!` shell alias spawns a fresh git process whose loop guard
+  # starts empty, so its reparses below run under an emptied set.
+  for s in ${HOOK_ALIAS_SEEN[@]+"${HOOK_ALIAS_SEEN[@]}"}; do
+    [[ "$s" == "$sub" ]] && {
+      seen_hit=1
+      break
+    }
+  done
+  if ((seen_hit == 0)); then
+    saved_seen=(${HOOK_ALIAS_SEEN[@]+"${HOOK_ALIAS_SEEN[@]}"})
+    saved_shell_seen=(${HOOK_SHELL_ALIAS_SEEN[@]+"${HOOK_SHELL_ALIAS_SEEN[@]}"})
+    saved_base="${HOOK_EFFECTIVE_BASE-}"
+    HOOK_ALIAS_SEEN+=("$sub")
     if ((alias_rc == 0)); then
       # Inline alias (-c/--config): each spelling's expansion is literally present. Re-check
       # EVERY spelling (plain and `.command`) independently so a benign expansion in one
-      # never suppresses a dangerous sibling in the other.
+      # never suppresses a dangerous sibling in the other. Keep every command-line global
+      # (indices 0..sub_idx) so a nested hop re-reads the carried -c/--config-env config.
       # shellcheck disable=SC2154  # HOOK_GIT_ALIAS_EXPS is set by hook::git_alias_expansion
       for exp in ${HOOK_GIT_ALIAS_EXPS[@]+"${HOOK_GIT_ALIAS_EXPS[@]}"}; do
         [[ -n "$exp" ]] || continue
         inline_alias_handled=1
         if [[ "$exp" == '!'* ]]; then
+          # Shell alias: runs in a NEW git process whose alias-loop guard starts
+          # empty, so the reparse must not inherit this chain's seen-set — a
+          # body that re-invokes a name from the outer chain (`git -c
+          # alias.a='!git -c alias.a="commit -m x" a' a`) is re-expanded there,
+          # not stopped. Termination stays bounded: every inline definition
+          # reachable from the reparse is a strict substring of the parent
+          # segment's text, and persisted-config shell hops are bounded by
+          # HOOK_SHELL_ALIAS_SEEN below. That new process also starts from THIS
+          # segment's repository, so the body's relative `-C` composes onto it.
           reparse="${exp#!}"
           for a in "${w[@]:sub_idx+1}"; do reparse+=" $(printf '%q' "$a")"; done
-          hook::bash_parse_segments "$reparse" check_segment
+          [[ -n "$seg_dir" ]] || seg_dir="$(effective_dir "${w[@]:0:sub_idx}")"
+          collect_locating_globals "${w[@]:0:sub_idx}"
+          repo_identity "$seg_dir" ${locating_globals[@]+"${locating_globals[@]}"} ||
+            HOOK_REPO_IDENTITY="$seg_dir"
+          HOOK_ALIAS_SEEN=()
+          HOOK_EFFECTIVE_BASE="$HOOK_REPO_IDENTITY"
+          alias_reexpand_admit shell "$reparse" &&
+            hook::bash_parse_segments "$reparse" check_segment
+          HOOK_EFFECTIVE_BASE="$saved_base"
+          HOOK_ALIAS_SEEN=(${saved_seen[@]+"${saved_seen[@]}"} "$sub")
         else
           hook::env_s_split "$exp"
           expw=(${HOOK_ENV_S_WORDS[@]+"${HOOK_ENV_S_WORDS[@]}"})
-          HOOK_NO_ALIAS=1
-          check_segment "${w[@]:0:gi+1}" ${expw[@]+"${expw[@]}"} "${w[@]:sub_idx+1}"
-          HOOK_NO_ALIAS=0
+          nextw=("${w[@]:0:sub_idx}" ${expw[@]+"${expw[@]}"} "${w[@]:sub_idx+1}")
+          alias_reexpand_admit git "${nextw[@]}" && check_segment "${nextw[@]}"
         fi
       done
     fi
@@ -268,25 +536,70 @@ check_segment() {
     # where HOOK_GIT_CONFIG_VALUES cannot see it — `git config alias.c commit`
     # then `git c -m x` would otherwise pass. Ask git for the resolved value
     # (its own precedence applies) only when no inline alias already matched.
-    if ((${HOOK_NO_ALIAS:-0} == 0)) && ((inline_alias_handled == 0)) && [[ "$sub" != "commit" ]]; then
+    if ((inline_alias_handled == 0)) && [[ "$sub" != "commit" ]]; then
       local pexp
-      pexp=$(git -C "$(effective_dir "${w[@]}")" config --get "alias.$sub" 2>/dev/null)
+      [[ -n "$seg_dir" ]] || seg_dir="$(effective_dir "${w[@]:0:sub_idx}")"
+      persisted_alias "$seg_dir" "$sub"
+      pexp="$HOOK_PERSISTED_ALIAS"
       if [[ -n "$pexp" ]]; then
         if [[ "$pexp" == '!'* ]]; then
-          local preparse pa
-          preparse="${pexp#!}"
-          for pa in "${w[@]:sub_idx+1}"; do preparse+=" $(printf '%q' "$pa")"; done
-          hook::bash_parse_segments "$preparse" check_segment
+          # Persisted shell alias: same fresh-process semantics as the inline
+          # `!` branch — reparse under an emptied git-alias seen-set. Unlike
+          # inline definitions, a persisted body does not shrink (it re-reads
+          # the same config value at every hop), so a self- or mutually
+          # referential persisted shell alias (`a = !git a`) would recurse
+          # forever here. Real git forks such a chain endlessly and never
+          # reaches a subcommand, so a REPEAT of the same persisted
+          # name/expansion pair on this analysis path is skipped (allow-safe):
+          # HOOK_SHELL_ALIAS_SEEN, save/restored alongside HOOK_ALIAS_SEEN so
+          # sibling segments and unwound hops start clean, bounds the depth.
+          #
+          # The REPOSITORY is part of that pair, not just the name and expansion.
+          # One alias text can appear in nested repos and mean a different hop in
+          # each: `alias.a = !git -C child a` in a repo and its child descends
+          # further every time, and keying on the text alone read the second hop
+          # as a self-cycle — the grandchild's `commit -m` was never analyzed
+          # while real git committed there. Composing directories (effective_dir
+          # above) makes each hop's key distinct, so descent is followed; a body
+          # with no `-C` leaves the directory unchanged, which is what still
+          # stops `a = !git a` on the first repeat. A body that keeps rewriting
+          # the directory forever (`-C .`) never repeats a key, so termination
+          # there rests on the fail-closed traversal budget, not on this set.
+          local pkey pseen_hit=0
+          collect_locating_globals "${w[@]:0:sub_idx}"
+          repo_identity "$seg_dir" ${locating_globals[@]+"${locating_globals[@]}"} ||
+            HOOK_REPO_IDENTITY="$seg_dir"
+          pkey="$HOOK_REPO_IDENTITY"$'\n'"$sub="$'\n'"$pexp"
+          for s in ${HOOK_SHELL_ALIAS_SEEN[@]+"${HOOK_SHELL_ALIAS_SEEN[@]}"}; do
+            [[ "$s" == "$pkey" ]] && {
+              pseen_hit=1
+              break
+            }
+          done
+          if ((pseen_hit == 0)); then
+            HOOK_SHELL_ALIAS_SEEN+=("$pkey")
+            local preparse pa
+            preparse="${pexp#!}"
+            for pa in "${w[@]:sub_idx+1}"; do preparse+=" $(printf '%q' "$pa")"; done
+            HOOK_ALIAS_SEEN=()
+            HOOK_EFFECTIVE_BASE="$HOOK_REPO_IDENTITY"
+            alias_reexpand_admit shell "$preparse" &&
+              hook::bash_parse_segments "$preparse" check_segment
+            HOOK_EFFECTIVE_BASE="$saved_base"
+            HOOK_ALIAS_SEEN=(${saved_seen[@]+"${saved_seen[@]}"} "$sub")
+          fi
         else
           local -a pexpw=()
           hook::env_s_split "$pexp"
           pexpw=(${HOOK_ENV_S_WORDS[@]+"${HOOK_ENV_S_WORDS[@]}"})
-          HOOK_NO_ALIAS=1
-          check_segment "${w[@]:0:gi+1}" ${pexpw[@]+"${pexpw[@]}"} "${w[@]:sub_idx+1}"
-          HOOK_NO_ALIAS=0
+          nextw=("${w[@]:0:sub_idx}" ${pexpw[@]+"${pexpw[@]}"} "${w[@]:sub_idx+1}")
+          alias_reexpand_admit git "${nextw[@]}" && check_segment "${nextw[@]}"
         fi
       fi
     fi
+    HOOK_ALIAS_SEEN=(${saved_seen[@]+"${saved_seen[@]}"})
+    HOOK_SHELL_ALIAS_SEEN=(${saved_shell_seen[@]+"${saved_shell_seen[@]}"})
+    HOOK_EFFECTIVE_BASE="$saved_base"
   fi
 
   [[ "$sub" == "commit" ]] || return 0
@@ -334,7 +647,8 @@ check_segment() {
   ((saw_commit)) || return 0
   ((stdin_form || exempt)) && return 0
   allowed "message-flag" && return 0
-  sequencer_in_progress "$(effective_dir "${w[@]}")" "$(explicit_git_dir "${w[@]}")" && return 0
+  [[ -n "$seg_dir" ]] || seg_dir="$(effective_dir "${w[@]:0:sub_idx}")"
+  sequencer_in_progress "$seg_dir" "$(explicit_git_dir "${w[@]:0:sub_idx}")" && return 0
 
   echo "BLOCKED: \`git commit\` without \`-F -\` — the message must be piped via stdin." >&2
   echo "Use the /commit skill (source-control plugin), or its canonical form directly:" >&2
@@ -368,6 +682,26 @@ case $? in
 1) exit 0 ;; # non-commit PowerShell with an A2b-deferred construct
 *) COMMAND="$PS_SAFE_COMMAND" ;;
 esac
+
+# Resolved-subcommand names already expanded in the CURRENT alias chain — git's
+# own alias-loop guard. Initialized here (not in check_segment, which recurses
+# and would reset it) and save/restored around each recursion; a multi-command
+# line runs check_segment once per top-level segment, each starting from empty.
+# HOOK_SHELL_ALIAS_SEEN bounds persisted-config `!` shell-alias hops (whose
+# bodies never shrink) on one analysis path; same lifecycle.
+HOOK_ALIAS_SEEN=()
+HOOK_SHELL_ALIAS_SEEN=()
+
+# Directory a `!` shell-alias body would run from — the payload cwd at the top
+# level, then each `!` reparse's own repository as the walk descends (effective_dir).
+# Save/restored alongside the seen-sets, so sibling segments start from the cwd.
+HOOK_EFFECTIVE_BASE="${HOOK_CWD:-${CLAUDE_PROJECT_DIR:-.}}"
+
+# The alias-traversal bounds (alias_reexpand_admit). Both are invocation-wide and
+# deliberately NOT save/restored: a state analyzed anywhere is analyzed, and the
+# budget bounds the whole command's work rather than one path's.
+declare -A HOOK_ALIAS_MEMO=()
+HOOK_ALIAS_WORK=0
 
 hook::bash_parse_segments "$COMMAND" check_segment
 
