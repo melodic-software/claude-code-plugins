@@ -106,7 +106,7 @@ Files containing BOTH (incomplete rename state):
 
 **Algorithm:**
 
-1. Sweep for `<old>` references using Form 1 (slash-token `\B/<old>\b`) and Form 3 (path `context/<old>.md`, `skills/<old>/`, `plugins/<old>`) from [patterns.md](patterns.md)
+1. Sweep for `<old>` references using Form 1 (slash-token `\B/<old>([^\w-]|$)`) and Form 3 (path `context/<old>.md`, `skills/<old>/`, `plugins/<old>`) from [patterns.md](patterns.md)
 2. For each match, classify:
    - **Orphan (broken):** path-form match where path does not exist on disk after rename. Verify via Glob/Read. E.g. `[text](context/old.md)` matched but `context/old.md` was renamed to `context/new.md` — link now broken
    - **Slash-token orphan:** `/<old>` matched but no skill/command named `<old>` exists any more (skill renamed/removed)

@@ -8,7 +8,7 @@ Match patterns where the rename intent is unambiguous regardless of surrounding 
 
 **Bucket criteria:**
 
-- Form 1: slash-prefixed token (`\B/<old>\b`) — slash-tokens are skill names by convention; token in `<old>` position is virtually never an English word with a leading slash
+- Form 1: slash-prefixed token (`\B/<old>([^\w-]|$)`) — slash-tokens are skill names by convention; token in `<old>` position is virtually never an English word with a leading slash. The trailing class excludes a hyphen, so `/context` does not match the unrelated `/context-guard`; a bare `\b` would, and this bucket auto-applies
 - Form 3: path references (`context/<old>.md`, `skills/<old>/`, and a container-root segment
   ending in the token, `plugins/<old>`) — paths are inherently specific
 - Form 8: frontmatter glob set (`{a,b,<old>,c}`) — brace enumeration is a glob construct, not English prose. **Identifier mode only:** under container-rename mode Form 8 falls outside the Certain-eligibility allowlist and demotes to Ambiguous, as does Form 12 — a glob set and a dotted key both prove the token is an IDENTIFIER, which is not what a container rename is asking (`patterns.md` "Phase 0b")

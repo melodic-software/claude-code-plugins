@@ -143,10 +143,17 @@ your own repository's context:
   hooks emit it; every source degrades gracefully when absent.
 - **Persistent state** defaults to the plugin's own per-machine data directory
   (`${CLAUDE_PLUGIN_DATA}`): the known-issues registry
-  (`registry.json`), `check-all` output, and `--write` observability reports.
-  By default nothing is written into your repository. Opt in for the registry
-  via the `registry_dir` option (see Configuration) to keep it git-tracked and
-  team-shared inside your repo instead.
+  (`registry.json`), `check-all` output, `--write` observability reports, and
+  the `lanes` skill's per-lane launch-commit markers
+  (`${CLAUDE_PLUGIN_DATA}/lanes/<repo-key>/<lane>-launch-commit`, overridable
+  via `lane-launcher.sh --data-dir`). `<repo-key>` namespaces markers by
+  repository — the data directory is plugin-wide, while a lane name like `work`
+  is only unique within one checkout. It is a digest of the repository's
+  canonical path; print the one for a given checkout with
+  `printf '%s' "$(git rev-parse --show-toplevel)" | git hash-object --stdin`. By default nothing is written into your
+  repository. Opt in for the registry via the `registry_dir` option (see
+  Configuration) to keep it git-tracked and team-shared inside your repo
+  instead.
 - **Work-item and docs integration.** Where the skills propose follow-up work
   items or cross-reference quirks/workaround docs, they use whatever tracker
   and docs your project has (e.g. `gh issue create`, your `CLAUDE.md` /

@@ -31,11 +31,11 @@
       "id": 3,
       "name": "offers-explore-handoff-not-duplicate-artifact",
       "prompt": "Run blindspot on the payments module — and if the scan is thorough enough, save it as our exploration notes.",
-      "expected_output": "Produces blindspot cards and an improved prompt, and when the codebase-lane findings double as stage-1 exploration, offers to hand off to /discovery:explore (or explore-deep) to persist EXPLORE.md rather than writing that handoff artifact itself.",
+      "expected_output": "Produces blindspot cards and an improved prompt, and when the codebase-lane findings double as stage-1 exploration, offers to hand off to /discovery:explore to persist EXPLORE.md rather than writing that handoff artifact itself.",
       "files": [],
       "expectations": [
         "Output produces blindspot cards and an improved prompt as its primary deliverable",
-        "The run offers to hand off to /discovery:explore (or explore-deep) to persist EXPLORE.md rather than writing the handoff artifact from this skill",
+        "The run offers to hand off to /discovery:explore to persist EXPLORE.md rather than writing the handoff artifact from this skill",
         "The run does not itself write EXPLORE.md as a default step"
       ]
     }
