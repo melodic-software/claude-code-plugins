@@ -17,15 +17,17 @@
   *does NOT do* list are pluralized so they cannot be read as licensing a single-note recovery; and
   `save-point.md`'s own detection contract names the recoverable unit as every re-arm message the
   producer wrote, so the two sides state one rule.
-- **The re-arm entries are delimited, so a multi-line loop prompt no longer truncates recovery.**
-  The producer quotes the original prompt verbatim and a `/loop` prompt can carry newlines, so an
-  entry is not reliably one physical line and no wording-match rule can find its end — bounding a
-  capture at "the first line that stops looking like a re-arm" cuts the first multi-line prompt in
-  half and silently swallows every entry behind it. Each entry now opens with a literal
-  `Re-arm <i> of <n>:` counter and the block is emitted last in the message, so entry `i` ends at
-  counter `i+1` and entry `n` ends at the message. `<n>` also makes the recovery self-checking:
-  `find-handoff` scans counters instead of command wording and reports what it found against what
-  the producer said it wrote, rather than presenting a subset as the whole set.
+- **The re-arm entries are length-delimited, so an arbitrary multi-line loop prompt survives
+  recovery.** The producer quotes the original prompt verbatim and a `/loop` prompt can carry
+  newlines, so an entry is not reliably one physical line — and no content test can bound it.
+  Matching command wording cuts the first multi-line prompt in half and swallows every entry behind
+  it; a marker fares no better, since a verbatim prompt is allowed to contain whatever marker is
+  chosen and would then split its own command. Each entry is now headed
+  `Re-arm <i> of <n> — <L> lines:` with the body on exactly the next `<L>` lines, and the block is
+  emitted last in the message. Counting lines is the one boundary that cannot collide with what it
+  delimits. `<n>` is retained as a self-check rather than a scanner: `find-handoff` reports what it
+  recovered against what the producer said it wrote, instead of presenting a subset as the whole
+  set.
 
 ## [0.17.8]
 

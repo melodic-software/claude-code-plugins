@@ -165,30 +165,34 @@ one, since the producer emits a separate re-arm message per surviving loop, so "
      scanning.
    - **Capture the below-rail `/loop` re-arm entries — every mode, every discovery path, every
      loop.** Once a candidate qualifies on the signals above, also take the re-arm instructions the
-     producer emits below the bottom rail. **Scan for the `Re-arm <i> of <n>:` counters, not for the
-     command wording.** The producer opens every entry with one and puts the block last in the
-     message (save-point.md "Loop-aware re-arm"), so entry `i` runs from its counter to the line
-     before counter `i+1`, and entry `n` runs to the end of that message. Anchor the search to the
-     bottom rail — never "the lines after the rail" unbounded, which would widen this skill into the
-     raw-transcript dump it forbids.
+     producer emits below the bottom rail. **Read the `Re-arm <i> of <n> — <L> lines:` headers and
+     take the next `<L>` lines verbatim** (save-point.md "Loop-aware re-arm"). The next header
+     begins where the previous entry's `<L>` lines end; repeat until `n` entries are held. Anchor
+     the search to the bottom rail — never "the lines after the rail" unbounded, which would widen
+     this skill into the raw-transcript dump it forbids.
 
-     Two failure modes the counters exist to close, both of which look like success:
+     **Match on the length, never on the content.** The three ways this capture has been got wrong
+     are all the same mistake — bounding a verbatim region with a content test:
 
-     - **A quoted prompt spans several lines.** The prompt is reproduced exactly as the operator
-       typed it, so its continuation lines match no command wording. Bounding an entry by the first
-       line that stops looking like a re-arm would cut that prompt in half and lose every entry
-       behind it. Only the next counter, or the end of the message, ends an entry.
-     - **Several loops were armed.** `<n>` is the count the producer wrote. Recover all `n`. Finding
-       fewer means the transcript is truncated or the shape drifted — surface what was found and say
-       `n` were expected, rather than presenting a subset as the whole.
+     - **Command wording** ends the entry at the first continuation line of a multi-line prompt,
+       cutting it in half and losing every entry behind it.
+     - **The next header** looks safe until a prompt quotes one. The prompt is reproduced exactly as
+       the operator typed it, so a prompt containing the literal text `Re-arm 2 of 3` would split
+       its own command. Any sentinel has this flaw; a line count does not.
+     - **Stopping at the first hit** recovers one of three re-arms and drops two schedules while
+       looking like it worked.
+
+     `<n>` is the self-check, not the scanner: recover all `n`. Finding fewer, or an `<L>` that runs
+     past the end of the message, means the transcript is truncated or the shape drifted — surface
+     what was found and say `n` were expected, rather than presenting a subset as the whole.
 
      **This is a capture, never a detection
      key:** it is taken only from an already-qualified candidate, so it cannot admit a candidate
-     the rails markers rejected. No counter at all → the session was not looping; surface nothing extra.
+     the rails markers rejected. No header at all → the session was not looping; surface nothing extra.
      **Do not add the note's placeholder tokens to the template-rejection list.** Unlike the rails
      template, the producer *really does* emit `<interval>` and `<the prompt you originally
-     launched it with>` verbatim on its no-launch-signal branch, under a `Re-arm 1 of 1:` counter
-     like any other entry (save-point.md "Loop-aware re-arm"), so rejecting on them would discard a
+     launched it with>` verbatim on its no-launch-signal branch, under a `Re-arm 1 of 1 — 1 lines:`
+     header like any other entry (save-point.md "Loop-aware re-arm"), so rejecting on them would discard a
      genuine note; a transcript that merely read
      `save-point.md` is already rejected by the existing rails-template filter.
    - **Un-escape before surfacing.** Each transcript message is ONE physical JSONL line with its

@@ -131,13 +131,20 @@ copy, which goes stale the moment disk moved on without this conversation seeing
   consumer can trust — it truncates the first multi-line prompt it meets and swallows the entries
   after it. Give the block real edges instead:
 
-  - Open each entry with a literal `Re-arm <i> of <n>:` counter, `<n>` being the number of surviving
-    loops. The counter is what a consumer scans for, so it never has to guess where a quoted prompt
-    ends, and `<n>` lets it prove it recovered the whole set rather than hope so.
-  - Put the re-arm block LAST in the message. Nothing follows the final entry, so its end is the end
-    of the message — the one boundary that needs no marker of its own.
-  - The no-launch-signal fallback is a single entry and carries the same counter (`Re-arm 1 of 1:`),
-    so a consumer parses one shape rather than two.
+  - Head each entry with a literal `Re-arm <i> of <n> — <L> lines:` line, then the entry body on
+    exactly the next `<L>` lines. `<n>` is the number of surviving loops; `<L>` counts the body
+    lines only, never the header.
+  - **`<L>` is the boundary, and it is a length, not a pattern.** No marker, sentinel, or
+    "looks like a re-arm" test can bound a region whose content is reproduced verbatim: whatever
+    string is chosen, a prompt is allowed to contain it, and the delimiter then fires inside the
+    payload. Counting lines is the only rule that cannot collide with what it delimits, so a prompt
+    holding a blank line, a dashed rail, or the literal text `Re-arm 2 of 3` passes through intact.
+  - `<n>` is not needed to find the entries — the lengths already do that — but it makes recovery
+    self-checking: a consumer can prove it holds the whole set instead of hoping so.
+  - Put the re-arm block LAST in the message, after the paste-condition note, so the entries are
+    contiguous and nothing interleaves them.
+  - The no-launch-signal fallback is a single entry with the same header (`Re-arm 1 of 1 — 1
+    lines:`), so a consumer parses one shape rather than two.
 
   Changing this shape is a knowing break of the detection contract below, and must move
   `find-handoff` with it.
