@@ -3860,6 +3860,33 @@ class GuardTests(unittest.TestCase):
         fake_timer.start.assert_called_once()
         fake_timer.cancel.assert_called_once()
 
+    def test_main_arms_watchdog_before_reading_stdin(self) -> None:
+        """The watchdog must start before `json.load(sys.stdin)`, not after.
+
+        `json.load(sys.stdin)` blocks through EOF, and a Windows Win32 pipe
+        can deliver the complete JSON payload but delay the EOF signal — a
+        late-EOF stall with nothing armed to bound it would run past the
+        declared hook `timeout` toward the harness's own non-blocking kill,
+        the same shape #1423 exists to close. Wiring check via call order, no
+        real stdin stall or timer thread.
+        """
+        fake_timer = mock.Mock()
+        call_order: list[str] = []
+        fake_timer.start.side_effect = lambda: call_order.append("watchdog_start")
+        real_load = guard.json.load
+
+        def _spy_load(*args: object, **kwargs: object) -> object:
+            call_order.append("stdin_read")
+            return real_load(*args, **kwargs)
+
+        with (
+            mock.patch.object(guard.threading, "Timer", return_value=fake_timer),
+            mock.patch.object(guard.json, "load", side_effect=_spy_load),
+        ):
+            exit_code, _stdout, _stderr = self._invoke_guard_raw("rm -rf /tmp/example")
+        self.assertEqual(0, exit_code)
+        self.assertEqual(["watchdog_start", "stdin_read"], call_order)
+
     def test_main_cancels_watchdog_even_when_decide_raises(self) -> None:
         """The `finally` must cancel the timer on the exit-2 path too, so a
         `_decide` exception never leaves a stray timer thread behind."""

@@ -16,7 +16,7 @@
               "--authorized-data-root",
               "${CLAUDE_PLUGIN_DATA}"
             ],
-            "timeout": 20
+            "timeout": 60
           }
         ]
       }

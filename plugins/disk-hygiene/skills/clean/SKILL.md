@@ -11,7 +11,7 @@ hooks:
         - type: command
           command: "python3"
           args: ["${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/destructive_guard.py", "--plugin-root", "${CLAUDE_PLUGIN_ROOT}"]
-          timeout: 20
+          timeout: 60
 ---
 
 # Disk hygiene

@@ -925,47 +925,55 @@ def _decide(command: str, tool_name: str) -> int:
 
 
 def main() -> int:
-    try:
-        payload = json.load(sys.stdin)
-        tool_name = payload.get("tool_name", "")
-        command = payload["tool_input"]["command"]
-        if not isinstance(command, str):
-            raise TypeError("command is not text")
-    except (KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
-        print(
-            json.dumps(
-                decision(
-                    "deny",
-                    f"disk-hygiene guard could not validate the shell call: {exc}",
-                )
-            )
-        )
-        return 0
-
     # Fail-closed safety boundary (#1423): only 0 and 2 are reachable past this
     # point. The watchdog denies fast on an internal deadline instead of
     # letting a stalled syscall run toward a harness-level, non-blocking kill
-    # (module docstring, AC 5); the broad except denies on any exception
-    # _decide (or anything it calls) still manages to raise, replacing the
+    # (module docstring, AC 5); the broad except denies on any exception this
+    # function (or anything it calls) still manages to raise, replacing the
     # interpreter's default "uncaught exception -> exit 1, proceed" behavior
     # with "exit 2, deny" (AC 1-2). BaseException is deliberate — a
     # KeyboardInterrupt reaching a security guard mid-decision is exactly the
     # kind of "not a deliberate, reasoned allow" path AC 1 requires to deny,
     # not to propagate.
     #
-    # Arming the watchdog is INSIDE the boundary, not before it: under OS
-    # thread or memory exhaustion `threading.Timer(...)` / `.start()` raises
-    # `RuntimeError: can't start new thread`, and from outside the `try` that
-    # exception would reach the interpreter's default handler — exit 1,
-    # non-blocking, destructive command proceeds. Failing to arm the guard's
-    # own deadline is precisely when the guard must deny, so construction and
-    # startup fail closed at exit 2 like every other internal failure.
+    # Arming the watchdog is the FIRST action inside the boundary — before the
+    # stdin read, not after it. Two failure shapes this closes, both landing
+    # on a killed-hook, no-decision fail-open if the watchdog is not yet armed
+    # while they happen: (1) under OS thread or memory exhaustion
+    # `threading.Timer(...)` / `.start()` raises `RuntimeError: can't start
+    # new thread`, which from outside this boundary would reach the
+    # interpreter's default handler — exit 1, non-blocking, destructive
+    # command proceeds; (2) `json.load(sys.stdin)` blocks through EOF, and a
+    # Windows Win32 pipe can deliver the complete JSON payload but delay the
+    # EOF signal — the same late-EOF stall class the bash hook fleet bounds
+    # with a read timeout (plugins/guardrails/CHANGELOG.md, "[0.8.0]" ->
+    # `hook::buffer_stdin`). Python's blocking read has no partial-read risk
+    # the way bash's `read -t` does, so the watchdog's existing hard
+    # `os._exit(2)` on deadline is the equivalent bound here: arming it before
+    # the read means a late-EOF stall denies fast instead of running past the
+    # declared hook `timeout` toward the harness's own non-blocking kill.
     deadline = _watchdog_seconds()
     watchdog: threading.Timer | None = None
     try:
         watchdog = threading.Timer(deadline, _watchdog_fire, args=(deadline,))
         watchdog.daemon = True
         watchdog.start()
+        try:
+            payload = json.load(sys.stdin)
+            tool_name = payload.get("tool_name", "")
+            command = payload["tool_input"]["command"]
+            if not isinstance(command, str):
+                raise TypeError("command is not text")
+        except (KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
+            print(
+                json.dumps(
+                    decision(
+                        "deny",
+                        f"disk-hygiene guard could not validate the shell call: {exc}",
+                    )
+                )
+            )
+            return 0
         return _decide(command, tool_name)
     except BaseException as exc:
         print(

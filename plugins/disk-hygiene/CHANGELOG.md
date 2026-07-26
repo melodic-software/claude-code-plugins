@@ -48,11 +48,13 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
   denies (exit `2`, diagnostic on stderr) on a background timer if `_decide` has not returned by the
   deadline, instead of risking an unbounded hang toward the harness's own (600s-default) hook timeout.
   Both guard registrations (`hooks/hooks.json`'s plugin-level engine gate and `skills/clean/SKILL.md`'s
-  skill-scoped belt) now also declare an explicit `timeout: 20` as a harness-level backstop, well
+  skill-scoped belt) now also declare an explicit `timeout: 60` as a harness-level backstop, well
   below the previous implicit 600s default, in case the internal watchdog itself is ever prevented
-  from running.
+  from running — the same proven value `guardrails` raised its own blocking PreToolUse guards to
+  (`plugins/guardrails/CHANGELOG.md` `[0.15.1]`: 10-40x headroom over every real duration sample
+  measured, well short of the 600s platform default), not the 20s this plugin started at.
 
-- **Two residual fail-open paths in the new watchdog itself, both reported in review.** (1) Arming
+- **Three residual fail-open paths in the new watchdog itself, all reported in review.** (1) Arming
   the watchdog sat *outside* the exit-2 boundary it protects: under OS thread or memory exhaustion
   `threading.Timer(...)` / `.start()` raises `RuntimeError: can't start new thread`, which reached
   the interpreter's default handler — exit `1`, non-blocking, destructive command proceeds. Failing
@@ -63,7 +65,14 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
   and dies *in the timer thread* with `OverflowError: timestamp out of range for platform time_t`,
   silently disarming the watchdog while the guard looks armed — and because it raises off the main
   thread, the exit-2 boundary never sees it. Non-finite overrides now fall back to the default like
-  every other invalid value. Both paths are covered by new `GuardTests` cases (205 tests pass).
+  every other invalid value. (3) The watchdog was armed *after* `json.load(sys.stdin)`, so a stall
+  in the stdin read itself — e.g. a Windows Win32-pipe late EOF, where the OS delivers the complete
+  JSON payload but delays the EOF signal (the same class `guardrails` bounds in its bash hook fleet
+  via `hook::buffer_stdin`, `plugins/guardrails/CHANGELOG.md` `[0.8.0]`) — ran with no deadline armed
+  at all, so the declared hook `timeout` would fire first and the harness would cancel the hook with
+  no `permissionDecision`, the exact non-blocking fail-open #1423 exists to close. The watchdog now
+  arms as the first action inside `main`'s fail-closed boundary, before the stdin read. All three
+  paths are covered by new `GuardTests` cases (206 tests pass).
 
 ## [0.9.4]
 
