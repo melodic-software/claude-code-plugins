@@ -169,13 +169,20 @@ loop's own escalation contract is not outside it.
   injecting defects about as fast as it removes them; that is the non-convergence signal a round
   count only approximates. **The "second consecutive" test must survive context rollover, and the
   durable ledger records only that a round happened, not what it contained**
-  (`manage_feedback_ledger.py::record_advisory_round` stores timestamps per head). So derive the
-  previous round's composition from the PR itself: the D5 classification reply tables this
-  discipline requires are posted on the threads and carry the per-finding class marker — read the
-  prior round's threads (resolved ones included; resolution hides nothing from a direct thread
-  query) and count their recorded `(c)` classifications. A fresh worker that skips this
-  reconstruction and sees only the current round cannot fire the tripwire, which is exactly when
-  it is needed. Change METHOD rather than stopping: rewrite the contested section
+  (`manage_feedback_ledger.py::record_advisory_round` stores timestamps per head). Two duties
+  follow, and the second only works because of the first:
+  - **Stamp at classification time.** The canonical D5 disposition vocabulary
+    (VALID/INCORRECT/UNCERTAIN) does not carry this section's taxonomy, so this section adds the
+    requirement: whenever the (a)/(b)/(c) classification runs, record the literal marker
+    `(class (a))`, `(class (b))`, or `(class (c))` beside the disposition in the D5 reply row for
+    every finding classified. An unstamped round is invisible to the next worker.
+  - **Reconstruct at round start.** Derive the previous round's composition from the PR itself:
+    read the prior round's threads (resolved ones included; resolution hides nothing from a
+    direct thread query) and count the recorded `(class (c))` markers. A fresh worker that skips
+    this reconstruction and sees only the current round cannot fire the tripwire, which is
+    exactly when it is needed. A prior round with no markers found is UNKNOWN, not (a)/(b) —
+    treat a current all-(c) round following an UNKNOWN round as tripwire-eligible and say so in
+    the escalation rather than silently resetting the count. Change METHOD rather than stopping: rewrite the contested section
   whole in one commit, or report it for a human decision. It is never a licence to ship a known
   defect.
 - Escalate a bounding/cap-policy question only when verification shows (a), a second consecutive
