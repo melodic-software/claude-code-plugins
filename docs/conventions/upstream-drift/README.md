@@ -83,11 +83,29 @@ qualify: a trigger whose firing cannot be checked is a date with extra words.
 
 ## When a trigger fires
 
-Re-fetch the cited basis and re-derive the claim or decision from what is actually there — never
-patch the record from memory. Refresh the as-of date **with the outcome**, drift or no drift. On a
-versioned surface the outcome lands as a changelog entry; refreshing a date with no verdict change
-is no version bump. Where re-verification finds drift, the changed value lands in the owning
-record, never silently in a consuming surface.
+A firing is a record-maintenance event, and the procedure follows what the trigger guards:
+
+- **A four-part record.** Re-fetch the cited basis and re-derive the claim or decision from what is
+  actually there — never patch the record from memory. Refresh the as-of date **with the outcome**,
+  drift or no drift. On a versioned surface the outcome lands as a changelog entry; refreshing a
+  date with no verdict change is no version bump.
+- **A named trigger guarding an in-repo decision** ([Adopters](#adopters) says which rows these
+  are). There is no cited basis to re-fetch and no as-of date to refresh: re-derive the decision
+  from the in-repo state the trigger names, and record the outcome durably where the decision
+  lives — the record itself or the owning surface's changelog. The durable outcome is the part this
+  kind shares with the stamped kind.
+
+Whichever the kind, where re-derivation finds drift the changed value lands in the owning record,
+never silently in a consuming surface.
+
+### Read-time validation is not a firing
+
+The standing rule to re-fetch a cited basis before acting on a stamped claim
+([a date is never authority](#a-date-is-never-authority)) is per-use validation: it protects the
+act, not the record, and a lookup that finds no drift obliges no edit anywhere. A record kept
+current this way states divergence as its trigger — "a read-time re-fetch finds the source no
+longer matching the record" is an event decidable from evidence — so the divergence, never the
+lookup, is what fires, and only a firing invokes the maintenance procedure above.
 
 ## Drift signal — content hashing, deferred
 
@@ -120,26 +138,27 @@ Classified per `melodic-software/standards` `conventions/engineering/enforceabil
 Migrated at this contract's 1.0.0 to the single name, each citing this doc with content intact.
 The rows are not all the same thing, and the table says which is which. A **conforming record**
 carries the four required parts for an upstream-derived claim or decision. A **named trigger**
-shares the canonical name, the observability bar, and the firing procedure, but guards an in-repo
-decision: in scope for the name, outside the four-part requirement, which binds only records that
-restate something upstream-owned. This narrows what a row advertises; it does not widen the
+shares the canonical name, the observability bar, and
+[its own firing procedure](#when-a-trigger-fires), but guards an in-repo decision: in scope for the
+name, outside the four-part requirement, which binds only records that restate something
+upstream-owned. This narrows what a row advertises; it does not widen the
 contract to fit its exceptions.
 
 | Surface | Was | What a reader can rely on |
 |---|---|---|
 | [hook-config-delivery](../hook-config-delivery/README.md) §Recheck triggers | already the canonical name | Conforming records — version-pinned facts table with per-fact basis, dates, and event triggers. |
 | [loop-lane](../loop-lane/README.md) §Versioning | "Re-derivation triggers" | Conforming records — dated upstream-claim stamps; trigger firings recorded in its changelog. |
-| [PLUGIN-PHILOSOPHY](../../PLUGIN-PHILOSOPHY.md) component-stances staleness disclaimer | unlabeled discipline | Conforming records — per-row claim, linked page, and verified date under a standing re-fetch-before-acting rule (pointer-preferred, so no per-row event trigger is needed). |
-| [OFFICIAL-DOCS](../../OFFICIAL-DOCS.md) staleness warning and per-row verified dates | unlabeled discipline | Conforming records — same shape as the component-stances table: link + date + standing re-fetch rule. |
+| [PLUGIN-PHILOSOPHY](../../PLUGIN-PHILOSOPHY.md) component-stances staleness disclaimer | unlabeled discipline | Conforming records — per-row claim, linked page, and verified date; the re-fetch-before-acting rule is [read-time validation](#read-time-validation-is-not-a-firing), and every row's stated trigger is a fetch diverging from the row. |
+| [OFFICIAL-DOCS](../../OFFICIAL-DOCS.md) staleness warning and per-row verified dates | unlabeled discipline | Conforming records — same shape as the component-stances table: link + date, divergence-at-fetch as the stated trigger. |
 | [MIGRATION-PLAYBOOK](../../MIGRATION-PLAYBOOK.md) decision records | "Revisit trigger" | Mixed — the dated component-decision records cite upstream bases and conform; the org-internal records (e.g. the ratification record) are named triggers. |
 | [ecosystem-commands](../ecosystem-commands/README.md) task-runner deferral | "Revisit triggers" | Named triggers only — an undated in-repo deferral; not a four-part record. |
 | [topic-docs](../topic-docs/README.md) §Implementers restate the rules | "What would reopen it" | Named trigger only — an in-repo source-hoisting decision; not a four-part record. |
 
 Elsewhere the name binds on touch: living surfaces still saying "revisit trigger", "re-derivation
 trigger", or "what would reopen it" (several plugin reference docs already use the canonical
-`## Recheck triggers` heading) adopt the canonical name, the observability bar, and the firing
-procedure the next time they change; a surface restating an upstream-owned specific additionally
-adopts the required parts. **History is never rewritten**: `CHANGELOG.md` entries, dated audit
+`## Recheck triggers` heading) adopt the canonical name, the observability bar, and their kind's
+firing procedure the next time they change; a surface restating an upstream-owned specific
+additionally adopts the required parts. **History is never rewritten**: `CHANGELOG.md` entries, dated audit
 records, and ADR sections keep the wording they shipped with; a new ADR uses the canonical name
 going forward.
 

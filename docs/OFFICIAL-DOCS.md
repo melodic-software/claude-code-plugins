@@ -12,9 +12,10 @@ training-data recall.
 > [`https://code.claude.com/docs/llms.txt`](https://code.claude.com/docs/llms.txt); if a page listed
 > here is missing from it, or a page you need isn't listed here, treat `llms.txt` as the source of
 > truth and update this file. Every row below was verified against a live fetch on the date shown —
-> that date is the ceiling on how current the row still is, not a guarantee. The
-> [upstream-drift convention](conventions/upstream-drift/README.md) owns this stamp-and-trigger
-> discipline.
+> that date is the ceiling on how current the row still is, not a guarantee. A fetch that no longer
+> matches a row is that row's recheck trigger: update the row, refreshing its date with the
+> outcome. The [upstream-drift convention](conventions/upstream-drift/README.md) owns this
+> stamp-and-trigger discipline.
 
 ## Plugin components → doc page
 

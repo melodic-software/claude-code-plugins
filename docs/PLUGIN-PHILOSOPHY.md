@@ -118,7 +118,8 @@ native one matures into fitness.
 
 > **Staleness disclaimer.** The platform changes constantly. Every row carries the date its facts
 > were verified against the linked official page. Always re-fetch the current page before acting on
-> a row; never trust this table alone — the
+> a row; never trust this table alone. A fetch that diverges from a row is that row's recheck
+> trigger: update the row, refreshing its verified date with the outcome. The
 > [upstream-drift convention](conventions/upstream-drift/README.md) owns this stamp discipline.
 
 | Component | Stance | Rationale and constraints | Verified |

@@ -16,6 +16,10 @@ from upstream-owned sources.
   trigger", and "what would reopen it" become superseded synonyms that migrate on touch.
 - Required parts fixed: claim/decision, basis, as-of date, recheck trigger; observability bar
   stated; date-is-never-authority rule stated.
+- Firing procedure stated per record kind: four-part records re-fetch their cited basis and refresh
+  their date; named triggers on in-repo decisions re-derive from the in-repo state the trigger
+  names. Read-time validation is distinguished from a firing — a lookup that finds no drift obliges
+  no edit; divergence at fetch is what fires.
 - Drift-signal finding recorded: no `ETag` and no per-page `Last-Modified` on the official docs'
   raw-markdown endpoints (verified 2026-07-26 by header inspection), so content hashing is the only
   viable mechanical drift signal; the fleet defers building a hash store, with its own recheck
