@@ -74,4 +74,6 @@ org binds (org-bindable values):
 | `C4` / `C5` merge | never promotes — human merge always; no evidence predicate exists for these cells |
 
 **Demotion evidence set** (one event suffices): any post-merge gate failure, any
-human-reverted merge, any verification divergence.
+human-reverted merge, any verification divergence. Demotion cascades along
+predicate dependencies: `C3` auto-merge is earned on the `C2` auto-merge track
+record, so contrary evidence against `C2` auto-merge demotes both cells.

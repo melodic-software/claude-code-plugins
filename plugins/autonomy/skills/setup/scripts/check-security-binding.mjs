@@ -348,6 +348,12 @@ const VERIFICATION_STRENGTH = { "not-required": 0, advisory: 1, blocking: 2 };
 
 const PROMOTABLE_CELLS = new Set(["C2-auto-merge", "C3-auto-merge", "C3-ai-review-blocking"]);
 
+// C3 auto-merge's evidence predicate builds on the C2 auto-merge track record
+// (>= 20 autonomous C2 merges with 0 demotion events), so contrary evidence
+// against the prerequisite cell invalidates the dependent cell too — a failed
+// trust signal never leaves a promotion that was earned on it standing.
+const PROMOTION_DEPENDENCIES = { "C3-auto-merge": ["C2-auto-merge"] };
+
 // Admission shipped defaults per work class (the admission-policy leaf), and
 // the leaf's permissiveness order: autonomous-eligible > human-gated >
 // audited-rejection.
@@ -1672,8 +1678,12 @@ function resolveEffectivePromotion(binding, evidencePath) {
       lines.push(`${cell}: bound ${bound} -> effective unpromoted (evidence unavailable, fail-closed)`);
       continue;
     }
+    const dependencyCells = PROMOTION_DEPENDENCIES[cell] ?? [];
     const contrary = events.filter(
-      (event) => isPlainObject(event) && event.cell === cell && CONTRARY_EVIDENCE_EVENTS.has(event.event),
+      (event) =>
+        isPlainObject(event) &&
+        (event.cell === cell || dependencyCells.includes(event.cell)) &&
+        CONTRARY_EVIDENCE_EVENTS.has(event.event),
     );
     // Contrary evidence is scoped to the promotion epoch: an event predating
     // the cell's ratified_at belongs to a previous epoch and was already
@@ -1685,13 +1695,14 @@ function resolveEffectivePromotion(binding, evidencePath) {
     const inEpoch = [];
     const preEpoch = [];
     for (const event of contrary) {
+      const source = event.cell === cell ? "" : `${event.cell} (prerequisite cell) `;
       const at = parseIsoStrict(event.at);
       if (Number.isNaN(at)) {
-        inEpoch.push(`${event.event} with non-ISO or unparsable at ${JSON.stringify(event.at)} — cannot be assigned to an epoch, treated as contrary (fail-closed)`);
+        inEpoch.push(`${source}${event.event} with non-ISO or unparsable at ${JSON.stringify(event.at)} — cannot be assigned to an epoch, treated as contrary (fail-closed)`);
       } else if (Number.isNaN(ratifiedAt) || at >= ratifiedAt) {
-        inEpoch.push(`${event.event} at ${event.at}`);
+        inEpoch.push(`${source}${event.event} at ${event.at}`);
       } else {
-        preEpoch.push(`${event.event} at ${event.at}`);
+        preEpoch.push(`${source}${event.event} at ${event.at}`);
       }
     }
     if (bound === "promoted" && inEpoch.length > 0) {
