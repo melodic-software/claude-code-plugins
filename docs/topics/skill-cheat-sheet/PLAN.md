@@ -275,7 +275,7 @@ Review: code-design
   scripts/generate-cheatsheet.mjs && node scripts/generate-cheatsheet.mjs --check` exits 0
   against the full tree.
 
-### Phase 4: skill-quality summary-cap gate [TODO]
+### Phase 4: skill-quality summary-cap gate [DONE]
 
 Review: code-design
 
