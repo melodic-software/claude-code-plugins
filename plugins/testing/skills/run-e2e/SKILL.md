@@ -6,8 +6,8 @@ user-invocable: true
 disable-model-invocation: false
 shell: bash
 metadata:
-  cheatsheet-stage: test
-  cheatsheet-summary: Start the app, drive real flows, capture evidence
+  workflow-stage: test
+  summary: Start the app, drive real flows, capture evidence
 ---
 
 ## Pre-computed context

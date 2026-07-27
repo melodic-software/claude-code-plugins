@@ -7,8 +7,8 @@ disable-model-invocation: false
 allowed-tools: Bash(command -v firecrawl*) Bash(firecrawl --status*)
 shell: bash
 metadata:
-  cheatsheet-stage: research
-  cheatsheet-summary: Scrape, search, crawl, or parse web pages when WebFetch is blocked
+  workflow-stage: research
+  summary: Scrape, search, crawl, or parse web pages when WebFetch is blocked
 ---
 
 ## Pre-computed context

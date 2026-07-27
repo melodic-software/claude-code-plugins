@@ -5,9 +5,9 @@ argument-hint: "[action] [<marketplace>|all] — actions: sync (default), audit,
 user-invocable: true
 disable-model-invocation: true
 metadata:
-  cheatsheet-stage: operator
-  cheatsheet-summary: Bring the machine's plugin fleet current — refresh, update, install per policy
-  cheatsheet-cadence: weekly
+  workflow-stage: operator
+  summary: Bring the machine's plugin fleet current — refresh, update, install per policy
+  cadence: weekly
 ---
 
 ## Variables

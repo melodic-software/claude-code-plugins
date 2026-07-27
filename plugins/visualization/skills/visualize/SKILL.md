@@ -4,8 +4,8 @@ description: "Decide the best visual FORM and MEDIUM for what is in the conversa
 argument-hint: "[terminal|file|artifact] — omit to auto-decide; name a form in the request itself"
 user-invocable: true
 metadata:
-  cheatsheet-stage: anytime
-  cheatsheet-summary: Pick the best visual form for what is in the conversation and render it
+  workflow-stage: anytime
+  summary: Pick the best visual form for what is in the conversation and render it
 ---
 
 # Visualize

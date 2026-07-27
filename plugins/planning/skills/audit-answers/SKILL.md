@@ -6,8 +6,8 @@ user-invocable: true
 disable-model-invocation: false
 shell: bash
 metadata:
-  cheatsheet-stage: contract
-  cheatsheet-summary: Adversarially validate interview answers with fresh-context agents
+  workflow-stage: contract
+  summary: Adversarially validate interview answers with fresh-context agents
 ---
 
 ## Pre-computed context

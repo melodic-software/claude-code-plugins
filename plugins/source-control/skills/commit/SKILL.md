@@ -6,8 +6,8 @@ user-invocable: true
 disable-model-invocation: false
 shell: bash
 metadata:
-  cheatsheet-stage: implement
-  cheatsheet-summary: Commit with the resolved convention and surgical staging
+  workflow-stage: implement
+  summary: Commit with the resolved convention and surgical staging
 ---
 
 ## Pre-computed context

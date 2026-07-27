@@ -4,8 +4,8 @@ description: "Post-work comprehension check: after a change is complete, generat
 argument-hint: "[recall <query>] (empty = quiz me on the change just completed)"
 user-invocable: true
 metadata:
-  cheatsheet-stage: anytime
-  cheatsheet-summary: Generate a post-change report with a quiz verifying you absorbed the work
+  workflow-stage: anytime
+  summary: Generate a post-change report with a quiz verifying you absorbed the work
 ---
 
 ## Purpose

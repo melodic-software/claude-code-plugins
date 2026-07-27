@@ -6,8 +6,8 @@ disable-model-invocation: false
 metadata:
   discipline-batch: situational  # only when config/infra/integration is in play
   discipline-batch-rank: 30
-  cheatsheet-stage: anytime
-  cheatsheet-summary: Audit the surface in flight against current official upstream docs
+  workflow-stage: anytime
+  summary: Audit the surface in flight against current official upstream docs
 ---
 
 # Recheck against upstream

@@ -6,8 +6,8 @@ user-invocable: true
 disable-model-invocation: false
 shell: bash
 metadata:
-  cheatsheet-stage: explore
-  cheatsheet-summary: Explore code, history, tests, and config before changing anything
+  workflow-stage: explore
+  summary: Explore code, history, tests, and config before changing anything
 ---
 
 ## Pre-computed context

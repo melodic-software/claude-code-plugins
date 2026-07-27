@@ -4,8 +4,8 @@ description: "Get a session to a clean stopping point before the machine may go 
 user-invocable: true
 disable-model-invocation: false
 metadata:
-  cheatsheet-stage: session
-  cheatsheet-summary: Make everything durable before the machine goes away
+  workflow-stage: session
+  summary: Make everything durable before the machine goes away
 ---
 
 # Clean stop

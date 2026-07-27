@@ -5,8 +5,8 @@ argument-hint: "[<task>] | handoff [compact] | worker [compact]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
-  cheatsheet-stage: session
-  cheatsheet-summary: Arm the session with proactive-orchestration imperatives
+  workflow-stage: session
+  summary: Arm the session with proactive-orchestration imperatives
 ---
 
 ## Purpose

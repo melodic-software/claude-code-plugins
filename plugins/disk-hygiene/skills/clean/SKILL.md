@@ -13,8 +13,8 @@ hooks:
           args: ["${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/destructive_guard.py", "--plugin-root", "${CLAUDE_PLUGIN_ROOT}"]
           timeout: 60
 metadata:
-  cheatsheet-stage: anytime
-  cheatsheet-summary: Audit a directory tree for stale leftovers and remove validated paths
+  workflow-stage: anytime
+  summary: Audit a directory tree for stale leftovers and remove validated paths
 ---
 
 # Disk hygiene

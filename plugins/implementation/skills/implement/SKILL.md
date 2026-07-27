@@ -6,8 +6,8 @@ user-invocable: true
 disable-model-invocation: false
 shell: bash
 metadata:
-  cheatsheet-stage: implement
-  cheatsheet-summary: Execute approved plans with TDD, incremental validation, and green commits
+  workflow-stage: implement
+  summary: Execute approved plans with TDD, incremental validation, and green commits
 ---
 
 ## Pre-computed context

@@ -5,8 +5,8 @@ argument-hint: "[topic]"
 user-invocable: true
 disable-model-invocation: true
 metadata:
-  cheatsheet-stage: contract
-  cheatsheet-summary: Turn a decision someone else must answer into an async questionnaire
+  workflow-stage: contract
+  summary: Turn a decision someone else must answer into an async questionnaire
 ---
 
 ## Variables

@@ -6,8 +6,8 @@ user-invocable: true
 disable-model-invocation: false
 shell: bash
 metadata:
-  cheatsheet-stage: test
-  cheatsheet-summary: Root-cause failing tests — never retry blindly
+  workflow-stage: test
+  summary: Root-cause failing tests — never retry blindly
 ---
 
 ## Pre-computed context

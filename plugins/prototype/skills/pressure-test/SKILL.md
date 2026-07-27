@@ -7,8 +7,8 @@ disable-model-invocation: false
 allowed-tools: ["Bash(git branch:*)", "Bash(git status:*)", "Bash(head:*)", "Bash(echo:*)", "Bash(bash ${CLAUDE_PLUGIN_ROOT}/scripts/detect-ecosystems.sh:*)"]
 shell: bash
 metadata:
-  cheatsheet-stage: plan
-  cheatsheet-summary: Throwaway terminal app pressure-testing logic or a data model
+  workflow-stage: plan
+  summary: Throwaway terminal app pressure-testing logic or a data model
 ---
 
 ## Pre-computed context

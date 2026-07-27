@@ -2140,14 +2140,14 @@ else
   fail "check 2 should count the 3-char joiner and fail at 1537/1536 (rc=$rc): $out"
 fi
 
-# 38a. Check 22: a cheatsheet-summary of exactly 100 codepoints passes (boundary
+# 38a. Check 22: a summary of exactly 100 codepoints passes (boundary
 #      guard — the cap is >100, not >=100).
 sum_100="$(printf 's%.0s' $(seq 1 100))"
 make_skill cap-pass "---
 name: cap-pass
 description: \"Summary cap fixture. Use when: 'cap pass fixture'.\"
 metadata:
-  cheatsheet-summary: $sum_100
+  summary: $sum_100
 ---
 
 ## Purpose
@@ -2160,8 +2160,8 @@ None known.
 "
 out="$(run cap-pass 2>&1)"
 rc=$?
-if [[ $rc -eq 0 ]] && grep -q 'cheatsheet-summary 100/100 codepoints' <<<"$out"; then
-  pass "cheatsheet-summary at exactly 100 codepoints passes (check 22)"
+if [[ $rc -eq 0 ]] && grep -q 'summary 100/100 codepoints' <<<"$out"; then
+  pass "summary at exactly 100 codepoints passes (check 22)"
 else
   fail "100-codepoint summary should pass at the boundary (rc=$rc): $out"
 fi
@@ -2172,7 +2172,7 @@ make_skill cap-fail "---
 name: cap-fail
 description: \"Summary cap fixture. Use when: 'cap fail fixture'.\"
 metadata:
-  cheatsheet-summary: $sum_101
+  summary: $sum_101
 ---
 
 ## Purpose
@@ -2185,8 +2185,8 @@ None known.
 "
 out="$(run cap-fail 2>&1)"
 rc=$?
-if [[ $rc -eq 1 ]] && grep -q 'metadata.cheatsheet-summary is 101 codepoints' <<<"$out"; then
-  pass "cheatsheet-summary at 101 codepoints fails (check 22)"
+if [[ $rc -eq 1 ]] && grep -q 'metadata.summary is 101 codepoints' <<<"$out"; then
+  pass "summary at 101 codepoints fails (check 22)"
 else
   fail "101-codepoint summary should FAIL (rc=$rc): $out"
 fi
@@ -2199,7 +2199,7 @@ make_skill cap-multibyte "---
 name: cap-multibyte
 description: \"Summary cap fixture. Use when: 'cap multibyte fixture'.\"
 metadata:
-  cheatsheet-summary: $sum_mb
+  summary: $sum_mb
 ---
 
 ## Purpose
@@ -2212,7 +2212,7 @@ None known.
 "
 out="$(run cap-multibyte 2>&1)"
 rc=$?
-if [[ $rc -eq 0 ]] && grep -q 'cheatsheet-summary 100/100 codepoints' <<<"$out"; then
+if [[ $rc -eq 0 ]] && grep -q 'summary 100/100 codepoints' <<<"$out"; then
   pass "a 100-codepoint summary with a multi-byte em-dash passes (codepoints, not bytes)"
 else
   fail "multi-byte 100-codepoint summary should pass (rc=$rc): $out"

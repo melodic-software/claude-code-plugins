@@ -6,8 +6,8 @@ disable-model-invocation: false
 metadata:
   discipline-batch: situational  # only when inherited/legacy content is in play
   discipline-batch-rank: 40
-  cheatsheet-stage: anytime
-  cheatsheet-summary: Challenge decisions coasting on precedent, re-derive from first principles
+  workflow-stage: anytime
+  summary: Challenge decisions coasting on precedent, re-derive from first principles
 ---
 
 # Reason, don't recite

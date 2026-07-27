@@ -5,8 +5,8 @@ user-invocable: true
 argument-hint: "[performance|metrics] [baseline|compare] (e.g., /verification:measure performance, /verification:measure metrics baseline)"
 disable-model-invocation: false
 metadata:
-  cheatsheet-stage: verify
-  cheatsheet-summary: Verify an improvement claim against a pre-change baseline
+  workflow-stage: verify
+  summary: Verify an improvement claim against a pre-change baseline
 ---
 
 ## Purpose

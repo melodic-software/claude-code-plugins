@@ -5,8 +5,8 @@ argument-hint: "[source] — empty = topic PLAN.md; prd = topic PRD.md; #<number
 user-invocable: true
 disable-model-invocation: false
 metadata:
-  cheatsheet-stage: plan
-  cheatsheet-summary: Break a plan into vertical-slice work items with dependencies
+  workflow-stage: plan
+  summary: Break a plan into vertical-slice work items with dependencies
 ---
 
 ## Variables

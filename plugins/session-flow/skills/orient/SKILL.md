@@ -5,8 +5,8 @@ user-invocable: true
 disable-model-invocation: false
 shell: bash
 metadata:
-  cheatsheet-stage: session
-  cheatsheet-summary: Read-only situation report from durable and off-thread state
+  workflow-stage: session
+  summary: Read-only situation report from durable and off-thread state
 ---
 
 ## Pre-computed context

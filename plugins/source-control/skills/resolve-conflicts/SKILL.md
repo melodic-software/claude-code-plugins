@@ -6,8 +6,8 @@ user-invocable: true
 disable-model-invocation: false
 shell: bash
 metadata:
-  cheatsheet-stage: pr
-  cheatsheet-summary: Resolve merge and rebase conflicts by recovering both sides' intent
+  workflow-stage: pr
+  summary: Resolve merge and rebase conflicts by recovering both sides' intent
 ---
 
 ## Pre-computed context

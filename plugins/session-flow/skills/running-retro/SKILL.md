@@ -6,8 +6,8 @@ user-invocable: true
 disable-model-invocation: false
 shell: bash
 metadata:
-  cheatsheet-stage: retro
-  cheatsheet-summary: In-flight retro checkpoint appended to a running ledger
+  workflow-stage: retro
+  summary: In-flight retro checkpoint appended to a running ledger
 ---
 
 ## Pre-computed context

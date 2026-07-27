@@ -6,9 +6,9 @@ disable-model-invocation: false
 argument-hint: "[worker|autopilot|help] [owner/repo | #n | owner/repo#n] · default: configured default_tier (safe) over your own PRs; worker=fix+resolve-outdated+merge-ready; autopilot=max autonomy all authors; 'help' lists flows"
 shell: bash
 metadata:
-  cheatsheet-stage: operator
-  cheatsheet-summary: Tiered fleet pass advancing your open PRs
-  cheatsheet-cadence: continuous
+  workflow-stage: operator
+  summary: Tiered fleet pass advancing your open PRs
+  cadence: continuous
 ---
 
 ## Pre-computed context

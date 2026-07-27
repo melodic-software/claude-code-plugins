@@ -4,8 +4,8 @@ description: "EventStorming facilitation knowledge and reference across Big Pict
 user-invocable: true
 argument-hint: "[--big-picture|--process|--design-level|--patterns|--glossary|--notation|--remote]"
 metadata:
-  cheatsheet-stage: plan
-  cheatsheet-summary: EventStorming facilitation reference across all three formats
+  workflow-stage: plan
+  summary: EventStorming facilitation reference across all three formats
 ---
 
 ## Variables

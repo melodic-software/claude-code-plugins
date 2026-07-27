@@ -6,8 +6,8 @@ user-invocable: true
 disable-model-invocation: false
 shell: bash
 metadata:
-  cheatsheet-stage: plan
-  cheatsheet-summary: Produce a structured implementation plan with an approval gate
+  workflow-stage: plan
+  summary: Produce a structured implementation plan with an approval gate
 ---
 
 ## Pre-computed context

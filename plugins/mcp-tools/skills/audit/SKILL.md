@@ -5,8 +5,8 @@ argument-hint: "[path] — a directory to scope the audit to (e.g. a single serv
 user-invocable: true
 disable-model-invocation: false
 metadata:
-  cheatsheet-stage: review
-  cheatsheet-summary: Audit MCP tool definitions against design quality criteria
+  workflow-stage: review
+  summary: Audit MCP tool definitions against design quality criteria
 ---
 
 ## Purpose

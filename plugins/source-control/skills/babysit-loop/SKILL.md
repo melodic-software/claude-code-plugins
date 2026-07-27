@@ -5,9 +5,9 @@ argument-hint: "<owner/repo> [safe|worker|autopilot] [--drain] [--strip-do-not-m
 user-invocable: true
 disable-model-invocation: false
 metadata:
-  cheatsheet-stage: operator
-  cheatsheet-summary: Run one repo's PR queue as a standing merge lane
-  cheatsheet-cadence: continuous
+  workflow-stage: operator
+  summary: Run one repo's PR queue as a standing merge lane
+  cadence: continuous
 ---
 
 ## Variables

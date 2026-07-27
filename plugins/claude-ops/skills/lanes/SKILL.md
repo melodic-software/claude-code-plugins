@@ -6,9 +6,9 @@ user-invocable: true
 disable-model-invocation: true
 shell: bash
 metadata:
-  cheatsheet-stage: operator
-  cheatsheet-summary: Start, restart, stop, and check loop lanes as named background sessions
-  cheatsheet-cadence: daily
+  workflow-stage: operator
+  summary: Start, restart, stop, and check loop lanes as named background sessions
+  cadence: daily
 ---
 
 ## Pre-computed context

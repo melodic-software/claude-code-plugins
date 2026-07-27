@@ -6,8 +6,8 @@ user-invocable: true
 disable-model-invocation: false
 shell: bash
 metadata:
-  cheatsheet-stage: test
-  cheatsheet-summary: Classify changes by required test type and coverage gaps
+  workflow-stage: test
+  summary: Classify changes by required test type and coverage gaps
 ---
 
 ## Pre-computed context

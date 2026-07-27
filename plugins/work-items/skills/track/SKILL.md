@@ -5,8 +5,8 @@ argument-hint: "<action> [args] — actions: stats, list, add, start, done, due,
 user-invocable: true
 disable-model-invocation: false
 metadata:
-  cheatsheet-stage: anytime
-  cheatsheet-summary: Backlog CRUD through the bound tracker — add, list, close, stats
+  workflow-stage: anytime
+  summary: Backlog CRUD through the bound tracker — add, list, close, stats
 ---
 
 ## Variables

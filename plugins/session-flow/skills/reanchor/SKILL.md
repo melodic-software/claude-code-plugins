@@ -4,8 +4,8 @@ description: "Verify a session's working assumptions are still true before build
 user-invocable: true
 disable-model-invocation: false
 metadata:
-  cheatsheet-stage: session
-  cheatsheet-summary: Verify working assumptions are still true before building on them
+  workflow-stage: session
+  summary: Verify working assumptions are still true before building on them
 ---
 
 # Reanchor

@@ -6,8 +6,8 @@ user-invocable: true
 disable-model-invocation: false
 shell: bash
 metadata:
-  cheatsheet-stage: anytime
-  cheatsheet-summary: Audit for drift between docs, config, code, and architecture via verified findings
+  workflow-stage: anytime
+  summary: Audit for drift between docs, config, code, and architecture via verified findings
 ---
 
 ## Pre-computed context

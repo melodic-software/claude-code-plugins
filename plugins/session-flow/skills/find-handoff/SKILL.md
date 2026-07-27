@@ -5,8 +5,8 @@ user-invocable: true
 disable-model-invocation: false
 shell: bash
 metadata:
-  cheatsheet-stage: session
-  cheatsheet-summary: Recover a lost handoff or resume prompt after /clear
+  workflow-stage: session
+  summary: Recover a lost handoff or resume prompt after /clear
 ---
 
 ## Pre-computed context

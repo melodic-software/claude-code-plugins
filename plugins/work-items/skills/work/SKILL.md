@@ -5,8 +5,8 @@ argument-hint: "(no arguments — auto-selects and claims one frontier item)"
 user-invocable: true
 disable-model-invocation: false
 metadata:
-  cheatsheet-stage: anytime
-  cheatsheet-summary: Auto-select one work item and execute it end-to-end
+  workflow-stage: anytime
+  summary: Auto-select one work item and execute it end-to-end
 ---
 
 ## Variables

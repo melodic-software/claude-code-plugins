@@ -4,8 +4,8 @@ description: "Generate and evaluate fresh name candidates for anything — a var
 argument-hint: "[tournament]"
 user-invocable: true
 metadata:
-  cheatsheet-stage: plan
-  cheatsheet-summary: Generate and evaluate name candidates from blind fresh-context lenses
+  workflow-stage: plan
+  summary: Generate and evaluate name candidates from blind fresh-context lenses
 ---
 
 # Name it better

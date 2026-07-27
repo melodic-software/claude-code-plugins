@@ -63,7 +63,7 @@
 #      fresh-context delegation wording or a fresh-eyes-exempt directive nearby
 #      (WARN; heuristic); malformed/reason-less directives FAIL
 #      (spec: skills/check/reference/fresh-eyes-declarations.md)
-#  22. metadata.cheatsheet-summary <= 100 Unicode codepoints (FAIL; the key is
+#  22. metadata.summary <= 100 Unicode codepoints (FAIL; the key is
 #      the generated skill cheat sheet's row source — the cap keeps rows
 #      scannable. Absent key = no finding)
 #
@@ -1082,7 +1082,7 @@ for fe_file in "${FRESH_EYES_FILES[@]}"; do
   ' "$fe_file")
 done
 
-# --- Check 22: metadata.cheatsheet-summary length cap ------------------------
+# --- Check 22: metadata.summary length cap -----------------------------------
 # The key is the generated skill cheat sheet's row source; the cap keeps rows
 # scannable. Length is Unicode CODEPOINTS, not bytes: ${#var} counts per
 # LC_CTYPE, so the measurement subshell pins a UTF-8 locale — under LC_ALL=C
@@ -1091,13 +1091,13 @@ done
 # sheet generator reads it.
 
 SUMMARY_CP_CAP=100
-CUR_SUMMARY="$(skill_frontmatter::strip_quotes "$(skill_frontmatter::metadata_field cheatsheet-summary <<<"$FRONTMATTER")")"
+CUR_SUMMARY="$(skill_frontmatter::strip_quotes "$(skill_frontmatter::metadata_field summary <<<"$FRONTMATTER")")"
 if [[ -n "$CUR_SUMMARY" ]]; then
   SUMMARY_CP_LEN="$(LC_ALL=C.UTF-8; printf '%s' "${#CUR_SUMMARY}")"
   if ((SUMMARY_CP_LEN > SUMMARY_CP_CAP)); then
-    err "metadata.cheatsheet-summary is $SUMMARY_CP_LEN codepoints (cap $SUMMARY_CP_CAP — the cheat sheet row it generates must stay scannable)"
+    err "metadata.summary is $SUMMARY_CP_LEN codepoints (cap $SUMMARY_CP_CAP — the cheat sheet row it generates must stay scannable)"
   else
-    note "cheatsheet-summary $SUMMARY_CP_LEN/$SUMMARY_CP_CAP codepoints"
+    note "summary $SUMMARY_CP_LEN/$SUMMARY_CP_CAP codepoints"
   fi
 fi
 

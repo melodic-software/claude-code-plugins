@@ -5,8 +5,8 @@ argument-hint: "[detect|fix|file-issues]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
-  cheatsheet-stage: anytime
-  cheatsheet-summary: Find external citations reaching into a skill's private surfaces
+  workflow-stage: anytime
+  summary: Find external citations reaching into a skill's private surfaces
 ---
 
 ## Why this skill exists

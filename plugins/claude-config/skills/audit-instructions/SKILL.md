@@ -5,8 +5,8 @@ argument-hint: "[scope] [--opinion] [--no-stopping-condition] — scope: claude-
 user-invocable: true
 disable-model-invocation: false
 metadata:
-  cheatsheet-stage: anytime
-  cheatsheet-summary: Find instructions current models no longer need across CLAUDE.md, rules, and skill bodies
+  workflow-stage: anytime
+  summary: Find instructions current models no longer need across CLAUDE.md, rules, and skill bodies
 ---
 
 ## Purpose

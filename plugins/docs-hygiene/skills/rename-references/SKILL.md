@@ -6,8 +6,8 @@ user-invocable: true
 disable-model-invocation: false
 shell: bash
 metadata:
-  cheatsheet-stage: anytime
-  cheatsheet-summary: Sweep stale references after renames, including forms grep misses
+  workflow-stage: anytime
+  summary: Sweep stale references after renames, including forms grep misses
 ---
 
 ## Pre-computed context

@@ -6,8 +6,8 @@ user-invocable: true
 disable-model-invocation: false
 shell: bash
 metadata:
-  cheatsheet-stage: anytime
-  cheatsheet-summary: Navigate the staged dev workflow and suggest the next stage
+  workflow-stage: anytime
+  summary: Navigate the staged dev workflow and suggest the next stage
 ---
 
 ## Pre-computed context

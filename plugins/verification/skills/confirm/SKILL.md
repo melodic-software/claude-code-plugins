@@ -6,8 +6,8 @@ argument-hint: "[mode] [ecosystem] (e.g., /verification:confirm, /verification:c
 disable-model-invocation: false
 shell: bash
 metadata:
-  cheatsheet-stage: verify
-  cheatsheet-summary: Prove the change achieved its intended outcome with evidence
+  workflow-stage: verify
+  summary: Prove the change achieved its intended outcome with evidence
 ---
 
 ## Pre-computed context

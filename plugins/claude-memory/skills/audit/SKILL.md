@@ -6,8 +6,8 @@ user-invocable: true
 disable-model-invocation: false
 shell: bash
 metadata:
-  cheatsheet-stage: anytime
-  cheatsheet-summary: Audit CLAUDE.md, rules, and auto-memory against the official-docs checklist
+  workflow-stage: anytime
+  summary: Audit CLAUDE.md, rules, and auto-memory against the official-docs checklist
 ---
 
 ## Pre-computed context

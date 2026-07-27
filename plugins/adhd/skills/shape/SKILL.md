@@ -4,8 +4,8 @@ description: "Shape the assistant's output for a reader with ADHD — and anyone
 user-invocable: true
 disable-model-invocation: false
 metadata:
-  cheatsheet-stage: anytime
-  cheatsheet-summary: Set a standing action-first output posture — lead with the next action, cut preamble
+  workflow-stage: anytime
+  summary: Set a standing action-first output posture — lead with the next action, cut preamble
 ---
 
 # Shape output for an ADHD reader

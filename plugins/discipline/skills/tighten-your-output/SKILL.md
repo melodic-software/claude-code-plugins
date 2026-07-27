@@ -6,8 +6,8 @@ disable-model-invocation: false
 metadata:
   discipline-batch: core  # every session produces output that can tighten; runs last so it never tightens text a later corrector rewrites
   discipline-batch-rank: 110
-  cheatsheet-stage: anytime
-  cheatsheet-summary: Tighten prose and code — fewer words, no semantic loss
+  workflow-stage: anytime
+  summary: Tighten prose and code — fewer words, no semantic loss
 ---
 
 # Tighten your output

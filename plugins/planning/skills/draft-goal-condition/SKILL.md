@@ -5,8 +5,8 @@ argument-hint: "[intent]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
-  cheatsheet-stage: plan
-  cheatsheet-summary: Pick the right autonomy lever and craft a /goal completion condition
+  workflow-stage: plan
+  summary: Pick the right autonomy lever and craft a /goal completion condition
 ---
 
 ## Variables

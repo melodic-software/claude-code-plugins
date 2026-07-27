@@ -6,8 +6,8 @@ user-invocable: true
 disable-model-invocation: false
 shell: bash
 metadata:
-  cheatsheet-stage: session
-  cheatsheet-summary: Write a mid-session save-point for clear-and-resume
+  workflow-stage: session
+  summary: Write a mid-session save-point for clear-and-resume
 ---
 
 ## Pre-computed context

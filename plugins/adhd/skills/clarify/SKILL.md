@@ -5,8 +5,8 @@ argument-hint: "[artifact to clarify] (empty = the previous assistant response)"
 user-invocable: true
 disable-model-invocation: false
 metadata:
-  cheatsheet-stage: anytime
-  cheatsheet-summary: Reshape a dense, decision-heavy message into clear one-decision-at-a-time chunks, losing nothing
+  workflow-stage: anytime
+  summary: Reshape a dense, decision-heavy message into clear one-decision-at-a-time chunks, losing nothing
 ---
 
 # Clarify a dense artifact into something you can act on

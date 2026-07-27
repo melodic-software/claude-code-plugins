@@ -6,8 +6,8 @@ disable-model-invocation: false
 metadata:
   upstream-version: 1.0.0
   synced: 2026-03-17
-  cheatsheet-stage: anytime
-  cheatsheet-summary: Anthropic's internal skill-authoring playbook and patterns
+  workflow-stage: anytime
+  summary: Anthropic's internal skill-authoring playbook and patterns
 shell: bash
 ---
 

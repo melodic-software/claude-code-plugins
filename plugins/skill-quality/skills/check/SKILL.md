@@ -6,8 +6,8 @@ user-invocable: true
 disable-model-invocation: false
 shell: bash
 metadata:
-  cheatsheet-stage: review
-  cheatsheet-summary: Static QA gate for skill frontmatter, caps, and evals
+  workflow-stage: review
+  summary: Static QA gate for skill frontmatter, caps, and evals
 ---
 
 ## Purpose

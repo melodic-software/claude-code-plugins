@@ -82,13 +82,13 @@ EOF
   printf '# Skill cheat sheet (fixture)\n\n<!-- cheatsheet:start -->\n<!-- cheatsheet:end -->\n' \
     >"$dir/docs/SKILL-CHEAT-SHEET.md"
   write_skill "$dir" alpha mapped \
-    'cheatsheet-stage: plan' \
-    'cheatsheet-summary: Fixture skill mapped to the plan stage'
+    'workflow-stage: plan' \
+    'summary: Fixture skill mapped to the plan stage'
   write_skill "$dir" alpha setup
   write_skill "$dir" beta looper \
-    'cheatsheet-stage: operator' \
-    'cheatsheet-cadence: continuous' \
-    'cheatsheet-summary: Fixture operator skill with a cadence'
+    'workflow-stage: operator' \
+    'cadence: continuous' \
+    'summary: Fixture operator skill with a cadence'
   printf '%s' "$dir"
 }
 
@@ -145,34 +145,34 @@ rm -rf "$tree"
 # --- enforcement failure modes -------------------------------------------------
 tree="$(mk_tree)"
 write_skill "$tree" alpha mapped # metadata stripped entirely
-assert_fails "missing cheatsheet-stage names the skill" "$tree" \
-  "alpha/mapped: no cheatsheet-stage and no exclusion entry"
+assert_fails "missing workflow-stage names the skill" "$tree" \
+  "alpha/mapped: no workflow-stage and no exclusion entry"
 
 tree="$(mk_tree)"
-write_skill "$tree" alpha setup 'cheatsheet-stage: plan' \
-  'cheatsheet-summary: Excluded skill wrongly carrying a stage'
+write_skill "$tree" alpha setup 'workflow-stage: plan' \
+  'summary: Excluded skill wrongly carrying a stage'
 assert_fails "excluded skill carrying stage is a conflict" "$tree" \
-  "alpha/setup: excluded (infra setup) but carries cheatsheet-* metadata"
+  "alpha/setup: excluded (infra setup) but carries workflow-stage/summary/cadence metadata"
 
 tree="$(mk_tree)"
-write_skill "$tree" alpha mapped 'cheatsheet-stage: design' \
-  'cheatsheet-summary: Unknown stage enum value'
-assert_fails "unknown stage enum" "$tree" 'unknown cheatsheet-stage "design"'
+write_skill "$tree" alpha mapped 'workflow-stage: design' \
+  'summary: Unknown stage enum value'
+assert_fails "unknown stage enum" "$tree" 'unknown workflow-stage "design"'
 
 tree="$(mk_tree)"
-write_skill "$tree" beta looper 'cheatsheet-stage: operator' \
-  'cheatsheet-cadence: hourly' 'cheatsheet-summary: Unknown cadence enum value'
-assert_fails "unknown cadence enum" "$tree" 'unknown cheatsheet-cadence "hourly"'
+write_skill "$tree" beta looper 'workflow-stage: operator' \
+  'cadence: hourly' 'summary: Unknown cadence enum value'
+assert_fails "unknown cadence enum" "$tree" 'unknown cadence "hourly"'
 
 tree="$(mk_tree)"
 long_summary="$(printf 'x%.0s' $(seq 1 101))"
-write_skill "$tree" alpha mapped 'cheatsheet-stage: plan' \
-  "cheatsheet-summary: $long_summary"
+write_skill "$tree" alpha mapped 'workflow-stage: plan' \
+  "summary: $long_summary"
 assert_fails "summary over 100 codepoints" "$tree" "exceeds 100 codepoints"
 
 tree="$(mk_tree)"
-write_skill "$tree" alpha mapped 'cheatsheet-stage: plan' \
-  'cheatsheet-summary: "quoted summaries are rejected"'
+write_skill "$tree" alpha mapped 'workflow-stage: plan' \
+  'summary: "quoted summaries are rejected"'
 assert_fails "charset guard rejects YAML-special lead" "$tree" \
   "starts with a YAML-special character"
 
@@ -180,35 +180,35 @@ assert_fails "charset guard rejects YAML-special lead" "$tree" \
 # generator — its reader strips trailing comments before the guard — and is
 # exercised by the sweep applier and skill-quality's cap check instead).
 tree="$(mk_tree)"
-write_skill "$tree" alpha mapped 'cheatsheet-stage: plan' 'cheatsheet-summary:'
+write_skill "$tree" alpha mapped 'workflow-stage: plan' 'summary:'
 assert_fails "empty summary" "$tree" "empty summary"
 
 tree="$(mk_tree)"
-write_skill "$tree" alpha mapped 'cheatsheet-stage: plan' \
-  'cheatsheet-summary: bad: mapping indicator inside'
+write_skill "$tree" alpha mapped 'workflow-stage: plan' \
+  'summary: bad: mapping indicator inside'
 assert_fails "summary with colon-space" "$tree" 'contains ": "'
 
 tree="$(mk_tree)"
-write_skill "$tree" alpha mapped 'cheatsheet-stage: plan' \
-  'cheatsheet-summary: ends with a colon:'
+write_skill "$tree" alpha mapped 'workflow-stage: plan' \
+  'summary: ends with a colon:'
 assert_fails "summary with trailing colon" "$tree" "ends with a colon or whitespace"
 
 tree="$(mk_tree)"
-write_skill "$tree" alpha mapped 'cheatsheet-stage: plan' \
-  "$(printf 'cheatsheet-summary: has\ttab inside')"
+write_skill "$tree" alpha mapped 'workflow-stage: plan' \
+  "$(printf 'summary: has\ttab inside')"
 assert_fails "summary with control character" "$tree" "tab or control character"
 
 tree="$(mk_tree)"
-write_skill "$tree" alpha mapped 'cheatsheet-stage: plan' \
-  'cheatsheet-cadence: daily' 'cheatsheet-summary: Cadence outside operator stage'
+write_skill "$tree" alpha mapped 'workflow-stage: plan' \
+  'cadence: daily' 'summary: Cadence outside operator stage'
 assert_fails "cadence without operator stage" "$tree" \
-  "cheatsheet-cadence is only valid with cheatsheet-stage operator"
+  "cadence is only valid with workflow-stage operator"
 
 tree="$(mk_tree)"
-write_skill "$tree" beta looper 'cheatsheet-stage: operator' \
-  'cheatsheet-summary: Operator row with no cadence'
+write_skill "$tree" beta looper 'workflow-stage: operator' \
+  'summary: Operator row with no cadence'
 assert_fails "operator without cadence" "$tree" \
-  "cheatsheet-stage operator requires cheatsheet-cadence"
+  "workflow-stage operator requires cadence"
 
 tree="$(mk_tree)"
 sed -i.bak 's/EXCLUDED_SKILLS = new Map()/EXCLUDED_SKILLS = new Map([["alpha\/ghost", "gone"]])/' \
@@ -224,10 +224,10 @@ cat >"$tree/plugins/beta/skills/looper/SKILL.md" <<'EOF'
 name: looper
 description: fixture skill for cheat-sheet generator tests
 metadata:
-  cheatsheet-stage: operator
+  workflow-stage: operator
 
-  cheatsheet-cadence: continuous
-  cheatsheet-summary: Keys after a blank line still read
+  cadence: continuous
+  summary: Keys after a blank line still read
 ---
 
 # looper

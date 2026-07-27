@@ -7,8 +7,8 @@ user-invocable: true
 allowed-tools: Bash(bash ${CLAUDE_PLUGIN_ROOT}/skills/tidy/scripts/open-pr-count.sh:*)
 shell: bash
 metadata:
-  cheatsheet-stage: anytime
-  cheatsheet-summary: Proactively hunt one lane for safe structural tidyings and ship a structure-only PR
+  workflow-stage: anytime
+  summary: Proactively hunt one lane for safe structural tidyings and ship a structure-only PR
 ---
 
 ## Pre-computed context

@@ -6,9 +6,9 @@ user-invocable: true
 disable-model-invocation: false
 shell: bash
 metadata:
-  cheatsheet-stage: operator
-  cheatsheet-summary: Print the operator's read-only morning view — queues, merge-ready PRs, parked decisions
-  cheatsheet-cadence: daily
+  workflow-stage: operator
+  summary: Print the operator's read-only morning view — queues, merge-ready PRs, parked decisions
+  cadence: daily
 ---
 
 ## Pre-computed context

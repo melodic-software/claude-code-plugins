@@ -5,8 +5,8 @@ argument-hint: "[phase] [--wave-cap <N>] (e.g., /implementation:implement-dispat
 user-invocable: true
 disable-model-invocation: false
 metadata:
-  cheatsheet-stage: implement
-  cheatsheet-summary: Orchestrate worker subagents to execute an approved plan
+  workflow-stage: implement
+  summary: Orchestrate worker subagents to execute an approved plan
 ---
 
 ## Purpose

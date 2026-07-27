@@ -5,9 +5,9 @@ argument-hint: "(no arguments — polls escalations and untriaged intake for the
 user-invocable: true
 disable-model-invocation: false
 metadata:
-  cheatsheet-stage: operator
-  cheatsheet-summary: Drive escalated and untriaged items to resolution in one view
-  cheatsheet-cadence: daily
+  workflow-stage: operator
+  summary: Drive escalated and untriaged items to resolution in one view
+  cadence: daily
 ---
 
 ## Variables

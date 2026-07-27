@@ -37,7 +37,7 @@ phrase, which quietly degrades a skill's auto-invocation. Check 3 compares the t
 - Fresh-eyes declaration conformance — same-context judgment language (a curated, advisory heuristic)
   expects fresh-context delegation wording or a `fresh-eyes-exempt` directive nearby; malformed or
   reason-less directives fail. Contract: `skills/check/reference/fresh-eyes-declarations.md`.
-- `metadata.cheatsheet-summary` within 100 Unicode codepoints — the key is the generated skill cheat
+- `metadata.summary` within 100 Unicode codepoints — the key is the generated skill cheat
   sheet's row source; the cap keeps rows scannable. An absent key is no finding.
 
 `listing-budget` runs `check-listing-budget.sh` — an always-advisory report on the **shared** budget

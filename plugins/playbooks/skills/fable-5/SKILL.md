@@ -5,8 +5,8 @@ argument-hint: "[full | <chapter>]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
-  cheatsheet-stage: anytime
-  cheatsheet-summary: Fable 5's operating doctrine loaded as standing session instructions
+  workflow-stage: anytime
+  summary: Fable 5's operating doctrine loaded as standing session instructions
 ---
 
 ## You have loaded Fable 5's operating doctrine

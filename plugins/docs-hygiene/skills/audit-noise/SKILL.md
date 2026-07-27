@@ -7,8 +7,8 @@ disable-model-invocation: false
 allowed-tools: Bash(bash *audit-noise/scripts/detect.sh*)
 shell: bash
 metadata:
-  cheatsheet-stage: anytime
-  cheatsheet-summary: Classify markdown for stale citations, ghost refs, and meta-commentary
+  workflow-stage: anytime
+  summary: Classify markdown for stale citations, ghost refs, and meta-commentary
 ---
 
 ## Pre-computed context

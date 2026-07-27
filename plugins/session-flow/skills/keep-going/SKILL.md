@@ -4,8 +4,8 @@ description: "Recover and continue after an interruption — rate limit, crash, 
 user-invocable: true
 disable-model-invocation: false
 metadata:
-  cheatsheet-stage: session
-  cheatsheet-summary: Recover after an interruption and continue where work stood
+  workflow-stage: session
+  summary: Recover after an interruption and continue where work stood
 ---
 
 # Keep going

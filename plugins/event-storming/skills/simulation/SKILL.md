@@ -4,8 +4,8 @@ description: "Agentic AI-driven multi-persona EventStorming simulation on Miro. 
 user-invocable: true
 argument-hint: "[--simulate|--process-model|--design-level|--evaluate|--retrospective|--induction|--value|--crc|--ux|--discover-bcs] [domain]"
 metadata:
-  cheatsheet-stage: plan
-  cheatsheet-summary: Multi-persona agentic EventStorming workshop on Miro
+  workflow-stage: plan
+  summary: Multi-persona agentic EventStorming workshop on Miro
 ---
 
 ## Variables

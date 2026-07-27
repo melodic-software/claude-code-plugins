@@ -6,8 +6,8 @@ user-invocable: true
 disable-model-invocation: false
 shell: bash
 metadata:
-  cheatsheet-stage: contract
-  cheatsheet-summary: Lock product intent — problem, users, success metrics — before planning
+  workflow-stage: contract
+  summary: Lock product intent — problem, users, success metrics — before planning
 ---
 
 ## Pre-computed context

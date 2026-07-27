@@ -6,8 +6,8 @@ user-invocable: true
 disable-model-invocation: false
 shell: bash
 metadata:
-  cheatsheet-stage: anytime
-  cheatsheet-summary: Look up and track known Claude product issues, health, and workarounds
+  workflow-stage: anytime
+  summary: Look up and track known Claude product issues, health, and workarounds
 ---
 
 ## Pre-computed context

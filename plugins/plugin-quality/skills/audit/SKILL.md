@@ -4,8 +4,8 @@ description: "Post-use behavioral audit of a Claude Code plugin component — a 
 argument-hint: "<plugin>[:<component>] (e.g. source-control:commit, or guardrails)"
 user-invocable: true
 metadata:
-  cheatsheet-stage: review
-  cheatsheet-summary: Behavioral audit of a plugin component ending in a maintainer work item
+  workflow-stage: review
+  summary: Behavioral audit of a plugin component ending in a maintainer work item
 ---
 
 # Plugin audit

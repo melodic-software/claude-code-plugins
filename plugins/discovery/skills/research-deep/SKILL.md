@@ -6,8 +6,8 @@ user-invocable: true
 disable-model-invocation: false
 shell: bash
 metadata:
-  cheatsheet-stage: research
-  cheatsheet-summary: Dispatch deep multi-topic research to the heaviest isolated tier
+  workflow-stage: research
+  summary: Dispatch deep multi-topic research to the heaviest isolated tier
 ---
 
 ## Pre-computed context

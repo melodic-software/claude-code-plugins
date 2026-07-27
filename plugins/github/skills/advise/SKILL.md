@@ -3,8 +3,8 @@ name: advise
 description: "Forward-looking guidance and hand-holding over the GitHub settings/admin plane: how to design, configure, and set up any coverage area (rulesets, billing budgets, security model, Actions policy, webhooks, PATs, apps, and more), grounded in live gh state and freshly fetched official GitHub docs. Use when: 'how should I configure X', 'help me set up Y', 'walk me through Z', 'what's the recommended way to', 'design our org's Actions policy'. NOT for current-state review or drift ('what is', 'what drifted', 'are these consistent') — that is the audit skill. Bare invocation performs zero mutations — guidance and proposals only, never recall presented as grounded."
 argument-hint: "[topic] [--apply]"
 metadata:
-  cheatsheet-stage: anytime
-  cheatsheet-summary: Design and set up GitHub settings and admin areas grounded in live gh state
+  workflow-stage: anytime
+  summary: Design and set up GitHub settings and admin areas grounded in live gh state
 ---
 
 # github advise

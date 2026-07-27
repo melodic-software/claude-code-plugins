@@ -6,8 +6,8 @@ user-invocable: true
 disable-model-invocation: false
 shell: bash
 metadata:
-  cheatsheet-stage: plan
-  cheatsheet-summary: Resolve types, contracts, and module boundaries before planning
+  workflow-stage: plan
+  summary: Resolve types, contracts, and module boundaries before planning
 ---
 
 ## Pre-computed context

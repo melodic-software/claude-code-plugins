@@ -6,8 +6,8 @@ user-invocable: true
 disable-model-invocation: false
 shell: bash
 metadata:
-  cheatsheet-stage: anytime
-  cheatsheet-summary: Audit settings, hooks, permissions, and MCP config for drift against current official docs
+  workflow-stage: anytime
+  summary: Audit settings, hooks, permissions, and MCP config for drift against current official docs
 ---
 
 ## Pre-computed context

@@ -18,8 +18,8 @@ hooks:
           shell: bash
 shell: bash
 metadata:
-  cheatsheet-stage: anytime
-  cheatsheet-summary: Clean caches, build artifacts, stale branches, and stashes per repo
+  workflow-stage: anytime
+  summary: Clean caches, build artifacts, stale branches, and stashes per repo
 ---
 
 ## Pre-computed context

@@ -6,8 +6,8 @@ user-invocable: true
 disable-model-invocation: false
 shell: bash
 metadata:
-  cheatsheet-stage: plan
-  cheatsheet-summary: Stress-test a plan or the incumbent approach adversarially
+  workflow-stage: plan
+  summary: Stress-test a plan or the incumbent approach adversarially
 ---
 
 ## Pre-computed context

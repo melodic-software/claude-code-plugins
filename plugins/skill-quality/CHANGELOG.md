@@ -7,7 +7,7 @@ All notable changes to the `skill-quality` plugin are documented here. Format fo
 
 ### Added
 
-- **Check 22 — `metadata.cheatsheet-summary` length cap.** When the key is present, a value
+- **Check 22 — `metadata.summary` length cap.** When the key is present, a value
   longer than 100 Unicode codepoints FAILs; an absent key emits nothing. The key is the
   generated skill cheat sheet's row source, and the cap keeps rows scannable. Length is
   counted in codepoints, not bytes — the measurement site pins a UTF-8 locale (fleet

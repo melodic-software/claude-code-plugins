@@ -5,9 +5,9 @@ argument-hint: "(no arguments — cycle behavior comes from the launch prompt's 
 user-invocable: true
 disable-model-invocation: false
 metadata:
-  cheatsheet-stage: operator
-  cheatsheet-summary: Drain the backlog as a self-paced autonomous loop
-  cheatsheet-cadence: continuous
+  workflow-stage: operator
+  summary: Drain the backlog as a self-paced autonomous loop
+  cadence: continuous
 ---
 
 ## Variables

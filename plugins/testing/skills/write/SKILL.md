@@ -6,8 +6,8 @@ user-invocable: true
 disable-model-invocation: false
 shell: bash
 metadata:
-  cheatsheet-stage: test
-  cheatsheet-summary: Write and place tests with TDD cadence across ecosystems
+  workflow-stage: test
+  summary: Write and place tests with TDD cadence across ecosystems
 ---
 
 ## Pre-computed context

@@ -5,8 +5,8 @@ user-invocable: true
 argument-hint: "[ecosystem] (e.g., /toolchain:check dotnet, /toolchain:check python, /toolchain:check all — default: auto-detect from git status)"
 shell: bash
 metadata:
-  cheatsheet-stage: verify
-  cheatsheet-summary: Build, test, and lint changed files across detected ecosystems
+  workflow-stage: verify
+  summary: Build, test, and lint changed files across detected ecosystems
 ---
 
 ## Pre-computed context

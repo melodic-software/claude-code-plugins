@@ -4,8 +4,8 @@ description: "One-shot plain-language explainer — drops any concept, code, err
 argument-hint: "[thing to explain] (empty = the previous assistant response)"
 user-invocable: true
 metadata:
-  cheatsheet-stage: anytime
-  cheatsheet-summary: Explain any concept or the last response in genuinely plain words
+  workflow-stage: anytime
+  summary: Explain any concept or the last response in genuinely plain words
 ---
 
 ## Purpose

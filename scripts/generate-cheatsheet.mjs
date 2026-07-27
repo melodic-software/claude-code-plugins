@@ -2,17 +2,17 @@
 
 // Generates the stage-grouped skill cheat sheet block in
 // docs/SKILL-CHEAT-SHEET.md from each in-scope SKILL.md's `metadata:`
-// frontmatter (`cheatsheet-stage`, `cheatsheet-summary`, `cheatsheet-cadence`)
-// plus the hand-curated grouping layer in scripts/cheatsheet-config.mjs.
+// frontmatter (`workflow-stage`, `summary`, `cadence`) plus the hand-curated
+// grouping layer in scripts/cheatsheet-config.mjs.
 // Sibling of generate-catalog.mjs: the block between the markers is
 // generated, never hand-edited; run with no argument to rewrite it, with
 // --check to fail on drift (CI gate). --root <dir> points every input and the
 // output at another tree so a fixture can drive the enforcement tests.
 //
 // Enforcement (each failure exits 1 naming the skill): an in-scope skill must
-// carry `cheatsheet-stage` XOR match an exclusion entry; exclusion entries
+// carry `workflow-stage` XOR match an exclusion entry; exclusion entries
 // must name existing plugins/skills; stage and cadence values must be in the
-// config enums; `cheatsheet-cadence` is required with `cheatsheet-stage:
+// config enums; `cadence` is required with `workflow-stage:
 // operator` and forbidden otherwise; summaries must pass the shared guard
 // (plain YAML scalar, <=100 codepoints). Swept values are plain scalars —
 // this reader strips trailing `#`-comments exactly as skill-quality's
@@ -130,32 +130,32 @@ for (const s of skills) {
     EXCLUDED_PLUGINS.get(s.plugin) ??
     EXCLUDED_SKILLS.get(key) ??
     (s.skill === EXCLUDED_SKILL_NAME.name ? EXCLUDED_SKILL_NAME.reason : undefined);
-  const stage = s.meta["cheatsheet-stage"];
-  const summary = s.meta["cheatsheet-summary"];
-  const cadence = s.meta["cheatsheet-cadence"];
+  const stage = s.meta["workflow-stage"];
+  const summary = s.meta["summary"];
+  const cadence = s.meta["cadence"];
 
   if (reason !== undefined) {
     if (stage !== undefined || summary !== undefined || cadence !== undefined) {
-      errors.push(`${key}: excluded (${reason}) but carries cheatsheet-* metadata`);
+      errors.push(`${key}: excluded (${reason}) but carries workflow-stage/summary/cadence metadata`);
     }
     continue;
   }
   if (stage === undefined) {
-    errors.push(`${key}: no cheatsheet-stage and no exclusion entry`);
+    errors.push(`${key}: no workflow-stage and no exclusion entry`);
     continue;
   }
   if (!stageBySlug.has(stage)) {
-    errors.push(`${key}: unknown cheatsheet-stage "${stage}"`);
+    errors.push(`${key}: unknown workflow-stage "${stage}"`);
     continue;
   }
   if (stage === "operator") {
     if (cadence === undefined) {
-      errors.push(`${key}: cheatsheet-stage operator requires cheatsheet-cadence`);
+      errors.push(`${key}: workflow-stage operator requires cadence`);
     } else if (!CADENCES.includes(cadence)) {
-      errors.push(`${key}: unknown cheatsheet-cadence "${cadence}"`);
+      errors.push(`${key}: unknown cadence "${cadence}"`);
     }
   } else if (cadence !== undefined) {
-    errors.push(`${key}: cheatsheet-cadence is only valid with cheatsheet-stage operator`);
+    errors.push(`${key}: cadence is only valid with workflow-stage operator`);
   }
   const guardError = summaryError(summary ?? "");
   if (guardError) errors.push(`${key}: ${guardError}`);

@@ -5,8 +5,8 @@ argument-hint: "[identify|verify|plan|execute|batch|unwind] [<cluster-name>]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
-  cheatsheet-stage: anytime
-  cheatsheet-summary: Deduplicate repeated prose into one named source of truth
+  workflow-stage: anytime
+  summary: Deduplicate repeated prose into one named source of truth
 ---
 
 # Extract SSOT

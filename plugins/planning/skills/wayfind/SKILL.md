@@ -11,8 +11,8 @@ allowed-tools:
   - "Bash(gh label list*)"
 shell: bash
 metadata:
-  cheatsheet-stage: contract
-  cheatsheet-summary: Chart a too-big, foggy effort as a decision map worked one decision at a time
+  workflow-stage: contract
+  summary: Chart a too-big, foggy effort as a decision map worked one decision at a time
 ---
 
 ## Pre-computed context

@@ -6,8 +6,8 @@ disable-model-invocation: false
 metadata:
   discipline-batch: situational  # only when producing docs/content that cites sources
   discipline-batch-rank: 50
-  cheatsheet-stage: anytime
-  cheatsheet-summary: Audit for copied content and correct by pointing at the living source
+  workflow-stage: anytime
+  summary: Audit for copied content and correct by pointing at the living source
 ---
 
 # Point, don't copy

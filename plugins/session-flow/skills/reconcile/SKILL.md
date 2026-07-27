@@ -4,8 +4,8 @@ description: "Retire finished off-thread work and reconcile this session's task 
 user-invocable: true
 disable-model-invocation: false
 metadata:
-  cheatsheet-stage: session
-  cheatsheet-summary: Retire finished off-thread work and square the task ledger
+  workflow-stage: session
+  summary: Retire finished off-thread work and square the task ledger
 ---
 
 # Reconcile

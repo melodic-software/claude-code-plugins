@@ -6,9 +6,9 @@ argument-hint: "[--root <dir>]... [--repo <dir>]... [--config <file>] [--canonic
 allowed-tools:
   - Bash(bash ${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/audit-fleet.sh *)
 metadata:
-  cheatsheet-stage: operator
-  cheatsheet-summary: Audit git and GitHub hygiene across all local repositories, read-only
-  cheatsheet-cadence: weekly
+  workflow-stage: operator
+  summary: Audit git and GitHub hygiene across all local repositories, read-only
+  cadence: weekly
 ---
 
 ## Purpose

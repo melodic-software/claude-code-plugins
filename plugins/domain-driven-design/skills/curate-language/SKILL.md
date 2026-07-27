@@ -5,8 +5,8 @@ argument-hint: "[term, ambiguity, or resolved vocabulary]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
-  cheatsheet-stage: plan
-  cheatsheet-summary: Maintain the domain glossary — resolve terms, record rejected synonyms
+  workflow-stage: plan
+  summary: Maintain the domain glossary — resolve terms, record rejected synonyms
 ---
 
 ## Variables

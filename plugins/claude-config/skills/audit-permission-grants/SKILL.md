@@ -5,8 +5,8 @@ argument-hint: "[scope] — scope: frontmatter|settings|plugins|all (default: al
 user-invocable: true
 disable-model-invocation: false
 metadata:
-  cheatsheet-stage: anytime
-  cheatsheet-summary: Audit permission grants for portability and auto-mode durability
+  workflow-stage: anytime
+  summary: Audit permission grants for portability and auto-mode durability
 ---
 
 ## Purpose

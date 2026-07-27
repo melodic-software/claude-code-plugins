@@ -25,7 +25,7 @@ export const STAGES = [
   { slug: "operator", heading: "Operator cadence", workflow: false },
 ];
 
-// `cheatsheet-cadence` is required when `cheatsheet-stage: operator`,
+// `cadence` is required when `workflow-stage: operator`,
 // forbidden otherwise. `continuous` covers self-paced standing loops that
 // have no daily/weekly rhythm.
 export const CADENCES = ["daily", "weekly", "continuous"];
@@ -33,7 +33,7 @@ export const CADENCES = ["daily", "weekly", "continuous"];
 export const SUMMARY_MAX_CODEPOINTS = 100;
 
 // Exclusions are explicit, each with a reason — an in-scope skill must carry
-// `cheatsheet-stage` XOR appear here; the generator fails on silent omission,
+// `workflow-stage` XOR appear here; the generator fails on silent omission,
 // orphaned entries, and excluded-but-mapped conflicts.
 export const EXCLUDED_PLUGINS = new Map([
   ["ai-briefing", "personal-domain plugin"],
@@ -62,7 +62,7 @@ const YAML_UNSAFE_LEAD = new Set([
   "[", "]", "{", "}", ">", "|", "*", "&", "!", "%", "@", "`", '"', "'", "#", "-",
 ]);
 
-// Shared `cheatsheet-summary` guard, enforced identically by the sweep's
+// Shared `summary` guard, enforced identically by the sweep's
 // apply script and the generator. The value must survive as a plain YAML
 // scalar: an invalid frontmatter value makes Claude Code load the skill with
 // ALL frontmatter silently dropped, so anything YAML could reinterpret is

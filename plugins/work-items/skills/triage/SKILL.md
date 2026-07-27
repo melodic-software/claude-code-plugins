@@ -5,8 +5,8 @@ argument-hint: "[<number>] — issue OR pull request number to triage; empty = a
 user-invocable: true
 disable-model-invocation: false
 metadata:
-  cheatsheet-stage: anytime
-  cheatsheet-summary: Evaluate raw intake through the verified-to-eligible state machine
+  workflow-stage: anytime
+  summary: Evaluate raw intake through the verified-to-eligible state machine
 ---
 
 ## Variables

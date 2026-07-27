@@ -6,8 +6,8 @@ user-invocable: true
 disable-model-invocation: false
 shell: bash
 metadata:
-  cheatsheet-stage: contract
-  cheatsheet-summary: Interview in frontier rounds until the task contract is locked
+  workflow-stage: contract
+  summary: Interview in frontier rounds until the task contract is locked
 ---
 
 ## Pre-computed context

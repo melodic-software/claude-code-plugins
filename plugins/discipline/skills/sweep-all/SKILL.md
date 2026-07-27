@@ -4,8 +4,8 @@ description: "Compose this plugin's discipline correctors into ONE batched pass 
 user-invocable: true
 disable-model-invocation: false
 metadata:
-  cheatsheet-stage: anytime
-  cheatsheet-summary: Batch every discipline corrector into one audited re-anchor pass
+  workflow-stage: anytime
+  summary: Batch every discipline corrector into one audited re-anchor pass
 ---
 
 # Sweep all disciplines
