@@ -53,6 +53,7 @@ def build_trigger_config(args: argparse.Namespace) -> ReviewTriggerConfig:
     return ReviewTriggerConfig(
         trigger_phrase=str(args.trigger_phrase or ""),
         reviewer_logins=_csv(getattr(args, "review_bot_logins", None)),
+        extra_bot_logins=_csv(getattr(args, "extra_bot_logins", None)),
     )
 
 
@@ -626,6 +627,14 @@ def main() -> int:
         help=(
             "Comma-separated reviewer-bot logins whose reviews and reactions "
             "count as engagement (structural bot detection is primary)."
+        ),
+    )
+    parser.add_argument(
+        "--extra-bot-logins",
+        default=None,
+        help=(
+            "Comma-separated automation logins GitHub misreports as users, so "
+            "a reviewer among them still counts as engagement."
         ),
     )
     args = parser.parse_args()

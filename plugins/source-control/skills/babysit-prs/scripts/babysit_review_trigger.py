@@ -41,12 +41,17 @@ class ReviewTriggerConfig:
     names the bot account(s) whose reviews/reactions count as engagement.
     `gate_context` is the StatusContext/CheckRun name of the review gate;
     `ci_gateway_context` the aggregate CI check the trigger waits on.
+    `extra_bot_logins` carries the same operator declaration the rest of the
+    plugin reads (`FeedbackConfig`, `babysit_resolve_thread`): accounts whose
+    API metadata misreports them as users. It ships empty, leaving reviewer
+    recognition on structural bot detection alone.
     """
 
     trigger_phrase: str = ""
     reviewer_logins: frozenset[str] = field(default_factory=frozenset)
     gate_context: str = ""
     ci_gateway_context: str = ""
+    extra_bot_logins: frozenset[str] = field(default_factory=frozenset)
 
     @property
     def configured(self) -> bool:
@@ -67,18 +72,30 @@ def trigger_regex(phrase: str) -> re.Pattern[str] | None:
 
 
 def is_review_bot_item(item: dict[str, Any], config: ReviewTriggerConfig) -> bool:
+    """True for an item authored by a configured reviewer account.
+
+    The account must be a bot AND one the operator named a reviewer; neither
+    half alone qualifies, so declaring an account a bot never promotes it to
+    reviewer. Bot-ness comes from GitHub's authoritative actor type, or from
+    the operator's own `extra_bot_logins` declaration -- the same override
+    `actor_kind` applies, for the same reason: an automation account that posts
+    as an ordinary user is exactly what that field exists for, and refusing it
+    here left this module reading a configured reviewer's real review as no
+    review at all (#1642). With `extra_bot_logins` unset the predicate is
+    structural-only, as it always was.
+    """
     author = item.get("author")
     if not is_json_object(author):
+        return False
+    reviewer_logins = normalize_login_set(config.reviewer_logins)
+    login = author_login(item).casefold().removesuffix("[bot]")
+    if login not in reviewer_logins:
         return False
     authoritative_bot = (
         str(author.get("__typename") or author.get("type") or "") == "Bot"
         or author.get("is_bot") is True
     )
-    reviewer_logins = normalize_login_set(config.reviewer_logins)
-    return (
-        authoritative_bot
-        and author_login(item).casefold().removesuffix("[bot]") in reviewer_logins
-    )
+    return authoritative_bot or login in normalize_login_set(config.extra_bot_logins)
 
 
 def issue_comment_database_id(comment: dict[str, Any]) -> str:
