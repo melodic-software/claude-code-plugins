@@ -32,7 +32,7 @@ The `/goal` contract — its condition shape and its character limit — can cha
 Two caveats belong to the workflow row, because each turns a plausible recommendation into a dead one:
 
 - **Route to the right ultracode form.** The `ultracode` keyword in a prompt runs **one** task as a workflow and changes nothing else — not the session's effort level — and is honored only from a prompt a human types (not `-p`, not a scheduled-task prompt, not a webhook or relayed PR comment). `/effort ultracode` is the separate standing setting: `xhigh` effort plus a workflow planned for each substantive task, for the rest of the session. Availability differs too — the workflow lever itself reaches all paid plans (on Pro it is switched on from the **Dynamic workflows** row in `/config`), while the standing setting needs a model that offers `xhigh` effort.
-- **The lever is unreachable from an ordinary subagent.** The `Workflow` tool is filtered out of every non-fork subagent (`/discovery:research-deep` (if installed) exists because of this and documents it; the filter itself is on `https://code.claude.com/docs/en/sub-agents`). Work that runs entirely in non-fork subagents — the loop lanes included — must take one of the other levers however well the workflow row fits; do not re-propose it there.
+- **The lever is unreachable from an ordinary subagent.** The `Workflow` tool is filtered out of every non-fork subagent (`/discovery:research-deep` (if installed) exists because of this and documents it; the filter itself is on `https://code.claude.com/docs/en/sub-agents`). So a lever whose work lands in dispatched non-fork subagents — the loop lanes' item-workers, for instance — cannot be the workflow row however well it otherwise fits; recommend it only where the orchestrating context is the main thread or a fork.
 
 Confirm the current comparison semantics against the live docs (below) rather than this summary — the routing table can drift, and the workflow row's availability and keyword specifics have each moved within recent releases. Only proceed when the intent genuinely wants "keep working until this condition is met."
 
@@ -57,32 +57,17 @@ Avoid conditions the transcript cannot show (subjective quality, external state 
 
 ### When the outcome is not quantifiable
 
-Most goals are not `npm test`. When the intent has no honest metric, do **not** manufacture one — a
-made-up number aims the evaluator at the wrong thing and passes on the wrong evidence. Three moves
-give the shape Step 1 read off the live page something demonstrable to be built out of; they feed that
-shape rather than replace it:
+Most goals are not `npm test`. When the intent has no honest metric, do **not** manufacture one — a made-up number aims the evaluator at the wrong thing and lets a run pass on the wrong evidence. Three moves give the shape Step 1 read off the live page something demonstrable to be built out of; they feed that shape rather than replace it:
 
-1. **A structural constraint** — something countable about the artifact: a length, a section count, one
-   entry per input item.
-2. **Enumerated required contents** — name the parts that must be present, so the evaluator decides
-   "is it there" rather than "is it good".
-3. **A self-verification sub-step that is itself checkable** — require the verifying *work*, not its
-   verdict. "…a report where you have verified every citation by fetching it and confirming the page
-   supports the claim" is checkable; "…a report whose citations are correct" is not.
+1. **A structural constraint** — something countable about the artifact: a length, a section count, one entry per input item.
+2. **Enumerated required contents** — name the parts that must be present, so the evaluator decides "is it there" rather than "is it good".
+3. **A self-verification sub-step that is itself checkable** — require the verifying *work*, not its verdict. "…a report where you have verified every citation by fetching it and confirming the page supports the claim" is checkable; "…a report whose citations are correct" is not.
 
-Move 3 is what makes this branch work, and the no-tools constraint at the top of this step is why it
-has to be worded that way. The judgment is not self-review — it is delegated to a fresh-context
-verifier that sees the transcript and nothing else — so the sub-step is credited only by verification Claude
-**performed there**. A claim that the checking happened reads identically to the checking having
-happened. Word it so the doing leaves visible output — the fetches, the diffs, the command runs — and
-the evaluator judges evidence rather than a promise.
+Move 3 is what makes this branch work, and the no-tools constraint at the top of this step is why it has to be worded that way. The judgment is not self-review — it is delegated to a fresh-context evaluator model that receives only the condition and the conversation so far, and calls nothing — so the sub-step is credited only by verification Claude **performed in the transcript**. A claim that the checking happened reads identically to the checking having happened. Word it so the doing leaves visible output — the fetches, the diffs, the command runs — and the evaluator judges evidence rather than a promise.
 
-Subjective quality still stays out of the condition. It re-enters only as whatever moves 1–3 made
-observable.
+Subjective quality still stays out of the condition. It re-enters only as whatever moves 1–3 made observable.
 
-If the intent itself is still too vague to name a structure or a content list, settle it with
-`/planning:interview` (if installed) before drafting — that skill owns the questioning; this one owns
-the condition.
+If the intent itself is still too vague to name a structure or a content list, settle it with `/planning:interview` before drafting — that skill owns the questioning; this one owns the condition.
 
 ## Step 3 — Mechanical length check
 

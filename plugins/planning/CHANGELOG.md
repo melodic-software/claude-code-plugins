@@ -22,9 +22,10 @@ All notable changes to the `planning` plugin are documented here. Format follows
   one. The `ultracode` keyword runs one task as a workflow, changes nothing else, and is honored
   only from a human-typed prompt, whereas `/effort ultracode` is the standing session setting
   (`xhigh` effort plus per-task workflow planning) and needs a model offering `xhigh` — so the two
-  are not interchangeable. And the `Workflow` tool is filtered out of every non-fork subagent, so
-  subagent-resident work — the loop lanes included — cannot take this lever however well it
-  otherwise fits. The row also carries the availability fact that keeps it from being skipped as
+  are not interchangeable. And the `Workflow` tool is filtered out of every non-fork subagent, so a
+  lever whose work lands in dispatched non-fork subagents — the loop lanes' item-workers, for
+  instance — cannot be this one however well it otherwise fits. The row also carries the
+  availability fact that keeps it from being skipped as
   preview-gated: all paid plans, switched on from the `/config` **Dynamic workflows** row on Pro.
 
 ## [0.26.3]
