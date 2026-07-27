@@ -69,6 +69,7 @@ org binds (org-bindable values):
 | Cell | Suggested default predicate |
 |---|---|
 | `C2` auto-merge | ≥ 20 autonomous C2 completions over ≥ 14 days with 100% deterministic-gate pass and 0 human-reverted merges |
+| `C3` auto-merge | ≥ 20 autonomous C2 merges over ≥ 14 days with 0 demotion events, plus ≥ 10 autonomous C3 completions with 100% deterministic-gate pass, 0 human-reverted merges, and 0 human-confirmed missed-blocking AI-review findings |
 | `C3` AI review advisory → blocking | ≥ 30 advisory reviews with 0 human-confirmed missed-blocking findings |
 | `C4` / `C5` merge | never promotes — human merge always; no evidence predicate exists for these cells |
 
