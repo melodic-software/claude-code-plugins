@@ -242,7 +242,10 @@ unchanged and bind every member.
    **Retry, and what counts as a failure.** Retry only a failed subset, once —
    and **failure includes a ledger returned without verified inheritance
    proof**, not only an errored dispatch: a fabricated ledger is the exposure
-   the retry rule exists for. A retry is anchored by construction, one wave or
+   the retry rule exists for. One dispatch error is explicitly NOT a retryable
+   failure: `Concurrent subagent limit reached`, which the harness tells Claude
+   not to retry. That is a capacity race, not a failed audit — wait for
+   capacity and dispatch, rather than retrying into the same wall. A retry is anchored by construction, one wave or
    many: it spawns after other members' ledgers have landed, so it inherits
    them. There is no un-anchored rerun available inside this conversation —
    re-running the whole pass would inherit MORE, not less, since every ledger
