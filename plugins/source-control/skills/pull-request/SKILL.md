@@ -7,12 +7,19 @@ argument-hint: "<action> [args] (e.g., /pull-request prep, /pull-request create,
 shell: bash
 ---
 
-## Pre-computed context
+## Repository context — gather first
 
-Current branch: !`git branch --show-current 2>/dev/null || echo "unknown"`
-Recent commits: !`git log --oneline -5 2>/dev/null || echo "no commits"`
-Working tree status: !`git status --porcelain 2>/dev/null || echo "clean"`
-Changed files (staged+unstaged): !`git diff --name-only HEAD 2>/dev/null || echo "none"`
+Collect these with **individual** Bash calls, one command per call, never combined into a single
+invocation:
+
+- Current branch — `git branch --show-current`
+- Recent commits — `git log --oneline -5`
+- Working tree status — `git status --porcelain`
+- Changed files (staged+unstaged) — `git diff --name-only HEAD`
+
+Treat a failure (not a repository, git unavailable) as an unknown value and carry on. These moved
+out of pre-compute in #1619 — the harness composes the block into one shell invocation and a
+worktree-isolated agent refuses a git-bearing compound command; do not fold them back.
 
 ## Purpose
 

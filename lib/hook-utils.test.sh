@@ -332,7 +332,7 @@ assert_norm cygwin "/c/Repo" "C:/repo" "cygwin folds like msys"
 assert_norm linux-gnu "/c/Repo" "/c/Repo" "linux leaves /c/Repo unchanged"
 assert_norm linux-gnu "/c/repo" "/c/repo" "linux leaves /c/repo unchanged"
 assert_norm linux-gnu "/opt/App/Sub" "/opt/App/Sub" "linux leaves normal path unchanged"
-assert_norm linux-gnu 'a\b' "a/b" "linux still converts backslashes"
+assert_norm linux-gnu 'a\b' "a/b" "linux still converts backslashes" # portability-ok: literal backslash in a path fixture, not a GNU grep \b word boundary
 
 # Explicit guard: on POSIX the two casings must NOT collapse to one value.
 if [[ "$(norm_as linux-gnu /c/Repo)" != "$(norm_as linux-gnu /c/repo)" ]]; then
@@ -835,6 +835,370 @@ else
   fail "buffer_stdin timeout: rc=$bs_rc err=$(cat "$bs_err_file")"
 fi
 rm -f "$bs_rc_file" "$bs_err_file"
+
+# --- Test 18b: hook::buffer_stdin — stall AFTER a complete payload succeeds ---
+# The Win32-pipe late-EOF case the bounded read exists for: the producer emits a
+# COMPLETE JSON payload and then holds the pipe open past the read timeout. The
+# read still stalls, but jq confirms the payload is whole, so the function must
+# return it (rc 0) rather than block. This is the half of the contract that keeps
+# the chunked read from turning every slow producer into a blocked tool call.
+bs_rc_file="$(mktemp)"
+bs_out_file="$(mktemp)"
+{ printf '{"complete":true}'; sleep 1; } | {
+  CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT=0.4 hook::buffer_stdin >"$bs_out_file" 2>/dev/null
+  echo "$?" >"$bs_rc_file"
+}
+bs_rc=$(cat "$bs_rc_file")
+if [[ "$bs_rc" == "0" ]] && [[ "$(cat "$bs_out_file")" == '{"complete":true}' ]]; then
+  ok "buffer_stdin: complete JSON on a pipe held open past timeout → rc 0 + payload"
+else
+  fail "buffer_stdin late-EOF: rc=$bs_rc out=$(cat "$bs_out_file")"
+fi
+
+# ...and it must cost ONE window, not two. Re-arming on progress would otherwise
+# spend a second full window waiting for an EOF this producer never sends,
+# doubling the delay the bound is supposed to cap; the loop therefore stops as
+# soon as the buffer already parses as whole JSON. One window is the floor —
+# until a window expires, a held-open pipe is indistinguishable from a slow one.
+#
+# Asserted by COMPARISON, not against a wall-clock constant: both variants run
+# back to back on the same host, so runner load cancels out and no absolute
+# threshold has to be tuned. The slow variant is produced by overriding the
+# completeness predicate in a child shell (the same idiom Test 18e uses), which
+# reproduces the pre-fix behavior exactly. Timing is taken INSIDE the consumer —
+# the pipeline as a whole does not finish until the producer's sleep ends, so
+# bracketing the pipeline would measure the producer, not the read.
+bs_time_late_eof() { # $1 = shell prelude; prints elapsed ms (empty if untimed)
+  local t_file
+  t_file="$(mktemp)"
+  { printf '{"complete":true}'; sleep 3; } | {
+    CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT=1.2 bash -c '
+      source "$1"
+      eval "$2"
+      printf "%s\n" "${EPOCHREALTIME:-0}"
+      hook::buffer_stdin >/dev/null 2>&1
+      printf "%s\n" "${EPOCHREALTIME:-0}"
+    ' _ "$HOOK_DIR/hook-utils.sh" "$1" >"$t_file"
+  }
+  awk 'NR==1 {s=$0} NR==2 {e=$0}
+       END { if (s == 0 || e == 0 || NR < 2) print ""; else printf "%.0f", (e - s) * 1000 }' \
+    "$t_file"
+  rm -f "$t_file"
+}
+bs_fast=$(bs_time_late_eof "")
+bs_slow=$(bs_time_late_eof 'hook::json_complete() { return 1; }')
+if [[ -z "$bs_fast" || -z "$bs_slow" ]]; then
+  # Only legitimate below Bash 5.0, where EPOCHREALTIME does not exist. On a
+  # host that HAS it, an empty measurement means the harness broke — which would
+  # silently turn this case into a vacuous pass, so it fails instead.
+  if [[ -n "${EPOCHREALTIME:-}" ]]; then
+    fail "late-EOF timing harness produced no measurement (fast='$bs_fast' slow='$bs_slow')"
+  else
+    ok "buffer_stdin: late-EOF window count not timed (EPOCHREALTIME absent, Bash < 5.0)"
+  fi
+elif ((bs_fast < bs_slow - 400)); then
+  ok "buffer_stdin: late-EOF stops at the payload, not the bound (${bs_fast} ms vs ${bs_slow} ms)"
+else
+  fail "buffer_stdin late-EOF: ${bs_fast} ms vs ${bs_slow} ms reading on — expected >400 ms faster"
+fi
+rm -f "$bs_rc_file" "$bs_out_file"
+
+# --- Test 18c: hook::buffer_stdin — a large payload is neither blocked nor slow -
+# Regression for the defect the chunked read fixes: `read -d ''` consumed a pipe
+# byte-at-a-time, so the timeout was a throughput ceiling and a ~100 KB payload —
+# an ordinary full-file Write of a long document — tripped the stall branch and
+# every fail-closed caller blocked it. Drives a 256 KB payload (comfortably past
+# the old ~64 KB ceiling and past the 64 KB chunk size, so the read loop iterates)
+# through the real function on a real pipe, at the DEFAULT timeout: it must come
+# back whole, with rc 0. Asserted on content, not on wall-clock, so a loaded CI
+# runner cannot flake it — but if the byte-at-a-time read ever returns, this case
+# fails outright rather than merely slowing down.
+bs_big_file="$(mktemp)"
+bs_payload_file="$(mktemp)"
+bs_rc_file="$(mktemp)"
+bs_out_file="$(mktemp)"
+yes 'portable content with no delimiters of interest' | head -c 262144 >"$bs_big_file"
+jq -cn --rawfile c "$bs_big_file" \
+  '{hook_event_name:"PreToolUse",tool_name:"Write",tool_input:{file_path:"/tmp/big.md",content:$c}}' \
+  >"$bs_payload_file"
+# shellcheck disable=SC2002 # `cat |` is the point: it forces a real pipe on fd 0.
+cat "$bs_payload_file" | {
+  hook::buffer_stdin >"$bs_out_file" 2>/dev/null
+  echo "$?" >"$bs_rc_file"
+}
+bs_rc=$(cat "$bs_rc_file")
+bs_len=$(wc -c <"$bs_out_file")
+bs_content_len=$(jq -r '.tool_input.content | length' "$bs_out_file" 2>/dev/null || echo 0)
+if [[ "$bs_rc" == "0" ]] && ((bs_content_len == 262144)); then
+  ok "buffer_stdin: 256 KB payload on a pipe → rc 0, payload intact ($bs_len bytes)"
+else
+  fail "buffer_stdin large payload: rc=$bs_rc content_len=$bs_content_len buffered=$bs_len bytes"
+fi
+rm -f "$bs_big_file" "$bs_payload_file" "$bs_rc_file" "$bs_out_file"
+
+# --- Test 18d: hook::buffer_stdin — the bound is IDLE, not per-read total -----
+# `read -t` is a deadline for the whole requested read, not an inactivity timer,
+# so a producer that keeps delivering but slower than one chunk per window would
+# trip it even though the pipe is never idle. buffer_stdin must keep a timed-out
+# read's partial bytes and re-arm. Producer emits one character every 100 ms
+# against a 300 ms timeout — far too slow to fill a chunk in any single window —
+# then closes. Expect the whole payload back with rc 0.
+bs_rc_file="$(mktemp)"
+bs_out_file="$(mktemp)"
+{
+  printf '{"a":"'
+  for _ in 1 2 3 4 5 6 7 8 9 10; do
+    sleep 0.1
+    printf 'x'
+  done
+  printf '"}'
+} | {
+  CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT=0.3 hook::buffer_stdin >"$bs_out_file" 2>/dev/null
+  echo "$?" >"$bs_rc_file"
+}
+bs_rc=$(cat "$bs_rc_file")
+if [[ "$bs_rc" == "0" ]] && [[ "$(cat "$bs_out_file")" == '{"a":"xxxxxxxxxx"}' ]]; then
+  ok "buffer_stdin: steady trickle slower than one chunk per window → rc 0 (idle bound)"
+else
+  fail "buffer_stdin trickle: rc=$bs_rc out=$(cat "$bs_out_file")"
+fi
+
+# And the other side of the same contract: a trickle that then goes SILENT with
+# an incomplete payload must still fail closed. Re-arming on progress must not
+# become "never time out".
+: >"$bs_out_file"
+{
+  printf '{"a":"'
+  for _ in 1 2 3 4 5; do
+    sleep 0.1
+    printf 'x'
+  done
+  sleep 2
+} | {
+  CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT=0.3 hook::buffer_stdin >"$bs_out_file" 2>/dev/null
+  echo "$?" >"$bs_rc_file"
+}
+bs_rc=$(cat "$bs_rc_file")
+if [[ "$bs_rc" == "2" ]]; then
+  ok "buffer_stdin: trickle that then goes silent mid-payload → still rc 2"
+else
+  fail "buffer_stdin trickle-then-stall: rc=$bs_rc out=$(cat "$bs_out_file")"
+fi
+rm -f "$bs_rc_file" "$bs_out_file"
+
+# --- Test 18e: hook::buffer_stdin — the pre-4.1 (`read -d ''`) branch ---------
+# `read -N` is Bash 4.1+; macOS ships 3.2 and these hooks document 3.2+ support,
+# so the function falls back to the delimiter read below 4.1. CI and this host
+# run a modern bash, and BASH_VERSINFO is readonly so it cannot be shadowed —
+# hence the guard lives in its own predicate, which the child shell overrides to
+# select the fallback path FOR REAL rather than simulating it. First assert the
+# override actually flips the branch (otherwise these cases would be vacuous),
+# then that the fallback buffers a whole large payload and still fails closed.
+bs_big_file="$(mktemp)"
+bs_payload_file="$(mktemp)"
+bs_rc_file="$(mktemp)"
+bs_out_file="$(mktemp)"
+# shellcheck disable=SC2016 # $1 is deliberately the CHILD shell's positional, not this one's
+force_legacy='source "$1"; hook::read_supports_nchars() { return 1; }; '
+
+bs_branch=$(bash -c "${force_legacy}"'hook::read_supports_nchars && echo modern || echo legacy' \
+  _ "$HOOK_DIR/hook-utils.sh")
+if [[ "$bs_branch" == "legacy" ]]; then
+  ok "buffer_stdin: pre-4.1 guard override selects the delimiter-read branch"
+else
+  fail "pre-4.1 override did not flip the branch (got '$bs_branch'); cases below are vacuous"
+fi
+
+yes 'portable content with no delimiters of interest' | head -c 131072 >"$bs_big_file"
+jq -cn --rawfile c "$bs_big_file" \
+  '{hook_event_name:"PreToolUse",tool_name:"Write",tool_input:{file_path:"/tmp/big.md",content:$c}}' \
+  >"$bs_payload_file"
+# shellcheck disable=SC2002 # `cat |` is the point: it forces a real pipe on fd 0.
+cat "$bs_payload_file" | {
+  bash -c "${force_legacy}"'hook::buffer_stdin' _ "$HOOK_DIR/hook-utils.sh" \
+    >"$bs_out_file" 2>/dev/null
+  echo "$?" >"$bs_rc_file"
+}
+bs_rc=$(cat "$bs_rc_file")
+bs_content_len=$(jq -r '.tool_input.content | length' "$bs_out_file" 2>/dev/null || echo 0)
+if [[ "$bs_rc" == "0" ]] && ((bs_content_len == 131072)); then
+  ok "buffer_stdin: pre-4.1 delimiter-read fallback buffers a 128 KB payload (rc 0)"
+else
+  fail "buffer_stdin pre-4.1 fallback: rc=$bs_rc content_len=$bs_content_len"
+fi
+
+: >"$bs_out_file"
+{ printf '{"incomplete":'; sleep 2; } | {
+  CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT=0.4 \
+    bash -c "${force_legacy}"'hook::buffer_stdin' _ "$HOOK_DIR/hook-utils.sh" \
+    >"$bs_out_file" 2>/dev/null
+  echo "$?" >"$bs_rc_file"
+}
+bs_rc=$(cat "$bs_rc_file")
+if [[ "$bs_rc" == "2" ]]; then
+  ok "buffer_stdin: pre-4.1 fallback still fails closed on a stalled pipe (rc 2)"
+else
+  fail "buffer_stdin pre-4.1 stall: rc=$bs_rc"
+fi
+rm -f "$bs_big_file" "$bs_payload_file" "$bs_rc_file" "$bs_out_file"
+
+# --- Test 18f: hook::buffer_stdin — an unusable stdin_read_timeout ------------
+# stdin_read_timeout is consumer-configurable and reaches `read -t` directly, so
+# an unusable value is a silent DISABLE, not a tuning mistake: `read` rejects a
+# bad spec with rc 1 (which the loop reads as EOF → empty payload → every caller
+# skips) and prints a usage error on stderr on every hook invocation. `0` is
+# worse — `read -t 0` returns success having consumed nothing, which spins the
+# loop until the harness kills the hook. Both must degrade to the default and
+# still deliver the payload. The `0` case doubles as the loop-termination test:
+# before the guard it hung outright, so a regression here shows up as this suite
+# never finishing.
+for bs_bad in "abc" "0" "-1" "1e3" ""; do
+  bs_rc_file="$(mktemp)"
+  bs_out_file="$(mktemp)"
+  bs_err_file="$(mktemp)"
+  printf '{"ok":true}' | {
+    CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT="$bs_bad" hook::buffer_stdin \
+      >"$bs_out_file" 2>"$bs_err_file"
+    echo "$?" >"$bs_rc_file"
+  }
+  bs_rc=$(cat "$bs_rc_file")
+  if [[ "$bs_rc" == "0" ]] && [[ "$(cat "$bs_out_file")" == '{"ok":true}' ]] &&
+    [[ ! -s "$bs_err_file" ]]; then
+    ok "buffer_stdin: unusable stdin_read_timeout '$bs_bad' → default, payload intact, no stderr"
+  else
+    fail "buffer_stdin bad timeout '$bs_bad': rc=$bs_rc out=$(cat "$bs_out_file") err=$(cat "$bs_err_file")"
+  fi
+  rm -f "$bs_rc_file" "$bs_out_file" "$bs_err_file"
+done
+
+# A VALID non-default value must still be honored — the guard must not collapse
+# every setting to the default. 0.5 s against a producer that stalls for 3 s.
+bs_rc_file="$(mktemp)"
+{ printf '{"incomplete":'; sleep 3; } | {
+  CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT=0.5 hook::buffer_stdin >/dev/null 2>&1
+  echo "$?" >"$bs_rc_file"
+}
+bs_rc=$(cat "$bs_rc_file")
+if [[ "$bs_rc" == "2" ]]; then
+  ok "buffer_stdin: a valid non-default stdin_read_timeout is honored, not overridden"
+else
+  fail "buffer_stdin valid non-default timeout: rc=$bs_rc (expected 2)"
+fi
+rm -f "$bs_rc_file"
+
+# --- Test 18g: hook::buffer_stdin — a stall lands near ONE bound, not two -----
+# `read -t` reports only that its window expired, never WHEN inside it the last
+# byte arrived. Armed as a single window, a producer that emits bytes early and
+# then goes quiet is not declared stalled until the SECOND window expires —
+# almost twice the configured bound. Reading the bound in slices caps that
+# overshoot at one slice. Asserted by comparison against a variant with the slice
+# count forced to 1 (the unsliced behavior), both timed back to back so runner
+# load cancels out. The override is asserted to actually engage first — a
+# silently ineffective override would make this a vacuous pass, which has already
+# happened twice on this branch.
+bs_time_stall() { # $1 = shell prelude; prints elapsed ms (empty if untimed)
+  local t_file
+  t_file="$(mktemp)"
+  # Bytes land immediately, then the pipe goes quiet well past two bounds.
+  { printf '{"partial":'; sleep 4; } | {
+    CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT=1.2 bash -c '
+      source "$1"
+      eval "$2"
+      printf "%s\n" "${EPOCHREALTIME:-0}"
+      hook::buffer_stdin >/dev/null 2>&1
+      printf "%s\n" "${EPOCHREALTIME:-0}"
+    ' _ "$HOOK_DIR/hook-utils.sh" "$1" >"$t_file"
+  }
+  awk 'NR==1 {s=$0} NR==2 {e=$0}
+       END { if (s == 0 || e == 0 || NR < 2) print ""; else printf "%.0f", (e - s) * 1000 }' \
+    "$t_file"
+  rm -f "$t_file"
+}
+# shellcheck disable=SC2016 # $1 is the overriding function's own positional, not this shell's
+bs_unsliced='hook::resolve_read_slice() { printf "%s 1" "$1"; }'
+bs_slices=$(bash -c 'source "$1"; hook::resolve_read_slice 1.2' _ "$HOOK_DIR/hook-utils.sh")
+bs_slices_forced=$(bash -c 'source "$1"; '"$bs_unsliced"'; hook::resolve_read_slice 1.2' \
+  _ "$HOOK_DIR/hook-utils.sh")
+if [[ "$bs_slices" == "0.300 4" ]] && [[ "$bs_slices_forced" == "1.2 1" ]]; then
+  ok "buffer_stdin: slice resolution splits the bound, and the unsliced override engages"
+else
+  fail "slice resolution: got '$bs_slices' / forced '$bs_slices_forced'; cases below are vacuous"
+fi
+# A late-EOF payload whose length lands exactly on a 65536-character read
+# boundary completes on a read that returns rc 0, so it never reaches the
+# with-bytes completeness check — only the empty-slice one catches it. Without
+# that, this case waits out the whole bound instead of a slice. Asserted against
+# a deliberately NON-boundary length of the same shape, so the comparison isolates
+# the boundary rather than measuring absolute latency.
+bs_make_payload() { # $1 = exact payload length in bytes, $2 = destination file
+  # `{"p":"` + pad + `"}` — 8 bytes of envelope. Built with pure parameter
+  # expansion rather than a `yes | … | head -c` pipeline: the exact length is the
+  # entire point of this case, and a generator whose length depends on where the
+  # newline stripping happens (or on a pipeline terminating cleanly under MSYS)
+  # is one that can silently produce the wrong fixture.
+  local pad
+  printf -v pad '%*s' "$(($1 - 8))" ''
+  printf '{"p":"%s"}' "${pad// /a}" >"$2"
+}
+bs_time_held_open() { # $1 = exact payload length in bytes; prints elapsed ms
+  local payload_file t_file
+  payload_file="$(mktemp)"
+  t_file="$(mktemp)"
+  bs_make_payload "$1" "$payload_file"
+  { cat "$payload_file"; sleep 3; } | {
+    CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT=1.2 bash -c '
+      source "$1"
+      printf "%s\n" "${EPOCHREALTIME:-0}"
+      hook::buffer_stdin >/dev/null 2>&1
+      printf "%s\n" "${EPOCHREALTIME:-0}"
+    ' _ "$HOOK_DIR/hook-utils.sh" >"$t_file"
+  }
+  awk 'NR==1 {s=$0} NR==2 {e=$0}
+       END { if (s == 0 || e == 0 || NR < 2) print ""; else printf "%.0f", (e - s) * 1000 }' \
+    "$t_file"
+  rm -f "$payload_file" "$t_file"
+}
+# The whole case turns on the payload being EXACTLY chunk-sized, and an off-by-a-
+# few generator would quietly compare two non-boundary payloads. Assert the
+# lengths first.
+bs_len_file="$(mktemp)"
+bs_make_payload 65536 "$bs_len_file"
+bs_len_a=$(wc -c <"$bs_len_file")
+bs_make_payload 65000 "$bs_len_file"
+bs_len_b=$(wc -c <"$bs_len_file")
+rm -f "$bs_len_file"
+if ((bs_len_a == 65536)) && ((bs_len_b == 65000)); then
+  ok "buffer_stdin: chunk-boundary fixtures are exactly sized ($bs_len_a / $bs_len_b)"
+else
+  fail "chunk-boundary fixtures wrong size ($bs_len_a / $bs_len_b); the case below is vacuous"
+fi
+bs_boundary_ms=$(bs_time_held_open 65536)
+bs_offset_ms=$(bs_time_held_open 65000)
+if [[ -z "$bs_boundary_ms" || -z "$bs_offset_ms" ]]; then
+  if [[ -n "${EPOCHREALTIME:-}" ]]; then
+    fail "boundary timing harness produced no measurement ('$bs_boundary_ms' / '$bs_offset_ms')"
+  else
+    ok "buffer_stdin: chunk-boundary latency not timed (EPOCHREALTIME absent, Bash < 5.0)"
+  fi
+elif ((bs_boundary_ms < bs_offset_ms + 400)); then
+  ok "buffer_stdin: a 65536-char payload costs no more than a non-boundary one (${bs_boundary_ms} ms vs ${bs_offset_ms} ms)"
+else
+  fail "buffer_stdin chunk boundary: ${bs_boundary_ms} ms vs ${bs_offset_ms} ms non-boundary — boundary payload waits out the bound"
+fi
+
+bs_sliced_ms=$(bs_time_stall "")
+bs_unsliced_ms=$(bs_time_stall "$bs_unsliced")
+if [[ -z "$bs_sliced_ms" || -z "$bs_unsliced_ms" ]]; then
+  if [[ -n "${EPOCHREALTIME:-}" ]]; then
+    fail "stall timing harness produced no measurement (sliced='$bs_sliced_ms' unsliced='$bs_unsliced_ms')"
+  else
+    ok "buffer_stdin: stall overshoot not timed (EPOCHREALTIME absent, Bash < 5.0)"
+  fi
+elif ((bs_sliced_ms < bs_unsliced_ms - 400)); then
+  ok "buffer_stdin: stall declared near one bound, not two (${bs_sliced_ms} ms vs ${bs_unsliced_ms} ms unsliced)"
+else
+  fail "buffer_stdin stall overshoot: ${bs_sliced_ms} ms vs ${bs_unsliced_ms} ms unsliced — expected >400 ms faster"
+fi
 
 # --- Test 19: hook::emit_telemetry — EPOCHREALTIME-absent (Bash < 5.0) skip ---
 # On Bash < 5.0 EPOCHREALTIME is unset, so the caller's `start=${EPOCHREALTIME:-}`

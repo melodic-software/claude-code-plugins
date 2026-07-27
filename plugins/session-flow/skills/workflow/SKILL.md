@@ -7,11 +7,17 @@ disable-model-invocation: false
 shell: bash
 ---
 
-## Pre-computed context
+## Repository context — gather first
 
-Current branch: !`git branch --show-current 2>/dev/null || echo "not a git repository"`
-Working tree: !`git status --porcelain 2>/dev/null | head -20 || echo "clean"`
-Recent commits: !`git log --oneline -5 2>/dev/null || echo "no commits"`
+Collect these with **individual** Bash calls, one command per call:
+
+- Current branch — `git branch --show-current`
+- Working tree — `git status --porcelain`, reading **at most the first 20 entries**
+- Recent commits — `git log --oneline -5`
+
+Treat any failure as an unknown value and carry on. These are gathered here rather than pre-computed
+because a worktree-isolated agent refuses any command carrying a `$`-expansion — keep `$`-expansion
+out of the pre-compute block (#1687).
 
 ## Purpose
 

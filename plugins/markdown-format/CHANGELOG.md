@@ -3,6 +3,103 @@
 All notable changes to the `markdown-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.3]
+
+### Fixed
+
+- **Shared `hook-utils.sh`: a large tool payload no longer makes this plugin's hooks silently
+  skip (#1563).** `hook::buffer_stdin` read the hook payload with `read -d ''`, which consumes a
+  pipe one byte at a time (~32 KB/s on Git Bash), so the `stdin_read_timeout` bound was really a
+  ~64 KB throughput ceiling rather than the stall detector it was written to be. Past that ceiling
+  the read returned a truncated payload and rc 1, and this plugin's hooks took their `|| exit 0`
+  branch — the hook did not run at all, with no diagnostic, on exactly the large writes it was
+  most wanted for. The read is now chunked (`read -N`), which bash satisfies with block reads, and
+  the bound became a true idle bound: `read -t` is a deadline for the whole requested read rather
+  than an inactivity timer, so a timed-out read that nevertheless returned bytes is now treated as
+  progress — its partial chunk is kept and a fresh window is armed. Only a window that delivers
+  nothing at all is a stall. `read -N` is Bash 4.1+, and these hooks support Bash 3.2+ (macOS
+  system bash), so the pre-4.1 path falls back to the delimiter read inside the same re-arming
+  loop. Measured: 50 KB drops from ~2100 ms to ~20 ms, 200 KB from ~6800 ms to ~85 ms. Synced
+  from `lib/hook-utils.sh`; this plugin's own hook behavior is otherwise unchanged.
+
+## [0.8.2]
+
+### Fixed
+
+- **Carriage returns are normalized once at the source instead of twice at the
+  end.** `0.8.1` stripped `CTX` and `SYSMSG` after they were composed, leaving
+  `findings_raw` — which becomes `data.findings` — reading the raw linter output.
+  A review called that a live leak on the telemetry channel; on Windows it is
+  not, and the behavior turns out to be platform-specific. That array is built by
+  piping into `jq -R`, and against a Windows jq build the carriage returns are
+  already gone by the time jq emits. That is not established for the Linux jq
+  this repository's CI runs, which has no text/binary mode distinction — there
+  the normalization may be exactly what keeps the array clean. Which is the
+  argument for normalizing at the source rather than downstream: a payload should
+  not depend on which platform's stdio implementation is reading it, and one
+  strip replaces four that would each have to be remembered when a fifth consumer
+  appears. One consequence worth naming: the delta digest is hashed over
+  `findings_raw`, so every digest recorded before this version invalidates once
+  and produces one extra full-detail report per file. Self-correcting, and not a
+  regression.
+- **The carriage-return test could not fail — twice, for two different reasons.**
+  It grepped the report for `\r` while the stub that produced that report emitted
+  plain LF, so it passed identically whether the stripping code existed or was
+  reverted. A test that asserts a behavior and cannot fail is worse than no test:
+  it reads as coverage. The stub now emits real CRLF under `STUB_CRLF`. The
+  first rewrite of the assertion was **still** vacuous on three of its four
+  channels: on Git Bash, reading a value back through `printf | jq -r | $(…)`
+  normalizes CRLF pairs away, and every CR here sits at end of line — so a
+  decoded-value check structurally cannot see them. Only the fix-count line,
+  whose CR is mid-string, was visible. The assertion now inspects the
+  two-character `\r` escape in the raw emitted document instead, which is the
+  bytes the hook actually produces. Both rewrites were confirmed by
+  revert-probe rather than by reasoning.
+- **The `+N more rule(s)` suffix had no positive test.** Only the negative case
+  existed, and the stub could emit at most two distinct rule codes, so the
+  overflow path this feature was named for was structurally unreachable from the
+  suite. The stub now spreads findings across a configurable number of rule
+  codes, and the suffix is asserted with its count alongside the unchanged
+  top-five histogram.
+
+## [0.8.1]
+
+### Fixed
+
+- **The telemetry payload could be falsified rather than merely lost.**
+  `build_data_json` handed the findings array to `jq -n` as an `--argjson`
+  value. Windows caps a process command line at 32767 characters, and
+  `data.findings` is deliberately uncapped, so the array blew past that
+  somewhere between 300 and 600 entries (reproduced with the hooks' own jq:
+  300 pass, 600 fail with `rc=126`, "argument list too long"). `jq` never ran
+  and the fallback emitted an envelope claiming **zero** findings, with `tool`
+  and `file` blanked — for the noisiest files in the repository, which are the
+  ones a sink is most likely wired for. Telemetry is documented best-effort and
+  lossy, so a *dropped* envelope is inside contract; one that *arrives*
+  reporting a 600-finding file as clean is not. The array now reaches `jq` on
+  stdin; `tool` and `file` stay as arguments, both bounded by a path length.
+  The shared `hook::emit_telemetry` hands the finished payload over the same
+  way (#1595), so an oversized envelope is currently dropped rather than
+  delivered — the correct failure direction, and the one this change
+  establishes. The 600-finding case asserts the invariant that holds either way
+  and keeps holding once #1595 lands: lost, never falsified.
+- **Carriage returns leaked into the report.** `markdownlint-cli2` is a Node
+  process whose stdout is CRLF-terminated on Windows, and command substitution
+  strips only the trailing newline — so every retained violation line carried a
+  CR that survived JSON-escaping into `additionalContext` as a literal `\r`.
+- **The digest-store prune ran on every Markdown edit and was unbounded in
+  depth.** It now runs only when a *new* digest file is created — the steady
+  state for a repeatedly-edited file already has one, so the common path no
+  longer walks the directory at all — and carries `-maxdepth 1`.
+  `CLAUDE_PLUGIN_DATA` is shared with the `trust-approvals` tree and with
+  whatever a future version of this plugin puts there; a recursive age-based
+  `-delete` has no business reaching into a sibling's state.
+- **The rule histogram truncated silently.** It named the top five rules and
+  stopped, so `MD013 x48` read as the whole story on a file where twelve more
+  rules were firing. It now carries `+N more rule(s)`, the same way the finding
+  list already reported its own remainder. A test asserts the suffix is absent
+  when every rule fits, so it cannot become permanent decoration.
+
 ## [0.8.0]
 
 ### Fixed

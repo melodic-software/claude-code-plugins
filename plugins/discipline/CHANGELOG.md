@@ -5,6 +5,107 @@ All notable changes to the `discipline` plugin are documented here. Format follo
 
 Entries below `0.9.0` were released under the plugin's former name, `re-anchor`.
 
+## [0.10.0]
+
+### Fixed
+
+- **`sweep-all`: the fork stop-rule was inert — nothing defined how to evaluate its guard
+  (`#1621`).** The runbook said "if forks are unavailable, report that the inheriting audit
+  fan-out cannot run and stop," but no part of the plugin defined how to determine that.
+  A rule whose guard cannot be evaluated is inert, not merely under-specified: the path that
+  actually ran was the blind one — non-inheriting subagents fabricating ledgers from their
+  system prompt, merged at step 3 and **written to the working tree** at step 4. Observed, not
+  hypothetical: a real full-batch run dispatched eight forks, all eight came back with no
+  inherited conversation, and only two subagents' refusal to invent a ledger stopped eight
+  fabrications from being merged.
+
+  A **preflight** now runs before the fan-out, in two stages. Stage 1 is a zero-dispatch paired
+  tool-schema read, and it deliberately **never gates**: fork mode "removes the
+  `run_in_background` parameter from the `Agent` tool"
+  (<https://code.claude.com/docs/en/sub-agents>) while `CLAUDE_CODE_DISABLE_BACKGROUND_TASKS`
+  removes it from "Bash and subagent tools" (<https://code.claude.com/docs/en/env-vars>), so
+  the pair discriminates those two causes — but the docs tie removal to the env-var path only
+  and say nothing about the server-side rollout, so no branch is conclusive and shipping it as
+  a gate would silently downgrade a working sweep. Stage 2 is the decider: ONE proof-only canary
+  fork, dispatched alone ahead of the first wave, carrying no corrector and returning no ledger.
+  Folding the canary into a member's real audit would look free and is not — a fork inherits
+  everything the session holds when it spawns, so a member ledger returned before wave 1 would
+  sit in every later fork's context and anchor its audit, breaking the independence the dedup
+  step relies on. The guard costs one extra fork, and the skill says so.
+  The runbook specifies the proof question's four *properties* — the answer exists only in
+  conversation history, the prompt neither contains nor paraphrases it, it keys on ordinary
+  inherited material, and it cannot be guessed — rather than a fixed question, and the main
+  thread **fails closed**: absent, ambiguous, or unverifiable proof counts as not inherited. A
+  conversation too thin to supply such a detail does not lose its audit — the main thread mints
+  a high-entropy value into the transcript before the canary spawns and asks for it back.
+
+- **`sweep-all`: the degraded mode existed only in `setup`, a file a sweep never loads
+  (`#1621`).** `setup` declared "where it is off, only the session-start posture digest runs"
+  while `sweep-all` declared "report and stop" — two contracts for one condition, and the
+  better one where the sweep could not read it, so the operator got nothing at all. The
+  degraded pass now lives in `sweep-all` (posture digest, the reason and the signal that
+  established it, and the direct-invocation path), and `setup` points at it instead of
+  restating it. This **refutes** the framing the audit was commissioned with: the brief asserted
+  no degraded mode existed and proposed a three-rung fallback ladder — a degraded mode was
+  already the plugin's declared position, and the ladder (audits weaker than the ones the skill
+  halts to avoid) is deliberately **not** built.
+
+- **`sweep-all`: "make NO writes" was presented as though the harness enforced it (`#1622`).**
+  It cannot. A named subagent's tools can be narrowed with `tools` / `disallowedTools`; forks
+  "skip both filters and receive the main conversation's exact tool pool"
+  (<https://code.claude.com/docs/en/sub-agents>), so every audit fork holds Write, Edit, and
+  Bash and is only *asked* not to use them — and the declared delta's safety argument rested on
+  that property. The skill now says so plainly, and treats a fork that wrote as untrusted output
+  to stop on rather than correct on top of. Detecting that a fork wrote is advisory here and
+  tracked as its own work in `#1631`: a prose-specified before/after digest protocol drew a
+  correct review finding in three consecutive rounds, which is the signal that deterministic
+  sub-work belongs in a script the skill calls — this plugin's own
+  `script-the-deterministic-work` position — reusing the repository's existing state-digest
+  contract rather than standing up a second parallel way of digesting a working tree.
+
+  `isolation: "worktree"` was considered as containment and **rejected**, with the reasoning
+  recorded in the skill so it is not re-proposed: a git worktree is created from a commit, so
+  isolated forks would not see the uncommitted work in flight — usually the very thing under
+  audit — and isolation would not bound a write addressed by an absolute path, of which
+  inherited history is full. It trades real audit fidelity for partial containment.
+
+- **`sweep-all`: the wave cap imported a number calibrated for a different kind of subagent, and
+  the shared budget was unmodeled (`#1623`).** "Like the `-deep` siblings" resolved to "roughly
+  a dozen", which is sized for cheap fresh-context subagents and exceeds
+  `CLAUDE_CODE_MAX_TOOL_USE_CONCURRENCY` (documented default 10); it also silently dropped those
+  siblings' mid-run checkpointing.
+
+  The replacement is not a smaller cap but a different default: **prefer ONE wave.** Splitting is
+  what breaks the ledger independence step 3's dedup assumes — a fork inherits everything the
+  session holds at spawn, so wave 2 reads wave 1's findings — and the `-deep` siblings carry no
+  such invariant, which is why their number never belonged here. The two documented limits are
+  also distinguished, which the old text conflated: `CLAUDE_CODE_MAX_TOOL_USE_CONCURRENCY`
+  (default 10) caps how many run at once, not how many you dispatch, while
+  `CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS` (default 20) is the hard spawn failure — so even a
+  fully-admitted set dispatches in one wave in a quiet session. Membership resolution decides
+  scope and concurrency decides only timing: a relevant corrector is never dropped to fit a
+  budget; the pass waits for capacity. `CLAUDE_CODE_MAX_SUBAGENTS_PER_SESSION` (default 200) is
+  modeled too, and per-wave checkpointing is restored for the split fallback that needs it.
+
+- **`sweep-all`: the retry rule never defined failure (`#1621`).** "Retry only a failed subset,
+  once" did not cover the actual exposure — a fabricated ledger is not an errored dispatch.
+  Failure now explicitly includes a ledger returned without verified inheritance proof.
+
+### Changed
+
+- **`sweep-all`: the undocumented fork-off fallback is now labelled as an observation.** The
+  runbook asserted that requesting the `fork` type with fork mode off "falls back to a fresh
+  general-purpose subagent" as though it were documented harness behavior. It appears on no
+  current official page. It is now flagged observed-not-documented, and the preflight no longer
+  depends on it — it proves inheritance positively instead of predicting the shape of its
+  absence. (Asserting undocumented behavior as fact is precisely what this plugin's flagship
+  corrector exists to catch.)
+
+### Added
+
+- **`sweep-all` evals: two entries for paths every existing eval assumed away** — the
+  failed-canary degrade, and the fork tool pool being verified rather than enforced.
+
 ## [0.9.0]
 
 ### Changed

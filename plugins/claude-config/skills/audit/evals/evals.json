@@ -75,6 +75,20 @@
         "Treats an orphan plugin set to true (absent upstream) as report-only, never auto-removed",
         "Records a newly-discovered upstream plugin as an explicit enabledPlugins false entry rather than silently enabling it"
       ]
+    },
+    {
+      "id": 7,
+      "name": "read-deny-scope-not-overstated",
+      "prompt": "/audit permissions — our settings.json already has Read(./.env) and Read(./secrets/**) in permissions.deny, so are our secrets protected?",
+      "expected_output": "A Category B report that confirms the baseline sensitive-file-deny patterns are present AND states the scope of a Read deny rather than answering yes: it covers the built-in file tools and the Bash file commands Claude Code recognizes (cat, head, tail, sed), but not a subprocess that opens the path itself (a python -c or node -e one-liner). It ranks the remedies — sandbox filesystem.denyRead / credentials.files for OS-level enforcement, noting the sandbox does not run on native Windows; a PreToolUse hook as a best-effort speed bump; and keeping the secret out of the session's reach as the durable control — and does not propose enumerating Bash(cat *)-style deny globs.",
+      "files": [],
+      "expectations": [
+        "Does NOT answer that the secrets are protected simply because the deny patterns are present",
+        "States that a Read deny covers the built-in file tools and recognized Bash file commands but not a subprocess that opens the file itself",
+        "Does NOT propose enumerating shell readers as Bash(...) deny globs as the remedy",
+        "Names the sandbox (filesystem.denyRead or credentials.files) as the OS-level enforcement path and notes it is unavailable on native Windows",
+        "Describes a PreToolUse hook as best-effort rather than as a boundary"
+      ]
     }
   ]
 }

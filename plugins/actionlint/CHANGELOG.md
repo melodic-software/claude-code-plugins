@@ -3,6 +3,37 @@
 All notable changes to the `actionlint` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.4]
+
+### Fixed
+
+- **Shared `hook-utils.sh`: a large tool payload no longer makes this plugin's hooks silently
+  skip (#1563).** `hook::buffer_stdin` read the hook payload with `read -d ''`, which consumes a
+  pipe one byte at a time (~32 KB/s on Git Bash), so the `stdin_read_timeout` bound was really a
+  ~64 KB throughput ceiling rather than the stall detector it was written to be. Past that ceiling
+  the read returned a truncated payload and rc 1, and this plugin's hooks took their `|| exit 0`
+  branch — the hook did not run at all, with no diagnostic, on exactly the large writes it was
+  most wanted for. The read is now chunked (`read -N`), which bash satisfies with block reads, and
+  the bound became a true idle bound: `read -t` is a deadline for the whole requested read rather
+  than an inactivity timer, so a timed-out read that nevertheless returned bytes is now treated as
+  progress — its partial chunk is kept and a fresh window is armed. Only a window that delivers
+  nothing at all is a stall. `read -N` is Bash 4.1+, and these hooks support Bash 3.2+ (macOS
+  system bash), so the pre-4.1 path falls back to the delimiter read inside the same re-arming
+  loop. Measured: 50 KB drops from ~2100 ms to ~20 ms, 200 KB from ~6800 ms to ~85 ms. Synced
+  from `lib/hook-utils.sh`; this plugin's own hook behavior is otherwise unchanged.
+
+### Changed
+
+- **`stdin_read_timeout` is documented as the idle bound it now is.** This plugin already exposed
+  the option, and its README, manifest description, and setup skill all described it as bounding
+  "reading the hook payload from stdin before failing open" — a total read deadline. It is now an
+  inactivity deadline: any byte resets it, so a producer that keeps emitting is bounded by Claude
+  Code's own hook timeout rather than by this value, and the bound is read in four slices so a stall
+  is detected within a quarter of the configured interval — except on a shell without fractional
+  `read -t` (Bash 3.2, the macOS system shell), where the bound is read as one window and the
+  detection can take up to two intervals. Documentation only — the configuration
+  contract users read was materially misleading after the shared-library change above.
+
 ## [0.7.3]
 
 ### Changed
