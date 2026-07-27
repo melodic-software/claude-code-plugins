@@ -108,6 +108,16 @@
       ],
       "credential_roots": "/home/runner"
     },
+    "evidence-empty.json": {
+      "binding": "promoted-c3-only.json",
+      "evidence": "evidence-empty.json",
+      "exit": 0,
+      "findings_substrings": [
+        "C3-auto-merge: bound promoted -> effective unpromoted",
+        "prerequisite cell(s) not promoted (C2-auto-merge)"
+      ],
+      "credential_roots": "/home/runner"
+    },
     "evidence-stale.json": {
       "binding": "promoted-c2.json",
       "evidence": "evidence-stale.json",
@@ -528,6 +538,11 @@
       "credential_roots": "/home/runner"
     },
     "promoted-c2c3.json": {
+      "exit": 0,
+      "findings_substrings": [],
+      "credential_roots": "/home/runner"
+    },
+    "promoted-c3-only.json": {
       "exit": 0,
       "findings_substrings": [],
       "credential_roots": "/home/runner"

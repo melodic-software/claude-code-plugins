@@ -1705,7 +1705,18 @@ function resolveEffectivePromotion(binding, evidencePath) {
         preEpoch.push(`${source}${event.event} at ${event.at}`);
       }
     }
-    if (bound === "promoted" && inEpoch.length > 0) {
+    // A dependent promotion never outlives its prerequisite: contrary
+    // evidence against the prerequisite is handled above, but the
+    // prerequisite may already be BOUND unpromoted (e.g. after the human
+    // applied a demotion update) — the dependent cell lowers with it.
+    const unpromotedPrereqs = dependencyCells.filter(
+      (dep) => !(isPlainObject(promotionState[dep]) && promotionState[dep].state === "promoted"),
+    );
+    if (bound === "promoted" && unpromotedPrereqs.length > 0) {
+      lines.push(
+        `${cell}: bound promoted -> effective unpromoted — prerequisite cell(s) not promoted (${unpromotedPrereqs.join(", ")}); the predicate this cell was earned on requires its prerequisite promoted, so the dependent promotion lowers with it`,
+      );
+    } else if (bound === "promoted" && inEpoch.length > 0) {
       lines.push(
         `${cell}: bound promoted -> effective unpromoted — ceiling lowered by contrary evidence (${inEpoch.join("; ")}) WITHOUT modifying the binding; demotion files an escalation item on route ${JSON.stringify(binding.escalation_routes?.demotion)} requesting the human-ratified binding update`,
       );
