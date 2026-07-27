@@ -294,9 +294,9 @@ the **Write tool** — only a Write tool call fires the `PostToolUse` event a co
 out-of-band notification hook keys on; a shell redirect writes the same bytes but emits only a
 `Bash` event the seam's `Write` matcher never sees — body
 `{"schema":"loop-lane/escalation-record@1","lane":"babysit-loop","kind":"escalated","repo":"<owner>/<repo>","item":"<item URL>","summary":"<the marker comment's one-line question>","written_at":"<UTC ISO-8601>"}`.
-The record write carries the marker's own duplicate suppression: it happens exactly when a NEW
-marker comment is posted, so an item this lane already escalated — its marker comment standing
-from a prior cycle — gets no second record and fires no second webhook. The summary restates
+The record write is conditioned on the marker post: it happens exactly when this cycle posts a
+NEW machine-marked escalation comment, so an item this lane already escalated — its marker
+comment standing from a prior cycle — gets no second record and fires no second webhook. The summary restates
 only the already-public comment text. No configured hook means the file is inert exhaust — the
 tracker item stays the escalation of record. Telemetry is the report surface, never the escalation channel.
 

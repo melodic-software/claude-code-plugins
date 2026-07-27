@@ -248,10 +248,12 @@ closed laptop or a dead process emits no hook event at all; the record write cov
 running but unattended, and lane-down detection stays with the stop gate and telemetry freshness
 (§4).
 
-**A configured hook can also fail silently.** An env-var name absent from `allowedEnvVars` — or
-unset in the operator's environment — interpolates as an empty string, and a non-2xx response or
-connection failure is a non-blocking error, so a misconfigured hook can 401 on every escalation
-while the lane runs on with nothing surfaced outside debug logs. Verify the leg when wiring it —
+**A configured hook can also fail silently.** An env-var name absent from `allowedEnvVars`
+interpolates as an empty string (documented: "references to unlisted variables are replaced with
+empty strings"); a listed name unset in the operator's environment has no value to supply and
+plausibly interpolates the same way — an applied inference, not stated in the docs. Either way, a
+non-2xx response or connection failure is a non-blocking error, so a misconfigured hook can 401 on
+every escalation while the lane runs on with nothing surfaced outside debug logs. Verify the leg when wiring it —
 write a throwaway record file with the Write tool and confirm the endpoint received the POST —
 and treat webhook silence across cycles that filed escalations as a check-the-hook signal, never
 as proof of health.
