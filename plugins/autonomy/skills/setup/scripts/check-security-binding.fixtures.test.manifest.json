@@ -88,6 +88,17 @@
       "findings_substrings": [],
       "credential_roots": "/home/runner"
     },
+    "evidence-c2-reearn-no-c3-revival.json": {
+      "binding": "promoted-c2reearned-c3.json",
+      "evidence": "evidence-c2-reearn-no-c3-revival.json",
+      "exit": 0,
+      "findings_substrings": [
+        "C2-auto-merge: bound promoted -> effective promoted (1 pre-epoch contrary event(s) ignored",
+        "C3-auto-merge: bound promoted -> effective unpromoted",
+        "C2-auto-merge (prerequisite cell) reverted-merge"
+      ],
+      "credential_roots": "/home/runner"
+    },
     "evidence-c2-revert-cascades-c3.json": {
       "binding": "promoted-c2c3.json",
       "evidence": "evidence-c2-revert-cascades-c3.json",
@@ -95,7 +106,7 @@
       "findings_substrings": [
         "C2-auto-merge: bound promoted -> effective unpromoted",
         "C3-auto-merge: bound promoted -> effective unpromoted",
-        "prerequisite cell(s) not effective-promoted (C2-auto-merge: demoted by contrary evidence"
+        "C2-auto-merge (prerequisite cell) reverted-merge"
       ],
       "credential_roots": "/home/runner"
     },
@@ -554,6 +565,11 @@
       "credential_roots": "/home/runner"
     },
     "promoted-c2c3.json": {
+      "exit": 0,
+      "findings_substrings": [],
+      "credential_roots": "/home/runner"
+    },
+    "promoted-c2reearned-c3.json": {
       "exit": 0,
       "findings_substrings": [],
       "credential_roots": "/home/runner"

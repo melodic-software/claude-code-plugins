@@ -1689,8 +1689,18 @@ function resolveEffectivePromotion(binding, evidencePath) {
       });
       continue;
     }
+    // Prerequisite-cell events count against the dependent too, judged in
+    // the DEPENDENT's epoch: a prerequisite demotion event inside this
+    // cell's epoch stays contrary here until THIS cell is re-ratified, even
+    // if the prerequisite is later re-earned — re-ratifying the prerequisite
+    // must never silently revive a dependent that consumed no re-earn of its
+    // own. (The prerequisite's own current state propagates in pass 2.)
+    const dependencyCells = PROMOTION_DEPENDENCIES[cell] ?? [];
     const contrary = events.filter(
-      (event) => isPlainObject(event) && event.cell === cell && CONTRARY_EVIDENCE_EVENTS.has(event.event),
+      (event) =>
+        isPlainObject(event) &&
+        (event.cell === cell || dependencyCells.includes(event.cell)) &&
+        CONTRARY_EVIDENCE_EVENTS.has(event.event),
     );
     // Contrary evidence is scoped to the promotion epoch: an event predating
     // the cell's ratified_at belongs to a previous epoch and was already
@@ -1702,13 +1712,14 @@ function resolveEffectivePromotion(binding, evidencePath) {
     const inEpoch = [];
     const preEpoch = [];
     for (const event of contrary) {
+      const source = event.cell === cell ? "" : `${event.cell} (prerequisite cell) `;
       const at = parseIsoStrict(event.at);
       if (Number.isNaN(at)) {
-        inEpoch.push(`${event.event} with non-ISO or unparsable at ${JSON.stringify(event.at)} — cannot be assigned to an epoch, treated as contrary (fail-closed)`);
+        inEpoch.push(`${source}${event.event} with non-ISO or unparsable at ${JSON.stringify(event.at)} — cannot be assigned to an epoch, treated as contrary (fail-closed)`);
       } else if (Number.isNaN(ratifiedAt) || at >= ratifiedAt) {
-        inEpoch.push(`${event.event} at ${event.at}`);
+        inEpoch.push(`${source}${event.event} at ${event.at}`);
       } else {
-        preEpoch.push(`${event.event} at ${event.at}`);
+        preEpoch.push(`${source}${event.event} at ${event.at}`);
       }
     }
     if (bound === "promoted" && inEpoch.length > 0) {
