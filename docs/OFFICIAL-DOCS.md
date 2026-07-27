@@ -23,13 +23,18 @@ One row per plugin component type, per the current [Plugins reference](https://c
 `Commands` is the legacy flat-markdown form of a skill — the [Skills](https://code.claude.com/docs/en/skills)
 page is authoritative for both. Statusline is not its own plugin component: it is one of the two
 settings keys (`subagentStatusLine`) a plugin's `settings.json` may set. Channels are declared via a
-`channels` manifest field bound to an MCP server, not a separate file location.
+`channels` manifest field bound to an MCP server, not a separate file location. Workflows have no
+per-component section in the Plugins reference — that page carries the slot in its standard-layout
+and file-locations tables, and the [Workflows](https://code.claude.com/docs/en/workflows) page is
+authoritative for the component. The manifest (`.claude-plugin/plugin.json`) is the container these
+components are declared in, not a component, so it has no row.
 
 | Component | Official doc page | Verified date |
 |---|---|---|
 | Skills (`skills/`) | <https://code.claude.com/docs/en/skills> | 2026-07-17 |
 | Commands — legacy flat-file skills (`commands/`) | <https://code.claude.com/docs/en/commands> | 2026-07-17 |
 | Agents / subagents (`agents/`) | <https://code.claude.com/docs/en/sub-agents> | 2026-07-17 |
+| Workflows (`workflows/`) | <https://code.claude.com/docs/en/workflows> | 2026-07-27 |
 | Hooks (`hooks/hooks.json`) | <https://code.claude.com/docs/en/hooks> | 2026-07-17 |
 | MCP servers (`.mcp.json`) | <https://code.claude.com/docs/en/mcp> | 2026-07-17 |
 | LSP servers (`.lsp.json`) | <https://code.claude.com/docs/en/plugins-reference#lsp-servers> | 2026-07-17 |
@@ -52,7 +57,7 @@ settings keys (`subagentStatusLine`) a plugin's `settings.json` may set. Channel
 | Hooks reference | <https://code.claude.com/docs/en/hooks> | 2026-07-17 |
 | Automate actions with hooks (guide) | <https://code.claude.com/docs/en/hooks-guide> | 2026-07-17 |
 | Subagents | <https://code.claude.com/docs/en/sub-agents> | 2026-07-17 |
-| Dynamic workflows — script-held orchestration, runtime agent caps | <https://code.claude.com/docs/en/workflows> | 2026-07-26 |
+| Dynamic workflows — script-held orchestration, runtime agent caps | <https://code.claude.com/docs/en/workflows> | 2026-07-27 |
 | MCP | <https://code.claude.com/docs/en/mcp> | 2026-07-17 |
 | Connect to MCP servers (quickstart) | <https://code.claude.com/docs/en/mcp-quickstart> | 2026-07-17 |
 | Output styles | <https://code.claude.com/docs/en/output-styles> | 2026-07-17 |

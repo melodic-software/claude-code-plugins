@@ -1323,9 +1323,11 @@ convention), so a contributor who touches a deferred surface finds the trigger w
   `research-deep-fanout.js`, `skills-audit.js`, `skills-evals.js`, `skills-remediate.js`): deferred
   2026-07-12 as not a plugin component, so these may be removed entirely rather than migrated.
   Re-verified 2026-07-27: the no-native-slot premise no longer holds — plugins now ship workflow
-  scripts via a `workflows/` directory or the `workflows` manifest field
-  (<https://code.claude.com/docs/en/plugins-reference#standard-plugin-layout>,
-  <https://code.claude.com/docs/en/workflows#distribute-a-workflow-in-a-plugin>) — but the deferral
+  scripts via a `workflows/` directory
+  (<https://code.claude.com/docs/en/plugins-reference#standard-plugin-layout>) or the `workflows`
+  manifest field (<https://code.claude.com/docs/en/plugins-reference#component-path-fields>), and a
+  plugin workflow runs plugin-namespaced
+  (<https://code.claude.com/docs/en/workflows#distribute-a-workflow-in-a-plugin>) — but the deferral
   stands on the usage question alone. **Recheck trigger:** the engines survive the next usage review
   (still earning their keep) → migrate through the native plugin `workflows/` slot, verifying each
   engine script fits the documented workflow-script shape, with a smoke test specced for that
@@ -1341,11 +1343,13 @@ convention), so a contributor who touches a deferred surface finds the trigger w
 
 ## Unused official plugin components — decision record (2026-07-12)
 
-Three official plugin components the marketplace does not yet use, evaluated for adoption against the
-enforcement hierarchy (default **REJECT** unless the value is concrete and not already covered by an
-existing mechanism). Facts verified fresh 2026-07-12 per `CLAUDE.md` "Fresh-docs mandate". Verdict for
-all three: **REJECT now**, each with an explicit recheck trigger — no implementation issues emitted (zero
-accepted).
+The three unused official plugin components raised as adoption candidates on this date, evaluated
+against the enforcement hierarchy (default **REJECT** unless the value is concrete and not already
+covered by an existing mechanism). This is that evaluation, not an index of every component the
+marketplace does not use — the [component-stances table](PLUGIN-PHILOSOPHY.md#component-stances) is
+that index, and it carries a stance for components never raised here. Facts verified fresh
+2026-07-12 per `CLAUDE.md` "Fresh-docs mandate". Verdict for all three: **REJECT now**, each with an
+explicit recheck trigger — no implementation issues emitted (zero accepted).
 
 - **Monitors** (`monitors/monitors.json` / `experimental.monitors`) — **REJECT.** Both candidates are
   either already covered or not concrete: a PR/CI watch duplicates `/source-control:pull-request monitor`
