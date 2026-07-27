@@ -16,9 +16,9 @@ invocation:
 - Working tree — `git status --porcelain`
 - Recent commits — `git log --oneline -5`
 
-These were pre-computed until #1619. The harness composes the whole pre-compute block into one shell
-invocation, and a worktree-isolated agent refuses a git-bearing compound command it cannot statically
-verify. Run individually, the same commands work everywhere.
+Treat a failure (not a repository, git unavailable) as an unknown value and carry on. These moved
+out of pre-compute in #1619 — the harness composes the block into one shell invocation and a
+worktree-isolated agent refuses a git-bearing compound command; do not fold them back.
 
 ## Purpose
 

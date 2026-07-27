@@ -19,9 +19,9 @@ invocation:
 - Recent commits — `git log --oneline -8`
 - Working tree status — `git status --porcelain`
 
-These were pre-computed until #1619. The harness composes the whole pre-compute block into one shell
-invocation, and a worktree-isolated agent refuses a git-bearing compound command it cannot statically
-verify. Run individually, the same commands work everywhere.
+Treat a failure (not a repository, git unavailable) as an unknown value and carry on. These moved
+out of pre-compute in #1619 — the harness composes the block into one shell invocation and a
+worktree-isolated agent refuses a git-bearing compound command; do not fold them back.
 
 # Orient
 
@@ -57,7 +57,7 @@ now" matters, not just "what did we just say."
      in-flight findings.
    This skill only reads these; it never writes them, so the write-time
    runtime guards do not apply. Degrade quietly when a location is absent.
-3. **Repo + off-thread state** — the pre-computed git block above, plus, when
+3. **Repo + off-thread state** — the git context gathered above, plus, when
    the tools are present and degrading gracefully when they are not: open
    pull requests (`gh pr list` for the current branch / author), open
    work-items (the consumer's tracker seam), and a glance at work running
