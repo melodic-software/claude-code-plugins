@@ -6,6 +6,9 @@ user-invocable: true
 disable-model-invocation: false
 allowed-tools: Bash(bash *audit-noise/scripts/detect.sh*)
 shell: bash
+metadata:
+  workflow-stage: anytime
+  summary: Classify markdown for stale citations, ghost refs, and meta-commentary
 ---
 
 ## Pre-computed context

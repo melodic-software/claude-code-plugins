@@ -82,6 +82,7 @@ assert_flag "docs/topics new nested file" true "docs/topics/new-precedent/NOTES.
 assert_flag "README.md (catalog --check reads it)" false "README.md"
 assert_flag "docs/PLUGIN-ARTIFACT-PROTOCOL.md (validator reads it)" false "docs/PLUGIN-ARTIFACT-PROTOCOL.md"
 assert_flag "docs/CATALOG-TAXONOMY.md (catalog reads it)" false "docs/CATALOG-TAXONOMY.md"
+assert_flag "docs/SKILL-CHEAT-SHEET.md (cheat-sheet --check reads it)" false "docs/SKILL-CHEAT-SHEET.md"
 
 # --- conservative: any non-topics doc, and every code class, run full ------
 assert_flag "non-topics docs/ file" false "docs/MIGRATION-PLAYBOOK.md"

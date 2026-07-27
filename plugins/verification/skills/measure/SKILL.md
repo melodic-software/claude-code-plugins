@@ -4,6 +4,9 @@ description: "Verify a measurable-improvement claim against a baseline captured 
 user-invocable: true
 argument-hint: "[performance|metrics] [baseline|compare] (e.g., /verification:measure performance, /verification:measure metrics baseline)"
 disable-model-invocation: false
+metadata:
+  workflow-stage: verify
+  summary: Verify an improvement claim against a pre-change baseline
 ---
 
 ## Purpose

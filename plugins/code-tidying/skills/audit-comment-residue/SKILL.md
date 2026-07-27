@@ -6,6 +6,9 @@ user-invocable: true
 disable-model-invocation: false
 allowed-tools: Bash(bash *audit-comment-residue/scripts/detect.sh*)
 shell: bash
+metadata:
+  workflow-stage: review
+  summary: Classify code comments for history narration and session-reference residue
 ---
 
 ## Pre-computed context

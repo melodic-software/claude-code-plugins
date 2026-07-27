@@ -5,6 +5,9 @@ argument-hint: "<action> [version|text] — actions: fetch (default on passive m
 user-invocable: true
 disable-model-invocation: false
 shell: bash
+metadata:
+  workflow-stage: anytime
+  summary: Ingest a Claude Code release changelog and integrate its changes into the repo
 ---
 
 ## Variables

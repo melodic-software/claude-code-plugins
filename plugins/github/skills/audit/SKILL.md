@@ -2,6 +2,9 @@
 name: audit
 description: "Read-only audit of the GitHub settings/admin plane through the user's own gh CLI: current-state review, drift vs declared conventions, standards conformance, and cost signals over any coverage area (rulesets, billing, security model, Actions policy, webhooks, PATs, apps, and more). Use when: 'audit my GitHub org', 'check billing', 'review repo settings', 'GitHub drift', 'are my rulesets consistent', 'what does our Actions policy allow', 'review org security posture'. NOT for forward-looking design ('how should I configure X', 'walk me through setting up Y') — that is the advise skill. Bare invocation performs zero mutations — findings only; grounded in live gh state and freshly fetched official GitHub docs, never recall."
 argument-hint: "[area ...] [--apply]"
+metadata:
+  workflow-stage: anytime
+  summary: Read-only audit of GitHub org and repo settings, drift, and cost signals
 ---
 
 # github audit

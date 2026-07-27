@@ -5,6 +5,9 @@ argument-hint: "[paths] (optional — start with specific conflicted paths; defa
 user-invocable: true
 disable-model-invocation: false
 shell: bash
+metadata:
+  workflow-stage: pr
+  summary: Resolve merge and rebase conflicts by recovering both sides' intent
 ---
 
 ## Repository context — gather first

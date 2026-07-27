@@ -5,6 +5,9 @@ argument-hint: "[message-hint]"
 user-invocable: true
 disable-model-invocation: false
 shell: bash
+metadata:
+  workflow-stage: implement
+  summary: Commit with the resolved convention and surgical staging
 ---
 
 ## Pre-computed context

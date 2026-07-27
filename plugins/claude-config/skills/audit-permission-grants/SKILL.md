@@ -4,6 +4,9 @@ description: "Audit Claude Code permission GRANTS for portability and auto-mode 
 argument-hint: "[scope] — scope: frontmatter|settings|plugins|all (default: all)"
 user-invocable: true
 disable-model-invocation: false
+metadata:
+  workflow-stage: anytime
+  summary: Audit permission grants for portability and auto-mode durability
 ---
 
 ## Purpose

@@ -5,6 +5,8 @@ user-invocable: true
 disable-model-invocation: false
 metadata:
   discipline-batch: never  # heavier fan-out execution tier — invoked directly, not batched
+  workflow-stage: anytime
+  summary: Fan out doc-by-doc upstream conformance checks across a whole subsystem
 ---
 
 # Recheck against upstream — deep

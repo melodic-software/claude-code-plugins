@@ -5,6 +5,9 @@ argument-hint: "[topic | arm] (e.g., /running-retro, /running-retro phase-3, /ru
 user-invocable: true
 disable-model-invocation: false
 shell: bash
+metadata:
+  workflow-stage: retro
+  summary: In-flight retro checkpoint appended to a running ledger
 ---
 
 ## Context — gather first

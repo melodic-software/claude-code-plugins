@@ -5,6 +5,9 @@ argument-hint: "[task or mode] (e.g., /implementation:implement, /implementation
 user-invocable: true
 disable-model-invocation: false
 shell: bash
+metadata:
+  workflow-stage: implement
+  summary: Execute approved plans with TDD, incremental validation, and green commits
 ---
 
 ## Pre-computed context
