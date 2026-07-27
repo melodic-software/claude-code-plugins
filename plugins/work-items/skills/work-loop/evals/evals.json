@@ -12,6 +12,7 @@
         "Runs the intake sweep via /work-items:triage in its autonomous lane, treating the loop's standing rules as the direction gate and prefixing created comments/items with the AI disclaimer",
         "Admits the C2 item autonomously; human-gates the C3 feature-shaped item and fail-closes the unclassified item",
         "Queues the C3 bug-fix item for first-drain ratification (human-gated role label + machine-marked kind=ratify-c3 comment) because first_drain_complete is false AND the item carries no recorded ratification — an item with attend-queue's ratification reply dispatches rather than re-queuing",
+        "Files the escalation record with the Write tool (never a shell redirect) for every NEWLY posted marker comment — the ratify-c3 queueing and the bot-advisory routing included, not step 5's escalations alone — ordering it after the comment and before the label edit, and writing no second record for a marker that already stands",
         "Applies the path/topic hard gate: the checksum-recomputation dependency bump is human-gated regardless of classification",
         "Routes workflow-bot-authored advisory issues to the human-gated role by default, and reports (never chases) intake that arrived after the cycle-start snapshot",
         "Escalates via the role label resolved from config.role_labels plus a machine-marked escalation comment — never a literal label comparison and never a new label",

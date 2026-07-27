@@ -242,7 +242,11 @@ Hard gates that override any classification:
   `list-frontier --autonomous` while still failing `attend-queue`'s `[ratify]` row condition,
   so no later cycle and no operator view can repair it. Confirm or create the marker, then edit
   the labels; if the comment cannot be written, change no label and leave the item on the frontier
-  for the next cycle to retry.
+  for the next cycle to retry. Creating the marker here files an escalation, so it carries step
+  5's escalation record write on the same terms — one record per NEWLY posted marker, none when
+  the marker already stands. Order it after the comment and before the labels; unlike the comment,
+  a failed record write blocks nothing, because the tracker item is already the escalation of
+  record and only the out-of-band leg degrades.
 
   - **`kind=ratify-c3` comment — at most one, ever.** Before posting, read the item's existing
     comments; if a `kind=ratify-c3` marker comment **authored by the tracker seam's configured
@@ -342,5 +346,5 @@ report and stop cleanly rather than idling forever.
 - **Do not chase intake.** A bot filing items mid-cycle can hold a drain open forever; the
   snapshot rule exists precisely so new intake is reported and left for the next cycle's sweep.
 - **Telemetry is the report surface, never the escalation channel.** When human action is
-  required, the escalation contract (role label + machine-marked comment) is the path; a note in
-  the telemetry comment alone is invisible to the attended queue.
+  required, the escalation contract (role label + machine-marked comment + the step-5 record
+  write) is the path; a note in the telemetry comment alone is invisible to the attended queue.

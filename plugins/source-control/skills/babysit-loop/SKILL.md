@@ -296,9 +296,10 @@ out-of-band notification hook keys on; a shell redirect writes the same bytes bu
 `{"schema":"loop-lane/escalation-record@1","lane":"babysit-loop","kind":"escalated","repo":"<owner>/<repo>","item":"<item URL>","summary":"<the marker comment's one-line question>","written_at":"<UTC ISO-8601>"}`.
 The record write is conditioned on the marker post: it happens exactly when this cycle posts a
 NEW machine-marked escalation comment, so an item this lane already escalated — its marker
-comment standing from a prior cycle — gets no second record and fires no second webhook. The summary restates
-only the already-public comment text. No configured hook means the file is inert exhaust — the
-tracker item stays the escalation of record. Telemetry is the report surface, never the escalation channel.
+comment standing from a prior cycle — gets no second record and fires no second webhook. The
+summary restates only the already-public comment text. No configured hook means the file is inert
+exhaust — the tracker item stays the escalation of record. Telemetry is the report surface, never
+the escalation channel.
 
 **Pre-escalation resolution attempt, explicit-`autopilot` only.** When — and only when — this
 invocation's own argument line typed both the literal `autopilot` tier argument and

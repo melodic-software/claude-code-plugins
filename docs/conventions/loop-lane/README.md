@@ -222,9 +222,11 @@ Every element is a documented first-party mechanism (verified against
   tracked settings file, so by that settings-source rule the one tracked rule anchors at each
   worktree's own root — an applied inference: the docs state worktree matching explicitly only
   for local-settings rules.
-- Header values interpolate environment variables only for names listed in `allowedEnvVars`; the
-  `url` field never interpolates. The endpoint URL is tracked config; the secret rides only in the
-  operator's environment, never in the repo.
+- Header values interpolate environment variables only for names listed in `allowedEnvVars`. The
+  docs document interpolation for `headers` alone and say nothing about `url`, so treat the `url`
+  field as non-interpolating — an applied inference, and the reason the endpoint URL is tracked
+  config while the secret rides only in a header sourced from the operator's environment, never in
+  the repo.
 - **Egress note.** The POST body is the full `PostToolUse` hook input, not just the record:
   alongside `tool_input` (the record's path and content) it carries session metadata — for
   example `session_id`, `cwd`, and `transcript_path`, which are absolute local paths and project
@@ -237,13 +239,17 @@ Every element is a documented first-party mechanism (verified against
 controls: a generic webhook receiver, an internal alerting service, or a relay that reshapes the
 payload for a chat service (a Slack incoming webhook expects its own JSON shape and rejects the
 raw hook payload, so Slack reach goes through a relay). Two non-deterministic layers may ride
-alongside, never instead: the built-in `PushNotification` tool and outbound send via the official
-`slack` plugin (model-driven). `PushNotification` "sends a desktop notification, and a phone push
-when Remote Control is connected"; it prompts for no permission, but the model decides when to
-call it, and its phone reach inherits Remote Control's own requirements — a claude.ai Pro, Max,
-Team, or Enterprise login (never an API key), with the mobile app registered and push enabled
-(verified 2026-07-27: <https://code.claude.com/docs/en/tools-reference>,
-<https://code.claude.com/docs/en/remote-control>). Only the http hook is the deterministic leg.
+alongside, never instead: the built-in `PushNotification` tool, and model-driven outbound send via
+a chat plugin (UNVERIFIED here — confirm the plugin and its send capability against its own docs
+before relying on it). `PushNotification` "sends a desktop notification, and a phone push when
+Remote Control is connected"; it prompts for no permission, but the model decides when to call it.
+Its phone leg therefore inherits Remote Control's documented requirements — a claude.ai Pro, Max,
+Team, or Enterprise plan (API keys unsupported), a claude.ai login, a session talking directly to
+the Anthropic API, and accepted workspace trust — and additionally needs the separately documented
+mobile setup: the app installed and signed in on the same account, OS notifications allowed, and
+push enabled in `/config` (verified 2026-07-27:
+<https://code.claude.com/docs/en/tools-reference>, <https://code.claude.com/docs/en/remote-control>).
+Only the http hook is the deterministic leg.
 
 **Degradation.** A consuming repo with no hook configured loses only the out-of-band leg — the
 tracker escalation and the local notify are unchanged, and the record files are inert exhaust. A
@@ -256,10 +262,10 @@ interpolates as an empty string (documented: "references to unlisted variables a
 empty strings"); a listed name unset in the operator's environment has no value to supply and
 plausibly interpolates the same way — an applied inference, not stated in the docs. Either way, a
 non-2xx response or connection failure is a non-blocking error, so a misconfigured hook can 401 on
-every escalation while the lane runs on with nothing surfaced outside debug logs. Verify the leg when wiring it —
-write a throwaway record file with the Write tool and confirm the endpoint received the POST —
-and treat webhook silence across cycles that filed escalations as a check-the-hook signal, never
-as proof of health.
+every escalation while the lane runs on with nothing surfaced outside debug logs. Verify the leg
+when wiring it — write a throwaway record file with the Write tool and confirm the endpoint
+received the POST — and treat webhook silence across cycles that filed escalations as a
+check-the-hook signal, never as proof of health.
 
 ## 3. Capability tiers
 

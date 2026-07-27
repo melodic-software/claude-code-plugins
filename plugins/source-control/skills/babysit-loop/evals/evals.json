@@ -65,6 +65,7 @@
         "Treats babysit_default_tier as a babysit-prs key for a bare invocation of that skill, never a source of this lane's tier and never a route to the exception",
         "Keeps the effective merge rung at the tracked c2-mechanical, so the C3 PR is outside the rung and routes to the safe per-PR pass",
         "Escalates the C3 PR's unresolved thread normally — the fresh-subagent pre-escalation resolver is reachable only under the typed autopilot + --merge c3-this-run exception",
+        "Files the escalation record alongside that escalation's NEW machine-marked comment, created with the Write tool rather than a shell redirect, and writes no second record when the marker already stands from a prior cycle",
         "Excludes the C4 structural PR before the rung comparison, unconditionally, citing the autonomy matrix's never-promotes contract rather than a rung value",
         "Excludes the fork PR as C5 on the PR's own cross-repository provenance rather than the C2 class recorded on the item it closes, and does not reach that verdict by comparing an author login to the watched-owner allowlist",
         "Reports the tier source and the merge-rung source separately rather than collapsing them into one effective tier"

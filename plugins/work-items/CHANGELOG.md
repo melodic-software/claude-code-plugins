@@ -8,7 +8,8 @@ All notable changes to the `work-items` plugin are documented here. Format follo
 ### Added
 
 - **`work-loop` escalation record write — deterministic surface for out-of-band notification
-  (#1650).** Escalating (step 5, and step 2's routed-advisory routing) now also creates
+  (#1650).** Escalating — step 5, step 2's routed-advisory routing, and the admission gate's
+  first-drain `kind=ratify-c3` queueing — now also creates
   `.claude/lane-escalations/<UTC-stamp>-<item>-work-loop.json` with the Write tool in the same
   step that files the tracker escalation — one new file per NEWLY filed escalation (the write
   carries the marker comment's own duplicate suppression), `loop-lane/escalation-record@1`
