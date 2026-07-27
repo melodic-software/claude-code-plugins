@@ -23,6 +23,15 @@ behavior; this binding and topic-docs remain authoritative for their placement.
 | `baselines/` — machine-bound captures from the plan skill's baseline step | Memory | `.work/<topic-slug>/baselines/` |
 | Opt-in `brainstorm.md` (`/planning:brainstorm` — never a default write) | Memory | `.work/<topic-slug>/` |
 | `questionnaire-<recipient-role-slug>.md` (`/planning:questionnaire`) | Memory | `.work/<topic-slug>/` — never committed; names a real person, so the memory tier's self-ignore is load-bearing |
+| `interview-round-<n>.html` — the dense-round decision table (`/planning:interview`) | Ephemeral | One OS temp directory per interview run, created through the platform's temp API; each round's file lands inside it, is handed back as a path, and is never deleted before returning |
+
+The round tables are ephemeral, not memory-tier: nothing downstream reads one again. `/planning:interview`
+records every resolved branch in the `interview-checklist.md` ledger the moment it locks, and a resumed
+session picks up from the first open ledger checkbox — never from a round's HTML. A user reopening a table
+mid-interview is exactly what the tier's lifetime rule covers (a returned path stays readable), so it is not
+a reason to persist. One directory per run keeps the per-round files from becoming the accumulating tree the
+tier's footprint rule prohibits. The rules are the contract's — one deterministic path, never the session
+scratchpad, no delete-before-return — not a delta of this plugin's.
 
 `contract_tier: local` moves the contract rows into the memory slice with an identical layout —
 the contract's solo/offline mode. Roots are configurable via the concern file's `contract_dir` /

@@ -3,6 +3,28 @@
 All notable changes to the `education` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.3]
+
+### Fixed
+
+- `/education:teach`'s optional HTML output no longer calls itself "ephemeral placement"
+  while writing into persistent machine state, and no longer offers two placements for
+  one artifact. The bullet in `skills/teach/context/lessons.md` allowed either the
+  workspace concept slice **or** OS temp, which made placement non-deterministic, and its
+  title collided with the marketplace topic-docs **ephemeral tier** — a tier a workspace
+  artifact does not belong in. A concept's HTML *is* that concept's lesson artifact: the
+  workspace is durable cross-session coaching state that `resume` reopens and the
+  Staleness check re-reads, so it is machine state, and the single placement is now the
+  concept slice. "Ephemeral" elsewhere in the doc is pedagogical (rarely revisited,
+  regenerable) and is now stated as such.
+- The `primer` action's HTML vocabulary ladder had **no resolvable path**: it routed
+  through the workspace placement above while creating no workspace, so there was no
+  `<mode>`, `<topic>`, or `<concept>` to substitute. It is read once and never again, so
+  it is now routed explicitly through the topic-docs ephemeral tier — one file per run
+  via the platform's temp primitive, resolved deterministically, never the session
+  scratchpad, and never deleted before the path is handed back. See
+  `docs/conventions/topic-docs/README.md` §"The ephemeral tier".
+
 ## [0.5.2]
 
 ### Changed

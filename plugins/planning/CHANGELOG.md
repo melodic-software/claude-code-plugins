@@ -3,6 +3,23 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.26.4]
+
+### Changed
+
+- `/planning:interview`'s dense-round decision table moves from the topic's memory
+  slice to the topic-docs **ephemeral tier**. `<memory_dir>/<topic-slug>/interview-round-<n>.html`
+  was memory-tier state that nothing downstream ever reads: the skill's own text names
+  the ledger and terminal as the tracked record, and a resumed session picks up from the
+  first open `interview-checklist.md` checkbox, never from a round's HTML. The binding's
+  artifact table never listed the file either. Rounds now render into **one** OS temp
+  directory per interview run — one directory per run rather than per-round files
+  accumulating in the repo — resolved deterministically, never the session scratchpad,
+  and never deleted before the path is handed back. A user reopening a table
+  mid-interview is what the tier's lifetime rule already guarantees, so it is not a
+  reason to persist. See `docs/conventions/topic-docs/README.md` §"The ephemeral tier"
+  and this plugin's `reference/topic-docs.md`.
+
 ## [0.26.3]
 
 ### Fixed

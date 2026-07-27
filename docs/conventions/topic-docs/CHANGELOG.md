@@ -25,6 +25,25 @@
   git-visibility, promotion-stage, and write-contention each needed no
   change.
 
+  A sweep of every markdown producer in `plugins/**` for throwaway-file
+  behavior found two more surfaces the new row reclassifies, and both
+  are corrected here rather than deferred, because a row that leaves
+  known contradictions standing in the tree is not yet a contract.
+  `/planning:interview`'s dense-round decision table moves out of the
+  memory slice into this tier: the skill's own text names the ledger and
+  terminal as the record, a resumed session picks up from the first open
+  ledger checkbox, and the plugin's binding never listed the file — so
+  it was memory-tier state nothing read. `/education:teach` moves the
+  other way and is the reason the row is a **classification**, not a
+  destination: its concept HTML *is* that concept's lesson artifact in a
+  workspace `resume` reopens, so it is machine state and stays there —
+  the defect was a bullet titled "Ephemeral placement" offering the
+  workspace **or** OS temp for one artifact. Its `primer` action, which
+  creates no workspace at all, is the genuinely ephemeral half and had
+  no resolvable path before. The remaining sweep hits are
+  producer-consumed plumbing (a `mktemp` file the producer itself reads
+  and hands to no one) or deliberate machine state, and are untouched.
+
   Rule 2 is stated because both existing adopters hand their file back
   as a path for the user to open — a `finally` cleanup would race the
   reader and return a dead path. The row deliberately does **not**
