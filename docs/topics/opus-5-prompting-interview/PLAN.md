@@ -568,8 +568,8 @@ text-embedded): Claude 2 CRITICAL / 10 IMPORTANT / 5 SUGGESTION; Codex 4 CRITICA
 (stale MD5 pins — 10/11 diverged post-corrections; `opus[1m]` settings alias carries no version)
 plus the stale-reference, prune-gate-baseline, worktree-collision, CI-gate-coverage, and
 seam-contradiction findings; all confirmed findings folded into the phases above. Rejected with
-rationale: Codex C2 (deliverable 6 "not implemented" — the Brief itself defers execution to task
-#18's slice) and Codex C3's scope claim (PLAN graduation + PROCESS.md queue migration are
+rationale: Codex C2 (deliverable 6 "not implemented" — the Brief itself defers execution to
+task #18's slice) and Codex C3's scope claim (PLAN graduation + PROCESS.md queue migration are
 explicitly briefed; transparency lines added instead).
 
 /devils-advocate formal pass (fresh context, post-fix): 2 CRITICAL / 2 HIGH / 3 MEDIUM / 2 LOW; all
