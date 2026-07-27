@@ -191,9 +191,15 @@ write_skill "$tree" alpha mapped 'workflow-stage: plan' \
 assert_fails "charset guard rejects YAML-special lead" "$tree" \
   "starts with a YAML-special character"
 
-# Remaining summaryError branches (the " #" branch is unreachable through the
-# generator — its reader strips trailing comments before the guard — and is
-# exercised by the sweep applier and skill-quality's cap check instead).
+# Remaining summaryError branches, plus the generator's own raw-value check:
+# a trailing " #" comment on a swept key is rejected from the RAW value before
+# comment-strip semantics apply, so a hand-edit cannot silently truncate.
+tree="$(mk_tree)"
+write_skill "$tree" alpha mapped 'workflow-stage: plan' \
+  'summary: truncated by a trailing # comment'
+assert_fails "trailing comment on a swept key" "$tree" \
+  'carries a trailing " #" comment'
+
 tree="$(mk_tree)"
 write_skill "$tree" alpha mapped 'workflow-stage: plan' 'summary:'
 assert_fails "empty summary" "$tree" "empty summary"

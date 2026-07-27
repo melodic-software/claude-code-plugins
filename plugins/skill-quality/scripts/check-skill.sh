@@ -1084,16 +1084,23 @@ done
 
 # --- Check 22: metadata.summary length cap -----------------------------------
 # The key is the generated skill cheat sheet's row source; the cap keeps rows
-# scannable. Length is Unicode CODEPOINTS, not bytes: ${#var} counts per
-# LC_CTYPE, so the measurement subshell pins a UTF-8 locale — under LC_ALL=C
-# an em-dash reads as 3 and would silently tighten the cap. The value is read
-# via metadata_field (trailing-comment strip) + strip_quotes, matching how the
+# scannable. Length is Unicode CODEPOINTS, not bytes, counted
+# locale-independently: UTF-8 -> UTF-32BE via iconv makes every codepoint
+# exactly 4 bytes, so byte-count/4 is the codepoint count on any host — a
+# locale-pinned ${#var} silently degrades to byte counting where the pinned
+# locale does not exist, tightening the cap for multi-byte summaries. Hosts
+# without iconv fall back to the UTF-8-locale form. The value is read via
+# metadata_field (trailing-comment strip) + strip_quotes, matching how the
 # sheet generator reads it.
 
 SUMMARY_CP_CAP=100
 CUR_SUMMARY="$(skill_frontmatter::strip_quotes "$(skill_frontmatter::metadata_field summary <<<"$FRONTMATTER")")"
 if [[ -n "$CUR_SUMMARY" ]]; then
-  SUMMARY_CP_LEN="$(LC_ALL=C.UTF-8; printf '%s' "${#CUR_SUMMARY}")"
+  if command -v iconv >/dev/null 2>&1; then
+    SUMMARY_CP_LEN=$(($(printf '%s' "$CUR_SUMMARY" | iconv -f UTF-8 -t UTF-32BE | wc -c) / 4))
+  else
+    SUMMARY_CP_LEN="$(LC_ALL=C.UTF-8; printf '%s' "${#CUR_SUMMARY}")"
+  fi
   if ((SUMMARY_CP_LEN > SUMMARY_CP_CAP)); then
     err "metadata.summary is $SUMMARY_CP_LEN codepoints (cap $SUMMARY_CP_CAP — the cheat sheet row it generates must stay scannable)"
   else

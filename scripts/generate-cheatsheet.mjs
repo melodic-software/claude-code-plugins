@@ -81,7 +81,8 @@ function readCheatsheetMeta(path) {
     if (lines[i].trim() === "---") break;
     fm.push(lines[i]);
   }
-  const meta = {};
+  const values = {};
+  const raw = {};
   let inMetadata = false;
   for (const line of fm) {
     if (/^metadata:\s*$/.test(line)) {
@@ -99,11 +100,15 @@ function readCheatsheetMeta(path) {
       }
       const m = line.match(/^\s+([A-Za-z0-9-]+):\s*(.*)$/);
       if (!m) continue;
+      // Raw value kept alongside the stripped one: the guard's " #" rejection
+      // must see the value BEFORE comment semantics apply, or a hand-edited
+      // trailing comment silently truncates instead of being rejected.
+      raw[m[1]] = m[2].trim();
       // Trailing-comment strip mirrors skill_frontmatter::metadata_field.
-      meta[m[1]] = m[2].replace(/\s+#.*$/, "").trim();
+      values[m[1]] = m[2].replace(/\s+#.*$/, "").trim();
     }
   }
-  return meta;
+  return { values, raw };
 }
 
 // --- Enforcement ------------------------------------------------------------
@@ -130,9 +135,21 @@ for (const s of skills) {
     EXCLUDED_PLUGINS.get(s.plugin) ??
     EXCLUDED_SKILLS.get(key) ??
     (s.skill === EXCLUDED_SKILL_NAME.name ? EXCLUDED_SKILL_NAME.reason : undefined);
-  const stage = s.meta["workflow-stage"];
-  const summary = s.meta["summary"];
-  const cadence = s.meta["cadence"];
+  const stage = s.meta.values["workflow-stage"];
+  const summary = s.meta.values["summary"];
+  const cadence = s.meta.values["cadence"];
+
+  // Reject a trailing comment on any swept key from the RAW value — after the
+  // strip the guard's own " #" branch is unreachable, and the stripped value
+  // would render a silently truncated row that reads as intended content.
+  for (const k of ["workflow-stage", "summary", "cadence"]) {
+    const rawValue = s.meta.raw[k];
+    if (rawValue !== undefined && rawValue !== s.meta.values[k]) {
+      errors.push(
+        `${key}: ${k} carries a trailing " #" comment — not allowed on swept keys (ambiguous YAML scalar)`,
+      );
+    }
+  }
 
   if (reason !== undefined) {
     if (stage !== undefined || summary !== undefined || cadence !== undefined) {
