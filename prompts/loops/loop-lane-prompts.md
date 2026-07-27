@@ -290,8 +290,9 @@ because `.claude/loop.md` is git-tracked and conflicts across machines.
   and safe across machines, but durable loop state is not: both lanes
   resolve the same telemetry issue and sentinel, making `item_cap`,
   `clean_streak`, `no_progress_streak`, `rate_limit_latch` and
-  `first_drain_complete` last-writer-wins. One machine setting `first_drain_complete` ends the C3
-  earn-trust gate for both. Use two machines for two repositories.
+  `first_drain_complete` last-writer-wins. One machine setting
+  `first_drain_complete` ends the C3 earn-trust gate for both. Use two
+  machines for two repositories.
 - **One merge lane per repository.** babysit-prs leases are machine-local
   files, so a second machine gets no mutual exclusion.
 - **Merge lane off the attended machine.** It competes for the same
