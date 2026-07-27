@@ -1671,19 +1671,26 @@ function resolveEffectivePromotion(binding, evidencePath) {
   }
 
   const promotionState = isPlainObject(binding.promotion_state) ? binding.promotion_state : {};
+
+  // Pass 1: each cell's OWN effective state — own-cell contrary events,
+  // scoped to the cell's own promotion epoch. Dependency propagation runs in
+  // pass 2 over these results, so a prerequisite's demotion is judged in the
+  // prerequisite's epoch, never the dependent's — a C2 revert that predates
+  // C3's ratification still demotes C2, and pass 2 lowers C3 with it.
+  const resolved = new Map();
   for (const [cell, entry] of Object.entries(promotionState)) {
     if (!isPlainObject(entry)) continue;
     const bound = entry.state;
     if (evidenceUnavailable) {
-      lines.push(`${cell}: bound ${bound} -> effective unpromoted (evidence unavailable, fail-closed)`);
+      resolved.set(cell, {
+        bound,
+        effective: "unpromoted",
+        line: `${cell}: bound ${bound} -> effective unpromoted (evidence unavailable, fail-closed)`,
+      });
       continue;
     }
-    const dependencyCells = PROMOTION_DEPENDENCIES[cell] ?? [];
     const contrary = events.filter(
-      (event) =>
-        isPlainObject(event) &&
-        (event.cell === cell || dependencyCells.includes(event.cell)) &&
-        CONTRARY_EVIDENCE_EVENTS.has(event.event),
+      (event) => isPlainObject(event) && event.cell === cell && CONTRARY_EVIDENCE_EVENTS.has(event.event),
     );
     // Contrary evidence is scoped to the promotion epoch: an event predating
     // the cell's ratified_at belongs to a previous epoch and was already
@@ -1695,39 +1702,52 @@ function resolveEffectivePromotion(binding, evidencePath) {
     const inEpoch = [];
     const preEpoch = [];
     for (const event of contrary) {
-      const source = event.cell === cell ? "" : `${event.cell} (prerequisite cell) `;
       const at = parseIsoStrict(event.at);
       if (Number.isNaN(at)) {
-        inEpoch.push(`${source}${event.event} with non-ISO or unparsable at ${JSON.stringify(event.at)} — cannot be assigned to an epoch, treated as contrary (fail-closed)`);
+        inEpoch.push(`${event.event} with non-ISO or unparsable at ${JSON.stringify(event.at)} — cannot be assigned to an epoch, treated as contrary (fail-closed)`);
       } else if (Number.isNaN(ratifiedAt) || at >= ratifiedAt) {
-        inEpoch.push(`${source}${event.event} at ${event.at}`);
+        inEpoch.push(`${event.event} at ${event.at}`);
       } else {
-        preEpoch.push(`${source}${event.event} at ${event.at}`);
+        preEpoch.push(`${event.event} at ${event.at}`);
       }
     }
-    // A dependent promotion never outlives its prerequisite: contrary
-    // evidence against the prerequisite is handled above, but the
-    // prerequisite may already be BOUND unpromoted (e.g. after the human
-    // applied a demotion update) — the dependent cell lowers with it.
-    const unpromotedPrereqs = dependencyCells.filter(
-      (dep) => !(isPlainObject(promotionState[dep]) && promotionState[dep].state === "promoted"),
-    );
-    if (bound === "promoted" && unpromotedPrereqs.length > 0) {
-      lines.push(
-        `${cell}: bound promoted -> effective unpromoted — prerequisite cell(s) not promoted (${unpromotedPrereqs.join(", ")}); the predicate this cell was earned on requires its prerequisite promoted, so the dependent promotion lowers with it`,
-      );
-    } else if (bound === "promoted" && inEpoch.length > 0) {
-      lines.push(
-        `${cell}: bound promoted -> effective unpromoted — ceiling lowered by contrary evidence (${inEpoch.join("; ")}) WITHOUT modifying the binding; demotion files an escalation item on route ${JSON.stringify(binding.escalation_routes?.demotion)} requesting the human-ratified binding update`,
-      );
+    if (bound === "promoted" && inEpoch.length > 0) {
+      resolved.set(cell, {
+        bound,
+        effective: "unpromoted",
+        demotedReason: `contrary evidence (${inEpoch.join("; ")})`,
+        line: `${cell}: bound promoted -> effective unpromoted — ceiling lowered by contrary evidence (${inEpoch.join("; ")}) WITHOUT modifying the binding; demotion files an escalation item on route ${JSON.stringify(binding.escalation_routes?.demotion)} requesting the human-ratified binding update`,
+      });
     } else {
       let line = `${cell}: bound ${bound} -> effective ${bound}`;
       if (preEpoch.length > 0) {
         line += ` (${preEpoch.length} pre-epoch contrary event(s) ignored: ${preEpoch.join("; ")} — predate ratified_at ${entry.ratified_at} and were consumed by the re-earn)`;
       }
-      lines.push(line);
+      resolved.set(cell, { bound, effective: bound === "promoted" ? "promoted" : "unpromoted", line });
     }
   }
+
+  // Pass 2: a dependent promotion never outlives its prerequisite. The
+  // prerequisite may be bound unpromoted (post-demotion binding update),
+  // have no promotion_state entry at all, or resolve effective-unpromoted
+  // from contrary evidence in ITS OWN epoch — including events predating the
+  // dependent's ratification. Any of these lowers the dependent cell.
+  // PROMOTION_DEPENDENCIES is a single-level map (no chains), so one pass
+  // over pass-1 results suffices.
+  for (const [cell, record] of resolved) {
+    if (record.effective !== "promoted") continue;
+    const failed = (PROMOTION_DEPENDENCIES[cell] ?? []).filter((dep) => resolved.get(dep)?.effective !== "promoted");
+    if (failed.length === 0) continue;
+    const detail = failed.map((dep) => {
+      const depRecord = resolved.get(dep);
+      if (!depRecord) return `${dep}: no promotion_state entry`;
+      if (depRecord.demotedReason) return `${dep}: demoted by ${depRecord.demotedReason}`;
+      return `${dep}: bound ${depRecord.bound}`;
+    });
+    record.effective = "unpromoted";
+    record.line = `${cell}: bound promoted -> effective unpromoted — prerequisite cell(s) not effective-promoted (${detail.join("; ")}); the predicate this cell was earned on requires its prerequisite promoted, so the dependent promotion lowers with it`;
+  }
+  for (const record of resolved.values()) lines.push(record.line);
   if (Object.keys(promotionState).length === 0) {
     lines.push("no promotion_state entries — every promotable cell is at its unpromoted default");
   }

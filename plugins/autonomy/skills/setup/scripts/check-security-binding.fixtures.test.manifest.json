@@ -95,7 +95,18 @@
       "findings_substrings": [
         "C2-auto-merge: bound promoted -> effective unpromoted",
         "C3-auto-merge: bound promoted -> effective unpromoted",
-        "C2-auto-merge (prerequisite cell) reverted-merge"
+        "prerequisite cell(s) not effective-promoted (C2-auto-merge: demoted by contrary evidence"
+      ],
+      "credential_roots": "/home/runner"
+    },
+    "evidence-c2-revert-mixed-epoch.json": {
+      "binding": "promoted-c2c3-late.json",
+      "evidence": "evidence-c2-revert-mixed-epoch.json",
+      "exit": 0,
+      "findings_substrings": [
+        "C2-auto-merge: bound promoted -> effective unpromoted",
+        "C3-auto-merge: bound promoted -> effective unpromoted",
+        "prerequisite cell(s) not effective-promoted (C2-auto-merge: demoted by contrary evidence"
       ],
       "credential_roots": "/home/runner"
     },
@@ -114,7 +125,7 @@
       "exit": 0,
       "findings_substrings": [
         "C3-auto-merge: bound promoted -> effective unpromoted",
-        "prerequisite cell(s) not promoted (C2-auto-merge)"
+        "prerequisite cell(s) not effective-promoted (C2-auto-merge: no promotion_state entry)"
       ],
       "credential_roots": "/home/runner"
     },
@@ -533,6 +544,11 @@
       ]
     },
     "promoted-c2.json": {
+      "exit": 0,
+      "findings_substrings": [],
+      "credential_roots": "/home/runner"
+    },
+    "promoted-c2c3-late.json": {
       "exit": 0,
       "findings_substrings": [],
       "credential_roots": "/home/runner"
