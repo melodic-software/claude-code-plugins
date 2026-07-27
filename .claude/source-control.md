@@ -25,7 +25,7 @@ worker
 
 ## babysit_loop_merge
 
-c2-mechanical
+c3-autonomous
 
 ## babysit_loop_grace_window_minutes
 
