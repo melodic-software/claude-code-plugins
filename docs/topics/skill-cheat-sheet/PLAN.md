@@ -215,7 +215,7 @@ Fresh-docs step first (CLAUDE.md mandate — frontmatter is a contract surface):
   `ls plugins/*/skills/*/SKILL.md | wc -l` (183 at plan time); an `awk` pass over non-excluded
   rows asserts summary ≤100 chars and the charset guard, exit 0.
 
-### Phase 2: Generator [TODO]
+### Phase 2: Generator [DONE]
 
 Review: code-design
 
@@ -292,6 +292,10 @@ Review: code-design
 
 - `scripts/validate-plugins.sh`: add `node scripts/generate-cheatsheet.mjs --check` beside the
   catalog check (line 17 region).
+- `.github/workflows/ci.yml`: add an explicit `run: bash scripts/generate-cheatsheet.test.sh`
+  step beside the sibling `scripts/*.test.sh` steps (Phase 2 review finding: `run-plugin-tests.sh`
+  only discovers `plugins/**/*.test.sh`, so without this step the committed generator test never
+  executes in CI).
 - `scripts/docs-only-paths.txt`: update the lane comment to note the sheet deliberately lives
   OUTSIDE `docs/topics/` so its drift gate runs.
 - `scripts/check-docs-only.test.sh`: add pinning case `docs/SKILL-CHEAT-SHEET.md` → `false`
