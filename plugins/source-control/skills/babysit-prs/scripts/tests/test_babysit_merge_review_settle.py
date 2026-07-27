@@ -253,27 +253,52 @@ class ServerClockIsPreferredOverCommitMetadata(SettleHarness):
         # The rollup was already in hand, so no commit read was needed.
         self.assertEqual(result["_commit_reads"], [])
 
-    def test_a_re_run_of_the_same_check_cannot_re_arm_the_hold(self) -> None:
-        # Both entries carry ONE check identity, which is what a re-run is.
-        # `classify_checks` would keep only the 21:48 run, so a hold reading its
-        # deduped output would see a 40-second-old head and hold a settled PR
-        # for another full window -- and repeated re-runs could do it forever.
-        # Reading the raw rollup is what makes the earliest-wins rule real.
+    def test_a_head_returning_to_a_checked_sha_still_holds(self) -> None:
+        # Force-push A -> B -> A. Check runs live on the SHA, so A's original
+        # runs are still in the rollup even though the re-push draws a fresh
+        # review. Reading the oldest of them would call a brand-new head
+        # settled and merge straight through the window. This is the reason the
+        # clock takes the newest timestamp rather than the oldest.
+        result = self._evaluate(
+            reviews=[],
+            check_starts=["2026-07-26T18:00:00Z", "2026-07-26T21:45:00Z"],
+        )
+        self.assertFalse(result["ready"])
+        self.assertEqual(result["reviewSettle"]["state"], "settling")
+        self.assertEqual(result["reviewSettle"]["headAgeSeconds"], 220)
+
+    def test_a_re_run_extends_the_wait_which_is_the_accepted_cost(self) -> None:
+        # The price of taking the newest timestamp: a re-run on a settled head
+        # re-arms the hold for up to one more window. Latency, never safety --
+        # and see the companion test below for why it rarely bites.
         result = self._evaluate(
             reviews=[],
             check_starts=["2026-07-26T21:00:00Z", "2026-07-26T21:48:00Z"],
         )
-        self.assertTrue(result["ready"], result["blockers"])
-        self.assertEqual(result["reviewSettle"]["state"], "settled")
-        self.assertEqual(result["reviewSettle"]["headAgeSeconds"], 2920)
+        self.assertFalse(result["ready"])
+        self.assertEqual(result["reviewSettle"]["state"], "settling")
+        self.assertEqual(result["reviewSettle"]["headAgeSeconds"], 40)
 
-    def test_earliest_wins_across_distinct_check_identities_too(self) -> None:
+    def test_a_re_run_on_an_already_reviewed_head_never_reaches_the_clock(self) -> None:
+        # Why the cost above is small: a re-run does not move the head, so a
+        # head the reviewer already reviewed short-circuits at the review check
+        # before any timestamp is read. The re-run delay can only apply while
+        # the reviewer still owes this head a review -- when holding is right.
+        result = self._evaluate(
+            reviews=[_review(HEAD)],
+            check_starts=["2026-07-26T21:00:00Z", "2026-07-26T21:48:00Z"],
+        )
+        self.assertTrue(result["ready"], result["blockers"])
+        self.assertEqual(result["reviewSettle"]["state"], "reviewed")
+        self.assertIsNone(result["reviewSettle"]["headAgeSeconds"])
+
+    def test_newest_wins_across_distinct_check_identities_too(self) -> None:
         result = self._evaluate(
             reviews=[],
-            check_starts=["2026-07-26T21:48:00Z", "2026-07-26T21:00:00Z"],
+            check_starts=["2026-07-26T21:45:00Z", "2026-07-26T18:00:00Z"],
             check_name="lint",
         )
-        self.assertEqual(result["reviewSettle"]["headAgeSeconds"], 2920)
+        self.assertEqual(result["reviewSettle"]["headAgeSeconds"], 220)
 
     def test_a_status_context_contributes_its_created_at(self) -> None:
         # StatusContext rollup entries carry `createdAt`, not `startedAt`.

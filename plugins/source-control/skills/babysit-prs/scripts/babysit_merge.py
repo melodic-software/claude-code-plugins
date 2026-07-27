@@ -646,18 +646,29 @@ def head_committed_at(repo: str, head_sha: str) -> datetime | None:
     return parse_github_timestamp(str(cast(dict[str, Any], committer).get("date") or ""))
 
 
-def earliest_check_start(status_rollup: Any) -> datetime | None:
-    """When CI first fired for the current head, per the rollup already fetched.
+def latest_check_activity(status_rollup: Any) -> datetime | None:
+    """The most recent CI start on the live head, per the rollup already fetched.
 
     A server-generated stand-in for "when this head appeared": the rollup is
-    scoped to the live head and a run cannot start before its push. *Earliest*,
-    not latest, because a re-run mints a fresh timestamp and the latest one
-    would make a long-settled head look brand new.
+    scoped to the live head and a run cannot start before its push.
 
-    Reads the RAW rollup deliberately, not `classify_checks`' output:
-    `dedupe_latest_checks` keeps only the newest run per identity, so a re-run
-    of every check would erase exactly the original timestamps this needs and
-    silently re-arm the hold -- the guarantee above would hold in name only.
+    *Latest*, not earliest, and the direction is the whole safety property.
+    Check runs live on the SHA, so a head that returns to a previously-checked
+    SHA -- force-push A to B and back to A -- still carries A's original runs
+    even though the re-push triggers a fresh review. Reading the oldest of them
+    would call a brand-new head settled and merge straight through the window
+    this gate exists to wait out. Reading the newest can only over-estimate how
+    recent a head is, which errs toward holding.
+
+    The cost of that direction is bounded and lands on latency, not safety: a
+    re-run mints a fresh timestamp and extends the wait by up to one window.
+    It rarely bites, because a re-run does not move the head -- if the reviewer
+    already reviewed that SHA the caller short-circuits before reading this
+    clock at all, and if it has not, holding is the correct answer anyway.
+
+    Reads the RAW rollup, not `classify_checks`' output: that classifier keeps
+    only the newest run per identity, which is lossy in a way this must not
+    depend on.
     """
     starts = [
         parsed
@@ -670,7 +681,7 @@ def earliest_check_start(status_rollup: Any) -> datetime | None:
         ]
         if parsed is not None
     ]
-    return min(starts) if starts else None
+    return max(starts) if starts else None
 
 
 def head_appeared_at(
@@ -685,7 +696,7 @@ def head_appeared_at(
     written reads as older than the head really is, which errs toward merging.
     That is why it is second, not first.
     """
-    server_seen = earliest_check_start(status_rollup)
+    server_seen = latest_check_activity(status_rollup)
     if server_seen is not None:
         return server_seen, "check-start"
     return head_committed_at(repo, head_sha), "committer-date"

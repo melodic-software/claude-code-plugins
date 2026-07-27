@@ -24,15 +24,17 @@ All notable changes to the `source-control` plugin are documented here. Format f
   to under a second is refused rather than truncated to an inert zero, and the gate defaults no
   duration of its own because how long a reviewer takes is a property of that reviewer.
 
-  Head age is measured on the **earliest CI start for the live head**, taken from the raw
-  status-check rollup the gate already fetches (raw, not classified — the classifier keeps only the
-  newest run per check identity, so re-running every check would erase the original timestamps the
-  earliest-wins rule depends on), falling back to the head commit's committer date only when the
-  rollup carries no timestamp. The committer date alone would have been wrong in the direction that
-  matters: a commit pushed long after it was written reads as already-settled, so the hold would
-  not fire on exactly the push that triggered a fresh review. The known-weak fallback is documented
-  at the hold's `safety.md` section rather than left implicit, as is its inherited requirement that
-  a configured reviewer be `Bot`-typed (#1642).
+  Head age is measured on the **most recent CI start for the live head**, taken from the raw
+  status-check rollup the gate already fetches — raw rather than classified, because the classifier
+  keeps only the newest run per check identity. Newest rather than oldest is the safety property:
+  check runs live on the SHA, so a head returning to a previously-checked SHA still carries that
+  SHA's original runs, and reading the oldest would call a brand-new head settled. The cost is
+  bounded latency — a re-run can extend the wait by one window — and it rarely applies, because a
+  re-run does not move the head and an already-reviewed head clears the hold before the clock is
+  read. The committer date is the fallback only, since a commit pushed long after it was written
+  reads as already-settled. Both that weak spot, the residual around a head reverting to an
+  already-tested SHA, and the inherited requirement that a configured reviewer be `Bot`-typed
+  (#1642) are documented at the hold's `safety.md` section rather than left implicit.
 
   Unconfigured, the gate is byte-for-byte its prior self and issues no request it did not issue
   before — asserted against recorded call counts, not just the verdict. The reviewer corpus is now

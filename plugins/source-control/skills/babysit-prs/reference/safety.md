@@ -270,19 +270,32 @@ in exchange for not merging past a review already on its way.
 **Which clock the age is measured on**, in order, because the difference decides whether the hold
 fires at all:
 
-1. **The earliest CI start on the live head**, read from the status-check rollup the gate already
-   fetches — no extra request. GitHub generates it after the push, so it can only make the head
-   look *more* recent than it is, which errs toward holding. Earliest rather than latest: a check
-   re-run mints a fresh timestamp, and the latest one would make a long-settled head look new and
-   re-arm the hold for another full window. It reads the **raw** rollup, not the classified one —
-   the classifier keeps only the newest run per check identity, so re-running every check would
-   erase exactly the original timestamps this depends on and make the earliest-wins rule true in
-   name only.
-2. **The head commit's committer date**, only when the rollup carries no usable timestamp. This is
-   a weaker proxy and errs the wrong way: a commit pushed long after it was written — local
-   batching, an offline delay, or replaying an existing commit — reads as already-settled, and the
-   hold silently does not fire on exactly the push that triggered a fresh review. A repository with
-   no checks on its PRs gets only this fallback, so the hold is best-effort there.
+1. **The most recent CI start on the live head**, read from the **raw** status-check rollup the
+   gate already fetches — no extra request, and raw rather than classified because the classifier
+   keeps only the newest run per check identity. GitHub generates the timestamp after the push, so
+   it can only make a head look *more* recent than it is, which errs toward holding.
+
+   **Newest rather than oldest, and the direction is the safety property.** Check runs live on the
+   SHA, so a head returning to a previously-checked SHA — force-push A → B → A — still carries A's
+   original runs even though the re-push draws a fresh review. Reading the oldest would call a
+   brand-new head settled and merge straight through the window. The cost of reading the newest is
+   bounded and lands on latency: a re-run extends the wait by up to one window. It rarely bites,
+   because a re-run does not move the head — a head the reviewer already reviewed clears the hold
+   before this clock is read at all, and a head it has not is one that should be held anyway.
+
+2. **The head commit's committer date**, only when the rollup carries no usable timestamp. A weaker
+   proxy that errs the wrong way: a commit pushed long after it was written — local batching, an
+   offline delay, or replaying an existing commit — reads as already-settled, and the hold silently
+   does not fire on exactly the push that triggered a fresh review. A repository with no checks on
+   its PRs gets only this fallback, so the hold is best-effort there.
+
+**One residual, stated because it is not closed.** If a force-push back to a previously-checked SHA
+produces new check runs, the newest timestamp is fresh and the hold fires correctly. If GitHub
+instead reuses the existing results and mints none, the rollup carries only the old timestamps and
+that head reads as settled. Which of those happens is not verified here, and no queryable
+"this SHA became the head at T" record covers both ordinary pushes and force-pushes — the
+force-push timeline event covers only the latter. Treat the hold as strong for ordinary pushes and
+best-effort across a head reverting to an already-tested SHA.
 
 ## Guarded Mutation Wrappers
 
