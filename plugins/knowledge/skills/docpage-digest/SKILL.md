@@ -83,6 +83,9 @@ path stays inside `<work-root>/digests/` before writing.
   and continue" — never "you are X" as fact.
 - Each brief carries the untrusted-source rule and ONLY the source section plus INDEX.md context —
   not this conversation.
+- **Verbatim means verbatim:** in "Key claims (verbatim)", a truncated quote carries an ellipsis,
+  joined source lines declare their join convention, and no escaping may alter characters —
+  verifiers diff quotes character-for-character against the source.
 
 ## Phase 4 — Dual verification
 

@@ -9,6 +9,8 @@ state is the cross-session resume pointer.
 - Fetch date:
 - Fetch channel (raw-md / rendered / binary+extraction):
 - Publisher profile used (or "no profile"):
+- Resolved work root (via the `library_dir` seam — record the absolute path so a resumed session
+  need not re-derive it):
 
 ## Phases
 
