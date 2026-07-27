@@ -24,9 +24,17 @@ All notable changes to the `source-control` plugin are documented here. Format f
     root-anchoring requirement and the `present but UNTRACKED` rule are unchanged.
   - `babysit-prs` is held at exactly 499 lines — the change is net-zero on line count, so it does
     not consume the one line it has left under the 500-line hard cap (see #1626).
-  - The pre-compute lines carried `2>/dev/null || echo "unknown"` fallbacks that plain Bash calls do
-    not reproduce, so each gather block now states explicitly that a failed command means "unknown,
-    carry on" rather than surfacing a raw error.
+  - The pre-compute lines carried `2>/dev/null || echo "unknown"` fallbacks **and** output caps
+    (`git status --short | head -20`, `git diff --cached --stat | tail -1`,
+    `git worktree list | head -30`, `git status | head -4`) that plain Bash calls do not reproduce.
+    Both are restated as reading rules: a failed command means "unknown, carry on", and each bound is
+    honored **when reading** rather than re-added as a pipe — a piped git command is compound, which
+    is the shape that started this.
+  - What was verified, precisely: from an `Agent` with `isolation: "worktree"`, the **unfixed**
+    skills were observed to be refused, plain git commands were observed to succeed as individual
+    Bash calls, and a multi-line non-git pre-compute block was observed to load. The **edited**
+    skills have not been invoked from an isolated agent — skills load from the version-keyed plugin
+    cache, so `0.33.2` does not exist there until this ships. Confirm then; CI cannot prove it.
   - `shell: bash` is deliberately left in place on every affected skill, including the three that
     now have no `!` lines at all. The key is inert without pre-compute lines, and removing it is a
     frontmatter-contract change with no behavioral benefit.

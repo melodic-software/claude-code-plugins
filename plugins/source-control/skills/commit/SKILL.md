@@ -18,9 +18,13 @@ Collect these with **individual** Bash calls, one command per call, never combin
 invocation:
 
 - Current branch — `git branch --show-current`
-- Staged — `git diff --cached --stat`
-- Unstaged — `git status --short`
+- Staged — `git diff --cached --stat`, reading only the **summary (last) line**
+- Unstaged — `git status --short`, reading **at most the first 20 entries**
 - Recent commits — `git log --oneline -5`
+
+Honor those bounds when reading; do not restore them as `| tail -1` / `| head -20` pipes. A piped
+git command is compound, which is the shape #1619 is about — bounding at read time keeps the cap
+without reintroducing the defect.
 
 Then resolve the two repo-scoped config layers, in this order and as separate calls:
 

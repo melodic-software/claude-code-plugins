@@ -12,7 +12,9 @@ shell: bash
 Collect these with **individual** Bash calls, one command per call, never combined into a single
 invocation:
 
-- Operation state — `git status`
+- Operation state — `git status`, reading **at most the first 4 lines** (that is where the
+  in-progress merge/rebase/cherry-pick banner sits; honor the bound when reading, do not restore it
+  as a `| head -4` pipe — a piped git command is compound, which is the shape #1619 is about)
 - Conflicted paths — `git diff --name-only --diff-filter=U`
 - Current branch — `git branch --show-current`
 

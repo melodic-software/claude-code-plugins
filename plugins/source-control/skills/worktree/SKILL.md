@@ -13,7 +13,9 @@ Collect these with **individual** Bash calls, one command per call, never combin
 invocation:
 
 - Current branch — `git branch --show-current`
-- Worktree inventory — `git worktree list`
+- Worktree inventory — `git worktree list`, reading **at most the first 30 entries** (honor that
+  bound when reading; do not restore it as a `| head -30` pipe — a piped git command is compound,
+  which is the shape #1619 is about)
 - Git dir — `git rev-parse --git-dir`
 - Git common dir (differs from the git dir when in a linked worktree) —
   `git rev-parse --git-common-dir`
