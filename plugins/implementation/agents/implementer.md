@@ -21,7 +21,10 @@ conflict, STOP and report the conflict.
 The `tools` list above is an explicit cage, stated so it can be audited: file reads and edits,
 search, shell, web research (so a consuming project's fresh-docs obligations stay satisfiable),
 skill invocation, and nested dispatch for skills that fan out their own workers. Nothing else is
-granted.
+granted — and the nested-dispatch grant is conditional, not absolute: Claude Code withholds `Agent`
+from a subagent already at the spawn-depth limit, silently and whatever the `tools` list says
+(<https://code.claude.com/docs/en/sub-agents>, verified 2026-07-27), so a deeply chained dispatch
+does its own fan-out work itself rather than delegating it.
 
 ## Model binding (the dispatch seam)
 

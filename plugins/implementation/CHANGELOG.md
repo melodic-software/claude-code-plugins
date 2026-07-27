@@ -21,13 +21,19 @@ All notable changes to the `implementation` plugin are documented here. Format f
   agent bodies record the upward-only override duty when the session's model resolves above the
   binding (per the plugin philosophy's session-relative ladder). Each agent also declares an
   explicit tool cage — a change from the previously ungoverned generic-subagent tool surface: the
-  implementer grants file edit, search, shell, web research, skill invocation, and nested dispatch;
-  the phase-verifier bars Edit/Write and agent spawning, with Bash retained for inspection (stated
-  as the cage it is, not as "read-only", per the plugin philosophy's named-agent bar). Both also
-  bind `effort` rather than inheriting the session's level, matching this marketplace's other named
-  agents — a model binding alone would still let an orchestrator that lowered effort for its own
-  bookkeeping lower it for the phase work. (Frontmatter `model` and `effort` values and the
-  env → parameter → frontmatter → inherit resolution order verified against
+  implementer grants file edit, search, shell, web research, skill invocation, and nested dispatch
+  (that last one conditional — the harness withholds `Agent` from a subagent at the spawn-depth
+  limit whatever the `tools` list says); the phase-verifier bars Edit/Write and agent spawning, with
+  Bash retained for inspection (stated as the cage it is, not as "read-only", per the plugin
+  philosophy's named-agent bar). Both also bind `effort` rather than inheriting the session's level,
+  matching this marketplace's other named agents — a model binding alone would still let an
+  orchestrator that lowered effort for its own bookkeeping lower it for the phase work. Neither
+  agent sets `maxTurns`, deliberately and unlike this marketplace's review agents: a turn cap stops
+  a subagent with no error, which on a verdict-rendering verifier would yield a truncated report an
+  orchestrator consumes as a verdict — so the phase-verifier is instead contracted to return
+  INCONCLUSIVE rather than a partial PASS. (Frontmatter `model` and `effort` values, the
+  env → parameter → frontmatter → inherit resolution order, `maxTurns` semantics, and the
+  depth-limit `Agent` withholding verified against
   <https://code.claude.com/docs/en/sub-agents>, 2026-07-27.)
 
 ## [0.9.2]

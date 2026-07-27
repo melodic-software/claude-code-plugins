@@ -549,11 +549,14 @@ the session default model changes):
 | Mechanical prep, one tier down | Sonnet 5 |
 | Bulk mechanical sweeps | Haiku 4.5 |
 
-Two agent-frontmatter binding sites implement the dispatch-seam tier enforcement structurally and
-re-audit on the same recheck trigger: `plugins/implementation/agents/implementer.md` and
+The **dispatch-seam** tier enforcement is structural at two binding sites:
+`plugins/implementation/agents/implementer.md` and
 `plugins/implementation/agents/phase-verifier.md` (both bind the loop-lane convention's strong-tier
 current alias; raise the pair together, and note frontmatter binds a floor — the session-relative
-raise above it stays a per-invocation override at the dispatch site).
+raise above it stays a per-invocation override at the dispatch site). That pair is the seam, not the
+recheck list: the trigger above re-audits **every** agent-frontmatter `model` value in this
+repository, which `git grep -n '^model:' -- 'plugins/*/agents/*.md'` enumerates rather than any
+list restated here.
 
 ### Declared patterns
 
