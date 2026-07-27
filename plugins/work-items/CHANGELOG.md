@@ -3,6 +3,19 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.26.0]
+
+### Changed
+
+- **`work` rides the structural capability-tier binding for every source-touching dispatch
+  (`#1649`).** The Step 5 execute chain now names the model-tier enforcement carried by
+  `implementation:implement-dispatch`'s new `implementer` / `phase-verifier` agent frontmatter, and
+  the branch-owned fix re-dispatches into the persisted worktree dispatch
+  `implementation:implementer` when the `implementation` plugin is installed (when absent, an
+  explicit per-invocation strong-tier alias — never inheritance of the orchestrator's model). A
+  fast-tier lane root no longer silently determines implementer strength, which is what let a
+  `sonnet` root run every implementer as `sonnet` despite the loop-lane tier vocabulary.
+
 ## [0.25.4]
 
 ### Fixed

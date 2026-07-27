@@ -3,6 +3,23 @@
 All notable changes to the `implementation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.0]
+
+### Added
+
+- **Structural capability-tier model bindings at the dispatch seam (`#1649`).** Two new plugin
+  agents, `implementer` and `phase-verifier`, carry an explicit `model` frontmatter binding of the
+  strong capability tier's current alias, replacing the default `inherit` that let a fast
+  orchestrator root silently run implementers (and their verifiers) at orchestrator strength.
+  `implement-dispatch`'s cadence now dispatches workers as `implementation:implementer` (step 2)
+  and the phase-boundary verifier as `implementation:phase-verifier`, reserving the per-invocation
+  `model` parameter for upward (frontier-tier) routing only, with a gotcha documenting that a set
+  `CLAUDE_CODE_SUBAGENT_MODEL` outranks the binding. Tier definitions stay order-defined and
+  family-agnostic per the marketplace's loop-lane convention §3 — the alias binding lives only at
+  this seam, and the verifier binds never weaker than the implementer it checks. (Frontmatter
+  `model` values and the env → parameter → frontmatter → inherit resolution order verified against
+  <https://code.claude.com/docs/en/sub-agents>, 2026-07-26.)
+
 ## [0.9.2]
 
 ### Changed
