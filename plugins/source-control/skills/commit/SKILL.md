@@ -30,10 +30,13 @@ Then resolve the two repo-scoped config layers, in this order and as separate ca
 
 1. `git rev-parse --show-toplevel` — run this **first** and substitute the literal path it prints
    into the next two commands. Never re-derive the root inline inside another command.
-2. Tracked team layer — `git -C <root> ls-files --error-unmatch .claude/source-control.md`. Exit 0
-   means present **and tracked**. A file sitting at that path that this command does not report is
-   `present but UNTRACKED`, and is deliberately not a config layer.
-3. Personal overlay — `test -f <root>/.claude/source-control.local.md`.
+   **Always double-quote the substituted path.** Repository roots routinely contain spaces on
+   Windows (`C:\Users\First Last\…`); unquoted, the path word-splits and the command silently
+   targets the wrong directory or fails.
+2. Tracked team layer — `git -C "<root>" ls-files --error-unmatch .claude/source-control.md`.
+   Exit 0 means present **and tracked**. A file sitting at that path that this command does not
+   report is `present but UNTRACKED`, and is deliberately not a config layer.
+3. Personal overlay — `test -f "<root>/.claude/source-control.local.md"`.
 
 Treat a failure (not a repository, git unavailable) as an unknown value and carry on. All of the
 above moved out of pre-compute in #1619 — the harness composes the block into one shell invocation

@@ -20,7 +20,8 @@ All notable changes to the `source-control` plugin are documented here. Format f
   - `commit`'s two repo-scoped config-layer probes were themselves compound one-liners that
     re-derived the repository root inline. They are decomposed rather than moved across intact:
     resolve the root once with `git rev-parse --show-toplevel`, then substitute the literal path
-    into `git -C <root> ls-files --error-unmatch …` and the personal-overlay `test -f`. The
+    into `git -C "<root>" ls-files --error-unmatch …` and the personal-overlay `test -f`, quoted —
+    a Windows repository root with a space in it word-splits otherwise. The
     root-anchoring requirement and the `present but UNTRACKED` rule are unchanged.
   - `babysit-prs` is held at exactly 499 lines — the change is net-zero on line count, so it does
     not consume the one line it has left under the 500-line hard cap (see #1626).
