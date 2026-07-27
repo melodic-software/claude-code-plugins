@@ -281,6 +281,34 @@ class UserTypedReviewerConsumerTests(unittest.TestCase):
                 config=configured())
         self.assertEqual(signals, [])
 
+    def test_a_declared_reviewers_eyes_reaction_raises_the_blocker(self) -> None:
+        # The widening is not uniformly permissive: recognizing a declared
+        # reviewer's eyes reaction ADDS the awaiting-review blocker that
+        # refusing the account suppressed. Driven end-to-end from the
+        # predicate, not from a hand-built signal.
+        config = declared_non_structural()
+        with mock.patch.object(review_trigger, "fetch_paginated_api",
+                               return_value=self._reactions()):
+            signals = review_trigger.fetch_review_reactions(
+                "repos/owner/repo/issues/42/reactions", scope="pull_request",
+                config=config)
+        rollup = [
+            {"__typename": "StatusContext", "context": "review-gate",
+             "state": "PENDING", "targetUrl": ""},
+            {"__typename": "CheckRun", "name": "ci-gate", "conclusion": "SUCCESS"},
+        ]
+        gate = review_trigger.review_gate_state(
+            checks.classify_checks(rollup), config)
+        pr = {"headRefOid": HEAD, "mergeStateStatus": "CLEAN",
+              "mergeable": "MERGEABLE", "state": "OPEN", "isDraft": False,
+              "reviews": []}
+        prior = {"review_trigger": {"reaction_head_sha": HEAD,
+                                    "reaction_signal_ids": []}}
+        result = review_trigger.classify_review_request(
+            pr, gate, prior, "2026-07-27T00:00:00Z", reaction_signals=signals,
+            review_trigger_allowed=True, config=config)
+        self.assertEqual(result["state"], "engaged_reaction_reviewing")
+
 
 class ClassifyReviewRequestTests(unittest.TestCase):
     def _pr(self) -> dict[str, object]:

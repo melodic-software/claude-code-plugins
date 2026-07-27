@@ -17,6 +17,7 @@ from typing import Any
 from babysit_checks import summarized_state
 from babysit_feedback import (
     author_login,
+    is_bot,
     normalize_login_set,
     review_commit_oid,
 )
@@ -83,6 +84,12 @@ def is_review_bot_item(item: dict[str, Any], config: ReviewTriggerConfig) -> boo
     here left this module reading a configured reviewer's real review as no
     review at all (#1642). With `extra_bot_logins` unset the predicate is
     structural-only, as it always was.
+
+    Deliberately narrower than `is_bot` on one point: a bare `[bot]` login
+    suffix is not accepted as bot evidence here. Every reachable payload
+    carries a type (`gh` strips the suffix on the one that does not), so
+    honoring it would buy no behavior while widening the predicate for an
+    operator who configured nothing.
     """
     author = item.get("author")
     if not is_json_object(author):
@@ -95,7 +102,12 @@ def is_review_bot_item(item: dict[str, Any], config: ReviewTriggerConfig) -> boo
         str(author.get("__typename") or author.get("type") or "") == "Bot"
         or author.get("is_bot") is True
     )
-    return authoritative_bot or login in normalize_login_set(config.extra_bot_logins)
+    # `is_bot` on an already-suffix-stripped login reduces to exactly the
+    # declaration test, which is how `actor_kind` reaches the same rule. The
+    # type check stays open-coded because `is_bot` reads neither the REST
+    # `type` key nor the `is_bot` flag, and the reaction and review-comment
+    # paths carry raw REST author objects that have only those.
+    return authoritative_bot or is_bot(login, None, config.extra_bot_logins)
 
 
 def issue_comment_database_id(comment: dict[str, Any]) -> str:
