@@ -3,6 +3,19 @@
 All notable changes to the `adhd` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.1]
+
+### Changed
+
+- `clarify` places its local HTML file in the topic-docs **ephemeral tier**
+  instead of preferring the session scratchpad. The old wording branched on
+  whether the harness injected a scratchpad path, which made placement depend
+  on how the session was launched — invisible from inside the skill — and
+  depended on an undocumented surface upstream has declined three times to
+  support. The skill now resolves one temp directory deterministically and
+  removes it in a `finally`. See `docs/conventions/topic-docs/README.md`
+  §"The ephemeral tier".
+
 ## [0.3.0]
 
 Fixes every finding from the 2026-07-23 live audit (handoff item

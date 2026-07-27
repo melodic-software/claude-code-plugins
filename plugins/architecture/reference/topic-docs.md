@@ -13,14 +13,16 @@ deltas.
 | Artifact (writer) | Tier | Location (default) |
 |---|---|---|
 | `deepening-candidates-<YYYYMMDDTHHMMSSZ>.md` (`/architecture:improve deepening`) | Memory | `.work/<topic-slug>/` — never committed |
+| Deepening HTML report (`/architecture:improve deepening`) | Ephemeral | One temp directory created through the platform's temp API, removed in a `finally` |
 
 The candidate list is a cross-stage handoff: a planning step consumes its `agreed-shape` entry
 (see the deepening playbook's Handoff section). It stays in the memory tier because nothing
 downstream *enforces against* it — the agreed shape graduates into planning's own contract-tier
 artifacts (`PLAN.md`), which is where enforcement begins.
 
-The HTML report is a human-readable companion written to a secure temp file — deliberately
-ephemeral, outside this convention.
+The HTML report is a human-readable companion and dies with the session, so it lands in the
+contract's ephemeral tier. Its rules are the contract's — one deterministic path, cleaned up in a
+`finally`, never the session scratchpad — not a delta of this plugin's.
 
 ## Slug derivation
 

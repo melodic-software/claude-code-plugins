@@ -1,5 +1,29 @@
 # Changelog — topic-docs convention
 
+## 2.4.0 — 2026-07-27
+
+- **An Ephemeral row joins the tier table** (additive). The table sorts
+  documents by one question — does anything downstream enforce against
+  this? — which cannot express lifetime, so its finest-grained cell, the
+  memory tier, conflated state that must survive the session with files
+  that die with it. With no row naming the second kind, two plugins
+  independently invented the same answer and both reached for the
+  session scratchpad, an undocumented harness path (zero occurrences in
+  the full docs corpus, keyed by working directory, and declined three
+  times upstream as a supported surface). The convention registry's
+  trigger — an owner doc before a second plugin adopts — had already
+  fired. The row states four rules (one deterministic path cleaned up in
+  a `finally`, never the scratchpad, nothing durable, customization
+  through a manifest `userConfig` rather than a tracked key), carries a
+  re-derivation trigger, and records why git-visibility, promotion-stage,
+  and write-contention each needed no change.
+
+  Minor, not major: no tier moves, no `topic-docs.yaml` key is renamed,
+  the slug spec is untouched, and no visibility guarantee changes — the
+  ephemeral row is slug-less and invisible to every other execution
+  context by construction, so it takes no row in the visibility matrix.
+  The eight bindings need no synchronized adoption wave.
+
 ## 2.3.0 — 2026-07-26
 
 - **The `.worktreeinclude` template carries sub-slices** (additive). Its

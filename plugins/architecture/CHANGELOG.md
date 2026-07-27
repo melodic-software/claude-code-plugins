@@ -3,6 +3,17 @@
 All notable changes to the `architecture` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.2]
+
+### Changed
+
+- The deepening HTML report resolves its output location through the
+  topic-docs **ephemeral tier** rather than an unqualified "OS temp
+  directory": one directory created through the platform's temp API and
+  removed in a `finally`, never branched on an injected scratchpad path or
+  `CLAUDE_JOB_DIR`. See `docs/conventions/topic-docs/README.md`
+  §"The ephemeral tier".
+
 ## [0.4.1]
 
 ### Added

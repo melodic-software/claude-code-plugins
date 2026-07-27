@@ -28,6 +28,7 @@ anything downstream *enforce against* this document?
 
 | Tier | Location (default) | Git | Holds |
 |---|---|---|---|
+| Ephemeral | An OS-API-created temp directory, one per run | Never in the repo | Files that die with the session: a rendered HTML view, a spill file, a throwaway |
 | Memory | `.work/<slug>/` | Never committed (self-ignoring) | `EXPLORE.md`, `RESEARCH.md`, `<stage>-checklist.md`, `baselines/`, raw captures and scratch |
 | Memory, concern-scoped | `.work/handoffs/`, `.work/reviews/<branch-slug>/` | Never committed | session handoffs; review reports — their axes are session and branch, so they sit outside topic slices |
 | Contract | `docs/topics/<slug>/` | Committed **on the task branch only**; pruned before merge | `PLAN.md` (Brief + Plan), `PRD.md`, `design/` (incl. the `design-threads.md` / `design-resolution.md` gate files), `verification/` (the distilled manifest) |
@@ -52,6 +53,65 @@ Two kinds are deliberately **absent**: `history.md` (append-only decision
 log — git log, PR threads, and tracker comments provide this natively for
 tracked contracts) and a default-persisted `brainstorm.md` (ideation is
 conversation output; persisting is opt-in, into the memory tier).
+
+### The ephemeral tier
+
+The memory tier's one cell conflated two kinds with opposite
+requirements: state that must SURVIVE the session (resume artifacts,
+ledgers, captures) and files that DIE with it. The ephemeral row names
+the second. It is slug-less and path-less by design — a run creates its
+own directory through the platform's temp API and removes it — so it is
+invisible to every other execution context by construction and takes no
+row in the visibility matrix.
+
+Four rules hold at this row:
+
+1. **Resolve one deterministic path, and clean up in a `finally`.**
+   Never branch on whether a harness injected a scratchpad path or set
+   `CLAUDE_JOB_DIR`: those surfaces are disjoint by session kind
+   (`CLAUDE_JOB_DIR` is set for background sessions only), so branching
+   makes file placement depend on how the session was launched, which is
+   invisible from inside the plugin.
+2. **Never the session scratchpad.** Plugins never require it, publish
+   pointers to it, or change semantics based on its presence.
+3. **Nothing durable lands here.** If a later session, another checkout,
+   or a reviewer must read the file, it belongs in the memory or
+   contract tier — this row is not a shortcut past their rules.
+4. **Customization is a manifest `userConfig` typed `directory`,
+   defaulting to empty** — never a `.claude/topic-docs.yaml` key. A temp
+   root is machine scope; a tracked key would imply a team decision
+   about a location no teammate can observe. Per the configuration
+   ownership table in `docs/PLUGIN-PHILOSOPHY.md`.
+
+**Why not the session scratchpad.** Verified 2026-07-26 against primary
+sources: zero occurrences of "scratchpad" in the full Claude Code docs
+corpus (`https://code.claude.com/docs/llms-full.txt`) — it is
+system-prompt-injected only. It is keyed by working directory, so every
+worktree gets a distinct root, and scoped by session UUID. Measured on
+one machine: 230 directories, 31,260 files, 2.96 GB accumulated in ten
+days with no pruning observed. Three upstream requests to make it a
+supported surface are all closed as not-planned
+([#45745](https://github.com/anthropics/claude-code/issues/45745),
+[#17936](https://github.com/anthropics/claude-code/issues/17936),
+[#21248](https://github.com/anthropics/claude-code/issues/21248)) —
+upstream has not merely failed to document it, it has declined three
+times to support it.
+
+**Re-derivation trigger.** An upstream versioned interface for the
+scratchpad that guarantees injection, lifecycle, ownership, quota, and
+cleanup semantics reopens rule 2, and the change lands here as a
+recorded changelog entry. The dated verification above is an as-of
+record, never standing authority.
+
+**Why the other three axes needed no change.** The placement question
+was re-derived across four axes and only lifetime was uncovered:
+git-visibility is already the tier table's own organizing question;
+promotion-stage is already carried by the contract-slice lifecycle and
+the two graduation edges; and write-contention is already solved at the
+work-item tracker seam
+([`plugins/work-items/reference/tracker-seam.md`](../../../plugins/work-items/reference/tracker-seam.md)),
+whose race-safe claim-and-lease is provider-neutral. Recorded so the
+analysis is not re-run.
 
 ### The single-home rule
 
@@ -368,8 +428,9 @@ relationship to the contract is fully stated by their table row.
 
 | Plugin | Writes | Tier(s) | Binding |
 |---|---|---|---|
+| adhd | rendered decision-table HTML view | ephemeral | by reference — the ephemeral row's four rules are its entire relationship |
 | discovery | `EXPLORE.md`, `RESEARCH.md` | memory | delta doc |
-| architecture | `deepening-candidates-<timestamp>.md` (per-lens candidate ledgers) | memory | delta doc |
+| architecture | `deepening-candidates-<timestamp>.md` (per-lens candidate ledgers); deepening HTML report | memory + ephemeral | delta doc |
 | planning | `PRD.md`, `PLAN.md` (Brief), `design/`, opt-in brainstorm persist | contract + memory | delta doc |
 | implementation | `PLAN.md` (Plan/progress), `DEVIATIONS.md`, status summaries | contract + memory | delta doc |
 | verification | `verification/` manifest; baselines, raw captures | contract + memory | delta doc |
