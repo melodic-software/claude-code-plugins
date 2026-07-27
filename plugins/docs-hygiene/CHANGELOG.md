@@ -1,5 +1,21 @@
 # Changelog — docs-hygiene plugin
 
+## [0.9.3]
+
+### Fixed
+
+- **`audit-noise`: the `ghost-ref` shape no longer justifies itself with a premise that is false
+  for a tracked memory tier.** The shape was named "ephemeral working-directory refs" and described
+  its subject as paths into "the topic-docs convention's ephemeral tiers", resting the finding on
+  the memory tier being gitignored. A consuming repo may deliberately track that tier — a real
+  consumer does, by accepted ADR, with the citing files committed and reviewed — and such a reader
+  could reasonably conclude the shape did not apply to them. It does: the durable reason is that
+  the citing document outlives the slice, so slice retirement breaks the reference regardless of
+  git posture. The row is renamed to "refs into slice-scoped working paths" and states that reason
+  explicitly. Detection is unchanged — `noise-shapes.sh` never encoded the gitignore premise, so
+  no path's verdict moves, and every existing exemption (slot variables, bare concern-scoped roots,
+  the retired `.claude/notes/` location) is preserved.
+
 ## [0.9.2]
 
 ### Fixed

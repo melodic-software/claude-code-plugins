@@ -4,6 +4,9 @@ description: "Break a plan, spec, or PRD into independently-grabbable work items
 argument-hint: "[source] — empty = topic PLAN.md; prd = topic PRD.md; #<number> = item body; or conversation context"
 user-invocable: true
 disable-model-invocation: false
+metadata:
+  workflow-stage: plan
+  summary: Break a plan into vertical-slice work items with dependencies
 ---
 
 ## Variables

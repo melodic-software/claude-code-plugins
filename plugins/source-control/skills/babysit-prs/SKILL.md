@@ -5,14 +5,18 @@ user-invocable: true
 disable-model-invocation: false
 argument-hint: "[worker|autopilot|help] [owner/repo | #n | owner/repo#n] · default: configured default_tier (safe) over your own PRs; worker=fix+resolve-outdated+merge-ready; autopilot=max autonomy all authors; 'help' lists flows"
 shell: bash
+metadata:
+  workflow-stage: operator
+  summary: Tiered fleet pass advancing your open PRs
+  cadence: continuous
 ---
 
 ## Pre-computed context
 
-Current branch: !`git branch --show-current 2>/dev/null || echo "unknown"`
-Working tree status: !`git status --porcelain 2>/dev/null || echo "clean"`
 Current login: !`gh api user --jq .login 2>/dev/null || echo "unknown"`
 Own open PRs here: !`gh pr list --state open --author "@me" --limit 200 --json number --jq 'length' 2>/dev/null || echo "unknown"`
+
+Branch and working tree: gather with two separate Bash calls, `git branch --show-current` then `git status --porcelain`; treat a failure as an unknown value and carry on. They moved out of pre-compute in #1619 — the harness composes the block into one shell invocation and a worktree-isolated agent refuses a git-bearing compound command — so run them individually and do not fold them back.
 
 ## Purpose
 
@@ -30,8 +34,7 @@ Read it before processing findings; dispatched workers cite it directly.
 
 ## Modes and arguments
 
-An invocation is `[mode] [scope]`. Mode and scope are orthogonal — combine them freely
-(`worker owner/repo`, `worker #87`, etc.).
+An invocation is `[mode] [scope]`; mode and scope are orthogonal — combine them freely (`worker owner/repo`, `worker #87`, etc.).
 
 | Mode | What it does |
 | --- | --- |
@@ -49,8 +52,7 @@ a merge-capable tier engages only when the user names it — the `worker`/`autop
 a typed invocation under a deliberately changed `default_tier`. Configuration can never convert
 a casual invocation into standing merge authority.
 
-Any tier also honors an explicit user instruction to merge or resolve specific PRs now; that is
-a direct order, not autonomous behavior, and it runs the same guarded gates below.
+Any tier also honors an explicit user instruction to merge or resolve specific PRs now; that is a direct order, not autonomous behavior, and it runs the same guarded gates below.
 
 Common flows (this is what `help` prints, along with the effective configuration):
 
@@ -69,8 +71,7 @@ Explicit order (any tier): "merge owner/repo#87 now" | "resolve bot threads on #
 
 ## Scope resolution
 
-Scope resolves deterministically, most specific first. Read the current git context with
-`gh`/`git` (all read-only) before falling back:
+Scope resolves deterministically, most specific first. Read the current git context with `gh`/`git` (all read-only) before falling back:
 
 1. **Explicit full ref** in the invocation (`owner/repo#N` or `owner/repo`) — use it exactly.
 2. **Bare PR number** (`#87`, `pr 87`) inside a git repo — resolve the current repo with
@@ -313,9 +314,8 @@ this block. Values reach scripts ONLY as explicit CLI flags (option environment 
 | `babysit_worktree_root` | `${user_config.babysit_worktree_root}` | `--root` (prune; worktree creation) | `${CLAUDE_PLUGIN_DATA}/worktrees` |
 | state dir (not configurable) | `${CLAUDE_PLUGIN_DATA}/state/babysit-prs` | `--state-dir` (every state-touching script) | — |
 
-Configure via the `/plugin` dialog, or headless at install time with
-`claude plugin install --config KEY=VALUE`; `/source-control:setup` documents both plus the
-environment probes.
+Configure via the `/plugin` dialog, or headless at install time with `claude plugin install
+--config KEY=VALUE`; `/source-control:setup` documents both plus the environment probes.
 
 ## Engine and degrade
 
@@ -330,8 +330,7 @@ merge-readiness at all: report it unchecked, never inferred from the classificat
 
 ## Per-PR checklist (safe core — each PR, every iteration)
 
-Execute for EACH PR discovered, oldest first. Detailed mechanics:
-[reference/loop.md](reference/loop.md).
+Execute for EACH PR discovered, oldest first. Detailed mechanics: [reference/loop.md](reference/loop.md).
 
 - [ ] **Step 0 — PR discovery:** open PRs in scope (tier-scoped author filter), oldest-first
   FIFO (§5.0.2). Zero PRs → report and schedule the idle wake

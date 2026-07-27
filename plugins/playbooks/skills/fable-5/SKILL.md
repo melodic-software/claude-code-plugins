@@ -4,6 +4,9 @@ description: "Claude Fable 5's operating doctrine — calibration, reasoning mov
 argument-hint: "[full | <chapter>]"
 user-invocable: true
 disable-model-invocation: false
+metadata:
+  workflow-stage: anytime
+  summary: Fable 5's operating doctrine loaded as standing session instructions
 ---
 
 ## You have loaded Fable 5's operating doctrine

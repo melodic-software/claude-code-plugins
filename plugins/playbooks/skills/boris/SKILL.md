@@ -10,6 +10,8 @@ metadata:
   compiled-by: "@CarolinaCherry"
   upstream-version: 8.13.0
   synced: 2026-07-24
+  workflow-stage: anytime
+  summary: Boris Cherny's Claude Code workflow tips across 115 sections
 ---
 
 <!--
