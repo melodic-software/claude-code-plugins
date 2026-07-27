@@ -116,9 +116,12 @@ question. All four are required:
 - **It cannot be guessed.** An answer a non-inheriting subagent could hit by
   chance — a yes/no, a binary choice, a detail common to most sessions — clears
   the main thread's check without proving anything, and the blind ledgers behind
-  it then reach the corrective write. Require an exact, high-entropy value: a
-  verbatim string, an exact count, a specific identifier, or several
-  independent details together.
+  it then reach the corrective write — and blind forks guess alike, since they
+  share the question and the model, so one lucky answer is not one bad ledger.
+  Small-domain values fail this test even when they are exact: a turn count, a
+  file count, a finding count are all guessable. Require a long verbatim
+  string or a specific identifier, and when in doubt mint the value (below)
+  rather than picking one out of the history.
 
 When the conversation offers no detail meeting all four — a thin session that
 opened straight into a full batch over an already-dirty tree — do not degrade.
