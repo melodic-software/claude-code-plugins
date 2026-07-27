@@ -47,8 +47,26 @@
         "Uses the seam list-frontier --autonomous emptiness AND the bound adapter's Open linked PRs close-linkage (open, non-draft PRs only; provider query mechanics stay in the adapter) as the two-part exit condition",
         "Recognizes the drain-terminal state — all remaining open items human-gated/escalated and no PR in flight — and stops cleanly with a report rather than idling forever",
         "Final report lists items closed, PR'd, and escalated, and the durable state block is updated (first_drain_complete on a full drain)",
+        "Holds the no-progress streak on this cycle — an empty autonomous frontier with no untriaged intake is idle, and idle is not stalled — deferring the detector's shared semantics to the loop-lane convention by citation",
         "When not exiting, schedules the next cycle via ScheduleWakeup and defers pacing/expiry/budget semantics to the loop-lane convention by citation",
         "On a cycle-budget or seven-day-expiry hit, writes a restart-request into the telemetry state block and stops the loop cleanly rather than attempting to relaunch itself"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "work-loop-no-progress-detector-stall-escalation",
+      "prompt": "/work-items:work-loop\n\nCycle end. Durable state: no_progress_streak=2, item_cap=1. The cycle-start snapshot held two autonomous-frontier candidates. Both admitted items executed dirty with failed verdicts and no tracker state change this cycle — no PR opened, no item closed, no item routed or escalated. work_loop_no_progress_threshold is unset. No open item titled 'Lane stall: work-loop' exists.",
+      "expected_output": "The cycle had actionable work in view (a non-empty autonomous frontier) and ended with no qualifying progress — a dirty execution that changed no tracker state is not progress — so the no-progress streak increments to 3, reaching the unset key's manifest default threshold of 3. The lane raises the stall escalation through the existing escalation contract: a tracker item created through the seam create-item verb titled exactly 'Lane stall: work-loop', carrying the human-gated role label resolved from config.role_labels (never a literal) plus a machine-marked comment whose first line is the work-items escalation marker with lane=work-loop kind=escalated, reporting the streak length, the cycles covered, and what sat unmoved. Before creating it the lane checks for an existing open stall item matched on the exact title AND the seam's configured write identity as author — a third party's lookalike never suppresses the signal — and creates nothing if one exists. The stall escalation itself never counts as qualifying progress and never resets the counter. The lane escalates and keeps looping (ScheduleWakeup) — a stalled lane is a signal about the queue, not a reason to terminate — and persists no_progress_streak=3 in the telemetry state block. An idle cycle (empty frontier, no untriaged intake) would have held the counter unchanged, and any qualifying progress resets it to zero; if progress later resumes while the stall item is open, the lane records the resumption as a comment on it and leaves the disposition to the operator. The stall item is ordinary human-gated backlog to the exit evaluation (drain-terminal state), never lane infrastructure.",
+      "files": [],
+      "expectations": [
+        "Increments the no-progress streak because the cycle-start snapshot held frontier candidates and the cycle produced no qualifying progress — a dirty execution with no tracker state change is not progress",
+        "Reads the threshold from work_loop_no_progress_threshold and applies the manifest default of 3 when the key is unset (surviving literal placeholder)",
+        "Raises the stall escalation through the existing escalation contract: a 'Lane stall: work-loop' tracker item via the seam create-item verb with the human-gated role label resolved from config.role_labels plus the machine-marked lane=work-loop kind=escalated comment",
+        "Checks for an existing open stall item matched on exact title AND the seam's configured write identity as author before creating one — at most one open, and a third-party lookalike never suppresses the signal",
+        "Never counts the stall escalation itself as qualifying progress and never resets the counter by escalating",
+        "Keeps looping after escalating — never stops the lane on a stall — and persists the updated no_progress_streak in the telemetry state block",
+        "Holds the counter on an idle cycle (nothing actionable in view) and resets it to zero on any qualifying progress, recording a resumption comment on the still-open stall item when progress returns",
+        "Treats the stall item as ordinary human-gated backlog for the exit evaluation, never as excluded lane infrastructure"
       ]
     }
   ]

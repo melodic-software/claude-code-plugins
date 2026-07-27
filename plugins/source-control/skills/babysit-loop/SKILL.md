@@ -315,13 +315,17 @@ worker lifecycle, and the re-partition rule — is owned by
 
 The counter semantics — increment on an actionable-but-zero-progress cycle, hold on an idle cycle,
 reset on any qualifying progress, escalate at the threshold and keep looping, at most one open
-stall escalation (author-matched), the stall escalation never counting as progress — are the
-convention's (§4, "No-progress detector"), held by citation. This lane's specifics:
+stall escalation (author-matched), neither the stall escalation nor a repeat attempt at the same
+still-unresolved blocker ever counting as progress, the resumption comment when progress returns
+while a stall escalation is open — are the convention's (§4, "No-progress detector"), held by
+citation. This lane's specifics:
 
 - **Qualifying progress** (merge lane — a PR materially changed, escalated, or merged): since the
   previous cycle, a watched PR merged or closed; a PR materially changed — head moved, review or
-  comment activity, a checks transition, a draft elevated — whoever caused it (foreign activity is
-  the queue moving); or this lane wrote a new escalation. Compare against the previous cycle's
+  comment activity, a checks transition, a draft elevated — foreign activity included (it is the
+  queue moving), but a lane-authored fix or resolution qualifies only the cycle it first lands:
+  re-attempting the same still-unresolved blocker later is not progress (the convention's
+  no-self-reset rule); or this lane wrote a new escalation. Compare against the previous cycle's
   snapshot; across a session restart, anchor on the telemetry comment's last upsert time.
 - **Actionable work in view**: the cycle-start snapshot holds at least one open PR. Otherwise the
   cycle is idle and the counter holds.

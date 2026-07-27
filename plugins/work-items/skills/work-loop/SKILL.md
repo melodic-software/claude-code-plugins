@@ -307,8 +307,10 @@ arithmetic over those two factors bounds the fan-out.
 
 The counter semantics — increment on an actionable-but-zero-progress cycle, hold on an idle cycle,
 reset on any qualifying progress, escalate at the threshold and keep looping, at most one open
-stall escalation (author-matched), the stall escalation never counting as progress — are the
-convention's (§4, "No-progress detector"), held by citation. This lane's specifics:
+stall escalation (author-matched), neither the stall escalation nor a repeat attempt at the same
+still-unresolved blocker ever counting as progress, the resumption comment when progress returns
+while a stall escalation is open — are the convention's (§4, "No-progress detector"), held by
+citation. This lane's specifics:
 
 - **Qualifying progress** (worker lane — an item advanced or a PR opened): an admitted item
   executed to an opened PR or a closed item, or an item's tracker state advanced by this lane —

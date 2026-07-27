@@ -120,7 +120,9 @@ unset (its default state — the key declares no manifest default), it lets
 The autonomous per-cycle item budget is a separate, driving-loop concern — the
 `work-loop` lane's adaptive item cap (`work_loop_item_cap_start` / `_ceiling` /
 `_floor`, plus `work_loop_frontier_item_cap_ceiling`), enforced by the loop
-body's own arithmetic.
+body's own arithmetic. `work_loop_no_progress_threshold` (default 3) sets how
+many consecutive no-progress cycles the lane tolerates before raising its
+stall escalation — it escalates and keeps looping, never stops on a stall.
 
 Everything else is project-specific behavior that routes through the consuming
 repo's own surfaces: the bound provider in `.work-item-tracker.json` (including

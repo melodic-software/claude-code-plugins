@@ -13,7 +13,8 @@ All notable changes to the `source-control` plugin are documented here. Format f
   itself. The lane now persists a `no_progress_streak` counter beside `cycle` and `backoff_level`
   in its `#502` durable state block: a cycle with open PRs in the cycle-start snapshot that ends
   with no qualifying progress — no PR merged or closed, materially changed (head, reviews,
-  comments, checks, draft elevation — whoever caused it), and no new escalation written —
+  comments, checks, draft elevation — foreign activity included; the lane's own repeat attempt at
+  the same still-unresolved blocker never re-qualifies), and no new escalation written —
   increments it, an idle cycle (no open PRs) leaves it unchanged, and any qualifying progress
   resets it. At the threshold (new `babysit_loop_no_progress_threshold` seam key, default 3) the
   lane raises a stall escalation through the existing escalation contract — a

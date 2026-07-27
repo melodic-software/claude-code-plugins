@@ -49,7 +49,7 @@
         "Excludes both Lane telemetry: <lane> issues from the 0-open-issues evaluation as lane infrastructure, and never works, closes, or waits on them",
         "Recognizes the drain-terminal state — every remaining open item human-gated or escalated and no PR in flight — and stops cleanly with a final report",
         "Resolves the human-gated role label through the consumer's config.role_labels map, never a literal label comparison",
-        "Updates the durable state block (cycle count, backoff level) in the telemetry comment before stopping",
+        "Updates the durable state block (cycle count, backoff level, no-progress streak) in the telemetry comment before stopping",
         "When continuing, schedules via ScheduleWakeup within the [60, 3600] clamp using the cadence mapping owned by the babysit-prs loop reference",
         "On a cycle-budget or seven-day-expiry hit, writes a restart-request into the telemetry state block and stops cleanly rather than relaunching itself"
       ]
@@ -68,6 +68,23 @@
         "Excludes the C4 structural PR before the rung comparison, unconditionally, citing the autonomy matrix's never-promotes contract rather than a rung value",
         "Excludes the fork PR as C5 on the PR's own cross-repository provenance rather than the C2 class recorded on the item it closes, and does not reach that verdict by comparing an author login to the watched-owner allowlist",
         "Reports the tier source and the merge-rung source separately rather than collapsing them into one effective tier"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "babysit-loop-no-progress-detector-idle-vs-stalled",
+      "prompt": "/source-control:babysit-loop melodic-software/example-repo worker\n\nCycle end. Durable state: no_progress_streak=2. The cycle-start snapshot held two open PRs, both WIP drafts with non-green checks; since the previous cycle no PR merged or closed, no head moved, no review or comment activity, no checks transition, no draft elevated, and the lane wrote no new escalation. babysit_loop_no_progress_threshold is unset. No open issue titled 'Lane stall: babysit-loop' exists.",
+      "expected_output": "Open PRs in the cycle-start snapshot are actionable work in view even when the grace-window overlay marks them report-only, and nothing qualifying happened since the previous cycle — no merge or close, no material change by anyone, no new escalation — so the no-progress streak increments to 3, reaching the unset seam key's default threshold of 3. The lane raises the stall escalation through the existing escalation contract: an issue titled exactly 'Lane stall: babysit-loop' carrying the human-gated role label (resolved from the consumer's config.role_labels, canonical needs-human default with a loud notice when the binding file is absent) plus a machine-marked comment whose first line is the work-items escalation marker with lane=babysit-loop kind=escalated, reporting the streak length, the cycles covered, and what sat unmoved. Before creating it the lane checks for an existing open stall issue matched on the exact title AND its own write identity as author — at most one open; a third party's lookalike never suppresses the signal. The stall escalation itself never counts as qualifying progress, and a lane-authored fix re-attempting the same still-unresolved blocker on a later cycle never re-qualifies either — the detector measures the queue moving, not the lane retrying. The lane escalates and keeps looping — never stops on a stall. A cycle whose snapshot held zero open PRs would be idle and hold the counter unchanged; foreign activity — a head move, a review comment, a checks transition — is the queue moving and resets the counter to zero. The updated no_progress_streak persists in the telemetry state block, and the stall issue is ordinary human-gated backlog to the drain evaluation, never lane infrastructure.",
+      "files": [],
+      "expectations": [
+        "Treats open PRs in the cycle-start snapshot as actionable work in view even when the grace-window overlay marks them report-only, and increments the streak because nothing qualifying happened since the previous cycle",
+        "Reads the threshold from the babysit_loop_no_progress_threshold seam key and applies the default of 3 when it is unset",
+        "Raises the stall escalation through the existing escalation contract: a 'Lane stall: babysit-loop' issue with the human-gated role label resolved from config.role_labels plus the machine-marked lane=babysit-loop kind=escalated comment",
+        "Checks for an existing open stall issue matched on exact title AND its own write identity as author before creating one — at most one open, and a third-party lookalike never suppresses the signal",
+        "Never counts the stall escalation itself as qualifying progress, and never lets a lane-authored repeat attempt at the same still-unresolved blocker re-qualify — only its first landing counts",
+        "Keeps looping after escalating — never stops the lane on a stall — and persists the updated no_progress_streak in the telemetry state block",
+        "Holds the counter on an idle cycle (zero open PRs in the snapshot) and resets it to zero on qualifying progress, foreign activity included — a head move, review or comment activity, or a checks transition is the queue moving",
+        "Treats the stall issue as ordinary human-gated backlog for the drain evaluation, never as excluded lane infrastructure"
       ]
     }
   ]

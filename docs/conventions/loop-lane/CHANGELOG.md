@@ -22,9 +22,9 @@ taken.
   it, an idle cycle leaves it unchanged, and any qualifying progress resets it. Reaching the stall
   threshold (default 3; lane-configurable) **escalates through §2's existing contract and keeps
   looping** — never a lane stop, no second channel, no new guardrail event class. At most one stall
-  escalation per lane stays open at a time (author-matched dedup), and the stall escalation itself
-  never counts as qualifying progress. The attended queue is exempt — its operator is present by
-  definition.
+  escalation per lane stays open at a time (author-matched dedup), and neither the stall escalation
+  itself nor a lane's own repeat attempt at the same still-unresolved blocker ever counts as
+  qualifying progress. The attended queue is exempt — its operator is present by definition.
 - **Durable loop state (§4)** now lists the consecutive-no-progress counter among the persisted
   counters.
 

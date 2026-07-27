@@ -250,9 +250,11 @@ one channel, not a second channel and not a new guardrail event class. At most o
 per lane is open at a time: before raising one, the lane checks for an existing open stall
 escalation authored by its own write identity (author-matched — a third party's lookalike never
 suppresses the signal) and raises nothing while one exists. The stall escalation itself is never a
-qualifying progress event, so the detector cannot reset itself by escalating. When progress resumes
-while a stall escalation is still open, the lane records the resumption as a comment on it and
-leaves the disposition to the operator.
+qualifying progress event, so the detector cannot reset itself by escalating — and more generally,
+a lane's own repeat attempt at the same still-unresolved blocker never qualifies either: the
+detector measures the queue moving, not the lane retrying. When progress resumes while a stall
+escalation is still open, the lane records the resumption as a comment on it and leaves the
+disposition to the operator.
 
 **Headless-config floor.** A headless lane launch never blocks on an interview: it takes explicit or
 persisted config, or tier defaults, and logs the assumption. The interactive path may run a
