@@ -81,20 +81,27 @@ if [[ "${1:-}" == "--count" ]]; then
 fi
 
 # --- Detection patterns (case-insensitive) -----------------------------------
+# POSIX ERE has no word-boundary assertion (GNU grep's ERE \b is an extension
+# BSD grep lacks), so compose boundaries from consuming byte classes — safe here
+# because every use is line-level -q/-n matching, never match extraction. The
+# negated classes are single-byte under a C locale, which still bounds correctly
+# against multibyte neighbors: their first byte is non-alnum.
+WB_L="(^|[^[:alnum:]_])"
+WB_R='([^[:alnum:]_]|$)'
 # I6 prohibition tokens. `do NOT` folds into `do not` under -i. The ('|’)?
 # alternation in the contraction forms covers straight, curly (U+2019), and
 # absent apostrophes as literal byte sequences — a `.`/bracket class breaks on
 # multibyte apostrophes under a C locale.
-I6_ERE="\\bnever\\b|\\bdo not\\b|\\bdon('|’)?t\\b|\\bmust ?not\\b|\\bmustn('|’)?t\\b|\\bshould ?not\\b|\\bshouldn('|’)?t\\b"
+I6_ERE="${WB_L}never${WB_R}|${WB_L}do not${WB_R}|${WB_L}don('|’)?t${WB_R}|${WB_L}must ?not${WB_R}|${WB_L}mustn('|’)?t${WB_R}|${WB_L}should ?not${WB_R}|${WB_L}shouldn('|’)?t${WB_R}"
 # Rationale markers — a prohibition line carrying one of these is not an I6 candidate.
-RATIONALE_ERE="because|\\bsince\\b|\\bso that\\b|\\bso it\\b|\\bso the\\b|\\bto avoid\\b|\\botherwise\\b|\\bin order to\\b|\\brationale\\b|\\breason\\b"
+RATIONALE_ERE="because|${WB_L}since${WB_R}|${WB_L}so that${WB_R}|${WB_L}so it${WB_R}|${WB_L}so the${WB_R}|${WB_L}to avoid${WB_R}|${WB_L}otherwise${WB_R}|${WB_L}in order to${WB_R}|${WB_L}rationale${WB_R}|${WB_L}reason${WB_R}"
 # I10 reasoning-echo phrasing.
 I10_ERE="(show|explain|reproduce|echo|transcribe|verbalize|narrate|share|describe) (your |the )?(thinking|reasoning|thought process|chain of thought)"
 I10_ERE="${I10_ERE}|think out loud|walk (me|us) through your (thinking|reasoning)|reasoning_extraction|chain[- ]of[- ]thought"
 # I8 model-era candidate families (Opus-5-scoped catalog rows; scanner is
 # model-blind; per-family ids I8-a/I8-b/I8-c). Stem forms (`re[- ]?verif`)
 # deliberately catch inflections; over-production is the contract.
-I8_A_ERE="double[- ]check|\\bre[- ]?verif|final verification step|(sub)?agent to verify|have (a |an )?(sub)?agent verify|verifier (sub)?agent|verify your (own )?work"
+I8_A_ERE="double[- ]check|${WB_L}re[- ]?verif|final verification step|(sub)?agent to verify|have (a |an )?(sub)?agent verify|verifier (sub)?agent|verify your (own )?work"
 I8_B_ERE="be conservative|(only report|report only) (the )?(high|critical)|(don('|’)?t|do not) nitpick"
 I8_C_ERE="(do not|don('|’)?t) (think|reason)|without thinking|skip the reasoning"
 
