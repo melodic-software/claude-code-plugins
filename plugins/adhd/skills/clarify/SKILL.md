@@ -128,9 +128,10 @@ Write any local HTML file to the **ephemeral tier** — one file created through
 the platform's temp API — and hand back that path. A clarified view is
 transient generated state, so it never lands in the consumer's repository tree.
 Do **not** delete the file before returning: the path is the delivery
-mechanism, so it must still be readable when the reader opens it. It dies with
-the session, not with this invocation. Resolve that one path
-deterministically: never
+mechanism, so it must still be readable when the reader opens it. It outlives
+this invocation, and nothing documented reclaims the OS temp tree on a
+schedule — so write one file per run and never an accumulating tree. Resolve
+that one path deterministically: never
 branch on whether the harness injected a scratchpad path or set
 `CLAUDE_JOB_DIR`, and never depend on the session scratchpad, which is an
 undocumented surface upstream has declined to support. Do not rely on a

@@ -28,7 +28,7 @@ anything downstream *enforce against* this document?
 
 | Tier | Location (default) | Git | Holds |
 |---|---|---|---|
-| Ephemeral | An OS-API-created temp directory, one per run | Never in the repo | Files that die with the session: a rendered HTML view, a spill file, a throwaway |
+| Ephemeral | An OS-API-created temp file or directory, one per run | Never in the repo | Files nothing downstream reads: a rendered HTML view, a spill file, a throwaway |
 | Memory | `.work/<slug>/` | Never committed (self-ignoring) | `EXPLORE.md`, `RESEARCH.md`, `<stage>-checklist.md`, `baselines/`, raw captures and scratch |
 | Memory, concern-scoped | `.work/handoffs/`, `.work/reviews/<branch-slug>/` | Never committed | session handoffs; review reports — their axes are session and branch, so they sit outside topic slices |
 | Contract | `docs/topics/<slug>/` | Committed **on the task branch only**; pruned before merge | `PLAN.md` (Brief + Plan), `PRD.md`, `design/` (incl. the `design-threads.md` / `design-resolution.md` gate files), `verification/` (the distilled manifest) |
@@ -57,12 +57,13 @@ conversation output; persisting is opt-in, into the memory tier).
 ### The ephemeral tier
 
 The memory tier's one cell conflated two kinds with opposite
-requirements: state that must SURVIVE the session (resume artifacts,
-ledgers, captures) and files that DIE with it. The ephemeral row names
-the second. It is slug-less and path-less by design — a run creates its
-own directory through the platform's temp API and removes it — so it is
-invisible to every other execution context by construction and takes no
-row in the visibility matrix.
+requirements: state that must SURVIVE the session as a read input
+(resume artifacts, ledgers, captures) and files nothing downstream ever
+reads again. The ephemeral row names the second. It is slug-less and
+path-less by design — a run creates its own file or directory through
+the platform's temp primitive — so it is invisible to every other
+execution context by construction and takes no row in the visibility
+matrix.
 
 Five rules hold at this row:
 
@@ -71,35 +72,48 @@ Five rules hold at this row:
    are disjoint by session kind (`CLAUDE_JOB_DIR` is set for background
    sessions only), so branching makes file placement depend on how the
    session was launched, which is invisible from inside the plugin. Use
-   the platform's temp API, which already honors a consumer's
-   `CLAUDE_CODE_TMPDIR` override without the plugin reading it.
-2. **The lifetime is the session, not the call.** A path handed back to
-   the user must still be readable when they open it, so a producer that
-   RETURNS a path does not delete the file in a `finally` — that races
-   the reader and hands back a dead path. `finally` cleanup is correct
-   only for a file the producer itself consumes and hands to no one.
-   Everything here dies with the session either way; the difference is
-   who ends it.
+   the platform's standard temp primitive (`mktemp` on Unix, a
+   user-scoped temp under `%LOCALAPPDATA%\Temp` on Windows) and let it
+   resolve its own root. That root is the ambient `$TMPDIR` or system
+   default — **not** `CLAUDE_CODE_TMPDIR`, which overrides the temp
+   directory Claude Code uses for its *own internal* files: the env-var
+   reference states that "Unsandboxed Bash commands inherit your shell's
+   `$TMPDIR` unchanged" (verified 2026-07-27). A plugin shelling out to
+   `mktemp` therefore never observes that override, and no plugin should
+   claim it does.
+2. **The lifetime outlives the call.** A path handed back to the user
+   must still be readable when they open it, so a producer that RETURNS
+   a path does not delete the file in a `finally` — that races the
+   reader and hands back a dead path. `finally` cleanup is correct only
+   for a file the producer itself consumes and hands to no one. How long
+   a returned file actually lives is the platform's decision, not this
+   contract's: it sits in the OS temp tree until something reclaims that
+   tree, and nothing documented does (see below). Size the footprint for
+   a file that OUTLIVES the session, not one that vanishes with it.
 3. **Never the session scratchpad.** Plugins never require it, publish
    pointers to it, or change semantics based on its presence.
 4. **Nothing durable lands here.** If a later session, another checkout,
    or a reviewer must read the file, it belongs in the memory or
    contract tier — this row is not a shortcut past their rules.
-5. **Customization is a manifest `userConfig` typed `directory`,
-   defaulting to empty** — never a `.claude/topic-docs.yaml` key. A temp
-   root is machine scope; a tracked key would imply a team decision
-   about a location no teammate can observe. Per the configuration
-   ownership table in `docs/PLUGIN-PHILOSOPHY.md`.
+5. **If a plugin exposes a temp-root override, its form is a manifest
+   `userConfig` typed `directory`, defaulting to empty** — never a
+   `.claude/topic-docs.yaml` key. A temp root is machine scope; a
+   tracked key would imply a team decision about a location no teammate
+   can observe. This constrains the FORM of an override, and does not
+   oblige any plugin to offer one — neither current adopter does, so
+   today the ambient temp root is the only root in play. Per the
+   configuration ownership table in `docs/PLUGIN-PHILOSOPHY.md`.
 
-**Keep the footprint small.** Rule 2 leans on session teardown and the
-platform's temp reaper, and neither is guaranteed: verified 2026-07-26
-against the full Claude Code docs corpus, no documented cleanup,
-retention, TTL, or pruning mechanism covers the temp tree Claude Code
-writes under. The one documented retention setting, `cleanupPeriodDays`,
-is scoped to `~/.claude/` application data — a different tree. So a
-producer writes one file, or one directory, per run — never an
-accumulating tree — and rule 4 does real work: anything worth keeping
-belongs in a tier that is actually managed.
+**Keep the footprint small.** Nothing reclaims this tree on a schedule:
+verified 2026-07-26 against the full Claude Code docs corpus, no
+documented cleanup, retention, TTL, or pruning mechanism covers the temp
+tree Claude Code writes under, and the one documented retention setting,
+`cleanupPeriodDays`, is scoped to `~/.claude/` application data — a
+different tree. That is precisely why rule 2 refuses to promise the file
+dies with the session, and why the footprint rule is load-bearing rather
+than tidy-minded: a producer writes one file, or one directory, per run
+— never an accumulating tree — and rule 4 does real work, since anything
+worth keeping belongs in a tier that is actually managed.
 
 **Why not the session scratchpad.** Verified 2026-07-26 against primary
 sources: zero occurrences of "scratchpad" in the full Claude Code docs

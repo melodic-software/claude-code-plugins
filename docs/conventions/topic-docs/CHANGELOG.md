@@ -5,27 +5,40 @@
 - **An Ephemeral row joins the tier table** (additive). The table sorts
   documents by one question — does anything downstream enforce against
   this? — which cannot express lifetime, so its finest-grained cell, the
-  memory tier, conflated state that must survive the session with files
-  that die with it. With no row naming the second kind, two plugins
+  memory tier, conflated state a later reader must find with files
+  nothing downstream ever reads again. With no row naming the second kind, two plugins
   independently invented the same answer and both reached for the
   session scratchpad, an undocumented harness path (zero occurrences in
   the full docs corpus, keyed by working directory, and declined three
   times upstream as a supported surface). The convention registry's
   trigger — an owner doc before a second plugin adopts — had already
   fired. The row states five rules (one deterministic path; the lifetime
-  is the session and not the call, so a producer that returns a path
-  never deletes the file before returning; never the scratchpad; nothing
-  durable; customization through a manifest `userConfig` rather than a
+  outlives the call, so a producer that returns a path never deletes the
+  file before returning; never the scratchpad; nothing durable; the FORM
+  of any temp-root override is a manifest `userConfig` rather than a
   tracked key), carries a re-derivation trigger, and records why
   git-visibility, promotion-stage, and write-contention each needed no
   change.
 
   Rule 2 is stated because both existing adopters hand their file back
   as a path for the user to open — a `finally` cleanup would race the
-  reader and return a dead path. It leans on session teardown, so the
-  row also records that no documented Claude Code mechanism prunes that
-  temp tree (`cleanupPeriodDays` is scoped to `~/.claude/`, a different
-  tree), which is why one run writes one file and never a tree.
+  reader and return a dead path. The row deliberately does **not**
+  promise the file dies with the session: no documented Claude Code
+  mechanism prunes that temp tree (`cleanupPeriodDays` is scoped to
+  `~/.claude/`, a different tree), so the honest guarantee is that the
+  file OUTLIVES the invocation and is reclaimed only when the platform
+  reclaims its temp tree. That is why one run writes one file and never
+  a tree.
+
+  Two claims are stated as constraints rather than capabilities, because
+  neither capability exists today. Rule 1 does not route
+  `CLAUDE_CODE_TMPDIR` into the temp primitive: that variable overrides
+  the temp directory Claude Code uses for its own internal files, and
+  the env-var reference states that unsandboxed Bash commands inherit
+  the shell's `$TMPDIR` unchanged, so a plugin shelling out to `mktemp`
+  never observes it. Rule 5 fixes the form an override takes *if* a
+  plugin offers one; neither current adopter declares `userConfig`, and
+  the rule no longer reads as a promise that one is available.
 
   Minor, not major: no tier moves, no `topic-docs.yaml` key is renamed,
   the slug spec is untouched, and no visibility guarantee changes — the

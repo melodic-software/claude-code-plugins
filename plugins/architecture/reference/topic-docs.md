@@ -20,10 +20,10 @@ The candidate list is a cross-stage handoff: a planning step consumes its `agree
 downstream *enforces against* it — the agreed shape graduates into planning's own contract-tier
 artifacts (`PLAN.md`), which is where enforcement begins.
 
-The HTML report is a human-readable companion and dies with the session, so it lands in the
-contract's ephemeral tier. Its rules are the contract's — one deterministic path, never the session
-scratchpad, and no delete-before-return because the path is the delivery mechanism — not a delta of
-this plugin's.
+The HTML report is a human-readable companion that nothing downstream reads again, so it lands in
+the contract's ephemeral tier. Its rules are the contract's — one deterministic path, never the
+session scratchpad, no delete-before-return because the path is the delivery mechanism, and one
+file per run because nothing documented reclaims the temp tree — not a delta of this plugin's.
 
 ## Slug derivation
 
