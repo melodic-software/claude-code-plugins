@@ -23,9 +23,12 @@ All notable changes to the `implementation` plugin are documented here. Format f
   explicit tool cage — a change from the previously ungoverned generic-subagent tool surface: the
   implementer grants file edit, search, shell, web research, skill invocation, and nested dispatch;
   the phase-verifier bars Edit/Write and agent spawning, with Bash retained for inspection (stated
-  as the cage it is, not as "read-only", per the plugin philosophy's named-agent bar). (Frontmatter
-  `model` values and the env → parameter → frontmatter → inherit resolution order verified against
-  <https://code.claude.com/docs/en/sub-agents>, 2026-07-26.)
+  as the cage it is, not as "read-only", per the plugin philosophy's named-agent bar). Both also
+  bind `effort` rather than inheriting the session's level, matching this marketplace's other named
+  agents — a model binding alone would still let an orchestrator that lowered effort for its own
+  bookkeeping lower it for the phase work. (Frontmatter `model` and `effort` values and the
+  env → parameter → frontmatter → inherit resolution order verified against
+  <https://code.claude.com/docs/en/sub-agents>, 2026-07-27.)
 
 ## [0.9.2]
 

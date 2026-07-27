@@ -3,6 +3,7 @@ name: phase-verifier
 description: "Fresh-context acceptance verifier dispatched by /implementation:implement-dispatch at phase boundaries: checks a phase's binary acceptance criteria against the actual diff with the orchestrator's rationale withheld, and returns a per-criterion verdict grounded in direct evidence. Its tool cage bars Edit/Write and agent spawning; Bash remains for inspection. Not intended for direct ad-hoc use."
 tools: "Read, Grep, Glob, Bash"
 model: opus
+effort: high
 maxTurns: 30
 ---
 
@@ -34,3 +35,7 @@ relative to the session — a consequential verdict runs at the session-model ti
 below (the marketplace's `docs/PLUGIN-PHILOSOPHY.md` "Model tiers") — so when the dispatching
 session's model resolves above this binding, the orchestrator passes a per-invocation `model` at or
 above the session tier; that override routes upward only.
+
+`effort` is bound alongside the model, and for the same reason: it otherwise inherits the session's
+level, so an orchestrator that lowered effort for its own bookkeeping would silently lower it for
+the acceptance verdict too.

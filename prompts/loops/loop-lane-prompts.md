@@ -339,7 +339,7 @@ implementer `sonnet`, and `/work-items:work`'s branch-owned fix
 re-dispatches ride the same agent surface. Resolution order is:
 `CLAUDE_CODE_SUBAGENT_MODEL`, then the per-invocation `model` parameter,
 then frontmatter, then the main conversation's model
-(<https://code.claude.com/docs/en/sub-agents>, verified 2026-07-26).
+(<https://code.claude.com/docs/en/sub-agents>, verified 2026-07-27).
 
 Two consequences of that order:
 

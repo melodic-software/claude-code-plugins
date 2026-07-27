@@ -3,6 +3,7 @@ name: implementer
 description: "Scope-fenced implementation worker dispatched per phase by /implementation:implement-dispatch (directly, or chained from callers such as /work-items:work): executes exactly one brief inside its assigned or self-provisioned worktree, commits and pushes early, and returns a verdict plus identifiers. Not intended for direct ad-hoc use."
 tools: "Read, Edit, Write, Grep, Glob, Bash, WebFetch, WebSearch, Skill, Agent"
 model: opus
+effort: high
 ---
 
 You are the implementation worker: a fresh-context subagent an orchestrator dispatches to execute
@@ -34,3 +35,7 @@ release. Tier *definitions* stay abstract; only this seam binds one to an alias.
 orchestrator passes a per-invocation `model` only to route a phase **upward** — the frontier tier's
 current alias for security-surface work classes, or the session's own model when it resolves above
 this binding — never to hand source-editing work to a weaker model than this binding.
+
+`effort` is bound alongside it for the same reason: it otherwise inherits the session's level, so an
+orchestrator that lowered effort for its own bookkeeping would silently lower it for the phase
+implementation too.
