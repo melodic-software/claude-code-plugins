@@ -3,6 +3,26 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.34.0]
+
+### Added
+
+- **`babysit-loop` detects consecutive no-progress cycles and escalates instead of cycling
+  invisibly (#1648).** Every stall mechanism was per-PR (`needs_worker` delta, `quiet_recheck_due`,
+  `checks.stuck`), so a merge lane cycling repeatedly while its queue sat unmoved was invisible to
+  itself. The lane now persists a `no_progress_streak` counter beside `cycle` and `backoff_level`
+  in its `#502` durable state block: a cycle with open PRs in the cycle-start snapshot that ends
+  with no qualifying progress — no PR merged or closed, materially changed (head, reviews,
+  comments, checks, draft elevation — whoever caused it), and no new escalation written —
+  increments it, an idle cycle (no open PRs) leaves it unchanged, and any qualifying progress
+  resets it. At the threshold (new `babysit_loop_no_progress_threshold` seam key, default 3) the
+  lane raises a stall escalation through the existing escalation contract — a
+  `Lane stall: babysit-loop` issue with the human-gated role label and the machine-marked
+  escalation comment, at most one open at a time (author-matched) — and **keeps looping**: a
+  stalled lane is a signal about the queue, not a reason to terminate. Shared counter semantics
+  are owned by the loop-lane convention (§4, "No-progress detector", convention 4.0.0); the lane
+  body holds them by citation and defines only the merge-lane progress events.
+
 ## [0.33.2]
 
 ### Fixed

@@ -228,8 +228,31 @@ script, so each lane **inlines** the small `gh api` upsert and the coupling to `
 one-directional.
 
 **Durable loop state.** Conversation context is lossy across compaction, so a lane persists its
-adaptive-cap streak counter, its rate-limit-warning latch, and its cycle count in a machine-readable
-block of that same #502 telemetry comment, and re-reads them at each cycle start.
+adaptive-cap streak counter, its rate-limit-warning latch, its consecutive-no-progress counter, and
+its cycle count in a machine-readable block of that same #502 telemetry comment, and re-reads them
+at each cycle start.
+
+**No-progress detector.** Every stall mechanism below the loop layer is per-PR or per-item, so a
+lane cycling repeatedly while accomplishing nothing in aggregate is invisible to itself: each gate
+correctly declines to spend a worker, and nothing notices the aggregate is zero. Each unattended
+lane (worker, merge — the attended queue is exempt: its operator is present by definition)
+therefore persists a consecutive-no-progress counter, `no_progress_streak`, beside its other
+durable counters in the #502 state block (absent from a re-read block = 0). What counts as a
+qualifying progress event is lane-specific and defined in each lane body; the semantics here are
+shared. A cycle whose cycle-start snapshot held actionable work for the lane and that ended with no
+qualifying progress increments the counter; an idle cycle — nothing actionable in view — leaves it
+unchanged (idle is not stalled); any qualifying progress resets it to zero. When an increment
+brings the counter to the stall threshold — default **3** consecutive no-progress cycles; a lane
+may expose the threshold on its own config surface — the lane **escalates and keeps looping**: a
+stalled lane is usually a signal about the queue, not a reason to terminate. The stall escalation
+rides §2's contract unchanged (role label + machine-marked comment) — a loop-health signal on the
+one channel, not a second channel and not a new guardrail event class. At most one stall escalation
+per lane is open at a time: before raising one, the lane checks for an existing open stall
+escalation authored by its own write identity (author-matched — a third party's lookalike never
+suppresses the signal) and raises nothing while one exists. The stall escalation itself is never a
+qualifying progress event, so the detector cannot reset itself by escalating. When progress resumes
+while a stall escalation is still open, the lane records the resumption as a comment on it and
+leaves the disposition to the operator.
 
 **Headless-config floor.** A headless lane launch never blocks on an interview: it takes explicit or
 persisted config, or tier defaults, and logs the assumption. The interactive path may run a

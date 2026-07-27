@@ -3,6 +3,25 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.26.0]
+
+### Added
+
+- **`work-loop` detects consecutive no-progress cycles and escalates instead of cycling invisibly
+  (#1648).** Every stall mechanism was per-PR or per-item, so a lane cycling repeatedly while
+  accomplishing nothing in aggregate was invisible to itself. The lane now persists a
+  `no_progress_streak` counter beside `clean_streak` in its `#502` durable state block: a cycle
+  with actionable work in the cycle-start snapshot (frontier candidates or untriaged intake) that
+  ends with no qualifying progress — an item advanced or a PR opened — increments it, an idle
+  cycle leaves it unchanged, and any qualifying progress resets it. At the threshold (new
+  `work_loop_no_progress_threshold` userConfig key, default 3) the lane raises a stall escalation
+  through the existing escalation contract — a `Lane stall: work-loop` tracker item with the
+  human-gated role label and the machine-marked escalation comment, at most one open at a time
+  (author-matched) — and **keeps looping**: a stalled lane is a signal about the queue, not a
+  reason to terminate. Shared counter semantics are owned by the loop-lane convention (§4,
+  "No-progress detector", convention 4.0.0); the lane body holds them by citation and defines only
+  the worker-lane progress events.
+
 ## [0.25.4]
 
 ### Fixed

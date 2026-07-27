@@ -42,8 +42,9 @@ holds those contracts **by citation**: the three-session topology and the autono
 stop shapes including the drain-terminal state, the `/loop` seven-day expiry, the `#691`
 cycle-budget semantics (a budget hit restarts the session, never ends the loop; today every budget
 hit is a terminal manual-restart state), the `#502` telemetry comment and durable loop state, the
-headless-config floor, the subagent discipline preamble, provider backoff (seam exit 8), and the
-snapshot drain exit. Where this document says "per the convention", that file is the contract.
+no-progress detector's shared counter semantics, the headless-config floor, the subagent
+discipline preamble, provider backoff (seam exit 8), and the snapshot drain exit. Where this
+document says "per the convention", that file is the contract.
 
 ## Launch, pacing, and session budget
 
@@ -105,8 +106,8 @@ block, re-read at every cycle start (conversation context is compaction-lossy �
 the conversation, is the source of truth for these counters):
 
 ```json
-{"schema":"work-items/loop-state@1","cycle":12,"clean_streak":1,"item_cap":2,
- "rate_limit_latch":false,"first_drain_complete":false,"guard_mode":"proactive",
+{"schema":"work-items/loop-state@1","cycle":12,"clean_streak":1,"no_progress_streak":0,
+ "item_cap":2,"rate_limit_latch":false,"first_drain_complete":false,"guard_mode":"proactive",
  "loop_started_at":"2026-07-23T15:00:00Z","restart_request":null}
 ```
 
@@ -190,8 +191,10 @@ while the latch is set (clear it on a fresh healthy snapshot after the pause end
    line is `<!-- work-items:escalation lane=work-loop kind=escalated|ratify-c3|routed-advisory -->`
    — the marker,
    not a second label, is what discriminates a worker-escalated item from an operator-parked one.
-6. **Report and pace.** Upsert the telemetry comment (cycle report + updated state block + guard
-   mode), then evaluate the exit condition; if not exiting, `ScheduleWakeup` the next cycle.
+6. **Report and pace.** Update the no-progress streak — and, at the threshold, raise the stall
+   escalation — per the detector below; upsert the telemetry comment (cycle report + updated state
+   block + guard mode); then evaluate the exit condition; if not exiting, `ScheduleWakeup` the
+   next cycle.
 
 ## Admission gate (work-class, fail-closed)
 
@@ -299,6 +302,32 @@ by `/implementation:implement-dispatch` — its internal 3–5 wave default, or 
 `${user_config.work_dispatch_concurrency_cap}` ceiling when the operator sets it, which
 `/work-items:work` threads through as that skill's `--wave-cap` (`#573`). This loop body's
 arithmetic over those two factors bounds the fan-out.
+
+## No-progress detector
+
+The counter semantics — increment on an actionable-but-zero-progress cycle, hold on an idle cycle,
+reset on any qualifying progress, escalate at the threshold and keep looping, at most one open
+stall escalation (author-matched), the stall escalation never counting as progress — are the
+convention's (§4, "No-progress detector"), held by citation. This lane's specifics:
+
+- **Qualifying progress** (worker lane — an item advanced or a PR opened): an admitted item
+  executed to an opened PR or a closed item, or an item's tracker state advanced by this lane —
+  swept to a triage routing outcome, escalated (step 5), or queued for C3 ratification. A dirty
+  execution that changed no tracker state (retried next cycle) is not progress; a dirty item that
+  escalated off the item is.
+- **Actionable work in view**: the cycle-start snapshot holds at least one autonomous-frontier
+  candidate or untriaged intake item. Otherwise the cycle is idle and the counter holds.
+- **Threshold**: `${user_config.work_loop_no_progress_threshold}` consecutive no-progress cycles;
+  a surviving literal placeholder means the key is unset — apply the manifest default (3).
+- **Stall escalation**: the convention's escalation contract, unchanged — create a tracker item
+  through the seam `create-item` verb (title `Lane stall: work-loop`, exact match) carrying the
+  human-gated role label (resolved from `config.role_labels`, never a literal) and a
+  machine-marked comment whose first line is
+  `<!-- work-items:escalation lane=work-loop kind=escalated -->`, reporting the streak length,
+  the cycles covered, and what sat unmoved in the snapshot. The at-most-one-open check matches on
+  the exact title plus the seam's configured write identity as author, exactly like the
+  `kind=ratify-c3` dedup. A stall item is ordinary human-gated backlog to the exit evaluation
+  (drain-terminal state), never lane infrastructure.
 
 ## Exit condition
 

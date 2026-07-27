@@ -5,6 +5,29 @@ topology, the escalation contract, the capability-tier vocabulary, or any loop-l
 major bump, and additive guidance is a minor bump. A new model release re-audits the capability-tier
 table (§3) and is recorded here.
 
+## 4.0.0 — 2026-07-26
+
+Adds the per-lane consecutive-no-progress detector to §4's loop-layer invariants, requested and
+scoped in
+[melodic-software/claude-code-plugins#1648](https://github.com/melodic-software/claude-code-plugins/issues/1648).
+Tier ratified as **major**: a new loop-layer invariant is a new obligation every unattended lane
+body must implement, which is the discriminator 2.0.0 used. The minor reading — that a new
+invariant is additive guidance because no existing invariant changes — was considered and not
+taken.
+
+- **No-progress detector (§4).** Every stall mechanism below the loop layer is per-PR or per-item,
+  so a lane cycling with zero aggregate progress was invisible to itself. Each unattended lane now
+  persists a `no_progress_streak` counter in its #502 durable state (absent = 0): a cycle with
+  actionable work in the cycle-start snapshot and no lane-defined qualifying progress increments
+  it, an idle cycle leaves it unchanged, and any qualifying progress resets it. Reaching the stall
+  threshold (default 3; lane-configurable) **escalates through §2's existing contract and keeps
+  looping** — never a lane stop, no second channel, no new guardrail event class. At most one stall
+  escalation per lane stays open at a time (author-matched dedup), and the stall escalation itself
+  never counts as qualifying progress. The attended queue is exempt — its operator is present by
+  definition.
+- **Durable loop state (§4)** now lists the consecutive-no-progress counter among the persisted
+  counters.
+
 ## 3.0.0 — 2026-07-25
 
 Repo-owner-ratified addition of a single named, explicit-argument exception to the seam-only merge

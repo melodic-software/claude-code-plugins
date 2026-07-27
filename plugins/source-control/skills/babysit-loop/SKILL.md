@@ -31,8 +31,9 @@ unconditional C4/C5 floor), the escalation contract, order-defined capability ti
 strong / fast; runtime resolution by model alias only, never a hard-coded model ID), stop shapes
 including the drain-terminal state, the `/loop` seven-day expiry, the `#691` cycle-budget semantics
 (a budget hit restarts the session, never ends the loop; today every budget hit is a terminal
-manual-restart state), the `#502` telemetry comment and durable loop state, the headless-config
-floor, and the subagent discipline preamble. Where this document says "per the convention", that file is the contract.
+manual-restart state), the `#502` telemetry comment and durable loop state, the no-progress
+detector's shared counter semantics, the headless-config floor, and the subagent discipline
+preamble. Where this document says "per the convention", that file is the contract.
 
 ## Owned mechanics (invoked, never restated)
 
@@ -267,8 +268,10 @@ intake arriving mid-cycle is reported, never chased.
    contract, and the do-not-merge stance rides every invocation.
 5. **Escalate.** Anything needing an operator decision follows the convention's escalation
    contract (below); a blocked action is escalated, never routed around.
-6. **Report and pace.** Upsert the telemetry comment (cycle report + updated state block + guard
-   mode), evaluate the stop condition; if not stopping, `ScheduleWakeup` the next cycle.
+6. **Report and pace.** Update the no-progress streak — and, at the threshold, raise the stall
+   escalation — per the detector below; upsert the telemetry comment (cycle report + updated
+   state block + guard mode); evaluate the stop condition; if not stopping, `ScheduleWakeup` the
+   next cycle.
 
 ## do-not-merge
 
@@ -307,6 +310,29 @@ gate requires. The full contract — frontier-tier resolution and its escalate-r
 rule, the lease and independence requirements, each blocker class's rationale, the code-change
 worker lifecycle, and the re-partition rule — is owned by
 [reference/pre-escalation-dispatch.md](reference/pre-escalation-dispatch.md).
+
+## No-progress detector
+
+The counter semantics — increment on an actionable-but-zero-progress cycle, hold on an idle cycle,
+reset on any qualifying progress, escalate at the threshold and keep looping, at most one open
+stall escalation (author-matched), the stall escalation never counting as progress — are the
+convention's (§4, "No-progress detector"), held by citation. This lane's specifics:
+
+- **Qualifying progress** (merge lane — a PR materially changed, escalated, or merged): since the
+  previous cycle, a watched PR merged or closed; a PR materially changed — head moved, review or
+  comment activity, a checks transition, a draft elevated — whoever caused it (foreign activity is
+  the queue moving); or this lane wrote a new escalation. Compare against the previous cycle's
+  snapshot; across a session restart, anchor on the telemetry comment's last upsert time.
+- **Actionable work in view**: the cycle-start snapshot holds at least one open PR. Otherwise the
+  cycle is idle and the counter holds.
+- **Threshold**: `babysit_loop_no_progress_threshold` on the layered config seam (key table in
+  the config reference above; default 3).
+- **Stall escalation**: the Escalation contract above, unchanged — a `Lane stall: babysit-loop`
+  issue (exact title) carrying the human-gated role label and a machine-marked comment whose
+  first line is `<!-- work-items:escalation lane=babysit-loop kind=escalated -->`, reporting the
+  streak length, the cycles covered, and what sat unmoved. The at-most-one-open check matches the
+  exact title plus this lane's own write identity as author. A stall issue is ordinary
+  human-gated backlog to the drain evaluation, never lane infrastructure.
 
 ## Telemetry and durable loop state
 
@@ -353,14 +379,14 @@ block, re-read at every cycle start:
 
 ```json
 {"schema":"source-control/babysit-loop-state@1","cycle":12,"backoff_level":2,
- "stop_mode":"standing","tier":"worker","merge_rung":"c2-mechanical",
+ "no_progress_streak":0,"stop_mode":"standing","tier":"worker","merge_rung":"c2-mechanical",
  "rate_limit_latch":false,"guard_mode":"proactive",
  "loop_started_at":"2026-07-23T15:00:00Z","restart_request":null}
 ```
 
-`cycle` and `backoff_level` are the loop's durable counters; `loop_started_at` makes the
-approaching seven-day expiry visible; `restart_request` is where a budget or expiry hit records the
-relaunch ask; `guard_mode` is recorded every cycle.
+`cycle`, `backoff_level`, and `no_progress_streak` are the loop's durable counters;
+`loop_started_at` makes the approaching seven-day expiry visible; `restart_request` is where a
+budget or expiry hit records the relaunch ask; `guard_mode` is recorded every cycle.
 
 ## Rate-limit guard floor (inlined)
 
