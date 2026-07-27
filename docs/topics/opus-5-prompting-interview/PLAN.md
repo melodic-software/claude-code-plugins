@@ -372,7 +372,7 @@ a decisions-table row; revisit if a model-delta chapter ever lands inside an age
 - `grep -ci "library_dir" .../SKILL.md` ≥ 1 (work-root seam, not a hardcoded path).
 - plugin.json `0.10.0`; CHANGELOG `## [0.10.0]`; README table lists `<name>`.
 
-### Phase 5: knowledge-corpus graduation [TODO]
+### Phase 5: knowledge-corpus graduation [DONE]
 
 Cross-repo phase (repo: `melodic-software/knowledge-corpus`, local checkout verified; own branch +
 PR there).
@@ -414,6 +414,7 @@ Work items:
    (mechanical hash blocks exempt — reasoned carve-out: hashes verify themselves); records in the
    plugins repo's `build-verification/`.
 6. Branch + PR in knowledge-corpus (Conventional-Commits title); merge stays human.
+   SHIPPED: knowledge-corpus PR #5 (commit 557bc4bd), merge human; byte-fidelity rule sources/docs/** -text added after CRLF normalization would have broken 6/19 pin rows on fresh clones.
 
 **Sanity Check:**
 
