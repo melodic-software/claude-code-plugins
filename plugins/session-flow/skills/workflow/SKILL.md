@@ -7,11 +7,18 @@ disable-model-invocation: false
 shell: bash
 ---
 
-## Pre-computed context
+## Repository context — gather first
 
-Current branch: !`git branch --show-current 2>/dev/null || echo "not a git repository"`
-Working tree: !`git status --porcelain 2>/dev/null | head -20 || echo "clean"`
-Recent commits: !`git log --oneline -5 2>/dev/null || echo "no commits"`
+Collect these with **individual** Bash calls, one command per call, never combined into a single
+invocation:
+
+- Current branch — `git branch --show-current`
+- Working tree — `git status --porcelain`
+- Recent commits — `git log --oneline -5`
+
+These were pre-computed until #1619. The harness composes the whole pre-compute block into one shell
+invocation, and a worktree-isolated agent refuses a git-bearing compound command it cannot statically
+verify. Run individually, the same commands work everywhere.
 
 ## Purpose
 

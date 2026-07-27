@@ -9,11 +9,21 @@ shell: bash
 
 ## Pre-computed context
 
-Current branch: !`git branch --show-current 2>/dev/null || echo "unknown"`
 Claude session: !`echo "${CLAUDE_CODE_SESSION_ID:-unknown}" || echo "unknown"`
-Recent commits: !`git log --oneline -5 2>/dev/null || echo "no commits"`
-Working tree status: !`git status --porcelain 2>/dev/null | head -20 || echo "clean"`
-Changed files (staged+unstaged): !`git diff --name-only HEAD 2>/dev/null || echo "none"`
+
+## Repository context — gather first
+
+Collect these with **individual** Bash calls, one command per call, never combined into a single
+invocation:
+
+- Current branch — `git branch --show-current`
+- Recent commits — `git log --oneline -5`
+- Working tree status — `git status --porcelain`
+- Changed files (staged+unstaged) — `git diff --name-only HEAD`
+
+These were pre-computed until #1619. The harness composes the whole pre-compute block into one shell
+invocation, and a worktree-isolated agent refuses a git-bearing compound command it cannot statically
+verify. Run individually, the same commands work everywhere.
 
 ## Purpose
 

@@ -1,5 +1,31 @@
 # Changelog — session-flow plugin
 
+## [0.17.15]
+
+### Fixed
+
+- **Every git-bearing skill in this plugin was uninvocable from a worktree-isolated agent
+  (melodic-software/claude-code-plugins#1619).** The harness composes an entire
+  `## Pre-computed context` block into ONE shell invocation, and the worktree-isolation Bash guard
+  refuses a git-bearing compound command it cannot statically verify — so `handoff`,
+  `continue-in-background`, `workflow`, `running-retro`, `orient`, `retro`, and `find-handoff` all
+  failed at load with `this command is too complex to verify that it stays inside the worktree`.
+  The failure hit hardest exactly where these skills matter most: an isolated parallel agent could
+  not write a save-point, orient itself, or recover a handoff.
+  - The git lines are removed from each skill's pre-compute block and re-acquired in the skill body
+    as **individual** Bash calls, one command per call. Non-git pre-compute lines are untouched —
+    they were never the problem (`knowledge:course-digest`, four complex non-git lines, loads fine
+    under isolation).
+  - `find-handoff` is the proof that line count is not the trigger: it carried a single, pipe-free
+    git line among three non-git lines and was refused, while a skill whose *only* pre-compute line
+    is a compound git command loads. The rule is git-in-a-composed-block, not per-line complexity.
+  - `shell: bash` is deliberately left in place on every affected skill, including `workflow`, which
+    now has no `!` lines at all. The key is inert without pre-compute lines, and removing it is a
+    frontmatter-contract change with no behavioral benefit.
+  - Verified by invoking the skills from an `Agent` with `isolation: "worktree"`, with
+    `knowledge:course-digest` as the positive control. CI cannot prove this fix — it never invokes a
+    skill from an isolated agent.
+
 ## [0.17.14]
 
 ### Fixed

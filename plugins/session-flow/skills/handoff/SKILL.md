@@ -9,10 +9,21 @@ shell: bash
 
 ## Pre-computed context
 
-Current branch: !`git branch --show-current 2>/dev/null || echo "unknown"`
 Claude session: !`echo "${CLAUDE_CODE_SESSION_ID:-unknown}" || echo "unknown"`
-Uncommitted changes: !`git status --porcelain 2>/dev/null | head -20 || echo "clean"`
-Recent commits: !`git log --oneline -5 2>/dev/null || echo "no commits"`
+
+## Repository context — gather first
+
+Collect these with **individual** Bash calls, one command per call, never combined into a single
+invocation:
+
+- Current branch — `git branch --show-current`
+- Uncommitted changes — `git status --porcelain`
+- Recent commits — `git log --oneline -5`
+
+These were pre-computed until #1619. The harness composes the whole pre-compute block into one shell
+invocation, and a worktree-isolated agent refuses a git-bearing compound command it cannot statically
+verify — which made this skill uninvocable from exactly the isolated sessions that most need a
+save-point. Run individually, the same commands work everywhere.
 
 ## Purpose
 
