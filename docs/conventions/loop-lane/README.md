@@ -158,6 +158,19 @@ same-context or self-continuation dispatch does not satisfy this requirement eve
 tier — the point of the tier is capability, the point of this rule is that the resolution is a
 genuinely independent second opinion, not the original author or reviewer re-affirming itself.
 
+**Where independence stops is a decision, not an omission.** Fresh-context review fires on exactly
+two paths — the merge-authority exception's pre-escalation dispatch (§1) and a lane's non-trivial
+conflict resolution — and there is deliberately **no** routine per-cycle independent review of
+ordinary loop output. The rationale: independence is the substitute for a *human decision*, and the
+ordinary path takes none. Its correctness rests on deterministic gates — the merge gate, CI, the
+work-class admission test — which are unbiased by construction, so a reviewer spending a
+frontier-tier dispatch every cycle would re-check machine-checkable facts and buy no independence
+that is not already there. The two paths that do draw a dispatch are precisely the ones where no
+gate can decide and an agent's judgment stands in for a person's. This is the boundary's stated
+justification, so its re-derivation trigger is a change to that premise — a path whose outcome stops
+being gate-decidable acquires the independence requirement, and the change is a versioned entry
+here, not a silent one.
+
 **Runtime resolution is by model alias only.** The bare family-word aliases
 (`fable` / `opus` / `sonnet` / `haiku`) are the live-updating handles that resolve to the current
 recommended model for the provider and update over time; a dated model name is a pinned snapshot and
@@ -201,10 +214,17 @@ stop.
 next iteration with `ScheduleWakeup`, whose delay is clamped between one minute and one hour.
 `ScheduleWakeup` is called at the end of each iteration and is not operator-callable (verified
 against <https://code.claude.com/docs/en/tools-reference> and
-<https://code.claude.com/docs/en/scheduled-tasks> on 2026-07-23). Idle raises the delay toward the
-ceiling. The `source-control` babysit lane's own self-pacing section
+<https://code.claude.com/docs/en/scheduled-tasks> on 2026-07-26, no drift from the prior
+2026-07-23 stamp). Idle raises the delay toward the ceiling. The `source-control` babysit lane's own
+self-pacing section
 ([`babysit-prs` loop reference](../../../plugins/source-control/skills/babysit-prs/reference/loop.md))
 is the worked precedent.
+
+**The prompt runs fresh; the session does not.** Each cycle re-sends the lane's prompt verbatim into
+the **same** session, so context accumulates across cycles and a lane prompt never assumes a fresh
+one — the mechanism, and what a relaunch does about it, is owned by
+[`claude-ops` lanes](../../../plugins/claude-ops/skills/lanes/SKILL.md), section "A relaunch is the
+only context reset a loop lane gets".
 
 **Cycle budget (#691).** A per-session cycle budget bounds one session; a budget hit **always**
 emits a restart-request into the #502 telemetry block and stops the loop cleanly — a running loop
@@ -268,6 +288,30 @@ prompt through its `prompt_dir` seam (#480). `lanes` is a **supporting, strictly
 launcher: it launches the lane; no lane body ever requires, imports, or degrades without
 `claude-ops`. Every mention of `lanes` in a lane body is presence-gated with the `/loop` fallback
 documented at the site, per the [seam-phrasing convention](../seam-phrasing/README.md).
+
+**Two launch shapes, selected per invocation — neither deprecates the other.** Supplying an interval
+(`/loop 15m …`) converts it to a cron expression and fires at that fixed cadence; omitting it hands
+the delay to Claude, which picks one between one minute and one hour after each iteration.
+`ScheduleWakeup` reschedules a *self-paced* loop only, so it is not the pacing mechanism once an
+interval is supplied (<https://code.claude.com/docs/en/scheduled-tasks#let-claude-choose-the-interval>,
+verified 2026-07-26). Both shapes are current; this note reconciles which applies where and changes
+neither.
+
+- **A lane always omits the interval.** Every §4 invariant that varies a lane's wake — idle backoff,
+  the adaptive-cap streak, the drain-exit snapshot, seam exit 8 counted as dirty — computes a
+  cadence signal *during* the cycle, and a fixed cron schedule has no way to consume it. Self-paced
+  is the lane shape by construction, not by preference.
+- **A fixed interval is the operator's shape for invoking a single-pass mechanic directly.** The
+  interval chosen once *is* the whole cadence policy: no per-cycle state derives a better one, so
+  there is nothing for the cron schedule to discard. `babysit-prs`'s documented
+  `/loop 15m /source-control:babysit-prs worker` line is that shape.
+
+The two shapes coexist inside one plugin without conflicting because they answer different
+invocations, not competing defaults: `babysit-prs` documents a fixed-interval launch of *itself*,
+while its cadence mapping
+([`loop.md` §5.3](../../../plugins/source-control/skills/babysit-prs/reference/loop.md)) is the
+self-paced contract the `babysit-loop` lane consumes. Reading either as the other's default is the
+confusion this note exists to prevent.
 
 ## 6. Rate-limit guard binding
 
