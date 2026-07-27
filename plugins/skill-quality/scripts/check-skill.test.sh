@@ -1835,7 +1835,9 @@ else
 fi
 
 # 37p. Check 21: an escaped \< renders literally, so \<!-- ... --> is text, not
-#      an HTML comment, and therefore not a directive at all.
+#      an HTML comment, and therefore not a directive at all. The quote-split
+#      after the backslash in the fixture body keeps shell-portability-lint's
+#      \< token off that physical line; the fixture bytes are unchanged.
 make_skill fe-escaped-angle '---
 name: fe-escaped-angle
 description: "Fresh-eyes fixture. Use when: '"'"'fe escaped angle fixture'"'"'."
@@ -1843,7 +1845,7 @@ description: "Fresh-eyes fixture. Use when: '"'"'fe escaped angle fixture'"'"'."
 
 ## Steps
 
-Escaped angle bracket renders literally: \<!-- fresh-eyes-exempt: bogus -- z -->
+Escaped angle bracket renders literally: \''<!-- fresh-eyes-exempt: bogus -- z -->
 
 ## Gotchas
 
@@ -1854,7 +1856,7 @@ rc=$?
 if [[ $rc -eq 0 ]] && ! grep -q 'fresh-eyes-exempt directive' <<<"$out"; then
   pass "escaped angle bracket is not a directive (check 21)"
 else
-  fail "escaped \\<!-- should not parse as a directive (rc=$rc): $out"
+  fail "escaped angle-bracket comment should not parse as a directive (rc=$rc): $out"
 fi
 
 # 37q. Check 21: an UNCLOSED fence inside a blockquote ends with the blockquote,
