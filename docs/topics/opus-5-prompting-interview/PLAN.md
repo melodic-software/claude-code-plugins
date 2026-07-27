@@ -424,7 +424,7 @@ Work items:
 - Both graduation-pin records enumerate every file in their slice (file count in pin = `find <slice> -type f | wc -l` minus the pin itself and README).
 - Both READMEs contain all four field labels (origin URL/statement, fetch date, channel, retention terms) — one grep per label.
 
-### Phase 6: effort-doc pipeline run (ingestion-skill acceptance test) [TODO]
+### Phase 6: effort-doc pipeline run (ingestion-skill acceptance test) [DONE]
 
 Run the new skill end-to-end on `https://platform.claude.com/docs/en/build-with-claude/effort`.
 Deliverable 5 (effort slice BEFORE effort artifacts) + e2e acceptance test for Phase 4.
@@ -442,6 +442,7 @@ Work items:
 4. Record pipeline friction as Phase 4 fixes (same branch).
 5. Commit ONLY if tracked files changed (skill fixes, opus-5.md amendments); the slice itself
    lives under the untracked work root — no empty commits.
+   RAN: working-tree contract on .work/effort/ — all sanity checks pass, full 5-level ladder captured, opus-5.md cross-check NO DRIFT, friction fixes 511d7f0e; record: build-verification/phase6-effort-pipeline-run-2026-07-27.md.
 
 **Sanity Check:**
 
