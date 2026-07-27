@@ -101,8 +101,8 @@ these pages.
 
 The fleet **defers** storing hashes: no upstream-page hash store exists today, and every recheck is
 a manual re-fetch at trigger time. Recheck trigger for the deferral itself: a stale stamp causes a
-real defect a stored hash would have flagged, or stamped claims accumulate past what manual
-re-fetch at audit time covers — at which point a hash store becomes its own designed issue, not an
+real defect a stored hash would have flagged, or a fleet audit completes without re-fetching every
+stamped claim in its scope — at which point a hash store becomes its own designed issue, not an
 inline addition here.
 
 ## Enforceability
@@ -137,9 +137,11 @@ contract to fit its exceptions.
 
 Elsewhere the name binds on touch: living surfaces still saying "revisit trigger", "re-derivation
 trigger", or "what would reopen it" (several plugin reference docs already use the canonical
-`## Recheck triggers` heading) adopt the canonical name and required parts the next time they
-change. **History is never rewritten**: `CHANGELOG.md` entries, dated audit records, and ADR
-sections keep the wording they shipped with; a new ADR uses the canonical name going forward.
+`## Recheck triggers` heading) adopt the canonical name, the observability bar, and the firing
+procedure the next time they change; a surface restating an upstream-owned specific additionally
+adopts the required parts. **History is never rewritten**: `CHANGELOG.md` entries, dated audit
+records, and ADR sections keep the wording they shipped with; a new ADR uses the canonical name
+going forward.
 
 ## Why this name
 
