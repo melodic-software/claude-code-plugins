@@ -2138,6 +2138,84 @@ else
   fail "check 2 should count the 3-char joiner and fail at 1537/1536 (rc=$rc): $out"
 fi
 
+# 38a. Check 22: a cheatsheet-summary of exactly 100 codepoints passes (boundary
+#      guard — the cap is >100, not >=100).
+sum_100="$(printf 's%.0s' $(seq 1 100))"
+make_skill cap-pass "---
+name: cap-pass
+description: \"Summary cap fixture. Use when: 'cap pass fixture'.\"
+metadata:
+  cheatsheet-summary: $sum_100
+---
+
+## Purpose
+
+Boundary fixture with a summary at exactly the 100-codepoint cap.
+
+## Gotchas
+
+None known.
+"
+out="$(run cap-pass 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q 'cheatsheet-summary 100/100 codepoints' <<<"$out"; then
+  pass "cheatsheet-summary at exactly 100 codepoints passes (check 22)"
+else
+  fail "100-codepoint summary should pass at the boundary (rc=$rc): $out"
+fi
+
+# 38b. Check 22: 101 codepoints fails.
+sum_101="$(printf 's%.0s' $(seq 1 101))"
+make_skill cap-fail "---
+name: cap-fail
+description: \"Summary cap fixture. Use when: 'cap fail fixture'.\"
+metadata:
+  cheatsheet-summary: $sum_101
+---
+
+## Purpose
+
+Fixture with a summary one codepoint over the cap.
+
+## Gotchas
+
+None known.
+"
+out="$(run cap-fail 2>&1)"
+rc=$?
+if [[ $rc -eq 1 ]] && grep -q 'metadata.cheatsheet-summary is 101 codepoints' <<<"$out"; then
+  pass "cheatsheet-summary at 101 codepoints fails (check 22)"
+else
+  fail "101-codepoint summary should FAIL (rc=$rc): $out"
+fi
+
+# 38c. Check 22: 99 ASCII chars + an em-dash = 100 CODEPOINTS but 102 UTF-8
+#      bytes — passing proves the gate counts codepoints, not bytes (a
+#      byte-counting regression would read 102 and fail this fixture).
+sum_mb="$(printf 's%.0s' $(seq 1 99))—"
+make_skill cap-multibyte "---
+name: cap-multibyte
+description: \"Summary cap fixture. Use when: 'cap multibyte fixture'.\"
+metadata:
+  cheatsheet-summary: $sum_mb
+---
+
+## Purpose
+
+Fixture whose summary is 100 codepoints but more than 100 bytes.
+
+## Gotchas
+
+None known.
+"
+out="$(run cap-multibyte 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q 'cheatsheet-summary 100/100 codepoints' <<<"$out"; then
+  pass "a 100-codepoint summary with a multi-byte em-dash passes (codepoints, not bytes)"
+else
+  fail "multi-byte 100-codepoint summary should pass (rc=$rc): $out"
+fi
+
 if [[ $fails -ne 0 ]]; then
   printf '%d assertion(s) failed\n' "$fails" >&2
   exit 1
