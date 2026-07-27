@@ -1834,23 +1834,31 @@ else
   fail "nested quoted fence content should stay suppressed (rc=$rc): $out"
 fi
 
-# 37p. Check 21: an escaped \< renders literally, so \<!-- ... --> is text, not
-#      an HTML comment, and therefore not a directive at all. The quote-split
-#      after the backslash in the fixture body keeps shell-portability-lint's
-#      \< token off that physical line; the fixture bytes are unchanged.
-make_skill fe-escaped-angle '---
+# 37p. Check 21: an escaped backslash-< renders literally, so the escaped
+#      comment form is text, not an HTML comment, and therefore not a
+#      directive at all. The backslash reaches the fixture through ${fe_bs}
+#      so neither shell-portability-lint's backslash-< token nor a quote
+#      splice shellcheck misreads ever appears on a source line; the fixture
+#      bytes are unchanged.
+fe_bs="\\"
+fe_escaped_body=$(
+  cat <<FIXTURE
+---
 name: fe-escaped-angle
-description: "Fresh-eyes fixture. Use when: '"'"'fe escaped angle fixture'"'"'."
+description: "Fresh-eyes fixture. Use when: 'fe escaped angle fixture'."
 ---
 
 ## Steps
 
-Escaped angle bracket renders literally: \''<!-- fresh-eyes-exempt: bogus -- z -->
+Escaped angle bracket renders literally: ${fe_bs}<!-- fresh-eyes-exempt: bogus -- z -->
 
 ## Gotchas
 
 None known.
-'
+FIXTURE
+)
+make_skill fe-escaped-angle "$fe_escaped_body
+"
 out="$(run fe-escaped-angle 2>&1)"
 rc=$?
 if [[ $rc -eq 0 ]] && ! grep -q 'fresh-eyes-exempt directive' <<<"$out"; then

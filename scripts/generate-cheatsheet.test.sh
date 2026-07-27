@@ -118,11 +118,26 @@ if [[ "$CODE" -eq 0 ]]; then ok "green generate exits 0"; else fail "green gener
 run_gen "$tree" --check
 if [[ "$CODE" -eq 0 ]]; then ok "green --check exits 0 after generate"; else fail "green --check (exit=$CODE: $OUT)"; fi
 sheet="$(cat "$tree/docs/SKILL-CHEAT-SHEET.md")"
-[[ "$sheet" == *"- [3. Plan](#3-plan)"* ]] && ok "TOC anchor emitted" || fail "TOC anchor missing: $sheet"
-[[ "$sheet" == *'[`/alpha:mapped`](../plugins/alpha/skills/mapped/SKILL.md)'* ]] \
-  && ok "mapped row links its SKILL.md" || fail "mapped row missing: $sheet"
-[[ "$sheet" == *"| continuous |"* ]] && ok "operator table carries cadence column" || fail "cadence column missing"
-[[ "$sheet" != *"alpha:setup"* ]] && ok "rule-excluded setup skill omitted" || fail "setup skill leaked into sheet"
+if [[ "$sheet" == *"- [3. Plan](#3-plan)"* ]]; then
+  ok "TOC anchor emitted"
+else
+  fail "TOC anchor missing: $sheet"
+fi
+if [[ "$sheet" == *"[\`/alpha:mapped\`](../plugins/alpha/skills/mapped/SKILL.md)"* ]]; then
+  ok "mapped row links its SKILL.md"
+else
+  fail "mapped row missing: $sheet"
+fi
+if [[ "$sheet" == *"| continuous |"* ]]; then
+  ok "operator table carries cadence column"
+else
+  fail "cadence column missing"
+fi
+if [[ "$sheet" != *"alpha:setup"* ]]; then
+  ok "rule-excluded setup skill omitted"
+else
+  fail "setup skill leaked into sheet"
+fi
 if command -v npx >/dev/null 2>&1 && npx --no-install markdownlint-cli2 --help >/dev/null 2>&1; then
   if npx --no-install markdownlint-cli2 --config "$REPO_ROOT/.markdownlint-cli2.jsonc" \
     "$tree/docs/SKILL-CHEAT-SHEET.md" >/dev/null 2>&1; then
