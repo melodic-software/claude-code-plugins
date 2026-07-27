@@ -6,13 +6,18 @@
   documents by one question — does anything downstream enforce against
   this? — which cannot express lifetime, so its finest-grained cell, the
   memory tier, conflated state a later reader must find with files
-  nothing downstream ever reads again. With no row naming the second kind, two plugins
-  independently invented the same answer and both reached for the
-  session scratchpad, an undocumented harness path (zero occurrences in
-  the full docs corpus, keyed by working directory, and declined three
-  times upstream as a supported surface). The convention registry's
-  trigger — an owner doc before a second plugin adopts — had already
-  fired. The row states five rules (one deterministic path; the lifetime
+  nothing downstream ever reads again. With no row naming the second
+  kind, two plugins answered the same unasked question differently:
+  `adhd:clarify` reached for the session scratchpad — an undocumented
+  harness path (zero occurrences in the full docs corpus, keyed by
+  working directory, and declined three times upstream as a supported
+  surface) — while `architecture:improve` had independently settled on a
+  `mktemp` temp file. That divergence, not a shared mistake, is the
+  trigger: the convention registry calls for an owner doc before a
+  second plugin adopts, and two incompatible answers were already in
+  the tree. This row names the tier and moves `adhd:clarify` off the
+  scratchpad; `architecture:improve` keeps its existing temp behavior
+  and merely gains the contract's name for it. The row states five rules (one deterministic path; the lifetime
   outlives the call, so a producer that returns a path never deletes the
   file before returning; never the scratchpad; nothing durable; the FORM
   of any temp-root override is a manifest `userConfig` rather than a
