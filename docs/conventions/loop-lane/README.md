@@ -125,12 +125,113 @@ never compared as a string literal
 the canonical roles and the resolution). A machine-marked bot comment discriminates a
 worker-*escalated* item from an operator-*parked* one — both wear the same role label, so the marker,
 not a second label, carries the distinction. No lane creates labels; the label set is IaC-owned.
+The same step that files the escalation writes the local escalation record (below), the
+deterministic surface for out-of-band notification.
 
 The event classes that oblige escalation are governing policy owned by
 [`guardrails.md`](../../../plugins/autonomy/reference/guardrails.md#escalation) (gate failure,
 verification divergence, admission rejection, demotion, structural-plan approval, and
 untrusted-provenance). This convention adds no second escalation channel; the telemetry comment (§4)
-is the report surface, never the sole path when human action is required.
+is the report surface, never the sole path when human action is required. The escalation record
+write and the out-of-band notification seam below are notification depth on the one filed
+escalation — the fan-out posture the runner design
+([`escalation.md`](../../../plugins/autonomy/reference/runner/escalation.md)) names — never a
+second channel: the tracker item remains the single escalation of record.
+
+### Escalation record write
+
+Every escalation an autonomous lane files (`work-loop`, `babysit-loop`; the attended queue answers
+escalations, it does not file them) also writes a local **escalation record** in the same step that
+files the tracker item: a new JSON file created with the **Write tool** at
+`.claude/lane-escalations/<UTC-stamp>-<item>-<lane>.json` in the session's checkout — stamp
+`YYYYMMDDTHHMMSSZ`, `<item>` the tracker item number (e.g.
+`20260726T031500Z-1234-work-loop.json`). The record carries the machine-readable shape of the
+escalation the tracker item already holds:
+
+```json
+{"schema":"loop-lane/escalation-record@1","lane":"work-loop","kind":"escalated",
+ "repo":"<owner>/<repo>","item":"<tracker item URL>",
+ "summary":"<the marker comment's one-line question>","written_at":"<UTC ISO-8601>"}
+```
+
+`kind` mirrors the marker comment's `kind` token. The write is signal, not storage: no lane reads
+the record back, the tracker item stays the escalation of record, and a consuming repo adds
+`.claude/lane-escalations/` to its `.gitignore`. Two rules make the signal deterministic:
+
+- **Write tool, never a shell redirect.** Only a `Write` tool call emits the `PostToolUse` hook
+  event the seam below keys on; a shell redirect writes the same bytes and fires nothing.
+- **A new file per escalation.** The `<UTC-stamp>-<item>` filename is unique per escalation, so
+  every escalation is a fresh `Write` (never an `Edit`) and produces exactly one hook event.
+
+The `summary` restates the marker comment's one-line question — text the lane already published on
+the tracker — so the record adds no new secret surface for the hook payload to carry.
+
+### Out-of-band notification seam
+
+The local channels (OS toast, terminal bell/OSC 9 — the `autonomy` plugin's `lane-notify.sh`)
+reach only an operator at the machine running the lane. The escalation record write gives a
+consuming repo a deterministic surface that reaches one who is not: a `PostToolUse` hook in the
+consuming repo's own tracked `.claude/settings.json`, matched on the `Write` tool, filtered to the
+record directory, with a `type: "http"` handler that POSTs the hook event's JSON —
+`tool_input.content` carries the record — to the repo's chosen endpoint. Documented default shape:
+
+```json
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write",
+        "hooks": [
+          {
+            "type": "http",
+            "url": "https://alerts.example.com/lane-escalations",
+            "if": "Edit(/.claude/lane-escalations/**)",
+            "headers": { "Authorization": "Bearer $LANE_ESCALATION_WEBHOOK_TOKEN" },
+            "allowedEnvVars": ["LANE_ESCALATION_WEBHOOK_TOKEN"],
+            "timeout": 30,
+            "statusMessage": "Notifying escalation webhook..."
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+Every element is a documented first-party mechanism (verified against
+<https://code.claude.com/docs/en/hooks> and <https://code.claude.com/docs/en/permissions> on
+2026-07-26):
+
+- `type: "http"` handlers POST the hook's JSON input with `Content-Type: application/json` and are
+  supported in project `.claude/settings.json` — and every other settings scope — on every hook
+  event except `SessionStart`/`Setup`. The seam is therefore per-consuming-repo configuration; no
+  plugin ships it. It is deterministic (the handler fires on the matched lifecycle event, no model
+  judgment) and carries no claude.ai subscription or Remote Control dependency.
+- The `if` field holds exactly one permission rule and is evaluated on `PostToolUse`. File rules
+  use the `Edit(...)` form — Edit rules cover all file-editing tools, `Write` included, and a
+  `Write(path)` rule is never matched — and the single leading `/` anchors at the settings source,
+  so the one tracked rule matches each worktree's own checkout.
+- Header values interpolate environment variables only for names listed in `allowedEnvVars`; the
+  `url` field never interpolates. The endpoint URL is tracked config; the secret rides only in the
+  operator's environment, never in the repo.
+- A non-2xx response or a connection failure is a non-blocking error: a dead endpoint never blocks
+  a lane.
+
+**Destination is the consumer's choice.** The URL is any HTTP endpoint the consuming repo
+controls: a generic webhook receiver, an internal alerting service, or a relay that reshapes the
+payload for a chat service (a Slack incoming webhook expects its own JSON shape and rejects the
+raw hook payload, so Slack reach goes through a relay). Two non-deterministic layers may ride
+alongside, never instead: the built-in `PushNotification` tool (permission-free but
+model-discretionary, and phone reach requires claude.ai Remote Control —
+<https://code.claude.com/docs/en/tools-reference>,
+<https://code.claude.com/docs/en/remote-control>) and outbound send via the official `slack`
+plugin (model-driven). Only the http hook is the deterministic leg.
+
+**Degradation.** A consuming repo with no hook configured loses only the out-of-band leg — the
+tracker escalation and the local notify are unchanged, and the record files are inert exhaust. A
+closed laptop or a dead process emits no hook event at all; the record write covers a lane that is
+running but unattended, and lane-down detection stays with the stop gate and telemetry freshness
+(§4).
 
 ## 3. Capability tiers
 

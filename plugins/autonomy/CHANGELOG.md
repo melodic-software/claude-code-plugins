@@ -6,6 +6,32 @@ All notable changes to the `autonomy` plugin are documented here. Format follows
 Versions 0.1.0–0.7.0 predate this file (introduced with 0.7.1); their history lives in the
 merged work-package PRs (#333, #343, #356, #372, #377, #600, #676).
 
+## [0.11.4]
+
+### Fixed
+
+- **`lane-notify.sh` no longer claims no remote/Slack/push transport exists (#1650).** The header
+  stated "there is no remote/Slack/push transport here (none exists as a marketplace primitive
+  yet)" — stale on both clauses. Verified against current official docs (2026-07-26): hooks accept
+  deterministic `type:"http"` handlers that POST the hook JSON to a configured endpoint
+  (<https://code.claude.com/docs/en/hooks>), the built-in `PushNotification` tool provides
+  permission-free model-discretionary desktop/phone push
+  (<https://code.claude.com/docs/en/tools-reference>), and the official marketplace carries an
+  outbound-capable `slack` plugin. The comment now points at the loop-lane convention's
+  out-of-band notification seam (a consuming-repo `PostToolUse` http hook on the lanes'
+  escalation-record write) as the off-machine path; the primitive's own local-only reach and the
+  closed-laptop/dead-process caveat are unchanged. Comment-only — no hook behavior change.
+
+### Changed
+
+- **`reference/runner/escalation.md`: severity fan-out legs grounded in shipped first-party
+  transports (#1650).** The channel-notification and personal-push legs were unbuilt design with
+  no named mechanism. A new "Fan-out transport grounding" subsection binds the channel leg to
+  deterministic `type:"http"` hook handlers (composed today by the loop-lane convention's
+  out-of-band notification seam) and the personal-push leg to the model-discretionary
+  `PushNotification` tool, each with its dependency profile and citation, so neither leg waits on
+  a primitive that already exists.
+
 ## [0.11.3]
 
 ### Fixed

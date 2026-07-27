@@ -159,8 +159,9 @@ while the latch is set (clear it on a fresh healthy snapshot after the pause end
    comment or item it creates carries the AI disclaimer. Sweep hardening: an advisory issue
    authored by a workflow bot routes to the human-gated role label by default (this also lets drain
    exits terminate against automated intake) — applied together with a machine-marked
-   `kind=routed-advisory` escalation comment (step 5's marker shape), so the routing surfaces in
-   the attended queue's escalated view instead of vanishing behind a bare label.
+   `kind=routed-advisory` escalation comment (step 5's marker shape and record write), so the
+   routing surfaces in the attended queue's escalated view instead of vanishing behind a bare
+   label.
 3. **Admission gate.** Classify each frontier candidate and admit per the gate below — fail-closed.
 4. **Execute.** Work admitted items via `/work-items:work` (one invocation per item slot), up to
    the adaptive item cap. Each invocation uses that skill's **autonomous invocation** path: it
@@ -190,6 +191,15 @@ while the latch is set (clear it on a fresh healthy snapshot after the pause end
    line is `<!-- work-items:escalation lane=work-loop kind=escalated|ratify-c3|routed-advisory -->`
    — the marker,
    not a second label, is what discriminates a worker-escalated item from an operator-parked one.
+   The same step performs the contract's escalation record write: create
+   `.claude/lane-escalations/<UTC-stamp>-<item>-work-loop.json` (stamp `YYYYMMDDTHHMMSSZ`) with
+   the **Write tool** — only a Write tool call fires the `PostToolUse` event a consuming repo's
+   out-of-band notification hook keys on; a shell redirect writes the same bytes and fires
+   nothing — body
+   `{"schema":"loop-lane/escalation-record@1","lane":"work-loop","kind":"<marker kind>","repo":"<owner>/<repo>","item":"<item URL>","summary":"<the marker comment's one-line question>","written_at":"<UTC ISO-8601>"}`.
+   One new file per escalation; the summary restates only the already-public comment text. No
+   configured hook means the file is inert exhaust — the tracker item stays the escalation of
+   record.
 6. **Report and pace.** Upsert the telemetry comment (cycle report + updated state block + guard
    mode), then evaluate the exit condition; if not exiting, `ScheduleWakeup` the next cycle.
 

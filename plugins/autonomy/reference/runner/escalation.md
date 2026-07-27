@@ -135,6 +135,29 @@ to tracker-item-only; degradation never drops the escalation item itself. The on
 shape is the inverse: a push leg bound without the channel leg beneath it, because the ladder
 is cumulative and the push tier rides on top of the channel notification.
 
+### Fan-out transport grounding
+
+Both org-bindable legs bind to documented first-party transports (verified 2026-07-26) — adapters
+to compose at build, not primitives waiting to exist:
+
+- **Channel leg — deterministic.** Claude Code hooks accept `type: "http"` handlers that POST the
+  hook event's JSON to a configured endpoint when the matched lifecycle event fires — no model
+  judgment, and no claude.ai subscription or Remote Control dependency
+  (<https://code.claude.com/docs/en/hooks>). The interim loop-lane executor already composes this
+  leg: its convention wires a consuming-repo-configured `PostToolUse` http hook on each lane's
+  escalation-record write (the `loop-lane` convention, §2, in this marketplace's
+  `docs/conventions/` — a source-repo citation for provenance; an installed plugin reads no repo
+  docs at runtime).
+- **Personal-push leg — model-discretionary.** The built-in `PushNotification` tool sends a
+  desktop notification, plus a phone push when claude.ai Remote Control is connected. It needs no
+  permission prompt but fires at the model's discretion, so it is a human-attention layer riding
+  on the channel leg, never the deterministic leg
+  (<https://code.claude.com/docs/en/tools-reference>,
+  <https://code.claude.com/docs/en/remote-control>).
+
+The runner binds the concrete adapters at build from live docs; this grounding records that both
+legs have shipped first-party mechanisms today, so neither waits on a new primitive.
+
 ### Contract-default severities
 
 Fan-out is fully defined with no `escalation_severity` binding present at all: every event

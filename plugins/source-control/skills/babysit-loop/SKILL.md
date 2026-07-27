@@ -287,8 +287,16 @@ escalation comment whose first line is
 `<!-- work-items:escalation lane=babysit-loop kind=escalated -->`. That marker grammar is the
 attended queue's escalated-view data contract; the sentinel names the contract owner, not the
 writer (the same one-directional pattern as the `claude-ops:lane-telemetry` sentinel below), so
-babysit escalations surface in the same attention view as worker escalations. Telemetry is the
-report surface, never the escalation channel.
+babysit escalations surface in the same attention view as worker escalations. The same step
+performs the contract's escalation record write: create
+`.claude/lane-escalations/<UTC-stamp>-<item>-babysit-loop.json` (stamp `YYYYMMDDTHHMMSSZ`) with
+the **Write tool** — only a Write tool call fires the `PostToolUse` event a consuming repo's
+out-of-band notification hook keys on; a shell redirect writes the same bytes and fires nothing —
+body
+`{"schema":"loop-lane/escalation-record@1","lane":"babysit-loop","kind":"escalated","repo":"<owner>/<repo>","item":"<item URL>","summary":"<the marker comment's one-line question>","written_at":"<UTC ISO-8601>"}`.
+One new file per escalation; the summary restates only the already-public comment text. No
+configured hook means the file is inert exhaust — the tracker item stays the escalation of
+record. Telemetry is the report surface, never the escalation channel.
 
 **Pre-escalation resolution attempt, explicit-`autopilot` only.** When — and only when — this
 invocation's own argument line typed both the literal `autopilot` tier argument and

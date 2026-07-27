@@ -3,6 +3,20 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.26.0]
+
+### Added
+
+- **`work-loop` escalation record write — deterministic surface for out-of-band notification
+  (#1650).** Escalating (step 5, and step 2's routed-advisory routing) now also creates
+  `.claude/lane-escalations/<UTC-stamp>-<item>-work-loop.json` with the Write tool in the same
+  step that files the tracker escalation — one new file per escalation, `loop-lane/escalation-record@1`
+  shape, summary restating only the already-public marker-comment text. The Write tool call (never
+  a shell redirect, which fires no hook event) is what a consuming repo's `PostToolUse`
+  `type:"http"` hook keys on to reach an off-machine human deterministically; the documented seam
+  and settings shape are owned by the loop-lane convention (§2, v4.0.0). Without a configured hook
+  the file is inert exhaust; the tracker item stays the escalation of record.
+
 ## [0.25.4]
 
 ### Fixed
