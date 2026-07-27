@@ -18,31 +18,55 @@ Collect these with **individual** Bash calls, one command per call, never combin
 invocation:
 
 - Current branch — `git branch --show-current`
-- Staged — `git diff --cached --stat`, reading only the **summary (last) line**
-- Unstaged — `git status --short`, reading **at most the first 20 entries**
+- Staged — `git diff --cached --stat | tail -1`
+- Unstaged — `git status --short | head -20`
 - Recent commits — `git log --oneline -5`
 
-Honor those bounds when reading; do not restore them as `| tail -1` / `| head -20` pipes. A piped
-git command is compound, which is the shape #1619 is about — bounding at read time keeps the cap
-without reintroducing the defect.
+**The two pipes are the bound and belong in the command.** They were briefly restated as read-time
+prose ("read only the summary line", "read at most the first 20 entries"); that bounds nothing. The
+Bash tool returns a command's complete output into context before there is anything to decide about,
+so a read-time cap is advisory after the fact — `head` / `tail` truncate before the result exists.
+These are ordinary body Bash calls, not pre-compute: the shape #1619 is about is the harness
+composing the whole `## Pre-computed context` block into one shell invocation, which does not apply
+to a call the body tells you to make.
 
-Then resolve the two repo-scoped config layers, in this order and as separate calls:
+Then resolve the two repo-scoped config layers as separate calls. Each uses git's repo-root-relative
+magic pathspec `:/`, which resolves against the top of the working tree, so these are correct from
+any subdirectory and never need the repository root substituted into them. **Quote the pathspec** —
+the leading `:` is pathspec magic, and quoting keeps the shell from reinterpreting it.
 
-1. `git rev-parse --show-toplevel` — run this **first** and substitute the literal path it prints
-   into the next two commands. Never re-derive the root inline inside another command.
-   **Always double-quote the substituted path.** Repository roots routinely contain spaces on
-   Windows (`C:\Users\<first last>\…`); unquoted, the path word-splits and the command silently
-   targets the wrong directory or fails.
-2. Tracked team layer — `git -C "<root>" ls-files --error-unmatch .claude/source-control.md`.
-   Exit 0 means present **and tracked**. A file sitting at that path that this command does not
-   report is `present but UNTRACKED`, and is deliberately not a config layer.
-3. Personal overlay — `test -f "<root>/.claude/source-control.local.md"`.
+1. Team layer, trackedness —
+   `git ls-files --error-unmatch -- ":/.claude/source-control.md"`
+2. Team layer, existence —
+   `git ls-files --cached --others -- ":/.claude/source-control.md"`
+3. Personal overlay, existence —
+   `git ls-files --cached --others -- ":/.claude/source-control.local.md"`
 
-Treat a failure (not a repository, git unavailable) as an unknown value and carry on. All of the
-above moved out of pre-compute in #1619 — the harness composes the block into one shell invocation
-and a worktree-isolated agent refuses a git-bearing compound command; the two config-layer one-liners
-were themselves compound, which is why they are decomposed here rather than moved across intact. Do
-not fold them back.
+Probes 2 and 3 deliberately omit `--exclude-standard`, so a gitignored file is still listed: the
+personal overlay is expected to be gitignored, and an untracked team file has to be *seen* before it
+can be reported as untracked.
+
+**Combine probes 1 and 2 in that order** — trackedness first, existence consulted only when
+trackedness comes back nonzero. They are not independent readings:
+
+| Trackedness (1) | Existence (2) | Team-layer state |
+|---|---|---|
+| exit 0 | not consulted | `present (tracked)` — this is a config layer |
+| nonzero | non-empty output | `present but UNTRACKED` — deliberately **not** a config layer |
+| nonzero | empty output | `absent` |
+
+A single `--error-unmatch` call cannot separate the last two rows; it exits nonzero for both. That
+is the whole reason probe 2 exists.
+
+**A nonzero exit from probe 1 is a result, not a failure** — it answers the question, and probe 2
+resolves which answer it is. The unknown-value rule is narrower than that: only a probe that could
+not run at all (git unavailable, not a repository) yields an unknown value to carry on past. Never
+fold `present but UNTRACKED` into "unknown" — they mean opposite things, and treating the untracked
+case as unknown is exactly what readmits a file the resolution rules exclude.
+
+The git lines above moved out of pre-compute in #1619 — the harness composes that block into one
+shell invocation and a worktree-isolated agent refuses a git-bearing compound command it cannot
+statically verify. Do not fold them back into `## Pre-computed context`.
 
 **These are snapshots taken when they run, not substitutes for the checks.** The exec-bit
 line only sees what was already staged when the skill loaded; anything staged in step 2 below is
@@ -52,11 +76,15 @@ reported `present but UNTRACKED` is deliberately not a layer: resolution require
 be git-tracked, so an untracked or gitignored file at that well-known path must not drive the
 convention.
 
-**Every probe anchors at the repository root** (`git rev-parse --show-toplevel`), never at the
-session's current directory. A session started in a subdirectory would otherwise look for
+**Every repo-scoped probe anchors at the repository root**, via the `:/` magic pathspec, never at
+the session's current directory. A session started in a subdirectory would otherwise look for
 `<cwd>/.claude/` and report both repo-scoped layers absent — silently dropping the team convention
-and `trailer_policy`, and producing a commit with the wrong subject shape or attribution. This
-matches the root-resolution requirement
+and `trailer_policy`, and producing a commit with the wrong subject shape or attribution. The
+pathspec form also retires the older two-step (`git rev-parse --show-toplevel`, then substitute the
+literal path it printed into the probe): a repository root containing `$(…)`, a backtick, or a
+double quote is *not* made safe by wrapping the substituted text in double quotes — the substitution
+still evaluates, or the quote terminates the argument — and `:/` never substitutes the root at all.
+This matches the root-resolution requirement
 [`${CLAUDE_PLUGIN_ROOT}/reference/config-resolution.md`](../../reference/config-resolution.md)
 already states for resolution itself; the probes must not disagree with it. `exec-bit-check.sh`
 anchors itself the same way.

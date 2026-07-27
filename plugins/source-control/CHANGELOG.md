@@ -18,24 +18,40 @@ All notable changes to the `source-control` plugin are documented here. Format f
     as **individual** Bash calls, one command per call. Non-git pre-compute lines are untouched —
     `commit` keeps its exec-bit and user-global config probes, `babysit-prs` keeps both `gh` lines.
   - `commit`'s two repo-scoped config-layer probes were themselves compound one-liners that
-    re-derived the repository root inline. They are decomposed rather than moved across intact:
-    resolve the root once with `git rev-parse --show-toplevel`, then substitute the literal path
-    into `git -C "<root>" ls-files --error-unmatch …` and the personal-overlay `test -f`, quoted —
-    a Windows repository root with a space in it word-splits otherwise. The
-    root-anchoring requirement and the `present but UNTRACKED` rule are unchanged.
+    re-derived the repository root inline. They are rebuilt on git's repo-root-relative magic
+    pathspec `:/` rather than on a substituted root — `git ls-files --error-unmatch --` and
+    `git ls-files --cached --others --`, each given `":/.claude/source-control.md"` (or the
+    `.local.md` overlay). Nothing is substituted, so a repository root containing a space, `$(…)`,
+    a backtick, or a double quote can neither break the command nor inject into it; double-quoting
+    a substituted root does *not* neutralize a command substitution, which is why quoting was the
+    wrong fix. Verified from a subdirectory: `:/` resolves against the working-tree root regardless
+    of the session's cwd, and the same existence probe replaces the personal overlay's old
+    `test -f "<root>/…"`.
+  - `commit`'s team layer keeps all three of its states — `present (tracked)`,
+    `present but UNTRACKED`, `absent` — which a single `--error-unmatch` call cannot express, since
+    it exits nonzero for both of the last two. The `git ls-files --cached --others` existence probe
+    separates them (`--exclude-standard` deliberately omitted so a gitignored file is still seen),
+    and the generic unknown-value rule is narrowed so it no longer swallows the distinction: a
+    nonzero `--error-unmatch` exit is a *result*, and only a probe that could not run at all (git
+    unavailable, not a repository) is an unknown value.
   - `babysit-prs` is held at exactly 499 lines — the change is net-zero on line count, so it does
     not consume the one line it has left under the 500-line hard cap (see #1626).
   - The pre-compute lines carried `2>/dev/null || echo "unknown"` fallbacks **and** output caps
     (`git status --short | head -20`, `git diff --cached --stat | tail -1`,
-    `git worktree list | head -30`, `git status | head -4`) that plain Bash calls do not reproduce.
-    Both are restated as reading rules: a failed command means "unknown, carry on", and each bound is
-    honored **when reading** rather than re-added as a pipe — a piped git command is compound, which
-    is the shape that started this.
+    `git worktree list | head -30`, `git status | head -4`). The fallbacks are restated as a reading
+    rule — a failed command means "unknown, carry on". The caps are **kept as pipes** on the body
+    commands in `commit`, `worktree`, and `resolve-conflicts`. An earlier revision of this change
+    restated them as read-time prose ("read at most the first 20 entries"); that bounded nothing,
+    because the Bash tool returns a command's complete output into context before there is anything
+    to decide about. A real bound beats a fictional one.
   - What was verified, precisely: from an `Agent` with `isolation: "worktree"`, the **unfixed**
     skills were observed to be refused, plain git commands were observed to succeed as individual
-    Bash calls, and a multi-line non-git pre-compute block was observed to load. The **edited**
-    skills have not been invoked from an isolated agent — skills load from the version-keyed plugin
-    cache, so `0.33.2` does not exist there until this ships. Confirm then; CI cannot prove it.
+    Bash calls, and a multi-line non-git pre-compute block was observed to load. The restored pipes
+    (`git status --short | head -20`, `git diff --cached --stat | tail -1`) were observed to pass as
+    ordinary body Bash calls in a **non-isolated** session; whether a pipe also clears the isolation
+    guard as a body call is not verified here. The **edited** skills have not been invoked from an
+    isolated agent — skills load from the version-keyed plugin cache, so `0.33.2` does not exist
+    there until this ships. Confirm then; CI cannot prove it.
   - `shell: bash` is deliberately left in place on every affected skill, including the three that
     now have no `!` lines at all. The key is inert without pre-compute lines, and removing it is a
     frontmatter-contract change with no behavioral benefit.

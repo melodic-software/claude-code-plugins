@@ -13,12 +13,15 @@ Collect these with **individual** Bash calls, one command per call, never combin
 invocation:
 
 - Current branch — `git branch --show-current`
-- Worktree inventory — `git worktree list`, reading **at most the first 30 entries** (honor that
-  bound when reading; do not restore it as a `| head -30` pipe — a piped git command is compound,
-  which is the shape #1619 is about)
+- Worktree inventory — `git worktree list | head -30`
 - Git dir — `git rev-parse --git-dir`
 - Git common dir (differs from the git dir when in a linked worktree) —
   `git rev-parse --git-common-dir`
+
+The pipe is the bound and belongs in the command. A read-time cap ("read only the first 30
+entries") bounds nothing: the Bash tool returns the command's complete output into context before
+there is anything to decide about. These are ordinary body Bash calls, not pre-compute — the shape
+that #1619 is about is the harness composing the whole pre-compute block into one shell invocation.
 
 Treat a failure (not a repository, git unavailable) as an unknown value and carry on. These moved
 out of pre-compute in #1619 — the harness composes the block into one shell invocation and a

@@ -12,11 +12,15 @@ shell: bash
 Collect these with **individual** Bash calls, one command per call, never combined into a single
 invocation:
 
-- Operation state — `git status`, reading **at most the first 4 lines** (that is where the
-  in-progress merge/rebase/cherry-pick banner sits; honor the bound when reading, do not restore it
-  as a `| head -4` pipe — a piped git command is compound, which is the shape #1619 is about)
+- Operation state — `git status | head -4` (that is where the in-progress
+  merge/rebase/cherry-pick banner sits)
 - Conflicted paths — `git diff --name-only --diff-filter=U`
 - Current branch — `git branch --show-current`
+
+The pipe is the bound and belongs in the command. A read-time cap ("read only the first 4 lines")
+bounds nothing: the Bash tool returns the command's complete output into context before there is
+anything to decide about. These are ordinary body Bash calls, not pre-compute — the shape #1619 is
+about is the harness composing the whole pre-compute block into one shell invocation.
 
 Treat a failure (not a repository, git unavailable) as an unknown value and carry on. These moved
 out of pre-compute in #1619 — the harness composes the block into one shell invocation and a
