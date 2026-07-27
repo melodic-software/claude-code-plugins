@@ -23,4 +23,6 @@ from upstream-owned sources.
 - Enforceability classified per `enforceability-tiers.md`; the stamp-carries-trigger presence check
   named as the one deterministic candidate, deferred per the routing rule.
 - Migrated citing surfaces: hook-config-delivery, ecosystem-commands, loop-lane, topic-docs,
-  PLUGIN-PHILOSOPHY (component stances + registry row), OFFICIAL-DOCS, MIGRATION-PLAYBOOK.
+  PLUGIN-PHILOSOPHY (component stances + registry row), OFFICIAL-DOCS, MIGRATION-PLAYBOOK. The
+  adopter table states per row whether the surface carries conforming four-part records or only
+  named triggers on an in-repo decision.

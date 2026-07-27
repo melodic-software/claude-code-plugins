@@ -117,17 +117,23 @@ Classified per `melodic-software/standards` `conventions/engineering/enforceabil
 
 ## Adopters
 
-Migrated at this contract's 1.0.0 — each cites this doc and keeps its content:
+Migrated at this contract's 1.0.0 to the single name, each citing this doc with content intact.
+The rows are not all the same thing, and the table says which is which. A **conforming record**
+carries the four required parts for an upstream-derived claim or decision. A **named trigger**
+shares the canonical name, the observability bar, and the firing procedure, but guards an in-repo
+decision: in scope for the name, outside the four-part requirement, which binds only records that
+restate something upstream-owned. This narrows what a row advertises; it does not widen the
+contract to fit its exceptions.
 
-| Surface | Was |
-|---|---|
-| [hook-config-delivery](../hook-config-delivery/README.md) §Recheck triggers | already the canonical name |
-| [ecosystem-commands](../ecosystem-commands/README.md) task-runner deferral | "Revisit triggers" |
-| [loop-lane](../loop-lane/README.md) §Versioning | "Re-derivation triggers" |
-| [topic-docs](../topic-docs/README.md) §Implementers restate the rules | "What would reopen it" |
-| [PLUGIN-PHILOSOPHY](../../PLUGIN-PHILOSOPHY.md) component-stances staleness disclaimer | unlabeled discipline |
-| [OFFICIAL-DOCS](../../OFFICIAL-DOCS.md) staleness warning and per-row verified dates | unlabeled discipline |
-| [MIGRATION-PLAYBOOK](../../MIGRATION-PLAYBOOK.md) decision records | "Revisit trigger" |
+| Surface | Was | What a reader can rely on |
+|---|---|---|
+| [hook-config-delivery](../hook-config-delivery/README.md) §Recheck triggers | already the canonical name | Conforming records — version-pinned facts table with per-fact basis, dates, and event triggers. |
+| [loop-lane](../loop-lane/README.md) §Versioning | "Re-derivation triggers" | Conforming records — dated upstream-claim stamps; trigger firings recorded in its changelog. |
+| [PLUGIN-PHILOSOPHY](../../PLUGIN-PHILOSOPHY.md) component-stances staleness disclaimer | unlabeled discipline | Conforming records — per-row claim, linked page, and verified date under a standing re-fetch-before-acting rule (pointer-preferred, so no per-row event trigger is needed). |
+| [OFFICIAL-DOCS](../../OFFICIAL-DOCS.md) staleness warning and per-row verified dates | unlabeled discipline | Conforming records — same shape as the component-stances table: link + date + standing re-fetch rule. |
+| [MIGRATION-PLAYBOOK](../../MIGRATION-PLAYBOOK.md) decision records | "Revisit trigger" | Mixed — the dated component-decision records cite upstream bases and conform; the org-internal records (e.g. the ratification record) are named triggers. |
+| [ecosystem-commands](../ecosystem-commands/README.md) task-runner deferral | "Revisit triggers" | Named triggers only — an undated in-repo deferral; not a four-part record. |
+| [topic-docs](../topic-docs/README.md) §Implementers restate the rules | "What would reopen it" | Named trigger only — an in-repo source-hoisting decision; not a four-part record. |
 
 Elsewhere the name binds on touch: living surfaces still saying "revisit trigger", "re-derivation
 trigger", or "what would reopen it" (several plugin reference docs already use the canonical
