@@ -13,7 +13,7 @@
 # Adding an entry is a two-part proof, enforced by the self-test:
 #   1. The prefix must feed no code lane. Today the lanes this gate wraps are:
 #      - plugin-gate: hermetic plugins/**/*.test.sh, then manifest + catalog +
-#        cheat-sheet validation (reads README.md, docs/PLUGIN-ARTIFACT-PROTOCOL.md,
+#        cheat-sheet validation (reads docs/CATALOG.md, docs/PLUGIN-ARTIFACT-PROTOCOL.md,
 #        docs/CATALOG-TAXONOMY.md, docs/SKILL-CHEAT-SHEET.md — the sheet
 #        deliberately lives OUTSIDE docs/topics/ so an edit to it is never
 #        docs-only and its drift gate always runs);

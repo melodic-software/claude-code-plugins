@@ -95,6 +95,6 @@ Plugin-scoped (owned by the named plugin's README):
 
 The human-browsable catalog is generated, not hand-maintained. `marketplace.json` is the single source of
 truth for each plugin's `category` and the ordering key; `plugin.json` owns each description. The generator
-emits the grouped catalog section between markers in the README, and a CI check fails when the committed
+emits the grouped catalog section between markers in `docs/CATALOG.md`, and a CI check fails when the committed
 section drifts from what the manifests would produce. This retires hand-maintained catalog duplication and
 keeps the grouped view and the manifests from diverging.
