@@ -158,18 +158,19 @@ same-context or self-continuation dispatch does not satisfy this requirement eve
 tier — the point of the tier is capability, the point of this rule is that the resolution is a
 genuinely independent second opinion, not the original author or reviewer re-affirming itself.
 
-**Where independence stops is a decision, not an omission.** Fresh-context review fires on exactly
-two paths — the merge-authority exception's pre-escalation dispatch (§1) and a lane's non-trivial
-conflict resolution — and there is deliberately **no** routine per-cycle independent review of
-ordinary loop output. The rationale: independence is the substitute for a *human decision*, and the
-ordinary path takes none. Its correctness rests on deterministic gates — the merge gate, CI, the
-work-class admission test — which are unbiased by construction, so a reviewer spending a
-frontier-tier dispatch every cycle would re-check machine-checkable facts and buy no independence
-that is not already there. The two paths that do draw a dispatch are precisely the ones where no
-gate can decide and an agent's judgment stands in for a person's. This is the boundary's stated
-justification, so the boundary is revisited when that premise changes — a path whose outcome stops
-being gate-decidable acquires the independence requirement, and the change is a versioned entry
-here, not a silent one.
+**Where independence stops is a decision, not an omission.** The fresh-context requirement above is
+the *only* one this contract imposes, and there is deliberately **no** routine per-cycle independent
+review of ordinary loop output. The rationale: independence is the substitute for a *human
+decision*, and the ordinary path takes none. Its correctness rests on deterministic gates — the
+merge gate, CI, the work-class admission test — which are unbiased by construction, so a reviewer
+spending a frontier-tier dispatch every cycle would re-check machine-checkable facts and buy no
+independence that is not already there. The one path that does carry the requirement is precisely
+the one where no gate can decide and an agent's judgment stands in for a person's. A lane's conflict
+path is not a second instance: it dispatches a fresh conflict *worker* to resolve, which is a
+resolution role rather than a second opinion ratifying a decision a human would otherwise make. This
+is the boundary's stated justification, so the boundary is revisited when that premise changes — a
+path whose outcome stops being gate-decidable acquires the independence requirement, recorded as a
+versioned entry in [`CHANGELOG.md`](CHANGELOG.md) rather than silently.
 
 **Runtime resolution is by model alias only.** The bare family-word aliases
 (`fable` / `opus` / `sonnet` / `haiku`) are the live-updating handles that resolve to the current
@@ -221,10 +222,11 @@ self-pacing section
 is the worked precedent.
 
 **The prompt runs fresh; the session does not.** Each cycle re-sends the lane's prompt verbatim into
-the **same** session, so context accumulates across cycles and a lane prompt never assumes a fresh
-one. The mechanism is owned by
-[`claude-ops` lanes](../../../plugins/claude-ops/skills/lanes/SKILL.md), section "A relaunch is the
-only context reset a loop lane gets".
+the **same** session, so "runs fresh every time" describes the prompt and never the context: a lane
+prompt never assumes a fresh one, and what carries forward also degrades, since auto-compaction
+summarizes earlier history in place rather than preserving it
+([`claude-ops` lanes](../../../plugins/claude-ops/skills/lanes/SKILL.md#a-relaunch-is-the-only-context-reset-a-loop-lane-gets)
+owns the mechanism).
 
 **Cycle budget (#691).** A per-session cycle budget bounds one session; a budget hit **always**
 emits a restart-request into the #502 telemetry block and stops the loop cleanly — a running loop
@@ -290,11 +292,14 @@ launcher: it launches the lane; no lane body ever requires, imports, or degrades
 documented at the site, per the [seam-phrasing convention](../seam-phrasing/README.md).
 
 **Two launch shapes, selected per invocation — neither deprecates the other.** Supplying an interval
-(`/loop 15m …`) converts it to a cron expression and fires at that fixed cadence; omitting it hands
-the delay to Claude, which picks one per iteration within the §4 bounds. `ScheduleWakeup` reschedules
-a *self-paced* loop only, so it is not the pacing mechanism once an interval is supplied
+(`/loop 15m …`) converts it to a cron expression and fires on that fixed schedule, subject to the
+scheduler's deterministic jitter (up to half the interval for a job running more often than hourly);
+omitting it hands the delay to Claude, which picks one per iteration within the §4 bounds and is not
+jittered. `ScheduleWakeup` reschedules a *self-paced* loop only, so it is not the pacing mechanism
+once an interval is supplied
 (<https://code.claude.com/docs/en/scheduled-tasks#let-claude-choose-the-interval>, verified
-2026-07-27). Both shapes are current; this note reconciles which applies where and changes neither.
+2026-07-27). The §4 seven-day expiry binds both shapes. Both are current; this note reconciles which
+applies where and changes neither.
 
 - **A lane always omits the interval.** Every §4 invariant that varies a lane's wake — idle backoff,
   the adaptive-cap streak, the drain-exit snapshot, seam exit 8 counted as dirty — computes a
@@ -308,9 +313,19 @@ a *self-paced* loop only, so it is not the pacing mechanism once an interval is 
 The two shapes coexist inside one plugin without conflicting because they answer different
 invocations, not competing defaults: `babysit-prs` documents a fixed-interval launch of *itself*,
 while its cadence mapping
-([`loop.md` §5.3](../../../plugins/source-control/skills/babysit-prs/reference/loop.md)) is the
-self-paced contract the `babysit-loop` lane consumes. Reading either as the other's default is the
-confusion this note exists to prevent.
+([`loop.md` §5.3](../../../plugins/source-control/skills/babysit-prs/reference/loop.md#53-self-pacing-schedulewakeup))
+is the self-paced contract the `babysit-loop` lane consumes. Reading either as the other's default is
+the confusion this note exists to prevent.
+
+**Known gap — the self-paced shape is provider-conditional.** On Amazon Bedrock, Claude Platform on
+AWS, Google Cloud's Agent Platform, and Microsoft Foundry, an omitted interval does **not** hand the
+delay to Claude: the prompt runs on a fixed ten-minute schedule and `ScheduleWakeup` is unavailable
+(<https://code.claude.com/docs/en/scheduled-tasks>,
+<https://code.claude.com/docs/en/tools-reference>, verified 2026-07-27). A lane launched there keeps
+the loop but silently loses every §4 invariant that varies its wake, because the signal those
+invariants compute mid-cycle has nothing left to steer. No lane detects the provider today, so this
+is recorded as a known gap rather than left as an unstated assumption — the same treatment §6 gives
+the single-account assumption.
 
 ## 6. Rate-limit guard binding
 

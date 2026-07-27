@@ -7,36 +7,48 @@ table (§3) and is recorded here.
 
 ## 3.1.0 — 2026-07-27
 
-Three convention notes recording distinctions and a boundary the contract already operated under.
-Tier is **minor** without ambiguity: no topology, escalation contract, tier vocabulary, or
-loop-layer invariant changes — each entry documents existing behavior, and no consuming lane
-acquires an obligation.
+Three convention notes recording distinctions and a boundary the contract already operated under,
+plus one newly named gap. Tier is **minor**: no topology, escalation contract, or tier vocabulary
+changes, and no consuming lane acquires an obligation. The §4 and §5 additions are descriptive —
+they state what the loop layer already does, and add no invariant a lane must newly hold.
 
 - **Prompt-fresh versus session-persistent (§4).** A cycle re-sends the lane's prompt verbatim into
-  the *same* session; "run fresh every time" describes the prompt, never the context. Stated in one
-  sentence pointing at `claude-ops` `lanes`, which owns the mechanism and the relaunch that resets
-  it. Prevents the conflation for any reader arriving from phrasing that describes only the prompt
+  the *same* session; "runs fresh every time" describes the prompt, never the context. Stated in one
+  sentence anchored at `claude-ops` `lanes`, which owns the mechanism. Records that the carried-over
+  context also *degrades* — auto-compaction summarizes earlier history in place — so the note does
+  not read as a promise that every turn survives. Prevents the conflation for any reader arriving
+  from phrasing that describes only the prompt
   ([#1655](https://github.com/melodic-software/claude-code-plugins/issues/1655)).
 - **Fixed-interval and self-paced launch shapes reconciled (§5).** A supplied interval becomes a
-  cron schedule; an omitted one hands the delay to Claude, and `ScheduleWakeup` paces only the
-  latter. A lane always omits the interval, because every §4 invariant that varies a wake computes
-  its cadence signal mid-cycle and a cron schedule cannot consume it; a fixed interval is the
-  operator's shape for invoking a single-pass mechanic directly, where the interval chosen once is
-  the whole cadence policy. Records which applies where; **neither mechanism changes**, and the
+  cron schedule (jittered); an omitted one hands the delay to Claude, and `ScheduleWakeup` paces
+  only the latter. A lane always omits the interval, because every §4 invariant that varies a wake
+  computes its cadence signal mid-cycle and a cron schedule cannot consume it; a fixed interval is
+  the operator's shape for invoking a single-pass mechanic directly, where the interval chosen once
+  is the whole cadence policy. Records which applies where; **neither mechanism changes**, and the
   adaptive cadence is not replaced
   ([#1656](https://github.com/melodic-software/claude-code-plugins/issues/1656)).
-- **The fresh-context review boundary is now an explicit decision (§3).** Independent review fires
-  on the merge-authority exception's pre-escalation dispatch and on non-trivial conflict resolution,
-  and deliberately not per cycle over ordinary loop output: independence substitutes for a *human
-  decision*, and the ordinary path takes none — its correctness rests on deterministic gates that
-  are unbiased by construction. Recorded with the condition that revisits it, so the absence reads
-  as a chosen boundary rather than a gap discovered later
-  ([#1658](https://github.com/melodic-software/claude-code-plugins/issues/1658)).
+- **Self-pacing is a named provider-conditional gap (§5).** On Bedrock, Claude Platform on AWS,
+  Google Cloud's Agent Platform, and Microsoft Foundry, an omitted interval runs on a fixed
+  ten-minute schedule and `ScheduleWakeup` is unavailable, so a lane launched there keeps the loop
+  but loses every adaptive-cadence invariant, undetected. Recorded as a gap rather than left as the
+  unstated assumption the §5 note would otherwise carry — the treatment §6 already gives the
+  single-account assumption.
+- **The fresh-context review boundary is now an explicit decision (§3).** The requirement fires on
+  the merge-authority exception's dispatch and deliberately not per cycle over ordinary loop output:
+  independence substitutes for a *human decision*, and the ordinary path takes none — its
+  correctness rests on deterministic gates that are unbiased by construction. States that a lane's
+  conflict path is not a second instance, since the fresh conflict *worker* it dispatches holds a
+  resolution role rather than ratifying a decision a human would otherwise make. Recorded with the
+  condition that revisits it, so the absence reads as a chosen boundary rather than a gap discovered
+  later ([#1658](https://github.com/melodic-software/claude-code-plugins/issues/1658)).
 
 Per §Versioning's upstream-claim trigger, the `/loop` pacing claims this revision relies on were
 re-verified against <https://code.claude.com/docs/en/scheduled-tasks> and
-<https://code.claude.com/docs/en/tools-reference> on 2026-07-27 before writing: **no drift** from
-the 2026-07-23 stamp, and the §4 date is refreshed with that outcome.
+<https://code.claude.com/docs/en/tools-reference> on 2026-07-27 before writing. **No drift** in the
+values the 2026-07-23 stamp covered — the `ScheduleWakeup` bounds, its end-of-iteration call site,
+and its non-operator-callability all hold — and the §4 date is refreshed with that outcome. The
+re-verification did surface two facts the prior stamp never recorded, both now stated in §5: cron
+jitter, and the provider carve-out that turns an omitted interval into a fixed ten-minute schedule.
 
 ## 3.0.0 — 2026-07-25
 
