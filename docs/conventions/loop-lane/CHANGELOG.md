@@ -5,6 +5,14 @@ topology, the escalation contract, the capability-tier vocabulary, or any loop-l
 major bump, and additive guidance is a minor bump. A new model release re-audits the capability-tier
 table (§3) and is recorded here.
 
+## 3.0.1 — 2026-07-26
+
+Docs-only, no topology, escalation, tier, or invariant change: §Versioning's "Re-derivation
+triggers" label becomes "Recheck triggers" and cites the
+[upstream-drift convention](../upstream-drift/README.md) (#1638), the new owner of the
+stamp-and-trigger discipline; the generic date-is-never-authority rationale moves there, while both
+triggers and the lane-specific recording policy stay unchanged.
+
 ## 3.0.0 — 2026-07-25
 
 Repo-owner-ratified addition of a single named, explicit-argument exception to the seam-only merge

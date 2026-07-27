@@ -118,7 +118,8 @@ native one matures into fitness.
 
 > **Staleness disclaimer.** The platform changes constantly. Every row carries the date its facts
 > were verified against the linked official page. Always re-fetch the current page before acting on
-> a row; never trust this table alone.
+> a row; never trust this table alone. A verified date is an as-of record, never standing authority
+> — the [upstream-drift convention](conventions/upstream-drift/README.md) owns this discipline.
 
 | Component | Stance | Rationale and constraints | Verified |
 |---|---|---|---|
@@ -407,6 +408,7 @@ doc before a second plugin adopts it. Fleet audits check conformance per row.
 | Shell test-helper duplication and exit-code divergence | [`docs/conventions/shell-test-helpers/`](conventions/shell-test-helpers/README.md) |
 | Finding suppression (deliberately-kept audit findings) | [`docs/conventions/finding-suppression/`](conventions/finding-suppression/README.md) |
 | Fresh-eyes declaration pattern contract | `skill-quality` plugin (`skills/check/reference/fresh-eyes-declarations.md`) |
+| Upstream-drift verification stamps and recheck triggers | [`docs/conventions/upstream-drift/`](conventions/upstream-drift/README.md) |
 
 ## Cross-platform contract
 

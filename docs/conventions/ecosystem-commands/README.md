@@ -154,7 +154,7 @@ Because command values are opaque strings, later adoption is a mechanical value 
 (`check-cmd: 'task lint:python'` or `check-cmd: 'lefthook run lint-python'`) with zero schema change
 — the demotion path is designed in.
 
-**Revisit triggers** (either fires → re-evaluate):
+**Recheck triggers** ([upstream-drift](../upstream-drift/README.md); either fires → re-evaluate):
 
 - The same logical verb's command string is maintained across 3+ execution surfaces such that one
   command bump requires 3+ coordinated edits; or

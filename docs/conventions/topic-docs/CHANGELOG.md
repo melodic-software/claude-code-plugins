@@ -1,5 +1,12 @@
 # Changelog — topic-docs convention
 
+## 2.3.1 — 2026-07-26
+
+Docs-only, no tier, key, slug, or visibility change: the no-hoisting decision's "What would
+reopen it" label becomes "Recheck trigger" and cites the
+[upstream-drift convention](../upstream-drift/README.md) (#1638), the new owner of the concept's
+single name and shape. The trigger itself is unchanged.
+
 ## 2.3.0 — 2026-07-26
 
 - **The `.worktreeinclude` template carries sub-slices** (additive). Its

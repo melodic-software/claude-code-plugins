@@ -137,7 +137,8 @@ authority it points to.
 
 ## Recheck triggers
 
-Recheck the facts table (and re-derive the decision rule) when any of these fires:
+Stamp-and-trigger discipline: [upstream-drift](../upstream-drift/README.md). Recheck the facts
+table (and re-derive the decision rule) when any of these fires:
 
 - A Claude Code CHANGELOG entry touches `userConfig` substitution, the `default` field, or
   `CLAUDE_PLUGIN_OPTION_*` injection — facts 1–4; rows A/B/D.

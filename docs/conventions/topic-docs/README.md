@@ -410,7 +410,8 @@ one-owner-per-concern rule. Registration would also turn byte-identity
 into a gate, failing CI on the next legitimate divergence of exactly the
 kind `planning` already shows.
 
-**What would reopen it:** a canonical source under [`lib/`](../../../lib/)
+**Recheck trigger** ([upstream-drift](../upstream-drift/README.md)):
+a canonical source under [`lib/`](../../../lib/)
 with a dedicated `scripts/sync-*.sh` — the mechanism `lib/hook-utils.sh`
 established and the [shell test-helpers doc](../shell-test-helpers/README.md)
 names as this marketplace's sanctioned way to share source across

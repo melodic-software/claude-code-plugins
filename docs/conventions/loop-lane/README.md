@@ -311,16 +311,16 @@ This contract is versioned in [`CHANGELOG.md`](CHANGELOG.md). A change to the to
 escalation contract, the tier vocabulary, or any loop-layer invariant is a major bump; additive
 guidance is a minor bump.
 
-**Re-derivation triggers.** Two, and every one of them is recorded as a changelog entry:
+**Recheck triggers** ([upstream-drift](../upstream-drift/README.md) owns the stamp-and-trigger
+discipline: a dated verification stamp here is an as-of record, never standing authority). Two, and
+every one of them is recorded as a changelog entry:
 
 - Any new model release re-audits the capability-tier table (§3).
 - Any change to this convention, or to a consuming lane, that RELIES on an upstream-sourced claim
   re-verifies that claim against its cited page first and refreshes the claim's verification date
   with the outcome.
 
-A dated verification stamp in this document is an as-of record, never standing authority. The
-upstream surfaces these claims rest on — the `/loop` seven-day expiry, the `ScheduleWakeup` bounds,
-model-alias semantics, the rate-limit windows — move on a research-preview cadence, and a stamp
-carrying no re-derivation trigger reads as a settled fact the longer it sits. Where re-verification
-finds drift, the changed value lands here as a recorded entry rather than silently inside a lane
-body.
+The upstream surfaces these claims rest on — the `/loop` seven-day expiry, the `ScheduleWakeup`
+bounds, model-alias semantics, the rate-limit windows — move on a research-preview cadence. Where
+re-verification finds drift, the changed value lands here as a recorded entry rather than silently
+inside a lane body.
