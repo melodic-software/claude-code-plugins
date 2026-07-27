@@ -1,6 +1,6 @@
 ---
 name: check
-description: "Skill-authoring QA for Claude Code skills. Use when: 'check this skill', 'skill quality', 'lint my skill', 'is this SKILL.md valid', 'validate skill frontmatter', 'check skill before publishing', 'validate evals.json', 'shared listing budget', 'is the skill listing overflowing', or before shipping a skill or plugin. Actions: `check [<skill-name>]` runs a twenty-one-check static contract gate (frontmatter, per-skill listing-entry cap, trigger-keyword preservation vs HEAD, line caps, broken internal refs, markdownlint, gotchas surface, evals presence, precompute opportunity, injection shell-declaration, fresh-eyes declaration conformance) and reports PASS/FAIL with warnings; `validate-evals [<skill-name>]` checks a skill's evals/evals.json against the bundled schema; `listing-budget [<root> ...]` reports the SHARED aggregate listing-budget estimate across every listing-eligible skill under the resolved root(s) — advisory only, never blocks. Not for: writing new skills, or running model-graded evals."
+description: "Skill-authoring QA for Claude Code skills. Use when: 'check this skill', 'skill quality', 'lint my skill', 'is this SKILL.md valid', 'validate skill frontmatter', 'check skill before publishing', 'validate evals.json', 'shared listing budget', 'is the skill listing overflowing', or before shipping a skill or plugin. Actions: `check [<skill-name>]` runs a twenty-two-check static contract gate (frontmatter, per-skill listing-entry cap, trigger-keyword preservation vs HEAD, line caps, broken internal refs, markdownlint, gotchas surface, evals presence, precompute opportunity, injection shell-declaration, fresh-eyes declaration conformance) and reports PASS/FAIL with warnings; `validate-evals [<skill-name>]` checks a skill's evals/evals.json against the bundled schema; `listing-budget [<root> ...]` reports the SHARED aggregate listing-budget estimate across every listing-eligible skill under the resolved root(s) — advisory only, never blocks. Not for: writing new skills, or running model-graded evals."
 argument-hint: "[check|validate-evals|listing-budget] [<skill-name-or-root> ...] — omit the action for check; omit the name/root to run over every skill under the resolved root"
 user-invocable: true
 disable-model-invocation: false
@@ -13,7 +13,7 @@ metadata:
 ## Purpose
 
 Static, deterministic quality gate for skill authoring. The `check` action runs the bundled
-`check-skill.sh` — twenty-one checks with no model invocation, so results are reproducible in CI or a
+`check-skill.sh` — twenty-two checks with no model invocation, so results are reproducible in CI or a
 pre-commit hook. The `validate-evals` action checks a skill's `<skill>/evals/evals.json` against the bundled
 JSON schema. The `listing-budget` action runs `check-listing-budget.sh` — a separate, always-advisory
 report on the SHARED listing budget every loaded skill draws from together (a different, cross-skill
