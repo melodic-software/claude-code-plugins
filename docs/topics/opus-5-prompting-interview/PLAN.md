@@ -325,7 +325,7 @@ Work items:
 - plugin.json shows the next-minor version; CHANGELOG has the matching heading; `orphaned-fixture-gate` green (fixtures referenced by tests).
 - `bash scripts/check-changed-skills.sh origin/main` exits 0 (audit-instructions is a changed skill — trigger-keyword preservation, listing cap, 500-line cap all hold).
 
-### Phase 4: knowledge ingestion skill [TODO]
+### Phase 4: knowledge ingestion skill [DONE]
 
 Review: code-design
 
@@ -350,6 +350,9 @@ Work items:
 1. Naming tournament (`naming:name-it-better`, tournament mode). Seeds: `doc-distill` plus
    candidates; CONSTRAINT fed in: siblings follow SOURCE-KIND shape (`book-distill`,
    `course-digest`, `youtube-digest`) — bare-verb candidates (`ingest`, `absorb`) break it.
+   RESOLVED: `docpage-digest` (5 blind generators, 3 independent judges, Borda 23/21/19;
+   runners-up `docs-digest`, `doc-digest`) — provisional pending user ratification at PR;
+   pre-merge rename is cheap via `docs-hygiene:rename-references`.
 2. Author SKILL.md + profile + templates + evals.
 3. `skill-quality:check`; fix findings.
 4. Version bump + CHANGELOG + README.
