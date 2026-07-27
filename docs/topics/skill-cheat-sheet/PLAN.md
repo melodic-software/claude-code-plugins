@@ -174,7 +174,7 @@ Locked this interview (validated by two independent fresh-context reviewers; evi
 | Repo hooks | `block-noncanonical-commit.sh`: commit via `git commit -F - --cleanup=verbatim`; no `echo >` file writes | project |
 | Agent Skills spec | `metadata` field contract (fetched this session, 2026-07-26) | upstream |
 
-### Phase 1: Key contract, grouping config, and mapping table [TODO]
+### Phase 1: Key contract, grouping config, and mapping table [DONE]
 
 Fresh-docs step first (CLAUDE.md mandate — frontmatter is a contract surface): re-fetch
 <https://agentskills.io/specification> and <https://code.claude.com/docs/en/skills> via
