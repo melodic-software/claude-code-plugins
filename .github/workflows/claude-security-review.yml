@@ -1,0 +1,65 @@
+name: claude-security-review
+
+# Dedicated LLM security-review pass via the ci-workflows reusable workflow — the
+# security sibling of claude-review.yml, ADR 0002's default-on advisory posture.
+# The caller owns the triggers, the GITHUB_TOKEN grant, and the `paths` input
+# listing this repo's security-sensitive surfaces (workflows, scripts, hooks,
+# shell, and permission/settings config). There is deliberately NO workflow-level
+# path filter: a path miss would leave the required execution check Pending and
+# wedge prose PRs, so the reusable workflow evaluates `paths` in a job-level gate
+# and a not-applicable PR yields a name-stable skipped check the required-check
+# ruleset reads as success. The verdict stays advisory per ADR 0002. Fork PRs
+# receive no secrets and a read-only token, so they are simply not reviewed by
+# design. Requires `claude-code-plugins` in the CLAUDE_CODE_OAUTH_TOKEN org
+# secret's selected-repositories scope. Public repo: hosted default runner.
+on:
+  pull_request:
+    types: [opened, synchronize, ready_for_review, reopened]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: claude-security-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  security-review:
+    permissions:
+      contents: read         # checkout + read the diff
+      pull-requests: write   # post the security review
+      id-token: write        # OIDC — mints the Claude GitHub App token
+    uses: melodic-software/ci-workflows/.github/workflows/claude-security-review.yml@66073e58e730f8bcd1d6533e26ac9411a637fe83 # 66073e5 2026-07-26 fail the required check when an in-scope review could not run
+    with:
+      runner: ubuntu-24.04
+      skip-actors: "dependabot[bot],melodic-standards-sync[bot]"
+      paths: |
+        .github/**
+        .claude/**
+        scripts/**
+        plugins/*/hooks/**
+        plugins/*/bin/**
+        plugins/*/tools/**
+        plugins/*/skills/**
+        plugins/*/agents/**
+        plugins/*/commands/**
+        .claude-plugin/**
+        REVIEW.md
+        CLAUDE.md
+        AGENTS.md
+        plugins/*/src/**
+        plugins/*/dist/**
+        **/*.sh
+        **/*.ps1
+        **/*.mjs
+        **/*.ts
+        **/*.js
+        **/*.cjs
+        **/.mcp.json
+        **/mcp.json
+        **/package.json
+        **/package-lock.json
+        plugins/*/.claude-plugin/plugin.json
+    # One named secret (least privilege), never `secrets: inherit`.
+    secrets:
+      CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
