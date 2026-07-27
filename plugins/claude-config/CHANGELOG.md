@@ -3,6 +3,42 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.15.0]
+
+### Added
+
+- **`audit-instructions`: Opus-5 model-delta rows in I8, and model scoping as a catalog axis**
+  (criteria 1.2.0 → 1.3.0), from the dual-verified Opus 5 prompting-guide corpus. I8 gains three
+  Opus-5-scoped rows: I8-a instructed self-check removal (classified by reviewer INDEPENDENCE —
+  architected fresh-context or cross-vendor review is never a finding — with carve-out lanes for
+  security review, destructive operations, managed-upstream-file changes, and PR merge gates);
+  I8-b conservative-reporting detection, behavioral, with two criteria-owned fences
+  (restraint-clause shape — the `code-tidying` tidyings "When NOT to apply" text is the canonical
+  non-finding — and quoted/meta surfaces that discuss the pattern rather than instruct with it);
+  I8-c don't-think / don't-reason directives. A new "Model scoping" section defines the semantics:
+  single-model-sourced rows fire only when the run's resolved target model matches by exact
+  equality of the normalized version token (point releases and dated IDs never auto-match a
+  base-version scope), otherwise reported `skipped-for-target`; fleet-wide promotion only via the
+  documented gate. I8's base row and I10 are annotated with their `fable-5` scope (single-model
+  sources; gate unmet) — a deliberate coverage narrowing: on any non-`fable-5` target those two
+  now report `skipped-for-target` instead of findings, until the promotion gate is met.
+- **`audit-instructions`: `--target-model <version>` argument.** Default resolution ladder:
+  explicit argument, else the session's effective model (launch overrides included, not the bare
+  settings pin) normalized alias → version against live model-config docs; anything that cannot
+  normalize to a single version — family alias (e.g. `opus` with a context-window suffix), absent
+  `model` setting, custom/gateway deployment ID — aborts the run non-interactively with the exact
+  argument to pass, instead of silently assuming the newest version. The report's
+  tier-transparency line names the resolved target.
+- **`audit-instructions`: report-header cost line** — checks run per surface, model-scoped rows
+  skipped for the target, estimated per-surface token delta versus the prior catalog version, and
+  confirmation that the run adds zero new interactive gates (report-only contract unchanged).
+- **`instruction-scan.sh`: I8 candidate families with per-family ids** (`I8-a` instructed
+  self-check, `I8-b` conservative-reporting, `I8-c` don't-think / don't-reason), with regression
+  tests, curly-apostrophe (U+2019) coverage in the contraction patterns (also retrofitted to the
+  pre-existing I6 tokens), and stem forms that catch inflections. Advisory over-production is
+  unchanged and deliberate: restraint clauses, quoted/meta text, idioms, and substring near-misses
+  are emitted as candidates; the fences live in criteria.md and are adjudicated by the model lane.
+
 ## [0.14.0]
 
 ### Added

@@ -268,7 +268,7 @@ Work items:
 - markdownlint (repo's documented command) passes on changed files; `portability-lint` expectations
   hold (no machine paths).
 
-### Phase 3: audit-instructions Opus-5 extension [TODO]
+### Phase 3: audit-instructions Opus-5 extension [DONE]
 
 Review: code-design
 

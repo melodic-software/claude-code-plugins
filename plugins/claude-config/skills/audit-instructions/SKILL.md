@@ -1,7 +1,7 @@
 ---
 name: audit-instructions
 description: "Audit locally-owned Claude Code instruction surfaces — user + project CLAUDE.md, .claude/rules, skill bodies, agent definitions, prompt-type hooks, output styles — for instructions current models no longer need: prior-model workarounds, over-prescriptive scaffolding, bare prohibitions, reasoning-echo directives, stale examples — plus instructions that misstate Claude Code's own behavior, cite a file in a form that never loads, or re-read a surface already in context. Also detects cross-surface conflicts: two surfaces that both claim authority over one behavior and contradict each other. Report-only: emits a findings report with proposed diffs, gated to the human, never auto-applied. Use when: 'after a model upgrade', 'are my instructions holding the model back', 'instructions the model no longer needs', 'too prescriptive', 'audit instructions', 'instruction audit', 'stale Claude Code behavior', 'outdated harness claim', 'my @path import is not loading', 'instruction re-reads CLAUDE.md', 'conflicting instructions', 'contradictory instructions', 'which instruction wins'. Not a brevity pass and not memory-layer hygiene."
-argument-hint: "[scope] [--opinion] [--no-stopping-condition] — scope: claude-md|rules|skills|agents|hooks|output-styles|conflicts|all (default: all)"
+argument-hint: "[scope] [--target-model <version>] [--opinion] [--no-stopping-condition] — scope: claude-md|rules|skills|agents|hooks|output-styles|conflicts|all (default: all)"
 user-invocable: true
 disable-model-invocation: false
 ---
@@ -79,6 +79,25 @@ relation between two surfaces and a scoped run still needs the counterpart:
 
 A finding still names both sides of a conflict even when one side is out of scope; the filter decides
 which side the run is auditing.
+
+`--target-model <version>` sets the model the audit judges against. The catalog's model-scoped
+checks and rows (its "Model scoping" section) fire only when this resolved target matches their
+scope; non-matching ones are inert and the report lists them as `skipped-for-target`.
+
+- **Default resolution ladder:** (1) an explicit `--target-model` always wins; (2) otherwise use
+  the session's EFFECTIVE model — what this session actually runs, which a `--model` launch
+  override may have set, not the bare settings pin — and normalize it alias → model VERSION
+  against the live model-config docs at run time; (3) anything that cannot be normalized to a
+  single version fails loud (below). Matching against catalog scopes is exact equality of the
+  normalized version token — the catalog's "Model scoping" section owns that predicate.
+- **Fail loud on ambiguity:** a value may carry no version at all — a family alias like `opus`
+  (with or without a context-window suffix such as `[1m]`), an absent `model` setting in an
+  out-of-session run, or a custom/gateway deployment ID that matches no documented pattern.
+  Normalization MUST stop in that case by ABORTING the run with an error that names the exact
+  argument to pass (`--target-model <version>`) — a non-interactive abort, never a mid-run prompt,
+  and never a silent guess that a family alias means its newest version, which would misfire the
+  exact model-scoped distinctions the catalog draws. The resolved target (and how it was
+  resolved) is named in the report's tier-transparency line.
 
 Two flags govern the `OPINION` tier, whose enablement policy the catalog defines:
 
@@ -188,16 +207,21 @@ involving one still carries the no-change representation and its routing recomme
 
 Run one **fresh read-only subagent per surface**, each sharing
 [reference/criteria.md](reference/criteria.md) and applying the per-surface check partition from
-the Scope boundary. Seed each lane's mechanical tier with the deterministic pre-scan over that
-surface's files:
+the Scope boundary. Seed each lane's candidate set with the deterministic pre-scan over that
+surface's files (the seeded checks span both evidence tiers; the scan itself is only ever
+deterministic pattern-marking):
 
 ```shell
 bash "${CLAUDE_PLUGIN_ROOT}/skills/audit-instructions/scripts/instruction-scan.sh" <file>...
 ```
 
-It emits `file:line:check-id` candidate rows for I6 (bare prohibitions lacking a rationale marker)
-and I10 (reasoning-echo directives); `--count` prints the row count. Advisory — a grep cannot judge
-whether a rationale is genuinely present, so the lane refines every candidate.
+It emits `file:line:check-id` candidate rows for I6 (bare prohibitions lacking a rationale
+marker), I10 (reasoning-echo directives), and the I8 families under per-family ids — `I8-a`
+instructed self-check, `I8-b` conservative-reporting, `I8-c` don't-think / don't-reason (I8-c's
+tag-naming sub-detect is lane-only, not seeded); `--count` prints the row count. Advisory — a
+grep cannot judge whether a rationale is genuinely present, whether a restraint clause is a
+reporting gate, or which model a row targets, so the lane refines every candidate against the
+catalog's fences and the run's resolved target model.
 
 Bound concurrency to 3–5 lanes at a time; the skills surface fans out one lane per skill. Before the
 total dispatch count (lanes plus Phase C verifiers) would exceed ~20, confirm with the user.
@@ -252,7 +276,12 @@ gate fails, dropped for that named reason.
 ## Phase D — Report
 
 Persist the report to `${CLAUDE_PLUGIN_DATA}/audit-instructions/last-audit.md` and summarize it in
-chat. Present findings as a table:
+chat. The report header carries a **cost line**: how many checks ran per surface (naming any added
+by a catalog version bump), the model-scoped rows skipped for the resolved target, and the
+estimated per-surface token delta versus the previous catalog version — and it confirms the run
+added zero new interactive gates (report-only contract unchanged; the target-model fail-loud stop
+is an invocation-time validation abort, not an interactive gate — it prompts nobody and blocks
+nothing mid-run). Present findings as a table:
 
 | # | Check | Surface:Line | Severity | Tier | Authority | Finding | Proposed change |
 |---|-------|--------------|----------|------|-----------|---------|-----------------|
