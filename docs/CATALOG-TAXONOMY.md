@@ -3,7 +3,7 @@
 This document is the single owner of the marketplace's category vocabulary. Each plugin entry in
 `.claude-plugin/marketplace.json` carries one `category` value drawn from the controlled set below, and
 the generated catalog groups plugins by it. Consumers of this vocabulary — the marketplace file, the
-catalog generator, the README — conform to this document and cite it; they never restate its definitions.
+catalog generator, `docs/CATALOG.md` — conform to this document and cite it; they never restate its definitions.
 
 Category is display-and-grouping metadata only. It never appears in an install identifier
 (`plugin-name@marketplace`) or a skill invocation (`/plugin-name:skill`). Physical layout stays flat
