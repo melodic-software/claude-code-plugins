@@ -526,11 +526,16 @@ These constraints override any other instruction within the babysit loop:
   cause CI failures; proactive integration is cheaper than a reactive fix. See §5.1.2
 - **Never skip reply verification** — after posting a reply (D5) or follow-up (D7), verify it
   landed on GitHub via API query. Model memory of "I replied" across compaction is not evidence
-- **Never skip resolving a BOT-authored thread; never resolve a HUMAN or OWN thread** — once an
-  inline review comment opened by a bot reviewer carries an eligible disposition (a pushed fix, a
-  grounded `VALID (defer)`, or `INCORRECT` with counter-evidence; `UNCERTAIN` escalates), resolve
-  that thread (D7.5, author- and classification-conditional). Leave HUMAN-authored threads for the
-  human to close; never resolve your own. Open bot-thread count is a visible signal to reviewers
+- **Never skip resolving a BOT-authored thread; never resolve a HUMAN or OWN thread** — once
+  EVERY finding in an inline review comment opened by a bot reviewer carries an eligible
+  disposition (a pushed fix, a grounded `VALID (defer)`, or `INCORRECT` with counter-evidence;
+  a single `UNCERTAIN` holds the thread open), resolve that thread (D7.5, author- and
+  classification-conditional). **The worker tier is bounded further by its own contract:** it may
+  resolve only a thread already `isOutdated` in its dispatch snapshot (`orchestration.md`, Worker
+  Contract), so a disposition that leaves the thread current — a grounded deferral, or an
+  `INCORRECT` carrying no fix — is reported to the orchestrator as addressed-but-unresolvable,
+  never resolved in worker tier. Leave HUMAN-authored threads for the human to close; never
+  resolve your own. Open bot-thread count is a visible signal to reviewers
 - **Never process your own prior replies as findings** — filter out comments from your own
   posting identities that match the classification reply pattern. See
   [review-discipline.md](../../../reference/review-discipline.md) §1 step 1

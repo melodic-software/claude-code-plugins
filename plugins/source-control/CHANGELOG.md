@@ -16,11 +16,13 @@ All notable changes to the `source-control` plugin are documented here. Format f
   to confirm it resolves. A deferral whose only record is thread prose is a dropped finding and
   the thread stays open. This narrows what a lane may resolve; it does not widen it, and the
   `--autonomous` `isOutdated` guard in `babysit_resolve_thread.py` is untouched.
-- **Never defer a finding this change introduced.** `VALID (defer)` is for a defect already
-  present on the base branch, outside this change's files, or owned by another contract.
-  Provenance decides, never severity — a self-introduced regression wearing a low-severity badge
-  is still a regression the change is shipping, so it is `VALID (fix now)`: fix it or revert the
-  change that caused it.
+- **Never defer a finding this change introduced, judged by base-branch behavior.** The
+  discriminator is whether the defect reproduced before the change, never which file it surfaced
+  in — so a contract this change altered that breaks an *unchanged* caller is still introduced
+  here, and the untouched caller file is evidence about provenance rather than a licence to defer.
+  `VALID (defer)` is available only for a defect that already reproduced on the base. Provenance
+  decides, never severity: a self-introduced regression wearing a low-severity badge is still a
+  regression the change is shipping, so it is `VALID (fix now)` — fix it or revert the cause.
 - **A third class in the non-convergence taxonomy — (c) self-inflicted findings (#1614).** The
   existing (a)-duplicate / (b)-new-distinct split had no slot for a finding that is new and
   distinct *and* against text the lane's own prior fix introduced. Provenance decides the class.
@@ -35,8 +37,14 @@ All notable changes to the `source-control` plugin are documented here. Format f
 
 - **D7.5 is now author- *and* classification-conditional (#1614).** Resolution eligibility
   previously turned on thread authorship alone, which is the operational hole behind
-  `safety.md`'s "Resolve any thread over a live, unaddressed finding". A thread is now eligible
-  only when its finding carries one of three recorded dispositions: `VALID (fix now)` with the
+  `safety.md`'s "Resolve any thread over a live, unaddressed finding". Because resolution is a
+  thread-level act while dispositions are per-finding, eligibility is a property of the **whole
+  thread**: every finding extracted from it must carry one of three recorded dispositions, and one
+  dispositioned finding never retires a multi-finding thread. That granularity is load-bearing
+  rather than pedantic — a resolved thread drops every comment it carries out of the readiness
+  denominator (`babysit_classify.py::thread_is_open`), so resolving early would make a still-open
+  finding vanish from the classification gate and let the PR merge over it. A single `UNCERTAIN`
+  holds its whole thread open. The eligible dispositions are: `VALID (fix now)` with the
   fix pushed and cited, `VALID (defer)` grounded per D4.6 with the item id cited, or `INCORRECT`
   with counter-evidence posted. `UNCERTAIN` escalates and is never resolved. Every existing
   author condition still applies on top. All four surfaces that restate the step — `pull-request`'s
@@ -44,6 +52,13 @@ All notable changes to the `source-control` plugin are documented here. Format f
   `babysit-prs/reference/loop.md` — are updated with it. They previously gated resolution on a
   pushed fix, so a correctly grounded deferral or an `INCORRECT` with counter-evidence satisfied
   canonical D7.5 and still left the thread open, holding readiness.
+- **Eligibility here never overrides a tier's own guards.** A disposition that makes a thread
+  eligible under D7.5 does not by itself authorize a resolve the invoking tier refuses. The worker
+  tier is the live case: its contract permits resolving only a thread already `isOutdated` in its
+  dispatch snapshot, so a disposition leaving the thread current — a grounded deferral, or an
+  `INCORRECT` carrying no fix — is reported to the orchestrator as addressed-but-unresolvable
+  rather than resolved. That is a description of today's behavior, not a fix; the underlying
+  capability gap is #1641, and closing it must not weaken the `--autonomous` `isOutdated` guard.
 - **The independent-authorization requirement states a property, not one mechanism.** Naming only
   the pre-escalation dispatch would have made the requirement unreachable — that path exists only
   on the explicit `autopilot` + `--merge c3-this-run` widening, so every other merge-capable path

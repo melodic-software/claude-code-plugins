@@ -179,12 +179,14 @@ D1–D7 cycles. Exploration and validation must run on the PR's head branch.
   item carrying the finding's own evidence — the reviewer's claim, your D2–D3 validation, and
   the file and line it lands on — and cite that item's id in the D5 reply. A deferral whose only
   record is prose in a review thread is a dropped finding, and the thread stays open
-  - [ ] **Never defer a finding this change introduced.** `VALID (defer)` is for a defect
-    already present on the base branch, living outside this change's files, or owned by another
-    contract. A finding against lines this change authored, describing a defect that did not
-    exist on the base, is `VALID (fix now)` — fix it, or revert the change that caused it.
-    Provenance decides this, never severity: a self-introduced regression wearing a low-severity
-    badge is still a regression this change is shipping
+  - [ ] **Never defer a finding this change introduced.** The discriminator is the behavior on
+    the base branch, never the file the finding surfaced in: if the defect did not reproduce
+    before this change, this change introduced it, and it is `VALID (fix now)` — fix it, or
+    revert the cause. That covers a contract this change altered breaking an unchanged caller;
+    the caller's file being untouched is evidence about provenance, never a qualifier that
+    licenses deferral. `VALID (defer)` is available only for a defect that already reproduced on
+    the base branch. Provenance decides this, never severity: a self-introduced regression
+    wearing a low-severity badge is still a regression this change is shipping
   - [ ] Record the work class the item was filed under, because it bounds when the finding gets
     addressed: an autonomously-drainable class is a materially stronger deferral candidate than
     a human-gated one, whose latency is unbounded
@@ -213,14 +215,23 @@ D1–D7 cycles. Exploration and validation must run on the PR's head branch.
     `pulls/<pr>/comments` filtered by `in_reply_to_id`; issue-level →
     `gh api repos/{owner}/{repo}/issues/<pr>/comments --jq '.[-1].body'`
 - [ ] D7.5 — Resolve review thread — **author- and classification-conditional, inline review
-  comments only** (this section is the canonical policy). A thread is eligible for resolution
-  only when its finding carries one of three recorded dispositions: `VALID (fix now)` with the
-  fix pushed and cited (D6–D7); `VALID (defer)` grounded per D4.6 with the item id cited; or
-  `INCORRECT` with the counter-evidence posted. `UNCERTAIN` is never resolved — it escalates.
-  This is what `skills/babysit-prs/reference/safety.md`'s Never Do Automatically entry "Resolve
-  any thread over a live, unaddressed finding" means operationally: *addressed* is one of those
-  three records, never the absence of one. The author conditions apply in full — this narrows the
-  eligible set and never widens it. Resolve ONLY threads whose OPENING comment is authored by a
+  comments only** (this section is the canonical policy). **Resolution is a thread-level act
+  while dispositions are per-finding, so eligibility is a property of the whole thread:** every
+  finding extracted from it per §2 must carry one of three recorded dispositions — `VALID (fix
+  now)` with the fix pushed and cited (D6–D7); `VALID (defer)` grounded per D4.6 with the item id
+  cited; or `INCORRECT` with the counter-evidence posted. One dispositioned finding does not make
+  a multi-finding thread eligible. `UNCERTAIN` is never resolved — it escalates, and a single
+  `UNCERTAIN` holds its whole thread open. Resolving early is not a cosmetic error: a resolved
+  thread drops every comment it carries out of the readiness denominator
+  (`babysit_classify.py::thread_is_open`), so a still-unaddressed finding inside it disappears
+  from the classification gate and the PR can merge over it. This is what
+  `skills/babysit-prs/reference/safety.md`'s Never Do Automatically entry "Resolve any thread over
+  a live, unaddressed finding" means operationally: *addressed* is one of those three records for
+  every finding present, never the absence of one. **What a tier may act on is bounded by its own
+  tooling, and this list never overrides that** — a disposition making a thread eligible here does
+  not by itself authorize a resolve the invoking tier's guards refuse (see the tier notes below).
+  The author conditions apply in full — this narrows the eligible set and never widens it. Resolve
+  ONLY threads whose OPENING comment is authored by a
   BOT reviewer that you addressed. NEVER resolve HUMAN-authored threads — the human resolves
   their own after verifying the fix. NEVER resolve your OWN threads (any of your posting
   identities — same self set as §1 step 1). Skip issue-level comments (no thread). **Thread
