@@ -107,8 +107,11 @@ Constraints:
   `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:">`.
   Inline `<style>` and inline `<script>` stay allowed (the in-page switcher needs inline script);
   only remote origins — CDNs, web fonts, `fetch`/XHR — are forbidden.
-- **Ephemeral placement.** Generate the mockup into an OS temp or gitignored scratch location, not
-  a tracked path.
+- **Ephemeral placement.** Generate the mockup via the platform's temp primitive — `mktemp` on
+  Unix/Linux (e.g. `mktemp --tmpdir explore-directions-XXXXXX.html`), a user-scoped temp under
+  `%LOCALAPPDATA%\Temp` on Windows — never a tracked path and never inside the repo. One file per
+  run. The path is handed to the user to open from `file://`, so do not delete it — it must still
+  be readable when they open it.
 - **Markdown captures the answer.** Copy the winning-variant key and notes into your durable
   answer (per the shared discipline); the HTML is throwaway.
 

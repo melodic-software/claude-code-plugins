@@ -3,6 +3,16 @@
 All notable changes to the `visualization` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.1.1]
+
+### Changed
+
+- **Local HTML files get an explicit ephemeral-tier placement rule.** The
+  local-file medium now writes via the platform temp primitive (`mktemp` on
+  Unix/Linux, a user-scoped temp under `%LOCALAPPDATA%\Temp` on Windows), never
+  into the consumer's repository tree, one file per run — and the handed-back
+  path is never deleted. Previously the skill named no placement at all.
+
 ## [0.1.0]
 
 ### Added

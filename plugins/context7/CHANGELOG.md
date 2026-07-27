@@ -3,6 +3,14 @@
 All notable changes to the `context7` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.3]
+
+### Changed
+
+- **Dump-to-disk pipe example uses `mktemp` instead of a hardcoded `/tmp` path**,
+  conforming the illustrative CLI composability example to the topic-docs
+  ephemeral tier.
+
 ## [0.4.2]
 
 ### Changed

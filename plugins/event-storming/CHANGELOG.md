@@ -3,6 +3,16 @@
 All notable changes to the `event-storming` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.6]
+
+### Changed
+
+- **`{system_temp}` is now bound to the platform temp primitive.** The agentic
+  simulation reference defines the session directory root as `${TMPDIR:-/tmp}`
+  on POSIX/Git Bash and `$env:TEMP` on Windows PowerShell instead of leaving the
+  placeholder unbound. The existing delete-vs-archive cleanup protocol is
+  unchanged.
+
 ## [0.5.5]
 
 ### Changed

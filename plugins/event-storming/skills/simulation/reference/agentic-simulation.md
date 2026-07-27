@@ -268,7 +268,7 @@ LLM agents are stateless — each Agent tool invocation starts fresh. Without pe
 **Solution: Temp profile files loaded into each agent prompt.**
 
 **Directory structure** (created at session start, cleaned up at session end).
-Define `{session_dir}` = `{system_temp}/eventstorming-session-{session_id}` and use it consistently throughout.
+Define `{session_dir}` = `{system_temp}/eventstorming-session-{session_id}` and use it consistently throughout. `{system_temp}` is the platform's user-scoped temp root, resolved by the platform primitive itself — `${TMPDIR:-/tmp}` on POSIX/Git Bash, `$env:TEMP` (by default under `%LOCALAPPDATA%\Temp`) on Windows PowerShell — never a hardcoded literal path.
 
 ```
 {session_dir}/

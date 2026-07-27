@@ -3,6 +3,17 @@
 All notable changes to the `prototype` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.3]
+
+### Changed
+
+- **`explore-directions` mockup placement conforms to the topic-docs ephemeral
+  tier.** The self-contained HTML mockup resolves one deterministic location via
+  the platform temp primitive (`mktemp` on Unix/Linux, a user-scoped temp under
+  `%LOCALAPPDATA%\Temp` on Windows) instead of an "OS temp **or** gitignored
+  scratch location" OR-branch — the gitignored option put the throwaway file
+  inside the repo. The handed-back path is never deleted.
+
 ## [0.3.2]
 
 ### Changed

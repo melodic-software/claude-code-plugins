@@ -124,8 +124,8 @@ MSYS_NO_PATHCONV=1 ctx7 docs /facebook/react "hooks" | grep -A3 -i useEffect
 # Strip ANSI for clean grep output
 MSYS_NO_PATHCONV=1 ctx7 docs /facebook/react "hooks" | sed 's/\x1b\[[0-9;]*m//g' | grep useEffect
 
-# Dump to disk (keeps context clean)
-MSYS_NO_PATHCONV=1 ctx7 docs /vercel/next.js "app router" > /tmp/nextjs-router.md
+# Dump to disk (keeps context clean; mktemp resolves the platform temp dir)
+OUT=$(mktemp -t ctx7-XXXXXX); MSYS_NO_PATHCONV=1 ctx7 docs /vercel/next.js "app router" > "$OUT"
 
 # Extract library IDs from a search
 ctx7 library react "hooks" --json | jq -r '.[0].id'

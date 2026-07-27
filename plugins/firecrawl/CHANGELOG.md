@@ -3,6 +3,19 @@
 All notable changes to the `firecrawl` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.2]
+
+### Changed
+
+- **Core pattern now conforms to the topic-docs ephemeral tier.** Spill files are
+  created via the platform temp primitive (`mktemp` under the skill's `shell: bash`
+  runtime, which covers Git Bash on Windows) instead of a hand-rolled
+  `date +%s%N` nonce under a hardcoded `/tmp`, and self-consumed spill files are
+  removed after the selective `Read` (kept only when the user asked for the file
+  itself), so a research-heavy session no longer accumulates one orphan file per
+  call. The update skill's preservation rule, the command reference, and the eval
+  expectations follow the same pattern.
+
 ## [0.4.1]
 
 ### Changed
