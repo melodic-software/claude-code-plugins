@@ -137,26 +137,23 @@ is cumulative and the push tier rides on top of the channel notification.
 
 ### Fan-out transport grounding
 
-Both org-bindable legs bind to documented first-party transports (verified 2026-07-26) — adapters
-to compose at build, not primitives waiting to exist:
+Neither org-bindable leg waits on a primitive that has to be invented. Each binds to a distinct
+transport surface class, and both classes have shipped first-party mechanisms today — adapters to
+compose at build:
 
-- **Channel leg — deterministic.** Claude Code hooks accept `type: "http"` handlers that POST the
-  hook event's JSON to a configured endpoint when the matched lifecycle event fires — no model
-  judgment, and no claude.ai subscription or Remote Control dependency
-  (<https://code.claude.com/docs/en/hooks>). The interim loop-lane executor already composes this
-  leg: its convention wires a consuming-repo-configured `PostToolUse` http hook on each lane's
-  escalation-record write (the `loop-lane` convention, §2, in this marketplace's
-  `docs/conventions/` — a source-repo citation for provenance; an installed plugin reads no repo
-  docs at runtime).
-- **Personal-push leg — model-discretionary.** The built-in `PushNotification` tool sends a
-  desktop notification, plus a phone push when claude.ai Remote Control is connected. It needs no
-  permission prompt but fires at the model's discretion, so it is a human-attention layer riding
-  on the channel leg, never the deterministic leg
-  (<https://code.claude.com/docs/en/tools-reference>,
-  <https://code.claude.com/docs/en/remote-control>).
+- **Channel leg — the deterministic hook-transport class.** A lifecycle-hook handler that POSTs
+  the event payload to an endpoint the org configures. It fires whenever the matched lifecycle
+  event fires, with no model judgment in the path, and it carries no account-tier or paired-device
+  dependency. That determinism is why the ladder rests on this leg.
+- **Personal-push leg — the model-discretionary push-notification surface class.** A built-in
+  notification capability the agent invokes at its own discretion, reaching an operator's local
+  desktop and, where a paired personal device surface is connected, that operator's phone. Both
+  the discretionary invocation and the pairing dependency are why this leg rides on top of the
+  channel leg and never substitutes for it.
 
-The runner binds the concrete adapters at build from live docs; this grounding records that both
-legs have shipped first-party mechanisms today, so neither waits on a new primitive.
+The runner binds each class's concrete adapter — and re-verifies its behavior — at build from live
+docs. This grounding fixes only which class each leg belongs to and the ladder order between them;
+naming instances is the binding surface's job, not this contract's.
 
 ### Contract-default severities
 

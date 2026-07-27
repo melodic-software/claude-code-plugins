@@ -5,14 +5,10 @@
 #
 # Reach is deliberately local-only — an OS-native toast (macOS/Linux), plus a
 # best-effort terminal bell + OSC 9 written straight to the controlling TTY. It
-# reaches an operator AT THIS MACHINE. Off-machine transport exists as
-# first-party mechanisms — hooks accept deterministic `type:"http"` handlers,
-# and the model holds the discretionary PushNotification tool
-# (https://code.claude.com/docs/en/hooks and /docs/en/tools-reference, verified
-# 2026-07-26) — but its home is the consuming repo's settings, not this shell
-# library: the loop-lane convention's out-of-band notification seam (source
-# repo, docs/conventions/loop-lane/README.md §2) wires a PostToolUse http hook
-# on each lane's escalation-record write. This primitive stays the local
+# reaches an operator AT THIS MACHINE. Off-machine transport does exist as
+# first-party mechanisms, but its home is the consuming repo's settings, not
+# this shell library — the loop-lane convention's out-of-band notification seam
+# (§2) owns that seam and its verified grounding. This primitive stays the local
 # channel, and no hook-borne channel covers a closed laptop or a dead process —
 # those emit no hook event at all.
 #

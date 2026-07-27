@@ -12,25 +12,23 @@ merged work-package PRs (#333, #343, #356, #372, #377, #600, #676).
 
 - **`lane-notify.sh` no longer claims no remote/Slack/push transport exists (#1650).** The header
   stated "there is no remote/Slack/push transport here (none exists as a marketplace primitive
-  yet)" — stale on both clauses. Verified against current official docs (2026-07-26): hooks accept
-  deterministic `type:"http"` handlers that POST the hook JSON to a configured endpoint
-  (<https://code.claude.com/docs/en/hooks>), the built-in `PushNotification` tool provides
-  permission-free model-discretionary desktop/phone push
-  (<https://code.claude.com/docs/en/tools-reference>), and the official marketplace carries an
-  outbound-capable `slack` plugin. The comment now points at the loop-lane convention's
-  out-of-band notification seam (a consuming-repo `PostToolUse` http hook on the lanes'
-  escalation-record write) as the off-machine path; the primitive's own local-only reach and the
-  closed-laptop/dead-process caveat are unchanged. Comment-only — no hook behavior change.
+  yet)" — stale on both clauses, since first-party off-machine transports do exist today. The
+  comment now says so and points at the loop-lane convention's out-of-band notification seam (§2),
+  which owns that seam and its verified grounding, instead of restating the mechanisms and their
+  citations here. The primitive's own local-only reach and its closed-laptop/dead-process caveat
+  are unchanged. Comment-only — no hook behavior change.
 
 ### Changed
 
-- **`reference/runner/escalation.md`: severity fan-out legs grounded in shipped first-party
-  transports (#1650).** The channel-notification and personal-push legs were unbuilt design with
-  no named mechanism. A new "Fan-out transport grounding" subsection binds the channel leg to
-  deterministic `type:"http"` hook handlers (composed today by the loop-lane convention's
-  out-of-band notification seam) and the personal-push leg to the model-discretionary
-  `PushNotification` tool, each with its dependency profile and citation, so neither leg waits on
-  a primitive that already exists.
+- **`reference/runner/escalation.md`: severity fan-out legs grounded in shipped transport surface
+  classes (#1650).** The channel-notification and personal-push legs were unbuilt design with no
+  named surface class. A new "Fan-out transport grounding" subsection assigns the channel leg to
+  the deterministic hook-transport class and the personal-push leg to the model-discretionary
+  push-notification surface class, records each class's dependency profile, and states that both
+  classes have shipped mechanisms today — so neither leg waits on a primitive that has to be
+  invented. Per this plugin's contract boundary the subsection names no vendor and no instance:
+  concrete adapters are bound and re-verified at build, and the consuming-side wiring lives in the
+  loop-lane convention's seam.
 
 ## [0.11.3]
 

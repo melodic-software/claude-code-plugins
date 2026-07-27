@@ -5,7 +5,7 @@ topology, the escalation contract, the capability-tier vocabulary, or any loop-l
 major bump, and additive guidance is a minor bump. A new model release re-audits the capability-tier
 table (§3) and is recorded here.
 
-## 4.0.0 — 2026-07-26
+## 4.0.0 — 2026-07-27
 
 Out-of-band escalation notification
 ([melodic-software/claude-code-plugins#1650](https://github.com/melodic-software/claude-code-plugins/issues/1650)).
@@ -21,13 +21,10 @@ A change to the escalation contract is a major bump per this file's own rule.
   repos gitignore the directory.
 - **Escalation contract (§2) — out-of-band notification seam.** A consuming repo's own tracked
   `.claude/settings.json` may register a deterministic `PostToolUse` `type: "http"` hook on the
-  record write, POSTing the hook JSON to a repo-chosen endpoint — documented default shape in §2.
-  Verified against <https://code.claude.com/docs/en/hooks> and
-  <https://code.claude.com/docs/en/permissions> (2026-07-26): http handlers are supported in
-  project settings on `PostToolUse`; the `if` file filter uses the `Edit(...)` rule form; header
-  values interpolate env vars behind `allowedEnvVars` while the `url` never interpolates; non-2xx
-  and connection failures are non-blocking. The deterministic path carries no claude.ai
-  subscription or Remote Control dependency. `PushNotification` and `slack`-plugin outbound are
+  record write, POSTing the hook JSON to a repo-chosen endpoint — documented default shape,
+  per-element grounding, and official-doc citations all in §2, verified 2026-07-27. The
+  deterministic path carries no claude.ai subscription or Remote Control dependency.
+  `PushNotification` and `slack`-plugin outbound are
   named as optional model-discretionary layers, never the deterministic leg. Fan-out depth on the
   one filed escalation — not a second escalation channel; degradation without a configured hook
   loses only the out-of-band leg. §2 also records the seam's egress (the POST body is the full

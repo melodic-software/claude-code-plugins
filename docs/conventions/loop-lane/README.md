@@ -207,13 +207,14 @@ record directory, with a `type: "http"` handler that POSTs the hook event's JSON
 
 Every element is a documented first-party mechanism (verified against
 <https://code.claude.com/docs/en/hooks> and <https://code.claude.com/docs/en/permissions> on
-2026-07-26):
+2026-07-27):
 
 - `type: "http"` handlers POST the hook's JSON input with `Content-Type: application/json` and are
-  supported in project `.claude/settings.json` — and every other settings scope — on every hook
-  event except `SessionStart`/`Setup`. The seam is therefore per-consuming-repo configuration; no
-  plugin ships it. It is deterministic (the handler fires on the matched lifecycle event, no model
-  judgment) and carries no claude.ai subscription or Remote Control dependency.
+  supported in project `.claude/settings.json` — and every other settings scope — on `PostToolUse`;
+  the one documented handler-type restriction that excludes them is on `SessionStart`. The seam is
+  therefore per-consuming-repo configuration; no plugin ships it. It is deterministic (the handler
+  fires on the matched lifecycle event, no model judgment) and carries no claude.ai subscription or
+  Remote Control dependency.
 - The `if` field holds exactly one permission rule and is evaluated on `PostToolUse`. File rules
   use the `Edit(...)` form — Edit rules cover all file-editing tools, `Write` included, and a
   `Write(path)` rule is never matched — and the single leading `/` anchors at the settings source
@@ -236,11 +237,13 @@ Every element is a documented first-party mechanism (verified against
 controls: a generic webhook receiver, an internal alerting service, or a relay that reshapes the
 payload for a chat service (a Slack incoming webhook expects its own JSON shape and rejects the
 raw hook payload, so Slack reach goes through a relay). Two non-deterministic layers may ride
-alongside, never instead: the built-in `PushNotification` tool (permission-free but
-model-discretionary, and phone reach requires claude.ai Remote Control —
-<https://code.claude.com/docs/en/tools-reference>,
-<https://code.claude.com/docs/en/remote-control>) and outbound send via the official `slack`
-plugin (model-driven). Only the http hook is the deterministic leg.
+alongside, never instead: the built-in `PushNotification` tool and outbound send via the official
+`slack` plugin (model-driven). `PushNotification` "sends a desktop notification, and a phone push
+when Remote Control is connected"; it prompts for no permission, but the model decides when to
+call it, and its phone reach inherits Remote Control's own requirements — a claude.ai Pro, Max,
+Team, or Enterprise login (never an API key), with the mobile app registered and push enabled
+(verified 2026-07-27: <https://code.claude.com/docs/en/tools-reference>,
+<https://code.claude.com/docs/en/remote-control>). Only the http hook is the deterministic leg.
 
 **Degradation.** A consuming repo with no hook configured loses only the out-of-band leg — the
 tracker escalation and the local notify are unchanged, and the record files are inert exhaust. A
