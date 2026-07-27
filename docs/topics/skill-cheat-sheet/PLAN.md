@@ -288,7 +288,14 @@ Review: code-design
 - **Sanity Check:** checker exits nonzero on a fixture with a 101-char summary, zero at 100;
   `scripts/check-changelog-parity.sh --check-bump origin/main` exits 0.
 
-### Phase 5: CI wiring + full gate run [TODO]
+### Phase 5: CI wiring + full gate run [DONE]
+
+> Measured (2026-07-27, commit `321a3fba29`): checker gate scope = 123 skills (the PR's two-dot
+> changed set from `check-changed-skills.sh`, not the 183-skill fleet — the plan's premise was an
+> overestimate), 123 PASS / 0 FAIL, `real 33m15s / user 6m47s / sys 21m14s` on Windows Git Bash
+> (spawn-dominated; `CHECK_SKILL_SKIP_MARKDOWNLINT=1` set by check-changed-skills.sh itself, so CI
+> skips markdownlint identically). Timeout raise deferred per this phase's rule — the draft-PR
+> ubuntu run is decisive; 6m47s of actual compute projects well under the 15-minute budget.
 
 - `scripts/validate-plugins.sh`: add `node scripts/generate-cheatsheet.mjs --check` beside the
   catalog check (line 17 region).
