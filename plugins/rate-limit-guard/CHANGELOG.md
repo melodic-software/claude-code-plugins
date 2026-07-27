@@ -3,6 +3,21 @@
 All notable changes to the `rate-limit-guard` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.5]
+
+### Fixed
+
+- **Shared `hook-utils.sh`: an in-project file spelled as a Windows 8.3 short name is no longer
+  silently skipped by the shared membership guard (#1636).** `hook::physical_path` canonicalized
+  with GNU realpath, which under Git Bash resolves symlinks but leaves 8.3 short names
+  (`KYLESE~1`) unexpanded, so a short-form `file_path` failed the `CLAUDE_PROJECT_DIR` prefix
+  comparison in `hook::read_file_path`. The lib now expands short names on Windows/MSYS hosts
+  (new `hook::expand_8dot3`, via `cygpath -l`) before the comparison, and only when the expanded
+  form actually differs; a genuinely out-of-project file is still skipped. 8.3 generation is a
+  per-volume property (`fsutil 8dot3name query`), so the defect was live only for checkouts on a
+  volume that generates short names. Synced from `lib/hook-utils.sh`; this plugin's own hooks do
+  not consume the membership guard, so their behavior is unchanged.
+
 ## [0.3.4]
 
 ### Fixed
