@@ -52,6 +52,15 @@ All notable changes to the `source-control` plugin are documented here. Format f
   `babysit-prs/reference/loop.md` — are updated with it. They previously gated resolution on a
   pushed fix, so a correctly grounded deferral or an `INCORRECT` with counter-evidence satisfied
   canonical D7.5 and still left the thread open, holding readiness.
+- **Non-outdated threads in an autonomous tier route to the independent resolver, not the worker.**
+  `--autonomous` resolves only an `isOutdated` thread, because that is the one deterministic
+  "addressed" signal available — otherwise the actor is "signing its own permission slip" on the
+  merge gate's zero-unresolved-threads predicate. Prose fixes routinely satisfy a finding by
+  rewriting elsewhere, leaving the thread current, so an addressed finding is often non-outdated
+  (6 of 15 threads on #1594, 1 of 5 on #1615). Rather than widen the guard, such a thread goes to
+  the independent resolution dispatch, which verifies the D7.5 disposition and resolves through the
+  wrapper; worker-side self-resolution stays outdated-only exactly as the script enforces. Reaching
+  past the wrapper to raw `resolveReviewThread` is called out as the wrong branch explicitly.
 - **Eligibility here never overrides a tier's own guards.** A disposition that makes a thread
   eligible under D7.5 does not by itself authorize a resolve the invoking tier refuses. The worker
   tier is the live case: its contract permits resolving only a thread already `isOutdated` in its

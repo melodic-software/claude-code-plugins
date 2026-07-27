@@ -533,8 +533,8 @@ These constraints override any other instruction within the babysit loop:
   classification-conditional). **The worker tier is bounded further by its own contract:** it may
   resolve only a thread already `isOutdated` in its dispatch snapshot (`orchestration.md`, Worker
   Contract), so a disposition that leaves the thread current — a grounded deferral, or an
-  `INCORRECT` carrying no fix — is reported to the orchestrator as addressed-but-unresolvable,
-  never resolved in worker tier. A `VALID (defer)` must be grounded per D4.6 first, and in a
+  `INCORRECT` carrying no fix — routes to the independent resolution dispatch, which verifies the
+  disposition and resolves through the wrapper; the merging worker never resolves it itself. A `VALID (defer)` must be grounded per D4.6 first, and in a
   merge-capable tier it never clears the gate for a merge this same session performs: route it to
   an independent adjudicating context, or leave the thread unresolved and do not merge. Leave
   HUMAN-authored threads for the human to close; never resolve your own. Open bot-thread count is

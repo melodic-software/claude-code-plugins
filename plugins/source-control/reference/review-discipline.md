@@ -260,6 +260,20 @@ the grounded deferral named and leave the call to the user. Fail closed — a pa
 independent authorization available has no self-authorized route to merge over its own deferral.
 Outside a merge-capable tier the classification stands alone, because nothing merges on it.
 
+**Non-outdated threads in an autonomous tier route the same way, for the same reason.** The
+guarded resolver's `--autonomous` mode resolves only a thread GitHub reports `isOutdated`, because
+that is the one deterministic "addressed" signal it can check — otherwise the actor is, in the
+script's own words, "signing its own permission slip" on the merge gate's zero-unresolved-threads
+predicate. Prose fixes frequently satisfy a finding by rewriting elsewhere, leaving the anchored
+lines untouched and the thread current, so a genuinely addressed finding is routinely
+non-outdated. That is not a licence to widen the guard: **worker-side self-resolution stays
+outdated-only, exactly as the script enforces.** A current bot thread whose finding is addressed
+goes to the independent resolution dispatch, which verifies the D7.5 disposition — fix pushed and
+cited, deferral grounded per D4.6, or `INCORRECT` with counter-evidence — and resolves it through
+the wrapper. The merging worker never resolves it. Never reach past the wrapper to raw
+`resolveReviewThread` to get around this; that bypasses every guard the wrapper exists to apply,
+and bulk loops over it are refused by design.
+
 **"Done" means GitHub shows evidence.** A per-finding work item is addressed only when the
 verification sub-step confirms the action landed on GitHub. Model memory of "I posted a reply"
 or "I pushed the fix" is not evidence — compaction can lose that state between iterations.
