@@ -274,7 +274,10 @@ fires at all:
    fetches — no extra request. GitHub generates it after the push, so it can only make the head
    look *more* recent than it is, which errs toward holding. Earliest rather than latest: a check
    re-run mints a fresh timestamp, and the latest one would make a long-settled head look new and
-   re-arm the hold for another full window.
+   re-arm the hold for another full window. It reads the **raw** rollup, not the classified one —
+   the classifier keeps only the newest run per check identity, so re-running every check would
+   erase exactly the original timestamps this depends on and make the earliest-wins rule true in
+   name only.
 2. **The head commit's committer date**, only when the rollup carries no usable timestamp. This is
    a weaker proxy and errs the wrong way: a commit pushed long after it was written — local
    batching, an offline delay, or replaying an existing commit — reads as already-settled, and the

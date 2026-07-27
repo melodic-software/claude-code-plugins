@@ -89,6 +89,7 @@ class SettleHarness(unittest.TestCase):
         head_committed_at: str | None = "2026-07-26T21:44:00Z",
         commit_read_fails: bool = False,
         check_starts: list[str] | None = None,
+        check_name: str = "ci-gate",
         pr: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         calls: list[list[str]] = []
@@ -98,15 +99,20 @@ class SettleHarness(unittest.TestCase):
             if args[:2] == ["pr", "view"]:
                 base = pr if pr is not None else _pr()
                 if check_starts is not None:
+                    # Every entry shares one check identity by default, which is
+                    # what a re-run actually looks like: `classify_checks` would
+                    # dedupe these to the newest, so a hold reading its output
+                    # instead of the raw rollup loses the original timestamp.
                     base = dict(base, statusCheckRollup=[
                         {
                             "__typename": "CheckRun",
-                            "name": f"c{i}",
+                            "name": check_name,
+                            "workflowName": "ci",
                             "status": "COMPLETED",
                             "conclusion": "SUCCESS",
                             "startedAt": started,
                         }
-                        for i, started in enumerate(check_starts)
+                        for started in check_starts
                     ])
                 return base
             if args[0] == "api" and "/rules/branches/" in args[1]:
@@ -247,9 +253,12 @@ class ServerClockIsPreferredOverCommitMetadata(SettleHarness):
         # The rollup was already in hand, so no commit read was needed.
         self.assertEqual(result["_commit_reads"], [])
 
-    def test_earliest_check_start_wins_so_a_re_run_cannot_re_arm_the_hold(self) -> None:
-        # A re-run mints a fresh timestamp. Taking the latest would make a
-        # long-settled head look new and hold it for another full window.
+    def test_a_re_run_of_the_same_check_cannot_re_arm_the_hold(self) -> None:
+        # Both entries carry ONE check identity, which is what a re-run is.
+        # `classify_checks` would keep only the 21:48 run, so a hold reading its
+        # deduped output would see a 40-second-old head and hold a settled PR
+        # for another full window -- and repeated re-runs could do it forever.
+        # Reading the raw rollup is what makes the earliest-wins rule real.
         result = self._evaluate(
             reviews=[],
             check_starts=["2026-07-26T21:00:00Z", "2026-07-26T21:48:00Z"],
@@ -257,6 +266,30 @@ class ServerClockIsPreferredOverCommitMetadata(SettleHarness):
         self.assertTrue(result["ready"], result["blockers"])
         self.assertEqual(result["reviewSettle"]["state"], "settled")
         self.assertEqual(result["reviewSettle"]["headAgeSeconds"], 2920)
+
+    def test_earliest_wins_across_distinct_check_identities_too(self) -> None:
+        result = self._evaluate(
+            reviews=[],
+            check_starts=["2026-07-26T21:48:00Z", "2026-07-26T21:00:00Z"],
+            check_name="lint",
+        )
+        self.assertEqual(result["reviewSettle"]["headAgeSeconds"], 2920)
+
+    def test_a_status_context_contributes_its_created_at(self) -> None:
+        # StatusContext rollup entries carry `createdAt`, not `startedAt`.
+        result = self._evaluate(
+            reviews=[],
+            pr=_pr(statusCheckRollup=[
+                {
+                    "__typename": "StatusContext",
+                    "context": "legacy",
+                    "state": "SUCCESS",
+                    "createdAt": "2026-07-26T21:45:00Z",
+                }
+            ]),
+        )
+        self.assertEqual(result["reviewSettle"]["headAgeSource"], "check-start")
+        self.assertEqual(result["reviewSettle"]["headAgeSeconds"], 220)
 
     def test_committer_date_is_the_fallback_when_no_check_carries_a_time(self) -> None:
         result = self._evaluate(reviews=[], check_starts=[])
@@ -462,7 +495,7 @@ class SettleConfigUnit(unittest.TestCase):
             merge, "head_appeared_at", return_value=(committed, "check-start"),
         ):
             blockers, result = merge.evaluate_review_settle(
-                "owner/repo", HEAD, SETTLE, [], {}, now=NOW,
+                "owner/repo", HEAD, SETTLE, [], [], now=NOW,
             )
         self.assertEqual(blockers, [])
         self.assertEqual(result["state"], "settled")
@@ -473,7 +506,7 @@ class SettleConfigUnit(unittest.TestCase):
             merge, "head_appeared_at", return_value=(committed, "check-start"),
         ):
             blockers, result = merge.evaluate_review_settle(
-                "owner/repo", HEAD, SETTLE, [], {}, now=NOW,
+                "owner/repo", HEAD, SETTLE, [], [], now=NOW,
             )
         self.assertEqual(len(blockers), 1)
         self.assertEqual(result["state"], "settling")
@@ -482,7 +515,7 @@ class SettleConfigUnit(unittest.TestCase):
         # An absent head is already blocked upstream; the hold must not add a
         # second, more confusing blocker for the same condition.
         blockers, result = merge.evaluate_review_settle(
-            "owner/repo", None, SETTLE, [], {}, now=NOW,
+            "owner/repo", None, SETTLE, [], [], now=NOW,
         )
         self.assertEqual(blockers, [])
         self.assertEqual(result["state"], "no-head")

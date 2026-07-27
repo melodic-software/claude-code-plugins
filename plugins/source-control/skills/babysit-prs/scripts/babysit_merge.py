@@ -646,26 +646,35 @@ def head_committed_at(repo: str, head_sha: str) -> datetime | None:
     return parse_github_timestamp(str(cast(dict[str, Any], committer).get("date") or ""))
 
 
-def earliest_check_start(checks: dict[str, Any]) -> datetime | None:
+def earliest_check_start(status_rollup: Any) -> datetime | None:
     """When CI first fired for the current head, per the rollup already fetched.
 
     A server-generated stand-in for "when this head appeared": the rollup is
     scoped to the live head and a run cannot start before its push. *Earliest*,
     not latest, because a re-run mints a fresh timestamp and the latest one
     would make a long-settled head look brand new.
+
+    Reads the RAW rollup deliberately, not `classify_checks`' output:
+    `dedupe_latest_checks` keeps only the newest run per identity, so a re-run
+    of every check would erase exactly the original timestamps this needs and
+    silently re-arm the hold -- the guarantee above would hold in name only.
     """
     starts = [
         parsed
-        for check in json_array(checks.get("checks"))
-        if is_json_object(check)
-        for parsed in [parse_github_timestamp(str(check.get("created_at") or ""))]
+        for entry in json_array(status_rollup)
+        if is_json_object(entry)
+        for parsed in [
+            parse_github_timestamp(
+                str(entry.get("startedAt") or entry.get("createdAt") or "")
+            )
+        ]
         if parsed is not None
     ]
     return min(starts) if starts else None
 
 
 def head_appeared_at(
-    repo: str, head_sha: str, checks: dict[str, Any]
+    repo: str, head_sha: str, status_rollup: Any
 ) -> tuple[datetime | None, str]:
     """Best available estimate of when the live head appeared, and its source.
 
@@ -676,7 +685,7 @@ def head_appeared_at(
     written reads as older than the head really is, which errs toward merging.
     That is why it is second, not first.
     """
-    server_seen = earliest_check_start(checks)
+    server_seen = earliest_check_start(status_rollup)
     if server_seen is not None:
         return server_seen, "check-start"
     return head_committed_at(repo, head_sha), "committer-date"
@@ -687,7 +696,7 @@ def evaluate_review_settle(
     head: str | None,
     settle: ReviewSettleConfig,
     review_evidence: list[dict[str, str]],
-    checks: dict[str, Any],
+    status_rollup: Any,
     *,
     now: datetime | None = None,
 ) -> tuple[list[str], dict[str, Any]]:
@@ -723,7 +732,7 @@ def evaluate_review_settle(
         result["state"] = "reviewed"
         return [], result
 
-    appeared_at, source = head_appeared_at(repo, head, checks)
+    appeared_at, source = head_appeared_at(repo, head, status_rollup)
     result["headAgeSource"] = source
     if appeared_at is None:
         result["state"] = "head-age-unreadable"
@@ -925,7 +934,7 @@ def evaluate(
                 repo, number, reviews, review_comments,
                 config=ReviewTriggerConfig(reviewer_logins=settle.reviewer_logins),
             ),
-            checks,
+            pr.get("statusCheckRollup"),
         )
         blockers.extend(settle_blockers)
 

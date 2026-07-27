@@ -24,8 +24,10 @@ All notable changes to the `source-control` plugin are documented here. Format f
   to under a second is refused rather than truncated to an inert zero, and the gate defaults no
   duration of its own because how long a reviewer takes is a property of that reviewer.
 
-  Head age is measured on the **earliest CI start for the live head**, taken from the status-check
-  rollup the gate already fetches, falling back to the head commit's committer date only when the
+  Head age is measured on the **earliest CI start for the live head**, taken from the raw
+  status-check rollup the gate already fetches (raw, not classified — the classifier keeps only the
+  newest run per check identity, so re-running every check would erase the original timestamps the
+  earliest-wins rule depends on), falling back to the head commit's committer date only when the
   rollup carries no timestamp. The committer date alone would have been wrong in the direction that
   matters: a commit pushed long after it was written reads as already-settled, so the hold would
   not fire on exactly the push that triggered a fresh review. The known-weak fallback is documented
