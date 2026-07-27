@@ -131,9 +131,11 @@ Report ONLY the ledger + a one-line summary count ("Extracted N findings: X CRIT
 
 1. Receive the ledger. Verify the row count matches the source comment's finding count
    (independent count via grep on the parent comment body for severity markers)
-2. For each ledger row, the main session runs D4.5 (react) + D5 (reply with the per-finding
-   sub-row from the ledger) + D6 (fix if VALID — fix now) + D7 (follow-up SHA) with verification
-   gates between each step
+2. For each ledger row, the main session runs D4.5 (react) + D4.6 (ground any `VALID (defer)` —
+   provenance test first; tracker item filed and verified BEFORE the D5 reply cites it) + D5
+   (reply with the per-finding sub-row from the ledger) + D6 (fix if VALID — fix now) + D7
+   (follow-up SHA) with verification gates between each step. A subagent ledger row saying
+   `VALID (defer)` is a classification, not a grounding — D4.6 runs on it like any other
 3. The subagent ledger is the D1–D4 work product. The main session NEVER skips D4.5–D7 by
    trusting the ledger alone — the ledger feeds the work, it doesn't replace it
 

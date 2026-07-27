@@ -167,7 +167,15 @@ loop's own escalation contract is not outside it.
   change is shipping (`${CLAUDE_PLUGIN_ROOT}/reference/review-discipline.md`, D4.6) — but count
   it. A second consecutive round whose findings are *all* (c) means incremental patching is
   injecting defects about as fast as it removes them; that is the non-convergence signal a round
-  count only approximates. Change METHOD rather than stopping: rewrite the contested section
+  count only approximates. **The "second consecutive" test must survive context rollover, and the
+  durable ledger records only that a round happened, not what it contained**
+  (`manage_feedback_ledger.py::record_advisory_round` stores timestamps per head). So derive the
+  previous round's composition from the PR itself: the D5 classification reply tables this
+  discipline requires are posted on the threads and carry the per-finding class marker — read the
+  prior round's threads (resolved ones included; resolution hides nothing from a direct thread
+  query) and count their recorded `(c)` classifications. A fresh worker that skips this
+  reconstruction and sees only the current round cannot fire the tripwire, which is exactly when
+  it is needed. Change METHOD rather than stopping: rewrite the contested section
   whole in one commit, or report it for a human decision. It is never a licence to ship a known
   defect.
 - Escalate a bounding/cap-policy question only when verification shows (a), a second consecutive
