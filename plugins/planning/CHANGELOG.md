@@ -16,14 +16,16 @@ All notable changes to the `planning` plugin are documented here. Format follows
   in the transcript, and an assertion that checking happened is indistinguishable from the checking.
   Co-drafting a still-vague intent points at `/planning:interview` rather than restating it.
 - **`draft-goal-condition`'s Step 0 router gains the dynamic-workflows lever (#1654).** The router
-  covered `/goal`, `/loop`, routines and `/schedule`, a Stop hook, and a one-shot prompt, leaving
-  work that needs more agents than one conversation can coordinate with nowhere to route. The new
-  row carries the availability fact that keeps it from being mis-skipped as preview-gated
-  (all paid plans including Pro, switched on from the `/config` **Dynamic workflows** row there) and
-  the form distinction the lever turns on: the `ultracode` keyword runs one task as a workflow and
-  is honored only from a human-typed prompt, while `/effort ultracode` is the standing session
-  setting. Recorded alongside the row: the `Workflow` tool is main-thread only, so subagent-resident
-  work — the loop lanes included — cannot take this lever however well it otherwise fits.
+  offered `/loop`, routines and `/schedule`, a Stop hook, and a one-shot prompt as alternatives to
+  `/goal`, leaving work that needs more agents than one conversation can coordinate with nowhere to
+  route. Two caveats ship with the row, each because it turns a plausible recommendation into a dead
+  one. The `ultracode` keyword runs one task as a workflow, changes nothing else, and is honored
+  only from a human-typed prompt, whereas `/effort ultracode` is the standing session setting
+  (`xhigh` effort plus per-task workflow planning) and needs a model offering `xhigh` — so the two
+  are not interchangeable. And the `Workflow` tool is filtered out of every non-fork subagent, so
+  subagent-resident work — the loop lanes included — cannot take this lever however well it
+  otherwise fits. The row also carries the availability fact that keeps it from being skipped as
+  preview-gated: all paid plans, switched on from the `/config` **Dynamic workflows** row on Pro.
 
 ## [0.26.3]
 

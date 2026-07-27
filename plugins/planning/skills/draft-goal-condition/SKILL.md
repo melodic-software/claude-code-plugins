@@ -24,14 +24,17 @@ The `/goal` contract — its condition shape and its character limit — can cha
 `/goal` starts the next turn when the previous one finishes and stops when a fresh evaluator model confirms a completion condition holds. Before authoring, confirm that fits the intent. If it does not, route instead of drafting:
 
 - **Interval-driven** ("every 5 minutes", "poll until") → `/loop` (a time interval starts each turn), not `/goal`.
-- **Cloud / sessionless / scheduled** ("nightly", "each morning", runs with no session open) → routines / `/schedule`.
+- **Cloud / sessionless / scheduled** ("nightly", "each morning", runs with no session open) → routines / `/schedule` (labelled research preview at the time of writing — check before recommending it).
 - **Custom per-turn logic across all sessions** (deterministic script check, settings-scoped) → a prompt-based Stop hook.
-- **More agents than one conversation can coordinate** (or the orchestration is worth codifying as a rerunnable script) → a dynamic workflow, not a goal loop. It is available on all paid plans including Pro — no preview gate — though on Pro it is switched on from the **Dynamic workflows** row in `/config`. Route to the right form: the `ultracode` keyword in a prompt runs **one** task as a workflow and changes nothing else about the session, and is honored only from a prompt a human types (not `-p`, not a scheduled-task prompt, not a webhook or relayed PR comment); `/effort ultracode` is the separate standing setting that keeps planning work as workflows for the rest of the session.
+- **More agents than one conversation can coordinate** (or the orchestration is worth codifying as a rerunnable script) → a dynamic workflow, not a goal loop.
 - **One-shot** (a single prompt with no across-turn continuation) → just prompt; no goal.
 
-**A dynamic workflow is unreachable from inside a subagent** — the `Workflow` tool is main-thread only (`/discovery:research-deep` exists because of this and documents it). Any work that runs entirely in subagents, the loop lanes included, must take one of the other levers no matter how well the workflow row fits; do not re-propose it there.
+Two caveats belong to the workflow row, because each turns a plausible recommendation into a dead one:
 
-Confirm the current comparison semantics against the live docs (below) rather than this summary — the routing table can drift. Only proceed when the intent genuinely wants "keep working until this condition is met."
+- **Route to the right ultracode form.** The `ultracode` keyword in a prompt runs **one** task as a workflow and changes nothing else — not the session's effort level — and is honored only from a prompt a human types (not `-p`, not a scheduled-task prompt, not a webhook or relayed PR comment). `/effort ultracode` is the separate standing setting: `xhigh` effort plus a workflow planned for each substantive task, for the rest of the session. Availability differs too — the workflow lever itself reaches all paid plans (on Pro it is switched on from the **Dynamic workflows** row in `/config`), while the standing setting needs a model that offers `xhigh` effort.
+- **The lever is unreachable from an ordinary subagent.** The `Workflow` tool is filtered out of every non-fork subagent (`/discovery:research-deep` (if installed) exists because of this and documents it; the filter itself is on `https://code.claude.com/docs/en/sub-agents`). Work that runs entirely in non-fork subagents — the loop lanes included — must take one of the other levers however well the workflow row fits; do not re-propose it there.
+
+Confirm the current comparison semantics against the live docs (below) rather than this summary — the routing table can drift, and the workflow row's availability and keyword specifics have each moved within recent releases. Only proceed when the intent genuinely wants "keep working until this condition is met."
 
 ## Step 1 — Read the live contract
 
@@ -40,7 +43,7 @@ Fetch the current official `/goal` documentation and extract, from the page itse
 1. the **effective-condition shape** it prescribes, and
 2. the **maximum character limit** for a condition.
 
-Primary source: `https://code.claude.com/docs/en/goal`. Cross-check the scheduling comparison via the pages that doc links (`/en/scheduled-tasks`, routines) if Step 0 routing is in question.
+Primary source: `https://code.claude.com/docs/en/goal`. If Step 0 routing is in question, cross-check the scheduling comparison via the pages that doc links (`/en/scheduled-tasks`, routines) and the workflow row against `https://code.claude.com/docs/en/workflows`.
 
 **Doc-fetch failure is not silent and never guessed.** If the page cannot be fetched or its structure has shifted so the limit or shape cannot be located, stop and tell the user exactly that, citing the URL. Do not fall back to a remembered number or shape — a stale limit or condition shape baked in here is precisely the drift this skill exists to avoid. Offer the user two ways forward: paste the current condition shape and character limit from that page — the shape drives the Step 2 draft, the limit drives the Step 3 counter — or defer until the docs are reachable. Never finalize a draft on a shape or limit that was not sourced live.
 
@@ -55,8 +58,9 @@ Avoid conditions the transcript cannot show (subjective quality, external state 
 ### When the outcome is not quantifiable
 
 Most goals are not `npm test`. When the intent has no honest metric, do **not** manufacture one — a
-made-up number aims the evaluator at the wrong thing and passes on the wrong evidence. Build the
-condition out of three moves instead:
+made-up number aims the evaluator at the wrong thing and passes on the wrong evidence. Three moves
+give the shape Step 1 read off the live page something demonstrable to be built out of; they feed that
+shape rather than replace it:
 
 1. **A structural constraint** — something countable about the artifact: a length, a section count, one
    entry per input item.
@@ -66,18 +70,19 @@ condition out of three moves instead:
    verdict. "…a report where you have verified every citation by fetching it and confirming the page
    supports the claim" is checkable; "…a report whose citations are correct" is not.
 
-Move 3 is what makes this branch work, and the evaluator constraint stated at the top of this step is
-why it has to be worded that way. The judgment is not self-review: it goes to a fresh-context verifier
-that reads the transcript and nothing else, and calls no tools — so it can only credit verification
-Claude **performed in the transcript**. A claim that the checking happened reads identically there to
-the checking having happened. Word the sub-step so the doing leaves visible output — the fetches, the
-diffs, the command runs — and the evaluator judges evidence rather than a promise.
+Move 3 is what makes this branch work, and the no-tools constraint at the top of this step is why it
+has to be worded that way. The judgment is not self-review — it is delegated to a fresh-context
+verifier that sees the transcript and nothing else — so the sub-step is credited only by verification Claude
+**performed there**. A claim that the checking happened reads identically to the checking having
+happened. Word it so the doing leaves visible output — the fetches, the diffs, the command runs — and
+the evaluator judges evidence rather than a promise.
 
 Subjective quality still stays out of the condition. It re-enters only as whatever moves 1–3 made
 observable.
 
 If the intent itself is still too vague to name a structure or a content list, settle it with
-`/planning:interview` before drafting — that skill owns the questioning; this one owns the condition.
+`/planning:interview` (if installed) before drafting — that skill owns the questioning; this one owns
+the condition.
 
 ## Step 3 — Mechanical length check
 
