@@ -3,6 +3,9 @@ name: quiz-me
 description: "Post-work comprehension check: after a change is complete, generate a self-contained HTML report of what was done (context, intuition, decisions) with a quiz at the bottom that you answer — verifying the HUMAN absorbed the work, not the artifact. Non-gating by default; the quiz_policy userConfig tunes offer cadence. Also recalls prior work from the retained report library. Use when: 'quiz me', 'quiz me on this change', 'do I understand this change', 'comprehension check', 'a quiz at the bottom that I must pass', 'I want to make sure I understand everything that happened', 'what did we do on <ticket>'. Sibling to education:teach (multi-session coach) and education:explain (one-shot explainer); this verifies comprehension of COMPLETED WORK. Not artifact verification — that is verification:confirm (if installed)."
 argument-hint: "[recall <query>] (empty = quiz me on the change just completed)"
 user-invocable: true
+metadata:
+  cheatsheet-stage: anytime
+  cheatsheet-summary: Generate a post-change report with a quiz verifying you absorbed the work
 ---
 
 ## Purpose

@@ -4,6 +4,9 @@ description: "Audit locally-owned Claude Code instruction surfaces — user + pr
 argument-hint: "[scope] [--opinion] [--no-stopping-condition] — scope: claude-md|rules|skills|agents|hooks|output-styles|conflicts|all (default: all)"
 user-invocable: true
 disable-model-invocation: false
+metadata:
+  cheatsheet-stage: anytime
+  cheatsheet-summary: Find instructions current models no longer need across CLAUDE.md, rules, and skill bodies
 ---
 
 ## Purpose

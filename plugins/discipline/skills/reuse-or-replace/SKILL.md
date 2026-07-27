@@ -6,6 +6,8 @@ disable-model-invocation: false
 metadata:
   discipline-batch: situational  # only when extending an established codebase/process
   discipline-batch-rank: 70
+  cheatsheet-stage: anytime
+  cheatsheet-summary: Reuse the established way or openly replace it — never a silent second way
 ---
 
 # Reuse or replace

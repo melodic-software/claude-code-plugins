@@ -6,6 +6,8 @@ disable-model-invocation: false
 metadata:
   discipline-batch: situational  # only at a tool/library/approach selection point
   discipline-batch-rank: 80
+  cheatsheet-stage: anytime
+  cheatsheet-summary: Re-derive a tool or approach choice from the problem, not habit
 ---
 
 # Pick for the problem

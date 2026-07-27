@@ -3,6 +3,9 @@ name: visualize
 description: "Decide the best visual FORM and MEDIUM for what is in the conversation right now, then render it. Use when: 'visualize', 'visualize this', 'show me a diagram of this', 'diagram this', 'render this as', 'draw this', 'sketch this', 'make a picture of this', 'what is the best way to show this', 'turn this into a visual'. Infers the target from the conversation, picks a form (a mermaid diagram, a markdown table, a hand-authored SVG/CSS chart, ASCII/Unicode art, or a rich rendered page) and a medium (inline terminal, a local HTML file, or a published Artifact), renders good defaults, and asks ONLY when the target is genuinely ambiguous and no form was named. It ROUTES chart craft and artifact-design fundamentals to those capabilities when installed — it does not teach them. Not for polishing a specific chart's colors/axes (a chart-craft/dataviz capability owns that) or restating dense text in plainer words (a comprehension/digest concern)."
 argument-hint: "[terminal|file|artifact] — omit to auto-decide; name a form in the request itself"
 user-invocable: true
+metadata:
+  cheatsheet-stage: anytime
+  cheatsheet-summary: Pick the best visual form for what is in the conversation and render it
 ---
 
 # Visualize

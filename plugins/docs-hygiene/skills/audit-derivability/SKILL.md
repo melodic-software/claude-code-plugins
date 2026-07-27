@@ -5,6 +5,9 @@ argument-hint: "[audit] [target] | sweep <dir>"
 user-invocable: true
 disable-model-invocation: false
 shell: bash
+metadata:
+  cheatsheet-stage: anytime
+  cheatsheet-summary: Judge whether a doc earns its existence or should become a pointer
 ---
 
 ## Pre-computed context

@@ -12,6 +12,8 @@ metadata:
   upstream-version: 0.1.17
   upstream-sha: abfd43bec9e9fca2628ba98f7061a81cde7ec6bb
   synced: 2026-07-21
+  cheatsheet-stage: test
+  cheatsheet-summary: Live E2E browser automation with disk-written artifacts
 ---
 
 # Playwright CLI — live browser automation

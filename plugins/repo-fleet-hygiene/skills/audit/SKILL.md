@@ -5,6 +5,10 @@ user-invocable: true
 argument-hint: "[--root <dir>]... [--repo <dir>]... [--config <file>] [--canonical <github.com/owner/repo=path>]..."
 allowed-tools:
   - Bash(bash ${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/audit-fleet.sh *)
+metadata:
+  cheatsheet-stage: operator
+  cheatsheet-summary: Audit git and GitHub hygiene across all local repositories, read-only
+  cheatsheet-cadence: weekly
 ---
 
 ## Purpose

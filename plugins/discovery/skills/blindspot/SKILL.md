@@ -5,6 +5,9 @@ argument-hint: "[area-or-domain] (e.g., /discovery:blindspot geofencing, /discov
 user-invocable: true
 disable-model-invocation: false
 shell: bash
+metadata:
+  cheatsheet-stage: explore
+  cheatsheet-summary: Surface your unknown-unknowns and sharpen the prompt before unfamiliar work
 ---
 
 ## Pre-computed context

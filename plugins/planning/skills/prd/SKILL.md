@@ -5,6 +5,9 @@ argument-hint: "[tier] [task description] (e.g., /planning:prd, /planning:prd on
 user-invocable: true
 disable-model-invocation: false
 shell: bash
+metadata:
+  cheatsheet-stage: contract
+  cheatsheet-summary: Lock product intent — problem, users, success metrics — before planning
 ---
 
 ## Pre-computed context

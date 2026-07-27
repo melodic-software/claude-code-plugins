@@ -5,6 +5,9 @@ argument-hint: "(no args — reads the design-threads artifact in the topic's co
 user-invocable: true
 disable-model-invocation: false
 shell: bash
+metadata:
+  cheatsheet-stage: plan
+  cheatsheet-summary: Gate a finished design and package it for planning
 ---
 
 ## Pre-computed context

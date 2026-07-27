@@ -4,6 +4,9 @@ description: "Run polyglot linters and format checks across all affected ecosyst
 user-invocable: true
 argument-hint: "[ecosystem] [--fix] (e.g., /toolchain:lint, /toolchain:lint dotnet, /toolchain:lint --fix, /toolchain:lint all)"
 shell: bash
+metadata:
+  cheatsheet-stage: verify
+  cheatsheet-summary: Polyglot lint and format checks without a full build
 ---
 
 ## Pre-computed context

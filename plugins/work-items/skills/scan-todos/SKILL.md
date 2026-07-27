@@ -4,6 +4,9 @@ description: "Sweep the codebase's source comments — not tracker items — for
 argument-hint: "[--path <dir>] [--work] — sweep TODO/FIXME/HACK/XXX markers"
 user-invocable: true
 disable-model-invocation: false
+metadata:
+  cheatsheet-stage: anytime
+  cheatsheet-summary: Sweep source comments for TODO and FIXME markers, resolve or file each
 ---
 
 ## Variables

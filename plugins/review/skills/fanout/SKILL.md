@@ -5,6 +5,9 @@ argument-hint: "[mode] [--yes] (e.g., /review:fanout, /review:fanout run-everyth
 user-invocable: true
 disable-model-invocation: false
 shell: bash
+metadata:
+  cheatsheet-stage: review
+  cheatsheet-summary: Fan review out across every reviewer surface into one ranked report
 ---
 
 ## Pre-computed context

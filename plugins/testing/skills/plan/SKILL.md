@@ -5,6 +5,9 @@ argument-hint: "[range or scope] (e.g., /testing:plan, /testing:plan HEAD~3, /te
 user-invocable: true
 disable-model-invocation: false
 shell: bash
+metadata:
+  cheatsheet-stage: test
+  cheatsheet-summary: Classify changes by required test type and coverage gaps
 ---
 
 ## Pre-computed context

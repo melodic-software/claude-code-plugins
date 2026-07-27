@@ -4,6 +4,9 @@ description: "Track development work items through the bound tracker (work-item-
 argument-hint: "<action> [args] — actions: stats, list, add, start, done, due, recheck, search, audit (default: stats)"
 user-invocable: true
 disable-model-invocation: false
+metadata:
+  cheatsheet-stage: anytime
+  cheatsheet-summary: Backlog CRUD through the bound tracker — add, list, close, stats
 ---
 
 ## Variables

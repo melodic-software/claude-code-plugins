@@ -5,6 +5,8 @@ user-invocable: true
 disable-model-invocation: false
 metadata:
   discipline-batch: never  # needs a non-fork fresh context and stops to remediate WITH the user — incompatible with the autonomous fork audit fan-out; invoke directly
+  cheatsheet-stage: anytime
+  cheatsheet-summary: Re-examine your own recent output through a fresh-context pass
 ---
 
 # Scrutinize, don't coast

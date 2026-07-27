@@ -4,6 +4,9 @@ description: "Batch-run simplification across all recently changed files, groupe
 user-invocable: true
 argument-hint: "[time-window | branch] [docs] (e.g., /batch-simplify 72h, /batch-simplify branch docs — default: 48h)"
 shell: bash
+metadata:
+  cheatsheet-stage: review
+  cheatsheet-summary: Batch-run simplification across all recently changed files by ecosystem
 ---
 
 ## Pre-computed context

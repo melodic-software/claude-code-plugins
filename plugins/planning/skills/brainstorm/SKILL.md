@@ -4,6 +4,9 @@ description: "Diverge before scoping — turn a rough engineering/product proble
 argument-hint: "<rough-problem> (e.g., /planning:brainstorm users churn after onboarding)"
 user-invocable: true
 disable-model-invocation: false
+metadata:
+  cheatsheet-stage: contract
+  cheatsheet-summary: Diverge into codebase-grounded candidate approaches before scoping
 ---
 
 ## Purpose

@@ -5,6 +5,9 @@ argument-hint: "[check|validate-evals|listing-budget] [<skill-name-or-root> ...]
 user-invocable: true
 disable-model-invocation: false
 shell: bash
+metadata:
+  cheatsheet-stage: review
+  cheatsheet-summary: Static QA gate for skill frontmatter, caps, and evals
 ---
 
 ## Purpose

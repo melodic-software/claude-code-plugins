@@ -5,6 +5,9 @@ argument-hint: "[audit|fix|update|report] — default: audit"
 user-invocable: true
 disable-model-invocation: false
 shell: bash
+metadata:
+  cheatsheet-stage: anytime
+  cheatsheet-summary: Audit CLAUDE.md, rules, and auto-memory against the official-docs checklist
 ---
 
 ## Pre-computed context

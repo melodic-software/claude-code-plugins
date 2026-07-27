@@ -3,6 +3,9 @@ name: reanchor
 description: "Verify a session's working assumptions are still true before building on them — referenced PRs/issues/branches still in the state a handoff or plan claims, base-branch drift, cited skills/plugins that were renamed or version-drifted, and memory-tier files whose subjects have since landed. Reports what drifted and re-anchors; does not resume the work. Use when: 'reanchor', 're-anchor', 'is this still current', 'verify my assumptions', 'has main moved since', 'are these premises still valid', 'is the handoff stale', 'resuming an old plan', 'check freshness'. Not for resuming work (use /session-flow:keep-going), the cross-worktree staleness inventory, PR feedback triage, or re-anchoring a standing behavioral rule (this re-anchors factual premises, not rules)."
 user-invocable: true
 disable-model-invocation: false
+metadata:
+  cheatsheet-stage: session
+  cheatsheet-summary: Verify working assumptions are still true before building on them
 ---
 
 # Reanchor

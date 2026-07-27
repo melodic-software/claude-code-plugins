@@ -4,6 +4,9 @@ description: "Answers test design questions from authoritative TDD sources (Beck
 argument-hint: "[question or concept]"
 user-invocable: true
 disable-model-invocation: false
+metadata:
+  cheatsheet-stage: test
+  cheatsheet-summary: Answer test design questions from authoritative TDD sources
 ---
 
 # TDD Knowledge Base

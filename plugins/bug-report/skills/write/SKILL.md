@@ -5,6 +5,9 @@ argument-hint: "[--file] [--quick|--full] [--no-survey] <bug description>"
 user-invocable: true
 disable-model-invocation: false
 shell: bash
+metadata:
+  cheatsheet-stage: contract
+  cheatsheet-summary: Turn an informal bug description into a structured 5-field report, read-only
 ---
 
 ## Pre-computed context

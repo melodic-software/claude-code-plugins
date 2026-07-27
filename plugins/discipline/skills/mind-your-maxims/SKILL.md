@@ -6,6 +6,8 @@ disable-model-invocation: false
 metadata:
   discipline-batch: core  # every session communicates with the user
   discipline-batch-rank: 100
+  cheatsheet-stage: anytime
+  cheatsheet-summary: Re-anchor cooperative communication and audit recent responses for clarity
 ---
 
 # Mind your maxims

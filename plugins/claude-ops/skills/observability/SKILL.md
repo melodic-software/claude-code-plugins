@@ -5,6 +5,10 @@ user-invocable: true
 disable-model-invocation: false
 argument-hint: "[scope|action] — week (default), session, day, month, since:YYYY-MM-DD, all, clean [--keep-days N] [--dry-run]"
 shell: bash
+metadata:
+  cheatsheet-stage: operator
+  cheatsheet-summary: Report on locally captured telemetry — token burn, cost, hook latency, trends
+  cheatsheet-cadence: weekly
 ---
 
 ## Pre-computed context

@@ -4,6 +4,9 @@ description: "Audit MCP server tool definitions against design quality criteria.
 argument-hint: "[path] — a directory to scope the audit to (e.g. a single server dir), or omit for the whole project"
 user-invocable: true
 disable-model-invocation: false
+metadata:
+  cheatsheet-stage: review
+  cheatsheet-summary: Audit MCP tool definitions against design quality criteria
 ---
 
 ## Purpose

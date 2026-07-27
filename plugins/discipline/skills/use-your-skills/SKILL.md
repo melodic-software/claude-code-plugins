@@ -6,6 +6,8 @@ disable-model-invocation: false
 metadata:
   discipline-batch: core  # every session carries a skill listing to act on
   discipline-batch-rank: 10
+  cheatsheet-stage: anytime
+  cheatsheet-summary: Map the task to available skills and invoke them instead of reinventing
 ---
 
 # Use your skills

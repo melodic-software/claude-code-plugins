@@ -5,6 +5,9 @@ argument-hint: "[file|prompt] [topic] (e.g., /continue-in-background, /continue-
 user-invocable: true
 disable-model-invocation: false
 shell: bash
+metadata:
+  cheatsheet-stage: session
+  cheatsheet-summary: Delegate the task to a fresh background agent now
 ---
 
 ## Pre-computed context

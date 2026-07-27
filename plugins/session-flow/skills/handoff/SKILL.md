@@ -5,6 +5,9 @@ argument-hint: "[file|prompt] [topic] (e.g., /handoff, /handoff prompt, /handoff
 user-invocable: true
 disable-model-invocation: false
 shell: bash
+metadata:
+  cheatsheet-stage: session
+  cheatsheet-summary: Write a mid-session save-point for clear-and-resume
 ---
 
 ## Pre-computed context

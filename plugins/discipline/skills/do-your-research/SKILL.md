@@ -6,6 +6,8 @@ disable-model-invocation: false
 metadata:
   discipline-batch: core  # every session makes claims that need backing
   discipline-batch-rank: 20
+  cheatsheet-stage: anytime
+  cheatsheet-summary: Re-anchor research discipline, then audit and correct the current work
 ---
 
 # Do your research

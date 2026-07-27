@@ -17,6 +17,9 @@ hooks:
           command: "bash \"${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/destructive-guard.sh\""
           shell: bash
 shell: bash
+metadata:
+  cheatsheet-stage: anytime
+  cheatsheet-summary: Clean caches, build artifacts, stale branches, and stashes per repo
 ---
 
 ## Pre-computed context

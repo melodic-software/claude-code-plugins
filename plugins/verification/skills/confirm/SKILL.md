@@ -5,6 +5,9 @@ user-invocable: true
 argument-hint: "[mode] [ecosystem] (e.g., /verification:confirm, /verification:confirm outcome, /verification:confirm fix, /verification:confirm refactor, /verification:confirm dotnet)"
 disable-model-invocation: false
 shell: bash
+metadata:
+  cheatsheet-stage: verify
+  cheatsheet-summary: Prove the change achieved its intended outcome with evidence
 ---
 
 ## Pre-computed context

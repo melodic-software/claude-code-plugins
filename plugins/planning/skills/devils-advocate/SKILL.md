@@ -5,6 +5,9 @@ argument-hint: "[incumbent [target]] or [plan text or file path] — an optional
 user-invocable: true
 disable-model-invocation: false
 shell: bash
+metadata:
+  cheatsheet-stage: plan
+  cheatsheet-summary: Stress-test a plan or the incumbent approach adversarially
 ---
 
 ## Pre-computed context

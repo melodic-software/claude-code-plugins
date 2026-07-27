@@ -4,6 +4,10 @@ description: "Attend the human-in-the-loop queue for loop-lane operation: ONE at
 argument-hint: "(no arguments — polls escalations and untriaged intake for the bound repository)"
 user-invocable: true
 disable-model-invocation: false
+metadata:
+  cheatsheet-stage: operator
+  cheatsheet-summary: Drive escalated and untriaged items to resolution in one view
+  cheatsheet-cadence: daily
 ---
 
 ## Variables

@@ -6,6 +6,8 @@ user-invocable: true
 disable-model-invocation: false
 metadata:
   discipline-batch: never  # heavier fan-out execution tier — invoked directly, not batched
+  cheatsheet-stage: anytime
+  cheatsheet-summary: Verify every session claim against primary sources in a heavy fan-out
 ---
 
 # Do your research — deep

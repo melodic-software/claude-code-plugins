@@ -5,6 +5,9 @@ argument-hint: "[topic] (no args reads the current topic's interview ledger)"
 user-invocable: true
 disable-model-invocation: false
 shell: bash
+metadata:
+  cheatsheet-stage: contract
+  cheatsheet-summary: Adversarially validate interview answers with fresh-context agents
 ---
 
 ## Pre-computed context

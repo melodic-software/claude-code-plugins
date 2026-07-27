@@ -5,6 +5,9 @@ argument-hint: "[status|disable|purge] — default: status"
 user-invocable: true
 disable-model-invocation: false
 shell: bash
+metadata:
+  cheatsheet-stage: anytime
+  cheatsheet-summary: Inspect, disable, or purge Claude Code's per-repo auto memory
 ---
 
 ## Auto-memory snapshot

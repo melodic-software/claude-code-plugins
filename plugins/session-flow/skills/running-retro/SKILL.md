@@ -5,6 +5,9 @@ argument-hint: "[topic | arm] (e.g., /running-retro, /running-retro phase-3, /ru
 user-invocable: true
 disable-model-invocation: false
 shell: bash
+metadata:
+  cheatsheet-stage: retro
+  cheatsheet-summary: In-flight retro checkpoint appended to a running ledger
 ---
 
 ## Pre-computed context

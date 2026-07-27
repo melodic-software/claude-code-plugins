@@ -5,6 +5,9 @@ argument-hint: "[bug description or observation] (e.g., /debugging:debug checkou
 user-invocable: true
 disable-model-invocation: false
 shell: bash
+metadata:
+  cheatsheet-stage: implement
+  cheatsheet-summary: Diagnose broken behavior — reproduce, hypothesise, instrument, fix with regression test
 ---
 
 ## Pre-computed context

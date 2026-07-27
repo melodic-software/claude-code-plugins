@@ -7,6 +7,8 @@ disable-model-invocation: false
 metadata:
   upstream-version: "Dometrain/mcp@master"
   synced: "2026-07-22"
+  cheatsheet-stage: research
+  cheatsheet-summary: Ground an approach in how a Dometrain course teaches it, with lesson links
 ---
 
 ## Purpose

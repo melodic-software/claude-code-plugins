@@ -5,6 +5,9 @@ argument-hint: "[mode] (e.g., /workflow, /workflow steps, /workflow pre-pr, /wor
 user-invocable: true
 disable-model-invocation: false
 shell: bash
+metadata:
+  cheatsheet-stage: anytime
+  cheatsheet-summary: Navigate the staged dev workflow and suggest the next stage
 ---
 
 ## Pre-computed context

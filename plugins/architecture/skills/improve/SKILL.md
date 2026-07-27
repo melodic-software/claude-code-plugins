@@ -5,6 +5,9 @@ argument-hint: "[action] (e.g., deepening)"
 user-invocable: true
 disable-model-invocation: false
 shell: bash
+metadata:
+  cheatsheet-stage: plan
+  cheatsheet-summary: Scan the codebase for shallow modules and friction, then design the chosen fix several ways
 ---
 
 ## Pre-computed context

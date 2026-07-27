@@ -4,6 +4,9 @@ description: "Arm the CURRENT session for an orchestration-heavy task by loading
 argument-hint: "[<task>] | handoff [compact] | worker [compact]"
 user-invocable: true
 disable-model-invocation: false
+metadata:
+  cheatsheet-stage: session
+  cheatsheet-summary: Arm the session with proactive-orchestration imperatives
 ---
 
 ## Purpose

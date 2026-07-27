@@ -3,6 +3,9 @@ name: sweep-all
 description: "Compose this plugin's discipline correctors into ONE batched pass — not a corrector itself, but a router that fans out an audit-only subagent per in-scope corrector and then applies their corrections on the main thread in a fixed order. At conversation start it instead reports a cheap posture digest (which disciplines are in scope) with no audit. Use when: 'sweep all disciplines', 'ground ourselves', 're-anchor everything', 'run the whole re-anchor bundle', 'posture batch', 'set our posture before we start', 'batch the correctors', or at conversation start to set posture across every standing discipline at once. Membership is each corrector's own tier metadata; for a single discipline, invoke that corrector directly."
 user-invocable: true
 disable-model-invocation: false
+metadata:
+  cheatsheet-stage: anytime
+  cheatsheet-summary: Batch every discipline corrector into one audited re-anchor pass
 ---
 
 # Sweep all disciplines

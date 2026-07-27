@@ -4,6 +4,9 @@ description: "Run ONE coordinated, ordered, resumable pass over a named target r
 argument-hint: "[target] [--fix] [--opinion] [--resume] [--report-to <path>]"
 user-invocable: true
 disable-model-invocation: false
+metadata:
+  cheatsheet-stage: anytime
+  cheatsheet-summary: Run one coordinated, resumable audit pass over a repo with a single human gate
 ---
 
 ## Purpose

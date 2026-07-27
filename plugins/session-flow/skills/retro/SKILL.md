@@ -5,6 +5,9 @@ argument-hint: "[mode] (e.g., /retro, /retro session, /retro codify, /retro tren
 user-invocable: true
 disable-model-invocation: false
 shell: bash
+metadata:
+  cheatsheet-stage: retro
+  cheatsheet-summary: Structured session retrospective with codified learnings
 ---
 
 ## Pre-computed context

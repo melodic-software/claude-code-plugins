@@ -5,6 +5,9 @@ argument-hint: "[topic] (e.g., /discovery:research <library> <version> best prac
 user-invocable: true
 disable-model-invocation: false
 shell: bash
+metadata:
+  cheatsheet-stage: research
+  cheatsheet-summary: Multi-source external research with source tiers and a coverage ledger
 ---
 
 ## Pre-computed context

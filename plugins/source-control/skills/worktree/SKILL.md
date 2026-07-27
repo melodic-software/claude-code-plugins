@@ -5,6 +5,9 @@ user-invocable: true
 disable-model-invocation: false
 argument-hint: "<action> [args] (e.g., /worktree create feat/my-feature, /worktree status, /worktree cleanup, /worktree audit)"
 shell: bash
+metadata:
+  cheatsheet-stage: session
+  cheatsheet-summary: Create, inspect, and clean git worktrees for parallel sessions
 ---
 
 ## Pre-computed context
