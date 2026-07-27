@@ -18,10 +18,19 @@ All notable changes to the `source-control` plugin are documented here. Format f
   and that head is younger than the window. A review of the live head — a submitted review or an
   inline review comment carrying the head's commit id, reusing `review-trigger.md`'s existing
   current-head test — clears the hold before the clock is read, so the already-reviewed case adds
-  no latency. The window bounds the wait so a reviewer that never engages cannot wedge a PR, and an
-  unreadable head date holds rather than merging on an unverifiable clock. Both keys or neither:
-  either alone is a usage error, never a silently inert flag, and the gate defaults no duration of
-  its own because how long a reviewer takes is a property of that reviewer.
+  no latency. The window bounds the wait so a reviewer that never engages cannot wedge a PR, and a
+  head whose age cannot be established holds rather than merging on an unverifiable clock. Both
+  keys or neither: either alone is a usage error, never a silently inert flag, a window converting
+  to under a second is refused rather than truncated to an inert zero, and the gate defaults no
+  duration of its own because how long a reviewer takes is a property of that reviewer.
+
+  Head age is measured on the **earliest CI start for the live head**, taken from the status-check
+  rollup the gate already fetches, falling back to the head commit's committer date only when the
+  rollup carries no timestamp. The committer date alone would have been wrong in the direction that
+  matters: a commit pushed long after it was written reads as already-settled, so the hold would
+  not fire on exactly the push that triggered a fresh review. The known-weak fallback is documented
+  at the hold's `safety.md` section rather than left implicit, as is its inherited requirement that
+  a configured reviewer be `Bot`-typed (#1642).
 
   Unconfigured, the gate is byte-for-byte its prior self and issues no request it did not issue
   before — asserted against recorded call counts, not just the verdict. The reviewer corpus is now
@@ -33,7 +42,7 @@ All notable changes to the `source-control` plugin are documented here. Format f
   500 — the same wall #1620 described for `babysit-loop`, which #1627 relieved for that skill only —
   so any net-positive edit failed `skill-quality-gate`. The autopilot tier's per-PR steps,
   exclusions, draft handling, and widened scopes move verbatim to
-  `skills/babysit-prs/reference/autopilot.md`, leaving a pointer; the body goes to 463. Nothing is
+  `skills/babysit-prs/reference/autopilot.md`, leaving a pointer; the body goes 499 -> 471. Nothing is
   deleted, and the tier's operative commands stay where they already lived, in `reference/safety.md`.
 
 ## [0.33.1]

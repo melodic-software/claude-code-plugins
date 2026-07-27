@@ -163,7 +163,7 @@ home in [reference/safety.md](reference/safety.md). Both fail closed without `--
   set, append `--review-bot-logins "<value>" --review-settle-minutes "<value>"` on every form: the
   gate then holds a head that reviewer has not reviewed yet until the window elapses, because
   `CLEAN` is reported throughout a re-review's latency and merging inside it merges past findings
-  that have not landed (safety.md, "Review-settle hold"). Supply both or neither — either alone is
+  that have not landed (safety.md, §Review-Settle Hold). Supply both or neither — either alone is
   a usage error, never a silently inert flag. If the expected-head pin is missing or no longer matches the live head, the
   gate refuses the merge; re-snapshot and reassess the new head instead of using
   `--allow-unpinned-head` — the wrapper rejects that flag outright, so no unattended unpinned

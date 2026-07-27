@@ -161,8 +161,9 @@ repo's owner.
 | `babysit_default_tier` | string | `safe` (explicit invocations only) |
 | `babysit_merge_method` | string | repo convention, then squash |
 | `babysit_review_trigger_phrase` | string | review-trigger module dormant |
-| `babysit_review_bot_logins` | string (multiple) | review-trigger module dormant |
+| `babysit_review_bot_logins` | string (multiple) | review-trigger module dormant; merge gate's review-settle hold dormant |
 | `babysit_review_gate_context` | string | review gate treated as absent |
+| `babysit_review_settle_minutes` | string | review-settle hold dormant (pair it with `babysit_review_bot_logins`) |
 | `babysit_ci_gateway_context` | string | gateway check unused |
 | `babysit_extra_bot_logins` | string (multiple) | structural bot detection only |
 | `babysit_extra_dependency_manager_logins` | string (multiple) | built-in dependabot/renovate dependency-manager set only |

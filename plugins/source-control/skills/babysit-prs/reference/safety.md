@@ -245,13 +245,17 @@ than the window. Its shape, and why each part is that way:
 - **A review of the live head clears it outright**, before the clock is consulted. The common case
   — the reviewer already reviewed this head — costs nothing and adds no latency. Evidence is a
   submitted review *or* an inline review comment whose own commit id equals the head, by a
-  configured login: the same current-head test `review-trigger.md` specifies, reused rather than
-  restated. A review of an earlier head is not evidence about this one.
+  configured login **that GitHub types as a `Bot`**: the same current-head test
+  `review-trigger.md` specifies, reused rather than restated. A review of an earlier head is not
+  evidence about this one. The `Bot`-type requirement is inherited from that shared test and is a
+  real limitation — a configured reviewer GitHub reports as a `User` (the account class
+  `--extra-bot-logins` exists for) never clears the hold early, so every merge waits the full
+  window. Fail-closed, but permanently slower; tracked as #1642.
 - **The window bounds it.** A reviewer that never engages must not wedge a PR, so the hold expires
   rather than waiting forever. Past the window the gate stops waiting and merges on its ordinary
   criteria. The window is therefore a latency budget, not a review requirement: it buys the
   reviewer time, it does not guarantee a review happened.
-- **An unreadable head date holds rather than merges.** If the head commit's date cannot be read,
+- **An unestablishable head age holds rather than merges.** If neither clock below can be read,
   whether the reviewer still owes this head a review is undecidable, and a transient read failure
   must not be the thing that silently disables the hold. The block is self-clearing on the next run.
 - **Both keys or neither.** Either alone is a usage error (exit 2), not an inert flag — a
@@ -263,9 +267,19 @@ inherited from this file. Priced honestly, the hold costs up to one window of la
 whose head the reviewer has not yet reviewed — including every merge when the reviewer is down —
 in exchange for not merging past a review already on its way.
 
-The head's **committer date** is the gate's stand-in for "when this head appeared". They diverge
-when a commit is pushed long after it was written; a rebase or amend rewrites the committer date,
-so the lane case this exists for — commit, push, merge — reads true.
+**Which clock the age is measured on**, in order, because the difference decides whether the hold
+fires at all:
+
+1. **The earliest CI start on the live head**, read from the status-check rollup the gate already
+   fetches — no extra request. GitHub generates it after the push, so it can only make the head
+   look *more* recent than it is, which errs toward holding. Earliest rather than latest: a check
+   re-run mints a fresh timestamp, and the latest one would make a long-settled head look new and
+   re-arm the hold for another full window.
+2. **The head commit's committer date**, only when the rollup carries no usable timestamp. This is
+   a weaker proxy and errs the wrong way: a commit pushed long after it was written — local
+   batching, an offline delay, or replaying an existing commit — reads as already-settled, and the
+   hold silently does not fire on exactly the push that triggered a fresh review. A repository with
+   no checks on its PRs gets only this fallback, so the hold is best-effort there.
 
 ## Guarded Mutation Wrappers
 

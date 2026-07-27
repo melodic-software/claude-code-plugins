@@ -88,6 +88,7 @@ class SettleHarness(unittest.TestCase):
         review_comments: list[dict[str, Any]] | None = None,
         head_committed_at: str | None = "2026-07-26T21:44:00Z",
         commit_read_fails: bool = False,
+        check_starts: list[str] | None = None,
         pr: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         calls: list[list[str]] = []
@@ -95,7 +96,19 @@ class SettleHarness(unittest.TestCase):
         def gh_json(args: list[str]) -> Any:
             calls.append(args)
             if args[:2] == ["pr", "view"]:
-                return pr if pr is not None else _pr()
+                base = pr if pr is not None else _pr()
+                if check_starts is not None:
+                    base = dict(base, statusCheckRollup=[
+                        {
+                            "__typename": "CheckRun",
+                            "name": f"c{i}",
+                            "status": "COMPLETED",
+                            "conclusion": "SUCCESS",
+                            "startedAt": started,
+                        }
+                        for i, started in enumerate(check_starts)
+                    ])
+                return base
             if args[0] == "api" and "/rules/branches/" in args[1]:
                 return RULES
             if args[0] == "api" and "/commits/" in args[1]:
@@ -211,6 +224,56 @@ class HoldIsBounded(SettleHarness):
         self.assertEqual(result["reviewSettle"]["headAgeSeconds"], 2920)
 
 
+class ServerClockIsPreferredOverCommitMetadata(SettleHarness):
+    """`commit.committer.date` is written by the pushing client; a CI start is not.
+
+    A commit created long before it is pushed reads as already-settled on the
+    committer date, so the hold would not fire on exactly the push that
+    triggered the review it exists to wait for.
+    """
+
+    OLD_COMMIT = "2001-01-01T00:00:00Z"
+
+    def test_check_start_wins_over_a_stale_committer_date(self) -> None:
+        result = self._evaluate(
+            reviews=[],
+            head_committed_at=self.OLD_COMMIT,
+            check_starts=["2026-07-26T21:45:00Z"],
+        )
+        self.assertFalse(result["ready"])
+        self.assertEqual(result["reviewSettle"]["state"], "settling")
+        self.assertEqual(result["reviewSettle"]["headAgeSource"], "check-start")
+        self.assertEqual(result["reviewSettle"]["headAgeSeconds"], 220)
+        # The rollup was already in hand, so no commit read was needed.
+        self.assertEqual(result["_commit_reads"], [])
+
+    def test_earliest_check_start_wins_so_a_re_run_cannot_re_arm_the_hold(self) -> None:
+        # A re-run mints a fresh timestamp. Taking the latest would make a
+        # long-settled head look new and hold it for another full window.
+        result = self._evaluate(
+            reviews=[],
+            check_starts=["2026-07-26T21:00:00Z", "2026-07-26T21:48:00Z"],
+        )
+        self.assertTrue(result["ready"], result["blockers"])
+        self.assertEqual(result["reviewSettle"]["state"], "settled")
+        self.assertEqual(result["reviewSettle"]["headAgeSeconds"], 2920)
+
+    def test_committer_date_is_the_fallback_when_no_check_carries_a_time(self) -> None:
+        result = self._evaluate(reviews=[], check_starts=[])
+        self.assertEqual(result["reviewSettle"]["headAgeSource"], "committer-date")
+        self.assertEqual(result["reviewSettle"]["state"], "settling")
+        self.assertEqual(len(result["_commit_reads"]), 1)
+
+    def test_a_stale_committer_date_with_no_checks_is_the_known_weak_spot(self) -> None:
+        # Documented behavior, asserted so a future change to it is deliberate:
+        # with no server timestamp available the gate can only trust the commit.
+        result = self._evaluate(
+            reviews=[], head_committed_at=self.OLD_COMMIT, check_starts=[],
+        )
+        self.assertTrue(result["ready"], result["blockers"])
+        self.assertEqual(result["reviewSettle"]["headAgeSource"], "committer-date")
+
+
 class UnreadableClockHolds(SettleHarness):
     def test_commit_read_failure_holds_rather_than_merging(self) -> None:
         # A transient read failure must not be the thing that silently disables
@@ -222,7 +285,7 @@ class UnreadableClockHolds(SettleHarness):
         self.assertIn("unverifiable clock", blockers[0])
         self.assertEqual(result["reviewSettle"]["state"], "head-age-unreadable")
 
-    def test_unparseable_commit_date_holds(self) -> None:
+    def test_unparsable_commit_date_holds(self) -> None:
         result = self._evaluate(reviews=[], head_committed_at="not-a-date")
         self.assertEqual(result["reviewSettle"]["state"], "head-age-unreadable")
 
@@ -264,12 +327,19 @@ class ReviewCorpusIsFetchedOnce(unittest.TestCase):
             mock.patch.object(merge, "datetime", wraps=datetime) as clock,
         ):
             clock.now.return_value = NOW
-            merge.evaluate(
+            result = merge.evaluate(
                 "owner/repo", PR_NUMBER, HEAD, {"owner"}, frozenset(),
                 False, False, tier, settle=SETTLE,
             )
         self.assertEqual(reviews_mock.call_count, 1)
         self.assertEqual(review_comments_mock.call_count, 1)
+        # Call counts alone would still pass if the tier were handed a corpus it
+        # could not read, so assert it reached its verdict on the injected one.
+        self.assertEqual(
+            result["autopilotMergeTier"]["distinctBotApproval"]["author"],
+            "approver-bot",
+        )
+        self.assertTrue(result["ready"], result["blockers"])
 
 
 class PairedConfigurationIsFailClosed(unittest.TestCase):
@@ -306,6 +376,9 @@ class PairedConfigurationIsFailClosed(unittest.TestCase):
         self.assertIn("must be non-empty", out)
 
     def test_nonpositive_and_nonnumeric_windows_are_refused(self) -> None:
+        # `-inf` is passed `=`-joined: argparse reads a bare `-inf` as an option
+        # token and exits before the gate's own validation runs, so the joined
+        # form is what actually exercises the check under test.
         for value in ("0", "-5", "abc", "nan", "inf"):
             with self.subTest(value=value):
                 code, out = self._run(
@@ -313,7 +386,71 @@ class PairedConfigurationIsFailClosed(unittest.TestCase):
                     "--review-settle-minutes", value,
                 )
                 self.assertEqual(code, 2)
-                self.assertIn("finite number", out)
+                self.assertIn("at least one second", out)
+
+        code, out = self._run(
+            "--review-bot-logins", REVIEWER, "--review-settle-minutes=-inf",
+        )
+        self.assertEqual(code, 2)
+        self.assertIn("at least one second", out)
+
+    def test_sub_second_windows_are_refused_rather_than_truncated_to_zero(self) -> None:
+        # A positive window that converts to zero seconds passes a bare
+        # greater-than-zero test and then holds nothing, which is precisely the
+        # active-looking inert configuration the paired-flag rule forbids.
+        for value in ("0.008", "1e-9"):
+            with self.subTest(value=value):
+                code, out = self._run(
+                    "--review-bot-logins", REVIEWER,
+                    "--review-settle-minutes", value,
+                )
+                self.assertEqual(code, 2)
+                self.assertIn("at least one second", out)
+
+    def test_a_valid_pair_reaches_evaluate_as_seconds(self) -> None:
+        # Without this, dropping the `* 60` conversion or the `settle=settle`
+        # argument entirely would leave every other test in this file green.
+        captured: dict[str, Any] = {}
+
+        def fake_evaluate(*args: Any, **kwargs: Any) -> dict[str, Any]:
+            captured.update(kwargs)
+            return {"ready": False, "blockers": ["stop"], "pr": "owner/repo#1"}
+
+        with (
+            mock.patch.object(merge, "evaluate", side_effect=fake_evaluate),
+            mock.patch.object(
+                sys, "argv",
+                ["babysit_merge.py", "owner/repo#1", "--allowed-owners", "owner",
+                 "--review-bot-logins", f"{REVIEWER}[bot]",
+                 "--review-settle-minutes", "10"],
+            ),
+            contextlib.redirect_stdout(io.StringIO()),
+        ):
+            merge.main()
+        self.assertEqual(
+            captured["settle"],
+            merge.ReviewSettleConfig(
+                reviewer_logins=frozenset({REVIEWER}), settle_seconds=600
+            ),
+        )
+
+    def test_neither_flag_leaves_evaluate_unconfigured(self) -> None:
+        captured: dict[str, Any] = {}
+
+        def fake_evaluate(*args: Any, **kwargs: Any) -> dict[str, Any]:
+            captured.update(kwargs)
+            return {"ready": False, "blockers": ["stop"], "pr": "owner/repo#1"}
+
+        with (
+            mock.patch.object(merge, "evaluate", side_effect=fake_evaluate),
+            mock.patch.object(
+                sys, "argv",
+                ["babysit_merge.py", "owner/repo#1", "--allowed-owners", "owner"],
+            ),
+            contextlib.redirect_stdout(io.StringIO()),
+        ):
+            merge.main()
+        self.assertIsNone(captured["settle"])
 
 
 class SettleConfigUnit(unittest.TestCase):
@@ -322,10 +459,10 @@ class SettleConfigUnit(unittest.TestCase):
         # so a window of N seconds waits N seconds and not a run longer.
         committed = NOW - timedelta(seconds=SETTLE.settle_seconds)
         with mock.patch.object(
-            merge, "head_committed_at", return_value=committed,
+            merge, "head_appeared_at", return_value=(committed, "check-start"),
         ):
             blockers, result = merge.evaluate_review_settle(
-                "owner/repo", HEAD, SETTLE, [], now=NOW,
+                "owner/repo", HEAD, SETTLE, [], {}, now=NOW,
             )
         self.assertEqual(blockers, [])
         self.assertEqual(result["state"], "settled")
@@ -333,10 +470,10 @@ class SettleConfigUnit(unittest.TestCase):
     def test_one_second_inside_the_window_holds(self) -> None:
         committed = NOW - timedelta(seconds=SETTLE.settle_seconds - 1)
         with mock.patch.object(
-            merge, "head_committed_at", return_value=committed,
+            merge, "head_appeared_at", return_value=(committed, "check-start"),
         ):
             blockers, result = merge.evaluate_review_settle(
-                "owner/repo", HEAD, SETTLE, [], now=NOW,
+                "owner/repo", HEAD, SETTLE, [], {}, now=NOW,
             )
         self.assertEqual(len(blockers), 1)
         self.assertEqual(result["state"], "settling")
@@ -345,7 +482,7 @@ class SettleConfigUnit(unittest.TestCase):
         # An absent head is already blocked upstream; the hold must not add a
         # second, more confusing blocker for the same condition.
         blockers, result = merge.evaluate_review_settle(
-            "owner/repo", None, SETTLE, [], now=NOW,
+            "owner/repo", None, SETTLE, [], {}, now=NOW,
         )
         self.assertEqual(blockers, [])
         self.assertEqual(result["state"], "no-head")
