@@ -116,8 +116,8 @@ zone bands, zones.json shape) are owned by
      - anything else, including the literal `${user_config.context_guard_hooks_enabled}` surviving
        unexpanded (unset key, or a Claude Code without the substitution) → **UNKNOWN**, never
        "armed". Say which source was read and that an unset key falls back to the hooks' in-script
-       default (armed); the operator-inspectable source of truth is the
-       `pluginConfigs["context-guard@<marketplace>"].options` block in the user `settings.json`
+       default (armed); the operator-inspectable source of truth is this plugin's
+       `pluginConfigs` options block in the user `settings.json`
        (`docs/conventions/hook-config-delivery` owns why the declared `default` field is not
        delivered to hook processes).
    - **Gate posture** — `zone_hook_mode` is `${user_config.zone_hook_mode}`, read and interpreted
