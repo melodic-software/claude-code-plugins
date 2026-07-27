@@ -57,8 +57,10 @@ value other than `c3-this-run` only ever lowers, and the tier keyword alone
 is merge-inert, so `--merge human-only` disables autonomous merging
 whatever `{{TIER}}` says.
 Leave `{{MERGE}}` at `--merge human-only` unless the target repository's rung
-question has been decided the other way — this repository's was decided
-against raising (#1388, "Tier is not the rung" below).
+question has been decided the other way. This repository's was: raised to
+`c3-autonomous` on 2026-07-27, superseding #1388 — but keep the override
+until #1695 wires effective-promotion resolution into the merge partition
+and the evidence predicate is met ("Tier is not the rung" below).
 
 ## Per-repository profile
 
