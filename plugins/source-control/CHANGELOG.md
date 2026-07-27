@@ -3,6 +3,43 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.33.2]
+
+### Fixed
+
+- **Every git-bearing skill in this plugin was uninvocable from a worktree-isolated agent
+  (melodic-software/claude-code-plugins#1619).** The harness composes an entire
+  `## Pre-computed context` block into ONE shell invocation, and the worktree-isolation Bash guard
+  refuses a git-bearing compound command it cannot statically verify — so `commit`, `pull-request`,
+  `worktree`, `resolve-conflicts`, and `babysit-prs` all failed at load with `this command is too
+  complex to verify that it stays inside the worktree`. `worktree` is the sharpest case: the skill
+  for managing worktrees could not be invoked from inside one.
+  - The git lines are removed from each skill's pre-compute block and re-acquired in the skill body
+    as **individual** Bash calls, one command per call. Non-git pre-compute lines are untouched —
+    `commit` keeps its exec-bit and user-global config probes, `babysit-prs` keeps both `gh` lines.
+  - `commit`'s two repo-scoped config-layer probes were themselves compound one-liners that
+    re-derived the repository root inline. They are decomposed rather than moved across intact:
+    resolve the root once with `git rev-parse --show-toplevel`, then substitute the literal path
+    into `git -C <root> ls-files --error-unmatch …` and the personal-overlay `test -f`. The
+    root-anchoring requirement and the `present but UNTRACKED` rule are unchanged.
+  - `babysit-prs` is held at exactly 499 lines — the change is net-zero on line count, so it does
+    not consume the one line it has left under the 500-line hard cap (see #1626).
+  - The pre-compute lines carried `2>/dev/null || echo "unknown"` fallbacks that plain Bash calls do
+    not reproduce, so each gather block now states explicitly that a failed command means "unknown,
+    carry on" rather than surfacing a raw error.
+  - `shell: bash` is deliberately left in place on every affected skill, including the three that
+    now have no `!` lines at all. The key is inert without pre-compute lines, and removing it is a
+    frontmatter-contract change with no behavioral benefit.
+
+### Changed
+
+- **Two reference spokes described the moved commands as pre-computed and are corrected.**
+  `commit/reference/exec-bit.md` no longer calls the config-layer probes pre-computed, and
+  `pull-request/reference/create.md`'s `--pushed` section is regrounded: it still says to ignore the
+  session-cwd context for an out-of-tree orchestrator, but its stated reason — that a
+  `!`-substituted line cannot be `git -C`-redirected — stopped being true once those became ordinary
+  Bash calls. The instruction to re-resolve explicitly from the target worktree is unchanged.
+
 ## [0.33.1]
 
 ### Fixed

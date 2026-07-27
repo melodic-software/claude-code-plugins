@@ -7,11 +7,18 @@ disable-model-invocation: false
 shell: bash
 ---
 
-## Pre-computed context
+## Repository context — gather first
 
-Operation state: !`git status 2>/dev/null | head -4 || echo "not a git repo"`
-Conflicted paths: !`git diff --name-only --diff-filter=U 2>/dev/null || echo "none"`
-Current branch: !`git branch --show-current 2>/dev/null || echo "detached/unknown"`
+Collect these with **individual** Bash calls, one command per call, never combined into a single
+invocation:
+
+- Operation state — `git status`
+- Conflicted paths — `git diff --name-only --diff-filter=U`
+- Current branch — `git branch --show-current`
+
+Treat a failure (not a repository, git unavailable) as an unknown value and carry on. These moved
+out of pre-compute in #1619 — the harness composes the block into one shell invocation and a
+worktree-isolated agent refuses a git-bearing compound command; do not fold them back.
 
 ## Purpose
 

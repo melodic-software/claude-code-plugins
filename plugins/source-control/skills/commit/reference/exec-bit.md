@@ -76,7 +76,7 @@ Caller pathspecs are relative to the caller's cwd, so they are re-anchored via
 subdirectory would silently match nothing. Absolute paths and `:`-prefixed magic pathspecs are
 already unambiguous and are left alone.
 
-The skill's pre-computed config-layer probes anchor the same way, for the same reason: a session
+The skill's config-layer probes anchor the same way, for the same reason: a session
 started in a subdirectory would otherwise report both repo-scoped config layers absent and silently
 drop the team convention and `trailer_policy`.
 

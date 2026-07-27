@@ -7,12 +7,21 @@ argument-hint: "<action> [args] (e.g., /worktree create feat/my-feature, /worktr
 shell: bash
 ---
 
-## Pre-computed context
+## Repository context — gather first
 
-Current branch: !`git branch --show-current 2>/dev/null || echo "unknown"`
-Worktree inventory: !`git worktree list 2>/dev/null | head -30 || echo "not a git repo"`
-Git dir: !`git rev-parse --git-dir 2>/dev/null || echo "none"`
-Git common dir (differs from git dir when in a linked worktree): !`git rev-parse --git-common-dir 2>/dev/null || echo "none"`
+Collect these with **individual** Bash calls, one command per call, never combined into a single
+invocation:
+
+- Current branch — `git branch --show-current`
+- Worktree inventory — `git worktree list`
+- Git dir — `git rev-parse --git-dir`
+- Git common dir (differs from the git dir when in a linked worktree) —
+  `git rev-parse --git-common-dir`
+
+Treat a failure (not a repository, git unavailable) as an unknown value and carry on. These moved
+out of pre-compute in #1619 — the harness composes the block into one shell invocation and a
+worktree-isolated agent refuses a git-bearing compound command, which made the worktree skill itself
+uninvocable from inside a worktree; do not fold them back.
 
 ## Purpose
 

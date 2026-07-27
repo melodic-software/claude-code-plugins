@@ -9,10 +9,10 @@ shell: bash
 
 ## Pre-computed context
 
-Current branch: !`git branch --show-current 2>/dev/null || echo "unknown"`
-Working tree status: !`git status --porcelain 2>/dev/null || echo "clean"`
 Current login: !`gh api user --jq .login 2>/dev/null || echo "unknown"`
 Own open PRs here: !`gh pr list --state open --author "@me" --limit 200 --json number --jq 'length' 2>/dev/null || echo "unknown"`
+
+Branch and working tree: gather with two separate Bash calls, `git branch --show-current` then `git status --porcelain`; treat a failure as an unknown value and carry on. They moved out of pre-compute in #1619 — the harness composes the block into one shell invocation and a worktree-isolated agent refuses a git-bearing compound command — so run them individually and do not fold them back.
 
 ## Purpose
 

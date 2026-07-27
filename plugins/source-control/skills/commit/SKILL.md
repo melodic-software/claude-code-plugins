@@ -9,18 +9,37 @@ shell: bash
 
 ## Pre-computed context
 
-Current branch: !`git branch --show-current 2>/dev/null || echo "unknown"`
-Staged: !`git diff --cached --stat 2>/dev/null | tail -1 || echo "nothing staged"`
-Unstaged: !`git status --short 2>/dev/null | head -20 || echo "clean"`
-Recent commits: !`git log --oneline -5 2>/dev/null || echo "no commits"`
 Exec-bit backstop: !`bash "${CLAUDE_PLUGIN_ROOT}/skills/commit/scripts/exec-bit-check.sh" --probe 2>/dev/null || echo "unavailable — run the check manually"`
 Config layer (user-global): !`test -f "$HOME/.claude/source-control.md" && echo present || echo absent`
-Config layer (tracked team): !`R="$(git rev-parse --show-toplevel 2>/dev/null)" && git -C "$R" ls-files --error-unmatch .claude/source-control.md >/dev/null 2>&1 && echo "present (tracked)" || { test -n "${R:-}" && test -f "$R/.claude/source-control.md" && echo "present but UNTRACKED — not a config layer" || echo absent; }`
-Config layer (personal overlay): !`R="$(git rev-parse --show-toplevel 2>/dev/null)" && test -n "$R" && test -f "$R/.claude/source-control.local.md" && echo present || echo absent`
 
-**Both probes are snapshots taken at invocation, not substitutes for the checks.** The exec-bit
+## Repository context — gather first
+
+Collect these with **individual** Bash calls, one command per call, never combined into a single
+invocation:
+
+- Current branch — `git branch --show-current`
+- Staged — `git diff --cached --stat`
+- Unstaged — `git status --short`
+- Recent commits — `git log --oneline -5`
+
+Then resolve the two repo-scoped config layers, in this order and as separate calls:
+
+1. `git rev-parse --show-toplevel` — run this **first** and substitute the literal path it prints
+   into the next two commands. Never re-derive the root inline inside another command.
+2. Tracked team layer — `git -C <root> ls-files --error-unmatch .claude/source-control.md`. Exit 0
+   means present **and tracked**. A file sitting at that path that this command does not report is
+   `present but UNTRACKED`, and is deliberately not a config layer.
+3. Personal overlay — `test -f <root>/.claude/source-control.local.md`.
+
+Treat a failure (not a repository, git unavailable) as an unknown value and carry on. All of the
+above moved out of pre-compute in #1619 — the harness composes the block into one shell invocation
+and a worktree-isolated agent refuses a git-bearing compound command; the two config-layer one-liners
+were themselves compound, which is why they are decomposed here rather than moved across intact. Do
+not fold them back.
+
+**These are snapshots taken when they run, not substitutes for the checks.** The exec-bit
 line only sees what was already staged when the skill loaded; anything staged in step 2 below is
-invisible to it, so step 4 re-runs the script for real. The config-layer lines report **presence**,
+invisible to it, so step 4 re-runs the script for real. The config-layer probes report **presence**,
 not merged content — read the layers that are present and merge them per key. A tracked-team layer
 reported `present but UNTRACKED` is deliberately not a layer: resolution requires the team file to
 be git-tracked, so an untracked or gitignored file at that well-known path must not drive the
