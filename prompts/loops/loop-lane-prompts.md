@@ -1126,10 +1126,9 @@ Filled instance for the repository in use as of 2026-07-25.
   operations reference, loaded by `reference/tracker-seam.md` and
   `skills/work/SKILL.md`. Re-run the listing rather than reusing a count; it
   moves with every plugin added.
-- Merge rung: `c2-mechanical`, live in tracked config on `main`. Raising to
-  `c3-autonomous` is a one-line edit to `.claude/source-control.md` — a
-  mechanically trivial one the guardrail matrix does not currently authorize
-  (see "Tier is not the rung" below).
+- Merge rung: `c3-autonomous`, live in tracked config on `main` — raised in
+  the same reviewed change that added the matrix's C3 auto-merge cell
+  (operator-ratified, 2026-07-27; see "Tier is not the rung" below).
 - Work-class labels: deployed. Exact strings, ascending risk:
   `work-class: read-only`, `work-class: mechanical`, `work-class: scoped`,
   `work-class: structural`, `work-class: untrusted-provenance`.
@@ -1163,23 +1162,21 @@ The skill carries one named exception: an invocation line typing both the
 `--merge c3-this-run` widens that one invocation's merge rung to C3. It
 changes nothing here, for two independent reasons — every copy-block below
 passes `--merge human-only`, and the raise fires only on its own dedicated
-token, which no copy-block carries; and the tracked rung reaches
-`c3-autonomous` via the ratified seam flip (#1693, below), so the
-per-invocation raise buys nothing the seam does not already grant. Treat it
-as dormant in this repository, and do not swap a copy-block's
-`--merge human-only` for the raise token to wake it.
+token, which no copy-block carries; and the tracked rung already stands at
+`c3-autonomous` (below), so the per-invocation raise buys nothing the seam
+does not already grant. Treat it as dormant in this repository, and do not
+swap a copy-block's `--merge human-only` for the raise token to wake it.
 
 So the two knobs are independent, and both are needed for "merge things
 overnight without me":
 
 - **Tier `autopilot`** — in the prompt below. Already maximal.
 - **Merge rung** — one line in `.claude/source-control.md` on `main`.
-  Raised to `c3-autonomous` by the ratified seam flip (#1693, landing with
-  this amendment): the guardrail contract defines a **C3 auto-merge cell
-  with an evidence predicate** (this contract amendment, closes #1646), and
+  Now `c3-autonomous`, flipped in the same reviewed change that added the
+  matrix's **C3 auto-merge cell with an evidence predicate** (closes #1646):
   **operator direction of 2026-07-27 superseded #1388's 2026-07-25 "stay at
-  `c2-mechanical`" decision**. The rung raises are recorded via the 11
-  staged seam PRs — held as drafts until the contract amendment ratified
+  `c2-mechanical`" decision**. The other watched repos' raises are recorded
+  via their staged seam PRs — held as drafts until this amendment ratified
   them. The amendment followed the path #1388 itself prescribed: amend the
   guardrail contract first, then flip the seam — never the reverse.
 
@@ -1198,9 +1195,9 @@ trigger, with the C3 auto-merge evidence predicate in the promotion table of
 are suggested defaults the org may bind lower; ratifying the seam flips ahead
 of the suggested evidence is an operator choice the contract records.
 Demotion — any post-merge gate failure, human revert, or verification
-divergence — remains the contract's automatic fail-closed discipline
-(wiring its enforcement into the lane's merge partition is tracked in
-#1695), and C4 `structural` / C5 `untrusted-provenance` never promote.
+divergence — remains the contract's automatic fail-closed discipline (its
+enforcement wiring into the lane's merge partition is tracked in #1695),
+and C4 `structural` / C5 `untrusted-provenance` never promote.
 
 Neither rung bypasses classification: an item with **no recorded class in
 either source** — no `Work-class: C<n>` body trailer and no `work-class:`
@@ -1330,17 +1327,17 @@ machines; neither on the attended box.
 ### Merge lane — any machine except the attended one
 
 **`--merge human-only` is deliberate here, and stays until #1695 lands.**
-This repository's tracked config resolves `c3-autonomous` (seam flip #1693,
-ratified with the C3 auto-merge contract amendment), so without the override
-the lane would auto-merge C2 and C3 PRs. Two reasons to keep the override:
-the ratification ran ahead of the suggested evidence predicates — this
-repository has recorded **zero autonomous merges ever** — and the lane's
-rung partition does not yet resolve the effective promotion state against
-telemetry, so the contract's automatic fail-closed demotion is declared but
-not wired into the merge decision (#1695). An argument may always select a
-*lower* rung than the seam, never a higher one, which is exactly what this
-does. Drop the flag only after #1695 wires effective-promotion resolution
-into the partition and the evidence predicate is met.
+This repository's tracked config resolves `c3-autonomous` (flipped with the
+C3 auto-merge contract amendment), so without the override the lane would
+auto-merge C2 and C3 PRs. Two reasons to keep the override: the ratification
+ran ahead of the suggested evidence predicates — this repository has
+recorded **zero autonomous merges ever** — and the lane's rung partition
+does not yet resolve the effective promotion state against telemetry, so
+the contract's automatic fail-closed demotion is declared but not wired
+into the merge decision (#1695). An argument may always select a *lower*
+rung than the seam, never a higher one, which is exactly what this does.
+Drop the flag only after #1695 wires effective-promotion resolution into
+the partition and the evidence predicate is met.
 
 > **=== COPY FROM HERE ===**
 >
