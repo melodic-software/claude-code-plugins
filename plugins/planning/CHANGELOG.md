@@ -3,6 +3,28 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.27.0]
+
+### Added
+
+- **`draft-goal-condition` drafts conditions for goals no metric can measure (#1652).** Step 2
+  assumed a checkable condition already existed, so an intent with no honest metric either got a
+  manufactured one or nothing. A new branch builds the condition from three moves instead — a
+  structural constraint, enumerated required contents, and a self-verification sub-step that
+  requires the verifying work rather than its verdict. The branch states why the third move must be
+  worded that way: the evaluator calls no tools, so it can only credit verification Claude performed
+  in the transcript, and an assertion that checking happened is indistinguishable from the checking.
+  Co-drafting a still-vague intent points at `/planning:interview` rather than restating it.
+- **`draft-goal-condition`'s Step 0 router gains the dynamic-workflows lever (#1654).** The router
+  covered `/goal`, `/loop`, routines and `/schedule`, a Stop hook, and a one-shot prompt, leaving
+  work that needs more agents than one conversation can coordinate with nowhere to route. The new
+  row carries the availability fact that keeps it from being mis-skipped as preview-gated
+  (all paid plans including Pro, switched on from the `/config` **Dynamic workflows** row there) and
+  the form distinction the lever turns on: the `ultracode` keyword runs one task as a workflow and
+  is honored only from a human-typed prompt, while `/effort ultracode` is the standing session
+  setting. Recorded alongside the row: the `Workflow` tool is main-thread only, so subagent-resident
+  work — the loop lanes included — cannot take this lever however well it otherwise fits.
+
 ## [0.26.3]
 
 ### Fixed
