@@ -12,9 +12,10 @@ All notable changes to the `adhd` plugin are documented here. Format follows
   whether the harness injected a scratchpad path, which made placement depend
   on how the session was launched — invisible from inside the skill — and
   depended on an undocumented surface upstream has declined three times to
-  support. The skill now resolves one temp directory deterministically and
-  removes it in a `finally`. See `docs/conventions/topic-docs/README.md`
-  §"The ephemeral tier".
+  support. The skill now resolves one temp path deterministically, and states
+  explicitly that the file is not deleted before returning — the path is the
+  delivery mechanism, so it must stay readable when the reader opens it. See
+  `docs/conventions/topic-docs/README.md` §"The ephemeral tier".
 
 ## [0.3.0]
 

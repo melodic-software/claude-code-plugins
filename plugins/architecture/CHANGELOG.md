@@ -9,10 +9,12 @@ All notable changes to the `architecture` plugin are documented here. Format fol
 
 - The deepening HTML report resolves its output location through the
   topic-docs **ephemeral tier** rather than an unqualified "OS temp
-  directory": one directory created through the platform's temp API and
-  removed in a `finally`, never branched on an injected scratchpad path or
-  `CLAUDE_JOB_DIR`. See `docs/conventions/topic-docs/README.md`
-  §"The ephemeral tier".
+  directory": one file per run through the platform's temp API, resolved
+  deterministically and never branched on an injected scratchpad path or
+  `CLAUDE_JOB_DIR`. The executable Phase 2 step in `actions/deepening.md`
+  carries the rule, not only the format reference — that step is what
+  `/architecture:improve deepening` actually follows. See
+  `docs/conventions/topic-docs/README.md` §"The ephemeral tier".
 
 ## [0.4.1]
 

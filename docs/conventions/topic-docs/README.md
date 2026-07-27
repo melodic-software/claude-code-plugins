@@ -64,24 +64,42 @@ own directory through the platform's temp API and removes it — so it is
 invisible to every other execution context by construction and takes no
 row in the visibility matrix.
 
-Four rules hold at this row:
+Five rules hold at this row:
 
-1. **Resolve one deterministic path, and clean up in a `finally`.**
-   Never branch on whether a harness injected a scratchpad path or set
-   `CLAUDE_JOB_DIR`: those surfaces are disjoint by session kind
-   (`CLAUDE_JOB_DIR` is set for background sessions only), so branching
-   makes file placement depend on how the session was launched, which is
-   invisible from inside the plugin.
-2. **Never the session scratchpad.** Plugins never require it, publish
+1. **Resolve one deterministic path.** Never branch on whether a harness
+   injected a scratchpad path or set `CLAUDE_JOB_DIR`: those surfaces
+   are disjoint by session kind (`CLAUDE_JOB_DIR` is set for background
+   sessions only), so branching makes file placement depend on how the
+   session was launched, which is invisible from inside the plugin. Use
+   the platform's temp API, which already honors a consumer's
+   `CLAUDE_CODE_TMPDIR` override without the plugin reading it.
+2. **The lifetime is the session, not the call.** A path handed back to
+   the user must still be readable when they open it, so a producer that
+   RETURNS a path does not delete the file in a `finally` — that races
+   the reader and hands back a dead path. `finally` cleanup is correct
+   only for a file the producer itself consumes and hands to no one.
+   Everything here dies with the session either way; the difference is
+   who ends it.
+3. **Never the session scratchpad.** Plugins never require it, publish
    pointers to it, or change semantics based on its presence.
-3. **Nothing durable lands here.** If a later session, another checkout,
+4. **Nothing durable lands here.** If a later session, another checkout,
    or a reviewer must read the file, it belongs in the memory or
    contract tier — this row is not a shortcut past their rules.
-4. **Customization is a manifest `userConfig` typed `directory`,
+5. **Customization is a manifest `userConfig` typed `directory`,
    defaulting to empty** — never a `.claude/topic-docs.yaml` key. A temp
    root is machine scope; a tracked key would imply a team decision
    about a location no teammate can observe. Per the configuration
    ownership table in `docs/PLUGIN-PHILOSOPHY.md`.
+
+**Keep the footprint small.** Rule 2 leans on session teardown and the
+platform's temp reaper, and neither is guaranteed: verified 2026-07-26
+against the full Claude Code docs corpus, no documented cleanup,
+retention, TTL, or pruning mechanism covers the temp tree Claude Code
+writes under. The one documented retention setting, `cleanupPeriodDays`,
+is scoped to `~/.claude/` application data — a different tree. So a
+producer writes one file, or one directory, per run — never an
+accumulating tree — and rule 4 does real work: anything worth keeping
+belongs in a tier that is actually managed.
 
 **Why not the session scratchpad.** Verified 2026-07-26 against primary
 sources: zero occurrences of "scratchpad" in the full Claude Code docs

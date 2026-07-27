@@ -12,11 +12,20 @@
   the full docs corpus, keyed by working directory, and declined three
   times upstream as a supported surface). The convention registry's
   trigger — an owner doc before a second plugin adopts — had already
-  fired. The row states four rules (one deterministic path cleaned up in
-  a `finally`, never the scratchpad, nothing durable, customization
-  through a manifest `userConfig` rather than a tracked key), carries a
-  re-derivation trigger, and records why git-visibility, promotion-stage,
-  and write-contention each needed no change.
+  fired. The row states five rules (one deterministic path; the lifetime
+  is the session and not the call, so a producer that returns a path
+  never deletes the file before returning; never the scratchpad; nothing
+  durable; customization through a manifest `userConfig` rather than a
+  tracked key), carries a re-derivation trigger, and records why
+  git-visibility, promotion-stage, and write-contention each needed no
+  change.
+
+  Rule 2 is stated because both existing adopters hand their file back
+  as a path for the user to open — a `finally` cleanup would race the
+  reader and return a dead path. It leans on session teardown, so the
+  row also records that no documented Claude Code mechanism prunes that
+  temp tree (`cleanupPeriodDays` is scoped to `~/.claude/`, a different
+  tree), which is why one run writes one file and never a tree.
 
   Minor, not major: no tier moves, no `topic-docs.yaml` key is renamed,
   the slug spec is untouched, and no visibility guarantee changes — the
