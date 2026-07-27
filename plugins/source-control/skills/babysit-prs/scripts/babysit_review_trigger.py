@@ -85,29 +85,25 @@ def is_review_bot_item(item: dict[str, Any], config: ReviewTriggerConfig) -> boo
     review at all (#1642). With `extra_bot_logins` unset the predicate is
     structural-only, as it always was.
 
-    Deliberately narrower than `is_bot` on one point: a bare `[bot]` login
-    suffix is not accepted as bot evidence here. Every reachable payload
-    carries a type (`gh` strips the suffix on the one that does not), so
-    honoring it would buy no behavior while widening the predicate for an
-    operator who configured nothing.
+    Bot-ness is delegated whole to `is_bot` rather than restated here, so this
+    module cannot drift from the classification every other consumer uses.
+    The one signal `is_bot` does not model is the normalized `is_bot` flag,
+    which `actor_kind` also tests separately.
     """
     author = item.get("author")
     if not is_json_object(author):
         return False
     reviewer_logins = normalize_login_set(config.reviewer_logins)
-    login = author_login(item).casefold().removesuffix("[bot]")
-    if login not in reviewer_logins:
+    if author_login(item).casefold().removesuffix("[bot]") not in reviewer_logins:
         return False
-    authoritative_bot = (
-        str(author.get("__typename") or author.get("type") or "") == "Bot"
-        or author.get("is_bot") is True
+    # `is_bot` reads GraphQL's `__typename` only, so the REST `type` key is
+    # normalized into it here: the reaction and review-comment paths carry raw
+    # REST author objects that have no `__typename` at all.
+    return author.get("is_bot") is True or is_bot(
+        author_login(item),
+        str(author.get("__typename") or author.get("type") or ""),
+        config.extra_bot_logins,
     )
-    # `is_bot` on an already-suffix-stripped login reduces to exactly the
-    # declaration test, which is how `actor_kind` reaches the same rule. The
-    # type check stays open-coded because `is_bot` reads neither the REST
-    # `type` key nor the `is_bot` flag, and the reaction and review-comment
-    # paths carry raw REST author objects that have only those.
-    return authoritative_bot or is_bot(login, None, config.extra_bot_logins)
 
 
 def issue_comment_database_id(comment: dict[str, Any]) -> str:

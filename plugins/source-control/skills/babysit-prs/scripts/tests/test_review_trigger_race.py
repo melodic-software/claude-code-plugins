@@ -213,6 +213,14 @@ class ReviewBotItemTests(unittest.TestCase):
         self.assertTrue(
             review_trigger.is_review_bot_item(item, declared_non_structural()))
 
+    def test_rest_bot_typed_reviewer_is_recognized_undeclared(self) -> None:
+        # Delegating bot-ness to `is_bot` is only safe because the REST `type`
+        # key is normalized into the `__typename` slot first -- `is_bot` reads
+        # `__typename` alone. Reactions and review comments carry only `type`,
+        # so losing that normalization would silently blind both paths.
+        item = {"author": {"type": "Bot", "login": "reviewbot"}}
+        self.assertTrue(review_trigger.is_review_bot_item(item, configured()))
+
 
 class UserTypedReviewerConsumerTests(unittest.TestCase):
     """Every `is_review_bot_item` consumer honors a declared `User`-typed reviewer."""

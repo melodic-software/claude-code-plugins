@@ -16,10 +16,14 @@ All notable changes to the `source-control` plugin are documented here. Format f
   `babysit_resolve_thread.py` (#637) already honor, so the same operator-declared account was
   classified two different ways by two consumers of one plugin.
   - `ReviewTriggerConfig` gains `extra_bot_logins`, and the predicate now reads: the login must be
-    in `reviewer_logins` AND the author must be a bot — authoritatively typed, or declared. Both
-    halves are required, so declaring an account a bot never promotes it to reviewer. The field
-    ships empty, so the predicate is structural-only exactly as before for anyone who has not
-    configured it, and no default-configuration blocker state moves.
+    in `reviewer_logins` AND the author must be a bot. Both halves are required, so declaring an
+    account a bot never promotes it to reviewer. The field ships empty, so the predicate is
+    structural-only exactly as before for anyone who has not configured it, and no
+    default-configuration blocker state moves.
+  - Bot-ness is delegated whole to `is_bot` rather than restated, so this module can no longer
+    drift from the classification every other consumer uses. The REST `type` key is normalized
+    into the `__typename` slot first — `is_bot` reads `__typename` alone, and the reaction and
+    review-comment paths carry only `type`, so that normalization is load-bearing and pinned.
   - The widening is applied at the shared predicate rather than per consumer, so all three reach
     the same verdict: review evidence (`fetch_review_evidence`), current-head completion
     (`has_current_head_review`), and reaction engagement (`fetch_review_reactions`). It is not
