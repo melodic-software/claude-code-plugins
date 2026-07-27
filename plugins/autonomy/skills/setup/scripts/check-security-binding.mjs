@@ -331,11 +331,11 @@ function credentialExpansionProblem(entry, expanded) {
 }
 
 // Guardrail-matrix floors: min-isolation level per class (L2 is the floor for
-// ANY autonomous dispatch; C5 requires L3), and the only auto-merge-eligible
-// cell (C2, after promotion — C4/C5 merge human always, C1/C3 human per the
-// matrix).
+// ANY autonomous dispatch; C5 requires L3), and the auto-merge-eligible
+// cells (C2 and C3, each after its own promotion — C4/C5 merge human always,
+// C1 human per the matrix).
 const MIN_ISOLATION = { C1: 2, C2: 2, C3: 2, C4: 2, C5: 3 };
-const AUTO_MERGE_ELIGIBLE = new Set(["C2"]);
+const AUTO_MERGE_ELIGIBLE = new Set(["C2", "C3"]);
 
 // The security-review leaf's shipped per-class defaults are FLOORS: a binding
 // may tighten a cell but never weaken it — the admission-rule
@@ -346,7 +346,7 @@ const VERIFICATION_FLOORS = {
 };
 const VERIFICATION_STRENGTH = { "not-required": 0, advisory: 1, blocking: 2 };
 
-const PROMOTABLE_CELLS = new Set(["C2-auto-merge", "C3-ai-review-blocking"]);
+const PROMOTABLE_CELLS = new Set(["C2-auto-merge", "C3-auto-merge", "C3-ai-review-blocking"]);
 
 // Admission shipped defaults per work class (the admission-policy leaf), and
 // the leaf's permissiveness order: autonomous-eligible > human-gated >
@@ -1371,7 +1371,7 @@ function checkSemantics(binding, probeRoot, egressAllowList, credentialRoots) {
   const autonomous = posture === "autonomous-enabled";
 
   // Merge caps: vendor-hosted caps every class at human-gated; otherwise the
-  // matrix caps apply (only C2 is auto-merge eligible).
+  // matrix caps apply (only C2 and C3 are auto-merge eligible).
   if (isPlainObject(binding.merge_policy)) {
     for (const workClass of WORK_CLASSES) {
       if (binding.merge_policy[workClass] !== "auto") continue;
@@ -1381,7 +1381,7 @@ function checkSemantics(binding, probeRoot, egressAllowList, credentialRoots) {
         );
       } else if (!AUTO_MERGE_ELIGIBLE.has(workClass)) {
         findings.push(
-          `merge_policy.${workClass}: "auto" exceeds the matrix cap — ${workClass === "C4" || workClass === "C5" ? "C4/C5 merge is human always" : "the matrix merges this class human; only the C2 cell is auto-merge eligible"}`,
+          `merge_policy.${workClass}: "auto" exceeds the matrix cap — ${workClass === "C4" || workClass === "C5" ? "C4/C5 merge is human always" : "the matrix merges this class human; only the C2 and C3 cells are auto-merge eligible"}`,
         );
       }
     }
@@ -1531,6 +1531,16 @@ function checkSemantics(binding, probeRoot, egressAllowList, credentialRoots) {
   ) {
     findings.push(
       'merge_policy.C2: "auto" without a ratified promotion_state.C2-auto-merge entry (state "promoted") — promotion is a human-ratified knob flip recorded on the governance surface; an earned value without its ratification record bypasses the promotion discipline',
+    );
+  }
+  if (
+    isPlainObject(binding.merge_policy) &&
+    binding.merge_policy.C3 === "auto" &&
+    binding.executor_class !== "vendor-hosted" &&
+    !ratifiedPromoted("C3-auto-merge")
+  ) {
+    findings.push(
+      'merge_policy.C3: "auto" without a ratified promotion_state.C3-auto-merge entry (state "promoted") — promotion is a human-ratified knob flip recorded on the governance surface; an earned value without its ratification record bypasses the promotion discipline',
     );
   }
   // For the promotable ai-review C3 cell, blocking is the EARNED flip

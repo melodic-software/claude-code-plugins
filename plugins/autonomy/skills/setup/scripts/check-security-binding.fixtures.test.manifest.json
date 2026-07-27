@@ -24,6 +24,12 @@
         "merge_policy.C2: \"auto\" without a ratified promotion_state.C2-auto-merge entry (state \"promoted\")"
       ]
     },
+    "c3-auto-unratified.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "merge_policy.C3: \"auto\" without a ratified promotion_state.C3-auto-merge entry (state \"promoted\")"
+      ]
+    },
     "c3-blocking-unratified.json": {
       "exit": 1,
       "findings_substrings": [

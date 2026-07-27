@@ -1163,21 +1163,23 @@ The skill carries one named exception: an invocation line typing both the
 `--merge c3-this-run` widens that one invocation's merge rung to C3. It
 changes nothing here, for two independent reasons — every copy-block below
 passes `--merge human-only`, and the raise fires only on its own dedicated
-token, which no copy-block carries; and the tracked rung already stands at
-`c3-autonomous` (below), so the per-invocation raise buys nothing the seam
-does not already grant. Treat it as dormant in this repository, and do not
-swap a copy-block's `--merge human-only` for the raise token to wake it.
+token, which no copy-block carries; and the tracked rung reaches
+`c3-autonomous` via the ratified seam flip (#1693, below), so the
+per-invocation raise buys nothing the seam does not already grant. Treat it
+as dormant in this repository, and do not swap a copy-block's
+`--merge human-only` for the raise token to wake it.
 
 So the two knobs are independent, and both are needed for "merge things
 overnight without me":
 
 - **Tier `autopilot`** — in the prompt below. Already maximal.
 - **Merge rung** — one line in `.claude/source-control.md` on `main`.
-  Now `c3-autonomous`: the guardrail contract defines a **C3 auto-merge
-  cell with an evidence predicate** (this contract amendment, closes #1646),
-  and **operator direction of 2026-07-27 superseded #1388's 2026-07-25
-  "stay at `c2-mechanical`" decision**. The rung raises are recorded via the
-  11 staged seam PRs — held as drafts until the contract amendment ratified
+  Raised to `c3-autonomous` by the ratified seam flip (#1693, landing with
+  this amendment): the guardrail contract defines a **C3 auto-merge cell
+  with an evidence predicate** (this contract amendment, closes #1646), and
+  **operator direction of 2026-07-27 superseded #1388's 2026-07-25 "stay at
+  `c2-mechanical`" decision**. The rung raises are recorded via the 11
+  staged seam PRs — held as drafts until the contract amendment ratified
   them. The amendment followed the path #1388 itself prescribed: amend the
   guardrail contract first, then flip the seam — never the reverse.
 
@@ -1327,14 +1329,14 @@ machines; neither on the attended box.
 ### Merge lane — any machine except the attended one
 
 **`--merge human-only` is deliberate here.** This repository's tracked config
-resolves `c2-mechanical`, so without the override the lane would auto-merge C2
-PRs — but the guardrail matrix ships C2 *human-gated* and makes auto-merge
-eligible only after its promotion trigger (≥20 autonomous C2 completions over
-≥14 days, 100% deterministic-gate pass, 0 human-reverted merges), and this
-repository has recorded **zero autonomous merges ever**, so the predicate is
-not met. An argument may always select a *lower* rung than the seam, never a
-higher one, which is exactly what this does. Drop the flag once the evidence
-exists — not before.
+resolves `c3-autonomous` (seam flip #1693, ratified with the C3 auto-merge
+contract amendment), so without the override the lane would auto-merge C2 and
+C3 PRs. The ratification ran ahead of the suggested evidence predicates —
+this repository has recorded **zero autonomous merges ever** — and this
+copy-block keeps merge authority human while that evidence accrues; automatic
+fail-closed demotion applies either way. An argument may always select a
+*lower* rung than the seam, never a higher one, which is exactly what this
+does. Drop the flag when you want the lane exercising the ratified rung.
 
 > **=== COPY FROM HERE ===**
 >
