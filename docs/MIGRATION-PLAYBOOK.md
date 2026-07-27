@@ -1249,16 +1249,19 @@ Alternatives weighed (docs verified 2026-07-03):
 - **Dependency plugin carrying the lib — rejected as not viable.** A hook sees only its own
   `${CLAUDE_PLUGIN_ROOT}` / `${CLAUDE_PLUGIN_DATA}`; no variable or documented mechanism exposes a
   *dependency's* install path, and cache directories are per-version (with a commit-SHA suffix for
-  tag-resolved dependencies), so computing the path is unsupported by design (plugins-reference
-  "Plugin caching and file resolution"; plugin-dependencies guide). Revisit iff Claude Code ships a
-  documented dependency-path variable — that would also allow sharing the lib beyond this marketplace.
+  tag-resolved dependencies), so computing the path is unsupported by design
+  (<https://code.claude.com/docs/en/plugins-reference#plugin-caching-and-file-resolution>;
+  <https://code.claude.com/docs/en/plugin-dependencies>). **Recheck trigger:** Claude Code
+  ships a documented dependency-path variable — that would also allow sharing the lib beyond this
+  marketplace.
 - **Marketplace-internal symlinks — deferred.** Documented mechanism: a symlink from a plugin to a
   file elsewhere in the same marketplace is dereferenced at install, copying the target's content into
-  the cache — native SSOT with no sync script (plugins-reference "Share files within a marketplace
-  with symlinks"). Deferred because such symlinks are *skipped* for `--plugin-dir` / local-path
+  the cache — native SSOT with no sync script
+  (<https://code.claude.com/docs/en/plugins-reference#share-files-within-a-marketplace-with-symlinks>).
+  Deferred because such symlinks are *skipped* for `--plugin-dir` / local-path
   installs (breaking the local development loop above) and are fragile to author and clone on Windows,
-  the primary environment on both the authoring and consuming side. Revisit if the dev loop stops
-  depending on `--plugin-dir` or the Windows constraint lifts.
+  the primary environment on both the authoring and consuming side. **Recheck trigger:** the dev
+  loop stops depending on `--plugin-dir`, or the Windows constraint lifts.
 - **Copies with only a byte-identity CI gate — subsumed.** The chosen shape is that gate plus a
   canonical source and one sync script, removing the edit-×N-by-hand step at negligible cost.
 
@@ -1389,7 +1392,9 @@ the wave's codification requirement puts convention decisions in tracked docs, n
   text. LFS-backed: a `.gitattributes` tracking media globs (mp4/mov/webm/png/jpg/jpeg/gif/pdf/epub/
   mp3/wav) plus pushed LFS objects. Git LFS is **not** expressible on the pulumi-github v6.14.0
   `Repository` resource (verified against the provider schema) → it is content-side, landing via a
-  follow-up content PR to the repo, not governed in IaC. GitHub's quotas, metering, and prices change;
+  follow-up content PR to the repo, not governed in IaC. **Recheck trigger:** a pulumi-github
+  release notes LFS support on `Repository`, or the pinned provider version moves past v6.14.0 →
+  re-derive the IaC-vs-content-side call. GitHub's quotas, metering, and prices change;
   verify the current account allowance, budget, and overage behavior in the
   [official Git LFS billing documentation](https://docs.github.com/en/billing/concepts/product-billing/git-lfs)
   before changing retention or ownership policy.

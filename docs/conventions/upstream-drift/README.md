@@ -31,8 +31,8 @@ own:
   byte-identical cross-plugin files, `scripts/cross-plugin-source-registry.txt`.
 - **Synced materializations.** A `managed` component from the standards distribution drifts and
   reconciles through its reviewed sync-PR pipeline, not through stamps in prose.
-- **Where a refreshed outcome lands.** Each versioned convention's own `CHANGELOG.md` records the
-  outcome of its rechecks; this doc only requires that the outcome be recorded somewhere durable.
+- **Where a refreshed outcome lands.** Each versioned convention's own `CHANGELOG.md` records its
+  rechecks' drift outcomes; this doc only requires that the outcome be recorded somewhere durable.
 
 One deliberate tightening, made explicit so it never reads as drift: the org standard accepts "a
 date, an automation, or a tracked task" as recheck-trigger forms. The upstream surfaces this fleet
@@ -87,13 +87,15 @@ A firing is a record-maintenance event, and the procedure follows what the trigg
 
 - **A four-part record.** Re-fetch the cited basis and re-derive the claim or decision from what is
   actually there — never patch the record from memory. Refresh the as-of date **with the outcome**,
-  drift or no drift. On a versioned surface the outcome lands as a changelog entry; refreshing a
-  date with no verdict change is no version bump.
+  drift or no drift. On a versioned surface a drift outcome lands as a changelog entry; refreshing
+  a date with no verdict change is no entry and no version bump.
 - **A named trigger guarding an in-repo decision** ([Adopters](#adopters) says which rows these
   are). There is no cited basis to re-fetch and no as-of date to refresh: re-derive the decision
-  from the in-repo state the trigger names, and record the outcome durably where the decision
-  lives — the record itself or the owning surface's changelog. The durable outcome is the part this
-  kind shares with the stamped kind.
+  from the state the trigger names — the decision guarded is in-repo; the firing event can live
+  anywhere, upstream included — and record the outcome durably where the decision lives: the record
+  itself or the owning surface's changelog. A re-derivation that ends up restating an upstream
+  specific adopts the four required parts in the refreshed record. The durable outcome is the part
+  this kind shares with the stamped kind.
 
 Whichever the kind, where re-derivation finds drift the changed value lands in the owning record,
 never silently in a consuming surface.
@@ -146,11 +148,11 @@ contract to fit its exceptions.
 
 | Surface | Was | What a reader can rely on |
 |---|---|---|
-| [hook-config-delivery](../hook-config-delivery/README.md) §Recheck triggers | already the canonical name | Conforming records — version-pinned facts table with per-fact basis, dates, and event triggers. |
-| [loop-lane](../loop-lane/README.md) §Versioning | "Re-derivation triggers" | Conforming records — dated upstream-claim stamps; trigger firings recorded in its changelog. |
+| [hook-config-delivery](../hook-config-delivery/README.md) §Recheck triggers | already the canonical name | Conforming records — version-pinned facts table with per-fact basis, table-wide as-of dates, and fact-scoped event triggers. |
+| [loop-lane](../loop-lane/README.md) §Versioning | "Re-derivation triggers" | Conforming records — dated upstream-claim stamps; drift outcomes recorded in its changelog. |
 | [PLUGIN-PHILOSOPHY](../../PLUGIN-PHILOSOPHY.md) component-stances staleness disclaimer | unlabeled discipline | Conforming records — per-row claim, linked page, and verified date; the re-fetch-before-acting rule is [read-time validation](#read-time-validation-is-not-a-firing), and every row's stated trigger is a fetch diverging from the row. |
 | [OFFICIAL-DOCS](../../OFFICIAL-DOCS.md) staleness warning and per-row verified dates | unlabeled discipline | Conforming records — same shape as the component-stances table: link + date, divergence-at-fetch as the stated trigger. |
-| [MIGRATION-PLAYBOOK](../../MIGRATION-PLAYBOOK.md) decision records | "Revisit trigger" | Mixed — the dated component-decision records cite upstream bases and conform; the org-internal records (e.g. the ratification record) are named triggers. |
+| [MIGRATION-PLAYBOOK](../../MIGRATION-PLAYBOOK.md) decision records | "Revisit trigger" | Mixed — the dated component-decision records cite upstream bases and conform; the org-internal records (e.g. the ratification record) are named triggers; the skill-quality retrofit record is a third kind, terminal exclusions that state "no recheck trigger" by design — decided out, so nothing fires. |
 | [ecosystem-commands](../ecosystem-commands/README.md) task-runner deferral | "Revisit triggers" | Named triggers only — an undated in-repo deferral; not a four-part record. |
 | [topic-docs](../topic-docs/README.md) §Implementers restate the rules | "What would reopen it" | Named trigger only — an in-repo source-hoisting decision; not a four-part record. |
 

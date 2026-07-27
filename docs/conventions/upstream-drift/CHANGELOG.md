@@ -17,9 +17,9 @@ from upstream-owned sources.
 - Required parts fixed: claim/decision, basis, as-of date, recheck trigger; observability bar
   stated; date-is-never-authority rule stated.
 - Firing procedure stated per record kind: four-part records re-fetch their cited basis and refresh
-  their date; named triggers on in-repo decisions re-derive from the in-repo state the trigger
-  names. Read-time validation is distinguished from a firing — a lookup that finds no drift obliges
-  no edit; divergence at fetch is what fires.
+  their date; named triggers on in-repo decisions re-derive from the state the trigger names.
+  Read-time validation is distinguished from a firing — a lookup that finds no drift obliges no
+  edit; divergence at fetch is what fires.
 - Drift-signal finding recorded: no `ETag` and no per-page `Last-Modified` on the official docs'
   raw-markdown endpoints (verified 2026-07-26 by header inspection), so content hashing is the only
   viable mechanical drift signal; the fleet defers building a hash store, with its own recheck
@@ -28,5 +28,5 @@ from upstream-owned sources.
   named as the one deterministic candidate, deferred per the routing rule.
 - Migrated citing surfaces: hook-config-delivery, ecosystem-commands, loop-lane, topic-docs,
   PLUGIN-PHILOSOPHY (component stances + registry row), OFFICIAL-DOCS, MIGRATION-PLAYBOOK. The
-  adopter table states per row whether the surface carries conforming four-part records or only
-  named triggers on an in-repo decision.
+  adopter table states per row what the surface carries: conforming four-part records, named
+  triggers on an in-repo decision, or deliberately trigger-less terminal exclusions.

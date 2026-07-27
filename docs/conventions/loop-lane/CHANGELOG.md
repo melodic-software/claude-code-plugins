@@ -3,15 +3,16 @@
 Notable changes to the loop-lane contract. The contract is versioned by SemVer; a change to the
 topology, the escalation contract, the capability-tier vocabulary, or any loop-layer invariant is a
 major bump, and additive guidance is a minor bump. A new model release re-audits the capability-tier
-table (§3) and is recorded here.
+table (§3); drift found by that audit is recorded here.
 
 ## 3.0.1 — 2026-07-26
 
 Docs-only, no topology, escalation, tier, or invariant change: §Versioning's "Re-derivation
 triggers" label becomes "Recheck triggers" and cites the
 [upstream-drift convention](../upstream-drift/README.md) (#1638), the new owner of the
-stamp-and-trigger discipline; the generic date-is-never-authority rationale moves there, while both
-triggers and the lane-specific recording policy stay unchanged.
+stamp-and-trigger discipline; the generic date-is-never-authority rationale moves there. Both
+triggers stay unchanged; the recording policy aligns with the owner doc — a firing that finds
+drift lands here, a no-drift firing refreshes the claim's verification date only.
 
 ## 3.0.0 — 2026-07-25
 

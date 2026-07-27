@@ -148,3 +148,5 @@ table (and re-derive the decision rule) when any of these fires:
 - The managed-settings paths or precedence change — F's exemplar reader.
 - CC docs begin specifying skill-hook value delivery — fact 6 moves from evidence-strong to
   doc-stated (or is contradicted).
+- The plugins-reference user-configuration section changes what it documents about body
+  substitution or sensitive-value storage — facts 7–8.

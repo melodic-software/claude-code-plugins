@@ -5,11 +5,13 @@ change to the decision rule or to a matrix row's verdict is a major bump; adding
 or a recheck trigger additively is a minor bump. The version-pinned facts table is evidence, not
 contract — refreshing a pin or recheck date without a verdict change is no bump.
 
-## 1.0.1 — 2026-07-26
+## 1.1.0 — 2026-07-27
 
-Docs-only, no verdict change: the Recheck-triggers section cites the
+No verdict change: the Recheck-triggers section cites the
 [upstream-drift convention](../upstream-drift/README.md) (#1638), the new owner of the
-stamp-and-trigger discipline this doc already practiced.
+stamp-and-trigger discipline this doc already practiced, and gains an additive sixth trigger
+covering facts 7–8 (body substitution and sensitive-value storage), which previously had no
+event naming their recheck.
 
 ## 1.0 — 2026-07-24
 
