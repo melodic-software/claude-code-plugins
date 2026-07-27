@@ -291,12 +291,14 @@ babysit escalations surface in the same attention view as worker escalations. Th
 performs the contract's escalation record write: create
 `.claude/lane-escalations/<UTC-stamp>-<item>-babysit-loop.json` (stamp `YYYYMMDDTHHMMSSZ`) with
 the **Write tool** — only a Write tool call fires the `PostToolUse` event a consuming repo's
-out-of-band notification hook keys on; a shell redirect writes the same bytes and fires nothing —
-body
+out-of-band notification hook keys on; a shell redirect writes the same bytes but emits only a
+`Bash` event the seam's `Write` matcher never sees — body
 `{"schema":"loop-lane/escalation-record@1","lane":"babysit-loop","kind":"escalated","repo":"<owner>/<repo>","item":"<item URL>","summary":"<the marker comment's one-line question>","written_at":"<UTC ISO-8601>"}`.
-One new file per escalation; the summary restates only the already-public comment text. No
-configured hook means the file is inert exhaust — the tracker item stays the escalation of
-record. Telemetry is the report surface, never the escalation channel.
+The record write carries the marker's own duplicate suppression: it happens exactly when a NEW
+marker comment is posted, so an item this lane already escalated — its marker comment standing
+from a prior cycle — gets no second record and fires no second webhook. The summary restates
+only the already-public comment text. No configured hook means the file is inert exhaust — the
+tracker item stays the escalation of record. Telemetry is the report surface, never the escalation channel.
 
 **Pre-escalation resolution attempt, explicit-`autopilot` only.** When — and only when — this
 invocation's own argument line typed both the literal `autopilot` tier argument and

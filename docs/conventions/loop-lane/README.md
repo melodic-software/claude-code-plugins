@@ -158,13 +158,20 @@ escalation the tracker item already holds:
 the record back, the tracker item stays the escalation of record, and a consuming repo adds
 `.claude/lane-escalations/` to its `.gitignore`. Two rules make the signal deterministic:
 
-- **Write tool, never a shell redirect.** Only a `Write` tool call emits the `PostToolUse` hook
-  event the seam below keys on; a shell redirect writes the same bytes and fires nothing.
-- **A new file per escalation.** The `<UTC-stamp>-<item>` filename is unique per escalation, so
-  every escalation is a fresh `Write` (never an `Edit`) and produces exactly one hook event.
+- **Write tool, never a shell redirect.** Only a `Write` tool call emits the `PostToolUse` event
+  the seam below keys on; a shell redirect writes the same bytes but emits only a `Bash` tool
+  event, which the seam's `Write` matcher never sees.
+- **One record per newly filed escalation.** The record is written in the same step that posts a
+  NEW machine-marked escalation comment, and only then: a later cycle that re-encounters an item
+  already carrying its marker — a still-unratified `ratify-c3`, an idempotent label
+  re-convergence — files no second comment and writes no second record, exactly the marker's own
+  duplicate-suppression rule. Within that rule the `<UTC-stamp>-<item>` filename is unique, so
+  each newly filed escalation is a fresh `Write` (never an `Edit`) producing exactly one hook
+  event.
 
 The `summary` restates the marker comment's one-line question — text the lane already published on
-the tracker — so the record adds no new secret surface for the hook payload to carry.
+the tracker — so the record itself adds no new secret surface. The hook payload the seam sends is
+larger than the record; see the egress note below.
 
 ### Out-of-band notification seam
 
@@ -209,11 +216,19 @@ Every element is a documented first-party mechanism (verified against
   judgment) and carries no claude.ai subscription or Remote Control dependency.
 - The `if` field holds exactly one permission rule and is evaluated on `PostToolUse`. File rules
   use the `Edit(...)` form — Edit rules cover all file-editing tools, `Write` included, and a
-  `Write(path)` rule is never matched — and the single leading `/` anchors at the settings source,
-  so the one tracked rule matches each worktree's own checkout.
+  `Write(path)` rule is never matched — and the single leading `/` anchors at the settings source
+  (`<project root>` for project settings). Each worktree checkout carries its own copy of the
+  tracked settings file, so by that settings-source rule the one tracked rule anchors at each
+  worktree's own root — an applied inference: the docs state worktree matching explicitly only
+  for local-settings rules.
 - Header values interpolate environment variables only for names listed in `allowedEnvVars`; the
   `url` field never interpolates. The endpoint URL is tracked config; the secret rides only in the
   operator's environment, never in the repo.
+- **Egress note.** The POST body is the full `PostToolUse` hook input, not just the record:
+  alongside `tool_input` (the record's path and content) it carries session metadata — for
+  example `session_id`, `cwd`, and `transcript_path`, which are absolute local paths and project
+  identity. Configuring the hook is the consuming repo's deliberate opt-in to that egress; point
+  the URL only at an endpoint trusted with it.
 - A non-2xx response or a connection failure is a non-blocking error: a dead endpoint never blocks
   a lane.
 
@@ -232,6 +247,14 @@ tracker escalation and the local notify are unchanged, and the record files are 
 closed laptop or a dead process emits no hook event at all; the record write covers a lane that is
 running but unattended, and lane-down detection stays with the stop gate and telemetry freshness
 (§4).
+
+**A configured hook can also fail silently.** An env-var name absent from `allowedEnvVars` — or
+unset in the operator's environment — interpolates as an empty string, and a non-2xx response or
+connection failure is a non-blocking error, so a misconfigured hook can 401 on every escalation
+while the lane runs on with nothing surfaced outside debug logs. Verify the leg when wiring it —
+write a throwaway record file with the Write tool and confirm the endpoint received the POST —
+and treat webhook silence across cycles that filed escalations as a check-the-hook signal, never
+as proof of health.
 
 ## 3. Capability tiers
 

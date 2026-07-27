@@ -194,12 +194,14 @@ while the latch is set (clear it on a fresh healthy snapshot after the pause end
    The same step performs the contract's escalation record write: create
    `.claude/lane-escalations/<UTC-stamp>-<item>-work-loop.json` (stamp `YYYYMMDDTHHMMSSZ`) with
    the **Write tool** — only a Write tool call fires the `PostToolUse` event a consuming repo's
-   out-of-band notification hook keys on; a shell redirect writes the same bytes and fires
-   nothing — body
+   out-of-band notification hook keys on; a shell redirect writes the same bytes but emits only a
+   `Bash` event the seam's `Write` matcher never sees — body
    `{"schema":"loop-lane/escalation-record@1","lane":"work-loop","kind":"<marker kind>","repo":"<owner>/<repo>","item":"<item URL>","summary":"<the marker comment's one-line question>","written_at":"<UTC ISO-8601>"}`.
-   One new file per escalation; the summary restates only the already-public comment text. No
-   configured hook means the file is inert exhaust — the tracker item stays the escalation of
-   record.
+   The record write carries the marker's own duplicate suppression: it happens exactly when a NEW
+   marker comment is posted, so an item whose marker already stands — a still-unratified
+   `ratify-c3`, an idempotent label re-convergence — gets no second record and fires no second
+   webhook. The summary restates only the already-public comment text. No configured hook means
+   the file is inert exhaust — the tracker item stays the escalation of record.
 6. **Report and pace.** Upsert the telemetry comment (cycle report + updated state block + guard
    mode), then evaluate the exit condition; if not exiting, `ScheduleWakeup` the next cycle.
 
