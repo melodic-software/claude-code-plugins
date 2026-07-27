@@ -34,6 +34,13 @@ own:
 - **Where a refreshed outcome lands.** Each versioned convention's own `CHANGELOG.md` records the
   outcome of its rechecks; this doc only requires that the outcome be recorded somewhere durable.
 
+One deliberate tightening, made explicit so it never reads as drift: the org standard accepts "a
+date, an automation, or a tracked task" as recheck-trigger forms. The upstream surfaces this fleet
+restates move without notice on research-preview cadences, where a bare date decays silently — so
+here a date alone does not qualify; a trigger names an observable event (see
+[the observability bar](#the-observability-bar)). This narrows only what this repository accepts;
+the upstream form list is the org standard's to change.
+
 ## A date is never authority
 
 A dated verification stamp is an **as-of record**: it tells the reader when the claim last matched

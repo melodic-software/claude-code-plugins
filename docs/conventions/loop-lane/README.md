@@ -312,8 +312,7 @@ escalation contract, the tier vocabulary, or any loop-layer invariant is a major
 guidance is a minor bump.
 
 **Recheck triggers** ([upstream-drift](../upstream-drift/README.md) owns the stamp-and-trigger
-discipline: a dated verification stamp here is an as-of record, never standing authority). Two, and
-every one of them is recorded as a changelog entry:
+discipline). Two, and every one of them is recorded as a changelog entry:
 
 - Any new model release re-audits the capability-tier table (§3).
 - Any change to this convention, or to a consuming lane, that RELIES on an upstream-sourced claim
