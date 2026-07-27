@@ -40,9 +40,18 @@
   the defect was a bullet titled "Ephemeral placement" offering the
   workspace **or** OS temp for one artifact. Its `primer` action, which
   creates no workspace at all, is the genuinely ephemeral half and had
-  no resolvable path before. The remaining sweep hits are
-  producer-consumed plumbing (a `mktemp` file the producer itself reads
-  and hands to no one) or deliberate machine state, and are untouched.
+  no resolvable path before. One further producer is recorded but not
+  changed here: `/prototype:explore-directions` writes its standalone
+  HTML mockup to "an OS temp **or** gitignored scratch location", the
+  same non-deterministic branch rule 1 forbids — but choosing which of
+  the two wins has to be reconciled against that plugin's own throwaway
+  discipline, which deliberately locates prototypes next to the
+  production code they mimic. That is a design question, not a typo, and
+  it gets its own change. Every other sweep hit is producer-consumed
+  plumbing (a `mktemp` file the producer itself reads and hands to no
+  one) or deliberate machine state — `/education:quiz-me`'s report
+  library is the clearest of the latter, since its `recall` action reads
+  those reports back weeks later.
 
   Rule 2 is stated because both existing adopters hand their file back
   as a path for the user to open — a `finally` cleanup would race the

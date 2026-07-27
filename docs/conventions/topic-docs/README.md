@@ -460,10 +460,10 @@ relationship to the contract is fully stated by their table row.
 
 | Plugin | Writes | Tier(s) | Binding |
 |---|---|---|---|
-| adhd | rendered decision-table HTML view | ephemeral | by reference — the ephemeral row's four rules are its entire relationship |
+| adhd | rendered decision-table HTML view | ephemeral | by reference — the ephemeral row's five rules are its entire relationship |
 | discovery | `EXPLORE.md`, `RESEARCH.md` | memory | delta doc |
 | architecture | `deepening-candidates-<timestamp>.md` (per-lens candidate ledgers); deepening HTML report | memory + ephemeral | delta doc |
-| planning | `PRD.md`, `PLAN.md` (Brief), `design/`, opt-in brainstorm persist | contract + memory | delta doc |
+| planning | `PRD.md`, `PLAN.md` (Brief), `design/`, opt-in brainstorm persist; dense-round decision-table HTML | contract + memory + ephemeral | delta doc |
 | implementation | `PLAN.md` (Plan/progress), `DEVIATIONS.md`, status summaries | contract + memory | delta doc |
 | verification | `verification/` manifest; baselines, raw captures | contract + memory | delta doc |
 | session-flow | handoffs; running-retro ledgers | memory (`handoffs/`, `running-retros/`) | delta doc |
@@ -472,6 +472,7 @@ relationship to the contract is fully stated by their table row.
 | toolchain | nothing of its own — its setup skill offers the concern file | — | delta doc |
 | knowledge | ingest trees — **formal carve-out**: its work root resolves through its own `library_dir` seam, not `memory_dir`; slug conformance is form-only (charset/reserved names), and its nested `<epic>/<slug>/` sub-slices are sanctioned | memory (carved out) | by reference — the carve-out above is its entire delta |
 | claude-ops | telemetry | machine state | by reference — machine state resolves no contract paths |
+| education | per-concept `lesson` / `reference` / `exercise` slices; `primer` vocabulary-ladder HTML | machine state + ephemeral | by reference — its workspace is its own `${CLAUDE_PLUGIN_DATA}` layout, and only the workspace-less `primer` render resolves a path this contract owns |
 | docs-hygiene | (reader) audit-noise detector recognizes these shapes | — | by reference — reads shapes, writes nothing |
 
 ### Implementers restate the rules; they do not share a source

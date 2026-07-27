@@ -48,7 +48,7 @@ Path resolution rules every action MUST follow:
 - **`learning-records/NNNN-<slug>.md`** keeps `NNNN-` numbering (sanctioned ADR-style append-only log). Scan the directory for the highest existing `NNNN` and increment.
 - `${CLAUDE_PLUGIN_DATA}` is created automatically the first time it is referenced and persists across plugin updates, so workspaces survive between sessions.
 
-`lesson` / `reference` / `exercise` default to `.md` — the durable teaching record stays markdown, the diffable source of truth. HTML session output is optional per "Lessons and Reference".
+`lesson` / `reference` / `exercise` default to `.md` — the durable teaching record stays markdown, the diffable source of truth. A lesson may be HTML instead where it pays; it is a member of the concept slice either way, and only the workspace-less `primer` renders to a temp path. Placement and constraints: "Lessons and Reference".
 
 ## Pre-computed Context
 

@@ -17,8 +17,14 @@ All notable changes to the `planning` plugin are documented here. Format follows
   accumulating in the repo — resolved deterministically, never the session scratchpad,
   and never deleted before the path is handed back. A user reopening a table
   mid-interview is what the tier's lifetime rule already guarantees, so it is not a
-  reason to persist. See `docs/conventions/topic-docs/README.md` §"The ephemeral tier"
-  and this plugin's `reference/topic-docs.md`.
+  reason to persist. A resumed interview starts a new run directory, stated plainly
+  rather than left silently impossible: after a handoff and clear the prior directory
+  cannot be re-resolved, and the ledger and Brief already carry every resolved answer.
+  Both surfaces move together — `skills/interview/SKILL.md` (loaded eagerly, and the
+  one that governs default behavior) and `context/loop.md` (read on demand); changing
+  only the on-demand half would have left the memory-tier instruction in force. See
+  `docs/conventions/topic-docs/README.md` §"The ephemeral tier" and this plugin's
+  `reference/topic-docs.md`.
 
 ## [0.26.3]
 

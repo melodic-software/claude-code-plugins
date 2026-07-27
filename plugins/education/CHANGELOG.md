@@ -16,7 +16,12 @@ All notable changes to the `education` plugin are documented here. Format follow
   workspace is durable cross-session coaching state that `resume` reopens and the
   Staleness check re-reads, so it is machine state, and the single placement is now the
   concept slice. "Ephemeral" elsewhere in the doc is pedagogical (rarely revisited,
-  regenerable) and is now stated as such.
+  regenerable) and is now stated as such. The classification is justified by the slice
+  the file belongs to — `resume` opens `concepts/<concept>/`, so a lesson rendered to
+  temp would leave that concept holding a reference and an exercise with its lesson
+  missing — and explicitly **not** by any claim that something re-reads the lesson;
+  the Staleness check covers references and the glossary, never lessons.
+  `skills/teach/SKILL.md` no longer calls the HTML "session output" either.
 - The `primer` action's HTML vocabulary ladder had **no resolvable path**: it routed
   through the workspace placement above while creating no workspace, so there was no
   `<mode>`, `<topic>`, or `<concept>` to substitute. It is read once and never again, so
