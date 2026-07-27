@@ -167,7 +167,7 @@ work-class admission test — which are unbiased by construction, so a reviewer 
 frontier-tier dispatch every cycle would re-check machine-checkable facts and buy no independence
 that is not already there. The two paths that do draw a dispatch are precisely the ones where no
 gate can decide and an agent's judgment stands in for a person's. This is the boundary's stated
-justification, so its re-derivation trigger is a change to that premise — a path whose outcome stops
+justification, so the boundary is revisited when that premise changes — a path whose outcome stops
 being gate-decidable acquires the independence requirement, and the change is a versioned entry
 here, not a silent one.
 
@@ -214,7 +214,7 @@ stop.
 next iteration with `ScheduleWakeup`, whose delay is clamped between one minute and one hour.
 `ScheduleWakeup` is called at the end of each iteration and is not operator-callable (verified
 against <https://code.claude.com/docs/en/tools-reference> and
-<https://code.claude.com/docs/en/scheduled-tasks> on 2026-07-26, no drift from the prior
+<https://code.claude.com/docs/en/scheduled-tasks> on 2026-07-27, no drift from the prior
 2026-07-23 stamp). Idle raises the delay toward the ceiling. The `source-control` babysit lane's own
 self-pacing section
 ([`babysit-prs` loop reference](../../../plugins/source-control/skills/babysit-prs/reference/loop.md))
@@ -222,7 +222,7 @@ is the worked precedent.
 
 **The prompt runs fresh; the session does not.** Each cycle re-sends the lane's prompt verbatim into
 the **same** session, so context accumulates across cycles and a lane prompt never assumes a fresh
-one — the mechanism, and what a relaunch does about it, is owned by
+one. The mechanism is owned by
 [`claude-ops` lanes](../../../plugins/claude-ops/skills/lanes/SKILL.md), section "A relaunch is the
 only context reset a loop lane gets".
 
@@ -291,11 +291,10 @@ documented at the site, per the [seam-phrasing convention](../seam-phrasing/READ
 
 **Two launch shapes, selected per invocation — neither deprecates the other.** Supplying an interval
 (`/loop 15m …`) converts it to a cron expression and fires at that fixed cadence; omitting it hands
-the delay to Claude, which picks one between one minute and one hour after each iteration.
-`ScheduleWakeup` reschedules a *self-paced* loop only, so it is not the pacing mechanism once an
-interval is supplied (<https://code.claude.com/docs/en/scheduled-tasks#let-claude-choose-the-interval>,
-verified 2026-07-26). Both shapes are current; this note reconciles which applies where and changes
-neither.
+the delay to Claude, which picks one per iteration within the §4 bounds. `ScheduleWakeup` reschedules
+a *self-paced* loop only, so it is not the pacing mechanism once an interval is supplied
+(<https://code.claude.com/docs/en/scheduled-tasks#let-claude-choose-the-interval>, verified
+2026-07-27). Both shapes are current; this note reconciles which applies where and changes neither.
 
 - **A lane always omits the interval.** Every §4 invariant that varies a lane's wake — idle backoff,
   the adaptive-cap streak, the drain-exit snapshot, seam exit 8 counted as dirty — computes a

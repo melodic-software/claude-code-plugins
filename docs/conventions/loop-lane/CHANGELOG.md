@@ -5,7 +5,7 @@ topology, the escalation contract, the capability-tier vocabulary, or any loop-l
 major bump, and additive guidance is a minor bump. A new model release re-audits the capability-tier
 table (§3) and is recorded here.
 
-## 3.1.0 — 2026-07-26
+## 3.1.0 — 2026-07-27
 
 Three convention notes recording distinctions and a boundary the contract already operated under.
 Tier is **minor** without ambiguity: no topology, escalation contract, tier vocabulary, or
@@ -29,13 +29,13 @@ acquires an obligation.
   on the merge-authority exception's pre-escalation dispatch and on non-trivial conflict resolution,
   and deliberately not per cycle over ordinary loop output: independence substitutes for a *human
   decision*, and the ordinary path takes none — its correctness rests on deterministic gates that
-  are unbiased by construction. Recorded with its re-derivation trigger so the absence reads as a
-  chosen boundary rather than a gap discovered later
+  are unbiased by construction. Recorded with the condition that revisits it, so the absence reads
+  as a chosen boundary rather than a gap discovered later
   ([#1658](https://github.com/melodic-software/claude-code-plugins/issues/1658)).
 
-Per the §Versioning re-derivation trigger, the upstream-sourced `/loop` pacing claims this revision
-relies on were re-verified against <https://code.claude.com/docs/en/scheduled-tasks> and
-<https://code.claude.com/docs/en/tools-reference> on 2026-07-26 before writing: **no drift** from
+Per §Versioning's upstream-claim trigger, the `/loop` pacing claims this revision relies on were
+re-verified against <https://code.claude.com/docs/en/scheduled-tasks> and
+<https://code.claude.com/docs/en/tools-reference> on 2026-07-27 before writing: **no drift** from
 the 2026-07-23 stamp, and the §4 date is refreshed with that outcome.
 
 ## 3.0.0 — 2026-07-25
