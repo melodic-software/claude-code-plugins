@@ -8,18 +8,20 @@ shell: bash
 
 ## Pre-computed context
 
-Claude session: !`echo "${CLAUDE_CODE_SESSION_ID:-unknown}" || echo "unknown"`
 Default-location handoffs (this repo): !`ls -1t .work/handoffs/*-handoff-*.md 2>/dev/null | head -5 || echo "none at default .work/handoffs/"`
-Transcript project dirs (recent): !`ls -1dt "${HOME}/.claude/projects/"*/ 2>/dev/null | head -8 || echo "none"`
+Transcript project dirs (recent): !`ls -1dt "$HOME/.claude/projects/"*/ 2>/dev/null | head -8 || echo "none"`
 
-## Repository context — gather first
+## Context — gather first
 
-Get the current branch with its own Bash call: `git branch --show-current`. Treat a failure (not a
-repository, git unavailable) as an unknown value and carry on.
+Collect these with **individual** Bash calls, one command per call:
 
-It moved out of pre-compute in #1619 — the harness composes the block into one shell invocation and
-a worktree-isolated agent refuses a git-bearing compound command, and one git line among three
-non-git lines was enough to make this skill uninvocable from an isolated agent; do not fold it back.
+- Claude session id — `printenv CLAUDE_CODE_SESSION_ID`
+- Current branch — `git branch --show-current`
+
+Treat any failure as an unknown value and carry on. These are gathered here rather than pre-computed
+because a worktree-isolated agent refuses any command carrying a `$`-expansion, which made this skill
+fail at load — keep `$`-expansion out of the pre-compute block (#1687). Bare `$HOME` above is the one
+form observed to survive that guard; anything else, including `${HOME}`, is refused.
 
 # Find handoff
 
@@ -122,7 +124,7 @@ one, since the producer emits a separate re-arm message per surviving loop, so "
    only the current project's dir), rank `.jsonl` by mtime, and take the top handful. **Bound the
    scan** — a full recursive grep over every transcript is slow enough to time out; an mtime-sorted
    candidate list is mandatory, not optional. **Exclude the current session's own transcript**
-   (`$CLAUDE_CODE_SESSION_ID`, pre-computed above): `/clear` opened a new file in the same project
+   (the session id gathered above): `/clear` opened a new file in the same project
    dir, so the pre-clear content is a sibling, never this file.
 3. **Marker detection over candidate tails (grep, read-only).** Scan the tail of each candidate for
    the contract signals above. **Accept hits only from assistant text output**, in two stages:

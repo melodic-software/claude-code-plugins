@@ -7,26 +7,18 @@ disable-model-invocation: false
 shell: bash
 ---
 
-## Pre-computed context
+## Context — gather first
 
-Claude session: !`echo "${CLAUDE_CODE_SESSION_ID:-unknown}" || echo "unknown"`
+Collect these with **individual** Bash calls, one command per call:
 
-## Repository context — gather first
-
-Collect these with **individual** Bash calls, one command per call, never combined into a single
-invocation:
-
+- Claude session id — `printenv CLAUDE_CODE_SESSION_ID`
 - Current branch — `git branch --show-current`
 - Uncommitted changes — `git status --porcelain`, reading **at most the first 20 entries**
 - Recent commits — `git log --oneline -5`
 
-Honor that 20-entry bound when reading; do not restore it as a `| head -20` pipe. A piped git
-command is compound, which is the shape #1619 is about — bounding at read time keeps the cap without
-reintroducing the defect.
-
-Treat a failure (not a repository, git unavailable) as an unknown value and carry on. These moved
-out of pre-compute in #1619 — the harness composes the block into one shell invocation and a
-worktree-isolated agent refuses a git-bearing compound command; do not fold them back.
+Treat any failure as an unknown value and carry on. These are gathered here rather than pre-computed
+because a worktree-isolated agent refuses any command carrying a `$`-expansion, which made this skill
+fail at load — keep `$`-expansion out of the pre-compute block (#1687).
 
 ## Purpose
 
