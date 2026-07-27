@@ -166,13 +166,20 @@ Describe 'Test-ClaudeTempRoot' -Tag 'check' {
             $result.detail.root_path | Should -Be (Join-Path $base 'claude')
         }
 
-        It 'accepts CLAUDE_CODE_TMPDIR as the root itself when it holds no claude subdirectory' {
+        It 'never treats a bare CLAUDE_CODE_TMPDIR base as the root' {
+            # Claude Code appends `claude` to the base on Windows, so a base with no
+            # claude child means it has not written there. Measuring the bare base
+            # would report an unrelated temp directory's contents as this finding.
             $base = Join-Path $script:tmpDir 'base'
-            New-Item -ItemType Directory -Path $base -Force | Out-Null
+            New-Item -ItemType Directory -Path (Join-Path $base 'unrelated') -Force | Out-Null
+            Set-Content -LiteralPath (Join-Path $base 'unrelated\big.bin') -Value 'not ours'
             $env:CLAUDE_CODE_TMPDIR = $base
 
             $result = Invoke-ClaudeTempRootAsObject
-            $result.detail.root_source | Should -Be 'CLAUDE_CODE_TMPDIR'
+            $result.detail.root_exists | Should -BeFalse
+            $result.severity | Should -Be 'OK'
+            $result.detail.file_count | Should -Be 0
+            $result.detail.root_path | Should -Be (Join-Path $base 'claude')
         }
 
         It 'falls back to TEMP\claude when CLAUDE_CODE_TMPDIR is unset' {

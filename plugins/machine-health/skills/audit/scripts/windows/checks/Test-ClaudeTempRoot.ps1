@@ -28,10 +28,16 @@ function Resolve-ClaudeTempRoot {
     the first candidate is returned as the expected root so the caller can report
     "not present" against a concrete path.
 
-    CLAUDE_CODE_TMPDIR relocates the temp base, and Claude Code creates its own
-    `claude` directory beneath a temp base -- observed empirically as
-    $env:TEMP\claude. Both readings of the variable (base vs. already-the-root)
-    are probed rather than assumed, and the winner is recorded in detail.root_source.
+    Every candidate ends in the literal `claude` segment. Claude Code appends
+    `claude` on Windows to whatever temp base it resolves, so the base itself is
+    never a candidate: a base with no `claude` child means Claude Code has not
+    written there, and measuring the bare base would report an unrelated temp
+    directory's size as this check's finding. The winning candidate is recorded
+    in detail.root_source.
+
+    Bases, in the order the documented default resolution implies:
+    CLAUDE_CODE_TMPDIR when set, then the system temp directory (%TEMP%), then
+    %LOCALAPPDATA%\Temp as the derivation of last resort when %TEMP% is unset.
     #>
     [CmdletBinding()]
     [OutputType([pscustomobject])]
@@ -42,10 +48,6 @@ function Resolve-ClaudeTempRoot {
         $candidates.Add([pscustomobject]@{
                 Path   = (Join-Path $env:CLAUDE_CODE_TMPDIR 'claude')
                 Source = 'CLAUDE_CODE_TMPDIR/claude'
-            })
-        $candidates.Add([pscustomobject]@{
-                Path   = $env:CLAUDE_CODE_TMPDIR
-                Source = 'CLAUDE_CODE_TMPDIR'
             })
     }
     if (-not [string]::IsNullOrWhiteSpace($env:TEMP)) {

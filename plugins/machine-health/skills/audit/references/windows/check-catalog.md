@@ -243,10 +243,12 @@ All checks emit the schema in `references/shared/output-schema.md`, use `scripts
   ```
 
 - **Root resolution:** first existing candidate wins, and the winner is recorded in
-  `detail.root_source`. `CLAUDE_CODE_TMPDIR` relocates the temp base; both readings of it (base
-  carrying a `claude` subdirectory, or already the root) are probed rather than assumed, then
-  `%TEMP%\claude`, then `%LOCALAPPDATA%\Temp\claude`. The resolved path is normalized to its long
-  form — `%TEMP%` commonly carries an 8.3 short name.
+  `detail.root_source`. Every candidate ends in the literal `claude` segment — Claude Code appends
+  `claude` on Windows to whatever temp base it resolves, so a bare base is never a candidate: a base
+  with no `claude` child means Claude Code has not written there, and measuring the base itself would
+  report an unrelated temp directory's contents as this check's finding. Bases in order:
+  `CLAUDE_CODE_TMPDIR` when set, then `%TEMP%`, then `%LOCALAPPDATA%\Temp`. The resolved path is
+  normalized to its long form — `%TEMP%` commonly carries an 8.3 short name.
 
 - **Severity rubric:**
   - `WARN` — total ≥5 GB, **or** the oldest session directory is ≥14 days old.
@@ -277,5 +279,5 @@ All checks emit the schema in `references/shared/output-schema.md`, use `scripts
   into `detail.unreadable_dir_count` and noted — totals are a lower bound, never silently short.
   The check is Windows-only: `scripts/macos/` and `scripts/linux/` are `NOT_IMPLEMENTED` stubs, so
   there is no POSIX implementation to register and the skill reports `UNKNOWN` wholesale on those
-  hosts. A POSIX port derives the root the same way, from `$CLAUDE_CODE_TMPDIR` then `$TMPDIR`
-  then `/tmp`.
+  hosts. A POSIX port derives the root the same way, appending the Unix segment (`claude-{uid}`) to
+  `$CLAUDE_CODE_TMPDIR` then `$TMPDIR` then `/tmp`.

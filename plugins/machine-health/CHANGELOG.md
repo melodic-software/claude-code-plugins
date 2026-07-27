@@ -19,8 +19,8 @@ All notable changes to the `machine-health` plugin are documented here. Format f
   The check reports total size, file count, session-directory count, project-key count, largest
   session, and oldest-session age, and routes removal to `disk-hygiene:clean` in
   `detail.remediation_route` — `machine-health` deletes nothing. Root resolution honors
-  `CLAUDE_CODE_TMPDIR` (probing both a `claude` subdirectory beneath it and the variable as the root
-  itself), then `%TEMP%\claude`, then `%LOCALAPPDATA%\Temp\claude`, recording the winner in
+  `CLAUDE_CODE_TMPDIR` (probing the `claude` subdirectory Claude Code creates beneath it — never the
+  bare base), then `%TEMP%\claude`, then `%LOCALAPPDATA%\Temp\claude`, recording the winner in
   `detail.root_source` and normalizing an 8.3 short name to its long form. An absent root exits
   quietly at `OK` per the not-applicable rule, never `UNKNOWN`.
 
