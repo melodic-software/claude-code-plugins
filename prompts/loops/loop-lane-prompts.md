@@ -1197,9 +1197,10 @@ trigger, with the C3 auto-merge evidence predicate in the promotion table of
 `plugins/autonomy/reference/guardrails/work-classes.md`. Predicate thresholds
 are suggested defaults the org may bind lower; ratifying the seam flips ahead
 of the suggested evidence is an operator choice the contract records.
-Automatic fail-closed demotion — any post-merge gate failure, human revert,
-or verification divergence — still applies, and C4 `structural` / C5
-`untrusted-provenance` never promote.
+Demotion — any post-merge gate failure, human revert, or verification
+divergence — remains the contract's automatic fail-closed discipline
+(wiring its enforcement into the lane's merge partition is tracked in
+#1695), and C4 `structural` / C5 `untrusted-provenance` never promote.
 
 Neither rung bypasses classification: an item with **no recorded class in
 either source** — no `Work-class: C<n>` body trailer and no `work-class:`
@@ -1328,15 +1329,18 @@ machines; neither on the attended box.
 
 ### Merge lane — any machine except the attended one
 
-**`--merge human-only` is deliberate here.** This repository's tracked config
-resolves `c3-autonomous` (seam flip #1693, ratified with the C3 auto-merge
-contract amendment), so without the override the lane would auto-merge C2 and
-C3 PRs. The ratification ran ahead of the suggested evidence predicates —
-this repository has recorded **zero autonomous merges ever** — and this
-copy-block keeps merge authority human while that evidence accrues; automatic
-fail-closed demotion applies either way. An argument may always select a
+**`--merge human-only` is deliberate here, and stays until #1695 lands.**
+This repository's tracked config resolves `c3-autonomous` (seam flip #1693,
+ratified with the C3 auto-merge contract amendment), so without the override
+the lane would auto-merge C2 and C3 PRs. Two reasons to keep the override:
+the ratification ran ahead of the suggested evidence predicates — this
+repository has recorded **zero autonomous merges ever** — and the lane's
+rung partition does not yet resolve the effective promotion state against
+telemetry, so the contract's automatic fail-closed demotion is declared but
+not wired into the merge decision (#1695). An argument may always select a
 *lower* rung than the seam, never a higher one, which is exactly what this
-does. Drop the flag when you want the lane exercising the ratified rung.
+does. Drop the flag only after #1695 wires effective-promotion resolution
+into the partition and the evidence predicate is met.
 
 > **=== COPY FROM HERE ===**
 >
