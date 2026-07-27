@@ -346,10 +346,14 @@ Two consequences of that order:
 - **Overrides remain per-dispatch duties.** The frontmatter binds only the
   default: security-surface work classes and conflict workers still take an
   explicit per-invocation frontier-alias override, and mechanical greps and
-  log pulls still take an explicit `haiku`. The lane bodies below carry only
-  those overrides — not a per-dispatch binding for the tiers the seam
-  already enforces.
-- **Never export `CLAUDE_CODE_SUBAGENT_MODEL` for a lane.** It outranks the
+  log pulls still take an explicit `haiku`. The worker-lane bodies below
+  carry only those overrides — not a per-dispatch binding for the tiers the
+  seam already enforces. The merge-lane bodies additionally keep their
+  `opus` binding for CI fixes, review-comment work, and judgment calls:
+  babysit dispatches do not route through `implement-dispatch`, so no
+  frontmatter seam covers them.
+- **Never export `CLAUDE_CODE_SUBAGENT_MODEL` for a lane** (any value other
+  than `inherit`, which resolution treats as unset). It outranks the
   frontmatter bindings and every deliberate per-dispatch override alike,
   flattening the fast and frontier tiers onto one model.
 

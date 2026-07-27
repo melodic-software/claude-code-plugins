@@ -549,6 +549,12 @@ the session default model changes):
 | Mechanical prep, one tier down | Sonnet 5 |
 | Bulk mechanical sweeps | Haiku 4.5 |
 
+Two agent-frontmatter binding sites implement the dispatch-seam tier enforcement structurally and
+re-audit on the same recheck trigger: `plugins/implementation/agents/implementer.md` and
+`plugins/implementation/agents/phase-verifier.md` (both bind the loop-lane convention's strong-tier
+current alias; raise the pair together, and note frontmatter binds a floor — the session-relative
+raise above it stays a per-invocation override at the dispatch site).
+
 ### Declared patterns
 
 Conformance is declared in the skill text itself, in one of two greppable forms: **delegation

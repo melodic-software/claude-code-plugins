@@ -12,9 +12,13 @@ All notable changes to the `work-items` plugin are documented here. Format follo
   `implementation:implement-dispatch`'s new `implementer` / `phase-verifier` agent frontmatter, and
   the branch-owned fix re-dispatches into the persisted worktree dispatch
   `implementation:implementer` when the `implementation` plugin is installed (when absent, an
-  explicit per-invocation strong-tier alias — never inheritance of the orchestrator's model). A
-  fast-tier lane root no longer silently determines implementer strength, which is what let a
-  `sonnet` root run every implementer as `sonnet` despite the loop-lane tier vocabulary.
+  explicit per-invocation strong-tier alias — never inheritance of the orchestrator's model). The
+  PR-monitor and post-green review-pass dispatches into the persisted worktree likewise carry an
+  explicit per-invocation `model` now — fast-tier alias for the mechanical watch, no weaker than
+  the implementer binding for the review pass, since a reviewer is never weaker than the
+  implementer it checks. A fast-tier lane root no longer silently determines implementer strength,
+  which is what let a `sonnet` root run every implementer as `sonnet` despite the loop-lane tier
+  vocabulary.
 
 ## [0.25.4]
 

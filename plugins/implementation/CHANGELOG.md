@@ -14,9 +14,16 @@ All notable changes to the `implementation` plugin are documented here. Format f
   `implement-dispatch`'s cadence now dispatches workers as `implementation:implementer` (step 2)
   and the phase-boundary verifier as `implementation:phase-verifier`, reserving the per-invocation
   `model` parameter for upward (frontier-tier) routing only, with a gotcha documenting that a set
-  `CLAUDE_CODE_SUBAGENT_MODEL` outranks the binding. Tier definitions stay order-defined and
-  family-agnostic per the marketplace's loop-lane convention §3 — the alias binding lives only at
-  this seam, and the verifier binds never weaker than the implementer it checks. (Frontmatter
+  `CLAUDE_CODE_SUBAGENT_MODEL` (any value but `inherit`) outranks the binding. Tier definitions
+  stay order-defined and family-agnostic per the marketplace's loop-lane convention §3 — the alias
+  binding lives only at this seam, and the verifier binds never weaker than the implementer it
+  checks. Frontmatter binds a floor, not a session-relative value, so both the cadence and the
+  agent bodies record the upward-only override duty when the session's model resolves above the
+  binding (per the plugin philosophy's session-relative ladder). Each agent also declares an
+  explicit tool cage — a change from the previously ungoverned generic-subagent tool surface: the
+  implementer grants file edit, search, shell, web research, skill invocation, and nested dispatch;
+  the phase-verifier bars Edit/Write and agent spawning, with Bash retained for inspection (stated
+  as the cage it is, not as "read-only", per the plugin philosophy's named-agent bar). (Frontmatter
   `model` values and the env → parameter → frontmatter → inherit resolution order verified against
   <https://code.claude.com/docs/en/sub-agents>, 2026-07-26.)
 
