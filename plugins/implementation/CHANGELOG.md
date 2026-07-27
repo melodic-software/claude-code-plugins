@@ -28,13 +28,19 @@ All notable changes to the `implementation` plugin are documented here. Format f
   philosophy's named-agent bar). Both also bind `effort` rather than inheriting the session's level,
   matching this marketplace's other named agents — a model binding alone would still let an
   orchestrator that lowered effort for its own bookkeeping lower it for the phase work. Neither
-  agent sets `maxTurns`, deliberately and unlike this marketplace's review agents: a turn cap stops
-  a subagent with no error, which on a verdict-rendering verifier would yield a truncated report an
-  orchestrator consumes as a verdict — so the phase-verifier is instead contracted to return
-  INCONCLUSIVE rather than a partial PASS. (Frontmatter `model` and `effort` values, the
-  env → parameter → frontmatter → inherit resolution order, `maxTurns` semantics, and the
-  depth-limit `Agent` withholding verified against
-  <https://code.claude.com/docs/en/sub-agents>, 2026-07-27.)
+  agent sets `maxTurns`, unlike every `discovery` and `review` agent in this marketplace (all of
+  which cap, between 25 and 40). The documented semantics are that the
+  field is the "maximum number of agentic turns before the subagent stops"; *applied inference,* not
+  a documented claim: a stop is not a failure signal, so the return an orchestrator receives from a
+  capped verifier that outran its budget is a truncated report shaped exactly like a verdict. The
+  phase-verifier is therefore contracted to return INCONCLUSIVE rather than a partial PASS, and
+  `implement-dispatch`'s phase-boundary clause makes that return re-dispatch a fresh verifier
+  against the named gap instead of marking the phase `[DONE]`. The implementer is uncapped for the
+  narrower reason that a phase's length is set by its brief — a real exposure, since its cage grants
+  edit and shell, and one the brief's scope fence rather than a turn budget is the control for.
+  (Frontmatter `model` and `effort` values, the env → parameter → frontmatter → inherit resolution
+  order, the `maxTurns` definition quoted above, and the depth-limit `Agent` withholding verified
+  against <https://code.claude.com/docs/en/sub-agents>, 2026-07-27.)
 
 ## [0.9.2]
 

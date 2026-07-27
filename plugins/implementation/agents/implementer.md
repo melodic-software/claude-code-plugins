@@ -22,9 +22,10 @@ The `tools` list above is an explicit cage, stated so it can be audited: file re
 search, shell, web research (so a consuming project's fresh-docs obligations stay satisfiable),
 skill invocation, and nested dispatch for skills that fan out their own workers. Nothing else is
 granted — and the nested-dispatch grant is conditional, not absolute: Claude Code withholds `Agent`
-from a subagent already at the spawn-depth limit, silently and whatever the `tools` list says
-(<https://code.claude.com/docs/en/sub-agents>, verified 2026-07-27), so a deeply chained dispatch
-does its own fan-out work itself rather than delegating it.
+from a subagent already at the spawn-depth limit, whatever the `tools` list says, and that subagent
+"does its delegated work itself and returns one summary"
+(<https://code.claude.com/docs/en/sub-agents>, verified 2026-07-27). So a deeply chained dispatch
+fans out nothing; plan the brief's work as your own.
 
 ## Model binding (the dispatch seam)
 
