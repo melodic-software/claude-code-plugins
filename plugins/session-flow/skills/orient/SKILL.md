@@ -8,10 +8,24 @@ shell: bash
 
 ## Pre-computed context
 
-Current branch: !`git branch --show-current 2>/dev/null || echo "unknown"`
 Claude session: !`echo "${CLAUDE_CODE_SESSION_ID:-unknown}" || echo "unknown"`
-Recent commits: !`git log --oneline -8 2>/dev/null || echo "no commits"`
-Working tree status: !`git status --porcelain 2>/dev/null | head -20 || echo "clean"`
+
+## Repository context — gather first
+
+Collect these with **individual** Bash calls, one command per call, never combined into a single
+invocation:
+
+- Current branch — `git branch --show-current`
+- Recent commits — `git log --oneline -8`
+- Working tree status — `git status --porcelain`, reading **at most the first 20 entries**
+
+Honor that 20-entry bound when reading; do not restore it as a `| head -20` pipe. A piped git
+command is compound, which is the shape #1619 is about — bounding at read time keeps the cap without
+reintroducing the defect.
+
+Treat a failure (not a repository, git unavailable) as an unknown value and carry on. These moved
+out of pre-compute in #1619 — the harness composes the block into one shell invocation and a
+worktree-isolated agent refuses a git-bearing compound command; do not fold them back.
 
 # Orient
 
@@ -47,7 +61,7 @@ now" matters, not just "what did we just say."
      in-flight findings.
    This skill only reads these; it never writes them, so the write-time
    runtime guards do not apply. Degrade quietly when a location is absent.
-3. **Repo + off-thread state** — the pre-computed git block above, plus, when
+3. **Repo + off-thread state** — the git context gathered above, plus, when
    the tools are present and degrading gracefully when they are not: open
    pull requests (`gh pr list` for the current branch / author), open
    work-items (the consumer's tracker seam), and a glance at work running

@@ -9,9 +9,17 @@ shell: bash
 ## Pre-computed context
 
 Claude session: !`echo "${CLAUDE_CODE_SESSION_ID:-unknown}" || echo "unknown"`
-Current branch: !`git branch --show-current 2>/dev/null || echo "unknown"`
 Default-location handoffs (this repo): !`ls -1t .work/handoffs/*-handoff-*.md 2>/dev/null | head -5 || echo "none at default .work/handoffs/"`
 Transcript project dirs (recent): !`ls -1dt "${HOME}/.claude/projects/"*/ 2>/dev/null | head -8 || echo "none"`
+
+## Repository context — gather first
+
+Get the current branch with its own Bash call: `git branch --show-current`. Treat a failure (not a
+repository, git unavailable) as an unknown value and carry on.
+
+It moved out of pre-compute in #1619 — the harness composes the block into one shell invocation and
+a worktree-isolated agent refuses a git-bearing compound command, and one git line among three
+non-git lines was enough to make this skill uninvocable from an isolated agent; do not fold it back.
 
 # Find handoff
 

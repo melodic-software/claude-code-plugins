@@ -1,5 +1,40 @@
 # Changelog — session-flow plugin
 
+## [0.17.15]
+
+### Fixed
+
+- **Every git-bearing skill in this plugin was uninvocable from a worktree-isolated agent
+  (melodic-software/claude-code-plugins#1619).** The harness composes an entire
+  `## Pre-computed context` block into ONE shell invocation, and the worktree-isolation Bash guard
+  refuses a git-bearing compound command it cannot statically verify — so `handoff`,
+  `continue-in-background`, `workflow`, `running-retro`, `orient`, `retro`, and `find-handoff` all
+  failed at load with `this command is too complex to verify that it stays inside the worktree`.
+  The failure hit hardest exactly where these skills matter most: an isolated parallel agent could
+  not write a save-point, orient itself, or recover a handoff.
+  - The git lines are removed from each skill's pre-compute block and re-acquired in the skill body
+    as **individual** Bash calls, one command per call. Non-git pre-compute lines are untouched —
+    they were never the problem (`knowledge:course-digest`, four complex non-git lines, loads fine
+    under isolation).
+  - The old lines carried caps (`git status --porcelain | head -20`) and `2>/dev/null || echo`
+    fallbacks that a plain Bash call does not reproduce. Both are restated as reading rules: treat a
+    failed command as "unknown, carry on", and honor the 20-entry bound **when reading** rather than
+    re-adding a `| head -20` pipe — a piped git command is compound, which is the shape that started
+    this.
+  - `find-handoff` is the proof that line count is not the trigger: it carried a single, pipe-free
+    git line among three non-git lines and was refused, while a skill whose *only* pre-compute line
+    is a compound git command loads. The rule is git-in-a-composed-block, not per-line complexity.
+  - `shell: bash` is deliberately left in place on every affected skill, including `workflow`, which
+    now has no `!` lines at all. The key is inert without pre-compute lines, and removing it is a
+    frontmatter-contract change with no behavioral benefit.
+  - What was verified, precisely: from an `Agent` with `isolation: "worktree"`, the **unfixed**
+    skills were observed to be refused, plain git commands were observed to succeed as individual
+    Bash calls, and a multi-line non-git pre-compute block was observed to load
+    (`knowledge:course-digest`, the positive control). The **edited** skills have not been invoked
+    from an isolated agent: skills load from the version-keyed plugin cache, so `0.17.15` does not
+    exist there until this ships and plugins are updated. Confirm then. CI cannot prove this fix —
+    it never invokes a skill from an isolated agent.
+
 ## [0.17.14]
 
 ### Fixed
