@@ -255,7 +255,7 @@ Review: code-design
   `npx --no-install markdownlint-cli2` on the fixture output exits 0. (Full-tree green
   `--check` lands in Phase 3 — before the sweep, the real tree correctly fails ~170 unmapped.)
 
-### Phase 3: Frontmatter sweep (scripted) [TODO]
+### Phase 3: Frontmatter sweep (scripted) [DONE]
 
 - Write a throwaway apply script (`.work/skill-cheat-sheet/apply-mapping.mjs`, not committed —
   the PR diff is the review surface): reads the slice's `mapping.tsv`, inserts/updates the
