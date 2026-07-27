@@ -4,6 +4,8 @@ A public [Claude Code](https://code.claude.com/docs) plugin marketplace of reusa
 skills, hooks, and agents. Each plugin is designed to work in any repository and to be customized by
 consumers without editing the plugin itself.
 
+Not sure which skill to invoke? Start at the [skill cheat sheet](docs/SKILL-CHEAT-SHEET.md) — a scan-and-go map from what you're doing to the skill to use.
+
 > The catalog below is generated from the plugin manifests and kept in sync by CI. New plugins clear
 > the per-plugin migration gate in [`docs/MIGRATION-PLAYBOOK.md`](docs/MIGRATION-PLAYBOOK.md).
 
