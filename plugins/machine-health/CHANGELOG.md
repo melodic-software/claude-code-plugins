@@ -3,6 +3,37 @@
 All notable changes to the `machine-health` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.0]
+
+### Added
+
+- **`claude-temp-root` check: detection for Claude Code's unpruned temp root (#1637).** The tree
+  under `%TEMP%\claude` accumulates a per-session scratchpad and task-output directory and nothing
+  reclaims them. Measured on the reporting machine: **7.88 GB across 377 session directories in 45
+  project keys, 42,042 files, oldest 13 days** — with 6.47 GB of that in the 66 sessions already 8+
+  days old, so the growth is retention, not working set. The contrast surface is
+  `$CLAUDE_JOB_DIR/tmp`, which has a documented cleanup owner and stays negligible. Detection had no
+  owner: `disk-hygiene:clean` owns removal but is `disable-model-invocation: true`, so it never
+  notices growth on its own.
+
+  The check reports total size, file count, session-directory count, project-key count, largest
+  session, and oldest-session age, and routes removal to `disk-hygiene:clean` in
+  `detail.remediation_route` — `machine-health` deletes nothing. Root resolution honors
+  `CLAUDE_CODE_TMPDIR` (probing both a `claude` subdirectory beneath it and the variable as the root
+  itself), then `%TEMP%\claude`, then `%LOCALAPPDATA%\Temp\claude`, recording the winner in
+  `detail.root_source` and normalizing an 8.3 short name to its long form. An absent root exits
+  quietly at `OK` per the not-applicable rule, never `UNKNOWN`.
+
+  Severity caps at `WARN` (≥5 GB, or an oldest session ≥14 days), matching `container-disk-usage` —
+  the rubric reserves `CRIT` for imminent-failure and security conditions, and this tree is
+  reclaimable cache. Sustained growth still reaches `CRIT` through the orchestrator's trend upgrade,
+  which now tracks `total_gb` for this check. The age arm is independent of size because a small tree
+  whose oldest entry never goes away is the unpruned-growth signal itself.
+
+  Windows only. `scripts/macos/` and `scripts/linux/` remain `NOT_IMPLEMENTED`, so those hosts report
+  `UNKNOWN` wholesale as before; `references/windows/check-catalog.md#17-claude-code-temp-root`
+  records how a POSIX port derives the root.
+
 ## [0.7.1]
 
 ### Fixed

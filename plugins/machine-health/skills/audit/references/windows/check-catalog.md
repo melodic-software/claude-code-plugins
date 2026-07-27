@@ -1,6 +1,11 @@
 # Windows check catalog
 
-The eight seeded checks for Windows. Each section documents:
+Per-check rubrics for Windows. Section numbers follow the order of `catalog/checks.jsonc` and are
+load-bearing — each is the anchor a catalog entry's `severity_rules` points at, so renumbering breaks
+those pointers. Sections 9–16 have not been written yet; their catalog entries point at anchors that
+do not resolve.
+
+Each section documents:
 
 - **Script:** the `.ps1` that emits the result.
 - **Category:** report grouping.
@@ -217,3 +222,60 @@ All checks emit the schema in `references/shared/output-schema.md`, use `scripts
   - Aggregated severity = max across all drivers.
 
 - **Notes:** Full driver inventory goes in the report appendix. The finding body should show only drivers that moved severity (unsigned drivers by name, or the oldest 5 signed drivers).
+
+---
+
+## 17. Claude Code temp root
+
+- **Script:** `scripts/windows/checks/Test-ClaudeTempRoot.ps1`
+- **Category:** `storage`
+- **Needs admin:** no.
+- **Commands:**
+
+  ```powershell
+  $root = if ($env:CLAUDE_CODE_TMPDIR) { Join-Path $env:CLAUDE_CODE_TMPDIR 'claude' }
+          else { Join-Path $env:TEMP 'claude' }
+
+  Get-ChildItem -LiteralPath $root -Recurse -File -Force | Measure-Object -Property Length -Sum
+  Get-ChildItem -LiteralPath $root -Directory -Force |
+      ForEach-Object { Get-ChildItem -LiteralPath $_.FullName -Directory -Force } |
+      Measure-Object
+  ```
+
+- **Root resolution:** first existing candidate wins, and the winner is recorded in
+  `detail.root_source`. `CLAUDE_CODE_TMPDIR` relocates the temp base; both readings of it (base
+  carrying a `claude` subdirectory, or already the root) are probed rather than assumed, then
+  `%TEMP%\claude`, then `%LOCALAPPDATA%\Temp\claude`. The resolved path is normalized to its long
+  form — `%TEMP%` commonly carries an 8.3 short name.
+
+- **Severity rubric:**
+  - `WARN` — total ≥5 GB, **or** the oldest session directory is ≥14 days old.
+  - `INFO` — total ≥1 GB and neither WARN arm trips.
+  - `OK` — total <1 GB, **or** the root does not exist.
+  - `UNKNOWN` — the 60-second walk budget was exceeded (partial figures still ship in `detail`), or
+    the walk threw.
+  - No `CRIT`. The tree is reclaimable cache with no data-loss or security consequence, and
+    `references/shared/severity-rubric.md` reserves `CRIT` for imminent-failure and security
+    conditions while directing ambiguity to the lower level. `container-disk-usage` — the other
+    reclaimable-storage check — caps at `WARN` for the same reason. Sustained growth still reaches
+    `CRIT`: the orchestrator's trend rule upgrades a `WARN` whose `total_gb` rose ≥5 GB since the
+    prior run.
+
+- **Why the age arm is independent of size:** the failure this check exists for is *unpruned* growth.
+  A modest tree whose oldest entry keeps aging is evidence that nothing reclaims it, which a size
+  threshold alone cannot see until the volume is already at risk. The contrast case is
+  `$CLAUDE_JOB_DIR/tmp`, which has a documented cleanup owner and stays small indefinitely.
+
+- **Remediation:** none. `machine-health` removes nothing here; `detail.remediation_route` names
+  `disk-hygiene:clean`, which owns removal behind its own snapshot, tier approval, and live-handle
+  checks. A live session's scratchpad is an active working directory — see
+  `plugins/disk-hygiene/skills/clean/reference/safety-model.md` § "Live agent scratchpads".
+
+- **Notes:** Age is measured at the session-directory level (`<root>/<project-key>/<session-id>/`).
+  A project-key directory is reused across sessions, so its own timestamp reports when the key was
+  first seen, not how long the oldest unreclaimed content has survived. Unreadable paths are counted
+  into `detail.unreadable_dir_count` and noted — totals are a lower bound, never silently short.
+  The check is Windows-only: `scripts/macos/` and `scripts/linux/` are `NOT_IMPLEMENTED` stubs, so
+  there is no POSIX implementation to register and the skill reports `UNKNOWN` wholesale on those
+  hosts. A POSIX port derives the root the same way, from `$CLAUDE_CODE_TMPDIR` then `$TMPDIR`
+  then `/tmp`.

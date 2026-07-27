@@ -140,6 +140,7 @@ function Get-TrendRelevantKey {
         'services' { return 'stopped_auto_count' }
         'drivers' { return 'unsigned_in_store_count' }
         'reliability' { return 'stability_min_7d' }
+        'claude-temp-root' { return 'total_gb' }
         default { return $null }
     }
 }
@@ -167,7 +168,8 @@ function Test-WorseningTrend {
     # signature age days, etc.). Battery capacity worsens when DOWN.
     $upwardWorsens = @(
         'disk-space', 'defender', 'event-log-errors',
-        'winget-upgrades', 'windows-update', 'services', 'drivers'
+        'winget-upgrades', 'windows-update', 'services', 'drivers',
+        'claude-temp-root'
     )
     $downwardWorsens = @('battery', 'reliability')
 
