@@ -268,7 +268,8 @@ intake arriving mid-cycle is reported, never chased.
 5. **Escalate.** Anything needing an operator decision follows the convention's escalation
    contract (below); a blocked action is escalated, never routed around.
 6. **Report and pace.** Upsert the telemetry comment (cycle report + updated state block + guard
-   mode), evaluate the stop condition; if not stopping, `ScheduleWakeup` the next cycle.
+   mode + this cycle's `usage_sample`), evaluate the stop condition; if not stopping,
+   `ScheduleWakeup` the next cycle.
 
 ## do-not-merge
 
@@ -355,12 +356,27 @@ block, re-read at every cycle start:
 {"schema":"source-control/babysit-loop-state@1","cycle":12,"backoff_level":2,
  "stop_mode":"standing","tier":"worker","merge_rung":"c2-mechanical",
  "rate_limit_latch":false,"guard_mode":"proactive",
- "loop_started_at":"2026-07-23T15:00:00Z","restart_request":null}
+ "loop_started_at":"2026-07-23T15:00:00Z","restart_request":null,
+ "usage_sample":{"at":"2026-07-23T15:04:05Z","five_hour_pct":23.5,"seven_day_pct":41.2,
+ "five_hour_delta_pct":1.8}}
 ```
 
 `cycle` and `backoff_level` are the loop's durable counters; `loop_started_at` makes the
 approaching seven-day expiry visible; `restart_request` is where a budget or expiry hit records the
 relaunch ask; `guard_mode` is recorded every cycle.
+
+`usage_sample` records this cycle's usage reading — the **same** two window percentages the
+rate-limit guard step already read this cycle (below), copied into telemetry rather than observed
+again. It is **measure-only**: nothing in this lane, or in any gate it runs, reads the field back,
+and no pacing, backoff, merge rung, or pause derives from it. `five_hour_pct` / `seven_day_pct` are
+the readings as taken; `five_hour_delta_pct` is the rise since the previous cycle's sample, `null`
+when either sample is missing or the current reading is **lower** than the previous one (the window
+rolled over). Every field is `null` when the guard is not proactive — never carry a stale reading
+forward, never fabricate one. Caveats, recorded because they bound what the data can support: the
+figures are **approximate** and **machine-local**; they are **account-scope**, so concurrent
+sessions move them and a rise is this lane's own consumption only when this lane is the sole active
+session; and they are a **percentage of a subscription window, not a token count**, absent entirely
+for non-subscription usage.
 
 ## Rate-limit guard floor (inlined)
 

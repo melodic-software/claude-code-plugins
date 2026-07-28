@@ -3,6 +3,25 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.35.0]
+
+### Added
+
+- **`babysit-loop` samples per-cycle usage into its durable state block
+  (melodic-software/claude-code-plugins#1651).** A lane's spend was a blind spot: the cycle budget
+  counts cycles, the rate-limit guard's pause is a ceiling, and nothing recorded how much of the
+  shared subscription windows a cycle actually consumed. The durable-state block now carries a
+  `usage_sample` — the two window percentages the guard step **already reads** every cycle, plus the
+  rise since the previous sample — so measuring adds a write, not an observation. The field is
+  deliberately inert: no lane behavior reads it back, and no pacing, backoff, merge rung, or pause
+  derives from it. Its caveats are recorded beside it because they bound what the data can support —
+  the readings are approximate, machine-local, account-scope (concurrent lanes move the same windows,
+  so a rise is this lane's own consumption only when it is the sole active session), and a percentage
+  of a subscription window rather than a token count. No in-session signal exposes cumulative token
+  spend: the status-line context-window token counts are current-context occupancy, not session
+  totals, as of Claude Code v2.1.132 (<https://code.claude.com/docs/en/statusline>, verified
+  2026-07-27).
+
 ## [0.33.2]
 
 ### Fixed

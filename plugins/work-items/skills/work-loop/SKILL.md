@@ -107,11 +107,26 @@ the conversation, is the source of truth for these counters):
 ```json
 {"schema":"work-items/loop-state@1","cycle":12,"clean_streak":1,"item_cap":2,
  "rate_limit_latch":false,"first_drain_complete":false,"guard_mode":"proactive",
- "loop_started_at":"2026-07-23T15:00:00Z","restart_request":null}
+ "loop_started_at":"2026-07-23T15:00:00Z","restart_request":null,
+ "usage_sample":{"at":"2026-07-23T15:04:05Z","five_hour_pct":23.5,"seven_day_pct":41.2,
+ "five_hour_delta_pct":1.8}}
 ```
 
 `loop_started_at` makes the approaching seven-day expiry visible; `restart_request` is where a
 budget/expiry hit records the relaunch ask; `guard_mode` is recorded every cycle.
+
+`usage_sample` records this cycle's usage reading — the **same** two window percentages the
+rate-limit guard step already read this cycle (below), copied into telemetry rather than observed
+again. It is **measure-only**: nothing in this lane, or in any gate it runs, reads the field back,
+and no pacing, adaptive cap, or pause derives from it. `five_hour_pct` / `seven_day_pct` are the
+readings as taken; `five_hour_delta_pct` is the rise since the previous cycle's sample, `null` when
+either sample is missing or the current reading is **lower** than the previous one (the window
+rolled over). Every field is `null` when the guard is not proactive — never carry a stale reading
+forward, never fabricate one. Caveats, recorded because they bound what the data can support: the
+figures are **approximate** and **machine-local**; they are **account-scope**, so concurrent
+sessions move them and a rise is this lane's own consumption only when this lane is the sole active
+session; and they are a **percentage of a subscription window, not a token count**, absent entirely
+for non-subscription usage.
 
 ## Rate-limit guard floor (inlined)
 
@@ -191,7 +206,8 @@ while the latch is set (clear it on a fresh healthy snapshot after the pause end
    — the marker,
    not a second label, is what discriminates a worker-escalated item from an operator-parked one.
 6. **Report and pace.** Upsert the telemetry comment (cycle report + updated state block + guard
-   mode), then evaluate the exit condition; if not exiting, `ScheduleWakeup` the next cycle.
+   mode + this cycle's `usage_sample`), then evaluate the exit condition; if not exiting,
+   `ScheduleWakeup` the next cycle.
 
 ## Admission gate (work-class, fail-closed)
 
