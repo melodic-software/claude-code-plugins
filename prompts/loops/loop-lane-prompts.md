@@ -128,11 +128,13 @@ into one profile.
   that simply has none yet — the exact repo the adoption sequence is walking.
 
 - **Is a classification source present, and how many items carry one?** The
-  merge partition reads "the triage stamp in the item body **or** labels" —
-  either satisfies it, so count the **union**, never one source alone. A
-  label-only repo returns zero on a body-only count and vice versa; either
-  in isolation under-reports the merge-eligible population and feeds the rung
-  decision a wrong number.
+  merge partition reads the recorded class from the `work-class:` **label
+  only**, so the readiness number the rung decision consumes counts labels —
+  never the union with body trailers, which would over-report the
+  merge-eligible population by counting items no rung can reach. Count the
+  trailers too, but as a **separate** figure: a body-only item is the
+  migration backlog, and reporting it beside the eligible count is what tells
+  the operator how many items need a label before a rung raise buys anything.
 
   Match the **canonical grammar**, not a loose substring. The vocabulary is
   C1–C5, so `C[0-9]` also counts a stray `Work-class: C9`, and a bare
@@ -149,13 +151,16 @@ into one profile.
   LIMIT=500
   gh issue list --label "$ROLE" --limit "$LIMIT" --json number,body,labels \
     | jq --argjson valid "$VALID" --argjson limit "$LIMIT" '
+        def labelled: any(.labels[].name; . as $n | $valid | index($n));
+        def trailered: (.body | test("(^|\\n)Work-class: C[1-5]( |\\r|\\n|$)"));
         {fetched: length,
          truncated: (length >= $limit),
-         classified: [.[] | select(
-           (.body | test("(^|\\n)Work-class: C[1-5]( |\\r|\\n|$)"))
-           or (any(.labels[].name; . as $n | $valid | index($n)))
-         )] | length}'
+         classified: [.[] | select(labelled)] | length,
+         body_only: [.[] | select(trailered and (labelled | not))] | length}'
   ```
+
+  `classified` is the merge-eligible population the rung decision reads;
+  `body_only` is the label-migration backlog, never added to it.
 
   Two mechanics worth not rediscovering. `gh issue list` has **no
   `--argjson`** — pipe to `jq` instead of using `--jq`. And jq's regex engine
@@ -164,16 +169,16 @@ into one profile.
   The trailing `( |\r|\n|$)` is a **token boundary, not merely a non-digit**:
   it rejects `C12` after matching `C1`, and equally rejects `C2foo` and `C3?`,
   which a `[^0-9]` guard would have counted as canonical. Every widening of
-  this pattern inflates the readiness count the rung decision trusts, so keep
-  it strict — the canonical trailer always continues with a space or ends the
-  line.
+  this pattern inflates the `body_only` backlog figure, so keep it strict —
+  the canonical trailer always continues with a space or ends the line.
 
   Both line-ending alternatives are load-bearing, and both are easy to drop as
   redundant. Because the engine is not multiline, `$` means end of the whole
   body, so a bare `Work-class: C2` followed by any further body section
   matches only via `\n`; and a CRLF body needs `\r` (measured on this
   repository: 7 issue bodies and 5 PR bodies carry CR). Omit either and a
-  body-stamp repo under-reports, to the point of reporting zero.
+  body-stamp repo reports a `body_only` backlog of zero and looks migrated
+  when it is not.
 
   **`--limit` is a ceiling, not an all-pages switch.** It is documented as
   "maximum number of issues to fetch", and its default is 30 — so an
@@ -261,9 +266,10 @@ into one profile.
    Whichever path, the five members are aliases of the autonomy program's
    C1–C5 risk classes, with the alias map single-sourced in the label
    declarations.
-4. Stamp the autonomous-eligible items in whichever source this repo uses, or
-   accept that nothing auto-merges. An item with no recorded class in
-   **either** source is ineligible at every rung.
+4. Label the autonomous-eligible items, or accept that nothing auto-merges.
+   The `work-class:` label is what the merge partition reads; an item whose
+   class is recorded only as a body trailer is ineligible at every rung until
+   the label follows it.
 5. **Bind the tracker provider** if the repo has no `.work-item-tracker.json`
    yet — run `/work-items:setup apply`, or declare the binding by hand. The
    seam hard-errors (exit 3) with no binding, so a lane launched before this
@@ -461,12 +467,14 @@ no shared state, no contention, and the sharding problem disappears.
 > the class used for admission." Never apply or change a `work-class:`
 > label, **and never write a `Work-class: C<n>` trailer into an item body.**
 > Your standing authorization to triage and classify does not reach these:
-> the merge partition reads the class from body or labels alike, so writing
-> either one is you manufacturing merge eligibility for a PR you authored.
-> That is the single thing this lane must never do — it is a self-certifying
-> producer, and it is why the contract names agent-writable surfaces rather
-> than naming labels. Propose a class in your cycle report and leave the
-> recording to the attended queue's operator.
+> the merge partition reads the class from the label, so writing one is you
+> manufacturing merge eligibility for a PR you authored — and the trailer is
+> the operator's own record of the class they label from, so writing that
+> fabricates their evidence one step back. That is the single thing this lane
+> must never do — it is a self-certifying producer, and it is why the
+> contract names agent-writable surfaces rather than naming labels. Propose a
+> class in your cycle report and leave the recording to the attended queue's
+> operator.
 >
 > An item without a recorded class still goes through the admission gate's
 > own classification, and a candidate the gate cannot confidently classify
@@ -482,12 +490,13 @@ no shared state, no contention, and the sharding problem disappears.
 > `${CLAUDE_PLUGIN_ROOT}`-relative paths return from no link pattern. When
 > you cannot prove a path inert, classify to the higher class.
 >
-> **A missing label is not a missing class.** The merge partition accepts a
-> recorded class from the item **body or** labels, so an item carrying a
-> `Work-class: C<n>` body trailer is merge-eligible with no label at all.
-> Report an item as unstamped only when **both** sources are empty —
-> reporting body-stamped items as unstamped drives label provisioning that
-> nothing needs. List genuinely unclassified items in your cycle report.
+> **A missing label IS a missing class.** The merge partition reads the
+> recorded class from the `work-class:` label only: a `Work-class: C<n>`
+> body trailer is operator context and a proposal, never an eligibility
+> input, because the item's own author can write it. Report an item as
+> unstamped whenever the label is absent — naming any body trailer you found,
+> so the operator can label from it instead of re-deciding. List genuinely
+> unclassified items in your cycle report.
 >
 > **Worktrees are not yours to remove.** The worker's worktree persists
 > through the whole PR lifecycle and is cleaned up only by whoever merges
@@ -573,12 +582,15 @@ wakeup ceiling for days rather than finishing.
 > **Work classes are not yours to set — in either surface.** Never apply or
 > change a `work-class:` label, **and never write a `Work-class: C<n>`
 > trailer into an item body**, to make a PR merge-eligible. You read the
-> class from body or labels alike, so writing either is you authoring the
-> input to your own merge decision. A PR whose close-linked item carries no
-> recorded class in either source is not eligible at any rung, including
-> full-autonomy. That is the correct outcome, not an obstacle: report it
-> and move on. Manufacturing your own merge eligibility is the one thing
-> this lane must never do.
+> partition class from the label alone, so writing one is you authoring the
+> input to your own merge decision — and the trailer is the operator's record
+> of the class they label from, so writing that fabricates their evidence
+> instead. A PR whose close-linked item carries no `work-class:` label is not
+> eligible at any rung, including full-autonomy, however its body is stamped.
+> That is the correct outcome, not an obstacle: report it — naming any body
+> trailer you found, so the operator can label from it — and move on.
+> Manufacturing your own merge eligibility is the one thing this lane must
+> never do.
 >
 > **Contention.** A worker lane authoring PRs here is expected and is not
 > contention. Apply the skill's own per-PR foreign-activity suppression:
@@ -673,8 +685,9 @@ letting one "primary" shard write it records a partial pass as the whole.
 > **Work classes: you propose, I apply — labels and body trailers alike.**
 > The autonomy contract forbids any repo-local agent-writable surface from
 > supplying the class used for admission. A label you write is exactly that
-> surface, **and so is an item body you edit** — `babysit-loop` reads the
-> class from either one. You never run the label command yourself, and never
+> surface, **and so is an item body you edit** — the label because
+> `babysit-loop` partitions on it, the body because it is the record I label
+> from. You never run the label command yourself, and never
 > write a `Work-class: C<n>` trailer into a body — not even to transcribe a
 > class I already ratified. Hand me the exact command to paste, for whichever
 > surface this repository records classes in.
@@ -694,18 +707,20 @@ letting one "primary" shard write it records a partial pass as the whole.
 > session and use what it returns, mapping C1 through C5 onto the five
 > members in ascending risk order.
 >
-> **If that returns nothing, do not stop.** The merge partition accepts a
-> recorded class from the item **body or** labels, so a repository with no
-> label axis is still merge-capable through body trailers. Report the
-> absence once, then keep working the queue: grep the trailers, propose
-> classes for untrailered items, escalate, and triage.
+> **If that returns nothing, do not stop.** The merge partition reads the
+> `work-class:` label only, so a repository with no label axis has an empty
+> merge-eligible set — everything there is human-merge, which is the shipped
+> baseline, not a breakage. Report the absence once, then keep working the
+> queue: grep the trailers, propose classes for untrailered items, escalate,
+> and triage. The trailers still record the classes I ratified; the label
+> axis is what turns a recorded class into merge-partition input.
 >
 > **You never write the class into the body either.** The body is a
-> repo-local agent-writable surface exactly as the label is, and
-> `babysit-loop` reads the trailer to decide merge eligibility — so an agent
-> writing a trailer is an agent manufacturing its own merge eligibility, the
-> one thing the admission rule forbids. Hand me the exact body-edit command
-> to paste, the same way you hand me the label command.
+> repo-local agent-writable surface exactly as the label is, and it is the
+> record I read when I apply the label — so an agent writing a trailer is an
+> agent authoring the evidence for its own merge eligibility one step back,
+> the same thing the admission rule forbids. Hand me the exact body-edit
+> command to paste, the same way you hand me the label command.
 >
 > For an item with no trailer, propose a class with your reasoning and
 > wait. Two traps: `mechanical` is narrow — deterministic, trivially
@@ -1201,10 +1216,11 @@ divergence — remains the contract's automatic fail-closed discipline (its
 enforcement wiring into the lane's merge partition is tracked in #1695),
 and C4 `structural` / C5 `untrusted-provenance` never promote.
 
-Neither rung bypasses classification: an item with **no recorded class in
-either source** — no `Work-class: C<n>` body trailer and no `work-class:`
-label — is ineligible at every rung including `full-autonomy`. A missing
-label alone costs nothing where a trailer exists.
+Neither rung bypasses classification: an item with **no `work-class:` label**
+is ineligible at every rung including `full-autonomy`. The label is the merge
+partition's only class source — a `Work-class: C<n>` body trailer records the
+class for the operator and proposes it, but never partitions, so a trailered
+item still needs its label before it is eligible.
 
 ---
 
@@ -1286,12 +1302,14 @@ machines; neither on the attended box.
 > the class used for admission." Never apply or change a `work-class:`
 > label, **and never write a `Work-class: C<n>` trailer into an item body.**
 > Your standing authorization to triage and classify does not reach these:
-> the merge partition reads the class from body or labels alike, so writing
-> either one is you manufacturing merge eligibility for a PR you authored.
-> That is the single thing this lane must never do — it is a self-certifying
-> producer, and it is why the contract names agent-writable surfaces rather
-> than naming labels. Propose a class in your cycle report and leave the
-> recording to the attended queue's operator.
+> the merge partition reads the class from the label, so writing one is you
+> manufacturing merge eligibility for a PR you authored — and the trailer is
+> the operator's own record of the class they label from, so writing that
+> fabricates their evidence one step back. That is the single thing this lane
+> must never do — it is a self-certifying producer, and it is why the
+> contract names agent-writable surfaces rather than naming labels. Propose a
+> class in your cycle report and leave the recording to the attended queue's
+> operator.
 >
 > An item without a recorded class still goes through the admission gate's
 > own classification, and a candidate the gate cannot confidently classify
@@ -1307,12 +1325,13 @@ machines; neither on the attended box.
 > `${CLAUDE_PLUGIN_ROOT}`-relative paths return from no link pattern. When
 > you cannot prove a path inert, classify to the higher class.
 >
-> **A missing label is not a missing class.** The merge partition accepts a
-> recorded class from the item **body or** labels, so an item carrying a
-> `Work-class: C<n>` body trailer is merge-eligible with no label at all.
-> Report an item as unstamped only when **both** sources are empty —
-> reporting body-stamped items as unstamped drives label provisioning that
-> nothing needs. List genuinely unclassified items in your cycle report.
+> **A missing label IS a missing class.** The merge partition reads the
+> recorded class from the `work-class:` label only: a `Work-class: C<n>`
+> body trailer is operator context and a proposal, never an eligibility
+> input, because the item's own author can write it. Report an item as
+> unstamped whenever the label is absent — naming any body trailer you found,
+> so the operator can label from it instead of re-deciding. List genuinely
+> unclassified items in your cycle report.
 >
 > **Worktrees are not yours to remove.** The worker's worktree persists
 > through the whole PR lifecycle and is cleaned up only by whoever merges
@@ -1402,12 +1421,15 @@ the partition and the evidence predicate is met.
 > **Work classes are not yours to set — in either surface.** Never apply or
 > change a `work-class:` label, **and never write a `Work-class: C<n>`
 > trailer into an item body**, to make a PR merge-eligible. You read the
-> class from body or labels alike, so writing either is you authoring the
-> input to your own merge decision. A PR whose close-linked item carries no
-> recorded class in either source is not eligible at any rung, including
-> full-autonomy. That is the correct outcome, not an obstacle: report it
-> and move on. Manufacturing your own merge eligibility is the one thing
-> this lane must never do.
+> partition class from the label alone, so writing one is you authoring the
+> input to your own merge decision — and the trailer is the operator's record
+> of the class they label from, so writing that fabricates their evidence
+> instead. A PR whose close-linked item carries no `work-class:` label is not
+> eligible at any rung, including full-autonomy, however its body is stamped.
+> That is the correct outcome, not an obstacle: report it — naming any body
+> trailer you found, so the operator can label from it — and move on.
+> Manufacturing your own merge eligibility is the one thing this lane must
+> never do.
 >
 > **Contention.** A worker lane authoring PRs here is expected and is not
 > contention. Apply the skill's own per-PR foreign-activity suppression:
@@ -1490,8 +1512,9 @@ terminals mutating the same row.
 > **Work classes: you propose, I apply — labels and body trailers alike.**
 > The autonomy contract forbids any repo-local agent-writable surface from
 > supplying the class used for admission. A label you write is exactly that
-> surface, **and so is an item body you edit** — `babysit-loop` reads the
-> class from either one. You never run the label command yourself, and never
+> surface, **and so is an item body you edit** — the label because
+> `babysit-loop` partitions on it, the body because it is the record I label
+> from. You never run the label command yourself, and never
 > write a `Work-class: C<n>` trailer into a body — not even to transcribe a
 > class I already ratified. Hand me the exact command to paste, for whichever
 > surface this repository records classes in.
