@@ -192,9 +192,11 @@ into one profile.
   fields this query reads, so the explicit ceiling plus a truncation flag is
   the honest shape here.)
 
-  A repository that records classifications only as body trailers is fully
-  merge-capable and needs no label provisioning. Conclude "nothing can merge"
-  only when the union is empty.
+  A repository that records classifications only as body trailers has an
+  empty merge-eligible set until the label axis exists and the labels follow
+  the trailers. That is the shipped baseline — everything human-merge — not a
+  breakage, but report the `body_only` figure so the operator sees what the
+  provisioning would buy.
 - **`{{RUNTIME_SURFACES}}`** — paths that look like documentation but are
   loaded by an agent at run time. This drives classification: a change to a
   runtime surface is never mechanical, so an under-listed value is a safety
@@ -244,15 +246,17 @@ into one profile.
 1. Land `babysit_loop_*` keys in that repo's tracked
    `.claude/source-control.md` on the default branch. Without this the
    merge lane runs and merges nothing.
-2. Decide where this repository records work classes. The merge partition
-   accepts **either** an issue-body trailer **or** a label, so a repo may
-   adopt on body trailers alone and never provision a label axis. Check what
-   is already there — from a checkout of the target, or with an explicit
-   `--repo`, for the same reason the profile above states:
+2. Decide whether this repository wants anything to auto-merge. The merge
+   partition reads the class from the `work-class:` **label** only, so a repo
+   with no label axis is entirely human-merge — a legitimate adoption state,
+   and the shipped baseline. Check what is already there — from a checkout of
+   the target, or with an explicit `--repo`, for the same reason the profile
+   above states:
    `gh label list --repo <owner/name> --limit 200 | grep -i work-class`, plus
-   the body-trailer count from the profile's union command.
-3. **Only if you want the label axis** — it is optional, not a prerequisite —
-   provision it before stamping, and **never from a lane**: no lane creates
+   the `body_only` figure from the profile's command, which sizes the
+   migration if the answer is yes.
+3. **Only if you want anything to auto-merge** — the label axis is what makes
+   a rung reachable — provision it before stamping, and **never from a lane**: no lane creates
    labels, and discovery never implies write permission. Route by what the
    target repository declares, rather than assuming an owner:
    - **It declares a label-management source of truth** (a label-as-code repo,
@@ -1005,12 +1009,15 @@ with the operator's signature on them.
 >
 > **Work classes: you propose, I apply — labels and body trailers alike.**
 > Never write a `work-class:` label or a `Work-class: C<n>` body trailer
-> yourself — not even to transcribe a class I already ratified; both are
-> agent-writable admission surfaces the merge lane reads. Resolve the live
+> yourself — not even to transcribe a class I already ratified. Both are
+> agent-writable: the label is what the merge lane partitions on, and the
+> trailer is the record I label from, so writing either is an agent authoring
+> its own admission input. Resolve the live
 > label strings first (`gh label list --limit 200 | grep -i work-class`,
 > mapping C1–C5 onto the members in ascending risk order), then hand me the
 > exact command to paste. If no label axis exists, say so once and keep
-> working — classes still record via operator-pasted body trailers. Never
+> working — nothing auto-merges there, which is the baseline, and classes
+> still record via operator-pasted body trailers for whenever it is. Never
 > route a `work-class:` label through `/work-items:track`. Fail toward the
 > higher class; `mechanical` is narrow (deterministic, trivially reversible
 > maintenance), and nothing on the `Runtime surfaces` line is mechanical no
@@ -1789,12 +1796,15 @@ to the template re-renders here too.
 >
 > **Work classes: you propose, I apply — labels and body trailers alike.**
 > Never write a `work-class:` label or a `Work-class: C<n>` body trailer
-> yourself — not even to transcribe a class I already ratified; both are
-> agent-writable admission surfaces the merge lane reads. Resolve the live
+> yourself — not even to transcribe a class I already ratified. Both are
+> agent-writable: the label is what the merge lane partitions on, and the
+> trailer is the record I label from, so writing either is an agent authoring
+> its own admission input. Resolve the live
 > label strings first (`gh label list --limit 200 | grep -i work-class`,
 > mapping C1–C5 onto the members in ascending risk order), then hand me the
 > exact command to paste. If no label axis exists, say so once and keep
-> working — classes still record via operator-pasted body trailers. Never
+> working — nothing auto-merges there, which is the baseline, and classes
+> still record via operator-pasted body trailers for whenever it is. Never
 > route a `work-class:` label through `/work-items:track`. Fail toward the
 > higher class; `mechanical` is narrow (deterministic, trivially reversible
 > maintenance), and nothing on the `Runtime surfaces` line is mechanical no
