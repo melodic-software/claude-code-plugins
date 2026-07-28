@@ -13,10 +13,10 @@ All notable changes to the `education` plugin are documented here. Format follow
   workspace concept slice **or** OS temp, which made placement non-deterministic, and its
   title collided with the marketplace topic-docs **ephemeral tier** — a tier a workspace
   artifact does not belong in. A concept's HTML *is* that concept's lesson artifact: the
-  workspace is durable cross-session coaching state that `resume` reopens and the
-  Staleness check re-reads, so it is machine state, and the single placement is now the
-  concept slice. "Ephemeral" elsewhere in the doc is pedagogical (rarely revisited,
-  regenerable) and is now stated as such. The classification is justified by the slice
+  workspace is durable cross-session coaching state that `resume` reopens, so it is
+  machine state, and the single placement is now the concept slice. "Ephemeral" in the
+  eagerly-loaded `skills/teach/SKILL.md` surfaces as well as in this doc is pedagogical
+  (rarely revisited, regenerable) and is now stated as such at each. The classification is justified by the slice
   the file belongs to — `resume` opens `concepts/<concept>/`, so a lesson rendered to
   temp would leave that concept holding a reference and an exercise with its lesson
   missing — and explicitly **not** by any claim that something re-reads the lesson;
@@ -27,8 +27,16 @@ All notable changes to the `education` plugin are documented here. Format follow
   `<mode>`, `<topic>`, or `<concept>` to substitute. It is read once and never again, so
   it is now routed explicitly through the topic-docs ephemeral tier — one file per run
   via the platform's temp primitive, resolved deterministically, never the session
-  scratchpad, and never deleted before the path is handed back. See
-  `docs/conventions/topic-docs/README.md` §"The ephemeral tier".
+  scratchpad, and never deleted before the path is handed back. Its `mktemp` invocation
+  names the temp root in the template, the one form that cannot land the file in the
+  working directory. See `docs/conventions/topic-docs/README.md` §"The ephemeral tier".
+- An HTML lesson now has a **canonical filename and a replacement rule**. Allowing a
+  lesson to be HTML left the name unspecified while the workspace schema and the
+  `explain` action both named `concepts/<concept>/lesson.md`, so re-rendering a concept
+  could leave a stale `lesson.md` beside an unnamed HTML file with nothing telling a
+  resumed session which was current. The HTML lesson is `lesson.html`, it **replaces**
+  `lesson.md` rather than joining it — one lesson file per concept, never both — and
+  every surface that names the file now says so.
 
 ## [0.5.2]
 

@@ -23,8 +23,17 @@ were persisted forever.
 
 ## The two tiers (and their neighbors)
 
-Placement follows document **nature**, decided by one question: does
-anything downstream *enforce against* this document?
+Placement follows document **nature**, decided by two questions in order.
+First: does anything downstream *enforce against* this document? Yes puts
+it in the contract tier while the task runs, and the durable tier once it
+outlives the task. Second, for everything else: once this run ends, does
+anything read the document again — a later session, another checkout, a
+reviewer, or the producer itself on resume? **No** is the ephemeral row,
+and it is the only row that answers no. **Yes** is the memory tier when
+that reader is scoped to this checkout, and machine state when it is
+scoped to the machine across projects. Membership answers the second
+question, not frequency: a file inside a slice a later session reopens is
+read again even if that session rarely looks at the file itself.
 
 | Tier | Location (default) | Git | Holds |
 |---|---|---|---|
@@ -33,7 +42,7 @@ anything downstream *enforce against* this document?
 | Memory, concern-scoped | `.work/handoffs/`, `.work/reviews/<branch-slug>/` | Never committed | session handoffs; review reports — their axes are session and branch, so they sit outside topic slices |
 | Contract | `docs/topics/<slug>/` | Committed **on the task branch only**; pruned before merge | `PLAN.md` (Brief + Plan), `PRD.md`, `design/` (incl. the `design-threads.md` / `design-resolution.md` gate files), `verification/` (the distilled manifest) |
 | Durable | knowledge-vault seam — default backend `docs/adr/`, `docs/specs/` | Committed, permanent | promotion targets |
-| Machine state | `${CLAUDE_PLUGIN_DATA}`; `.claude/observability/` | Never committed | telemetry, caches |
+| Machine state | `${CLAUDE_PLUGIN_DATA}`; `.claude/observability/` | Never committed | telemetry; caches; durable machine-scoped state a later session reopens across projects |
 
 Locations are the documented defaults; the tracked concern file's
 `contract_dir` / `memory_dir` keys override the memory and contract
@@ -72,9 +81,16 @@ Five rules hold at this row:
    are disjoint by session kind (`CLAUDE_JOB_DIR` is set for background
    sessions only), so branching makes file placement depend on how the
    session was launched, which is invisible from inside the plugin. Use
-   the platform's standard temp primitive (`mktemp` on Unix, a
-   user-scoped temp under `%LOCALAPPDATA%\Temp` on Windows) and let it
-   resolve its own root. That root is the ambient `$TMPDIR` or system
+   the platform's standard temp primitive and **name the temp root in the
+   template**: on Unix `mktemp "${TMPDIR:-/tmp}/<prefix>-XXXXXX"` (add
+   `-d` for a directory), the positional-template form both GNU and BSD
+   `mktemp` accept identically; on Windows a user-scoped temp under
+   `%LOCALAPPDATA%\Temp`. A bare relative template does **not** reach the
+   temp tree — `mktemp report-XXXXXX.html` creates the file in the
+   current working directory, which is the consumer's repository
+   (reproduced against GNU coreutils 8.32, 2026-07-27) — and the flags
+   that would fix it are not portable (`--tmpdir` is GNU-only, `-t` is
+   deprecated there). That root is the ambient `$TMPDIR` or system
    default — **not** `CLAUDE_CODE_TMPDIR`, which overrides the temp
    directory Claude Code uses for its *own internal* files: the env-var
    reference states that "Unsandboxed Bash commands inherit your shell's
@@ -100,8 +116,8 @@ Five rules hold at this row:
    `.claude/topic-docs.yaml` key. A temp root is machine scope; a
    tracked key would imply a team decision about a location no teammate
    can observe. This constrains the FORM of an override, and does not
-   oblige any plugin to offer one — neither current adopter does, so
-   today the ambient temp root is the only root in play. Per the
+   oblige any plugin to offer one — no implementer declares one today, so
+   the ambient temp root is currently the only root in play. Per the
    configuration ownership table in `docs/PLUGIN-PHILOSOPHY.md`.
 
 **Keep the footprint small.** Nothing reclaims this tree on a schedule:
@@ -463,7 +479,7 @@ relationship to the contract is fully stated by their table row.
 | adhd | rendered decision-table HTML view | ephemeral | by reference — the ephemeral row's five rules are its entire relationship |
 | discovery | `EXPLORE.md`, `RESEARCH.md` | memory | delta doc |
 | architecture | `deepening-candidates-<timestamp>.md` (per-lens candidate ledgers); deepening HTML report | memory + ephemeral | delta doc |
-| planning | `PRD.md`, `PLAN.md` (Brief), `design/`, opt-in brainstorm persist; dense-round decision-table HTML | contract + memory + ephemeral | delta doc |
+| planning | `PRD.md`, `PLAN.md` (Brief), `design/`, opt-in brainstorm persist; five optional rendered HTML views (dense-round decision table, PRD pitch, brainstorm reaction page, plan view, design topology) | contract + memory + ephemeral | delta doc |
 | implementation | `PLAN.md` (Plan/progress), `DEVIATIONS.md`, status summaries | contract + memory | delta doc |
 | verification | `verification/` manifest; baselines, raw captures | contract + memory | delta doc |
 | session-flow | handoffs; running-retro ledgers | memory (`handoffs/`, `running-retros/`) | delta doc |
@@ -472,7 +488,7 @@ relationship to the contract is fully stated by their table row.
 | toolchain | nothing of its own — its setup skill offers the concern file | — | delta doc |
 | knowledge | ingest trees — **formal carve-out**: its work root resolves through its own `library_dir` seam, not `memory_dir`; slug conformance is form-only (charset/reserved names), and its nested `<epic>/<slug>/` sub-slices are sanctioned | memory (carved out) | by reference — the carve-out above is its entire delta |
 | claude-ops | telemetry | machine state | by reference — machine state resolves no contract paths |
-| education | per-concept `lesson` / `reference` / `exercise` slices; `primer` vocabulary-ladder HTML | machine state + ephemeral | by reference — its workspace is its own `${CLAUDE_PLUGIN_DATA}` layout, and only the workspace-less `primer` render resolves a path this contract owns |
+| education | per-concept `lesson` / `reference` / `exercise` slices; `quiz-me` report library (`recall` reads it back); `primer` vocabulary-ladder HTML | machine state + ephemeral | by reference — its workspace and report library are its own `${CLAUDE_PLUGIN_DATA}` layouts, and only the workspace-less `primer` render resolves a path this contract owns |
 | docs-hygiene | (reader) audit-noise detector recognizes these shapes | — | by reference — reads shapes, writes nothing |
 
 ### Implementers restate the rules; they do not share a source

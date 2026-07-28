@@ -26,7 +26,7 @@
   change.
 
   A sweep of every markdown producer in `plugins/**` for throwaway-file
-  behavior found two more surfaces the new row reclassifies, and both
+  behavior found seven more surfaces the new row governs, and all seven
   are corrected here rather than deferred, because a row that leaves
   known contradictions standing in the tree is not yet a contract.
   `/planning:interview`'s dense-round decision table moves out of the

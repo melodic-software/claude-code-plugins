@@ -13,7 +13,13 @@ All notable changes to the `architecture` plugin are documented here. Format fol
   deterministically and never branched on an injected scratchpad path or
   `CLAUDE_JOB_DIR`. The executable Phase 2 step in `actions/deepening.md`
   carries the rule, not only the format reference — that step is what
-  `/architecture:improve deepening` actually follows. See
+  `/architecture:improve deepening` actually follows. Its `mktemp` form is
+  now the positional absolute template
+  (`mktemp "${TMPDIR:-/tmp}/deepening-review-XXXXXX.html"`), replacing the
+  `--tmpdir` / `-t` examples: `--tmpdir` is GNU-only, `-t` is deprecated
+  there, and a bare relative template creates the report in the current
+  working directory — the consumer's repository. The positional form is
+  the one this marketplace already documents as GNU/BSD-identical. See
   `docs/conventions/topic-docs/README.md` §"The ephemeral tier".
 
 ## [0.4.1]

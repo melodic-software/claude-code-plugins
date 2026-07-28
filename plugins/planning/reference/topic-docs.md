@@ -24,14 +24,25 @@ behavior; this binding and topic-docs remain authoritative for their placement.
 | Opt-in `brainstorm.md` (`/planning:brainstorm` — never a default write) | Memory | `.work/<topic-slug>/` |
 | `questionnaire-<recipient-role-slug>.md` (`/planning:questionnaire`) | Memory | `.work/<topic-slug>/` — never committed; names a real person, so the memory tier's self-ignore is load-bearing |
 | `interview-round-<n>.html` — the dense-round decision table (`/planning:interview`) | Ephemeral | One OS temp directory per interview run, created through the platform's temp API; each round's file lands inside it, is handed back as a path, and is never deleted before returning |
+| PRD pitch view (`/planning:prd`) | Ephemeral | One file per run, created through the platform's temp API; handed back as a path and never deleted before returning |
+| Brainstorm reaction-capture page (`/planning:brainstorm`) | Ephemeral | same |
+| Plan view (`/planning:plan`) | Ephemeral | same |
+| Design topology view (`/planning:design`) | Ephemeral | same |
 
-The round tables are ephemeral, not memory-tier: nothing downstream reads one again. `/planning:interview`
+Every HTML row above is an optional rendered view of a record kept elsewhere — the conversation, the
+ledger, or a markdown artifact in a row above — so nothing downstream reads the view again and
+none of them may sit beside the record they render. The four single-file views land in the ephemeral
+tier for that reason, and their rules are the contract's — one deterministic path, never the session
+scratchpad, no delete-before-return because the path is the delivery mechanism, and one file per run
+because nothing documented reclaims the temp tree — not a delta of this plugin's.
+
+The round tables are ephemeral for the same reason, and earn a directory rather than a file because
+one run produces several. `/planning:interview`
 records every resolved branch in the `interview-checklist.md` ledger the moment it locks, and a resumed
 session picks up from the first open ledger checkbox — never from a round's HTML. A user reopening a table
 mid-interview is exactly what the tier's lifetime rule covers (a returned path stays readable), so it is not
 a reason to persist. One directory per run keeps the per-round files from becoming the accumulating tree the
-tier's footprint rule prohibits. The rules are the contract's — one deterministic path, never the session
-scratchpad, no delete-before-return — not a delta of this plugin's.
+tier's footprint rule prohibits.
 
 `contract_tier: local` moves the contract rows into the memory slice with an identical layout —
 the contract's solo/offline mode. Roots are configurable via the concern file's `contract_dir` /

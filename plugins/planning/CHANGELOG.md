@@ -24,7 +24,20 @@ All notable changes to the `planning` plugin are documented here. Format follows
   one that governs default behavior) and `context/loop.md` (read on demand); changing
   only the on-demand half would have left the memory-tier instruction in force. See
   `docs/conventions/topic-docs/README.md` §"The ephemeral tier" and this plugin's
-  `reference/topic-docs.md`.
+  `reference/topic-docs.md`. Its `mktemp -d` invocation now names the temp root in the
+  template, the one form that cannot land the directory in the working tree.
+- **The plugin's four other optional HTML views get a placement.** `/planning:prd`'s
+  pitch view, `/planning:brainstorm`'s reaction-capture page, `/planning:plan`'s plan
+  view, and `/planning:design`'s topology view each offered a self-contained HTML render
+  with **no resolvable location** — three named none at all, and `design`'s said
+  "alongside the markdown", where the markdown is `library-topology.md` in the contract
+  slice, which reads as committing a rendered view to the tier the pre-merge prune is
+  supposed to empty. All four are optional views of a record kept elsewhere (the
+  conversation, or the markdown artifact they render), so nothing downstream reads them
+  again: they are ephemeral-tier, one file per run, and never beside the record they
+  render. `prd` and `brainstorm` also stop calling their view "ephemeral" as a loose
+  adjective now that the word names a tier. The binding's artifact table lists all five
+  HTML producers, so it no longer describes one while the plugin ships five.
 
 ## [0.26.3]
 
