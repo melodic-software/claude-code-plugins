@@ -51,7 +51,7 @@ Escalation order when WebFetch fails:
 
 ## Core pattern — write to disk, Read selectively
 
-Every firecrawl invocation writes to a spill file created by the platform's temp primitive (`mktemp` — this skill's commands run under `shell: bash` on every platform, including Git Bash on Windows) and uses the `Read` tool to pull only the needed portion into context. Create the file and echo its path in the same Bash call so the follow-up `Read` can target it:
+Every firecrawl invocation writes to a spill file created by the platform's temp primitive (`mktemp -t`, never a hardcoded path and never a bare relative template — see the Windows note under Gotchas) and uses the `Read` tool to pull only the needed portion into context. Create the file and echo its path in the same Bash call so the follow-up `Read` can target it:
 
 ```bash
 # Scrape a blocked doc page to markdown
@@ -133,7 +133,7 @@ Keeping in sync is a **maintainer-facing** concern, split into its own sibling s
 - **Credits are a shared resource.** Every call charges the account. Use `map` before `crawl`, use `--limit` aggressively on search, and skip Firecrawl entirely when a plain fetch would do.
 - **`firecrawl login` creates a second source of truth.** Auth via the `FIRECRAWL_API_KEY` env var; the login command writes to a user-level config dir — mixing them leaves two sources of truth.
 - **Transient DNS 503 on `api.firecrawl.dev` from sandboxed sessions.** Some cloud egress proxies intermittently return "DNS cache overflow" — retry after ~30s. This affects both the CLI and direct curl; it's an egress issue, not a Firecrawl outage.
-- **Windows/Git Bash tmp paths.** This skill's commands run under `shell: bash`, so `mktemp` works on Windows too: it resolves through Git Bash's `/tmp` mount to the user's Windows temp directory (`%TEMP%`, by default under `%LOCALAPPDATA%\Temp`). Both path forms work for Read; no normalization needed on the agent side.
+- **Windows tmp paths depend on which shell the Bash tool is.** Where it is Git Bash, `mktemp -t` resolves through the `/tmp` mount to the user's Windows temp directory (`%TEMP%`, by default under `%LOCALAPPDATA%\Temp`), and both path forms work for `Read` with no normalization on the agent side. On a Windows host **without** Git Bash the PowerShell tool runs instead and `mktemp` does not exist — fall back to a user-scoped temp under `%LOCALAPPDATA%\Temp`. The skill's `shell: bash` frontmatter does **not** cover this: that field governs only the `!` dynamic-context injection run at skill-load time, not the Bash tool calls this skill's body issues.
 - **Self-hosted Firecrawl.** Set `FIRECRAWL_API_URL` as an OS user environment variable to switch the CLI to a local instance. Default is `https://api.firecrawl.dev` — only override when running against a self-hosted stack.
 - **CLI and `mcp__firecrawl__*` MCP tools overlap** — running both wastes context and splits configuration. If the consuming project also has the Firecrawl MCP registered, pick one surface.
 
