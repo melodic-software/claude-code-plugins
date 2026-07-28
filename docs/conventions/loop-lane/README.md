@@ -202,14 +202,14 @@ reports and stops cleanly rather than idling forever — without it, an overnigh
 the first unanswered escalation.
 
 A standing lane is additionally bounded by the `/loop` launch surface's **seven-day expiry**: a
-self-paced `/loop` ends automatically seven days after it starts, idle backoff notwithstanding
-(<https://code.claude.com/docs/en/scheduled-tasks#seven-day-expiry>, verified 2026-07-23). A standing
-lane therefore requires a relaunch owner — today always the operator, for whom `claude-ops` `lanes`
+`/loop` ends automatically seven days after it starts, on either launch shape (§5) and idle backoff
+notwithstanding (<https://code.claude.com/docs/en/scheduled-tasks#seven-day-expiry>, verified
+2026-07-27, broadened from the 2026-07-23 stamp's self-paced-only wording). A standing lane
+therefore requires a relaunch owner — today always the operator, for whom `claude-ops` `lanes`
 `restart` is a one-command path (operator-initiated by contract; see the cycle-budget paragraph
-below). The lane records its loop-started timestamp in the
-lane's #502 telemetry block so the approaching expiry is visible ahead of time, and an expiry hit is
-handled exactly like the cycle-budget hit below: a restart-request into the #502 block, then a clean
-stop.
+below). The lane records its loop-started timestamp in the lane's #502 telemetry block so the
+approaching expiry is visible ahead of time, and an expiry hit is handled exactly like the
+cycle-budget hit below: a restart-request into the #502 block, then a clean stop.
 
 **Self-pacing.** A lane paces itself through `/loop` with the interval omitted; Claude schedules the
 next iteration with `ScheduleWakeup`, whose delay is clamped between one minute and one hour.
@@ -231,8 +231,8 @@ owns the mechanism).
 **Cycle budget (#691).** A per-session cycle budget bounds one session; a budget hit **always**
 emits a restart-request into the #502 telemetry block and stops the loop cleanly — a running loop
 cannot `/clear` or relaunch itself, since a relaunch is the only context reset a lane gets
-([`claude-ops` lanes](../../../plugins/claude-ops/skills/lanes/SKILL.md), section "A relaunch is the
-only context reset a loop lane gets"). What happens next is launcher-relative. Under a launcher that
+([`claude-ops` lanes](../../../plugins/claude-ops/skills/lanes/SKILL.md#a-relaunch-is-the-only-context-reset-a-loop-lane-gets)).
+What happens next is launcher-relative. Under a launcher that
 acts on restart-requests, the lane is relaunched and the loop continues — the budget restarts the
 **session**, never ends the **loop**. **No such automatic launcher exists today**: `claude-ops`
 `lanes` is operator-initiated by contract ("no scheduler runs `restart` for you today", per its
@@ -292,19 +292,28 @@ launcher: it launches the lane; no lane body ever requires, imports, or degrades
 documented at the site, per the [seam-phrasing convention](../seam-phrasing/README.md).
 
 **Two launch shapes, selected per invocation — neither deprecates the other.** Supplying an interval
-(`/loop 15m …`) converts it to a cron expression and fires on that fixed schedule, subject to the
-scheduler's deterministic jitter (up to half the interval for a job running more often than hourly);
-omitting it hands the delay to Claude, which picks one per iteration within the §4 bounds and is not
-jittered. `ScheduleWakeup` reschedules a *self-paced* loop only, so it is not the pacing mechanism
-once an interval is supplied
+(`/loop 15m …`) converts it to a cron expression and fires on that fixed schedule, subject to
+jitter; omitting it hands the delay to Claude, which picks one per iteration within the §4 bounds
+and is not jittered. `ScheduleWakeup` reschedules a *self-paced* loop only, so it is not the pacing
+mechanism once an interval is supplied
 (<https://code.claude.com/docs/en/scheduled-tasks#let-claude-choose-the-interval>, verified
 2026-07-27). The §4 seven-day expiry binds both shapes. Both are current; this note reconciles which
 applies where and changes neither.
 
-- **A lane always omits the interval.** Every §4 invariant that varies a lane's wake — idle backoff,
-  the adaptive-cap streak, the drain-exit snapshot, seam exit 8 counted as dirty — computes a
-  cadence signal *during* the cycle, and a fixed cron schedule has no way to consume it. Self-paced
-  is the lane shape by construction, not by preference.
+Jitter is the scheduler's deterministic offset on a *cron* task: up to 30 minutes after the
+scheduled time, or up to half the interval for a task running more often than hourly.
+
+- **A lane always omits the interval.** Two §4 invariants need the self-paced shape and neither
+  survives a cron schedule. *Idle backoff* — the standing shape's "idle backs off toward longer
+  wakeups" — derives the next delay from what the cycle just observed, which a fixed cadence cannot
+  consume. And a self-paced loop can **end itself** — Claude calls `ScheduleWakeup` with
+  `stop: true` — which is how the drain shape's terminal state stops a lane cleanly; a fixed-interval
+  loop keeps running until stopped by hand or until the seven-day expiry, so a drain lane launched
+  that way cannot honor its own stop condition
+  (<https://code.claude.com/docs/en/scheduled-tasks#stop-a-loop>, verified 2026-07-27). Self-paced is
+  the lane shape by construction, not by preference. The lane's other per-cycle signals — the
+  adaptive-cap streak, seam exit 8 counted as dirty, the drain-exit snapshot — govern *how much work
+  a cycle takes on*, not when the next one fires, and are unaffected by either shape.
 - **A fixed interval is the operator's shape for invoking a single-pass mechanic directly.** The
   interval chosen once *is* the whole cadence policy: no per-cycle state derives a better one, so
   there is nothing for the cron schedule to discard. `babysit-prs`'s documented
@@ -322,10 +331,11 @@ AWS, Google Cloud's Agent Platform, and Microsoft Foundry, an omitted interval d
 delay to Claude: the prompt runs on a fixed ten-minute schedule and `ScheduleWakeup` is unavailable
 (<https://code.claude.com/docs/en/scheduled-tasks>,
 <https://code.claude.com/docs/en/tools-reference>, verified 2026-07-27). A lane launched there keeps
-the loop but silently loses every §4 invariant that varies its wake, because the signal those
-invariants compute mid-cycle has nothing left to steer. No lane detects the provider today, so this
-is recorded as a known gap rather than left as an unstated assumption — the same treatment §6 gives
-the single-account assumption.
+the loop but loses both properties the bullet above depends on: idle backoff cannot lengthen the
+wake, and the lane cannot end itself — so a **drain** lane there deadlocks on the first unanswered
+escalation exactly as §4's terminal state exists to prevent, and runs until stopped by hand or until
+the seven-day expiry. No lane detects the provider today, so this is recorded as a known gap rather
+than left as an unstated assumption, on the model §6 uses for the single-account assumption.
 
 ## 6. Rate-limit guard binding
 
