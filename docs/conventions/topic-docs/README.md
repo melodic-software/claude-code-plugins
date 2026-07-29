@@ -151,11 +151,11 @@ supported surface are all closed as not-planned
 upstream has not merely failed to document it, it has declined three
 times to support it.
 
-**Re-derivation trigger.** An upstream versioned interface for the
-scratchpad that guarantees injection, lifecycle, ownership, quota, and
-cleanup semantics reopens rule 2, and the change lands here as a
-recorded changelog entry. The dated verification above is an as-of
-record, never standing authority.
+**Recheck trigger** ([upstream-drift](../upstream-drift/README.md)). An
+upstream versioned interface for the scratchpad that guarantees
+injection, lifecycle, ownership, quota, and cleanup semantics reopens
+rule 2, and the change lands here as a recorded changelog entry. The
+dated verification above is an as-of record, never standing authority.
 
 **Why the other three axes needed no change.** The placement question
 was re-derived across four axes and only lifetime was uncovered:
@@ -526,7 +526,8 @@ one-owner-per-concern rule. Registration would also turn byte-identity
 into a gate, failing CI on the next legitimate divergence of exactly the
 kind `planning` already shows.
 
-**What would reopen it:** a canonical source under [`lib/`](../../../lib/)
+**Recheck trigger** ([upstream-drift](../upstream-drift/README.md)):
+a canonical source under [`lib/`](../../../lib/)
 with a dedicated `scripts/sync-*.sh` — the mechanism `lib/hook-utils.sh`
 established and the [shell test-helpers doc](../shell-test-helpers/README.md)
 names as this marketplace's sanctioned way to share source across
