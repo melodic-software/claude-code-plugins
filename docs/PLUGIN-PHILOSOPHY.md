@@ -549,6 +549,43 @@ the session default model changes):
 | Mechanical prep, one tier down | Sonnet 5 |
 | Bulk mechanical sweeps | Haiku 4.5 |
 
+### Effort tiers
+
+Effort routes per lane the way model does. Skill and subagent frontmatter `effort` overrides the
+session level while that lane is active — but never the `CLAUDE_CODE_EFFORT_LEVEL` environment
+variable — and accepts all five level names including `max`; a level the active model does not
+support falls back silently to the highest supported level at or below it
+([skills: frontmatter reference](https://code.claude.com/docs/en/skills#frontmatter-reference),
+[model config: adjust effort level](https://code.claude.com/docs/en/model-config#adjust-effort-level),
+verified 2026-07-29). The ladder itself — level names, per-model availability, per-model defaults —
+is upstream-owned: resolve it from the model-config page at decision time, never from this document.
+
+Lane rules, dated 2026-07-29 (recheck trigger: a model change on any pinned lane, or the
+model-config effort table changes — the effort scale is calibrated per model, so the same level
+name is not the same underlying value across models):
+
+- **Consequential-output lanes pin `high`** — verdicts, and research that feeds decisions. The
+  pin mirrors the model-tier rule: a consequential output never runs below the cross-model default
+  level, and the pin exists so it does not silently degrade inside a session tuned down for cost.
+- **Bulk mechanical sweeps may pin `low`** — upstream reserves `low` for short, scoped tasks that
+  are not intelligence-sensitive, and lower effort spends fewer tool calls
+  ([effort](https://platform.claude.com/docs/en/build-with-claude/effort)).
+- **Every other lane omits the pin** and inherits the session level: effort is a general
+  preference, not a task-by-task decision
+  ([choosing a model and effort level](https://claude.com/blog/claude-model-and-effort-level-in-claude-code)).
+- **No lane pins above `high` without eval evidence** — upstream warns the top level shows
+  diminishing returns and is prone to overthinking; test before adopting broadly.
+- **Shallow output from a pinned-`low` lane raises the lane's effort — never prompt around it.**
+- **Cache caveat**: changing effort mid-conversation invalidates cached prompt prefixes; whether a
+  frontmatter override firing mid-session also invalidates the main conversation's cache is
+  undocumented — treat pinned lanes as cache-risk-unknown in cost-sensitive loops, and recheck
+  when upstream documents it.
+
+Session-level effort is the consumer's own knob, out of plugin scope: `low` through `xhigh`
+persist via the `effortLevel` setting, while `max` and `ultracode` are session-only — `max` is
+durable only through the `CLAUDE_CODE_EFFORT_LEVEL` environment variable. Plugins never set
+session effort.
+
 ### Declared patterns
 
 Conformance is declared in the skill text itself, in one of two greppable forms: **delegation

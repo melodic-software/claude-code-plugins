@@ -33,6 +33,9 @@ the tag asserts:
   one page. Record the basis (the harness doc section(s) checked, or `unverified-inference` when
   none was); a contested or load-bearing `api-only` tag escalates to the interview rather than
   standing on an absence citation.
+- **`cc-applicable`/`mixed` boundary:** a claim that names an API surface (parameter, endpoint,
+  SDK call) tags `mixed` even when its guidance transfers to the harness; `cc-applicable` is
+  reserved for claims naming no API surface.
 
 ## Digest-agent model matching
 
@@ -67,6 +70,19 @@ Model selection (special handling — vet/validate/correct the consuming setup's
 model-routing configuration against the doc, rather than only digesting):
 
 - <https://platform.claude.com/docs/en/about-claude/models/choosing-a-model>
+  — routing vet executed 2026-07-29 (melodic-software/claude-code-plugins#1697); digest slice
+  still pending
+
+Thinking (two overlapping docs — two runs, one page per run by contract):
+
+- <https://platform.claude.com/docs/en/build-with-claude/thinking>
+- <https://platform.claude.com/docs/en/build-with-claude/thinking-steering-and-cost>
+
+Deferred with trigger (not queued):
+
+- <https://platform.claude.com/docs/en/build-with-claude/task-budgets> — api-only (the page
+  states task budgets are not supported on Claude Code or Cowork; verified 2026-07-27); enqueue
+  when harness support lands
 
 Supplementary references:
 
