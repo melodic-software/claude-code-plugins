@@ -1,6 +1,6 @@
 # Changelog — session-flow plugin
 
-## [0.17.18]
+## [0.17.19]
 
 ### Added
 
@@ -36,6 +36,52 @@
   immediately after the machine-going-away check, on the same "a hard fact outranks a cost
   heuristic" ground that check already established; a request that still needs human input, or
   that the session cannot hand off autonomously, falls through unchanged to the questions below.
+
+## [0.17.18]
+
+### Fixed
+
+- **`orchestrate`'s nested-subagent drift note asserted a disagreement that upstream has since
+  resolved (melodic-software/claude-code-plugins#1312).** 0.17.14 recorded that the `sub-agents`
+  page lagged the changelog and still described the off-by-default state, and told readers to treat
+  the changelog as authoritative for the default. Re-verified 2026-07-29 against the raw markdown of
+  both surfaces: the page now states the depth-3 default itself ("By default, a subagent can spawn
+  subagents of its own, up to three layers below the main conversation") and carries its own
+  version-history note covering all three regimes. The two surfaces agree, so the note is rewritten
+  as a resolved-drift record — it keeps the historical split and the empirical 2.1.220 observation,
+  because the page carries no dated revision history and a cached or vendored copy can still be
+  showing the old account.
+- **One quote marked `(verbatim, verified 2026-07-26)` was no longer verbatim.** The tool-list
+  gating sentence read "…lets that subagent spawn subagents of its own **once you allow nested
+  spawning**…"; the page now reads "…**while the depth limit allows it**…". Corrected, and the
+  superseded "while nesting is off" framing is replaced with the page's current at-the-limit
+  semantics, including that a fork at the limit keeps `Agent` but the tool errors instead of
+  spawning.
+- Every imperative-5 claim re-verified against byte-exact raw markdown and re-anchored to
+  2026-07-29; the changelog is recorded as current through v2.1.220.
+- **Imperative 7's `/config` size-guideline quote was not byte-exact** — it read `small`
+  "fewer than 5" where the workflows page's table reads "Fewer than 5 agents" (likewise 15 and 50).
+  Corrected and anchored to 2026-07-29. Caught by the independent citation audit outside the
+  reported hunks; fixed in passing rather than left in a file whose purpose is exact quotation.
+- The superseded page text quoted inside the resolved-drift note is now labelled as page text
+  captured 2026-07-26 and no longer reproducible upstream, so it is not mistaken for a live quote.
+
+### Added
+
+- **The file header now states what `(verbatim)` tolerates** — link syntax stripped to its text,
+  inline emphasis dropped or added, `\_` unescaped from raw changelog lines, and a sentence-final
+  period on a mid-sentence fragment. Anything that changes wording is a defect, not a normalization.
+  The convention was previously unwritten, so a reviewer could not tell a deliberate normalization
+  from a drifted quote.
+
+### Notes
+
+- The `v2.1.172` reference is a **historical citation** — the release that shipped nesting — not a
+  verification pin, and the file now says so inline. The `sub-agents` page's own version-history
+  note independently corroborates it. Bumping it would corrupt a correct citation.
+- `SKILL.md` and `context/gotchas.md` state their drift observations in dated past tense
+  ("on 2026-07-26 the page still described…"), so both remain accurate and are unchanged. Their
+  behavioral-probe guidance stands on its own regardless of whether the surfaces agree.
 
 ## [0.17.17]
 
