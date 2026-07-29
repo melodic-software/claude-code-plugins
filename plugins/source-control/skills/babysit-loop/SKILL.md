@@ -384,13 +384,16 @@ block, re-read at every cycle start:
 budget or expiry hit records the relaunch ask; `guard_mode` is recorded every cycle.
 
 `usage_sample` copies the **same** two window percentages the rate-limit guard step below already
-read at this cycle's **start** — never a second reading, so `at` is that observation time, not the
-report time. `at` is always written, so a cycle that could not observe stays distinguishable from
+read at this cycle's **start** — never a second reading, so `at` is when the lane read the tee, not
+the snapshot's own `captured_at` (which the staleness rule lets lag it) and never the report time.
+`at` is always written, so a cycle that could not observe stays distinguishable from
 one that never sampled. `five_hour_pct` / `seven_day_pct` are the readings as taken: both `null`
 when the guard is not proactive, and independently `null` when a window is unreadable, absent, or
 rejected as unknown — never the rejected value, never a stale reading carried forward, never a
-fabricated one. `five_hour_delta_pct` is `null` when either sample is missing (so a first cycle's
-always is) or when the current reading is **lower** than the previous one (the window rolled over);
+fabricated one. `five_hour_delta_pct` is `null` whenever either side's `five_hour_pct` is
+unavailable — no previous sample at all (so a first cycle's always is), or a `null` reading on
+either side — and `null` when the current reading is **lower** than the previous one (the window
+rolled over);
 only the five-hour window carries a delta, since a seven-day window moves too little per cycle to
 clear the readings' own approximation. Everything else — the single permitted readback, the delta
 covering the interval *preceding* its reporting cycle, and the three properties bounding what the
