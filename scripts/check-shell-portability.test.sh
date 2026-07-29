@@ -2117,6 +2117,96 @@ else
 fi
 rm -f "$f"
 
+# --- an ARITHMETIC EXPANSION nested in a parameter expansion must not leave the
+# frame stack unbalanced: `$((` was read as a `$(` plus a stray `(`, the first
+# `)` popped the substitution, and everything after was blanked.
+f="$(tmpsh 'stat ${x:-$((1 | 2))} -c %s')"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "a nested arithmetic expansion should not hide the option, got success: $out"
+else
+  ok "a \$(( )) inside an expansion does not unbalance the frame stack"
+fi
+rm -f "$f"
+f="$(tmpsh 'date -d "@$(( now + 1 ))" +%s')"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "an arithmetic expansion in an operand must not hide the option, got success: $out"
+else
+  ok "an arithmetic expansion in an operand still leaves the option visible"
+fi
+rm -f "$f"
+# an inner group must not close the arithmetic expansion early
+f="$(tmpsh 'stat "$(( ((1)) + 2 ))" -c %s')"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "a nested paren group must not close the expansion early, got success: $out"
+else
+  ok "an inner ( ) group does not close an arithmetic expansion early"
+fi
+rm -f "$f"
+
+# --- for an assignment-only command the status is the LAST substitution's, so a
+# sibling frame BESIDE the matched one takes ownership and the `||` never sees
+# the GNU call fail.
+f="$(tmpsh "x=\$(stat -c '%s' \"\$f\") y=\$(true) || stat -f '%z' \"\$f\"")"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "a later sibling substitution owns the status, so this is no ladder: $out"
+else
+  ok "a later substitution BESIDE the matched frame breaks the ladder"
+fi
+rm -f "$f"
+# the same shape with no sibling frame is still a real ladder
+f="$(tmpsh "x=\$(stat -c '%s' \"\$f\") y=1 || stat -f '%z' \"\$f\"")"
+if scan_paths "$REAL_TOKENS" "$f" >/dev/null 2>&1; then
+  ok "a plain assignment beside the frame leaves the ladder intact"
+else
+  fail "a non-substitution assignment must not break the ladder: $(scan_paths "$REAL_TOKENS" "$f" 2>&1)"
+fi
+rm -f "$f"
+# a frame nested INSIDE the matched one is not a sibling
+f="$(tmpsh "x=\$(stat -c \"\$(fmt)\" \"\$f\") || stat -f '%z' \"\$f\"")"
+if scan_paths "$REAL_TOKENS" "$f" >/dev/null 2>&1; then
+  ok "a frame nested inside the matched one does not take the status"
+else
+  fail "a nested frame must not read as a sibling: $(scan_paths "$REAL_TOKENS" "$f" 2>&1)"
+fi
+rm -f "$f"
+
+# --- shell quote removal splices a quoted run out of the command WORD, so
+# `d"a"te`/`st"a"t` invoke the same GNU utilities and must not read clean.
+f="$(tmpsh 'd"a"te -d tomorrow')"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "a quote-spliced date command word should fail, got success: $out"
+else
+  ok "a quote-spliced date command word is detected"
+fi
+rm -f "$f"
+f="$(tmpsh 'st"a"t -c %s "$f"')"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "a quote-spliced stat command word should fail, got success: $out"
+else
+  ok "a quote-spliced stat command word is detected"
+fi
+rm -f "$f"
+# the guard must recognize the spliced spelling on BOTH rungs, or a real ladder
+# would newly report
+f="$(tmpsh "st\"a\"t -c '%s' \"\$f\" || st\"a\"t -f '%z' \"\$f\"")"
+if scan_paths "$REAL_TOKENS" "$f" >/dev/null 2>&1; then
+  ok "a quote-spliced BSD fallback still reads as a real ladder"
+else
+  fail "the guard must see the spliced fallback: $(scan_paths "$REAL_TOKENS" "$f" 2>&1)"
+fi
+rm -f "$f"
+# the interleaving must not reach across a word boundary or into a longer name
+f="$(tmpsh "$(printf '%s\n' \
+  'printf "%s" "d" "a" "te -d x"' \
+  'git -c alias.x=status -c core.x=1 diff' \
+  '[[ -d "$candidate" ]] && echo yes')")"
+if scan_paths "$REAL_TOKENS" "$f" >/dev/null 2>&1; then
+  ok "interleaved quote runs do not span separate words or longer names"
+else
+  fail "the spliced-name spelling over-reached: $(scan_paths "$REAL_TOKENS" "$f" 2>&1)"
+fi
+rm -f "$f"
+
 echo
 echo "PASS=$PASS FAIL=$FAIL"
 [[ "$FAIL" -eq 0 ]]

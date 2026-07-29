@@ -171,6 +171,18 @@ scan_file() {
     BEGIN {
       SQ = "\047"; DQ = "\042"; BS = "\134"; BT = "\140"
       SEPS = ";&|()" BT
+      # The `stat` COMMAND NAME as an ERE, quote-runs interleaved between its
+      # letters. Shell quote removal happens before the utility sees argv, so
+      # `st"a"t -c %s` invokes the same GNU stat as `stat -c %s` and admitted
+      # the same GNU-only option while reading clean (#1544).
+      #
+      # One constant, two consumers: the token file spells the name this way,
+      # and the fallback guard below ANCHORS its own ladder regex with it so a
+      # quote-spliced GNU call can still find its quote-spliced BSD fallback.
+      # The guard DISPATCHES on either spelling — a token naming the utility
+      # plainly is still a stat token, and a simplified one is what every
+      # class-scoped unit fixture uses.
+      STATNAME = "s[" SQ DQ "]*t[" SQ DQ "]*a[" SQ DQ "]*t"
       # What may sit between a pipeline position and the command name that
       # position runs: environment assignments (repeatable, either side of a
       # wrapper), an invocation wrapper, or a leading backslash. None changes
@@ -713,9 +725,9 @@ scan_file() {
       # is what fires the `||`. The readlink guard looks BACKWARD from the last
       # rung — reached only because a portable attempt already failed — so where
       # its own status propagates to is not what that guard asks about.
-      if (index(p, "stat")) {
+      if (index(p, STATNAME) || index(p, "stat")) {
         if (status_swallowed(q, at, m)) return 0
-        return substr(q, at) ~ ("^stat" PRE QP "(-" QL "c|--format|--printf)" SEG CMDPOS NAME "stat" PRE QP "-" QL "f")
+        return substr(q, at) ~ ("^" STATNAME PRE QP "(-" QL "c|--format|--printf)" SEG CMDPOS NAME STATNAME PRE QP "-" QL "f")
       }
       return 0
     }
