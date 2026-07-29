@@ -52,9 +52,25 @@
 # matching only, never for annotation detection.
 #
 # This is a grep-level tripwire, not a semantic proof: it matches per LOGICAL
-# line — backslash-continued physical lines are joined first — so a command
-# assembled into a variable before use still evades detection (tracked in
-# #1513).
+# line — backslash- and quote-continued physical lines are joined first — so a
+# command assembled into a variable before use still evades detection (tracked
+# in #1513).
+#
+# COMMAND POSITION is deliberately not required, and this is the gate's largest
+# accepted over-flag. The leading boundary on a token establishes a shell-WORD
+# boundary, not command position, so a utility named inside a diagnostic string
+# or a heredoc example — `echo "run date -d tomorrow"`, a usage line spelling
+# `stat -c FORMAT FILE` — is reported although nothing executes. That is not an
+# oversight to be narrowed away: matching against text the shell would treat as
+# a string literal is the whole mechanism behind the regex-escape classes,
+# where `grep -E "\bword"` lives inside quotes and MUST still be caught.
+# Requiring command position for the option-based classes alone would need a
+# per-class axis in the token data plus word-level tokenization (#1562), and
+# every partial answer to it trades this false positive for a fail-OPEN — the
+# same trade already made and withdrawn for `--` (recorded above
+# collapse_subs()), which is the direction this gate is explicitly tuned
+# against. `portability-ok: <reason>` is the one-line escape for a diagnostic
+# or example that names one of these utilities.
 # Guard markers are seeded for the one class that needs one today
 # (readlink -f, requiring an actual `||` fallback relationship with a
 # co-located realpath attempt — not mere co-location); a further class
@@ -169,8 +185,15 @@ scan_file() {
     # Spelled as octal escapes because this program is itself embedded in a
     # single-quoted shell word, where a literal quote cannot appear.
     BEGIN {
-      SQ = "\047"; DQ = "\042"; BS = "\134"; BT = "\140"
-      SEPS = ";&|()" BT
+      SQ = "\047"; DQ = "\042"; BS = "\134"; BT = "\140"; NL = "\012"
+      # A newline is a separator too, and it reaches a record only through a
+      # quote-continued join. Inside a QUOTED run it is ordinary data, so
+      # neutralizing it is what lets a token gap span the join: a `stat` whose
+      # quoted filename contains a newline is one command whose option the gate
+      # could not otherwise reach (#1544). Inside a `$( )` or backquote frame
+      # the mask leaves it
+      # structural, because there it really does end a command.
+      SEPS = ";&|()" NL BT
       # The `stat` COMMAND NAME as an ERE, quote-runs interleaved between its
       # letters. Shell quote removal happens before the utility sees argv, so
       # `st"a"t -c %s` invokes the same GNU stat as `stat -c %s` and admitted
@@ -200,7 +223,12 @@ scan_file() {
       # `)` is among them because it is a control operator, so `(cmd)# …`
       # comments out the rest of the record; omitting it left a commented-out
       # `|| stat -f` structural and it was accepted as a real guard (#1544).
-      WORDSTART = " \t;&|()" BT
+      # A NEWLINE joins the class once a record can span physical lines: inside
+      # a `$( )` or backquote frame a following line may open with a real
+      # comment, and leaving it structural would let a commented-out `|| stat
+      # -f` on that line excuse a hit on an earlier one — the same fail-open
+      # the `)` entry above records, reached through a join.
+      WORDSTART = " \t;&|()" NL BT
       # What may sit between a `!` and the command name it negates BEYOND the
       # PREFIXES above: an opener that starts a nested command context. A
       # substitution or subshell is a WORD of the negated pipeline, so the `!`
@@ -325,6 +353,7 @@ scan_file() {
     function mask_quotes(l,   i, c, m, st, top, len) {
       m = ""
       DANGLING_BS = 0
+      DANGLING_QUOTE = 0
       st = "U"
       len = length(l)
       for (i = 1; i <= len; i++) {
@@ -434,6 +463,11 @@ scan_file() {
         }
         m = m c
       }
+      # Anything still open at end of record — a quote, an expansion, a
+      # substitution frame — means the shell has not finished this word, so the
+      # next physical line is part of the SAME command. The record loop joins
+      # on this exactly as it does on a dangling backslash.
+      DANGLING_QUOTE = (length(st) > 1)
       return m
     }
     # ---- Offset-anchored matching (#1544) ----
@@ -481,7 +515,14 @@ scan_file() {
       len = length(l)
       for (i = 1; i <= len; i++) {
         c = substr(l, i, 1)
-        if (substr(m, i, 1) == "Q" && index(SEPS, c) > 0) r = r "Q"
+        # A quoted NEWLINE neutralizes to a SPACE, not to the `Q` filler. `Q` is
+        # a word character, so it would weld the text on either side of a join
+        # into one word and defeat the very leading boundary the command-word
+        # tokens rely on — the hit after a join stopped matching at all. A
+        # space is what the shell would never make of it either way, and it
+        # leaves the token gaps free to span the join.
+        if (substr(m, i, 1) == "Q" && c == NL) r = r " "
+        else if (substr(m, i, 1) == "Q" && index(SEPS, c) > 0) r = r "Q"
         else r = r c
       }
       return r
@@ -741,8 +782,14 @@ scan_file() {
     # blanked in a scratch copy so the next `match()` finds the NEXT occurrence;
     # the guard still reads the untouched qline, and blanking preserves length
     # so offsets stay aligned.
-    function has_unguarded(view, q, p, m,   scan, st, len, at) {
+    # Returns the OFFSET of the first such occurrence at or after `from`, or 0.
+    # An offset rather than a yes/no because a joined record spans physical
+    # lines and both the reported line number and the annotation scope are
+    # decided by WHERE the hit sits; `from` lets the caller step past a hit its
+    # own physical line excused and keep looking.
+    function has_unguarded(view, q, p, m, from,   scan, st, len, at) {
       scan = view
+      if (from > 1) scan = blanks(from - 1) substr(view, from)
       while (match(scan, p)) {
         st = RSTART
         len = RLENGTH
@@ -750,10 +797,60 @@ scan_file() {
         # Step over the leading word-boundary character the token consumed, so
         # the guard can anchor on the command name itself.
         if (substr(scan, at, 1) !~ /[A-Za-z]/) at++
-        if (!is_guarded(q, p, at, m)) return 1
+        if (!is_guarded(q, p, at, m)) return at
         scan = substr(scan, 1, st - 1) blanks(len) substr(scan, st + len)
       }
       return 0
+    }
+    # A HEREDOC body is not shell code, so it can neither continue a command nor
+    # leave a quote open for the next line to inherit. It still gets SCANNED —
+    # this corpus writes real scripts through heredocs and the gate deliberately
+    # matches inside literal text — but it never joins.
+    #
+    # Without this, one stray backquote or apostrophe in heredoc data opened a
+    # frame that swallowed everything after it: a PowerShell settings body
+    # containing `` "CustomRule`Path" `` joined 57 following lines into one
+    # record and let a `grep` on one line reach a `-Path` on another (#1544).
+    # The blind spot predates quote-joining; joining is what made its blast
+    # radius a whole file instead of one line.
+    #
+    # The delimiter is read from the ORIGINAL text at a `<<` the mask says is
+    # structural: it may be quoted (`<<"EOF"`), and the mask has already blanked
+    # those quotes. `<<<` is a here-string, not a heredoc, and is skipped.
+    function heredoc_delim(l, m, i, len, j, c, d, q) {
+      len = length(m)
+      for (i = 1; i < len; i++) {
+        if (substr(m, i, 1) != "<" || substr(m, i + 1, 1) != "<") continue
+        if (substr(m, i + 2, 1) == "<") { i += 2; continue }
+        j = i + 2
+        HD_STRIP = 0
+        if (substr(l, j, 1) == "-") { HD_STRIP = 1; j++ }
+        while (substr(l, j, 1) == " " || substr(l, j, 1) == "\t") j++
+        q = ""
+        if (substr(l, j, 1) == SQ || substr(l, j, 1) == DQ) { q = substr(l, j, 1); j++ }
+        d = ""
+        while (j <= length(l)) {
+          c = substr(l, j, 1)
+          if (q != "" && c == q) break
+          if (q == "" && index(" \t;&|<>()" BT, c) > 0) break
+          d = d c
+          j++
+        }
+        if (d != "") return d
+      }
+      return ""
+    }
+    # phys_of <offset> — the physical-line index a record offset falls on.
+    function phys_of(off,   k) {
+      for (k = nphys; k >= 1; k--)
+        if (off >= physoff[k]) return k
+      return 1
+    }
+    # phys_text <index> — that physical line as it was read, so an annotation
+    # is scoped to the line carrying it rather than to the whole joined record.
+    function phys_text(k) {
+      if (k >= nphys) return substr(logical, physoff[k])
+      return substr(logical, physoff[k], physoff[k + 1] - physoff[k] - 1)
     }
     # Pass 1: collect active ERE patterns from the token list.
     FNR == NR {
@@ -777,13 +874,54 @@ scan_file() {
       if (is_cmt) return
       qline = neutralize(line, mask)
       cline = collapse_subs(qline, mask)
-      if (is_annotated(line) || annotated_above) return
+      if (!joined && (is_annotated(line) || annotated_above)) return
       for (i = 1; i <= np; i++) {
-        if (has_unguarded(qline, qline, patterns[i], mask) ||
-          has_unguarded(cline, qline, patterns[i], mask)) {
-          printf "%d: %s -> %s\n", lineno, patterns[i], line
-        }
+        if (report_hit(line, lineno, patterns[i], annotated_above,
+          has_unguarded(qline, qline, patterns[i], mask, 1), qline, qline, mask)) continue
+        report_hit(line, lineno, patterns[i], annotated_above,
+          has_unguarded(cline, qline, patterns[i], mask, 1), cline, qline, mask)
       }
+    }
+    # report_hit — print the first hit whose OWN physical line is unexcused,
+    # stepping past any the annotation on that line covers. Returns 1 if
+    # anything was printed, so the second view is only consulted when the first
+    # found nothing (one report per pattern per record, as before).
+    function report_hit(line, lineno, p, annotated_above, off, view, q, m,   k) {
+      # A backslash continuation removes the newline, so its physical lines are
+      # one line in the strongest sense: the record is reported whole, at its
+      # first line number, exactly as before. Only a quote-joined record, whose
+      # newlines survive, is attributed per physical line.
+      if (!joined) {
+        if (off > 0) { printf "%d: %s -> %s\n", lineno, p, line; return 1 }
+        return 0
+      }
+      while (off > 0) {
+        k = phys_of(off)
+        # Every escape the gate offers is evaluated against the physical line
+        # the hit sits on. Comment-skip included: a `#` line inside a quoted
+        # embedded program is still prose, and leaving it to the record — whose
+        # first line opened the quote and is therefore never a comment — newly
+        # flagged the documentation inside this very script.
+        if (!is_comment(phys_text(k)) &&
+          !is_annotated(phys_text(k)) &&
+          !annot_block_above(k, annotated_above)) {
+          printf "%d: %s -> %s\n", physno[k], p, phys_text(k)
+          return 1
+        }
+        off = has_unguarded(view, q, p, m, off + 1)
+      }
+      return 0
+    }
+    # The contiguous comment block directly above a physical line, read inside
+    # the joined record. Falling off the top defers to the annotation state
+    # carried in from the records before it.
+    function annot_block_above(k, annotated_above,   j, t) {
+      for (j = k - 1; j >= 1; j--) {
+        t = phys_text(j)
+        if (!is_comment(t)) return 0
+        if (is_annotated(t)) return 1
+      }
+      return annotated_above
     }
     # Pass 2: scan the target file, ONE LOGICAL LINE at a time.
     #
@@ -803,21 +941,59 @@ scan_file() {
     # the newline — for a comment-ONLY line through the is_comment() test here,
     # and for an INLINE comment through the mask, which stops at the `#` and so
     # never reaches a backslash sitting in comment text.
+    # A QUOTE left open at end of record continues the command too, and for the
+    # same reason: the shell has not finished the word, so the next physical
+    # line belongs to this command. A `stat` whose quoted filename carries a
+    # literal newline is one invocation whose GNU-only option simply never
+    # shared a record with its command name, and the gate reported the file
+    # clean (#1544).
+    #
+    # Unlike a backslash continuation the newline is KEPT — it is a character
+    # of the quoted word, and inside a `$( )` frame it is a real command
+    # separator that must stay structural.
+    #
+    # Joining makes a record span physical lines, so a hit is attributed back
+    # to the physical line it actually sits on (PHYSOFF/PHYSNO below). Both the
+    # reported line number and the `portability-ok:` scope follow that
+    # attribution: without it one annotation anywhere inside a several-hundred
+    # line embedded program would exempt the whole block, turning a join into a
+    # fail-open far larger than the one it closes.
     {
+      if (in_heredoc) {
+        body = $0
+        if (hd_strip) sub(/^\t+/, "", body)
+        if (body == hd_delim) in_heredoc = 0
+      }
       if (pending) {
-        logical = logical $0
+        # A backslash continuation removes the newline (2.2.1); a quoted one
+        # keeps it, so each carries its own join separator.
+        logical = logical pendsep $0
       } else {
         logical = $0
         logical_line = FNR
+        nphys = 0
+        joined = 0
         pending = 1
       }
+      physoff[++nphys] = length(logical) - length($0) + 1
+      physno[nphys] = FNR
       logical_mask = mask_quotes(logical)
       if (DANGLING_BS && !is_comment(logical)) {
         logical = substr(logical, 1, length(logical) - 1)
+        pendsep = ""
+        next
+      }
+      if (DANGLING_QUOTE && !is_comment(logical) && !in_heredoc) {
+        pendsep = NL
+        joined = 1
         next
       }
       scan_logical(logical, logical_line, logical_mask)
       pending = 0
+      if (!in_heredoc) {
+        hd_delim = heredoc_delim(logical, logical_mask)
+        if (hd_delim != "") { in_heredoc = 1; hd_strip = HD_STRIP }
+      }
     }
     # A file whose last line ends in a continuation still has one command left.
     END { if (pending) scan_logical(logical, logical_line, logical_mask) }

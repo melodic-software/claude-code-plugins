@@ -2207,6 +2207,67 @@ else
 fi
 rm -f "$f"
 
+# --- a QUOTED WORD spanning physical lines is one command, so its option must
+# still be reached; the newline is data inside the quotes, not a separator.
+f="$(mktemp --suffix=.sh)"
+printf 'stat %s\nbar%s -c %%s\n' "'foo" "'" >"$f"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "a quoted newline should not hide the option, got success: $out"
+elif echo "$out" | grep -q "PORTABILITY: ${f}:1:"; then
+  ok "a quoted word spanning physical lines still reaches its option"
+else
+  fail "expected the hit at line 1, got: $out"
+fi
+rm -f "$f"
+
+# --- a joined record is attributed per PHYSICAL line: the hit reports at its
+# own line, and an annotation excuses only the line carrying it. Without that,
+# one annotation anywhere inside a joined block would exempt all of it.
+f="$(mktemp --suffix=.sh)"
+printf 'x=%sopen\nstat -c %%s "$f"\ndate -d @0 +%%s # portability-ok: fixture\nclose%s\n' "'" "'" >"$f"
+out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"
+if echo "$out" | grep -q "PORTABILITY: ${f}:2:" &&
+  ! echo "$out" | grep -q "PORTABILITY: ${f}:3:"; then
+  ok "a joined record reports per physical line and scopes its annotation there"
+else
+  fail "expected line 2 flagged and line 3 excused, got: $out"
+fi
+rm -f "$f"
+
+# --- a HEREDOC body is data: a stray backquote or apostrophe in it must not
+# open a frame that swallows the lines after the heredoc ends.
+f="$(mktemp --suffix=.sh)"
+printf 'cat >/dev/null <<%sEOF%s\n"CustomRule%sPath" = %s./x%s\nEOF\ngrep -q %sneedle%s "$f"\nprintf "%%s" "x -Path y"\n' \
+  "'" "'" '`' "'" "'" "'" "'" >"$f"
+if scan_paths "$REAL_TOKENS" "$f" >/dev/null 2>&1; then
+  ok "a heredoc body does not leak an open frame into the lines after it"
+else
+  fail "heredoc body leaked quote state: $(scan_paths "$REAL_TOKENS" "$f" 2>&1)"
+fi
+rm -f "$f"
+
+# --- a heredoc body is still SCANNED: this corpus writes real scripts through
+# heredocs, and the gate deliberately matches inside literal text.
+f="$(mktemp --suffix=.sh)"
+printf 'cat >/tmp/gen.sh <<%sEOF%s\nstat -c %%s "$f"\nEOF\n' "'" "'" >"$f"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "a heredoc body must still be scanned, got success: $out"
+else
+  ok "a heredoc body is still scanned for constructs"
+fi
+rm -f "$f"
+
+# --- a `#` opening a physical line inside a joined record is a real comment, so
+# a commented-out fallback there cannot excuse a hit above it.
+f="$(mktemp --suffix=.sh)"
+printf 'x=$(stat -c %%s "$f"\n# || stat -f %%z "$f"\n)\n' >"$f"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "a commented-out fallback in a joined record should not guard: $out"
+else
+  ok "a # opening a joined physical line still starts a comment"
+fi
+rm -f "$f"
+
 echo
 echo "PASS=$PASS FAIL=$FAIL"
 [[ "$FAIL" -eq 0 ]]
