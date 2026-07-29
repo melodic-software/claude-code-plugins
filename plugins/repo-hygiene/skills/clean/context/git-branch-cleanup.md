@@ -70,7 +70,7 @@ Map script output to a table:
 
 ## 4.7 Interactive deletion
 
-If SAFE or LIKELY-SAFE branches exist, present options via `AskUserQuestion`:
+If SAFE or LIKELY-SAFE branches exist, present options via the [confirmation gate](../SKILL.md#confirmation-gate):
 
 - "Delete all SAFE branches" — `git branch -D` for squash-merged (PR MERGED), `git branch -d` for others (safe delete, refuses if unmerged). Squash merge changes SHA so `-d` refuses even when PR is merged — `-D` is safe because PR merge is already confirmed via `gh pr list`
 - "Delete SAFE + LIKELY-SAFE" — same as above for SAFE; `git branch -D` for LIKELY-SAFE (force delete — upstream gone)
