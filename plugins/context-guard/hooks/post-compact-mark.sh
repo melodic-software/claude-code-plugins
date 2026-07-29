@@ -71,15 +71,24 @@ umask 077
 ts=$(date -u '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null) || ts=""
 
 marker='{"compacted_at":"'"$(hook::json_escape "$ts")"'","trigger":"'"$TRIGGER"'","hook_event_name":"PostCompact"}'
+target="$CTX_DIR/$SESSION.compacted"
 tmp="$CTX_DIR/$SESSION.compacted.tmp.$$"
 # Track the write-and-rename result explicitly: telemetry status must reflect
 # whether the marker was actually recorded, not just whether the hook ran.
-# marker_ok stays 0 (and status reports "error") if either the temp-file
-# write or the atomic rename into place fails — operators must never be told
-# "ok" for a marker consumers will never see.
+# marker_ok stays 0 (and status reports "error") whenever the temp-file write,
+# the atomic rename, or the contract path itself leaves consumers without a
+# readable marker — operators must never be told "ok" for a marker consumers
+# will never see.
 marker_ok=0
 if printf '%s\n' "$marker" >"$tmp" 2>/dev/null; then
-  if mv -f "$tmp" "$CTX_DIR/$SESSION.compacted" 2>/dev/null; then
+  # A directory at the contract path makes `mv` SUCCEED by moving the temp
+  # file inside it, stranding the marker where no consumer looks. Refuse the
+  # rename up front rather than report a false "ok" (and rather than discover
+  # it afterwards, which would leave the temp file littered in that
+  # directory).
+  if [[ -d "$target" ]]; then
+    rm -f "$tmp" 2>/dev/null
+  elif mv -f "$tmp" "$target" 2>/dev/null; then
     marker_ok=1
   else
     rm -f "$tmp" 2>/dev/null

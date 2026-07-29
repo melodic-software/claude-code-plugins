@@ -113,7 +113,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   telemetry `status:ok` — telling operators the evidence-degraded marker was recorded when
   consumers will never see it. The write-and-rename result is now tracked and telemetry reports
   `error` on either failure path; the hook still always exits 0 (PostCompact has no decision
-  control, so the marker's own success is signaled through telemetry, not the exit code).
+  control, so the marker's own success is signaled through telemetry, not the exit code). A
+  directory occupying the contract marker path counts as a persist failure for the same reason:
+  `mv` onto a directory SUCCEEDS by moving the temp file inside it, so the hook reported `ok`
+  while consumers found nothing readable at the path. The rename is now refused up front, which
+  also stops a temp file being stranded in that directory on every compaction.
 
 ## [0.3.0]
 

@@ -117,17 +117,15 @@ else
   fail "stale marker not pruned"
 fi
 
-# 11. Marker persist failure (temp-file write blocked by a read-only
-# directory) must still exit 0 (SIDE-EFFECT-ONLY: PostCompact has no
-# decision control) but report telemetry status=error rather than "ok" —
+# 11. Marker persist failure must still exit 0 (SIDE-EFFECT-ONLY: PostCompact
+# has no decision control) but report telemetry status=error rather than "ok" —
 # operators must not be told a marker was recorded when consumers will never
-# see it. A directory-mode block (not a directory-at-the-target-path: mv
-# onto an existing directory moves INTO it rather than failing) is the
-# standard POSIX way to force this, but is a documented no-op on filesystems
-# without enforced POSIX modes (e.g. Windows ACL volumes under Git Bash —
-# reader-contract.md's own caveat). Probe the restriction actually took
-# effect before asserting on it; skip honestly rather than false-failing on
-# such a filesystem.
+# see it. Simulated with a directory sitting at the exact contract marker path,
+# the same portable idiom zone-crossing-inject.test.sh uses: it depends on no
+# permission bits, so it holds on filesystems without enforced POSIX modes
+# (Windows ACL volumes under Git Bash) too. A directory-mode block cannot
+# express this case at all — the hook re-asserts `chmod 700` on its own
+# contract directory every run, so it heals the block before writing.
 make_sink() {
   local s
   s="$(mktemp "$WORK/sink.XXXXXX")"
@@ -147,26 +145,26 @@ wait_for_sink() {
   return 1
 }
 
-chmod 555 "$MARK"
-probe_blocked=1
-: >"$MARK/.write-probe" 2>/dev/null && probe_blocked=0
-rm -f "$MARK/.write-probe" 2>/dev/null
-if ((probe_blocked)); then
-  TEL="$WORK/tel-fail.json"
-  SINK="$(make_sink "$TEL")"
-  printf '{"session_id":"sfail","hook_event_name":"PostCompact","trigger":"auto"}' |
-    HOME="$H" CLAUDE_PLUGIN_DATA="$D" HOOK_TELEMETRY_SINK="$SINK" bash "$HOOK" >/dev/null 2>&1
-  RC=$?
-  chmod 755 "$MARK"
-  if [[ $RC -eq 0 ]]; then ok "marker persist failure still exits 0"; else fail "marker persist failure: rc=$RC"; fi
-  if wait_for_sink "$TEL" && [[ "$(jq -r '.status' "$TEL" 2>/dev/null)" == "error" ]]; then
-    ok "marker persist failure reports telemetry status=error"
-  else
-    fail "telemetry status not error: $(cat "$TEL" 2>/dev/null)"
-  fi
+BLOCKED="$MARK/sfail.compacted"
+mkdir -p "$BLOCKED"
+TEL="$WORK/tel-fail.json"
+SINK="$(make_sink "$TEL")"
+printf '{"session_id":"sfail","hook_event_name":"PostCompact","trigger":"auto"}' |
+  HOME="$H" CLAUDE_PLUGIN_DATA="$D" HOOK_TELEMETRY_SINK="$SINK" bash "$HOOK" >/dev/null 2>&1
+RC=$?
+if [[ $RC -eq 0 ]]; then ok "marker persist failure still exits 0"; else fail "marker persist failure: rc=$RC"; fi
+if wait_for_sink "$TEL" && [[ "$(jq -r '.status' "$TEL" 2>/dev/null)" == "error" ]]; then
+  ok "marker persist failure reports telemetry status=error"
 else
-  chmod 755 "$MARK"
-  echo "SKIP: filesystem does not enforce directory write-mode (no POSIX ACL enforcement here) — cannot simulate a persist failure"
+  fail "telemetry status not error: $(cat "$TEL" 2>/dev/null)"
+fi
+# Pins the refusal as a PRE-rename guard: `mv` onto a directory succeeds by
+# moving the temp file inside it, so a post-hoc check would report the error
+# but litter the blocked path with temp files on every compaction.
+if [[ -z "$(ls -A "$BLOCKED" 2>/dev/null)" ]]; then
+  ok "no temp file stranded at the blocked contract path"
+else
+  fail "temp file stranded at blocked path: $(ls -A "$BLOCKED")"
 fi
 
 echo
