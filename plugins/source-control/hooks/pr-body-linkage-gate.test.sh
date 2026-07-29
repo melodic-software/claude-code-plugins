@@ -265,6 +265,21 @@ assert_allow "a spliced compliant body is allowed" "$GATED" \
 
 # A short wrapper word is a CLUSTER, not one flag: `sudo -Eu root` is valid, and
 # reading it as a single unknown flag leaves `root` where the command belongs.
+# `command -p` still executes; `-v`/`-V` only print a pathname, so no PR exists
+# to gate and blocking one would be a false block.
+assert_block "command -p is an execution wrapper" "$GATED" \
+  "$(printf "command -p gh pr create -t T --body '%s'" "$NO_RELATED")"
+assert_allow "command -v runs nothing" "$GATED" \
+  "$(printf "command -v gh pr create -t T --body '%s'" "$NO_RELATED")"
+
+# Only the current shell's own builtin can relocate a later segment. `sudo cd`
+# and `env cd` FAIL (cd is a builtin, not an executable), so a wrapped cd must
+# not poison the segments after it.
+assert_block "a sudo-wrapped cd does not poison later segments" "$GATED" \
+  "$(printf "sudo cd /tmp || gh pr create -t T --body '%s'" "$NO_RELATED")"
+assert_block "an env-wrapped cd does not poison later segments" "$GATED" \
+  "$(printf "env cd /tmp && gh pr create -t T --body '%s'" "$NO_RELATED")"
+
 # An option the hook does not positively recognize could eat the next word, so
 # the call goes out of scope rather than being guessed at.
 assert_allow "an unrecognized sudo option bails" "$GATED" \

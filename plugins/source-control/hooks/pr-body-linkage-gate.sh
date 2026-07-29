@@ -483,7 +483,13 @@ parse_wrapper_flag() {
     # A letter this hook positively knows to be boolean: the cluster continues
     # past it. Anything else is unrecognized, and the caller bails rather than
     # assume — see WRAP_KIND=unknown handling.
-    env:i | env:0 | env:v | sudo:A | sudo:b | sudo:E | sudo:H | sudo:K | sudo:k | \
+    # `command -p` uses the default PATH and still EXECUTES the command, so it is
+    # a pass-through. `-v`/`-V` are deliberately absent: they make `command`
+    # print a pathname instead of running anything, so no PR is created and
+    # gating one would be a false block — they fall through to `unknown`, which
+    # allows.
+    command:p | \
+      env:i | env:0 | env:v | sudo:A | sudo:b | sudo:E | sudo:H | sudo:K | sudo:k | \
       sudo:n | sudo:P | sudo:S | sudo:s | sudo:V | sudo:v)
       continue
       ;;
@@ -516,9 +522,26 @@ check_segment() {
     return 0
   fi
 
+  # Leading `VAR=val` assignments are not the command word.
+  while ((i < n)) && [[ "${w[i]}" == *=* && "${w[i]}" != -* ]]; do ((i++)); done
+
+  # Only the CURRENT shell's own builtin can relocate later segments, which is
+  # why this test precedes wrapper removal rather than following it: `sudo cd /x`
+  # and `env cd /x` both FAIL, because `cd` is a builtin and not an executable,
+  # so a wrapped `cd` must poison nothing. It falls through to the wrapper loop
+  # below, where `cd` is simply not `gh`.
+  case "${w[i]:-}" in
+  cd | pushd | popd)
+    DIR_CHANGED=1
+    return 0
+    ;;
+  *) ;;
+  esac
+  ((DIR_CHANGED)) && return 0
+
   # `gh` is commonly wrapped in command-scoped environment settings
-  # (`GH_TOKEN=… gh …`, `env … gh …`, `sudo gh …`); step past them before
-  # deciding this is not a gh call.
+  # (`GH_TOKEN=… gh …`, `env … gh …`, `command -p gh …`, `sudo gh …`); step past
+  # them before deciding this is not a gh call.
   while ((i < n)); do
     word="${w[i]}"
     if [[ "$word" == *=* && "$word" != -* ]]; then
@@ -569,17 +592,6 @@ check_segment() {
     *) break ;;
     esac
   done
-
-  # A directory change puts every later segment somewhere this hook cannot
-  # resolve; see WHICH DIRECTORY in the header.
-  case "${w[i]:-}" in
-  cd | pushd | popd)
-    DIR_CHANGED=1
-    return 0
-    ;;
-  *) ;;
-  esac
-  ((DIR_CHANGED)) && return 0
 
   # Match `gh` by its basename, so `gh.exe`, `/usr/bin/gh`, and `./gh` are the
   # same call — the wrapper loop above already reads basenames.
