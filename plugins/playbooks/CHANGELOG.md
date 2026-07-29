@@ -4,6 +4,32 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.6.0]
+
+Lands the Opus 5 model-adaptation refresh from the `opus-5-prompting-interview` workstream
+(dual-verified corpus: Opus 5 prompting guide + system card).
+
+### Added
+
+- **`fable-5`: `context/model-adaptation/opus-5.md`** — the Claude Opus 5 delta chapter: verified
+  behavioral deltas (self-verification, scope, report-everything review, delegation floor, output
+  length, effort posture), the architected-vs-instructed verification doctrine with its recorded
+  residual tension, live-verified thinking controls including the session-observed
+  thinking-off-above-`high` 400 (Claude Code does not clamp), an injection-robustness routing note
+  with deferred-trigger, and pointer-only hard facts. Every claim carries a source citation and a
+  Claude-Code-applicability tag.
+
+### Changed
+
+- **`fable-5`: model adaptation generalized to a per-version seam** — `context/opus-adaptation.md`
+  moved to `context/model-adaptation/opus-4-8.md` (deltas unchanged; still calibrated for, and
+  scoped to, Opus 4.8). `SKILL.md` meta-rule 3 now routes by model VERSION to
+  `context/model-adaptation/<model>.md` and no longer tells any Opus model to apply the 4.8
+  counter-steers verbatim — several are reversed by the Opus 5 guide (effort floor, per-edit-batch
+  verifier dispatch, delegation bias, scope literalism). Routing-table row and "What this skill is
+  NOT" pointer updated; `context/orchestration.md`'s chapter reference reworded to the
+  model-neutral form.
+
 ## [0.5.2]
 
 ### Fixed

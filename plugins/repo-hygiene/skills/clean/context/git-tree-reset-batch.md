@@ -89,7 +89,7 @@ confirmed the plan — the dry-run surfaces this before any mutation.
 ## Gates
 
 - **Single batch-wide gate:** run `--dry-run` once, show the whole-batch plan (the
-  per-repo outcomes + `Summary` + any `UnmatchedSkip`), `AskUserQuestion` once, then
+  per-repo outcomes + `Summary` + any `UnmatchedSkip`), [confirmation gate](../SKILL.md#confirmation-gate) once, then
   `--apply` once. One confirmation covers the batch — do not gate per repo. When the
   repo list comes from `--repos-from -` (stdin), the `--apply` invocation must re-run
   the same `ghq list -p | …` pipe (stdin is consumed once); the list is re-enumerated
