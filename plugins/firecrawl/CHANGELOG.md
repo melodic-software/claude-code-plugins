@@ -19,11 +19,11 @@ All notable changes to the `firecrawl` plugin are documented here. Format follow
   expectations follow the same pattern.
 
   The temp root rides in the positional TEMPLATE rather than in a flag.
-  `-p`/`--tmpdir` is documented in both dialects but does not mean the same
-  thing: GNU treats the template as relative to that directory and lets the
-  flag beat `TMPDIR`, while BSD/macOS consult it only as a fallback for `-t`
-  when `TMPDIR` is unset — so with a bare template and no `-t` the flag does
-  nothing there and the template resolves against the current directory,
+  `-p` (which GNU also spells `--tmpdir`) is documented in both dialects but does
+  not mean the same thing: GNU treats the template as relative to that directory
+  and lets the flag beat `TMPDIR`, while BSD/macOS consult it only as a fallback
+  for `-t` when `TMPDIR` is unset — so with a bare template and no `-t` the flag
+  does nothing there and the template resolves against the current directory,
   silently writing into the consumer's repo. GNU additionally marks `-t`
   deprecated, and BSD's `-t` takes a prefix rather than a template. An absolute
   path in the positional TEMPLATE is reinterpreted by neither dialect.

@@ -17,11 +17,11 @@ All notable changes to the `prototype` plugin are documented here. Format follow
   handed-back path is never deleted.
 
   The temp root rides in the positional TEMPLATE rather than in a flag.
-  `-p`/`--tmpdir` is documented in both dialects but does not mean the same
-  thing: GNU treats the template as relative to that directory and lets the
-  flag beat `TMPDIR`, while BSD/macOS consult it only as a fallback for `-t`
-  when `TMPDIR` is unset — so with a bare template and no `-t` the flag does
-  nothing there and the template resolves against the current directory,
+  `-p` (which GNU also spells `--tmpdir`) is documented in both dialects but does
+  not mean the same thing: GNU treats the template as relative to that directory
+  and lets the flag beat `TMPDIR`, while BSD/macOS consult it only as a fallback
+  for `-t` when `TMPDIR` is unset — so with a bare template and no `-t` the flag
+  does nothing there and the template resolves against the current directory,
   silently writing into the consumer's repo. GNU additionally marks `-t`
   deprecated. Naming the page inside a generated directory also avoids
   depending on `mktemp` accepting a suffix after the `XXXXXX`, which is a GNU
