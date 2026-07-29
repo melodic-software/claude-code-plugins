@@ -3,6 +3,84 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.28.0]
+
+### Added
+
+- **`work-loop` detects consecutive no-progress cycles and escalates instead of cycling invisibly
+  (#1648).** Every stall mechanism was per-PR or per-item, so a lane cycling repeatedly while
+  accomplishing nothing in aggregate was invisible to itself. The lane now persists a
+  `no_progress_streak` counter beside `clean_streak` in its `#502` durable state block: a cycle
+  with actionable work in the cycle-start snapshot (frontier candidates or untriaged intake) that
+  ends with no qualifying progress — an item advanced or a PR opened — increments it, an idle
+  cycle — or one held under the rate-limit guard's pause, where the lane declines work by design —
+  leaves it unchanged, and any qualifying progress resets it. At the threshold (new
+  `work_loop_no_progress_threshold` userConfig key, default 3) the lane raises a stall escalation
+  through the existing escalation contract — a `Lane stall: work-loop` tracker item with the
+  human-gated role label and the machine-marked escalation comment, at most one open at a time
+  (author-matched) — and **keeps looping**: a stalled lane is a signal about the queue, not a
+  reason to terminate. Shared counter semantics are owned by the loop-lane convention (§4,
+  "No-progress detector", convention 5.0.0); the lane body holds them by citation and defines only
+  the worker-lane progress events.
+
+## [0.27.0]
+
+### Added
+
+- **`work-loop` escalation record write — deterministic surface for out-of-band notification
+  (#1650).** Escalating — step 5, step 2's routed-advisory routing, and the admission gate's
+  first-drain `kind=ratify-c3` queueing — now also creates
+  `.claude/lane-escalations/<UTC-stamp>-<item>-work-loop.json` with the Write tool in the same
+  step that files the tracker escalation, immediately before posting the marker comment — one new
+  file per NEWLY filed escalation (suppressed by the marker read the step already performs),
+  `loop-lane/escalation-record@1`
+  shape, summary restating only the already-public marker-comment text. The Write tool call (never
+  a shell redirect, whose `Bash` event the seam's `Write` matcher never sees) is what a consuming
+  repo's `PostToolUse`
+  `type:"http"` hook keys on to reach an off-machine human deterministically; the documented seam
+  and settings shape are owned by the loop-lane convention (§2, v4.0.0). Record-before-marker is
+  load-bearing: a stop between the two non-atomic writes then costs one duplicate notification the
+  next cycle re-files, where the reverse order strands a standing marker that suppresses the record
+  on every later cycle and loses the notification permanently. Without a configured hook the file
+  is inert exhaust; the tracker item stays the escalation of record.
+
+### Changed
+
+- **`work-loop` gains a lane-start preflight that ignores the escalation record directory itself
+  (#1650).** The record write is unconditional, so an unignored `.claude/lane-escalations/` would
+  strand an untracked file per escalation in the tree this lane runs its gates against — and
+  nothing delivers a tracked ignore rule into a consuming repo, so an existing consumer that
+  upgrades would hit exactly that. New cycle-shape step 0 runs once per lane: if
+  `git check-ignore -q` reports the path unignored, append it to the clone's untracked
+  `$(git rev-parse --git-common-dir)/info/exclude`. No consumer change, no tracked file touched,
+  and a no-op wherever the repo's own `.gitignore` already carries the rule.
+
+## [0.26.1]
+
+### Fixed
+
+- **`setup check`'s role-label probe no longer FAILs on the zero-row schedule a skeleton-only bind
+  produces (#1298).** `apply` step 6 keys the recurring-maintenance label requirement on the
+  schedule's **final row count** — with zero rows a missing label is "informational, not a gate" —
+  but `check` probe 6 still keyed it on the schedule **file's presence**. Since `0.25.3` made
+  "binding present, schedule present, zero rows" the expected steady state after a first bind, the
+  two surfaces returned different verdicts for one state, and an operator's first `check` after a
+  deliberately-quiet bind was a hard FAIL over a `[Maintenance]` item that a zero-row schedule can
+  never produce. Probe 6 now branches on row count exactly as `apply` does: **≥1 row with the
+  resolved label absent is still a hard FAIL, unchanged and unweakened** — the requirement fires
+  where it is load-bearing — while an absent or zero-row schedule is INFO noting the label must
+  exist before the schedule is ever seeded. An unparsable schedule has no readable row count, so
+  probe 6 reports INFO naming probe 4's validity FAIL as the reason rather than laundering that FAIL
+  into a verdict of its own. Every one of those row-count outcomes is reached only once the role
+  resolves: a malformed, empty, or non-string configured
+  `config.role_labels["recurring-maintenance"]` is probe 6's own FAIL and settles the probe's single
+  verdict outright, so no row count — zero, absent, or unreadable — can downgrade an independent
+  binding error to INFO. This mirrors `apply` step 6, where the same value is "an error, not a
+  fallback" regardless of how many rows the schedule carries. Probe 4 additionally reports a
+  valid-but-empty `items` array as INFO pointing at `apply --seed-schedule`; no probe previously
+  reported the emptiness itself, so `check` never told an operator the schedule had no rows or how to
+  seed it. `check` remains read-only. First `check`-side eval coverage lands with it.
+
 ## [0.26.0]
 
 ### Added

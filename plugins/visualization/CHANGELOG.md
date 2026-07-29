@@ -3,6 +3,30 @@
 All notable changes to the `visualization` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.1.1]
+
+### Changed
+
+- **Local HTML files get an explicit ephemeral-tier placement rule.** The
+  local-file medium now writes via the platform temp primitive — a private run
+  directory from `mktemp -d "${TMPDIR:-/tmp}/visualize-XXXXXX"` on
+  Unix/Linux/Git Bash with the page inside it, a user-scoped temp under
+  `%LOCALAPPDATA%\Temp` on Windows — never into the consumer's repository tree,
+  one file per run, and the handed-back path is never deleted. Previously the
+  skill named no placement at all.
+
+  The temp root rides in the positional TEMPLATE rather than in a flag.
+  `-p` (which GNU also spells `--tmpdir`) is documented in both dialects but does
+  not mean the same thing: GNU treats the template as relative to that directory
+  and lets the flag beat `TMPDIR`, while BSD/macOS consult it only as a fallback
+  for `-t` when `TMPDIR` is unset — so with a bare template and no `-t` the flag
+  does nothing there and the template resolves against the current directory,
+  silently writing into the consumer's repo. GNU additionally marks `-t`
+  deprecated. The `XXXXXX` is also **trailing**: BSD `mktemp` substitutes only
+  trailing Xs, so `visualize-XXXXXX.html` cannot be created at all on macOS.
+  Naming the page inside a generated directory is what preserves the `.html`
+  extension without an unportable suffix on the template.
+
 ## [0.1.0]
 
 ### Added

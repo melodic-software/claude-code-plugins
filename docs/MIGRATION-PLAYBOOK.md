@@ -1089,8 +1089,10 @@ alternative. Both vendors are unidentified operators with unstated retention —
 unknown, not waved through — and the untrusted-content risk is contained by advisory instruction
 that is labeled advisory.
 
-**Re-trigger:** re-introducing a Bash or PowerShell pre-approval, shipping the deferred validating
-`PreToolUse` hook, or adding an MCP surface each re-opens this review.
+**Recheck trigger:** a named trigger on an in-repo decision
+([upstream-drift](conventions/upstream-drift/README.md)) — re-introducing a Bash or PowerShell
+pre-approval, shipping the deferred validating `PreToolUse` hook, or adding an MCP surface each
+re-opens this review.
 
 ## Local development loop
 
@@ -1250,16 +1252,21 @@ Alternatives weighed (docs verified 2026-07-03):
 - **Dependency plugin carrying the lib — rejected as not viable.** A hook sees only its own
   `${CLAUDE_PLUGIN_ROOT}` / `${CLAUDE_PLUGIN_DATA}`; no variable or documented mechanism exposes a
   *dependency's* install path, and cache directories are per-version (with a commit-SHA suffix for
-  tag-resolved dependencies), so computing the path is unsupported by design (plugins-reference
-  "Plugin caching and file resolution"; plugin-dependencies guide). Revisit iff Claude Code ships a
-  documented dependency-path variable — that would also allow sharing the lib beyond this marketplace.
+  tag-resolved dependencies), so computing the path is unsupported by design
+  (<https://code.claude.com/docs/en/plugins-reference#plugin-caching-and-file-resolution>;
+  <https://code.claude.com/docs/en/plugin-dependencies>). **Recheck trigger:** Claude Code
+  ships a documented dependency-path variable — that would also allow sharing the lib beyond this
+  marketplace.
 - **Marketplace-internal symlinks — deferred.** Documented mechanism: a symlink from a plugin to a
   file elsewhere in the same marketplace is dereferenced at install, copying the target's content into
-  the cache — native SSOT with no sync script (plugins-reference "Share files within a marketplace
-  with symlinks"). Deferred because such symlinks are *skipped* for `--plugin-dir` / local-path
+  the cache — native SSOT with no sync script
+  (<https://code.claude.com/docs/en/plugins-reference#share-files-within-a-marketplace-with-symlinks>).
+  Deferred because such symlinks are *skipped* for `--plugin-dir` / local-path
   installs (breaking the local development loop above) and are fragile to author and clone on Windows,
-  the primary environment on both the authoring and consuming side. Revisit if the dev loop stops
-  depending on `--plugin-dir` or the Windows constraint lifts.
+  the primary environment on both the authoring and consuming side. **Recheck trigger:** the dev
+  loop stops depending on `--plugin-dir`, the documented `--plugin-dir` / local-path handling changes
+  so marketplace symlinks are no longer skipped (the upstream premise this deferral rests on), or the
+  Windows constraint lifts.
 - **Copies with only a byte-identity CI gate — subsumed.** The chosen shape is that gate plus a
   canonical source and one sync script, removing the edit-×N-by-hand step at negligible cost.
 
@@ -1311,41 +1318,50 @@ needs the same source.
 ## Deferred surfaces — decision record (2026-07-12)
 
 Three general-purpose surfaces in the harvest-source repo (`melodic-software/medley`) are held out of this
-wave's plugin migration deliberately, each with an explicit revisit trigger — recorded here so the deferral
+wave's plugin migration deliberately, each with an explicit
+[recheck trigger](conventions/upstream-drift/README.md) — recorded here so the deferral
 is a decision, not a silent omission. The medley side carries a thin pointer back to this record at each
 surface (the workflow-engine authoring rule, the `onboard` skill, and the `gh-bot.sh` bot-identity
 convention), so a contributor who touches a deferred surface finds the trigger without leaving that repo.
 
 - **Workflow engines** (`code-review.js`, `codebase-review.js`, `deep-research.js`,
-  `research-deep-fanout.js`, `skills-audit.js`, `skills-evals.js`, `skills-remediate.js`): not a plugin
-  component per current docs — the `Workflow` tool loads an engine script from disk and a plugin manifest
-  has no native slot to ship one, so these may be removed entirely rather than migrated. **Revisit
-  trigger:** the engines survive the next usage review (still earning their keep) → package as a plugin
-  skill that dispatches the engine through the `Workflow` tool's `scriptPath`, resolved under
-  `${CLAUDE_PLUGIN_ROOT}`, with a smoke test specced for that dispatch path before packaging.
+  `research-deep-fanout.js`, `skills-audit.js`, `skills-evals.js`, `skills-remediate.js`): deferred
+  2026-07-12 as not a plugin component, so these may be removed entirely rather than migrated.
+  Re-verified 2026-07-27: the no-native-slot premise no longer holds — plugins now ship workflow
+  scripts via a `workflows/` directory
+  (<https://code.claude.com/docs/en/plugins-reference#standard-plugin-layout>) or the `workflows`
+  manifest field (<https://code.claude.com/docs/en/plugins-reference#component-path-fields>), and a
+  plugin workflow runs plugin-namespaced
+  (<https://code.claude.com/docs/en/workflows#distribute-a-workflow-in-a-plugin>) — but the deferral
+  stands on the usage question alone. **Recheck trigger:** the engines survive the next usage review
+  (still earning their keep) → migrate through the native plugin `workflows/` slot, verifying each
+  engine script fits the documented workflow-script shape, with a smoke test specced for that
+  dispatch path before packaging.
 - **`onboard` skill:** repo-specific today — its phase gates encode this repo's exact runtime, linter, and
-  tooling pins. **Revisit trigger:** a second repo needs environment-prerequisite auditing → extract a
+  tooling pins. **Recheck trigger:** a second repo needs environment-prerequisite auditing → extract a
   generic core through the extensibility-contract seams (the convention-resolution ladder infers or asks
   for the per-repo pins), leaving repo specifics in tracked config rather than baked into the skill.
-- **`tools/github-auth` (`gh-bot.sh`):** hardcodes the org's bot App / installation identity. **Revisit
+- **`tools/github-auth` (`gh-bot.sh`):** hardcodes the org's bot App / installation identity. **Recheck
   trigger:** a second repo needs bot-actor GitHub operations → parameterize org / App / installation
   through the seams (`userConfig` scalars, `sensitive` for the key) instead of standing up a second
   hardcoded wrapper.
 
 ## Unused official plugin components — decision record (2026-07-12)
 
-Three official plugin components the marketplace does not yet use, evaluated for adoption against the
-enforcement hierarchy (default **REJECT** unless the value is concrete and not already covered by an
-existing mechanism). Facts verified fresh 2026-07-12 per `CLAUDE.md` "Fresh-docs mandate". Verdict for
-all three: **REJECT now**, each with an explicit revisit trigger — no implementation issues emitted (zero
-accepted).
+The three unused official plugin components raised as adoption candidates on this date, evaluated
+against the enforcement hierarchy (default **REJECT** unless the value is concrete and not already
+covered by an existing mechanism). This is that evaluation, not an index of every component the
+marketplace does not use — the [component-stances table](PLUGIN-PHILOSOPHY.md#component-stances) is
+that index, and it carries a stance for components never raised here. Facts verified fresh
+2026-07-12 per `CLAUDE.md` "Fresh-docs mandate". Verdict for all three: **REJECT now**, each with an
+explicit recheck trigger — no implementation issues emitted (zero accepted).
 
 - **Monitors** (`monitors/monitors.json` / `experimental.monitors`) — **REJECT.** Both candidates are
   either already covered or not concrete: a PR/CI watch duplicates `/source-control:pull-request monitor`
   and a consumer's channel-mode PR watch (no gap), and a claude-ops collector-health watch carries no
   concrete recurring pain that outweighs adopting an `experimental.*` component whose manifest schema may
   change between releases (and which is skipped on the hosts / telemetry-disabled configs where the
-  Monitor tool is unavailable). **Revisit trigger:** monitors leave the `experimental` key AND a concrete
+  Monitor tool is unavailable). **Recheck trigger:** monitors leave the `experimental` key AND a concrete
   recurring in-session watch need surfaces for a shipped plugin, scoped via the documented `when:
   "on-skill-invoke:<skill-name>"` monitor field so it starts only on demand rather than at session
   start. Upstream:
@@ -1357,13 +1373,13 @@ accepted).
   invocation, which risks name collisions with the consumer's own commands, so it earns its place only
   where a script is meant to be run as a bare command by the consumer. The one live candidate — the
   knowledge plugin's extraction tooling — is owned by its publish issue #1373; the `bin/`-vs-`scripts/`
-  call belongs there, not duplicated here. **Revisit trigger:** a shipped plugin has a script the consumer
+  call belongs there, not duplicated here. **Recheck trigger:** a shipped plugin has a script the consumer
   invokes as a bare command (not an internal helper). Upstream:
   <https://code.claude.com/docs/en/plugins-reference#standard-plugin-layout>.
 - **`subagentStatusLine`** (plugin `settings.json`) — **REJECT.** Purely cosmetic: it re-formats the
   subagent panel row with no functional capability, so it does not clear the default-REJECT bar; its
   richest inputs (per-row model + context-window size for a context percentage) additionally require a
-  recent Claude Code minimum. Candidate home was claude-ops. **Revisit trigger:** a concrete operational
+  recent Claude Code minimum. Candidate home was claude-ops. **Recheck trigger:** a concrete operational
   need for custom subagent-row data during orchestration, not a presentation preference. Upstream:
   <https://code.claude.com/docs/en/statusline#subagent-status-lines>,
   <https://code.claude.com/docs/en/plugins-reference#standard-plugin-layout>.
@@ -1384,8 +1400,15 @@ the wave's codification requirement puts convention decisions in tracked docs, n
   fresh analysis — the corpus is the durable substrate for re-runnable synthesis, not just derived
   text. LFS-backed: a `.gitattributes` tracking media globs (mp4/mov/webm/png/jpg/jpeg/gif/pdf/epub/
   mp3/wav) plus pushed LFS objects. Git LFS is **not** expressible on the pulumi-github v6.14.0
-  `Repository` resource (verified against the provider schema) → it is content-side, landing via a
-  follow-up content PR to the repo, not governed in IaC. GitHub's quotas, metering, and prices change;
+  `Repository` resource → it is content-side, landing via a follow-up content PR to the repo, not
+  governed in IaC. Basis: the provider schema at the pinned tag —
+  <https://raw.githubusercontent.com/pulumi/pulumi-github/v6.14.0/provider/cmd/pulumi-resource-github/schema.json>,
+  where `github:index/repository:Repository` declares 48 properties and 39 input properties, none
+  matching `lfs`, and the document contains no case-insensitive `lfs` match at all (fetched and
+  probed 2026-07-29; re-run the same fetch against the then-pinned tag when the trigger below fires).
+  **Recheck trigger:** a pulumi-github
+  release notes LFS support on `Repository`, or the pinned provider version moves past v6.14.0 →
+  re-derive the IaC-vs-content-side call. GitHub's quotas, metering, and prices change;
   verify the current account allowance, budget, and overage behavior in the
   [official Git LFS billing documentation](https://docs.github.com/en/billing/concepts/product-billing/git-lfs)
   before changing retention or ownership policy.
@@ -1407,7 +1430,7 @@ the wave's codification requirement puts convention decisions in tracked docs, n
 The `skill-quality` plugin shipped only the generic static contract checker (`check-skill.sh`, seventeen
 model-free checks) plus the `evals.schema.json` validation asset. Its held-back scope is resolved here as
 **terminal exclusions** — decided out of the plugin for good, each with a permanent home, **not** deferrals
-with a revisit trigger. (Contrast the "Deferred surfaces" record above, where the medley surface is held
+with a recheck trigger. (Contrast the "Deferred surfaces" record above, where the medley surface is held
 *pending* a trigger; these are held *out*.)
 
 - **A/B eval runner** (`tools/evals/run-skill-comparison.sh`): a headless `claude -p` skill-body A/B
@@ -1415,7 +1438,7 @@ with a revisit trigger. (Contrast the "Deferred surfaces" record above, where th
   plugin component; stays medley-owned in `tools/evals/`.** It is a *dynamic authoring experiment* harness,
   a distinct concern from this plugin's *static QA gate* (one cohesive capability per plugin — see the
   design charter), with a single consumer and ~29 KB of worktree / hub-safety / platform path-scrub
-  surface that would be marketplace upkeep for that one consumer. **No revisit trigger:** a genuine
+  surface that would be marketplace upkeep for that one consumer. **No recheck trigger:** a genuine
   second-consumer demand is a fresh publish issue, not standing debt.
 - **Contract libs** (`tools/skill-contract/`: portability, encapsulation, script-contract, dispatcher):
   enforce medley-**invented** regimes — the skill public-surface / encapsulation contract, BEHAVIOR.md
@@ -1467,7 +1490,7 @@ So none is added.
 **The only real distinguisher (flagged, not imposed).** Cryptographic separation requires an identity
 agents do **not** hold — a distinct human-only GitHub account and/or a signing key kept off the agent
 runners, with branch protection requiring that identity's review on `docs/conventions/**`. That is an
-infrastructure change with real operator cost. **Revisit trigger:** the operator wants provable human
+infrastructure change with real operator cost. **Recheck trigger:** the operator wants provable human
 ratification, or a second human contributor joins (at which point identity separation exists naturally).
 
 **Interim posture.** Ratification stays **trust-based and visible**: a convention-seam change **should

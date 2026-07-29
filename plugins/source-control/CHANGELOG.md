@@ -3,6 +3,130 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.36.0]
+
+### Added
+
+- **`babysit-loop` detects consecutive no-progress cycles and escalates instead of cycling
+  invisibly (#1648).** Every stall mechanism was per-PR (`needs_worker` delta, `quiet_recheck_due`,
+  `checks.stuck`), so a merge lane cycling repeatedly while its queue sat unmoved was invisible to
+  itself. The lane now persists a `no_progress_streak` counter beside `cycle` and `backoff_level`
+  in its `#502` durable state block: a cycle with open PRs in the cycle-start snapshot that ends
+  with no qualifying progress — no PR merged or closed, materially changed (head, reviews,
+  comments, checks, draft elevation — foreign activity included; the lane's own repeat attempt at
+  the same still-unresolved blocker never re-qualifies), and no new escalation written —
+  increments it, an idle cycle (no open PRs) — or one held by the rate-limit guard, meaning
+  `rate_limit_latch` set, which starts no new mutating work and outlives the pause end — leaves it
+  unchanged, and any qualifying progress resets it. At the threshold (new `babysit_loop_no_progress_threshold` seam key, default 3) the
+  lane raises a stall escalation through the existing escalation contract — a
+  `Lane stall: babysit-loop` issue with the human-gated role label and the machine-marked
+  escalation comment, at most one open at a time (author-matched) — and **keeps looping**: a
+  stalled lane is a signal about the queue, not a reason to terminate. Shared counter semantics
+  are owned by the loop-lane convention (§4, "No-progress detector", convention 5.0.0); the lane
+  body holds them by citation and defines only the merge-lane progress events.
+
+### Changed
+
+- **`babysit-loop`'s detector binding moved to a progressive-disclosure spoke (#1648).** With this
+  lane's share of #1650's escalation-record contract also landing in `SKILL.md`, the file crossed
+  the 500-line hard cap. The merge-lane binding — qualifying progress, the `rate_limit_latch`
+  held-cycle bar, the threshold key, and the stall-escalation shape — now lives in
+  `skills/babysit-loop/reference/no-progress-detector.md`, cited from the cycle-shape step that
+  updates the counter, matching the `pre-escalation-dispatch.md` spoke already beside it. The same
+  pass dropped the closed inventory of every contract the convention owns (it coupled this file to
+  the convention's table of contents) in favor of the three rules that bite hardest here, and
+  trimmed the pre-escalation paragraph to what its own spoke does not already own. No contract
+  changes.
+
+## [0.35.1]
+
+### Fixed
+
+- **`worktree-create.sh --base-ref fresh` degraded to local `HEAD` in a clone with no `origin`
+  remote (melodic-software/claude-code-plugins#904).** The helper probed `refs/remotes/origin/HEAD`
+  and nothing else, so a repository cloned with `git clone -o upstream` — which has no `origin` at
+  all — took the remoteless fallback path even though `upstream/HEAD` was correctly cached. A
+  worktree created from a feature branch then carried unpushed local commits into a base that
+  `fresh` promises is the remote default branch. The fallback did emit its warning, so the failure
+  was visible rather than silent — but the warning named `origin`, the one remote the repository did
+  not have, so it read as a misconfiguration rather than as the helper looking in the wrong place.
+  - `fresh` now resolves the effective default **remote** before probing any symref, through a
+    three-rung chain: the current branch's configured remote (`branch.<name>.remote`), then `origin`
+    when it exists, then the sole remote when the repository has exactly one. The resolved remote's
+    `HEAD` symref supplies the base. Nothing hardcodes a default branch name — resolution stays
+    symbolic, as the portability lint requires.
+  - Rung 1 also changes the base in a repository that *does* have `origin`: when the current branch's
+    `branch.<name>.remote` names a different existing remote, `fresh` now bases on that remote's
+    default branch rather than `origin`'s. That is the prescribed precedence, but it is a behavior
+    change beyond the non-`origin`-clone case in the headline.
+  - Rung 1 accepts a configured remote only when it names a remote that still exists, so stale
+    config cannot shadow a healthy `origin`, and it rejects git's `.` sentinel (which means "tracks a
+    local branch", not a remote — `refs/remotes/./HEAD` is nonsense). A detached `HEAD` has no
+    branch, so the rung is skipped rather than erroring.
+  - That existence probe passes the configured name after an option terminator
+    (`git remote get-url -- "$cfg"`). A remote name may legally begin with `-` — `git clone -o -foo
+    <url>` creates one and writes it straight into `branch.<name>.remote` — and without the
+    terminator `git remote get-url` parses it as switches (`unknown switch 'f'`). Rung 1 then
+    rejected a perfectly healthy remote and resolution fell through to `origin`, producing exactly
+    the silently wrong base this release exists to prevent.
+  - The `HEAD` probe deliberately does **not** cascade back down the rungs. `fresh` means the
+    *effective* remote's default branch; quietly substituting a different remote's default branch is
+    a worse failure than the fallback, because the caller cannot see it happen.
+  - The local-`HEAD` fallback and its loud warning remain for the genuinely unresolvable cases, and
+    the warning now names the cause: the resolved remote whose `HEAD` is uncached (with the
+    `git remote set-head <remote> --auto` fix), or the absence of any default remote — no remotes at
+    all, or several with neither a branch-configured remote nor an `origin`.
+  - Every git read in the resolver is `tr -d '\r'`-trimmed: under `git.exe` on an MSYS or Cygwin
+    shell the output carries CRLF, and an untrimmed `upstream\r` would make each downstream lookup
+    miss while still reading correctly in an error message.
+  - This closes a gap the helper shared with Claude Code's own native `fresh`, which
+    [keeps `origin/HEAD` current](https://code.claude.com/docs/en/worktrees#choose-the-base-branch)
+    and falls back to local `HEAD` when `origin/HEAD` is absent. The plugin helper is now
+    deliberately more general than the native behavior it otherwise mirrors.
+  - Regression tests cover a sole non-`origin` remote, branch-config precedence over a coexisting
+    `origin` (asserted against three distinct commits so it cannot pass vacuously), a stale
+    branch-configured remote, the `.` sentinel, a detached `HEAD`, several remotes with no resolvable
+    default, the remoteless case, and an option-shaped branch-configured remote coexisting with
+    `origin`. The test fixture gained `--remote-name` plus helpers for seeding a second remote at a
+    distinguishable tip; both fixture helpers now add remotes with `--` so an option-shaped name is
+    constructible at all.
+
+## [0.35.0]
+
+### Added
+
+- **`babysit-loop` escalation record write — deterministic surface for out-of-band notification
+  (#1650).** Escalating now also creates
+  `.claude/lane-escalations/<UTC-stamp>-<item>-babysit-loop.json` with the Write tool in the same
+  step that files the tracker escalation, immediately before posting the marker comment — one new
+  file per NEWLY filed escalation (suppressed by the marker read the step already performs),
+  `loop-lane/escalation-record@1`
+  shape, summary restating only the already-public marker-comment text. The Write tool call (never
+  a shell redirect, whose `Bash` event the seam's `Write` matcher never sees) is what a consuming
+  repo's `PostToolUse`
+  `type:"http"` hook keys on to reach an off-machine human deterministically; the documented seam
+  and settings shape are owned by the loop-lane convention (§2, v4.0.0). Record-before-marker is
+  load-bearing: a stop between the two non-atomic writes then costs one duplicate notification the
+  next cycle re-files, where the reverse order strands a standing marker that suppresses the record
+  on every later cycle and loses the notification permanently. Without a configured hook the file
+  is inert exhaust; the tracker item stays the escalation of record. Because the record path is
+  relative to the lane session's own checkout, a lane scoped to a repository other than its
+  checkout notifies the launching project's endpoint and never the target's — so launching from
+  the target's checkout is stated at the site as a requirement whenever that repository's endpoint
+  is the one that must hear, not a preference.
+
+### Changed
+
+- **`babysit-loop` gains a lane-start preflight that ignores the escalation record directory itself
+  (#1650).** The record write is unconditional, so an unignored `.claude/lane-escalations/` would
+  strand an untracked file per escalation in the tree this lane runs its gates against — and
+  nothing delivers a tracked ignore rule into a consuming repo, so an existing consumer that
+  upgrades would hit exactly that. New cycle-shape step 0 runs once per lane: if
+  `git check-ignore -q` reports the path unignored, append it to the clone's untracked
+  `$(git rev-parse --git-common-dir)/info/exclude`; skipped outside a git checkout, which the
+  neutral-directory launch mode allows. No consumer change, no tracked file touched, and a no-op
+  wherever the repo's own `.gitignore` already carries the rule.
+
 ## [0.34.1]
 
 ### Fixed
