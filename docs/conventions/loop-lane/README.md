@@ -465,6 +465,34 @@ detector measures the queue moving, not the lane retrying. When progress resumes
 escalation is still open, the lane records the resumption as a comment on it and leaves the
 disposition to the operator.
 
+**Per-cycle usage sample (measure-only).** A lane's spend was a blind spot: nothing recorded how much
+of the shared subscription windows a cycle consumed. Each lane therefore records a `usage_sample` in
+that same durable-state block every cycle, holding the two window percentages the rate-limit guard
+(§6) already read that cycle plus the rise since the previous sample — the reading is already in hand,
+so measuring costs nothing beyond the write. **The one permitted readback.** The previous cycle's
+sample is read back for exactly one operation: subtracting its `five_hour_pct` to compute the new
+sample's `five_hour_delta_pct`. That derivation is the field's only permitted consumer. No other read
+is permitted, and the value never reaches a decision — not pacing, backoff, an adaptive or item cap, a
+merge rung, admission, escalation, a warning, or a pause — at any threshold, in a lane or in any gate
+a lane runs. **The delta measures the preceding interval.** The guard reading is taken at cycle start,
+before that cycle's own work, so `at` is the cycle-start observation time and `five_hour_delta_pct` is
+the rise between the previous cycle's reading and this one: it covers the interval **preceding** the
+cycle whose report carries it, and that cycle's own consumption lands in the next cycle's sample. Read
+the series as a lagging one. Measure first; whether the data supports acting on it is a later,
+separately decided question. Three properties bound that decision, stated here once and held by
+citation from each lane body: the reading is a snapshot no fresher than the guard's staleness rule
+allows, from a **machine-local**, last-writer-wins tee that refreshes only while an interactive
+session renders a status line — so an unattended lane samples nothing, and an empty sample means
+unobserved rather than zero; the figures are **account-scope**, so the three-lane topology means
+concurrent lanes move the same windows and a per-cycle rise is one lane's own consumption only when
+that lane is the sole active session; and they are a **percentage of a subscription window, not a
+token count**, absent entirely for non-subscription auth. No lane claims a token count, because none
+is *readable* at a cycle boundary: the machine-readable token fields a session exposes are
+current-context occupancy, not session totals. A machine-readable cumulative *cost* field does
+exist, and is session-scoped — so it would attribute to a lane — but the guard's tee does not
+forward it; widening the tee is a guard-side change this invariant deliberately does not make
+(<https://code.claude.com/docs/en/statusline>, verified 2026-07-28).
+
 **Headless-config floor.** A headless lane launch never blocks on an interview: it takes explicit or
 persisted config, or tier defaults, and logs the assumption. The interactive path may run a
 mini-interview and offer to persist the answer; the headless path never waits on one.
