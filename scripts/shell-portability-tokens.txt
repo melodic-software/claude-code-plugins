@@ -379,11 +379,18 @@ readlink[[:space:]]+(-[A-Za-z]*f|--canonicalize)
 # Same attached-redirection separator as `date -d` above (#1544):
 # `stat</dev/null -c %s "$f"` still passes GNU stat its `-c`.
 (^|[^A-Za-z0-9_-])s['"\\]*t['"\\]*a['"\\]*t['"\\]*([[:space:]]+|[<>]&?|&>>?)([^;&|()`\n]*[[:space:]])?['"\\]*(-[A-Za-z'"\\]*c|--['"\\]*f['"\\]*o['"\\]*r['"\\]*m['"\\]*a['"\\]*t['"\\]*|--['"\\]*p['"\\]*r['"\\]*i['"\\]*n['"\\]*t['"\\]*f['"\\]*)
-# `mktemp -p` (parent-directory flag) — a GNU coreutils extension; BSD/macOS
-# mktemp has no `-p`. The portable replacement embeds the directory in the
-# positional TEMPLATE argument instead (`mktemp "$DIR/prefix.XXXXXX"`), which
-# both dialects accept identically — see #1527, which migrated the corpus's
-# shared hook-test-scaffolding sites off `-p` before this class went active.
+# `mktemp -p` (parent-directory flag). NOT an absent flag: FreeBSD 14.2 and
+# Apple both document `-p tmpdir, --tmpdir[=tmpdir]`, so a claim that BSD/macOS
+# mktemp "has no -p" is false. The hazard is PRECEDENCE, which diverges
+# silently: GNU treats `-p` as authoritative — it overrides `TMPDIR` and
+# rejects an absolute template used with it — while BSD/macOS treats `-p` as a
+# FALLBACK consulted only when `TMPDIR` is unset. The same command therefore
+# writes to the directory you asked for on one platform and to whatever
+# `TMPDIR` happens to hold on the other, with no error either way. The portable
+# replacement embeds the directory in the positional TEMPLATE argument instead
+# (`mktemp "$DIR/prefix.XXXXXX"`), which both dialects honor identically and
+# unconditionally — see #1527, which migrated the corpus's shared
+# hook-test-scaffolding sites off `-p` before this class went active.
 # `p` may appear anywhere in a combined short-option cluster (`-dp`, `-pd`),
 # not only as a standalone `-p`.
 #

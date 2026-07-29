@@ -182,19 +182,14 @@ fi
 # scan_file <path> — print `LINE: token -> text` for each unexcused hit.
 scan_file() {
   local file="$1"
-  # A whole-file declared scope (the gate's own fixture/test corpus, which
-  # necessarily contains the literal GNU-only constructs this gate detects as
-  # test data — e.g. this script's own check-shell-portability.test.sh)
-  # excuses every hit in the file; the declaration is visible in the diff.
-  # Anchored to a genuine `#`-comment line whose content actually STARTS with
-  # the token, not a bare substring match anywhere in the file — an
-  # unanchored search would also match this very sentence (a doc-block
-  # comment merely explaining the mechanism) or a `portability-scope:`
-  # mention inside a string literal, wrongly exempting the whole file for a
-  # reason it never declared. See #1513.
-  if grep -qE '^[[:space:]]*#[[:space:]]*portability-scope:' -- "$file"; then
-    return 0
-  fi
+  # The whole-file `portability-scope:` declaration is recognized INSIDE the awk
+  # program rather than by a pre-pass grep here. A grep sees no shell structure,
+  # so it honored the declaration wherever the characters appeared — including a
+  # heredoc BODY, where the line is generated data rather than a declaration this
+  # file is making about itself, and one such line silently exempted the whole
+  # file (#1544). awk already tracks heredocs and quoted runs for the scan, so
+  # the one place that knows what is code is the one place that decides.
+  #
   # awk operand disambiguation: a bare relative operand shaped like
   # identifier=value (e.g. a top-level file literally named FOO=bar.sh) is
   # parsed by awk as a command-line variable assignment, not opened as a
@@ -944,7 +939,7 @@ scan_file() {
       # first line number, exactly as before. Only a quote-joined record, whose
       # newlines survive, is attributed per physical line.
       if (!joined) {
-        if (off > 0) { printf "%d: %s -> %s\n", lineno, p, line; return 1 }
+        if (off > 0) { hits[++nhits] = sprintf("%d: %s -> %s", lineno, p, line); return 1 }
         return 0
       }
       while (off > 0) {
@@ -957,7 +952,7 @@ scan_file() {
         if (!is_comment(phys_text(k)) &&
           !is_annotated(phys_text(k)) &&
           !annot_block_above(k, annotated_above)) {
-          printf "%d: %s -> %s\n", physno[k], p, phys_text(k)
+          hits[++nhits] = sprintf("%d: %s -> %s", physno[k], p, phys_text(k))
           return 1
         }
         off = has_unguarded(view, q, p, m, off + 1)
@@ -1015,6 +1010,16 @@ scan_file() {
         body = $0
         if (hd_strip) sub(/^\t+/, "", body)
         if (body == hd_delim) in_heredoc = 0
+      } else if ($0 ~ /^[[:space:]]*#[[:space:]]*portability-scope:/) {
+        # A whole-file declared scope — a fixture corpus belonging to this very
+        # gate, which necessarily contains the constructs it detects as test
+        # data. Anchored
+        # to a `#`-comment line whose content STARTS with the token, so a
+        # doc-block sentence explaining the mechanism or a mention inside a
+        # string literal never exempts a file for a reason it never declared.
+        # Only a line the shell would read as a comment counts: a heredoc body
+        # is generated data, not this file declaring anything (#1544).
+        SCOPED = 1
       }
       if (pending) {
         # A backslash continuation removes the newline (2.2.1); a quoted one
@@ -1059,6 +1064,11 @@ scan_file() {
         print "Error: token list loaded no active patterns" > "/dev/stderr"
         exit 2
       }
+      # Hits are buffered rather than streamed so a declaration anywhere in the
+      # file governs the whole file, as it always has, without the scan needing
+      # a second pass to find it first.
+      if (!SCOPED)
+        for (h = 1; h <= nhits; h++) print hits[h]
     }
   ' "$TOKENS" "$awk_file"
 }

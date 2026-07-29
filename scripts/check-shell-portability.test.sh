@@ -2431,6 +2431,28 @@ else
 fi
 rm -f "$f"
 
+# --- a `portability-scope:` line inside a HEREDOC BODY is generated data, not
+# this file declaring anything about itself, and must not exempt the file. A
+# grep pre-pass honored it wherever the characters appeared.
+f="$(mktemp --suffix=.sh)"
+printf 'cat >/tmp/gen.sh <<%sEOF%s\n# portability-scope: generated fixture\nEOF\nstat -c %%s "$f"\n' \
+  "'" "'" >"$f"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "a heredoc-body scope line must not exempt the file, got success: $out"
+else
+  ok "a portability-scope line inside a heredoc body exempts nothing"
+fi
+rm -f "$f"
+# a real declaration still exempts the whole file, wherever in it it sits
+f="$(mktemp --suffix=.sh)"
+printf 'stat -c %%s "$f"\n# portability-scope: this file is a fixture corpus\n' >"$f"
+if scan_paths "$REAL_TOKENS" "$f" >/dev/null 2>&1; then
+  ok "a genuine portability-scope declaration still exempts the whole file"
+else
+  fail "the file-scope declaration stopped working: $(scan_paths "$REAL_TOKENS" "$f" 2>&1)"
+fi
+rm -f "$f"
+
 echo
 echo "PASS=$PASS FAIL=$FAIL"
 [[ "$FAIL" -eq 0 ]]
