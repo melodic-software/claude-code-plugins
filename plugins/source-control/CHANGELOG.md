@@ -3,7 +3,7 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.38.1]
+## [0.39.1]
 
 ### Fixed
 
@@ -55,6 +55,33 @@ All notable changes to the `source-control` plugin are documented here. Format f
   nothing in it executes that validator, so all 92 cases are hand-transcribed expectations, and the
   header now says so. A real oracle would mean vendoring upstream JavaScript into this repo, which
   is a separate decision; the divergences fixed above were found by running one out-of-tree.
+
+## [0.39.0]
+
+### Added
+
+- **`babysit-loop` samples per-cycle usage into its durable state block
+  (melodic-software/claude-code-plugins#1651).** A lane's spend was a blind spot: the cycle budget
+  counts cycles, the rate-limit guard's pause is a ceiling, and nothing recorded how much of the
+  shared subscription windows a cycle actually consumed. The durable-state block now carries a
+  `usage_sample` — the two window percentages the guard step **already reads** every cycle, plus the
+  rise since the previous sample — so measuring adds a write, not an observation. The field is
+  deliberately inert: no lane behavior reads it back, and no pacing, backoff, merge rung, or pause
+  derives from it. Its caveats are recorded beside it because they bound what the data can support —
+  the reading is a snapshot no fresher than the guard's staleness rule allows, from a machine-local,
+  last-writer-wins tee that refreshes only while an interactive session renders a status line (so an
+  unattended background lane samples null every cycle, and an empty sample means unobserved, not
+  zero); the figures are account-scope (concurrent lanes move the same windows, so a rise is this
+  lane's own consumption only when it is the sole active session) and a percentage of a subscription
+  window rather than a token count. No token count is claimed because none is readable at a cycle
+  boundary: the status-line context-window token counts are current-context occupancy rather than
+  session totals as of Claude Code v2.1.132. A machine-readable cumulative cost field
+  (`cost.total_cost_usd`) does exist and is session-scoped, so it is the deferred candidate for
+  per-lane attribution — but the guard's tee does not forward it, and widening the tee is a
+  rate-limit-guard change this entry deliberately does not make
+  (<https://code.claude.com/docs/en/statusline>, re-verified 2026-07-28 — `used_percentage` 0–100,
+  `resets_at` epoch seconds, `rate_limits` subscriber-only and each window independently absent; no
+  drift).
 
 ## [0.38.0]
 

@@ -5,6 +5,66 @@ topology, the escalation contract, the capability-tier vocabulary, or any loop-l
 major bump, and additive guidance is a minor bump. A new model release re-audits the capability-tier
 table (§3); drift found by that audit is recorded here.
 
+## 6.0.0 — 2026-07-29
+
+Adds the per-cycle usage sample to §4's loop-layer invariants, requested and scoped in
+[melodic-software/claude-code-plugins#1651](https://github.com/melodic-software/claude-code-plugins/issues/1651).
+Tier ratified as **major** on 2.0.0's discriminator: a new §4 loop-layer invariant is a new
+obligation every loop-lane body must implement. That the recorded value drives no behavior does not
+soften the tier — the *write* is the obligation. **Bump ambiguity:** a field no decision reads changes
+no lane's behavior, and a purely additive telemetry key reads as additive guidance and a **minor**; but
+§4 states loop-layer invariants, and this adds one every loop-lane body must carry, which reads as a
+**major**. The attended `attend-queue` lane is unaffected: §4 binds loop lanes, and that lane holds
+no durable-state block.
+
+- **Per-cycle usage sample (§4).** A lane's spend was a blind spot: the cycle budget counts cycles,
+  the rate-limit guard's pause is a ceiling, and nothing recorded how much of the shared
+  subscription windows a cycle consumed. Each loop lane now records a `usage_sample` in its #502
+  durable state every cycle, holding the two window percentages the guard step (§6) **already read**
+  that cycle plus the rise since the previous sample — the reading is in hand, so the invariant costs
+  a write, not an observation. Whether the data supports acting on it is a later, separately decided
+  question.
+- **Measure-only, with exactly one permitted readback (§4).** Deriving the delta needs the previous
+  cycle's percentage, and after context compaction the telemetry block is the only durable place it
+  survives — so the invariant permits reading the previous sample back for exactly one operation:
+  subtracting its `five_hour_pct` to compute the new sample's `five_hour_delta_pct`. That derivation
+  is the field's only permitted consumer. No other read is permitted, and the value never reaches a
+  decision — not pacing, backoff, an adaptive or item cap, a merge rung, admission, escalation, a
+  warning, or a pause — at any threshold, in a lane or in any gate a lane runs.
+- **The delta measures the preceding interval (§4).** The guard reading a lane copies is taken at
+  cycle start, before that cycle's own work, so `at` is the cycle-start observation time and the
+  delta is the rise between the previous cycle's reading and this one: it covers the interval
+  *preceding* the cycle whose report carries it, and that cycle's own consumption lands in the next
+  cycle's sample. The alternative — a post-execution reading — was rejected because it would be a
+  second observation of the guard's tee that no lane's cycle shape performs, contradicting the
+  invariant's own justification that the reading is already in hand.
+- **Recorded caveats bound what the data can support.** The reading is a snapshot no fresher than
+  the guard's staleness rule allows, from a machine-local, last-writer-wins tee that refreshes only
+  while an interactive session renders a status line — so an unattended lane samples nothing, and an
+  empty sample means unobserved rather than zero. The figures are **account-scope**, so the
+  three-lane topology means concurrent lanes move the same windows and a per-cycle rise is one
+  lane's own consumption only when that lane is the sole active session; and they are a percentage
+  of a subscription window, not a token count, absent entirely for non-subscription auth. No lane
+  claims a token count, because none is readable at a cycle boundary: the machine-readable token
+  fields are current-context occupancy, not session totals. A machine-readable cumulative *cost*
+  field does exist and is session-scoped, so it would attribute to a lane — but the guard's tee does
+  not forward it, and widening the tee is a guard-side change this invariant deliberately does not
+  make.
+- **Upstream re-verification (§Versioning trigger 2).** This entry relies on the status-line stdin
+  schema, so that claim was re-verified against its cited page and its stamp refreshed to
+  **2026-07-28** (<https://code.claude.com/docs/en/statusline>). Confirmed unchanged:
+  `rate_limits.{five_hour,seven_day}.used_percentage` is 0–100 and `resets_at` is Unix epoch
+  seconds; `rate_limits` is present only for Claude.ai subscribers after the session's first API
+  response, and each window may be independently absent. Confirmed still true, and the reason no
+  token count is claimed: `context_window.total_input_tokens` / `total_output_tokens` are "token
+  counts currently in the context window, from the most recent API response" — cumulative session
+  totals only before Claude Code v2.1.132. Also recorded, because it bounds a future phase rather
+  than this one: `cost.total_cost_usd` is documented as the estimated session cost accumulated
+  client-side, resetting on `/clear` — machine-readable and session-scoped, and therefore the
+  deferred candidate for per-lane attribution once a guard-side change forwards it. No drift found.
+  `rate-limit-guard`'s reader contract carries its own 2026-07-23 stamp on the same page; it is
+  unchanged by this entry and its refresh belongs to that plugin's own bump.
+
 ## 3.1.1 — 2026-07-29
 
 Docs-only, no topology, escalation, tier, or invariant change: §Versioning's "Re-derivation

@@ -115,11 +115,26 @@ the conversation, is the source of truth for these counters):
 ```json
 {"schema":"work-items/loop-state@1","cycle":12,"clean_streak":1,"no_progress_streak":0,
  "item_cap":2,"rate_limit_latch":false,"first_drain_complete":false,"guard_mode":"proactive",
- "loop_started_at":"2026-07-23T15:00:00Z","restart_request":null}
+ "loop_started_at":"2026-07-23T15:00:00Z","restart_request":null,
+ "usage_sample":{"at":"2026-07-23T15:04:05Z","five_hour_pct":23.5,"seven_day_pct":41.2,
+ "five_hour_delta_pct":1.8}}
 ```
 
 `loop_started_at` makes the approaching seven-day expiry visible; `restart_request` is where a
 budget/expiry hit records the relaunch ask; `guard_mode` is recorded every cycle.
+
+`usage_sample` copies the **same** two window percentages the rate-limit guard step below already
+read at this cycle's **start** — never a second reading, so `at` is that observation time, not the
+report time. `at` is always written, so a cycle that could not observe stays distinguishable from
+one that never sampled. `five_hour_pct` / `seven_day_pct` are the readings as taken: both `null`
+when the guard is not proactive, and independently `null` when a window is unreadable, absent, or
+rejected as unknown — never the rejected value, never a stale reading carried forward, never a
+fabricated one. `five_hour_delta_pct` is `null` when either sample is missing (so a first cycle's
+always is) or when the current reading is **lower** than the previous one (the window rolled over);
+only the five-hour window carries a delta, since a seven-day window moves too little per cycle to
+clear the readings' own approximation. Everything else — the single permitted readback, the delta
+covering the interval *preceding* its reporting cycle, and the three properties bounding what the
+data supports — is the convention's (§4, "Per-cycle usage sample"), held by citation.
 
 ## Rate-limit guard floor (inlined)
 
@@ -224,8 +239,9 @@ while the latch is set (clear it on a fresh healthy snapshot after the pause end
    is what keeps that directory out of the tree this lane runs its gates against.
 6. **Report and pace.** Update the no-progress streak — and, at the threshold, raise the stall
    escalation — per the detector below; upsert the telemetry comment (cycle report + updated state
-   block + guard mode); then evaluate the exit condition; if not exiting, `ScheduleWakeup` the
-   next cycle.
+   block + guard mode + the `usage_sample` built from step 1's cycle-start reading, whose delta
+   covers the preceding interval and never this cycle's work); then evaluate the exit condition; if
+   not exiting, `ScheduleWakeup` the next cycle.
 
 ## Admission gate (work-class, fail-closed)
 
