@@ -164,20 +164,65 @@ hook::normalize_path() {
   printf '%s' "$p"
 }
 
-# Canonicalize to a physical path — symlinks resolved — for the membership
-# comparison below, so an in-project symlink pointing outside the project root
-# cannot defeat the guard (the lexical path would pass the prefix check while
-# the write lands elsewhere). GNU realpath ships with Git Bash and Linux
-# coreutils; readlink -f covers the BSD/macOS hosts that have no realpath.
-# When neither resolver exists the caller falls back to comparing the lexical
-# path as before — the guard is defense-in-depth scoping for a file the agent
-# already wrote via its own tools, so degrading to the historical comparison
-# beats silently disabling the hook on those hosts.
+# Expand Windows 8.3 short-name components (KYLESE~1 → KyleSexton) on
+# Windows/MSYS hosts, where GNU realpath resolves symlinks but leaves short
+# names as-is. Without this a short-form file_path — the shape Claude Code's
+# own scratchpad paths take — fails the membership prefix comparison below and
+# an IN-project file is silently skipped. 8.3 generation is a PER-VOLUME
+# property (`fsutil 8dot3name query <vol>`): a checkout on a volume that
+# generates short names hits this constantly while one on a non-generating
+# volume can never reproduce it, so the guard must not assume either.
+#
+# `cygpath -m` (form conversion only) is compared against `cygpath -l -m`
+# (long names via Win32), and the path is replaced only when the two DIFFER —
+# a legitimate long name that merely contains '~' (foo~bar.md) converts
+# identically both ways and passes through byte-for-byte untouched. A genuine
+# expansion returns mixed form (C:/...); the membership comparison normalizes
+# both sides, so the form change is absorbed, and any such path failed the
+# comparison outright before this expansion existed. Fail-open on this host
+# class: cygpath ships with Git Bash (the documented Windows bash), so its
+# absence or failure keeps the resolver's answer unchanged — degrading to the
+# pre-expansion comparison, same doctrine as the resolver fallback below.
+hook::expand_8dot3() {
+  local p="$1"
+  case "${OSTYPE:-}" in
+  msys* | cygwin* | win32) ;;
+  *)
+    printf '%s' "$p"
+    return
+    ;;
+  esac
+  if [[ "$p" == *~* ]] && command -v cygpath >/dev/null 2>&1; then
+    local plain long
+    if plain=$(cygpath -m -- "$p" 2>/dev/null) &&
+      long=$(cygpath -l -m -- "$p" 2>/dev/null) &&
+      [[ -n "$long" && "$long" != "$plain" ]]; then
+      printf '%s' "$long"
+      return
+    fi
+  fi
+  printf '%s' "$p"
+}
+
+# Canonicalize to a physical path — symlinks resolved, Windows 8.3 short names
+# expanded — for the membership comparison below, so an in-project symlink
+# pointing outside the project root cannot defeat the guard (the lexical path
+# would pass the prefix check while the write lands elsewhere) and a short-form
+# spelling of an in-project path cannot dodge it (the long-form prefix would
+# never match). GNU realpath ships with Git Bash and Linux coreutils;
+# readlink -f covers the BSD/macOS hosts that have no realpath. When neither
+# resolver exists the caller falls back to comparing the lexical path as
+# before — the guard is defense-in-depth scoping for a file the agent already
+# wrote via its own tools, so degrading to the historical comparison beats
+# silently disabling the hook on those hosts. The 8.3 expansion applies only
+# on the resolver's success path: an unchanged return is the documented
+# signature of failed canonicalization, and consumers that fail closed on that
+# signature must not see a form-converted path instead.
 hook::physical_path() {
   local resolved
   if resolved=$(realpath -- "$1" 2>/dev/null) || resolved=$(readlink -f -- "$1" 2>/dev/null); then
     if [[ -n "$resolved" ]]; then
-      printf '%s' "$resolved"
+      hook::expand_8dot3 "$resolved"
       return
     fi
   fi

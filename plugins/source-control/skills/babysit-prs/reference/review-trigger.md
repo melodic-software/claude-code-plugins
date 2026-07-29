@@ -31,10 +31,14 @@ engagement signal: it is never a trigger candidate, and reaches the operator thr
 failing-check blocker rather than through an automatic trigger comment.
 
 Therefore, keep both records. Verify completion only from a submitted review or inline review
-comment whose own commit ID equals the current head SHA and whose author has the authoritative
-GitHub `Bot` type plus an exact login from `<review-bot-logins>`. Fetch those records through the
-paginated GitHub review APIs; a successful status, or a human account with a reviewer-like login,
-is not evidence that the reviewer reviewed the current head.
+comment whose own commit ID equals the current head SHA and whose author carries an exact login
+from `<review-bot-logins>` AND is a bot — by the authoritative GitHub `Bot` type, or because the
+operator declared that login in `<extra-bot-logins>`, the standing seam for an automation account
+GitHub types as a `User`. Both halves are required, so declaring an account a bot never promotes
+it to reviewer, and with `<extra-bot-logins>` unset the rule is the authoritative type alone.
+Fetch those records through the paginated GitHub review APIs; a successful status, or an
+undeclared human account with a reviewer-like login, is not evidence that the reviewer reviewed
+the current head.
 
 Reactions do not carry a commit SHA and persist across pushes. An eyes reaction on this run's
 durable trigger comment means the reviewer is engaged while that comment's recorded head remains
@@ -49,7 +53,7 @@ after posting, defer the PR until a later snapshot. Use the guarded helper rathe
 directly:
 
 ```text
-python "${CLAUDE_PLUGIN_ROOT}/skills/babysit-prs/scripts/request_review.py" --pr owner/repo#42 --expected-head-sha <expected-head-sha> --trigger-phrase <review-trigger-phrase> --review-bot-logins <review-bot-logins> --lease-token <worker-token> --state-dir <state-dir> --apply
+python "${CLAUDE_PLUGIN_ROOT}/skills/babysit-prs/scripts/request_review.py" --pr owner/repo#42 --expected-head-sha <expected-head-sha> --trigger-phrase <review-trigger-phrase> --review-bot-logins <review-bot-logins> --extra-bot-logins <extra-bot-logins> --lease-token <worker-token> --state-dir <state-dir> --apply
 ```
 
 The helper requires all of these conditions:

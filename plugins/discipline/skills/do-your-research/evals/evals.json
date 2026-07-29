@@ -41,8 +41,8 @@
     {
       "id": 4,
       "name": "clean-audit-returns-clean",
-      "prompt": "do your research — I want to make sure we've been rigorous. (Every claim this session was already fetched from official docs and cited.)",
-      "expected_output": "The audit finds nothing to correct and says so plainly. Firing the skill is treated as a re-anchor, not an accusation — it does not manufacture findings to look diligent, and it does not reprint the discipline's rules in place of governing by them.",
+      "prompt": "do your research — I want to make sure we've been rigorous. (Every claim this session was fetched from the official docs this turn, corroborated against a second source from an unrelated upstream, and checked against the current release — and each one is cited.)",
+      "expected_output": "The audit finds nothing to correct and says so plainly: the fixture already establishes all three dimensions of the bar — a source fetched this turn, an independent corroborator, and a recency check — so there is no tier, corroboration, or recency finding to raise. Firing the skill is treated as a re-anchor, not an accusation — it does not manufacture findings to look diligent, and it does not reprint the discipline's rules in place of governing by them.",
       "files": [],
       "expectations": [
         "Reports an honest 'nothing to correct' when the work already conforms",
