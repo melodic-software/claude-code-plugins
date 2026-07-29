@@ -12,6 +12,12 @@
 #   - --dry-run resolves the action but performs no write
 #   - `-` reads the body from stdin
 #   - missing jq BINARY (not just the in-script wrapper function) exits 4
+#   - pre-write body gate: an `@path` body (file AND stdin), an under-floor body,
+#     and an empty body each exit 3 having made NO API call
+#   - post-write read-back: a good body verifies; a body that came back `@`-led,
+#     sentinel-only, or without the sentinel exits 6; a failed GET is retried
+#     once then exits 6 reporting the cycle UNCONFIRMED; a response with no id
+#     exits 6; --dry-run reads nothing back
 #
 # PATH-stubs `gh`; the stub logs every mutating call and serves a fixture
 # comment list, so no network or real issue is touched.
@@ -43,15 +49,24 @@ mkdir -p "$STUB_BIN"
 LOG="$TMP/gh.log"
 
 # gh stub: serves `repo view`, `api user`, a paginated comment list from
-# $STUB_COMMENTS_FILE, and logs PATCH/POST mutations (echoing a synthetic
-# response so the script can extract .id / .html_url).
+# $STUB_COMMENTS_FILE, the post-write read-back GET of a single comment, and logs
+# PATCH/POST mutations (echoing a synthetic response so the script can extract
+# .id / .html_url).
+#
+# Read-back knobs (all default to a body that verifies):
+#   STUB_READBACK_BODY  exact body the read-back GET returns
+#   STUB_READBACK_FAIL  non-empty: the read-back GET exits non-zero
+#   STUB_NO_ID          non-empty: mutations answer with no `id` field
+#   STUB_NO_HTML_URL    non-empty: mutations answer with an `id` but no `html_url`
+#   STUB_BAD_ID         non-empty: mutations answer with a non-numeric traversal `id`
 cat >"$STUB_BIN/gh" <<'STUB'
 #!/usr/bin/env bash
 args=("$@")
-method=""; url=""; seen_api=0
+method=""; url=""; jq_query=""; seen_api=0
 for ((i = 0; i < ${#args[@]}; i++)); do
   case "${args[$i]}" in
     --method) method="${args[$((i + 1))]}" ;;
+    --jq) jq_query="${args[$((i + 1))]}" ;;
     api) seen_api=1 ;;
     repos/*|user) ((seen_api)) && [[ -z "$url" ]] && url="${args[$i]}" ;;
   esac
@@ -68,7 +83,13 @@ fi
 if [[ -n "$method" ]]; then
   # Mutation: log it, echo a synthetic response.
   printf 'CALL method=%s url=%s\n' "$method" "$url" >>"$STUB_LOG"
-  if [[ "$method" == "PATCH" ]]; then
+  if [[ -n "${STUB_NO_ID:-}" ]]; then
+    printf '{"html_url":"https://github.com/o/r/issues/1#c0"}\n'
+  elif [[ -n "${STUB_BAD_ID:-}" ]]; then
+    printf '{"id":"../../../org2/target/issues/comments/1","html_url":"https://github.com/o/r/issues/1#c0"}\n'
+  elif [[ -n "${STUB_NO_HTML_URL:-}" ]]; then
+    printf '{"id":999}\n'
+  elif [[ "$method" == "PATCH" ]]; then
     id="${url##*/}"
     printf '{"id":%s,"html_url":"https://github.com/o/r/issues/1#c%s"}\n' "$id" "$id"
   else
@@ -76,8 +97,28 @@ if [[ -n "$method" ]]; then
   fi
   exit 0
 fi
-# List comments (GET, --paginate): serve the fixture verbatim.
+# Read-back (GET one comment by id). Only `--jq .body` yields the raw body text
+# — real `gh` without it emits the whole comment JSON, so a regression that drops
+# the projection must not keep passing here.
+if [[ "$url" == */issues/comments/* ]]; then
+  printf 'CALL method=GET url=%s\n' "$url" >>"$STUB_LOG"
+  [[ -n "${STUB_READBACK_FAIL:-}" ]] && exit 1
+  if [[ "$jq_query" != ".body" ]]; then
+    printf '{"id":999,"body":"a JSON object, not the raw body"}\n'
+    exit 0
+  fi
+  if [[ -n "${STUB_READBACK_BODY+set}" ]]; then
+    printf '%s\n' "$STUB_READBACK_BODY"
+  else
+    printf '%s\nlane: triage\nlast-cycle: 2026-07-21T06:00:00Z\nflags: none\n' "${STUB_SENTINEL:-}"
+  fi
+  exit 0
+fi
+# List comments (GET, --paginate): serve the fixture verbatim. Logged like every
+# other call so a pre-write rejection can assert an EMPTY log — proving zero API
+# calls, not merely zero mutations.
 if [[ "$url" == */comments ]]; then
+  printf 'CALL method=GET url=%s\n' "$url" >>"$STUB_LOG"
   cat "${STUB_COMMENTS_FILE:-/dev/null}"
   exit 0
 fi
@@ -97,6 +138,7 @@ REPO="melodic-software/claude-code-plugins"
 run() { STUB_COMMENTS_FILE="$1" bash "$SCRIPT" --repo "$REPO" --issue 502 --marker "lane:triage" --body-file "$BODY" --body-dir "$SAFE_DIR" "${@:2}"; }
 
 SENT='<!-- claude-ops:lane-telemetry marker=lane:triage -->'
+export STUB_SENTINEL="$SENT"
 
 # ============================================================================
 # create — no matching comment
@@ -124,10 +166,15 @@ cat >"$TMP/has-sentinel.json" <<JSON
 JSON
 : >"$LOG"
 out="$(run "$TMP/has-sentinel.json" 2>&1)"
+rc=$?
 log="$(cat "$LOG")"
+assert_eq "update exits 0" 0 "$rc"
 assert_contains "update reports updated" "$out" "updated comment 222"
 assert_contains "update PATCHes the sentinel comment" "$log" "method=PATCH url=repos/$REPO/issues/comments/222"
 assert_not_contains "update does not POST a second comment" "$log" "method=POST"
+# The read-back must GET the comment that was actually written, not a fixed id:
+# reading back the wrong comment would verify somebody else's body as ours.
+assert_contains "update reads back the comment it PATCHed" "$log" "method=GET url=repos/$REPO/issues/comments/222"
 
 # ============================================================================
 # fallback — no sentinel, my comment carries the raw marker -> adopt (PATCH)
@@ -291,6 +338,9 @@ assert_contains "oversized body message" "$out" "over the"
 # ============================================================================
 # `-` reads body from stdin
 # ============================================================================
+# The body length is load-bearing: `lane: from-stdin` is exactly MIN_BODY_BYTES
+# once the trailing newline is stripped, so it doubles as the floor's inclusive
+# boundary. Shortening it turns this into a pre-write rejection.
 : >"$LOG"
 out="$(printf 'lane: from-stdin\n' | STUB_COMMENTS_FILE="$TMP/empty.json" bash "$SCRIPT" --repo "$REPO" --issue 502 --marker "lane:triage" --body-file - 2>&1)"
 rc=$?
@@ -312,6 +362,144 @@ out="$(PATH="$STUB_BIN" "$BASH_BIN" "$SCRIPT" --repo "$REPO" --issue 502 --marke
 rc=$?
 assert_eq "missing jq binary exits 4" 4 "$rc"
 assert_contains "missing jq binary message" "$out" "jq not found"
+
+# ============================================================================
+# PRE-WRITE BODY GATE (#952) — the #943 fail-open is a comment whose timestamp
+# moves while its body carries no telemetry. The gate catches it BEFORE the
+# write, so nothing degraded is ever published: every case below must exit 3
+# having made no API call at all (an EMPTY stub log, not merely no mutation).
+# ============================================================================
+
+# The #943 defect itself: a caller composed `@path` as its body content, meaning
+# the file. Posting that verbatim is the fail-open — refuse before writing.
+ATPATH="$SAFE_DIR/atpath.txt"
+printf '@C:/Users/KYLESE~1/AppData/Local/Temp/telemetry_combined.txt\n' >"$ATPATH"
+: >"$LOG"
+out="$(STUB_COMMENTS_FILE="$TMP/empty.json" bash "$SCRIPT" --repo "$REPO" --issue 502 \
+  --marker "lane:triage" --body-file "$ATPATH" --body-dir "$SAFE_DIR" 2>&1)"
+rc=$?
+log="$(cat "$LOG")"
+assert_eq "@path body rejected pre-write exit 3" 3 "$rc"
+assert_contains "@path rejection names the literal @" "$out" "starts with a literal '@'"
+assert_contains "@path rejection points at the fix" "$out" "use --body-file PATH"
+assert_contains "@path rejection says nothing was written" "$out" "nothing was written"
+assert_eq "@path body reaches no API call at all" "" "$log"
+
+# Same gate on the stdin path — a lane piping an interpolated `@path` string is
+# the realistic vector, since `-` is the recommended body input.
+: >"$LOG"
+out="$(printf '@/tmp/telemetry.txt\n' | STUB_COMMENTS_FILE="$TMP/empty.json" bash "$SCRIPT" \
+  --repo "$REPO" --issue 502 --marker "lane:triage" --body-file - 2>&1)"
+rc=$?
+log="$(cat "$LOG")"
+assert_eq "@path stdin body rejected pre-write exit 3" 3 "$rc"
+assert_eq "@path stdin body reaches no API call at all" "" "$log"
+
+# Degenerate sibling: a body too short to be telemetry would leave a comment
+# that still looks fresh.
+TINY="$SAFE_DIR/tiny.txt"
+printf 'ok\n' >"$TINY"
+: >"$LOG"
+out="$(STUB_COMMENTS_FILE="$TMP/empty.json" bash "$SCRIPT" --repo "$REPO" --issue 502 \
+  --marker "lane:triage" --body-file "$TINY" --body-dir "$SAFE_DIR" 2>&1)"
+rc=$?
+log="$(cat "$LOG")"
+assert_eq "under-floor body rejected pre-write exit 3" 3 "$rc"
+assert_contains "under-floor rejection names the floor" "$out" "under the 16-byte floor"
+assert_eq "under-floor body reaches no API call at all" "" "$log"
+
+# An empty body is the same rejection, not a special case.
+: >"$LOG"
+out="$(printf '' | STUB_COMMENTS_FILE="$TMP/empty.json" bash "$SCRIPT" --repo "$REPO" \
+  --issue 502 --marker "lane:triage" --body-file - 2>&1)"
+rc=$?
+assert_eq "empty stdin body rejected pre-write exit 3" 3 "$rc"
+
+# ============================================================================
+# POST-WRITE READ-BACK (#952) — secondary confirmation. The body's content was
+# already cleared pre-write, so these cases stand in for damage between the
+# write and what a reader of the issue finds.
+# ============================================================================
+
+# A verified write re-reads the comment it just wrote (guard is not inert).
+: >"$LOG"
+out="$(run "$TMP/empty.json" 2>&1)"
+rc=$?
+log="$(cat "$LOG")"
+assert_eq "verified write exits 0" 0 "$rc"
+assert_contains "verified write re-reads the written comment" "$log" "method=GET url=repos/$REPO/issues/comments/999"
+
+# What landed starts with `@` although what was sent did not. The sentinel is
+# line one, so the check must look BELOW it.
+: >"$LOG"
+out="$(STUB_READBACK_BODY="$SENT"$'\n@C:/Users/KYLESE~1/AppData/Local/Temp/telemetry_combined.txt' \
+  run "$TMP/empty.json" 2>&1)"
+rc=$?
+assert_eq "@path read-back body exits 6" 6 "$rc"
+assert_contains "@path read-back names the literal @" "$out" "starts with a literal '@'"
+assert_contains "@path read-back blames the store, not the caller's body" "$out" "the stored comment diverged from what was written"
+assert_contains "@path read-back names the comment url" "$out" "https://github.com/o/r/issues/1#c999"
+
+# Degenerate sibling: an empty body leaves a sentinel-only comment that still
+# looks fresh.
+out="$(STUB_READBACK_BODY="$SENT" run "$TMP/empty.json" 2>&1)"
+rc=$?
+assert_eq "sentinel-only read-back body exits 6" 6 "$rc"
+assert_contains "sentinel-only failure names the floor" "$out" "under the 16-byte floor"
+
+# A body that lost the sentinel is not this marker's comment any more.
+out="$(STUB_READBACK_BODY="lane: triage, but no sentinel at all" run "$TMP/empty.json" 2>&1)"
+rc=$?
+assert_eq "read-back without the sentinel exits 6" 6 "$rc"
+assert_contains "missing-sentinel message" "$out" "does not carry the marker sentinel"
+
+# Cannot verify == not verified: a failed read-back is never treated as success,
+# but it is retried first — the write already landed, so a transient read failure
+# must not report a good cycle as a bad one.
+: >"$LOG"
+out="$(STUB_READBACK_FAIL=1 run "$TMP/empty.json" 2>&1)"
+rc=$?
+gets="$(grep -c "url=repos/$REPO/issues/comments/" "$LOG")"
+assert_eq "failed read-back GET exits 6" 6 "$rc"
+assert_contains "failed read-back message" "$out" "could not re-read comment"
+assert_eq "failed read-back is retried once before failing" 2 "$gets"
+# A read-back that could not RUN is reported differently from one that disagreed:
+# the body already cleared the pre-write gate, so the comment is unconfirmed
+# rather than known-bad, and the operator is told so.
+assert_contains "unreachable read-back is reported as unconfirmed" "$out" "UNCONFIRMED"
+
+# Same rule when the write response carries no id to read back.
+out="$(STUB_NO_ID=1 run "$TMP/empty.json" 2>&1)"
+rc=$?
+assert_eq "write response with no comment id exits 6" 6 "$rc"
+assert_contains "no-id message" "$out" "carried no comment id"
+
+# A non-numeric comment id never reaches a gh api URL path — the same rule the
+# --repo validation enforces, applied to the one other interpolated value. A
+# traversal id would otherwise redirect the read-back GET to another repo.
+: >"$LOG"
+out="$(STUB_BAD_ID=1 run "$TMP/empty.json" 2>&1)"
+rc=$?
+log="$(cat "$LOG")"
+assert_eq "non-numeric comment id exits 6" 6 "$rc"
+assert_contains "non-numeric id message" "$out" "non-numeric comment id"
+assert_not_contains "traversal id never reaches a read-back GET" "$log" "org2/target"
+
+# A response carrying an id but NO html_url still exits 0. The trailing
+# `[[ -n "$html_url" ]] && printf` used to be the script's last command, so its
+# false branch became the exit status and a verified upsert reported failure.
+out="$(STUB_NO_HTML_URL=1 run "$TMP/empty.json" 2>&1)"
+rc=$?
+assert_eq "verified write with no html_url still exits 0" 0 "$rc"
+assert_contains "no-html_url write still reports the upsert" "$out" "created comment 999"
+
+# --dry-run writes nothing, so it reads nothing back.
+: >"$LOG"
+out="$(run "$TMP/has-sentinel.json" --dry-run 2>&1)"
+rc=$?
+log="$(cat "$LOG")"
+assert_eq "dry-run exits 0" 0 "$rc"
+assert_not_contains "dry-run performs no read-back" "$log" "url=repos/$REPO/issues/comments/"
 
 # ============================================================================
 echo

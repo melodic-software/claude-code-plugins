@@ -3,6 +3,56 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.22.0]
+
+### Added
+
+- **`lanes`: `telemetry-upsert.sh` refuses a degraded telemetry body before it writes it, then
+  confirms what landed (#952).** The gate is pre-write: the caller's body is rejected with exit `3`,
+  having made no API call at all, if it begins with a literal `@` or falls under a 16-byte floor.
+  This guards the #943 defect class — a caller that composed an `@path` string as its body content,
+  meaning the file, posts the literal path text, and because the comment's timestamp still moves the
+  telemetry surface looks fresh while carrying no data, an observability fail-open no freshness check
+  can see. Catching it before the `POST`/`PATCH` means nothing degraded is ever published to a public
+  tracking issue, and there is no window in which a reader finds one. The wrapper's own plumbing
+  cannot commit the mistake (it reads the body into a shell variable before any `gh` call), so the
+  gate exists for the body TEXT a lane hands it. After the write the comment is re-read through a
+  separate `GET` and the same assertions re-run against what a reader will actually find, plus the
+  marker sentinel. That pass is scoped honestly: because the sent body was already cleared and the
+  `GET` targets the id just written, it sees only what happened to that comment afterwards — a
+  mangled store, a concurrent writer stripping the sentinel, a deletion — and a failure exits `6`
+  naming the comment's URL. It cannot detect that detection resolved the wrong comment, and editing
+  another user's comment is not its job either (that `PATCH` 403s and exits `5`). The create/update
+  response echo is deliberately not trusted in place of the re-read: it proves the request was
+  accepted, not what landed. An unreachable `GET` is retried once and then reports the cycle
+  UNCONFIRMED rather than known-bad — a check that could not run is not a check that disagreed —
+  and now carries `gh`'s own error text, because a `404` (the comment is gone) and a `403`/`429`
+  (secondary rate limit) call for opposite responses. There is no `--no-verify` opt-out; this script
+  is driven by lane prompts, so an escape hatch would be reachable by the same caller the gate
+  exists to catch.
+- **`lanes` doctrine: the `@path`-as-body anti-pattern is stated once, in the skill.** Telemetry and
+  comment bodies are passed as file contents or piped, never as an `@path` string interpolated into
+  a body value: `gh issue comment --body @path` and `gh api -f body=@path` send the literal text.
+  Reading from a file takes `gh issue comment --body-file`, or `gh api -F`/`--field key=@path` —
+  `gh api` has no `--body-file` flag at all. The rule covers the `gh api` upsert a lane inlines as
+  well as the wrapper, because an installed plugin cannot invoke a sibling plugin's script and an
+  inlined upsert carries none of the wrapper's body checks.
+
+### Changed
+
+- **`telemetry-upsert.sh` now rejects bodies it previously accepted (#952).** A body beginning with
+  a literal `@`, or shorter than 16 bytes, exits `3` instead of being posted. Both shapes are the
+  #943 fail-open rather than legitimate telemetry, so the rejection is the point — but a caller
+  passing either today changes from a silent success to a hard failure. No in-repo caller is
+  affected: nothing invokes the wrapper yet, by design (routing the operator loop-prompt through it
+  is #943, out-of-repo).
+
+### Fixed
+
+- **`telemetry-upsert.sh` no longer exits `1` after a successful upsert whose API response carried
+  no `html_url`.** The trailing `[[ -n "$html_url" ]] && printf …` was the script's last command, so
+  its false branch became the exit status.
+
 ## [0.21.6]
 
 ### Fixed

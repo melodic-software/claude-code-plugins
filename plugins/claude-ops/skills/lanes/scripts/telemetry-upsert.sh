@@ -53,16 +53,63 @@
 #                    perform no write.
 #   --help
 #
+# PRE-WRITE BODY VALIDATION (#952, guarding the #943 fail-open) — the real gate:
+#   Before anything is sent, the caller's body is asserted to not begin with a
+#   literal `@` and to clear MIN_BODY_BYTES. A failure exits 3 having made zero
+#   API calls, so the degraded body never reaches the tracking issue — there is
+#   no public comment to retract and no window in which a reader sees it.
+#
+#   The `@` assertion is the specific defect this guards (see the lanes SKILL.md
+#   section "Never pass a body as an `@path` string" for the caller-facing rule):
+#   a body argument given an `@path` string posts the literal path text, and the
+#   comment's timestamp still moves — so the telemetry surface looks FRESH while
+#   carrying no data, an observability fail-open a timestamp check cannot see.
+#   The length floor catches the degenerate sibling: a sentinel-only comment
+#   from an empty body.
+#
+#   This script cannot commit the `@path` mistake through its own plumbing (it
+#   reads the body into a shell variable before any gh call, so `-f body=` never
+#   sees an `@path`). The gate is here for the body TEXT a caller hands it: a
+#   lane that composed `@/tmp/telemetry.txt` as its body content, meaning the
+#   file, arrives at this script as that literal string.
+#
+#   Validation is unconditional and has no opt-out flag: this script is driven by
+#   AI lane prompts, and a `--no-verify` escape hatch would be reachable by the
+#   same prompt-injected caller the check exists to catch.
+#
+# POST-WRITE READ-BACK (secondary confirmation, not the gate):
+#   After the create/update, the comment is re-read via a separate GET and the
+#   same assertions re-run against what a reader of the issue will actually find,
+#   plus the sentinel. A body that fails exits 6 with the comment id/url named.
+#
+#   Scope it honestly. The pre-write gate already proved the body we SENT is
+#   sound, and the GET targets the id we just wrote, so this pass sees only what
+#   happened to THAT comment after the write returned: a truncated or mangled
+#   store, a concurrent writer overwriting or stripping the sentinel, or the
+#   comment being deleted out from under us (404). It cannot tell that detection
+#   resolved the WRONG comment — we would have stamped our sentinel and body onto
+#   it, and reading that id back finds exactly what we expect. (Nor is it the
+#   guard for editing another user's comment: that PATCH 403s and exits 5.)
+#
+#   The GET is retried once: the write has already landed by then, so a transient
+#   read failure must not report a good cycle as a bad one. A second failure is
+#   still fail-closed — the cycle is reported UNCONFIRMED rather than good — but
+#   its message says so, because a check that could not run is not a check that
+#   disagreed.
+#
 # Output (stdout): one action line, e.g.
 #   telemetry-upsert: updated comment 12345 (marker=lane:triage) on <owner/repo>#<issue>
 #   <html_url>
 #
 # Exit codes:
-#   0  upserted (or, with --dry-run, resolved)
-#   3  invalid argument (bad issue/marker/repo, body-file outside the safe dir,
-#      or a body over the size cap)
+#   0  upserted and verified (or, with --dry-run, resolved)
+#   3  invalid argument (bad issue/marker/repo, body-file outside the safe dir),
+#      or a body that failed the pre-write gate (over the size cap, under the
+#      size floor, or starting with a literal `@`) — NOTHING was written
 #   4  prerequisite missing (gh or jq), or the repo / safe body dir unresolved
 #   5  a gh API call (list / create / update) failed
+#   6  the write went through but its read-back did not verify (or could not be
+#      performed) — the comment on the issue is NOT confirmed telemetry
 
 set -uo pipefail
 
@@ -78,6 +125,7 @@ for bin in gh jq; do
 done
 
 MAX_BODY_BYTES=65536 # 64 KiB — a telemetry body, not an essay
+MIN_BODY_BYTES=16    # sanity floor for the body — below this is not telemetry
 
 ISSUE=""
 MARKER=""
@@ -225,10 +273,25 @@ else
   body_text="$(cat "$BODY_FILE")"
 fi
 
-# Size guard (defense in depth), applied to file AND stdin bodies alike.
+# --- Pre-write body gate -----------------------------------------------------
+# All three checks run against the caller's body BEFORE any gh call, so a body
+# that fails costs zero API calls and never lands on the tracking issue. The
+# read-back below re-asserts the same properties on what came back; THIS is what
+# keeps a degraded body from being published in the first place. Applied to file
+# and stdin bodies alike.
 body_bytes="$(printf '%s' "$body_text" | wc -c | tr -d ' ')"
 if ((body_bytes > MAX_BODY_BYTES)); then
   err "body is ${body_bytes} bytes, over the ${MAX_BODY_BYTES}-byte cap — telemetry bodies are small"
+  exit 3
+fi
+if [[ "$body_text" == @* ]]; then
+  err "body starts with a literal '@' — a body argument was given an @path instead of the file's contents (use --body-file PATH, or pipe the body via --body-file -)"
+  err "nothing was written: fix the caller's body, do not re-run blind"
+  exit 3
+fi
+if ((body_bytes < MIN_BODY_BYTES)); then
+  err "body is ${body_bytes} bytes, under the ${MIN_BODY_BYTES}-byte floor — a comment that would look fresh but hold no telemetry"
+  err "nothing was written: fix the caller's body, do not re-run blind"
   exit 3
 fi
 
@@ -320,6 +383,79 @@ fi
 
 new_id="$(jq -r '.id // empty' <<<"$resp")"
 html_url="$(jq -r '.html_url // empty' <<<"$resp")"
+
+# --- Post-write read-back (secondary confirmation) ---------------------------
+# Re-READ the comment rather than trusting the create/update response echo: the
+# echo proves the request was accepted, a GET proves what a reader of the issue
+# will actually find. The body's CONTENT was already cleared by the pre-write
+# gate, so what remains for this pass to catch is what happened to the comment
+# AFTER the write returned — a mangled store, a concurrent overwrite, a deletion.
+# It cannot detect that detection resolved the wrong comment; see the header.
+#
+# $2 overrides the remediation line, because "the check disagreed" and "the check
+# could not run" call for opposite next steps.
+verify_fail() {
+  err "post-write read-back FAILED for $REPO#$ISSUE (marker=$MARKER): $1"
+  [[ -n "$html_url" ]] && err "the written comment is at $html_url"
+  err "${2:-telemetry for this cycle is NOT trustworthy — inspect the comment, do not re-run blind}"
+  exit 6
+}
+unconfirmed="the body cleared the pre-write gate, so the comment is probably intact — but this cycle is UNCONFIRMED, not proven good"
+
+# On the update path the id is already known — fall back to it rather than
+# calling a successful PATCH unverifiable over a missing field in its response.
+[[ -n "$new_id" ]] || new_id="${target_id:-}"
+[[ -n "$new_id" ]] || verify_fail "the ${action} response carried no comment id, so the write cannot be read back" "$unconfirmed"
+
+# Same rule the $REPO validation states above: nothing reaches a gh api URL path
+# unvalidated. A GitHub comment id is an integer from either source, so this can
+# only fire on a malformed response — but the rule does not carry an exception.
+[[ "$new_id" =~ ^[0-9]+$ ]] ||
+  verify_fail "the ${action} response carried a non-numeric comment id ('$new_id'), so the write cannot be read back" "$unconfirmed"
+
+# The write has already landed by this point, so a transient GET failure would
+# otherwise report a good cycle as a bad one. Retry once before concluding the
+# comment is unverifiable; a second failure is still fail-closed. gh's stderr is
+# kept rather than discarded: a 404 (the comment is gone — act now) and a 403/429
+# (secondary rate limit — it will pass next cycle) are the same exit status here
+# and call for opposite responses, so the operator needs the real message.
+verify_err="$(mktemp)" || verify_fail "could not create a temp file to capture the read-back error" "$unconfirmed"
+trap 'rm -f "$verify_err"' EXIT
+verify_body=""
+verify_read=0
+for verify_attempt in 1 2; do
+  if verify_body="$(gh api "repos/$REPO/issues/comments/$new_id" --jq '.body' 2>"$verify_err" | tr -d '\r')"; then
+    verify_read=1
+    break
+  fi
+  ((verify_attempt == 1)) && sleep 2
+done
+((verify_read)) ||
+  verify_fail "could not re-read comment $new_id after 2 attempts (gh api GET): $(tr -d '\r' <"$verify_err" | tr '\n' ' ')" "$unconfirmed"
+
+case "$verify_body" in
+*"$SENTINEL"*) : ;;
+*) verify_fail "comment $new_id does not carry the marker sentinel after the write" ;;
+esac
+
+# Everything below the sentinel is the caller's body — the sentinel is ours and
+# would otherwise mask a leading `@` in the part that carries the data.
+verify_rest="${verify_body#*"$SENTINEL"}"
+verify_rest="${verify_rest#$'\n'}"
+
+# The body that was sent cleared the same two assertions pre-write, so failing
+# them now means the stored comment diverged from it afterwards. Naming that
+# keeps an operator from hunting a caller-side `@path` bug the gate excluded.
+[[ "$verify_rest" == @* ]] &&
+  verify_fail "comment $new_id starts with a literal '@' below the sentinel, but the body sent did not — the stored comment diverged from what was written"
+
+verify_bytes="$(printf '%s' "$verify_rest" | wc -c | tr -d ' ')"
+((verify_bytes >= MIN_BODY_BYTES)) ||
+  verify_fail "comment $new_id carries ${verify_bytes} bytes below the sentinel, under the ${MIN_BODY_BYTES}-byte floor — a comment that looks fresh but holds no telemetry"
+
 printf 'telemetry-upsert: %sd comment %s (marker=%s) on %s#%s\n' \
-  "$action" "${new_id:-?}" "$MARKER" "$REPO" "$ISSUE"
+  "$action" "$new_id" "$MARKER" "$REPO" "$ISSUE"
 [[ -n "$html_url" ]] && printf '%s\n' "$html_url"
+# Explicit: without it a response carrying no html_url leaves the `[[ ]] &&`
+# above as the last command, and a verified upsert would exit 1.
+exit 0

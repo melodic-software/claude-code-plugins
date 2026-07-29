@@ -232,7 +232,30 @@ each — the summary below is a pointer, not a copy.
   piped from `machine-behavior.sh`); a real `--body-file PATH` must resolve under
   `--body-dir` (default `$CLAUDE_PLUGIN_DATA`), may not be a symlink, and is capped
   at 64 KiB — a prompt-driven script must not be coaxed into posting an arbitrary
-  file (a secret, a token store) as a public comment.
+  file (a secret, a token store) as a public comment. Before the write it rejects
+  a body that begins with a literal `@` or falls under a 16-byte floor, exiting
+  `3` having called no API at all; after the write it re-reads the comment and
+  exits `6` if what landed lost the sentinel or fails those same assertions — or
+  if the read-back could not be performed at all, which reports the cycle
+  UNCONFIRMED rather than bad (#952).
+
+### Never pass a body as an `@path` string
+
+**Applies to every telemetry or comment write a lane makes** — through
+`telemetry-upsert.sh` or through the `gh api` upsert a lane inlines, since an
+installed plugin cannot invoke a sibling plugin's script.
+
+Pass the body as file contents (`--body-file PATH`) or pipe it (`--body-file -`).
+**Never interpolate an `@path` string into a body value**: `gh issue comment --body
+@path` and `gh api -f body=@path` send the literal text `@path`. Reading from a file
+takes `gh issue comment --body-file`, or `gh api -F`/`--field key=@path` — per each
+command's own `--help` (gh 2.95.0); `gh api` has no `--body-file` flag at all.
+
+The failure is invisible from the outside (#943): the comment's timestamp still
+moves, so the telemetry surface looks **fresh** while carrying no data, and a
+freshness check passes over a blind lane. `telemetry-upsert.sh` refuses such a
+body before it writes anything; an inlined upsert has no such gate, so this rule
+is the only thing standing between it and a silent observability fail-open.
 
 ## Cross-references
 
