@@ -46,7 +46,12 @@ All notable changes to the `source-control` plugin are documented here. Format f
   the payload's directory; and `env -S 'gh pr create …'`, which carries an entire command line in
   one operand, is re-parsed the way an `sh -c` operand already was instead of being stepped over.
   A short wrapper word is read as a **cluster** rather than a single flag, so `sudo -Eu root gh …`
-  and `env -iu VAR gh …` no longer leave their value where the command name belongs.
+  and `env -iu VAR gh …` no longer leave their value where the command name belongs; an `env -S`
+  operand is spliced with the wrapper's remaining words before re-parsing, since env appends those
+  to whatever it split. And rather than keep extending an option table forever, a wrapper option the
+  hook does not **positively** recognize now puts the call out of scope: whether it consumes the
+  following word is unknowable, and guessing "boolean" silently moves the command name. One
+  documented fail-open rule replaces an open-ended list of options to chase.
 - **A stalled hook payload blocked the command.** The gate inherited the sibling security guards'
   fail-closed posture on an unreadable stdin, which for a scoped policy gate means refusing an
   arbitrary Bash command because the hook could not read its own input. It allows now; the header

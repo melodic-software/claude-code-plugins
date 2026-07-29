@@ -265,6 +265,17 @@ assert_allow "a spliced compliant body is allowed" "$GATED" \
 
 # A short wrapper word is a CLUSTER, not one flag: `sudo -Eu root` is valid, and
 # reading it as a single unknown flag leaves `root` where the command belongs.
+# An option the hook does not positively recognize could eat the next word, so
+# the call goes out of scope rather than being guessed at.
+assert_allow "an unrecognized sudo option bails" "$GATED" \
+  "$(printf "sudo --future-option x gh pr create -t T --body '%s'" "$NO_RELATED")"
+assert_allow "an unrecognized sudo shorthand bails" "$GATED" \
+  "$(printf "sudo -Z gh pr create -t T --body '%s'" "$NO_RELATED")"
+assert_block "recognized sudo booleans are stepped over" "$GATED" \
+  "$(printf "sudo -EH gh pr create -t T --body '%s'" "$NO_RELATED")"
+assert_block "recognized env booleans are stepped over" "$GATED" \
+  "$(printf "env -i gh pr create -t T --body '%s'" "$NO_RELATED")"
+
 assert_block "sudo -Eu root is a cluster ending in a value" "$GATED" \
   "$(printf "sudo -Eu root gh pr create -t T --body '%s'" "$NO_RELATED")"
 assert_block "sudo -Euroot attaches the clustered value" "$GATED" \

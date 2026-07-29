@@ -435,7 +435,18 @@ parse_wrapper_flag() {
       sudo:--role | sudo:--type)
       WRAP_KIND="value"
       ;;
-    *) return 0 ;;
+    # Positively known booleans; the loop steps over these.
+    env:--ignore-environment | env:--null | env:--debug | env:--help | env:--version | \
+      sudo:--askpass | sudo:--background | sudo:--preserve-env | sudo:--set-home | \
+      sudo:--remove-timestamp | sudo:--reset-timestamp | sudo:--non-interactive | \
+      sudo:--preserve-groups | sudo:--stdin | sudo:--shell | sudo:--help | \
+      sudo:--validate | sudo:--version)
+      return 0
+      ;;
+    *)
+      WRAP_KIND="unknown"
+      return 0
+      ;;
     esac
     case "$word" in
     *=*) WRAP_VAL="${word#*=}" ;;
@@ -469,8 +480,17 @@ parse_wrapper_flag() {
     env:u | sudo:u | sudo:g | sudo:h | sudo:p | sudo:C | sudo:T | sudo:U | sudo:r | sudo:t)
       WRAP_KIND="value"
       ;;
-    # Any other letter is a boolean shorthand; the cluster continues past it.
-    *) continue ;;
+    # A letter this hook positively knows to be boolean: the cluster continues
+    # past it. Anything else is unrecognized, and the caller bails rather than
+    # assume — see WRAP_KIND=unknown handling.
+    env:i | env:0 | env:v | sudo:A | sudo:b | sudo:E | sudo:H | sudo:K | sudo:k | \
+      sudo:n | sudo:P | sudo:S | sudo:s | sudo:V | sudo:v)
+      continue
+      ;;
+    *)
+      WRAP_KIND="unknown"
+      return 0
+      ;;
     esac
     if [[ -n "$rest" ]]; then
       WRAP_VAL="$rest"
@@ -531,6 +551,11 @@ check_segment() {
             return 0
             ;;
           value) ((WRAP_ATE_NEXT)) && ((i++)) ;;
+          # An option this hook does not positively recognize: whether it eats
+          # the next word is unknowable, and guessing "boolean" silently moves
+          # the command name. Bail instead — one documented fail-open rule in
+          # place of an open-ended option table to keep chasing.
+          unknown) return 0 ;;
           *) ;;
           esac
           ((i++))
