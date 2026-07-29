@@ -9,7 +9,7 @@
       "files": [],
       "expectations": [
         "Routes to `firecrawl scrape` for the blocked page (managed rotation + headless browser)",
-        "Writes the scrape output to disk with `-o /tmp/fc-<nonce>.<ext>` rather than streaming full markdown into context",
+        "Writes the scrape output to disk with `-o` to a `mktemp`-created spill file rather than streaming full markdown into context",
         "Reads the saved file selectively (offset/limit) instead of dumping the entire page body into the conversation"
       ]
     },

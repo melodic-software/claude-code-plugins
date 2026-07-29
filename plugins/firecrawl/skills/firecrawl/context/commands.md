@@ -72,10 +72,10 @@ Supported file types: `.html`, `.htm`, `.pdf`, `.docx`, `.doc`, `.odt`, `.rtf`, 
 
 ```bash
 # 1. Scrape the page (session ID cached by the CLI):
-firecrawl scrape <url> --format markdown -o /tmp/fc-<nonce>.md
+firecrawl scrape <url> --format markdown -o <path>
 
 # 2. Run a prompt against the last scrape:
-firecrawl interact "<natural-language prompt>" -o /tmp/fc-interact-<nonce>.md
+firecrawl interact "<natural-language prompt>" -o <path>
 
 # Or pass an explicit scrape-id (also works as positional):
 firecrawl interact -s <scrape-id> "<prompt>" -o <path>
