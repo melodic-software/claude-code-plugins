@@ -3,6 +3,27 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.25.6]
+
+### Fixed
+
+- **`setup check`'s role-label probe no longer FAILs on the zero-row schedule a skeleton-only bind
+  produces (#1298).** `apply` step 6 keys the recurring-maintenance label requirement on the
+  schedule's **final row count** — with zero rows a missing label is "informational, not a gate" —
+  but `check` probe 6 still keyed it on the schedule **file's presence**. Since `0.25.3` made
+  "binding present, schedule present, zero rows" the expected steady state after a first bind, the
+  two surfaces returned different verdicts for one state, and an operator's first `check` after a
+  deliberately-quiet bind was a hard FAIL over a `[Maintenance]` item that a zero-row schedule can
+  never produce. Probe 6 now branches on row count exactly as `apply` does: **≥1 row with the
+  resolved label absent is still a hard FAIL, unchanged and unweakened** — the requirement fires
+  where it is load-bearing — while an absent or zero-row schedule is INFO noting the label must
+  exist before the schedule is ever seeded. An unparseable schedule has no readable row count, so
+  probe 6 reports INFO naming probe 4's validity FAIL as the reason rather than laundering that FAIL
+  into a verdict of its own. Probe 4 additionally reports a valid-but-empty `items` array as INFO
+  pointing at `apply --seed-schedule`; no probe previously reported the emptiness itself, so `check`
+  never told an operator the schedule had no rows or how to seed it. `check` remains read-only.
+  First `check`-side eval coverage lands with it.
+
 ## [0.25.4]
 
 ### Fixed

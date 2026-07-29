@@ -105,6 +105,47 @@
         "Scopes the unattended github default to the case where no binding is present",
         "Still completes the remaining passes silently: role labels kept at their defaults, seeding skipped, empty {\"items\": []} skeleton written"
       ]
+    },
+    {
+      "id": 9,
+      "name": "check-zero-row-schedule-reports-label-info-not-fail",
+      "prompt": "/work-items:setup check\n\n(.work-item-tracker.json is bound to github, .github/recurring-schedule.json is present and valid carrying zero rows ({\"items\": []}), and the resolved recurring-maintenance label is NOT present in the repo's label set.)",
+      "expected_output": "The role-label probe branches on the schedule's row count, not on whether the schedule file exists. With zero rows no [Maintenance] item can be created from that schedule, so the absent label is reported as INFO — noting the label must exist before the schedule is ever seeded — rather than as a FAIL. This matches apply's own treatment of the identical state, where zero rows make a missing label informational and not a gate. The present-but-empty schedule is also reported as INFO from the validity probe, pointing at apply --seed-schedule. Nothing is written and no label is created.",
+      "files": [],
+      "expectations": [
+        "Reports the recurring-maintenance role-label probe as INFO, not FAIL, when the schedule carries zero rows",
+        "Keys the verdict on the schedule's row count rather than the schedule file's presence",
+        "Notes that the label must exist before the schedule is ever seeded",
+        "Reports the present-but-empty schedule as INFO pointing at apply --seed-schedule",
+        "Writes no file and creates no label"
+      ]
+    },
+    {
+      "id": 10,
+      "name": "check-populated-schedule-still-fails-on-missing-label",
+      "prompt": "/work-items:setup check\n\n(.work-item-tracker.json is bound to github, .github/recurring-schedule.json is present and valid carrying three items, and the resolved recurring-maintenance label is NOT present in the repo's label set.)",
+      "expected_output": "With the schedule carrying rows, the absent recurring-maintenance label is still a hard FAIL: a seeded [Maintenance] item would land unlabeled and go invisible to the next due/work pass. The remediation named is the repository's declared label provisioning process, never an ad hoc gh label create. The row-count branch relaxes nothing here — the label requirement fires exactly where it is load-bearing. Nothing is written and no label is created.",
+      "files": [],
+      "expectations": [
+        "Reports the recurring-maintenance role-label probe as FAIL when the schedule carries at least one row and the resolved label is absent",
+        "Explains that an unlabeled [Maintenance] item goes invisible to the next due/work pass",
+        "Names the repository's declared label provisioning process as the remediation, never gh label create ad hoc",
+        "Writes no file and creates no label"
+      ]
+    },
+    {
+      "id": 11,
+      "name": "check-malformed-schedule-is-not-read-as-zero-rows",
+      "prompt": "/work-items:setup check\n\n(.work-item-tracker.json is bound to github, .github/recurring-schedule.json is present but its root has a null items key, and the resolved recurring-maintenance label is NOT present in the repo's label set.)",
+      "expected_output": "A schedule that does not parse as the {\"items\": [ ... ]} root is a validity FAIL, and that FAIL is the gate. It is not read as a zero-row schedule: the role-label probe has no readable row count to branch on, so it cannot evaluate the label requirement and reports INFO naming the validity FAIL as the reason — it neither downgrades the validity FAIL to an INFO of its own nor raises the >=1-row label FAIL on a guess about what the unreadable file holds. Nothing is written and no label is created.",
+      "files": [],
+      "expectations": [
+        "Reports the schedule-validity probe as FAIL for a root that is not {\"items\": [ ... ]}",
+        "Does not treat an unparseable schedule as a zero-row schedule",
+        "Reports no hard FAIL on the missing recurring-maintenance label in this state",
+        "Reports the role-label probe as INFO naming the validity FAIL as the reason, leaving that FAIL standing as the gate rather than laundering it into an INFO of its own",
+        "Writes no file and creates no label"
+      ]
     }
   ]
 }
