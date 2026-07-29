@@ -117,6 +117,58 @@ else
   fail "stale marker not pruned"
 fi
 
+# 11. Marker persist failure (temp-file write blocked by a read-only
+# directory) must still exit 0 (SIDE-EFFECT-ONLY: PostCompact has no
+# decision control) but report telemetry status=error rather than "ok" —
+# operators must not be told a marker was recorded when consumers will never
+# see it. A directory-mode block (not a directory-at-the-target-path: mv
+# onto an existing directory moves INTO it rather than failing) is the
+# standard POSIX way to force this, but is a documented no-op on filesystems
+# without enforced POSIX modes (e.g. Windows ACL volumes under Git Bash —
+# reader-contract.md's own caveat). Probe the restriction actually took
+# effect before asserting on it; skip honestly rather than false-failing on
+# such a filesystem.
+make_sink() {
+  local s
+  s="$(mktemp "$WORK/sink.XXXXXX")"
+  {
+    printf '#!/usr/bin/env bash\n'
+    printf 'cat >%q\n' "$1"
+  } >"$s"
+  chmod +x "$s"
+  printf '%s' "$s"
+}
+wait_for_sink() {
+  local f="$1" tries=150
+  while ((tries-- > 0)); do
+    [[ -s "$f" ]] && return 0
+    sleep 0.02
+  done
+  return 1
+}
+
+chmod 555 "$MARK"
+probe_blocked=1
+: >"$MARK/.write-probe" 2>/dev/null && probe_blocked=0
+rm -f "$MARK/.write-probe" 2>/dev/null
+if ((probe_blocked)); then
+  TEL="$WORK/tel-fail.json"
+  SINK="$(make_sink "$TEL")"
+  printf '{"session_id":"sfail","hook_event_name":"PostCompact","trigger":"auto"}' |
+    HOME="$H" CLAUDE_PLUGIN_DATA="$D" HOOK_TELEMETRY_SINK="$SINK" bash "$HOOK" >/dev/null 2>&1
+  RC=$?
+  chmod 755 "$MARK"
+  if [[ $RC -eq 0 ]]; then ok "marker persist failure still exits 0"; else fail "marker persist failure: rc=$RC"; fi
+  if wait_for_sink "$TEL" && [[ "$(jq -r '.status' "$TEL" 2>/dev/null)" == "error" ]]; then
+    ok "marker persist failure reports telemetry status=error"
+  else
+    fail "telemetry status not error: $(cat "$TEL" 2>/dev/null)"
+  fi
+else
+  chmod 755 "$MARK"
+  echo "SKIP: filesystem does not enforce directory write-mode (no POSIX ACL enforcement here) — cannot simulate a persist failure"
+fi
+
 echo
 echo "PASS=$PASS FAIL=$FAIL"
 [[ $FAIL -eq 0 ]]

@@ -156,6 +156,51 @@ else
   fail "marker repeat not silent: rc=$RC out=${OUT:0:120}"
 fi
 
+# 12. State-persist failure (e.g. full/read-only filesystem) fails open
+# SILENTLY — no additionalContext, exit 0 — rather than falling through and
+# comparing against the same stale `last` again on every subsequent call.
+# The failure itself is still surfaced as telemetry status=error, never
+# swallowed twice. Simulated portably (no chmod/permission dependence): a
+# directory sitting at the exact state-file path makes the write fail on
+# every platform, including Git Bash on Windows.
+make_sink() {
+  local s
+  s="$(mktemp "$WORK/sink.XXXXXX")"
+  {
+    printf '#!/usr/bin/env bash\n'
+    printf 'cat >%q\n' "$1"
+  } >"$s"
+  chmod +x "$s"
+  printf '%s' "$s"
+}
+wait_for_sink() {
+  local f="$1" tries=150
+  while ((tries-- > 0)); do
+    [[ -s "$f" ]] && return 0
+    sleep 0.02
+  done
+  return 1
+}
+
+write_snapshot "$H" spersist 90
+mkdir -p "$D/state"
+mkdir -p "$D/state/spersist.zone" # a directory blocks the write, not a permission bit
+TEL="$WORK/tel-persist.json"
+SINK="$(make_sink "$TEL")"
+OUT=$(printf '{"session_id":"spersist","hook_event_name":"PostToolBatch"}' |
+  HOME="$H" CLAUDE_PLUGIN_DATA="$D" HOOK_TELEMETRY_SINK="$SINK" bash "$HOOK" 2>/dev/null)
+RC=$?
+if [[ $RC -eq 0 && -z "$OUT" ]]; then
+  ok "state-persist failure fails open silently (no additionalContext)"
+else
+  fail "state-persist failure: rc=$RC out=${OUT:0:120}"
+fi
+if wait_for_sink "$TEL" && [[ "$(jq -r '.status' "$TEL" 2>/dev/null)" == "error" ]]; then
+  ok "state-persist failure reports telemetry status=error"
+else
+  fail "telemetry status not error: $(cat "$TEL" 2>/dev/null)"
+fi
+
 echo
 echo "PASS=$PASS FAIL=$FAIL"
 [[ $FAIL -eq 0 ]]

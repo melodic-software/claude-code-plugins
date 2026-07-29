@@ -102,6 +102,18 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   invalid digit, evaluated false, and denied the FIRST call instead of allowing eight. The value
   is now length-bounded and normalized once, which also keeps the deny reason and the telemetry
   payload carrying a canonical decimal (`{"grace":08}` was invalid JSON).
+- **`zone-crossing-inject.sh` fails open silently when the zone state file cannot be persisted**
+  (full or newly read-only filesystem). The write failure was previously swallowed (`|| true`),
+  so the hook fell through and compared the current zone against the same stale `last` on every
+  subsequent `PostToolBatch`/`UserPromptSubmit`, re-injecting the ~1KB guidance block every call
+  instead of once per transition — the worst time to spend extra context. The hook now emits
+  telemetry `status:error` and exits immediately on a persist failure instead of injecting.
+- **`post-compact-mark.sh` reports the marker's actual write outcome in telemetry.** A failed
+  temp-file write or a failed atomic rename into place was swallowed, and the hook still emitted
+  telemetry `status:ok` — telling operators the evidence-degraded marker was recorded when
+  consumers will never see it. The write-and-rename result is now tracked and telemetry reports
+  `error` on either failure path; the hook still always exits 0 (PostCompact has no decision
+  control, so the marker's own success is signaled through telemetry, not the exit code).
 
 ## [0.3.0]
 

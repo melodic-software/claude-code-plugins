@@ -85,9 +85,19 @@ last_rank=$(rank "$last")
 
 # Persist the current zone regardless of direction (improvements update
 # silently) — owner-only, atomic enough for a single-writer-per-session file.
+# A write failure (full or newly read-only filesystem) must fail OPEN
+# SILENTLY: proceeding past it would compare this turn's zone against the
+# same stale `last` again on the next call, re-emitting the ~1KB guidance
+# block every subsequent PostToolBatch/UserPromptSubmit instead of once per
+# transition. "Silent" means no additionalContext is injected — the failure
+# itself is still surfaced to operators as telemetry, never swallowed twice.
 umask 077
 mkdir -p "$STATE_DIR" 2>/dev/null || exit 0
-printf '%s\n' "$zone" >"$STATE_FILE" 2>/dev/null || true
+if ! printf '%s\n' "$zone" >"$STATE_FILE" 2>/dev/null; then
+  hook::emit_telemetry "zone-crossing-inject" "$EVENT" "error" "$START_EPOCH" \
+    '{"zone":"'"$zone"'","previous":"'"${last:-}"'","reason":"state_persist_failed"}'
+  exit 0
+fi
 
 ((new_rank > last_rank)) || {
   # No worsening. A recovery (rank drop) is still a meaningful outcome for

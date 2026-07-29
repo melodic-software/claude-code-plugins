@@ -11,7 +11,7 @@ continue in session, `/clear`, `session-flow:handoff`, `session-flow:continue-in
 `session-flow:clean-stop`, and `/compact`. Two session-flow siblings are deliberately NOT
 terminals: `reconcile` and `orient` are state hygiene — they inform this decision (what is still
 running, where we stand) but never carry the session forward. Mid-task subagent delegation is a
-spawn-brief decision owned by `session-flow:orchestrate` (if installed), reached from question 3
+spawn-brief decision owned by `session-flow:orchestrate` (if installed), reached from question 1
 only when the work leaves this session entirely.
 
 ## Zone input (presence-gated, conservative)
@@ -34,22 +34,26 @@ than route past it.
    below: a handoff file is a machine-local save-point, and a save-point that dies with the disk
    is no save-point.* (Absent that skill: push everything durable by hand — commits, PR bodies,
    issue notes — before stopping.)
-1. **Is there enough smart zone left — or is the remaining work simple enough for a degraded
-   context?** → continue in session. *The zero-cost exit; every other mechanism spends setup
-   cost or loss. In a degraded zone only mechanical, low-judgment steps qualify as "simple
-   enough".*
-2. **Is this session's context disposable — nothing in it worth carrying forward?** → `/clear`.
+1. **Did the user explicitly request background continuation, AND can the work proceed without
+   human input right now?** → `session-flow:continue-in-background`. *Ordered BEFORE every
+   cost-based question below — including question 2's zero-cost in-session exit — on the same
+   ground question 0 already establishes: a hard fact outranks a cost heuristic. Question 2 asking
+   first would answer yes whenever context is healthy, silently discarding an explicit user
+   instruction the user has no way of knowing was overridden; that is exactly the "edge that
+   loses its purpose" this section warns against. It is also ordered BEFORE handoff because it is
+   the strictly narrower gate on the same save-point engine — same state captured, different
+   delivery (a detached background session instead of clear-then-paste). The explicit-request-
+   and-feasibility gate is that skill's own hard rule, restated here only as an ordering fact; a
+   background request that still needs human input, or that this session cannot hand off
+   autonomously, is not this outcome and falls through to the questions below, most relevantly
+   question 4 (handoff).*
+2. **Is there enough smart zone left — or is the remaining work simple enough for a degraded
+   context?** → continue in session. *The zero-cost exit for everything question 1 didn't already
+   claim; every other remaining mechanism spends setup cost or loss. In a degraded zone only
+   mechanical, low-judgment steps qualify as "simple enough".*
+3. **Is this session's context disposable — nothing in it worth carrying forward?** → `/clear`.
    *The cheapest reset, asked before any writing mechanism: capturing state nothing needs is
    pure cost.*
-3. **Did the user explicitly request background continuation, AND can the work proceed without
-   human input right now?** → `session-flow:continue-in-background`. *Ordered BEFORE handoff
-   because it is the strictly narrower gate on the same save-point engine — same state captured,
-   different delivery (a detached background session instead of clear-then-paste). Question 4
-   would otherwise swallow every one of these: a background continuation always passes the work
-   to another agent, so asking the generic question first makes this outcome unreachable. The
-   explicit-request gate is that skill's own hard rule, restated here only as an ordering fact;
-   a background request that still needs human input, or that this session cannot hand off
-   autonomously, falls through to question 4 and gets a handoff instead.*
 4. **Must state survive the boundary — or does the work pass to another agent, another checkout,
    or a colleague?** → `session-flow:handoff`, then the user `/clear`s. *The first mechanism
    that pays a write cost without a live continuation attached: a handoff carries forward exactly

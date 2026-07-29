@@ -24,6 +24,19 @@
   convention for workers: a worker at its zone boundary writes its own handoff and returns the
   PATH only; the parent spawns a successor pointed at the file without ever reading it.
 
+### Fixed
+
+- **The explicit-background question was ordered after the zero-cost continue-in-session
+  question, so it was unreachable whenever context was healthy.** The prior release ordered the
+  explicit-background check before the generic handoff question (so handoff would not swallow
+  it), but left it after the router's own first question — "is there enough smart zone left?" —
+  which answers yes whenever context is healthy and silently discards an explicit user request to
+  continue in the background, the exact "edge that loses its purpose" the router's own governing
+  rule warns against. The explicit-background-and-feasibility question is now asked first,
+  immediately after the machine-going-away check, on the same "a hard fact outranks a cost
+  heuristic" ground that check already established; a request that still needs human input, or
+  that the session cannot hand off autonomously, falls through unchanged to the questions below.
+
 ## [0.17.16]
 
 ### Fixed
