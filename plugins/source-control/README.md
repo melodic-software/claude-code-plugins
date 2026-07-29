@@ -134,6 +134,16 @@ cannot read statically (an unexpanded variable, an absent body flag, a
 `--repo`-targeted invocation) always passes. Set
 `pr_body_linkage_gate_enabled` to `false` to turn it off.
 
+#### Telemetry (opt-in)
+
+The hook emits one structured
+[hook-telemetry](../../docs/conventions/hook-telemetry/README.md) envelope per
+run to whatever `HOOK_TELEMETRY_SINK` names — carrying `status` (`blocked` on a
+block, `ok` otherwise), `duration_ms`, and a `data` payload of labels only: the
+outcome and which body form was read (`body-literal`, `body-file`,
+`stdin-heredoc`, `body-substitution`). Never the PR body, the command, or a
+path. Unset `HOOK_TELEMETRY_SINK` → no-op.
+
 ## Works in any repo
 
 - **Self-contained.** Everything runs on `git`, `gh` (authenticated), `jq`,
@@ -217,11 +227,12 @@ The plugin-scope finding-classification gate accepts extra posting identities vi
 
 ## Security
 
-- One local hook (`pr-body-linkage-gate`, below), no MCP servers, no
-  telemetry, no outbound network beyond `git` and `gh` against the repository
-  the session already targets. The hook reads only the Bash command it is
-  gating, the body file that command names, and the repository's own workflow
-  directory; it never runs `git`, `gh`, or any network call.
+- One local hook (`pr-body-linkage-gate`, above), no MCP servers, no telemetry
+  unless you opt in (see below), no outbound network beyond `git` and `gh`
+  against the repository the session already targets. The hook reads only the
+  Bash command it is gating, the body file that command names, and the
+  repository's own workflow directory; it never runs `git`, `gh`, or any
+  network call.
 - Writes to GitHub (comments, reactions, thread resolution, PR creation,
   merge) happen only inside the documented `/pull-request` phases and the
   `/babysit-prs` loop. `/babysit-prs` merges only in its explicit
