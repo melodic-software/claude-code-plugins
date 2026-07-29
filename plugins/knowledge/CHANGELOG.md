@@ -4,6 +4,17 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.10.3]
+
+### Changed
+
+- **`docpage-digest` Anthropic profile: context-engineering blog queue entry removed.** The
+  new-rules-of-context-engineering blog slice completed — rendered-channel fetch (raw-md
+  confirmed absent for this page, matching the profile's blog-post channel note) through
+  interview handoff, dual verification (both verifiers returned corrections; all applied and
+  cross-vendor re-verified) — so its entry leaves the doc queue per the queue's
+  remove-on-completion rule.
+
 ## [0.10.2]
 
 ### Changed

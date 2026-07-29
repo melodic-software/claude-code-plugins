@@ -94,8 +94,6 @@ Applies across all of the above:
 
 Blog posts:
 
-- <https://claude.com/blog/the-new-rules-of-context-engineering-for-claude-5-generation-models>
-  — likely cross-cuts every slice
 - <https://claude.com/blog/claude-models-explained-choosing-the-best-model-for-your-use-case>
   — pair with the choosing-a-model slice for the routing vet
 - <https://claude.com/blog/building-verification-loops-in-claude-code-with-skills>
