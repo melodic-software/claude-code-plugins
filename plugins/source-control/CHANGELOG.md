@@ -3,24 +3,95 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.34.0]
+## [0.35.0]
 
 ### Added
 
 - **`babysit-loop` escalation record write — deterministic surface for out-of-band notification
   (#1650).** Escalating now also creates
   `.claude/lane-escalations/<UTC-stamp>-<item>-babysit-loop.json` with the Write tool in the same
-  step that files the tracker escalation — one new file per NEWLY filed escalation (the write
-  carries the marker comment's own duplicate suppression), `loop-lane/escalation-record@1`
+  step that files the tracker escalation, immediately before posting the marker comment — one new
+  file per NEWLY filed escalation (suppressed by the marker read the step already performs),
+  `loop-lane/escalation-record@1`
   shape, summary restating only the already-public marker-comment text. The Write tool call (never
   a shell redirect, whose `Bash` event the seam's `Write` matcher never sees) is what a consuming
   repo's `PostToolUse`
   `type:"http"` hook keys on to reach an off-machine human deterministically; the documented seam
-  and settings shape are owned by the loop-lane convention (§2, v4.0.0). Without a configured hook
-  the file is inert exhaust; the tracker item stays the escalation of record. Two properties of the
-  path being relative to the lane session's own checkout are stated at the site: that repo
-  gitignores the directory as an adoption prerequisite, and a lane scoped to a repository other
-  than its checkout notifies the launching project's endpoint rather than the target's.
+  and settings shape are owned by the loop-lane convention (§2, v4.0.0). Record-before-marker is
+  load-bearing: a stop between the two non-atomic writes then costs one duplicate notification the
+  next cycle re-files, where the reverse order strands a standing marker that suppresses the record
+  on every later cycle and loses the notification permanently. Without a configured hook the file
+  is inert exhaust; the tracker item stays the escalation of record. Because the record path is
+  relative to the lane session's own checkout, a lane scoped to a repository other than its
+  checkout notifies the launching project's endpoint and never the target's — so launching from
+  the target's checkout is stated at the site as a requirement whenever that repository's endpoint
+  is the one that must hear, not a preference.
+
+### Changed
+
+- **`babysit-loop` gains a lane-start preflight that ignores the escalation record directory itself
+  (#1650).** The record write is unconditional, so an unignored `.claude/lane-escalations/` would
+  strand an untracked file per escalation in the tree this lane runs its gates against — and
+  nothing delivers a tracked ignore rule into a consuming repo, so an existing consumer that
+  upgrades would hit exactly that. New cycle-shape step 0 runs once per lane: if
+  `git check-ignore -q` reports the path unignored, append it to the clone's untracked
+  `$(git rev-parse --git-common-dir)/info/exclude`; skipped outside a git checkout, which the
+  neutral-directory launch mode allows. No consumer change, no tracked file touched, and a no-op
+  wherever the repo's own `.gitignore` already carries the rule.
+
+## [0.34.0]
+
+### Changed
+
+- **`babysit-loop`'s rung partition reads the work class from the `work-class:` label only, never
+  from a `Work-class: C<n>` body trailer (#1657).** The partition accepted "the triage stamp in the
+  item body **or** labels", so a class recorded in an item body decided merge eligibility. The class
+  widens merge authority, and an item body is editable by its own author — who need hold no
+  permission on the base repository — which made the item self-certifying and contradicted the
+  autonomy plugin's admission policy: "No repo-local (agent-writable) surface may supply any
+  admission input — rules, caps, or the work class used for admission." Applying a label takes
+  triage or write permission, the same permission surface the C5 trust test already keys on.
+  - A trailer stays legitimate as the operator's own record of a class and as a proposal, and is
+    reported as such, but it never partitions. An item classified only in its body is
+    **unclassified** for the partition — not eligible at any rung, exactly as an item with no
+    record at all.
+  - **Consumer impact.** A repository that recorded classes only as body trailers had a
+    merge-eligible population under the old reading and has an empty one under this reading:
+    everything there is human-merge, the shipped baseline, until the `work-class:` labels follow
+    the trailers. Nothing merges that would not have merged before.
+  - The C4/C5 floor is unchanged — it always tested the pull request rather than the linked item's
+    stamp, so a fork PR was never eligible through a self-stamped issue.
+
+## [0.33.3]
+
+### Fixed
+
+- **A configured review reviewer that GitHub types as `User` counted as no reviewer at all
+  (melodic-software/claude-code-plugins#1642).** `is_review_bot_item` in
+  `babysit_review_trigger.py` admitted an item only when GitHub's authoritative actor type said
+  `Bot`, so an automation account posting as an ordinary user — no `[bot]` login suffix,
+  `__typename` of `User` — had its real, current-head review read as no review. That is the exact
+  account class `babysit_extra_bot_logins` exists for and that `actor_kind` and
+  `babysit_resolve_thread.py` (#637) already honor, so the same operator-declared account was
+  classified two different ways by two consumers of one plugin.
+  - `ReviewTriggerConfig` gains `extra_bot_logins`, and the predicate now reads: the login must be
+    in `reviewer_logins` AND the author must be a bot. Both halves are required, so declaring an
+    account a bot never promotes it to reviewer. The field ships empty, so the predicate is
+    structural-only exactly as before for anyone who has not configured it, and no
+    default-configuration blocker state moves.
+  - Bot-ness is delegated whole to `is_bot` rather than restated, so this module can no longer
+    drift from the classification every other consumer uses. The REST `type` key is normalized
+    into the `__typename` slot first — `is_bot` reads `__typename` alone, and the reaction and
+    review-comment paths carry only `type`, so that normalization is load-bearing and pinned.
+  - The widening is applied at the shared predicate rather than per consumer, so all three reach
+    the same verdict: review evidence (`fetch_review_evidence`), current-head completion
+    (`has_current_head_review`), and reaction engagement (`fetch_review_reactions`). It is not
+    uniformly permissive — recognizing a declared reviewer's eyes reaction *adds* the
+    `engaged_reaction_reviewing` blocker that strictness was suppressing.
+  - `--extra-bot-logins` now threads into the review-trigger config from `pr_queue_snapshot.py`
+    (which already parsed it for `FeedbackConfig`) and from `request_review.py`, which gains the
+    flag; `SKILL.md`'s delivery mapping and `reference/review-trigger.md`'s pinned invocation and
+    completion rule follow.
 
 ## [0.33.2]
 

@@ -17,6 +17,7 @@ from typing import Any
 from babysit_checks import summarized_state
 from babysit_feedback import (
     author_login,
+    is_bot,
     normalize_login_set,
     review_commit_oid,
 )
@@ -41,12 +42,17 @@ class ReviewTriggerConfig:
     names the bot account(s) whose reviews/reactions count as engagement.
     `gate_context` is the StatusContext/CheckRun name of the review gate;
     `ci_gateway_context` the aggregate CI check the trigger waits on.
+    `extra_bot_logins` carries the same operator declaration the rest of the
+    plugin reads (`FeedbackConfig`, `babysit_resolve_thread`): accounts whose
+    API metadata misreports them as users. It ships empty, leaving reviewer
+    recognition on structural bot detection alone.
     """
 
     trigger_phrase: str = ""
     reviewer_logins: frozenset[str] = field(default_factory=frozenset)
     gate_context: str = ""
     ci_gateway_context: str = ""
+    extra_bot_logins: frozenset[str] = field(default_factory=frozenset)
 
     @property
     def configured(self) -> bool:
@@ -67,17 +73,36 @@ def trigger_regex(phrase: str) -> re.Pattern[str] | None:
 
 
 def is_review_bot_item(item: dict[str, Any], config: ReviewTriggerConfig) -> bool:
+    """True for an item authored by a configured reviewer account.
+
+    The account must be a bot AND one the operator named a reviewer; neither
+    half alone qualifies, so declaring an account a bot never promotes it to
+    reviewer. Bot-ness comes from GitHub's authoritative actor type, or from
+    the operator's own `extra_bot_logins` declaration -- the same override
+    `actor_kind` applies, for the same reason: an automation account that posts
+    as an ordinary user is exactly what that field exists for, and refusing it
+    here left this module reading a configured reviewer's real review as no
+    review at all (#1642). With `extra_bot_logins` unset the predicate is
+    structural-only, as it always was.
+
+    Bot-ness is delegated whole to `is_bot` rather than restated here, so this
+    module cannot drift from the classification every other consumer uses.
+    The one signal `is_bot` does not model is the normalized `is_bot` flag,
+    which `actor_kind` also tests separately.
+    """
     author = item.get("author")
     if not is_json_object(author):
         return False
-    authoritative_bot = (
-        str(author.get("__typename") or author.get("type") or "") == "Bot"
-        or author.get("is_bot") is True
-    )
     reviewer_logins = normalize_login_set(config.reviewer_logins)
-    return (
-        authoritative_bot
-        and author_login(item).casefold().removesuffix("[bot]") in reviewer_logins
+    if author_login(item).casefold().removesuffix("[bot]") not in reviewer_logins:
+        return False
+    # `is_bot` reads GraphQL's `__typename` only, so the REST `type` key is
+    # normalized into it here: the reaction and review-comment paths carry raw
+    # REST author objects that have no `__typename` at all.
+    return author.get("is_bot") is True or is_bot(
+        author_login(item),
+        str(author.get("__typename") or author.get("type") or ""),
+        config.extra_bot_logins,
     )
 
 
