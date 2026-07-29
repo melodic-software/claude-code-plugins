@@ -23,16 +23,26 @@ were persisted forever.
 
 ## The two tiers (and their neighbors)
 
-Placement follows document **nature**, decided by one question: does
-anything downstream *enforce against* this document?
+Placement follows document **nature**, decided by two questions in order.
+First: does anything downstream *enforce against* this document? Yes puts
+it in the contract tier while the task runs, and the durable tier once it
+outlives the task. Second, for everything else: once this run ends, does
+anything read the document again — a later session, another checkout, a
+reviewer, or the producer itself on resume? **No** is the ephemeral row,
+and it is the only row that answers no. **Yes** is the memory tier when
+that reader is scoped to this checkout, and machine state when it is
+scoped to the machine across projects. Membership answers the second
+question, not frequency: a file inside a slice a later session reopens is
+read again even if that session rarely looks at the file itself.
 
 | Tier | Location (default) | Git | Holds |
 |---|---|---|---|
+| Ephemeral | An OS-API-created temp file or directory, one per run | Never in the repo | Files nothing downstream reads: a rendered HTML view, a spill file, a throwaway |
 | Memory | `.work/<slug>/` | Never committed (self-ignoring) | `EXPLORE.md`, `RESEARCH.md`, `<stage>-checklist.md`, `baselines/`, raw captures and scratch |
 | Memory, concern-scoped | `.work/handoffs/`, `.work/reviews/<branch-slug>/` | Never committed | session handoffs; review reports — their axes are session and branch, so they sit outside topic slices |
 | Contract | `docs/topics/<slug>/` | Committed **on the task branch only**; pruned before merge | `PLAN.md` (Brief + Plan), `PRD.md`, `design/` (incl. the `design-threads.md` / `design-resolution.md` gate files), `verification/` (the distilled manifest) |
 | Durable | knowledge-vault seam — default backend `docs/adr/`, `docs/specs/` | Committed, permanent | promotion targets |
-| Machine state | `${CLAUDE_PLUGIN_DATA}`; `.claude/observability/` | Never committed | telemetry, caches |
+| Machine state | `${CLAUDE_PLUGIN_DATA}`; `.claude/observability/` | Never committed | telemetry; caches; durable machine-scoped state a later session reopens across projects |
 
 Locations are the documented defaults; the tracked concern file's
 `contract_dir` / `memory_dir` keys override the memory and contract
@@ -52,6 +62,110 @@ Two kinds are deliberately **absent**: `history.md` (append-only decision
 log — git log, PR threads, and tracker comments provide this natively for
 tracked contracts) and a default-persisted `brainstorm.md` (ideation is
 conversation output; persisting is opt-in, into the memory tier).
+
+### The ephemeral tier
+
+The memory tier's one cell conflated two kinds with opposite
+requirements: state that must SURVIVE the session as a read input
+(resume artifacts, ledgers, captures) and files nothing downstream ever
+reads again. The ephemeral row names the second. It is slug-less and
+path-less by design — a run creates its own file or directory through
+the platform's temp primitive — so it is invisible to every other
+execution context by construction and takes no row in the visibility
+matrix.
+
+Five rules hold at this row:
+
+1. **Resolve one deterministic path.** Never branch on whether a harness
+   injected a scratchpad path or set `CLAUDE_JOB_DIR`: those surfaces
+   are disjoint by session kind (`CLAUDE_JOB_DIR` is set for background
+   sessions only), so branching makes file placement depend on how the
+   session was launched, which is invisible from inside the plugin. Use
+   the platform's standard temp primitive and **name the temp root in the
+   template**: on Unix `mktemp "${TMPDIR:-/tmp}/<prefix>-XXXXXX"` (add
+   `-d` for a directory), the positional-template form both GNU and BSD
+   `mktemp` accept identically; on Windows a user-scoped temp under
+   `%LOCALAPPDATA%\Temp`. The `XXXXXX` placeholders must be **trailing**:
+   BSD `mktemp` (macOS) substitutes only trailing Xs, so a template that
+   appends an extension after them — `<prefix>-XXXXXX.html` — is not
+   portable. A producer that wants a meaningful filename takes the `-d`
+   form and writes a fixed name inside the run directory, which is why
+   the row above admits a temp file **or** a directory. A bare relative
+   template does **not** reach the temp tree — `mktemp report-XXXXXX`
+   creates the file in the current working directory, which is the
+   consumer's repository (reproduced against GNU coreutils 8.32,
+   2026-07-27) — and the flags
+   that would fix it are not portable (`--tmpdir` is GNU-only, `-t` is
+   deprecated there). That root is the ambient `$TMPDIR` or system
+   default — **not** `CLAUDE_CODE_TMPDIR`, which overrides the temp
+   directory Claude Code uses for its *own internal* files: the env-var
+   reference states that "Unsandboxed Bash commands inherit your shell's
+   `$TMPDIR` unchanged" (verified 2026-07-27). A plugin shelling out to
+   `mktemp` therefore never observes that override, and no plugin should
+   claim it does.
+2. **The lifetime outlives the call.** A path handed back to the user
+   must still be readable when they open it, so a producer that RETURNS
+   a path does not delete the file in a `finally` — that races the
+   reader and hands back a dead path. `finally` cleanup is correct only
+   for a file the producer itself consumes and hands to no one. How long
+   a returned file actually lives is the platform's decision, not this
+   contract's: it sits in the OS temp tree until something reclaims that
+   tree, and nothing documented does (see below). Size the footprint for
+   a file that OUTLIVES the session, not one that vanishes with it.
+3. **Never the session scratchpad.** Plugins never require it, publish
+   pointers to it, or change semantics based on its presence.
+4. **Nothing durable lands here.** If a later session, another checkout,
+   or a reviewer must read the file, it belongs in the memory or
+   contract tier — this row is not a shortcut past their rules.
+5. **If a plugin exposes a temp-root override, its form is a manifest
+   `userConfig` typed `directory`, defaulting to empty** — never a
+   `.claude/topic-docs.yaml` key. A temp root is machine scope; a
+   tracked key would imply a team decision about a location no teammate
+   can observe. This constrains the FORM of an override, and does not
+   oblige any plugin to offer one — no implementer declares one today, so
+   the ambient temp root is currently the only root in play. Per the
+   configuration ownership table in `docs/PLUGIN-PHILOSOPHY.md`.
+
+**Keep the footprint small.** Nothing reclaims this tree on a schedule:
+verified 2026-07-26 against the full Claude Code docs corpus, no
+documented cleanup, retention, TTL, or pruning mechanism covers the temp
+tree Claude Code writes under, and the one documented retention setting,
+`cleanupPeriodDays`, is scoped to `~/.claude/` application data — a
+different tree. That is precisely why rule 2 refuses to promise the file
+dies with the session, and why the footprint rule is load-bearing rather
+than tidy-minded: a producer writes one file, or one directory, per run
+— never an accumulating tree — and rule 4 does real work, since anything
+worth keeping belongs in a tier that is actually managed.
+
+**Why not the session scratchpad.** Verified 2026-07-26 against primary
+sources: zero occurrences of "scratchpad" in the full Claude Code docs
+corpus (`https://code.claude.com/docs/llms-full.txt`) — it is
+system-prompt-injected only. It is keyed by working directory, so every
+worktree gets a distinct root, and scoped by session UUID. Measured on
+one machine: 230 directories, 31,260 files, 2.96 GB accumulated in ten
+days with no pruning observed. Three upstream requests to make it a
+supported surface are all closed as not-planned
+([#45745](https://github.com/anthropics/claude-code/issues/45745),
+[#17936](https://github.com/anthropics/claude-code/issues/17936),
+[#21248](https://github.com/anthropics/claude-code/issues/21248)) —
+upstream has not merely failed to document it, it has declined three
+times to support it.
+
+**Re-derivation trigger.** An upstream versioned interface for the
+scratchpad that guarantees injection, lifecycle, ownership, quota, and
+cleanup semantics reopens rule 2, and the change lands here as a
+recorded changelog entry. The dated verification above is an as-of
+record, never standing authority.
+
+**Why the other three axes needed no change.** The placement question
+was re-derived across four axes and only lifetime was uncovered:
+git-visibility is already the tier table's own organizing question;
+promotion-stage is already carried by the contract-slice lifecycle and
+the two graduation edges; and write-contention is already solved at the
+work-item tracker seam
+([`plugins/work-items/reference/tracker-seam.md`](../../../plugins/work-items/reference/tracker-seam.md)),
+whose race-safe claim-and-lease is provider-neutral. Recorded so the
+analysis is not re-run.
 
 ### The single-home rule
 
@@ -368,9 +482,10 @@ relationship to the contract is fully stated by their table row.
 
 | Plugin | Writes | Tier(s) | Binding |
 |---|---|---|---|
+| adhd | rendered decision-table HTML view | ephemeral | by reference — the ephemeral row's five rules are its entire relationship |
 | discovery | `EXPLORE.md`, `RESEARCH.md` | memory | delta doc |
-| architecture | `deepening-candidates-<timestamp>.md` (per-lens candidate ledgers) | memory | delta doc |
-| planning | `PRD.md`, `PLAN.md` (Brief), `design/`, opt-in brainstorm persist | contract + memory | delta doc |
+| architecture | `deepening-candidates-<timestamp>.md` (per-lens candidate ledgers); deepening HTML report | memory + ephemeral | delta doc |
+| planning | `PRD.md`, `PLAN.md` (Brief), `design/`, opt-in brainstorm persist; five optional rendered HTML views (dense-round decision table, PRD pitch, brainstorm reaction page, plan view, design topology) | contract + memory + ephemeral | delta doc |
 | implementation | `PLAN.md` (Plan/progress), `DEVIATIONS.md`, status summaries | contract + memory | delta doc |
 | verification | `verification/` manifest; baselines, raw captures | contract + memory | delta doc |
 | session-flow | handoffs; running-retro ledgers | memory (`handoffs/`, `running-retros/`) | delta doc |
@@ -379,6 +494,7 @@ relationship to the contract is fully stated by their table row.
 | toolchain | nothing of its own — its setup skill offers the concern file | — | delta doc |
 | knowledge | ingest trees — **formal carve-out**: its work root resolves through its own `library_dir` seam, not `memory_dir`; slug conformance is form-only (charset/reserved names), and its nested `<epic>/<slug>/` sub-slices are sanctioned | memory (carved out) | by reference — the carve-out above is its entire delta |
 | claude-ops | telemetry | machine state | by reference — machine state resolves no contract paths |
+| education | per-concept `lesson` / `reference` / `exercise` slices; `quiz-me` report library (`recall` reads it back); `primer` vocabulary-ladder HTML | machine state + ephemeral | by reference — its workspace and report library are its own `${CLAUDE_PLUGIN_DATA}` layouts, and only the workspace-less `primer` render resolves a path this contract owns |
 | docs-hygiene | (reader) audit-noise detector recognizes these shapes | — | by reference — reads shapes, writes nothing |
 
 ### Implementers restate the rules; they do not share a source

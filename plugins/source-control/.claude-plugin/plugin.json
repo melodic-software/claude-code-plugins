@@ -33,7 +33,7 @@
       "type": "string",
       "multiple": true,
       "title": "Babysit extra self identities",
-      "description": "Extra GitHub posting identities (e.g. a project bot account) added to your `gh api user` login — the self set babysit-prs treats as its own: self-comment suppression, same-login classification, readiness-gate classification rows, and the merge-gate self-exemption. Not a discovery filter — which authors' PRs the queue discovers is `--author`'s job, independent of this set. Absent: your gh login alone."
+      "description": "Extra GitHub posting identities (e.g. a project bot account) added to your `gh api user` login — the self set babysit-prs treats as its own: self-comment suppression, same-login classification, readiness-gate classification rows, the merge-gate self-exemption, and the resolve-thread bot-only test (a self-authored reply to a bot thread no longer counts as a disqualifying human participant). Not a discovery filter — which authors' PRs the queue discovers is `--author`'s job, independent of this set. Absent: your gh login alone."
     },
     "babysit_intended_write_identity": {
       "type": "string",

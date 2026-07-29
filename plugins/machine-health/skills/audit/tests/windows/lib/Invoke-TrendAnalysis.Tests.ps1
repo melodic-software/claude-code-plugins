@@ -79,7 +79,8 @@ Describe 'Invoke-TrendAnalysis' -Tag 'lib' {
         $history = @(
             New-HistoryEntry `
                 -SeverityByCategory @{ storage = [pscustomobject]@{ WARN = 1 } } `
-                -TopMetrics @{ 'disk-space.used_pct' = 80 }
+                -TopMetrics @{ 'disk-space.used_pct' = 80 } `
+                -ChecksRan @('disk-space')
         )
         $checks = @(New-CheckStub -Id 'disk-space' -Category 'storage' -Severity 'WARN' -Detail @{ used_pct = 87 })
         $result = Invoke-TrendAnalysis -CheckResults $checks -HistoryTail $history
@@ -91,7 +92,8 @@ Describe 'Invoke-TrendAnalysis' -Tag 'lib' {
         $history = @(
             New-HistoryEntry `
                 -SeverityByCategory @{ storage = [pscustomobject]@{ WARN = 1 } } `
-                -TopMetrics @{ 'disk-space.used_pct' = 80 }
+                -TopMetrics @{ 'disk-space.used_pct' = 80 } `
+                -ChecksRan @('disk-space')
         )
         $checks = @(New-CheckStub -Id 'disk-space' -Category 'storage' -Severity 'WARN' -Detail @{ used_pct = 87 })
         $result = Invoke-TrendAnalysis -CheckResults $checks -HistoryTail $history
@@ -104,12 +106,37 @@ Describe 'Invoke-TrendAnalysis' -Tag 'lib' {
         $history = @(
             New-HistoryEntry `
                 -SeverityByCategory @{ storage = [pscustomobject]@{ WARN = 1 } } `
-                -TopMetrics @{ 'disk-space.used_pct' = 85 }
+                -TopMetrics @{ 'disk-space.used_pct' = 85 } `
+                -ChecksRan @('disk-space')
         )
         $checks = @(New-CheckStub -Id 'disk-space' -Category 'storage' -Severity 'WARN' -Detail @{ used_pct = 87 })
         $result = Invoke-TrendAnalysis -CheckResults $checks -HistoryTail $history
         $result[0].severity | Should -Be 'WARN'
         $result[0].trend.adjusted_from | Should -BeNullOrEmpty
+    }
+
+    It 'ignores metrics from runs in which the check did not succeed' {
+        # A check that fails or completes only partially still persists whatever it
+        # measured into top_metrics, but is absent from that run's checks_ran. That
+        # figure is a lower bound: baselining against it makes the next COMPLETE run
+        # look like growth and upgrades a WARN to CRIT on recovered ground alone.
+        # Newest entry here is the failed one, so an unfiltered baseline picks it.
+        $history = @(
+            New-HistoryEntry `
+                -TopMetrics @{ 'claude-temp-root.total_gb' = 7.9 } `
+                -ChecksRan @('claude-temp-root') `
+                -RunId '2026-04-20T00:00:00-04:00'
+            New-HistoryEntry `
+                -TopMetrics @{ 'claude-temp-root.total_gb' = 1.2 } `
+                -ChecksRan @() `
+                -RunId '2026-04-23T00:00:00-04:00'
+        )
+        $checks = @(New-CheckStub -Id 'claude-temp-root' -Category 'storage' `
+                -Severity 'WARN' -Detail @{ total_gb = 8.1 })
+        $result = Invoke-TrendAnalysis -CheckResults $checks -HistoryTail $history
+        $result[0].severity | Should -Be 'WARN' `
+            -Because 'the only usable baseline is 7.9 (delta +0.2), not the partial 1.2'
+        $result[0].trend.last_run | Should -Be '2026-04-20T00:00:00-04:00'
     }
 
     It 'produces a trend object that passes Assert-CheckResult (schema sub-shape)' {
@@ -134,7 +161,8 @@ Describe 'Invoke-TrendAnalysis' -Tag 'lib' {
         $history = @(
             New-HistoryEntry `
                 -SeverityByCategory @{ power = [pscustomobject]@{ WARN = 1 } } `
-                -TopMetrics @{ 'battery.full_capacity_pct' = 75 }
+                -TopMetrics @{ 'battery.full_capacity_pct' = 75 } `
+                -ChecksRan @('battery')
         )
         $checks = @(New-CheckStub -Id 'battery' -Category 'power' -Severity 'WARN' -Detail @{ full_capacity_pct = 69 })
         $result = Invoke-TrendAnalysis -CheckResults $checks -HistoryTail $history
@@ -150,10 +178,12 @@ Describe 'Invoke-TrendAnalysis' -Tag 'lib' {
             New-HistoryEntry `
                 -SeverityByCategory @{ storage = [pscustomobject]@{ WARN = 1 } } `
                 -TopMetrics @{ 'disk-space.used_pct' = 20 } `
+                -ChecksRan @('disk-space') `
                 -RunId '2026-04-20T00:00:00-04:00'
             New-HistoryEntry `
                 -SeverityByCategory @{ storage = [pscustomobject]@{ WARN = 1 } } `
                 -TopMetrics @{ 'disk-space.used_pct' = 85 } `
+                -ChecksRan @('disk-space') `
                 -RunId '2026-04-23T00:00:00-04:00'
         )
         $checks = @(New-CheckStub -Id 'disk-space' -Category 'storage' -Severity 'WARN' -Detail @{ used_pct = 87 })

@@ -42,6 +42,41 @@ whether an exact plan is mechanically eligible. Neither layer may weaken the oth
 The policy overlay can add protections, disable candidate hints, and add consumer hints. It cannot
 remove a non-overridable check or baseline protected name.
 
+## Live agent scratchpads
+
+A Claude Code temp root (`%TEMP%\claude` on Windows, `$TMPDIR`-derived on POSIX, relocated by
+`CLAUDE_CODE_TMPDIR`) is a plausible target: it accumulates per-session scratchpads with no cleanup
+owner, and `machine-health`'s `claude-temp-root` check routes its findings here. Its hazard is not
+the session running the clean — that one is identifiable by `CLAUDE_CODE_SESSION_ID` — but a
+*concurrently running other* session, whose scratchpad is an active working directory with no marker
+distinguishing it from an abandoned one. Directory age does not separate them: a long-running
+session's scratchpad is old and live at the same time, so no age tier can be trusted to mean
+"finished".
+
+Nothing new is needed to hold that line; the existing non-overridable checks already do, and they do
+it structurally rather than by heuristic:
+
+- **Live-handle proof.** An open file under a running session's scratchpad is `locked`, and any
+  authority, tooling, timeout, or unverifiable condition is `handle-state-unverified` — both keep the
+  entry. This is the primary defense and it fails closed.
+- **VCS markers re-discovered from live state.** Agent scratchpads routinely hold clones and
+  worktrees; observed first-hand, a registered worktree of a real repository living at
+  `<temp-root>/<project-key>/<session-id>/scratchpad/`, alongside two full clones whose pack files
+  were 4.2 GB of a 7.9 GB tree. Repository markers are re-discovered and `git ls-files` re-queried at
+  preview and at apply — snapshot annotations are never trusted — so a repository checked out after
+  the snapshot still refuses.
+- **Identity and descendant-set equality since snapshot.** A live session writes continuously, so its
+  scratchpad drifts between snapshot and apply and lands `changed-or-link` or `drifted`. The
+  quiescence a `clear` verdict describes is exactly what a live scratchpad cannot hold.
+- **Verdict expiry.** `handoff-verify` verdicts expire immediately and are per-path, so a session
+  that starts writing between two paths cannot be covered by an earlier path's approval.
+
+Two consequences worth stating plainly. First, on Windows and macOS the engine returns
+`execution-platform-unsupported`, so a Windows temp root — where this growth was measured — is a
+manual-lane job under the per-item human prompt, never an engine apply. Second, the honest posture
+here is that a temp root is a *low*-confidence target however large it looks: the tier is set by what
+can be proven quiescent, not by how much space would be reclaimed.
+
 ## Handle semantics and honest scope
 
 On Windows, `CreateFile` with a zero share mode conflicts with existing access and
