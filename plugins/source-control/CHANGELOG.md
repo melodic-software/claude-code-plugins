@@ -37,9 +37,14 @@ All notable changes to the `source-control` plugin are documented here. Format f
 - **`gh` was matched only as the exact literal.** `gh.exe`, `/usr/bin/gh`, `./gh`, and `sudo gh` all
   bypassed the gate, inconsistent with the basename comparison the wrapper loop ten lines above
   already used. The binary is matched by basename now, `.exe` suffix and backslash paths included,
-  and `sudo` joins `env`/`command` as a recognized wrapper. A wrapper option's **separated** value
-  is consumed with it — `sudo -u root gh …` and `env -u VAR gh …` previously left the value sitting
-  where the command name was expected, so the wrapped `gh` was never found at all.
+  and `sudo` joins `env`/`command` as a recognized wrapper. Wrapper options are classified rather
+  than blindly skipped, which three separate defects fell out of: a **separated** option value is
+  consumed with its flag (`sudo -u root gh …`, `sudo -r staff_r gh …`, `env -u VAR gh …` all left
+  the value sitting where the command name was expected, so the wrapped `gh` was never found); a
+  directory- or root-changing option (`env -C DIR`, `sudo -D DIR`, `sudo -R DIR`) is the `cd` case
+  wearing a flag and takes the same out-of-scope verdict, where before it **false-blocked** against
+  the payload's directory; and `env -S 'gh pr create …'`, which carries an entire command line in
+  one operand, is re-parsed the way an `sh -c` operand already was instead of being stepped over.
 - **A stalled hook payload blocked the command.** The gate inherited the sibling security guards'
   fail-closed posture on an unreadable stdin, which for a scoped policy gate means refusing an
   arbitrary Bash command because the hook could not read its own input. It allows now; the header

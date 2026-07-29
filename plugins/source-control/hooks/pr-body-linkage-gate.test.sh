@@ -230,6 +230,30 @@ assert_block "sudo -- ends its own options" "$GATED" \
   "$(printf "sudo -- gh pr create -t T --body '%s'" "$NO_RELATED")"
 assert_block "env -u VAR consumes its value" "$GATED" \
   "$(printf "env -u GH_TOKEN gh pr create -t T --body '%s'" "$NO_RELATED")"
+assert_block "sudo -r role consumes its SELinux value" "$GATED" \
+  "$(printf "sudo -r staff_r gh pr create -t T --body '%s'" "$NO_RELATED")"
+assert_block "sudo -t type consumes its SELinux value" "$GATED" \
+  "$(printf "sudo -t sysadm_t gh pr create -t T --body '%s'" "$NO_RELATED")"
+
+# A wrapper that moves the working directory or the root is the `cd` case
+# wearing a flag: the gate file and a relative body path resolve elsewhere.
+assert_allow "env -C moves the directory" "$GATED" \
+  "$(printf "env -C %s gh pr create -t T --body '%s'" "$UNGATED" "$NO_RELATED")"
+assert_allow "env --chdir= moves the directory" "$GATED" \
+  "$(printf "env --chdir=%s gh pr create -t T --body '%s'" "$UNGATED" "$NO_RELATED")"
+assert_allow "sudo -D moves the directory" "$GATED" \
+  "$(printf "sudo -D %s gh pr create -t T --body '%s'" "$UNGATED" "$NO_RELATED")"
+assert_allow "sudo -R moves the filesystem root" "$GATED" \
+  "$(printf "sudo -R %s gh pr create -t T --body '%s'" "$UNGATED" "$NO_RELATED")"
+
+# `env -S` carries an entire command line in one operand; it is a command to
+# re-parse, not a value to step over.
+assert_block "env -S operand is re-parsed" "$GATED" \
+  "$(printf "env -S \"gh pr create -t T --body '%s'\"" "$NO_RELATED")"
+assert_block "env --split-string= operand is re-parsed" "$GATED" \
+  "$(printf "env --split-string=\"gh pr create -t T --body '%s'\"" "$NO_RELATED")"
+assert_allow "env -S carrying a compliant body allowed" "$GATED" \
+  "$(printf "env -S \"gh pr create -t T --body '%s'\"" "$GOOD")"
 
 # --- How `gh` is spelled -----------------------------------------------------
 # The wrapper loop above already reads basenames; matching the binary any other

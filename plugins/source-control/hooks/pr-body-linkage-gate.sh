@@ -391,11 +391,55 @@ parse_short_cluster() {
   return 0
 }
 
+# A wrapper flag that moves the working directory (or the filesystem root) puts
+# the call somewhere this hook cannot resolve, exactly as a `cd` segment does —
+# so it is the same out-of-scope verdict, not a value to skip over.
+# shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
+wrapper_flag_changes_dir() {
+  local wrapper="$1" flag="$2"
+  case "$wrapper" in
+  env)
+    case "$flag" in
+    -C | -C?* | --chdir | --chdir=*) return 0 ;;
+    *) return 1 ;;
+    esac
+    ;;
+  sudo)
+    case "$flag" in
+    -D | -D?* | --chdir | --chdir=* | -R | -R?* | --chroot | --chroot=*) return 0 ;;
+    *) return 1 ;;
+    esac
+    ;;
+  *) return 1 ;;
+  esac
+}
+
+# `env -S 'gh pr create …'` carries a whole command line in ONE operand, which
+# env then splits into argv. That is a command to re-parse, not a value to skip
+# — the same treatment `sh -c` gets. Sets SPLIT_OPERAND on success.
+# shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
+wrapper_split_operand() {
+  local wrapper="$1" flag="$2" next="$3" have_next="$4"
+  SPLIT_OPERAND=""
+  [[ "$wrapper" == "env" ]] || return 1
+  case "$flag" in
+  -S?*) SPLIT_OPERAND="${flag#-S}" ;;
+  --split-string=*) SPLIT_OPERAND="${flag#--split-string=}" ;;
+  -S | --split-string)
+    ((have_next)) || return 1
+    SPLIT_OPERAND="$next"
+    ;;
+  *) return 1 ;;
+  esac
+  return 0
+}
+
 # Whether a wrapper's flag consumes the FOLLOWING word. Without this, the
 # separated form of an option value (`sudo -u root gh …`, `env -u VAR gh …`)
 # leaves the value sitting where the command name is expected, and the wrapped
 # `gh` is never found. An attached value (`-uroot`, `--user=root`) is part of
-# the flag word and consumes nothing.
+# the flag word and consumes nothing. Directory-changing and split-string flags
+# are classified above and never reach here.
 # shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
 wrapper_flag_takes_value() {
   local wrapper="$1" flag="$2"
@@ -406,9 +450,9 @@ wrapper_flag_takes_value() {
   case "$wrapper" in
   sudo)
     case "$flag" in
-    -u | -g | -h | -p | -C | -D | -R | -T | -U | \
-      --user | --group | --host | --prompt | --close-from | --chdir | --chroot | \
-      --command-timeout | --other-user)
+    -u | -g | -h | -p | -C | -T | -U | -r | -t | \
+      --user | --group | --host | --prompt | --close-from | \
+      --command-timeout | --other-user | --role | --type)
       return 0
       ;;
     *) return 1 ;;
@@ -416,7 +460,7 @@ wrapper_flag_takes_value() {
     ;;
   env)
     case "$flag" in
-    -u | --unset | -C | --chdir | -S | --split-string) return 0 ;;
+    -u | --unset) return 0 ;;
     *) return 1 ;;
     esac
     ;;
@@ -455,6 +499,13 @@ check_segment() {
           break
           ;;
         -*)
+          # shellcheck disable=SC2310  # pure classifier; a false return is the "not a chdir" case
+          if wrapper_flag_changes_dir "$wrapper" "${w[i]}"; then return 0; fi
+          # shellcheck disable=SC2310  # pure classifier; a false return is the "not split-string" case
+          if wrapper_split_operand "$wrapper" "${w[i]}" "${w[i + 1]:-}" "$((i + 1 < n))"; then
+            hook::bash_parse_segments "$SPLIT_OPERAND" check_segment
+            return 0
+          fi
           # shellcheck disable=SC2310  # pure classifier; a false return is the "no value" case
           if wrapper_flag_takes_value "$wrapper" "${w[i]}"; then ((i++)); fi
           ((i++))
