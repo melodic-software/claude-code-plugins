@@ -44,7 +44,7 @@ Skill data (`.claude/skills/*/data/`) is preserved unconditionally — no flag r
 ### Agent gates (never script-bypassed)
 
 - Always run `--dry-run` first; show preview to user (surface `PreserveDeps` / `PreserveSecrets` / `AheadCount`).
-- `AskUserQuestion` before `--apply` (interactive only); `--include-secrets` and `--allow-unpushed` each need their own explicit confirmation.
+- [Confirmation gate](../SKILL.md#confirmation-gate) before `--apply` (interactive only); `--include-secrets` and `--allow-unpushed` each need their own explicit confirmation.
 - Autonomous mode: abort; user re-invokes interactively.
 
 ## Relationship to the `git` action

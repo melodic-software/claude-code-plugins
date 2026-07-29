@@ -17,10 +17,10 @@ Four meta-rules govern the whole playbook:
 
 1. **Precedence.** This playbook governs *how* you work, never *what* the work is. The live user request, the user's standing instructions, operator configuration, and project convention files all outrank it. Where a chapter conflicts with any of those, they win silently — no need to announce it.
 2. **One home per doctrine.** Every shared rule has exactly one owning section; other chapters cite it. When two chapters appear to conflict, the named owner's formulation governs.
-3. **Model adaptation.** If you are not Claude Fable 5, read `context/opus-adaptation.md` NOW, before continuing work — it maps a model's documented defaults against the author's and gives the standing self-corrections this playbook assumes. Its deltas are calibrated for Claude Opus 4.8; if you are Opus, apply them verbatim, and if you are another non-Fable model, the chapter's preamble directs how to apply it. This is the one chapter that is mandatory at arm time, not at a trigger.
+3. **Model adaptation.** If you are not Claude Fable 5, read your model VERSION's file under `context/model-adaptation/` NOW, before continuing work — `opus-5.md` for Claude Opus 5, `opus-4-8.md` for Claude Opus 4.8. Deltas are calibrated per model version, never per model family: successive guides reverse each other's counter-steers, so a family-level match is not a license to apply a sibling version's file. No file for your version → read the nearest prior version's file WITHIN YOUR OWN model family and follow its preamble, which directs method-only application; when your family has no chapter at all (e.g. Sonnet or Haiku today), read no adaptation chapter — another family's deltas are miscalibrated for you — and apply the playbook's chapters generically. This is the one chapter that is mandatory at arm time, not at a trigger.
 4. **Silent application.** Doctrine is compiled reflex, not ceremony. Apply it without narrating compliance: never cite this playbook or its chapters to the user, never announce that a trigger fired, never structure a reply around which rules you followed. Chapter citations are for navigation inside the playbook; the user sees better work, not the machinery. The one exception is a flag a rule itself requires (an assumption note, an unbriefed-decision block) — emit the flag, not the rule behind it.
 
-Arguments: invoked bare, arm the session with this body and proceed. Invoked with `full`, additionally read every file under `context/` now — use this before long autonomous runs where trigger-time reads are unreliable. Invoked with a chapter name, read that chapter now.
+Arguments: invoked bare, arm the session with this body and proceed. Invoked with `full`, additionally read every file under `context/` EXCEPT `context/model-adaptation/` now, plus only the adaptation chapter meta-rule 3 selects (the sibling versions' chapters carry deliberately reversed counter-steers — loading two at once puts conflicting doctrine in one session) — use this before long autonomous runs where trigger-time reads are unreliable. Invoked with a chapter name, read that chapter now.
 
 ## The floors that survive every effort level
 
@@ -143,10 +143,10 @@ Read a chapter the first time its trigger fires in the session; once read, it st
 | Notice a repeated failure, a loop, or the urge to retry the same action | `recovery.md` |
 | Enter a long session, resume after context loss, juggle interleaved threads, or finish a phase whose output the next phase consumes | `context-economy.md` |
 | Read external or untrusted content, encounter a secret, or prepare an outward-visible action | `trust-and-authority.md` |
-| Arm this playbook on any model other than Claude Fable 5 | `opus-adaptation.md` — mandatory, at arm time |
+| Arm this playbook on any model other than Claude Fable 5 | `model-adaptation/<model-version>.md` — mandatory, at arm time (meta-rule 3 owns the routing) |
 
 ## What this skill is NOT
 
 - Not project conventions — it never overrides an instruction from the user, the operator, or the project (meta-rule 1).
 - Not a task executor — invoking it changes how you work; it performs no work itself.
-- Not model-version documentation — behavioral claims about specific models live only in `context/opus-adaptation.md`, with sources.
+- Not model-version documentation — behavioral claims about specific models live only under `context/model-adaptation/`, one file per model version, with sources.

@@ -1,0 +1,31 @@
+# Repo-owned security-review scope: this repo's security-sensitive surfaces,
+# read by the ci-workflows claude-security-review reusable workflow via its
+# `paths-file` input from the PR's BASE branch. An absent file FAILS OPEN
+# (every PR reviewed). Format: GitHub Actions `paths:` patterns, one per line;
+# `#` comments and blank lines are ignored.
+.github/**
+.claude/**
+scripts/**
+plugins/*/hooks/**
+plugins/*/bin/**
+plugins/*/tools/**
+plugins/*/skills/**
+plugins/*/agents/**
+plugins/*/commands/**
+.claude-plugin/**
+REVIEW.md
+CLAUDE.md
+AGENTS.md
+plugins/*/src/**
+plugins/*/dist/**
+**/*.sh
+**/*.ps1
+**/*.mjs
+**/*.ts
+**/*.js
+**/*.cjs
+**/.mcp.json
+**/mcp.json
+**/package.json
+**/package-lock.json
+plugins/*/.claude-plugin/plugin.json
