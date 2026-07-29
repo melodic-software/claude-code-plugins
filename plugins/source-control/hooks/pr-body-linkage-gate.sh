@@ -32,7 +32,10 @@
 # the payload's `cwd`. A `cd`/`pushd`/`popd` earlier in the same command line
 # moves the directory `gh` actually runs in, and the segment tokenizer discards
 # that segment, so neither resolution would be knowable: the call goes OUT OF
-# SCOPE from that point on, exactly as a `--repo`-targeted one does.
+# SCOPE from that point on, exactly as a `--repo`-targeted one does. Only the
+# CURRENT shell's own relocation counts — `command cd`, `builtin cd`, and
+# `eval cd` do move it; `sudo cd` and `env cd` are separate processes that fail
+# on a builtin and move nothing.
 #
 # FAIL-OPEN ON EXTRACTION, FAIL-CLOSED ON A DETERMINABLE BAD BODY. The body is
 # only judged when it can be read statically: a `--body`/`-b` literal, a
@@ -440,17 +443,22 @@ parse_wrapper_flag() {
       sudo:--role | sudo:--type)
       WRAP_KIND="value"
       ;;
+    # Options that print and EXIT without running the command: no PR can be
+    # created, so gating one would be a false block.
+    env:--help | env:--version | sudo:--help | sudo:--version)
+      WRAP_KIND="terminal"
+      return 0
+      ;;
     # Positively known booleans; the loop steps over these. env's list is
     # transcribed from `env --help` on a GNU coreutils host. Its three signal
     # options take an OPTIONAL argument, which GNU only accepts attached after
     # `=`, so they never consume the following word and belong here.
     env:--ignore-environment | env:--null | env:--debug | env:--list-signal-handling | \
       env:--block-signal | env:--default-signal | env:--ignore-signal | \
-      env:--help | env:--version | \
       sudo:--askpass | sudo:--background | sudo:--bell | sudo:--preserve-env | \
       sudo:--set-home | sudo:--remove-timestamp | sudo:--reset-timestamp | \
       sudo:--non-interactive | sudo:--preserve-groups | sudo:--stdin | \
-      sudo:--shell | sudo:--help | sudo:--validate | sudo:--version)
+      sudo:--shell | sudo:--validate)
       return 0
       ;;
     *)
@@ -498,9 +506,14 @@ parse_wrapper_flag() {
     # print a pathname instead of running anything, so no PR is created and
     # gating one would be a false block — they fall through to `unknown`, which
     # allows.
+    # Prints and exits without running the command; see the long-form arm.
+    sudo:V)
+      WRAP_KIND="terminal"
+      return 0
+      ;;
     command:p | \
       env:i | env:0 | env:v | sudo:A | sudo:B | sudo:b | sudo:E | sudo:H | sudo:K | \
-      sudo:k | sudo:n | sudo:P | sudo:S | sudo:s | sudo:V | sudo:v)
+      sudo:k | sudo:n | sudo:P | sudo:S | sudo:s | sudo:v)
       continue
       ;;
     *)
@@ -524,7 +537,7 @@ parse_wrapper_flag() {
 # shellcheck disable=SC2329  # invoked indirectly as the hook::bash_parse_segments callback
 check_segment() {
   local -a w=("$@")
-  local n=$# i=0 k word next have_next bin wrapper split_from reparse
+  local n=$# i=0 d k word next have_next bin wrapper split_from reparse
   local body_flag="" body_val="" body=""
 
   if hook::shell_c_operand "$@"; then
@@ -535,12 +548,21 @@ check_segment() {
   # Leading `VAR=val` assignments are not the command word.
   while ((i < n)) && [[ "${w[i]}" == *=* && "${w[i]}" != -* ]]; do ((i++)); done
 
-  # Only the CURRENT shell's own builtin can relocate later segments, which is
-  # why this test precedes wrapper removal rather than following it: `sudo cd /x`
-  # and `env cd /x` both FAIL, because `cd` is a builtin and not an executable,
-  # so a wrapped `cd` must poison nothing. It falls through to the wrapper loop
-  # below, where `cd` is simply not `gh`.
-  case "${w[i]:-}" in
+  # Only the CURRENT shell can relocate later segments. `command`, `builtin`, and
+  # `eval` dispatch a builtin INSIDE this shell, so `command cd /x` really does
+  # move it; `sudo cd /x` and `env cd /x` are separate processes that FAIL,
+  # because `cd` is a builtin and not an executable, so those must poison
+  # nothing — which is why this test precedes wrapper removal and why neither
+  # appears here. A wrapped `cd` falls through to the wrapper loop below, where
+  # `cd` is simply not `gh`.
+  d=$i
+  while ((d < n)); do
+    case "${w[d]}" in
+    command | builtin | eval | -*) ((d++)) ;;
+    *) break ;;
+    esac
+  done
+  case "${w[d]:-}" in
   cd | pushd | popd)
     DIR_CHANGED=1
     return 0
@@ -571,7 +593,7 @@ check_segment() {
         -*)
           parse_wrapper_flag "$wrapper" "${w[i]}" "${w[i + 1]:-}" "$((i + 1 < n))"
           case "$WRAP_KIND" in
-          chdir) return 0 ;;
+          chdir | terminal) return 0 ;;
           split)
             # env appends its remaining operands to the split string, so
             # `env -S 'gh pr create' --body BAD` runs the two spliced together.

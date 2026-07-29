@@ -279,6 +279,21 @@ assert_block "a sudo-wrapped cd does not poison later segments" "$GATED" \
   "$(printf "sudo cd /tmp || gh pr create -t T --body '%s'" "$NO_RELATED")"
 assert_block "an env-wrapped cd does not poison later segments" "$GATED" \
   "$(printf "env cd /tmp && gh pr create -t T --body '%s'" "$NO_RELATED")"
+# `command`, `builtin`, and `eval` DO dispatch the builtin inside this shell.
+assert_allow "command cd relocates the current shell" "$GATED" \
+  "$(printf "command cd %s && gh pr create -t T --body '%s'" "$UNGATED" "$NO_RELATED")"
+assert_allow "builtin cd relocates the current shell" "$GATED" \
+  "$(printf "builtin cd %s && gh pr create -t T --body '%s'" "$UNGATED" "$NO_RELATED")"
+assert_allow "eval cd relocates the current shell" "$GATED" \
+  "$(printf "eval cd %s && gh pr create -t T --body '%s'" "$UNGATED" "$NO_RELATED")"
+
+# Options that print and exit run no command, so there is no PR to gate.
+assert_allow "env --help runs nothing" "$GATED" \
+  "$(printf "env --help gh pr create -t T --body '%s'" "$NO_RELATED")"
+assert_allow "env --version runs nothing" "$GATED" \
+  "$(printf "env --version gh pr create -t T --body '%s'" "$NO_RELATED")"
+assert_allow "sudo -V runs nothing" "$GATED" \
+  "$(printf "sudo -V gh pr create -t T --body '%s'" "$NO_RELATED")"
 
 # An option the hook does not positively recognize could eat the next word, so
 # the call goes out of scope rather than being guessed at.
