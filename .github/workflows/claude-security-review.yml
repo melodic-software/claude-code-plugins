@@ -29,7 +29,7 @@ jobs:
       contents: read         # checkout + read the diff
       pull-requests: write   # post the security review
       id-token: write        # OIDC — mints the Claude GitHub App token
-    uses: melodic-software/ci-workflows/.github/workflows/claude-security-review.yml@e2951077a7b43c09fc5a8dee4da52ba6f0fb39ed # e295107 2026-07-26 infra-failure class in the annotation + PR comment
+    uses: melodic-software/ci-workflows/.github/workflows/claude-security-review.yml@66073e58e730f8bcd1d6533e26ac9411a637fe83 # 66073e5 2026-07-26 fail the required check when an in-scope review could not run
     with:
       runner: ubuntu-24.04
       skip-actors: "dependabot[bot],melodic-standards-sync[bot]"

@@ -3,6 +3,91 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.16.0]
+
+### Changed
+
+- **`audit-instructions`: `conflict-criteria.md` gains two adjudication cautions on the mechanism
+  escape hatch (criteria 1.0.0 → 1.1.0).** No must-not-flag case was added and `conflict-scan.sh` is
+  unchanged. First: both tool-removal mechanisms — a bare-name `permissions.deny` rule and
+  `disallowed-tools` — work by taking the tool out of Claude's pool, so recommending one against a
+  skill whose text *requires* that tool leaves the mandate unsatisfiable rather than stricter; when
+  the mandating side is a gate, the mechanism must land together with a rewrite of that side, and the
+  pair is what gets recommended, never the rule alone. Second, and deliberately a caution rather than
+  a drop rule: **availability-conditioning does not fail gate 5.** Rephrasing a mandate as "`X` when it
+  is in the pool, otherwise ask inline" narrows how an act is performed, not whether — that is a subset
+  of an always-resident prohibition's scope, not a disjoint condition, so the two still overlap
+  wherever the tool is present and must-not-flag case 12 does not apply. Gate 3 then decides the pair
+  on the rewritten text, testing the branch where the tool *is* present. Without this, a skill could
+  neutralize a live Type A finding by appending a condition or softening a verb. The must-not-flag
+  table gains a non-numbered row pointing at it, so a reader working the table finds it beside case 12.
+  The permissions page is added to Sources and to the recheck triggers, since both cautions now rest
+  on it.
+
+### Fixed
+
+- **`audit-instructions`: Worked Example 1's corpus counts were never reproducible from the method
+  the example states (#1723).** It read "62 lines name the tool and 11 carry a
+  `use_ask_user_question` opt-in gate on the same line, leaving 51 ungated". Measured with the
+  example's own stated method — `plugins/**/*.md`, changelogs excluded — the figures are 69/11/58
+  both at current `main` and at `049a4b9243`, the commit that shipped the doc, so this is a wrong
+  measurement rather than drift; only the gated count, `11`, reproduces. Four plausible alternative
+  denominators were tried and none reaches 62. The hardcoded figures are replaced by the two
+  `git grep` commands that compute them, with `conflict-criteria.md` itself excluded from the pathspec
+  — it names both tokens, including on the command lines, so an unexcluded measurement counts itself
+  and drifts whenever the example is edited.
+
+- **`audit-instructions`: Worked Example 1 no longer records a verdict on its own subject.** #1724
+  changed the mandate side the example quotes. Rather than declare the pair closed, the example now
+  shows the pre-fix state and its gate walkthrough, then states explicitly that **this file does not
+  adjudicate the resulting pair** — the rewrite was authored in the same repository as these criteria,
+  so a verdict here would be the author grading their own text, and the pair's operator-level half is
+  an open question (now cited: #1722). It names two things not to assume while re-running the gates:
+  that the pair dissolved because one side acquired a condition, and that a softened verb settles
+  gate 3. It keeps what the history does establish — **no winner was named**, because the
+  skill-body-versus-memory-surface authority relation the Unresolved table denies still does not
+  exist, and a rewrite on one side is never the operator's decision.
+
+- **`audit-instructions`: `conflict-scan.test.sh` Case 2's comment** no longer describes its fixture as
+  the live worked example; the text it was drawn from is no longer in `repo-hygiene`. Comment only —
+  no fixture, assertion, or scanner behavior changed, and the suite still passes 41/41.
+
+## [0.15.0]
+
+### Added
+
+- **`audit-instructions`: Opus-5 model-delta rows in I8, and model scoping as a catalog axis**
+  (criteria 1.2.0 → 1.3.0), from the dual-verified Opus 5 prompting-guide corpus. I8 gains three
+  Opus-5-scoped rows: I8-a instructed self-check removal (classified by reviewer INDEPENDENCE —
+  architected fresh-context or cross-vendor review is never a finding — with carve-out lanes for
+  security review, destructive operations, managed-upstream-file changes, and PR merge gates);
+  I8-b conservative-reporting detection, behavioral, with two criteria-owned fences
+  (restraint-clause shape — the `code-tidying` tidyings "When NOT to apply" text is the canonical
+  non-finding — and quoted/meta surfaces that discuss the pattern rather than instruct with it);
+  I8-c don't-think / don't-reason directives. A new "Model scoping" section defines the semantics:
+  single-model-sourced rows fire only when the run's resolved target model matches by exact
+  equality of the normalized version token (point releases and dated IDs never auto-match a
+  base-version scope), otherwise reported `skipped-for-target`; fleet-wide promotion only via the
+  documented gate. I8's base row and I10 are annotated with their `fable-5` scope (single-model
+  sources; gate unmet) — a deliberate coverage narrowing: on any non-`fable-5` target those two
+  now report `skipped-for-target` instead of findings, until the promotion gate is met.
+- **`audit-instructions`: `--target-model <version>` argument.** Default resolution ladder:
+  explicit argument, else the session's effective model (launch overrides included, not the bare
+  settings pin) normalized alias → version against live model-config docs; anything that cannot
+  normalize to a single version — family alias (e.g. `opus` with a context-window suffix), absent
+  `model` setting, custom/gateway deployment ID — aborts the run non-interactively with the exact
+  argument to pass, instead of silently assuming the newest version. The report's
+  tier-transparency line names the resolved target.
+- **`audit-instructions`: report-header cost line** — checks run per surface, model-scoped rows
+  skipped for the target, estimated per-surface token delta versus the prior catalog version, and
+  confirmation that the run adds zero new interactive gates (report-only contract unchanged).
+- **`instruction-scan.sh`: I8 candidate families with per-family ids** (`I8-a` instructed
+  self-check, `I8-b` conservative-reporting, `I8-c` don't-think / don't-reason), with regression
+  tests, curly-apostrophe (U+2019) coverage in the contraction patterns (also retrofitted to the
+  pre-existing I6 tokens), and stem forms that catch inflections. Advisory over-production is
+  unchanged and deliberate: restraint clauses, quoted/meta text, idioms, and substring near-misses
+  are emitted as candidates; the fences live in criteria.md and are adjudicated by the model lane.
+
 ## [0.14.0]
 
 ### Added

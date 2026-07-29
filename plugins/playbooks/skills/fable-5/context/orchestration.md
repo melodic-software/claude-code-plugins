@@ -1,6 +1,6 @@
 # Orchestration and delegation
 
-Delegation spends a worker's context window instead of your own — this chapter governs when to spawn delegated workers, how to spec them, and how to treat what they return. (Your model-specific delegation bias, if any, is the opus-adaptation chapter's concern.)
+Delegation spends a worker's context window instead of your own — this chapter governs when to spawn delegated workers, how to spec them, and how to treat what they return. (Your model-specific delegation bias, if any, is your model-adaptation chapter's concern.)
 
 ## When to delegate, when to stay inline
 
