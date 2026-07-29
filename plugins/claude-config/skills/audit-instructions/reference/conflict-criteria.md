@@ -1,7 +1,7 @@
 # Cross-Surface Conflict Criteria
 
-Version: 1.0.0
-Last updated: 2026-07-25
+Version: 1.1.0
+Last updated: 2026-07-29
 
 **The adjudication procedure for check I15.** [criteria.md](criteria.md)'s I15 entry owns the
 definition — what a cross-surface conflict *is*, its comparison set, its import and symlink
@@ -16,7 +16,8 @@ The three shared axes (evidence tier, authority, severity) are defined once in
 
 **Recheck triggers** — re-verify against live docs when any fires: a change to the memory page's
 precedence or load-order text; a change to the skills page's statements about instruction authority;
-any new instruction surface added to the product.
+any new instruction surface added to the product; a change to how permission rules or permission
+modes remove a tool from Claude's pool.
 
 ## Sources
 
@@ -27,6 +28,8 @@ pages do not make is recorded as unresolved and given no winner.
 - Skills — <https://code.claude.com/docs/en/skills>
 - Subagents — what loads into a subagent at startup — <https://code.claude.com/docs/en/sub-agents>
 - Output styles — how a style reaches the system prompt — <https://code.claude.com/docs/en/output-styles>
+- Permissions — how deny rules and permission modes remove a tool —
+  <https://code.claude.com/docs/en/permissions>
 
 ## Boundary: what C6's population actually is
 
@@ -278,6 +281,23 @@ available pool while this skill is active. Use for autonomous skills that should
 tools, such as `AskUserQuestion` for a background loop"). Offer this as an option; the choice is the
 operator's.
 
+**Check first that the mechanism resolves the pair rather than breaking one side.** Both tool-removal
+forms — a bare-name `permissions.deny` rule and `disallowed-tools` — work by taking the tool out of
+Claude's pool, so a skill whose text *requires* that tool is left naming something absent: the
+mandate becomes unsatisfiable, not stricter, and the model must improvise. When the mandating side is
+a gate, the mechanism has to land together with a rewrite of that side stating what must be true
+rather than which tool to call. Recommend the pair, never the rule alone.
+
+**Availability-conditioning does not fail gate 5.** A mandate rephrased as "`X` when it is in the
+pool, otherwise ask inline" narrows *how* the act is performed, not *whether* it is. That is a
+**subset** of an always-resident prohibition's scope, not a disjoint condition, so a realistic prompt
+still fires both wherever the tool is present: gate 5 holds and must-not-flag case 12 does not apply.
+Gate 3 then decides the pair on the rewritten text, and the branch to test is the one where the tool
+*is* present — a line directing its use there still prescribes an act the prohibition forbids, however
+the fallback branch is worded. Do not wave a pair through because one side acquired a condition, and
+do not treat a softened verb as self-evidently permissive; that is a gate-3 judgment on specific text,
+made by the lane, not a class of drop.
+
 ## Running the pass
 
 Two departures from the skill's per-surface lanes, both forced by the pairwise unit:
@@ -310,6 +330,7 @@ False positives are the failure mode. Each case below is either suppressed by th
 | 10 | Two directives about **different scopes** of one topic | lane | 2 |
 | 11 | A **scope declaration** — an artifact listing the surfaces it operates on | lane | 2 — not a behavioral claim |
 | 12 | Directives scoped to **disjoint conditions** (interactive vs autonomous) | lane | 5 |
+| — | *Not a case:* one side conditioned on the entity's **availability** — a subset, not disjoint. See "Availability-conditioning does not fail gate 5" above | — | — |
 | 13 | The **same word with two referents** across surfaces | lane | 2 |
 
 Case 13 is the sharpest in practice, because keyword overlap is exactly what a text scan sees. Two
@@ -383,22 +404,57 @@ gate's documented lane shape — not this skill.
 
 ## Worked examples
 
-Two instances, both verified in this repository, both illustrating a different half of the pass.
+Two instances from this repository, both illustrating a different half of the pass. The first is
+shown at the state that produced it, with its remediation, because how a Type A pair stops being one
+is as instructive as how it is found.
 
 **1. A skill body against the user's global CLAUDE.md — cross-layer, conditional, safety-bearing.**
 `~/.claude/CLAUDE.md` carries "Ask questions inline; never use the `AskUserQuestion` tool unless
 explicitly asked to use it", resident in every session. Against it,
-`plugins/repo-hygiene/skills/clean/SKILL.md` states "**Mandatory gate:** show dry-run output →
-`AskUserQuestion` → only then `--apply`". Across `plugins/**/*.md` excluding changelogs, 62 lines name
-the tool and 11 carry a `use_ask_user_question` opt-in gate on the same line, leaving 51 ungated.
+`plugins/repo-hygiene/skills/clean/SKILL.md` stated "**Mandatory gate:** show dry-run output →
+`AskUserQuestion` → only then `--apply`". Measure the corpus at any commit rather than quoting a
+figure that drifts:
 
-All five gates hold. Gate 4 turns on the prohibition's exception being unreachable: "unless explicitly
+```bash
+git grep -c "AskUserQuestion" -- 'plugins/**/*.md' ':!**/CHANGELOG.md' ':!**/conflict-criteria.md' \
+  | awk -F: '{s+=$2} END {print s}'
+git grep -n "AskUserQuestion" -- 'plugins/**/*.md' ':!**/CHANGELOG.md' ':!**/conflict-criteria.md' \
+  | grep -c use_ask_user_question
+```
+
+The second figure is the subset carrying a `use_ask_user_question` opt-in gate on the same line
+(must-not-flag case 2); the difference is the ungated remainder. **This file is excluded on purpose**
+— it names both tokens, including on the command lines above, so without the exclusion the measurement
+counts itself and drifts every time this example is edited.
+
+All five gates held. Gate 4 turns on the prohibition's exception being unreachable: "unless explicitly
 asked" is satisfiable by the user, never by an invoked skill. Type A, conditional co-residency,
 verdict **unresolved** — the skills page states no authority relation between a skill body and a
-memory surface. It is not a style nit: in `repo-hygiene:clean` and `disk-hygiene:clean` that call *is*
-the destructive-action confirmation gate, so resolving toward the CLAUDE.md degrades a safety
-mechanism while resolving toward the skill disobeys a standing instruction. Report both anchors and
-let the operator choose.
+memory surface. It was not a style nit: in `repo-hygiene:clean` and `disk-hygiene:clean` that call
+*was* the destructive-action confirmation gate, so resolving toward the CLAUDE.md degraded a safety
+mechanism while resolving toward the skill disobeyed a standing instruction. Both anchors were
+reported and the choice left to the operator.
+
+**What changed on the mandate side — and why that is not a verdict.** Both skills now state the gate
+as invariant-plus-surface: the confirmation bar is unconditional, while the surface prefers
+`AskUserQuestion` and falls back to an inline question when it is absent. That rewrite was made on its
+own grounds, not to win this pair: the old wording named a tool that can be absent — permission mode
+`dontAsk` denies it *"even if you've allowed"* it, a **bare-name** `permissions.deny` rule *"removes
+the tool from Claude's context entirely"*, and a `disallowed-tools` entry removes it *"from Claude's
+available pool while this skill is active"* — so the mandate was unsatisfiable in exactly the sessions
+that most needed a gate.
+
+**This file deliberately does not adjudicate the resulting pair.** The rewrite was authored in the
+same repository as this criteria doc, so a verdict recorded here would be the author grading their own
+text — and the pair's operator-level half is an open, undecided question
+([#1722](https://github.com/melodic-software/claude-code-plugins/issues/1722)). Run the gates against
+the current text as you would for any pair. Two things not to assume while doing it: that the pair
+dissolved because one side acquired a condition (gate 5 is unaffected — see above), and that a
+softened verb settles gate 3 — the branch that decides it is the one where the tool *is* present.
+
+What the closed history does establish: **no winner was named**, and none was available to name. The
+authority relation the Unresolved table denies still does not exist, and a rewrite on one side is not
+the operator's decision — it must never be recorded as one.
 
 **2. A near-miss the gates correctly reject — description-versus-body divergence.**
 `claude-memory:audit`'s `description` (in `SKILL.md`) sells "memory health" and greps zero for

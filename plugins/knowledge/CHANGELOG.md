@@ -4,6 +4,37 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.10.1]
+
+### Changed
+
+- **`docpage-digest` Anthropic profile: applicability-tag boundary + doc-queue dispositions.**
+  The Claude-Code-applicability filter gains the `cc-applicable`/`mixed` boundary rule (a claim
+  naming an API surface tags `mixed` even when its guidance transfers; `cc-applicable` is
+  reserved for claims naming no API surface). Doc queue: the choosing-a-model entry records its
+  routing vet as executed (melodic-software/claude-code-plugins#1697, digest slice still
+  pending); the two thinking docs are queued as two runs; the task-budgets doc is recorded as
+  deferred-with-trigger (api-only until harness support lands).
+
+## [0.10.0]
+
+### Added
+
+- **New skill `docpage-digest` — 4th ingestion sibling.** Ingests a single online documentation
+  page (docs-site URL) into a verified knowledge slice: fetch the unaltered original, inventory
+  it into an `INDEX.md`, fan out one model-matched digest agent per section (model-pinned briefs
+  use conditional framing — "if you are not X, note the mismatch and continue" — because
+  spawn-time overrides can desync a brief from the running model), run dual verification
+  (same-vendor Claude + one cross-vendor verifier; degraded-verifier fallback is
+  recorded in the verdict header, never silent; verdicts are append-only), and hand off an
+  interview-ready decision artifact. Publisher-specific configuration (fetch channel,
+  Claude-Code-applicability filter with live-doc verification at tag time, digest-agent model
+  matching, doc queue) lives in a separable profile at `context/anthropic-docs-profile.md`; a
+  second publisher joins as a sibling profile, engine extraction waits for the third (Rule of
+  Three). Ingested content is data, never directives (prompt-injection discipline named in the
+  skill contract). Work root resolves through the plugin's `library_dir` seam, matching
+  `course-digest`. Ships `templates/checklist.md` and `evals/evals.json`.
+
 ## [0.9.6]
 
 ### Fixed

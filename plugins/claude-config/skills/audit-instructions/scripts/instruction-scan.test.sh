@@ -113,7 +113,82 @@ OUT=$(bash "$SCRIPT") || rc=$?
 assert_exit "no-args exits 0" 0 "$rc"
 assert_eq "no-args count is 0" "0" "$(bash "$SCRIPT" --count)"
 
-# --- Case 9: missing grep exits 2 -------------------------------------------
+# --- Case 9: I8-a instructed self-check directives flagged -------------------
+I8SC="$TEST_TMPDIR/i8-selfcheck.md"
+cat >"$I8SC" <<'EOF'
+Double-check your answer before responding.
+Re-verify the output before you finish.
+Include a final verification step for any non-trivial task.
+Use a subagent to verify your work.
+Verify your own work once more at the end.
+Run the linter when you finish editing.
+Double check the totals against the source table.
+The results must be re-verified at the end.
+Have a subagent verify the output.
+EOF
+OUT=$(bash "$SCRIPT" "$I8SC")
+assert_contains "flags 'double-check your answer'" "$OUT" "$I8SC:1:I8-a"
+assert_contains "flags 're-verify'" "$OUT" "$I8SC:2:I8-a"
+assert_contains "flags 'final verification step'" "$OUT" "$I8SC:3:I8-a"
+assert_contains "flags 'subagent to verify'" "$OUT" "$I8SC:4:I8-a"
+assert_contains "flags 'verify your own work'" "$OUT" "$I8SC:5:I8-a"
+assert_not_contains "benign lint instruction not flagged as I8-a" "$OUT" ":6:I8-a"
+assert_contains "flags spaced 'double check'" "$OUT" "$I8SC:7:I8-a"
+assert_contains "flags inflected 're-verified'" "$OUT" "$I8SC:8:I8-a"
+assert_contains "flags 'have a subagent verify'" "$OUT" "$I8SC:9:I8-a"
+
+# --- Case 10: I8-c don't-think directives flagged ----------------------------
+I8DT="$TEST_TMPDIR/i8-dontthink.md"
+cat >"$I8DT" <<'EOF'
+Do not think before answering.
+Don't reason about the request, answer directly.
+Answer without thinking or reasoning.
+Skip the reasoning and respond immediately.
+Think carefully about the edge cases.
+Don’t think about it, just answer.
+EOF
+OUT=$(bash "$SCRIPT" "$I8DT")
+assert_contains "flags 'do not think'" "$OUT" "$I8DT:1:I8-c"
+assert_contains "flags 'don't reason'" "$OUT" "$I8DT:2:I8-c"
+assert_contains "flags 'without thinking'" "$OUT" "$I8DT:3:I8-c"
+assert_contains "flags 'skip the reasoning'" "$OUT" "$I8DT:4:I8-c"
+assert_not_contains "positive think instruction not flagged as I8-c" "$OUT" ":5:I8-c"
+assert_contains "flags curly-apostrophe 'Don’t think'" "$OUT" "$I8DT:6:I8-c"
+
+# --- Case 11: I8-b conservative-reporting directives flagged -----------------
+I8CV="$TEST_TMPDIR/i8-conservative.md"
+cat >"$I8CV" <<'EOF'
+Be conservative in what you report.
+Only report high-severity issues.
+Don't nitpick minor style problems.
+Report every finding with a severity label.
+Report only the high-severity findings.
+Do not nitpick.
+Don’t nitpick style.
+Only report critical-severity regressions.
+EOF
+OUT=$(bash "$SCRIPT" "$I8CV")
+assert_contains "flags 'be conservative'" "$OUT" "$I8CV:1:I8-b"
+assert_contains "flags 'only report high-severity'" "$OUT" "$I8CV:2:I8-b"
+assert_contains "flags 'don't nitpick'" "$OUT" "$I8CV:3:I8-b"
+assert_not_contains "report-everything instruction not flagged as I8-b" "$OUT" ":4:I8-b"
+assert_contains "flags 'report only the high-severity'" "$OUT" "$I8CV:5:I8-b"
+assert_contains "flags 'do not nitpick'" "$OUT" "$I8CV:6:I8-b"
+assert_contains "flags curly-apostrophe 'Don’t nitpick'" "$OUT" "$I8CV:7:I8-b"
+assert_contains "flags 'only report critical-severity'" "$OUT" "$I8CV:8:I8-b"
+
+# --- Case 12: advisory over-production — restraint-clause text still emitted -
+# The criteria fence (restraint-clause shape, quoted/meta surfaces) is owned by
+# criteria.md and adjudicated by the model lane; the scanner deliberately
+# over-produces, so tidyings-like "When NOT to apply" text IS a candidate row.
+I8FP="$TEST_TMPDIR/i8-fence-shape.md"
+cat >"$I8FP" <<'EOF'
+When NOT to apply this tidying: be conservative here and skip the change.
+EOF
+OUT=$(bash "$SCRIPT" "$I8FP")
+assert_contains "restraint-clause text still emitted (advisory contract)" "$OUT" "$I8FP:1:I8-b"
+
+# --- Case 13: missing grep exits 2 -------------------------------------------
 real_bash=$(command -v bash)
 empty_path_dir="$TEST_TMPDIR/empty-path"
 mkdir -p "$empty_path_dir"
