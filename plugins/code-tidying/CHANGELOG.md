@@ -14,8 +14,9 @@ All notable changes to the `code-tidying` plugin are documented here. Format fol
   while the watch-for patterns are **additive per language subsection** (a project's `### Bash` /
   `### PowerShell` entries append to the bundled ones), so bundled pattern improvements keep reaching
   consuming repos. Three calls the flat `docs-prose` shape did not have to make: `Preferred research
-  sources` and `Verification commands` override at language granularity, since both are split by
-  language here, so retargeting one language never silently wipes the other's authorities or checks;
+  sources` and `Verification commands` each carry explicit `### Bash` / `### PowerShell` subsections and
+  override at that `###` granularity, so retargeting one language never silently wipes the other's
+  authorities or checks;
   and `Lane-specific extra exclusions` is additive rather than an override, because the
   hook-directory HARD exclusions are what this lane exists around (they are on the plugin's global
   HARD list besides, which no lane layer resolves). No engine change — the resolution engine landed in 0.7.0 already merges whenever the
@@ -29,7 +30,9 @@ All notable changes to the `code-tidying` plugin are documented here. Format fol
   of the bundled lane — a copied section is frozen at its copy-time value, so the old instruction
   produced exactly the freeze-out the decomposition removes. `check` correspondingly stops FAILing a
   lane for a section it legitimately inherits (declared `## Merge semantics` + a bundled lane of the
-  same name); it reports the inherited sections instead.
+  same name); it reports the inherited sections instead. The exemption is the declaration's, not the
+  heading's — `check` FAILs a `## Merge semantics` section that is empty, unrelated, or silent on an
+  omitted section, and an override of a `###`-keyed section that leaves its own content unkeyed.
 
 ## [0.7.2]
 

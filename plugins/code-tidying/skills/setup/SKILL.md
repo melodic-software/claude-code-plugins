@@ -48,7 +48,15 @@ FAIL. Modify nothing, and do NOT run a tidy sweep — that is `/code-tidying:tid
    except a lane that declares `## Merge semantics` **and** shares its name with one of
    `${CLAUDE_PLUGIN_ROOT}/skills/tidy/lanes/*.md`: that one
    inherits every section it omits from its bundled counterpart, so a missing section is expected, not a
-   FAIL. Report which sections it inherits.
+   FAIL. Report which sections it inherits. The exemption belongs to the declaration, not to the heading:
+   read the section and confirm it either adopts the bundled lane's declaration by reference (the shape
+   `apply` writes — `Merge semantics: per the bundled lane's declaration`) or restates a disposition for
+   every required section the lane omits. A `## Merge semantics` section that is empty, unrelated, or
+   silent on an omitted section is FAIL — malformed merge declaration; remediation is to adopt the bundled
+   declaration by reference or to state the missing dispositions. FAIL too when the lane overrides a
+   section the bundled lane keys at `###` granularity (`shell-tooling`'s `Verification commands` and
+   `Preferred research sources`) without keying its own content under those `###` language headings —
+   unkeyed content names no language to replace.
 3. **No unreplaced placeholders** — a lane still containing a template `<placeholder>` resolves to a
    broken scope glob or watch-for pattern; FAIL, naming the file and the leftover token.
 4. **Tracked, not ignored** — run `git check-ignore -v <file>` per lane file. A non-empty result means a
@@ -97,6 +105,8 @@ only where a lane's scope genuinely needs the user's call.
      actually diverges on (usually `## Scope`, sometimes extra exclusions), plus a `## Merge semantics`
      section adopting the bundled lane's declaration. Do not copy the sections the repo keeps: a copied
      section is frozen at its copy-time value, while an omitted one keeps inheriting bundled improvements.
+     Where the bundled lane keys a section at `###` granularity, key the override the same way so it
+     resolves per language.
    - **Custom lanes** (accepted from step 3's "any other slice?" offer) have no dedicated source: start
      from whichever template pattern is closest in shape to the slice and re-fill it, or — when none fits —
      author a new lane file from scratch using the same section structure the templates use (`## Scope`,
