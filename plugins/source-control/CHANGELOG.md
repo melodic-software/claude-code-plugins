@@ -3,6 +3,42 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.35.0]
+
+### Added
+
+- **`babysit-loop` escalation record write — deterministic surface for out-of-band notification
+  (#1650).** Escalating now also creates
+  `.claude/lane-escalations/<UTC-stamp>-<item>-babysit-loop.json` with the Write tool in the same
+  step that files the tracker escalation, immediately before posting the marker comment — one new
+  file per NEWLY filed escalation (suppressed by the marker read the step already performs),
+  `loop-lane/escalation-record@1`
+  shape, summary restating only the already-public marker-comment text. The Write tool call (never
+  a shell redirect, whose `Bash` event the seam's `Write` matcher never sees) is what a consuming
+  repo's `PostToolUse`
+  `type:"http"` hook keys on to reach an off-machine human deterministically; the documented seam
+  and settings shape are owned by the loop-lane convention (§2, v4.0.0). Record-before-marker is
+  load-bearing: a stop between the two non-atomic writes then costs one duplicate notification the
+  next cycle re-files, where the reverse order strands a standing marker that suppresses the record
+  on every later cycle and loses the notification permanently. Without a configured hook the file
+  is inert exhaust; the tracker item stays the escalation of record. Because the record path is
+  relative to the lane session's own checkout, a lane scoped to a repository other than its
+  checkout notifies the launching project's endpoint and never the target's — so launching from
+  the target's checkout is stated at the site as a requirement whenever that repository's endpoint
+  is the one that must hear, not a preference.
+
+### Changed
+
+- **`babysit-loop` gains a lane-start preflight that ignores the escalation record directory itself
+  (#1650).** The record write is unconditional, so an unignored `.claude/lane-escalations/` would
+  strand an untracked file per escalation in the tree this lane runs its gates against — and
+  nothing delivers a tracked ignore rule into a consuming repo, so an existing consumer that
+  upgrades would hit exactly that. New cycle-shape step 0 runs once per lane: if
+  `git check-ignore -q` reports the path unignored, append it to the clone's untracked
+  `$(git rev-parse --git-common-dir)/info/exclude`; skipped outside a git checkout, which the
+  neutral-directory launch mode allows. No consumer change, no tracked file touched, and a no-op
+  wherever the repo's own `.gitignore` already carries the rule.
+
 ## [0.34.1]
 
 ### Fixed

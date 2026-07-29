@@ -6,6 +6,30 @@ All notable changes to the `autonomy` plugin are documented here. Format follows
 Versions 0.1.0–0.7.0 predate this file (introduced with 0.7.1); their history lives in the
 merged work-package PRs (#333, #343, #356, #372, #377, #600, #676).
 
+## [0.11.5]
+
+### Fixed
+
+- **`lane-notify.sh` no longer claims no remote/Slack/push transport exists (#1650).** The header
+  stated "there is no remote/Slack/push transport here (none exists as a marketplace primitive
+  yet)" — stale on both clauses, since first-party off-machine transports do exist today. The
+  comment now says so and points at the loop-lane convention's out-of-band notification seam (§2),
+  which owns that seam and its verified grounding, instead of restating the mechanisms and their
+  citations here. The primitive's own local-only reach and its closed-laptop/dead-process caveat
+  are unchanged. Comment-only — no hook behavior change.
+
+### Changed
+
+- **`reference/runner/escalation.md`: severity fan-out legs grounded in shipped transport surface
+  classes (#1650).** The channel-notification and personal-push legs were unbuilt design with no
+  named surface class. A new "Fan-out transport grounding" subsection assigns the channel leg to
+  the deterministic hook-transport class and the personal-push leg to the model-discretionary
+  push-notification surface class, records each class's dependency profile, and states that both
+  classes have shipped mechanisms today — so neither leg waits on a primitive that has to be
+  invented. Per this plugin's contract boundary the subsection names no vendor and no instance:
+  concrete adapters are bound and re-verified at build, and the consuming-side wiring lives in the
+  loop-lane convention's seam.
+
 ## [0.11.4]
 
 ### Fixed
