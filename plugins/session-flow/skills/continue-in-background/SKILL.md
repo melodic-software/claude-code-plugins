@@ -19,7 +19,10 @@ Collect these with **individual** Bash calls, one command per call:
 - Uncommitted changes — `git status --porcelain`, reading **at most the first 20 entries**
 - Recent commits — `git log --oneline -5`
 
-Treat any failure as an unknown value and carry on. These are gathered here rather than pre-computed
+Treat any failure as an unknown value and carry on — this block only colors the save-point, and
+nothing here is the dirty-tree gate. That gate runs its own commands at delivery step 1 and reads a
+git failure as a reason NOT to launch; never carry this block's shrug, or its non-`-uall`
+`git status` output, into it. These are gathered here rather than pre-computed
 because a worktree-isolated agent refuses any command carrying a `$`-expansion, which made this skill
 fail at load — keep `$`-expansion out of the pre-compute block (#1687).
 
@@ -69,17 +72,26 @@ The rails prompt from the engine doc is still emitted FIRST (transparency + manu
 then:
 
 1. **Dirty-tree gate.** First establish there is a tree to inspect, with
-   `git rev-parse --is-inside-work-tree` in the consuming project. Three outcomes, and only the
-   first reaches the gate below: prints `true` → inspect the tree. Fails *specifically* because
-   this is not a git repository → there is no uncommitted work to protect and no worktree
-   isolation to lose, since outside a repository (and absent a `WorktreeCreate` hook) background
-   sessions write to the working directory directly rather than moving into one
-   (<https://code.claude.com/docs/en/agent-view>) → launch, and state both in the launch report.
-   Fails for any OTHER reason — dubious ownership, a damaged repository, git missing from `PATH`
-   — → the tree's state is UNKNOWN, which is not the same as clean → do NOT launch; fall back
-   exactly as the dirty case does below, reporting what the command said. Never infer the
-   non-repo branch from a non-zero exit alone: every one of those other failures can sit on top
-   of a dirty tree, so an exit-code-only reading turns this gate into one that fails open.
+   `git rev-parse --is-inside-work-tree` in the consuming project. Exactly two results are
+   specified, and everything else falls through to a deliberate default:
+
+   - Prints `true` → there is a work tree; inspect it with the gate below.
+   - Fails *specifically* because this is not a git repository → there is no uncommitted work to
+     protect and no worktree isolation to lose, since outside a repository (and absent a
+     `WorktreeCreate` hook) background sessions write to the working directory directly rather
+     than moving into one (<https://code.claude.com/docs/en/agent-view>) → launch, and state both
+     in the launch report.
+   - **Anything else** → the tree's state is UNKNOWN, which is not the same as clean → do NOT
+     launch; fall back exactly as the dirty case does below, reporting what the command said.
+     "Anything else" is the default on purpose, and it is wide: a failure for some other reason
+     (dubious ownership, a damaged repository, git missing from `PATH`), and also a *successful*
+     `false` — inside a bare repository or inside a `.git` directory, where the command exits 0
+     and there is no work tree to inspect.
+
+   Never route by exit status alone. A non-zero exit is not evidence of "no repository", and a
+   zero exit is not evidence of a clean tree; both readings put dirty trees on the launch path,
+   which is how a gate that exists to protect uncommitted work ends up failing open. Only the
+   two identifications above may leave the default branch.
 
    Inspect the tree with `git status --porcelain -uall` in the consuming project (`-uall`
    lists files inside untracked directories individually; the default collapses a brand-new
@@ -154,8 +166,9 @@ doc's save-point items, which the sibling `handoff` skill's checklists mirror):
 - [ ] Dirty-tree gate evaluated this turn: `git rev-parse --is-inside-work-tree` first, then
   `git status --porcelain -uall` when it says `true`, ignoring save-point files under the handoff
   location; other uncommitted changes without the linked-worktree exception → no launch, reason
-  reported, fallback to `/clear`-then-paste. Not a git repository → launch, non-repo reading
-  stated in the report; any other `rev-parse` failure → state unknown, no launch, same fallback
+  reported, fallback to `/clear`-then-paste. Positively identified as not a git repository →
+  launch, non-repo reading stated in the report; any other `rev-parse` result, failing or `false`
+  → state unknown, no launch, same fallback
 - [ ] Background agent launched with the rails prompt (`claude --bg --name …`) and the launch
   result reported (including any non-inherited flags mirrored or worth flagging) — OR the
   non-zero exit reported with fallback to `/clear`-then-paste
@@ -164,8 +177,9 @@ doc's save-point items, which the sibling `handoff` skill's checklists mirror):
 ## Gotchas
 
 Failure patterns are documented inline at the step that owns them: the `-uall` untracked-directory
-collapse and the non-repo-vs-unknown split that keeps the gate from failing open (dirty-tree gate,
-step 1), the no-inline-prompt rule and the session-persistence env
+collapse, the non-repo-vs-unknown split with its deliberately wide unknown default, and the ban on
+reusing the context block's git output (dirty-tree gate, step 1; context block), the
+no-inline-prompt rule and the session-persistence env
 requirement (launch command, step 2), slug sanitization ("Arguments"), and non-inheritance
 surprises — model, effort, CLI flags ("What the launched session inherits").
 

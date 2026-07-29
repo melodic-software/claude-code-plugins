@@ -76,6 +76,18 @@
         "It does NOT launch the background agent: unknown tree state is handled like dirty state, not like clean state",
         "It reports what the command said and falls back to the standard /clear-then-paste instruction"
       ]
+    },
+    {
+      "id": 7,
+      "name": "no-work-tree-despite-zero-exit-does-not-launch",
+      "prompt": "/continue-in-background — hand this to a background agent, I'm off. (Note: the working directory is a bare repository, so git rev-parse --is-inside-work-tree exits 0 and prints 'false'.)",
+      "expected_output": "A zero exit is not evidence of a clean tree. The command printed 'false', not 'true', and this is not the positively-identified non-repo case either, so it lands in the gate's unknown default: the skill does NOT launch, reports that there is no work tree to inspect, and falls back to the standard /clear-then-paste instruction.",
+      "files": [],
+      "expectations": [
+        "The skill does NOT read the zero exit status as a passing gate — the printed value is 'false', so there is no work tree and nothing was proven clean",
+        "It does NOT take the non-repo launch branch either: 'false' is not the 'not a git repository' identification, so the permissive branch does not apply",
+        "It does NOT launch the background agent, and falls back to the standard /clear-then-paste instruction with the reason reported"
+      ]
     }
   ]
 }

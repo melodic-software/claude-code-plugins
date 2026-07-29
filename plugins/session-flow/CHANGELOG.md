@@ -8,21 +8,28 @@
   a git repository (melodic-software/claude-code-plugins#929).** The gate opened by running
   `git status --porcelain -uall`, which in a non-repo directory (a session started in `$HOME`, say)
   fails with `fatal: not a git repository` and leaves the skill with no specified behavior.
-  - The gate now establishes repository status first with `git rev-parse --is-inside-work-tree` and
-    specifies all three outcomes. `true` → inspect the tree as before. Not a git repository →
-    launch: there is no uncommitted work to protect and no worktree isolation to lose, because
-    outside a repository background sessions write to the working directory directly rather than
+  - The gate now establishes repository status first with `git rev-parse --is-inside-work-tree`.
+    Two results are specified and everything else falls through to a deliberate default, so the
+    gate is exhaustive by construction rather than by enumeration. `true` → inspect the tree as
+    before. Positively identified as *not a git repository* → launch: there is no uncommitted work
+    to protect and no worktree isolation to lose, because outside a repository (absent a
+    `WorktreeCreate` hook) background sessions write to the working directory directly rather than
     moving into an isolated worktree (<https://code.claude.com/docs/en/agent-view>); the launch
     report states that reading.
-  - Any *other* `rev-parse` failure — dubious ownership, a damaged repository, git missing from
-    `PATH` — is specified as UNKNOWN tree state, not clean, and does not launch. Reading a
-    non-zero exit alone as "no repository" would have turned a gate that protects uncommitted work
-    into one that fails open on exactly the cases where the tree is most likely dirty and least
-    likely readable.
+  - Anything else is UNKNOWN tree state, not clean, and does not launch. That default is wide on
+    purpose: a failure for some other reason (dubious ownership, a damaged repository, git missing
+    from `PATH`), and also a *successful* `false` — inside a bare repository or a `.git`
+    directory, where the command exits 0 and there is no work tree. Routing by exit status alone
+    in either direction would have turned a gate that protects uncommitted work into one that
+    fails open on exactly the cases where the tree is least readable.
+  - The context-gathering block's "treat any failure as an unknown value and carry on" is now
+    scoped to itself. It colors the save-point and is not the gate; its shrug, and its non-`-uall`
+    `git status` output, must not be carried into the gate, which reads a git failure the opposite
+    way.
   - The post-launch enforcement checklist and the gotchas index carry the same branches, so the
     surfaces the user verifies the exit shape against no longer disagree with the gate.
-  - Two eval cases added: a non-repo directory that launches, and a git failure that is not
-    "not a git repository" that does not.
+  - Three eval cases added: a non-repo directory that launches, a git failure that is not "not a
+    git repository" that does not, and a zero-exit `false` that does not.
 
 ## [0.17.16]
 
