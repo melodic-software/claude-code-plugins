@@ -2994,18 +2994,35 @@ class GuardTests(unittest.TestCase):
             os.unlink(alias)
 
     def test_engine_gate_defers_consumer_windows_path_on_powershell(self) -> None:
-        """Backslash consumer paths must defer on PowerShell, not fail closed (P2 r6)."""
+        """Native consumer paths must defer on PowerShell, not fail closed (P2 r6).
+
+        Asserted on the host's OWN spelling, plus the backslash spelling only
+        where that spelling names the same file. Forcing backslashes
+        unconditionally fabricated a path that cannot exist on POSIX, and the
+        case passed there only because the basename predicate was
+        `Path()`-flavoured and did not see the marker in it — a Linux fail-open
+        wearing a green test, which is round 2 of this chain exactly. With the
+        predicate platform-independent, that fabricated word is an
+        unresolvable marker-carrying path after an interpreter, and failing
+        closed on it is the documented rule.
+        """
         with tempfile.TemporaryDirectory(dir=SCRIPT_DIR) as tmp:
             consumer = Path(tmp) / "hygiene.py"
             consumer.write_text("print('consumer tool')\n", encoding="utf-8")
-            windows_path = str(consumer)  # native backslashes on Windows
-            if "\\" not in windows_path:
-                windows_path = windows_path.replace("/", "\\")
-            self.assertIsNone(
-                self.run_guard_engine_gate(
-                    f"python {windows_path} --help", "PowerShell"
+            spellings = [str(consumer)]
+            backslashed = str(consumer).replace("/", "\\")
+            try:
+                if os.path.samefile(backslashed, consumer):
+                    spellings.append(backslashed)
+            except (OSError, ValueError):
+                pass
+            for spelling in spellings:
+                self.assertIsNone(
+                    self.run_guard_engine_gate(
+                        f"python {spelling} --help", "PowerShell"
+                    ),
+                    spelling,
                 )
-            )
 
     def test_engine_gate_defers_consumer_script_in_compound_commands(self) -> None:
         """A provably-different hygiene.py defers even beside operators (P2 r7)."""

@@ -68,8 +68,8 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
   ABSOLUTE path, but it read the path-legal fragments — so any character outside that class split a
   consumer's absolute path and left the fragment carrying the filename relative, unprovable, and
   denied: `python3 /tmp/consumer+tools/hygiene.py --help && echo done` gated a file that has nothing
-  to do with this plugin. `~` is what makes this ordinary rather than exotic — Windows 8.3
-  short-name segments (`C:\Users\KYLESE~1\...`) put unpunctuated paths under ordinary temp
+  to do with this plugin. `~` is what makes this ordinary rather than exotic — a Windows 8.3
+  short-name segment (`C:\Users\<user>~1\...`) puts unpunctuated paths under ordinary temp
   directories into the same population. Resolution now reads the whole shell word containing the
   token, with quoted spans kept intact so a path with spaces resolves too, while detection keeps the
   fine tokens exactly as they were.
