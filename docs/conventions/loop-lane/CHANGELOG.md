@@ -17,8 +17,10 @@ A change to the escalation contract is a major bump per this file's own rule.
   shell redirect, whose `Bash` event the seam's `Write` matcher never sees), one new file per
   NEWLY filed escalation — the write carries the marker comment's own duplicate suppression, so a
   standing escalation re-encountered on a later cycle fires no second webhook. The record is
-  signal, not storage: the tracker item stays the single escalation of record, and consuming
-  repos gitignore the directory.
+  signal, not storage: the tracker item stays the single escalation of record. Ignoring the record
+  directory is a named **adoption prerequisite** on the consuming repo — nothing delivers the rule
+  into one, and skipping it strands an untracked file per escalation in the tree a lane gates
+  against.
 - **Escalation contract (§2) — out-of-band notification seam.** A consuming repo's own tracked
   `.claude/settings.json` may register a deterministic `PostToolUse` `type: "http"` hook on the
   record write, POSTing the hook JSON to a repo-chosen endpoint — documented default shape,

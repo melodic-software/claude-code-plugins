@@ -298,8 +298,14 @@ The record write is conditioned on the marker post: it happens exactly when this
 NEW machine-marked escalation comment, so an item this lane already escalated — its marker
 comment standing from a prior cycle — gets no second record and fires no second webhook. The
 summary restates only the already-public comment text. No configured hook means the file is inert
-exhaust — the tracker item stays the escalation of record. Telemetry is the report surface, never
-the escalation channel.
+exhaust — the tracker item stays the escalation of record. Two consequences of the record path
+being relative to **this session's checkout**, both owned by the convention: the repo running the
+lane gitignores `.claude/lane-escalations/` as an adoption prerequisite (nothing installs that rule
+for it), and when `<owner/repo>` names a repository other than that checkout, the notification
+reaches the *launching* project's endpoint — the target repository's tracked hook is never
+consulted, since the harness fires hooks from loaded settings and no lane can redirect that. Run the
+lane from the target's checkout when its endpoint is the one that must hear. Telemetry is the report
+surface, never the escalation channel.
 
 **Pre-escalation resolution attempt, explicit-`autopilot` only.** When — and only when — this
 invocation's own argument line typed both the literal `autopilot` tier argument and

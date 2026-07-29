@@ -201,7 +201,10 @@ while the latch is set (clear it on a fresh healthy snapshot after the pause end
    marker comment is posted, so an item whose marker already stands — a still-unratified
    `ratify-c3`, an idempotent label re-convergence — gets no second record and fires no second
    webhook. The summary restates only the already-public comment text. No configured hook means
-   the file is inert exhaust — the tracker item stays the escalation of record.
+   the file is inert exhaust — the tracker item stays the escalation of record. The record path is
+   relative to this session's checkout, so that repo gitignores `.claude/lane-escalations/` as an
+   adoption prerequisite (the convention owns the rule; nothing installs it for a consumer) — left
+   out, every escalation strands an untracked file in the tree this lane runs its gates against.
 6. **Report and pace.** Upsert the telemetry comment (cycle report + updated state block + guard
    mode), then evaluate the exit condition; if not exiting, `ScheduleWakeup` the next cycle.
 

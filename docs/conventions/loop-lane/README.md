@@ -155,8 +155,16 @@ escalation the tracker item already holds:
 ```
 
 `kind` mirrors the marker comment's `kind` token. The write is signal, not storage: no lane reads
-the record back, the tracker item stays the escalation of record, and a consuming repo adds
-`.claude/lane-escalations/` to its `.gitignore`. Two rules make the signal deterministic:
+the record back, and the tracker item stays the escalation of record.
+
+**Adoption prerequisite — ignore the record directory.** A consuming repo adds
+`.claude/lane-escalations/` to its own `.gitignore` before it runs an unattended lane, and nothing
+does this for it: this marketplace's root ignore rule covers only its own dogfooding checkout, and a
+plugin ships no consumer-side ignore rule. Skipped, every escalation strands an untracked file in
+the working tree a lane runs its gates against, and escalation detail is one careless stage away
+from being committed. The prerequisite attaches to the write, not to the seam: the write is
+unconditional, so a repo that ignores the directory and configures no hook accumulates inert exhaust
+rather than a dirty tree. Two rules make the signal deterministic:
 
 - **Write tool, never a shell redirect.** Only a `Write` tool call emits the `PostToolUse` event
   the seam below keys on; a shell redirect writes the same bytes but emits only a `Bash` tool
@@ -250,6 +258,18 @@ mobile setup: the app installed and signed in on the same account, OS notificati
 push enabled in `/config` (verified 2026-07-27:
 <https://code.claude.com/docs/en/tools-reference>, <https://code.claude.com/docs/en/remote-control>).
 Only the http hook is the deterministic leg.
+
+**The seam binds to the session's project, never to the repository a lane targets.** The record
+path is relative to the session's checkout, and the hook that fires is the one in that session's
+loaded project settings. So a lane whose scope argument names a repository other than its own
+checkout — a supported merge-lane mode — POSTs to the *launching* project's endpoint, and the
+target repository's tracked hook is never consulted. That is the seam as specified rather than a
+misconfiguration: "the consuming repo" is whichever project the lane session runs in, which is also
+the project whose settings the harness loaded. An operator who wants the target repository's own
+endpoint to receive the POST runs the lane from that repository's checkout. Note the asymmetry with
+policy resolution, which deliberately reaches the target repository's tracked file over `gh api`:
+that is a read a lane performs, while the hook is fired by the harness from loaded settings, which
+no lane can redirect.
 
 **Degradation.** A consuming repo with no hook configured loses only the out-of-band leg — the
 tracker escalation and the local notify are unchanged, and the record files are inert exhaust. A

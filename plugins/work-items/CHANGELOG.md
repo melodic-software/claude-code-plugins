@@ -18,7 +18,9 @@ All notable changes to the `work-items` plugin are documented here. Format follo
   repo's `PostToolUse`
   `type:"http"` hook keys on to reach an off-machine human deterministically; the documented seam
   and settings shape are owned by the loop-lane convention (§2, v4.0.0). Without a configured hook
-  the file is inert exhaust; the tracker item stays the escalation of record.
+  the file is inert exhaust; the tracker item stays the escalation of record. The path is relative
+  to the lane session's own checkout, and that repo gitignores the directory as an adoption
+  prerequisite — stated at the site, since nothing delivers the ignore rule into a consumer.
 
 ## [0.25.4]
 

@@ -17,7 +17,10 @@ All notable changes to the `source-control` plugin are documented here. Format f
   repo's `PostToolUse`
   `type:"http"` hook keys on to reach an off-machine human deterministically; the documented seam
   and settings shape are owned by the loop-lane convention (§2, v4.0.0). Without a configured hook
-  the file is inert exhaust; the tracker item stays the escalation of record.
+  the file is inert exhaust; the tracker item stays the escalation of record. Two properties of the
+  path being relative to the lane session's own checkout are stated at the site: that repo
+  gitignores the directory as an adoption prerequisite, and a lane scoped to a repository other
+  than its checkout notifies the launching project's endpoint rather than the target's.
 
 ## [0.33.2]
 
