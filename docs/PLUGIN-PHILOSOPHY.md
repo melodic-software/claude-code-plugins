@@ -163,6 +163,22 @@ inherent scope at the coupling site — the same declared-narrower-boundary allo
 cross-platform contract makes for OS platform — rather than shipping the assumption bare under a
 neutral name.
 
+Two reviewer-visible comment tokens carry that declaration, and they differ in REACH rather than in
+strength. `portability-ok: <reason>` records one site: the coupling on that line (or the line below
+a comment block carrying it) is excused and nothing else in the file is. `portability-scope:
+<reason>` declares the whole file inherently locked — the case a forge-locked capability under a
+forge-neutral name actually needs. Reach is the entire distinction, so the choice is a claim about
+what is true: a per-site annotation on a file that is genuinely scope-locked buries the boundary,
+and a whole-file declaration used to silence one awkward line exempts every future coupling added to
+that file, including ones nobody reviewed. Neither is a frontmatter field; both are ordinary
+comments a reviewer reads in the diff. `scripts/check-skill-portability.sh` enforces this, with the
+coupling tokens it matches held as data in `scripts/skill-portability-tokens.txt`.
+
+Detection evidence is scoped to the coupling class that authored it. A command proving which
+*branch* was resolved says nothing about which *remote* holds it, so it cannot excuse a hardcoded
+remote name that happens to share the line — a guard that generalizes across classes turns one
+legitimate resolution into a blanket exemption for couplings it never examined.
+
 ## Configuration ownership and scope
 
 Choose one authoritative owner for each value:
