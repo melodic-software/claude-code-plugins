@@ -5,16 +5,23 @@ state is the cross-session resume pointer.
 
 ## Provenance
 
+Fill `Canonical URL` and the resolved work root at run start, before the first fetch — SKILL.md's
+collision check reads them to tell a resume from a slug collision.
+
 - Canonical URL:
 - Fetch date:
 - Fetch channel (raw-md / rendered / binary+extraction):
+- Extraction tooling (the tool and version that produced `source.txt` from a PDF original; `n/a`
+  when the fetch needed no extraction):
 - Publisher profile used (or "no profile"):
 - Resolved work root (via the `library_dir` seam — record the absolute path so a resumed session
   need not re-derive it):
 
 ## Phases
 
-- [ ] Phase 1: Fetch — unaltered original snapshotted to `source.md` (immutable)
+- [ ] Phase 1: Fetch — unaltered original snapshotted as `source.<ext>`, immutable: `source.md`
+      for a markdown or rendered-text channel, or `source.pdf` **plus** its `source.txt`
+      extraction for a PDF original (both are originals; name the extraction tooling above)
 - [ ] Phase 2: Inventory — `INDEX.md` written (headings, themes, digest map, status rows)
 - [ ] Phase 3: Digest fan-out — one agent per digest unit → `digests/NN-slug.md` (fixed structure)
 - [ ] Phase 4: Dual verification — Verifier A (same-vendor) + Verifier B (cross-vendor) verdicts

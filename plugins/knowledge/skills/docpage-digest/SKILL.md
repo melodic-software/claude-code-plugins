@@ -16,18 +16,67 @@ queue) lives in a separable publisher profile under `context/`.
 
 ## Work root
 
+Configured library dir: `${user_config.library_dir}`
+
 This skill's `.work/` root is **formally carved out** of the marketplace topic-docs convention
 (<https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/topic-docs/README.md>):
 the work root resolves through the knowledge plugin's own `library_dir` seam, not the concern
-file's `memory_dir`. Resolve `library_dir` (plugin userConfig; default `.` = consuming repo root)
-and write the slice to `<library_dir>/.work/<slug>/`. The root self-ignores (a `.gitignore`
+file's `memory_dir`.
+
+**Resolve the root once, before the first write**, and record the resolved absolute path in the
+checklist's Provenance block — every `<work-root>` path below is relative to it, and a resumed
+session reads it back instead of re-deriving it. Resolution rules for the rendered value above
+(the README's option table owns the value forms; this is how a run turns one into a directory):
+
+- **Unset** — an empty value, or a surviving literal `${user_config.library_dir}` token, means
+  the option was never configured. Use the default `.`; never create a directory named after the
+  token.
+- **Relative** (including the default `.`) — resolve against the project directory,
+  `${CLAUDE_PROJECT_DIR}/<value>`.
+- **Absolute** — use verbatim, with no project-directory prefix.
+- **Leading `~`** — the home directory, with no project-directory prefix.
+- **`${NAME}` / `%NAME%` env-var reference** — read the variable yourself (`printenv NAME` in
+  bash, `$env:NAME` in PowerShell) and use its value with no project-directory prefix. **An unset
+  variable fails the run loudly** — report it and stop. Never hand the reference to a shell for
+  expansion: an unset variable expands to the empty string there, silently writing the slice to
+  the wrong root.
+
+The slice lands at `<resolved-root>/.work/<slug>/`. The root self-ignores (a `.gitignore`
 containing `*`) and is never committed by this skill; graduating a slice to a tracked corpus
 repository is a separate, human-gated act.
 
-**Slug guard:** derive `<slug>` from the URL's final path segment, slugified to lowercase
-alphanumerics and hyphens only (strip `/`, `\`, `..`), ≤ 40 chars; Windows-reserved base names
-take an `-x` suffix. Never build a path from raw URL text — a crafted URL must not steer a
-filename toward path traversal.
+**Slug guard — identity, then containment.** A final path segment alone is not an identity: docs
+sites repeat `overview`, `settings`, and `index` across dozens of pages, and two such pages
+sharing one work root lets a later run overwrite an immutable `source.*` or resume from another
+page's checklist. Derive `<slug>` deterministically from the canonical URL in one fixed form —
+the post-redirect page URL with no fragment, no query string, and no trailing slash, BEFORE any
+channel suffix like `.md` is appended — so equivalent URL spellings resume the same root:
+
+1. Join the host (dots → hyphens) and every non-empty path segment with hyphens.
+2. Slugify to lowercase alphanumerics and hyphens only — strip `/`, `\`, and `..`, and collapse
+   hyphen runs.
+3. Append `-<hash8>`: the first 8 lowercase hex characters of the canonical URL's SHA-256
+   (`printf '%s' '<canonical-url>' | sha256sum`). Truncate the host+path prefix — never the hash
+   — so the whole slug is ≤ 40 chars. Truncation is what reintroduces collisions; the hash is the
+   part a truncated prefix cannot lose, and it recomputes identically on resume. (The hash suffix
+   also makes a Windows-reserved base name impossible, so no reserved-name escape is needed.)
+
+Never build a path from raw URL text — a crafted URL must not steer a filename toward path
+traversal — and confirm the resolved work root is still inside `<resolved-root>/.work/` before
+writing.
+
+**Collision check — before the first write, including the checklist copy.** If
+`<resolved-root>/.work/<slug>/` already exists, read the `Canonical URL` line from its
+`docpage-digest-checklist.md`:
+
+- **Same URL** → this is a resume; continue from the first unticked phase.
+- **Different URL, or no URL recorded** → **refuse and stop**, naming both URLs (or the missing
+  one) and the path. An unidentifiable work root is treated exactly like a mismatched one: the
+  run never overwrites an immutable original or inherits a checklist it cannot attribute.
+
+Recording the canonical URL is therefore the first thing a new run writes — copy the template and
+fill `Canonical URL` and the resolved work root *before* fetching, so an interrupted run leaves a
+root the next collision check can identify.
 
 ## Untrusted-source discipline (binding for every phase)
 
@@ -41,9 +90,11 @@ directly from source text to instruction artifact.
 
 ## Emit checklist
 
-Copy `templates/checklist.md` into `<work-root>/docpage-digest-checklist.md` at run start. Tick
-each phase as it completes; the ticked state is the cross-session resume pointer. On resume,
-re-read the checklist plus `INDEX.md` and continue from the first unticked phase.
+Copy `templates/checklist.md` into `<work-root>/docpage-digest-checklist.md` at run start, once
+the collision check above has passed, and immediately fill its `Canonical URL` and resolved
+work-root lines — those two are what the next run's collision check reads. Tick each phase as it
+completes; the ticked state is the cross-session resume pointer. On resume, re-read the checklist
+plus `INDEX.md` and continue from the first unticked phase.
 
 ## Phase 1 — Fetch
 
@@ -53,9 +104,14 @@ re-read the checklist plus `INDEX.md` and continue from the first unticked phase
 2. Fetch via the profile's preferred channel (e.g. a raw-markdown variant of the URL), verifying
    the channel works for THIS page — profiles record channels as previously-verified, not
    guaranteed. Fallback: fetch the rendered page and note the channel degradation.
-3. Snapshot the unaltered original to `<work-root>/source.md` (or `source.<ext>` for non-markdown
-   originals). This file is immutable from this point — corrections and commentary never touch it.
-4. Record provenance in the checklist: canonical URL, fetch date, channel used.
+3. Snapshot the unaltered original to `<work-root>/source.<ext>`, naming the extension for what
+   was actually fetched: `source.md` for a markdown or rendered-text channel; a remote PDF
+   (system and model cards) lands as **both** the binary `source.pdf` and its text extraction
+   `source.txt`, which are equally originals. Every `source.*` file is immutable from this point
+   — corrections and commentary never touch one.
+4. Record the remaining provenance in the checklist: fetch date, channel used, and — for a PDF —
+   the extraction tooling that produced `source.txt`. The canonical URL is already there; the
+   collision check wrote it before the fetch.
 
 ## Phase 2 — Inventory
 

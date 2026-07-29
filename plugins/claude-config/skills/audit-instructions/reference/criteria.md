@@ -187,13 +187,19 @@ Tier `mechanical` · Authority `ANTHROPIC-DOCS` · Severity `warning` · Surface
 
 ### I7: Reason with the request
 
-Tier `behavioral` · Authority `ANTHROPIC-DOCS` · Severity `info` · Surfaces: all.
+Tier `behavioral` · Authority `ANTHROPIC-DOCS` · Severity `info` · Surfaces: all. Unscoped —
+promotion gate MET: the model-agnostic best-practices page states the same claim (see Source),
+so this fires for every target model.
 
 - **Detect:** an instruction that states a request with no intent or motivation attached.
 - **Remediate:** add the why — the model connects the task to relevant context instead of inferring
   intent on its own.
 - **Source:** Fable 5 guide, "Give the reason, not only the request" — "Claude Fable 5 tends to
-  perform better when it understands the intent behind a request."
+  perform better when it understands the intent behind a request." Convergent model-agnostic
+  source (the gate-meeting one): Prompting best practices, "Add context to improve performance" —
+  "Providing context or motivation behind your instructions, such as explaining to Claude why
+  such behavior is important, can help Claude better understand your goals and deliver more
+  targeted responses."
 
 ### I8: Model-era re-audit
 
