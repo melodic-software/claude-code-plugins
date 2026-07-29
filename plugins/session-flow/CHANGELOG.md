@@ -1,5 +1,127 @@
 # Changelog — session-flow plugin
 
+## [0.17.17]
+
+### Fixed
+
+- **`continue-in-background`'s dirty-tree gate had no branch for a consuming directory that is not
+  a git repository (melodic-software/claude-code-plugins#929).** The gate opened by running
+  `git status --porcelain -uall`, which in a non-repo directory (a session started in `$HOME`, say)
+  fails with `fatal: not a git repository` and leaves the skill with no specified behavior.
+  - The gate now establishes repository status first with `git rev-parse --is-inside-work-tree`.
+    Two results are specified and everything else falls through to a deliberate default, so the
+    gate is exhaustive by construction rather than by enumeration. `true` → inspect the tree as
+    before. Positively identified as *not a git repository* **and** no `WorktreeCreate` hook
+    configured → launch: there is no uncommitted work to protect and no worktree isolation to
+    lose, because background sessions then write to the working directory directly rather than
+    moving into an isolated worktree (<https://code.claude.com/docs/en/agent-view>); the launch
+    report states that reading.
+  - The hook is part of that branch's condition, not a parenthetical premise. `WorktreeCreate` is
+    the isolation path for non-Git source control
+    (`plugins/playbooks/skills/boris/reference/worktrees.md`) and "replaces the default worktree
+    creation entirely" (`docs/conventions/topic-docs/README.md`), so a configured hook moves the
+    launched session into a workspace the consuming checkout's local changes never reach — exactly
+    what the dirty-tree gate exists to prevent. Absence of the hook must therefore be
+    *established*; a configured hook, or an absence that cannot be established, falls to the wide
+    default below and does not launch.
+  - Anything else is UNKNOWN tree state, not clean, and does not launch. That default is wide on
+    purpose: a failure for some other reason (dubious ownership, a damaged repository, git missing
+    from `PATH`), and also a *successful* `false` — inside a bare repository or a `.git`
+    directory, where the command exits 0 and there is no work tree. Routing by exit status alone
+    in either direction would have turned a gate that protects uncommitted work into one that
+    fails open on exactly the cases where the tree is least readable.
+  - The context-gathering block's "treat any failure as an unknown value and carry on" is now
+    scoped to itself. It colors the save-point and is not the gate; its shrug, and its non-`-uall`
+    `git status` output, must not be carried into the gate, which reads a git failure the opposite
+    way.
+  - The post-launch enforcement checklist and the gotchas index carry the same branches, so the
+    surfaces the user verifies the exit shape against no longer disagree with the gate.
+  - Four eval cases added: a non-repo directory with no `WorktreeCreate` hook that launches, a
+    non-repo directory *with* one that does not, a git failure that is not "not a git repository"
+    that does not, and a zero-exit `false` that does not.
+
+## [0.17.16]
+
+### Fixed
+
+- **0.17.15 was based on a wrong diagnosis and did not fix anything
+  (melodic-software/claude-code-plugins#1687).** That release removed git from seven skills'
+  pre-compute blocks on the theory that the harness composes a block into one shell invocation and
+  the worktree-isolation guard refuses a git-bearing compound command. An adversarial re-probe
+  refutes it. `git status --porcelain 2>/dev/null | head -20 || echo clean` — git, a pipe, a
+  redirect, and a `||` — **passes** from a worktree-isolated agent. `echo "${CLAUDE_CODE_SESSION_ID:-unknown}" || echo "unknown"`,
+  which has no git at all, is **refused**. Git, pipes, redirects, `||`, and multi-line composition
+  are all irrelevant.
+  - **The real trigger is a `$`-expansion.** A command is refused iff it contains one in any form
+    other than bare `$HOME` or `"$HOME"`; a skill fails to load iff its pre-compute block contains at
+    least one such expansion. Because 0.17.15 kept
+    `` !`echo "${CLAUDE_CODE_SESSION_ID:-unknown}" || echo "unknown"` `` in six of the seven skills,
+    `handoff`, `continue-in-background`, `orient`, `retro`, `running-retro`, and `find-handoff`
+    stayed uninvocable from an isolated agent for the whole of 0.17.15. Only `workflow` was fixed,
+    and only incidentally — its entire pre-compute block had been deleted.
+  - The session-id pre-compute line is removed from all six. The value is re-acquired in the skill
+    body with `printenv CLAUDE_CODE_SESSION_ID`, which carries no `$` and is observed to pass under
+    isolation. Failure is treated as "unknown, carry on", as before.
+  - Deleting that line emptied the `## Pre-computed context` block of `handoff`,
+    `continue-in-background`, `orient`, `retro`, and `running-retro`, so the now-bare heading is
+    removed too. Only `find-handoff` still has a pre-compute block.
+  - `find-handoff`'s transcript-dir glob keeps its pre-compute line with `${HOME}` reduced to bare
+    `$HOME`; the full line was run verbatim under isolation and passes. Its body reference to the
+    "pre-computed" session id is repointed at the gathered value.
+  - The 0.17.15 body prose asserted the falsified mechanism and derived an instruction from it ("do
+    not restore it as a `| head -20` pipe" — a form now observed to pass). That rationale is
+    corrected and compressed to one sentence in all seven skills, `workflow` included. The 20-entry
+    read bound is kept as a plain instruction; only its false justification is dropped.
+  - **New observation, beyond what #1687 recorded.** `echo $CLAUDE_CODE_SESSION_ID` — bare, no
+    braces — is also refused, while `echo $HOME` passes. The guard's allowlist is therefore
+    name-specific, not merely form-specific, and `HOME` is the only member found across two
+    independent probe sessions. That is uncharacterized upstream behavior: a guard tightening would
+    regress `find-handoff`'s remaining pre-compute line, and nothing else in this plugin.
+  - What was verified, precisely: from this worktree-isolated agent, every command form above was
+    run standalone and its PASS/REFUSED result recorded, including the replacement `printenv` call
+    and `find-handoff`'s rewritten glob line. The **edited skills have not been invoked** from an
+    isolated agent and cannot be — skills load from the version-keyed plugin cache, so `0.17.16`
+    does not exist there until this ships and plugins are updated. Confirm then, with a negative
+    control. CI cannot prove this fix; it never invokes a skill from an isolated agent.
+  - Still out of scope: several bodies and `reference/` snippets run `$`-bearing shell (for example
+    `retro`'s transcript parser invocation). Those skills now **load** under isolation, but those
+    specific body commands remain subject to the same guard.
+
+## [0.17.15]
+
+### Fixed
+
+- **Every git-bearing skill in this plugin was uninvocable from a worktree-isolated agent
+  (melodic-software/claude-code-plugins#1619).** The harness composes an entire
+  `## Pre-computed context` block into ONE shell invocation, and the worktree-isolation Bash guard
+  refuses a git-bearing compound command it cannot statically verify — so `handoff`,
+  `continue-in-background`, `workflow`, `running-retro`, `orient`, `retro`, and `find-handoff` all
+  failed at load with `this command is too complex to verify that it stays inside the worktree`.
+  The failure hit hardest exactly where these skills matter most: an isolated parallel agent could
+  not write a save-point, orient itself, or recover a handoff.
+  - The git lines are removed from each skill's pre-compute block and re-acquired in the skill body
+    as **individual** Bash calls, one command per call. Non-git pre-compute lines are untouched —
+    they were never the problem (`knowledge:course-digest`, four complex non-git lines, loads fine
+    under isolation).
+  - The old lines carried caps (`git status --porcelain | head -20`) and `2>/dev/null || echo`
+    fallbacks that a plain Bash call does not reproduce. Both are restated as reading rules: treat a
+    failed command as "unknown, carry on", and honor the 20-entry bound **when reading** rather than
+    re-adding a `| head -20` pipe — a piped git command is compound, which is the shape that started
+    this.
+  - `find-handoff` is the proof that line count is not the trigger: it carried a single, pipe-free
+    git line among three non-git lines and was refused, while a skill whose *only* pre-compute line
+    is a compound git command loads. The rule is git-in-a-composed-block, not per-line complexity.
+  - `shell: bash` is deliberately left in place on every affected skill, including `workflow`, which
+    now has no `!` lines at all. The key is inert without pre-compute lines, and removing it is a
+    frontmatter-contract change with no behavioral benefit.
+  - What was verified, precisely: from an `Agent` with `isolation: "worktree"`, the **unfixed**
+    skills were observed to be refused, plain git commands were observed to succeed as individual
+    Bash calls, and a multi-line non-git pre-compute block was observed to load
+    (`knowledge:course-digest`, the positive control). The **edited** skills have not been invoked
+    from an isolated agent: skills load from the version-keyed plugin cache, so `0.17.15` does not
+    exist there until this ships and plugins are updated. Confirm then. CI cannot prove this fix —
+    it never invokes a skill from an isolated agent.
+
 ## [0.17.14]
 
 ### Fixed

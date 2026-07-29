@@ -3,7 +3,7 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.9.8]
+## [0.10.1]
 
 ### Fixed
 
@@ -64,6 +64,26 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
   pre-change guard over 36 command shapes — every engine, wrapper, assignment, concatenation,
   substitution, pipe, backtick, redirect, continuation, and mention case holds its prior verdict or
   is newly gated; the only movement toward deferral is the two `test_hygiene.py` shapes.
+
+## [0.10.0]
+
+### Changed
+
+- **`clean`'s approval points now state an invariant plus a conditional surface, instead of naming
+  `AskUserQuestion` as the only way to confirm (#1724).** All three — the §1 large-scan confirmation,
+  the §5 removal approval, and the §6 unsupported-platform handoff — named that tool. It is not always
+  in the pool: permission mode `dontAsk` denies it unconditionally, a bare-name `permissions.deny`
+  rule removes it from Claude's context entirely, and a `disallowed-tools` entry removes it from the
+  pool while the skill is active — each leaving the text naming something absent. A new
+  **Confirmation gate** section owns both halves once: the bar (the
+  user's own affirmative answer, in this interactive session, naming exactly the tier and path list
+  just shown; no prior general request, `--execute`, "clean everything", approval of another tier, or
+  silence; never self-supplied or inferred; stop on rejection) and the surface (`AskUserQuestion`
+  preferred because its answer cannot be fabricated, an inline numbered question when it is absent).
+  The three sites now point at it rather than restating it. **The bar is unchanged**, and this
+  plugin's model-independent floor is untouched — the skill-scoped hook still blocks ad-hoc deletion
+  and still forces a final permission prompt for the exact engine `apply`, and the approval token
+  still binds an apply to the previewed plan.
 
 ## [0.9.7]
 

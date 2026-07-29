@@ -17,6 +17,9 @@ hooks:
           command: "bash \"${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/destructive-guard.sh\""
           shell: bash
 shell: bash
+metadata:
+  workflow-stage: anytime
+  summary: Clean caches, build artifacts, stale branches, and stashes per repo
 ---
 
 ## Pre-computed context
@@ -43,7 +46,7 @@ When a leading action token is followed by free text, the resolver also emits a 
 ### Bare invocation (empty args)
 
 1. Infer from conversation (fresh pull → `tree`, disk space → `scan`, … — see action-router).
-2. If still unclear, present the action table from [context/action-router.md](context/action-router.md) and `AskUserQuestion`.
+2. If still unclear, present the action table from [context/action-router.md](context/action-router.md) and ask ([Confirmation gate](#confirmation-gate)).
 3. Safest fallback: `scan`.
 
 ### Action table
@@ -75,7 +78,13 @@ Protected-path enforcement gates `scan`, `caches`, `build`, `git`, AND `tree` (`
 
 `tree` requires explicit confirmation and is never auto-invoked. Any file tracked by git is reset via `git reset --hard`, not selective deletion — and any tracked file deleted by reparse-point traversal (junction/symlink into a tracked dir) is auto-restored.
 
-**Session-scoped destructive guard (frontmatter hook).** While this skill is active, a PreToolUse hook (`scripts/destructive-guard.sh`) blocks destructive Bash commands (`rm -rf`, `git clean -f*`, `git reset --hard`, `git checkout --`, `git stash drop`/`clear`, recursive `Remove-Item`). After the dry-run → user-confirmation gate passes, re-issue the confirmed command with the acknowledgement prefix `CLEAN_GUARD_ACK=1 <command>` — never add the prefix without the user's explicit confirmation in this session. Kill switch: the `clean_destructive_guard_enabled` userConfig option set to `false` (`/plugin configure repo-hygiene`).
+**Session-scoped destructive guard (frontmatter hook).** While this skill is active, a PreToolUse hook (`scripts/destructive-guard.sh`) blocks destructive Bash commands (`rm -rf`, `git clean -f*`, `git reset --hard`, `git checkout --`, `git stash drop`/`clear`, recursive `Remove-Item`). After the [confirmation gate](#confirmation-gate) passes, re-issue the confirmed command with the acknowledgement prefix `CLEAN_GUARD_ACK=1 <command>` — never add the prefix without the user's explicit confirmation in this session. Kill switch: the `clean_destructive_guard_enabled` userConfig option set to `false` (`/plugin configure repo-hygiene`).
+
+## Confirmation gate
+
+**Question surface — every question this skill asks.** Prefer `AskUserQuestion`: its answer is the user's own and cannot be fabricated. It is not always in the pool — permission mode `dontAsk` denies it unconditionally, and a bare-name `permissions.deny` rule or a `disallowed-tools` entry removes it — so when it is absent, ask the same question inline as a numbered choice and wait for the reply. The surface varies; nothing below it does.
+
+**Destructive confirmation — every `--apply`, branch deletion, and stash drop.** Show the dry-run first, then take the user's own affirmative answer, given in this interactive session, naming exactly the set just shown. A prior general request, an alias, a flag, "clean everything", approval of a different set, or silence is not confirmation — never supply or infer the answer yourself. Autonomous sessions abort here rather than ask.
 
 ## Cleanup configuration
 
@@ -99,7 +108,7 @@ REPO_ROOT=$(git rev-parse --show-toplevel)
 
 ### 1.5. Pre-flight (caches / build / all only)
 
-`bash ${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/preflight.sh` — see [context/preflight.md](context/preflight.md). Interactive: `AskUserQuestion` before `--apply` when non-empty. Autonomous: abort.
+`bash ${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/preflight.sh` — see [context/preflight.md](context/preflight.md). Interactive: [confirm](#confirmation-gate) before `--apply` when non-empty. Autonomous: abort.
 
 #### Dry-run → confirm → apply manifest flow (caches / build)
 
@@ -123,11 +132,11 @@ Both selective mutating tiers pay the filesystem walk **once**. `--dry-run` writ
 
 #### 4.2 Branch audit
 
-`bash ${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/git-branch-audit.sh` — deletion via `AskUserQuestion` per [context/git-branch-cleanup.md](context/git-branch-cleanup.md). Branches in the `WORKTREE` tier are checked out in a linked worktree: never offer them for `git branch -d` — route the user to the worktree-management tool to clean up the worktree first. Branches carrying `no upstream, M commits not on origin/<default>` are never-pushed local work — surface the count and confirm before any deletion.
+`bash ${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/git-branch-audit.sh` — deletion via the [confirmation gate](#confirmation-gate) per [context/git-branch-cleanup.md](context/git-branch-cleanup.md). Branches in the `WORKTREE` tier are checked out in a linked worktree: never offer them for `git branch -d` — route the user to the worktree-management tool to clean up the worktree first. Branches carrying `no upstream, M commits not on origin/<default>` are never-pushed local work — surface the count and confirm before any deletion.
 
 #### 4.3 Stash audit
 
-`bash ${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/git-stash-audit.sh` — read-only per-stash facts (age, source branch, diffstat, PR/merge signal, advisory). **Never drops a stash.** Present the list and, for each stash, ask the user keep-or-drop via `AskUserQuestion`; a `possibly superseded` / `likely superseded` advisory is a hint to raise first, never an autonomous drop. Dedup a fleet sweep by the `StashStore:` key (linked worktrees share one stash ref). When the resolved action is `stash`, run only this step.
+`bash ${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/git-stash-audit.sh` — read-only per-stash facts (age, source branch, diffstat, PR/merge signal, advisory). **Never drops a stash.** Present the list and, for each stash, ask the user keep-or-drop ([Confirmation gate](#confirmation-gate)); a `possibly superseded` / `likely superseded` advisory is a hint to raise first, never an autonomous drop. Dedup a fleet sweep by the `StashStore:` key (linked worktrees share one stash ref). When the resolved action is `stash`, run only this step.
 
 **Dropping stashes safely.** A confirmed drop is destructive and gated by the session guard — after the user confirms, re-issue as `CLEAN_GUARD_ACK=1 git stash drop <ref>`. The `Stash:` selector (`stash@{n}`) is **volatile**: the list renumbers after every drop, so dropping more than one by selector top-down retargets the wrong entry. Drop by the stable `Commit:` id (resolve it to its current selector immediately before each drop), or drop the highest-numbered selector first so lower indices stay valid.
 
@@ -139,7 +148,7 @@ Both selective mutating tiers pay the filesystem walk **once**. `--dry-run` writ
 
 `bash ${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/git-tree-reset.sh` — default `--dry-run`. Detail: [context/git-tree-reset.md](context/git-tree-reset.md). Default-preserve; opt-in `--include-deps` / `--include-secrets`; `--allow-unpushed` when HEAD is ahead of upstream.
 
-**Mandatory gate:** show dry-run output → `AskUserQuestion` → only then `--apply`. Surface the dry-run's `PreserveDeps` / `PreserveSecrets` / `AheadCount` lines in the confirmation so the user knows what survives. An exit 4 (`unpushed-commits`) or non-zero `AheadCount` means HEAD has unpushed commits — confirm loss before adding `--allow-unpushed`. Autonomous sessions: abort. Post-step: after a tree reset that removed dependencies, suggest reinstalling them with the project's own bootstrap/setup and re-validating the environment. For a truly pristine tree, close running dev tooling first (MCP servers, telemetry collectors, build/test watchers) — live processes recreate ignored dirs (`obj/`, `node_modules/`, and the like) the moment they are deleted, and may hold locks that surface as `Unremovable:`.
+**Mandatory gate:** show dry-run output → [confirmation gate](#confirmation-gate) → only then `--apply`. Surface the dry-run's `PreserveDeps` / `PreserveSecrets` / `AheadCount` lines in the confirmation so the user knows what survives. An exit 4 (`unpushed-commits`) or non-zero `AheadCount` means HEAD has unpushed commits — confirm loss before adding `--allow-unpushed`. Autonomous sessions: abort. Post-step: after a tree reset that removed dependencies, suggest reinstalling them with the project's own bootstrap/setup and re-validating the environment. For a truly pristine tree, close running dev tooling first (MCP servers, telemetry collectors, build/test watchers) — live processes recreate ignored dirs (`obj/`, `node_modules/`, and the like) the moment they are deleted, and may hold locks that surface as `Unremovable:`.
 
 ### 6.5. Tree batch — multi-repo (destructive)
 
@@ -147,13 +156,13 @@ Both selective mutating tiers pay the filesystem walk **once**. `--dry-run` writ
 
 Repo sources: `--repo` (repeatable; a shell glob expands to these) and `--repos-from FILE|-` (ingests `ghq list -p` output). Skip list: `--skip ENTRY` / `--skip-from FILE` (absolute path, `owner/repo`, or bare `repo`; separator-agnostic). Passthrough to the child: `--force-default-branch` / `--include-deps` / `--include-secrets`.
 
-**Mandatory gate (single, batch-wide):** show the `--dry-run` whole-batch plan (per-repo `Outcome`/`Reason`, the `Summary` totals, and any `UnmatchedSkip:` warnings) → `AskUserQuestion` **once** → only then `--apply` **once**. Do not gate per repo. A fresh-clone fleet is typically all on the default branch, so expect an all-blocked dry-run unless `--force-default-branch` — surface that in the confirmation. `--include-dirty` re-enables the exact data-loss vector (resets repos with uncommitted/untracked changes or unpushed commits); it needs its own explicit confirmation naming the dirty repos, exactly like `--include-secrets`. Autonomous sessions: abort.
+**Mandatory gate (single, batch-wide):** show the `--dry-run` whole-batch plan (per-repo `Outcome`/`Reason`, the `Summary` totals, and any `UnmatchedSkip:` warnings) → [confirmation gate](#confirmation-gate) **once** → only then `--apply` **once**. Do not gate per repo. A fresh-clone fleet is typically all on the default branch, so expect an all-blocked dry-run unless `--force-default-branch` — surface that in the confirmation. `--include-dirty` re-enables the exact data-loss vector (resets repos with uncommitted/untracked changes or unpushed commits); it needs its own explicit confirmation naming the dirty repos, exactly like `--include-secrets`. Autonomous sessions: abort.
 
 ### 7. Orphaned path removal (destructive, on explicit request only)
 
 `bash ${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/remove-path.sh <target>` — default `--dry-run`. Removes a whole clone or leftover directory under the ghq root (`--root` overrides) — e.g. a local clone whose upstream repository was deleted. Not composed into any tier and never inferred: run it only when the user explicitly asks to delete that path. Guards resolve paths physically and require the target to share the root's filesystem device (symlink/junction/cross-mount ancestors cannot escape containment), and refuse the containment root, symlink targets, linked worktrees (that lifecycle belongs to `git worktree remove`), any plain directory still holding nested git repos (normal, bare, or worktree), any target holding ignored skill-owned `data/` (irreplaceable — no override; move it out first), and any repo with uncommitted changes, stashes, registered worktrees, ignored secret-class files (`--include-secrets` to discard), or unpushed refs (`--allow-unpushed` to discard).
 
-**Mandatory gate:** show dry-run output → `AskUserQuestion` → only then `--apply`. Surface `Kind` / `UnpushedRefs` / `SecretsCount` / `SkillData` in the confirmation. Autonomous sessions: abort.
+**Mandatory gate:** show dry-run output → [confirmation gate](#confirmation-gate) → only then `--apply`. Surface `Kind` / `UnpushedRefs` / `SecretsCount` / `SkillData` in the confirmation. Autonomous sessions: abort.
 
 **Documented boundaries.** Containment is path- and device-based (physical resolution plus a same-device check). A *same-device* `mount --bind` under the root shares the root's filesystem device, so no path-based check can detect it; closing that would require a Linux-only mount-table (`/proc/self/mountinfo`) model that would also refuse legitimate under-root mounts, so it stays out of scope for this local, dry-run-default, explicit-`--apply` tool. The unpushed-ref guard covers `refs/heads` and `refs/tags`; other locally-created namespaces (e.g. `refs/notes`) are not scanned, and auto-generated ones (`refs/prefetch/*` from git-maintenance, `refs/replace/*`) are intentionally not treated as unpushed — `--allow-unpushed` is the escape hatch for any local ref. The secret scan gates only ignored (unrecoverable) files; tracked files are git's domain (recoverable via reset/remote, and separately blocked when dirty or unpushed).
 
@@ -163,7 +172,7 @@ Repo sources: `--repo` (repeatable; a shell glob expands to these) and `--repos-
 
 Repo sources: `--repo` (repeatable; a shell glob expands to these) and `--repos-from FILE|-` (ingests `ghq list -p`; backslash paths normalized). Skip list: `--skip ENTRY` / `--skip-from FILE` (same separator-agnostic matcher as `tree-batch`).
 
-**Mandatory gate (single, batch-wide):** run `--dry-run` once → it writes a **batch plan** and prints `BatchPlan: <path>`, per-repo `Outcome`/`Reason`, any `UnmatchedSkip:`, and an aggregate `Summary: repos=N planned=P bytes=K` (surface the reclaimable `bytes`). `AskUserQuestion` **once** → then `CLEAN_GUARD_ACK=1 … --apply --batch-plan <path>` **once**. The plan IS the gated set: apply targets exactly those repos (`--apply` errors without `--batch-plan`), so a repo that vanished after the dry-run applies idempotently and one that appeared is never touched. Apply prints `Summary: removed=N failed=M bytes=K` and exits non-zero on any failure. Autonomous sessions: abort.
+**Mandatory gate (single, batch-wide):** run `--dry-run` once → it writes a **batch plan** and prints `BatchPlan: <path>`, per-repo `Outcome`/`Reason`, any `UnmatchedSkip:`, and an aggregate `Summary: repos=N planned=P bytes=K` (surface the reclaimable `bytes`). [Confirmation gate](#confirmation-gate) **once** → then `CLEAN_GUARD_ACK=1 … --apply --batch-plan <path>` **once**. The plan IS the gated set: apply targets exactly those repos (`--apply` errors without `--batch-plan`), so a repo that vanished after the dry-run applies idempotently and one that appeared is never touched. Apply prints `Summary: removed=N failed=M bytes=K` and exits non-zero on any failure. Autonomous sessions: abort.
 
 ## Integration
 

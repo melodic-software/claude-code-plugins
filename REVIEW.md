@@ -7,6 +7,17 @@ below (see "Depth"). A self-hosted or local review running the `review`
 plugin reads this file too, and additionally follows its citations into the
 `standards` repository for the full reasoned criterion behind each line.
 
+Review in this organization is split into two mutually exclusive scopes,
+so a finding belongs to exactly one scope and is never reported twice.
+The **code-review lane** (`claude-review`, and Managed Code Review)
+reads this file and applies the code-review scope below. The **security
+lane** (`claude-security-review`) runs from its own security-only prompt
+rather than reading this file; its scope section below records the same
+split for every surface that does read it — so the code-review lane
+knows what to leave to the security lane, and so a self-hosted or local
+review (for example a `review`-plugin security agent) applies the right
+section.
+
 ## Severity
 
 This organization's criteria (`conventions/review/` in `standards`) resolve
@@ -48,7 +59,41 @@ rather than left solely behind the cite. Every line still cites its SSOT
 criterion; a citation here never substitutes prose that isn't needed, per
 `conventions/engineering/reference-dont-duplicate.md`.
 
-## Always check
+## Code-review lane scope
+
+This lane owns every review dimension except security: correctness,
+design, conventions, error handling, observability, tests, and
+documentation. On a repository whose CI runs the security lane (a
+`.github/workflows/claude-security-review.yml` workflow exists), it does
+**not** report security findings — vulnerabilities, authorization or
+tenancy gaps, credential exposure, injection — those belong exclusively
+to that lane and are omitted here even when a hunk plainly contains one.
+On a repository without that workflow no security lane exists yet, and
+suppressed findings would have no other reader: report security findings
+under this lane too, applying the security-scope checks below.
+
+Always check:
+
+- A high-risk security action — authentication, an authorization failure, a
+  privilege change, sensitive-data access — has a corresponding audit-log
+  entry (`conventions/review/observability.md#logging`). This is an
+  observability completeness check on the logging seam; whether the action
+  itself is safe is the security lane's question.
+- A change that writes two or more related records, files, or state
+  locations carries an atomicity mechanism — a transaction, an atomic
+  rename, a constraint, or a compensation step — spanning them; an
+  interruption between steps must not leave state no code path expects
+  (`conventions/review/error-handling.md#atomicity`).
+
+## Security lane scope
+
+This lane reports **only** security findings: vulnerabilities, missing
+authorization or tenant scoping, exposed secrets or credentials, injection,
+and their direct enablers. Everything else — style, design, correctness
+with no security impact, test coverage — is out of scope here and is owned
+by the code-review lane; omit it.
+
+Always check:
 
 - A handler or endpoint that receives an object id (a path segment, body
   field, or query parameter) checks the caller is authorized for that
@@ -62,29 +107,3 @@ criterion; a citation here never substitutes prose that isn't needed, per
 - A query or process invocation built from external input is parameterized,
   never string-concatenated — `blocking`
   (`conventions/review/security.md#trust-boundaries-and-injection`).
-- A high-risk security action — authentication, an authorization failure, a
-  privilege change, sensitive-data access — has a corresponding audit-log
-  entry (`conventions/review/observability.md#logging`).
-- A change that writes two or more related records, files, or state
-  locations carries an atomicity mechanism — a transaction, an atomic
-  rename, a constraint, or a compensation step — spanning them; an
-  interruption between steps must not leave state no code path expects
-  (`conventions/review/error-handling.md#atomicity`).
-
-## Do not report
-
-- Anything CI already enforces and that is not also tagged `blocking`
-  above: lint, formatting, type errors, and whatever a stack overlay under
-  `conventions/review/overlays/` names as its component's mechanical
-  backstop. A CI backstop (for example a `gitleaks` lane) catches an
-  instance mechanically; it does not make the `blocking` check itself
-  skippable here.
-- Generated files and lockfiles, except a `blocking` finding — a leaked
-  secret in a lockfile or a supply-chain regression visible only there is
-  still reportable; this rule only waives low-signal mechanical noise
-  (formatting, regenerated diffs) in those files.
-
-## Cap the nits
-
-Report at most five Nits per review; note any beyond that as a count in the
-summary instead of posting them inline.

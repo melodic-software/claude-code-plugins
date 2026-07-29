@@ -307,7 +307,10 @@ a cheap posture digest from the skill listing and each corrector's tier
 metadata (no bodies load, no audit); mid-session it runs the full pass —
 fanning out a conversation-inheriting fork subagent per in-scope corrector for
 an audit-only walk, then applying the corrections once on the main thread in a
-fixed order (`use-your-skills` first, `tighten-your-output` last). Membership
+fixed order (`use-your-skills` first, `tighten-your-output` last). The full
+pass preflights that its subagents really do inherit the conversation and
+degrades to the posture digest when they do not — auditing blind would write
+fabricated corrections to the working tree. Membership
 is resolved by reading each corrector's colocated `metadata.discipline-batch`
 tier (`core` / `situational` / `never`) and `discipline-batch-rank` — the
 runbook names no members — layered with an optional `batch_exclude` /

@@ -25,7 +25,7 @@ bash ${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/preflight.sh
 - `RECENT_BUILD:` — `project.assets.json` paths touched in last 10 minutes or empty
 - `IDE_OPEN:` — IDE process lines or empty
 
-**Consumer verdict** (SKILL §1.5): if any label is non-empty, present risks and use `AskUserQuestion` (or abort autonomous deletion per session mode). Script exit is always 0.
+**Consumer verdict** (SKILL §1.5): if any label is non-empty, present risks and [confirm](../SKILL.md#confirmation-gate) (or abort autonomous deletion per session mode). Script exit is always 0.
 
 ## Report format when risks fire
 

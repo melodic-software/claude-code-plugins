@@ -66,9 +66,12 @@ Official contract: <https://code.claude.com/docs/en/plugins-reference#user-confi
    invocation.
 6. **Full-batch prerequisite.** INFO: the batch's mid-session pass dispatches
    conversation-inheriting fork subagents, which need fork-spawning enabled
-   (`CLAUDE_CODE_FORK_SUBAGENT`, a rollout-gated capability). Where it is off, only the
-   session-start posture digest runs; note this so an unavailable fan-out is expected,
-   not a misconfiguration.
+   (`CLAUDE_CODE_FORK_SUBAGENT`, which a server-side staged rollout can also enable —
+   <https://code.claude.com/docs/en/sub-agents#fork-the-current-conversation>).
+   `sweep-all` preflights this itself and degrades when the fan-out cannot inherit —
+   that runbook owns the behavior; report the prerequisite here only so an unavailable
+   fan-out reads as expected rather than as a misconfiguration, and do not restate what
+   the degraded pass does.
 7. To change or clear any value, direct the user to Claude Code's plugin configuration
    prompt for `discipline` (interactive `/plugin configure discipline` any time;
    headless `--config` applies only on a fresh install — uninstall then reinstall to

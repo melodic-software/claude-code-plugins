@@ -4,14 +4,23 @@ description: "Read-only session orientation from durable + off-thread state — 
 user-invocable: true
 disable-model-invocation: false
 shell: bash
+metadata:
+  workflow-stage: session
+  summary: Read-only situation report from durable and off-thread state
 ---
 
-## Pre-computed context
+## Context — gather first
 
-Current branch: !`git branch --show-current 2>/dev/null || echo "unknown"`
-Claude session: !`echo "${CLAUDE_CODE_SESSION_ID:-unknown}" || echo "unknown"`
-Recent commits: !`git log --oneline -8 2>/dev/null || echo "no commits"`
-Working tree status: !`git status --porcelain 2>/dev/null | head -20 || echo "clean"`
+Collect these with **individual** Bash calls, one command per call:
+
+- Claude session id — `printenv CLAUDE_CODE_SESSION_ID`
+- Current branch — `git branch --show-current`
+- Recent commits — `git log --oneline -8`
+- Working tree status — `git status --porcelain`, reading **at most the first 20 entries**
+
+Treat any failure as an unknown value and carry on. These are gathered here rather than pre-computed
+because a worktree-isolated agent refuses any command carrying a `$`-expansion, which made this skill
+fail at load — keep `$`-expansion out of the pre-compute block (#1687).
 
 # Orient
 
@@ -47,7 +56,7 @@ now" matters, not just "what did we just say."
      in-flight findings.
    This skill only reads these; it never writes them, so the write-time
    runtime guards do not apply. Degrade quietly when a location is absent.
-3. **Repo + off-thread state** — the pre-computed git block above, plus, when
+3. **Repo + off-thread state** — the git context gathered above, plus, when
    the tools are present and degrading gracefully when they are not: open
    pull requests (`gh pr list` for the current branch / author), open
    work-items (the consumer's tracker seam), and a glance at work running
