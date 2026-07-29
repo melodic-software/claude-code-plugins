@@ -22,7 +22,8 @@ All notable changes to the `work-items` plugin are documented here. Format follo
     autonomy plugin's admission policy — with the carve-out that a claim which can only *tighten*
     stays usable as a signal, and names the one shipped instance of that carve-out
     (`work-loop`'s frontier-tier quota guard).
-  - `triage`, `work`, `work-loop`, and `attend-queue` each carry the standing instruction in their
+  - `triage`, `decompose`, `work`, `work-loop`, and `attend-queue` each carry the standing
+    instruction in their
     shared tracker context, plus one line on what the boundary bites hardest in that lane, and cite
     the reference for everything else — the escalation route, the widening rule, and the subagent
     rule are stated once in the reference rather than four times in the skills. `source-control`'s
