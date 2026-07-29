@@ -3,6 +3,114 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.40.0]
+
+### Added
+
+- **A `VALID (defer)` must now be durable to count as a disposition — D4.6 (#1614).** The review
+  discipline already shipped the `VALID (defer)` classification, and `safety.md` already refused
+  to resolve a thread "over a live, unaddressed finding", but nothing connected the two: a lane
+  could defer a finding with a plausible sentence in a review thread and resolve against it,
+  leaving no artifact anyone could find. D4.6 requires the tracker item to be filed **before**
+  the D5 reply, carrying the finding's own evidence, with its id cited in the reply and re-queried
+  to confirm it resolves. A deferral whose only record is thread prose is a dropped finding and
+  the thread stays open. This narrows what a lane may resolve; it does not widen it, and the
+  `--autonomous` `isOutdated` guard in `babysit_resolve_thread.py` is untouched.
+- **Never defer a finding this change introduced, judged by base-branch behavior.** The
+  discriminator is whether the defect reproduced before the change, never which file it surfaced
+  in — so a contract this change altered that breaks an *unchanged* caller is still introduced
+  here, and the untouched caller file is evidence about provenance rather than a licence to defer.
+  `VALID (defer)` is available only for a defect that already reproduced on the base. Provenance
+  decides, never severity: a self-introduced regression wearing a low-severity badge is still a
+  regression the change is shipping, so it is `VALID (fix now)` — fix it or revert the cause.
+- **A third class in the non-convergence taxonomy — (c) self-inflicted findings (#1614).** The
+  existing (a)-duplicate / (b)-new-distinct split had no slot for a finding that is new and
+  distinct *and* against text the lane's own prior fix introduced. Provenance decides the class.
+  A (c) finding is fixed like any in-scope defect and is never deferrable, but it is counted: a
+  second consecutive round of nothing but (c) means incremental patching is injecting defects
+  about as fast as it removes them. The response is a change of METHOD — rewrite the contested
+  section whole in one commit, or report for a human decision — never a licence to ship a known
+  defect. This is a signal, not a counter; the `babysit_advisory_fix_round_cap` backstop is
+  unchanged and a low round cap was rejected.
+
+### Changed
+
+- **D7.5 is now author- *and* classification-conditional (#1614).** Resolution eligibility
+  previously turned on thread authorship alone, which is the operational hole behind
+  `safety.md`'s "Resolve any thread over a live, unaddressed finding". Because resolution is a
+  thread-level act while dispositions are per-finding, eligibility is a property of the **whole
+  thread**: every finding extracted from it must carry one of three recorded dispositions, and one
+  dispositioned finding never retires a multi-finding thread. That granularity is load-bearing
+  rather than pedantic — a resolved thread drops every comment it carries out of the readiness
+  denominator (`babysit_classify.py::thread_is_open`), so resolving early would make a still-open
+  finding vanish from the classification gate and let the PR merge over it. A single `UNCERTAIN`
+  holds its whole thread open. The eligible dispositions are: `VALID (fix now)` with the
+  fix pushed and cited, `VALID (defer)` grounded per D4.6 with the item id cited, or `INCORRECT`
+  with counter-evidence posted. `UNCERTAIN` escalates and is never resolved. Every existing
+  author condition still applies on top. All four surfaces that restate the step — `pull-request`'s
+  SKILL.md checklist and gotcha, `pull-request/reference/monitor.md`, and
+  `babysit-prs/reference/loop.md` — are updated with it. They previously gated resolution on a
+  pushed fix, so a correctly grounded deferral or an `INCORRECT` with counter-evidence satisfied
+  canonical D7.5 and still left the thread open, holding readiness.
+- **Non-outdated threads in an autonomous tier route to the independent resolver, not the worker.**
+  `--autonomous` resolves only an `isOutdated` thread, because that is the one deterministic
+  "addressed" signal available — otherwise the actor is "signing its own permission slip" on the
+  merge gate's zero-unresolved-threads predicate. Prose fixes routinely satisfy a finding by
+  rewriting elsewhere, leaving the thread current, so an addressed finding is often non-outdated
+  (6 of 15 threads on #1594, 1 of 5 on #1615). Rather than widen the guard, such a thread goes to
+  the independent resolution dispatch, which verifies the D7.5 disposition and resolves through the
+  wrapper; worker-side self-resolution stays outdated-only exactly as the script enforces. Reaching
+  past the wrapper to raw `resolveReviewThread` is called out as the wrong branch explicitly.
+- **Eligibility here never overrides a tier's own guards.** A disposition that makes a thread
+  eligible under D7.5 does not by itself authorize a resolve the invoking tier refuses. The worker
+  tier is the live case: its contract permits resolving only a thread already `isOutdated` in its
+  dispatch snapshot, so a disposition leaving the thread current — a grounded deferral, or an
+  `INCORRECT` carrying no fix — is reported to the orchestrator as addressed-but-unresolvable
+  rather than resolved. That is a description of today's behavior, not a fix; the underlying
+  capability gap is #1641, and closing it must not weaken the `--autonomous` `isOutdated` guard.
+- **The independent-authorization requirement states a property, not one mechanism.** Naming only
+  the pre-escalation dispatch would have made the requirement unreachable — that path exists only
+  on the explicit `autopilot` + `--merge c3-this-run` widening, so every other merge-capable path
+  would have been required to obtain an authorization it cannot obtain, deadlocking a grounded
+  deferral instead of terminating it. The rule is now "the adjudicating context must not be the
+  merging context", with the dispatch named where an invocation has one and an explicit fail-closed
+  fallback everywhere else: do not resolve, do not merge, report the deferral and let the user
+  decide.
+- **A defer-resolution on a PR the same session intends to merge is not that session's call.**
+  In a merge-capable tier it routes through the fresh independent resolution dispatch
+  `babysit-loop` already defines for a contradictory or unresolved bot thread, so a deferral that
+  unblocks a merge is adjudicated by a context that is not trying to merge.
+- **The auto-merge prohibition now states its reason (#1614).** "Enable auto-merge." sat in the
+  Never Do Automatically list with no rationale, so each lane rediscovered it. Under a base whose
+  ruleset requires thread resolution plus a reviewer that re-reviews every pushed head, a round
+  landing after `--auto` is armed leaves the PR permanently unmergeable while the lane has
+  already reported success. The prohibition is unchanged; only the reason is now written down.
+- **Verify Before Escalating Non-Convergence states its own reach (#1614).** It binds every
+  escalation of that shape regardless of which skill's escalation path carries it, so a lane
+  escalating through a loop's own escalation contract no longer reads as outside it. `babysit-loop`'s
+  Escalation section carries the matching pointer, because a lane raising a cap-policy question
+  through that contract had no reason to open `safety.md` first — which is how #1614 itself came
+  to be filed against the rule that forbids it.
+- **The (a)/(b)/(c) round taxonomy is a per-round duty, not an escalation-time one.** It was
+  written under a heading scoped to escalation and stamped markers "whenever the classification
+  runs", while the ordinary advisory-round path (`orchestration.md`) recorded the round and started
+  fixing without running it — so ordinary rounds produced no markers and the
+  second-consecutive-all-(c) tripwire had nothing to read exactly when it mattered. Classification
+  and stamping now run on every advisory round, before its fix is dispatched, and the
+  advisory-round step names that duty at the point the round begins.
+- **The pre-escalation resolution dispatch must produce a D7.5 verification ledger before it
+  resolves anything.** `review-discipline.md` routes a current bot thread to that dispatch *because*
+  it verifies the disposition, but the dispatch contract only required briefing the blocker and the
+  independence/frontier-tier constraints — and the guarded wrapper checks authorship and comment
+  state, never whether a finding was addressed. The dispatched agent could therefore resolve a
+  current thread on an unaddressed finding and clear the merge gate's zero-unresolved-threads
+  predicate, which is the worker-side self-satisfaction the outdated-only guard prevents, moved one
+  hop. The contract now requires a per-finding ledger — pushed SHA verified on the live head, a
+  D4.6-grounded deferral with a re-queried tracker id, or counter-evidence read at the live head —
+  covering **every** finding in the thread, since one addressed finding never makes a thread
+  eligible while a sibling is open. Anything unverifiable means no resolution, no merge, and an
+  escalation naming it.
+
 ## [0.39.0]
 
 ### Added

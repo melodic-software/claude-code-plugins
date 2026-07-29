@@ -3,7 +3,7 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.22.2]
+## [0.23.1]
 
 ### Changed
 
@@ -16,6 +16,66 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   fallback in an `else` branch or a separate statement) but not
   same-line-guardable, so each `date -d` call site now carries a
   `portability-ok:` annotation documenting why. No behavior change.
+
+## [0.23.0]
+
+### Added
+
+- **`lanes consume-restarts` — the lane restart-request consumer (#1653).** A loop lane that
+  hits its cycle budget or the `/loop` seven-day expiry writes a `restart_request` into its
+  telemetry state block and stops; nothing consumed that field, so every budget or expiry hit
+  was a terminal manual-restart state. `scripts/restart-consumer.sh` (new `consume-restarts`
+  action on `/claude-ops:lanes`) reads each configured lane's telemetry and relaunches the
+  stopped lanes that asked, through `lane-launcher.sh restart` — so each lane's prompt, model,
+  effort, and settings (autonomy tier) come from the existing lane config. Meant to run
+  unattended on an OS-owned schedule (Task Scheduler / cron): `print-schedule` emits the
+  registration and removal commands; registering them stays an operator action. Guardrails: a
+  telemetry comment is a signal, never a target (only operator-configured lanes can be
+  relaunched; nothing from a comment is interpolated into a command); a per-lane circuit
+  breaker (default 3 restarts per rolling 24 h) that **fails closed** — a run ledger that does
+  not parse reports the budget as spent, with a warning, rather than silently restoring the
+  full budget on exactly the file a crashed writer left behind; a not-currently-running
+  predicate that makes the consumer self-clearing without editing another writer's comment;
+  and an mkdir-atomic **cross-process lock** held across the whole read → decide → relaunch →
+  append span. The lock is load-bearing rather than defensive: the emitted registration is two
+  scheduled tasks (a poll and an `ONLOGON` companion) that both fire at logon, and Task
+  Scheduler's instance policy is per task, so without it both runs read the same breaker count
+  and one lane name ends up with two background sessions. A run that cannot take the lock
+  skips cleanly (exit 0, `lock-held`); a lock left by a hard-killed run ages out. A telemetry
+  read that ERRORS is its own `api-error` decision, never conflated with `no-state` ("the lane
+  did not ask"). Observability: a JSONL run ledger under the plugin data dir recording
+  incidents only — not the routine per-tick decisions, which on a 15-minute schedule would
+  grow the breaker's own input by hundreds of rows a day forever — plus the consumer's own
+  sentinel-marked telemetry comment in the `morning-brief.sh` format, posted by default to the
+  issue that reader resolves (its own title search, reused), so a schedule that stops firing
+  surfaces as a STALE lane in the morning brief. `check` is read-only in fact as well as in
+  contract: it takes no lock and writes no ledger, which is what lets the documented Verify
+  step tell a correctly-registered `run` schedule from a `check`-only one. Design record and
+  labeled UNVERIFIED items: `skills/lanes/context/restart-consumer.md`.
+  - **The circuit breaker bounds relaunch ATTEMPTS, not successes.** `restarted` and `failed`
+    rows both spend budget. Counting only `restarted` left the breaker permanently closed on
+    exactly the failure it exists for — a launcher that exits non-zero, or one that returns
+    success while the background lane never appears (the UNVERIFIED Windows
+    scheduler-spawn hazard this consumer confirms rather than trusts) — so every tick would
+    re-attempt a pull, a marketplace refresh, and a launch, indefinitely. The pre-launch read
+    failures (`error`, `api-error`) stay ledgered but uncounted: a transient forge outage must
+    not spend a lane's restart budget.
+  - **A failed issue lookup is an `api-error`, not a routine `no-telemetry` tick.**
+    `resolve_issue_by_title` piped `gh issue list` into `jq`, so an unreachable or unauthorized
+    forge became an empty result and read as "no issue carries this title" — an unattended
+    consumer stayed apparently healthy while never observing that lane's request. It now
+    returns non-zero on the list failure, and the caller records `api-error` and flags the run,
+    matching what `lane_comment_bodies` already did for the comment read.
+  - **The target repo resolves from the checkout directory.** `gh repo view` takes an
+    `[<owner>/]<repo>` argument and parses a leading path segment as a HOST, so passing the
+    absolute checkout path made the default (no `--target-repo`) path — the one every generated
+    scheduled command uses — exit 4 before reading any request. The repo is now selected by
+    running the command in `$REPO`.
+  - **The published telemetry comment no longer carries the absolute ledger path.** A default
+    data dir embeds the operator's home-directory user name and a `--data-dir` override can
+    carry internal host or organization names, all of which the comment made as visible as the
+    repository is. It now names the file relative to whatever data dir the reader's own machine
+    resolves.
 
 ## [0.22.1]
 
