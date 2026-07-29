@@ -1,5 +1,13 @@
 # Changelog — topic-docs convention
 
+## 2.4.1 — 2026-07-29
+
+Docs-only, no tier, key, slug, or visibility change: the no-hoisting decision's "What would
+reopen it" label becomes "Recheck trigger" and cites the
+[upstream-drift convention](../upstream-drift/README.md) (#1638), the new owner of the concept's
+single name and shape. The ephemeral row's "Re-derivation trigger" label, added at 2.4.0 while
+that migration was in review, adopts the same name and citation. Both triggers are unchanged.
+
 ## 2.4.0 — 2026-07-27
 
 - **An Ephemeral row joins the tier table** (additive). The table sorts

@@ -51,38 +51,40 @@ Escalation order when WebFetch fails:
 
 ## Core pattern — write to disk, Read selectively
 
-Every firecrawl invocation writes to `/tmp/fc-<nonce>.<ext>` and uses the `Read` tool to pull only the needed portion into context:
+Every firecrawl invocation writes to a spill file created by the platform's temp primitive (`mktemp "${TMPDIR:-/tmp}/<name>-XXXXXX"`, never a hardcoded path and never a bare relative template — see the Windows note under Gotchas) and uses the `Read` tool to pull only the needed portion into context. Carry the temp root in the positional template rather than reaching for a flag: `-p` (which GNU also spells `--tmpdir`) exists in both dialects but means different things — GNU treats the template as relative to that directory and lets the flag beat `TMPDIR`, while BSD/macOS consult it only as a fallback for `-t` when `TMPDIR` is unset, so with a bare template and no `-t` the flag does nothing there and the template resolves against the current directory, silently writing into the consumer's repo. GNU also marks `-t` deprecated, and BSD's `-t` takes a prefix rather than a template. An absolute path in the positional template is reinterpreted by neither. Create the file and echo its path in the same Bash call so the follow-up `Read` can target it:
 
 ```bash
 # Scrape a blocked doc page to markdown
-NONCE=$(date +%s%N)
+OUT=$(mktemp "${TMPDIR:-/tmp}/fc-scrape-XXXXXX"); echo "$OUT"
 firecrawl scrape "https://www.gnu.org/software/bash/manual/bash.html" \
   --format markdown \
-  -o "/tmp/fc-${NONCE}.md"
-# Then (in the agent turn): Read /tmp/fc-${NONCE}.md with offset/limit as needed
+  -o "$OUT"
+# Then (in the agent turn): Read the echoed path with offset/limit as needed
 ```
 
 ```bash
 # Search for recent posts on a topic, saving URL list + excerpts to JSON
-NONCE=$(date +%s%N)
+OUT=$(mktemp "${TMPDIR:-/tmp}/fc-search-XXXXXX"); echo "$OUT"
 firecrawl search "HybridCache .NET 10" \
   --limit 5 \
   --json \
-  -o "/tmp/fc-search-${NONCE}.json"
-# Then: Read /tmp/fc-search-${NONCE}.json
+  -o "$OUT"
+# Then: Read the echoed path
 ```
 
 ```bash
 # Interact with a page that needs a login-then-scrape flow (session model:
 # scrape first, then interact against the cached scrape-id).
-NONCE=$(date +%s%N)
+LOGIN=$(mktemp "${TMPDIR:-/tmp}/fc-login-XXXXXX"); DASH=$(mktemp "${TMPDIR:-/tmp}/fc-interact-XXXXXX"); echo "$LOGIN" "$DASH"
 firecrawl scrape "https://example.com/login" \
   --format markdown \
-  -o "/tmp/fc-login-${NONCE}.md"
+  -o "$LOGIN"
 firecrawl interact \
   "fill the username field with 'agent' and click Sign In, then summarize the dashboard" \
-  -o "/tmp/fc-interact-${NONCE}.md"
+  -o "$DASH"
 ```
+
+**Spill files are self-consumed — clean up after the Read.** Once the needed portion is in context, remove the spill file in a follow-up Bash call (`rm -f "<echoed path>"` — shell state does not persist between calls, so use the literal echoed path). Nothing reclaims the OS temp tree on a schedule, so a research-heavy session that skips cleanup leaves one file per call behind. The one exception is command-agnostic: whenever the user asked for the file itself, whichever command produced it, the path is the deliverable — hand it back and do NOT delete it.
 
 Direct stdout is acceptable only for tiny, single-paragraph results (e.g., "get the page title") where file I/O overhead exceeds the token savings. Default: `-o <path> && Read`.
 
@@ -131,7 +133,7 @@ Keeping in sync is a **maintainer-facing** concern, split into its own sibling s
 - **Credits are a shared resource.** Every call charges the account. Use `map` before `crawl`, use `--limit` aggressively on search, and skip Firecrawl entirely when a plain fetch would do.
 - **`firecrawl login` creates a second source of truth.** Auth via the `FIRECRAWL_API_KEY` env var; the login command writes to a user-level config dir — mixing them leaves two sources of truth.
 - **Transient DNS 503 on `api.firecrawl.dev` from sandboxed sessions.** Some cloud egress proxies intermittently return "DNS cache overflow" — retry after ~30s. This affects both the CLI and direct curl; it's an egress issue, not a Firecrawl outage.
-- **Windows/Git Bash tmp paths.** `/tmp/fc-<nonce>.md` resolves to a Windows path via Git Bash's mount. Both path forms work for Read; no normalization needed on the agent side.
+- **Windows tmp paths depend on which shell the Bash tool is.** Where it is Git Bash, `${TMPDIR:-/tmp}` resolves through the `/tmp` mount to the user's Windows temp directory (`%TEMP%`, by default under `%LOCALAPPDATA%\Temp`), and both path forms work for `Read` with no normalization on the agent side. On a Windows host **without** Git Bash the PowerShell tool runs instead and `mktemp` does not exist — fall back to a user-scoped temp under `%LOCALAPPDATA%\Temp`. The skill's `shell: bash` frontmatter does **not** cover this: that field governs only the `!` dynamic-context injection run at skill-load time, not the Bash tool calls this skill's body issues.
 - **Self-hosted Firecrawl.** Set `FIRECRAWL_API_URL` as an OS user environment variable to switch the CLI to a local instance. Default is `https://api.firecrawl.dev` — only override when running against a self-hosted stack.
 - **CLI and `mcp__firecrawl__*` MCP tools overlap** — running both wastes context and splits configuration. If the consuming project also has the Firecrawl MCP registered, pick one surface.
 

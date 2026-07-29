@@ -45,7 +45,7 @@ in this exact form:
 - Single-line YAML `description` with `Use when:` and skip guidance phrase lists
 - Frontmatter fields: `name`, `description`, `argument-hint`, `user-invocable: true`, `disable-model-invocation: false`
 - Pre-computed context block at top, using `firecrawl --status` for the health line
-- "Core pattern — write to disk, Read selectively" rule: every non-trivial example uses `-o /tmp/fc-<nonce>.<ext>` then `Read`
+- "Core pattern — write to disk, Read selectively" rule: every non-trivial example writes to a `mktemp`-created spill file with `-o`, `Read`s selectively, and the spill file is removed after the Read (kept only when the user asked for the file itself)
 - "When NOT to use this skill" section with the doc-site-reader-first and synthesis-tool escalation ordering
 - The pointer to this maintainer update skill (`/firecrawl:update`) — the wrapper skill delegates its update/drift concern here rather than carrying it inline
 - Gotchas section with the "don't run `firecrawl init`, don't run `firecrawl login`" prohibitions

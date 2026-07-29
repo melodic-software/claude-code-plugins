@@ -118,13 +118,16 @@ native one matures into fitness.
 
 > **Staleness disclaimer.** The platform changes constantly. Every row carries the date its facts
 > were verified against the linked official page. Always re-fetch the current page before acting on
-> a row; never trust this table alone.
+> a row; never trust this table alone. A fetch that diverges from a row is that row's recheck
+> trigger: update the row, refreshing its verified date with the outcome. The
+> [upstream-drift convention](conventions/upstream-drift/README.md) owns this stamp discipline.
 
 | Component | Stance | Rationale and constraints | Verified |
 |---|---|---|---|
 | [Skills](https://code.claude.com/docs/en/skills) | Primary surface | The default unit of capability. Newer frontmatter — `paths`, `context: fork` (+ `agent`), `arguments`, skill-scoped `hooks` with `once` — adopted case-by-case through the adoption gate. | 2026-07-17 |
 | [`commands/`](https://code.claude.com/docs/en/plugins-reference) | Prohibited | Officially merged into skills; docs direct "use `skills/` for new plugins". Existing flat commands migrate to skill directories. | 2026-07-17 |
 | [Agents](https://code.claude.com/docs/en/sub-agents) | Adopt on need | Plugin agents do not support `hooks`, `mcpServers`, or `permissionMode` (security restriction) — design within that limit rather than working around it. | 2026-07-17 |
+| [Workflows](https://code.claude.com/docs/en/workflows) | Adopt on need | Native and not experimental: a script in `workflows/`, or wherever the `workflows` manifest field points (that field replaces the default scan), runs as a plugin-namespaced `/plugin:name` command. Availability, not maturity, is the constraint — workflows are paid-plan-gated, a consumer can switch them off (`disableWorkflows`, `CLAUDE_CODE_DISABLE_WORKFLOWS`), and an org can disable them fleet-wide in managed settings; so, as with `bin/`, never make a workflow the only path to a capability. Not "Wait": the [deferred workflow engines](MIGRATION-PLAYBOOK.md#deferred-surfaces--decision-record-2026-07-12) are a named candidate carrying a live trigger, so the gap is identified rather than hypothetical. None ship in this fleet today. | 2026-07-27 |
 | [Hooks](https://code.claude.com/docs/en/hooks) | Adopt on need | Exec form (`args`) is mandatory wherever `${user_config.*}` appears — shell form errors since v2.1.207; otherwise read the `CLAUDE_PLUGIN_OPTION_<KEY>` mirror. Windows exec form spawns real executables only (no `.cmd`/`.bat` shims): use `"command": "node", "args": [...]`. | 2026-07-17 |
 | [MCP servers](https://code.claude.com/docs/en/mcp) | Adopt on need | Clears the plugin-acceptance security review for egress and trust delegation. | 2026-07-17 |
 | [LSP servers](https://code.claude.com/docs/en/plugins-reference) | Adopt on need | Consumer must have the language-server binary; declare the prerequisite per the failure-behavior rules. | 2026-07-17 |
@@ -423,6 +426,7 @@ doc before a second plugin adopts it. Fleet audits check conformance per row.
 | Shell test-helper duplication and exit-code divergence | [`docs/conventions/shell-test-helpers/`](conventions/shell-test-helpers/README.md) |
 | Finding suppression (deliberately-kept audit findings) | [`docs/conventions/finding-suppression/`](conventions/finding-suppression/README.md) |
 | Fresh-eyes declaration pattern contract | `skill-quality` plugin (`skills/check/reference/fresh-eyes-declarations.md`) |
+| Upstream-drift verification stamps and recheck triggers | [`docs/conventions/upstream-drift/`](conventions/upstream-drift/README.md) |
 
 ## Cross-platform contract
 
