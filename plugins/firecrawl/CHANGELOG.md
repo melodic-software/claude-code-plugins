@@ -3,6 +3,42 @@
 All notable changes to the `firecrawl` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.2]
+
+### Changed
+
+- **Core pattern now conforms to the topic-docs ephemeral tier.** Spill files are
+  created via the platform temp primitive (`mktemp "${TMPDIR:-/tmp}/fc-…-XXXXXX"`,
+  never a bare relative template, which would resolve against the current
+  directory and drop the file inside the consumer's repository) instead of a
+  hand-rolled `date +%s%N` nonce
+  under a hardcoded `/tmp`, and self-consumed spill files are
+  removed after the selective `Read` (kept only when the user asked for the file
+  itself), so a research-heavy session no longer accumulates one orphan file per
+  call. The update skill's preservation rule, the command reference, and the eval
+  expectations follow the same pattern.
+
+  The temp root rides in the positional TEMPLATE rather than in a flag.
+  `-p` (which GNU also spells `--tmpdir`) is documented in both dialects but does
+  not mean the same thing: GNU treats the template as relative to that directory
+  and lets the flag beat `TMPDIR`, while BSD/macOS consult it only as a fallback
+  for `-t` when `TMPDIR` is unset — so with a bare template and no `-t` the flag
+  does nothing there and the template resolves against the current directory,
+  silently writing into the consumer's repo. GNU additionally marks `-t`
+  deprecated, and BSD's `-t` takes a prefix rather than a template. An absolute
+  path in the positional TEMPLATE is reinterpreted by neither dialect.
+
+  `scripts/update.sh` moves off `mktemp -d -t` to the same positional form. On
+  BSD that `-t` argument is a *prefix* rather than a template, so the run
+  directory came out named differently there than on GNU; both now agree.
+
+  The Windows gotcha states what actually governs the outcome: where the Bash
+  tool is Git Bash, `${TMPDIR:-/tmp}` resolves through the `/tmp` mount to `%TEMP%`;
+  on a Windows host without Git Bash the PowerShell tool runs and `mktemp` does
+  not exist. The skill's `shell: bash` frontmatter does **not** cover this —
+  that field governs only the `!` dynamic-context injection evaluated at
+  skill-load time, not the Bash tool calls the skill body issues.
+
 ## [0.4.1]
 
 ### Changed

@@ -43,7 +43,9 @@
 #                        shells out to via the Bash tool (Claude Code
 #                        plugins-reference, "Environment variables"), so SKILL.md
 #                        passes --data-dir explicitly with the substituted value.
-#   --max-restarts N     circuit breaker: at most N restarts per lane per window
+#   --max-restarts N     circuit breaker: at most N relaunch ATTEMPTS per lane
+#                        per window — a launch that failed or never came up
+#                        spends budget exactly as a successful one does
 #                        (default 3). 0 disables the breaker.
 #   --window-hours N     the breaker's rolling window in hours (default 24).
 #   --interval-minutes N poll interval baked into `print-schedule` (default 15;
@@ -99,7 +101,8 @@
 #   2. its telemetry state block parses and `restart_request` is non-null;
 #   3. it is NOT currently running (`claude agents --json`, name match plus
 #      kind == "background", exactly lane-launcher.sh's own liveness test);
-#   4. the circuit breaker has room for it in the rolling window.
+#   4. the circuit breaker has room for it in the rolling window (counted in
+#      relaunch attempts, so a lane that keeps failing to come up stops).
 # Condition 3 makes the predicate self-clearing: after a relaunch the lane is
 # running, so a `restart_request` the relaunched lane has not yet rewritten
 # cannot fire a second restart — and the consumer never has to PATCH a telemetry
@@ -404,7 +407,10 @@ valid_repo_slug() {
 resolve_target_repo() {
   if [[ -z "$TARGET_REPO" ]]; then
     [[ -n "$TELEMETRY_JSON_FILE" && ($NO_TELEMETRY -eq 1 || $ACTION != "run" || $DRY_RUN -eq 1) ]] && return 0
-    TARGET_REPO="$(gh repo view "$REPO" --json nameWithOwner -q .nameWithOwner 2>/dev/null)" || TARGET_REPO=""
+    # `gh repo view` takes an [<owner>/]<repo> argument, never a path: given a
+    # directory it parses the leading path segment as a HOST and tries to reach
+    # it. The repo is selected by the working directory instead, so run it there.
+    TARGET_REPO="$(cd "$REPO" && gh repo view --json nameWithOwner -q .nameWithOwner 2>/dev/null)" || TARGET_REPO=""
   fi
   [[ -n "$TARGET_REPO" ]] || {
     err "could not resolve the telemetry repo; pass --target-repo owner/name"
@@ -437,6 +443,11 @@ repo_marker_key() {
 }
 
 ledger_path() { printf '%s/%s/restart-consumer.jsonl' "$(resolve_data_dir)" "$(repo_marker_key)"; }
+
+# The data-dir-relative tail of `ledger_path`. The absolute form is machine-local
+# and belongs in this machine's own diagnostics; anything published to the forge
+# uses this instead.
+ledger_relpath() { printf '%s/restart-consumer.jsonl' "$(repo_marker_key)"; }
 
 # --- Cross-process lock -------------------------------------------------------
 LOCK_DIR=""
@@ -587,11 +598,18 @@ lane_telemetry_field() { jq -r --argjson i "$1" --arg k "$2" '(.lanes[$i].teleme
 # EXACTLY here: a fuzzy hit on some other issue would point the consumer at an
 # unrelated comment stream. The search term deliberately omits the colon, which
 # GitHub search would read as a qualifier separator.
+# Returns 1 — never empty output — when the LIST itself failed, for the same
+# reason `lane_comment_bodies` does: empty means "no issue carries this title",
+# and coercing an API failure to it would report an unreachable forge as a
+# routine `no-telemetry` tick, leaving an unattended consumer apparently healthy
+# while it never observes that lane's request. The caller turns a non-zero
+# return into its own `api-error` decision.
 resolve_issue_by_title() {
-  local repo="$1" title="$2"
-  gh issue list --repo "$repo" --state open --limit 100 \
-    --search "Lane telemetry in:title" --json number,title 2>/dev/null |
-    jq -r --arg t "$title" '[ .[] | select(.title == $t) ] | sort_by(.number) | .[0].number // empty'
+  local repo="$1" title="$2" raw
+  raw="$(gh issue list --repo "$repo" --state open --limit 100 \
+    --search "Lane telemetry in:title" --json number,title 2>/dev/null)" || return 1
+  jq -r --arg t "$title" '[ .[] | select(.title == $t) ] | sort_by(.number) | .[0].number // empty' \
+    <<<"$raw" 2>/dev/null || return 1
 }
 
 # Every comment body on one lane's telemetry issue, as a JSON array of strings.
@@ -635,7 +653,16 @@ extract_state_block() {
 }
 
 # --- Circuit breaker + ledger -------------------------------------------------
-restarts_in_window() {
+# Counts relaunch ATTEMPTS, not successes: both `restarted` and `failed` spend
+# breaker budget. A launcher that exits non-zero, or one that returns success
+# while the background lane never appears — the scheduler-spawned Windows hazard
+# this consumer confirms rather than trusts — writes `failed`, and counting only
+# `restarted` would leave the breaker permanently closed on exactly that failure,
+# re-attempting a pull, a marketplace refresh, and a launch on every tick
+# forever. `error` and `api-error` are deliberately NOT counted: they are read
+# failures that precede any launch, so a transient forge outage must not spend a
+# lane's restart budget.
+attempts_in_window() {
   local lane="$1" now="$2" ledger cutoff
   ledger="$(ledger_path)"
   [[ -f "$ledger" ]] || {
@@ -648,7 +675,7 @@ restarts_in_window() {
   # the ledger a crashed or racing writer left behind — turning a corrupt file
   # into an unbounded restart loop. Report the budget as spent and say why.
   jq -s -r --arg l "$lane" --argjson c "$cutoff" \
-    '[ .[] | select(.lane == $l and .decision == "restarted" and (.epoch // 0) >= $c) ] | length' \
+    '[ .[] | select(.lane == $l and (.decision == "restarted" or .decision == "failed") and (.epoch // 0) >= $c) ] | length' \
     "$ledger" 2>/dev/null || {
     warn "run ledger did not parse ($ledger) — treating the breaker as spent for '$lane'; inspect or remove the file"
     printf '%s' "$MAX_RESTARTS"
@@ -660,7 +687,8 @@ restarts_in_window() {
 # overwhelming majority on a 15-minute schedule — ledgering them would add ~190
 # rows/day forever to a file the breaker re-slurps once per lane per tick. Only
 # the incidents are durable; the full per-tick picture is the report and the
-# telemetry comment. `restarted` is load-bearing: it IS the breaker's memory.
+# telemetry comment. `restarted` and `failed` are load-bearing: together they ARE
+# the breaker's memory, since the breaker bounds attempts rather than successes.
 #
 # Deliberately filter-on-write rather than prune-on-write: the breaker's verdict
 # is a function of the ledger, so a bug in a rewrite-the-whole-file pruner erases
@@ -739,7 +767,11 @@ process_lane() {
     return 0
   fi
   if [[ -z "$issue" && -z "$TELEMETRY_JSON_FILE" ]]; then
-    issue="$(resolve_issue_by_title "$repo" "Lane telemetry: $lane")"
+    if ! issue="$(resolve_issue_by_title "$repo" "Lane telemetry: $lane")"; then
+      record "$lane" "api-error" "could not list open issues on $repo (gh issue list); telemetry issue unresolved, not restarting" null "$now"
+      fail_lane "api-error($lane)" 5
+      return 0
+    fi
     [[ -n "$issue" ]] || {
       record "$lane" "no-telemetry" "no open issue titled 'Lane telemetry: $lane'; bind lanes[].telemetry.issue" null "$now"
       return 0
@@ -786,9 +818,9 @@ process_lane() {
     return 0
   fi
 
-  used="$(restarts_in_window "$lane" "$now")"
+  used="$(attempts_in_window "$lane" "$now")"
   if ((MAX_RESTARTS > 0 && used >= MAX_RESTARTS)); then
-    record "$lane" "breaker-open" "$used restarts in the last ${WINDOW_HOURS}h (max $MAX_RESTARTS); not restarting" "$request" "$now"
+    record "$lane" "breaker-open" "$used relaunch attempts in the last ${WINDOW_HOURS}h (max $MAX_RESTARTS); not restarting" "$request" "$now"
     fail_lane "breaker-open($lane)" 5
     return 0
   fi
@@ -861,9 +893,14 @@ flags: $flagstr
 |---|---|---|"
   for row in "${REPORT_ROWS[@]}"; do body+="
 $row"; done
+  # The ledger path is machine-local and this comment is as visible as the
+  # repository is: a default path carries the operator's home-directory user
+  # name, and a --data-dir override can carry internal host or organization
+  # names. Name the file relative to whatever data dir the reader's own machine
+  # resolves, never the absolute path this run used.
   body+="
 
-Run ledger on this machine: \`$(ledger_path)\`"
+Run ledger: \`<data-dir>/$(ledger_relpath)\` on the machine running this consumer."
 
   upsert="$(dirname "${BASH_SOURCE[0]}")/telemetry-upsert.sh"
   [[ -f "$upsert" ]] || {

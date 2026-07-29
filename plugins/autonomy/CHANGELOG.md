@@ -6,6 +6,45 @@ All notable changes to the `autonomy` plugin are documented here. Format follows
 Versions 0.1.0–0.7.0 predate this file (introduced with 0.7.1); their history lives in the
 merged work-package PRs (#333, #343, #356, #372, #377, #600, #676).
 
+## [0.11.5]
+
+### Fixed
+
+- **`lane-notify.sh` no longer claims no remote/Slack/push transport exists (#1650).** The header
+  stated "there is no remote/Slack/push transport here (none exists as a marketplace primitive
+  yet)" — stale on both clauses, since first-party off-machine transports do exist today. The
+  comment now says so and points at the loop-lane convention's out-of-band notification seam (§2),
+  which owns that seam and its verified grounding, instead of restating the mechanisms and their
+  citations here. The primitive's own local-only reach and its closed-laptop/dead-process caveat
+  are unchanged. Comment-only — no hook behavior change.
+
+### Changed
+
+- **`reference/runner/escalation.md`: severity fan-out legs grounded in shipped transport surface
+  classes (#1650).** The channel-notification and personal-push legs were unbuilt design with no
+  named surface class. A new "Fan-out transport grounding" subsection assigns the channel leg to
+  the deterministic hook-transport class and the personal-push leg to the model-discretionary
+  push-notification surface class, records each class's dependency profile, and states that both
+  classes have shipped mechanisms today — so neither leg waits on a primitive that has to be
+  invented. Per this plugin's contract boundary the subsection names no vendor and no instance:
+  concrete adapters are bound and re-verified at build, and the consuming-side wiring lives in the
+  loop-lane convention's seam.
+
+## [0.11.4]
+
+### Fixed
+
+- **Shared `hook-utils.sh`: an in-project file spelled as a Windows 8.3 short name is no longer
+  silently skipped by the shared membership guard (#1636).** `hook::physical_path` canonicalized
+  with GNU realpath, which under Git Bash resolves symlinks but leaves 8.3 short names
+  (`KYLESE~1`) unexpanded, so a short-form `file_path` failed the `CLAUDE_PROJECT_DIR` prefix
+  comparison in `hook::read_file_path`. The lib now expands short names on Windows/MSYS hosts
+  (new `hook::expand_8dot3`, via `cygpath -l`) before the comparison, and only when the expanded
+  form actually differs; a genuinely out-of-project file is still skipped. 8.3 generation is a
+  per-volume property (`fsutil 8dot3name query`), so the defect was live only for checkouts on a
+  volume that generates short names. Synced from `lib/hook-utils.sh`; this plugin's own hooks do
+  not consume the membership guard, so their behavior is unchanged.
+
 ## [0.11.3]
 
 ### Fixed

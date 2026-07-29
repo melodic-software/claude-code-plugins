@@ -164,8 +164,15 @@ parity claim.
 - **Run ledger.** A `run` appends a JSONL row under
   `<data-dir>/lanes/<repo-key>/restart-consumer.jsonl` for each lane whose
   decision is an **incident** (`restarted`, `failed`, `error`, `api-error`) —
-  the detail layer, and the circuit breaker's memory (default: max 3 restarts
-  per lane per rolling 24 h; a tripped breaker exits 5 and flags the telemetry).
+  the detail layer, and the circuit breaker's memory (default: max 3 relaunch
+  ATTEMPTS per lane per rolling 24 h; a tripped breaker exits 5 and flags the
+  telemetry). The breaker counts attempts, not successes: `restarted` and
+  `failed` both spend budget, so a launcher that keeps failing — or that returns
+  success while the background lane never appears, the Windows hazard below —
+  stops after the configured number instead of re-attempting a pull, a
+  marketplace refresh, and a launch on every tick forever. The pre-launch read
+  failures (`error`, `api-error`) are ledgered but deliberately not counted, so
+  a transient forge outage never spends a lane's restart budget.
   The routine per-tick decisions are reported and land in the telemetry comment
   but are not ledgered: on a 15-minute schedule they would add hundreds of rows
   a day, forever, to a file the breaker re-reads once per lane per tick, and

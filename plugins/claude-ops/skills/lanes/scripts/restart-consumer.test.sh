@@ -15,8 +15,9 @@
 #     never restarted, and the launcher is invoked with the CONFIG's lane name
 #   - the launcher is delegated to (launch shape / autonomy tier not re-derived)
 #   - a relaunch that never appears in the session list is reported `failed`
-#   - circuit breaker counts only `restarted` rows inside the rolling window,
-#     and FAILS CLOSED (budget reported spent) on a ledger that does not parse
+#   - circuit breaker counts relaunch ATTEMPTS (`restarted` and `failed`, never
+#     the pre-launch `error` / `api-error` reads) inside the rolling window, and
+#     FAILS CLOSED (budget reported spent) on a ledger that does not parse
 #   - `check` never relaunches; `check` and `--dry-run run` never write the ledger
 #   - the run ledger is appended as JSONL under the repo-keyed data dir, carries
 #     only incident decisions, and never the routine per-tick ones
@@ -219,7 +220,34 @@ OUT="$(bash "$SCRIPT" check --config "$CONFIG" --repo "$REPO" --data-dir "$DATA_
 RC=$?
 assert_contains "two restarts in the window trip a max of 2" "$OUT" "| work | breaker-open |"
 assert_eq "an open breaker exits 5" "5" "$RC"
-assert_contains "only restarted rows are counted" "$OUT" "2 restarts in the last 24h"
+assert_contains "routine ticks do not count toward the breaker" "$OUT" "2 relaunch attempts in the last 24h"
+
+# The breaker bounds ATTEMPTS, not successes: a relaunch that failed or never
+# came up must spend budget, or a lane that can never start retries forever.
+DATA_CB_F="$TMP/data-cb-failed"
+mkdir -p "$DATA_CB_F/lanes/$KEY"
+{
+  printf '{"epoch":1799990000,"lane":"work","decision":"restarted"}\n'
+  printf '{"epoch":1799991000,"lane":"work","decision":"failed"}\n'
+} >"$DATA_CB_F/lanes/$KEY/restart-consumer.jsonl"
+OUT="$(bash "$SCRIPT" check --config "$CONFIG" --repo "$REPO" --data-dir "$DATA_CB_F" \
+  --target-repo "owner/name" --launcher "$LAUNCHER" --no-telemetry --now 1800000000 \
+  --max-restarts 2 --telemetry-json "$TEL" --agents-json "$AGENTS_NONE" 2>&1)"
+assert_contains "a failed relaunch spends breaker budget" "$OUT" "| work | breaker-open |"
+assert_contains "the failed row is counted as an attempt" "$OUT" "2 relaunch attempts in the last 24h"
+
+# Read failures precede any launch, so a transient forge outage must not spend a
+# lane's restart budget.
+DATA_CB_E="$TMP/data-cb-error"
+mkdir -p "$DATA_CB_E/lanes/$KEY"
+{
+  printf '{"epoch":1799990000,"lane":"work","decision":"api-error"}\n'
+  printf '{"epoch":1799991000,"lane":"work","decision":"error"}\n'
+} >"$DATA_CB_E/lanes/$KEY/restart-consumer.jsonl"
+OUT="$(bash "$SCRIPT" check --config "$CONFIG" --repo "$REPO" --data-dir "$DATA_CB_E" \
+  --target-repo "owner/name" --launcher "$LAUNCHER" --no-telemetry --now 1800000000 \
+  --max-restarts 2 --telemetry-json "$TEL" --agents-json "$AGENTS_NONE" 2>&1)"
+assert_contains "read failures never spend breaker budget" "$OUT" "| work | would-restart |"
 
 OUT="$(bash "$SCRIPT" check --config "$CONFIG" --repo "$REPO" --data-dir "$DATA_CB" \
   --target-repo "owner/name" --launcher "$LAUNCHER" --no-telemetry --now 1800000000 \
@@ -286,7 +314,9 @@ assert_contains "print-schedule states that registering is the operator's" "$OUT
 # --- 14. Argument validation --------------------------------------------------
 bash "$SCRIPT" bogus --repo "$REPO" >/dev/null 2>&1
 assert_eq "an unknown action exits 3" "3" "$?"
-OUT="$(run_consumer consume-restarts check --telemetry-json "$TEL" --agents-json "$AGENTS_NONE")"
+# --max-restarts 0 isolates argument parsing from the shared ledger: earlier
+# sections leave `failed` rows in it, and those now spend breaker budget.
+OUT="$(run_consumer consume-restarts check --max-restarts 0 --telemetry-json "$TEL" --agents-json "$AGENTS_NONE")"
 assert_eq "a leading consume-restarts skill token is accepted" "0" "$?"
 assert_contains "the token after consume-restarts is the action" "$OUT" "restart-consumer: check"
 bash "$SCRIPT" check --repo "$REPO" --max-restarts x >/dev/null 2>&1

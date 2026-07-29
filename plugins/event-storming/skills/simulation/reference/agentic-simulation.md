@@ -268,7 +268,7 @@ LLM agents are stateless — each Agent tool invocation starts fresh. Without pe
 **Solution: Temp profile files loaded into each agent prompt.**
 
 **Directory structure** (created at session start, cleaned up at session end).
-Define `{session_dir}` = `{system_temp}/eventstorming-session-{session_id}` and use it consistently throughout.
+`{session_dir}` is **created** by a secure temp primitive rather than merely named. Echo the created path in the same call and carry that literal value for the rest of the session — the name carries a random component and shell state does not survive between Bash calls, so it cannot be recomputed later. The primitive is `mktemp -d "${TMPDIR:-/tmp}/eventstorming-session-XXXXXX"` on POSIX/Git Bash, and on Windows PowerShell `(New-Item -ItemType Directory -Path (Join-Path $env:TEMP ('eventstorming-session-' + [System.IO.Path]::GetRandomFileName()))).FullName` (`$env:TEMP` is per-user, by default under `%LOCALAPPDATA%\Temp`). Never a hardcoded literal path, and never a name composed only from `{session_id}`: on a multi-user POSIX host `${TMPDIR:-/tmp}` falls back to the shared world-readable `/tmp`, where a predictable name both leaks the persona and session Markdown to every local user and lets one of them pre-create the path. The primitive closes both. The random component defeats pre-creation on either platform. On POSIX the mode is closed too: `mkdtemp` is specified to create the directory with mode 0700, which gates traversal regardless of the modes of the files inside it — that guarantee is POSIX's, not something the Windows branch inherits, where the protection comes instead from `$env:TEMP` already being per-user and ACL-scoped to that account.
 
 ```
 {session_dir}/
@@ -335,7 +335,7 @@ Use `{domain}-{date}-{random4}` format, e.g., `devconf-20260321-a7f2`, where `{r
 **Cleanup protocol:**
 At session end, ask user: "Delete persona temp files? (They can be archived for session replay.)"
 
-- If yes: delete the session directory recursively with the host shell's remover — `rm -rf "{session_dir}/"` on POSIX/Git Bash, `Remove-Item -LiteralPath "{session_dir}" -Recurse -Force` on PowerShell; keep the path quoted, it may contain spaces (`{session_dir}` already resolves to `{system_temp}/eventstorming-session-{session_id}`)
+- If yes: delete the session directory recursively with the host shell's remover — `rm -rf "{session_dir}/"` on POSIX/Git Bash, `Remove-Item -LiteralPath "{session_dir}" -Recurse -Force` on PowerShell; keep the path quoted, it may contain spaces (`{session_dir}` is the path the temp primitive returned at session start, not a path you recompute here)
 - If no: archive to `${CLAUDE_PLUGIN_DATA}/sessions/{session_id}/` (the per-plugin data directory that survives updates). Session archives are per-run state, not skill source; never write them into the plugin's own installed directory (`${CLAUDE_PLUGIN_ROOT}`, read-only under cache isolation) or into the consumer's project tree
 
 ---
@@ -630,7 +630,7 @@ Every simulation session follows this lifecycle. The protocol ensures clean stat
 **1. Session Setup (before any board creation):**
 
 - Generate session ID: `{domain}-{YYYYMMDD}-{random4}` (e.g., `devconf-20260321-a7f2`)
-- Create session directory: `{session_dir}/personas/` (where `{session_dir}` = `{system_temp}/eventstorming-session-{session_id}`)
+- Create session directory: `{session_dir}/personas/` (where `{session_dir}` is created by the secure temp primitive in "Persona Persistence Across Rounds" and its returned path is carried for the rest of the session)
 - MCP preflight: test Miro MCP with a read-only call (e.g., `miro_list_boards`). If MCP fails, inform user and get approval for fallback
 - Domain research: 3+ web-research searches (Perplexity MCP if present, else `WebSearch`) before building persona prompts
 - Generate persona profile files (see "Persona Persistence Across Rounds" section above)
@@ -657,7 +657,7 @@ Every simulation session follows this lifecycle. The protocol ensures clean stat
 **Concurrent session safety:**
 
 - Session IDs include random suffix — no collision between conversations
-- Temp directories are namespaced — `eventstorming-session-{id}` never overlaps
+- Temp directories never overlap — each is created by the temp primitive with its own random component, so two concurrent sessions cannot land on the same path even within one conversation
 - Board names include version number — `v7`, `v8` etc. — visually distinct in Miro
 - Persona profiles are session-scoped — one session's Organizer doesn't bleed into another's
 

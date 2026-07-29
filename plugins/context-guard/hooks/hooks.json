@@ -1,0 +1,53 @@
+{
+  "hooks": {
+    "PostToolBatch": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/zone-crossing-inject.sh",
+            "timeout": 10,
+            "statusMessage": "Checking for a context-zone crossing..."
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/zone-crossing-inject.sh",
+            "timeout": 10,
+            "statusMessage": "Checking for a context-zone crossing..."
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Write|Edit|NotebookEdit|Agent|Workflow",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/zone-gate.sh",
+            "timeout": 10,
+            "statusMessage": "Checking the context-zone gate..."
+          }
+        ]
+      }
+    ],
+    "PostCompact": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/post-compact-mark.sh",
+            "timeout": 10,
+            "statusMessage": "Recording the compaction marker..."
+          }
+        ]
+      }
+    ]
+  }
+}

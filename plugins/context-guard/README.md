@@ -2,7 +2,7 @@
 
 A Claude Code plugin that makes each session's context-window usage observable to any session or
 tool that needs it — so long-running workflows can route heavy work away from a degraded context
-**before** quality slips, instead of guessing. Four parts:
+**before** quality slips, instead of guessing. Five parts:
 
 - **Statusline shim** (`scripts/statusline-shim.sh`) — the durable wiring target. Installed once to
   `~/.claude/context-guard/bin/`, it resolves whichever tee version is installed at run time, so a
@@ -14,10 +14,22 @@ tool that needs it — so long-running workflows can route heavy work away from 
   `~/.claude/context-guard/context/<session_id>.json`, then passes your statusline through
   byte-for-byte. With no statusline configured it doubles as a minimal standalone statusline.
 - **Zone resolver** (`scripts/context-zone.sh`) — `context-zone.sh <session_id>` prints exactly one
-  word: `smart` / `acceptable` / `dumb` / `unknown`. Bands come from the machine-scope
-  `~/.claude/context-guard/zones.json` when present and valid, else from shipped defaults
-  (smart ≤ 50 < acceptable ≤ 75 < dumb, over `used_percentage`). Zones say *where you are*;
-  consumers decide *what to do*.
+  word: `smart` / `acceptable` / `dumb` / `unknown`. Two band shapes, combined conservatively (the
+  worse computable zone wins): percentage bands over `used_percentage` (shipped defaults
+  smart ≤ 50 < acceptable ≤ 75 < dumb) and window-class token bands over occupancy
+  (`total_input_tokens + total_output_tokens`; shipped defaults 100k/160k on a 200k window,
+  200k/400k on a 1M window). Bands come from the machine-scope
+  `~/.claude/context-guard/zones.json` when present and valid, else from the shipped defaults.
+  Zones say *where you are*; consumers decide *what to do*.
+- **Zone-crossing hooks** (`hooks/`) — the first shipped consumer. Once per transition into a
+  worse zone, a PostToolBatch/UserPromptSubmit hook injects continuation guidance (advisory;
+  silent on unchanged, improving, or `unknown` zones). A PostCompact hook writes an
+  evidence-degraded marker next to the session's snapshot, and both zone consumers honor it: a
+  compacted session's effective zone is dumb regardless of its post-compaction numbers. An
+  optional **blocking** mode (`zone_hook_mode` userConfig) adds a PreToolUse gate that denies new
+  Write/Edit/NotebookEdit/Agent/Workflow calls on a fresh dumb-zone snapshot past a grace budget —
+  fail-open on `unknown`, with handoff-path writes, reads, Bash, and Skill invocations never
+  gated, so a durable handoff is always writable.
 - **Reader contract** (`reference/reader-contract.md`) — the authoritative consumer contract: the
   snapshot path pattern, file shape, the 10-minute staleness rule, fail-open capability detection,
   the zones.json shape, session-id discovery via `${CLAUDE_SESSION_ID}`, and the
@@ -87,19 +99,22 @@ governs how often it runs.
 
 ## Configuration
 
-No `userConfig`. The snapshot path and the 10-minute staleness rule are deliberately **not**
-configurable: they are contract constants that cross-plugin consumers inline from the
-[reader contract](reference/reader-contract.md); a per-user override would silently split the
-writer from its readers. Band numbers are the one tunable — via `~/.claude/context-guard/zones.json`
-(shape in the reader contract), which the operator's own statusline display may read too, so
-display and consumers never drift. Disabling the tee is the operator's edit (remove or unwrap the
-statusline command); disabling everything is `enabledPlugins` / uninstall.
+Three `userConfig` options, all hook-scoped: `context_guard_hooks_enabled` (kill switch, default
+true), `zone_hook_mode` (`advisory` default | `blocking`), and `zone_gate_grace_calls` (blocking
+mode's grace budget, in-script default 20). The snapshot path and the 10-minute staleness rule are
+deliberately **not** configurable: they are contract constants that cross-plugin consumers inline
+from the [reader contract](reference/reader-contract.md); a per-user override would silently split
+the writer from its readers. Band numbers are the one tunable — via
+`~/.claude/context-guard/zones.json` (shape in the reader contract), which the operator's own
+statusline display may read too, so display and consumers never drift. Disabling the tee is the
+operator's edit (remove or unwrap the statusline command); disabling everything is
+`enabledPlugins` / uninstall.
 
 ## Consumers
 
-First consumer: the `plugin-quality` audit skill (zone-informed dispatch and evidence-flush
-decisions, conservative on `unknown`). Any session or tool on the machine may read the same files
-under the same contract.
+The plugin's own zone-crossing hooks are the first shipped consumer. Next: the `plugin-quality`
+audit skill (zone-informed dispatch and evidence-flush decisions, conservative on `unknown`). Any
+session or tool on the machine may read the same files under the same contract.
 
 ## License
 

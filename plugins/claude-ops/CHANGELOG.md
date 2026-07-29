@@ -3,7 +3,7 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.22.0]
+## [0.23.0]
 
 ### Added
 
@@ -38,6 +38,106 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   contract: it takes no lock and writes no ledger, which is what lets the documented Verify
   step tell a correctly-registered `run` schedule from a `check`-only one. Design record and
   labeled UNVERIFIED items: `skills/lanes/context/restart-consumer.md`.
+  - **The circuit breaker bounds relaunch ATTEMPTS, not successes.** `restarted` and `failed`
+    rows both spend budget. Counting only `restarted` left the breaker permanently closed on
+    exactly the failure it exists for — a launcher that exits non-zero, or one that returns
+    success while the background lane never appears (the UNVERIFIED Windows
+    scheduler-spawn hazard this consumer confirms rather than trusts) — so every tick would
+    re-attempt a pull, a marketplace refresh, and a launch, indefinitely. The pre-launch read
+    failures (`error`, `api-error`) stay ledgered but uncounted: a transient forge outage must
+    not spend a lane's restart budget.
+  - **A failed issue lookup is an `api-error`, not a routine `no-telemetry` tick.**
+    `resolve_issue_by_title` piped `gh issue list` into `jq`, so an unreachable or unauthorized
+    forge became an empty result and read as "no issue carries this title" — an unattended
+    consumer stayed apparently healthy while never observing that lane's request. It now
+    returns non-zero on the list failure, and the caller records `api-error` and flags the run,
+    matching what `lane_comment_bodies` already did for the comment read.
+  - **The target repo resolves from the checkout directory.** `gh repo view` takes an
+    `[<owner>/]<repo>` argument and parses a leading path segment as a HOST, so passing the
+    absolute checkout path made the default (no `--target-repo`) path — the one every generated
+    scheduled command uses — exit 4 before reading any request. The repo is now selected by
+    running the command in `$REPO`.
+  - **The published telemetry comment no longer carries the absolute ledger path.** A default
+    data dir embeds the operator's home-directory user name and a `--data-dir` override can
+    carry internal host or organization names, all of which the comment made as visible as the
+    repository is. It now names the file relative to whatever data dir the reader's own machine
+    resolves.
+
+## [0.22.1]
+
+### Fixed
+
+- **Shared `hook-utils.sh`: a path spelled as a Windows 8.3 short name now canonicalizes to the
+  same physical path as its long spelling (#1636).** `hook::physical_path` canonicalized with
+  GNU realpath, which under Git Bash resolves symlinks but leaves 8.3 short names (`KYLESE~1`)
+  unexpanded, so a short-form path — the shape Claude Code's own scratchpad paths take — read
+  as a different path than its long form everywhere the canonicalizer's output is compared. The
+  lib now expands short names on Windows/MSYS hosts (new `hook::expand_8dot3`, via `cygpath -l`)
+  on the resolver's success path, and only when the expanded form actually differs — a
+  legitimate long name containing `~` passes through untouched. 8.3 generation is a per-volume
+  property (`fsutil 8dot3name query`), so the mismatch was live only on volumes that generate
+  short names. For this plugin that means the path-membership validation in
+  `claude-ops-paths.sh` no longer rejects an in-project path over its spelling, and
+  `claude_ops::repo_slug` derives one slug per repository instead of a second, divergent slug
+  for a short-form spelling of the same root. Synced from `lib/hook-utils.sh`.
+
+## [0.22.0]
+
+### Added
+
+- **`lanes`: `telemetry-upsert.sh` refuses a degraded telemetry body before it writes it, then
+  confirms what landed (#952).** The gate is pre-write: the caller's body is rejected with exit `3`,
+  having made no API call at all, if it begins with a literal `@` or falls under a 16-byte floor.
+  This guards the #943 defect class — a caller that composed an `@path` string as its body content,
+  meaning the file, posts the literal path text, and because the comment's timestamp still moves the
+  telemetry surface looks fresh while carrying no data, an observability fail-open no freshness check
+  can see. Catching it before the `POST`/`PATCH` means nothing degraded is ever published to a public
+  tracking issue, and there is no window in which a reader finds one. The wrapper's own plumbing
+  cannot commit the mistake (it reads the body into a shell variable before any `gh` call), so the
+  gate exists for the body TEXT a lane hands it. After the write the comment is re-read through a
+  separate `GET` and the same assertions re-run against what a reader will actually find, plus the
+  marker sentinel. That pass is scoped honestly: because the sent body was already cleared and the
+  `GET` targets the id just written, it sees only what happened to that comment afterwards — a
+  mangled store, a concurrent writer stripping the sentinel, a deletion — and a failure exits `6`
+  naming the comment's URL. It cannot detect that detection resolved the wrong comment, and editing
+  another user's comment is not its job either (that `PATCH` 403s and exits `5`). The create/update
+  response echo is deliberately not trusted in place of the re-read: it proves the request was
+  accepted, not what landed. An unreachable `GET` is retried once and then reports the cycle
+  UNCONFIRMED rather than known-bad — a check that could not run is not a check that disagreed. It
+  carries `gh`'s own error text (bounded) and branches its verdict on it: a `404` says the comment
+  is NOT RETRIEVABLE — deleted, its issue deleted, or the token's read access lost — which rules out
+  the "probably intact" reading that anything else (a `403`/`429` secondary rate limit) keeps. The
+  retry is a network-blip guard only — it does not honor `Retry-After`, so a secondary rate limit
+  outlasts both attempts by design. Capturing that error text is a diagnostic and never the thing
+  that fails a good write: an unwritable `TMPDIR` degrades to no capture rather than turning exit
+  `0` into exit `6`. One limitation is stated rather than papered over — the read-back asserts
+  properties, not that the body changed, so a PATCH that silently no-ops still verifies and a stale
+  comment reads as a good cycle; freshness belongs to the reader (`morning-brief`), not here. There
+  is no `--no-verify` opt-out; this script is driven by lane prompts, so an escape hatch would be
+  reachable by the same caller the gate exists to catch.
+- **`lanes` doctrine: the `@path`-as-body anti-pattern is stated once, in the skill.** Telemetry and
+  comment bodies are passed as file contents or piped, never as an `@path` string interpolated into
+  a body value: `gh issue comment --body @path` and `gh api -f body=@path` send the literal text.
+  Reading from a file takes `gh issue comment --body-file`, or `gh api -F`/`--field key=@path` —
+  `gh api` has no `--body-file` flag at all. The rule covers the `gh api` upsert a lane inlines as
+  well as the wrapper, because an installed plugin cannot invoke a sibling plugin's script and an
+  inlined upsert carries none of the wrapper's body checks.
+
+### Changed
+
+- **`telemetry-upsert.sh` now rejects bodies it previously accepted (#952).** A body beginning with
+  a literal `@`, or shorter than 16 bytes, exits `3` instead of being posted. Both shapes are the
+  #943 fail-open rather than legitimate telemetry, so the rejection is the point — but a caller
+  passing either today changes from a silent success to a hard failure. The `@` rule is positional,
+  so a body whose FIRST line is a GitHub @mention is rejected too: lead with a telemetry key and put
+  mentions on a later line. No in-repo caller is affected: nothing invokes the wrapper yet, by
+  design (routing the operator loop-prompt through it is #943, out-of-repo).
+
+### Fixed
+
+- **`telemetry-upsert.sh` no longer exits `1` after a successful upsert whose API response carried
+  no `html_url`.** The trailing `[[ -n "$html_url" ]] && printf …` was the script's last command, so
+  its false branch became the exit status.
 
 ## [0.21.6]
 
