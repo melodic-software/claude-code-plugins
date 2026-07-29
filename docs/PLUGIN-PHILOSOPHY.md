@@ -516,8 +516,8 @@ A dispatch prompt at any rung:
 ### Named-agent bar
 
 A named agent is earned, not default: **the same worker with the same instructions dispatches from
-multiple sites (or repeats via description-triggered direct invocation) AND a model pin or an
-enforced tool restriction is load-bearing.** Otherwise the generic subagent with inline instructions
+multiple sites (or repeats via description-triggered direct invocation) AND a model pin, an effort
+pin, or an enforced tool restriction is load-bearing.** Otherwise the generic subagent with inline instructions
 is the simpler, equally independent form. On tool cages: an allowlist that includes Bash bars
 Edit/Write and recursive spawning but is **not read-only** — Bash can write; state what the cage
 actually enforces, never "read-only" ([plugin agents support `tools` frontmatter](https://code.claude.com/docs/en/plugins-reference),
@@ -565,14 +565,21 @@ model-config effort table changes — the effort scale is calibrated per model, 
 name is not the same underlying value across models):
 
 - **Consequential-output lanes with a frontmatter surface pin `high`** — verdicts, and research
-  that feeds decisions, wherever the lane is a named agent or a skill. The pin exists so the lane
-  does not silently degrade inside a session tuned down for cost. The pin is not relative: on a
-  model whose own default sits above `high`, it caps the lane below that model's default — the
-  recheck trigger above exists exactly for this. The reach is the mechanism's, not the rule's:
-  a generic Agent-tool dispatch carries no effort control (the tool accepts a `model` parameter,
-  no `effort`), so it structurally inherits the session level and its floor is the session
-  baseline; promoting such a lane to a named agent is how it gains the pin — an effort pin being
-  load-bearing counts toward the named-agent bar the same way a model pin does.
+  that feeds decisions, wherever the lane is a named agent or a skill doing that work in its own
+  context. The pin exists so the lane does not silently degrade inside a session tuned down for
+  cost (the environment variable still wins, per above). The pin is not relative: on a model
+  whose own default sits above `high`, it caps the lane below that model's default — the recheck
+  trigger above exists exactly for this. The reach is the mechanism's, not the rule's: a generic
+  Agent-tool dispatch carries no effort control — the tool takes a per-invocation `model`
+  parameter with no effort counterpart
+  ([sub-agents](https://code.claude.com/docs/en/sub-agents), doc-silence corroborated by the live
+  tool schema, 2026-07-29) — so it structurally inherits the session level and its floor is the
+  session baseline; promoting such a lane to a named agent is how it gains the pin (a
+  load-bearing effort pin satisfies the named-agent bar's pin clause). An orchestrator skill
+  whose consequential work executes in generic dispatches is likewise out of reach: a skill-level
+  pin governs the orchestrating conversation, and whether it propagates to subagents spawned
+  while the skill is active is undocumented — treat propagation as unknown alongside the cache
+  caveat below.
 - **Bulk mechanical sweeps may pin `low`** — upstream pitches `low` for simpler tasks needing the
   best speed and lowest cost, "such as subagents", and lower effort spends fewer tool calls
   ([effort](https://platform.claude.com/docs/en/build-with-claude/effort)).
