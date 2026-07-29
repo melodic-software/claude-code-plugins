@@ -215,6 +215,100 @@ _MODE_BELT = "belt"
 _MODE_ENGINE_GATE = "engine-gate"
 _ENGINE_MARKER = "hygiene.py"
 
+# Everything a path we care about cannot contain. Enumerating SHELL syntax here
+# would be a losing game — an assignment (`engine=hygiene.py`), a list separator
+# (`PATH=/x:hygiene.py`), and a metacharacter (`foo;hygiene.py`) each glue the
+# filename to its neighbour differently, and missing one silently un-gates a real
+# invocation. Inverting the question is total: `hygiene.py` is spelled entirely
+# from this class's KEPT characters, so splitting on everything else can only
+# ever EXPOSE the engine filename as its own token, never destroy an occurrence.
+# Over-splitting is safe in both directions — a shredded path merely fails the
+# identity check and falls through to the marker test, which gates.
+_MARKER_TOKEN_SPLIT = re.compile(r"[^A-Za-z0-9._\-/\\:]+")
+# The same partition read as matches rather than as separators, so a token can
+# be located by SPAN inside the command. Kept as the exact complement of
+# `_MARKER_TOKEN_SPLIT`; a test pins the two to the same token list.
+_MARKER_TOKEN = re.compile(r"[A-Za-z0-9._\-/\\:]+")
+# Bash removes a backslash-newline pair while reading the line, before it ever
+# splits words. Undo it first or the continuation stays welded to the filename
+# (`hygiene.py\`) and no token's basename is the marker.
+_LINE_CONTINUATION = re.compile(r"\\\r?\n")
+# `:` is kept inside a token but treated as a separator when the basename is
+# taken. Splitting tokens on it would sever the drive letter off a Windows
+# absolute path (`C:/x/hygiene.py` -> `C`, `/x/hygiene.py`), and the identity
+# and resolution checks downstream need the whole path to stay intact.
+_PATH_SEPARATOR = re.compile(r"[/\\:]")
+# A whole shell word: a run of non-space characters, with quoted spans kept
+# intact so a quoted path containing spaces stays one word. Used only to RESOLVE
+# a token to a real file, never to detect the marker.
+_COARSE_TOKEN = re.compile(r"(?:'[^']*'|\"[^\"]*\"|[^\s'\"])+")
+_QUOTE_STRIP = str.maketrans("", "", "'\"")
+
+
+def _marker_tokens(command: str) -> list[str]:
+    """Candidate filename tokens: maximal runs of path-legal characters."""
+    unfolded = _LINE_CONTINUATION.sub("", command)
+    return [token for token in _MARKER_TOKEN_SPLIT.split(unfolded) if token]
+
+
+def _marker_tokens_with_words(command: str) -> list[tuple[str, str]]:
+    """Each token from ``_marker_tokens`` paired with the shell word holding it.
+
+    Detection wants aggressive splitting; resolution wants whole paths. One
+    delimiter set cannot serve both. Every character outside the path-legal
+    class shreds an absolute consumer path — ``/tmp/consumer+tools/hygiene.py``
+    becomes ``/tmp/consumer`` and ``tools/hygiene.py`` — and the fragment
+    carrying the filename is no longer absolute, so the "provably a DIFFERENT
+    file" escape, which requires an absolute path, can never fire and the guard
+    denies a consumer work on its own tool (#1640). Windows 8.3 segments
+    (``KYLESE~1``) put ordinary paths in that population, not just punctuated
+    ones.
+
+    The pairing is by SPAN, never by substring containment: ``token in word``
+    would let a marker token borrow proof from an unrelated word elsewhere in
+    the command, so ``/abs/consumer/hygiene.py --help && python3 hygiene.py
+    apply`` would "prove" its bare second invocation a different file and fail
+    open. A token always keeps itself as a candidate, so widening can only ever
+    add ways to prove a DIFFERENT file, never remove the token's own reading.
+    """
+    unfolded = _LINE_CONTINUATION.sub("", command)
+    words = [
+        (match.start(), match.end(), match.group().translate(_QUOTE_STRIP))
+        for match in _COARSE_TOKEN.finditer(unfolded)
+    ]
+    pairs: list[tuple[str, str]] = []
+    for match in _MARKER_TOKEN.finditer(unfolded):
+        owner = next(
+            (
+                text
+                for start, end, text in words
+                if start <= match.start() and match.end() <= end
+            ),
+            match.group(),
+        )
+        pairs.append((match.group(), owner))
+    return pairs
+
+
+def _carries_marker(word: str) -> bool:
+    """Whether ``word``'s FILENAME is the engine, not merely ends with its name.
+
+    `test_hygiene.py` and `myhygiene.py` are different files whose names happen
+    to contain the marker; a bare-substring test reads them as this engine and
+    gates unrelated work (#1611) — including the plugin's own test suite. This
+    is the same basename equality the literal branch applies, so the two paths
+    agree on what "is the engine" means.
+
+    The basename is taken by splitting on BOTH separators rather than with
+    ``Path().name``, which is platform-flavoured: ``PureWindowsPath`` treats a
+    trailing backslash as a separator and ``PurePosixPath`` does not, so
+    ``/x/hygiene.py\\`` matches on Windows and misses on Linux. A guard whose
+    verdict depends on where it runs is a guard that passes its tests on the
+    author's machine and fails open in CI.
+    """
+    name = _PATH_SEPARATOR.split(word.casefold().rstrip("/\\"))[-1]
+    return name == _ENGINE_MARKER
+
 
 def _engine_gate_relevant(command: str, tool_name: str = "Bash") -> bool:
     """Decide whether the plugin-level engine gate should act on ``command``.
@@ -223,7 +317,16 @@ def _engine_gate_relevant(command: str, tool_name: str = "Bash") -> bool:
     mention of the engine's filename (``git diff -- hygiene.py``,
     ``rg hygiene.py README.md``, ``echo hygiene.py``) must defer — routing
     mentions into the belt's fail-closed parser would block ordinary work
-    session-wide. The gate acts only on what parses as an INVOCATION:
+    session-wide.
+
+    Throughout, a word "carries the marker" when its FILENAME is
+    ``hygiene.py`` (``_carries_marker``), never when its name merely contains
+    that string — ``test_hygiene.py`` and ``myhygiene.py`` are different files.
+    Tokens for that test are split on shell metacharacters as well as
+    whitespace, so a concatenation like ``foo;hygiene.py`` still exposes the
+    engine as a token of its own.
+
+    The gate acts only on what parses as an INVOCATION:
 
     - a literal word carrying the engine's filename that is not provably a
       DIFFERENT file: a word that resolves to an existing file other than the
@@ -260,45 +363,94 @@ def _engine_gate_relevant(command: str, tool_name: str = "Bash") -> bool:
     def _samefile(word: str) -> bool:
         try:
             return os.path.samefile(word, bundled)
-        except OSError:
+        except (OSError, ValueError):
             return False
 
     def _same_file_as_bundled(word: str) -> bool:
-        # Separator requirement bounds the no-marker scan to path-like words.
-        if "/" not in word and "\\" not in word:
-            return False
-        return _samefile(word)
+        """Whether ``word`` NAMES the bundled engine, under any spelling.
+
+        Read two ways: as written, and — when relative — against the ENGINE'S
+        OWN directory. The second reading is what closes the Windows
+        filename-alias class. Win32 discards trailing dots and spaces from a
+        filename and resolves `::$DATA` to the main stream, so `hygiene.py.`,
+        `"hygiene.py "` and `hygiene.py::$DATA` all open the bundled engine
+        while none of them has its basename; `cd <scripts> && python
+        hygiene.py. apply` then ran the kill-switched engine unseen. 8.3 short
+        names are a third spelling of the same kind.
+
+        Asking the filesystem whether a spelling resolves to the engine closes
+        every alias at once. Enumerating the spellings closes one per review
+        round, which is the documented history of this predicate — so identity,
+        not the name, is the authority here. The engine's directory is the
+        right base precisely because it is the directory such a command must
+        `cd` into for the alias to run.
+        """
+        if _samefile(word):
+            return True
+        return not os.path.isabs(word) and _samefile(
+            os.path.join(bundled.parent, word)
+        )
 
     allow_backslash = tool_name == "PowerShell"
-    lowered = command.casefold()
-    if _ENGINE_MARKER not in lowered:
+    marker_candidates = _marker_tokens(command)
+    if not any(_carries_marker(token) for token in marker_candidates):
         # No marker: the only relevant shape is a linked alias of the bundled
         # engine invoked by path. Unparsable marker-free commands cannot fail
         # closed (that would gate every command with an operator), so scan
         # their whitespace tokens for separator-carrying words and identity-
         # check those — a literal alias path gates even beside an operator.
+        #
+        # The path-legal tokens are scanned as well, and carry this branch's
+        # weight now that a name merely CONTAINING the marker lands here: a
+        # link to the engine called `test_hygiene.py` beside an operator
+        # (`/tmp/test_hygiene.py;echo done`) leaves `command.split()` holding
+        # `/tmp/test_hygiene.py;echo`, which resolves to nothing, so identity
+        # would miss the engine under a name that is not the marker. Adding
+        # candidates can only ever gate more, never less.
+        candidates = list(marker_candidates)
         words = _literal_shell_words(command, allow_backslash=allow_backslash)
-        if words is None:
-            return any(
-                _same_file_as_bundled(token.strip("'\""))
-                for token in command.split()
-            )
-        return any(_same_file_as_bundled(word) for word in words)
+        candidates += (
+            [token.strip("'\"") for token in command.split()]
+            if words is None
+            else list(words)
+        )
+        return any(_same_file_as_bundled(candidate) for candidate in candidates)
     words = _literal_shell_words(command, allow_backslash=allow_backslash)
     if words is None:
         # Marker present but not literally parseable (operators, compounds).
         # Fail closed UNLESS every marker-carrying token is provably a
         # DIFFERENT existing file (a consumer's own hygiene.py in a compound
         # command) and no token is the bundled engine under any name.
-        tokens = [token.strip("'\"") for token in command.split()]
-        if any(_same_file_as_bundled(token) for token in tokens):
+        #
+        # "Provably" requires an ABSOLUTE path. This branch exists because the
+        # command carries an operator, and an operator can be a `cd` — so a
+        # relative token resolves against the GUARD's cwd while the shell
+        # resolves it against whatever directory the command has moved to by
+        # then (`cd <plugin-scripts>;./hygiene.py scan`). Reading a relative
+        # path here can therefore "prove different file" against an unrelated
+        # same-named file and defer while the bundled engine actually runs.
+        # A relative path is not unproven-but-probably-fine; it is unknowable,
+        # and this guard fails closed on unknowable input.
+        #
+        # An absolute path is read from the WHOLE shell word, not from the
+        # path-legal fragment: the fragment is what detection needs and the
+        # whole word is what resolution needs, and the two disagree whenever
+        # the path holds a character outside the keep class (#1640).
+        pairs = _marker_tokens_with_words(command)
+        if any(_same_file_as_bundled(token) for token, _ in pairs):
             return True
-        marker_tokens = [
-            token for token in tokens if _ENGINE_MARKER in token.casefold()
-        ]
-        if marker_tokens and all(
-            _script_path_key(token) is not None and not _samefile(token)
-            for token in marker_tokens
+
+        def _provably_other_file(token: str, word: str) -> bool:
+            return any(
+                os.path.isabs(candidate)
+                and _script_path_key(candidate) is not None
+                and not _samefile(candidate)
+                for candidate in (token, word)
+            )
+
+        marker_pairs = [pair for pair in pairs if _carries_marker(pair[0])]
+        if marker_pairs and all(
+            _provably_other_file(token, word) for token, word in marker_pairs
         ):
             return False
         return True
@@ -325,7 +477,7 @@ def _engine_gate_relevant(command: str, tool_name: str = "Bash") -> bool:
     ]
     for index, word in enumerate(words):
         folded = word.casefold()
-        if Path(folded).name == _ENGINE_MARKER:
+        if _carries_marker(word):
             if _samefile(word):
                 # The word IS the bundled engine — gate regardless of launcher
                 # (pypy3, an unknown interpreter, anything). Identity beats
@@ -358,9 +510,7 @@ def _engine_gate_relevant(command: str, tool_name: str = "Bash") -> bool:
             continue
         if _ENGINE_MARKER in folded and " " in word:
             first_token = folded.split()[0]
-            if Path(first_token).name == _ENGINE_MARKER or _is_interpreter(
-                first_token
-            ):
+            if _carries_marker(first_token) or _is_interpreter(first_token):
                 # A quoted compound payload (sh -c / pwsh -Command) whose first
                 # token is the engine or an interpreter is an invocation.
                 return True
