@@ -299,8 +299,9 @@ assert_file_exists "fresh fallback still creates the worktree" "$root/acme-widge
 
 # --- Case: fresh resolves a sole non-origin remote (`git clone -o upstream`) ---
 # The gap this closes: probing only refs/remotes/origin/HEAD misses a repo whose
-# single remote is named something else, so `fresh` silently degraded to local
-# HEAD and carried unpushed commits into a supposedly-fresh worktree.
+# single remote is named something else, so `fresh` fell back to local HEAD and
+# carried unpushed commits into a supposedly-fresh worktree. The fallback warned,
+# but named origin — the one remote such a repo does not have.
 repo=$(mkrepo --origin "git@github.com:acme/widget.git" --remote-name upstream)
 commitfile "$repo" UNPUSHED.md
 root="$TEST_TMPDIR/wtroot-upstream"

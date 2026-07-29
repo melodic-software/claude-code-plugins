@@ -7,12 +7,14 @@ All notable changes to the `source-control` plugin are documented here. Format f
 
 ### Fixed
 
-- **`worktree-create.sh --base-ref fresh` silently degraded to local `HEAD` in any clone whose
-  default remote is not named `origin` (melodic-software/claude-code-plugins#904).** The helper
-  probed `refs/remotes/origin/HEAD` and nothing else, so a repository cloned with
-  `git clone -o upstream` — which has no `origin` at all — took the remoteless fallback path even
-  though `upstream/HEAD` was correctly cached. A worktree created from a feature branch then carried
-  unpushed local commits into a base that `fresh` promises is the remote default branch.
+- **`worktree-create.sh --base-ref fresh` degraded to local `HEAD` in a clone with no `origin`
+  remote (melodic-software/claude-code-plugins#904).** The helper probed `refs/remotes/origin/HEAD`
+  and nothing else, so a repository cloned with `git clone -o upstream` — which has no `origin` at
+  all — took the remoteless fallback path even though `upstream/HEAD` was correctly cached. A
+  worktree created from a feature branch then carried unpushed local commits into a base that
+  `fresh` promises is the remote default branch. The fallback did emit its warning, so the failure
+  was visible rather than silent — but the warning named `origin`, the one remote the repository did
+  not have, so it read as a misconfiguration rather than as the helper looking in the wrong place.
   - `fresh` now resolves the effective default **remote** before probing any symref, through a
     three-rung chain: the current branch's configured remote (`branch.<name>.remote`), then `origin`
     when it exists, then the sole remote when the repository has exactly one. The resolved remote's
