@@ -35,9 +35,12 @@ and `.editorconfig` for formatting. It ships no rules of its own.
   (symlink-resolved): a `.sh`/`.bash` file written *outside* the project — e.g. to
   a temp or scratchpad directory — is silently skipped (no lint, no format, no
   notice), deliberate defense-in-depth scoping inherited from the shared hook
-  library. If `CLAUDE_PROJECT_DIR` is **unset** (e.g. some headless `-p` sessions),
-  the membership check is skipped and any existing edited file is processed. Either
-  way, to lint a file the hook skipped, run `shellcheck` on it directly.
+  library. Membership recognizes Windows 8.3 short-name spellings (`KYLESE~1`) of
+  in-project paths — a per-volume concern: only volumes with 8.3 generation
+  enabled produce such paths. If `CLAUDE_PROJECT_DIR` is **unset** (e.g. some
+  headless `-p` sessions), the membership check is skipped and any existing edited
+  file is processed. Either way, to lint a file the hook skipped, run `shellcheck`
+  on it directly.
 
 ## Requirements
 

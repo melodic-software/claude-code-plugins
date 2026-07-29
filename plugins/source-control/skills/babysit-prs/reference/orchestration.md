@@ -365,7 +365,13 @@ same-worktree protections.
   durable disposition with `manage_feedback_ledger.py dispose` while holding that PR's worker
   lease, so later snapshots report it as material history instead of a blocker.
 - Before starting an autonomous fix round for advisory-only bot findings (`P2`/nonblocking
-  suggestions), record it write-ahead with `manage_feedback_ledger.py record-advisory-round`. Keep
+  suggestions), record it write-ahead with `manage_feedback_ledger.py record-advisory-round`, then
+  run `safety.md`'s (a)/(b)/(c) taxonomy over this round's findings and stamp each D5 reply row
+  with its class marker **before** dispatching the fix. The taxonomy is a per-round duty, not an
+  escalation-time one: the second-consecutive-all-(c) tripwire reads markers left by earlier
+  rounds, so a round that classifies only when an escalation is already being prepared leaves the
+  tripwire nothing to read. Reconstruct the prior round's composition first, per that same
+  section. Keep
   iterating while rounds make real progress against real findings; only when the helper reports
   the cap reached — the rare runaway-loop case — report the findings for user decision instead of
   fixing. Clear blocking defects are never capped.
@@ -754,7 +760,7 @@ Each worker must:
 - **auto-resolve only pre-push-outdated threads.** A worker may resolve a review thread only when
   that thread was already `isOutdated` in the pre-push snapshot it was dispatched with, and only
   through `bash "${CLAUDE_PLUGIN_ROOT}/bin/source-control-babysit-resolve-thread" owner/repo#42 --allowed-owners <watched-owners>
-  --extra-bot-logins <extra-bot-logins> --autonomous --resolve` pinned with `--thread-id`, `--expected-comment-count`, and
+  --extra-bot-logins <extra-bot-logins> --self-logins @me,<self-logins> --autonomous --resolve` pinned with `--thread-id`, `--expected-comment-count`, and
   `--expected-last-updated` taken from that same snapshot (`safety.md`, thread-pin pair rule). A
   thread that became outdated only because of the worker's own push has not thereby been addressed
   — the push moving the diff under a finding does not answer the finding — so it is never
@@ -831,8 +837,8 @@ Never refresh branches, post review triggers, merge, enable auto-merge, force-pu
 GitHub settings, or auto-fix human-authored feedback — classify, reply with evidence, and
 surface human items instead. You may resolve a review thread only if it appears in the pre-push
 outdated-thread list above, via bash "${CLAUDE_PLUGIN_ROOT}/bin/source-control-babysit-resolve-thread"
-owner/repo#42 --allowed-owners <watched-owners> --extra-bot-logins <extra-bot-logins> --autonomous
---resolve --thread-id <id> --expected-comment-count <n> --expected-last-updated <ts>, with the pins
+owner/repo#42 --allowed-owners <watched-owners> --extra-bot-logins <extra-bot-logins> --self-logins
+@me,<self-logins> --autonomous --resolve --thread-id <id> --expected-comment-count <n> --expected-last-updated <ts>, with the pins
 taken from that list; a
 thread that becomes outdated only because of your own push is not addressed by that push — leave
 it. Never arm a background monitor or poll loop waiting on CI — check once, report exactly what

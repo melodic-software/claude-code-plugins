@@ -131,9 +131,11 @@ Report ONLY the ledger + a one-line summary count ("Extracted N findings: X CRIT
 
 1. Receive the ledger. Verify the row count matches the source comment's finding count
    (independent count via grep on the parent comment body for severity markers)
-2. For each ledger row, the main session runs D4.5 (react) + D5 (reply with the per-finding
-   sub-row from the ledger) + D6 (fix if VALID — fix now) + D7 (follow-up SHA) with verification
-   gates between each step
+2. For each ledger row, the main session runs D4.5 (react) + D4.6 (ground any `VALID (defer)` —
+   provenance test first; tracker item filed and verified BEFORE the D5 reply cites it) + D5
+   (reply with the per-finding sub-row from the ledger) + D6 (fix if VALID — fix now) + D7
+   (follow-up SHA) with verification gates between each step. A subagent ledger row saying
+   `VALID (defer)` is a classification, not a grounding — D4.6 runs on it like any other
 3. The subagent ledger is the D1–D4 work product. The main session NEVER skips D4.5–D7 by
    trusting the ledger alone — the ledger feeds the work, it doesn't replace it
 
@@ -174,6 +176,25 @@ D1–D7 cycles. Exploration and validation must run on the PR's head branch.
     identities — non-zero confirms. Use `pulls/comments/<id>/reactions` for inline review
     comments. **Exemption:** PR review BODIES have no reactions endpoint in the REST API — skip
     the reaction there; the D5 reply is the audit signal
+- [ ] D4.6 — **Ground a `VALID (defer)`.** A deferral ships the change without the fix, so it
+  counts as a disposition only when it is durable and someone else can find it: file a tracker
+  item carrying the finding's own evidence — the reviewer's claim, your D2–D3 validation, and
+  the file and line it lands on — and cite that item's id in the D5 reply. A deferral whose only
+  record is prose in a review thread is a dropped finding, and the thread stays open
+  - [ ] **Never defer a finding this change introduced.** The discriminator is the behavior on
+    the base branch, never the file the finding surfaced in: if the defect did not reproduce
+    before this change, this change introduced it, and it is `VALID (fix now)` — fix it, or
+    revert the cause. That covers a contract this change altered breaking an unchanged caller;
+    the caller's file being untouched is evidence about provenance, never a qualifier that
+    licenses deferral. `VALID (defer)` is available only for a defect that already reproduced on
+    the base branch. Provenance decides this, never severity: a self-introduced regression
+    wearing a low-severity badge is still a regression this change is shipping
+  - [ ] Record the work class the item was filed under, because it bounds when the finding gets
+    addressed: an autonomously-drainable class is a materially stronger deferral candidate than
+    a human-gated one, whose latency is unbounded
+  - [ ] **verify the item exists:** re-query it by id and confirm it is filed and open before
+    the D5 reply cites it — a cited id that does not resolve is the dropped finding this step
+    exists to prevent
 - [ ] D5 — Reply with the per-finding classification table + evidence (before fixing). Table
   format per §2 — includes the Reacted column. **Route the reply by comment type — REQUIRED,
   not interchangeable:** inline review comments (diff-anchored, `pulls/comments`) MUST reply
@@ -195,8 +216,24 @@ D1–D7 cycles. Exploration and validation must run on the PR's head branch.
   - [ ] **verify follow-up reply posted — same surface routing as D5:** inline thread →
     `pulls/<pr>/comments` filtered by `in_reply_to_id`; issue-level →
     `gh api repos/{owner}/{repo}/issues/<pr>/comments --jq '.[-1].body'`
-- [ ] D7.5 — Resolve review thread — **author-conditional, inline review comments only** (this
-  section is the canonical policy). Resolve ONLY threads whose OPENING comment is authored by a
+- [ ] D7.5 — Resolve review thread — **author- and classification-conditional, inline review
+  comments only** (this section is the canonical policy). **Resolution is a thread-level act
+  while dispositions are per-finding, so eligibility is a property of the whole thread:** every
+  finding extracted from it per §2 must carry one of three recorded dispositions — `VALID (fix
+  now)` with the fix pushed and cited (D6–D7); `VALID (defer)` grounded per D4.6 with the item id
+  cited; or `INCORRECT` with the counter-evidence posted. One dispositioned finding does not make
+  a multi-finding thread eligible. `UNCERTAIN` is never resolved — it escalates, and a single
+  `UNCERTAIN` holds its whole thread open. Resolving early is not a cosmetic error: a resolved
+  thread drops every comment it carries out of the readiness denominator
+  (`babysit_classify.py::thread_is_open`), so a still-unaddressed finding inside it disappears
+  from the classification gate and the PR can merge over it. This is what
+  `skills/babysit-prs/reference/safety.md`'s Never Do Automatically entry "Resolve any thread over
+  a live, unaddressed finding" means operationally: *addressed* is one of those three records for
+  every finding present, never the absence of one. **What a tier may act on is bounded by its own
+  tooling, and this list never overrides that** — a disposition making a thread eligible here does
+  not by itself authorize a resolve the invoking tier's guards refuse (see the tier notes below).
+  The author conditions apply in full — this narrows the eligible set and never widens it. Resolve
+  ONLY threads whose OPENING comment is authored by a
   BOT reviewer that you addressed. NEVER resolve HUMAN-authored threads — the human resolves
   their own after verifying the fix. NEVER resolve your OWN threads (any of your posting
   identities — same self set as §1 step 1). Skip issue-level comments (no thread). **Thread
@@ -213,6 +250,35 @@ D1–D7 cycles. Exploration and validation must run on the PR's head branch.
   `author{__typename login}` to apply the conditional in one query
   - [ ] **verify thread resolved:** query the thread node via `gh api graphql` — `isResolved`
     must be `true`
+
+**Who authorizes a resolution that ships no fix.** In a merge-capable tier, a `VALID (defer)`
+resolution on a PR the same session intends to merge is not that session's call. The requirement
+is a property, not one mechanism: the context adjudicating the deferral must not be the context
+trying to merge. Where the invocation has an independent resolution dispatch, it goes there —
+`skills/babysit-loop/reference/pre-escalation-dispatch.md`, reachable only on the explicit
+`autopilot` + `--merge c3-this-run` widening. Where it has none, which is every other
+merge-capable path, the session neither resolves the thread nor merges on it: report the PR with
+the grounded deferral named and leave the call to the user. Fail closed — a path with no
+independent authorization available has no self-authorized route to merge over its own deferral.
+Outside a merge-capable tier the classification stands alone, because nothing merges on it.
+
+**Non-outdated threads in an autonomous tier route the same way, for the same reason.** The
+guarded resolver's `--autonomous` mode resolves only a thread GitHub reports `isOutdated`, because
+that is the one deterministic "addressed" signal it can check — otherwise the actor is, in the
+script's own words, "signing its own permission slip" on the merge gate's zero-unresolved-threads
+predicate. Prose fixes frequently satisfy a finding by rewriting elsewhere, leaving the anchored
+lines untouched and the thread current, so a genuinely addressed finding is routinely
+non-outdated. That is not a licence to widen the guard: **worker-side self-resolution stays
+outdated-only, exactly as the script enforces.** A current bot thread whose finding is addressed
+goes to the independent resolution dispatch, which verifies the D7.5 disposition — fix pushed and
+cited, deferral grounded per D4.6, or `INCORRECT` with counter-evidence — and resolves it through
+the wrapper. The merging worker never resolves it. Where no independent dispatch is reachable —
+the same limit as above, since it exists only on the explicit `autopilot` + `--merge c3-this-run`
+widening — the identical fail-closed fallback applies: leave the thread unresolved, do not merge,
+and report the PR with the addressed-but-unresolvable thread named. An unreachable authorization
+is never a licence to self-resolve. Never reach past the wrapper to raw
+`resolveReviewThread` to get around this; that bypasses every guard the wrapper exists to apply,
+and bulk loops over it are refused by design.
 
 **"Done" means GitHub shows evidence.** A per-finding work item is addressed only when the
 verification sub-step confirms the action landed on GitHub. Model memory of "I posted a reply"

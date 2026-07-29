@@ -5,9 +5,13 @@
 #
 # Reach is deliberately local-only — an OS-native toast (macOS/Linux), plus a
 # best-effort terminal bell + OSC 9 written straight to the controlling TTY. It
-# reaches an operator AT THIS MACHINE; there is no remote/Slack/push transport
-# here (none exists as a marketplace primitive yet), so it does NOT cover a
-# closed laptop or a dead process — those emit no hook event at all.
+# reaches an operator AT THIS MACHINE. Off-machine transport does exist as
+# first-party mechanisms, but its home is the consuming repo's settings, not
+# this shell library — the loop-lane convention
+# (docs/conventions/loop-lane/README.md in this plugin's marketplace repository)
+# owns that seam and its verified grounding in §2. This primitive stays the local
+# channel, and no hook-borne channel covers a closed laptop or a dead process —
+# those emit no hook event at all.
 #
 # Why this reimplements — rather than sources — the desktop-notification
 # plugin's script:

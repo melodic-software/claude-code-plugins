@@ -154,16 +154,46 @@ value and its unset fallback.
 Before reporting a blocker as real — and before raising a "this PR is not converging," "should
 rounds be capped," or "should we pause the loop" question to the user — re-query GitHub and read
 the actual content of every currently-unresolved review thread on the PR(s) in question. Never
-escalate on unresolved-thread count or round number alone.
+escalate on unresolved-thread count or round number alone. This section binds every escalation of
+that shape regardless of which skill's escalation path carries it — a lane escalating through a
+loop's own escalation contract is not outside it.
 
 - Classify each unresolved thread: (a) a genuine duplicate — the same finding recurring after a
-  fix that should have addressed it, real evidence of non-convergence; or (b) a new, distinct,
-  code/line-cited finding — expected depth on complex or security-sensitive logic, not churn.
-- Escalate a bounding/cap-policy question only when verification shows (a), or a finding that is
-  structurally impossible to resolve (the check itself is external or non-deterministic). If
-  every unresolved thread is (b) and each is individually fixable — a mechanical fix or a
-  clearly-scoped judgment call — fix directly instead. A high round count alone is not evidence
-  of non-convergence.
+  fix that should have addressed it, real evidence of non-convergence; (b) a new, distinct,
+  code/line-cited finding — expected depth on complex or security-sensitive logic, not churn; or
+  (c) a self-inflicted finding — new and distinct, but against text this lane's own prior fix on
+  this PR introduced. Provenance decides (c), never severity.
+- Fix (c) like any other in-scope defect — it is never deferrable, because it is a defect this
+  change is shipping (`${CLAUDE_PLUGIN_ROOT}/reference/review-discipline.md`, D4.6) — but count
+  it. A second consecutive round whose findings are *all* (c) means incremental patching is
+  injecting defects about as fast as it removes them; that is the non-convergence signal a round
+  count only approximates. **The "second consecutive" test must survive context rollover, and the
+  durable ledger records only that a round happened, not what it contained**
+  (`manage_feedback_ledger.py::record_advisory_round` stores timestamps per head). Two duties
+  follow, and the second only works because of the first:
+  - **Classify and stamp on EVERY advisory round, not only when an escalation is already being
+    prepared.** This section's heading scopes when to *escalate*; the classification itself is a
+    per-round duty, because a round that runs it only at escalation time has already lost the
+    history the tripwire consumes. Run the (a)/(b)/(c) taxonomy over the round's findings before
+    dispatching its fix (`orchestration.md`'s advisory-round step), and record the literal marker
+    `(class (a))`, `(class (b))`, or `(class (c))` beside the disposition in the D5 reply row for
+    every finding classified — the canonical D5 vocabulary (VALID/INCORRECT/UNCERTAIN) does not
+    carry this taxonomy, so it must be written alongside. An unstamped round is invisible to the
+    next worker, which is the same as never having classified it.
+  - **Reconstruct at round start.** Derive the previous round's composition from the PR itself:
+    read the prior round's threads (resolved ones included; resolution hides nothing from a
+    direct thread query) and count the recorded `(class (c))` markers. A fresh worker that skips
+    this reconstruction and sees only the current round cannot fire the tripwire, which is
+    exactly when it is needed. A prior round with no markers found is UNKNOWN, not (a)/(b) —
+    treat a current all-(c) round following an UNKNOWN round as tripwire-eligible and say so in
+    the escalation rather than silently resetting the count. Change METHOD rather than stopping: rewrite the contested section
+  whole in one commit, or report it for a human decision. It is never a licence to ship a known
+  defect.
+- Escalate a bounding/cap-policy question only when verification shows (a), a second consecutive
+  all-(c) round, or a finding that is structurally impossible to resolve (the check itself is
+  external or non-deterministic). If every unresolved thread is (b) or (c) and each is
+  individually fixable — a mechanical fix or a clearly-scoped judgment call — fix directly
+  instead. A high round count alone is not evidence of non-convergence.
 - This verification is required even when a sub-agent, advisor, or other second opinion reads
   round-count or metadata as a non-convergence pattern — that read is a hypothesis to test
   against actual thread content, never a conclusion to act on or escalate over.
@@ -226,6 +256,88 @@ only from the merge gate's `ready` field.
 The merge gate is Python, so the Python-free degrade (`loop.md`) cannot run it at all. That path
 reports merge-readiness as **unchecked** — an unavailable merge gate is never grounds to promote
 `READINESS_OK` into a merge-ready claim.
+
+## Review-Settle Hold
+
+`mergeStateStatus == CLEAN` is a statement about the *present*, and a reviewer that re-reviews on
+push contradicts it for the few minutes its next round takes. GitHub reports the PR mergeable that
+whole time — the review does not exist yet, so there is no unresolved thread to block on — and a
+gate reading only mergeability merges past findings that land seconds later. That is not
+hypothetical: `#1594` merged 4m40s after its final commit and the reviewer's round posted 26
+seconds afterward, carrying two valid findings, one of them a regression that PR introduced
+(`#1629`, `#1613`).
+
+The hold closes that window and is **dormant unless configured**: with
+`babysit_review_bot_logins` and `babysit_review_settle_minutes` both set, the gate adds a policy
+blocker while a configured reviewer still owes the **live head** a review and that head is younger
+than the window. Its shape, and why each part is that way:
+
+- **A review of the live head clears it outright**, before the clock is consulted. The common case
+  — the reviewer already reviewed this head — costs nothing and adds no latency. Evidence is a
+  submitted review *or* an inline review comment whose own commit id equals the head, by a
+  configured login **that GitHub types as a `Bot`**: the same current-head test
+  `review-trigger.md` specifies, reused rather than restated. A review of an earlier head is not
+  evidence about this one. That shared test also admits a login the operator declared in
+  `--extra-bot-logins` (#1642), but the merge gate does not pass that declaration through, so at
+  *this* call site the `Bot`-type requirement still holds and is a real limitation — a configured
+  reviewer GitHub reports as a `User` never clears the hold early, so every merge waits the full
+  window. Fail-closed, but permanently slower until the gate threads the declaration through.
+- **The window bounds it.** A reviewer that never engages must not wedge a PR, so the hold expires
+  rather than waiting forever. Past the window the gate stops waiting and merges on its ordinary
+  criteria. The window is therefore a latency budget, not a review requirement: it buys the
+  reviewer time, it does not guarantee a review happened.
+- **An unestablishable head age holds rather than merges.** If neither clock below can be read,
+  whether the reviewer still owes this head a review is undecidable, and a transient read failure
+  must not be the thing that silently disables the hold. The block is self-clearing on the next run.
+- **Both keys or neither.** Either alone is a usage error (exit 2), not an inert flag — a
+  half-configured hold must never read as an active one. No duration is defaulted in the gate:
+  how long a reviewer takes is a property of that reviewer, so the operator supplies it.
+
+Set the window above the reviewer's observed latency, measured against that reviewer rather than
+inherited from this file. Priced honestly, the hold costs up to one window of latency on any merge
+whose head the reviewer has not yet reviewed — including every merge when the reviewer is down —
+in exchange for not merging past a review already on its way.
+
+**Which clock the age is measured on**, in order, because the difference decides whether the hold
+fires at all:
+
+1. **The most recent CI start on the live head**, read from the **raw** status-check rollup the
+   gate already fetches — no extra request, and raw rather than classified because the classifier
+   keeps only the newest run per check identity. GitHub generates the timestamp after the push, so
+   it can only make a head look *more* recent than it is, which errs toward holding.
+
+   **Newest rather than oldest, and the direction is the safety property.** Check runs live on the
+   SHA, so a head returning to a previously-checked SHA — force-push A → B → A — still carries A's
+   original runs even though the re-push draws a fresh review. Reading the oldest would call a
+   brand-new head settled and merge straight through the window. The cost of reading the newest is
+   bounded and lands on latency: a re-run extends the wait by up to one window, and a head the
+   reviewer has not reviewed is one that should be held anyway.
+
+   **The same timestamp is also the review-recency floor.** GitHub keeps a review against the SHA,
+   not against the head position, so the earlier occurrence's review of A still matches `commit_oid`
+   when A returns as head — and matching on the SHA alone let that stale review clear the hold
+   before any clock was read, restoring the race through the short-circuit rather than through the
+   clock. A review clears the hold only when it postdates the newest CI start on the live head; one
+   that cannot be dated does not clear it. A check start cannot distinguish a restored head from a
+   re-run on the standing head, so a re-run minted after the review re-arms the hold for up to one
+   window instead of short-circuiting past it — the fail-closed direction, paying latency to refuse
+   the safety failure.
+
+2. **The head commit's committer date**, only when the rollup carries no usable timestamp. A weaker
+   proxy that errs the wrong way: a commit pushed long after it was written — local batching, an
+   offline delay, or replaying an existing commit — reads as already-settled, and the hold silently
+   does not fire on exactly the push that triggered a fresh review. A repository with no checks on
+   its PRs gets only this fallback, so the hold is best-effort there.
+
+**One residual, stated because it is not closed.** If a force-push back to a previously-checked SHA
+produces new check runs, the newest timestamp is fresh: the head is aged from it, and any earlier
+review of that SHA falls below the recency floor, so the hold fires correctly whether or not that
+review exists. If GitHub instead reuses the existing results and mints none, the rollup carries only
+the old timestamps, there is no floor above them, and that head reads as settled. Which of those
+happens is not verified here, and no queryable "this SHA became the head at T" record covers both
+ordinary pushes and force-pushes — the force-push timeline event covers only the latter. Treat the
+hold as strong for ordinary pushes and best-effort across a head reverting to an already-tested SHA
+that mints no new checks.
 
 ## Guarded Mutation Wrappers
 
@@ -291,14 +403,40 @@ auto-mode safety classifier and blocks the call before the wrapper runs.
 - Both wrappers **fail closed**: invoked without `--allowed-owners`, they exit `3` and refuse to
   act. The read-only forms are `source-control-babysit-merge owner/repo#42 --allowed-owners
   <watched-owners>` (merge-readiness gate) and `source-control-babysit-resolve-thread
-  owner/repo#42 --allowed-owners <watched-owners> --extra-bot-logins <extra-bot-logins>`
-  (thread list).
+  owner/repo#42 --allowed-owners <watched-owners> --extra-bot-logins <extra-bot-logins>
+  --self-logins @me,<self-logins>` (thread list).
 - **`--extra-bot-logins <extra-bot-logins>` rides on every resolve-thread form**, listing and
   mutating alike, whenever `babysit_extra_bot_logins` is configured. Bot classification is what
   decides which threads the resolver may touch at all, and structural detection cannot see a
   registered non-structural bot account (no `[bot]` suffix, API `__typename` of `User`); omitting
   the flag silently reclassifies that account's threads as human and skips them in worker tier.
   Omit the flag only when the key is unset.
+- **The review-settle pair rides on every merge form** when `babysit_review_bot_logins` and
+  `babysit_review_settle_minutes` are both configured: `--review-bot-logins <review-bot-logins>
+  --review-settle-minutes <review-settle-minutes>`. Dropping it from a merge command silently
+  restores the pre-`#1629` behavior of merging inside a re-review's latency window, and supplying
+  one half without the other is a usage error (exit `2`) rather than a partial hold. Omit the pair
+  only when **both** keys are unset — see §Review-Settle Hold.
+- **`babysit_review_settle_minutes` set with `babysit_review_bot_logins` unset is a configuration
+  error, and it must be refused HERE rather than rendered away.** Omitting both flags because one
+  key is missing is the one case the CLI's exit `2` cannot catch: the lone flag never reaches it,
+  so the merge proceeds with the hold silently dormant under a setting that looks active. Stop and
+  report the misconfiguration instead of constructing the merge command. The converse is not an
+  error — `babysit_review_bot_logins` alone is the review-trigger module's own configuration and
+  leaves the settle hold correctly dormant.
+- **`--self-logins @me,<self-logins>` rides on every resolve-thread form too**, listing and
+  mutating alike, always (`@me` resolves your own `gh` login; append `babysit_self_logins`
+  extras). The bot-only classifier (`project_thread`'s `botOnly`) requires a BOT OPENER **and**
+  inspects every other fetched participant — so the worker's OWN reply to a bot thread (a
+  classification reply, a `Fixed in <sha>` follow-up) is itself a comment the classifier sees.
+  Without `--self-logins` that reply is indistinguishable from a genuine third-party human joining the
+  thread: `botOnly` goes false, which locks the thread out of the default bot-only scope, and
+  `--include-human` stays unset by design in worker/safe modes — so nothing lifts it back in and a
+  bot thread the worker correctly handled is permanently unresolvable by the normal flow.
+  `--self-logins` marks the caller's own posting identity as neutral for that test instead —
+  neutral as a REPLY only: the OPENING comment must still be an ACTUAL bot's, so a thread the
+  worker itself opened stays out of scope even after a bot replies to it (`review-discipline.md`
+  D7.5 forbids resolving your own threads). Omit the flag only when `babysit_self_logins` is unset.
 - The merge wrapper mutates only with `--merge --expected-head <post-push-head-sha> --method
   <merge-method>`, and rejects `--allow-unpinned-head` outright — there is no unpinned merge. The
   expected-head pin semantics live in `SKILL.md`; do not re-derive them here.
@@ -393,10 +531,11 @@ it, and any later gate-off flip, is a separate announced operator step.
 
   The umbrella `--autopilot-merge-tier` is fail-closed: it refuses (exit `3`) unless
   `--lane-logins`, `--approver-bot-logins`, and `--block-labels` are all supplied, and any of
-  those three without the umbrella is a usage error (exit `2`). Add `--method <merge-method>` and
-  `--extra-dependency-manager-logins <extra-dependency-manager-logins>` when configured, exactly as
-  for the base merge readiness gate above (omit each when its value is empty or a literal
-  unexpanded token).
+  those three without the umbrella is a usage error (exit `2`). Add `--method <merge-method>`,
+  `--extra-dependency-manager-logins <extra-dependency-manager-logins>`, and the review-settle pair
+  `--review-bot-logins <review-bot-logins> --review-settle-minutes <review-settle-minutes>` when
+  configured, exactly as for the base merge readiness gate above (omit each when its value is empty
+  or a literal unexpanded token; omit the settle pair as a pair, never one half).
 
 - **Second-account approve mechanic.** The approving review the gate's distinct-bot criterion
   requires is submitted out-of-band by the agent — the gate only verifies one exists on the live
@@ -569,7 +708,7 @@ narrow allow rule.
 For a merge:
 
 ```text
-bash "${CLAUDE_PLUGIN_ROOT}/bin/source-control-babysit-merge" owner/repo#42 --allowed-owners <watched-owners> --merge --expected-head <post-push-head-sha> --method <merge-method> --extra-dependency-manager-logins <extra-dependency-manager-logins>
+bash "${CLAUDE_PLUGIN_ROOT}/bin/source-control-babysit-merge" owner/repo#42 --allowed-owners <watched-owners> --merge --expected-head <post-push-head-sha> --method <merge-method> --extra-dependency-manager-logins <extra-dependency-manager-logins> --review-bot-logins <review-bot-logins> --review-settle-minutes <review-settle-minutes>
 ```
 
 When the autopilot merge tier is enabled, this degraded handoff carries the tier flags too:
@@ -584,13 +723,13 @@ assessment. Pin each vetted thread individually (the wrapper accepts exactly one
 per invocation; issue one pinned command per thread) with the thread-pin pair rule above:
 
 ```text
-bash "${CLAUDE_PLUGIN_ROOT}/bin/source-control-babysit-resolve-thread" owner/repo#42 --allowed-owners <watched-owners> --extra-bot-logins <extra-bot-logins> --autonomous --resolve --thread-id <id> --expected-comment-count <n> --expected-last-updated <ts>
+bash "${CLAUDE_PLUGIN_ROOT}/bin/source-control-babysit-resolve-thread" owner/repo#42 --allowed-owners <watched-owners> --extra-bot-logins <extra-bot-logins> --self-logins @me,<self-logins> --autonomous --resolve --thread-id <id> --expected-comment-count <n> --expected-last-updated <ts>
 ```
 
 for the unattended-worker case, or
 
 ```text
-bash "${CLAUDE_PLUGIN_ROOT}/bin/source-control-babysit-resolve-thread" owner/repo#42 --allowed-owners <watched-owners> --extra-bot-logins <extra-bot-logins> --resolve --include-human --thread-id <id> --expected-comment-count <n> --expected-last-updated <ts>
+bash "${CLAUDE_PLUGIN_ROOT}/bin/source-control-babysit-resolve-thread" owner/repo#42 --allowed-owners <watched-owners> --extra-bot-logins <extra-bot-logins> --self-logins @me,<self-logins> --resolve --include-human --thread-id <id> --expected-comment-count <n> --expected-last-updated <ts>
 ```
 
 for the autopilot case. This degradation is a successful, material finding to report, not a
@@ -643,7 +782,11 @@ as done and re-running the gate.
   merge-ready list. The tier never routes around the gate and never rubber-stamps: the bot
   review is a real review pass, and the ruleset stays meaningful. Absent the enable flag this
   tier does not exist and the first bullet governs unchanged.
-- Enable auto-merge.
+- Enable auto-merge. Under a base whose ruleset requires review-thread resolution, plus a
+  reviewer that re-reviews each pushed head, a review round landing after `--auto` is armed
+  leaves the PR permanently unmergeable while the lane has already reported success and moved
+  on. Merge synchronously against a `ready: true` merge-gate run, or report the PR as
+  merge-ready and leave it in the queue.
 - Force-push.
 - Rebase or force-update a PR branch as freshness maintenance.
 - Change GitHub settings by hand.

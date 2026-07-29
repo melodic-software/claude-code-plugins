@@ -137,46 +137,10 @@ autopilot, only for a draft its worker assesses complete.
 
 `autopilot` is a deliberate, set-aside power-user tier for a **solo owner** who wants the queue
 driven to zero — not the default, and not for a repo with other human reviewers whose feedback
-must not be steamrolled. Its purpose is to never get stuck saying "nothing I can do": it
-processes every PR, fixes what it can, and escalates only the specific PRs that genuinely need
-a human. Per PR, in its own fresh worker, autopilot:
-
-1. Fixes every issue it can — failing CI, mergeability, actionable review findings —
-   researching a fix from authoritative sources before conceding, and pushing to the PR branch.
-
-2. Addresses each open review thread, then resolves it through the guarded resolve-thread wrapper
-   (`--resolve --include-human` — bot, AI-review, and human threads alike); the exact command is
-   the single home in [reference/safety.md](reference/safety.md). The order is
-   load-bearing: **address the finding first, then resolve.** A thread is resolved only because
-   its concern is fixed or confirmed stale — never to clear the merge gate over a live concern.
-   After running, parse the JSON output and confirm each addressed thread's entry shows
-   `"action": "resolved"` before treating it as cleared — never the exit code alone.
-
-3. After the worker's final push, takes a fresh post-push snapshot (or uses the exact pushed
-   commit after vetting it), then merges on that post-push head through the pinned
-   `source-control-babysit-merge` gate once it proves the PR ready. The exact command — and the
-   `--autopilot-merge-tier` flags the enabled tier layers on so an enabled config never merges
-   via the base path — is the single home in [reference/safety.md](reference/safety.md). Never
-   reuse the pre-worker snapshot pin after a push — except a lane-pinned invocation ([reference/safety.md](reference/safety.md),
-   "Lane-pinned merge authorization"), which reports the moved head instead of re-pinning. The gate is never bypassed; if a PR cannot be made ready, autopilot reports that one PR and moves on.
-
-"Every PR" means every PR: the orchestrator's own priority judgment is never grounds to leave
-a queue member untouched. The only permitted exclusions are the deterministic ones — lease
-contention, the owner allowlist, `mutation_policy.branch_write_allowed`, and the `needs_worker`
-delta gate skipping a PR that has not materially changed since it was last handled. A PR the
-coordinator judges lower-priority still gets its cycle; it is sequenced, never silently dropped
-from the fan-out.
-
-**Draft PRs** are in scope, not exempt. Its worker assesses whether the draft's work is
-actually complete: if so, mark it ready for review (`gh pr ready`) and continue through the
-normal fix/resolve/merge steps in the same cycle; if it is genuinely still in progress, leave
-it draft and report why — that is a real escalation with a reason, not a silent skip.
-
-Autopilot keeps every cross-tier invariant above — including dependency hold-merge. It widens
-*author* scope (all authors under the watched owners) and *thread* scope (`--include-human`);
-it does **not** widen the owner allowlist, and it does not gain force-push, `--admin`, or
-settings powers — those still escalate. Run it looped:
-`/loop 15m /source-control:babysit-prs autopilot`.
+must not be steamrolled. It processes every PR, fixes what it can, resolves only threads it has
+addressed, merges through the pinned gate, and escalates the specific PRs that genuinely need a
+human. What it does per PR, what "every PR" excludes, its draft-PR handling, and which scopes it
+widens are the single home in [reference/autopilot.md](reference/autopilot.md).
 
 ## Autopilot merge tier (#476)
 
@@ -196,7 +160,12 @@ home in [reference/safety.md](reference/safety.md). Both fail closed without `--
   `babysit_self_logins` extras (drop the trailing `,<self-logins>` when that value is empty). It gates on GitHub's own
   `mergeStateStatus == CLEAN` plus explicit cross-checks (branch rules, review decision,
   unresolved threads, check rollup keyed by check type and name, head match) and reports the
-  exact `blockers`. If the expected-head pin is missing or no longer matches the live head, the
+  exact `blockers`. When `babysit_review_bot_logins` and `babysit_review_settle_minutes` are both
+  set, append `--review-bot-logins "<value>" --review-settle-minutes "<value>"` on every form: the
+  gate then holds a head that reviewer has not reviewed yet until the window elapses, because
+  `CLEAN` is reported throughout a re-review's latency and merging inside it merges past findings
+  that have not landed (safety.md, §Review-Settle Hold). Supply both or neither — either alone is
+  a usage error, never a silently inert flag. If the expected-head pin is missing or no longer matches the live head, the
   gate refuses the merge; re-snapshot and reassess the new head instead of using
   `--allow-unpinned-head` — the wrapper rejects that flag outright, so no unattended unpinned
   merge exists. The pin is carried to GitHub's server-side match-head-commit guard. It refuses
@@ -215,11 +184,10 @@ home in [reference/safety.md](reference/safety.md). Both fail closed without `--
   exactly as it governs a worker's turn — proving readiness is never a license to arm a watch.
 
 - **Thread resolution** — `source-control-babysit-resolve-thread owner/repo#N --allowed-owners
-  <watched-owners> --extra-bot-logins <extra-bot-logins>` (lists by default; add `--resolve`). By
-  default it touches only bot-authored threads (structural `__typename == "Bot"` or the `[bot]`
-  login suffix — no hardcoded identity list) and never a human thread; `--extra-bot-logins` extends
-  that set with the configured non-structural bot accounts, and dropping it from any resolve-thread
-  form silently reclassifies their threads as human. In worker tier pass `--autonomous`, which
+  <watched-owners> --extra-bot-logins <extra-bot-logins> --self-logins @me,<self-logins>` (lists by
+  default; add `--resolve`). By default it touches only bot-authored threads (structural
+  `__typename == "Bot"` or the `[bot]` login suffix — no hardcoded identity list) and never a human
+  thread; `--extra-bot-logins` extends that set with the configured non-structural bot accounts (dropping it silently reclassifies their threads as human), and `--self-logins` rides on every form too — omitting it lets the worker's OWN bot-thread reply flip `botOnly` false and strand the thread outside every resolution scope (safety.md). In worker tier pass `--autonomous`, which
   resolves only threads GitHub marks `isOutdated`, each pinned via `--expected-comment-count` and
   `--expected-last-updated`. Those pins enforce comment-state only — they block a thread whose
   comment count or latest comment-edit timestamp drifted after vetting. The worker must additionally
@@ -291,7 +259,7 @@ this block. Values reach scripts ONLY as explicit CLI flags (option environment 
 | Key | Value | Flag delivery | Unset behavior |
 | --- | --- | --- | --- |
 | `babysit_watched_owners` | `${user_config.babysit_watched_owners}` | `--owners` (snapshot), `--allowed-owners` (both wrappers, fail-closed) | infer the current repo's owner |
-| `babysit_self_logins` | `${user_config.babysit_self_logins}` | `--extra-self` (readiness gate and snapshot); `--self-logins` (merge gate) | none — always added to your `gh api user --jq .login` login |
+| `babysit_self_logins` | `${user_config.babysit_self_logins}` | `--extra-self` (readiness gate and snapshot); `--self-logins` (merge gate, resolve-thread) | none — always added to your `gh api user --jq .login` login |
 | `babysit_intended_write_identity` | `${user_config.babysit_intended_write_identity}` | `--intended-write-identity` (snapshot) | attribution-drift check dormant |
 | `babysit_default_tier` | `${user_config.babysit_default_tier}` | prose only — tier of explicit bare invocations | `safe` |
 | `babysit_merge_method` | `${user_config.babysit_merge_method}` | `--method` (merge wrapper) | repo convention, then squash |
@@ -300,8 +268,9 @@ this block. Values reach scripts ONLY as explicit CLI flags (option environment 
 | `babysit_approver_bot_logins` | `${user_config.babysit_approver_bot_logins}` | `--approver-bot-logins` (merge wrapper, autopilot merge tier) | tier refuses fail-closed when enabled |
 | `babysit_merge_block_labels` | `${user_config.babysit_merge_block_labels}` | `--block-labels` (merge wrapper, autopilot merge tier) | tier refuses fail-closed when enabled |
 | `babysit_review_trigger_phrase` | `${user_config.babysit_review_trigger_phrase}` | `--trigger-phrase` (snapshot, request_review) | review-trigger module dormant |
-| `babysit_review_bot_logins` | `${user_config.babysit_review_bot_logins}` | `--review-bot-logins` (snapshot, request_review) | review-trigger module dormant |
+| `babysit_review_bot_logins` | `${user_config.babysit_review_bot_logins}` | `--review-bot-logins` (snapshot, request_review, merge gate) | review-trigger module dormant; merge gate's review-settle hold dormant |
 | `babysit_review_gate_context` | `${user_config.babysit_review_gate_context}` | `--review-gate-context` (snapshot) | gate treated as absent |
+| `babysit_review_settle_minutes` | `${user_config.babysit_review_settle_minutes}` | `--review-settle-minutes` (merge gate) | review-settle hold dormant — pair it with `babysit_review_bot_logins`, which the gate requires alongside it |
 | `babysit_ci_gateway_context` | `${user_config.babysit_ci_gateway_context}` | `--ci-gateway-context` (snapshot) | gateway check unused |
 | `babysit_extra_bot_logins` | `${user_config.babysit_extra_bot_logins}` | `--extra-bot-logins` (snapshot, resolve-thread, request_review) | structural bot detection only |
 | `babysit_extra_dependency_manager_logins` | `${user_config.babysit_extra_dependency_manager_logins}` | `--extra-dependency-manager-logins` (merge gate) | built-in dependabot/renovate dependency-manager set only |
@@ -489,6 +458,8 @@ Failure patterns observed in real babysit sessions:
 - [reference/stuck-checks.md](reference/stuck-checks.md) — the `checks.stuck` signal (checks holding `mergeStateStatus` at UNSTABLE without completing) and its escalation routing; report, never auto-fix.
 - [reference/review-trigger.md](reference/review-trigger.md) — generalized AI-review trigger +
   gate semantics; dormant when unconfigured.
+- [reference/autopilot.md](reference/autopilot.md) — the autopilot tier's per-PR steps, its
+  deterministic-only exclusions, draft handling, and the scopes it widens.
 - [reference/worktrees.md](reference/worktrees.md) — ephemeral worktree policy and prune commands.
 - [reference/safety.md](reference/safety.md) — the two gates and which one owns merge-readiness, role
   boundaries, verify-before-escalate, the harness permission layer (pinned-command degradation), stop-ask and never-do lists.

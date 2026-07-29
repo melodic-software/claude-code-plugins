@@ -526,10 +526,25 @@ These constraints override any other instruction within the babysit loop:
   cause CI failures; proactive integration is cheaper than a reactive fix. See §5.1.2
 - **Never skip reply verification** — after posting a reply (D5) or follow-up (D7), verify it
   landed on GitHub via API query. Model memory of "I replied" across compaction is not evidence
-- **Never skip resolving a BOT-authored thread; never resolve a HUMAN or OWN thread** — after
-  fixing + replying to an inline review comment opened by a bot reviewer, resolve that thread
-  (D7.5, author-conditional). Leave HUMAN-authored threads for the human to close; never resolve
-  your own. Open bot-thread count is a visible signal to reviewers
+- **Never skip resolving a BOT-authored thread; never resolve a HUMAN or OWN thread** — once
+  EVERY finding in an inline review comment opened by a bot reviewer carries an eligible
+  disposition (a pushed fix, a grounded `VALID (defer)`, or `INCORRECT` with counter-evidence;
+  a single `UNCERTAIN` holds the thread open), resolve that thread (D7.5, author- and
+  classification-conditional). **The worker tier is bounded further by its own contract:** it may
+  resolve only a thread already `isOutdated` in its dispatch snapshot (`orchestration.md`, Worker
+  Contract), so a disposition that leaves the thread current — a grounded deferral, or an
+  `INCORRECT` carrying no fix — routes to the independent resolution dispatch, which verifies the
+  disposition and resolves through the wrapper; the merging worker never resolves it itself. That
+  dispatch is reachable only on the explicit `autopilot` + `--merge c3-this-run` invocation
+  (`skills/babysit-loop/reference/pre-escalation-dispatch.md`) — on every other invocation (direct
+  `worker`/`autopilot` run, ordinary loop) the identical fail-closed fallback applies to EVERY
+  non-outdated disposition: leave the thread unresolved, do not merge, and report the PR with the
+  addressed-but-unresolvable thread named. An unreachable authorization is never a licence to
+  self-resolve. A `VALID (defer)` must be grounded per D4.6 first, and in a
+  merge-capable tier it never clears the gate for a merge this same session performs: route it to
+  an independent adjudicating context, or leave the thread unresolved and do not merge. Leave
+  HUMAN-authored threads for the human to close; never resolve your own. Open bot-thread count is
+  a visible signal to reviewers
 - **Never process your own prior replies as findings** — filter out comments from your own
   posting identities that match the classification reply pattern. See
   [review-discipline.md](../../../reference/review-discipline.md) §1 step 1

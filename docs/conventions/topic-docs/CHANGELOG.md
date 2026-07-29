@@ -1,5 +1,102 @@
 # Changelog — topic-docs convention
 
+## 2.4.1 — 2026-07-29
+
+Docs-only, no tier, key, slug, or visibility change: the no-hoisting decision's "What would
+reopen it" label becomes "Recheck trigger" and cites the
+[upstream-drift convention](../upstream-drift/README.md) (#1638), the new owner of the concept's
+single name and shape. The ephemeral row's "Re-derivation trigger" label, added at 2.4.0 while
+that migration was in review, adopts the same name and citation. Both triggers are unchanged.
+
+## 2.4.0 — 2026-07-27
+
+- **An Ephemeral row joins the tier table** (additive). The table sorts
+  documents by one question — does anything downstream enforce against
+  this? — which cannot express lifetime, so its finest-grained cell, the
+  memory tier, conflated state a later reader must find with files
+  nothing downstream ever reads again. With no row naming the second
+  kind, two plugins answered the same unasked question differently:
+  `adhd:clarify` reached for the session scratchpad — an undocumented
+  harness path (zero occurrences in the full docs corpus, keyed by
+  working directory, and declined three times upstream as a supported
+  surface) — while `architecture:improve` had independently settled on a
+  `mktemp` temp file. That divergence, not a shared mistake, is the
+  trigger: the convention registry calls for an owner doc before a
+  second plugin adopts, and two incompatible answers were already in
+  the tree. This row names the tier and moves `adhd:clarify` off the
+  scratchpad; `architecture:improve` keeps its existing temp behavior
+  and merely gains the contract's name for it. The row states five rules (one deterministic path; the lifetime
+  outlives the call, so a producer that returns a path never deletes the
+  file before returning; never the scratchpad; nothing durable; the FORM
+  of any temp-root override is a manifest `userConfig` rather than a
+  tracked key), carries a re-derivation trigger, and records why
+  git-visibility, promotion-stage, and write-contention each needed no
+  change.
+
+  A sweep of every markdown producer in `plugins/**` for throwaway-file
+  behavior found seven more surfaces the new row governs, and all seven
+  are corrected here rather than deferred, because a row that leaves
+  known contradictions standing in the tree is not yet a contract.
+  `/planning:interview`'s dense-round decision table moves out of the
+  memory slice into this tier: the skill's own text names the ledger and
+  terminal as the record, a resumed session picks up from the first open
+  ledger checkbox, and the plugin's binding never listed the file — so
+  it was memory-tier state nothing read. `/education:teach` moves the
+  other way and is the reason the row is a **classification**, not a
+  destination: its concept HTML *is* that concept's lesson artifact in a
+  workspace `resume` reopens, so it is machine state and stays there —
+  the defect was a bullet titled "Ephemeral placement" offering the
+  workspace **or** OS temp for one artifact. Its `primer` action, which
+  creates no workspace at all, is the genuinely ephemeral half and had
+  no resolvable path before. One further producer is recorded but not
+  changed here: `/prototype:explore-directions` writes its standalone
+  HTML mockup to "an OS temp **or** gitignored scratch location", the
+  same non-deterministic branch rule 1 forbids — but choosing which of
+  the two wins has to be reconciled against that plugin's own throwaway
+  discipline, which deliberately locates prototypes next to the
+  production code they mimic. That is a design question, not a typo, and
+  it gets its own change. Every other sweep hit is producer-consumed
+  plumbing (a `mktemp` file the producer itself reads and hands to no
+  one) or deliberate machine state — `/education:quiz-me`'s report
+  library is the clearest of the latter, since its `recall` action reads
+  those reports back weeks later.
+
+  Rule 2 is stated because both existing adopters hand their file back
+  as a path for the user to open — a `finally` cleanup would race the
+  reader and return a dead path. The row deliberately does **not**
+  promise the file dies with the session: no documented Claude Code
+  mechanism prunes that temp tree (`cleanupPeriodDays` is scoped to
+  `~/.claude/`, a different tree), so the honest guarantee is that the
+  file OUTLIVES the invocation and is reclaimed only when the platform
+  reclaims its temp tree. That is why one run writes one file and never
+  a tree.
+
+  Rule 1 also constrains the template's **shape**, not just its root.
+  The `XXXXXX` placeholders must be trailing, because BSD `mktemp` on
+  macOS substitutes only trailing Xs — so a template appending an
+  extension after them (`<prefix>-XXXXXX.html`) cannot create the file
+  on macOS. Two adopters had independently written exactly that form,
+  which is the evidence that naming the temp root was not a sufficient
+  rule; a producer wanting a meaningful filename takes the `-d` form and
+  writes a fixed name inside the run directory, which is why the row
+  admits a temp file **or** a directory.
+
+  Two claims are stated as constraints rather than capabilities, because
+  neither capability exists today. Rule 1 does not route
+  `CLAUDE_CODE_TMPDIR` into the temp primitive: that variable overrides
+  the temp directory Claude Code uses for its own internal files, and
+  the env-var reference states that unsandboxed Bash commands inherit
+  the shell's `$TMPDIR` unchanged, so a plugin shelling out to `mktemp`
+  never observes it. Rule 5 fixes the form an override takes *if* a
+  plugin offers one; neither current adopter declares `userConfig`, and
+  the rule no longer reads as a promise that one is available.
+
+  Minor, not major: no tier moves, no `topic-docs.yaml` key is renamed,
+  the slug spec is untouched, and no visibility guarantee changes — the
+  ephemeral row is slug-less and invisible to every other execution
+  context by construction, so it takes no row in the visibility matrix.
+  The eight bindings need no synchronized adoption wave.
+
 ## 2.3.0 — 2026-07-26
 
 - **The `.worktreeinclude` template carries sub-slices** (additive). Its

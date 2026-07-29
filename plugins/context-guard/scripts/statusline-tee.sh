@@ -21,8 +21,10 @@
 # Tee contract (../reference/reader-contract.md is the authoritative reader
 # side): every refresh writes
 #   ~/.claude/context-guard/context/<session_id>.json
-# — one JSON object with captured_at (ISO-8601 UTC), session_id, and, when
-# present on stdin, the context_window object copied VERBATIM (field
+# — one JSON object with captured_at (ISO-8601 UTC), session_id, cli_version
+# (the payload's top-level `version`, when present — it gates the reader's
+# token shape) and, when present on stdin, the context_window object copied
+# VERBATIM (field
 # additions upstream flow through without a plugin change; null fields are
 # the reader's concern). The path is deliberately HOME-anchored and outside
 # ${CLAUDE_PLUGIN_DATA}: it is a documented cross-plugin artifact seam that
@@ -103,8 +105,17 @@ tee_snapshot() {
 
   local ts payload
   ts=$(date -u '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null) || return 0
+  # cli_version carries the payload's top-level `version` (the Claude Code
+  # version — statusline reference, verified 2026-07-26). The reader needs it
+  # because `total_input_tokens` / `total_output_tokens` mean current context
+  # occupancy only from 2.1.132 and were CUMULATIVE session totals before it:
+  # a cumulative total below the window size is indistinguishable from a real
+  # occupancy, so without a version there is no sound way to trust the token
+  # bands. Copied only when it is a string; absent leaves the reader on the
+  # percentage shape alone.
   payload=$(printf '%s' "$INPUT" | jq -c --arg ts "$ts" '
     {captured_at: $ts, session_id: .session_id}
+    + (if (.version? // null | type) == "string" then {cli_version: .version} else {} end)
     + (if has("context_window") then {context_window} else {} end)
   ' 2>/dev/null) || return 0
   [[ -n "$payload" ]] || return 0
