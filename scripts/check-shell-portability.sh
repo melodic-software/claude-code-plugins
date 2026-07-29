@@ -230,7 +230,8 @@ scan_file() {
       # The guard DISPATCHES on either spelling — a token naming the utility
       # plainly is still a stat token, and a simplified one is what every
       # class-scoped unit fixture uses.
-      STATNAME = "s[" SQ DQ "]*t[" SQ DQ "]*a[" SQ DQ "]*t"
+      QRUN = "[" SQ DQ BS BS "]*"
+      STATNAME = "s" QRUN "t" QRUN "a" QRUN "t"
       # What may sit between a pipeline position and the command name that
       # position runs: environment assignments (repeatable, either side of a
       # wrapper), an invocation wrapper, or a leading backslash. None changes
@@ -242,7 +243,11 @@ scan_file() {
       # are transparent to the fallback guard after a `||` and to the negation
       # check before a `!`-prefixed call. Matching only assignments let
       # `! 2>/dev/null stat -c …` read as unnegated (#1544).
-      ASSIGN = "(([A-Za-z_][A-Za-z0-9_]*=[^;|&[:space:]]*|[0-9]*[<>][<>]?&?[^;|&[:space:]]*)[[:space:]]+)*"
+      # The redirection operand may be separated from its operator by blanks —
+      # 2.7 makes the target a separate word — so `|| 2> /dev/null stat -f …`
+      # is one command with a prefix redirection, exactly like the attached
+      # spelling. Requiring attachment rejected a genuine dual-dialect ladder.
+      ASSIGN = "(([A-Za-z_][A-Za-z0-9_]*=[^;|&[:space:]]*|[0-9]*[<>][<>]?&?[[:space:]]*[^;|&[:space:]]*)[[:space:]]+)*"
       PREFIXES = ASSIGN "((command|env)[[:space:]]+)?" ASSIGN "(\\\\)?[[:space:]]*"
       # Characters a shell word may begin after, for the `#` comment test.
       # `)` is among them because it is a control operator, so `(cmd)# …`
@@ -481,7 +486,16 @@ scan_file() {
         }
         if (c == SQ) { m = m "Q"; st = st "S"; continue }
         if (c == DQ) { m = m "Q"; st = st "D"; continue }
-        if (c == ")" && top == "P") {
+        # A raw SUBSHELL group gets its own frame. Left untracked, its closing
+        # paren popped the enclosing `$( )` instead, after which the real close
+        # and every separator past it were masked as expansion data — so
+        # `x="$( (true); stat -c %s "$f"; true)" || stat -f %z "$f"` read as a
+        # guarded ladder although the trailing `true` owns the status (#1544).
+        # Same unbalanced-frame failure the arithmetic branch above fixes, one
+        # spelling over. A `)` with no frame open stays untouched: it is a
+        # `case` pattern terminator, not a close.
+        if (c == "(") { m = m c; st = st "G"; continue }
+        if (c == ")" && (top == "P" || top == "G")) {
           m = m c
           st = substr(st, 1, length(st) - 1)
           continue
@@ -678,9 +692,23 @@ scan_file() {
     #
     # Over-detecting a negation costs a false positive; under-detecting one
     # admits an unguarded GNU-only call. This is the safe direction to widen.
+    # The text after the last command boundary before <at>. Spelled as a
+    # backward scan rather than a greedy `.*[;|&)]` match because a record can
+    # now contain a NEWLINE, and whether `.` matches one is exactly the kind of
+    # awk-implementation difference this gate must not depend on. A structural
+    # newline is a boundary here for the same reason `;` is: inside a `$( )`
+    # frame it ends the command. A quoted newline never reaches this — it is
+    # neutralized to a space upstream.
+    function after_last_boundary(h,   i, c) {
+      for (i = length(h); i >= 1; i--) {
+        c = substr(h, i, 1)
+        if (c == ";" || c == "|" || c == "&" || c == ")" || c == NL)
+          return substr(h, i + 1)
+      }
+      return h
+    }
     function is_negated(q, at,   head) {
-      head = substr(q, 1, at - 1)
-      if (match(head, /.*[;|&)]/)) head = substr(head, RSTART + RLENGTH)
+      head = after_last_boundary(substr(q, 1, at - 1))
       return head ~ ("(^|[[:space:]]|[(]|" BT ")![[:space:]]+" NEGOPEN PREFIXES "$")
     }
     # A `$( )` or backquote frame hands the `||` the status of the matched call
@@ -714,8 +742,7 @@ scan_file() {
     # past that operator belongs to the fallback, not to the command whose
     # status the `||` tests.
     function status_swallowed(q, at, m,   head, before, opener, i, c, depth, len, closed) {
-      head = substr(q, 1, at - 1)
-      if (match(head, /.*[;|&)]/)) head = substr(head, RSTART + RLENGTH)
+      head = after_last_boundary(substr(q, 1, at - 1))
       if (!match(head, ".*(\\$\\(|" BT ")")) return 0
       before = substr(head, 1, RLENGTH)
       opener = substr(before, length(before), 1)
@@ -761,19 +788,19 @@ scan_file() {
       # admitting it without the blank was a fail-open (#1544). `(` is an
       # operator, needs no blank, and keeps none.
       CMDPOS = "\\|\\|[[:space:]]*([A-Za-z_][A-Za-z0-9_]*=)?(\\$\\(|" BT "|\\(|\\{[[:space:]])?[[:space:]]*" PREFIXES
-      SEG = "([^;|&]|[<>]&|&>|&&)*"
+      SEG = "([^;|&" NL "]|[<>]&|&>|&&)*"
       # The fallback command word carries the same optional quote and path
       # spellings the token patterns already admit — quote removal invokes the
       # same BSD utility, so `|| "stat" -f …` and `|| "/usr/bin/stat" -f …` are
       # real ladders and were being forced into an exemption (#1544).
-      NAME = "[" SQ DQ "]?(/[^;|&[:space:]]*/)?"
-      SEG = "([^;|&]|[<>]&|&>|&&)*"
+      NAME = "[" SQ DQ BS BS "]?(/[^;|&[:space:]]*/)?"
+      SEG = "([^;|&" NL "]|[<>]&|&>|&&)*"
       # A word inside PRE is any single argument that is not a control
       # operator. Excluding the operators matters as much here as in SEG: a gap
       # that may swallow a `;` lets the guard reach PAST the matched invocation
       # and be satisfied by a ladder belonging to a later command, which is the
       # line-wide behaviour this anchoring replaced.
-      PRE = "[" SQ DQ "]?[[:space:]]+([^;|&\n]*[[:space:]])?"
+      PRE = "[" SQ DQ BS BS "]?[[:space:]]+([^;|&\n]*[[:space:]])?"
       # An OPTION word may carry quotes on BOTH sides of the ladder, exactly as
       # the shipped date/stat tokens admit: quote removal hands the utility the
       # same option either way, so `stat "-c" … || stat "-f" …` is one real
@@ -782,8 +809,8 @@ scan_file() {
       # to widen for the same reason it is unsafe to trust `stat "--" -f`:
       # `"-f"` IS the option after quote removal, while `"--"` is the
       # end-of-options marker this gate does not honor at all.
-      QP = "[" SQ DQ "]*"
-      QL = "[A-Za-z" SQ DQ "]*"
+      QP = QRUN
+      QL = "[A-Za-z" SQ DQ BS BS "]*"
       if (p ~ /readlink/) {
         return substr(q, 1, at + 7) ~ ("realpath" SEG CMDPOS NAME "readlink$")
       }

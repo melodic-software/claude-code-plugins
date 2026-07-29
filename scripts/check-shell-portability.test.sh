@@ -2343,6 +2343,94 @@ else
 fi
 rm -f "$TOK" "$f"
 
+# =============================================================================
+# Shell spellings the token classes must not let past -- #1544 review round.
+# Each was reproduced against the built gate before the fix; all reach the same
+# GNU utility with the same GNU-only option after the shell is done with them.
+# =============================================================================
+
+# --- `&>` / `&>>` after the command name are redirections, not separators the
+# gate can ignore.
+f="$(tmpsh "$(printf '%s\n' \
+  'date&>/dev/null -d tomorrow' \
+  'stat&>>log -c %s "$f"')")"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "ampersand redirections after the command name should fail, got success: $out"
+elif [[ "$(echo "$out" | grep -c "PORTABILITY: ${f}:")" -eq 2 ]]; then
+  ok "an ampersand redirection after the command name does not hide the option"
+else
+  fail "expected both ampersand spellings flagged, got: $out"
+fi
+rm -f "$f"
+
+# --- BACKSLASH quoting splices a word exactly as a quote pair does, in the
+# command word and in the option cluster alike.
+f="$(tmpsh "$(printf '%s\n' \
+  'da\te -d tomorrow' \
+  'date -\d tomorrow')")"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "backslash-quoted date words should fail, got success: $out"
+elif [[ "$(echo "$out" | grep -c "PORTABILITY: ${f}:")" -eq 2 ]]; then
+  ok "backslash quoting is recognized in the command word and the option"
+else
+  fail "expected both backslash spellings flagged, got: $out"
+fi
+rm -f "$f"
+
+# --- the LONG options carry quotes on both sides of the `--`.
+f="$(tmpsh "$(printf '%s\n' \
+  'date "--date" tomorrow' \
+  'date --"date"=tomorrow' \
+  'stat --"format"=%s "$f"')")"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "quote-spliced long options should fail, got success: $out"
+elif [[ "$(echo "$out" | grep -c "PORTABILITY: ${f}:")" -eq 3 ]]; then
+  ok "a quote-spliced long option is detected on either side of the --"
+else
+  fail "expected all three long-option spellings flagged, got: $out"
+fi
+rm -f "$f"
+
+# --- a raw SUBSHELL inside a substitution needs its own frame, or its closing
+# paren pops the substitution and everything after is masked as data.
+f="$(tmpsh 'x="$( (true); stat -c %s "$f"; true)" || stat -f %z "$f"')"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "a trailing true owns the status, so this is no ladder: $out"
+else
+  ok "a raw subshell inside a substitution does not pop the enclosing frame"
+fi
+rm -f "$f"
+# a `)` with no frame open is a case pattern terminator, not a close
+f="$(tmpsh 'case "$x" in foo) stat -c %s "$f" ;; esac')"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "a case pattern terminator must not swallow the option, got success: $out"
+else
+  ok "a case pattern terminator still opens no frame"
+fi
+rm -f "$f"
+
+# --- a structural NEWLINE ends a command inside a substitution, so the gap
+# between a matched call and a `||` must stop at one. Reachable only since
+# records join on an unterminated quote.
+f="$(mktemp --suffix=.sh)"
+printf 'x=$(stat -c %%s "$f"\ntrue) || stat -f %%z "$f"\n' >"$f"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "a later command on a newline owns the status, so this is no ladder: $out"
+else
+  ok "a structural newline inside a substitution breaks the ladder"
+fi
+rm -f "$f"
+
+# --- a redirection OPERAND may be a separate word, so a spaced prefix
+# redirection still leaves a real fallback ladder.
+f="$(tmpsh "stat -c '%s' \"\$f\" || 2> /dev/null stat -f '%z' \"\$f\"")"
+if scan_paths "$REAL_TOKENS" "$f" >/dev/null 2>&1; then
+  ok "a spaced redirection operand keeps the fallback a real ladder"
+else
+  fail "the spaced-redirection ladder must stay guarded: $(scan_paths "$REAL_TOKENS" "$f" 2>&1)"
+fi
+rm -f "$f"
+
 echo
 echo "PASS=$PASS FAIL=$FAIL"
 [[ "$FAIL" -eq 0 ]]
