@@ -3,6 +3,59 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.34.1]
+
+### Fixed
+
+- **A worker's own reply to a bot review thread could strand it outside every resolution scope
+  forever (#1729).** `babysit_resolve_thread.py`'s `project_thread` inspects EVERY fetched
+  comment for `botOnly`, not just the opener, so a bot-started thread carrying a later human reply
+  is correctly excluded from the default bot-only scope. But the worker's own documented reply to a
+  bot thread -- a classification reply, a `Fixed in <sha>` follow-up (`reference/orchestration.md`)
+  -- is a real API comment too, posted under the worker's own login, not the bot's. Before this
+  fix that reply was indistinguishable from a genuine third-party human joining the thread:
+  `botOnly` flipped `false` the moment it posted, which locked the thread out of the default
+  bot-only scope, and `--include-human` stays unset by design in worker/safe modes (it must never
+  touch a genuine human thread) so nothing lifted it back in -- a bot thread the worker correctly
+  replied to became permanently unresolvable by the normal flow, even though replying was exactly
+  the right action.
+  - `babysit_resolve_thread.py` gains a `--self-logins` flag (`@me` plus `babysit_self_logins`
+    extras, mirroring `babysit_merge.py`'s existing flag of the same name and the
+    `babysit_self_logins` userConfig key, which was never threaded through this script).
+    `project_thread`'s `botOnly` now treats a self-login-authored comment as a third admissible
+    authorship alongside bot and third-party human, admissible as a REPLY only: it does not
+    disqualify a bot-opened thread (unlike a genuine human reply), but neither can it open one.
+    `botOnly` requires the thread's OPENING comment to be bot-authored, which is what
+    `reference/review-discipline.md` D7.5 actually scopes resolution to ("resolve ONLY threads
+    whose OPENING comment is authored by a BOT reviewer... NEVER resolve your OWN threads") and
+    the same opening-author test `humanThreadsActed` has applied since #512. Neutralizing self
+    authorship against a weaker "some participant is a bot" test would have opened the converse
+    hole -- a SELF-OPENED thread would become `botOnly` the moment a bot replied to it, making the
+    caller's own thread resolvable with no `--include-human` and, once outdated, under
+    `--autonomous`. `botOnly` fails closed when the opening comment cannot be attributed at all
+    (no fetched comments, or an opener whose author the API withheld), as it already did on a
+    truncated comment page. `--self-logins` is resolved after the owner-scope refusal, mirroring
+    `babysit_merge.py`'s ordering, so an out-of-scope owner still refuses with no `gh` invocation
+    for `@me` resolution.
+  - Fixing `botOnly` alone was not sufficient: the mandated classification-reply table
+    (`reference/review-discipline.md`) restates the source finding's own severity marker (e.g. a
+    `CRITICAL`/`P1` column, or "VALID -- not a security concern") as part of the worker's own
+    reply, so a raw severity scan over that self-reply would re-trip `--autonomous`'s
+    `skipped-severity-marked` guard the moment `botOnly` stopped blocking it -- the stranding just
+    moved to a different verdict. `project_thread`'s severity scan now strips a self-authored
+    comment's classification-table rows (not its whole body) before scanning, mirroring
+    `babysit_classify.count_findings`'s identical rule for the finding-count gate; the underlying
+    `_strip_classification_rows` helper is promoted to public (`strip_classification_rows`) and
+    shared between the two modules rather than reimplemented. Non-table self content -- a
+    maintainer using a self-login to raise a genuine new finding -- still flags.
+  - `SKILL.md`'s thread-resolution bullet and flag-delivery table, `reference/safety.md`'s
+    documented resolve-thread command forms (both the read-only listing form and both
+    pinned-command-degradation forms), and `reference/orchestration.md`'s Worker Contract and
+    Worker Prompt Template now carry `--self-logins @me,<self-logins>` alongside
+    `--extra-bot-logins`, so every copyable resolve-thread command actually threads the caller's
+    own identity through. `plugin.json`'s `babysit_self_logins` description now names the
+    resolve-thread bot-only test among the surfaces the self set covers.
+
 ## [0.34.0]
 
 ### Changed
