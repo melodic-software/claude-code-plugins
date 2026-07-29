@@ -83,7 +83,7 @@
         "Checks for an existing open stall issue matched on exact title AND its own write identity as author before creating one — at most one open, and a third-party lookalike never suppresses the signal",
         "Never counts the stall escalation itself as qualifying progress, and never lets a lane-authored repeat attempt at the same still-unresolved blocker re-qualify — only its first landing counts",
         "Keeps looping after escalating — never stops the lane on a stall — and persists the updated no_progress_streak in the telemetry state block",
-        "Holds the counter on an idle cycle (zero open PRs in the snapshot) and resets it to zero on qualifying progress, foreign activity included — a head move, review or comment activity, or a checks transition is the queue moving — recording a resumption comment on the still-open stall issue when progress returns and leaving the disposition to the operator",
+        "Holds the counter on an idle cycle (zero open PRs in the snapshot) and on a guard-held one (rate_limit_latch set, so the lane starts no new mutating work — held even after the pause end, until a fresh healthy snapshot clears the latch), and resets it to zero on qualifying progress, foreign activity included — a head move, review or comment activity, or a checks transition is the queue moving — recording a resumption comment on the still-open stall issue when progress returns and leaving the disposition to the operator",
         "Treats the stall issue as ordinary human-gated backlog for the drain evaluation, never as excluded lane infrastructure"
       ]
     }

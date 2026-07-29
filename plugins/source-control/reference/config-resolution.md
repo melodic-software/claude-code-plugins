@@ -105,7 +105,7 @@ per-key override semantics below apply unchanged.
 | `babysit_loop_escalation` | tier name — dimension 7 (escalation posture); the escalation *surface* is fixed by the loop-lane convention, never by config | preset value |
 | `babysit_loop_grace_window_minutes` | positive integer — the concurrency-safety activity grace window | `30` |
 | `babysit_loop_cycle_budget` | positive integer — cycles per session before the budget-hit stop | none — no per-session budget |
-| `babysit_loop_no_progress_threshold` | positive integer — consecutive no-progress cycles (open PRs in view, none merged, materially changed, or escalated) before the lane raises its stall escalation; it escalates and keeps looping, never stops | `3` |
+| `babysit_loop_no_progress_threshold` | positive integer — consecutive no-progress cycles (open PRs in view, none merged, materially changed, or escalated; cycles held by the rate-limit guard are not counted) before the lane raises its stall escalation; it escalates and keeps looping, never stops | `3` |
 
 Dimension semantics — what each tier value grants per dimension — are owned by the babysit-prs
 autonomy table (`skills/babysit-prs/SKILL.md`, "Autonomy tiers (per action class)") and are not

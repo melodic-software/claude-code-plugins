@@ -320,9 +320,10 @@ citation. This lane's specifics:
   escalated off the item is.
 - **Actionable work in view**: the cycle-start snapshot holds at least one autonomous-frontier
   candidate or untriaged intake item. Otherwise the cycle is idle and the counter holds. A cycle
-  running under the rate-limit guard's pause (the inlined floor above) is **held** and the counter
-  likewise holds whatever the snapshot carries — the lane claimed no work because the guard forbade
-  it, per the convention's held-cycle rule.
+  in which the rate-limit guard barred this lane from claiming new work is **held**, and the
+  counter likewise holds whatever the snapshot carries. For this lane the bar is the pause window
+  itself (the inlined floor above — drain-then-pause): `rate_limit_latch` gates only adaptive-cap
+  ramp-up here, so it alone never holds the counter, per the convention's held-cycle rule.
 - **Threshold**: `${user_config.work_loop_no_progress_threshold}` consecutive no-progress cycles;
   a surviving literal placeholder means the key is unset — apply the manifest default (3).
 - **Stall escalation**: the convention's escalation contract, unchanged — create a tracker item

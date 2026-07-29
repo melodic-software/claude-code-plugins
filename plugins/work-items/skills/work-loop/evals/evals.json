@@ -65,7 +65,7 @@
         "Checks for an existing open stall item matched on exact title AND the seam's configured write identity as author before creating one — at most one open, and a third-party lookalike never suppresses the signal",
         "Never counts the stall escalation itself as qualifying progress and never resets the counter by escalating",
         "Keeps looping after escalating — never stops the lane on a stall — and persists the updated no_progress_streak in the telemetry state block",
-        "Holds the counter on an idle cycle (nothing actionable in view) and resets it to zero on any qualifying progress, recording a resumption comment on the still-open stall item when progress returns",
+        "Holds the counter on an idle cycle (nothing actionable in view) and on a guard-held one (the rate-limit pause in force, where this lane claims no new work; rate_limit_latch alone gates only cap ramp-up here and never holds the counter), and resets it to zero on any qualifying progress, recording a resumption comment on the still-open stall item when progress returns",
         "Treats the stall item as ordinary human-gated backlog for the exit evaluation, never as excluded lane infrastructure"
       ]
     }

@@ -329,10 +329,12 @@ citation. This lane's specifics:
   no-self-reset rule); or this lane wrote a new escalation. Compare against the previous cycle's
   snapshot; across a session restart, anchor on the telemetry comment's last upsert time.
 - **Actionable work in view**: the cycle-start snapshot holds at least one open PR. Otherwise the
-  cycle is idle and the counter holds. A cycle running under the rate-limit guard's pause (the
-  inlined floor below) is **held** and the counter likewise holds however many PRs the snapshot
-  carries — the lane claimed no work because the guard forbade it, per the convention's held-cycle
-  rule.
+  cycle is idle and the counter holds. A cycle in which the rate-limit guard barred this lane from
+  claiming new work is **held**, and the counter likewise holds however many PRs the snapshot
+  carries. For this lane the bar is `rate_limit_latch`, not the pause window: the inlined floor
+  below starts no new mutating work while the latch is set, and the latch survives the pause end
+  until a fresh healthy snapshot clears it — so a latched cycle is held even once the pause has
+  lifted, per the convention's held-cycle rule.
 - **Threshold**: `babysit_loop_no_progress_threshold` on the layered config seam (key table in
   the config reference above; default 3).
 - **Stall escalation**: the Escalation contract above, unchanged — a `Lane stall: babysit-loop`
