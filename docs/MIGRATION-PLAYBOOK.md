@@ -1088,9 +1088,10 @@ alternative. Both vendors are unidentified operators with unstated retention —
 unknown, not waved through — and the untrusted-content risk is contained by advisory instruction
 that is labeled advisory.
 
-**Recheck trigger** ([upstream-drift](conventions/upstream-drift/README.md) — a named trigger on an
-in-repo decision): re-introducing a Bash or PowerShell pre-approval, shipping the deferred validating
-`PreToolUse` hook, or adding an MCP surface each re-opens this review.
+**Recheck trigger:** a named trigger on an in-repo decision
+([upstream-drift](conventions/upstream-drift/README.md)) — re-introducing a Bash or PowerShell
+pre-approval, shipping the deferred validating `PreToolUse` hook, or adding an MCP surface each
+re-opens this review.
 
 ## Local development loop
 

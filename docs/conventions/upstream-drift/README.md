@@ -158,12 +158,12 @@ contract to fit its exceptions.
 | [topic-docs](../topic-docs/README.md) §Implementers restate the rules | "What would reopen it" | Named trigger only — an in-repo source-hoisting decision; not a four-part record. |
 
 Elsewhere the name binds on touch: living surfaces still saying "revisit trigger", "re-trigger",
-"re-derivation trigger", or "what would reopen it" (several plugin reference docs already use the canonical
-`## Recheck triggers` heading) adopt the canonical name, the observability bar, and their kind's
-firing procedure the next time they change; a surface restating an upstream-owned specific
-additionally adopts the required parts. **History is never rewritten**: `CHANGELOG.md` entries, dated audit
-records, and ADR sections keep the wording they shipped with; a new ADR uses the canonical name
-going forward.
+"re-derivation trigger", or "what would reopen it" (several plugin reference docs already use the
+canonical `## Recheck triggers` heading) adopt the canonical name, the observability bar, and their
+kind's firing procedure the next time they change; a surface restating an upstream-owned specific
+additionally adopts the required parts. **History is never rewritten**: `CHANGELOG.md` entries,
+dated audit records, and ADR sections keep the wording they shipped with; a new ADR uses the
+canonical name going forward.
 
 ## Why this name
 
