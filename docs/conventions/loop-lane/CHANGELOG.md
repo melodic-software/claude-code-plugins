@@ -5,6 +5,29 @@ topology, the escalation contract, the capability-tier vocabulary, or any loop-l
 major bump, and additive guidance is a minor bump. A new model release re-audits the capability-tier
 table (§3) and is recorded here.
 
+## 4.0.0 — 2026-07-28
+
+Adds the per-cycle usage sample to §4's loop-layer invariants, requested and scoped in
+[melodic-software/claude-code-plugins#1651](https://github.com/melodic-software/claude-code-plugins/issues/1651).
+Tier ratified as **major** on the same discriminator 2.0.0 and the no-progress detector used: a new
+loop-layer invariant is a new obligation every lane body must implement. That the recorded value is
+inert does not soften the tier — the *write* is the obligation.
+
+- **Per-cycle usage sample (§4).** A lane's spend was a blind spot: the cycle budget counts cycles,
+  the rate-limit guard's pause is a ceiling, and nothing recorded how much of the shared
+  subscription windows a cycle consumed. Each lane now records a `usage_sample` in its #502 durable
+  state every cycle, holding the two window percentages the guard step (§6) **already read** that
+  cycle plus the rise since the previous sample — the reading is in hand, so the invariant costs a
+  write, not an observation. The field is deliberately **inert**: no lane reads it back and no
+  pacing, backoff, adaptive cap, merge rung, or pause derives from it. Whether the data supports
+  acting on it is a later, separately decided question.
+- **Recorded caveats bound what the data can support.** The readings are approximate and
+  machine-local; they are **account-scope**, so the three-lane topology means concurrent lanes move
+  the same windows and a per-cycle rise is one lane's own consumption only when that lane is the
+  sole active session; and they are a percentage of a subscription window, not a token count,
+  absent entirely for non-subscription auth. No in-session signal exposes cumulative token spend,
+  so no lane claims one.
+
 ## 3.0.0 — 2026-07-25
 
 Repo-owner-ratified addition of a single named, explicit-argument exception to the seam-only merge

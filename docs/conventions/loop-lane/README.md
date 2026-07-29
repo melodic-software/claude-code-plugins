@@ -237,11 +237,13 @@ that same durable-state block every cycle, holding the two window percentages th
 (§6) already read that cycle plus the rise since the previous sample — the reading is already in hand,
 so measuring costs nothing beyond the write. It is deliberately **inert**: no lane reads the field
 back and no lane behavior derives from it. Measure first; whether the data supports acting on it is a
-later, separately decided question. Two properties bound that decision and are recorded alongside the
-sample in each lane body: the readings are approximate and machine-local, and they are **account-scope**
-— the three-lane topology means concurrent lanes move the same windows, so a per-cycle rise is one
-lane's own consumption only when that lane is the sole active session. Attributing spend to a single
-lane needs a signal no current snapshot carries.
+later, separately decided question. Three properties bound that decision and are recorded alongside
+the sample in each lane body: the readings are approximate and machine-local; they are
+**account-scope**, so the three-lane topology means concurrent lanes move the same windows and a
+per-cycle rise is one lane's own consumption only when that lane is the sole active session; and they
+are a **percentage of a subscription window, not a token count**, absent entirely for
+non-subscription auth. No in-session signal exposes cumulative token spend, so no lane claims one —
+and attributing spend to a single lane needs a signal no current snapshot carries.
 
 **Headless-config floor.** A headless lane launch never blocks on an interview: it takes explicit or
 persisted config, or tier defaults, and logs the assumption. The interactive path may run a
