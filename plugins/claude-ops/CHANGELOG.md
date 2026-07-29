@@ -18,13 +18,26 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   registration and removal commands; registering them stays an operator action. Guardrails: a
   telemetry comment is a signal, never a target (only operator-configured lanes can be
   relaunched; nothing from a comment is interpolated into a command); a per-lane circuit
-  breaker (default 3 restarts per rolling 24 h); a not-currently-running predicate that makes
-  the consumer self-clearing without editing another writer's comment. Observability: a JSONL
-  run ledger under the plugin data dir plus the consumer's own sentinel-marked telemetry
-  comment in the `morning-brief.sh` format, posted by default to the issue that reader
-  resolves (its own title search, reused), so a schedule that stops firing surfaces as a
-  STALE lane in the morning brief. Design record and labeled UNVERIFIED items:
-  `skills/lanes/context/restart-consumer.md`.
+  breaker (default 3 restarts per rolling 24 h) that **fails closed** — a run ledger that does
+  not parse reports the budget as spent, with a warning, rather than silently restoring the
+  full budget on exactly the file a crashed writer left behind; a not-currently-running
+  predicate that makes the consumer self-clearing without editing another writer's comment;
+  and an mkdir-atomic **cross-process lock** held across the whole read → decide → relaunch →
+  append span. The lock is load-bearing rather than defensive: the emitted registration is two
+  scheduled tasks (a poll and an `ONLOGON` companion) that both fire at logon, and Task
+  Scheduler's instance policy is per task, so without it both runs read the same breaker count
+  and one lane name ends up with two background sessions. A run that cannot take the lock
+  skips cleanly (exit 0, `lock-held`); a lock left by a hard-killed run ages out. A telemetry
+  read that ERRORS is its own `api-error` decision, never conflated with `no-state` ("the lane
+  did not ask"). Observability: a JSONL run ledger under the plugin data dir recording
+  incidents only — not the routine per-tick decisions, which on a 15-minute schedule would
+  grow the breaker's own input by hundreds of rows a day forever — plus the consumer's own
+  sentinel-marked telemetry comment in the `morning-brief.sh` format, posted by default to the
+  issue that reader resolves (its own title search, reused), so a schedule that stops firing
+  surfaces as a STALE lane in the morning brief. `check` is read-only in fact as well as in
+  contract: it takes no lock and writes no ledger, which is what lets the documented Verify
+  step tell a correctly-registered `run` schedule from a `check`-only one. Design record and
+  labeled UNVERIFIED items: `skills/lanes/context/restart-consumer.md`.
 
 ## [0.21.6]
 

@@ -93,8 +93,19 @@ MSYS-form paths Git Bash resolves.
 
 **Verify:** from cmd.exe, `schtasks /Query /TN "ClaudeOps Lane Restart
 Consumer"`, then `schtasks /Run /TN "ClaudeOps Lane Restart Consumer"` and
-confirm a fresh `last-cycle:` on the consumer's telemetry comment (or a fresh
-row in the local run ledger).
+confirm a fresh `last-cycle:` on the consumer's **telemetry comment**. That one
+signal, and not a local-file alternative, is the whole check: `last-cycle:` is
+written only by `upsert_own_telemetry`, which returns early unless the action is
+`run` — so a fresh timestamp proves the registered task carries the load-bearing
+`run` token, which is exactly the defect a registration can silently have.
+
+The local run ledger is deliberately **not** an accepted alternative here: it
+answers "did something run", where this step must answer "did a **`run`** run".
+`append_ledger` is likewise gated on the action being `run`, resolving that in
+favour of the `--help` contract's read-only `check` rather than the other way
+round — a `check` an operator runs by hand must never move the circuit breaker's
+memory, and a ledger that a `check` could write would satisfy the very check
+above on the failure it exists to catch.
 **Reversal:** the `schtasks /Delete /TN ... /F` lines `print-schedule` prints,
 from cmd.exe.
 
@@ -150,12 +161,41 @@ parity claim.
   a stale lane, which is exactly the failure a run log alone would miss. With
   no resolvable issue at all, the run degrades loudly to ledger-only with a
   warning naming the fix.
-- **Run ledger.** Each run appends one JSONL row per lane under
-  `<data-dir>/lanes/<repo-key>/restart-consumer.jsonl` — the detail layer, and
-  the circuit breaker's memory (default: max 3 restarts per lane per rolling
-  24 h; a tripped breaker exits 5 and flags the telemetry).
-- **Exit codes are honest.** A relaunch that fails, never comes up, or trips
-  the breaker exits 5; Task Scheduler history shows the non-zero result.
+- **Run ledger.** A `run` appends a JSONL row under
+  `<data-dir>/lanes/<repo-key>/restart-consumer.jsonl` for each lane whose
+  decision is an **incident** (`restarted`, `failed`, `error`, `api-error`) —
+  the detail layer, and the circuit breaker's memory (default: max 3 restarts
+  per lane per rolling 24 h; a tripped breaker exits 5 and flags the telemetry).
+  The routine per-tick decisions are reported and land in the telemetry comment
+  but are not ledgered: on a 15-minute schedule they would add hundreds of rows
+  a day, forever, to a file the breaker re-reads once per lane per tick, and
+  none of them can change a breaker verdict. The file therefore grows with
+  incidents rather than with the polling interval, and stays append-only — a
+  rewrite-the-file pruner would put the breaker's own memory at the mercy of a
+  bug in the pruner.
+- **The breaker fails closed.** A ledger that does not parse reports the budget
+  as **spent**, with a warning naming the file. The opposite (treating an
+  unreadable ledger as zero restarts) would silently restore the full budget on
+  exactly the file a crashed writer left behind, turning corruption into an
+  unbounded restart loop.
+- **One mutating run at a time.** A `run` holds an mkdir-atomic sentinel
+  (`<data-dir>/lanes/<repo-key>/.restart-consumer-lock`, the idiom the
+  observability prune's `.prune-in-progress` established) across the whole
+  read → decide → relaunch → append span. This is not theoretical: the
+  registration above is **two** scheduled tasks, and at logon the poll and the
+  `ONLOGON` companion both fire — Task Scheduler's instance policy is per task,
+  so it cannot serialize them. Unsynchronized, both read the same breaker count,
+  both relaunch, and one lane name ends up with two `claude --bg` sessions and
+  two `restarted` rows for one effective restart. A run that cannot take the
+  lock skips cleanly: exit 0, a `lock-held` flag, nothing launched and nothing
+  written. A lock left by a hard-killed run (no EXIT trap) ages out after an
+  hour so an unattended schedule cannot wedge permanently. `check` and
+  `--dry-run` mutate nothing and never contend.
+- **Exit codes are honest.** A relaunch that fails, never comes up, trips the
+  breaker, or a lane whose telemetry could not be READ (`api-error` — never
+  conflated with `no-state`, which means "the lane did not ask") exits 5; Task
+  Scheduler history shows the non-zero result. A tick skipped for the lock is
+  exit 0: it is a correctly-serialized no-op, not a failure.
 
 ## Telemetry binding per lane
 
