@@ -146,6 +146,20 @@
         "Reports the role-label probe as INFO naming the validity FAIL as the reason, leaving that FAIL standing as the gate rather than laundering it into an INFO of its own",
         "Writes no file and creates no label"
       ]
+    },
+    {
+      "id": 12,
+      "name": "check-role-resolution-failure-outranks-the-row-count-branch",
+      "prompt": "/work-items:setup check\n\n(.work-item-tracker.json is bound to github but its config.role_labels[\"recurring-maintenance\"] is an empty string, and .github/recurring-schedule.json is present with a null items key so it does not parse as the {\"items\": [ ... ]} root.)",
+      "expected_output": "Two independent defects hold at once, and the probe emits one verdict each. The role-label probe reports FAIL on the binding: an empty configured role_labels[\"recurring-maintenance\"] is an error, never a silent fallback to the default recurring, and that resolution failure settles probe 6 regardless of the schedule. The unreadable row count does not downgrade it to INFO — the row-count branches decide only whether a resolved label's absence is a gate, and no role resolved here. The schedule-validity probe separately reports its own FAIL. Nothing is written and no label is created.",
+      "files": [],
+      "expectations": [
+        "Reports the role-label probe as FAIL for a malformed, empty, or non-string configured role_labels[\"recurring-maintenance\"] value",
+        "Does not fall back to the default recurring label when the configured value is present but empty",
+        "Does not report the role-label probe as INFO on the grounds that the schedule's row count is unreadable",
+        "Reports the schedule-validity probe's FAIL as a separate finding rather than merging the two defects into one verdict",
+        "Writes no file and creates no label"
+      ]
     }
   ]
 }

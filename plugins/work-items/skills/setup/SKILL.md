@@ -155,7 +155,12 @@ check.
    configure — INFO. With a binding present, resolve
    `config.role_labels["recurring-maintenance"]` (default `recurring` when the entry is absent; a
    malformed, empty, or non-string configured value is FAIL); missing `cadence:{cadence}` labels are
-   taxonomy niceties — INFO. Then branch on the schedule's **row count**, exactly as `apply` step 6
+   taxonomy niceties — INFO. **That resolution FAIL settles probe 6 outright** — it is a binding
+   error, independent of any schedule, and `apply` step 6 calls the same value "an error, not a
+   fallback" at any row count. The branches below decide only whether a *resolved* label's absence is
+   a gate, so reach them only once the role resolves; the probe emits one verdict, and letting a row
+   count that is zero, absent, or unreadable pick INFO would drop the binding error from the table
+   entirely. With the role resolved, branch on the schedule's **row count**, exactly as `apply` step 6
    does — never on whether the schedule file exists. The skipped first-time bind leaves a
    present-but-empty `{"items": []}` on disk, so a file-presence gate hard-FAILs the expected
    post-bind steady state over an item that can never be created:
