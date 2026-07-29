@@ -59,17 +59,34 @@ Resolve the zone with `jq` (a data seam — never invoke another plugin's script
 1. This session's id is `${CLAUDE_SESSION_ID}`. If that literal string appears unexpanded, the
    substitution is unavailable → zone = `unknown`.
 2. Read the snapshot at `~/.claude/context-guard/context/<session_id>.json`. Absent, unparsable,
-   or `captured_at` older than **10 minutes** (stale) → `unknown`. Null/missing/out-of-range
-   `used_percentage`, or null/missing `current_usage` → `unknown`. `jq` unavailable → `unknown`.
-3. Bands come from `~/.claude/context-guard/zones.json` **read directly** when present and valid
-   (both `smart_max_used_percentage` and `acceptable_max_used_percentage` numeric,
-   `0 < smart < acceptable ≤ 100`); otherwise use the inlined defaults below.
+   or `captured_at` older than **10 minutes** (stale) → `unknown`. Null/missing `current_usage`
+   → `unknown`. `jq` unavailable → `unknown`.
+3. Bands come from `~/.claude/context-guard/zones.json` **read directly** when present and valid,
+   per shape (percentage keys: both `smart_max_used_percentage` and
+   `acceptable_max_used_percentage` numeric, `0 < smart < acceptable ≤ 100`; optional
+   `token_bands`: every class key decimal, every row's `smart_max_tokens` /
+   `acceptable_max_tokens` numeric with `0 < smart < acceptable ≤ class` — absent `token_bands`
+   is valid zero-config); a malformed shape falls back to that shape's inlined defaults below.
 4. **Inlined default bands** (fallback only; byte-identical to the context-guard reader contract,
-   which owns them): `smart` ≤ **50** < `acceptable` ≤ **75** < `dumb`, over
-   `context_window.used_percentage`.
-5. **Compaction overrides zone:** if the main thread knows this session was compacted or
-   summarized, treat it as evidence-degraded — the dumb row applies regardless of a green zone
-   (a compacted session's percentage resets while its evidence is already gone).
+   which owns them): percentage `smart` ≤ **50** < `acceptable` ≤ **75** < `dumb`, over
+   `context_window.used_percentage`; token bands over occupancy =
+   `total_input_tokens` + `total_output_tokens`, window class **200000**: `smart` ≤ **100000** <
+   `acceptable` ≤ **160000** < `dumb`, window class **1000000**: `smart` ≤ **200000** <
+   `acceptable` ≤ **400000** < `dumb` (class = largest key ≤ `context_window_size`; occupancy >
+   `context_window_size`, or a window below every class, makes the token shape not computable).
+   The token shape ALSO requires the snapshot's `cli_version` to be present, purely numeric dotted,
+   and **≥ 2.1.132** — before that release the token fields were cumulative session totals, and a
+   cumulative value below the window size is indistinguishable from a real occupancy, so an absent,
+   malformed, or older version makes the token shape not computable.
+5. **Combination rule** (verbatim from the reader contract): when both shapes are computable, the
+   worse zone wins (conservative-min); when only one is computable, it stands alone; when neither
+   is, the zone is unknown. Null/missing/out-of-range `used_percentage` therefore drops only the
+   percentage shape, not the whole reading.
+6. **Compaction overrides zone:** if the main thread knows this session was compacted or
+   summarized — including when the context-guard evidence-degraded marker
+   `~/.claude/context-guard/context/<session_id>.compacted` exists — treat it as
+   evidence-degraded: the dumb row applies regardless of a green zone (a compacted session's
+   numbers reset while its evidence is already gone).
 
 The gate is re-evaluated at each dispatch point (steps 2 and 5), not once at invocation.
 
