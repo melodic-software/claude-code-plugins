@@ -1088,7 +1088,8 @@ alternative. Both vendors are unidentified operators with unstated retention —
 unknown, not waved through — and the untrusted-content risk is contained by advisory instruction
 that is labeled advisory.
 
-**Re-trigger:** re-introducing a Bash or PowerShell pre-approval, shipping the deferred validating
+**Recheck trigger** ([upstream-drift](conventions/upstream-drift/README.md) — a named trigger on an
+in-repo decision): re-introducing a Bash or PowerShell pre-approval, shipping the deferred validating
 `PreToolUse` hook, or adding an MCP surface each re-opens this review.
 
 ## Local development loop
@@ -1261,7 +1262,9 @@ Alternatives weighed (docs verified 2026-07-03):
   Deferred because such symlinks are *skipped* for `--plugin-dir` / local-path
   installs (breaking the local development loop above) and are fragile to author and clone on Windows,
   the primary environment on both the authoring and consuming side. **Recheck trigger:** the dev
-  loop stops depending on `--plugin-dir`, or the Windows constraint lifts.
+  loop stops depending on `--plugin-dir`, the documented `--plugin-dir` / local-path handling changes
+  so marketplace symlinks are no longer skipped (the upstream premise this deferral rests on), or the
+  Windows constraint lifts.
 - **Copies with only a byte-identity CI gate — subsumed.** The chosen shape is that gate plus a
   canonical source and one sync script, removing the edit-×N-by-hand step at negligible cost.
 
@@ -1395,8 +1398,13 @@ the wave's codification requirement puts convention decisions in tracked docs, n
   fresh analysis — the corpus is the durable substrate for re-runnable synthesis, not just derived
   text. LFS-backed: a `.gitattributes` tracking media globs (mp4/mov/webm/png/jpg/jpeg/gif/pdf/epub/
   mp3/wav) plus pushed LFS objects. Git LFS is **not** expressible on the pulumi-github v6.14.0
-  `Repository` resource (verified against the provider schema) → it is content-side, landing via a
-  follow-up content PR to the repo, not governed in IaC. **Recheck trigger:** a pulumi-github
+  `Repository` resource → it is content-side, landing via a follow-up content PR to the repo, not
+  governed in IaC. Basis: the provider schema at the pinned tag —
+  <https://raw.githubusercontent.com/pulumi/pulumi-github/v6.14.0/provider/cmd/pulumi-resource-github/schema.json>,
+  where `github:index/repository:Repository` declares 48 properties and 39 input properties, none
+  matching `lfs`, and the document contains no case-insensitive `lfs` match at all (fetched and
+  probed 2026-07-29; re-run the same fetch against the then-pinned tag when the trigger below fires).
+  **Recheck trigger:** a pulumi-github
   release notes LFS support on `Repository`, or the pinned provider version moves past v6.14.0 →
   re-derive the IaC-vs-content-side call. GitHub's quotas, metering, and prices change;
   verify the current account allowance, budget, and overage behavior in the

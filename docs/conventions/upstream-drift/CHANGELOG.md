@@ -12,8 +12,9 @@ trigger) and one shape (dated verification stamp + observable recheck trigger) f
 from upstream-owned sources.
 
 - Canonical name adopted from `melodic-software/standards`
-  `conventions/engineering/documentation-and-citations.md`; "revisit trigger", "re-derivation
-  trigger", and "what would reopen it" become superseded synonyms that migrate on touch.
+  `conventions/engineering/documentation-and-citations.md`; "revisit trigger", "re-trigger",
+  "re-derivation trigger", and "what would reopen it" become superseded synonyms that migrate on
+  touch.
 - Required parts fixed: claim/decision, basis, as-of date, recheck trigger; observability bar
   stated; date-is-never-authority rule stated.
 - Firing procedure stated per record kind: four-part records re-fetch their cited basis and refresh

@@ -5,10 +5,11 @@ own** — an official doc page, an upstream issue thread, a probed platform beha
 stays honest as the upstream moves. One name and one shape: a dated **verification stamp** paired
 with a **recheck trigger**, the stated observable event that obliges re-deriving the record.
 
-The fleet previously practiced this in five-plus places under three names — "recheck triggers"
+The fleet previously practiced this in five-plus places under four names — "recheck triggers"
 ([hook-config-delivery](../hook-config-delivery/README.md)), "revisit triggers"
 ([ecosystem-commands](../ecosystem-commands/README.md), the
-[migration playbook](../../MIGRATION-PLAYBOOK.md)), "re-derivation triggers"
+[migration playbook](../../MIGRATION-PLAYBOOK.md)), "re-trigger" (the migration playbook again, on a
+plugin-acceptance review record), "re-derivation triggers"
 ([loop-lane](../loop-lane/README.md)) — plus the unlabeled "What would reopen it"
 ([topic-docs](../topic-docs/README.md)) — with no shared definition of what a trigger must contain
 and no statement of what makes one checkable. Under the
@@ -152,12 +153,12 @@ contract to fit its exceptions.
 | [loop-lane](../loop-lane/README.md) §Versioning | "Re-derivation triggers" | Conforming records — dated upstream-claim stamps; drift outcomes recorded in its changelog. |
 | [PLUGIN-PHILOSOPHY](../../PLUGIN-PHILOSOPHY.md) component-stances staleness disclaimer | unlabeled discipline | Conforming records — per-row claim, linked page, and verified date; the re-fetch-before-acting rule is [read-time validation](#read-time-validation-is-not-a-firing), and every row's stated trigger is a fetch diverging from the row. |
 | [OFFICIAL-DOCS](../../OFFICIAL-DOCS.md) staleness warning and per-row verified dates | unlabeled discipline | Conforming records — same shape as the component-stances table: link + date, divergence-at-fetch as the stated trigger. |
-| [MIGRATION-PLAYBOOK](../../MIGRATION-PLAYBOOK.md) decision records | "Revisit trigger" | Mixed — the dated component-decision records cite upstream bases and conform; the org-internal records (e.g. the ratification record) are named triggers; the skill-quality retrofit record is a third kind, terminal exclusions that state "no recheck trigger" by design — decided out, so nothing fires. |
+| [MIGRATION-PLAYBOOK](../../MIGRATION-PLAYBOOK.md) decision records | "Revisit trigger", and "Re-trigger" on the plugin-acceptance review record | Mixed — the dated component-decision records cite upstream bases and conform; the org-internal records (e.g. the ratification and plugin-acceptance review records) are named triggers; the skill-quality retrofit record is a third kind, terminal exclusions that state "no recheck trigger" by design — decided out, so nothing fires. |
 | [ecosystem-commands](../ecosystem-commands/README.md) task-runner deferral | "Revisit triggers" | Named triggers only — an undated in-repo deferral; not a four-part record. |
 | [topic-docs](../topic-docs/README.md) §Implementers restate the rules | "What would reopen it" | Named trigger only — an in-repo source-hoisting decision; not a four-part record. |
 
-Elsewhere the name binds on touch: living surfaces still saying "revisit trigger", "re-derivation
-trigger", or "what would reopen it" (several plugin reference docs already use the canonical
+Elsewhere the name binds on touch: living surfaces still saying "revisit trigger", "re-trigger",
+"re-derivation trigger", or "what would reopen it" (several plugin reference docs already use the canonical
 `## Recheck triggers` heading) adopt the canonical name, the observability bar, and their kind's
 firing procedure the next time they change; a surface restating an upstream-owned specific
 additionally adopts the required parts. **History is never rewritten**: `CHANGELOG.md` entries, dated audit
