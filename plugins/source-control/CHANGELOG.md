@@ -3,6 +3,77 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.38.0]
+
+### Added
+
+- **The merge gate can hold a PR while a review of the live head is still in flight (#1629).** A
+  review bot that re-reviews on every push posts minutes after the head moves, and GitHub reports
+  the PR mergeable for that whole window — the review does not exist yet, so there is no unresolved
+  thread to block on. The gate read only that mergeability, so it could merge past findings landing
+  seconds later: #1594 merged 4m40s after its final commit and the reviewer's round arrived 26
+  seconds afterward with two valid findings, one a regression that PR had introduced (#1613).
+  Configuring `babysit_review_bot_logins` together with the new `babysit_review_settle_minutes`
+  adds a merge-gate policy blocker while a configured reviewer still owes the live head a review
+  and that head is younger than the window. A review of the live head — a submitted review or an
+  inline review comment carrying the head's commit id, reusing `review-trigger.md`'s existing
+  current-head test — clears the hold without aging the head, so the already-reviewed case issues
+  no request of its own. The window bounds the wait so a reviewer that never engages cannot wedge a PR, and a
+  head whose age cannot be established holds rather than merging on an unverifiable clock. Both
+  keys or neither: either alone is a usage error, never a silently inert flag, a window converting
+  to under a second is refused rather than truncated to an inert zero, and the gate defaults no
+  duration of its own because how long a reviewer takes is a property of that reviewer.
+
+  Head age is measured on the **most recent CI start for the live head**, taken from the raw
+  status-check rollup the gate already fetches — raw rather than classified, because the classifier
+  keeps only the newest run per check identity. Newest rather than oldest is the safety property:
+  check runs live on the SHA, so a head returning to a previously-checked SHA still carries that
+  SHA's original runs, and reading the oldest would call a brand-new head settled. The cost is
+  bounded latency — a re-run can extend the wait by one window. The committer date is the fallback
+  only, since a commit pushed long after it was written reads as already-settled. Both that weak
+  spot, the residual around a head reverting to an already-tested SHA, and the requirement that a
+  configured reviewer be `Bot`-typed — this gate does not pass `--extra-bot-logins`, so the
+  operator declaration #1642 added to the shared current-head test does not reach it — are
+  documented at the hold's `safety.md` section rather than left implicit.
+
+  That same timestamp is also the **review-recency floor**, which is what keeps the clock from
+  being bypassed rather than merely pointed the wrong way. GitHub keeps a review against the SHA,
+  not against the head position, so after a force-push A -> B -> A the first occurrence's review of
+  A still matches by commit id; matching on the SHA alone let it satisfy the current-head
+  short-circuit and merge before any clock was read, restoring the exact race the hold exists to
+  prevent. `has_current_head_review` gains an optional `not_before` bound — passed only by this
+  gate, so the review-trigger completion rule keeps its own semantics — and the settle hold
+  supplies the newest CI start on the live head. A review that predates that bound, or that carries
+  no parseable timestamp at all, no longer clears the hold. Evidence records now carry the
+  submission time (`submittedAt` for reviews, `created_at` for inline review comments) so the
+  comparison has something to read. A check start cannot tell a restored head from a re-run on the
+  standing head, so a re-run minted after the review now re-arms the hold for up to one window
+  instead of short-circuiting past it: the fail-closed direction, paying bounded latency to refuse
+  the safety failure. A head with no check starts has no floor, so the earlier review still clears
+  the hold — precisely the residual `safety.md` already scoped, and now pinned by a test so it is a
+  decision on record rather than an accident.
+
+  Unconfigured, the gate is byte-for-byte its prior self and issues no request it did not issue
+  before — asserted against recorded call counts, not just the verdict. The reviewer corpus is now
+  fetched once per run and shared with the autopilot merge tier rather than fetched twice.
+
+  `safety.md`'s rendering rule now refuses a settle-window-without-reviewer-logins configuration at
+  the orchestrator rather than rendering it away. The CLI's both-or-neither usage error cannot
+  catch that case, because the instruction told the orchestrator to omit *both* flags when either
+  key was missing — so the lone flag never reached the CLI and the merge proceeded with the hold
+  silently dormant under a setting that looked active. `babysit_review_bot_logins` alone stays
+  legal: it is the review-trigger module's own configuration and leaves this hold correctly
+  dormant.
+
+### Changed
+
+- **`babysit-prs/SKILL.md` has headroom under the skill line cap again.** It sat at 499 of a hard
+  500 — the same wall #1620 described for `babysit-loop`, which #1627 relieved for that skill only —
+  so any net-positive edit failed `skill-quality-gate`. The autopilot tier's per-PR steps,
+  exclusions, draft handling, and widened scopes move verbatim to
+  `skills/babysit-prs/reference/autopilot.md`, leaving a pointer; the body goes 499 -> 471. Nothing is
+  deleted, and the tier's operative commands stay where they already lived, in `reference/safety.md`.
+
 ## [0.37.0]
 
 ### Added

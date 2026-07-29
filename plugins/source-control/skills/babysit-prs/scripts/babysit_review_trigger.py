@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
+from datetime import datetime
 from typing import Any
 
 from babysit_checks import summarized_state
@@ -219,6 +220,7 @@ def fetch_review_evidence(
                     "author": login,
                     "state": state,
                     "commit_oid": commit_oid,
+                    "submitted_at": str(review.get("submittedAt") or ""),
                     "url": str(review.get("url") or ""),
                 }
             )
@@ -234,6 +236,7 @@ def fetch_review_evidence(
                     "author": login,
                     "state": "COMMENTED",
                     "commit_oid": commit_oid,
+                    "submitted_at": str(comment.get("created_at") or ""),
                     "url": str(comment.get("html_url") or ""),
                 }
             )
@@ -247,19 +250,45 @@ def has_current_head_review(
     review_evidence: list[dict[str, str]] | None = None,
     *,
     config: ReviewTriggerConfig,
+    not_before: datetime | None = None,
 ) -> bool:
+    """Whether a configured reviewer has submitted a review OF `head_sha`.
+
+    `not_before` narrows the match from "of this SHA" to "of this SHA during
+    its CURRENT occurrence as the head". GitHub retains a review against the
+    SHA, not against the head position, so a force-push A -> B -> A restores a
+    head whose earlier review still carries `commit_oid == A`; a caller holding
+    a server-observed lower bound on when the SHA became the head again passes
+    it here so that stale review stops counting as evidence about the new
+    occurrence. It FAILS CLOSED: a review with no parseable timestamp does not
+    match once a bound is supplied, because an undatable review cannot be shown
+    to postdate the bound.
+
+    It defaults to None -- no bound, match on the SHA alone -- because a caller
+    with no such clock (the review-trigger completion rule) has nothing sound
+    to compare against, and inventing one there would only guess.
+    """
     if not head_sha:
         return False
+
+    def _recent_enough(raw: Any) -> bool:
+        if not_before is None:
+            return True
+        submitted = parse_timestamp(raw)
+        return submitted is not None and submitted >= not_before
+
     if review_evidence is not None:
         return any(
             evidence.get("commit_oid") == head_sha
             and evidence.get("state") in SUBMITTED_REVIEW_STATES
+            and _recent_enough(evidence.get("submitted_at"))
             for evidence in review_evidence
         )
     return any(
         is_review_bot_item(review, config)
         and str(review.get("state") or "").upper() in SUBMITTED_REVIEW_STATES
         and review_commit_oid(review) == head_sha
+        and _recent_enough(review.get("submittedAt"))
         for review in json_array(pr.get("reviews"))
         if is_json_object(review)
     )
