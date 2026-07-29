@@ -3,23 +3,28 @@
 All notable changes to the `skill-quality` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.12.1]
+## [0.12.2]
 
 ### Fixed
 
-- **`check-skill.sh` had five GNU-only regex constructs (`\S` × 4, `\b` × 1)
-  in its own `grep -qE` patterns — the same fail-open-on-BSD class the
-  repo's shell-portability-lint gate (#1491) exists to catch.** Discovered
-  while enabling the gate's `date -d` class (#1510) against this file for an
-  unrelated fix. Replaced with the documented POSIX-portable forms:
-  `\S` → `[^[:space:]]`, `\b` (trailing) → `($|[^A-Za-z0-9_])`. No intended
-  behavior change on GNU/Linux; corrects silent no-op risk on BSD/macOS.
 - **The vendor-sync-age check (Check 17) had no BSD `date` fallback at
   all** — `date -u -d "$SYNCED_VAL" +%s` silently failed and the whole
   advisory check no-op'd on BSD/macOS with no warning. Added a co-located
   `date -j -f '%Y-%m-%d' ...` BSD fallback, annotated `portability-ok:`
   since the shell-portability-lint gate's `date -d` guard only recognizes
   the `readlink`/`realpath` shape today.
+
+## [0.12.1]
+
+### Added
+
+- **Check 22 — `metadata.summary` length cap.** When the key is present, a value
+  longer than 100 Unicode codepoints FAILs; an absent key emits nothing. The key is the
+  generated skill cheat sheet's row source, and the cap keeps rows scannable. Length is
+  counted in codepoints, not bytes — the measurement site pins a UTF-8 locale (fleet
+  summaries carry em-dashes) — and the value is read via
+  `skill_frontmatter::metadata_field` + `strip_quotes`, so the trailing-comment strip
+  matches how the sheet generator reads it.
 
 ## [0.12.0]
 

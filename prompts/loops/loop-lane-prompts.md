@@ -57,8 +57,10 @@ value other than `c3-this-run` only ever lowers, and the tier keyword alone
 is merge-inert, so `--merge human-only` disables autonomous merging
 whatever `{{TIER}}` says.
 Leave `{{MERGE}}` at `--merge human-only` unless the target repository's rung
-question has been decided the other way — this repository's was decided
-against raising (#1388, "Tier is not the rung" below).
+question has been decided the other way. This repository's was: raised to
+`c3-autonomous` on 2026-07-27, superseding #1388 — but keep the override
+until #1695 wires effective-promotion resolution into the merge partition
+and the evidence predicate is met ("Tier is not the rung" below).
 
 ## Per-repository profile
 
@@ -558,7 +560,7 @@ wakeup ceiling for days rather than finishing.
 > for CI fixes, review-comment work, and any judgment call; `haiku` only for
 > mechanical log pulls. Never leave it to inherit. One explicit exception to
 > the review-work binding: the explicit-`autopilot` pre-escalation resolver
-> (babysit-loop, Escalation) always dispatches at the frontier tier's current
+> (babysit-loop, `reference/pre-escalation-dispatch.md`) always dispatches at the frontier tier's current
 > alias — blocker resolution under that path never runs at the review-work
 > model, and a run that cannot resolve the frontier alias escalates instead.
 >
@@ -1126,10 +1128,9 @@ Filled instance for the repository in use as of 2026-07-25.
   operations reference, loaded by `reference/tracker-seam.md` and
   `skills/work/SKILL.md`. Re-run the listing rather than reusing a count; it
   moves with every plugin added.
-- Merge rung: `c2-mechanical`, live in tracked config on `main`. Raising to
-  `c3-autonomous` is a one-line edit to `.claude/source-control.md` — a
-  mechanically trivial one the guardrail matrix does not currently authorize
-  (see "Tier is not the rung" below).
+- Merge rung: `c3-autonomous`, live in tracked config on `main` — raised in
+  the same reviewed change that added the matrix's C3 auto-merge cell
+  (operator-ratified, 2026-07-27; see "Tier is not the rung" below).
 - Work-class labels: deployed. Exact strings, ascending risk:
   `work-class: read-only`, `work-class: mechanical`, `work-class: scoped`,
   `work-class: structural`, `work-class: untrusted-provenance`.
@@ -1163,26 +1164,23 @@ The skill carries one named exception: an invocation line typing both the
 `--merge c3-this-run` widens that one invocation's merge rung to C3. It
 changes nothing here, for two independent reasons — every copy-block below
 passes `--merge human-only`, and the raise fires only on its own dedicated
-token, which no copy-block carries; and the rung question itself was
-decided against raising (below). Treat it as dormant in this repository,
-and do not swap a copy-block's `--merge human-only` for the raise token to
-wake it.
+token, which no copy-block carries; and the tracked rung already stands at
+`c3-autonomous` (below), so the per-invocation raise buys nothing the seam
+does not already grant. Treat it as dormant in this repository, and do not
+swap a copy-block's `--merge human-only` for the raise token to wake it.
 
 So the two knobs are independent, and both are needed for "merge things
 overnight without me":
 
 - **Tier `autopilot`** — in the prompt below. Already maximal.
 - **Merge rung** — one line in `.claude/source-control.md` on `main`.
-  Currently `c2-mechanical`, and **staying there: the operator decided
-  against raising it on 2026-07-25** (#1388). Changing it to `c3-autonomous`
-  would take the eligible set from the `mechanical` handful to nearly the
-  whole open `agent-ready` backlog, but throughput was not the binding
-  constraint — authorization was. The guardrail matrix sets C3 merge policy
-  to a flat `human merge` and lists **no C3 auto-merge promotion cell**, so
-  no evidence predicate exists that a raise could satisfy; and the C2 rung
-  already in force has not met its own predicate either, with zero autonomous
-  merges recorded here to date. Reopen the question only by amending the
-  guardrail contract first, never by flipping the seam alone.
+  Now `c3-autonomous`, flipped in the same reviewed change that added the
+  matrix's **C3 auto-merge cell with an evidence predicate** (closes #1646):
+  **operator direction of 2026-07-27 superseded #1388's 2026-07-25 "stay at
+  `c2-mechanical`" decision**. The other watched repos' raises are recorded
+  via their staged seam PRs — held as drafts until this amendment ratified
+  them. The amendment followed the path #1388 itself prescribed: amend the
+  guardrail contract first, then flip the seam — never the reverse.
 
 `full-autonomy` as a rung **adds nothing over `c3-autonomous`**. C4
 `structural` and C5 `untrusted-provenance` — refactors, migrations, contract
@@ -1192,17 +1190,16 @@ and no invocation argument reaches them, per the autonomy matrix's own
 so `full-autonomy` is never the answer here — it buys zero additional
 eligibility over c3 while reading as though it buys the riskiest kind.
 
-**But that ranking is not a recommendation to raise, and the question is
-settled.** The governing policy is `plugins/autonomy/reference/guardrails.md`'s
-matrix, which sets C3 merge policy to `human merge`, and its promotion table,
-which defines an auto-merge evidence predicate for C2 only — C3 has no
-auto-merge promotion cell at all. The eligible-count arithmetic above says
-what the seam *would* do, not what the contract *permits*.
-
-**Decided 2026-07-25 (#1388): stay at `c2-mechanical`.** Raising the rung
-would be an operator override of the matrix, and it belongs in a change to
-the policy first — add a C3 auto-merge cell with an evidence predicate, then
-flip the seam. Not the reverse.
+The governing policy is `plugins/autonomy/reference/guardrails.md`'s matrix,
+which sets C3 merge policy to auto-merge ELIGIBLE after per-class promotion
+trigger, with the C3 auto-merge evidence predicate in the promotion table of
+`plugins/autonomy/reference/guardrails/work-classes.md`. Predicate thresholds
+are suggested defaults the org may bind lower; ratifying the seam flips ahead
+of the suggested evidence is an operator choice the contract records.
+Demotion — any post-merge gate failure, human revert, or verification
+divergence — remains the contract's automatic fail-closed discipline (its
+enforcement wiring into the lane's merge partition is tracked in #1695),
+and C4 `structural` / C5 `untrusted-provenance` never promote.
 
 Neither rung bypasses classification: an item with **no recorded class in
 either source** — no `Work-class: C<n>` body trailer and no `work-class:`
@@ -1331,15 +1328,18 @@ machines; neither on the attended box.
 
 ### Merge lane — any machine except the attended one
 
-**`--merge human-only` is deliberate here.** This repository's tracked config
-resolves `c2-mechanical`, so without the override the lane would auto-merge C2
-PRs — but the guardrail matrix ships C2 *human-gated* and makes auto-merge
-eligible only after its promotion trigger (≥20 autonomous C2 completions over
-≥14 days, 100% deterministic-gate pass, 0 human-reverted merges), and this
-repository has recorded **zero autonomous merges ever**, so the predicate is
-not met. An argument may always select a *lower* rung than the seam, never a
-higher one, which is exactly what this does. Drop the flag once the evidence
-exists — not before.
+**`--merge human-only` is deliberate here, and stays until #1695 lands.**
+This repository's tracked config resolves `c3-autonomous` (flipped with the
+C3 auto-merge contract amendment), so without the override the lane would
+auto-merge C2 and C3 PRs. Two reasons to keep the override: the ratification
+ran ahead of the suggested evidence predicates — this repository has
+recorded **zero autonomous merges ever** — and the lane's rung partition
+does not yet resolve the effective promotion state against telemetry, so
+the contract's automatic fail-closed demotion is declared but not wired
+into the merge decision (#1695). An argument may always select a *lower*
+rung than the seam, never a higher one, which is exactly what this does.
+Drop the flag only after #1695 wires effective-promotion resolution into
+the partition and the evidence predicate is met.
 
 > **=== COPY FROM HERE ===**
 >
@@ -1389,7 +1389,7 @@ exists — not before.
 > for CI fixes, review-comment work, and any judgment call; `haiku` only for
 > mechanical log pulls. Never leave it to inherit. One explicit exception to
 > the review-work binding: the explicit-`autopilot` pre-escalation resolver
-> (babysit-loop, Escalation) always dispatches at the frontier tier's current
+> (babysit-loop, `reference/pre-escalation-dispatch.md`) always dispatches at the frontier tier's current
 > alias — blocker resolution under that path never runs at the review-work
 > model, and a run that cannot resolve the frontier alias escalates instead.
 >

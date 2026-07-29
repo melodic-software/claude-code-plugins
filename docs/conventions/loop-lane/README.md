@@ -225,7 +225,9 @@ identified by a machine sentinel marker and **edited in place** every cycle — 
 `claude-ops`'s `telemetry-upsert.sh` is the interim home of this contract and a compatible reader
 (`morning-brief` reads the same surface); an installed plugin cannot invoke a sibling plugin's
 script, so each lane **inlines** the small `gh api` upsert and the coupling to `claude-ops` stays
-one-directional.
+one-directional. An inlined upsert carries none of the wrapper's body checks, so it is bound by the
+`@path`-as-body rule in [`claude-ops` lanes](../../../plugins/claude-ops/skills/lanes/SKILL.md),
+section "Never pass a body as an `@path` string".
 
 **Durable loop state.** Conversation context is lossy across compaction, so a lane persists its
 adaptive-cap streak counter, its rate-limit-warning latch, and its cycle count in a machine-readable

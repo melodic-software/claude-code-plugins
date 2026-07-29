@@ -331,11 +331,11 @@ function credentialExpansionProblem(entry, expanded) {
 }
 
 // Guardrail-matrix floors: min-isolation level per class (L2 is the floor for
-// ANY autonomous dispatch; C5 requires L3), and the only auto-merge-eligible
-// cell (C2, after promotion — C4/C5 merge human always, C1/C3 human per the
-// matrix).
+// ANY autonomous dispatch; C5 requires L3), and the auto-merge-eligible
+// cells (C2 and C3, each after its own promotion — C4/C5 merge human always,
+// C1 human per the matrix).
 const MIN_ISOLATION = { C1: 2, C2: 2, C3: 2, C4: 2, C5: 3 };
-const AUTO_MERGE_ELIGIBLE = new Set(["C2"]);
+const AUTO_MERGE_ELIGIBLE = new Set(["C2", "C3"]);
 
 // The security-review leaf's shipped per-class defaults are FLOORS: a binding
 // may tighten a cell but never weaken it — the admission-rule
@@ -346,7 +346,13 @@ const VERIFICATION_FLOORS = {
 };
 const VERIFICATION_STRENGTH = { "not-required": 0, advisory: 1, blocking: 2 };
 
-const PROMOTABLE_CELLS = new Set(["C2-auto-merge", "C3-ai-review-blocking"]);
+const PROMOTABLE_CELLS = new Set(["C2-auto-merge", "C3-auto-merge", "C3-ai-review-blocking"]);
+
+// C3 auto-merge's evidence predicate builds on the C2 auto-merge track record
+// (>= 20 autonomous C2 merges with 0 demotion events), so contrary evidence
+// against the prerequisite cell invalidates the dependent cell too — a failed
+// trust signal never leaves a promotion that was earned on it standing.
+const PROMOTION_DEPENDENCIES = { "C3-auto-merge": ["C2-auto-merge"] };
 
 // Admission shipped defaults per work class (the admission-policy leaf), and
 // the leaf's permissiveness order: autonomous-eligible > human-gated >
@@ -1371,7 +1377,7 @@ function checkSemantics(binding, probeRoot, egressAllowList, credentialRoots) {
   const autonomous = posture === "autonomous-enabled";
 
   // Merge caps: vendor-hosted caps every class at human-gated; otherwise the
-  // matrix caps apply (only C2 is auto-merge eligible).
+  // matrix caps apply (only C2 and C3 are auto-merge eligible).
   if (isPlainObject(binding.merge_policy)) {
     for (const workClass of WORK_CLASSES) {
       if (binding.merge_policy[workClass] !== "auto") continue;
@@ -1381,7 +1387,7 @@ function checkSemantics(binding, probeRoot, egressAllowList, credentialRoots) {
         );
       } else if (!AUTO_MERGE_ELIGIBLE.has(workClass)) {
         findings.push(
-          `merge_policy.${workClass}: "auto" exceeds the matrix cap — ${workClass === "C4" || workClass === "C5" ? "C4/C5 merge is human always" : "the matrix merges this class human; only the C2 cell is auto-merge eligible"}`,
+          `merge_policy.${workClass}: "auto" exceeds the matrix cap — ${workClass === "C4" || workClass === "C5" ? "C4/C5 merge is human always" : "the matrix merges this class human; only the C2 and C3 cells are auto-merge eligible"}`,
         );
       }
     }
@@ -1533,6 +1539,16 @@ function checkSemantics(binding, probeRoot, egressAllowList, credentialRoots) {
       'merge_policy.C2: "auto" without a ratified promotion_state.C2-auto-merge entry (state "promoted") — promotion is a human-ratified knob flip recorded on the governance surface; an earned value without its ratification record bypasses the promotion discipline',
     );
   }
+  if (
+    isPlainObject(binding.merge_policy) &&
+    binding.merge_policy.C3 === "auto" &&
+    binding.executor_class !== "vendor-hosted" &&
+    !ratifiedPromoted("C3-auto-merge")
+  ) {
+    findings.push(
+      'merge_policy.C3: "auto" without a ratified promotion_state.C3-auto-merge entry (state "promoted") — promotion is a human-ratified knob flip recorded on the governance surface; an earned value without its ratification record bypasses the promotion discipline',
+    );
+  }
   // For the promotable ai-review C3 cell, blocking is the EARNED flip
   // (advisory -> blocking per the security-review leaf) — a deliberate
   // carve-out from the floors-may-tighten rule for this one cell: stronger
@@ -1655,15 +1671,36 @@ function resolveEffectivePromotion(binding, evidencePath) {
   }
 
   const promotionState = isPlainObject(binding.promotion_state) ? binding.promotion_state : {};
+
+  // Pass 1: each cell's OWN effective state — own-cell contrary events,
+  // scoped to the cell's own promotion epoch. Dependency propagation runs in
+  // pass 2 over these results, so a prerequisite's demotion is judged in the
+  // prerequisite's epoch, never the dependent's — a C2 revert that predates
+  // C3's ratification still demotes C2, and pass 2 lowers C3 with it.
+  const resolved = new Map();
   for (const [cell, entry] of Object.entries(promotionState)) {
     if (!isPlainObject(entry)) continue;
     const bound = entry.state;
     if (evidenceUnavailable) {
-      lines.push(`${cell}: bound ${bound} -> effective unpromoted (evidence unavailable, fail-closed)`);
+      resolved.set(cell, {
+        bound,
+        effective: "unpromoted",
+        line: `${cell}: bound ${bound} -> effective unpromoted (evidence unavailable, fail-closed)`,
+      });
       continue;
     }
+    // Prerequisite-cell events count against the dependent too, judged in
+    // the DEPENDENT's epoch: a prerequisite demotion event inside this
+    // cell's epoch stays contrary here until THIS cell is re-ratified, even
+    // if the prerequisite is later re-earned — re-ratifying the prerequisite
+    // must never silently revive a dependent that consumed no re-earn of its
+    // own. (The prerequisite's own current state propagates in pass 2.)
+    const dependencyCells = PROMOTION_DEPENDENCIES[cell] ?? [];
     const contrary = events.filter(
-      (event) => isPlainObject(event) && event.cell === cell && CONTRARY_EVIDENCE_EVENTS.has(event.event),
+      (event) =>
+        isPlainObject(event) &&
+        (event.cell === cell || dependencyCells.includes(event.cell)) &&
+        CONTRARY_EVIDENCE_EVENTS.has(event.event),
     );
     // Contrary evidence is scoped to the promotion epoch: an event predating
     // the cell's ratified_at belongs to a previous epoch and was already
@@ -1675,27 +1712,53 @@ function resolveEffectivePromotion(binding, evidencePath) {
     const inEpoch = [];
     const preEpoch = [];
     for (const event of contrary) {
+      const source = event.cell === cell ? "" : `${event.cell} (prerequisite cell) `;
       const at = parseIsoStrict(event.at);
       if (Number.isNaN(at)) {
-        inEpoch.push(`${event.event} with non-ISO or unparsable at ${JSON.stringify(event.at)} — cannot be assigned to an epoch, treated as contrary (fail-closed)`);
+        inEpoch.push(`${source}${event.event} with non-ISO or unparsable at ${JSON.stringify(event.at)} — cannot be assigned to an epoch, treated as contrary (fail-closed)`);
       } else if (Number.isNaN(ratifiedAt) || at >= ratifiedAt) {
-        inEpoch.push(`${event.event} at ${event.at}`);
+        inEpoch.push(`${source}${event.event} at ${event.at}`);
       } else {
-        preEpoch.push(`${event.event} at ${event.at}`);
+        preEpoch.push(`${source}${event.event} at ${event.at}`);
       }
     }
     if (bound === "promoted" && inEpoch.length > 0) {
-      lines.push(
-        `${cell}: bound promoted -> effective unpromoted — ceiling lowered by contrary evidence (${inEpoch.join("; ")}) WITHOUT modifying the binding; demotion files an escalation item on route ${JSON.stringify(binding.escalation_routes?.demotion)} requesting the human-ratified binding update`,
-      );
+      resolved.set(cell, {
+        bound,
+        effective: "unpromoted",
+        demotedReason: `contrary evidence (${inEpoch.join("; ")})`,
+        line: `${cell}: bound promoted -> effective unpromoted — ceiling lowered by contrary evidence (${inEpoch.join("; ")}) WITHOUT modifying the binding; demotion files an escalation item on route ${JSON.stringify(binding.escalation_routes?.demotion)} requesting the human-ratified binding update`,
+      });
     } else {
       let line = `${cell}: bound ${bound} -> effective ${bound}`;
       if (preEpoch.length > 0) {
         line += ` (${preEpoch.length} pre-epoch contrary event(s) ignored: ${preEpoch.join("; ")} — predate ratified_at ${entry.ratified_at} and were consumed by the re-earn)`;
       }
-      lines.push(line);
+      resolved.set(cell, { bound, effective: bound === "promoted" ? "promoted" : "unpromoted", line });
     }
   }
+
+  // Pass 2: a dependent promotion never outlives its prerequisite. The
+  // prerequisite may be bound unpromoted (post-demotion binding update),
+  // have no promotion_state entry at all, or resolve effective-unpromoted
+  // from contrary evidence in ITS OWN epoch — including events predating the
+  // dependent's ratification. Any of these lowers the dependent cell.
+  // PROMOTION_DEPENDENCIES is a single-level map (no chains), so one pass
+  // over pass-1 results suffices.
+  for (const [cell, record] of resolved) {
+    if (record.effective !== "promoted") continue;
+    const failed = (PROMOTION_DEPENDENCIES[cell] ?? []).filter((dep) => resolved.get(dep)?.effective !== "promoted");
+    if (failed.length === 0) continue;
+    const detail = failed.map((dep) => {
+      const depRecord = resolved.get(dep);
+      if (!depRecord) return `${dep}: no promotion_state entry`;
+      if (depRecord.demotedReason) return `${dep}: demoted by ${depRecord.demotedReason}`;
+      return `${dep}: bound ${depRecord.bound}`;
+    });
+    record.effective = "unpromoted";
+    record.line = `${cell}: bound promoted -> effective unpromoted — prerequisite cell(s) not effective-promoted (${detail.join("; ")}); the predicate this cell was earned on requires its prerequisite promoted, so the dependent promotion lowers with it`;
+  }
+  for (const record of resolved.values()) lines.push(record.line);
   if (Object.keys(promotionState).length === 0) {
     lines.push("no promotion_state entries — every promotable cell is at its unpromoted default");
   }

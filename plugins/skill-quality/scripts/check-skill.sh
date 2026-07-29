@@ -63,6 +63,9 @@
 #      fresh-context delegation wording or a fresh-eyes-exempt directive nearby
 #      (WARN; heuristic); malformed/reason-less directives FAIL
 #      (spec: skills/check/reference/fresh-eyes-declarations.md)
+#  22. metadata.summary <= 100 Unicode codepoints (FAIL; the key is
+#      the generated skill cheat sheet's row source — the cap keeps rows
+#      scannable. Absent key = no finding)
 #
 # Notes (static, git-diff-based design):
 #   - Checks 3/8/9 diff the working tree against CHECK_SKILL_BASE_REF (default
@@ -471,7 +474,7 @@ fi
 
 # --- Check 14: action-router shape without evals ------------------------------
 
-if grep -qE '^##+[[:space:]]+Actions?($|[^A-Za-z0-9_])' "$SKILL_MD" && [[ ! -f "$SKILL_DIR/evals/evals.json" ]]; then
+if grep -qE '^##+[[:space:]]+Actions?([^[:alnum:]_]|$)' "$SKILL_MD" && [[ ! -f "$SKILL_DIR/evals/evals.json" ]]; then
   warn "action-router-shaped skill with no evals/evals.json — check whether the skill warrants triggering evals"
 fi
 
@@ -1080,6 +1083,32 @@ for fe_file in "${FRESH_EYES_FILES[@]}"; do
     }
   ' "$fe_file")
 done
+
+# --- Check 22: metadata.summary length cap -----------------------------------
+# The key is the generated skill cheat sheet's row source; the cap keeps rows
+# scannable. Length is Unicode CODEPOINTS, not bytes, counted
+# locale-independently: UTF-8 -> UTF-32BE via iconv makes every codepoint
+# exactly 4 bytes, so byte-count/4 is the codepoint count on any host — a
+# locale-pinned ${#var} silently degrades to byte counting where the pinned
+# locale does not exist, tightening the cap for multi-byte summaries. Hosts
+# without iconv fall back to the UTF-8-locale form. The value is read via
+# metadata_field (trailing-comment strip) + strip_quotes, matching how the
+# sheet generator reads it.
+
+SUMMARY_CP_CAP=100
+CUR_SUMMARY="$(skill_frontmatter::strip_quotes "$(skill_frontmatter::metadata_field summary <<<"$FRONTMATTER")")"
+if [[ -n "$CUR_SUMMARY" ]]; then
+  if command -v iconv >/dev/null 2>&1; then
+    SUMMARY_CP_LEN=$(($(printf '%s' "$CUR_SUMMARY" | iconv -f UTF-8 -t UTF-32BE | wc -c) / 4))
+  else
+    SUMMARY_CP_LEN="$(LC_ALL=C.UTF-8; printf '%s' "${#CUR_SUMMARY}")"
+  fi
+  if ((SUMMARY_CP_LEN > SUMMARY_CP_CAP)); then
+    err "metadata.summary is $SUMMARY_CP_LEN codepoints (cap $SUMMARY_CP_CAP — the cheat sheet row it generates must stay scannable)"
+  else
+    note "summary $SUMMARY_CP_LEN/$SUMMARY_CP_CAP codepoints"
+  fi
+fi
 
 # --- Summary ---------------------------------------------------------------
 
