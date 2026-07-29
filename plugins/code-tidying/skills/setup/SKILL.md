@@ -55,8 +55,8 @@ FAIL. Modify nothing, and do NOT run a tidy sweep — that is `/code-tidying:tid
    silent on an omitted section is FAIL — malformed merge declaration; remediation is to adopt the bundled
    declaration by reference or to state the missing dispositions. FAIL too when the lane overrides a
    section the bundled lane keys at `###` granularity (`shell-tooling`'s `Verification commands` and
-   `Preferred research sources`) without keying its own content under those `###` language headings —
-   unkeyed content names no language to replace.
+   `Preferred research sources`) without keying its own commands or sources under those `###` language
+   headings — unkeyed entries name no language to replace. Framing prose above the first `###` is fine.
 3. **No unreplaced placeholders** — a lane still containing a template `<placeholder>` resolves to a
    broken scope glob or watch-for pattern; FAIL, naming the file and the leftover token.
 4. **Tracked, not ignored** — run `git check-ignore -v <file>` per lane file. A non-empty result means a
