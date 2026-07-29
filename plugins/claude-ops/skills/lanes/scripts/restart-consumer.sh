@@ -49,7 +49,9 @@
 #   --interval-minutes N poll interval baked into `print-schedule` (default 15;
 #                        1..999, Task Scheduler's MINUTE range).
 #   --telemetry-issue N  issue carrying THIS consumer's own status comment.
-#                        Default: the open issue titled exactly
+#                        Default: the issue morning-brief.sh itself reads
+#                        (discovered with that reader's own title search), else
+#                        the open issue titled exactly
 #                        `Lane telemetry: restart-consumer`. Absent -> the run is
 #                        recorded in the local ledger only, with a warning.
 #   --no-telemetry       skip the consumer's own telemetry upsert entirely.
@@ -712,9 +714,17 @@ upsert_own_telemetry() {
   [[ "$ACTION" == "run" ]] || return 0
 
   issue="$TELEMETRY_ISSUE"
+  # Default: the issue morning-brief.sh itself reads, discovered with that
+  # reader's own title search — landing the comment there is what makes the
+  # consumer visible in the brief with no reader change. Fall back to an exact
+  # `Lane telemetry: restart-consumer` title (local convention; the brief only
+  # reads it when pinned to it via its own --telemetry-issue).
+  [[ -n "$issue" ]] || issue="$(gh issue list --repo "$TARGET_REPO" --state open \
+    --search "loop-lane telemetry running per-lane status in:title" \
+    --json number 2>/dev/null | jq -r 'sort_by(.number) | .[0].number // empty')"
   [[ -n "$issue" ]] || issue="$(resolve_issue_by_title "$TARGET_REPO" "Lane telemetry: $CONSUMER_LANE")"
   [[ -n "$issue" ]] || {
-    warn "no open issue titled 'Lane telemetry: $CONSUMER_LANE' on $TARGET_REPO — this run is in the local ledger only. Create it (or pass --telemetry-issue N) so a consumer that stops running shows up as STALE in the morning brief."
+    warn "no telemetry issue found on $TARGET_REPO (neither the morning-brief title search nor 'Lane telemetry: $CONSUMER_LANE') — this run is in the local ledger only. Pass --telemetry-issue N (ideally the issue the morning brief reads) so a consumer that stops running shows up as STALE in the morning brief."
     return 0
   }
 
@@ -748,10 +758,18 @@ Run ledger on this machine: \`$(ledger_path)\`"
 
 # --- print-schedule -----------------------------------------------------------
 action_print_schedule() {
-  local self claude_bin run_cmd
+  local self claude_bin run_cmd win_repo win_claude
   self="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/$(basename "${BASH_SOURCE[0]}")"
   claude_bin="$(command -v claude 2>/dev/null)" || claude_bin="claude"
-  run_cmd='claude -p "/claude-ops:lanes consume-restarts" --output-format text'
+  # Windows-form paths for the schtasks payload: cmd.exe cannot use the
+  # MSYS-form paths Git Bash resolves (`/c/...`), and cygpath -w also restores
+  # the real claude.exe name behind the extensionless shim `command -v` finds.
+  win_repo="$(cygpath -w "$REPO" 2>/dev/null)" || win_repo="$REPO"
+  win_claude="$(cygpath -w "$claude_bin" 2>/dev/null)" || win_claude="$claude_bin"
+  # `run` is load-bearing: the script's default action is the read-only
+  # `check`, so a schedule registered without `run` would report forever and
+  # never relaunch anything.
+  run_cmd='claude -p "/claude-ops:lanes consume-restarts run" --output-format text'
 
   cat <<EOF
 Registering the schedule is an OPERATOR action — this script never performs it.
@@ -767,9 +785,12 @@ Reader: $run_cmd
 
 == Windows — Task Scheduler (current user, no elevation, no stored password) ==
 
-schtasks /Create /TN "$TASK_NAME" /SC MINUTE /MO ${INTERVAL_MINUTES} /F \\
-  /RU "%USERNAME%" /IT /RL LIMITED \\
-  /TR "cmd /c cd /d \"$REPO\" && \"$claude_bin\" -p \"/claude-ops:lanes consume-restarts\" --output-format text"
+  Run each schtasks line below from cmd.exe, on one line as printed (the
+  ClaudeCodeOtelPrune precedent's form; %USERNAME% and the \\" escaping are
+  cmd.exe syntax). NOT from Git Bash: MSYS path conversion rewrites /-style
+  options — 'schtasks /Query' becomes an invalid 'C:/Program Files/Git/Query'.
+
+schtasks /Create /TN "$TASK_NAME" /SC MINUTE /MO ${INTERVAL_MINUTES} /F /RU "%USERNAME%" /IT /RL LIMITED /TR "cmd /c cd /d \"$win_repo\" && \"$win_claude\" -p \"/claude-ops:lanes consume-restarts run\" --output-format text"
 
   /IT runs the task only while that user is logged on, so the CLI reads the
   credentials already in the user profile: no stored password, no elevation.
@@ -777,11 +798,9 @@ schtasks /Create /TN "$TASK_NAME" /SC MINUTE /MO ${INTERVAL_MINUTES} /F \\
 
   Cold start after a reboot — add a logon trigger alongside the poll:
 
-schtasks /Create /TN "$TASK_NAME (logon)" /SC ONLOGON /F \\
-  /RU "%USERNAME%" /IT /RL LIMITED \\
-  /TR "cmd /c cd /d \"$REPO\" && \"$claude_bin\" -p \"/claude-ops:lanes consume-restarts\" --output-format text"
+schtasks /Create /TN "$TASK_NAME (logon)" /SC ONLOGON /F /RU "%USERNAME%" /IT /RL LIMITED /TR "cmd /c cd /d \"$win_repo\" && \"$win_claude\" -p \"/claude-ops:lanes consume-restarts run\" --output-format text"
 
-  Remove both:
+  Remove both (also from cmd.exe):
 
 schtasks /Delete /TN "$TASK_NAME" /F
 schtasks /Delete /TN "$TASK_NAME (logon)" /F
@@ -790,14 +809,19 @@ schtasks /Delete /TN "$TASK_NAME (logon)" /F
 
   Same command on the same interval. cron form:
 
-*/${INTERVAL_MINUTES} * * * * cd '$REPO' && '$claude_bin' -p '/claude-ops:lanes consume-restarts' --output-format text
+*/${INTERVAL_MINUTES} * * * * cd '$REPO' && '$claude_bin' -p '/claude-ops:lanes consume-restarts run' --output-format text
 
 == Offline variant (no model turn) ==
 
   The reader is a deterministic script; the headless 'claude -p' wrapper only
   routes through the skill. Schedule this where a model turn is unwanted:
 
-bash '$self' run --repo '$REPO'
+bash '$self' run --repo '$REPO' --data-dir '<the CLAUDE_PLUGIN_DATA dir skill runs use>'
+
+  --data-dir matters here: skill-invoked runs pass the resolved
+  CLAUDE_PLUGIN_DATA directory explicitly, and this form's env-var fallback
+  can resolve elsewhere — two directories would split the circuit-breaker
+  ledger and widen the effective restart budget.
 EOF
 }
 

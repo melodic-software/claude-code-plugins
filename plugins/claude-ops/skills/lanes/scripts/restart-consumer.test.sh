@@ -250,7 +250,8 @@ assert_contains "print-schedule honours --interval-minutes" "$OUT" "/SC MINUTE /
 assert_contains "print-schedule avoids elevation and stored passwords" "$OUT" "/IT /RL LIMITED"
 assert_contains "print-schedule emits the removal command" "$OUT" "schtasks /Delete"
 assert_contains "print-schedule covers cold start after reboot" "$OUT" "/SC ONLOGON"
-assert_contains "print-schedule names the headless reader" "$OUT" "-p \"/claude-ops:lanes consume-restarts\""
+assert_contains "print-schedule names the headless reader" "$OUT" "-p \"/claude-ops:lanes consume-restarts run\""
+assert_not_contains "the scheduled command never defaults to read-only check" "$OUT" "consume-restarts\" --output-format"
 assert_contains "print-schedule offers the non-Windows form" "$OUT" "cron form"
 assert_contains "print-schedule states that registering is the operator's" "$OUT" "OPERATOR action"
 

@@ -77,19 +77,30 @@ observability skill, which owns the same `schtasks` posture):
 
 - a `schtasks /Create ... /SC MINUTE /MO <interval>` poll task and a
   `/SC ONLOGON` companion for cold start after reboot — both `/RU "%USERNAME%"
-  /IT /RL LIMITED`: run as the logged-on user, no elevation, no stored password;
+  /IT /RL LIMITED`: run as the logged-on user, no elevation, no stored
+  password. The `/TR` payload carries `consume-restarts run` — `run` is
+  load-bearing, because the script's default action is the read-only `check`
+  and a schedule registered without it would report forever and relaunch
+  nothing;
 - the matching `schtasks /Delete` reversals;
 - the cron/launchd/systemd-user equivalent for macOS/Linux.
 
-**Verify:** `schtasks /Query /TN "ClaudeOps Lane Restart Consumer"`, then
-`schtasks /Run /TN "ClaudeOps Lane Restart Consumer"` and confirm a fresh
-`last-cycle:` on the consumer's telemetry comment (or a fresh row in the local
-run ledger).
-**Reversal:** the `schtasks /Delete /TN ... /F` lines `print-schedule` prints.
+Run every `schtasks` line from **cmd.exe**, each on one line as printed — not
+Git Bash, whose MSYS path conversion rewrites `/`-style options (`schtasks
+/Query` becomes an invalid `C:/Program Files/Git/Query` argument). The emitted
+`/TR` paths are Windows-form (`cygpath -w`), since cmd.exe cannot use the
+MSYS-form paths Git Bash resolves.
+
+**Verify:** from cmd.exe, `schtasks /Query /TN "ClaudeOps Lane Restart
+Consumer"`, then `schtasks /Run /TN "ClaudeOps Lane Restart Consumer"` and
+confirm a fresh `last-cycle:` on the consumer's telemetry comment (or a fresh
+row in the local run ledger).
+**Reversal:** the `schtasks /Delete /TN ... /F` lines `print-schedule` prints,
+from cmd.exe.
 
 Two scheduled forms, different trade-offs:
 
-- **Headless skill form** — `claude -p "/claude-ops:lanes consume-restarts"`.
+- **Headless skill form** — `claude -p "/claude-ops:lanes consume-restarts run"`.
   Survives plugin updates (the skill resolves `${CLAUDE_PLUGIN_ROOT}` freshly at
   each invocation, so the task never embeds a plugin cache path that rots), but
   each tick is a paid model turn. Bound the spend: `claude` supports `--model`
@@ -126,13 +137,19 @@ parity claim.
 ## Observability (the consumer must not become the next silent gap)
 
 - **Morning-brief surfacing.** On every `run` the consumer upserts its own
-  sentinel-marked comment (marker `claude-ops:restart-consumer`) on an issue
-  titled `Lane telemetry: restart-consumer`, carrying the same `lane:` /
-  `last-cycle:` / `flags:` header `morning-brief.sh` already parses — create
-  that issue once and the consumer appears in `/claude-ops:morning-brief` with
-  no reader change, inheriting its `STALE (>Nh)` detection. A consumer whose
-  schedule stops firing therefore surfaces as a stale lane, which is exactly
-  the failure a run log alone would miss.
+  sentinel-marked comment (marker `claude-ops:restart-consumer`) carrying the
+  same `lane:` / `last-cycle:` / `flags:` header `morning-brief.sh` already
+  parses. The comment must land on the ONE issue that reader resolves, so the
+  consumer's default discovery reuses the brief's own title search; when that
+  finds nothing it falls back to an issue titled exactly
+  `Lane telemetry: restart-consumer`, which the brief reads only when both
+  tools are pinned to it (each has a `--telemetry-issue`). When the comment
+  lands on the brief's issue, the consumer appears in
+  `/claude-ops:morning-brief` with no reader change and inherits its
+  `STALE (>Nh)` detection — a consumer whose schedule stops firing surfaces as
+  a stale lane, which is exactly the failure a run log alone would miss. With
+  no resolvable issue at all, the run degrades loudly to ledger-only with a
+  warning naming the fix.
 - **Run ledger.** Each run appends one JSONL row per lane under
   `<data-dir>/lanes/<repo-key>/restart-consumer.jsonl` — the detail layer, and
   the circuit breaker's memory (default: max 3 restarts per lane per rolling

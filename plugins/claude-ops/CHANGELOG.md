@@ -21,7 +21,8 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   breaker (default 3 restarts per rolling 24 h); a not-currently-running predicate that makes
   the consumer self-clearing without editing another writer's comment. Observability: a JSONL
   run ledger under the plugin data dir plus the consumer's own sentinel-marked telemetry
-  comment in the `morning-brief.sh` format, so a schedule that stops firing surfaces as a
+  comment in the `morning-brief.sh` format, posted by default to the issue that reader
+  resolves (its own title search, reused), so a schedule that stops firing surfaces as a
   STALE lane in the morning brief. Design record and labeled UNVERIFIED items:
   `skills/lanes/context/restart-consumer.md`.
 
