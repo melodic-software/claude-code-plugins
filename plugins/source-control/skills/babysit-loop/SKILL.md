@@ -371,7 +371,9 @@ again. It is **measure-only**: nothing in this lane, or in any gate it runs, rea
 and no pacing, backoff, merge rung, or pause derives from it. `at` is always written, so a cycle
 that could not observe the windows stays distinguishable from one that never sampled;
 `five_hour_pct` / `seven_day_pct` are the readings as taken, both `null` when the guard is not
-proactive — never carry a stale reading forward, never fabricate one. `five_hour_delta_pct` is the
+proactive, and independently `null` whenever a window is unreadable or absent — a window the guard
+rejected as unknown is sampled `null`, never the rejected value. Never carry a stale reading
+forward, never fabricate one. `five_hour_delta_pct` is the
 rise since the previous cycle's sample, `null` when either sample is missing or the current reading
 is **lower** than the previous one (the window rolled over); only the five-hour window carries a
 delta, because a seven-day window moves too little per cycle to clear the readings' own

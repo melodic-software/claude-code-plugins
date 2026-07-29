@@ -248,7 +248,8 @@ token count**, absent entirely for non-subscription auth. No lane claims a token
 is *readable* at a cycle boundary: the machine-readable token fields a session exposes are
 current-context occupancy, not session totals. A machine-readable cumulative *cost* field does
 exist, and is session-scoped — so it would attribute to a lane — but the guard's tee does not
-forward it; widening the tee is a guard-side change this invariant deliberately does not make.
+forward it; widening the tee is a guard-side change this invariant deliberately does not make
+(<https://code.claude.com/docs/en/statusline>, verified 2026-07-28).
 
 **Headless-config floor.** A headless lane launch never blocks on an interview: it takes explicit or
 persisted config, or tier defaults, and logs the assumption. The interactive path may run a
