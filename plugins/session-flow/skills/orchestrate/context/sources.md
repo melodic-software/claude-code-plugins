@@ -5,6 +5,13 @@ confirm.** Lines marked *(paraphrase)* are summarizer renderings captured during
 (2026-06-14), concept-faithful but not byte-exact — re-fetch the URL for verbatim wording. Lines
 marked *(verbatim, verified)* were confirmed against the raw doc at capture time.
 
+**What *(verbatim)* tolerates.** Quotes are reproduced word-for-word, with four presentational
+normalizations that carry no meaning: markdown link syntax is stripped to its text
+(`[depth limit](#anchor)` → `depth limit`), inline emphasis may be dropped or added, an escaped
+`\_` in a raw changelog line is unescaped, and a fragment lifted mid-sentence may take a
+sentence-final period. Anything that changes wording is **not** a normalization — a quote that no
+longer matches the source is a defect, not a style choice.
+
 ## Imperative 1 — DELEGATE / FAN OUT
 
 - **Start simple; a single agent goes far.** "Start with the simplest approach that works, and add
@@ -115,10 +122,11 @@ which way it broke.
 
 **Resolved-drift note — the prose page lagged the changelog by one release, and has since caught
 up.** Between v2.1.219 and 2026-07-26 the sub-agents page still described the v2.1.217–2.1.218 state
-("By default, a subagent can't spawn subagents of its own… While nesting is off, Claude Code
-withholds the `Agent` tool from every subagent except a fork"), so the changelog was treated as
-authoritative for the default and the page as authoritative for the env-var mechanism and cap
-semantics. That call was corroborated empirically on Claude Code **2.1.220**: a non-fork
+*(page text as captured 2026-07-26 — no longer reproducible upstream)*: "By default, a subagent
+can't spawn subagents of its own… While nesting is off, Claude Code withholds the `Agent` tool from
+every subagent except a fork." So the changelog was treated as authoritative for the default and
+the page as authoritative for the env-var mechanism and cap semantics. That call was corroborated
+empirically on Claude Code **2.1.220**: a non-fork
 `general-purpose` subagent one layer below a subagent held a fully-schema'd `Agent` tool with
 `CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH` unset in its environment — which the page's account at the
 time forbade and the changelog's allowed. (The exact live ceiling was **not** pinned; the probe that
@@ -186,8 +194,8 @@ Part-sourced, part authoring convention — the boundary is called out per facto
 - **The platform itself treats width as a volume threshold — the empirical anchor for
   "wide fan-out."** A run is flagged `Large workflow` "When a workflow schedules more than 25
   agents, or its projected token total passes 1.5 million" (min-version 2.1.203); the `/config`
-  size guideline sets the agent count Claude aims for (`small` "fewer than 5", `medium` "fewer
-  than 15", `large` "fewer than 50"), and the runtime caps a run at up to 16 concurrent / 1,000
-  total agents. *(verbatim, verified)* — these concrete numbers are version-pinned and stay in
-  this sources file, NOT the model-/tool-agnostic brief, which speaks of a "wide fan-out"
-  abstractly. — <https://code.claude.com/docs/en/workflows>
+  size guideline sets the agent count Claude aims for (`small` "Fewer than 5 agents", `medium`
+  "Fewer than 15 agents", `large` "Fewer than 50 agents"), and the runtime caps a run at up to 16
+  concurrent / 1,000 total agents. *(verbatim, verified 2026-07-29)* — these concrete numbers are
+  version-pinned and stay in this sources file, NOT the model-/tool-agnostic brief, which speaks of
+  a "wide fan-out" abstractly. — <https://code.claude.com/docs/en/workflows>

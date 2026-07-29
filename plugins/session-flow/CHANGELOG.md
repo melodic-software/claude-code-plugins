@@ -5,7 +5,7 @@
 ### Fixed
 
 - **`orchestrate`'s nested-subagent drift note asserted a disagreement that upstream has since
-  resolved (melodic-software/claude-code-plugins#1312).** 0.15.0 recorded that the `sub-agents`
+  resolved (melodic-software/claude-code-plugins#1312).** 0.17.14 recorded that the `sub-agents`
   page lagged the changelog and still described the off-by-default state, and told readers to treat
   the changelog as authoritative for the default. Re-verified 2026-07-29 against the raw markdown of
   both surfaces: the page now states the depth-3 default itself ("By default, a subagent can spawn
@@ -22,6 +22,20 @@
   spawning.
 - Every imperative-5 claim re-verified against byte-exact raw markdown and re-anchored to
   2026-07-29; the changelog is recorded as current through v2.1.220.
+- **Imperative 7's `/config` size-guideline quote was not byte-exact** — it read `small`
+  "fewer than 5" where the workflows page's table reads "Fewer than 5 agents" (likewise 15 and 50).
+  Corrected and anchored to 2026-07-29. Caught by the independent citation audit outside the
+  reported hunks; fixed in passing rather than left in a file whose purpose is exact quotation.
+- The superseded page text quoted inside the resolved-drift note is now labelled as page text
+  captured 2026-07-26 and no longer reproducible upstream, so it is not mistaken for a live quote.
+
+### Added
+
+- **The file header now states what `(verbatim)` tolerates** — link syntax stripped to its text,
+  inline emphasis dropped or added, `\_` unescaped from raw changelog lines, and a sentence-final
+  period on a mid-sentence fragment. Anything that changes wording is a defect, not a normalization.
+  The convention was previously unwritten, so a reviewer could not tell a deliberate normalization
+  from a drifted quote.
 
 ### Notes
 
