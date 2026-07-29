@@ -17,7 +17,7 @@ All notable changes to the `work-items` plugin are documented here. Format follo
   never produce. Probe 6 now branches on row count exactly as `apply` does: **≥1 row with the
   resolved label absent is still a hard FAIL, unchanged and unweakened** — the requirement fires
   where it is load-bearing — while an absent or zero-row schedule is INFO noting the label must
-  exist before the schedule is ever seeded. An unparseable schedule has no readable row count, so
+  exist before the schedule is ever seeded. An unparsable schedule has no readable row count, so
   probe 6 reports INFO naming probe 4's validity FAIL as the reason rather than laundering that FAIL
   into a verdict of its own. Every one of those row-count outcomes is reached only once the role
   resolves: a malformed, empty, or non-string configured

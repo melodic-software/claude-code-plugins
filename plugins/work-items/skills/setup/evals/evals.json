@@ -141,7 +141,7 @@
       "files": [],
       "expectations": [
         "Reports the schedule-validity probe as FAIL for a root that is not {\"items\": [ ... ]}",
-        "Does not treat an unparseable schedule as a zero-row schedule",
+        "Does not treat an unparsable schedule as a zero-row schedule",
         "Reports no hard FAIL on the missing recurring-maintenance label in this state",
         "Reports the role-label probe as INFO naming the validity FAIL as the reason, leaving that FAIL standing as the gate rather than laundering it into an INFO of its own",
         "Writes no file and creates no label"

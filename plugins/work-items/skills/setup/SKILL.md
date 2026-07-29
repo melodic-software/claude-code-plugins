@@ -174,7 +174,7 @@ check.
    - **Schedule present but not parseable as the `{"items": [ ... ]}` root** — it has no readable row
      count, so the label requirement cannot be evaluated at all: INFO naming probe 4's FAIL as the
      reason, so the table carries a row for every probe, and probe 4's FAIL is the gate. Never read
-     an unparseable schedule as zero rows, and never raise the ≥1-row FAIL on a guess about what it
+     an unparsable schedule as zero rows, and never raise the ≥1-row FAIL on a guess about what it
      holds — either would substitute this probe's own verdict for probe 4's.
 
 ## `apply` (idempotent)
