@@ -114,18 +114,37 @@
 # (https://code.claude.com/docs/en/cli-reference), and a restart-request exists
 # precisely because a FRESH context is the only reset a lane gets.
 #
-# OBSERVABILITY. Every run appends one JSONL row per lane to
-# <data-dir>/lanes/<repo-key>/restart-consumer.jsonl and upserts the consumer's
-# own sentinel-marked telemetry comment (marker `claude-ops:restart-consumer`)
+# ONE MUTATING RUN AT A TIME. `print-schedule` emits TWO scheduled tasks (a
+# poll and an ONLOGON companion), so at logon both fire and Task Scheduler's
+# per-task instance policy cannot serialize them. Unsynchronized, two runs read
+# the same breaker count, both relaunch, and one lane name ends up with two
+# `claude --bg` sessions — lane-launcher.sh's own running-lane guard is
+# same-process, and a just-launched session does not appear in
+# `claude agents --json` instantly. A `run` therefore holds a mkdir-atomic
+# sentinel (`<data-dir>/lanes/<repo-key>/.restart-consumer-lock`, the same idiom
+# as the observability prune's `.prune-in-progress`) across the whole
+# read -> decide -> relaunch -> append span, released on an EXIT trap. A run that
+# cannot take it skips cleanly: exit 0, one `lock-held` flag, no relaunch and no
+# telemetry write (the holder owns both). `check` and `--dry-run` mutate nothing
+# and take no lock.
+#
+# OBSERVABILITY. A `run` appends one JSONL row to
+# <data-dir>/lanes/<repo-key>/restart-consumer.jsonl per lane whose decision is
+# `restarted`, `failed`, `error` or `api-error`; the routine `no-request` / `no-state` /
+# `skipped-running` / `breaker-open` ticks are reported but NOT ledgered, so the
+# file grows with incidents rather than with the polling interval. `check` is
+# read-only and writes nothing. Every `run` also upserts the consumer's own
+# sentinel-marked telemetry comment (marker `claude-ops:restart-consumer`)
 # carrying the `lane:` / `last-cycle:` / `flags:` fields `morning-brief.sh`
 # already parses — so a consumer that stops running surfaces as a STALE lane in
 # the morning brief instead of becoming a second silent gap.
 #
 # Exit codes:
-#   0  ok (including "nothing asked for a restart")
+#   0  ok (including "nothing asked for a restart", and a skipped locked tick)
 #   3  invalid argument / malformed config
 #   4  prerequisite missing (jq, gh, claude), or repo / config unresolved
-#   5  at least one relaunch failed, did not come up, or hit the breaker
+#   5  at least one lane could not be evaluated or relaunched: a failed relaunch,
+#      one that never came up, an open breaker, or a telemetry read that errored
 
 set -uo pipefail
 
@@ -419,6 +438,62 @@ repo_marker_key() {
 
 ledger_path() { printf '%s/%s/restart-consumer.jsonl' "$(resolve_data_dir)" "$(repo_marker_key)"; }
 
+# --- Cross-process lock -------------------------------------------------------
+LOCK_DIR=""
+OWN_LOCK=0
+# A run hard-killed mid-flight (reboot, Task Scheduler kill) never reaches its
+# EXIT trap, so a lock older than this is treated as abandoned and reclaimed.
+# Without that, a 15-minute unattended schedule wedges silently forever — the
+# exact failure mode this consumer exists not to become. The bound is far longer
+# than a real run, which is bounded by the per-lane confirmation retries.
+LOCK_STALE_SECONDS=3600
+
+# shellcheck disable=SC2329  # invoked indirectly: acquire_lock installs it as the EXIT trap
+release_lock() {
+  ((OWN_LOCK)) || return 0
+  OWN_LOCK=0
+  rm -f "$LOCK_DIR/acquired-at" 2>/dev/null || true
+  rmdir "$LOCK_DIR" 2>/dev/null || true
+}
+
+lock_stamp() {
+  local stamp=""
+  stamp="$(tr -d '\r\n' <"$LOCK_DIR/acquired-at" 2>/dev/null)" || stamp=""
+  [[ "$stamp" =~ ^[0-9]+$ ]] || stamp=0
+  printf '%s' "$stamp"
+}
+
+# `mkdir` is the atomic arbiter: exactly one process can create the directory, so
+# a loser never mutates. The stamp file dates the lock for the abandonment check.
+# A loser that finds NO stamp adopts one at `now` rather than reclaiming: the
+# holder may have won the mkdir microseconds ago and not written its stamp yet,
+# and stealing that lock is the very duplication this guards. Stamping instead
+# ages the lock out on a later tick, so a hard-killed run bounds the wedge at
+# LOCK_STALE_SECONDS after it is first observed instead of wedging forever.
+acquire_lock() {
+  local now="$1" stamp
+  LOCK_DIR="$(dirname "$(ledger_path)")/.restart-consumer-lock"
+  # The data dir does not exist until the first ledger write, and an ENOENT
+  # mkdir is indistinguishable from a held lock — so materialize the parent.
+  mkdir -p "$(dirname "$LOCK_DIR")" 2>/dev/null || true
+  if ! mkdir "$LOCK_DIR" 2>/dev/null; then
+    stamp="$(lock_stamp)"
+    if ((stamp == 0)); then
+      printf '%s\n' "$now" >"$LOCK_DIR/acquired-at" 2>/dev/null || true
+      return 1
+    fi
+    ((now - stamp < LOCK_STALE_SECONDS)) && return 1
+    warn "reclaiming a lock held since epoch $stamp with no live run to release it: $LOCK_DIR"
+    rm -f "$LOCK_DIR/acquired-at" 2>/dev/null || true
+    rmdir "$LOCK_DIR" 2>/dev/null || true
+    mkdir "$LOCK_DIR" 2>/dev/null || return 1
+  fi
+  OWN_LOCK=1
+  trap release_lock EXIT
+  printf '%s\n' "$now" >"$LOCK_DIR/acquired-at" 2>/dev/null || true
+  return 0
+}
+
 resolve_launcher() {
   [[ -n "$LAUNCHER" ]] || LAUNCHER="$(dirname "${BASH_SOURCE[0]}")/lane-launcher.sh"
   [[ -f "$LAUNCHER" ]] || {
@@ -520,17 +595,18 @@ resolve_issue_by_title() {
 }
 
 # Every comment body on one lane's telemetry issue, as a JSON array of strings.
+# Returns 1 — never an empty list — when the read itself failed: "[]" means "the
+# issue has no comments", and coercing an API failure to it would report a
+# transient `gh` blip as `no-state`, indistinguishable from "the lane did not
+# ask". The caller turns a non-zero return into its own `api-error` decision.
 lane_comment_bodies() {
   local lane="$1" repo="$2" issue="$3" raw
   if [[ -n "$TELEMETRY_JSON_FILE" ]]; then
     jq -c --arg l "$lane" '[ (.[$l] // [])[] | .body // "" ]' "$TELEMETRY_JSON_FILE"
     return 0
   fi
-  raw="$(gh api --paginate "repos/$repo/issues/$issue/comments" -q '.[] | {body}' 2>/dev/null)" || {
-    printf '[]'
-    return 0
-  }
-  printf '%s' "$raw" | jq -s -c '[ .[].body // "" ]' 2>/dev/null || printf '[]'
+  raw="$(gh api --paginate "repos/$repo/issues/$issue/comments" -q '.[] | {body}' 2>/dev/null)" || return 1
+  printf '%s' "$raw" | jq -s -c '[ .[].body // "" ]' 2>/dev/null || return 1
 }
 
 # The first fenced code block that parses as a JSON object carrying a
@@ -567,14 +643,45 @@ restarts_in_window() {
     return 0
   }
   cutoff=$((now - WINDOW_HOURS * 3600))
+  # FAIL CLOSED. A torn or truncated line makes the whole `jq -s` slurp fail, and
+  # returning 0 there would silently restore the full restart budget on exactly
+  # the ledger a crashed or racing writer left behind — turning a corrupt file
+  # into an unbounded restart loop. Report the budget as spent and say why.
   jq -s -r --arg l "$lane" --argjson c "$cutoff" \
     '[ .[] | select(.lane == $l and .decision == "restarted" and (.epoch // 0) >= $c) ] | length' \
-    "$ledger" 2>/dev/null || printf '0'
+    "$ledger" 2>/dev/null || {
+    warn "run ledger did not parse ($ledger) — treating the breaker as spent for '$lane'; inspect or remove the file"
+    printf '%s' "$MAX_RESTARTS"
+  }
+}
+
+# Ledgered decisions. The routine ticks (`no-request`, `no-state`,
+# `skipped-running`, `breaker-open`, `no-telemetry`, `would-restart`) are the
+# overwhelming majority on a 15-minute schedule — ledgering them would add ~190
+# rows/day forever to a file the breaker re-slurps once per lane per tick. Only
+# the incidents are durable; the full per-tick picture is the report and the
+# telemetry comment. `restarted` is load-bearing: it IS the breaker's memory.
+#
+# Deliberately filter-on-write rather than prune-on-write: the breaker's verdict
+# is a function of the ledger, so a bug in a rewrite-the-whole-file pruner erases
+# the record that a lane already burned its budget — the same fail-open the
+# corrupt-ledger guard above exists to prevent. Append-only keeps every write a
+# single atomic O_APPEND line, and incidents alone are self-limiting.
+ledger_decision() {
+  case "$1" in
+  restarted | failed | error | api-error) return 0 ;;
+  *) return 1 ;;
+  esac
 }
 
 append_ledger() {
   local row="$1" ledger dir
   ((DRY_RUN)) && return 0
+  # `check` is documented read-only, and the Verify step in
+  # context/restart-consumer.md distinguishes a real `run` from a `check`-only
+  # schedule by whether anything was written — a ledger row from a `check` would
+  # satisfy that check on the exact failure it exists to catch.
+  [[ "$ACTION" == "run" ]] || return 0
   ledger="$(ledger_path)"
   dir="$(dirname "$ledger")"
   if ! mkdir -p "$dir" 2>/dev/null || ! printf '%s\n' "$row" >>"$ledger" 2>/dev/null; then
@@ -590,6 +697,7 @@ EXIT_STATUS=0
 record() {
   local lane="$1" decision="$2" detail="$3" request="$4" now="$5"
   REPORT_ROWS+=("| $lane | $decision | $detail |")
+  ledger_decision "$decision" || return 0
   append_ledger "$(jq -c -n \
     --arg ts "$(iso_utc "$now")" --argjson epoch "$now" --arg lane "$lane" \
     --arg decision "$decision" --arg detail "$detail" --argjson request "$request" \
@@ -639,7 +747,11 @@ process_lane() {
   fi
 
   marker="$(lane_telemetry_field "$idx" marker)"
-  bodies="$(lane_comment_bodies "$lane" "$repo" "$issue")"
+  if ! bodies="$(lane_comment_bodies "$lane" "$repo" "$issue")"; then
+    record "$lane" "api-error" "could not read the comments on #$issue (gh api); state unknown, not restarting" null "$now"
+    fail_lane "api-error($lane)" 5
+    return 0
+  fi
   n="$(jq -r 'length' <<<"$bodies" 2>/dev/null)" || n=0
   request="null"
   for ((i = 0; i < n; i++)); do
@@ -719,6 +831,13 @@ upsert_own_telemetry() {
   # consumer visible in the brief with no reader change. Fall back to an exact
   # `Lane telemetry: restart-consumer` title (local convention; the brief only
   # reads it when pinned to it via its own --telemetry-issue).
+  #
+  # The search term and the selector below must stay BYTE-IDENTICAL to
+  # morning-brief.sh's resolve_telemetry_issue: they are what make both tools
+  # resolve the SAME issue, and a silent divergence would post this consumer's
+  # status where the brief never looks. Not factored into a shared source (the
+  # two skills are independently installable), so restart-consumer.test.sh
+  # asserts the literal appears verbatim in both files.
   [[ -n "$issue" ]] || issue="$(gh issue list --repo "$TARGET_REPO" --state open \
     --search "loop-lane telemetry running per-lane status in:title" \
     --json number 2>/dev/null | jq -r 'sort_by(.number) | .[0].number // empty')"
@@ -758,8 +877,13 @@ Run ledger on this machine: \`$(ledger_path)\`"
 
 # --- print-schedule -----------------------------------------------------------
 action_print_schedule() {
-  local self claude_bin run_cmd win_repo win_claude
+  local self claude_bin run_cmd win_repo win_claude data_dir
   self="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/$(basename "${BASH_SOURCE[0]}")"
+  # The offline form's --data-dir must be COPY-PASTEABLE, because the warning
+  # under it is that a second data dir splits the breaker ledger. When the caller
+  # passed one, echo it back; otherwise keep the placeholder that says what to
+  # substitute.
+  data_dir="${DATA_DIR_OVERRIDE:-<the CLAUDE_PLUGIN_DATA dir skill runs use>}"
   claude_bin="$(command -v claude 2>/dev/null)" || claude_bin="claude"
   # Windows-form paths for the schtasks payload: cmd.exe cannot use the
   # MSYS-form paths Git Bash resolves (`/c/...`), and cygpath -w also restores
@@ -816,7 +940,7 @@ schtasks /Delete /TN "$TASK_NAME (logon)" /F
   The reader is a deterministic script; the headless 'claude -p' wrapper only
   routes through the skill. Schedule this where a model turn is unwanted:
 
-bash '$self' run --repo '$REPO' --data-dir '<the CLAUDE_PLUGIN_DATA dir skill runs use>'
+bash '$self' run --repo '$REPO' --data-dir '$data_dir'
 
   --data-dir matters here: skill-invoked runs pass the resolved
   CLAUDE_PLUGIN_DATA directory explicitly, and this form's env-var fallback
@@ -845,6 +969,19 @@ main() {
 
   local now n i
   now="$(now_epoch)"
+
+  # Held across the whole read -> decide -> relaunch -> append span, and across
+  # the telemetry upsert, so a losing tick writes nothing at all. Only a real
+  # `run` mutates, so only a real `run` contends.
+  if [[ "$ACTION" == "run" ]] && ((!DRY_RUN)) && ! acquire_lock "$now"; then
+    warn "another restart-consumer run holds the lock ($LOCK_DIR) — skipping this tick"
+    info "restart-consumer: $ACTION on ${TARGET_REPO:-<fixtures>} at $(iso_utc "$now")"
+    info "| lane | decision | detail |"
+    info "|---|---|---|"
+    info "| (none) | lock-held | another run holds $LOCK_DIR; skipped |"
+    exit 0
+  fi
+
   n="$(jq -r '(.lanes // []) | length' "$CONFIG")"
   for ((i = 0; i < n; i++)); do process_lane "$i" "$now"; done
 

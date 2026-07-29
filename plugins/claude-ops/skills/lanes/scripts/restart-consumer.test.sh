@@ -15,10 +15,19 @@
 #     never restarted, and the launcher is invoked with the CONFIG's lane name
 #   - the launcher is delegated to (launch shape / autonomy tier not re-derived)
 #   - a relaunch that never appears in the session list is reported `failed`
-#   - circuit breaker counts only `restarted` rows inside the rolling window
-#   - `check` never relaunches; `--dry-run run` never relaunches or writes
-#   - the run ledger is appended as JSONL under the repo-keyed data dir
-#   - print-schedule emits schtasks create + delete lines and mutates nothing
+#   - circuit breaker counts only `restarted` rows inside the rolling window,
+#     and FAILS CLOSED (budget reported spent) on a ledger that does not parse
+#   - `check` never relaunches; `check` and `--dry-run run` never write the ledger
+#   - the run ledger is appended as JSONL under the repo-keyed data dir, carries
+#     only incident decisions, and never the routine per-tick ones
+#   - a `run` holds a cross-process lock: a second concurrent run skips cleanly
+#     (exit 0, `lock-held`), relaunches nothing, and the lock is released on exit
+#   - a telemetry read that ERRORS is `api-error`, never `no-state`
+#   - the consumer's own telemetry upsert: pinned issue, the morning-brief search
+#     hit, the exact-title fallback, and the no-issue-found warn + ledger-only
+#   - the morning-brief issue-discovery literals are byte-identical in both files
+#   - print-schedule emits schtasks create + delete lines and mutates nothing,
+#     and substitutes a passed --data-dir into the offline form
 #   - argument validation exit codes
 #
 # PATH-stubs `claude` and `gh`, and injects the session list, the telemetry, and
@@ -53,11 +62,30 @@ cat >"$STUBS/claude" <<'SH'
 #!/usr/bin/env bash
 echo '[]'
 SH
+# The gh stub is loud-by-default: reaching it means a test forgot an injection
+# seam. Setting GH_LOG opts a case in to argv recording and canned responses —
+# the only way to exercise the telemetry upsert, whose gh calls (and the sibling
+# telemetry-upsert.sh's) have no injection seam of their own.
 cat >"$STUBS/gh" <<'SH'
 #!/usr/bin/env bash
-# Only ever reached when the test forgot an injection seam; make that loud.
-echo 'STUB-GH-CALLED' >&2
-exit 1
+if [[ -z "${GH_LOG:-}" ]]; then
+  echo 'STUB-GH-CALLED' >&2
+  exit 1
+fi
+printf '%s\n' "$*" >>"$GH_LOG"
+case "$*" in
+*"/comments"*)
+  [[ -n "${GH_FAIL_COMMENTS:-}" ]] && exit 1
+  case "$*" in
+  *"--method POST"* | *"--method PATCH"*) printf '{"id":999,"html_url":"https://example.invalid/c/999"}\n' ;;
+  *) printf '[]\n' ;;
+  esac
+  ;;
+*"loop-lane telemetry running per-lane status in:title"*) printf '%s\n' "${GH_SEARCH_RESULT:-[]}" ;;
+*"Lane telemetry in:title"*) printf '%s\n' "${GH_TITLE_RESULT:-[]}" ;;
+"api user"*) printf 'stub-user\n' ;;
+*) printf '[]\n' ;;
+esac
 SH
 chmod +x "$STUBS/claude" "$STUBS/gh"
 PATH="$STUBS:$PATH"
@@ -275,6 +303,170 @@ assert_eq "a non owner/name --target-repo exits 3" "3" "$?"
 
 OUT="$(bash "$SCRIPT" --help 2>&1)"
 assert_contains "--help prints the header contract" "$OUT" "RELAUNCH PREDICATE"
+
+# --- 15. The ledger records incidents, not routine ticks ---------------------
+DATA_LG="$TMP/data-ledger"
+LG_KEY="$(printf '%s' "$(git -C "$REPO" rev-parse --show-toplevel)" | git hash-object --stdin)"
+LG_LEDGER="$DATA_LG/lanes/$LG_KEY/restart-consumer.jsonl"
+: >"$LAUNCH_LOG"
+bash "$SCRIPT" run --config "$CONFIG" --repo "$REPO" --data-dir "$DATA_LG" \
+  --target-repo "owner/name" --launcher "$LAUNCHER" --no-telemetry --now 1800000000 \
+  --telemetry-json "$TEL" --agents-json "$AGENTS_WORK_UP" >/dev/null 2>&1
+assert_eq "a run of only routine decisions writes no ledger at all" "0" \
+  "$(find "$DATA_LG" -name 'restart-consumer.jsonl' 2>/dev/null | wc -l | tr -d ' ')"
+
+bash "$SCRIPT" run --config "$CONFIG" --repo "$REPO" --data-dir "$DATA_LG" \
+  --target-repo "owner/name" --launcher "$LAUNCHER" --no-telemetry --now 1800000000 \
+  --telemetry-json "$TEL" --agents-json "$AGENTS_NONE" >/dev/null 2>&1
+assert_eq "an incident decision IS ledgered" "1" \
+  "$(jq -s -r 'length' "$LG_LEDGER" 2>/dev/null)"
+assert_eq "the routine no-request tick of the same run is not" "failed" \
+  "$(jq -s -r '.[0].decision' "$LG_LEDGER" 2>/dev/null)"
+
+# `check` is documented read-only; a ledger row from a check is precisely what
+# would make the doc's Verify step pass on a check-only schedule.
+DATA_CHK="$TMP/data-check"
+bash "$SCRIPT" check --config "$CONFIG" --repo "$REPO" --data-dir "$DATA_CHK" \
+  --target-repo "owner/name" --launcher "$LAUNCHER" --no-telemetry --now 1800000000 \
+  --telemetry-json "$TEL" --agents-json "$AGENTS_NONE" >/dev/null 2>&1
+assert_eq "check writes no ledger (it is documented read-only)" "0" \
+  "$(find "$DATA_CHK" -name 'restart-consumer.jsonl' 2>/dev/null | wc -l | tr -d ' ')"
+
+# --- 16. The circuit breaker fails CLOSED on a ledger that does not parse -----
+DATA_TORN="$TMP/data-torn"
+mkdir -p "$DATA_TORN/lanes/$LG_KEY"
+{
+  printf '{"epoch":1799990000,"lane":"work","decision":"restarted"}\n'
+  printf '{"epoch":1799991000,"lane":"work","dec\n'
+} >"$DATA_TORN/lanes/$LG_KEY/restart-consumer.jsonl"
+OUT="$(bash "$SCRIPT" check --config "$CONFIG" --repo "$REPO" --data-dir "$DATA_TORN" \
+  --target-repo "owner/name" --launcher "$LAUNCHER" --no-telemetry --now 1800000000 \
+  --telemetry-json "$TEL" --agents-json "$AGENTS_NONE" 2>&1)"
+RC=$?
+assert_contains "a torn ledger line trips the breaker rather than clearing it" "$OUT" "| work | breaker-open |"
+assert_contains "the corrupt ledger is named in a warning" "$OUT" "run ledger did not parse"
+assert_eq "failing closed still exits 5" "5" "$RC"
+
+# --- 17. A `run` holds a cross-process lock across the relaunch span ----------
+# The launcher stub is the concurrency probe: it fires while the outer run holds
+# the lock and is mid-relaunch, which is exactly the window two schtasks tasks
+# firing at logon would collide in.
+LOCK_PROBE="$TMP/lock-probe.out"
+LOCK_LAUNCHER="$TMP/launcher-lock.sh"
+cat >"$LOCK_LAUNCHER" <<SH
+#!/usr/bin/env bash
+printf '%s\n' "\$*" >>"\$LAUNCH_LOG"
+bash "$SCRIPT" run --config "$CONFIG" --repo "$REPO" --data-dir "$TMP/data-lock" \\
+  --target-repo "owner/name" --launcher "$LAUNCHER" --no-telemetry --now 1800000000 \\
+  --telemetry-json "$TEL" --agents-json "$AGENTS_NONE" >"$LOCK_PROBE" 2>&1
+printf 'inner-rc=%s\n' "\$?" >>"$LOCK_PROBE"
+exit 0
+SH
+chmod +x "$LOCK_LAUNCHER"
+: >"$LAUNCH_LOG"
+OUT="$(bash "$SCRIPT" run --config "$CONFIG" --repo "$REPO" --data-dir "$TMP/data-lock" \
+  --target-repo "owner/name" --launcher "$LOCK_LAUNCHER" --no-telemetry --now 1800000000 \
+  --telemetry-json "$TEL" --agents-json "$AGENTS_NONE" 2>&1)"
+assert_contains "a concurrent run skips instead of relaunching" "$(cat "$LOCK_PROBE")" "| (none) | lock-held |"
+assert_contains "the locked-out run exits 0 (a skipped tick is not a failure)" "$(cat "$LOCK_PROBE")" "inner-rc=0"
+assert_not_contains "the locked-out run never reached a lane decision" "$(cat "$LOCK_PROBE")" "| work |"
+assert_eq "only the lock holder ever invoked the launcher" "1" "$(grep -c 'restart work' "$LAUNCH_LOG")"
+assert_contains "the lock holder itself proceeded normally" "$OUT" "| work |"
+assert_eq "the lock is released when the run exits" "0" \
+  "$(find "$TMP/data-lock" -name '.restart-consumer-lock' -type d 2>/dev/null | wc -l | tr -d ' ')"
+
+# A lock old enough that no live run can still hold it is reclaimed, so a
+# hard-killed run cannot wedge an unattended schedule forever.
+LOCK_STALE="$TMP/data-lock-stale/lanes/$LG_KEY/.restart-consumer-lock"
+mkdir -p "$LOCK_STALE"
+printf '1799990000\n' >"$LOCK_STALE/acquired-at"
+: >"$LAUNCH_LOG"
+OUT="$(bash "$SCRIPT" run --config "$CONFIG" --repo "$REPO" --data-dir "$TMP/data-lock-stale" \
+  --target-repo "owner/name" --launcher "$LAUNCHER" --no-telemetry --now 1800000000 \
+  --telemetry-json "$TEL" --agents-json "$AGENTS_NONE" 2>&1)"
+assert_contains "an abandoned lock is reclaimed, not honoured forever" "$OUT" "reclaiming a lock held since epoch"
+assert_contains "the reclaiming run then does its work" "$OUT" "| work | failed |"
+
+# A lock with no stamp yet is NOT stolen — the holder may have won the mkdir
+# microseconds ago. It is stamped instead, so it can age out on a later tick.
+LOCK_FRESH="$TMP/data-lock-fresh/lanes/$LG_KEY/.restart-consumer-lock"
+mkdir -p "$LOCK_FRESH"
+: >"$LAUNCH_LOG"
+OUT="$(bash "$SCRIPT" run --config "$CONFIG" --repo "$REPO" --data-dir "$TMP/data-lock-fresh" \
+  --target-repo "owner/name" --launcher "$LAUNCHER" --no-telemetry --now 1800000000 \
+  --telemetry-json "$TEL" --agents-json "$AGENTS_NONE" 2>&1)"
+assert_contains "an unstamped lock is respected, never stolen" "$OUT" "| (none) | lock-held |"
+assert_eq "the unstamped lock is dated so it can age out later" "1800000000" \
+  "$(tr -d '\r\n' <"$LOCK_FRESH/acquired-at" 2>/dev/null)"
+assert_eq "nothing was launched while locked out" "" "$(cat "$LAUNCH_LOG")"
+
+# `check` mutates nothing, so it never contends for the lock.
+OUT="$(bash "$SCRIPT" check --config "$CONFIG" --repo "$REPO" --data-dir "$TMP/data-lock-fresh" \
+  --target-repo "owner/name" --launcher "$LAUNCHER" --no-telemetry --now 1800000000 \
+  --telemetry-json "$TEL" --agents-json "$AGENTS_NONE" 2>&1)"
+assert_contains "check runs regardless of a held lock" "$OUT" "| work | would-restart |"
+
+# --- 18. A failed telemetry READ is api-error, never no-state ----------------
+# no-state means "the lane did not ask"; a gh blip must never wear that face.
+OUT="$(GH_LOG="$TMP/gh-apierr.log" GH_FAIL_COMMENTS=1 bash "$SCRIPT" check \
+  --config "$CONFIG" --repo "$REPO" --data-dir "$TMP/data-apierr" \
+  --target-repo "owner/name" --launcher "$LAUNCHER" --no-telemetry --now 1800000000 \
+  --agents-json "$AGENTS_NONE" 2>&1)"
+RC=$?
+assert_contains "a failed comment read is its own decision" "$OUT" "| work | api-error |"
+assert_not_contains "a failed comment read is never reported as no-state" "$OUT" "| work | no-state |"
+assert_eq "an unreadable lane state exits 5" "5" "$RC"
+
+# --- 19. The consumer's own telemetry upsert ---------------------------------
+# All four issue-resolution paths of upsert_own_telemetry, which every case above
+# suppresses with --no-telemetry.
+run_telemetry() { # $@ extra args; GH_LOG/GH_* set by the caller
+  bash "$SCRIPT" run --config "$CONFIG" --repo "$REPO" --data-dir "$TMP/data-tel" \
+    --target-repo "owner/name" --launcher "$LAUNCHER" --now 1800000000 \
+    --telemetry-json "$TEL" --agents-json "$AGENTS_WORK_UP" "$@" 2>&1
+}
+
+GH_PINNED="$TMP/gh-pinned.log"
+OUT="$(GH_LOG="$GH_PINNED" run_telemetry --telemetry-issue 77)"
+assert_contains "a pinned --telemetry-issue is used verbatim" "$(cat "$GH_PINNED")" "issues/77/comments"
+assert_not_contains "a pinned issue skips discovery entirely" "$(cat "$GH_PINNED")" "in:title"
+assert_contains "the upserted body carries the morning-brief header fields" "$(cat "$GH_PINNED")" "last-cycle: 2027-01-15T08:00:00Z"
+assert_contains "the upsert is marker-identified for edit-in-place" "$(cat "$GH_PINNED")" "claude-ops:restart-consumer"
+
+GH_SEARCH="$TMP/gh-search.log"
+OUT="$(GH_LOG="$GH_SEARCH" GH_SEARCH_RESULT='[{"number":55},{"number":91}]' run_telemetry)"
+assert_contains "unpinned discovery reuses the morning brief's own title search" "$(cat "$GH_SEARCH")" \
+  "loop-lane telemetry running per-lane status in:title"
+assert_contains "the search hit selects the lowest-numbered issue" "$(cat "$GH_SEARCH")" "issues/55/comments"
+
+GH_FB="$TMP/gh-fallback.log"
+OUT="$(GH_LOG="$GH_FB" GH_SEARCH_RESULT='[]' \
+  GH_TITLE_RESULT='[{"number":63,"title":"Lane telemetry: restart-consumer"},{"number":64,"title":"Lane telemetry: work"}]' \
+  run_telemetry)"
+assert_contains "an empty search falls back to the exact-title lookup" "$(cat "$GH_FB")" "Lane telemetry in:title"
+assert_contains "the fallback matches the title EXACTLY, not fuzzily" "$(cat "$GH_FB")" "issues/63/comments"
+
+GH_NONE="$TMP/gh-none.log"
+OUT="$(GH_LOG="$GH_NONE" GH_SEARCH_RESULT='[]' GH_TITLE_RESULT='[]' run_telemetry)"
+assert_contains "no resolvable issue degrades loudly, naming the fix" "$OUT" "Pass --telemetry-issue N"
+assert_not_contains "no resolvable issue means no comment is written anywhere" "$(cat "$GH_NONE")" "--method POST"
+assert_contains "the run itself is unaffected by a missing telemetry issue" "$OUT" "| work | skipped-running |"
+
+# --- 20. The morning-brief discovery literals are verbatim in both files -----
+# Not refactored to a shared source: the two skills are independently
+# installable. This gate is what makes the duplication safe — if the reader's
+# search changes, the consumer would silently post where the brief never looks.
+BRIEF="$SCRIPT_DIR/../../morning-brief/scripts/morning-brief.sh"
+for literal in 'loop-lane telemetry running per-lane status in:title' 'sort_by(.number) | .[0].number // empty'; do
+  assert_contains "the consumer carries the discovery literal [$literal]" "$(cat "$SCRIPT")" "$literal"
+  assert_contains "the morning brief carries the SAME literal [$literal]" "$(cat "$BRIEF")" "$literal"
+done
+
+# --- 21. print-schedule makes the offline form copy-pasteable ----------------
+OUT="$(bash "$SCRIPT" print-schedule --repo "$REPO" --data-dir "$DATA" 2>&1)"
+assert_contains "a passed --data-dir is substituted into the offline form" "$OUT" "--data-dir '$DATA'"
+OUT="$(bash "$SCRIPT" print-schedule --repo "$REPO" 2>&1)"
+assert_contains "without one, the placeholder still says what to substitute" "$OUT" "<the CLAUDE_PLUGIN_DATA dir skill runs use>"
 
 # --- Summary -----------------------------------------------------------------
 printf '\n%d case(s), %d failure(s)\n' "$CASE_NUM" "$FAILED"
