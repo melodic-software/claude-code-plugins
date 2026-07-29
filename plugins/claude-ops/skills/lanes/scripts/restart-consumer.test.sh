@@ -257,6 +257,9 @@ assert_contains "print-schedule states that registering is the operator's" "$OUT
 # --- 14. Argument validation --------------------------------------------------
 bash "$SCRIPT" bogus --repo "$REPO" >/dev/null 2>&1
 assert_eq "an unknown action exits 3" "3" "$?"
+OUT="$(run_consumer consume-restarts check --telemetry-json "$TEL" --agents-json "$AGENTS_NONE")"
+assert_eq "a leading consume-restarts skill token is accepted" "0" "$?"
+assert_contains "the token after consume-restarts is the action" "$OUT" "restart-consumer: check"
 bash "$SCRIPT" check --repo "$REPO" --max-restarts x >/dev/null 2>&1
 assert_eq "a non-numeric --max-restarts exits 3" "3" "$?"
 bash "$SCRIPT" check --repo "$REPO" --config >/dev/null 2>&1

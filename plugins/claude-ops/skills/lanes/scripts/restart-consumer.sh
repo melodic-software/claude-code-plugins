@@ -22,6 +22,8 @@
 #   restart-consumer.sh run               relaunch the lanes that asked
 #   restart-consumer.sh print-schedule    print the OS scheduler registration
 #                                         and removal commands; mutate nothing
+# A leading `consume-restarts` token (the skill-level action name SKILL.md
+# forwards in $ARGUMENTS) is accepted and ignored.
 #
 # Options:
 #   --config FILE        lane config JSON (same resolution as lane-launcher.sh:
@@ -173,6 +175,11 @@ parse_args() {
   local seen_action=0
   while (($#)); do
     case "$1" in
+    consume-restarts)
+      # The skill-level action token (`/claude-ops:lanes consume-restarts ...`):
+      # SKILL.md forwards $ARGUMENTS verbatim, so strip it and read the real
+      # action (check/run/print-schedule) from the tokens that follow.
+      ;;
     check | run | print-schedule)
       ((seen_action)) && {
         err "unexpected extra action: $1"

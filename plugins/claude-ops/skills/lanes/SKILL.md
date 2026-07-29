@@ -1,7 +1,7 @@
 ---
 name: lanes
-description: "Start, restart, stop, and check loop lanes as named background Claude Code sessions seeded from canonical prompt files — the scripted replacement for the manual morning refresh (cancel loop, clear, re-paste the canonical prompt) across N lanes on a machine. `start`/`restart` first pull the repo and refresh the plugin marketplace, then launch each configured lane with its per-lane model/effort. Use when: 'launch my lanes', 'restart the loop lanes', 'start the work lanes', 'morning lane refresh', 'stop a lane', 'which lanes are running', 'lane status'. Mutating and operator-initiated; never touches a session whose name is not a configured lane."
-argument-hint: "[start|restart|status|stop] [lane...] — start (default); restart/stop accept lane names; --config, --repo, --dry-run, --no-pull, --no-update"
+description: "Start, restart, stop, and check loop lanes as named background Claude Code sessions seeded from canonical prompt files — the scripted replacement for the manual morning refresh (cancel loop, clear, re-paste the canonical prompt) across N lanes on a machine. `start`/`restart` first pull the repo and refresh the plugin marketplace, then launch each configured lane with its per-lane model/effort. `consume-restarts` reads each configured lane's telemetry `restart_request` and relaunches the stopped lanes that asked — the scheduled headless reader (#1653). Use when: 'launch my lanes', 'restart the loop lanes', 'start the work lanes', 'morning lane refresh', 'stop a lane', 'which lanes are running', 'lane status', 'consume restart requests', 'lane restart consumer', 'relaunch the lanes that asked'. Mutating and operator-initiated; never touches a session whose name is not a configured lane."
+argument-hint: "[start|restart|status|stop|consume-restarts] [lane...] — start (default); restart/stop accept lane names; consume-restarts takes [check|run|print-schedule]; --config, --repo, --dry-run, --no-pull, --no-update"
 user-invocable: true
 disable-model-invocation: true
 shell: bash
@@ -67,6 +67,10 @@ begins with fresh context.
 
 ## Run it
 
+If the first token of `$ARGUMENTS` is `consume-restarts`, skip to
+[Consume restart-requests](#consume-restart-requests-1653) instead — it runs a
+different script. Otherwise:
+
 ```bash
 bash "${CLAUDE_PLUGIN_ROOT}/skills/lanes/scripts/lane-launcher.sh" --data-dir "${CLAUDE_PLUGIN_DATA}" $ARGUMENTS
 ```
@@ -100,12 +104,38 @@ Parse `$ARGUMENTS` for the action (first token); remaining tokens are lane names
 | `restart [lane...]` | Yes | Pull + marketplace update, then stop-and-relaunch each target lane (all, or named) |
 | `status` | No | Per-lane table: model, effort, running/stopped, and the live sessionId |
 | `stop [lane...]` | Yes | Stop each running target lane (all, or named) via `claude stop <sessionId>` |
+| `consume-restarts [check\|run\|print-schedule]` | `run` only | Read each lane's telemetry `restart_request`; relaunch stopped lanes that asked (#1653) |
 
 Options: `--config FILE`, `--repo DIR`, `--no-pull`, `--no-update`, `--dry-run`,
 `--agents-json FILE` (read the session list from a file instead of the live CLI —
 offline/scripted reuse), `--data-dir DIR` (base dir for the per-lane
 launch-commit marker; default `$CLAUDE_PLUGIN_DATA`). Exit codes: `0` ok · `3`
 bad argument/config · `4` prerequisite missing or repo/config unresolved.
+
+## Consume restart-requests (#1653)
+
+A lane that hits its cycle budget or the `/loop` seven-day expiry writes a
+`restart_request` into its telemetry state block and stops — it cannot relaunch
+itself. The consumer is the reader that closes that gap, meant to run unattended
+on an **OS-owned schedule** (its `print-schedule` action emits the registration
+commands; registering them is an operator action). For `consume-restarts`, run:
+
+```bash
+bash "${CLAUDE_PLUGIN_ROOT}/skills/lanes/scripts/restart-consumer.sh" --data-dir "${CLAUDE_PLUGIN_DATA}" $ARGUMENTS
+```
+
+The script strips the leading `consume-restarts` token itself; the next token is
+its sub-action — `check` (read-only report, the default), `run` (relaunch), or
+`print-schedule` (emit the registration commands) — and later tokens its options.
+Print the output verbatim. Relaunches delegate to `lane-launcher.sh restart`, so
+each lane's prompt, model, effort, and settings come from the same config this
+skill already uses. **The consumer's polling tick is not lane pacing**: lanes
+stay self-paced via `ScheduleWakeup`, and a tick where no configured lane has a
+non-null `restart_request` is a no-op that only refreshes the consumer's own
+freshness telemetry. Design rationale, the relaunch predicate, operator
+registration with Verify/Reversal lines, and the labeled UNVERIFIED items live
+in [context/restart-consumer.md](context/restart-consumer.md) — read it before
+registering the schedule or changing the consumer.
 
 ## Lane config
 

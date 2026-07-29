@@ -3,6 +3,28 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.22.0]
+
+### Added
+
+- **`lanes consume-restarts` — the lane restart-request consumer (#1653).** A loop lane that
+  hits its cycle budget or the `/loop` seven-day expiry writes a `restart_request` into its
+  telemetry state block and stops; nothing consumed that field, so every budget or expiry hit
+  was a terminal manual-restart state. `scripts/restart-consumer.sh` (new `consume-restarts`
+  action on `/claude-ops:lanes`) reads each configured lane's telemetry and relaunches the
+  stopped lanes that asked, through `lane-launcher.sh restart` — so each lane's prompt, model,
+  effort, and settings (autonomy tier) come from the existing lane config. Meant to run
+  unattended on an OS-owned schedule (Task Scheduler / cron): `print-schedule` emits the
+  registration and removal commands; registering them stays an operator action. Guardrails: a
+  telemetry comment is a signal, never a target (only operator-configured lanes can be
+  relaunched; nothing from a comment is interpolated into a command); a per-lane circuit
+  breaker (default 3 restarts per rolling 24 h); a not-currently-running predicate that makes
+  the consumer self-clearing without editing another writer's comment. Observability: a JSONL
+  run ledger under the plugin data dir plus the consumer's own sentinel-marked telemetry
+  comment in the `morning-brief.sh` format, so a schedule that stops firing surfaces as a
+  STALE lane in the morning brief. Design record and labeled UNVERIFIED items:
+  `skills/lanes/context/restart-consumer.md`.
+
 ## [0.21.6]
 
 ### Fixed
