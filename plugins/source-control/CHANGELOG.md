@@ -3,6 +3,41 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.36.0]
+
+### Added
+
+- **`babysit-loop` detects consecutive no-progress cycles and escalates instead of cycling
+  invisibly (#1648).** Every stall mechanism was per-PR (`needs_worker` delta, `quiet_recheck_due`,
+  `checks.stuck`), so a merge lane cycling repeatedly while its queue sat unmoved was invisible to
+  itself. The lane now persists a `no_progress_streak` counter beside `cycle` and `backoff_level`
+  in its `#502` durable state block: a cycle with open PRs in the cycle-start snapshot that ends
+  with no qualifying progress — no PR merged or closed, materially changed (head, reviews,
+  comments, checks, draft elevation — foreign activity included; the lane's own repeat attempt at
+  the same still-unresolved blocker never re-qualifies), and no new escalation written —
+  increments it, an idle cycle (no open PRs) — or one held by the rate-limit guard, meaning
+  `rate_limit_latch` set, which starts no new mutating work and outlives the pause end — leaves it
+  unchanged, and any qualifying progress resets it. At the threshold (new `babysit_loop_no_progress_threshold` seam key, default 3) the
+  lane raises a stall escalation through the existing escalation contract — a
+  `Lane stall: babysit-loop` issue with the human-gated role label and the machine-marked
+  escalation comment, at most one open at a time (author-matched) — and **keeps looping**: a
+  stalled lane is a signal about the queue, not a reason to terminate. Shared counter semantics
+  are owned by the loop-lane convention (§4, "No-progress detector", convention 5.0.0); the lane
+  body holds them by citation and defines only the merge-lane progress events.
+
+### Changed
+
+- **`babysit-loop`'s detector binding moved to a progressive-disclosure spoke (#1648).** With this
+  lane's share of #1650's escalation-record contract also landing in `SKILL.md`, the file crossed
+  the 500-line hard cap. The merge-lane binding — qualifying progress, the `rate_limit_latch`
+  held-cycle bar, the threshold key, and the stall-escalation shape — now lives in
+  `skills/babysit-loop/reference/no-progress-detector.md`, cited from the cycle-shape step that
+  updates the counter, matching the `pre-escalation-dispatch.md` spoke already beside it. The same
+  pass dropped the closed inventory of every contract the convention owns (it coupled this file to
+  the convention's table of contents) in favor of the three rules that bite hardest here, and
+  trimmed the pre-escalation paragraph to what its own spoke does not already own. No contract
+  changes.
+
 ## [0.35.1]
 
 ### Fixed
