@@ -225,7 +225,7 @@ scan_file() {
       # The guard DISPATCHES on either spelling — a token naming the utility
       # plainly is still a stat token, and a simplified one is what every
       # class-scoped unit fixture uses.
-      QRUN = "[" SQ DQ BS BS "]*"
+      QRUN = "(\\$?[" SQ DQ "]|" BS BS ")*"
       STATNAME = "s" QRUN "t" QRUN "a" QRUN "t"
       # What may sit between a pipeline position and the command name that
       # position runs: environment assignments (repeatable, either side of a
@@ -788,14 +788,14 @@ scan_file() {
       # spellings the token patterns already admit — quote removal invokes the
       # same BSD utility, so `|| "stat" -f …` and `|| "/usr/bin/stat" -f …` are
       # real ladders and were being forced into an exemption (#1544).
-      NAME = "[" SQ DQ BS BS "]?(/[^;|&[:space:]]*/)?"
+      NAME = "(\\$?[" SQ DQ "]|" BS BS ")?" "(/[^;|&[:space:]]*/)?"
       SEG = "([^;|&" NL "]|[<>]&|&>|&&)*"
       # A word inside PRE is any single argument that is not a control
       # operator. Excluding the operators matters as much here as in SEG: a gap
       # that may swallow a `;` lets the guard reach PAST the matched invocation
       # and be satisfied by a ladder belonging to a later command, which is the
       # line-wide behaviour this anchoring replaced.
-      PRE = "[" SQ DQ BS BS "]?[[:space:]]+([^;|&\n]*[[:space:]])?"
+      PRE = "(\\$?[" SQ DQ "]|" BS BS ")?" "[[:space:]]+([^;|&\n]*[[:space:]])?"
       # An OPTION word may carry quotes on BOTH sides of the ladder, exactly as
       # the shipped date/stat tokens admit: quote removal hands the utility the
       # same option either way, so `stat "-c" … || stat "-f" …` is one real
@@ -805,7 +805,7 @@ scan_file() {
       # `"-f"` IS the option after quote removal, while `"--"` is the
       # end-of-options marker this gate does not honor at all.
       QP = QRUN
-      QL = "[A-Za-z" SQ DQ BS BS "]*"
+      QL = "([A-Za-z]|\\$?[" SQ DQ "]|" BS BS ")*"
       if (p ~ /readlink/) {
         return substr(q, 1, at + 7) ~ ("realpath" SEG CMDPOS NAME "readlink$")
       }

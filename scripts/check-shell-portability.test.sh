@@ -2453,6 +2453,35 @@ else
 fi
 rm -f "$f"
 
+# --- ANSI-C (`$'…'`) and locale (`$"…"`) quoting splice a word exactly as an
+# ordinary quote or a backslash does, in the command word and the option alike.
+f="$(tmpsh "$(printf '%s\n' \
+  "d\$'a'te -d tomorrow" \
+  "date -\$'d' tomorrow" \
+  "st\$'a't -c %s \"\$f\"" \
+  "stat -\$'c' %s \"\$f\"" \
+  'date $"--date"=tomorrow')")"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "ANSI-C quote splices should fail, got success: $out"
+elif [[ "$(echo "$out" | grep -c "PORTABILITY: ${f}:")" -eq 5 ]]; then
+  ok "ANSI-C and locale quote splices are detected in the name and the option"
+else
+  fail "expected all five ANSI-C spellings flagged, got: $out"
+fi
+rm -f "$f"
+
+# --- a BARE `$` is a variable expansion, not quote removal, so it must not act
+# as a quote-run character. Admitting one would flag ordinary parameterized code.
+f="$(tmpsh "$(printf '%s\n' \
+  'validate -d $config' \
+  'd$a$t$e -d tomorrow')")"
+if scan_paths "$REAL_TOKENS" "$f" >/dev/null 2>&1; then
+  ok "a bare \$ is not admitted as a quote-run character"
+else
+  fail "a bare \$ was treated as quote removal: $(scan_paths "$REAL_TOKENS" "$f" 2>&1)"
+fi
+rm -f "$f"
+
 echo
 echo "PASS=$PASS FAIL=$FAIL"
 [[ "$FAIL" -eq 0 ]]

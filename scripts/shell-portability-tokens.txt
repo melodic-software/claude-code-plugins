@@ -280,10 +280,15 @@ readlink[[:space:]]+(-[A-Za-z]*f|--canonicalize)
 # check-shell-portability.sh's stat fallback guard anchors on this same
 # spelling (its STATNAME constant) so a spliced GNU call can still find a
 # spliced BSD fallback; a change to the name spelling here belongs there too.
-# A BACKSLASH quotes the same way a quote pair does, so the quote-run class is
-# `['"\]`, not `['"]` (#1544): `da\te -d tomorrow` and `date -\d tomorrow` both
-# reach GNU date after quote removal and both read clean while the class
-# admitted quote characters only. The same class covers the command word, the
+# A BACKSLASH quotes the same way a quote pair does, and so do the ANSI-C and
+# locale quoting forms, so a quote-run element is `(\$?['"]|\\)` rather than a
+# bracket class of quote characters (#1544): `da\te -d tomorrow`,
+# `date -\d tomorrow`, `d$'a'te -d tomorrow`, `date -$'d' tomorrow` and
+# `date $"--date"=tomorrow` all reach GNU date after the shell is done with
+# them, and every one read clean while the class admitted quote characters only.
+# A BARE `$` is deliberately excluded: `$config` is a variable expansion, not
+# quote removal, so admitting one would flag ordinary parameterized code
+# (`validate -d $config`) and `d$a$t$e` is not a spelling of `date`. The same class covers the command word, the
 # short-option cluster and the long option, because the shell applies quote
 # removal to all three identically — generalizing once is what stops the next
 # spelling of the same evasion being a separate finding.
@@ -332,7 +337,7 @@ readlink[[:space:]]+(-[A-Za-z]*f|--canonicalize)
 # `git -c alias.x=status -c …` (via "STATus") and `[[ -d "$candidate" ]]` (via
 # "can-DATE") clean, so the separator is WIDENED rather than relaxed: whitespace,
 # or a redirection operator, and nothing else.
-(^|[^A-Za-z0-9_-])d['"\\]*a['"\\]*t['"\\]*e['"\\]*([[:space:]]+|[<>]&?|&>>?)([^;&|()`\n]*[[:space:]])?['"\\]*(-[A-Za-z'"\\]*d|--['"\\]*d['"\\]*a['"\\]*t['"\\]*e['"\\]*([[:space:]]|=))
+(^|[^A-Za-z0-9_-])d(\$?['"]|\\)*a(\$?['"]|\\)*t(\$?['"]|\\)*e(\$?['"]|\\)*([[:space:]]+|[<>]&?|&>>?)([^;&|()`\n]*[[:space:]])?(\$?['"]|\\)*(-([A-Za-z]|\$?['"]|\\)*d|--(\$?['"]|\\)*d(\$?['"]|\\)*a(\$?['"]|\\)*t(\$?['"]|\\)*e(\$?['"]|\\)*([[:space:]]|=))
 
 # `stat -c` (GNU format string) — a GNU coreutils extension; BSD/macOS stat
 # uses `-f`. Requires whitespace immediately after `stat` so the token matches
@@ -378,7 +383,7 @@ readlink[[:space:]]+(-[A-Za-z]*f|--canonicalize)
 # and `stat -"c" %s` both reach GNU stat as `-c` after quote removal.
 # Same attached-redirection separator as `date -d` above (#1544):
 # `stat</dev/null -c %s "$f"` still passes GNU stat its `-c`.
-(^|[^A-Za-z0-9_-])s['"\\]*t['"\\]*a['"\\]*t['"\\]*([[:space:]]+|[<>]&?|&>>?)([^;&|()`\n]*[[:space:]])?['"\\]*(-[A-Za-z'"\\]*c|--['"\\]*f['"\\]*o['"\\]*r['"\\]*m['"\\]*a['"\\]*t['"\\]*|--['"\\]*p['"\\]*r['"\\]*i['"\\]*n['"\\]*t['"\\]*f['"\\]*)
+(^|[^A-Za-z0-9_-])s(\$?['"]|\\)*t(\$?['"]|\\)*a(\$?['"]|\\)*t(\$?['"]|\\)*([[:space:]]+|[<>]&?|&>>?)([^;&|()`\n]*[[:space:]])?(\$?['"]|\\)*(-([A-Za-z]|\$?['"]|\\)*c|--(\$?['"]|\\)*f(\$?['"]|\\)*o(\$?['"]|\\)*r(\$?['"]|\\)*m(\$?['"]|\\)*a(\$?['"]|\\)*t(\$?['"]|\\)*|--(\$?['"]|\\)*p(\$?['"]|\\)*r(\$?['"]|\\)*i(\$?['"]|\\)*n(\$?['"]|\\)*t(\$?['"]|\\)*f(\$?['"]|\\)*)
 # `mktemp -p` (parent-directory flag). NOT an absent flag: FreeBSD 14.2 and
 # Apple both document `-p tmpdir, --tmpdir[=tmpdir]`, so a claim that BSD/macOS
 # mktemp "has no -p" is false. The hazard is PRECEDENCE, which diverges
