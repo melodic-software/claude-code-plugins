@@ -3,6 +3,57 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.37.1]
+
+### Fixed
+
+- **`pr-body-linkage-gate` false-blocked any `gh pr create` preceded by a `cd` on the same command
+  line.** The gate file and a relative `--body-file` both resolve against the payload's `cwd`, but
+  the segment tokenizer discards the `cd` segment, so `cd <worktree> && gh pr create …` — a routine
+  shape in a multi-worktree setup — was judged against the wrong directory entirely. Two live
+  defects, not one: a compliant body was rejected because a same-named file in the session's
+  directory was read instead, and enforcement leaked into repositories carrying no
+  `pr-issue-linkage.yml` at all, contradicting the scope guard's own promise. A `cd`, `pushd`, or
+  `popd` segment now puts every later segment out of scope, exactly as `--repo` already did. A
+  directory change *after* the `gh` call still gates normally.
+- **The hook exceeded its own 15-second timeout on a body of roughly 800 lines or more, silently
+  ceasing to gate the largest PRs.** Trimming each body line ran through a command substitution, so
+  every line cost a fork: a 1000-line body took 18.3 s measured. Both per-line trims — and the one
+  in the heredoc reader — are now parameter expansion. The same body takes 1.3 s, and 5000 lines
+  stays at 1.3 s. A regression test fails if a 1000-line body approaches the timeout.
+- **The verdict depended on the ambient locale.** `[[:space:]]` stood in for JavaScript's `\s`, but
+  its membership is locale-defined while `\s` is a fixed set, so under `LC_ALL=C` a body carrying a
+  non-breaking space between `Closes:` and `#5` — routine in text pasted from an issue title — was
+  rejected where the CI check accepts it. Both halves are pinned now: every non-ASCII character in
+  the `\s` set is rewritten to a plain space by UTF-8 byte sequence, and matching runs under
+  `LC_ALL=C`, where `[[:space:]]` is exactly the six ASCII whitespace characters. The two together
+  reproduce `\s` on any host, and the tests assert both locales agree.
+- **pflag's grouped shorthand carried bodies straight past the gate.** `gh pr create -db BODY`,
+  `-dbBODY`, `-dF file`, and `-dFfile` are all valid gh and all were allowed, because only a bare
+  `-b`/`-F` was recognized. Short clusters are now walked properly: boolean shorthands pass through,
+  and the first value-taking shorthand ends the cluster, taking the rest of the word or the next
+  word. An unknown letter stops the walk rather than guessing which letter would have consumed the
+  following word.
+- **`gh` was matched only as the exact literal.** `gh.exe`, `/usr/bin/gh`, `./gh`, and `sudo gh` all
+  bypassed the gate, inconsistent with the basename comparison the wrapper loop ten lines above
+  already used. The binary is matched by basename now, `.exe` suffix and backslash paths included,
+  and `sudo` joins `env`/`command` as a recognized wrapper.
+- **A stalled hook payload blocked the command.** The gate inherited the sibling security guards'
+  fail-closed posture on an unreadable stdin, which for a scoped policy gate means refusing an
+  arbitrary Bash command because the hook could not read its own input. It allows now; the header
+  records the divergence and why.
+- The `## Related` absent-versus-empty distinction moved from a `\001`-prefixed sentinel string,
+  which a section whose content happened to equal it would have collided with, onto the return-code
+  channel. The applicability pre-filter now requires `gh` at a word boundary, so
+  `npm run lighthouse-prod` no longer pays for a full parse.
+
+### Changed
+
+- The gate's test suite no longer claims to prove the hook mirrors the ci-workflows validator —
+  nothing in it executes that validator, so all 92 cases are hand-transcribed expectations, and the
+  header now says so. A real oracle would mean vendoring upstream JavaScript into this repo, which
+  is a separate decision; the divergences fixed above were found by running one out-of-tree.
+
 ## [0.37.0]
 
 ### Added

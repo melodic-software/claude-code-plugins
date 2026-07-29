@@ -130,9 +130,11 @@ the calls that bypass the skill.
 
 Enforcement is keyed to the consuming repository's own policy: it runs only
 where `.github/workflows/pr-issue-linkage.yml` exists, and a body the hook
-cannot read statically (an unexpanded variable, an absent body flag, a
-`--repo`-targeted invocation) always passes. Set
-`pr_body_linkage_gate_enabled` to `false` to turn it off.
+cannot read statically always passes — an unexpanded variable, an absent body
+flag, a body flag with no value, an unreadable file, a `--repo`-targeted
+invocation, or a call following a `cd`/`pushd` on the same command line, which
+moves the directory the gate file and any relative `--body-file` resolved
+against. Set `pr_body_linkage_gate_enabled` to `false` to turn it off.
 
 #### Telemetry (opt-in)
 
