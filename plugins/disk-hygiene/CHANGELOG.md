@@ -3,7 +3,7 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.10.1]
+## [0.10.2]
 
 ### Fixed
 
@@ -103,6 +103,23 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
   gained four regression tests, including a mechanical check that the span-located token partition
   is identical to the split partition it mirrors, so a future refactor cannot quietly change what
   detection reads.
+
+## [0.10.1]
+
+### Documentation
+
+- **Safety model now documents the live agent scratchpad hazard (#1637).** `machine-health`'s new
+  `claude-temp-root` check routes its findings here, which makes a Claude Code temp root a named
+  target for this skill. Its hazard is not the session running the clean but a *concurrently
+  running other* session, whose scratchpad is an active working directory with no marker separating
+  it from an abandoned one — and directory age cannot separate them, since a long-running session's
+  scratchpad is old and live at once. The new "Live agent scratchpads" section records that no new
+  machinery is needed: live-handle proof, live re-discovery of VCS markers, identity-and-descendant
+  equality since snapshot, and immediate verdict expiry already hold the line structurally rather
+  than by heuristic. It also states the two consequences plainly — a Windows temp root is a
+  manual-lane job because the engine returns `execution-platform-unsupported` there, and a temp root
+  is a low-confidence target however large it looks, because the tier follows what can be proven
+  quiescent rather than what would be reclaimed. No behavior change.
 
 ## [0.10.0]
 

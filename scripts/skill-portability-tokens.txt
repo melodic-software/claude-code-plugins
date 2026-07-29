@@ -38,14 +38,23 @@ origin/(main|master)
 
 # --- STAGED (commented until the class is proven clean against the corpus) ---
 #
+# Every staged entry carries a MEASURED residue (`--all` hit and file counts at
+# the recorded commit, scored through the gate itself so guards, per-site
+# annotations, and whole-file scope declarations are already applied) plus the
+# named blocker that has to clear. A count is a measurement with a shelf life,
+# not a promise: re-run `--all` before acting on one.
+#
 # Before enabling ANY staged class below, beyond the corpus audit:
 #   - Audit and EXTEND `is_guarded()` in check-skill-portability.sh with the
-#     markers the new class legitimately needs. Its markers are scoped to the
-#     active branch/default-branch class — branch-detection evidence only. A
-#     class that genuinely needs optional-dependency presence signals (e.g.
-#     "useful if using .NET — requires dotnet CLI") must add its own
-#     class-scoped markers; a generic `if using` / `when present` must never
-#     guard a bare hardcode, or the gate goes green on a real coupling.
+#     markers the new class legitimately needs. Markers are CLASS-SCOPED — the
+#     function receives the matched pattern, so the branch class's
+#     symbolic-ref / merge-base / origin/HEAD evidence never excuses a
+#     different class's coupling that happens to share a line. Add markers
+#     under the new class's own pattern test, never by widening the branch
+#     class's. A class that genuinely needs optional-dependency presence
+#     signals (e.g. "useful if using .NET — requires dotnet CLI") must add its
+#     own class-scoped markers; a generic `if using` / `when present` must
+#     never guard a bare hardcode, or the gate goes green on a real coupling.
 #   - If the pattern uses `\b` as a word boundary, it is NOT reliable: POSIX ERE
 #     defines no word-boundary escape, and on common awks (gawk AND mawk/nawk)
 #     `\b` matches a literal backspace byte, not a boundary — verified: gawk uses
@@ -63,12 +72,86 @@ origin/(main|master)
 # \bClean Arch(itecture)?\b
 
 # Forge/marketplace-internal hardcode: a hardcoded raw GitHub content URL where a
-# portable fetch or a declared scope belongs. Enable when #405 and the forge-lock
-# members (e.g. #441 declares source-control's inherent GitHub scope) land.
+# portable fetch or a declared scope belongs (#432). Enable when the forge-lock
+# members land (e.g. #441 declares source-control's inherent GitHub scope).
+# Residue at bb0efe61: 27 hits / 22 files. Two shapes share the token and want
+# opposite dispositions, which is what keeps it staged: a RUNTIME fetch of the
+# publisher's own repo at a moving `main` (#432's defect — the plugin cannot
+# reach a doc it does not bundle, so behavior depends on repo name, branch, and
+# network) versus a PROVENANCE citation of a third-party upstream in a
+# sync/drift script that is inherently locked to that upstream (context7 →
+# upstash/context7, dometrain → Dometrain/mcp), which is a `portability-scope`
+# declaration, not a fix. Splitting those needs #432's bundle-vs-pin ruling
+# first; activating before it would push a `portability-scope` declaration onto
+# files whose correct disposition is still open.
 # raw\.githubusercontent\.com
 
 # Tracker hardcode: bare `gh` tracker calls in a tracker-agnostic skill that
-# should route the work-item seam (#416). Enable once the seam-routing members
-# land; `gh` is legitimate in forge-scope-declared skills, so this class needs
-# the declared-scope escape hatch exercised first.
+# should route the work-item seam (#416). Residue at bb0efe61: 358 hits across
+# 78 files — by far the largest class here, and #416 (wayfind re-implements
+# GitHub-direct instead of routing the seam) is still OPEN, so the corpus has no
+# clean landing yet. Enable once the seam-routing members land; `gh` is
+# legitimate in forge-scope-declared skills, so this class needs the
+# declared-scope escape hatch exercised on those plugins first.
+#
+# The `\b` spelling below is inert, per the POSIX note above — it must be
+# rewritten to a POSIX-safe boundary before activation, not merely uncommented.
+# A verified replacement shape, measured against this corpus:
+#   (^|[^a-zA-Z0-9_.-])gh (issue|pr|api|repo|run|label|release|search|workflow)([^a-zA-Z0-9_-]|$)
+# The leading class excludes `.` and `-` so a filename or hyphenated identifier
+# ending in "gh" is not read as the command.
 # \bgh (issue|api|pr|label)
+
+# Remote-name hardcode: a bare `origin` as the REMOTE ARGUMENT of a git command
+# (#442's class) asserts the consumer's remote name instead of resolving it —
+# `git clone -o vendor` and triangular fork flows (fetch `upstream`, push
+# `fork`) both break. Anchored to the remote-argument position rather than the
+# bare word: `origin` also appears legitimately as English prose ("the lane's
+# origin"), inside `origin/HEAD` (the branch class's own detection ladder), and
+# in unrelated compounds like "cross-origin".
+#
+# Git's documented syntax is `git [<global-options>] <command> [<args>]`, so the
+# pattern spans an optional global-option run between `git` and the subcommand —
+# `git -C <worktree> fetch origin` is as much a hardcoded remote as the bare
+# form, and a subcommand-adjacent anchor would report it clean and understate
+# the residue. Options that take a separate value (`-C <path>`, `-c <k>=<v>`,
+# `--git-dir <path>`) are spanned by allowing each option one following
+# non-option word; an attached `--git-dir=<path>` is one word already.
+#
+# Residue at bb0efe61: 20 hits / 14 files. #442 — the issue that named this
+# class — is CLOSED: source-control resolves the remote properly today via
+# skills/pull-request/scripts/resolve-remote.sh, and its remaining hits are
+# prose ABOUT that resolver. What keeps the class staged is that the fix did
+# not generalize: real bare uses remain in repo-hygiene, work-items,
+# claude-ops, and education, none of which can reach a plugin-local resolver
+# in another plugin, and no open member issue owns them. Enable when a
+# resolve-remote-shaped seam those plugins can call actually exists — until
+# then the only way to green is a `portability-scope` declaration on files
+# whose forge-locking is not inherent at all, which is exactly the false
+# exemption the whole-file token exists to prevent.
+#
+# is_guarded() needs a CLASS-SCOPED marker before this activates: the correct
+# pattern is a resolved remote variable or a co-located `branch.<name>.remote` /
+# `@{upstream}` / resolve-remote.sh call. The branch class's markers must not be
+# reused — they prove which BRANCH was resolved, never which REMOTE.
+# git([[:space:]]+-[^[:space:]]+([[:space:]]+[^[:space:]-][^[:space:]]*)?)*[[:space:]]+(push|fetch|pull|clone|ls-remote|remote (prune|show|add|rename|get-url|set-url))([[:space:]]+-[^[:space:]]+)*[[:space:]]+origin([^a-zA-Z0-9_/.-]|$)
+
+# Branch-grammar hardcode: Conventional-Commits branch types shipped as the
+# grammar rather than read from the consuming repo (#415). This is a lane-1
+# violation under PLUGIN-PHILOSOPHY's Two-lane convention posture — a repo on
+# Jira-key branches (`SW2-12345-desc`) gets wrong suggestions — and the same
+# plugin already defers commit policy correctly, so the inconsistency is
+# internal, not inherent.
+#
+# Residue at bb0efe61: 4 hits / 2 files for the type-enumeration shape,
+# 19 hits / 11 files for the `<type>/<` placeholder shape. Enable when #415's
+# consumer seam lands. The placeholder token is deliberately the narrower of
+# the two candidates: a bare `(feat|fix|chore)/` alternation also matches
+# ordinary prose paths (`build/shots/`, `docs/conventions/`), which is a
+# false-positive class no annotation should have to absorb.
+#
+# Both spellings are recorded because they catch different defects — the
+# enumeration catches a shipped type LIST, the placeholder catches a shipped
+# branch SHAPE — and #415 may resolve one without the other.
+# `(feat|fix|refactor|chore|docs|test|build|perf|style)/`[^`]*`(feat|fix|refactor|chore|docs|test|build|perf|style)/`
+# <type>/<

@@ -13,11 +13,14 @@ Deterministic guards encoded here:
 
 - Owner must be in the caller-supplied `--allowed-owners` allowlist; an empty or
   missing allowlist hard-refuses (fail closed).
-- HUMAN-authored threads are NEVER touched. Only threads whose participants are
-  all Bots (GraphQL `__typename == "Bot"`, or the structural `*[bot]` App-login
-  suffix) are eligible; a human thread is always skipped + reported. Bot identity
-  comes from API-provided signals, with no hardcoded login list to go stale --
-  the sole exception is `--extra-bot-logins`, the operator-supplied logins
+- HUMAN-authored threads are NEVER touched, and neither are the caller's OWN.
+  Eligibility requires BOTH that the thread's OPENING comment is a Bot's (GraphQL
+  `__typename == "Bot"`, or the structural `*[bot]` App-login suffix) -- a thread
+  belongs to whoever opened it, and replying into it never changes that -- AND
+  that every other fetched participant is a Bot too; a human thread is always
+  skipped + reported. Bot identity comes from API-provided signals, with no
+  hardcoded login list to go stale -- the sole exception is
+  `--extra-bot-logins`, the operator-supplied logins
   (`babysit_extra_bot_logins`) for bot accounts structural detection cannot see
   (a plain `User` with no `[bot]` suffix). Those logins are treated as bots for
   eligibility, so a login named there that is actually a human's account makes
@@ -76,6 +79,35 @@ Deterministic guards encoded here:
   bright line so human and AI-review threads are also eligible. It is OFF by
   default (safe and worker modes never touch human threads), and the caller
   owns the judgment that each finding is genuinely addressed before resolving.
+- `--self-logins` neutralizes the CALLER'S OWN posting identity for the
+  bot-only test. The worker replies to a bot thread under its own login (a
+  classification reply, a `Fixed in <sha>` follow-up) before ever resolving
+  it, and that reply is a real API comment like any other -- so without this
+  flag it makes the thread's `botOnly` computation false the moment it posts,
+  the same as a genuine third-party human joining the thread. `botOnly` false
+  falls out of the default bot-only scope, `--include-human` is unset by
+  default (by design: worker/safe modes must never touch a genuine human
+  thread), and nothing lifts it back in -- the thread is then stranded outside
+  BOTH resolution scopes forever, even though replying was exactly the correct,
+  documented action. `--self-logins` (comma-separated; `@me` resolves to your
+  `gh` login, matching `babysit_merge.py`'s `--self-logins`) marks the caller's
+  own logins as neutral rather than bot or human -- neutral as a REPLY only.
+  The thread's OPENING comment must still be an ACTUAL bot's for `botOnly`, so
+  a thread the caller itself opened is never misclassified as a bot thread
+  just because a bot later replied to it (the canonical rule in
+  `reference/review-discipline.md` forbids resolving your own threads); what
+  the flag changes is only that a self-authored reply UNDER a bot opener no
+  longer counts against it. The same flag also protects the `--autonomous`
+  severity guard above: the mandated classification-reply table
+  (`reference/review-discipline.md`)
+  restates the source finding's own severity marker as one of its columns, so
+  fixing `botOnly` alone would just re-strand the thread under
+  `skipped-severity-marked` the first time it reaches that guard. A
+  self-authored comment therefore has its classification-table rows (not the
+  whole body) stripped before the severity scan, mirroring
+  `babysit_classify.count_findings`'s identical rule for the finding-count
+  gate; non-table self content still flags. It ships empty, so an
+  unconfigured caller's classification is unchanged.
 
 This helper only resolves bot threads. It cannot merge, reply, comment, dismiss
 reviews, force-push, touch human threads, or judge a finding's severity.
@@ -95,8 +127,13 @@ import json
 import re
 from typing import Any, cast
 
-from babysit_classify import is_bot
-from babysit_gh import fetch_review_threads, gh_capture, parse_repo_number
+from babysit_classify import (
+    is_bot,
+    is_self_login,
+    normalize_self_logins,
+    strip_classification_rows,
+)
+from babysit_gh import fetch_review_threads, gh_capture, parse_repo_number, resolve_authors
 from babysit_util import configure_stdio, dig, is_json_object
 
 
@@ -154,40 +191,91 @@ def _latest_comment_update(comments: list[Any]) -> str | None:
 
 
 def project_thread(
-    record: dict[str, Any], *, extra_bot_logins: frozenset[str] = frozenset()
+    record: dict[str, Any],
+    *,
+    extra_bot_logins: frozenset[str] = frozenset(),
+    self_logins: frozenset[str] = frozenset(),
 ) -> dict[str, object]:
     """Map one shared-paginator record to this CLI's thread shape.
 
-    Inspects EVERY fetched participant -- not just the first comment -- so a
-    bot-started thread with a human reply is not mistaken for a pure-bot thread.
-    `botOnly` and `lastCommentUpdatedAt` fail closed (False / None) when a
-    comment page is undisclosed (`comments_truncated`), since a human reply or
-    an edit could be hiding beyond the fetched page. `extra_bot_logins` extends
-    structural bot detection the same way it does everywhere else `is_bot` is
-    called (e.g. `actor_kind` in `babysit_classify.py`); it ships empty, so an
-    unconfigured caller still relies on structure alone.
+    `botOnly` is TWO conditions, both required. The OPENING comment must be
+    bot-authored -- the canonical rule (`reference/review-discipline.md` D7.5)
+    scopes resolution to bot-opened threads and forbids resolving a human's or
+    one's OWN thread, and a thread's author is the author of the comment that
+    opened it, which replying into never changes. AND every remaining fetched
+    participant must be a bot or a configured self-login, so a bot-started
+    thread a third-party human joined is not mistaken for a pure-bot thread.
+    The opener test is the same one `humanThreadsActed` applies (#512), so both
+    `is_bot` call sites agree on what makes a thread a bot's; a "some
+    participant is a bot" test would not, admitting a SELF-opened thread the
+    moment a bot replied to it. `comments[0]` is the opener: the shared
+    paginator requests the comment connection ascending, and anything past the
+    fetched window sets `comments_truncated` rather than displacing the first
+    node. `botOnly` and `lastCommentUpdatedAt` fail closed (False / None) when
+    a comment page is undisclosed (`comments_truncated`), since a human reply
+    or an edit could be hiding beyond the fetched page; `botOnly` likewise
+    fails closed when there is no opening comment to attribute at all (no
+    fetched comments, or an opener whose author the API withheld, e.g. a
+    deleted account). `extra_bot_logins` extends structural bot detection the
+    same way it does everywhere else `is_bot` is called (e.g. `actor_kind` in
+    `babysit_classify.py`); it ships empty, so an unconfigured caller still
+    relies on structure alone.
+
+    `self_logins` (the caller's own posting identities) is the third
+    admissible authorship alongside bot and third-party human, and it is
+    admissible only as a REPLY: a comment authored by a configured self-login
+    does not disqualify a bot-opened thread (unlike a genuine human reply),
+    but neither can it open one (unlike a bot comment). Without this, a
+    worker's own reply to a bot thread -- posted under its own login, exactly
+    like `orchestration.md`'s documented classification-reply / `Fixed in
+    <sha>` flow -- would flip `botOnly` false the moment it posts, stranding
+    the thread outside both resolution scopes (`botOnly` false locks out the
+    default path; `--include-human` stays unset by design in worker/safe
+    modes, so nothing lifts it back in) even though replying was the correct
+    action. It ships empty, so an unconfigured caller's classification is
+    unchanged.
     """
     comments = cast(list[Any], record.get("comments") or [])
     truncated = bool(record.get("comments_truncated"))
     first_author = _comment_author(comments[0]) if comments else {}
+
+    def _author_is_bot(comment: object) -> bool:
+        author = _comment_author(comment)
+        return is_bot(author.get("login"), author.get("__typename"), extra_bot_logins)
+
+    def _author_is_self(comment: object) -> bool:
+        return is_self_login(_comment_author(comment).get("login"), self_logins)
+
     bot_only = (
-        bool(comments)
-        and not truncated
-        and all(
-            is_bot(
-                _comment_author(c).get("login"),
-                _comment_author(c).get("__typename"),
-                extra_bot_logins,
-            )
-            for c in comments
-        )
+        not truncated
+        and bool(comments)
+        and _author_is_bot(comments[0])
+        and all(_author_is_bot(c) or _author_is_self(c) for c in comments)
     )
     total_count = record.get("comments_total_count")
+
+    def _severity_scan_body(comment: object) -> str | None:
+        body = comment.get("body") if is_json_object(comment) else None
+        if not isinstance(body, str):
+            return None
+        if _author_is_self(comment):
+            # The mandated classification reply (review-discipline.md) restates
+            # the source finding's own severity marker as one of its table
+            # columns -- scanning a self-reply raw would re-trip this guard on
+            # the worker's own echo, stranding the thread again right after
+            # `bot_only` above stopped treating that same reply as a
+            # disqualifying human participant. Stripping only the
+            # classification-table rows (not the whole body) mirrors
+            # `babysit_classify.count_findings`: non-table self content -- a
+            # maintainer using a self-login to raise a genuine new finding --
+            # still flags.
+            return strip_classification_rows(body)
+        return body
+
     # Fail closed on truncation: an unfetched comment could carry the marker,
     # so a truncated thread is treated as severity-flagged, not as clean.
     severity_flagged = truncated or any(
-        isinstance(body := (c.get("body") if is_json_object(c) else None), str)
-        and _has_severity_marker(body)
+        (body := _severity_scan_body(c)) is not None and _has_severity_marker(body)
         for c in comments
     )
     return {
@@ -215,12 +303,18 @@ def project_thread(
 
 
 def fetch_threads(
-    repo: str, number: int, *, extra_bot_logins: frozenset[str] = frozenset()
+    repo: str,
+    number: int,
+    *,
+    extra_bot_logins: frozenset[str] = frozenset(),
+    self_logins: frozenset[str] = frozenset(),
 ) -> list[dict[str, object]]:
     # include_resolved so the caller can see (and skip) already-resolved threads;
     # comments_first=100 to inspect every participant for the bot-only test.
     def _project(record: dict[str, Any]) -> dict[str, object]:
-        return project_thread(record, extra_bot_logins=extra_bot_logins)
+        return project_thread(
+            record, extra_bot_logins=extra_bot_logins, self_logins=self_logins
+        )
 
     return [
         cast(dict[str, object], record)
@@ -261,8 +355,9 @@ def classify(
     if thread["isResolved"]:
         return "skipped-already-resolved"
     if not thread["botOnly"] and not include_human:
-        # bright line: never touch a thread with any human participant (checked
-        # across all comments, not just the first), unless autopilot opts in
+        # bright line: never touch a thread unless a bot OPENED it and every
+        # other participant is a bot too (checked across all comments, not just
+        # the first), unless autopilot opts in
         return "skipped-human-thread"
     if (autonomous or only_outdated) and not thread["isOutdated"]:
         # unattended: require a deterministic "addressed" signal so the worker
@@ -364,6 +459,17 @@ def main() -> int:
         help=(
             "Comma-separated logins to treat as bots when structural detection "
             "cannot classify them (ships empty)."
+        ),
+    )
+    parser.add_argument(
+        "--self-logins",
+        default=None,
+        help=(
+            "comma-separated logins treated as the caller's OWN posting "
+            "identity for the bot-only test, so a reply the worker itself "
+            "posts to a bot thread does not flip botOnly false and strand "
+            "the thread outside every resolution scope; '@me' resolves to "
+            "your gh login (ships empty)"
         ),
     )
     args = parser.parse_args()
@@ -498,8 +604,27 @@ def main() -> int:
         )
         return 3
 
+    # Resolve self logins only after the owner-scope refusal above: '@me'
+    # resolution is a network call, mirroring babysit_merge.py's ordering, so
+    # an out-of-scope owner refuses with no gh invocation at all.
     try:
-        threads = fetch_threads(repo, number, extra_bot_logins=extra_bot_logins)
+        self_logins = normalize_self_logins(resolve_authors(args.self_logins))
+    except RuntimeError:
+        # '@me' could not be resolved to a gh login; fail closed by keeping
+        # only the explicit non-'@me' logins -- an unresolved self identity
+        # is simply not recognized as self, so a comment under it is judged a
+        # third-party human same as before this flag existed, never silently
+        # trusted as self on a guessed identity.
+        self_logins = normalize_self_logins(
+            token
+            for token in (args.self_logins or "").split(",")
+            if token.strip().casefold() != "@me"
+        )
+
+    try:
+        threads = fetch_threads(
+            repo, number, extra_bot_logins=extra_bot_logins, self_logins=self_logins
+        )
     except (RuntimeError, ValueError, json.JSONDecodeError) as exc:
         print(json.dumps({"pr": args.pr, "error": f"{type(exc).__name__}: {exc}"}))
         return 2

@@ -127,16 +127,23 @@ sessions and absent in others. Detect it: if the Artifact tool is available, tha
 is the top rung; otherwise degrade down the ladder. Never claim a decision table
 was rendered when only prose was produced.
 
-Write any local HTML file to an **OS temp path** (the session's scratchpad
-directory when the harness provides one, else the platform temp dir) and hand
-back that path — a clarified view is transient generated state, so it never
-lands in the consumer's repository tree. Do not rely on a plugin-data
-substitution variable for this location: skill-body substitution is documented
-only for a fixed set of variables, and an undocumented token can substitute
-unpredictably (including to the wrong plugin's directory when the token
-travels through another skill's arguments). If no writable temp location nor
-the Artifact surface is available, drop to the terminal-markdown rung rather
-than writing into the repo.
+Write any local HTML file to the **ephemeral tier** — one file created through
+the platform's temp API — and hand back that path. A clarified view is
+transient generated state, so it never lands in the consumer's repository tree.
+Do **not** delete the file before returning: the path is the delivery
+mechanism, so it must still be readable when the reader opens it. It outlives
+this invocation, and nothing documented reclaims the OS temp tree on a
+schedule — so write one file per run and never an accumulating tree. Resolve
+that one path deterministically: never
+branch on whether the harness injected a scratchpad path or set
+`CLAUDE_JOB_DIR`, and never depend on the session scratchpad, which is an
+undocumented surface upstream has declined to support. Do not rely on a
+plugin-data substitution variable for this location either: skill-body
+substitution is documented only for a fixed set of variables, and an
+undocumented token can substitute unpredictably (including to the wrong
+plugin's directory when the token travels through another skill's arguments).
+If no writable temp location nor the Artifact surface is available, drop to the
+terminal-markdown rung rather than writing into the repo.
 
 The fidelity rules hold in **every** medium — verbatim terms, original-number
 back-links, omissions, lens line — table or prose.
