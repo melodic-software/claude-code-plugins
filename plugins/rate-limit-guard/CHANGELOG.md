@@ -7,20 +7,24 @@ All notable changes to the `rate-limit-guard` plugin are documented here. Format
 
 ### Fixed
 
-- **Reader contract: the tee's `account` forward-pass no longer promises a no-change upgrade path it
-  cannot deliver (#1685).** Two bullets — the tee-shape field list and the single-account gap
-  invariant — described the writer's filter accurately and then drew a conclusion broader than the
-  filter supports: that the release adding an account identifier "upgrades this file without a plugin
-  change" and "costs no plugin change". The filter is `to_entries` over the **root object only**, with
-  `test("account"; "i")` matching a **substring** of the key, and it has **no else branch**. So the
-  promise holds only for a field that is both top-level and `account`-named; a field nested inside an
-  object (`user.account_uuid`) or named `user`, `identity`, `org`, or `seat` is dropped, and dropped
-  silently — in a contract that fail-closes on every other unresolvable input. Both bullets now state
-  the filter's actual reach (top-level, substring, case-insensitive), name the silent drop, and scope
-  the no-change claim to that one shape; every other shape is called out as needing a writer change.
-  The tee-shape bullet owns the statement and the invariant bullet points at it. `statusline-tee.sh`
-  is unchanged — widening the filter is a design question owned by `TODO(#1218)`, not this
-  correction.
+- **The tee's `account` forward-pass no longer promises a no-change upgrade path it cannot deliver
+  (#1685).** Four surfaces claimed that the release adding an account identifier upgrades the tee
+  file for free — the reader contract's tee-shape bullet and single-account gap invariant, the
+  README's known-gap bullet ("the wrapper automatically adopts any future account-identifying field
+  the schema grows"), and the tee script's own header comment. Each described the writer accurately
+  and then drew a conclusion broader than it supports. The writer selects on the **top-level key
+  name only** (`to_entries` over the root object), matching `account` as a **case-insensitive
+  substring**; an unmatched key is dropped with no diagnostic, in a contract that fail-closes on
+  every other unresolvable input. The promise therefore holds only when the new field's own
+  top-level key name contains `account`: `user`, `identity`, `org`, `seat`, and an `account_uuid`
+  buried inside a non-matching object all vanish silently. All four surfaces now scope the claim to
+  that shape and say every other shape needs a writer change.
+- **The reader contract now states that a forward-passed key carries its whole value.** A selected
+  top-level key crosses complete, nested objects included (`account_info: {uuid, display_name}`), so
+  the untrusted-value discipline is restated to cover an **object of arbitrary strings** rather than
+  only a scalar — the parse-with-a-JSON-parser, never-interpolate rule applies to the whole subtree.
+- `statusline-tee.sh`'s **behavior is unchanged**; only its header comment was corrected. Widening
+  the filter is a design question owned by `TODO(#1218)`, not this correction.
 
 ## [0.3.4]
 

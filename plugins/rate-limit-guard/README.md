@@ -35,8 +35,9 @@ resume on their own after the reset. Four parts:
 - **Multi-account operation is a known gap, not a supported mode.** The snapshot carries no account
   identifier (none exists in the statusline schema today), so a machine switching accounts mid-drain
   feeds wrong windows to running lanes and the guard cannot detect it. The loop-lane convention §6
-  owns that framing; the reader contract cites it. The wrapper automatically adopts any future
-  account-identifying field the schema grows.
+  owns that framing; the reader contract cites it. The wrapper adopts a future account-identifying
+  field automatically only when its own top-level key name contains `account`; every other shape
+  needs a writer change (`reference/reader-contract.md`, "Tee file shape").
 
 ## Install
 
