@@ -268,7 +268,8 @@ intake arriving mid-cycle is reported, never chased.
 5. **Escalate.** Anything needing an operator decision follows the convention's escalation
    contract (below); a blocked action is escalated, never routed around.
 6. **Report and pace.** Upsert the telemetry comment (cycle report + updated state block + guard
-   mode + this cycle's `usage_sample`), evaluate the stop condition; if not stopping,
+   mode + the `usage_sample` built from step 1's cycle-start reading — its delta covers the
+   preceding interval, never this cycle's work), evaluate the stop condition; if not stopping,
    `ScheduleWakeup` the next cycle.
 
 ## do-not-merge
@@ -365,19 +366,29 @@ block, re-read at every cycle start:
 approaching seven-day expiry visible; `restart_request` is where a budget or expiry hit records the
 relaunch ask; `guard_mode` is recorded every cycle.
 
-`usage_sample` records this cycle's usage reading — the **same** two window percentages the
-rate-limit guard step already read this cycle (below), copied into telemetry rather than observed
-again. It is **measure-only**: nothing in this lane, or in any gate it runs, reads the field back,
-and no pacing, backoff, merge rung, or pause derives from it. `at` is always written, so a cycle
-that could not observe the windows stays distinguishable from one that never sampled;
-`five_hour_pct` / `seven_day_pct` are the readings as taken, both `null` when the guard is not
-proactive, and independently `null` whenever a window is unreadable or absent — a window the guard
-rejected as unknown is sampled `null`, never the rejected value. Never carry a stale reading
-forward, never fabricate one. `five_hour_delta_pct` is the
-rise since the previous cycle's sample, `null` when either sample is missing or the current reading
-is **lower** than the previous one (the window rolled over); only the five-hour window carries a
-delta, because a seven-day window moves too little per cycle to clear the readings' own
-approximation. Caveats, recorded because they bound what the data can support: the reading is a
+`usage_sample` records the **same** two window percentages the rate-limit guard step already read at
+this cycle's **start** (below), copied into telemetry rather than observed again — the lane never
+takes a second reading to fill it, so `at` is that cycle-start observation time, not the report time.
+`at` is always written, so a cycle that could not observe the windows stays distinguishable from one
+that never sampled; `five_hour_pct` / `seven_day_pct` are the readings as taken, both `null` when the
+guard is not proactive, and independently `null` whenever a window is unreadable or absent — a window
+the guard rejected as unknown is sampled `null`, never the rejected value. Never carry a stale
+reading forward, never fabricate one.
+
+**Measure-only, with one permitted readback.** The previous cycle's sample is read back for exactly
+one operation: subtracting its `five_hour_pct` to compute this sample's `five_hour_delta_pct`. That
+derivation is the field's only permitted consumer. Nothing else in this lane, or in any gate it runs,
+reads the field, and the value never reaches a decision — not pacing, backoff, a tier or merge rung,
+admission, escalation, a warning, or a pause — at any threshold.
+
+**The delta measures the preceding interval.** The reading is taken during Re-anchor, before this
+cycle's partition, per-PR invocations, and merges, so `five_hour_delta_pct` is the rise between the
+previous cycle's reading and this one: it covers the interval **preceding** the cycle whose report
+carries it, and this cycle's own consumption lands in the next cycle's sample. Read the series as a
+lagging one. It is `null` when either sample is missing (so a first cycle's is always `null`) or when
+the current reading is **lower** than the previous one (the window rolled over); only the five-hour
+window carries a delta, because a seven-day window moves too little per cycle to clear the readings'
+own approximation. Caveats, recorded because they bound what the data can support: the reading is a
 **snapshot**, only as fresh as the guard's staleness rule allows, taken from a **machine-local**,
 last-writer-wins tee that refreshes only while an interactive session renders a status line — so an
 unattended background lane with no interactive window open on the machine samples `null` every

@@ -235,9 +235,17 @@ block of that same #502 telemetry comment, and re-reads them at each cycle start
 of the shared subscription windows a cycle consumed. Each lane therefore records a `usage_sample` in
 that same durable-state block every cycle, holding the two window percentages the rate-limit guard
 (§6) already read that cycle plus the rise since the previous sample — the reading is already in hand,
-so measuring costs nothing beyond the write. It is deliberately **inert**: no lane reads the field
-back and no lane behavior derives from it. Measure first; whether the data supports acting on it is a
-later, separately decided question. Three properties bound that decision and are recorded alongside
+so measuring costs nothing beyond the write. **The one permitted readback.** The previous cycle's
+sample is read back for exactly one operation: subtracting its `five_hour_pct` to compute the new
+sample's `five_hour_delta_pct`. That derivation is the field's only permitted consumer. No other read
+is permitted, and the value never reaches a decision — not pacing, backoff, an adaptive or item cap, a
+merge rung, admission, escalation, a warning, or a pause — at any threshold, in a lane or in any gate
+a lane runs. **The delta measures the preceding interval.** The guard reading is taken at cycle start,
+before that cycle's own work, so `at` is the cycle-start observation time and `five_hour_delta_pct` is
+the rise between the previous cycle's reading and this one: it covers the interval **preceding** the
+cycle whose report carries it, and that cycle's own consumption lands in the next cycle's sample. Read
+the series as a lagging one. Measure first; whether the data supports acting on it is a later,
+separately decided question. Three properties bound that decision and are recorded alongside
 the sample in each lane body: the reading is a snapshot no fresher than the guard's staleness rule
 allows, from a **machine-local**, last-writer-wins tee that refreshes only while an interactive
 session renders a status line — so an unattended lane samples nothing, and an empty sample means

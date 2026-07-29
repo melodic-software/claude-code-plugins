@@ -10,9 +10,9 @@ table (§3) and is recorded here.
 Adds the per-cycle usage sample to §4's loop-layer invariants, requested and scoped in
 [melodic-software/claude-code-plugins#1651](https://github.com/melodic-software/claude-code-plugins/issues/1651).
 Tier ratified as **major** on 2.0.0's discriminator: a new §4 loop-layer invariant is a new
-obligation every loop-lane body must implement. That the recorded value is inert does not soften the
-tier — the *write* is the obligation. **Bump ambiguity:** a field nothing reads back changes no
-lane's behavior, and a purely additive telemetry key reads as additive guidance and a **minor**; but
+obligation every loop-lane body must implement. That the recorded value drives no behavior does not
+soften the tier — the *write* is the obligation. **Bump ambiguity:** a field no decision reads changes
+no lane's behavior, and a purely additive telemetry key reads as additive guidance and a **minor**; but
 §4 states loop-layer invariants, and this adds one every loop-lane body must carry, which reads as a
 **major**. The attended `attend-queue` lane is unaffected: §4 binds loop lanes, and that lane holds
 no durable-state block.
@@ -22,9 +22,22 @@ no durable-state block.
   subscription windows a cycle consumed. Each loop lane now records a `usage_sample` in its #502
   durable state every cycle, holding the two window percentages the guard step (§6) **already read**
   that cycle plus the rise since the previous sample — the reading is in hand, so the invariant costs
-  a write, not an observation. The field is deliberately **inert**: no lane reads it back and no
-  pacing, backoff, adaptive cap, merge rung, or pause derives from it. Whether the data supports
-  acting on it is a later, separately decided question.
+  a write, not an observation. Whether the data supports acting on it is a later, separately decided
+  question.
+- **Measure-only, with exactly one permitted readback (§4).** Deriving the delta needs the previous
+  cycle's percentage, and after context compaction the telemetry block is the only durable place it
+  survives — so the invariant permits reading the previous sample back for exactly one operation:
+  subtracting its `five_hour_pct` to compute the new sample's `five_hour_delta_pct`. That derivation
+  is the field's only permitted consumer. No other read is permitted, and the value never reaches a
+  decision — not pacing, backoff, an adaptive or item cap, a merge rung, admission, escalation, a
+  warning, or a pause — at any threshold, in a lane or in any gate a lane runs.
+- **The delta measures the preceding interval (§4).** The guard reading a lane copies is taken at
+  cycle start, before that cycle's own work, so `at` is the cycle-start observation time and the
+  delta is the rise between the previous cycle's reading and this one: it covers the interval
+  *preceding* the cycle whose report carries it, and that cycle's own consumption lands in the next
+  cycle's sample. The alternative — a post-execution reading — was rejected because it would be a
+  second observation of the guard's tee that no lane's cycle shape performs, contradicting the
+  invariant's own justification that the reading is already in hand.
 - **Recorded caveats bound what the data can support.** The reading is a snapshot no fresher than
   the guard's staleness rule allows, from a machine-local, last-writer-wins tee that refreshes only
   while an interactive session renders a status line — so an unattended lane samples nothing, and an
