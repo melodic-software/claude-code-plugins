@@ -1010,15 +1010,23 @@ scan_file() {
         body = $0
         if (hd_strip) sub(/^\t+/, "", body)
         if (body == hd_delim) in_heredoc = 0
-      } else if ($0 ~ /^[[:space:]]*#[[:space:]]*portability-scope:/) {
+      } else if (!pending && $0 ~ /^[[:space:]]*#[[:space:]]*portability-scope:/) {
         # A whole-file declared scope — a fixture corpus belonging to this very
         # gate, which necessarily contains the constructs it detects as test
-        # data. Anchored
-        # to a `#`-comment line whose content STARTS with the token, so a
-        # doc-block sentence explaining the mechanism or a mention inside a
-        # string literal never exempts a file for a reason it never declared.
-        # Only a line the shell would read as a comment counts: a heredoc body
-        # is generated data, not this file declaring anything (#1544).
+        # data. Anchored to a `#`-comment line whose content STARTS with the
+        # token, so a doc-block sentence explaining the mechanism or a mention
+        # inside a string literal never exempts a file for a reason it never
+        # declared.
+        #
+        # Only a line the shell would read as a COMMENT counts, which means the
+        # line must also open its own record. `pending` is still the state
+        # carried IN from the lines before this one, so it is false exactly when
+        # no quote, expansion, substitution or continuation is open — the one
+        # context where a leading `#` starts a comment. Inside an open construct
+        # the same characters are DATA, and honoring them let a value like
+        # `x=<quote>foo` / `# portability-scope: bogus` / `bar<quote>` exempt an
+        # entire file it never declared anything about (#1544). A heredoc body
+        # is excluded by the branch above for the same reason.
         SCOPED = 1
       }
       if (pending) {

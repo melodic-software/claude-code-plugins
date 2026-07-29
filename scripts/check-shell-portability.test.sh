@@ -2482,6 +2482,36 @@ else
 fi
 rm -f "$f"
 
+# --- a scope marker only counts where the shell reads it as a COMMENT. Inside a
+# multiline quoted value, or any other construct left open by an earlier line,
+# the same characters are data and must exempt nothing.
+for opener in "x='foo" 'y="foo' 'z=$(echo foo'; do
+  case "$opener" in
+  "x='foo") closer="bar'" ;;
+  'y="foo') closer='bar"' ;;
+  *) closer=')' ;;
+  esac
+  f="$(mktemp --suffix=.sh)"
+  printf '%s\n' "$opener" '# portability-scope: bogus' "$closer" 'date -d tomorrow' >"$f"
+  if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+    fail "a scope marker inside an open construct ($opener) must exempt nothing: $out"
+  else
+    ok "a scope marker inside an open construct ($opener) grants no file scope"
+  fi
+  rm -f "$f"
+done
+
+# --- and a genuine declaration still grants whole-file scope from either side
+# of the hit, indented or not.
+f="$(mktemp --suffix=.sh)"
+printf '%s\n' 'date -d tomorrow' '  # portability-scope: this file is a fixture corpus' >"$f"
+if scan_paths "$REAL_TOKENS" "$f" >/dev/null 2>&1; then
+  ok "an indented declaration after the hit still exempts the whole file"
+else
+  fail "the file-scope declaration stopped working: $(scan_paths "$REAL_TOKENS" "$f" 2>&1)"
+fi
+rm -f "$f"
+
 echo
 echo "PASS=$PASS FAIL=$FAIL"
 [[ "$FAIL" -eq 0 ]]
