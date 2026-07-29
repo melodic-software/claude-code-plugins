@@ -312,6 +312,8 @@ A `Refs #N` line links an issue without closing it and never belongs on the clos
 
 Before invoking `gh pr create`, run two independent checks against assembled `$BODY`: the closing-keyword check (unchanged, existing mechanism) and the required-section check (new, generic — reads `pr_body_required_sections`, never a hardcoded section list). Both must pass.
 
+A `gh pr create` / `gh pr edit` issued **outside** this skill reaches the same contract through the plugin's `pr-body-linkage-gate` PreToolUse hook, which mirrors the repository's own `pr-issue-linkage` check and blocks a statically-readable body that would fail it — see [`../../../hooks/pr-body-linkage-gate.sh`](../../../hooks/pr-body-linkage-gate.sh) for its scope guard and coverage limits. Nothing changes for this skill's path: its gate runs first and the hook then sees a body that already passes.
+
 #### 2.4.2.1 Verify closing-keyword line
 
 Grep assembled `$BODY` for a valid closing keyword OR an opt-out marker. Catches branches where §2.4.0 fell through (issue-existence check failed without orphan-PR prompt running, user dismissed the prompt, `$CLOSES_LINE` is empty) and prevents shipping a PR with no linkage signal.

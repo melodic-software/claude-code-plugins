@@ -39,11 +39,53 @@ scan_paths() {
   SKILL_PORTABILITY_TOKENS="$TEST_TOKENS" bash "$SCRIPT" --paths "$@"
 }
 
+# scan_with <token-file> <file>... — run the gate over explicit paths with a
+# caller-supplied token list, for the staged Stage-2 classes whose patterns are
+# not in the default single-pattern list above.
+scan_with() {
+  local tokens="$1"
+  shift
+  SKILL_PORTABILITY_TOKENS="$tokens" bash "$SCRIPT" --paths "$@"
+}
+
 tmpfile() {
   local f
   f="$(mktemp --suffix=.md)"
   printf '%s\n' "$1" >"$f"
   printf '%s' "$f"
+}
+
+# tokenfile <pattern> — a one-pattern token list, the caller's to remove.
+tokenfile() {
+  local f
+  f="$(mktemp)"
+  printf '%s\n' "$1" >"$f"
+  printf '%s' "$f"
+}
+
+# assert_staged <label> <pattern> — assert <pattern> is present VERBATIM as a
+# commented line in the shipping token list's STAGED section.
+#
+# The fixtures below carry each staged pattern as a literal and assert it still
+# matches what ships, rather than parsing it back out of the token file:
+# a staged class is documented in prose that necessarily quotes its own pattern
+# fragments, so no "which commented line is the data" rule separates pattern
+# from commentary without marking up the shipped file with test scaffolding.
+#
+# Deliberately an assertion in the PARENT shell, never a value-returning
+# helper. A `fail` inside a `$(...)` substitution increments a subshell's copy
+# of the counter and is lost, and the empty result then makes every
+# `if [[ -n "$TOKEN" ]]` fixture below skip in silence — a green suite whose
+# Stage 2 coverage has quietly stopped running. That is the silent-skip this
+# repo's gates exist to forbid, so the pattern is always non-empty and a drifted
+# token file fails loudly here instead.
+assert_staged() {
+  local label="$1" pattern="$2"
+  if grep -qxF -- "# $pattern" "$REAL_TOKENS"; then
+    ok "staged $label pattern is present verbatim in the shipped token list"
+  else
+    fail "staged $label pattern not found verbatim in $REAL_TOKENS: $pattern"
+  fi
 }
 
 # --- bare origin/main fails with file:line ---------------------------------
@@ -224,6 +266,293 @@ else
   fail "shipped list should only enforce the active branch class"
 fi
 rm -f "$f"
+
+# =============================================================================
+# Stage 2 (#713) — forge / branch / remote grammar classes.
+#
+# Every class below is STAGED in the shipping token list, so each fixture first
+# asserts its pattern still matches what ships (assert_staged), then activates
+# that pattern in an isolated one-pattern list. Editing a staged class into a
+# shape that no longer catches its own defect therefore fails here rather than
+# leaving these tests passing against a stale retyped copy.
+#
+# Each case pairs the coupling that must FAIL with the compliant or declared
+# shape that must PASS — a token that only ever fires is indistinguishable from
+# one that fires on everything.
+# =============================================================================
+
+# --- remote-name class: bare `origin` as a git remote ARGUMENT (#442) -------
+REMOTE_TOKEN='git([[:space:]]+-[^[:space:]]+([[:space:]]+[^[:space:]-][^[:space:]]*)?)*[[:space:]]+(push|fetch|pull|clone|ls-remote|remote (prune|show|add|rename|get-url|set-url))([[:space:]]+-[^[:space:]]+)*[[:space:]]+origin([^a-zA-Z0-9_/.-]|$)'
+assert_staged 'remote-name' "$REMOTE_TOKEN"
+rt="$(tokenfile "$REMOTE_TOKEN")"
+
+f="$(tmpfile 'Publish the branch with `git push origin HEAD` when the work is ready.')"
+if out="$(scan_with "$rt" "$f" 2>&1)"; then
+  fail "a bare 'git push origin' should fail, got success: $out"
+elif echo "$out" | grep -q "COUPLING: ${f}:1:"; then
+  ok "remote class: a bare origin remote argument fails with file:line"
+else
+  fail "expected line 1 flagged for a bare origin remote argument, got: $out"
+fi
+rm -f "$f"
+
+f="$(tmpfile 'Fetch the base with `git fetch origin "$DEFAULT_BRANCH"` before merging.')"
+if scan_with "$rt" "$f" >/dev/null 2>&1; then
+  fail "a bare origin remote argument must flag even when the BRANCH is resolved"
+else
+  ok "remote class: resolving the branch does not excuse a hardcoded remote name"
+fi
+rm -f "$f"
+
+# Git's syntax is `git [<global-options>] <command> [<args>]`, so a global
+# option sits between `git` and the subcommand. A subcommand-adjacent anchor
+# reports this shape clean, which both understates the residue and lets the
+# same coupling through the future gate — the live corpus carries exactly this
+# form in plugins/source-control/skills/babysit-prs/reference/orchestration.md.
+f="$(tmpfile 'Re-fetch the base ref (`git -C <worktree> fetch origin <base>`) before merging.')"
+if out="$(scan_with "$rt" "$f" 2>&1)"; then
+  fail "a global option before the subcommand must not hide the hardcoded remote: $out"
+elif echo "$out" | grep -q "COUPLING: ${f}:1:"; then
+  ok "remote class: a global option before the subcommand still flags the remote"
+else
+  fail "expected line 1 flagged for 'git -C <path> fetch origin', got: $out"
+fi
+rm -f "$f"
+
+# Separate-value (`-c <k>=<v>`) and attached-value (`--git-dir=<path>`) global
+# options are both spanned, and several may precede the subcommand.
+f="$(tmpfile 'Run `git -c core.hooksPath=/dev/null --git-dir=/w/.git push origin HEAD` in the sandbox.')"
+if scan_with "$rt" "$f" >/dev/null 2>&1; then
+  fail "a run of global options must not hide the hardcoded remote"
+else
+  ok "remote class: a run of value-taking global options still flags the remote"
+fi
+rm -f "$f"
+
+# The option run is not a blanket matcher: it may only span options between
+# `git` and a remote-taking subcommand. A different subcommand whose line
+# merely mentions the word origin later must stay clean, or widening the anchor
+# would have traded a false negative for a false-positive class.
+f="$(tmpfile 'Run `git -C "$WT" status`, then push to the origin remote you resolved.')"
+if scan_with "$rt" "$f" >/dev/null 2>&1; then
+  ok "remote class: global options on a non-remote subcommand are not false-positives"
+else
+  fail "a global option on an unrelated subcommand must not flag on nearby prose"
+fi
+rm -f "$f"
+
+# The compliant shape: the remote is resolved into a variable first, so no
+# literal `origin` sits in the remote-argument position at all.
+# Paired with the global-option cases above: widening the anchor must leave the
+# fix direction passing under a global option too, not only under bare `git`.
+f="$(tmpfile 'REMOTE="$(bash scripts/resolve-remote.sh --push)"; git push "$REMOTE" HEAD
+Re-fetch with `git -C "$WT" fetch "$REMOTE" "$BASE"` before merging.')"
+if scan_with "$rt" "$f" >/dev/null 2>&1; then
+  ok "remote class: a resolved remote variable is not flagged"
+else
+  fail "a resolved remote variable must pass — it is the pattern this class asks for"
+fi
+rm -f "$f"
+
+# The word `origin` appears in ordinary English and in unrelated compounds
+# without asserting a remote NAME; the class is anchored to the
+# remote-argument position precisely so none of these fire.
+f="$(tmpfile 'The lane requires cross-origin reads to succeed.
+Each finding records its origin, and the origin of a default is what this gate tests.')"
+if scan_with "$rt" "$f" >/dev/null 2>&1; then
+  ok "remote class: prose uses of the word origin are not flagged"
+else
+  fail "the word origin in prose must not flag — only the remote-argument position"
+fi
+rm -f "$f"
+
+# A branch-DETECTION ladder still names the remote it queries, so it is a
+# true positive for this class even though it is exemplary for the branch
+# class. The two couplings are independent: resolving which branch is the
+# default says nothing about which remote holds it, and a `git clone -o
+# vendor` consumer breaks on the remote name regardless. Recorded as an
+# expectation because it is the shape most likely to be mistaken for a
+# false positive when this class is activated.
+f="$(tmpfile 'Resolve the default via `git ls-remote --symref origin HEAD`.')"
+if scan_with "$rt" "$f" >/dev/null 2>&1; then
+  fail "a branch-detection ladder still hardcodes its remote name and must flag"
+else
+  ok "remote class: a branch-detection ladder still flags on its hardcoded remote"
+fi
+rm -f "$f"
+
+# A per-site escape works on this class exactly as on the active one.
+f="$(tmpfile 'Run `git fetch origin` here. <!-- portability-ok: this lane documents a single-remote reset -->')"
+if scan_with "$rt" "$f" >/dev/null 2>&1; then
+  ok "remote class: a per-site portability-ok escape is honored"
+else
+  fail "the remote class must honor a per-site portability-ok escape"
+fi
+rm -f "$f"
+
+rm -f "$rt"
+
+# --- branch-grammar class: shipped Conventional-Commits types (#415) --------
+GRAMMAR_TOKEN='`(feat|fix|refactor|chore|docs|test|build|perf|style)/`[^`]*`(feat|fix|refactor|chore|docs|test|build|perf|style)/`'
+assert_staged 'branch-grammar' "$GRAMMAR_TOKEN"
+gt="$(tokenfile "$GRAMMAR_TOKEN")"
+
+f="$(tmpfile 'Derive the type from the change: `feat/`, `fix/`, `refactor/`, `chore/`.')"
+if out="$(scan_with "$gt" "$f" 2>&1)"; then
+  fail "a shipped Conventional-Commits type list should fail, got success: $out"
+elif echo "$out" | grep -q "COUPLING: ${f}:1:"; then
+  ok "branch-grammar class: a shipped type enumeration fails with file:line"
+else
+  fail "expected line 1 flagged for a shipped type enumeration, got: $out"
+fi
+rm -f "$f"
+
+# The compliant shape: the grammar is READ from the consuming repo rather
+# than shipped, so no enumeration appears at all.
+f="$(tmpfile "Read the branch convention from the project's CLAUDE.md or rules index; do not assume one.")"
+if scan_with "$gt" "$f" >/dev/null 2>&1; then
+  ok "branch-grammar class: deferring to the consumer's convention is not flagged"
+else
+  fail "reading the consumer's convention must pass — it is this class's fix direction"
+fi
+rm -f "$f"
+
+# Ordinary prose paths share the type words and must not fire — the reason
+# this class ships as the narrow enumeration shape, not a bare alternation.
+f="$(tmpfile 'Screenshots land under `build/shots/` and the contract under `docs/conventions/`.')"
+if scan_with "$gt" "$f" >/dev/null 2>&1; then
+  ok "branch-grammar class: ordinary prose paths are not false-positives"
+else
+  fail "a prose path like build/shots must not be read as a branch-type grammar"
+fi
+rm -f "$f"
+
+rm -f "$gt"
+
+# --- branch-shape class: a shipped `<type>/<...>` placeholder (#415) --------
+SHAPE_TOKEN='<type>/<'
+assert_staged 'branch-shape' "$SHAPE_TOKEN"
+st="$(tokenfile "$SHAPE_TOKEN")"
+
+f="$(tmpfile 'Suggest `git checkout -b <type>/<topic-slug>` derived from the plan.')"
+if out="$(scan_with "$st" "$f" 2>&1)"; then
+  fail "a shipped <type>/<slug> branch shape should fail, got success: $out"
+elif echo "$out" | grep -q "COUPLING: ${f}:1:"; then
+  ok "branch-shape class: a shipped <type>/<slug> placeholder fails with file:line"
+else
+  fail "expected line 1 flagged for a shipped branch shape, got: $out"
+fi
+rm -f "$f"
+
+f="$(tmpfile "Propose a name following the project's own branch-naming convention.")"
+if scan_with "$st" "$f" >/dev/null 2>&1; then
+  ok "branch-shape class: a convention-deferring suggestion is not flagged"
+else
+  fail "a convention-deferring suggestion must pass"
+fi
+rm -f "$f"
+
+rm -f "$st"
+
+# --- forge class: a hardcoded raw.githubusercontent URL (#432) --------------
+FORGE_TOKEN='raw\.githubusercontent\.com'
+assert_staged 'forge-URL' "$FORGE_TOKEN"
+ft="$(tokenfile "$FORGE_TOKEN")"
+
+f="$(tmpfile 'Apply the contract at <https://raw.githubusercontent.com/acme/plugins/main/docs/README.md> as written.')"
+if out="$(scan_with "$ft" "$f" 2>&1)"; then
+  fail "a runtime raw.githubusercontent fetch should fail, got success: $out"
+elif echo "$out" | grep -q "COUPLING: ${f}:1:"; then
+  ok "forge class: a hardcoded raw content URL fails with file:line"
+else
+  fail "expected line 1 flagged for a hardcoded raw content URL, got: $out"
+fi
+rm -f "$f"
+
+# The compliant shape: the contract is bundled with the plugin, so resolution
+# needs no network and no publisher repo name.
+f="$(tmpfile 'Read the bundled contract at `${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`.')"
+if scan_with "$ft" "$f" >/dev/null 2>&1; then
+  ok "forge class: a bundled CLAUDE_PLUGIN_ROOT reference is not flagged"
+else
+  fail "a bundled reference must pass — it is this class's fix direction"
+fi
+rm -f "$f"
+
+rm -f "$ft"
+
+# =============================================================================
+# Declared-narrower-scope honor (#441): the acceptance pair proving a
+# scope-declared file is exempt while an otherwise identical undeclared one is
+# flagged, and that the two escapes do NOT have the same reach — a per-site
+# portability-ok covers its site only and must never silence the rest of the
+# file the way a whole-file portability-scope does.
+# =============================================================================
+rt="$(tokenfile "$REMOTE_TOKEN")"
+
+declared="$(tmpfile '<!-- portability-scope: forge=github — this skill wraps gh and is inherently GitHub-locked -->
+Fetch with `git fetch origin` and publish with `git push origin HEAD`.')"
+undeclared="$(tmpfile 'Fetch with `git fetch origin` and publish with `git push origin HEAD`.')"
+
+if scan_with "$rt" "$declared" >/dev/null 2>&1; then
+  ok "declared-scope: a portability-scope file is exempt from a Stage 2 class"
+else
+  fail "a portability-scope declaration must exempt the whole file for every active class"
+fi
+
+if out="$(scan_with "$rt" "$undeclared" 2>&1)"; then
+  fail "the undeclared twin of a scope-declared file must still flag, got success: $out"
+elif echo "$out" | grep -q "COUPLING: ${undeclared}:1:"; then
+  ok "declared-scope: the otherwise identical undeclared file is still flagged"
+else
+  fail "expected the undeclared twin flagged on line 1, got: $out"
+fi
+rm -f "$declared" "$undeclared"
+
+# Reach asymmetry: a per-site annotation is NOT a whole-file declaration.
+# Line 1 is excused by its own annotation; line 3's identical coupling is a
+# separate site and must still fail. Conflating the two would turn every
+# single-site exemption into a silent file-wide opt-out.
+f="$(tmpfile 'Run `git fetch origin` here. <!-- portability-ok: single-remote reset lane -->
+Then review the result.
+Finally run `git push origin HEAD` with no annotation at all.')"
+if out="$(scan_with "$rt" "$f" 2>&1)"; then
+  fail "a per-site portability-ok must not exempt the whole file, got success: $out"
+elif echo "$out" | grep -q ":3:" && ! echo "$out" | grep -q ":1:"; then
+  ok "declared-scope: a per-site portability-ok covers its site only, not the file"
+else
+  fail "expected line 3 flagged and line 1 excused, got: $out"
+fi
+rm -f "$f"
+
+rm -f "$rt"
+
+# =============================================================================
+# Guard markers are CLASS-SCOPED (#713): is_guarded() receives the matched
+# pattern, so the branch class's branch-detection evidence excuses only the
+# branch class. Without the scoping, one line carrying both a symbolic-ref
+# resolution and a hardcoded remote name would go green on BOTH — the false
+# exemption the token file's staged-class preamble forbids.
+# =============================================================================
+BOTH_TOKENS="$(mktemp)"
+printf '%s\n%s\n' 'origin/(main|master)' "$REMOTE_TOKEN" >"$BOTH_TOKENS"
+
+# One line, both couplings. `merge-base` is a branch-class guard marker, so
+# the co-located `origin/main` is legitimately excused as a detection-ladder
+# fallback. The `git fetch origin` on the same line is a DIFFERENT coupling
+# with no guard of its own and must still be reported. Before the guard was
+# class-scoped, the branch marker excused the whole line and this hit
+# vanished — a real remote hardcode reported clean.
+f="$(tmpfile 'Use `git merge-base origin/main HEAD` for the base, then `git fetch origin` to refresh.')"
+out="$(scan_with "$BOTH_TOKENS" "$f" 2>&1)"
+if echo "$out" | grep -q 'origin/(main|master)'; then
+  fail "branch-detection evidence must still guard the BRANCH class on its own line: $out"
+elif echo "$out" | grep -q 'ls-remote'; then
+  ok "class-scoped guards: branch evidence guards the branch class but not the remote class"
+else
+  fail "expected the remote class flagged while the branch class stayed guarded, got: $out"
+fi
+rm -f "$f" "$BOTH_TOKENS"
 
 # --- missing token list fails closed (exit 2) ------------------------------
 f="$(tmpfile 'origin/main')"

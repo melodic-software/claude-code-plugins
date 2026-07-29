@@ -1,5 +1,11 @@
 # Changelog — ecosystem-commands convention
 
+## 1.2.3 — 2026-07-26
+
+Docs-only, no schema shape change: the task-runner deferral's "Revisit triggers" label becomes
+"Recheck triggers" and cites the [upstream-drift convention](../upstream-drift/README.md) (#1638),
+the new owner of the concept's single name and shape. The triggers themselves are unchanged.
+
 ## 1.2.2 — 2026-07-26
 
 Docs-only, no schema shape change: `examples/go.yaml`'s illustrative `proto-gen-freshness` gate

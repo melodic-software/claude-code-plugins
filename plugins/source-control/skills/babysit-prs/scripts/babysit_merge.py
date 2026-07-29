@@ -20,6 +20,14 @@ Contract enforced here (encoded as code, not convention):
 - A PR on an unprotected base (zero required reviews AND zero required contexts)
   authored by someone other than a configured self login is held unless
   `--allow-unprotected` is passed: on such a base `CLEAN` proves nothing.
+- A merge is held while a configured review bot still owes the LIVE head a
+  review (`--review-bot-logins` with `--review-settle-minutes`, both or
+  neither). A reviewer that re-reviews on push posts minutes after the head
+  moves, and GitHub reports the PR mergeable throughout that window, so the
+  gate waits it out rather than merging past findings that land seconds later.
+  A review of the live head clears the hold immediately; the window bounds it
+  so a reviewer that never engages cannot wedge the PR. Unset, the hold is
+  dormant and the gate makes no request it did not make before.
 - The #476 autopilot merge tier (`--autopilot-merge-tier`) layers five extra
   criteria on top of the base gate -- issue-linked, lane-authored, no blocking
   label, a distinct-bot approving review on the live head (author != approver via
@@ -47,6 +55,7 @@ import argparse
 import json
 import re
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from typing import Any, cast
 
 from babysit_checks import check_identity_key, classify_checks
@@ -77,7 +86,17 @@ from babysit_gh import (
     parse_repo_number,
     resolve_authors,
 )
-from babysit_util import MIN_HEAD_SHA_PREFIX_LENGTH, configure_stdio, is_json_object
+from babysit_review_trigger import (
+    ReviewTriggerConfig,
+    fetch_review_evidence,
+    has_current_head_review,
+)
+from babysit_util import (
+    MIN_HEAD_SHA_PREFIX_LENGTH,
+    configure_stdio,
+    is_json_object,
+    json_array,
+)
 
 # A plain human "do not merge" veto that is neither a formal CHANGES_REQUESTED
 # review nor the configured label: the shared blocking-text predicate does not
@@ -92,6 +111,21 @@ EXPECTED_HEAD_RE = re.compile(rf"^[0-9a-fA-F]{{{MIN_HEAD_SHA_PREFIX_LENGTH},64}}
 # all commit status passing": CLEAN on github.com, HAS_HOOKS when the repo has
 # pre-receive hooks (GHES) -- GitHub returns one OR the other, so both are ready.
 READY_MERGE_STATES = {"CLEAN", "HAS_HOOKS"}
+
+
+@dataclass(frozen=True)
+class ReviewSettleConfig:
+    """Hold a merge while a configured reviewer's current-head review is in flight.
+
+    A reviewer that re-reviews on push posts minutes after the head moves, so a
+    gate that reads only GitHub's mergeability can report CLEAN during that
+    window and merge past findings that land seconds later (#1629). Both fields
+    are required together: no duration is defaulted here, because how long a
+    reviewer takes is a property of the reviewer, not of this gate.
+    """
+
+    reviewer_logins: frozenset[str]
+    settle_seconds: int
 
 
 @dataclass(frozen=True)
@@ -437,6 +471,8 @@ def evaluate_autopilot_tier(
     labels: list[Any],
     closing_issues: list[Any],
     tier: AutopilotMergeTierConfig,
+    reviews: list[dict[str, Any]] | None = None,
+    review_comments: list[dict[str, Any]] | None = None,
 ) -> tuple[list[str], dict[str, Any]]:
     """Evaluate the #476 tier criteria that ride on top of the base gate.
 
@@ -475,7 +511,8 @@ def evaluate_autopilot_tier(
             "(autopilot merge tier requires a lane-authored PR)"
         )
 
-    reviews = fetch_pull_request_reviews(repo, number)
+    if reviews is None:
+        reviews = fetch_pull_request_reviews(repo, number)
     # Collapse to each actor's latest decisive review before accepting a tier
     # approval: a bot that approved and then submitted CHANGES_REQUESTED (or had
     # its approval dismissed) on the same head must no longer count as the
@@ -515,9 +552,11 @@ def evaluate_autopilot_tier(
     # Inline review-thread comments are neither issue comments nor review
     # summaries; a human veto left inline whose thread is later resolved would
     # otherwise escape both the base unresolved-thread gate and this scan.
+    if review_comments is None:
+        review_comments = fetch_pull_request_review_comments(repo, number)
     corpus.extend(
         {"author": normalized_rest_author(row), "body": row.get("body")}
-        for row in fetch_pull_request_review_comments(repo, number)
+        for row in review_comments
     )
     # A configured approver/lane account GitHub misreports as a `User` classifies
     # as a bot here, so its clean review body ("no blocking issues") no longer
@@ -578,6 +617,184 @@ def evaluate_autopilot_tier(
     return blockers, tier_result
 
 
+def parse_github_timestamp(raw: str) -> datetime | None:
+    """Parse a GitHub ISO-8601 timestamp, tolerating the `Z` zone suffix."""
+    text = raw.strip()
+    if not text:
+        return None
+    try:
+        parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
+
+
+def head_committed_at(repo: str, head_sha: str) -> datetime | None:
+    """Committer date of the head commit, or None when it cannot be read."""
+    try:
+        data = gh_json(["api", f"repos/{repo}/commits/{head_sha}"])
+    except (RuntimeError, json.JSONDecodeError):
+        return None
+    if not is_json_object(data):
+        return None
+    commit = cast(dict[str, Any], data).get("commit")
+    if not is_json_object(commit):
+        return None
+    committer = cast(dict[str, Any], commit).get("committer")
+    if not is_json_object(committer):
+        return None
+    return parse_github_timestamp(str(cast(dict[str, Any], committer).get("date") or ""))
+
+
+def latest_check_activity(status_rollup: Any) -> datetime | None:
+    """The most recent CI start on the live head, per the rollup already fetched.
+
+    A server-generated stand-in for "when this head appeared": the rollup is
+    scoped to the live head and a run cannot start before its push.
+
+    *Latest*, not earliest, and the direction is the whole safety property.
+    Check runs live on the SHA, so a head that returns to a previously-checked
+    SHA -- force-push A to B and back to A -- still carries A's original runs
+    even though the re-push triggers a fresh review. Reading the oldest of them
+    would call a brand-new head settled and merge straight through the window
+    this gate exists to wait out. Reading the newest can only over-estimate how
+    recent a head is, which errs toward holding.
+
+    The cost of that direction is bounded and lands on latency, not safety: a
+    re-run mints a fresh timestamp and extends the wait by up to one window.
+    It rarely bites, because a re-run does not move the head -- if the reviewer
+    already reviewed that SHA the caller short-circuits before reading this
+    clock at all, and if it has not, holding is the correct answer anyway.
+
+    Reads the RAW rollup, not `classify_checks`' output: that classifier keeps
+    only the newest run per identity, which is lossy in a way this must not
+    depend on.
+    """
+    starts = [
+        parsed
+        for entry in json_array(status_rollup)
+        if is_json_object(entry)
+        for parsed in [
+            parse_github_timestamp(
+                str(entry.get("startedAt") or entry.get("createdAt") or "")
+            )
+        ]
+        if parsed is not None
+    ]
+    return max(starts) if starts else None
+
+
+def head_appeared_at(
+    repo: str, head_sha: str, status_rollup: Any
+) -> tuple[datetime | None, str]:
+    """Best available estimate of when the live head appeared, and its source.
+
+    A server-observed CI start is preferred and costs no extra request: it is
+    generated by GitHub after the push, so it can only over-estimate how recent
+    the head is, which errs toward holding. The head commit's committer date is
+    the fallback, and it is only a proxy -- a commit pushed long after it was
+    written reads as older than the head really is, which errs toward merging.
+    That is why it is second, not first.
+    """
+    server_seen = latest_check_activity(status_rollup)
+    if server_seen is not None:
+        return server_seen, "check-start"
+    return head_committed_at(repo, head_sha), "committer-date"
+
+
+def evaluate_review_settle(
+    repo: str,
+    head: str | None,
+    settle: ReviewSettleConfig,
+    review_evidence: list[dict[str, str]],
+    status_rollup: Any,
+    *,
+    now: datetime | None = None,
+) -> tuple[list[str], dict[str, Any]]:
+    """Hold the merge while a configured reviewer's review of this head is due.
+
+    Two conditions, in this order, so the common case costs nothing: a
+    current-head review from the reviewer clears the hold outright, and only a
+    head with no such review is aged against the settle window.
+
+    The clearing review must postdate the newest CI start on the live head.
+    GitHub keeps a review against the SHA rather than against the head
+    position, so a force-push A -> B -> A restores a head that its FIRST
+    occurrence's review still matches by `commit_oid`; without the bound that
+    stale review cleared the hold before any clock was read, and the
+    merge-before-review race this gate exists to prevent came back through the
+    short-circuit instead of through the clock. `latest_check_activity` is the
+    bound because it is the same server-observed signal the age is measured
+    on, and it is read from the rollup already in hand, so the already-reviewed
+    case still issues no request of its own.
+
+    The bound cannot separate a restored head from a re-run on the standing
+    head -- both mint a check start after the review -- so a re-run now pushes
+    an already-reviewed head back into settling for up to one window instead of
+    short-circuiting past it. That is the fail-closed direction: the cost is
+    bounded latency, and the alternative is the safety failure.
+
+    A head with no check starts at all has no bound, so a review of the SHA
+    clears the hold as before. That is the residual `safety.md` already scopes:
+    when a restored head mints no fresh runs, it reads as settled.
+    """
+    reviewers = ", ".join(repr(login) for login in sorted(settle.reviewer_logins))
+    result: dict[str, Any] = {
+        "enabled": True,
+        "reviewerLogins": sorted(settle.reviewer_logins),
+        "settleSeconds": settle.settle_seconds,
+        "currentHeadReview": False,
+        "reviewRecencyFloor": None,
+        "headAgeSeconds": None,
+        "headAgeSource": None,
+        "state": "unknown",
+    }
+    # An absent head is already a blocker upstream (the expected-head pin, which
+    # the wrapper makes mandatory), so adding a second blocker for one condition
+    # would only obscure it. This is the sole fail-open branch here, and it is
+    # unreachable through the wrapper.
+    if not head:
+        result["state"] = "no-head"
+        return [], result
+
+    recency_floor = latest_check_activity(status_rollup)
+    if recency_floor is not None:
+        result["reviewRecencyFloor"] = recency_floor.isoformat()
+    if has_current_head_review(
+        {}, head, review_evidence,
+        config=ReviewTriggerConfig(reviewer_logins=settle.reviewer_logins),
+        not_before=recency_floor,
+    ):
+        result["currentHeadReview"] = True
+        result["state"] = "reviewed"
+        return [], result
+
+    appeared_at, source = head_appeared_at(repo, head, status_rollup)
+    result["headAgeSource"] = source
+    if appeared_at is None:
+        result["state"] = "head-age-unreadable"
+        return [
+            "cannot establish when the live head appeared, so whether the "
+            f"configured reviewer(s) {reviewers} still owe it a review is "
+            "undecidable -- holding rather than merging on an unverifiable "
+            "clock; re-run to retry"
+        ], result
+
+    age_seconds = int(((now or datetime.now(timezone.utc)) - appeared_at).total_seconds())
+    result["headAgeSeconds"] = age_seconds
+    if age_seconds < settle.settle_seconds:
+        result["state"] = "settling"
+        return [
+            f"no review of the live head from {reviewers} and the head is "
+            f"{age_seconds}s old by {source} (settle window "
+            f"{settle.settle_seconds}s) -- a re-review may still be in flight; "
+            "wait out the window rather than merging past it"
+        ], result
+
+    result["state"] = "settled"
+    return [], result
+
+
 def evaluate(
     repo: str,
     number: int,
@@ -588,6 +805,7 @@ def evaluate(
     allow_unprotected: bool,
     tier: AutopilotMergeTierConfig | None = None,
     extra_dependency_manager_logins: frozenset[str] = frozenset(),
+    settle: ReviewSettleConfig | None = None,
 ) -> dict[str, Any]:
     owner = split_owner(repo)
     pr_data = gh_json(
@@ -736,11 +954,32 @@ def evaluate(
     closing_issues = cast(
         list[Any], pr.get("closingIssuesReferences") or []
     )
+    # Fetch the review corpus at most once per run, and only when something
+    # needs it: the settle hold and the tier both read it, and an unconfigured
+    # gate must make no request it did not make before.
+    reviews: list[dict[str, Any]] | None = None
+    review_comments: list[dict[str, Any]] | None = None
+    settle_result: dict[str, Any] = {"enabled": False}
+    if settle is not None:
+        reviews = fetch_pull_request_reviews(repo, number)
+        review_comments = fetch_pull_request_review_comments(repo, number)
+        settle_blockers, settle_result = evaluate_review_settle(
+            repo,
+            str(head) if head else None,
+            settle,
+            fetch_review_evidence(
+                repo, number, reviews, review_comments,
+                config=ReviewTriggerConfig(reviewer_logins=settle.reviewer_logins),
+            ),
+            pr.get("statusCheckRollup"),
+        )
+        blockers.extend(settle_blockers)
+
     tier_result: dict[str, Any] = {"enabled": False}
     if tier is not None:
         tier_blockers, tier_result = evaluate_autopilot_tier(
             repo, number, str(head) if head else None, author_login, labels,
-            closing_issues, tier,
+            closing_issues, tier, reviews, review_comments,
         )
         blockers.extend(tier_blockers)
 
@@ -748,6 +987,7 @@ def evaluate(
     return {
         "pr": f"{repo}#{number}",
         "autopilotMergeTier": tier_result,
+        "reviewSettle": settle_result,
         "url": pr.get("url"),
         "title": pr.get("title"),
         "author": author_login,
@@ -871,6 +1111,25 @@ def main() -> int:
         ),
     )
     parser.add_argument(
+        "--review-bot-logins",
+        default=None,
+        help=(
+            "comma-separated review-bot logins whose review of the LIVE head the "
+            "gate waits for; requires --review-settle-minutes. Unset on both "
+            "leaves the hold dormant and the gate exactly its prior self"
+        ),
+    )
+    parser.add_argument(
+        "--review-settle-minutes",
+        default=None,
+        help=(
+            "how long after the head appears a --review-bot-logins re-review may "
+            "still be in flight; the gate holds for that window when no review of "
+            "the live head exists yet, then stops waiting. Requires "
+            "--review-bot-logins"
+        ),
+    )
+    parser.add_argument(
         "--autopilot-merge-tier",
         action="store_true",
         help=(
@@ -953,6 +1212,68 @@ def main() -> int:
             )
         )
         return 3
+
+    # The review-settle hold is paired configuration, resolved before any network
+    # access. Both flags or neither: a reviewer set with no window would need this
+    # gate to invent how long that reviewer takes, and a window with no reviewer
+    # set has nothing to wait for. Either alone is a usage error rather than a
+    # silently-inert flag, so a half-configured hold can never read as an active one.
+    settle: ReviewSettleConfig | None = None
+    if args.review_bot_logins is not None or args.review_settle_minutes is not None:
+        missing = [
+            name
+            for name, value in (
+                ("--review-bot-logins", args.review_bot_logins),
+                ("--review-settle-minutes", args.review_settle_minutes),
+            )
+            if value is None
+        ]
+        if missing:
+            print(
+                json.dumps(
+                    {
+                        "pr": args.pr,
+                        "error": (
+                            "the review-settle hold requires both "
+                            "--review-bot-logins and --review-settle-minutes; "
+                            "missing " + ", ".join(missing)
+                        ),
+                    }
+                )
+            )
+            return 2
+        reviewer_logins = normalize_login_set(parse_csv_set(args.review_bot_logins))
+        try:
+            settle_minutes = float(args.review_settle_minutes)
+        except ValueError:
+            settle_minutes = float("nan")
+        # Round, then floor the RESULT at one second. Truncating a positive
+        # sub-second window to zero would pass the greater-than-zero test above
+        # and then hold nothing, which is exactly the active-looking inert
+        # configuration the paired-flag rule exists to make impossible.
+        settle_seconds = (
+            round(settle_minutes * 60)
+            if settle_minutes > 0 and settle_minutes != float("inf")
+            else 0
+        )
+        if not reviewer_logins or settle_seconds < 1:
+            print(
+                json.dumps(
+                    {
+                        "pr": args.pr,
+                        "error": (
+                            "--review-bot-logins must be non-empty and "
+                            "--review-settle-minutes must be a finite number "
+                            "that converts to at least one second; refusing to "
+                            "run the hold under-specified"
+                        ),
+                    }
+                )
+            )
+            return 2
+        settle = ReviewSettleConfig(
+            reviewer_logins=reviewer_logins, settle_seconds=settle_seconds,
+        )
 
     # Build the autopilot-merge-tier config before any network access, failing
     # closed on a partial configuration: the tier's whole point is that the three
@@ -1037,6 +1358,7 @@ def main() -> int:
             args.allow_unprotected,
             tier,
             extra_dependency_manager_logins=extra_dependency_manager_logins,
+            settle=settle,
         )
     except (RuntimeError, ValueError, json.JSONDecodeError) as exc:
         # Surface any gh/parse failure as JSON rather than a traceback.

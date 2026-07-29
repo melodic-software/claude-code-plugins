@@ -137,7 +137,8 @@ authority it points to.
 
 ## Recheck triggers
 
-Recheck the facts table (and re-derive the decision rule) when any of these fires:
+Stamp-and-trigger discipline: [upstream-drift](../upstream-drift/README.md). Recheck the facts
+table (and re-derive the decision rule) when any of these fires:
 
 - A Claude Code CHANGELOG entry touches `userConfig` substitution, the `default` field, or
   `CLAUDE_PLUGIN_OPTION_*` injection — facts 1–4; rows A/B/D.
@@ -147,3 +148,5 @@ Recheck the facts table (and re-derive the decision rule) when any of these fire
 - The managed-settings paths or precedence change — F's exemplar reader.
 - CC docs begin specifying skill-hook value delivery — fact 6 moves from evidence-strong to
   doc-stated (or is contradicted).
+- The plugins-reference user-configuration section changes what it documents about body
+  substitution or sensitive-value storage — facts 7–8.

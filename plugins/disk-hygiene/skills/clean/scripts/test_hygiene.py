@@ -2771,6 +2771,176 @@ class GuardTests(unittest.TestCase):
                 self.run_guard_engine_gate(f'python3 "{consumer}" --help')
             )
 
+    def test_engine_gate_defers_files_whose_name_merely_ends_in_the_marker(
+        self,
+    ) -> None:
+        """A DIFFERENT filename containing the marker is not this engine (#1611).
+
+        The gate's own suite lives in `test_hygiene.py`, whose name contains
+        `hygiene.py`. A bare-substring marker test read that as an engine
+        invocation and denied every Bash command naming it — including the
+        command this plugin's contributors run to execute these very tests.
+        The parseable path always basename-matched and deferred correctly; the
+        operator-carrying path did not, so both shapes are pinned here.
+        """
+        suite = "plugins/disk-hygiene/skills/clean/scripts/test_hygiene.py"
+        for command in (
+            f"python3 -m unittest -v {suite}",
+            f"cd /repo && python3 -m unittest -v {suite}",
+            f"pytest {suite} -k guard",
+            "python3 myhygiene.py --help",
+        ):
+            self.assertIsNone(self.run_guard_engine_gate(command), command)
+
+    def test_engine_gate_still_gates_glued_engine_names(self) -> None:
+        """Narrowing to a filename boundary must not open a gluing seam.
+
+        `_carries_marker` tests a token's BASENAME, so whatever produces those
+        tokens decides what the gate can still see. Splitting on shell
+        metacharacters alone is not enough: an assignment glues the filename to
+        its variable with `=`, which is not a metacharacter, so
+        `engine=hygiene.py && python3 "$engine" apply` runs the real engine
+        while presenting no token whose basename is the marker.
+        `_MARKER_TOKEN_SPLIT` therefore keeps only path-legal characters, which
+        the marker is itself spelled from — so any glue at all falls away.
+
+        Runs from the scripts dir, where the bare name RESOLVES to the bundled
+        engine: that is the shape an evasion actually takes.
+        """
+        with chdir_context(SCRIPT_DIR):
+            for command in (
+                'engine=hygiene.py && python3 "$engine" apply --plan p --token t',
+                'FOO=1 BAR=hygiene.py python3 "$BAR" apply --plan p --token t',
+                'bash -c "engine=hygiene.py; python3 $engine apply"',
+                "foo;hygiene.py",
+                "python3 foo;hygiene.py",
+                "echo $(hygiene.py scan)",
+                "true|hygiene.py",
+            ):
+                result = self.run_guard_engine_gate(command, "Bash", enabled=False)
+                assert result is not None, command
+                self.assertEqual(
+                    "deny",
+                    result["hookSpecificOutput"]["permissionDecision"],
+                    command,
+                )
+
+    def test_engine_gate_catches_engine_across_a_line_continuation(self) -> None:
+        """Bash eats `\\`+newline before word splitting; the gate must too.
+
+        Otherwise the continuation stays welded to the filename as
+        `hygiene.py\\`, no token's basename is the marker, and a multi-line
+        invocation of the real engine slips the kill switch.
+        """
+        with chdir_context(SCRIPT_DIR):
+            for command in (
+                "python3 hygiene.py\\\n apply --plan p --token t",
+                "python3 hygiene.py\\\r\n apply --plan p --token t",
+            ):
+                result = self.run_guard_engine_gate(command, "Bash", enabled=False)
+                assert result is not None, repr(command)
+                self.assertEqual(
+                    "deny",
+                    result["hookSpecificOutput"]["permissionDecision"],
+                    repr(command),
+                )
+
+    def test_engine_gate_gates_relative_engine_paths_after_an_in_command_cd(
+        self,
+    ) -> None:
+        """A relative marker path in an operator command is unknowable, so it gates.
+
+        The "provably a DIFFERENT file" escape resolves a token against the
+        GUARD's cwd. This branch is reached precisely because the command
+        carries an operator, and an operator can be a `cd`: by the time the
+        shell runs `cd <plugin-scripts>;./hygiene.py scan`, the relative path
+        means the bundled engine, while the guard would resolve it against
+        wherever it started — and if an unrelated `hygiene.py` sits there, the
+        escape "proves" a different file and defers while the real engine runs.
+
+        Evaluated from a decoy directory holding exactly such an unrelated
+        file, which is what makes the misproof possible.
+        """
+        with tempfile.TemporaryDirectory() as decoy:
+            (Path(decoy) / "hygiene.py").write_text(
+                "print('decoy')\n", encoding="utf-8"
+            )
+            scripts = str(SCRIPT_DIR).replace("\\", "/")
+            with chdir_context(decoy):
+                for command in (
+                    f"cd {scripts};./hygiene.py scan --help",
+                    f"cd {scripts} && ./hygiene.py apply --plan p --token t",
+                    f"cd {scripts} && python3 hygiene.py apply",
+                ):
+                    result = self.run_guard_engine_gate(
+                        command, "Bash", enabled=False
+                    )
+                    assert result is not None, command
+                    self.assertEqual(
+                        "deny",
+                        result["hookSpecificOutput"]["permissionDecision"],
+                        command,
+                    )
+
+    def test_carries_marker_verdict_does_not_depend_on_the_host_platform(self) -> None:
+        """`Path().name` is platform-flavoured; this predicate must not be.
+
+        `PureWindowsPath("/x/hygiene.py\\").name` is `hygiene.py` while
+        `PurePosixPath(...)` keeps the backslash, so a `Path`-based basename
+        makes the guard gate on Windows and fail open on Linux — a divergence
+        that passes on a developer's machine and un-gates CI. Asserted directly
+        on the predicate so the case is checked identically on every host.
+        """
+        for token in (
+            "/x/hygiene.py",
+            "/x/hygiene.py\\",
+            "C:\\x\\hygiene.py",
+            "hygiene.py",
+        ):
+            self.assertTrue(guard._carries_marker(token), token)
+        for token in (
+            "/x/test_hygiene.py",
+            "/x/myhygiene.py",
+            "hygiene.pyc",
+            "hygiene.py.bak",
+        ):
+            self.assertFalse(guard._carries_marker(token), token)
+
+    def test_engine_gate_catches_a_link_named_like_the_suite_beside_an_operator(
+        self,
+    ) -> None:
+        """Identity outranks the filename, including for the deferred name.
+
+        Deferring `test_hygiene.py` (#1611) routes it to the marker-free
+        branch, whose job is to catch a LINK to the engine under another name.
+        That branch scanned only `command.split()` tokens, so an operator glued
+        to the path (`/tmp/test_hygiene.py;echo done`) left `...;echo`
+        attached, `samefile` resolved nothing, and a link to the real engine
+        deferred — the deferral turned into a bypass under the one name this
+        change makes non-marker. The path-legal tokens are scanned too now.
+        """
+        script = SCRIPT_DIR / "hygiene.py"
+        with tempfile.TemporaryDirectory(dir=SCRIPT_DIR) as tmp:
+            alias = Path(tmp) / "test_hygiene.py"
+            try:
+                os.link(script, alias)
+            except OSError as exc:  # pragma: no cover - filesystem-dependent
+                self.skipTest(f"hard links unavailable here: {exc}")
+            posix_alias = str(alias).replace("\\", "/")
+            for command in (
+                f"{posix_alias};echo done",
+                f"{posix_alias}|cat",
+                f"{posix_alias} apply && echo done",
+            ):
+                result = self.run_guard_engine_gate(command, "Bash", enabled=False)
+                assert result is not None, command
+                self.assertEqual(
+                    "deny",
+                    result["hookSpecificOutput"]["permissionDecision"],
+                    command,
+                )
+            os.unlink(alias)
+
     def test_engine_gate_catches_wrapper_launchers_of_the_bundled_engine(self) -> None:
         """env / sh -c wrappers around the absolute engine path must gate (P1 review)."""
         script = SCRIPT_DIR / "hygiene.py"
@@ -2824,18 +2994,35 @@ class GuardTests(unittest.TestCase):
             os.unlink(alias)
 
     def test_engine_gate_defers_consumer_windows_path_on_powershell(self) -> None:
-        """Backslash consumer paths must defer on PowerShell, not fail closed (P2 r6)."""
+        """Native consumer paths must defer on PowerShell, not fail closed (P2 r6).
+
+        Asserted on the host's OWN spelling, plus the backslash spelling only
+        where that spelling names the same file. Forcing backslashes
+        unconditionally fabricated a path that cannot exist on POSIX, and the
+        case passed there only because the basename predicate was
+        `Path()`-flavoured and did not see the marker in it — a Linux fail-open
+        wearing a green test, which is round 2 of this chain exactly. With the
+        predicate platform-independent, that fabricated word is an
+        unresolvable marker-carrying path after an interpreter, and failing
+        closed on it is the documented rule.
+        """
         with tempfile.TemporaryDirectory(dir=SCRIPT_DIR) as tmp:
             consumer = Path(tmp) / "hygiene.py"
             consumer.write_text("print('consumer tool')\n", encoding="utf-8")
-            windows_path = str(consumer)  # native backslashes on Windows
-            if "\\" not in windows_path:
-                windows_path = windows_path.replace("/", "\\")
-            self.assertIsNone(
-                self.run_guard_engine_gate(
-                    f"python {windows_path} --help", "PowerShell"
+            spellings = [str(consumer)]
+            backslashed = str(consumer).replace("/", "\\")
+            try:
+                if os.path.samefile(backslashed, consumer):
+                    spellings.append(backslashed)
+            except (OSError, ValueError):
+                pass
+            for spelling in spellings:
+                self.assertIsNone(
+                    self.run_guard_engine_gate(
+                        f"python {spelling} --help", "PowerShell"
+                    ),
+                    spelling,
                 )
-            )
 
     def test_engine_gate_defers_consumer_script_in_compound_commands(self) -> None:
         """A provably-different hygiene.py defers even beside operators (P2 r7)."""
@@ -2850,6 +3037,145 @@ class GuardTests(unittest.TestCase):
                 self.run_guard_engine_gate(
                     f"python {posix} --help; echo done", "PowerShell"
                 )
+            )
+
+    def test_engine_gate_defers_consumer_paths_outside_the_path_legal_class(
+        self,
+    ) -> None:
+        """A consumer's own engine-named script defers whatever spells its parent.
+
+        The "provably a DIFFERENT file" escape needs an ABSOLUTE path, but the
+        tokens it read were maximal runs of path-legal characters — so any
+        character outside that class split the consumer's absolute path and
+        left the fragment carrying the filename relative, unprovable, and
+        gated (#1640). The two rules fought each other. Resolution now reads
+        the whole shell word while detection keeps the fine tokens.
+
+        `~` is the case that makes this ordinary rather than exotic: Windows
+        8.3 short-name segments (`KYLESE~1`) put unpunctuated paths under
+        ordinary temp directories into the same population.
+        """
+        for parent_name in (
+            "consumer+tools",
+            "consumer@tools",
+            "consumer=tools",
+            "consumer~tools",
+            "consumer tools",
+        ):
+            with tempfile.TemporaryDirectory(dir=SCRIPT_DIR) as tmp:
+                parent = Path(tmp) / parent_name
+                parent.mkdir()
+                consumer = parent / "hygiene.py"
+                consumer.write_text("print('consumer tool')\n", encoding="utf-8")
+                posix = str(consumer).replace("\\", "/")
+                for command in (
+                    f'python3 "{posix}" --help && echo done',
+                    f'python3 "{posix}" --help; echo done',
+                ):
+                    self.assertIsNone(
+                        self.run_guard_engine_gate(command), command
+                    )
+
+    def test_engine_gate_catches_windows_equivalent_filename_aliases(self) -> None:
+        """A spelling the FILESYSTEM resolves to the engine must gate (P1 r10).
+
+        Win32 discards trailing dots and spaces from a filename and resolves
+        `::$DATA` to the main stream, so `cd <scripts> && python hygiene.py.
+        apply` opens and runs the kill-switched engine while no token's
+        basename is the marker. Identity, not the name, is what closes this —
+        the guard reads a relative word against the engine's own directory,
+        which is the directory such a command must `cd` into.
+
+        Asserted as probe-then-assert rather than by platform: these spellings
+        are aliases only where the filesystem says so (they name a nonexistent
+        file on POSIX), and round 2 of this chain was a host-dependent verdict
+        that passed locally and failed open in CI. The obligation is
+        conditional, so the test states it conditionally.
+        """
+        engine = SCRIPT_DIR / "hygiene.py"
+        scripts = str(SCRIPT_DIR).replace("\\", "/")
+        with tempfile.TemporaryDirectory() as decoy:
+            (Path(decoy) / "hygiene.py").write_text(
+                "print('decoy')\n", encoding="utf-8"
+            )
+            with chdir_context(decoy):
+                for alias in ("hygiene.py.", "hygiene.py...", "hygiene.py::$DATA"):
+                    try:
+                        equivalent = os.path.samefile(SCRIPT_DIR / alias, engine)
+                    except (OSError, ValueError):
+                        equivalent = False
+                    command = f"cd {scripts} && python {alias} apply --plan p --token t"
+                    result = self.run_guard_engine_gate(
+                        command, "Bash", enabled=False
+                    )
+                    if not equivalent:
+                        continue
+                    assert result is not None, command
+                    self.assertEqual(
+                        "deny",
+                        result["hookSpecificOutput"]["permissionDecision"],
+                        command,
+                    )
+
+    def test_engine_gate_marker_token_cannot_borrow_proof_from_another_word(
+        self,
+    ) -> None:
+        """Widening resolution to whole words must not let proof travel.
+
+        Reading the enclosing shell word is what un-gates a punctuated consumer
+        path (#1640), but a marker token must be proved a different file by ITS
+        OWN word, never by another one in the same command. Pairing on
+        substring containment instead of span would let the bare second
+        invocation below borrow the first word's absolute consumer path and
+        defer while the real engine ran.
+        """
+        with tempfile.TemporaryDirectory(dir=SCRIPT_DIR) as tmp:
+            consumer = Path(tmp) / "hygiene.py"
+            consumer.write_text("print('consumer tool')\n", encoding="utf-8")
+            posix = str(consumer).replace("\\", "/")
+            with chdir_context(SCRIPT_DIR):
+                for command in (
+                    f'python3 "{posix}" --help && python3 hygiene.py apply',
+                    f'python3 "{posix}" --help && python3 ./hygiene.py apply',
+                    f"{posix}&&hygiene.py",
+                    f'echo "{posix}"; hygiene.py apply',
+                ):
+                    result = self.run_guard_engine_gate(
+                        command, "Bash", enabled=False
+                    )
+                    assert result is not None, command
+                    self.assertEqual(
+                        "deny",
+                        result["hookSpecificOutput"]["permissionDecision"],
+                        command,
+                    )
+
+    def test_marker_token_words_partition_matches_the_split_partition(self) -> None:
+        """Widening resolution must not have changed DETECTION.
+
+        `_marker_tokens_with_words` re-derives the tokens with the complement
+        regex so each one can be located by span. That is only safe while it
+        yields the same tokens, in the same order, as the split it mirrors —
+        a divergence would silently move which words the marker is looked for
+        in, which is how every fail-open in this function's history started.
+        Checked mechanically rather than argued.
+        """
+        for command in (
+            "python3 -m unittest -v test_hygiene.py",
+            'engine=hygiene.py && python3 "$engine" apply',
+            "cd /tmp/a+b && ./hygiene.py scan",
+            "python3 hygiene.py\\\n apply",
+            "python3 hygiene.py\\\r\n apply",
+            'echo "C:\\x y\\hygiene.py" | cat',
+            "a,hygiene.py;$(hygiene.py scan)`true`",
+            "PATH=/x:hygiene.py python3 -c pass",
+            "",
+            "   ",
+        ):
+            self.assertEqual(
+                guard._marker_tokens(command),
+                [token for token, _ in guard._marker_tokens_with_words(command)],
+                repr(command),
             )
 
     def test_engine_gate_still_gates_engine_beside_consumer_decoy(self) -> None:

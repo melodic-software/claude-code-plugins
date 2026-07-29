@@ -107,8 +107,26 @@ Constraints:
   `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:">`.
   Inline `<style>` and inline `<script>` stay allowed (the in-page switcher needs inline script);
   only remote origins — CDNs, web fonts, `fetch`/XHR — are forbidden.
-- **Ephemeral placement.** Generate the mockup into an OS temp or gitignored scratch location, not
-  a tracked path.
+- **Ephemeral placement.** Generate the mockup via the platform's temp primitive — never a tracked
+  path and never inside the repo. On Unix/Linux/Git Bash, create a private run directory and write
+  the page inside it, echoing the directory in the same call —
+  `d=$(mktemp -d "${TMPDIR:-/tmp}/explore-directions-XXXXXX"); echo "$d"` — then writing to
+  `<echoed dir>/explore-directions.html`. Echo it because shell state does not survive between Bash
+  calls: the directory name is random, so an unechoed path is unrecoverable in the call that writes
+  the file. Carry the temp root in the positional template rather than reaching for a flag:
+  `-p` (which GNU also spells `--tmpdir`) exists in both dialects but means different things. GNU
+  treats the template as
+  relative to that directory and lets the flag beat `TMPDIR`; BSD/macOS consult it only as a
+  fallback for `-t` when `TMPDIR` is unset — so with a bare template and no `-t` the flag does
+  nothing there and the template resolves against the **current directory**, silently writing into
+  the consumer's repo. GNU also marks `-t` deprecated, and BSD's `-t` takes a prefix rather than a
+  template. An absolute path in the positional template is reinterpreted by neither. The generated
+  `XXXXXX` must also be **trailing** — BSD `mktemp` substitutes only trailing Xs, so
+  `explore-directions-XXXXXX.html` cannot be created at all on macOS — which is why the page takes
+  a fixed name inside the generated directory instead of an extension on the template. On Windows,
+  a user-scoped temp under
+  `%LOCALAPPDATA%\Temp`. One file per run. The path is handed to the user to open from `file://`,
+  so do not delete it — it must still be readable when they open it.
 - **Markdown captures the answer.** Copy the winning-variant key and notes into your durable
   answer (per the shared discipline); the HTML is throwaway.
 

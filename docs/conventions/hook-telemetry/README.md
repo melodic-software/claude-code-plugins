@@ -180,3 +180,6 @@ producers without coordinating with them or each other.
 | `claude-ops` plugin | `skill-usage-audit` (two producers: PostToolUse/Skill and UserPromptExpansion — see schema) | `data/skill-usage-audit.schema.json` |
 | `claude-ops` plugin | `tool-failure-audit` | `data/tool-failure-audit.schema.json` |
 | `autonomy` plugin | `lane-stop-gate` | `data/lane-stop-gate.schema.json` |
+| `context-guard` plugin | `zone-crossing-inject` (two producers: PostToolBatch and UserPromptSubmit — see schema) | `data/zone-crossing-inject.schema.json` |
+| `context-guard` plugin | `zone-gate` | `data/zone-gate.schema.json` |
+| `context-guard` plugin | `post-compact-mark` | `data/post-compact-mark.schema.json` |

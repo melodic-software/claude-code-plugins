@@ -226,6 +226,19 @@
       "added_on": "2026-04-23",
       "crash_count": 0,
       "identical_streak": 0
+    },
+    {
+      "id": "claude-temp-root",
+      "category": "storage",
+      "os": ["windows"],
+      "script": "scripts/windows/checks/Test-ClaudeTempRoot.ps1",
+      "severity_rules": "references/windows/check-catalog.md#17-claude-code-temp-root",
+      "needs_admin": false,
+      "enabled": true,
+      "deprecated": false,
+      "added_on": "2026-07-26",
+      "crash_count": 0,
+      "identical_streak": 0
     }
   ]
 }
