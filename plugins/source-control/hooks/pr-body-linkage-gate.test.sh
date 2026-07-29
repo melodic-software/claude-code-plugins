@@ -286,6 +286,12 @@ assert_allow "builtin cd relocates the current shell" "$GATED" \
   "$(printf "builtin cd %s && gh pr create -t T --body '%s'" "$UNGATED" "$NO_RELATED")"
 assert_allow "eval cd relocates the current shell" "$GATED" \
   "$(printf "eval cd %s && gh pr create -t T --body '%s'" "$UNGATED" "$NO_RELATED")"
+# `-p` preserves execution, so the cd really happens and the call is out of
+# scope; `-v` only prints a description, so nothing moves and the gate applies.
+assert_allow "command -p cd executes the builtin" "$GATED" \
+  "$(printf "command -p cd %s && gh pr create -t T --body '%s'" "$UNGATED" "$NO_RELATED")"
+assert_block "command -v cd only prints, so nothing moves" "$GATED" \
+  "$(printf "command -v cd && gh pr create -t T --body '%s'" "$NO_RELATED")"
 
 # Options that print and exit run no command, so there is no PR to gate.
 assert_allow "env --help runs nothing" "$GATED" \

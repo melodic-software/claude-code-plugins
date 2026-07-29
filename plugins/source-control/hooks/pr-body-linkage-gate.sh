@@ -555,10 +555,13 @@ check_segment() {
   # nothing — which is why this test precedes wrapper removal and why neither
   # appears here. A wrapped `cd` falls through to the wrapper loop below, where
   # `cd` is simply not `gh`.
+  # Only `-p` is stepped over here: it preserves execution. `command -v cd`
+  # PRINTS a description instead of running the builtin, so nothing moves, and
+  # skipping every flag shape would read that lookup as a relocation.
   d=$i
   while ((d < n)); do
     case "${w[d]}" in
-    command | builtin | eval | -*) ((d++)) ;;
+    command | builtin | eval | -p) ((d++)) ;;
     *) break ;;
     esac
   done
