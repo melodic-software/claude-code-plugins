@@ -1,6 +1,6 @@
 ---
 name: docpage-digest
-description: "Ingest a single online documentation page (a docs-site URL) into a verified knowledge slice — fetch the original, inventory it into an INDEX, fan out per-section digest agents, run dual verification (one cross-vendor verifier), and hand off an interview-ready decision artifact. Use when: 'digest this doc', 'ingest this documentation page', 'run the doc pipeline on <url>', 'docpage digest', 'pull this vendor doc into the knowledge base', 'distill this docs page', or the user supplies a documentation URL to turn into durable corpus artifacts. Not for books/PDFs (/knowledge:book-distill), video courses (/knowledge:course-digest), or single YouTube videos (/knowledge:youtube-digest); not ad-hoc summarization — the output is a durable verified corpus slice plus an interview handoff, not a chat summary. Publisher profiles live under context/ (first: Anthropic docs)."
+description: "Ingest a single online documentation page (a docs-site URL) into a verified knowledge slice — fetch the original, inventory it into an INDEX, fan out per-section digest agents, run dual verification (one cross-vendor verifier), and hand off an interview-ready decision artifact. Use when: 'digest this doc', 'ingest this documentation page', 'run the doc pipeline on <url>', 'docpage digest', 'pull this vendor doc into the knowledge base', 'distill this docs page', or the user supplies a documentation URL to turn into durable corpus artifacts. Remote documentation PDFs (model cards, system cards) DO belong here; book files (PDF/EPUB books) route to /knowledge:book-distill, video courses to /knowledge:course-digest, single YouTube videos to /knowledge:youtube-digest; not ad-hoc summarization — the output is a durable verified corpus slice plus an interview handoff, not a chat summary. Publisher profiles live under context/ (first: Anthropic docs)."
 argument-hint: "[url] (e.g., /knowledge:docpage-digest https://platform.claude.com/docs/en/build-with-claude/effort)"
 user-invocable: true
 disable-model-invocation: false
@@ -98,18 +98,24 @@ plus `INDEX.md` and continue from the first unticked phase.
 
 ## Phase 1 — Fetch
 
-1. Select the publisher profile: match the URL's host against the profiles under `context/`
+1. **Resume guard:** if any `source.*` snapshot already exists at the work root (an interrupted
+   run's fetch landed before its checklist tick), that snapshot IS the immutable original — do
+   not fetch again over it, whatever the checklist says: verify it is non-empty, tick Phase 1
+   with a resumed-snapshot note, and continue. A provably corrupt or empty snapshot is
+   reconciled explicitly, never silently replaced: move it aside with a dated suffix, record the
+   move in the checklist, then fetch fresh.
+2. Select the publisher profile: match the URL's host against the profiles under `context/`
    (currently [context/anthropic-docs-profile.md](context/anthropic-docs-profile.md)). No match →
    proceed with the generic steps below and record "no profile" in the checklist.
-2. Fetch via the profile's preferred channel (e.g. a raw-markdown variant of the URL), verifying
+3. Fetch via the profile's preferred channel (e.g. a raw-markdown variant of the URL), verifying
    the channel works for THIS page — profiles record channels as previously-verified, not
    guaranteed. Fallback: fetch the rendered page and note the channel degradation.
-3. Snapshot the unaltered original to `<work-root>/source.<ext>`, naming the extension for what
+4. Snapshot the unaltered original to `<work-root>/source.<ext>`, naming the extension for what
    was actually fetched: `source.md` for a markdown or rendered-text channel; a remote PDF
    (system and model cards) lands as **both** the binary `source.pdf` and its text extraction
    `source.txt`, which are equally originals. Every `source.*` file is immutable from this point
    — corrections and commentary never touch one.
-4. Record the remaining provenance in the checklist: fetch date, channel used, and — for a PDF —
+5. Record the remaining provenance in the checklist: fetch date, channel used, and — for a PDF —
    the extraction tooling that produced `source.txt`. The canonical URL is already there; the
    collision check wrote it before the fetch.
 
