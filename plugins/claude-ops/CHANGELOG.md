@@ -26,12 +26,17 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   response echo is deliberately not trusted in place of the re-read: it proves the request was
   accepted, not what landed. An unreachable `GET` is retried once and then reports the cycle
   UNCONFIRMED rather than known-bad — a check that could not run is not a check that disagreed. It
-  carries `gh`'s own error text and branches its verdict on it: a `404` says the comment is GONE,
-  while anything else (a `403`/`429` secondary rate limit) keeps the "probably intact, unconfirmed"
-  reading. The retry is a network-blip guard only — it does not honor `Retry-After`, so a secondary
-  rate limit outlasts both attempts by design. There is no `--no-verify` opt-out; this script is
-  driven by lane prompts, so an escape hatch would be reachable by the same caller the gate exists
-  to catch.
+  carries `gh`'s own error text (bounded) and branches its verdict on it: a `404` says the comment
+  is NOT RETRIEVABLE — deleted, its issue deleted, or the token's read access lost — which rules out
+  the "probably intact" reading that anything else (a `403`/`429` secondary rate limit) keeps. The
+  retry is a network-blip guard only — it does not honor `Retry-After`, so a secondary rate limit
+  outlasts both attempts by design. Capturing that error text is a diagnostic and never the thing
+  that fails a good write: an unwritable `TMPDIR` degrades to no capture rather than turning exit
+  `0` into exit `6`. One limitation is stated rather than papered over — the read-back asserts
+  properties, not that the body changed, so a PATCH that silently no-ops still verifies and a stale
+  comment reads as a good cycle; freshness belongs to the reader (`morning-brief`), not here. There
+  is no `--no-verify` opt-out; this script is driven by lane prompts, so an escape hatch would be
+  reachable by the same caller the gate exists to catch.
 - **`lanes` doctrine: the `@path`-as-body anti-pattern is stated once, in the skill.** Telemetry and
   comment bodies are passed as file contents or piped, never as an `@path` string interpolated into
   a body value: `gh issue comment --body @path` and `gh api -f body=@path` send the literal text.

@@ -97,7 +97,17 @@
 #   second failure is still fail-closed — the cycle is reported UNCONFIRMED
 #   rather than good — but its message says so, because a check that could not
 #   run is not a check that disagreed, and it branches on gh's own error: a 404
-#   means the comment is gone, not merely unread.
+#   means the comment is not retrievable, not merely unread.
+#
+#   KNOWN LIMITATION — this pass asserts PROPERTIES, not that the body changed.
+#   A PATCH that silently no-ops (storing the previous cycle's body) still
+#   verifies: the old body carries the sentinel, has no leading `@`, and clears
+#   the floor. So a STALE telemetry comment reads as a good cycle here. That is a
+#   freshness defect, a different class from the `@path` fail-open this guards,
+#   and it is deliberately not addressed by asserting round-trip equality —
+#   GitHub normalizes stored bodies, so an equality assert would fail real lane
+#   writes for cosmetic reasons. Freshness is the reader's job (`morning-brief`
+#   reads last-cycle age off this same comment), not this script's.
 #
 # Output (stdout): one action line, e.g.
 #   telemetry-upsert: updated comment 12345 (marker=lane:triage) on <owner/repo>#<issue>
@@ -426,26 +436,36 @@ unconfirmed="the body cleared the pre-write gate, so the comment is probably int
 # reading, while a 403/429 means it is almost certainly still there and simply
 # unread. The two call for opposite responses, so neither the raw message nor
 # the conclusion drawn from it can be one-size-fits-all.
-verify_err="$(mktemp)" || verify_fail "could not create a temp file to capture the read-back error" "$unconfirmed"
-trap 'rm -f "$verify_err"' EXIT
+# Capturing stderr is a DIAGNOSTIC, so it must never be the thing that fails an
+# otherwise good write: on a full or unwritable TMPDIR the capture is skipped and
+# the read-back proceeds blind rather than turning exit 0 into exit 6.
+verify_err="$(mktemp 2>/dev/null)" || verify_err=""
+[[ -n "$verify_err" ]] && trap 'rm -f "$verify_err"' EXIT INT TERM
 verify_body=""
 verify_read=0
 for verify_attempt in 1 2; do
-  if verify_body="$(gh api "repos/$REPO/issues/comments/$new_id" --jq '.body' 2>"$verify_err" | tr -d '\r')"; then
+  if verify_body="$(gh api "repos/$REPO/issues/comments/$new_id" --jq '.body' 2>"${verify_err:-/dev/null}" | tr -d '\r')"; then
     verify_read=1
     break
   fi
   ((verify_attempt == 1)) && sleep 2
 done
 if ((verify_read == 0)); then
-  verify_err_text="$(tr -d '\r' <"$verify_err" | tr '\n' ' ')"
+  verify_err_text=""
+  [[ -n "$verify_err" ]] && verify_err_text="$(tr -d '\r' <"$verify_err" | tr '\n' ' ')"
+  # Bounded: gh's stderr is remote-influenced text going into an operator-facing
+  # message, and an unbounded splice would let a long error bury the verdict.
+  verify_err_text="${verify_err_text:0:500}"
   case "$verify_err_text" in
   *"HTTP 404"*)
-    verify_verdict="comment $new_id is GONE — the write landed and the comment no longer exists (deleted, or the issue was); the next cycle will create a fresh one"
+    # 404 is also what GitHub returns when a token loses READ access, so this
+    # says "not retrievable", not "deleted" — the one thing it rules out is the
+    # default "probably intact" reading.
+    verify_verdict="comment $new_id is NOT RETRIEVABLE (404) — it was deleted, its issue was, or this token can no longer read it; do not read this as 'probably intact'"
     ;;
   *) verify_verdict="$unconfirmed" ;;
   esac
-  verify_fail "could not re-read comment $new_id after 2 attempts (gh api GET): $verify_err_text" "$verify_verdict"
+  verify_fail "could not re-read comment $new_id after 2 attempts (gh api GET): ${verify_err_text:-no error text captured}" "$verify_verdict"
 fi
 
 case "$verify_body" in

@@ -124,10 +124,19 @@ if [[ "$url" == */issues/comments/* ]]; then
   # without the script's `tr -d '\r'` the `@`-prefix assertion below the sentinel
   # silently stops matching, and the guard would go inert against the real API
   # while a LF-only stub kept the suite green.
+  #
+  # Emitted in pure bash rather than `sed 's/$/\r/'`: `\r` in a sed REPLACEMENT is
+  # a GNU extension that BSD/macOS sed renders as a literal `r`, which would make
+  # this stub emit the wrong bytes on the one platform the repo's portability
+  # check does not cover (its token list scans patterns, not replacements).
+  emit_crlf() {
+    local line
+    while IFS= read -r line; do printf '%s\r\n' "$line"; done
+  }
   if [[ -n "${STUB_READBACK_BODY+set}" ]]; then
-    printf '%s\n' "$STUB_READBACK_BODY" | sed 's/$/\r/'
+    printf '%s\n' "$STUB_READBACK_BODY" | emit_crlf
   else
-    printf '%s\nlane: triage\nlast-cycle: 2026-07-21T06:00:00Z\nflags: none\n' "${STUB_SENTINEL:-}" | sed 's/$/\r/'
+    printf '%s\nlane: triage\nlast-cycle: 2026-07-21T06:00:00Z\nflags: none\n' "${STUB_SENTINEL:-}" | emit_crlf
   fi
   exit 0
 fi
@@ -493,8 +502,15 @@ out="$(STUB_READBACK_404=1 run "$TMP/empty.json" 2>&1)"
 rc=$?
 assert_eq "404 read-back exits 6" 6 "$rc"
 assert_contains "404 read-back surfaces gh's error text" "$out" "HTTP 404"
-assert_contains "404 read-back says the comment is gone" "$out" "is GONE"
-assert_not_contains "404 read-back does not claim the comment is intact" "$out" "probably intact"
+assert_contains "404 read-back says the comment is not retrievable" "$out" "NOT RETRIEVABLE"
+assert_not_contains "404 read-back does not assert the comment is intact" "$out" "so the comment is probably intact"
+
+# The stderr capture is a DIAGNOSTIC: an unwritable TMPDIR must not turn an
+# otherwise good write into a verification failure.
+out="$(TMPDIR="$TMP/nonexistent-dir" run "$TMP/empty.json" 2>&1)"
+rc=$?
+assert_eq "unwritable TMPDIR does not fail a good write" 0 "$rc"
+assert_contains "unwritable TMPDIR still reports the upsert" "$out" "created comment 999"
 
 # Same rule when the write response carries no id to read back.
 out="$(STUB_NO_ID=1 run "$TMP/empty.json" 2>&1)"
