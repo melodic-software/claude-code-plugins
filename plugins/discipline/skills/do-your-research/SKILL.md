@@ -49,13 +49,26 @@ not three. And a claim about anything that ships releases needs a **recency**
 check against the current upstream, because first-party docs lag their own
 releases.
 
-The thresholds are not restated here, deliberately: a second copy would drift
-from whatever owns it. When the `discovery` plugin is installed,
-`/discovery:research` owns them and states them as mandatory disciplines — the
-source-tier ratio, which fixes both the tier floor and the corroborator count;
-the recency gate; and per-claim confidence calibration. Otherwise resolve the
-thresholds from what the consuming project declares, per the same ladder above,
-and hold all three dimensions either way.
+What clears each dimension resolves down the same ladder as the discipline
+itself: what the consuming project declares wins; failing that, the contract
+`/discovery:research` states as mandatory disciplines, when the `discovery`
+plugin is installed; failing both, the floor below. The floor is this skill's
+own baseline, not a copy of a heavier tier's numbers — it is deliberately
+lighter, because this tier settles one claim mid-conversation rather than
+running a research pass:
+
+- **Tier** — at least one source fetched THIS turn: the live environment, tool
+  output, or the upstream artifact itself. Recall, and a summary of a source
+  read in place of the source, are both below the floor.
+- **Corroboration** — before a claim carries a decision, a second source from a
+  DIFFERENT upstream pool. One pool restated by three intermediaries is one
+  source; where no second pool exists, say that instead of counting the
+  restatements.
+- **Recency** — for anything that ships releases, a check against the current
+  release or changelog, not only the page that named the value.
+
+Whichever rung resolves, hold all three dimensions and cite the rung that
+actually applied.
 
 ## Two directions — grounding, and checking what was already said
 
