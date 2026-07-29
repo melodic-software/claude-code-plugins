@@ -333,7 +333,12 @@ check_segment() {
     --) break ;;
     # The target repository may not be the one whose gate file was read.
     -R | --repo | -R?* | --repo=*) return 0 ;;
+    # A body flag with no following word is a malformed command gh rejects on
+    # its own; there is no body to judge. An explicitly EMPTY value is a
+    # different case — the word is present, and gh would open a PR with a blank
+    # body the gate rejects — so it stays judged.
     --body | -b)
+      ((i + 1 < n)) || return 0
       body_flag="body"
       body_val="$next"
       ((i++))
@@ -347,6 +352,7 @@ check_segment() {
       body_val="${word#-b}"
       ;;
     --body-file | -F)
+      ((i + 1 < n)) || return 0
       body_flag="file"
       body_val="$next"
       ((i++))

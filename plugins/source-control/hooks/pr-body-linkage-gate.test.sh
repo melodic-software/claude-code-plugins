@@ -172,6 +172,10 @@ assert_allow "interactive create carries no body flag" "$GATED" "gh pr create"
 assert_block "attached short-flag value is read" "$GATED" "$(printf "gh pr create -t T -b'%s'" "$NO_RELATED")"
 assert_block "--body=VALUE form is read" "$GATED" "$(printf "gh pr create -t T --body='%s'" "$NO_RELATED")"
 assert_block "an empty literal body blocks" "$GATED" "gh pr create -t T --body ''"
+assert_allow "a trailing --body with no value is malformed, not empty" "$GATED" "gh pr create -t T --body"
+assert_allow "a trailing --body-file with no value is malformed" "$GATED" "gh pr create -t T --body-file"
+assert_allow "everything after -- is positional" "$GATED" "gh pr create -t T -- --body bad"
+assert_allow "a body-file naming a directory is unreadable" "$GATED" "gh pr create -t T --body-file ."
 
 # A body-shaped string sitting in another flag's value is not the body.
 assert_allow "a label value spelled --body is not the body" "$GATED" \
