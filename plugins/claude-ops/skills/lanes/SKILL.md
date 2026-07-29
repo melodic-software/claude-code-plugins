@@ -5,6 +5,10 @@ argument-hint: "[start|restart|status|stop] [lane...] — start (default); resta
 user-invocable: true
 disable-model-invocation: true
 shell: bash
+metadata:
+  workflow-stage: operator
+  summary: Start, restart, stop, and check loop lanes as named background sessions
+  cadence: daily
 ---
 
 ## Pre-computed context

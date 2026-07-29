@@ -5,15 +5,24 @@ argument-hint: "[mode] (e.g., /retro, /retro session, /retro codify, /retro tren
 user-invocable: true
 disable-model-invocation: false
 shell: bash
+metadata:
+  workflow-stage: retro
+  summary: Structured session retrospective with codified learnings
 ---
 
-## Pre-computed context
+## Context — gather first
 
-Current branch: !`git branch --show-current 2>/dev/null || echo "unknown"`
-Claude session: !`echo "${CLAUDE_CODE_SESSION_ID:-unknown}" || echo "unknown"`
-Recent commits: !`git log --oneline -5 2>/dev/null || echo "no commits"`
-Working tree status: !`git status --porcelain 2>/dev/null | head -20 || echo "clean"`
-Changed files (staged+unstaged): !`git diff --name-only HEAD 2>/dev/null || echo "none"`
+Collect these with **individual** Bash calls, one command per call:
+
+- Claude session id — `printenv CLAUDE_CODE_SESSION_ID`
+- Current branch — `git branch --show-current`
+- Recent commits — `git log --oneline -5`
+- Working tree status — `git status --porcelain`, reading **at most the first 20 entries**
+- Changed files (staged+unstaged) — `git diff --name-only HEAD`
+
+Treat any failure as an unknown value and carry on. These are gathered here rather than pre-computed
+because a worktree-isolated agent refuses any command carrying a `$`-expansion, which made this skill
+fail at load — keep `$`-expansion out of the pre-compute block (#1687).
 
 ## Purpose
 

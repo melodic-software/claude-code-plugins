@@ -3,6 +3,68 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.33.2]
+
+### Fixed
+
+- **Every git-bearing skill in this plugin was uninvocable from a worktree-isolated agent
+  (melodic-software/claude-code-plugins#1619).** The harness composes an entire
+  `## Pre-computed context` block into ONE shell invocation, and the worktree-isolation Bash guard
+  refuses a git-bearing compound command it cannot statically verify — so `commit`, `pull-request`,
+  `worktree`, `resolve-conflicts`, and `babysit-prs` all failed at load with `this command is too
+  complex to verify that it stays inside the worktree`. `worktree` is the sharpest case: the skill
+  for managing worktrees could not be invoked from inside one.
+  - The git lines are removed from each skill's pre-compute block and re-acquired in the skill body
+    as **individual** Bash calls, one command per call. Non-git pre-compute lines are untouched —
+    `commit` keeps its exec-bit and user-global config probes, `babysit-prs` keeps both `gh` lines.
+  - `commit`'s two repo-scoped config-layer probes were themselves compound one-liners that
+    re-derived the repository root inline. They are rebuilt on git's repo-root-relative magic
+    pathspec `:/` rather than on a substituted root — `git ls-files --error-unmatch --` and
+    `git ls-files --cached --others --`, each given `":/.claude/source-control.md"` (or the
+    `.local.md` overlay). Nothing is substituted, so a repository root containing a space, `$(…)`,
+    a backtick, or a double quote can neither break the command nor inject into it; double-quoting
+    a substituted root does *not* neutralize a command substitution, which is why quoting was the
+    wrong fix. Verified from a subdirectory: `:/` resolves against the working-tree root regardless
+    of the session's cwd, and the same existence probe replaces the personal overlay's old
+    `test -f "<root>/…"`.
+  - `commit`'s team layer keeps all three of its states — `present (tracked)`,
+    `present but UNTRACKED`, `absent` — which a single `--error-unmatch` call cannot express, since
+    it exits nonzero for both of the last two. The `git ls-files --cached --others` existence probe
+    separates them (`--exclude-standard` deliberately omitted so a gitignored file is still seen),
+    and the generic unknown-value rule is narrowed so it no longer swallows the distinction: a
+    nonzero `--error-unmatch` exit is a *result*, and only a probe that could not run at all (git
+    unavailable, not a repository) is an unknown value.
+  - `babysit-prs` is held at exactly 499 lines — the change is net-zero on line count, so it does
+    not consume the one line it has left under the 500-line hard cap (see #1626).
+  - The pre-compute lines carried `2>/dev/null || echo "unknown"` fallbacks **and** output caps
+    (`git status --short | head -20`, `git diff --cached --stat | tail -1`,
+    `git worktree list | head -30`, `git status | head -4`). The fallbacks are restated as a reading
+    rule — a failed command means "unknown, carry on". The caps are **kept as pipes** on the body
+    commands in `commit`, `worktree`, and `resolve-conflicts`. An earlier revision of this change
+    restated them as read-time prose ("read at most the first 20 entries"); that bounded nothing,
+    because the Bash tool returns a command's complete output into context before there is anything
+    to decide about. A real bound beats a fictional one.
+  - What was verified, precisely: from an `Agent` with `isolation: "worktree"`, the **unfixed**
+    skills were observed to be refused, plain git commands were observed to succeed as individual
+    Bash calls, and a multi-line non-git pre-compute block was observed to load. The restored pipes
+    (`git status --short | head -20`, `git diff --cached --stat | tail -1`) were observed to pass as
+    ordinary body Bash calls in a **non-isolated** session; whether a pipe also clears the isolation
+    guard as a body call is not verified here. The **edited** skills have not been invoked from an
+    isolated agent — skills load from the version-keyed plugin cache, so `0.33.2` does not exist
+    there until this ships. Confirm then; CI cannot prove it.
+  - `shell: bash` is deliberately left in place on every affected skill, including the three that
+    now have no `!` lines at all. The key is inert without pre-compute lines, and removing it is a
+    frontmatter-contract change with no behavioral benefit.
+
+### Changed
+
+- **Two reference spokes described the moved commands as pre-computed and are corrected.**
+  `commit/reference/exec-bit.md` no longer calls the config-layer probes pre-computed, and
+  `pull-request/reference/create.md`'s `--pushed` section is regrounded: it still says to ignore the
+  session-cwd context for an out-of-tree orchestrator, but its stated reason — that a
+  `!`-substituted line cannot be `git -C`-redirected — stopped being true once those became ordinary
+  Bash calls. The instruction to re-resolve explicitly from the target worktree is unchanged.
+
 ## [0.33.1]
 
 ### Fixed

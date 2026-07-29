@@ -3,6 +3,9 @@ name: explain
 description: "One-shot plain-language explainer — drops any concept, code, error, architecture, or the previous assistant response to genuinely plain words (concrete analogy, zero jargon), then layers altitude up only on request (high-school, then peer level). Use when: 'I don't understand this', 'I don't get it', 'what does this actually do', 'what does this mean', 'explain simply', 'ELI5', 'rephrase that'. Empty argument targets the previous assistant response (anaphora), so 'I don't get it' needs no topic named. This changes ALTITUDE — trades precision for plain words; when the ask is instead to reorganize a dense message faithfully without losing precision (chunk it one-decision-at-a-time, define its jargon, surface the decisions), that is a STRUCTURE change, adhd:clarify (if installed), not an altitude drop. Sibling to education:teach — hand off there for multi-session coaching; this is a single-shot comprehension check, not ongoing tutoring."
 argument-hint: "[thing to explain] (empty = the previous assistant response)"
 user-invocable: true
+metadata:
+  workflow-stage: anytime
+  summary: Explain any concept or the last response in genuinely plain words
 ---
 
 ## Purpose

@@ -79,9 +79,11 @@ assert_flag "docs/topics-only" true "docs/topics/example/PLAN.md"
 assert_flag "docs/topics new nested file" true "docs/topics/new-precedent/NOTES.md"
 
 # --- the grep payoff: docs a code lane actually consumes are NOT docs-only --
-assert_flag "README.md (catalog --check reads it)" false "README.md"
+assert_flag "README.md (not on the allowlist; runs full)" false "README.md"
 assert_flag "docs/PLUGIN-ARTIFACT-PROTOCOL.md (validator reads it)" false "docs/PLUGIN-ARTIFACT-PROTOCOL.md"
 assert_flag "docs/CATALOG-TAXONOMY.md (catalog reads it)" false "docs/CATALOG-TAXONOMY.md"
+assert_flag "docs/SKILL-CHEAT-SHEET.md (cheat-sheet --check reads it)" false "docs/SKILL-CHEAT-SHEET.md"
+assert_flag "docs/CATALOG.md (catalog --check reads it)" false "docs/CATALOG.md"
 
 # --- conservative: any non-topics doc, and every code class, run full ------
 assert_flag "non-topics docs/ file" false "docs/MIGRATION-PLAYBOOK.md"

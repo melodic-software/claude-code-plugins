@@ -10,6 +10,9 @@ allowed-tools:
   - "Bash(gh api user*)"
   - "Bash(gh label list*)"
 shell: bash
+metadata:
+  workflow-stage: contract
+  summary: Chart a too-big, foggy effort as a decision map worked one decision at a time
 ---
 
 ## Pre-computed context

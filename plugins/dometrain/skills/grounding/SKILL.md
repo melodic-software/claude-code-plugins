@@ -7,6 +7,8 @@ disable-model-invocation: false
 metadata:
   upstream-version: "Dometrain/mcp@master"
   synced: "2026-07-22"
+  workflow-stage: research
+  summary: Ground an approach in how a Dometrain course teaches it, with lesson links
 ---
 
 ## Purpose
