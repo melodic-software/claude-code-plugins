@@ -1206,6 +1206,27 @@ fi
 rm -rf "$TREE"
 rm -f "$TOK"
 
+# --- a registry entry is matched LITERALLY, never as a glob. The comparison
+# sits inside `[[ ]]`, where an unquoted RHS would be a pattern and a stray
+# `hooks/*.sh` entry would silently exempt every hook script from the
+# portability scan — a gate widening itself by a typo. The RHS is quoted, so
+# the entry matches only its own literal path; this pins that. ---
+TOK="$(one_token_list 'grep[[:space:]]+-P')"
+TREE="$(mktemp -d)"
+mkdir -p "$TREE/scripts" "$TREE/plugins/demo/hooks"
+cp "$SCRIPT" "$TREE/scripts/"
+printf 'hooks/*.sh\n' >"$TREE/scripts/cross-plugin-source-registry.txt"
+printf 'grep -P x\n' >"$TREE/plugins/demo/hooks/hook-utils.sh"
+out="$(SHELL_PORTABILITY_TOKENS="$TOK" bash "$TREE/scripts/check-shell-portability.sh" --all 2>&1)"
+rc=$?
+if [[ $rc -ne 0 && "$out" == *"hook-utils.sh"* ]]; then
+  ok "a glob-shaped registry entry exempts nothing (literal comparison)"
+else
+  fail "glob registry entry silently exempted a scannable file: rc=$rc out=$out"
+fi
+rm -rf "$TREE"
+rm -f "$TOK"
+
 echo
 echo "PASS=$PASS FAIL=$FAIL"
 [[ "$FAIL" -eq 0 ]]

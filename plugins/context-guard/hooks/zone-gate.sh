@@ -59,7 +59,19 @@ hook::require_jq "PreToolUse" "context-guard" "$INPUT"
 SESSION=$(hook::jq_field "$INPUT" '.session_id') || exit 0
 [[ "$SESSION" =~ ^[A-Za-z0-9_-]+$ ]] || exit 0
 
-STATE_DIR="${CLAUDE_PLUGIN_DATA:-${HOME:-.}/.claude/context-guard}/state"
+# silent-skip-ok: with neither CLAUDE_PLUGIN_DATA nor HOME there is no
+# resolvable state root, and a `.`-relative fallback would scatter the grace
+# counter through whatever directory the hook happened to start in — a counter
+# that resets with the working directory is not a budget. A gate that cannot
+# keep its own count must fail open, the same doctrine post-compact-mark.sh
+# applies to its marker path.
+if [[ -n "${CLAUDE_PLUGIN_DATA:-}" ]]; then
+  STATE_DIR="$CLAUDE_PLUGIN_DATA/state"
+elif [[ -n "${HOME:-}" ]]; then
+  STATE_DIR="$HOME/.claude/context-guard/state"
+else
+  exit 0
+fi
 COUNT_FILE="$STATE_DIR/$SESSION.gate-count"
 
 zone=$(bash "$RESOLVER" "$SESSION" 2>/dev/null) || zone="unknown"
@@ -83,8 +95,11 @@ fi
 
 # Handoff-writing exemption: a Write/Edit/NotebookEdit whose target path
 # mentions "handoff" is exactly the operation blocking mode exists to force —
-# never gate it.
-target=$(jq -r '(.tool_input.file_path // .tool_input.notebook_path // "")' <<<"$INPUT" 2>/dev/null) || target=""
+# never gate it. Extracted through hook::jq_field like the file's other two
+# extractions: the helper exists for whole-payload reads, it CR-strips, and
+# routing through it keeps this path off bash's here-string size heuristic
+# rather than depending on which side of it a given payload lands.
+target=$(hook::jq_field "$INPUT" '.tool_input.file_path // .tool_input.notebook_path') || target=""
 shopt -s nocasematch
 if [[ -n "$target" && "$target" == *handoff* ]]; then
   shopt -u nocasematch

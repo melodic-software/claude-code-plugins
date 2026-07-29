@@ -118,6 +118,24 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `mv` onto a directory SUCCEEDS by moving the temp file inside it, so the hook reported `ok`
   while consumers found nothing readable at the path. The rename is now refused up front, which
   also stops a temp file being stranded in that directory on every compaction.
+- **Both stateful hooks fail open instead of writing state into the working directory.**
+  `zone-gate.sh` and `zone-crossing-inject.sh` resolved their state root as
+  `${CLAUDE_PLUGIN_DATA:-${HOME:-.}/.claude/context-guard}`, so with neither variable set the
+  blocking gate's grace counter and the injector's last-seen zone landed under `./.claude/` —
+  relative to whatever directory the hook process happened to start in. A counter that resets
+  with the working directory is not a budget, and a last-seen zone that moves with it cannot
+  hold the once-per-transition contract (the injector would re-emit on every `cd`). Both now
+  require an explicit root and exit 0 without it, matching the doctrine `post-compact-mark.sh`
+  already applied to its marker path. `HOME` is set by Claude Code in practice, so this changes
+  no normal session.
+- **The handoff exemption's path extraction uses the file's own jq helper.** `zone-gate.sh` read
+  the target path with an open-coded `jq -r … <<<"$INPUT"` while its other two extractions went
+  through `hook::jq_field`; it now uses the helper too, which is the idiom for whole-payload
+  reads, CR-strips the value, and keeps the exemption path off bash's here-string size heuristic.
+  No behavior change was observed — a 200KB here-string completes on bash 5.3.9 (Cygwin), which
+  routes an over-capacity here-string through a temp file rather than a pipe — so this is
+  consistency, not a hang fix. A 70KB handoff-path Write is now covered end-to-end, which does
+  exercise the chunked payload drain.
 
 ## [0.3.0]
 

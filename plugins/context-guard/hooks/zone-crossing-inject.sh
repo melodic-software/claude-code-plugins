@@ -68,7 +68,19 @@ fi
 # transition, and a later real reading must compare against the last REAL one.
 [[ "$zone" == "smart" || "$zone" == "acceptable" || "$zone" == "dumb" ]] || exit 0
 
-STATE_DIR="${CLAUDE_PLUGIN_DATA:-${HOME:-.}/.claude/context-guard}/state"
+# silent-skip-ok: with neither CLAUDE_PLUGIN_DATA nor HOME there is no
+# resolvable state root, and a `.`-relative fallback would key the last-seen
+# zone to whatever directory the hook happened to start in — the once-per-
+# transition contract cannot hold against state that moves with the working
+# directory, so the hook would re-inject on every cd. Same doctrine
+# post-compact-mark.sh applies to its marker path.
+if [[ -n "${CLAUDE_PLUGIN_DATA:-}" ]]; then
+  STATE_DIR="$CLAUDE_PLUGIN_DATA/state"
+elif [[ -n "${HOME:-}" ]]; then
+  STATE_DIR="$HOME/.claude/context-guard/state"
+else
+  exit 0
+fi
 STATE_FILE="$STATE_DIR/$SESSION.zone"
 last=""
 [[ -r "$STATE_FILE" ]] && last=$(tr -cd '[:lower:]' <"$STATE_FILE" 2>/dev/null | head -c 16)

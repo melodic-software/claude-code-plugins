@@ -204,6 +204,63 @@ else
   fail "concurrent under-denial: only $denied denied of $CONC"
 fi
 
+# A LARGE handoff-path write must still reach the exemption end-to-end: the
+# chunked payload drain has to deliver the whole tool_input before the path
+# check can see it, and a truncated read was a measured bug on Git Bash pipes.
+# 70KB clears the 65536-byte pipe capacity with margin.
+#
+# Not a regression test for a here-string deadlock: the pre-fix
+# `jq <<<"$INPUT"` form passes this case too (probed at 200KB on bash 5.3.9
+# Cygwin, which routes an over-capacity here-string through a temp file). The
+# extraction was moved onto hook::jq_field for consistency with the file's
+# other extractions, not to fix a reproducible hang.
+write_snapshot "$H" sbig 95
+# Built via --rawfile, not --arg: 70KB on the command line exceeds the argv
+# limit on some hosts, and a failed jq would leave an EMPTY payload that passes
+# this test vacuously.
+head -c 70000 /dev/zero | tr '\0' 'x' >"$WORK/big.txt"
+BIG_PAYLOAD=$(jq -nc --rawfile c "$WORK/big.txt" \
+  '{session_id:"sbig",hook_event_name:"PreToolUse",tool_name:"Write",
+    tool_input:{file_path:"/work/.work/handoffs/20260729-handoff-big.md",content:$c}}')
+if ((${#BIG_PAYLOAD} < 65536)); then
+  fail "large-payload fixture is only ${#BIG_PAYLOAD} bytes — below the pipe capacity this test exists to cross"
+fi
+# The deadlock is a hang, not a failure — bound it so a regression reports
+# instead of stalling the suite.
+BIG_OUT=$(printf '%s' "$BIG_PAYLOAD" |
+  HOME="$H" CLAUDE_PLUGIN_DATA="$D" HOOK_TELEMETRY_SINK="" \
+    CLAUDE_PLUGIN_OPTION_ZONE_HOOK_MODE=blocking \
+    CLAUDE_PLUGIN_OPTION_ZONE_GATE_GRACE_CALLS=0 \
+    timeout 20 bash "$HOOK" 2>/dev/null)
+BIG_RC=$?
+if [[ $BIG_RC -eq 124 ]]; then
+  fail "large handoff write deadlocked the gate (timed out)"
+elif [[ $BIG_RC -eq 0 && -z "$BIG_OUT" ]]; then
+  ok "70KB handoff-path write reaches the exemption intact"
+else
+  fail "large handoff write: rc=$BIG_RC out=$BIG_OUT"
+fi
+
+# No resolvable state root → fail open rather than scatter the grace counter
+# into the working directory.
+write_snapshot "$WORK/nohome" snr 95
+NR_OUT=$(printf '{"session_id":"snr","hook_event_name":"PreToolUse","tool_name":"Write"}' |
+  env -u HOME -u CLAUDE_PLUGIN_DATA HOOK_TELEMETRY_SINK="" \
+    CLAUDE_PLUGIN_OPTION_ZONE_HOOK_MODE=blocking \
+    CLAUDE_PLUGIN_OPTION_ZONE_GATE_GRACE_CALLS=0 \
+    bash "$HOOK" 2>/dev/null)
+NR_RC=$?
+if [[ $NR_RC -eq 0 && -z "$NR_OUT" ]]; then
+  ok "no HOME and no CLAUDE_PLUGIN_DATA fails open"
+else
+  fail "no state root: rc=$NR_RC out=$NR_OUT"
+fi
+if [[ ! -e "./.claude/context-guard/state" ]]; then
+  ok "no state written relative to the working directory"
+else
+  fail "grace counter leaked into the working directory"
+fi
+
 echo
 echo "PASS=$PASS FAIL=$FAIL"
 [[ $FAIL -eq 0 ]]

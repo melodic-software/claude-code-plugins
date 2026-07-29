@@ -201,6 +201,23 @@ else
   fail "telemetry status not error: $(cat "$TEL" 2>/dev/null)"
 fi
 
+# No resolvable state root → stay silent rather than key the last-seen zone to
+# the working directory, which would re-inject on every cd.
+write_snapshot "$WORK/nohome" snr 90
+NR_OUT=$(printf '{"session_id":"snr","hook_event_name":"PostToolBatch"}' |
+  env -u HOME -u CLAUDE_PLUGIN_DATA HOOK_TELEMETRY_SINK="" bash "$HOOK" 2>/dev/null)
+NR_RC=$?
+if [[ $NR_RC -eq 0 && -z "$NR_OUT" ]]; then
+  ok "no HOME and no CLAUDE_PLUGIN_DATA stays silent"
+else
+  fail "no state root: rc=$NR_RC out=${NR_OUT:0:120}"
+fi
+if [[ ! -e "./.claude/context-guard/state" ]]; then
+  ok "no zone state written relative to the working directory"
+else
+  fail "zone state leaked into the working directory"
+fi
+
 echo
 echo "PASS=$PASS FAIL=$FAIL"
 [[ $FAIL -eq 0 ]]
