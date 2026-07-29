@@ -56,7 +56,9 @@ OUT=$(bash "$SCRIPT" --help) || rc=$?
 assert_exit "--help exits 0" 0 "$rc"
 assert_contains "--help prints usage" "$OUT" "Usage:"
 
-# --- Case 2: the worked example — mandate vs prohibition across two files ----
+# --- Case 2: mandate vs prohibition across two files -------------------------
+# Fixture text, not a live citation: it reproduces the shape the worked example
+# documents, which the repo-hygiene gate it was drawn from no longer uses.
 MANDATE="$TEST_TMPDIR/skill-body.md"
 cat >"$MANDATE" <<'EOF'
 Mandatory gate: show dry-run output, then `AskUserQuestion`, then apply.

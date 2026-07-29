@@ -22,8 +22,10 @@
 # side): every refresh writes ~/.claude/rate-limit-guard/rate-limits.json —
 # one JSON object with captured_at (ISO-8601 UTC) plus, when present on
 # stdin, rate_limits and every session-distinguishing top-level field
-# (session_id, session_name, and any key matching "account", so a future
-# account-identifier field is adopted automatically the release it appears).
+# (session_id, session_name, and any key whose name contains "account", so a
+# future account-identifier field is adopted automatically only when it
+# arrives under a top-level key of that shape; every other shape needs a
+# writer change).
 # The path is deliberately HOME-anchored and outside ${CLAUDE_PLUGIN_DATA}:
 # it is a documented cross-plugin artifact seam that sibling-plugin lane
 # sessions read, machine-scope by design (the file is last-writer-wins and
