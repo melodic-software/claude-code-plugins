@@ -49,8 +49,10 @@
 #      declared narrower boundary).
 #
 # This is a grep-level tripwire, not a semantic proof. Guard markers are seeded
-# for the one active class (branch/default-branch); enabling a further class
-# revisits them here, proven against an `--all` audit first.
+# for the one active class (branch/default-branch) and SCOPED to it: is_guarded()
+# reads the matched pattern as well as the line, so branch-resolution evidence
+# never excuses a different class's coupling on the same line. Enabling a further
+# class adds its own markers here, proven against an `--all` audit first.
 #
 # Files scanned within a changed skill: *.md and *.sh, excluding *.test.sh (test
 # fixtures), vendor/ (upstream-synced copies with their own drift gate), and
@@ -184,9 +186,23 @@ scan_file() {
     # either; a legitimately split-across-lines ladder uses the per-site
     # portability-ok escape. A future class needing other markers adds them
     # here when it is enabled.
-    function is_guarded(l) {
-      return l ~ /origin\/HEAD/ || l ~ /symbolic-ref/ || l ~ /merge-base/ ||
-        l ~ /baseRefName/ || l ~ /-> *origin\//
+    #
+    # Takes the matched PATTERN too, so a marker guards only the class that
+    # authored it — the same is_guarded(l, p) shape check-shell-portability.sh
+    # already uses. Without that scoping every marker is global, and the first
+    # additional class to go active inherits branch-detection evidence as a
+    # blanket excuse: `git ls-remote --symref origin HEAD` resolving the
+    # default branch would also excuse a bare `git push origin` on the same
+    # line, which is a different coupling with different resolution evidence
+    # (branch.<name>.remote / @{upstream}). That is the false green the token
+    # file staged-class preamble forbids, so the scoping lands with the class
+    # set that made it reachable rather than with the class that trips over it.
+    function is_guarded(l, p) {
+      if (p ~ /origin\/\(main\|master\)/) {
+        return l ~ /origin\/HEAD/ || l ~ /symbolic-ref/ || l ~ /merge-base/ ||
+          l ~ /baseRefName/ || l ~ /-> *origin\//
+      }
+      return 0
     }
     # Pass 1: collect active ERE patterns from the token list.
     FNR == NR {
@@ -209,7 +225,7 @@ scan_file() {
       for (i = 1; i <= np; i++) {
         if (line ~ patterns[i]) {
           if (is_annotated(line) || annotated_above) continue
-          if (is_guarded(line)) continue
+          if (is_guarded(line, patterns[i])) continue
           printf "%d: %s -> %s\n", FNR, patterns[i], line
         }
       }
