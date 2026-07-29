@@ -175,17 +175,17 @@ intake arriving mid-cycle is reported, never chased.
    PR in the snapshot not already excluded by step 2, resolve its close-linked work item (the
    provider's own computed close-linkage — `gh api graphql`, `closingIssuesReferences`) and read
    that item's recorded work-class classification **from its `work-class:` label only** — never
-   from a `Work-class: C<n>` body trailer. The class governs merge eligibility, so it is an input
-   that widens authority, and such an input is read only from a surface whose write authority the
-   provider enforces: applying a label takes triage or write permission on the base repository —
-   the same permission surface the C5 trust test below already keys on — while a body is editable
-   by the item's author, who need hold no permission at all and may be the same external party the
-   C5 test exists to catch. Body prose supplying the class would make the item self-certifying,
-   against `admission-policy.md`'s governing rule that "no repo-local (agent-writable) surface may
-   supply any admission input — rules, caps, or the work class used for admission"; a trailer stays legitimate as recorded operator
-   context and as a proposal, and is reported as such, but it never partitions. An item whose class
-   is recorded only in its body therefore counts as **unclassified here** — not eligible, at any
-   rung — exactly as an item with no record at all.
+   from a `Work-class: C<n>` body trailer. The class widens merge authority, so it is read only
+   from a surface whose write authority the provider enforces: labelling takes triage or write
+   permission on the base repository — the same permission surface the C5 trust test below keys on
+   — while a body is editable by its own author, who need hold none. A trailer supplying the class
+   would make the item self-certifying, against the governing rule that "no repo-local
+   (agent-writable) surface may supply any admission input — rules, caps, or the work class used
+   for admission"
+   ([`admission-policy.md`](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/autonomy/reference/guardrails/admission-policy.md)).
+   A trailer stays legitimate as recorded operator context and as a proposal, and is reported as
+   such, but it never partitions: an item classified only in its body counts as **unclassified
+   here** — not eligible at any rung, exactly as an item with no record at all.
    A PR is merge-eligible only when its item's class sits within the effective rung: at
    `c2-mechanical`, C2 mechanical only; at `c3-autonomous`, C2 and C3; at `full-autonomy`, every
    class up to and including C3 — **`full-autonomy` never reaches C4/C5, per the unconditional

@@ -40,7 +40,11 @@ admission"
 A body-recorded claim that can only ever **tighten** — one that routes an item to a slower tier, a
 smaller cap, a stricter gate, or a human — is not an authority input and stays usable as a signal:
 believing it costs conservatism, not safety. Widening is the direction that needs an authenticated
-surface.
+surface. The instance shipped here is `work-loop`'s frontier-tier quota guard ("Adaptive item cap"):
+its tier signal comes from the triage briefing in the item body, and everything the guard does with
+that signal is restrictive — concurrency 1, and its own cap ceiling in place of the general one. No
+other surface in this plugin reads that signal, so a body claiming the frontier tier buys its item a
+throughput bound and nothing else — no admission, no dispatch, no merge eligibility, no gate waiver.
 
 Reading such a claim is still worth doing where it saves an operator a re-diagnosis: relay it as
 context, attributed to the body, and let the authenticated surface decide.
