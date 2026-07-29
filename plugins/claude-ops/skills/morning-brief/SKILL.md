@@ -5,6 +5,10 @@ argument-hint: "[--repo owner/name] [--telemetry-issue N] [--stale-hours N] — 
 user-invocable: true
 disable-model-invocation: false
 shell: bash
+metadata:
+  workflow-stage: operator
+  summary: Print the operator's read-only morning view — queues, merge-ready PRs, parked decisions
+  cadence: daily
 ---
 
 ## Pre-computed context

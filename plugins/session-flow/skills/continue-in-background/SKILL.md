@@ -5,14 +5,23 @@ argument-hint: "[file|prompt] [topic] (e.g., /continue-in-background, /continue-
 user-invocable: true
 disable-model-invocation: false
 shell: bash
+metadata:
+  workflow-stage: session
+  summary: Delegate the task to a fresh background agent now
 ---
 
-## Pre-computed context
+## Context — gather first
 
-Current branch: !`git branch --show-current 2>/dev/null || echo "unknown"`
-Claude session: !`echo "${CLAUDE_CODE_SESSION_ID:-unknown}" || echo "unknown"`
-Uncommitted changes: !`git status --porcelain 2>/dev/null | head -20 || echo "clean"`
-Recent commits: !`git log --oneline -5 2>/dev/null || echo "no commits"`
+Collect these with **individual** Bash calls, one command per call:
+
+- Claude session id — `printenv CLAUDE_CODE_SESSION_ID`
+- Current branch — `git branch --show-current`
+- Uncommitted changes — `git status --porcelain`, reading **at most the first 20 entries**
+- Recent commits — `git log --oneline -5`
+
+Treat any failure as an unknown value and carry on. These are gathered here rather than pre-computed
+because a worktree-isolated agent refuses any command carrying a `$`-expansion, which made this skill
+fail at load — keep `$`-expansion out of the pre-compute block (#1687).
 
 ## Purpose
 

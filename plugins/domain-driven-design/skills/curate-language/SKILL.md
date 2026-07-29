@@ -4,6 +4,9 @@ description: "Actively maintain a consuming project's ubiquitous-language glossa
 argument-hint: "[term, ambiguity, or resolved vocabulary]"
 user-invocable: true
 disable-model-invocation: false
+metadata:
+  workflow-stage: plan
+  summary: Maintain the domain glossary — resolve terms, record rejected synonyms
 ---
 
 ## Variables

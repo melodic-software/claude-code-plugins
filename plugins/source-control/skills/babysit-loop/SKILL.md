@@ -4,6 +4,10 @@ description: "Run one repository's pull-request queue as the merge lane of the l
 argument-hint: "<owner/repo> [safe|worker|autopilot] [--drain] [--strip-do-not-merge] [--<dimension> <value>] · repo is required; default: standing mode at the configured tier"
 user-invocable: true
 disable-model-invocation: false
+metadata:
+  workflow-stage: operator
+  summary: Run one repo's PR queue as a standing merge lane
+  cadence: continuous
 ---
 
 ## Variables
@@ -46,8 +50,7 @@ below is an additional loop-level overlay, never a replacement for them.
 ## Required argument and config resolution
 
 `<owner/repo>` is required — the lane is scoped to exactly one repository per invocation. A launch
-without it stops with usage guidance interactively, and stops with a logged error headless; it
-never guesses a repository.
+without it stops (usage guidance interactively, a logged error headless), never guessing a repository.
 
 Everything else resolves in order:
 
@@ -143,9 +146,8 @@ and the `#502` telemetry contract below — seam keys and defaults in the config
 ## Stop modes
 
 **Standing (default).** The lane keeps watching indefinitely; idle cycles back the wakeup delay off
-toward the one-hour `ScheduleWakeup` ceiling. A standing lane is bounded by the `/loop` seven-day
-expiry per the convention: `loop_started_at` in durable state makes the approaching expiry visible,
-and an expiry hit is handled exactly like a budget hit (restart-request + clean stop).
+toward the one-hour `ScheduleWakeup` ceiling. The `/loop` seven-day expiry bounds a standing lane per
+the convention: `loop_started_at` in durable state makes the approaching expiry visible, and an expiry hit is handled exactly like a budget hit (restart-request + clean stop).
 
 **Drain (`--drain`).** The lane stops when the cycle-start snapshot shows **0 open PRs AND 0 open
 issues** in the target repository — deliberately outliving the worker lane's own exit (all issues
@@ -453,13 +455,10 @@ budget hit is a terminal manual-restart state, per the convention.
   this plugin can remove it.
 - **Dependency-manager PRs stay held even at the C2 rung.** babysit-prs's cross-tier dependency
   hold-merge invariant survives this loop: a Dependabot/Renovate-class PR is never merged
-  autonomously regardless of work class — it lands on the merge-ready report instead. The
-  C2-mechanical rung is a work-class ceiling, not a route around an owner invariant.
+  autonomously regardless of work class — it lands on the merge-ready report instead; the C2-mechanical rung is a work-class ceiling, not a route around an owner invariant.
 - **The grace window is an overlay, not a substitute.** Excluding recently-active PRs at cycle
-  level does not relax babysit-prs's expected-head pins or HEAD assertions inside the cycle; both
-  disciplines hold simultaneously.
+  level does not relax babysit-prs's expected-head pins or HEAD assertions inside the cycle; both disciplines hold simultaneously.
 - **Drain counts issues, not just PRs.** 0 open PRs alone never exits a drain — the worker lane
   may still be authoring; only 0 open PRs AND 0 open non-excluded issues (or the drain-terminal
   state) ends the loop.
-- **An open telemetry issue is the lane operating, not backlog.** Never work, close, or wait on a
-  `Lane telemetry: <lane>` issue, and never count one against the drain exit.
+- **An open telemetry issue is the lane operating, not backlog.** Never work, close, or wait on a `Lane telemetry: <lane>` issue, and never count one against the drain exit.

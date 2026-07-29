@@ -4,6 +4,52 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.6.1]
+
+### Fixed
+
+- **`boris` no longer states subagent nesting depth as a fixed number.** The ceiling is a
+  configurable platform setting that moved three times in seven weeks — a fixed, unchangeable
+  five layers (CC 2.1.172–2.1.216), a default of one (2.1.217), then a configurable default of
+  three (2.1.219) — so any bare number is stale by construction
+  ([sub-agents](https://code.claude.com/docs/en/sub-agents), which now carries both the current
+  default and that full version history). `skills/boris/SKILL.md`'s Quick Reference row carried a
+  bare present-tense "depth=5 cap" and now leads with the authoring imperative — never author a
+  tree needing a specific depth — and names `CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH`.
+  `skills/boris/reference/orchestration.md` §91 keeps its dated "shipped Jun 9, 2026 … capped at
+  depth=5 to start" claim — that is historically true — but now marks the cap as historical and
+  adds the current-state guidance. Matches the numberless shape already used by
+  `session-flow:orchestrate` and `discovery`'s agent briefs.
+  `skills/boris/vendor/SKILL.md` carries the same claim in six places and is deliberately **not**
+  changed — it is the verbatim upstream baseline used for drift detection, so editing it would
+  manufacture false drift.
+
+## [0.6.0]
+
+Lands the Opus 5 model-adaptation refresh from the `opus-5-prompting-interview` workstream
+(dual-verified corpus: Opus 5 prompting guide + system card).
+
+### Added
+
+- **`fable-5`: `context/model-adaptation/opus-5.md`** — the Claude Opus 5 delta chapter: verified
+  behavioral deltas (self-verification, scope, report-everything review, delegation floor, output
+  length, effort posture), the architected-vs-instructed verification doctrine with its recorded
+  residual tension, live-verified thinking controls including the session-observed
+  thinking-off-above-`high` 400 (Claude Code does not clamp), an injection-robustness routing note
+  with deferred-trigger, and pointer-only hard facts. Every claim carries a source citation and a
+  Claude-Code-applicability tag.
+
+### Changed
+
+- **`fable-5`: model adaptation generalized to a per-version seam** — `context/opus-adaptation.md`
+  moved to `context/model-adaptation/opus-4-8.md` (deltas unchanged; still calibrated for, and
+  scoped to, Opus 4.8). `SKILL.md` meta-rule 3 now routes by model VERSION to
+  `context/model-adaptation/<model>.md` and no longer tells any Opus model to apply the 4.8
+  counter-steers verbatim — several are reversed by the Opus 5 guide (effort floor, per-edit-batch
+  verifier dispatch, delegation bias, scope literalism). Routing-table row and "What this skill is
+  NOT" pointer updated; `context/orchestration.md`'s chapter reference reworded to the
+  model-neutral form.
+
 ## [0.5.2]
 
 ### Fixed
