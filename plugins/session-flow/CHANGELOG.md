@@ -1,5 +1,91 @@
 # Changelog — session-flow plugin
 
+## [0.17.18]
+
+### Fixed
+
+- **`orchestrate`'s nested-subagent drift note asserted a disagreement that upstream has since
+  resolved (melodic-software/claude-code-plugins#1312).** 0.17.14 recorded that the `sub-agents`
+  page lagged the changelog and still described the off-by-default state, and told readers to treat
+  the changelog as authoritative for the default. Re-verified 2026-07-29 against the raw markdown of
+  both surfaces: the page now states the depth-3 default itself ("By default, a subagent can spawn
+  subagents of its own, up to three layers below the main conversation") and carries its own
+  version-history note covering all three regimes. The two surfaces agree, so the note is rewritten
+  as a resolved-drift record — it keeps the historical split and the empirical 2.1.220 observation,
+  because the page carries no dated revision history and a cached or vendored copy can still be
+  showing the old account.
+- **One quote marked `(verbatim, verified 2026-07-26)` was no longer verbatim.** The tool-list
+  gating sentence read "…lets that subagent spawn subagents of its own **once you allow nested
+  spawning**…"; the page now reads "…**while the depth limit allows it**…". Corrected, and the
+  superseded "while nesting is off" framing is replaced with the page's current at-the-limit
+  semantics, including that a fork at the limit keeps `Agent` but the tool errors instead of
+  spawning.
+- Every imperative-5 claim re-verified against byte-exact raw markdown and re-anchored to
+  2026-07-29; the changelog is recorded as current through v2.1.220.
+- **Imperative 7's `/config` size-guideline quote was not byte-exact** — it read `small`
+  "fewer than 5" where the workflows page's table reads "Fewer than 5 agents" (likewise 15 and 50).
+  Corrected and anchored to 2026-07-29. Caught by the independent citation audit outside the
+  reported hunks; fixed in passing rather than left in a file whose purpose is exact quotation.
+- The superseded page text quoted inside the resolved-drift note is now labelled as page text
+  captured 2026-07-26 and no longer reproducible upstream, so it is not mistaken for a live quote.
+
+### Added
+
+- **The file header now states what `(verbatim)` tolerates** — link syntax stripped to its text,
+  inline emphasis dropped or added, `\_` unescaped from raw changelog lines, and a sentence-final
+  period on a mid-sentence fragment. Anything that changes wording is a defect, not a normalization.
+  The convention was previously unwritten, so a reviewer could not tell a deliberate normalization
+  from a drifted quote.
+
+### Notes
+
+- The `v2.1.172` reference is a **historical citation** — the release that shipped nesting — not a
+  verification pin, and the file now says so inline. The `sub-agents` page's own version-history
+  note independently corroborates it. Bumping it would corrupt a correct citation.
+- `SKILL.md` and `context/gotchas.md` state their drift observations in dated past tense
+  ("on 2026-07-26 the page still described…"), so both remain accurate and are unchanged. Their
+  behavioral-probe guidance stands on its own regardless of whether the surfaces agree.
+
+## [0.17.17]
+
+### Fixed
+
+- **`continue-in-background`'s dirty-tree gate had no branch for a consuming directory that is not
+  a git repository (melodic-software/claude-code-plugins#929).** The gate opened by running
+  `git status --porcelain -uall`, which in a non-repo directory (a session started in `$HOME`, say)
+  fails with `fatal: not a git repository` and leaves the skill with no specified behavior.
+  - The gate now establishes repository status first with `git rev-parse --is-inside-work-tree`.
+    Two results are specified and everything else falls through to a deliberate default, so the
+    gate is exhaustive by construction rather than by enumeration. `true` → inspect the tree as
+    before. Positively identified as *not a git repository* **and** no `WorktreeCreate` hook
+    configured → launch: there is no uncommitted work to protect and no worktree isolation to
+    lose, because background sessions then write to the working directory directly rather than
+    moving into an isolated worktree (<https://code.claude.com/docs/en/agent-view>); the launch
+    report states that reading.
+  - The hook is part of that branch's condition, not a parenthetical premise. `WorktreeCreate` is
+    the isolation path for non-Git source control
+    (`plugins/playbooks/skills/boris/reference/worktrees.md`) and "replaces the default worktree
+    creation entirely" (`docs/conventions/topic-docs/README.md`), so a configured hook moves the
+    launched session into a workspace the consuming checkout's local changes never reach — exactly
+    what the dirty-tree gate exists to prevent. Absence of the hook must therefore be
+    *established*; a configured hook, or an absence that cannot be established, falls to the wide
+    default below and does not launch.
+  - Anything else is UNKNOWN tree state, not clean, and does not launch. That default is wide on
+    purpose: a failure for some other reason (dubious ownership, a damaged repository, git missing
+    from `PATH`), and also a *successful* `false` — inside a bare repository or a `.git`
+    directory, where the command exits 0 and there is no work tree. Routing by exit status alone
+    in either direction would have turned a gate that protects uncommitted work into one that
+    fails open on exactly the cases where the tree is least readable.
+  - The context-gathering block's "treat any failure as an unknown value and carry on" is now
+    scoped to itself. It colors the save-point and is not the gate; its shrug, and its non-`-uall`
+    `git status` output, must not be carried into the gate, which reads a git failure the opposite
+    way.
+  - The post-launch enforcement checklist and the gotchas index carry the same branches, so the
+    surfaces the user verifies the exit shape against no longer disagree with the gate.
+  - Four eval cases added: a non-repo directory with no `WorktreeCreate` hook that launches, a
+    non-repo directory *with* one that does not, a git failure that is not "not a git repository"
+    that does not, and a zero-exit `false` that does not.
+
 ## [0.17.16]
 
 ### Fixed

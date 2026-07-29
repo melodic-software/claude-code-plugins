@@ -3,6 +3,21 @@
 All notable changes to the `actionlint` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.5]
+
+### Fixed
+
+- **Shared `hook-utils.sh`: an in-project file spelled as a Windows 8.3 short name is no longer
+  silently skipped by the shared membership guard (#1636).** `hook::physical_path` canonicalized
+  with GNU realpath, which under Git Bash resolves symlinks but leaves 8.3 short names
+  (`KYLESE~1`) unexpanded, so a short-form `file_path` failed the `CLAUDE_PROJECT_DIR` prefix
+  comparison in `hook::read_file_path`. The lib now expands short names on Windows/MSYS hosts
+  (new `hook::expand_8dot3`, via `cygpath -l`) before the comparison, and only when the expanded
+  form actually differs; a genuinely out-of-project file is still skipped. This plugin's own
+  hook met this exact defect first and has parsed `file_path` itself since 0.6.0 (#1133), so its
+  behavior is unchanged — the sync fixes the shared guard that 0.6.0 deliberately left untouched
+  for consumers that need it. Synced from `lib/hook-utils.sh`.
+
 ## [0.7.4]
 
 ### Fixed

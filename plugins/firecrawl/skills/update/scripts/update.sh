@@ -31,7 +31,7 @@ NPM_LATEST_URL="https://registry.npmjs.org/${NPM_PKG}/latest"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SKILL_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 UPSTREAM_MD="${SKILL_DIR}/UPSTREAM.md"
-TMPDIR_RUN=$(mktemp -d -t firecrawl-update-XXXXXX)
+TMPDIR_RUN=$(mktemp -d "${TMPDIR:-/tmp}/firecrawl-update-XXXXXX")
 
 cleanup() {
   rm -rf "$TMPDIR_RUN"

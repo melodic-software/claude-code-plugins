@@ -135,6 +135,26 @@ to tracker-item-only; degradation never drops the escalation item itself. The on
 shape is the inverse: a push leg bound without the channel leg beneath it, because the ladder
 is cumulative and the push tier rides on top of the channel notification.
 
+### Fan-out transport grounding
+
+Neither org-bindable leg waits on a primitive that has to be invented. Each binds to a distinct
+transport surface class, and both classes have shipped first-party mechanisms today — adapters to
+compose at build:
+
+- **Channel leg — the deterministic hook-transport class.** A lifecycle-hook handler that POSTs
+  the event payload to an endpoint the org configures. It fires whenever the matched lifecycle
+  event fires, with no model judgment in the path, and it carries no account-tier or paired-device
+  dependency. That determinism is why the ladder rests on this leg.
+- **Personal-push leg — the model-discretionary push-notification surface class.** A built-in
+  notification capability the agent invokes at its own discretion, reaching an operator's local
+  desktop and, where a paired personal device surface is connected, that operator's phone. Both
+  the discretionary invocation and the pairing dependency are why this leg rides on top of the
+  channel leg and never substitutes for it.
+
+The runner binds each class's concrete adapter — and re-verifies its behavior — at build from live
+docs. This grounding fixes only which class each leg belongs to and the ladder order between them;
+naming instances is the binding surface's job, not this contract's.
+
 ### Contract-default severities
 
 Fan-out is fully defined with no `escalation_severity` binding present at all: every event
