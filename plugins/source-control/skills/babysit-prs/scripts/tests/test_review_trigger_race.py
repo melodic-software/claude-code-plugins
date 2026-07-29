@@ -45,6 +45,17 @@ def configured() -> review_trigger.ReviewTriggerConfig:
     )
 
 
+def declared_non_structural() -> review_trigger.ReviewTriggerConfig:
+    """`configured()` plus the reviewer declared a non-structural bot account."""
+    return review_trigger.ReviewTriggerConfig(
+        trigger_phrase="please review",
+        reviewer_logins=frozenset({"reviewbot"}),
+        gate_context="review-gate",
+        ci_gateway_context="ci-gate",
+        extra_bot_logins=frozenset({"reviewbot"}),
+    )
+
+
 class ConfigTests(unittest.TestCase):
     def test_default_config_is_not_configured(self) -> None:
         self.assertFalse(review_trigger.DEFAULT_REVIEW_TRIGGER_CONFIG.configured)
@@ -169,12 +180,142 @@ class ReviewBotItemTests(unittest.TestCase):
         self.assertTrue(review_trigger.is_review_bot_item(item, configured()))
 
     def test_human_author_is_not_a_review_bot(self) -> None:
+        # Also the dormant-default pin for the `extra_bot_logins` widening: with
+        # the field unset, a `User`-typed author is refused however the reviewer
+        # set reads, so no unconfigured consumer's behavior moves.
         item = {"author": {"__typename": "User", "login": "reviewbot"}}
         self.assertFalse(review_trigger.is_review_bot_item(item, configured()))
 
     def test_unlisted_bot_is_not_a_review_bot(self) -> None:
         item = {"author": {"__typename": "Bot", "login": "otherbot[bot]"}}
         self.assertFalse(review_trigger.is_review_bot_item(item, configured()))
+
+    def test_declared_user_typed_reviewer_is_a_review_bot(self) -> None:
+        item = {"author": {"__typename": "User", "login": "reviewbot"}}
+        self.assertTrue(
+            review_trigger.is_review_bot_item(item, declared_non_structural()))
+
+    def test_declared_login_outside_the_reviewer_set_is_not_a_review_bot(self) -> None:
+        # The reviewer-set bound survives the widening: declaring an account a
+        # bot never promotes it to reviewer.
+        config = review_trigger.ReviewTriggerConfig(
+            trigger_phrase="please review",
+            reviewer_logins=frozenset({"reviewbot"}),
+            gate_context="review-gate",
+            extra_bot_logins=frozenset({"otherbot"}),
+        )
+        item = {"author": {"__typename": "User", "login": "otherbot"}}
+        self.assertFalse(review_trigger.is_review_bot_item(item, config))
+
+    def test_rest_user_typed_reviewer_is_recognized_when_declared(self) -> None:
+        # REST payloads carry `type`, not `__typename`.
+        item = {"author": {"type": "User", "login": "reviewbot"}}
+        self.assertTrue(
+            review_trigger.is_review_bot_item(item, declared_non_structural()))
+
+    def test_rest_bot_typed_reviewer_is_recognized_undeclared(self) -> None:
+        # Delegating bot-ness to `is_bot` is only safe because the REST `type`
+        # key is normalized into the `__typename` slot first -- `is_bot` reads
+        # `__typename` alone. Reactions and review comments carry only `type`,
+        # so losing that normalization would silently blind both paths.
+        item = {"author": {"type": "Bot", "login": "reviewbot"}}
+        self.assertTrue(review_trigger.is_review_bot_item(item, configured()))
+
+
+class UserTypedReviewerConsumerTests(unittest.TestCase):
+    """Every `is_review_bot_item` consumer honors a declared `User`-typed reviewer."""
+
+    def _reviews(self) -> list[dict[str, object]]:
+        return [{
+            "id": "R1",
+            "author": {"__typename": "User", "login": "reviewbot"},
+            "state": "COMMENTED",
+            "commit": {"oid": HEAD},
+            "url": "https://example.invalid/r1",
+        }]
+
+    def _review_comments(self) -> list[dict[str, object]]:
+        return [{
+            "id": 7,
+            "user": {"type": "User", "login": "reviewbot"},
+            "commit_id": HEAD,
+            "html_url": "https://example.invalid/c7",
+        }]
+
+    def test_evidence_accepts_a_declared_user_typed_reviewer(self) -> None:
+        evidence = review_trigger.fetch_review_evidence(
+            "owner/repo", 42, self._reviews(), self._review_comments(),
+            config=declared_non_structural())
+        self.assertEqual(
+            [item["id"] for item in evidence], ["review:R1", "review_comment:7"])
+
+    def test_evidence_refuses_the_same_reviewer_when_undeclared(self) -> None:
+        evidence = review_trigger.fetch_review_evidence(
+            "owner/repo", 42, self._reviews(), self._review_comments(),
+            config=configured())
+        self.assertEqual(evidence, [])
+
+    def test_current_head_review_accepts_a_declared_user_typed_reviewer(self) -> None:
+        pr = {"headRefOid": HEAD, "reviews": self._reviews()}
+        self.assertTrue(review_trigger.has_current_head_review(
+            pr, HEAD, config=declared_non_structural()))
+
+    def test_current_head_review_refuses_the_same_reviewer_when_undeclared(self) -> None:
+        pr = {"headRefOid": HEAD, "reviews": self._reviews()}
+        self.assertFalse(
+            review_trigger.has_current_head_review(pr, HEAD, config=configured()))
+
+    def _reactions(self) -> list[dict[str, object]]:
+        return [{
+            "id": 11,
+            "user": {"type": "User", "login": "reviewbot"},
+            "content": "eyes",
+            "created_at": "2026-07-09T00:00:00Z",
+        }]
+
+    def test_reactions_accept_a_declared_user_typed_reviewer(self) -> None:
+        with mock.patch.object(review_trigger, "fetch_paginated_api",
+                               return_value=self._reactions()):
+            signals = review_trigger.fetch_review_reactions(
+                "repos/owner/repo/issues/42/reactions", scope="pull_request",
+                config=declared_non_structural())
+        self.assertEqual([signal["id"] for signal in signals], ["pull_request:11"])
+
+    def test_reactions_refuse_the_same_reviewer_when_undeclared(self) -> None:
+        with mock.patch.object(review_trigger, "fetch_paginated_api",
+                               return_value=self._reactions()):
+            signals = review_trigger.fetch_review_reactions(
+                "repos/owner/repo/issues/42/reactions", scope="pull_request",
+                config=configured())
+        self.assertEqual(signals, [])
+
+    def test_a_declared_reviewers_eyes_reaction_raises_the_blocker(self) -> None:
+        # The widening is not uniformly permissive: recognizing a declared
+        # reviewer's eyes reaction ADDS the awaiting-review blocker that
+        # refusing the account suppressed. Driven end-to-end from the
+        # predicate, not from a hand-built signal.
+        config = declared_non_structural()
+        with mock.patch.object(review_trigger, "fetch_paginated_api",
+                               return_value=self._reactions()):
+            signals = review_trigger.fetch_review_reactions(
+                "repos/owner/repo/issues/42/reactions", scope="pull_request",
+                config=config)
+        rollup = [
+            {"__typename": "StatusContext", "context": "review-gate",
+             "state": "PENDING", "targetUrl": ""},
+            {"__typename": "CheckRun", "name": "ci-gate", "conclusion": "SUCCESS"},
+        ]
+        gate = review_trigger.review_gate_state(
+            checks.classify_checks(rollup), config)
+        pr = {"headRefOid": HEAD, "mergeStateStatus": "CLEAN",
+              "mergeable": "MERGEABLE", "state": "OPEN", "isDraft": False,
+              "reviews": []}
+        prior = {"review_trigger": {"reaction_head_sha": HEAD,
+                                    "reaction_signal_ids": []}}
+        result = review_trigger.classify_review_request(
+            pr, gate, prior, "2026-07-27T00:00:00Z", reaction_signals=signals,
+            review_trigger_allowed=True, config=config)
+        self.assertEqual(result["state"], "engaged_reaction_reviewing")
 
 
 class ClassifyReviewRequestTests(unittest.TestCase):
