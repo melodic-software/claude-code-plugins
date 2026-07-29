@@ -58,7 +58,9 @@ The team collected thousands of agent transcripts + permission prompts, classifi
 
 ## 91. Nested Subagents — Agents Kicking Off Agents
 
-Shipped Jun 9, 2026: a subagent can spawn its own subagents, capped at **depth=5** to start. Nesting is a context-management tool — each layer keeps its own window so deep work doesn't bloat the parent. Monitor via arrow-down in the terminal. Model choice propagates to nested agents; thinking weights don't (yet). Works with forked sessions and Chrome tools. The lower-level primitive under the workflows arc (80–86); pairs with 6, 76, 28.
+Shipped Jun 9, 2026: a subagent can spawn its own subagents, capped at depth=5 *to start* — that starting cap is now historical, not the current ceiling. Nesting is a context-management tool — each layer keeps its own window so deep work doesn't bloat the parent. Monitor via arrow-down in the terminal. Model choice propagates to nested agents; thinking weights don't (yet). Works with forked sessions and Chrome tools. The lower-level primitive under the workflows arc (80–86); pairs with 6, 76, 28.
+
+**The depth ceiling is configurable and moves — never author a tree that needs a specific depth.** It went from that fixed five layers, to nesting off by default, to a configurable default of three, inside seven weeks ([changelog](https://code.claude.com/docs/en/changelog)). Tune it with `CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH`, which now *lowers* the ceiling as readily as it raises one. Read the live value rather than assuming any number, and confirm from behavior — the [sub-agents](https://code.claude.com/docs/en/sub-agents) page has lagged the changelog on this.
 
 ## 92. fork: true — Run a Skill in Its Own Context Window (Experimental)
 

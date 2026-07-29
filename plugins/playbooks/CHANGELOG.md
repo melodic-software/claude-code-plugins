@@ -4,6 +4,25 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.6.1]
+
+### Fixed
+
+- **`boris` no longer states subagent nesting depth as a fixed number.** The ceiling is a
+  configurable platform setting that moved three times in seven weeks — a fixed five layers
+  (CC 2.1.172), nesting off by default (2.1.217), then a configurable default of three
+  (2.1.219) — so any bare number is stale by construction
+  ([changelog](https://code.claude.com/docs/en/changelog)). `skills/boris/SKILL.md`'s Quick
+  Reference row carried a bare present-tense "depth=5 cap" and now names
+  `CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH` and tells the reader to read the live value.
+  `skills/boris/reference/orchestration.md` §91 keeps its dated "shipped Jun 9, 2026 … capped at
+  depth=5 to start" claim — that is historically true — but now marks the cap as historical and
+  adds the current-state guidance not to author a tree that needs a specific depth. Matches the
+  numberless shape already used by `session-flow:orchestrate` and `discovery`'s agent briefs.
+  `skills/boris/vendor/SKILL.md` carries the same claim in six places and is deliberately **not**
+  changed — it is the verbatim upstream baseline used for drift detection, so editing it would
+  manufacture false drift.
+
 ## [0.6.0]
 
 Lands the Opus 5 model-adaptation refresh from the `opus-5-prompting-interview` workstream
