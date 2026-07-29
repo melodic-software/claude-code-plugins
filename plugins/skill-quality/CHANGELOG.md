@@ -3,6 +3,17 @@
 All notable changes to the `skill-quality` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.12.2]
+
+### Fixed
+
+- **The vendor-sync-age check (Check 17) had no BSD `date` fallback at
+  all** — `date -u -d "$SYNCED_VAL" +%s` silently failed and the whole
+  advisory check no-op'd on BSD/macOS with no warning. Added a co-located
+  `date -j -f '%Y-%m-%d' ...` BSD fallback, annotated `portability-ok:`
+  since the shell-portability-lint gate's `date -d` guard only recognizes
+  the `readlink`/`realpath` shape today.
+
 ## [0.12.1]
 
 ### Added

@@ -193,6 +193,9 @@ REPO_ARGS=()
 # midnight instead of leaving it unparsable.
 to_epoch() {
   local s="$1" e fmt
+  # portability-ok: GNU-first of the dual-dialect ladder documented above (BSD
+  # `date -j -f` fallback follows in the loop below, cross-statement so the
+  # gate's same-line guard shape does not cover it — #1510).
   e="$(date -u -d "$s" +%s 2>/dev/null)" && {
     printf '%s' "$e"
     return
@@ -207,6 +210,9 @@ to_epoch() {
 
 from_epoch() {
   local e="$1" out
+  # portability-ok: GNU-first of the dual-dialect ladder documented above (BSD
+  # `date -u -r` fallback follows immediately below, cross-statement so the
+  # gate's same-line guard shape does not cover it — #1510).
   out="$(date -u -d "@$e" '+%Y-%m-%dT%H:%MZ' 2>/dev/null)" && {
     printf '%s' "$out"
     return

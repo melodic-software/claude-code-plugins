@@ -49,6 +49,8 @@ probe_icacls_deny() {
 probe_cached_installer() {
   if [[ -f "${KINDLE_UPDATES_DIR}/KindleForPC-installer.exe" ]]; then
     local size_bytes
+    # portability-ok: Windows-only script (Git Bash + PowerShell + LOCALAPPDATA
+    # above already require Windows) — a BSD stat fallback would be dead code.
     size_bytes=$(stat -c%s "${KINDLE_UPDATES_DIR}/KindleForPC-installer.exe" 2>/dev/null || echo 0)
     echo "present-${size_bytes}b"
   else

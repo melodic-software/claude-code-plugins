@@ -3,6 +3,19 @@
 All notable changes to the `kindle-dedrm` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.3]
+
+### Changed
+
+- **`status.sh`/`sync-finalize.sh` annotated for the shell-portability-lint
+  gate's newly-active `stat -c` class (#1510).** Both scripts' cached-installer
+  size probe (`stat -c%s ... || echo <default>`) has no BSD `stat -f`
+  fallback, which the gate would otherwise flag as a real gap — but this
+  plugin's scripts are Windows-only (Git Bash + PowerShell + the
+  `LOCALAPPDATA`/`USERPROFILE`/`APPDATA` env vars they already depend on), so
+  a BSD fallback would be dead code. Each site now carries a `portability-ok:`
+  annotation recording that. No behavior change.
+
 ## [0.6.2]
 
 ### Changed

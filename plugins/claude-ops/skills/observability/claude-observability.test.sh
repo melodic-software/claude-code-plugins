@@ -157,9 +157,10 @@ mkdir -p "$clean_test_dir"
 (cd "$clean_test_dir" && git init -q && git config commit.gpgsign false)
 mkdir -p "$clean_test_dir/.claude/observability"
 TODAY=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+# portability-ok: GNU-first dual-dialect probe, BSD branch in the else below (#1510)
 if date -u -d "45 days ago" +%s >/dev/null 2>&1; then
-  OLD_45=$(date -u -d "45 days ago" +%Y-%m-%dT%H:%M:%SZ)
-  OLD_5=$(date -u -d "5 days ago" +%Y-%m-%dT%H:%M:%SZ)
+  OLD_45=$(date -u -d "45 days ago" +%Y-%m-%dT%H:%M:%SZ) # portability-ok: see if-guard above (#1510)
+  OLD_5=$(date -u -d "5 days ago" +%Y-%m-%dT%H:%M:%SZ) # portability-ok: see if-guard above (#1510)
 else
   OLD_45=$(date -u -v-45d +%Y-%m-%dT%H:%M:%SZ)
   OLD_5=$(date -u -v-5d +%Y-%m-%dT%H:%M:%SZ)

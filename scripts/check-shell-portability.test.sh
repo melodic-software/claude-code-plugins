@@ -769,6 +769,18 @@ if out="$(scan_paths "$tok" "$f" 2>&1)"; then
 else
   ok "realpath and readlink with no actual || fallback relationship is still flagged"
 fi
+rm -f "$f"
+
+# --- nor is a `||` enough on its own: the counterpart must sit at COMMAND
+# POSITION after it. A failure branch that merely PRINTS the portable form
+# names it inside a diagnostic string, so no portable command ever runs and
+# the GNU-only call must still flag (#1544).
+f="$(tmpsh 'realpath -- "$1" || echo "readlink -f is unavailable"')"
+if out="$(scan_paths "$tok" "$f" 2>&1)"; then
+  fail "a printed-only readlink counterpart should fail, got success: $out"
+else
+  ok "a readlink counterpart that is only printed, not run, is still flagged"
+fi
 rm -f "$f" "$tok"
 
 # --- the realpath guard is scoped to the readlink pattern, not the whole line
@@ -780,6 +792,189 @@ if out="$(scan_paths "$tok" "$f" 2>&1)"; then
   fail "an unrelated realpath mention should not excuse the \\b hit, got success: $out"
 else
   ok "the realpath guard is scoped to the readlink pattern, not the whole line"
+fi
+rm -f "$f" "$tok"
+
+# =============================================================================
+# date -d (GNU date-string parsing) -- #1510
+# =============================================================================
+
+tok="$(one_token_list 'date[[:space:]]+[^\n]*-d([[:space:]]|$)')"
+
+f="$(tmpsh 'e=$(date -u -d "$s" +%s 2>/dev/null)')"
+if out="$(scan_paths "$tok" "$f" 2>&1)"; then
+  fail "date -d should fail, got success: $out"
+else
+  ok "date -d is detected"
+fi
+rm -f "$f"
+
+f="$(tmpsh 'e=$(date -u -d "@$e" +%s 2>/dev/null)')"
+if out="$(scan_paths "$tok" "$f" 2>&1)"; then
+  fail "date -d with an @-epoch argument should fail, got success: $out"
+else
+  ok "date -d with an @-epoch argument is detected"
+fi
+rm -f "$f" "$tok"
+
+# --- a comment merely naming date -d is not flagged (construct matching skips comments)
+tok="$(one_token_list 'date[[:space:]]+[^\n]*-d([[:space:]]|$)')"
+f="$(tmpsh '# GNU date -d and BSD date -j -f are mutually exclusive dialects.')"
+if scan_paths "$tok" "$f" >/dev/null 2>&1; then
+  ok "a comment merely naming date -d is not flagged"
+else
+  fail "a comment-only mention of date -d must not fire"
+fi
+rm -f "$f" "$tok"
+
+# --- "date" as a mere substring of an identifier (e.g. "candidate") followed
+# later by an unrelated -d flag on the same line must not fire.
+tok="$(one_token_list 'date[[:space:]]+[^\n]*-d([[:space:]]|$)')"
+f="$(tmpsh 'elif [[ "$candidate" == "$base" && -d "$candidate" ]]; then')"
+if scan_paths "$tok" "$f" >/dev/null 2>&1; then
+  ok "\"date\" as a substring of \"candidate\" does not spuriously match -d"
+else
+  fail "the candidate/-d false positive must not fire"
+fi
+rm -f "$f" "$tok"
+
+# =============================================================================
+# stat -c, auto-guarded by a co-located stat -f attempt -- #1510
+# =============================================================================
+
+tok="$(one_token_list 'stat[[:space:]]+[^\n]*-c')"
+
+f="$(tmpsh 'size=$(stat -c%s "$f" 2>/dev/null)')"
+if out="$(scan_paths "$tok" "$f" 2>&1)"; then
+  fail "bare stat -c should fail, got success: $out"
+else
+  ok "bare stat -c (no stat -f attempt) is detected"
+fi
+rm -f "$f"
+
+f="$(tmpsh "dev_of() { stat -c '%d' \"\$1\" 2>/dev/null || stat -f '%d' \"\$1\" 2>/dev/null; }")"
+if scan_paths "$tok" "$f" >/dev/null 2>&1; then
+  ok "stat -c co-located with a stat -f fallback is auto-guarded"
+else
+  fail "the stat -f fallback must not be flagged"
+fi
+rm -f "$f" "$tok"
+
+# --- mere co-location is not enough -- the guard requires an actual `||`
+# fallback relationship, mirroring the readlink/realpath guard's rigor.
+tok="$(one_token_list 'stat[[:space:]]+[^\n]*-c')"
+f="$(tmpsh "stat -f '%d' \"\$1\" >/dev/null; stat -c '%d' \"\$1\"")"
+if out="$(scan_paths "$tok" "$f" 2>&1)"; then
+  fail "stat -f;stat -c with no || fallback relationship should fail, got success: $out"
+else
+  ok "stat -f and stat -c with no actual || fallback relationship is still flagged"
+fi
+rm -f "$f"
+
+# --- and the `stat -f` counterpart must sit at COMMAND POSITION after the
+# `||`, not merely somewhere to its right: a failure branch that only PRINTS
+# the BSD form runs no portable command at all, so suppressing the hit would
+# hide a real GNU-only call behind a fallback that does not exist (#1544).
+f="$(tmpsh "stat -c '%s' \"\$f\" || echo 'stat -f is unavailable'")"
+if out="$(scan_paths "$tok" "$f" 2>&1)"; then
+  fail "a printed-only stat -f counterpart should fail, got success: $out"
+else
+  ok "a stat -f counterpart that is only printed, not run, is still flagged"
+fi
+rm -f "$f"
+
+# --- ...while the assignment/command-substitution shape the corpus really
+# uses for a fallback ladder stays guarded (lib/hook-utils.sh resolves through
+# `name=$(cmd) || name=$(fallback)`, replicated in 15 hook-utils.sh copies).
+f="$(tmpsh 'size=$(stat -c "%s" "$1") || size=$(stat -f "%z" "$1")')"
+if scan_paths "$tok" "$f" >/dev/null 2>&1; then
+  ok "a name=\$(stat -f ...) fallback after || is still recognized as a guard"
+else
+  fail "the assignment-wrapped stat -f fallback ladder must not be flagged"
+fi
+rm -f "$f"
+
+# --- the guard must also stop at a command SEPARATOR. With another command
+# between the GNU call and the ||, the || belongs to that later command, so the
+# BSD form is not the GNU call's fallback and the unconditional GNU-only
+# invocation must still flag (#1544).
+f="$(tmpsh "stat -c '%s' \"\$f\"; true || stat -f '%z' \"\$f\"")"
+if out="$(scan_paths "$tok" "$f" 2>&1)"; then
+  fail "a stat -f reached across a ; should fail, got success: $out"
+else
+  ok "a stat -f fallback in a LATER command segment does not guard the GNU call"
+fi
+rm -f "$f"
+
+# --- a CONTROL & is a separator too: it backgrounds the GNU call and hands the
+# || to whatever follows, so in `... & true || stat -f ...` the || binds to
+# `true` and the BSD form never runs (#1544).
+f="$(tmpsh "stat -c '%s' \"\$f\" & true || stat -f '%z' \"\$f\"")"
+if out="$(scan_paths "$tok" "$f" 2>&1)"; then
+  fail "a stat -f reached across a background & should fail, got success: $out"
+else
+  ok "a backgrounding & also breaks the stat fallback relationship"
+fi
+rm -f "$f"
+
+# --- ...while `>&` and `&&` are NOT separators: a real ladder may redirect
+# with 2>&1, and `a && b || c` does still fall back to c when a fails.
+f="$(tmpsh 'size=$(stat -c "%s" "$1" 2>&1) || size=$(stat -f "%z" "$1")')"
+if scan_paths "$tok" "$f" >/dev/null 2>&1; then
+  ok "a 2>&1 redirection inside the ladder does not break the guard"
+else
+  fail "2>&1 must not be mistaken for a control &: $(scan_paths "$tok" "$f" 2>&1)"
+fi
+rm -f "$f"
+
+# --- a redirection may also sit between `stat` and its OWN option: it does not
+# change the argv stat receives, so this is the same BSD fallback and must not
+# be forced into a hand-written exemption (#1544).
+f="$(tmpsh 'size=$(stat -c "%s" "$f") || size=$(stat 2>/dev/null -f "%z" "$f")')"
+if scan_paths "$tok" "$f" >/dev/null 2>&1; then
+  ok "a redirection before the BSD fallback option is still recognized as a guard"
+else
+  fail "a redirecting BSD fallback must not be flagged: $(scan_paths "$tok" "$f" 2>&1)"
+fi
+rm -f "$f" "$tok"
+
+tok="$(one_token_list 'readlink[[:space:]]+(-[A-Za-z]*f|--canonicalize)')"
+f="$(tmpsh 'realpath -- "$1"; true || readlink -f -- "$1"')"
+if out="$(scan_paths "$tok" "$f" 2>&1)"; then
+  fail "a readlink reached across a ; should fail, got success: $out"
+else
+  ok "a realpath attempt in a LATER command segment does not guard readlink -f"
+fi
+rm -f "$f"
+
+f="$(tmpsh 'realpath -- "$1" & true || readlink -f -- "$1"')"
+if out="$(scan_paths "$tok" "$f" 2>&1)"; then
+  fail "a readlink reached across a background & should fail, got success: $out"
+else
+  ok "a backgrounding & also breaks the readlink fallback relationship"
+fi
+rm -f "$f" "$tok"
+
+# --- "stat" as a mere prefix of an identifier ("status") followed later by an
+# unrelated -c flag on the same line must not fire (git's own -c name=value).
+tok="$(one_token_list 'stat[[:space:]]+[^\n]*-c')"
+f="$(tmpsh 'run "safe alias" "git -c alias.st=status st" 0')"
+if scan_paths "$tok" "$f" >/dev/null 2>&1; then
+  ok "\"stat\" as a prefix of \"status\" does not spuriously match -c"
+else
+  fail "the status/-c false positive must not fire"
+fi
+rm -f "$f" "$tok"
+
+# --- the stat -f guard is scoped to the stat -c pattern, not the whole line
+# A line mentioning "stat -f" for an unrelated reason must not blanket-excuse a
+# DIFFERENT active token's hit on that same line.
+tok="$(one_token_list "$(printf '%s\n%s' '\\b' 'stat[[:space:]]+[^\n]*-c')")"
+f="$(tmpsh 'echo "stat -f is the BSD form"; grep -Eq "\\bfoo\\b" "$file"')"
+if out="$(scan_paths "$tok" "$f" 2>&1)"; then
+  fail "an unrelated stat -f mention should not excuse the \\b hit, got success: $out"
+else
+  ok "the stat -f guard is scoped to the stat -c pattern, not the whole line"
 fi
 rm -f "$f" "$tok"
 
@@ -991,12 +1186,129 @@ else
   fail "markdown-format.sh must stay clean under the shipped token list, got: $out"
 fi
 
-# --- remaining staged (commented) classes stay inactive under the shipped list
-f="$(tmpsh 'x=$(date -d "$s" +%s); y=$(stat -c%s "$f")')"
-if scan_paths "$REAL_TOKENS" "$f" >/dev/null 2>&1; then
-  ok "remaining staged classes (date -d, stat -c) are inactive in the shipped list"
+# --- date -d and stat -c are now ACTIVE in the shipped list (#1510) --------
+f="$(tmpsh 'x=$(date -d "$s" +%s)')"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "date -d should now be enforced by the shipped list, got success: $out"
 else
-  fail "shipped list should only enforce the active classes"
+  ok "date -d is enforced in the shipped list (#1510)"
+fi
+rm -f "$f"
+
+f="$(tmpsh 'y=$(stat -c%s "$f")')"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "stat -c should now be enforced by the shipped list, got success: $out"
+else
+  ok "stat -c is enforced in the shipped list (#1510)"
+fi
+rm -f "$f"
+
+# --- both tokens match a whole command WORD, not any word ending in it: the
+# gap-scoping alone left "date"/"stat" unanchored on the left, so words merely
+# ENDING in them took the flag of a genuinely different command (#1544). A
+# path-qualified invocation is still the command itself and must stay flagged.
+f="$(tmpsh "$(printf '%s\n' \
+  'validate -d config' \
+  'update -d /tmp' \
+  'mystat -c foo')")"
+if scan_paths "$REAL_TOKENS" "$f" >/dev/null 2>&1; then
+  ok "a word merely ENDING in date/stat is not mistaken for the command"
+else
+  fail "validate/update/mystat must not be flagged: $(scan_paths "$REAL_TOKENS" "$f" 2>&1)"
+fi
+rm -f "$f"
+
+f="$(tmpsh '/usr/bin/date -d @0')"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "a path-qualified date -d should still fail, got success: $out"
+else
+  ok "the leading boundary still admits a path-qualified /usr/bin/date -d"
+fi
+rm -f "$f"
+
+# --- -d takes a mandatory argument, so GNU accepts it ATTACHED, and --date is
+# its documented long spelling (`date --help`: `-d, --date=STRING`). A
+# whitespace-or-EOL-only tail matched neither (#1544). Likewise stat's
+# --format/--printf are the long spellings of -c (`stat --help`:
+# `-c  --format=FORMAT`), so the class was enforceable under one spelling only.
+f="$(tmpsh "$(printf '%s\n' \
+  'date -d@0' \
+  'date -d"$s" +%s' \
+  'date --date=@0' \
+  'date --date @0' \
+  'stat --format=%s "$file"' \
+  'stat --printf=%s "$file"')")"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "attached and long date/stat spellings should fail, got success: $out"
+elif [[ "$(echo "$out" | grep -c "PORTABILITY: ${f}:")" -eq 6 ]]; then
+  ok "attached -d, --date, --format and --printf spellings are all detected"
+else
+  fail "expected all 6 spellings flagged, got: $out"
+fi
+rm -f "$f"
+
+# --- an attached -d argument may be a bare WORD, and `c` may sit inside a
+# short-option cluster (#1544). GNU documents a mandatory long-option argument
+# as mandatory for the short option too, so `date -u -dtomorrow +%Y` succeeds,
+# and `stat --help` documents `-L, --dereference` so `stat -Lc%s` succeeds.
+f="$(tmpsh "$(printf '%s\n' \
+  'date -dtomorrow +%s' \
+  'date -u -dyesterday' \
+  'stat -Lc%s "$file"' \
+  'stat -Lc '"'"'%s'"'"' "$file"')")"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "worded -d arguments and clustered -c should fail, got success: $out"
+elif [[ "$(echo "$out" | grep -c "PORTABILITY: ${f}:")" -eq 4 ]]; then
+  ok "a bare-word attached -d and a clustered -Lc are both detected"
+else
+  fail "expected all 4 forms flagged, got: $out"
+fi
+rm -f "$f"
+
+# --- ...but a LONGER flag whose name merely contains the letter must not be
+# read as that option. Both are real GNU flags that succeed in their own right.
+f="$(tmpsh "$(printf '%s\n' \
+  'date --debug +%s' \
+  'stat --dereference "$file"')")"
+if scan_paths "$REAL_TOKENS" "$f" >/dev/null 2>&1; then
+  ok "date --debug and stat --dereference are not read as -d / -c"
+else
+  fail "long flags must not match the short-option branch: $(scan_paths "$REAL_TOKENS" "$f" 2>&1)"
+fi
+rm -f "$f"
+
+# --- `d` may sit at the argument-taking end of a CLUSTER: GNU lists `-u, --utc`
+# beside `-d, --date=STRING`, and `date -ud tomorrow +%Y` succeeds (#1544).
+f="$(tmpsh "$(printf '%s\n' \
+  'date -ud tomorrow +%s' \
+  'date -ud@0')")"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "a clustered -d should fail, got success: $out"
+elif [[ "$(echo "$out" | grep -c "PORTABILITY: ${f}:")" -eq 2 ]]; then
+  ok "a clustered date -ud is detected at the argument-taking end"
+else
+  fail "expected both clustered forms flagged, got: $out"
+fi
+rm -f "$f"
+
+# --- the matched hyphen must BEGIN an argument, so a `-c` living inside a
+# filename passes no option and must not be reported (#1544).
+f="$(tmpsh "$(printf '%s\n' \
+  'stat "$file-c"' \
+  'stat foo-c')")"
+if scan_paths "$REAL_TOKENS" "$f" >/dev/null 2>&1; then
+  ok "a -c inside an operand is not mistaken for stat's format option"
+else
+  fail "operands containing -c must not be flagged: $(scan_paths "$REAL_TOKENS" "$f" 2>&1)"
+fi
+rm -f "$f"
+
+# --- ...while an option that genuinely follows an operand still is.
+f="$(tmpsh 'stat "$f" -c %s')"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "a -c after an operand should still fail, got success: $out"
+else
+  ok "a -c that does begin an argument after an operand is still detected"
 fi
 rm -f "$f"
 
@@ -1183,6 +1495,778 @@ else
 fi
 rm -f "$f"
 
+# =============================================================================
+# Quote-aware matching -- #1544 review round
+#
+# Each shape below was reproduced against the real gate before the fix. Two
+# were false positives; three were the gate failing OPEN, the worse direction
+# -- a GNU-only call reaching a BSD userland unreported. The gap still
+# excludes separators; what changed is that it now matches a line whose
+# QUOTED separators have been neutralized first, so a `;` in a filename and a
+# `;` between commands stop being the same character to it.
+# =============================================================================
+
+# --- `--` (end-of-options) is deliberately NOT honored: a flag-shaped word
+# after the marker is an operand, but reporting it is the documented over-flag
+# direction and `portability-ok:` is the escape. Pinned as a test so the
+# withdrawal is a stated behaviour rather than an absence -- honoring it needs
+# per-invocation scoping, resumed matching after a discarded occurrence, and
+# quoted-`"--"` recognition, and every partial answer traded this false
+# positive for a fail-OPEN (see the #1544 review rounds).
+f="$(tmpsh "$(printf '%s\n' \
+  'stat -- -c' \
+  'date -- -d')")"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "the over-flag on -- operands is the documented behaviour, got success: $out"
+else
+  ok "a flag-shaped operand after -- is still reported (documented over-flag)"
+fi
+rm -f "$f"
+
+# --- and a later real invocation on the same line is never lost behind one.
+# This is the direction that actually matters, and the one a partial `--`
+# implementation broke: the marker suppressed the whole line.
+f="$(tmpsh "$(printf '%s\n' \
+  'stat -- -c; stat -c "%s" "$g"' \
+  'date -- -d; date -d tomorrow')")"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "a real call after a -- operand should fail, got success: $out"
+elif [[ "$(echo "$out" | grep -c "PORTABILITY: ${f}:")" -eq 2 ]]; then
+  ok "a GNU-only call after a -- operand is still reported on both classes"
+else
+  fail "expected both later invocations flagged, got: $out"
+fi
+rm -f "$f"
+
+# --- a real option before a -- is unambiguously an option.
+f="$(tmpsh "stat -c '%s' -- \"\$g\"")"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "a real -c before -- should still fail, got success: $out"
+else
+  ok "a genuine option before -- is still detected"
+fi
+rm -f "$f"
+
+# --- an invocation wrapper still reaches the real BSD utility, so a ladder
+# through one is a genuine fallback. `command` is POSIX-specified; `env` and a
+# leading backslash reach the same utility.
+f="$(tmpsh "$(printf '%s\n' \
+  'stat -c "%s" "$f" || command stat -f "%z" "$f"' \
+  'stat -c "%s" "$f" || env stat -f "%z" "$f"')")"
+if scan_paths "$REAL_TOKENS" "$f" >/dev/null 2>&1; then
+  ok "a BSD fallback wrapped in command/env is recognized as a real ladder"
+else
+  fail "command- and env-wrapped stat -f fallbacks must not be flagged"
+fi
+rm -f "$f"
+
+# --- the guard binds to the matched invocation, not to the line. The FIRST
+# call here is unconditional and must flag even though a guarded ladder for a
+# different operand follows it on the same line.
+f="$(tmpsh "stat -c '%s' \"\$a\"; stat -c '%s' \"\$b\" || stat -f '%z' \"\$b\"")"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "an unguarded first call should fail, got success: $out"
+else
+  ok "a later guarded ladder no longer excuses an unguarded call before it"
+fi
+rm -f "$f"
+
+# --- the readlink/realpath ladder runs the other direction and must survive.
+f="$(tmpsh 'realpath "$1" 2>/dev/null || readlink -f "$1"')"
+if scan_paths "$REAL_TOKENS" "$f" >/dev/null 2>&1; then
+  ok "the realpath || readlink -f ladder is still auto-guarded after segmentation"
+else
+  fail "the backward-looking readlink guard must survive segmentation"
+fi
+rm -f "$f"
+
+# --- a separator inside quotes is a filename character, not a control
+# operator, so the gap must not stop there and lose the option after it.
+f="$(tmpsh "$(printf '%s\n' \
+  "stat 'name;part' -c '%s'" \
+  "date 'a;b' -d @0")")"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "an option after a quoted separator should fail, got success: $out"
+elif [[ "$(echo "$out" | grep -c "PORTABILITY: ${f}:")" -eq 2 ]]; then
+  ok "a quoted shell separator in an operand no longer hides the option after it"
+else
+  fail "expected both quoted-separator forms flagged, got: $out"
+fi
+rm -f "$f"
+
+# --- a quoted command word is still that command. The mktemp tokens already
+# admitted a closing quote; date and stat did not, so these were all missed.
+f="$(tmpsh "$(printf '%s\n' \
+  '"date" -d tomorrow' \
+  '"date" --date=now' \
+  "'stat' -c '%s' \"\$f\"" \
+  '"/usr/bin/stat" -c "%s" "$f"')")"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "quoted command words should fail, got success: $out"
+elif [[ "$(echo "$out" | grep -c "PORTABILITY: ${f}:")" -eq 4 ]]; then
+  ok "a quoted or path-qualified date/stat command word is detected"
+else
+  fail "expected all 4 quoted command-word forms flagged, got: $out"
+fi
+rm -f "$f"
+
+# --- segmentation must not disturb the classes that legitimately live INSIDE
+# string literals: matching runs on the original text, never on the mask.
+f="$(tmpsh "$(printf '%s\n' \
+  "grep -E '\\\\bword' file" \
+  'sort -V list')")"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "quoted GNU regex escapes should still fail, got success: $out"
+elif [[ "$(echo "$out" | grep -c "PORTABILITY: ${f}:")" -eq 2 ]]; then
+  ok "GNU escape classes inside string literals still match after masking"
+else
+  fail "expected the quoted-escape and sort -V forms flagged, got: $out"
+fi
+rm -f "$f"
+
+# =============================================================================
+# Offset-anchored matching -- #1544 review round 2
+#
+# The fallback guard has to apply to ONE invocation, not to the physical line:
+# a `||` further along must not excuse a call that cannot reach it. The guard
+# is anchored at the offset the construct matched, so SEG's existing separator
+# exclusions do the binding. Several shapes below were fail-OPEN, some of them
+# introduced by an earlier revision of this fix and caught by review.
+# =============================================================================
+
+# --- an outer command `--` never suppresses a nested invocation. This was
+# FAIL-OPEN while `--` was honored line-wide, and is the shape that made the
+# feature not worth carrying half-built.
+f="$(tmpsh 'printf -- "%s\n" "$(stat -c "%s" "$g")"')"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "a nested stat -c under an outer -- should fail, got success: $out"
+else
+  ok "an outer -- does not hide a GNU-only call inside a substitution"
+fi
+rm -f "$f"
+
+# --- a trailing command inside the substitution takes over its exit status,
+# so the outer || is not the GNU call fallback. FAIL-OPEN before the fix.
+f="$(tmpsh 'x=$(stat -c "%s" "$g"; true) || stat -f "%z" "$g"')"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "a substitution whose status comes from a later command should fail, got success: $out"
+else
+  ok "an inner command list no longer lets an outer || excuse the GNU call"
+fi
+rm -f "$f"
+
+# --- ... while the genuine substitution ladder, whose status IS the GNU call,
+# stays guarded in both the modern and the legacy backquote spelling.
+f="$(tmpsh 'x=$(stat -c "%s" "$g") || y=$(stat -f "%z" "$g")')"
+if scan_paths "$REAL_TOKENS" "$f" >/dev/null 2>&1; then
+  ok "the substitution-wrapped stat ladder is still auto-guarded"
+else
+  fail "the command-substitution fallback ladder must not be flagged"
+fi
+rm -f "$f"
+
+f="$(tmpsh 'size=`stat -c "%s" "$g"` || size=`stat -f "%z" "$g"`')"
+if scan_paths "$REAL_TOKENS" "$f" >/dev/null 2>&1; then
+  ok "the backquoted stat ladder is auto-guarded too"
+else
+  fail "the backquote fallback ladder must not be flagged"
+fi
+rm -f "$f"
+
+# --- a closing backquote ends the command inside it, so a later command
+# option is not attributed to date/stat.
+f="$(tmpsh "$(printf '%s\n' \
+  'stamp=`date +%s` test -d "$dir"' \
+  'meta=`stat "$file"` tool -c x')")"
+if scan_paths "$REAL_TOKENS" "$f" >/dev/null 2>&1; then
+  ok "a closing backquote bounds the command segment"
+else
+  fail "a later command option must not cross a closing backquote"
+fi
+rm -f "$f"
+
+# --- bash &>/&>> redirect both streams; the & is not a control operator, so
+# the ladder after it is still a ladder.
+f="$(tmpsh "$(printf '%s\n' \
+  'stat -c "%s" "$g" &>/dev/null || stat -f "%z" "$g"' \
+  'stat -c "%s" "$g" &>>log || stat -f "%z" "$g"')")"
+if scan_paths "$REAL_TOKENS" "$f" >/dev/null 2>&1; then
+  ok "bash &> and &>> are read as redirections, not as a background separator"
+else
+  fail "&> and &>> must not disconnect a genuine BSD fallback"
+fi
+rm -f "$f"
+
+# --- ... but a real backgrounding & still hands the || to the next command,
+# so the backgrounded GNU call has no fallback.
+f="$(tmpsh 'stat -c "%s" "$g" & true || stat -f "%z" "$g"')"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "a backgrounded GNU call should fail, got success: $out"
+else
+  ok "a lone control & still separates the GNU call from the later ||"
+fi
+rm -f "$f"
+
+# --- the guard reads a real -f as a real fallback. A `stat -- -f` counterpart
+# is NOT recognized as a non-fallback today, because `--` is not honored at all
+# -- the same known gap, on the trusted side. Pinned here so its direction is
+# explicit: this one fails OPEN, which is why honoring `--` is worth doing
+# properly rather than partially.
+f="$(tmpsh 'stat -c "%s" "$g" || stat -f "%z" "$g"')"
+if scan_paths "$REAL_TOKENS" "$f" >/dev/null 2>&1; then
+  ok "a real BSD -f counterpart is recognized as the fallback"
+else
+  fail "the plain stat -f ladder must not be flagged"
+fi
+rm -f "$f"
+
+# =============================================================================
+# Word structure the physical line hides -- #1544
+#
+# Three shapes where the run of characters the token gaps walk is not the run
+# the SHELL reads: an operand that is a whole command substitution, a separator
+# living inside a parameter expansion, and a command split across a
+# backslash-newline. Each let a real GNU-only option go unreported. A fourth is
+# the option WORD itself carrying quotes, which quote removal strips before the
+# utility ever sees argv.
+# =============================================================================
+
+# --- an option after a command-substitution OPERAND still belongs to the
+# command that owns it: GNU stat and date both accept options after operands,
+# and the token gap stopped at the `(` before reaching the flag.
+f="$(tmpsh "$(printf '%s\n' \
+  'stat "$(get_file)" -c %s' \
+  'date "$(get_when)" -d tomorrow' \
+  'stat "$(dirname "$(x)")" -c %s')")"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "an option after a substitution operand should fail, got success: $out"
+elif [[ "$(echo "$out" | grep -c "PORTABILITY: ${f}:")" -eq 3 ]]; then
+  ok "an option after a command-substitution operand is detected, nesting included"
+else
+  fail "expected all 3 substitution-operand forms flagged, got: $out"
+fi
+rm -f "$f"
+
+# --- ...while a ladder whose BSD side lives INSIDE a substitution is still a
+# real fallback. The collapsed view cannot see it, so the guard must keep
+# reading the uncollapsed line.
+f="$(tmpsh "$(printf '%s\n' \
+  'stat -c %s "$f" || x=$(stat -f %z "$f")' \
+  'x=$(stat -c %s "$f") || x=$(stat -f %z "$f")')")"
+if scan_paths "$REAL_TOKENS" "$f" >/dev/null 2>&1; then
+  ok "a ladder whose BSD side sits inside a substitution stays guarded"
+else
+  fail "the guard must read the uncollapsed line: $(scan_paths "$REAL_TOKENS" "$f" 2>&1)"
+fi
+rm -f "$f"
+
+# --- a separator inside an unquoted PARAMETER EXPANSION is data, not a control
+# operator, so it must not cut the command short of its own option.
+f="$(tmpsh "$(printf '%s\n' \
+  'stat ${file:-name;part} -c %s' \
+  'date ${when:-a;b} -d tomorrow')")"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "a separator inside an expansion should not hide the option, got success: $out"
+elif [[ "$(echo "$out" | grep -c "PORTABILITY: ${f}:")" -eq 2 ]]; then
+  ok "a separator inside a parameter expansion no longer ends the command"
+else
+  fail "expected both expansion forms flagged, got: $out"
+fi
+rm -f "$f"
+
+# --- ...without swallowing a REAL separator that merely follows an expansion.
+f="$(tmpsh "$(printf '%s\n' \
+  'stat "${file}"; tool -c x' \
+  'date "${when}"; test -d "$dir"')")"
+if scan_paths "$REAL_TOKENS" "$f" >/dev/null 2>&1; then
+  ok "a separator after an expansion still bounds the command"
+else
+  fail "an expansion must not neutralize the operator after it: $(scan_paths "$REAL_TOKENS" "$f" 2>&1)"
+fi
+rm -f "$f"
+
+# --- ...and a substitution nested INSIDE an expansion is still command text.
+f="$(tmpsh 'x="${y:-$(stat -c %s "$f")}"')"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "a stat -c inside an expansion default should fail, got success: $out"
+else
+  ok "a substitution nested in a parameter expansion is still scanned"
+fi
+rm -f "$f"
+
+# --- quote removal hands the utility its documented option, so a QUOTED option
+# word is the same GNU-only call. The negatives that keep a `-c`/`-d` from
+# being read out of an operand (`stat "$file-c"`, `date --debug`) are asserted
+# above and unchanged.
+f="$(tmpsh "$(printf '%s\n' \
+  'date "-d" tomorrow +%s' \
+  'date -"d" tomorrow +%s' \
+  'stat "-c" %s "$f"' \
+  'stat -"c" %s "$f"')")"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "quoted option words should fail, got success: $out"
+elif [[ "$(echo "$out" | grep -c "PORTABILITY: ${f}:")" -eq 4 ]]; then
+  ok "a quoted date/stat option word is detected"
+else
+  fail "expected all 4 quoted option-word forms flagged, got: $out"
+fi
+rm -f "$f"
+
+# --- ...and the auto-guard reads a quoted flag as the same option, on BOTH
+# sides of the ladder. Admitting the quoted spelling in the token without
+# admitting it here reported every quoted-flag ladder as unguarded.
+f="$(tmpsh "$(printf '%s\n' \
+  'stat "-c" %s "$f" || stat -f %z "$f"' \
+  'stat -"c" %s "$f" || stat -f %z "$f"' \
+  'stat -c %s "$f" || stat "-f" %z "$f"' \
+  'stat -c %s "$f" || stat -"f" %z "$f"')")"
+if scan_paths "$REAL_TOKENS" "$f" >/dev/null 2>&1; then
+  ok "a quoted flag on either side of the ladder is still a real fallback"
+else
+  fail "a quoted-flag ladder must stay guarded: $(scan_paths "$REAL_TOKENS" "$f" 2>&1)"
+fi
+rm -f "$f"
+
+# --- a backslash-continued invocation is ONE command: the shell removes
+# `\<newline>` before tokenizing, so the option on the continuation line is the
+# command's own. Reported at the FIRST physical line, which is what keeps a
+# continuation from shifting the numbering of everything after it.
+f="$(tmpsh "$(printf '%s\n' \
+  "date \\" \
+  '  -d tomorrow +%s' \
+  "stat \\" \
+  '  -c %s "$f"' \
+  'grep -P pattern file')")"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "a continued GNU-only invocation should fail, got success: $out"
+elif [[ "$(echo "$out" | grep -c "PORTABILITY: ${f}:")" -eq 3 ]] &&
+  echo "$out" | grep -q "PORTABILITY: ${f}:1:" &&
+  echo "$out" | grep -q "PORTABILITY: ${f}:3:" &&
+  echo "$out" | grep -q "PORTABILITY: ${f}:5:"; then
+  ok "a backslash-continued invocation is matched as one command at its first line"
+else
+  fail "expected hits at lines 1, 3 and 5, got: $out"
+fi
+rm -f "$f"
+
+# --- a file whose LAST line ends in a continuation still has one command left
+# to report -- the buffer has to be flushed, not dropped.
+f="$(tmpsh "$(printf '%s\n' \
+  "date \\" \
+  "  -d @0 \\")")"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "a trailing continued command should fail, got success: $out"
+elif echo "$out" | grep -q "PORTABILITY: ${f}:1:"; then
+  ok "a continuation left open at end of file is still scanned"
+else
+  fail "expected the buffered command reported at line 1, got: $out"
+fi
+rm -f "$f"
+
+# --- a COMMENT never continues: `#` runs to the newline, so a trailing
+# backslash there must not swallow the command below it into the comment.
+f="$(tmpsh "$(printf '%s\n' \
+  "# explains date -d below \\" \
+  'date -d tomorrow +%s')")"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "the command under a backslash-ended comment should fail, got success: $out"
+elif [[ "$(echo "$out" | grep -c "PORTABILITY: ${f}:")" -eq 1 ]] &&
+  echo "$out" | grep -q "PORTABILITY: ${f}:2:"; then
+  ok "a trailing backslash in a comment does not continue into the next line"
+else
+  fail "expected exactly the line-2 call reported, got: $out"
+fi
+rm -f "$f"
+
+# --- an ESCAPED backslash at end of line quotes the backslash, not the
+# newline, so the next line is its own command.
+f="$(tmpsh "$(printf '%s\n' \
+  "printf '%s' a\\\\" \
+  'date -d @0')")"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "the standalone date -d should fail, got success: $out"
+elif [[ "$(echo "$out" | grep -c "PORTABILITY: ${f}:")" -eq 1 ]] &&
+  echo "$out" | grep -q "PORTABILITY: ${f}:2:"; then
+  ok "an escaped backslash at end of line is not a line continuation"
+else
+  fail "expected exactly the line-2 call reported, got: $out"
+fi
+rm -f "$f"
+
+# --- a `portability-ok:` marker anywhere in the joined command excuses it: the
+# annotation belongs to the logical line, not to one physical fragment.
+f="$(tmpsh "$(printf '%s\n' \
+  "date \\" \
+  '  -d @0 # portability-ok: dual-dialect helper')")"
+if scan_paths "$REAL_TOKENS" "$f" >/dev/null 2>&1; then
+  ok "an annotation on a continuation line excuses the whole logical command"
+else
+  fail "the marker must apply to the joined command: $(scan_paths "$REAL_TOKENS" "$f" 2>&1)"
+fi
+rm -f "$f"
+
+# --- an INLINE comment ends the shell code on its line, so a trailing backslash
+# there is comment text and joins nothing. Joining let the comment's own
+# annotation excuse the standalone GNU-only command below it.
+f="$(tmpsh "$(printf '%s\n' \
+  "echo ok # portability-ok: unrelated \\" \
+  'date -d tomorrow +%s')")"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "the command under a backslash-ended inline comment should fail, got success: $out"
+elif [[ "$(echo "$out" | grep -c "PORTABILITY: ${f}:")" -eq 1 ]] &&
+  echo "$out" | grep -q "PORTABILITY: ${f}:2:"; then
+  ok "a trailing backslash in an INLINE comment does not continue into the next line"
+else
+  fail "expected exactly the line-2 call reported, got: $out"
+fi
+rm -f "$f"
+
+# --- a fallback that is commented out never runs, so it cannot be the guard.
+f="$(tmpsh 'stat -c "%s" "$f" # || stat -f "%z" "$f"')"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "a commented-out stat -f fallback should fail, got success: $out"
+else
+  ok "a commented-out || fallback does not guard the GNU-only call"
+fi
+rm -f "$f"
+
+# --- masking a comment decides STRUCTURE only. Construct matching still runs on
+# the original text, so a construct named in an inline comment keeps reporting —
+# the documented over-flag, with `portability-ok:` as the escape.
+f="$(tmpsh 'echo ok # see date -d tomorrow')"
+if scan_paths "$REAL_TOKENS" "$f" >/dev/null 2>&1; then
+  fail "an inline comment naming date -d must still report"
+else
+  ok "comment masking does not disable construct matching inside an inline comment"
+fi
+rm -f "$f"
+
+# --- a `!` outside a substitution or subshell still negates the command inside
+# it: the frame is one WORD of the negated pipeline, so on BSD the failing GNU
+# call is inverted to success and the `||` fallback never runs.
+f="$(tmpsh "$(printf '%s\n' \
+  '! x=$(stat -c "%s" "$f") || stat -f "%z" "$f"' \
+  '! x=`stat -c "%s" "$f"` || stat -f "%z" "$f"' \
+  '! ( stat -c "%s" "$f" ) || stat -f "%z" "$f"')")"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "a negated probe inside a substitution should fail, got success: $out"
+elif [[ "$(echo "$out" | grep -c "PORTABILITY: ${f}:")" -eq 3 ]]; then
+  ok "an outer negation survives a substitution or subshell boundary"
+else
+  fail "expected all three negated-probe spellings flagged, got: $out"
+fi
+rm -f "$f"
+
+# --- and the negation INSIDE the frame, which the boundary rule already caught,
+# must keep flagging: it inverts the same status just one level down.
+f="$(tmpsh 'x=$(! stat -c "%s" "$f") || stat -f "%z" "$f"')"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "a negation inside the substitution should fail, got success: $out"
+else
+  ok "a negation inside the substitution is still detected"
+fi
+rm -f "$f"
+
+# --- a `!` that is a TEST operator rather than pipeline negation must not cost
+# a genuine ladder its guard.
+f="$(tmpsh '[[ ! -f "$x" ]] && stat -c "%s" "$f" || stat -f "%z" "$f"')"
+if scan_paths "$REAL_TOKENS" "$f" >/dev/null 2>&1; then
+  ok "a ! inside a test does not read as pipeline negation"
+else
+  fail "the ladder must stay guarded: $(scan_paths "$REAL_TOKENS" "$f" 2>&1)"
+fi
+rm -f "$f"
+
+# --- a redirection may be ATTACHED to the command word, and a simple command
+# carries a redirection anywhere, so the option still reaches the utility. The
+# whitespace-after-the-name anchor alone let all three spellings through.
+f="$(tmpsh "$(printf '%s\n' \
+  'date>/dev/null -d tomorrow' \
+  'stat</dev/null -c %s "$f"' \
+  'date>&2 -d tomorrow')")"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "an attached redirection should not hide the option, got success: $out"
+elif [[ "$(echo "$out" | grep -c "PORTABILITY: ${f}:")" -eq 3 ]]; then
+  ok "a redirection attached to the command word no longer hides the option"
+else
+  fail "expected all three attached-redirection forms flagged, got: $out"
+fi
+rm -f "$f"
+
+# --- and the anchor still does the job it was added for: these are operands and
+# substrings, not options.
+f="$(tmpsh "$(printf '%s\n' \
+  'git -c alias.x=status -c core.pager=cat log' \
+  '[[ -d "$candidate" ]]' \
+  'stat foo-c' \
+  'stat "$file-c"' \
+  'date "$x-d"')")"
+if scan_paths "$REAL_TOKENS" "$f" >/dev/null 2>&1; then
+  ok "widening the separator to a redirection keeps the operand negatives clean"
+else
+  fail "no operand/substring form may be flagged: $(scan_paths "$REAL_TOKENS" "$f" 2>&1)"
+fi
+rm -f "$f"
+
+# --- a subshell or brace group after the `||` executes the BSD fallback as its
+# first command, so it is a real ladder rather than a forced exemption.
+f="$(tmpsh "$(printf '%s\n' \
+  "stat -c '%s' \"\$f\" || (stat -f '%z' \"\$f\")" \
+  "stat -c '%s' \"\$f\" || { stat -f '%z' \"\$f\"; }")")"
+if scan_paths "$REAL_TOKENS" "$f" >/dev/null 2>&1; then
+  ok "a grouped BSD fallback after || is recognized as a real ladder"
+else
+  fail "grouped stat -f fallbacks must not be flagged: $(scan_paths "$REAL_TOKENS" "$f" 2>&1)"
+fi
+rm -f "$f"
+
+# --- a substitution frame hands the `||` the status of the call inside it only
+# when the frame is what the command position runs. Used as an ARGUMENT the
+# enclosing command decides, so the fallback never fires on the failing dialect.
+f="$(tmpsh "echo \"\$(stat -c '%s' \"\$f\")\" || stat -f '%z' \"\$f\"")"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "a substitution used as an argument should not guard, got success: $out"
+else
+  ok "a stat inside a substitution ARGUMENT does not reach the || that follows"
+fi
+rm -f "$f"
+
+# --- and the assignment shapes real code uses, where the status IS the call, keep
+# their guard — including with a redirection inside the frame.
+f="$(tmpsh "$(printf '%s\n' \
+  'x=$(stat -c "%s" "$f") || y=$(stat -f "%z" "$f")' \
+  'x=$(stat -c "%s" "$1" 2>&1) || y=$(stat -f "%z" "$1")' \
+  "size=\`stat -c '%s' \"\$f\"\` || size=\`stat -f '%z' \"\$f\"\`")")"
+if scan_paths "$REAL_TOKENS" "$f" >/dev/null 2>&1; then
+  ok "an assignment-wrapped ladder still propagates the status and stays guarded"
+else
+  fail "assignment-wrapped ladders must not be flagged: $(scan_paths "$REAL_TOKENS" "$f" 2>&1)"
+fi
+rm -f "$f"
+
+# --- `{` is a RESERVED WORD and opens a group only when a blank follows it, so
+# `|| {stat -f …` names a command `{stat` and runs no fallback at all. `(` is an
+# operator and needs no blank, so it keeps none.
+f="$(tmpsh "stat -c '%s' \"\$f\" || {stat -f '%z' \"\$f\"")"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "a brace with no following blank is not a group, got success: $out"
+else
+  ok "a { with no following blank does not open a fallback group"
+fi
+rm -f "$f"
+
+# --- a simple command may carry a redirection before its NAME, and that does
+# not change which command a `!` negates or a `||` runs.
+f="$(tmpsh '! 2>/dev/null stat -c "%s" "$f" || stat -f "%z" "$f"')"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "a negation behind a prefix redirection should fail, got success: $out"
+else
+  ok "a prefix redirection does not hide the negation before the command name"
+fi
+rm -f "$f"
+f="$(tmpsh "stat -c '%s' \"\$f\" || 2>/dev/null stat -f '%z' \"\$f\"")"
+if scan_paths "$REAL_TOKENS" "$f" >/dev/null 2>&1; then
+  ok "a prefix redirection on the fallback keeps it a real ladder"
+else
+  fail "the redirected fallback must stay guarded: $(scan_paths "$REAL_TOKENS" "$f" 2>&1)"
+fi
+rm -f "$f"
+
+# --- the word after `:-` is an ordinary word, so a `}` inside quotes there is
+# data and must not end the expansion early.
+f="$(tmpsh 'stat ${f:-"};part"} -c %s')"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "a quoted brace inside an expansion should not hide the option, got success: $out"
+else
+  ok "a quoted } inside a parameter expansion does not close it early"
+fi
+rm -f "$f"
+f="$(tmpsh 'x="${y:-$(stat -c %s "$f")}"')"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "a substitution inside an expansion must still be scanned, got success: $out"
+else
+  ok "a \$( ) inside a parameter expansion still reopens real command text"
+fi
+rm -f "$f"
+
+# --- `)` is a control operator, so a `#` straight after one opens a comment and
+# what follows is not shell code — including a `||` that would otherwise read as
+# a fallback ladder.
+f="$(tmpsh "(stat -c '%s' \"\$f\")# || stat -f '%z' \"\$f\"")"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "a comment after ) should not leave the || structural, got success: $out"
+else
+  ok "a # straight after a closing paren opens a comment"
+fi
+rm -f "$f"
+
+# --- admitting a group opener must not weaken what the guard demands INSIDE it:
+# the fallback still has to be the command the group runs first, not merely a
+# string it prints. `|| ( true; stat -f ... )` stays flagged too — reaching a
+# fallback across a `;` is the line-wide behaviour the per-occurrence anchoring
+# replaced, and widening it back is not worth a contrived spelling.
+f="$(tmpsh "$(printf '%s\n' \
+  "stat -c '%s' \"\$f\" || { echo 'stat -f is unavailable'; }" \
+  "stat -c '%s' \"\$f\" || ( true; stat -f '%z' \"\$f\" )")")"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "a group that does not run stat -f first should fail, got success: $out"
+elif [[ "$(echo "$out" | grep -c "PORTABILITY: ${f}:")" -eq 2 ]]; then
+  ok "a group opener does not excuse a fallback the group does not run first"
+else
+  fail "expected both non-ladder groups flagged, got: $out"
+fi
+rm -f "$f"
+
+# --- an ARITHMETIC EXPANSION nested in a parameter expansion must not leave the
+# frame stack unbalanced: `$((` was read as a `$(` plus a stray `(`, the first
+# `)` popped the substitution, and everything after was blanked.
+f="$(tmpsh 'stat ${x:-$((1 | 2))} -c %s')"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "a nested arithmetic expansion should not hide the option, got success: $out"
+else
+  ok "a \$(( )) inside an expansion does not unbalance the frame stack"
+fi
+rm -f "$f"
+f="$(tmpsh 'date -d "@$(( now + 1 ))" +%s')"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "an arithmetic expansion in an operand must not hide the option, got success: $out"
+else
+  ok "an arithmetic expansion in an operand still leaves the option visible"
+fi
+rm -f "$f"
+# an inner group must not close the arithmetic expansion early
+f="$(tmpsh 'stat "$(( ((1)) + 2 ))" -c %s')"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "a nested paren group must not close the expansion early, got success: $out"
+else
+  ok "an inner ( ) group does not close an arithmetic expansion early"
+fi
+rm -f "$f"
+
+# --- for an assignment-only command the status is the LAST substitution's, so a
+# sibling frame BESIDE the matched one takes ownership and the `||` never sees
+# the GNU call fail.
+f="$(tmpsh "x=\$(stat -c '%s' \"\$f\") y=\$(true) || stat -f '%z' \"\$f\"")"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "a later sibling substitution owns the status, so this is no ladder: $out"
+else
+  ok "a later substitution BESIDE the matched frame breaks the ladder"
+fi
+rm -f "$f"
+# the same shape with no sibling frame is still a real ladder
+f="$(tmpsh "x=\$(stat -c '%s' \"\$f\") y=1 || stat -f '%z' \"\$f\"")"
+if scan_paths "$REAL_TOKENS" "$f" >/dev/null 2>&1; then
+  ok "a plain assignment beside the frame leaves the ladder intact"
+else
+  fail "a non-substitution assignment must not break the ladder: $(scan_paths "$REAL_TOKENS" "$f" 2>&1)"
+fi
+rm -f "$f"
+# a frame nested INSIDE the matched one is not a sibling
+f="$(tmpsh "x=\$(stat -c \"\$(fmt)\" \"\$f\") || stat -f '%z' \"\$f\"")"
+if scan_paths "$REAL_TOKENS" "$f" >/dev/null 2>&1; then
+  ok "a frame nested inside the matched one does not take the status"
+else
+  fail "a nested frame must not read as a sibling: $(scan_paths "$REAL_TOKENS" "$f" 2>&1)"
+fi
+rm -f "$f"
+
+# --- shell quote removal splices a quoted run out of the command WORD, so
+# `d"a"te`/`st"a"t` invoke the same GNU utilities and must not read clean.
+f="$(tmpsh 'd"a"te -d tomorrow')"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "a quote-spliced date command word should fail, got success: $out"
+else
+  ok "a quote-spliced date command word is detected"
+fi
+rm -f "$f"
+f="$(tmpsh 'st"a"t -c %s "$f"')"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "a quote-spliced stat command word should fail, got success: $out"
+else
+  ok "a quote-spliced stat command word is detected"
+fi
+rm -f "$f"
+# the guard must recognize the spliced spelling on BOTH rungs, or a real ladder
+# would newly report
+f="$(tmpsh "st\"a\"t -c '%s' \"\$f\" || st\"a\"t -f '%z' \"\$f\"")"
+if scan_paths "$REAL_TOKENS" "$f" >/dev/null 2>&1; then
+  ok "a quote-spliced BSD fallback still reads as a real ladder"
+else
+  fail "the guard must see the spliced fallback: $(scan_paths "$REAL_TOKENS" "$f" 2>&1)"
+fi
+rm -f "$f"
+# the interleaving must not reach across a word boundary or into a longer name
+f="$(tmpsh "$(printf '%s\n' \
+  'printf "%s" "d" "a" "te -d x"' \
+  'git -c alias.x=status -c core.x=1 diff' \
+  '[[ -d "$candidate" ]] && echo yes')")"
+if scan_paths "$REAL_TOKENS" "$f" >/dev/null 2>&1; then
+  ok "interleaved quote runs do not span separate words or longer names"
+else
+  fail "the spliced-name spelling over-reached: $(scan_paths "$REAL_TOKENS" "$f" 2>&1)"
+fi
+rm -f "$f"
+
+# --- a QUOTED WORD spanning physical lines is one command, so its option must
+# still be reached; the newline is data inside the quotes, not a separator.
+f="$(mktemp --suffix=.sh)"
+printf 'stat %s\nbar%s -c %%s\n' "'foo" "'" >"$f"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "a quoted newline should not hide the option, got success: $out"
+elif echo "$out" | grep -q "PORTABILITY: ${f}:1:"; then
+  ok "a quoted word spanning physical lines still reaches its option"
+else
+  fail "expected the hit at line 1, got: $out"
+fi
+rm -f "$f"
+
+# --- a joined record is attributed per PHYSICAL line: the hit reports at its
+# own line, and an annotation excuses only the line carrying it. Without that,
+# one annotation anywhere inside a joined block would exempt all of it.
+f="$(mktemp --suffix=.sh)"
+printf 'x=%sopen\nstat -c %%s "$f"\ndate -d @0 +%%s # portability-ok: fixture\nclose%s\n' "'" "'" >"$f"
+out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"
+if echo "$out" | grep -q "PORTABILITY: ${f}:2:" &&
+  ! echo "$out" | grep -q "PORTABILITY: ${f}:3:"; then
+  ok "a joined record reports per physical line and scopes its annotation there"
+else
+  fail "expected line 2 flagged and line 3 excused, got: $out"
+fi
+rm -f "$f"
+
+# --- a HEREDOC body is data: a stray backquote or apostrophe in it must not
+# open a frame that swallows the lines after the heredoc ends.
+f="$(mktemp --suffix=.sh)"
+printf 'cat >/dev/null <<%sEOF%s\n"CustomRule%sPath" = %s./x%s\nEOF\ngrep -q %sneedle%s "$f"\nprintf "%%s" "x -Path y"\n' \
+  "'" "'" '`' "'" "'" "'" "'" >"$f"
+if scan_paths "$REAL_TOKENS" "$f" >/dev/null 2>&1; then
+  ok "a heredoc body does not leak an open frame into the lines after it"
+else
+  fail "heredoc body leaked quote state: $(scan_paths "$REAL_TOKENS" "$f" 2>&1)"
+fi
+rm -f "$f"
+
+# --- a heredoc body is still SCANNED: this corpus writes real scripts through
+# heredocs, and the gate deliberately matches inside literal text.
+f="$(mktemp --suffix=.sh)"
+printf 'cat >/tmp/gen.sh <<%sEOF%s\nstat -c %%s "$f"\nEOF\n' "'" "'" >"$f"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "a heredoc body must still be scanned, got success: $out"
+else
+  ok "a heredoc body is still scanned for constructs"
+fi
+rm -f "$f"
+
+# --- a `#` opening a physical line inside a joined record is a real comment, so
+# a commented-out fallback there cannot excuse a hit above it.
+f="$(mktemp --suffix=.sh)"
+printf 'x=$(stat -c %%s "$f"\n# || stat -f %%z "$f"\n)\n' >"$f"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "a commented-out fallback in a joined record should not guard: $out"
+else
+  ok "a # opening a joined physical line still starts a comment"
+fi
+rm -f "$f"
 # --- registered cross-plugin sync copies are exempt (their dedicated drift
 # gate owns byte-identity with the in-repo source; the source itself stays
 # scannable, so a lib change is still gated exactly once — at the pressure
@@ -1226,6 +2310,207 @@ else
 fi
 rm -rf "$TREE"
 rm -f "$TOK"
+
+# --- a TOKEN LIST whose relative path is shaped like an awk variable assignment
+# must still be opened as a file. Parsed as `tokens = "custom.txt"` instead, the
+# loading pass never runs, no class is active, every file reports clean and awk
+# still exits 0 — a silent fail-open in the gate itself.
+TREE="$(mktemp -d)"
+printf 'grep[[:space:]]+-P\n' >"$TREE/tokens=custom.txt"
+f="$(tmpsh 'grep -P x')"
+if (
+  cd "$TREE" || exit 2
+  SHELL_PORTABILITY_TOKENS='tokens=custom.txt' bash "$SCRIPT" --paths "$f" >/dev/null 2>&1
+); then
+  fail "an identifier=value token path silently disabled every class"
+else
+  ok "an identifier=value token path is opened as a file, not read as an assignment"
+fi
+rm -rf "$TREE"
+rm -f "$f"
+
+# --- and if a token list somehow loads no active pattern at all, the run fails
+# CLOSED rather than reporting a corpus it never checked as clean.
+TOK="$(mktemp)"
+printf '# only a comment, no active pattern\n' >"$TOK"
+f="$(tmpsh 'grep -P x')"
+out="$(scan_paths "$TOK" "$f" 2>&1)"
+rc=$?
+if [[ $rc -eq 2 && "$out" == *"no active patterns"* ]]; then
+  ok "an empty pattern set fails closed instead of reporting clean"
+else
+  fail "empty pattern set did not fail closed: rc=$rc out=$out"
+fi
+rm -f "$TOK" "$f"
+
+# =============================================================================
+# Shell spellings the token classes must not let past -- #1544 review round.
+# Each was reproduced against the built gate before the fix; all reach the same
+# GNU utility with the same GNU-only option after the shell is done with them.
+# =============================================================================
+
+# --- `&>` / `&>>` after the command name are redirections, not separators the
+# gate can ignore.
+f="$(tmpsh "$(printf '%s\n' \
+  'date&>/dev/null -d tomorrow' \
+  'stat&>>log -c %s "$f"')")"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "ampersand redirections after the command name should fail, got success: $out"
+elif [[ "$(echo "$out" | grep -c "PORTABILITY: ${f}:")" -eq 2 ]]; then
+  ok "an ampersand redirection after the command name does not hide the option"
+else
+  fail "expected both ampersand spellings flagged, got: $out"
+fi
+rm -f "$f"
+
+# --- BACKSLASH quoting splices a word exactly as a quote pair does, in the
+# command word and in the option cluster alike.
+f="$(tmpsh "$(printf '%s\n' \
+  'da\te -d tomorrow' \
+  'date -\d tomorrow')")"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "backslash-quoted date words should fail, got success: $out"
+elif [[ "$(echo "$out" | grep -c "PORTABILITY: ${f}:")" -eq 2 ]]; then
+  ok "backslash quoting is recognized in the command word and the option"
+else
+  fail "expected both backslash spellings flagged, got: $out"
+fi
+rm -f "$f"
+
+# --- the LONG options carry quotes on both sides of the `--`.
+f="$(tmpsh "$(printf '%s\n' \
+  'date "--date" tomorrow' \
+  'date --"date"=tomorrow' \
+  'stat --"format"=%s "$f"')")"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "quote-spliced long options should fail, got success: $out"
+elif [[ "$(echo "$out" | grep -c "PORTABILITY: ${f}:")" -eq 3 ]]; then
+  ok "a quote-spliced long option is detected on either side of the --"
+else
+  fail "expected all three long-option spellings flagged, got: $out"
+fi
+rm -f "$f"
+
+# --- a raw SUBSHELL inside a substitution needs its own frame, or its closing
+# paren pops the substitution and everything after is masked as data.
+f="$(tmpsh 'x="$( (true); stat -c %s "$f"; true)" || stat -f %z "$f"')"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "a trailing true owns the status, so this is no ladder: $out"
+else
+  ok "a raw subshell inside a substitution does not pop the enclosing frame"
+fi
+rm -f "$f"
+# a `)` with no frame open is a case pattern terminator, not a close
+f="$(tmpsh 'case "$x" in foo) stat -c %s "$f" ;; esac')"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "a case pattern terminator must not swallow the option, got success: $out"
+else
+  ok "a case pattern terminator still opens no frame"
+fi
+rm -f "$f"
+
+# --- a structural NEWLINE ends a command inside a substitution, so the gap
+# between a matched call and a `||` must stop at one. Reachable only since
+# records join on an unterminated quote.
+f="$(mktemp --suffix=.sh)"
+printf 'x=$(stat -c %%s "$f"\ntrue) || stat -f %%z "$f"\n' >"$f"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "a later command on a newline owns the status, so this is no ladder: $out"
+else
+  ok "a structural newline inside a substitution breaks the ladder"
+fi
+rm -f "$f"
+
+# --- a redirection OPERAND may be a separate word, so a spaced prefix
+# redirection still leaves a real fallback ladder.
+f="$(tmpsh "stat -c '%s' \"\$f\" || 2> /dev/null stat -f '%z' \"\$f\"")"
+if scan_paths "$REAL_TOKENS" "$f" >/dev/null 2>&1; then
+  ok "a spaced redirection operand keeps the fallback a real ladder"
+else
+  fail "the spaced-redirection ladder must stay guarded: $(scan_paths "$REAL_TOKENS" "$f" 2>&1)"
+fi
+rm -f "$f"
+
+# --- a `portability-scope:` line inside a HEREDOC BODY is generated data, not
+# this file declaring anything about itself, and must not exempt the file. A
+# grep pre-pass honored it wherever the characters appeared.
+f="$(mktemp --suffix=.sh)"
+printf 'cat >/tmp/gen.sh <<%sEOF%s\n# portability-scope: generated fixture\nEOF\nstat -c %%s "$f"\n' \
+  "'" "'" >"$f"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "a heredoc-body scope line must not exempt the file, got success: $out"
+else
+  ok "a portability-scope line inside a heredoc body exempts nothing"
+fi
+rm -f "$f"
+# a real declaration still exempts the whole file, wherever in it it sits
+f="$(mktemp --suffix=.sh)"
+printf 'stat -c %%s "$f"\n# portability-scope: this file is a fixture corpus\n' >"$f"
+if scan_paths "$REAL_TOKENS" "$f" >/dev/null 2>&1; then
+  ok "a genuine portability-scope declaration still exempts the whole file"
+else
+  fail "the file-scope declaration stopped working: $(scan_paths "$REAL_TOKENS" "$f" 2>&1)"
+fi
+rm -f "$f"
+
+# --- ANSI-C (`$'…'`) and locale (`$"…"`) quoting splice a word exactly as an
+# ordinary quote or a backslash does, in the command word and the option alike.
+f="$(tmpsh "$(printf '%s\n' \
+  "d\$'a'te -d tomorrow" \
+  "date -\$'d' tomorrow" \
+  "st\$'a't -c %s \"\$f\"" \
+  "stat -\$'c' %s \"\$f\"" \
+  'date $"--date"=tomorrow')")"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "ANSI-C quote splices should fail, got success: $out"
+elif [[ "$(echo "$out" | grep -c "PORTABILITY: ${f}:")" -eq 5 ]]; then
+  ok "ANSI-C and locale quote splices are detected in the name and the option"
+else
+  fail "expected all five ANSI-C spellings flagged, got: $out"
+fi
+rm -f "$f"
+
+# --- a BARE `$` is a variable expansion, not quote removal, so it must not act
+# as a quote-run character. Admitting one would flag ordinary parameterized code.
+f="$(tmpsh "$(printf '%s\n' \
+  'validate -d $config' \
+  'd$a$t$e -d tomorrow')")"
+if scan_paths "$REAL_TOKENS" "$f" >/dev/null 2>&1; then
+  ok "a bare \$ is not admitted as a quote-run character"
+else
+  fail "a bare \$ was treated as quote removal: $(scan_paths "$REAL_TOKENS" "$f" 2>&1)"
+fi
+rm -f "$f"
+
+# --- a scope marker only counts where the shell reads it as a COMMENT. Inside a
+# multiline quoted value, or any other construct left open by an earlier line,
+# the same characters are data and must exempt nothing.
+for opener in "x='foo" 'y="foo' 'z=$(echo foo'; do
+  case "$opener" in
+  "x='foo") closer="bar'" ;;
+  'y="foo') closer='bar"' ;;
+  *) closer=')' ;;
+  esac
+  f="$(mktemp --suffix=.sh)"
+  printf '%s\n' "$opener" '# portability-scope: bogus' "$closer" 'date -d tomorrow' >"$f"
+  if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+    fail "a scope marker inside an open construct ($opener) must exempt nothing: $out"
+  else
+    ok "a scope marker inside an open construct ($opener) grants no file scope"
+  fi
+  rm -f "$f"
+done
+
+# --- and a genuine declaration still grants whole-file scope from either side
+# of the hit, indented or not.
+f="$(mktemp --suffix=.sh)"
+printf '%s\n' 'date -d tomorrow' '  # portability-scope: this file is a fixture corpus' >"$f"
+if scan_paths "$REAL_TOKENS" "$f" >/dev/null 2>&1; then
+  ok "an indented declaration after the hit still exempts the whole file"
+else
+  fail "the file-scope declaration stopped working: $(scan_paths "$REAL_TOKENS" "$f" 2>&1)"
+fi
+rm -f "$f"
 
 echo
 echo "PASS=$PASS FAIL=$FAIL"

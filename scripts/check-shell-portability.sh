@@ -51,9 +51,26 @@
 # contiguous block directly above a hit) — comment-skip is for CONSTRUCT
 # matching only, never for annotation detection.
 #
-# This is a grep-level tripwire, not a semantic proof: it matches per
-# PHYSICAL line, so a command split across a backslash line-continuation, or
-# assembled into a variable before use, evades detection (tracked in #1513).
+# This is a grep-level tripwire, not a semantic proof: it matches per LOGICAL
+# line — backslash- and quote-continued physical lines are joined first — so a
+# command assembled into a variable before use still evades detection (tracked
+# in #1513).
+#
+# COMMAND POSITION is deliberately not required, and this is the gate's largest
+# accepted over-flag. The leading boundary on a token establishes a shell-WORD
+# boundary, not command position, so a utility named inside a diagnostic string
+# or a heredoc example — `echo "run date -d tomorrow"`, a usage line spelling
+# `stat -c FORMAT FILE` — is reported although nothing executes. That is not an
+# oversight to be narrowed away: matching against text the shell would treat as
+# a string literal is the whole mechanism behind the regex-escape classes,
+# where `grep -E "\bword"` lives inside quotes and MUST still be caught.
+# Requiring command position for the option-based classes alone would need a
+# per-class axis in the token data plus word-level tokenization (#1562), and
+# every partial answer to it trades this false positive for a fail-OPEN — the
+# same trade already made and withdrawn for `--` (recorded above
+# collapse_subs()), which is the direction this gate is explicitly tuned
+# against. `portability-ok: <reason>` is the one-line escape for a diagnostic
+# or example that names one of these utilities.
 # Guard markers are seeded for the one class that needs one today
 # (readlink -f, requiring an actual `||` fallback relationship with a
 # co-located realpath attempt — not mere co-location); a further class
@@ -71,6 +88,16 @@ if [[ ! -f "$TOKENS" ]]; then
   printf 'Error: token list not found: %s\n' "$TOKENS" >&2
   exit 2
 fi
+# Same awk operand disambiguation the scanned file already gets below, and for
+# a worse reason: a token path shaped like identifier=value (`tokens=custom.txt`)
+# is parsed by awk as a variable assignment rather than opened, so the
+# `FNR == NR` loading pass never runs, NO patterns are active, and every file
+# reports clean while awk still exits 0 — a silent fail-open in the gate itself,
+# invisible to the scanner-fault check. See #1513.
+case "$TOKENS" in
+./* | /*) ;;
+*) TOKENS="./$TOKENS" ;;
+esac
 
 usage() {
   printf 'usage: check-shell-portability.sh <base-ref> | --all | --paths FILE...\n' >&2
@@ -155,19 +182,14 @@ fi
 # scan_file <path> — print `LINE: token -> text` for each unexcused hit.
 scan_file() {
   local file="$1"
-  # A whole-file declared scope (the gate's own fixture/test corpus, which
-  # necessarily contains the literal GNU-only constructs this gate detects as
-  # test data — e.g. this script's own check-shell-portability.test.sh)
-  # excuses every hit in the file; the declaration is visible in the diff.
-  # Anchored to a genuine `#`-comment line whose content actually STARTS with
-  # the token, not a bare substring match anywhere in the file — an
-  # unanchored search would also match this very sentence (a doc-block
-  # comment merely explaining the mechanism) or a `portability-scope:`
-  # mention inside a string literal, wrongly exempting the whole file for a
-  # reason it never declared. See #1513.
-  if grep -qE '^[[:space:]]*#[[:space:]]*portability-scope:' -- "$file"; then
-    return 0
-  fi
+  # The whole-file `portability-scope:` declaration is recognized INSIDE the awk
+  # program rather than by a pre-pass grep here. A grep sees no shell structure,
+  # so it honored the declaration wherever the characters appeared — including a
+  # heredoc BODY, where the line is generated data rather than a declaration this
+  # file is making about itself, and one such line silently exempted the whole
+  # file (#1544). awk already tracks heredocs and quoted runs for the scan, so
+  # the one place that knows what is code is the one place that decides.
+  #
   # awk operand disambiguation: a bare relative operand shaped like
   # identifier=value (e.g. a top-level file literally named FOO=bar.sh) is
   # parsed by awk as a command-line variable assignment, not opened as a
@@ -180,24 +202,94 @@ scan_file() {
   *) awk_file="./$awk_file" ;;
   esac
   awk '
+    # Spelled as octal escapes because this program is itself embedded in a
+    # single-quoted shell word, where a literal quote cannot appear.
+    BEGIN {
+      SQ = "\047"; DQ = "\042"; BS = "\134"; BT = "\140"; NL = "\012"
+      # A newline is a separator too, and it reaches a record only through a
+      # quote-continued join. Inside a QUOTED run it is ordinary data, so
+      # neutralizing it is what lets a token gap span the join: a `stat` whose
+      # quoted filename contains a newline is one command whose option the gate
+      # could not otherwise reach (#1544). Inside a `$( )` or backquote frame
+      # the mask leaves it
+      # structural, because there it really does end a command.
+      SEPS = ";&|()" NL BT
+      # The `stat` COMMAND NAME as an ERE, quote-runs interleaved between its
+      # letters. Shell quote removal happens before the utility sees argv, so
+      # `st"a"t -c %s` invokes the same GNU stat as `stat -c %s` and admitted
+      # the same GNU-only option while reading clean (#1544).
+      #
+      # One constant, two consumers: the token file spells the name this way,
+      # and the fallback guard below ANCHORS its own ladder regex with it so a
+      # quote-spliced GNU call can still find its quote-spliced BSD fallback.
+      # The guard DISPATCHES on either spelling — a token naming the utility
+      # plainly is still a stat token, and a simplified one is what every
+      # class-scoped unit fixture uses.
+      QRUN = "(\\$?[" SQ DQ "]|" BS BS ")*"
+      STATNAME = "s" QRUN "t" QRUN "a" QRUN "t"
+      # What may sit between a pipeline position and the command name that
+      # position runs: environment assignments (repeatable, either side of a
+      # wrapper), an invocation wrapper, or a leading backslash. None changes
+      # WHICH command runs, so all are transparent both to the fallback guard
+      # after a `||` and to the negation check before a `!`-prefixed call.
+      # A transparent prefix WORD: an environment assignment or a redirection.
+      # Neither changes which command the position runs — 2.9.1 lets a simple
+      # command carry redirections and assignments before its name — so both
+      # are transparent to the fallback guard after a `||` and to the negation
+      # check before a `!`-prefixed call. Matching only assignments let
+      # `! 2>/dev/null stat -c …` read as unnegated (#1544).
+      # The redirection operand may be separated from its operator by blanks —
+      # 2.7 makes the target a separate word — so `|| 2> /dev/null stat -f …`
+      # is one command with a prefix redirection, exactly like the attached
+      # spelling. Requiring attachment rejected a genuine dual-dialect ladder.
+      ASSIGN = "(([A-Za-z_][A-Za-z0-9_]*=[^;|&[:space:]]*|[0-9]*[<>][<>]?&?[[:space:]]*[^;|&[:space:]]*)[[:space:]]+)*"
+      PREFIXES = ASSIGN "((command|env)[[:space:]]+)?" ASSIGN "(\\\\)?[[:space:]]*"
+      # Characters a shell word may begin after, for the `#` comment test.
+      # `)` is among them because it is a control operator, so `(cmd)# …`
+      # comments out the rest of the record; omitting it left a commented-out
+      # `|| stat -f` structural and it was accepted as a real guard (#1544).
+      # A NEWLINE joins the class once a record can span physical lines: inside
+      # a `$( )` or backquote frame a following line may open with a real
+      # comment, and leaving it structural would let a commented-out `|| stat
+      # -f` on that line excuse a hit on an earlier one — the same fail-open
+      # the `)` entry above records, reached through a join.
+      WORDSTART = " \t;&|()" NL BT
+      # What may sit between a `!` and the command name it negates BEYOND the
+      # PREFIXES above: an opener that starts a nested command context. A
+      # substitution or subshell is a WORD of the negated pipeline, so the `!`
+      # still governs the command inside it — `! x=$(stat -c …) || stat -f …`
+      # skips the fallback on BSD exactly as the unnested spelling does.
+      NEGOPEN = "(([A-Za-z_][A-Za-z0-9_]*=)?(\\$\\(|" BT "|\\()[[:space:]]*)*"
+    }
     function is_annotated(l) { return l ~ /portability-ok:/ }
     function is_comment(l) { return l ~ /^[[:space:]]*#/ }
     # Same-line auto-guard: a portable BSD-side attempt already co-located on
     # the hit line, ACTUALLY WIRED as the fallback (a `||` between the two
-    # calls) — not merely mentioned somewhere on the line. Scoped to the one
-    # active shape that needs one today: readlink -f, guarded by a co-located
-    # `realpath ... || readlink -f ...` fallback ladder (the shape
-    # lib/hook-utils.sh already uses). Requiring the literal `||` between the
-    # two (not just both substrings present) matters: `realpath "$1";
-    # readlink -f "$1"` runs the GNU-only call unconditionally right after a
-    # realpath attempt with no fallback relationship at all, and must still
-    # flag. Takes the matched pattern text too, so the guard applies only
-    # when the readlink pattern itself matched — a line that merely mentions
-    # "realpath" elsewhere must not blanket-excuse an unrelated hit on the
-    # same line. A further class enables its own marker here when it is
-    # activated (see the token file STAGED section) — this is deliberately
-    # not a generic heuristic, the same posture check-skill-portability.sh
-    # takes.
+    # calls) — not merely mentioned somewhere on the line. Scoped to the two
+    # active shapes that need one today:
+    #   - readlink -f, guarded by a co-located `realpath ... || readlink -f
+    #     ...` fallback ladder (the shape lib/hook-utils.sh already uses).
+    #     Requiring the literal `||` between the two (not just both
+    #     substrings present) matters: `realpath "$1"; readlink -f "$1"` runs
+    #     the GNU-only call unconditionally right after a realpath attempt
+    #     with no fallback relationship at all, and must still flag.
+    #     The counterpart must also sit at COMMAND POSITION after that `||`,
+    #     not merely somewhere to its right. A line whose failure branch only
+    #     PRINTS the BSD form names it inside a diagnostic string, so treating
+    #     that as a guard would suppress a real GNU-only call behind a
+    #     fallback that does not exist (#1544).
+    #   - stat -c, guarded by a co-located `stat -c ... || stat -f ...`
+    #     fallback ladder (the shape
+    #     plugins/repo-hygiene/skills/clean/scripts/remove-path.sh dev_of()
+    #     already uses) — same `||`-required rigor as the readlink guard
+    #     (#1510).
+    # Takes the matched pattern text too, so each guard applies only when its
+    # own pattern matched — a line that merely mentions "realpath" or
+    # "stat -f" elsewhere must not blanket-excuse a different active
+    # pattern hit on the same line. A further class enables its own marker
+    # here when it is activated (see the token file STAGED section) — this is
+    # deliberately not a generic heuristic, the same posture
+    # check-skill-portability.sh takes.
     #
     # sed -i has NO guard. An earlier revision auto-guarded the space-
     # separated empty-suffix idiom ("-i" followed by an empty quoted string
@@ -210,9 +302,602 @@ scan_file() {
     # ATTACHED nonempty suffix (sed -i.bak ... && rm -f the backup after),
     # which this token never matches (attached, no separating whitespace)
     # and so is correctly never flagged.
-    function is_guarded(l, p) {
-      if (p ~ /readlink/ && l ~ /realpath[^|]*\|\|[^|]*readlink/) return 1
+    #
+    # Which characters bound one command, and which `||` a guard may cross,
+    # are decided by the segmenter below rather than by the guard regex.
+    # ---- Quote-aware command segmentation (#1544) ----
+    # Which run of characters is ONE command is decided on a MASKED copy of
+    # the line, in which every character inside a quoted run — the quote
+    # characters included — is replaced by a filler. A separator that is
+    # merely a literal inside a string is therefore never read as a control
+    # operator. POSIX Shell Command Language 2.3 Token Recognition rule 4:
+    # an unquoted <backslash>, single-quote, or double-quote "shall affect
+    # quoting for subsequent characters up to the end of the quoted text";
+    # 2.2.2: single-quotes "preserve the literal value of each character
+    # within the single-quotes"; 2.2.3: double-quotes preserve it "with the
+    # exception of the characters backquote, <dollar-sign>, and <backslash>"
+    # — so the mask keeps a backslash escaping its successor in both the
+    # unquoted and the double-quoted state, and neither inside single quotes.
+    # <https://pubs.opengroup.org/onlinepubs/9799919799/utilities/V3_chap02.html>
+    #
+    # An ERE character class cannot hold that state, which is why the gap
+    # alone both over- and under-reached:
+    #   - `stat "name;part" -c "%s"` was MISSED — the gap stopped at a `;`
+    #     that is a filename character, not an operator;
+    #   - `stat -c … ; stat -c … || stat -f …` reported NEITHER call — the
+    #     guard was evaluated line-wide, so one guarded ladder anywhere on
+    #     the line excused an unconditional GNU-only call before it.
+    # Neither is fixable inside the ERE: quote state and per-occurrence guard
+    # binding both need memory. The state belongs in this layer.
+    #
+    # Matching still runs against the ORIGINAL segment text, never the mask:
+    # the GNU regex-escape classes (`\b`, `\s`, `\<`, …) legitimately live
+    # INSIDE string literals — `grep -E "\bword"` — and must keep matching
+    # there. The mask decides structure only.
+    # (Both examples are spelled with double quotes because this awk program
+    # is embedded in a single-quoted shell word; the single-quoted spellings
+    # they stand for behave identically for the point being made.)
+    #
+    # A command SUBSTITUTION is shell code, not literal text, even inside
+    # double quotes — 2.2.3 exempts exactly backquote, dollar-sign and
+    # backslash from the literal treatment, which is why `"$(cmd)"` runs cmd.
+    # So the mask leaves a `$( )` or backquoted body UNMASKED and structural
+    # wherever it opens, and resumes the enclosing state at its close. An
+    # earlier revision masked whole double-quoted arguments and lost the
+    # nested commands entirely: `printf -- "%s" "$(stat -c "%s" "$f")"`
+    # reported clean because the OUTER `--` truncated everything after it,
+    # nested invocation included (#1544 review round 2).
+    #
+    # The state stack is what makes that resumable: `"$(cmd "x")"` re-enters
+    # double quotes for the inner argument and must still return to the outer
+    # ones at the closing paren.
+    #
+    # A PARAMETER EXPANSION `${…}` is likewise structural-looking but its body
+    # is not shell code: 2.6.2 gives the word after `:-`/`:=`/`%`/`#`/`//` to
+    # the expansion, so a `;`/`|`/`&`/`(` in there is data, never a control
+    # operator. Only `$(` and a backquote inside it reopen real command text.
+    # Without that state `stat ${file:-name;part} -c %s` read the `;` as a
+    # command boundary and the GNU-only `-c` after it was never reached
+    # (#1544).
+    #
+    # An INLINE COMMENT is not shell code either. 2.3 rule 10: an unquoted `#`
+    # at the START of a word begins a comment that runs to the newline, so
+    # nothing after it is structural. Two fail-opens came from treating it as
+    # ordinary text (#1544 review round 8):
+    #   echo ok # portability-ok: x \   the trailing backslash is comment text,
+    #   date -d tomorrow                not a continuation — joining the two
+    #                                   carried the annotation onto a
+    #                                   standalone GNU-only command;
+    #   stat -c %s "$f" # || stat -f    a commented-out fallback satisfied the
+    #                                   guard, excusing an unguarded call.
+    # The comment body is masked, so its separators are no longer control
+    # operators. Construct MATCHING is deliberately untouched — it runs on the
+    # original text, so `# see date -d` still reports, the same over-flag
+    # direction that the comment-skip in scan_logical — not this mask — is what
+    # exempts a comment-ONLY line from.
+    function mask_quotes(l,   i, c, m, st, top, len) {
+      m = ""
+      DANGLING_BS = 0
+      DANGLING_QUOTE = 0
+      st = "U"
+      len = length(l)
+      for (i = 1; i <= len; i++) {
+        c = substr(l, i, 1)
+        top = substr(st, length(st), 1)
+        # Single quotes preserve every character (2.2.2) — nothing opens
+        # inside them, not even a substitution.
+        if (top == "S") {
+          m = m "Q"
+          if (c == SQ) st = substr(st, 1, length(st) - 1)
+          continue
+        }
+        # An unquoted backslash quotes exactly its successor (2.2.1), so
+        # `\"` opens no string. Mask both, never running past the line end.
+        # With NOTHING to quote it is escaping the newline — a line
+        # continuation, reported through DANGLING_BS so the record loop can
+        # join the physical lines into the one command the shell sees.
+        if (c == BS) {
+          m = m "Q"
+          if (i < len) { m = m "Q"; i++ }
+          else DANGLING_BS = 1
+          continue
+        }
+        if (c == BT) {
+          m = m c
+          if (top == "B") st = substr(st, 1, length(st) - 1)
+          else st = st "B"
+          continue
+        }
+        # An ARITHMETIC EXPANSION `$(( … ))` is data, not command text, and it
+        # must claim the `$((` spelling before the command-substitution branch
+        # below can read it as a `$(` plus a stray `(`. Letting that happen
+        # left the frame stack unbalanced — the first `)` popped the
+        # substitution and the second was consumed as expansion data, so
+        # collapse_subs() never closed every frame and blanked the rest of the
+        # line: `stat ${x:-$((1 | 2))} -c %s` reported clean (#1544).
+        #
+        # ARDEPTH tracks parenthesis nesting per frame so an inner `( … )`
+        # group (`$(( ((1)) + 2 ))`) cannot close the expansion early; the
+        # frame ends only at a `))` reached at depth zero.
+        if (c == "$" && substr(l, i + 1, 1) == "(" && substr(l, i + 2, 1) == "(") {
+          m = m "QQQ"
+          st = st "A"
+          ARDEPTH[length(st)] = 0
+          i += 2
+          continue
+        }
+        if (c == "$" && substr(l, i + 1, 1) == "(") {
+          m = m "Q("
+          st = st "P"
+          i++
+          continue
+        }
+        if (c == "$" && substr(l, i + 1, 1) == "{") {
+          m = m "QQ"
+          st = st "V"
+          i++
+          continue
+        }
+        # Inside an expansion body every character is data — but a nested
+        # `$(`/backquote above still reopens command text, so those branches
+        # deliberately sit before this one.
+        #
+        # A quote inside the body still quotes: the word after `:-` is an
+        # ordinary word (2.6.2), so a `}` inside it is data and does NOT end
+        # the expansion. Closing at the first `}` regardless let
+        # `stat ${f:-"};part"} -c %s` end the expansion early, after which the
+        # literal `;` read as a command boundary and hid the `-c` (#1544).
+        if (top == "A") {
+          m = m "Q"
+          if (c == "(") ARDEPTH[length(st)]++
+          else if (c == ")") {
+            if (ARDEPTH[length(st)] > 0) ARDEPTH[length(st)]--
+            else if (substr(l, i + 1, 1) == ")") {
+              m = m "Q"
+              st = substr(st, 1, length(st) - 1)
+              i++
+            }
+          }
+          continue
+        }
+        if (top == "V") {
+          m = m "Q"
+          if (c == SQ) st = st "S"
+          else if (c == DQ) st = st "D"
+          else if (c == "}") st = substr(st, 1, length(st) - 1)
+          continue
+        }
+        if (top == "D") {
+          m = m "Q"
+          if (c == DQ) st = substr(st, 1, length(st) - 1)
+          continue
+        }
+        # Unquoted shell state (U, or inside a `$( )`/backquote body): a `#`
+        # opening a word comments out the rest of the record. A `#` mid-word
+        # (`foo#bar`, `$#`) is an ordinary character and falls through.
+        if (c == "#" && (i == 1 || index(WORDSTART, substr(l, i - 1, 1)) > 0)) {
+          while (i <= len) { m = m "Q"; i++ }
+          break
+        }
+        if (c == SQ) { m = m "Q"; st = st "S"; continue }
+        if (c == DQ) { m = m "Q"; st = st "D"; continue }
+        # A raw SUBSHELL group gets its own frame. Left untracked, its closing
+        # paren popped the enclosing `$( )` instead, after which the real close
+        # and every separator past it were masked as expansion data — so
+        # `x="$( (true); stat -c %s "$f"; true)" || stat -f %z "$f"` read as a
+        # guarded ladder although the trailing `true` owns the status (#1544).
+        # Same unbalanced-frame failure the arithmetic branch above fixes, one
+        # spelling over. A `)` with no frame open stays untouched: it is a
+        # `case` pattern terminator, not a close.
+        if (c == "(") { m = m c; st = st "G"; continue }
+        if (c == ")" && (top == "P" || top == "G")) {
+          m = m c
+          st = substr(st, 1, length(st) - 1)
+          continue
+        }
+        m = m c
+      }
+      # Anything still open at end of record — a quote, an expansion, a
+      # substitution frame — means the shell has not finished this word, so the
+      # next physical line is part of the SAME command. The record loop joins
+      # on this exactly as it does on a dangling backslash.
+      DANGLING_QUOTE = (length(st) > 1)
+      return m
+    }
+    # ---- Offset-anchored matching (#1544) ----
+    # Structure is decided from the MASK, never by re-splitting the line into
+    # commands. Three derived views do all the work:
+    #
+    #   qline  - the line with a separator NEUTRALIZED wherever the mask says
+    #            it is inside quotes. The token gaps keep excluding separators
+    #            as they always have, so `stat "$f"; tool -c x` is still not a
+    #            stat hit, while `stat "name;part" -c "%s"` finally is: that
+    #            `;` is a filename character, and only the mask can tell the
+    #            difference. Matching runs on qline rather than the mask, so
+    #            the GNU regex-escape classes still match inside string
+    #            literals - `grep -E "\bword"` is untouched. (Examples here use
+    #            double quotes only because this awk program is embedded in a
+    #            single-quoted shell word.)
+    #
+    #   cline  - the same line with every command-substitution and subshell body
+    #            collapsed to a non-separator filler. To the command that owns
+    #            it a `$(…)` is ONE WORD, so an option after it belongs to that
+    #            command: GNU stat and date both accept options after operands
+    #            (`stat "$(get_file)" -c %s`), yet the token gaps stopped at the
+    #            `(` and never reached the flag (#1544). Collapsing is
+    #            length-preserving, so an offset means the same thing in every
+    #            view. cline is matched IN ADDITION to qline, never instead of
+    #            it — that is what keeps the nested command visible:
+    #            `printf -- "%s" "$(stat -c %s "$f")"` has its inner call
+    #            collapsed away here and is caught on qline, and a hit on either
+    #            view reports the line once.
+    #
+    #   HIT    - the offset where the construct actually matched. The guard
+    #            searches forward from there instead of scanning the whole
+    #            line, which is what binds a fallback ladder to the invocation
+    #            it guards: in `stat -c … ; stat -c … || stat -f …` the first
+    #            call cannot reach the `||`, because SEG stops at the `;`.
+    #
+    # This deliberately does NOT re-derive command boundaries for every token.
+    # An earlier revision did, and changing segmentation globally broke two
+    # unrelated classes that depend on the outer command continuing across a
+    # substitution (`grep -e "$(printf pattern)" -P file`) or on a process
+    # substitution staying attached to its option cluster (`echo -e<(printf x)`).
+    # The mask is additive; re-segmentation was not.
+    function neutralize(l, m,   i, c, r, len) {
+      r = ""
+      len = length(l)
+      for (i = 1; i <= len; i++) {
+        c = substr(l, i, 1)
+        # A quoted NEWLINE neutralizes to a SPACE, not to the `Q` filler. `Q` is
+        # a word character, so it would weld the text on either side of a join
+        # into one word and defeat the very leading boundary the command-word
+        # tokens rely on — the hit after a join stopped matching at all. A
+        # space is what the shell would never make of it either way, and it
+        # leaves the token gaps free to span the join.
+        if (substr(m, i, 1) == "Q" && c == NL) r = r " "
+        else if (substr(m, i, 1) == "Q" && index(SEPS, c) > 0) r = r "Q"
+        else r = r c
+      }
+      return r
+    }
+    # The guard is always evaluated on qline, whichever view produced the hit: a
+    # ladder whose BSD side sits inside a substitution
+    # (`stat -c %s "$f" || x=$(stat -f %z "$f")`) is invisible on cline, and
+    # reading the guard there would newly flag a line that IS guarded.
+    #
+    # Structure comes from the mask, so a `(`/backquote still present there is
+    # structural by construction — one inside quotes was already replaced. A
+    # `)` with no opener is a `case` pattern terminator, not a close, and is
+    # left alone. Over-collapsing can only HIDE a construct in this view, which
+    # qline still reports; that asymmetry is why the filler is `~` rather than a
+    # letter, so a collapsed run can never extend an option cluster it is
+    # adjacent to.
+    #
+    # A PROCESS substitution is the one paren the shell does NOT make a separate
+    # word: it expands to `/dev/fd/N` and concatenates onto the word it touches,
+    # which is why `echo -e<(printf x)` passes the single argument
+    # `-e/dev/fd/63` and must stay unflagged. Collapsing its body erased the `(`
+    # that tells the `echo -e` boundary those two are one word, and the line was
+    # newly reported. It is recognized by the `<`/`>` immediately before the
+    # paren and kept verbatim, so only the frames that DO become their own word
+    # collapse.
+    function collapse_subs(q, m,   i, c, r, len, kinds, nc, inbt, prev, top) {
+      r = ""
+      kinds = ""
+      nc = 0
+      inbt = 0
+      len = length(m)
+      for (i = 1; i <= len; i++) {
+        c = substr(m, i, 1)
+        if (c == BT) {
+          inbt = !inbt
+          r = r "~"
+          continue
+        }
+        if (c == "(") {
+          prev = ""
+          if (i > 1) prev = substr(m, i - 1, 1)
+          if (prev == "<" || prev == ">") {
+            kinds = kinds "S"
+          } else {
+            kinds = kinds "C"
+            nc++
+          }
+        } else if (c == ")" && kinds != "") {
+          top = substr(kinds, length(kinds), 1)
+          if (nc > 0 || inbt) r = r "~"
+          else r = r substr(q, i, 1)
+          if (top == "C") nc--
+          kinds = substr(kinds, 1, length(kinds) - 1)
+          continue
+        }
+        if (nc > 0 || inbt) r = r "~"
+        else r = r substr(q, i, 1)
+      }
+      return r
+    }
+    # `--` (end-of-options) is deliberately NOT honored — `stat -- -c` and
+    # `date -- -d` are reported even though the flag-shaped word after the
+    # marker is an operand. This is the documented over-flag direction, and
+    # `portability-ok: <reason>` is the one-line escape.
+    #
+    # It was implemented and withdrawn. Honoring it correctly needs the marker
+    # scoped to the invocation that owns it, resumed matching after a discarded
+    # occurrence, and recognition of a quoted `"--"` word — and each partial
+    # answer traded the false positive for a fail-OPEN, which is the worse
+    # direction this gate is explicitly tuned against:
+    #   stat -- -c; stat -c "%s" "$f"      later real call went unreported
+    #   printf -- "%s" "$(stat -c ...)"    outer marker hid the nested call
+    #   stat -c "%s" "$f" || stat "--" -f  guard trusted an -f that names a file
+    # Tracked in #1562 rather than carried here half-built; that issue holds
+    # the reproductions and what a correct implementation needs.
+    # SEG is the run between the GNU call and the `||`, and stops at a command
+    # separator. Without it the two calls need not be in the same command at
+    # all: `stat -c %s "$f"; true || stat -f %z "$f"` runs the GNU-only call
+    # unconditionally and reaches the `||` from a LATER command. `;` and `|`
+    # are excluded, and so is a CONTROL `&`, which backgrounds the GNU call and
+    # hands the `||` to whatever follows. Redirections are kept, in BOTH
+    # ampersand positions: `2>&1` and `<&-` put it last, bash `&>` and `&>>`
+    # put it first, and neither ends the command (#1544).
+    #
+    # CMDPOS is everything allowed between that `||` and the BSD-side command
+    # NAME for that command to be what the `||` actually runs: an optional
+    # name= assignment prefix, an optional `$(` opening a command substitution,
+    # and an optional invocation wrapper. `command` is the POSIX-specified one,
+    # and `env` and a leading backslash reach the same real utility.
+    #
+    # PRE is what may sit between either command name and its own option: a
+    # redirection does not change the argv the utility receives, so
+    # `stat 2>/dev/null -f "%z" "$f"` is the same BSD call as `stat -f …`. Its
+    # gap excludes the control operators for the same reason SEG does — a gap
+    # that may swallow a `;` lets the guard be satisfied by a ladder belonging
+    # to a later command.
+    #
+    # Known gap, same one the `--` withdrawal above describes, on the TRUSTED
+    # side: a `stat "--" -f` counterpart is accepted as a fallback although the
+    # `-f` names a file there. That direction fails OPEN, which is the argument
+    # for honoring `--` properly rather than partially.
+    # A `!` in front of the GNU call inverts its status, so the `||` fires when
+    # the call SUCCEEDS and is skipped when it fails — the fallback never runs
+    # on the dialect that needs it. A negated probe therefore has no guard at
+    # all, however well-formed the ladder after it looks.
+    function blanks(n,   s) {
+      s = ""
+      while (length(s) < n) s = s " "
+      return s
+    }
+    # The `!` may be separated from the command name by the same prefixes
+    # CMDPOS admits after a `||` — an invocation wrapper, an environment
+    # assignment, or both — and none of them changes that the negation applies
+    # to the pipeline (#1544). Matching only bare whitespace let
+    # `! command stat -c …` and `! LANG=C stat -c …` read as unnegated.
+    #
+    # A `(` is NOT a reason to discard the negation, which is why it is absent
+    # from the truncation class below. Whichever side of the paren the `!` sits,
+    # the conclusion is the same — the fallback does not run on BSD:
+    #   ! x=$(stat -c …) || stat -f …   the substitution exits with the status of
+    #                                   stat, and `!` inverts it, so the `||` is
+    #                                   skipped;
+    #     x=$(! stat -c …) || stat -f … the inner `!` inverts it first.
+    # Truncating at the `$(` lost the outer `!` and admitted the first shape
+    # (#1544 review round 8). A `)` stays a boundary: an outer negation reaching
+    # PAST a closed substitution is a shape this gate has never recognized, and
+    # widening it is not what this finding is about.
+    #
+    # Over-detecting a negation costs a false positive; under-detecting one
+    # admits an unguarded GNU-only call. This is the safe direction to widen.
+    # The text after the last command boundary before <at>. Spelled as a
+    # backward scan rather than a greedy `.*[;|&)]` match because a record can
+    # now contain a NEWLINE, and whether `.` matches one is exactly the kind of
+    # awk-implementation difference this gate must not depend on. A structural
+    # newline is a boundary here for the same reason `;` is: inside a `$( )`
+    # frame it ends the command. A quoted newline never reaches this — it is
+    # neutralized to a space upstream.
+    function after_last_boundary(h,   i, c) {
+      for (i = length(h); i >= 1; i--) {
+        c = substr(h, i, 1)
+        if (c == ";" || c == "|" || c == "&" || c == ")" || c == NL)
+          return substr(h, i + 1)
+      }
+      return h
+    }
+    function is_negated(q, at,   head) {
+      head = after_last_boundary(substr(q, 1, at - 1))
+      return head ~ ("(^|[[:space:]]|[(]|" BT ")![[:space:]]+" NEGOPEN PREFIXES "$")
+    }
+    # A `$( )` or backquote frame hands the `||` the status of the matched call
+    # only when the frame IS what the enclosing command position runs — a plain
+    # `name=$(…)` assignment. Used as an ARGUMENT, the enclosing command decides:
+    # in `echo "$(stat -c …)" || stat -f …` the inner stat fails on BSD while
+    # echo still succeeds, so the `||` never fires and the fallback never runs
+    # (#1544). Same class as `x=$(stat -c …; true) || stat -f …`, reached through
+    # the enclosing command rather than through a later one inside the frame.
+    #
+    # The lookback stops at `[;|&)]` and deliberately KEEPS `(` visible, unlike
+    # is_negated(): that function asks what an outer `!` still governs and must
+    # see past a frame, this one asks what ENCLOSES the frame and must see it.
+    # A frame that IS the substitution of its own command still hands the `||`
+    # a status only while it is the LAST one to run. For an assignment-only
+    # command the exit status is the status of the last command substitution
+    # performed (2.9.1), so a sibling frame BESIDE the matched one takes
+    # ownership: in `x=$(stat -c …) y=$(true) || stat -f …` the `true` succeeds
+    # after BSD stat fails and the fallback never runs (#1544).
+    #
+    # This asks the whole question rather than ruling out one neighbour shape:
+    # the matched frame must be the status-determining frame of its command.
+    # Three routes reach the same principle — a later command INSIDE the frame,
+    # the command ENCLOSING it, and a later frame BESIDE it — and answering
+    # them one at a time is what kept a further variant findable.
+    #
+    # The forward walk reads the MASK, not the text: a paren or backquote still
+    # present there is structural by construction, so a `)` inside a quoted
+    # argument cannot close the frame early. It stops at the first command
+    # separator, which is the `||` itself in the shape this guards — anything
+    # past that operator belongs to the fallback, not to the command whose
+    # status the `||` tests.
+    function status_swallowed(q, at, m,   head, before, opener, i, c, depth, len, closed) {
+      head = after_last_boundary(substr(q, 1, at - 1))
+      if (!match(head, ".*(\\$\\(|" BT ")")) return 0
+      before = substr(head, 1, RLENGTH)
+      opener = substr(before, length(before), 1)
+      sub("(\\$\\(|" BT ")$", "", before)
+      if (before !~ "^[[:space:]]*([A-Za-z_][A-Za-z0-9_]*=)?[[:space:]]*$") return 1
+      len = length(m)
+      closed = 0
+      if (opener == BT) {
+        # Backquotes do not nest without escaping, so the next one closes.
+        for (i = at; i <= len; i++) {
+          if (substr(m, i, 1) == BT) { closed = i; break }
+        }
+      } else {
+        depth = 1
+        for (i = at; i <= len; i++) {
+          c = substr(m, i, 1)
+          if (c == "(") depth++
+          else if (c == ")") {
+            depth--
+            if (depth == 0) { closed = i; break }
+          }
+        }
+      }
+      if (closed == 0) return 0
+      for (i = closed + 1; i <= len; i++) {
+        c = substr(m, i, 1)
+        if (c == "(" || c == BT) return 1
+        if (c == ";" || c == "|" || c == "&") return 0
+      }
       return 0
+    }
+    function is_guarded(q, p, at, m,   CMDPOS, SEG, PRE, NAME, QP, QL) {
+      if (is_negated(q, at)) return 0
+      # An opener after the `||` may be any spelling that makes the command
+      # which follows it what the `||` actually runs: either substitution
+      # spelling, or a subshell/brace group whose first command it is. The bare
+      # `NAME=` (no value, no trailing space) is the `x=$(stat …)` shape.
+      # `|| (stat -f …)` and `|| { stat -f …; }` were forced into an exemption
+      # although the group genuinely executes the BSD fallback (#1544).
+      #
+      # `{` is a RESERVED WORD and only opens a group when a blank follows it,
+      # so `|| {stat -f …` names a command `{stat` and runs no fallback at all;
+      # admitting it without the blank was a fail-open (#1544). `(` is an
+      # operator, needs no blank, and keeps none.
+      CMDPOS = "\\|\\|[[:space:]]*([A-Za-z_][A-Za-z0-9_]*=)?(\\$\\(|" BT "|\\(|\\{[[:space:]])?[[:space:]]*" PREFIXES
+      SEG = "([^;|&" NL "]|[<>]&|&>|&&)*"
+      # The fallback command word carries the same optional quote and path
+      # spellings the token patterns already admit — quote removal invokes the
+      # same BSD utility, so `|| "stat" -f …` and `|| "/usr/bin/stat" -f …` are
+      # real ladders and were being forced into an exemption (#1544).
+      NAME = "(\\$?[" SQ DQ "]|" BS BS ")?" "(/[^;|&[:space:]]*/)?"
+      SEG = "([^;|&" NL "]|[<>]&|&>|&&)*"
+      # A word inside PRE is any single argument that is not a control
+      # operator. Excluding the operators matters as much here as in SEG: a gap
+      # that may swallow a `;` lets the guard reach PAST the matched invocation
+      # and be satisfied by a ladder belonging to a later command, which is the
+      # line-wide behaviour this anchoring replaced.
+      PRE = "(\\$?[" SQ DQ "]|" BS BS ")?" "[[:space:]]+([^;|&\n]*[[:space:]])?"
+      # An OPTION word may carry quotes on BOTH sides of the ladder, exactly as
+      # the shipped date/stat tokens admit: quote removal hands the utility the
+      # same option either way, so `stat "-c" … || stat "-f" …` is one real
+      # fallback ladder. Widening the token without widening the guard reported
+      # every quoted-flag ladder as unguarded (#1544). The trusted side is safe
+      # to widen for the same reason it is unsafe to trust `stat "--" -f`:
+      # `"-f"` IS the option after quote removal, while `"--"` is the
+      # end-of-options marker this gate does not honor at all.
+      QP = QRUN
+      QL = "([A-Za-z]|\\$?[" SQ DQ "]|" BS BS ")*"
+      if (p ~ /readlink/) {
+        return substr(q, 1, at + 7) ~ ("realpath" SEG CMDPOS NAME "readlink$")
+      }
+      # Scoped to the stat ladder, which looks FORWARD from a call whose failure
+      # is what fires the `||`. The readlink guard looks BACKWARD from the last
+      # rung — reached only because a portable attempt already failed — so where
+      # its own status propagates to is not what that guard asks about.
+      if (index(p, STATNAME) || index(p, "stat")) {
+        if (status_swallowed(q, at, m)) return 0
+        return substr(q, at) ~ ("^" STATNAME PRE QP "(-" QL "c|--format|--printf)" SEG CMDPOS NAME STATNAME PRE QP "-" QL "f")
+      }
+      return 0
+    }
+    # has_unguarded <view> <qline> <pattern> — does the view hold an occurrence
+    # of the pattern that no same-line BSD ladder excuses?
+    #
+    # EVERY occurrence is evaluated, not just the first. A guarded ladder
+    # earlier on the line says nothing about an unconditional call after it:
+    # `stat -c … || stat -f … ; stat -c …` guards only the first pair, and
+    # stopping at it reported the line clean (#1544). Consumed extents are
+    # blanked in a scratch copy so the next `match()` finds the NEXT occurrence;
+    # the guard still reads the untouched qline, and blanking preserves length
+    # so offsets stay aligned.
+    # Returns the OFFSET of the first such occurrence at or after `from`, or 0.
+    # An offset rather than a yes/no because a joined record spans physical
+    # lines and both the reported line number and the annotation scope are
+    # decided by WHERE the hit sits; `from` lets the caller step past a hit its
+    # own physical line excused and keep looking.
+    function has_unguarded(view, q, p, m, from,   scan, st, len, at) {
+      scan = view
+      if (from > 1) scan = blanks(from - 1) substr(view, from)
+      while (match(scan, p)) {
+        st = RSTART
+        len = RLENGTH
+        at = st
+        # Step over the leading word-boundary character the token consumed, so
+        # the guard can anchor on the command name itself.
+        if (substr(scan, at, 1) !~ /[A-Za-z]/) at++
+        if (!is_guarded(q, p, at, m)) return at
+        scan = substr(scan, 1, st - 1) blanks(len) substr(scan, st + len)
+      }
+      return 0
+    }
+    # A HEREDOC body is not shell code, so it can neither continue a command nor
+    # leave a quote open for the next line to inherit. It still gets SCANNED —
+    # this corpus writes real scripts through heredocs and the gate deliberately
+    # matches inside literal text — but it never joins.
+    #
+    # Without this, one stray backquote or apostrophe in heredoc data opened a
+    # frame that swallowed everything after it: a PowerShell settings body
+    # containing `` "CustomRule`Path" `` joined 57 following lines into one
+    # record and let a `grep` on one line reach a `-Path` on another (#1544).
+    # The blind spot predates quote-joining; joining is what made its blast
+    # radius a whole file instead of one line.
+    #
+    # The delimiter is read from the ORIGINAL text at a `<<` the mask says is
+    # structural: it may be quoted (`<<"EOF"`), and the mask has already blanked
+    # those quotes. `<<<` is a here-string, not a heredoc, and is skipped.
+    function heredoc_delim(l, m, i, len, j, c, d, q) {
+      len = length(m)
+      for (i = 1; i < len; i++) {
+        if (substr(m, i, 1) != "<" || substr(m, i + 1, 1) != "<") continue
+        if (substr(m, i + 2, 1) == "<") { i += 2; continue }
+        j = i + 2
+        HD_STRIP = 0
+        if (substr(l, j, 1) == "-") { HD_STRIP = 1; j++ }
+        while (substr(l, j, 1) == " " || substr(l, j, 1) == "\t") j++
+        q = ""
+        if (substr(l, j, 1) == SQ || substr(l, j, 1) == DQ) { q = substr(l, j, 1); j++ }
+        d = ""
+        while (j <= length(l)) {
+          c = substr(l, j, 1)
+          if (q != "" && c == q) break
+          if (q == "" && index(" \t;&|<>()" BT, c) > 0) break
+          d = d c
+          j++
+        }
+        if (d != "") return d
+      }
+      return ""
+    }
+    # phys_of <offset> — the physical-line index a record offset falls on.
+    function phys_of(off,   k) {
+      for (k = nphys; k >= 1; k--)
+        if (off >= physoff[k]) return k
+      return 1
+    }
+    # phys_text <index> — that physical line as it was read, so an annotation
+    # is scoped to the line carrying it rather than to the whole joined record.
+    function phys_text(k) {
+      if (k >= nphys) return substr(logical, physoff[k])
+      return substr(logical, physoff[k], physoff[k + 1] - physoff[k] - 1)
     }
     # Pass 1: collect active ERE patterns from the token list.
     FNR == NR {
@@ -223,9 +908,8 @@ scan_file() {
       patterns[++np] = line
       next
     }
-    # Pass 2: scan the target file.
-    {
-      line = $0
+    # scan_logical <text> <first-line-number> <mask> — evaluate ONE logical line.
+    function scan_logical(line, lineno, mask,   is_cmt, annotated_above, qline, cline, i) {
       is_cmt = is_comment(line)
       annotated_above = pending_annot
       if (is_cmt) {
@@ -234,14 +918,165 @@ scan_file() {
         pending_annot = 0
       }
       # Construct matching skips comment-only lines — see script header.
-      if (is_cmt) next
+      if (is_cmt) return
+      qline = neutralize(line, mask)
+      cline = collapse_subs(qline, mask)
+      if (!joined && (is_annotated(line) || annotated_above)) return
       for (i = 1; i <= np; i++) {
-        if (line ~ patterns[i]) {
-          if (is_annotated(line) || annotated_above) continue
-          if (is_guarded(line, patterns[i])) continue
-          printf "%d: %s -> %s\n", FNR, patterns[i], line
-        }
+        if (report_hit(line, lineno, patterns[i], annotated_above,
+          has_unguarded(qline, qline, patterns[i], mask, 1), qline, qline, mask)) continue
+        report_hit(line, lineno, patterns[i], annotated_above,
+          has_unguarded(cline, qline, patterns[i], mask, 1), cline, qline, mask)
       }
+    }
+    # report_hit — print the first hit whose OWN physical line is unexcused,
+    # stepping past any the annotation on that line covers. Returns 1 if
+    # anything was printed, so the second view is only consulted when the first
+    # found nothing (one report per pattern per record, as before).
+    function report_hit(line, lineno, p, annotated_above, off, view, q, m,   k) {
+      # A backslash continuation removes the newline, so its physical lines are
+      # one line in the strongest sense: the record is reported whole, at its
+      # first line number, exactly as before. Only a quote-joined record, whose
+      # newlines survive, is attributed per physical line.
+      if (!joined) {
+        if (off > 0) { hits[++nhits] = sprintf("%d: %s -> %s", lineno, p, line); return 1 }
+        return 0
+      }
+      while (off > 0) {
+        k = phys_of(off)
+        # Every escape the gate offers is evaluated against the physical line
+        # the hit sits on. Comment-skip included: a `#` line inside a quoted
+        # embedded program is still prose, and leaving it to the record — whose
+        # first line opened the quote and is therefore never a comment — newly
+        # flagged the documentation inside this very script.
+        if (!is_comment(phys_text(k)) &&
+          !is_annotated(phys_text(k)) &&
+          !annot_block_above(k, annotated_above)) {
+          hits[++nhits] = sprintf("%d: %s -> %s", physno[k], p, phys_text(k))
+          return 1
+        }
+        off = has_unguarded(view, q, p, m, off + 1)
+      }
+      return 0
+    }
+    # The contiguous comment block directly above a physical line, read inside
+    # the joined record. Falling off the top defers to the annotation state
+    # carried in from the records before it.
+    function annot_block_above(k, annotated_above,   j, t) {
+      for (j = k - 1; j >= 1; j--) {
+        t = phys_text(j)
+        if (!is_comment(t)) return 0
+        if (is_annotated(t)) return 1
+      }
+      return annotated_above
+    }
+    # Pass 2: scan the target file, ONE LOGICAL LINE at a time.
+    #
+    # A physical line is not a command in the other direction either (#1544): a
+    # backslash-newline is removed before the shell tokenizes anything (2.2.1),
+    # so `date \` + `-d tomorrow +%s` is one invocation whose GNU-only option
+    # simply never appeared on the same record as its command name. Continued
+    # lines are therefore accumulated and matched as the single line the shell
+    # sees, and the hit is reported at the FIRST physical line number so a
+    # continuation never shifts the numbering of anything after it.
+    #
+    # Whether the trailing backslash is a continuation or a quoted literal is
+    # decided by the mask, not by a character test: it is one inside double quotes
+    # (2.2.3 keeps backslash special before a newline) and NOT inside single
+    # quotes (2.2.2 preserves every character), and `\\` at end of line is an
+    # escaped backslash, not an escape. A COMMENT never continues — `#` runs to
+    # the newline — for a comment-ONLY line through the is_comment() test here,
+    # and for an INLINE comment through the mask, which stops at the `#` and so
+    # never reaches a backslash sitting in comment text.
+    # A QUOTE left open at end of record continues the command too, and for the
+    # same reason: the shell has not finished the word, so the next physical
+    # line belongs to this command. A `stat` whose quoted filename carries a
+    # literal newline is one invocation whose GNU-only option simply never
+    # shared a record with its command name, and the gate reported the file
+    # clean (#1544).
+    #
+    # Unlike a backslash continuation the newline is KEPT — it is a character
+    # of the quoted word, and inside a `$( )` frame it is a real command
+    # separator that must stay structural.
+    #
+    # Joining makes a record span physical lines, so a hit is attributed back
+    # to the physical line it actually sits on (PHYSOFF/PHYSNO below). Both the
+    # reported line number and the `portability-ok:` scope follow that
+    # attribution: without it one annotation anywhere inside a several-hundred
+    # line embedded program would exempt the whole block, turning a join into a
+    # fail-open far larger than the one it closes.
+    {
+      if (in_heredoc) {
+        body = $0
+        if (hd_strip) sub(/^\t+/, "", body)
+        if (body == hd_delim) in_heredoc = 0
+      } else if (!pending && $0 ~ /^[[:space:]]*#[[:space:]]*portability-scope:/) {
+        # A whole-file declared scope — a fixture corpus belonging to this very
+        # gate, which necessarily contains the constructs it detects as test
+        # data. Anchored to a `#`-comment line whose content STARTS with the
+        # token, so a doc-block sentence explaining the mechanism or a mention
+        # inside a string literal never exempts a file for a reason it never
+        # declared.
+        #
+        # Only a line the shell would read as a COMMENT counts, which means the
+        # line must also open its own record. `pending` is still the state
+        # carried IN from the lines before this one, so it is false exactly when
+        # no quote, expansion, substitution or continuation is open — the one
+        # context where a leading `#` starts a comment. Inside an open construct
+        # the same characters are DATA, and honoring them let a value like
+        # `x=<quote>foo` / `# portability-scope: bogus` / `bar<quote>` exempt an
+        # entire file it never declared anything about (#1544). A heredoc body
+        # is excluded by the branch above for the same reason.
+        SCOPED = 1
+      }
+      if (pending) {
+        # A backslash continuation removes the newline (2.2.1); a quoted one
+        # keeps it, so each carries its own join separator.
+        logical = logical pendsep $0
+      } else {
+        logical = $0
+        logical_line = FNR
+        nphys = 0
+        joined = 0
+        pending = 1
+      }
+      physoff[++nphys] = length(logical) - length($0) + 1
+      physno[nphys] = FNR
+      logical_mask = mask_quotes(logical)
+      if (DANGLING_BS && !is_comment(logical)) {
+        logical = substr(logical, 1, length(logical) - 1)
+        pendsep = ""
+        next
+      }
+      if (DANGLING_QUOTE && !is_comment(logical) && !in_heredoc) {
+        pendsep = NL
+        joined = 1
+        next
+      }
+      scan_logical(logical, logical_line, logical_mask)
+      pending = 0
+      if (!in_heredoc) {
+        hd_delim = heredoc_delim(logical, logical_mask)
+        if (hd_delim != "") { in_heredoc = 1; hd_strip = HD_STRIP }
+      }
+    }
+    # A file whose last line ends in a continuation still has one command left.
+    #
+    # An empty pattern set can only mean the token list failed to load — the
+    # shipped one is never empty, and a caller overriding it wants SOME class
+    # checked. Reporting clean in that state is the silent skip the contract
+    # forbids, so it fails closed instead.
+    END {
+      if (pending) scan_logical(logical, logical_line, logical_mask)
+      if (np == 0) {
+        print "Error: token list loaded no active patterns" > "/dev/stderr"
+        exit 2
+      }
+      # Hits are buffered rather than streamed so a declaration anywhere in the
+      # file governs the whole file, as it always has, without the scan needing
+      # a second pass to find it first.
+      if (!SCOPED)
+        for (h = 1; h <= nhits; h++) print hits[h]
     }
   ' "$TOKENS" "$awk_file"
 }

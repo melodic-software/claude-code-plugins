@@ -51,6 +51,7 @@ write_snapshot() {
 }
 
 old_ts() { # ISO timestamp N minutes in the past
+  # portability-ok: GNU-first, BSD fallback on the continuation line below (#1510)
   date -u -d "$1 minutes ago" '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null ||
     date -u -v "-$1M" '+%Y-%m-%dT%H:%M:%SZ'
 }

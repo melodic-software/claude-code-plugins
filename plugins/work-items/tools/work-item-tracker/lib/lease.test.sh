@@ -21,7 +21,7 @@ assert_eq "non-marker → empty" "" "$(wit_lease_json 'just a comment')"
 # a lease renewed far in the past is expired regardless of ttl; a fresh lease is
 # live; a superseded lease is never live even inside its ttl window.
 NOW="$(date -u +%s)"
-NOW_ISO="$(date -u -d "@$NOW" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date -u -r "$NOW" +%Y-%m-%dT%H:%M:%SZ)"
+NOW_ISO="$(date -u -d "@$NOW" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date -u -r "$NOW" +%Y-%m-%dT%H:%M:%SZ)" # portability-ok: GNU-first, BSD fallback co-located (#1510)
 PAST_DEAD="$(jq -cn '{renewed_at:"2000-01-01T00:00:00Z", ttl_hours:24}')"
 if wit_lease_is_live "$PAST_DEAD" "$NOW"; then fail "past lease expired" "not live" "live"; else pass "past lease expired"; fi
 ZERO_TTL_DEAD="$(jq -cn '{renewed_at:"2000-01-01T00:00:00Z", ttl_hours:0}')"

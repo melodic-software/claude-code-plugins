@@ -147,6 +147,7 @@ read -r ts ver pct ti to cws <<<"$parsed" || unknown
 
 # Staleness: GNU date (-d, Git Bash/Linux) with a BSD (-j -f, macOS) fallback.
 now_epoch=$(date -u +%s 2>/dev/null) || unknown
+# portability-ok: GNU-first, BSD fallback on the continuation line below (#1510)
 snap_epoch=$(date -u -d "$ts" +%s 2>/dev/null ||
   date -u -j -f '%Y-%m-%dT%H:%M:%SZ' "$ts" +%s 2>/dev/null) || unknown
 [[ "$snap_epoch" =~ ^[0-9]+$ ]] || unknown

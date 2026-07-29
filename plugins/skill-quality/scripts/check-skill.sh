@@ -497,7 +497,9 @@ fi
 if [[ -d "$SKILL_DIR/vendor" ]]; then
   SYNCED_VAL="$(awk '/^metadata:/{m=1;next} m && /^[a-zA-Z]/{m=0} m && /^[[:space:]]+synced:/{print $2;exit}' <<<"$FRONTMATTER" | tr -d '"' | tr -d "'")"
   if [[ "$SYNCED_VAL" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]; then
-    if SYNCED_EPOCH="$(date -u -d "$SYNCED_VAL" +%s 2>/dev/null)"; then
+    # portability-ok: GNU-first, BSD fallback co-located (#1510) — was a real,
+    # previously-unguarded gap: this check silently no-op'd on BSD/macOS.
+    if SYNCED_EPOCH="$(date -u -d "$SYNCED_VAL" +%s 2>/dev/null || date -u -j -f '%Y-%m-%d' "$SYNCED_VAL" +%s 2>/dev/null)"; then
       AGE_DAYS=$((($(date -u +%s) - SYNCED_EPOCH) / 86400))
       if ((AGE_DAYS > SYNCED_MAX_AGE_DAYS)); then
         warn "vendor last synced $AGE_DAYS days ago (> $SYNCED_MAX_AGE_DAYS) — run the skill's update action"
