@@ -3,6 +3,45 @@
 All notable changes to the `implementation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.0]
+
+### Added
+
+- **Structural capability-tier model bindings at the dispatch seam (`#1649`).** Two new plugin
+  agents, `implementer` and `phase-verifier`, carry an explicit `model` frontmatter binding of the
+  strong capability tier's current alias, replacing the default `inherit` that let a fast
+  orchestrator root silently run implementers (and their verifiers) at orchestrator strength.
+  `implement-dispatch`'s cadence now dispatches workers as `implementation:implementer` (step 2)
+  and the phase-boundary verifier as `implementation:phase-verifier`, reserving the per-invocation
+  `model` parameter for upward (frontier-tier) routing only, with a gotcha documenting that a set
+  `CLAUDE_CODE_SUBAGENT_MODEL` (any value but `inherit`) outranks the binding. Tier definitions
+  stay order-defined and family-agnostic per the marketplace's loop-lane convention §3 — the alias
+  binding lives only at this seam, and the verifier binds never weaker than the implementer it
+  checks. Frontmatter binds a floor, not a session-relative value, so both the cadence and the
+  agent bodies record the upward-only override duty when the session's model resolves above the
+  binding (per the plugin philosophy's session-relative ladder). Each agent also declares an
+  explicit tool cage — a change from the previously ungoverned generic-subagent tool surface: the
+  implementer grants file edit, search, shell, web research, skill invocation, and nested dispatch
+  (that last one conditional — the harness withholds `Agent` from a subagent at the spawn-depth
+  limit whatever the `tools` list says); the phase-verifier bars Edit/Write and agent spawning, with
+  Bash retained for inspection (stated as the cage it is, not as "read-only", per the plugin
+  philosophy's named-agent bar). Both also bind `effort` rather than inheriting the session's level,
+  matching this marketplace's other named agents — a model binding alone would still let an
+  orchestrator that lowered effort for its own bookkeeping lower it for the phase work. Neither
+  agent sets `maxTurns`, unlike every `discovery` and `review` agent in this marketplace (all of
+  which cap, between 25 and 40). The documented semantics are that the
+  field is the "maximum number of agentic turns before the subagent stops"; *applied inference,* not
+  a documented claim: a stop is not a failure signal, so the return an orchestrator receives from a
+  capped verifier that outran its budget is a truncated report shaped exactly like a verdict. The
+  phase-verifier is therefore contracted to return INCONCLUSIVE rather than a partial PASS, and
+  `implement-dispatch`'s phase-boundary clause makes that return re-dispatch a fresh verifier
+  against the named gap instead of marking the phase `[DONE]`. The implementer is uncapped for the
+  narrower reason that a phase's length is set by its brief — a real exposure, since its cage grants
+  edit and shell, and one the brief's scope fence rather than a turn budget is the control for.
+  (Frontmatter `model` and `effort` values, the env → parameter → frontmatter → inherit resolution
+  order, the `maxTurns` definition quoted above, and the depth-limit `Agent` withholding verified
+  against <https://code.claude.com/docs/en/sub-agents>, 2026-07-27.)
+
 ## [0.9.2]
 
 ### Changed

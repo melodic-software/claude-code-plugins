@@ -342,26 +342,32 @@ IDs — the alias tracks the current recommended model and a pinned ID rots.
   only: 200k context and an old cutoff, never for a question about
   current harness behavior.
 
-**A `sonnet` root silently makes every implementer `sonnet` too.** The
-`model` frontmatter field defaults to `inherit`, and neither `/work-items:work`
-nor `implement-dispatch` sets one, so subagents dispatched from a
-`--model sonnet` root run Sonnet — not the strong tier this section promises.
-The three tiers above are aspirational unless something overrides that
-inheritance. Resolution order is: `CLAUDE_CODE_SUBAGENT_MODEL`, then the
-per-invocation `model` parameter, then frontmatter, then the main
-conversation's model
-(<https://code.claude.com/docs/en/sub-agents>, verified 2026-07-25).
+**The implementer tier is enforced structurally at the dispatch seam
+(#1649).** `/implementation:implement-dispatch` dispatches workers and
+phase verifiers as the `implementation` plugin's `implementer` /
+`phase-verifier` agents, whose `model` frontmatter binds the strong tier's
+current alias — so a `sonnet` worker-lane root no longer makes every
+implementer `sonnet`, and `/work-items:work`'s branch-owned fix
+re-dispatches ride the same agent surface. Resolution order is:
+`CLAUDE_CODE_SUBAGENT_MODEL`, then the per-invocation `model` parameter,
+then frontmatter, then the main conversation's model
+(<https://code.claude.com/docs/en/sub-agents>, verified 2026-07-27).
 
-Two ways to make the tiering real. Prefer the per-dispatch instruction —
-`CLAUDE_CODE_SUBAGENT_MODEL` is a blunt floor that would also pull mechanical
-greps up off `haiku`:
+Two consequences of that order:
 
-- **Per-dispatch (recommended).** The lane bodies below carry a standing
-  dispatch-model rule. Because `/loop` re-sends the prompt each iteration,
-  that rule survives compaction — a rule stated once in conversation does not.
-- **Environment floor.** Export `CLAUDE_CODE_SUBAGENT_MODEL=opus` for that
-  lane's shell. It wins over everything, including a deliberate `haiku`
-  per-dispatch choice, so it costs the fast tier entirely.
+- **Overrides remain per-dispatch duties.** The frontmatter binds only the
+  default: security-surface work classes and conflict workers still take an
+  explicit per-invocation frontier-alias override, and mechanical greps and
+  log pulls still take an explicit `haiku`. The worker-lane bodies below
+  carry only those overrides — not a per-dispatch binding for the tiers the
+  seam already enforces. The merge-lane bodies additionally keep their
+  `opus` binding for CI fixes, review-comment work, and judgment calls:
+  babysit dispatches do not route through `implement-dispatch`, so no
+  frontmatter seam covers them.
+- **Never export `CLAUDE_CODE_SUBAGENT_MODEL` for a lane** (any value other
+  than `inherit`, which resolution treats as unset). It outranks the
+  frontmatter bindings and every deliberate per-dispatch override alike,
+  flattening the fast and frontier tiers onto one model.
 
 ```bash
 claude --model sonnet   # worker lane
@@ -446,13 +452,17 @@ no shared state, no contention, and the sharding problem disappears.
 > worktree, where an edit belongs. Posture and process corrections that touch
 > no file apply normally.
 >
-> **Dispatch model, every dispatch.** Your root runs on the fast tier and
-> subagents inherit it by default, so an unqualified dispatch silently runs
-> an implementer at orchestrator strength. Pass an explicit per-invocation
-> `model` on every dispatch: `opus` for anything that reads or edits source,
-> writes a PR, or makes a judgment call; `fable` for conflict resolution and
-> any security-surface work class, unconditionally; `haiku` only for
-> mechanical greps and log pulls. Never leave it to inherit.
+> **Dispatch model — overrides only.** Implementer and phase-verifier
+> dispatches land on the strong tier structurally: the `implementation`
+> plugin's `implementer` / `phase-verifier` agent definitions carry the
+> binding in `model` frontmatter, so pass no `model` for those and never
+> one that undercuts the binding. Pass an explicit per-invocation `model`
+> only for the exceptions the seam does not carry: `fable` for conflict
+> resolution and any security-surface work class, unconditionally; `opus`
+> for a judgment-call dispatch that does not ride the implementer surface;
+> `haiku` only for mechanical greps and log pulls. Never export
+> `CLAUDE_CODE_SUBAGENT_MODEL` — it silently outranks the bindings and
+> every deliberate override alike.
 >
 > **Return contract, every subagent, every depth.** Return at most two
 > lines: a verdict token and an identifier or path. Everything else goes
@@ -1293,13 +1303,17 @@ machines; neither on the attended box.
 > worktree, where an edit belongs. Posture and process corrections that touch
 > no file apply normally.
 >
-> **Dispatch model, every dispatch.** Your root runs on the fast tier and
-> subagents inherit it by default, so an unqualified dispatch silently runs
-> an implementer at orchestrator strength. Pass an explicit per-invocation
-> `model` on every dispatch: `opus` for anything that reads or edits source,
-> writes a PR, or makes a judgment call; `fable` for conflict resolution and
-> any security-surface work class, unconditionally; `haiku` only for
-> mechanical greps and log pulls. Never leave it to inherit.
+> **Dispatch model — overrides only.** Implementer and phase-verifier
+> dispatches land on the strong tier structurally: the `implementation`
+> plugin's `implementer` / `phase-verifier` agent definitions carry the
+> binding in `model` frontmatter, so pass no `model` for those and never
+> one that undercuts the binding. Pass an explicit per-invocation `model`
+> only for the exceptions the seam does not carry: `fable` for conflict
+> resolution and any security-surface work class, unconditionally; `opus`
+> for a judgment-call dispatch that does not ride the implementer surface;
+> `haiku` only for mechanical greps and log pulls. Never export
+> `CLAUDE_CODE_SUBAGENT_MODEL` — it silently outranks the bindings and
+> every deliberate override alike.
 >
 > **Return contract, every subagent, every depth.** Return at most two
 > lines: a verdict token and an identifier or path. Everything else goes
