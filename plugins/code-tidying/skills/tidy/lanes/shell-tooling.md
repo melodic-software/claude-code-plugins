@@ -13,7 +13,20 @@ scripts/**/*.ps1
 
 (`**` matches zero or more directories, so these cover both `tools/x.sh` and `tools/a/b/y.sh`.)
 
-Adjust to the consuming project's actual tooling directories (a project lane at `.claude/tidy-lanes/shell-tooling.md` overrides this file entirely). Hook directories (`.claude/hooks/**`, `.lefthook/**`, `.husky/**`) are HARD-EXCLUDED at the lane level (and also globally) — read-only investigation is fine, mutation is not.
+Retarget these to the consuming project's actual tooling directories with a project lane at `.claude/tidy-lanes/shell-tooling.md`. A project `Scope` block **replaces** the globs above (see [Merge semantics](#merge-semantics)); it does not have to restate the sections it keeps.
+
+## Merge semantics
+
+This lane is layered per the [config-cascade contract](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/config-cascade/README.md) ("Merge semantics"). A project lane at `.claude/tidy-lanes/shell-tooling.md` is **not** meant to replace this file wholesale — it merges with the bundled lane **per section**, so bundled improvements to sections the project does not touch keep reaching the repo. This is the declaration a project lane adopts (by reference or by restating it); it is the recommended shape for this lane:
+
+- **`Scope`** — **per-section override.** A project `Scope` block replaces the bundled globs entirely; retargeting tooling layout is the whole reason a project writes a lane, and two glob sets do not meaningfully concatenate. A project lane that omits `Scope` keeps the bundled globs.
+- **`Watch-for patterns`** — **additive (concatenate), per language subsection.** A project's `### Bash` entries are **appended** to the bundled `### Bash` list and its `### PowerShell` entries to the bundled `### PowerShell` list; entries under no subsection append to both, and a project subsection with no bundled counterpart (say `### Python`) is added as its own subsection. The generic patterns are never frozen out, and new bundled patterns flow to the project on upgrade.
+- **`Lane-specific extra exclusions`** — **additive (concatenate).** A project's extra exclusions are appended to the bundled ones rather than replacing them; dropping the bundled hook-directory HARD exclusions is not something this lane's semantics offer, because they are the safety mechanism it exists around. Those specific directories are also on the plugin's global HARD list (`reference/exclusions.md`), which no lane layer resolves at all — so they hold even for a project lane that declares nothing.
+- **`Preferred research sources`** — **per-section override at `###` granularity.** A project's `### Bash` sources replace the bundled `### Bash` sources; a subsection the project omits keeps the bundled authorities, so supplying only one language's sources never wipes the other's. A project block **must** key every source under one of these `###` headings (or a new one for a language it adds) — an unkeyed block names no language to replace, and `/code-tidying:setup check` reports the lane malformed.
+- **`Verification commands`** — **per-section override at `###` granularity**, same as `Preferred research sources`. A project's `### Bash` commands replace the bundled `### Bash` commands and its `### PowerShell` commands the bundled `### PowerShell` ones; a subsection the project omits keeps the bundled commands, so retargeting the shell checks never silently drops the PowerShell one (or the reverse). A project block **must** key every command under one of these `###` headings (or a new one for a language it adds) — an unkeyed block names no language to replace, and `/code-tidying:setup check` reports the lane malformed.
+- **Every other section**, named here or not (`Conventional Commits type`, and anything a later version adds) — **per-section override**, same as `Scope`: a section the project supplies replaces the bundled one; a section it omits keeps the bundled value. The prose above the first `##` heading is bundled-only.
+
+When a project lane at `.claude/tidy-lanes/shell-tooling.md` includes a `## Merge semantics` section, `/code-tidying:tidy` reads **both** that project lane and this bundled lane and merges them per **the project lane's** declaration — which is why adopting the shape above (`Merge semantics: per the bundled lane's declaration`) is what puts these rules in force. A project lane without that section resolves project-only, and none of the above applies to it.
 
 ## Watch-for patterns
 
@@ -46,13 +59,24 @@ Beyond the global HARD/SOFT lists:
 
 ## Verification commands
 
+Keyed by language, one `###` subsection per language, so a project override replaces only the languages it names (see [Merge semantics](#merge-semantics)). Every command belongs under a `###` heading — there is no unkeyed remainder to resolve.
+
+### Bash
+
 ```bash
 shellcheck <changed .sh files>
 shfmt -d <changed .sh files>
+```
+
+### PowerShell
+
+```bash
 pwsh -NoProfile -NonInteractive -Command "Invoke-ScriptAnalyzer -Path <changed .ps1 files>"
 ```
 
-Plus the project's own shell test suite if one exists (check the consuming project's CLAUDE.md / CI config for the canonical command).
+### All languages
+
+The project's own shell test suite if one exists (check the consuming project's CLAUDE.md / CI config for the canonical command).
 
 ## Conventional Commits type
 

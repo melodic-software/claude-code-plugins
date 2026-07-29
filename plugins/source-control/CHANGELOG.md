@@ -3,7 +3,7 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.33.3]
+## [0.34.1]
 
 ### Fixed
 
@@ -55,6 +55,59 @@ All notable changes to the `source-control` plugin are documented here. Format f
     `--extra-bot-logins`, so every copyable resolve-thread command actually threads the caller's
     own identity through. `plugin.json`'s `babysit_self_logins` description now names the
     resolve-thread bot-only test among the surfaces the self set covers.
+## [0.34.0]
+
+### Changed
+
+- **`babysit-loop`'s rung partition reads the work class from the `work-class:` label only, never
+  from a `Work-class: C<n>` body trailer (#1657).** The partition accepted "the triage stamp in the
+  item body **or** labels", so a class recorded in an item body decided merge eligibility. The class
+  widens merge authority, and an item body is editable by its own author — who need hold no
+  permission on the base repository — which made the item self-certifying and contradicted the
+  autonomy plugin's admission policy: "No repo-local (agent-writable) surface may supply any
+  admission input — rules, caps, or the work class used for admission." Applying a label takes
+  triage or write permission, the same permission surface the C5 trust test already keys on.
+  - A trailer stays legitimate as the operator's own record of a class and as a proposal, and is
+    reported as such, but it never partitions. An item classified only in its body is
+    **unclassified** for the partition — not eligible at any rung, exactly as an item with no
+    record at all.
+  - **Consumer impact.** A repository that recorded classes only as body trailers had a
+    merge-eligible population under the old reading and has an empty one under this reading:
+    everything there is human-merge, the shipped baseline, until the `work-class:` labels follow
+    the trailers. Nothing merges that would not have merged before.
+  - The C4/C5 floor is unchanged — it always tested the pull request rather than the linked item's
+    stamp, so a fork PR was never eligible through a self-stamped issue.
+
+## [0.33.3]
+
+### Fixed
+
+- **A configured review reviewer that GitHub types as `User` counted as no reviewer at all
+  (melodic-software/claude-code-plugins#1642).** `is_review_bot_item` in
+  `babysit_review_trigger.py` admitted an item only when GitHub's authoritative actor type said
+  `Bot`, so an automation account posting as an ordinary user — no `[bot]` login suffix,
+  `__typename` of `User` — had its real, current-head review read as no review. That is the exact
+  account class `babysit_extra_bot_logins` exists for and that `actor_kind` and
+  `babysit_resolve_thread.py` (#637) already honor, so the same operator-declared account was
+  classified two different ways by two consumers of one plugin.
+  - `ReviewTriggerConfig` gains `extra_bot_logins`, and the predicate now reads: the login must be
+    in `reviewer_logins` AND the author must be a bot. Both halves are required, so declaring an
+    account a bot never promotes it to reviewer. The field ships empty, so the predicate is
+    structural-only exactly as before for anyone who has not configured it, and no
+    default-configuration blocker state moves.
+  - Bot-ness is delegated whole to `is_bot` rather than restated, so this module can no longer
+    drift from the classification every other consumer uses. The REST `type` key is normalized
+    into the `__typename` slot first — `is_bot` reads `__typename` alone, and the reaction and
+    review-comment paths carry only `type`, so that normalization is load-bearing and pinned.
+  - The widening is applied at the shared predicate rather than per consumer, so all three reach
+    the same verdict: review evidence (`fetch_review_evidence`), current-head completion
+    (`has_current_head_review`), and reaction engagement (`fetch_review_reactions`). It is not
+    uniformly permissive — recognizing a declared reviewer's eyes reaction *adds* the
+    `engaged_reaction_reviewing` blocker that strictness was suppressing.
+  - `--extra-bot-logins` now threads into the review-trigger config from `pr_queue_snapshot.py`
+    (which already parsed it for `FeedbackConfig`) and from `request_review.py`, which gains the
+    flag; `SKILL.md`'s delivery mapping and `reference/review-trigger.md`'s pinned invocation and
+    completion rule follow.
 
 ## [0.33.2]
 
