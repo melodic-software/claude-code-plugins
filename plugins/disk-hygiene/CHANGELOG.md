@@ -21,7 +21,7 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
 
   **This is a precision change, not a relaxation.** A basename test is only as good as the tokens
   it reads, so the narrowing is paid for by deriving those tokens as maximal runs of path-legal
-  characters (`[^A-Za-z0-9._\-/\\]+` as the delimiter). Enumerating shell syntax instead would be a
+  characters (`[^A-Za-z0-9._\-/\\:]+` as the delimiter). Enumerating shell syntax instead would be a
   losing game — an assignment glues the filename with `=`, a list with `:`, a metacharacter with
   `;` — and missing any one of them silently un-gates a real invocation. Inverting the question is
   total: `hygiene.py` is spelled entirely from the kept characters, so splitting on everything else
@@ -60,10 +60,49 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
 
   Copy-evasion coverage is untouched because it never routed through the marker: a link to the
   engine under any other name gates by `os.path.samefile` identity, and a byte copy remains the
-  accepted residual the function's docstring already names. Verified as a differential against the
-  pre-change guard over 36 command shapes — every engine, wrapper, assignment, concatenation,
-  substitution, pipe, backtick, redirect, continuation, and mention case holds its prior verdict or
-  is newly gated; the only movement toward deferral is the two `test_hygiene.py` shapes.
+  accepted residual the function's docstring already names.
+
+- **The engine gate no longer denies a consumer's own `hygiene.py` because of how its parent
+  directory is spelled (#1640).** Detection wants aggressive splitting and resolution wants whole
+  paths, and one token list was serving both. The "provably a DIFFERENT file" escape requires an
+  ABSOLUTE path, but it read the path-legal fragments — so any character outside that class split a
+  consumer's absolute path and left the fragment carrying the filename relative, unprovable, and
+  denied: `python3 /tmp/consumer+tools/hygiene.py --help && echo done` gated a file that has nothing
+  to do with this plugin. `~` is what makes this ordinary rather than exotic — Windows 8.3
+  short-name segments (`C:\Users\KYLESE~1\...`) put unpunctuated paths under ordinary temp
+  directories into the same population. Resolution now reads the whole shell word containing the
+  token, with quoted spans kept intact so a path with spaces resolves too, while detection keeps the
+  fine tokens exactly as they were.
+
+  The widening cannot travel: a token is paired with its enclosing word by SPAN, never by substring
+  containment, so a marker token is only ever proved a different file by its OWN word.
+  Containment-based pairing would let `python3 /abs/consumer/hygiene.py --help && python3
+  hygiene.py apply` borrow the first word's absolute path to "prove" its bare second invocation
+  different, and defer while the real engine ran. **Residual, deliberately left:** an operator with
+  no surrounding whitespace (`python3 /tmp/c+x/hygiene.py&&echo done`) still gates, because the
+  whole word is then `/tmp/c+x/hygiene.py&&echo`, which resolves to nothing. That is the fail-closed
+  direction, and widening the tokenizer to chase it would re-open the gluing seam this release
+  exists to close.
+
+- **A filename spelling the FILESYSTEM resolves to the engine no longer bypasses the gate.** Win32
+  discards trailing dots and spaces from a filename and resolves `::$DATA` to the main data stream,
+  so `cd <plugin-scripts> && python hygiene.py. apply` opened and ran the kill-switched engine while
+  no token's basename was the marker — the guard deferred. 8.3 short names are a third spelling of
+  the same kind. The fix asks the filesystem instead of listing spellings: a relative word is
+  identity-checked against the ENGINE'S OWN directory, which is precisely the directory such a
+  command must `cd` into for the alias to run. That closes trailing dots, trailing spaces, NTFS
+  stream suffixes, and short names in one move, where enumerating them closes one per review round.
+  The name predicate is unchanged and stays platform-independent; identity is what carries this.
+
+  Verified as a differential against the pre-change guard over 89 command shapes — engine
+  invocations, wrappers, assignments, concatenations, substitutions, pipes, backticks, redirects,
+  line continuations, post-`cd` relative paths, linked aliases, filename aliases, punctuated and
+  short-name consumer paths, proof-borrowing shapes, mentions, and near-miss names. Every shape
+  holds its prior verdict except the intended ones: four filename-alias shapes and one path-list
+  assignment move toward GATING, and fourteen consumer-path shapes move toward deferral. The suite
+  gained four regression tests, including a mechanical check that the span-located token partition
+  is identical to the split partition it mirrors, so a future refactor cannot quietly change what
+  detection reads.
 
 ## [0.10.0]
 

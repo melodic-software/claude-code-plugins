@@ -3022,6 +3022,145 @@ class GuardTests(unittest.TestCase):
                 )
             )
 
+    def test_engine_gate_defers_consumer_paths_outside_the_path_legal_class(
+        self,
+    ) -> None:
+        """A consumer's own engine-named script defers whatever spells its parent.
+
+        The "provably a DIFFERENT file" escape needs an ABSOLUTE path, but the
+        tokens it read were maximal runs of path-legal characters — so any
+        character outside that class split the consumer's absolute path and
+        left the fragment carrying the filename relative, unprovable, and
+        gated (#1640). The two rules fought each other. Resolution now reads
+        the whole shell word while detection keeps the fine tokens.
+
+        `~` is the case that makes this ordinary rather than exotic: Windows
+        8.3 short-name segments (`KYLESE~1`) put unpunctuated paths under
+        ordinary temp directories into the same population.
+        """
+        for parent_name in (
+            "consumer+tools",
+            "consumer@tools",
+            "consumer=tools",
+            "consumer~tools",
+            "consumer tools",
+        ):
+            with tempfile.TemporaryDirectory(dir=SCRIPT_DIR) as tmp:
+                parent = Path(tmp) / parent_name
+                parent.mkdir()
+                consumer = parent / "hygiene.py"
+                consumer.write_text("print('consumer tool')\n", encoding="utf-8")
+                posix = str(consumer).replace("\\", "/")
+                for command in (
+                    f'python3 "{posix}" --help && echo done',
+                    f'python3 "{posix}" --help; echo done',
+                ):
+                    self.assertIsNone(
+                        self.run_guard_engine_gate(command), command
+                    )
+
+    def test_engine_gate_catches_windows_equivalent_filename_aliases(self) -> None:
+        """A spelling the FILESYSTEM resolves to the engine must gate (P1 r10).
+
+        Win32 discards trailing dots and spaces from a filename and resolves
+        `::$DATA` to the main stream, so `cd <scripts> && python hygiene.py.
+        apply` opens and runs the kill-switched engine while no token's
+        basename is the marker. Identity, not the name, is what closes this —
+        the guard reads a relative word against the engine's own directory,
+        which is the directory such a command must `cd` into.
+
+        Asserted as probe-then-assert rather than by platform: these spellings
+        are aliases only where the filesystem says so (they name a nonexistent
+        file on POSIX), and round 2 of this chain was a host-dependent verdict
+        that passed locally and failed open in CI. The obligation is
+        conditional, so the test states it conditionally.
+        """
+        engine = SCRIPT_DIR / "hygiene.py"
+        scripts = str(SCRIPT_DIR).replace("\\", "/")
+        with tempfile.TemporaryDirectory() as decoy:
+            (Path(decoy) / "hygiene.py").write_text(
+                "print('decoy')\n", encoding="utf-8"
+            )
+            with chdir_context(decoy):
+                for alias in ("hygiene.py.", "hygiene.py...", "hygiene.py::$DATA"):
+                    try:
+                        equivalent = os.path.samefile(SCRIPT_DIR / alias, engine)
+                    except (OSError, ValueError):
+                        equivalent = False
+                    command = f"cd {scripts} && python {alias} apply --plan p --token t"
+                    result = self.run_guard_engine_gate(
+                        command, "Bash", enabled=False
+                    )
+                    if not equivalent:
+                        continue
+                    assert result is not None, command
+                    self.assertEqual(
+                        "deny",
+                        result["hookSpecificOutput"]["permissionDecision"],
+                        command,
+                    )
+
+    def test_engine_gate_marker_token_cannot_borrow_proof_from_another_word(
+        self,
+    ) -> None:
+        """Widening resolution to whole words must not let proof travel.
+
+        Reading the enclosing shell word is what un-gates a punctuated consumer
+        path (#1640), but a marker token must be proved a different file by ITS
+        OWN word, never by another one in the same command. Pairing on
+        substring containment instead of span would let the bare second
+        invocation below borrow the first word's absolute consumer path and
+        defer while the real engine ran.
+        """
+        with tempfile.TemporaryDirectory(dir=SCRIPT_DIR) as tmp:
+            consumer = Path(tmp) / "hygiene.py"
+            consumer.write_text("print('consumer tool')\n", encoding="utf-8")
+            posix = str(consumer).replace("\\", "/")
+            with chdir_context(SCRIPT_DIR):
+                for command in (
+                    f'python3 "{posix}" --help && python3 hygiene.py apply',
+                    f'python3 "{posix}" --help && python3 ./hygiene.py apply',
+                    f"{posix}&&hygiene.py",
+                    f'echo "{posix}"; hygiene.py apply',
+                ):
+                    result = self.run_guard_engine_gate(
+                        command, "Bash", enabled=False
+                    )
+                    assert result is not None, command
+                    self.assertEqual(
+                        "deny",
+                        result["hookSpecificOutput"]["permissionDecision"],
+                        command,
+                    )
+
+    def test_marker_token_words_partition_matches_the_split_partition(self) -> None:
+        """Widening resolution must not have changed DETECTION.
+
+        `_marker_tokens_with_words` re-derives the tokens with the complement
+        regex so each one can be located by span. That is only safe while it
+        yields the same tokens, in the same order, as the split it mirrors —
+        a divergence would silently move which words the marker is looked for
+        in, which is how every fail-open in this function's history started.
+        Checked mechanically rather than argued.
+        """
+        for command in (
+            "python3 -m unittest -v test_hygiene.py",
+            'engine=hygiene.py && python3 "$engine" apply',
+            "cd /tmp/a+b && ./hygiene.py scan",
+            "python3 hygiene.py\\\n apply",
+            "python3 hygiene.py\\\r\n apply",
+            'echo "C:\\x y\\hygiene.py" | cat',
+            "a,hygiene.py;$(hygiene.py scan)`true`",
+            "PATH=/x:hygiene.py python3 -c pass",
+            "",
+            "   ",
+        ):
+            self.assertEqual(
+                guard._marker_tokens(command),
+                [token for token, _ in guard._marker_tokens_with_words(command)],
+                repr(command),
+            )
+
     def test_engine_gate_still_gates_engine_beside_consumer_decoy(self) -> None:
         """A decoy consumer file must not launder a real engine invocation (r7)."""
         script = SCRIPT_DIR / "hygiene.py"
