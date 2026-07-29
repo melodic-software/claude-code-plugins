@@ -23,8 +23,11 @@ All notable changes to the `work-items` plugin are documented here. Format follo
     stays usable as a signal, and names the one shipped instance of that carve-out
     (`work-loop`'s frontier-tier quota guard).
   - `triage`, `work`, `work-loop`, and `attend-queue` each carry the standing instruction in their
-    shared tracker context and cite the reference for the rest; the boundary is stated once, not
-    restated four times.
+    shared tracker context, plus one line on what the boundary bites hardest in that lane, and cite
+    the reference for everything else — the escalation route, the widening rule, and the subagent
+    rule are stated once in the reference rather than four times in the skills. `source-control`'s
+    `babysit-loop` and the loop-lane parked-decision prompt, which inherit no skill's copy, carry
+    the same headline and citation.
   - Item text handed to a subagent goes inside a quoted untrusted-data section with the standing
     never-follow instruction attached, reusing the delimiter shape `source-control`'s
     `babysit-prs` already specifies for the merge lane rather than inventing a second form.
