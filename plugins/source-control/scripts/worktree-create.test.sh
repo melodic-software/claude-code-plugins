@@ -34,17 +34,20 @@ else
   TEST_TMPDIR_NATIVE="$TEST_TMPDIR"
 fi
 
-# mkrepo [--origin <url>] [--no-head] — create a fresh git repo fixture with one
-# commit; unless --no-head, origin/HEAD is pointed at the default branch. Echoes
-# the repo path (the sole stdout line; all git noise is discarded so command
-# substitution captures only the path). Each call gets a unique dir — the
+# mkrepo [--origin <url>] [--remote-name <name>] [--no-head] — create a fresh git
+# repo fixture with one commit; unless --no-head, the remote's HEAD is pointed at
+# the default branch. --remote-name names that remote (default `origin`), which
+# is what exercises a `git clone -o upstream` clone that has no `origin` at all.
+# Echoes the repo path (the sole stdout line; all git noise is discarded so
+# command substitution captures only the path). Each call gets a unique dir — the
 # function body runs in a command-substitution subshell, so a mutating counter
 # would not persist.
 mkrepo() {
-  local origin_url="" seed_head=1
+  local origin_url="" seed_head=1 remote_name="origin"
   while [[ $# -gt 0 ]]; do
     case "$1" in
       --origin) origin_url="$2"; shift 2 ;;
+      --remote-name) remote_name="$2"; shift 2 ;;
       --no-head) seed_head=0; shift ;;
       *) shift ;;
     esac
@@ -59,15 +62,39 @@ mkrepo() {
     git -C "$repo" add README.md
     git -C "$repo" commit -qm init
     if [[ -n "$origin_url" ]]; then
-      git -C "$repo" remote add origin "$origin_url"
+      git -C "$repo" remote add "$remote_name" "$origin_url"
       if [[ "$seed_head" == 1 ]]; then
-        # Point origin/HEAD at main without a network fetch so `fresh` resolves.
-        git -C "$repo" update-ref refs/remotes/origin/main "$(git -C "$repo" rev-parse HEAD)"
-        git -C "$repo" symbolic-ref refs/remotes/origin/HEAD refs/remotes/origin/main
+        # Point <remote>/HEAD at main without a network fetch so `fresh` resolves.
+        git -C "$repo" update-ref "refs/remotes/$remote_name/main" "$(git -C "$repo" rev-parse HEAD)"
+        git -C "$repo" symbolic-ref "refs/remotes/$remote_name/HEAD" "refs/remotes/$remote_name/main"
       fi
     fi
   } >/dev/null 2>&1
   printf '%s' "$repo"
+}
+
+# addremote <repo> <name> <url> — attach a second remote and seed its HEAD at the
+# repo's CURRENT commit, so a caller that commits between calls gives each remote
+# a distinguishable tip. Without distinct tips a precedence assertion passes no
+# matter which remote the helper picks.
+addremote() {
+  local repo="$1" name="$2" url="$3"
+  {
+    git -C "$repo" remote add "$name" "$url"
+    git -C "$repo" update-ref "refs/remotes/$name/main" "$(git -C "$repo" rev-parse HEAD)"
+    git -C "$repo" symbolic-ref "refs/remotes/$name/HEAD" "refs/remotes/$name/main"
+  } >/dev/null 2>&1
+}
+
+# commitfile <repo> <path> — add one commit creating <path>, advancing HEAD past
+# whatever remote tips are already seeded.
+commitfile() {
+  local repo="$1" rel="$2"
+  printf 'x\n' > "$repo/$rel"
+  {
+    git -C "$repo" add "$rel"
+    git -C "$repo" commit -qm "add $rel"
+  } >/dev/null 2>&1
 }
 
 # --- Case: --help exits 0 and documents the refuse contract ---
@@ -230,6 +257,7 @@ assert_file_exists "base-ref head carries the unpushed commit" "$out/UNPUSHED.md
 # --- Case: base-ref fresh branches from origin/HEAD (excludes unpushed) ---
 root="$TEST_TMPDIR/wtroot5"
 out=$(bash "$HELPER" --name feat/fresh-base --root "$root" --base-ref fresh --repo-dir "$repo" 2>/dev/null)
+assert_file_exists "base-ref fresh materializes the worktree" "$out/README.md"
 assert_file_absent "base-ref fresh excludes the unpushed commit" "$out/UNPUSHED.md"
 
 # --- Case: .worktreeinclude copy is the (matched AND gitignored) intersection ---
@@ -266,7 +294,101 @@ root="$TEST_TMPDIR/wtroot7"
 err=$(bash "$HELPER" --name feat/nohead --root "$root" --base-ref fresh --repo-dir "$repo" 2>&1 >/dev/null)
 assert_exit "fresh w/o origin/HEAD still succeeds" 0 "$?"
 assert_contains "fresh w/o origin/HEAD warns about fallback" "$err" "could not resolve the remote default branch"
+assert_contains "fresh w/o origin/HEAD names the resolved remote" "$err" "origin/HEAD not set"
 assert_file_exists "fresh fallback still creates the worktree" "$root/acme-widget-feat-nohead/README.md"
+
+# --- Case: fresh resolves a sole non-origin remote (`git clone -o upstream`) ---
+# The gap this closes: probing only refs/remotes/origin/HEAD misses a repo whose
+# single remote is named something else, so `fresh` silently degraded to local
+# HEAD and carried unpushed commits into a supposedly-fresh worktree.
+repo=$(mkrepo --origin "git@github.com:acme/widget.git" --remote-name upstream)
+commitfile "$repo" UNPUSHED.md
+root="$TEST_TMPDIR/wtroot-upstream"
+out=$(bash "$HELPER" --name feat/upstream-fresh --root "$root" --base-ref fresh --repo-dir "$repo" 2>/dev/null)
+assert_exit "fresh with sole non-origin remote succeeds" 0 "$?"
+assert_file_absent "fresh bases on upstream/HEAD, not local HEAD" "$out/UNPUSHED.md"
+
+# --- Case: the uncached-HEAD warning names the RESOLVED remote, not origin ---
+# The origin-remote case above cannot prove this: the old hardcoded message
+# contained the same substring, so only a non-origin remote discriminates.
+repo=$(mkrepo --origin "git@github.com:acme/widget.git" --remote-name upstream --no-head)
+root="$TEST_TMPDIR/wtroot-upstream-nohead"
+errfile="$TEST_TMPDIR/err-upstream-nohead.txt"
+out=$(bash "$HELPER" --name feat/upnohead --root "$root" --base-ref fresh --repo-dir "$repo" 2>"$errfile")
+assert_exit "uncached non-origin HEAD still succeeds" 0 "$?"
+assert_contains "warning names the resolved remote's symref" "$(cat "$errfile")" "upstream/HEAD not set"
+assert_contains "warning offers set-head for that remote" "$(cat "$errfile")" "set-head upstream --auto"
+assert_file_exists "uncached non-origin fallback still creates the worktree" "$out/README.md"
+
+# --- Case: branch.<name>.remote outranks origin when both remotes exist ---
+# Three distinct commits so the assertion discriminates all three candidates:
+# origin/HEAD (seed), upstream/HEAD (UPSTREAM_ONLY.md), local HEAD (UNPUSHED.md).
+repo=$(mkrepo --origin "git@github.com:acme/widget.git")
+commitfile "$repo" UPSTREAM_ONLY.md
+addremote "$repo" upstream "git@github.com:acme/widget-fork.git"
+commitfile "$repo" UNPUSHED.md
+git -C "$repo" config branch.main.remote upstream
+root="$TEST_TMPDIR/wtroot-branchcfg"
+out=$(bash "$HELPER" --name feat/branchcfg --root "$root" --base-ref fresh --repo-dir "$repo" 2>/dev/null)
+assert_file_exists "branch-configured remote wins over origin" "$out/UPSTREAM_ONLY.md"
+assert_file_absent "branch-configured remote is not local HEAD" "$out/UNPUSHED.md"
+
+# --- Case: a branch.<name>.remote naming a missing remote falls through to origin ---
+# Stale config must not shadow a healthy origin, so the rung requires the name to
+# resolve to a remote that actually exists.
+repo=$(mkrepo --origin "git@github.com:acme/widget.git")
+commitfile "$repo" UNPUSHED.md
+git -C "$repo" config branch.main.remote ghost
+root="$TEST_TMPDIR/wtroot-ghost"
+out=$(bash "$HELPER" --name feat/ghost --root "$root" --base-ref fresh --repo-dir "$repo" 2>/dev/null)
+assert_exit "stale branch remote still succeeds" 0 "$?"
+# A positive anchor as well: on an empty $out the absent-assertion below would
+# probe /UNPUSHED.md and pass no matter how the helper failed.
+assert_file_exists "stale branch remote materializes the worktree" "$out/README.md"
+assert_file_absent "stale branch remote falls through to origin" "$out/UNPUSHED.md"
+
+# --- Case: branch.<name>.remote = "." (a local-tracking branch) falls through ---
+# `.` is git's sentinel for tracking a local branch, not a remote name;
+# refs/remotes/./HEAD is nonsense and must never be probed.
+repo=$(mkrepo --origin "git@github.com:acme/widget.git")
+commitfile "$repo" UNPUSHED.md
+git -C "$repo" config branch.main.remote .
+root="$TEST_TMPDIR/wtroot-dotremote"
+out=$(bash "$HELPER" --name feat/dotremote --root "$root" --base-ref fresh --repo-dir "$repo" 2>/dev/null)
+assert_exit "'.' branch remote still succeeds" 0 "$?"
+assert_file_exists "'.' branch remote materializes the worktree" "$out/README.md"
+assert_file_absent "'.' branch remote falls through to origin" "$out/UNPUSHED.md"
+
+# --- Case: detached HEAD skips the branch rung and still resolves origin ---
+repo=$(mkrepo --origin "git@github.com:acme/widget.git")
+commitfile "$repo" UNPUSHED.md
+git -C "$repo" checkout -q --detach HEAD
+root="$TEST_TMPDIR/wtroot-detached"
+out=$(bash "$HELPER" --name feat/detached --root "$root" --base-ref fresh --repo-dir "$repo" 2>/dev/null)
+assert_exit "fresh on a detached HEAD succeeds" 0 "$?"
+assert_file_absent "detached HEAD still bases on origin/HEAD" "$out/UNPUSHED.md"
+
+# --- Case: several remotes, none named origin, no branch config -> ambiguous ---
+# Guessing one remote's default branch would be a silent wrong base, so the
+# helper takes the caller-visible HEAD fallback instead.
+repo=$(mkrepo --origin "git@github.com:acme/widget.git" --remote-name upstream)
+addremote "$repo" fork "git@github.com:someone/widget.git"
+root="$TEST_TMPDIR/wtroot-ambiguous"
+errfile="$TEST_TMPDIR/err-ambiguous.txt"
+out=$(bash "$HELPER" --name feat/ambiguous --root "$root" --base-ref fresh --repo-dir "$repo" 2>"$errfile")
+assert_exit "ambiguous remotes still succeed" 0 "$?"
+assert_contains "ambiguous remotes warn about fallback" "$(cat "$errfile")" "could not resolve the remote default branch"
+assert_contains "ambiguous remotes name the no-default-remote cause" "$(cat "$errfile")" "no default remote"
+assert_file_exists "ambiguous fallback still creates the worktree" "$out/README.md"
+
+# --- Case: a repository with no remotes at all keeps the HEAD fallback ---
+repo=$(mkrepo)
+root="$TEST_TMPDIR/wtroot-noremote"
+errfile="$TEST_TMPDIR/err-noremote.txt"
+out=$(bash "$HELPER" --name feat/noremote --root "$root" --base-ref fresh --repo-dir "$repo" 2>"$errfile")
+assert_exit "remoteless fresh still succeeds" 0 "$?"
+assert_contains "remoteless fresh warns about fallback" "$(cat "$errfile")" "could not resolve the remote default branch"
+assert_file_exists "remoteless fallback still creates the worktree" "$out/README.md"
 
 # --- Case: 3+-segment URLs — Azure DevOps (_git) and GitLab subgroup ---
 repo=$(mkrepo --origin "https://dev.azure.com/myorg/myproject/_git/widget")

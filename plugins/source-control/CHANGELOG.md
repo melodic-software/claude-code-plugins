@@ -3,6 +3,49 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.33.3]
+
+### Fixed
+
+- **`worktree-create.sh --base-ref fresh` silently degraded to local `HEAD` in any clone whose
+  default remote is not named `origin` (melodic-software/claude-code-plugins#904).** The helper
+  probed `refs/remotes/origin/HEAD` and nothing else, so a repository cloned with
+  `git clone -o upstream` — which has no `origin` at all — took the remoteless fallback path even
+  though `upstream/HEAD` was correctly cached. A worktree created from a feature branch then carried
+  unpushed local commits into a base that `fresh` promises is the remote default branch.
+  - `fresh` now resolves the effective default **remote** before probing any symref, through a
+    three-rung chain: the current branch's configured remote (`branch.<name>.remote`), then `origin`
+    when it exists, then the sole remote when the repository has exactly one. The resolved remote's
+    `HEAD` symref supplies the base. Nothing hardcodes a default branch name — resolution stays
+    symbolic, as the portability lint requires.
+  - Rung 1 also changes the base in a repository that *does* have `origin`: when the current branch's
+    `branch.<name>.remote` names a different existing remote, `fresh` now bases on that remote's
+    default branch rather than `origin`'s. That is the prescribed precedence, but it is a behavior
+    change beyond the non-`origin`-clone case in the headline.
+  - Rung 1 accepts a configured remote only when it names a remote that still exists, so stale
+    config cannot shadow a healthy `origin`, and it rejects git's `.` sentinel (which means "tracks a
+    local branch", not a remote — `refs/remotes/./HEAD` is nonsense). A detached `HEAD` has no
+    branch, so the rung is skipped rather than erroring.
+  - The `HEAD` probe deliberately does **not** cascade back down the rungs. `fresh` means the
+    *effective* remote's default branch; quietly substituting a different remote's default branch is
+    a worse failure than the fallback, because the caller cannot see it happen.
+  - The local-`HEAD` fallback and its loud warning remain for the genuinely unresolvable cases, and
+    the warning now names the cause: the resolved remote whose `HEAD` is uncached (with the
+    `git remote set-head <remote> --auto` fix), or the absence of any default remote — no remotes at
+    all, or several with neither a branch-configured remote nor an `origin`.
+  - Every git read in the resolver is `tr -d '\r'`-trimmed: under `git.exe` on an MSYS or Cygwin
+    shell the output carries CRLF, and an untrimmed `upstream\r` would make each downstream lookup
+    miss while still reading correctly in an error message.
+  - This closes a gap the helper shared with Claude Code's own native `fresh`, which
+    [keeps `origin/HEAD` current](https://code.claude.com/docs/en/worktrees#choose-the-base-branch)
+    and falls back to local `HEAD` when `origin/HEAD` is absent. The plugin helper is now
+    deliberately more general than the native behavior it otherwise mirrors.
+  - Regression tests cover a sole non-`origin` remote, branch-config precedence over a coexisting
+    `origin` (asserted against three distinct commits so it cannot pass vacuously), a stale
+    branch-configured remote, the `.` sentinel, a detached `HEAD`, several remotes with no resolvable
+    default, and the remoteless case. The test fixture gained `--remote-name` plus helpers for
+    seeding a second remote at a distinguishable tip.
+
 ## [0.33.2]
 
 ### Fixed

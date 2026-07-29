@@ -73,10 +73,15 @@ Options:
                       refuse (exit 3) applies to the file's content. Mutually
                       exclusive with --root: supplying both is a usage error
                       even when one of the two values is empty.
-  --base-ref <ref>    fresh (default) branches from the remote default branch;
-                      head branches from the repo's current HEAD. Omitted
+  --base-ref <ref>    fresh (default) branches from the default remote's default
+                      branch; head branches from the repo's current HEAD. Omitted
                       defaults to fresh; the caller passes the effective Claude
                       worktree.baseRef setting (a settings.json key, not git config).
+                      fresh picks the remote generically — the current branch's
+                      configured remote, else origin, else the sole remote — so a
+                      clone made with 'git clone -o upstream' resolves upstream's
+                      default branch. With no resolvable remote, or an uncached
+                      <remote>/HEAD, it warns and branches from local HEAD.
   --repo-dir <dir>    Source repository directory. Default: current directory.
   -h, --help          Show this help.
 
@@ -443,22 +448,96 @@ fi
 # reads the effective setting and passes it through this flag.
 [[ -z "$base_ref" ]] && base_ref="fresh"
 
+# resolve_default_remote <repo-toplevel> — echo the repository's effective
+# default remote name, or return non-zero when none can be resolved. `origin` is
+# only a convention, not a guarantee: `git clone -o upstream` produces a repo
+# with no `origin` at all, so probing that one name mistakes a healthy repo for a
+# remoteless one. Rungs, highest priority first:
+#   1. the current branch's configured remote (`branch.<name>.remote`)
+#   2. `origin`, when it exists
+#   3. the sole remote, when the repository has exactly one
+# Every rung is a NAME lookup only — the caller probes the resolved remote's
+# cached HEAD symref, so nothing here hardcodes a default branch.
+resolve_default_remote() {
+  local repo_top="$1" branch cfg r
+  local -a remotes=()
+
+  # Rung 1. A detached HEAD has no branch, so symbolic-ref yields nothing and
+  # this rung is skipped. Two values must not be accepted: `.` is git's sentinel
+  # for "tracks a local branch" rather than a remote name (`refs/remotes/./HEAD`
+  # is nonsense), and a name whose remote no longer exists is stale config that
+  # must not shadow a healthy `origin` below — so require it to resolve.
+  #
+  # Every git read here is piped through `tr -d '\r'`: under git.exe on an MSYS
+  # or Cygwin shell the output carries CRLF, and an untrimmed `upstream\r` makes
+  # every downstream lookup miss while looking correct in an error message.
+  branch=$(git -C "$repo_top" symbolic-ref --quiet --short HEAD 2>/dev/null | tr -d '\r')
+  if [[ -n "$branch" ]]; then
+    cfg=$(git -C "$repo_top" config --get "branch.$branch.remote" 2>/dev/null | tr -d '\r')
+    if [[ -n "$cfg" && "$cfg" != "." ]] && git -C "$repo_top" remote get-url "$cfg" >/dev/null 2>&1; then
+      printf '%s' "$cfg"
+      return 0
+    fi
+  fi
+
+  # Rung 2.
+  if git -C "$repo_top" remote get-url origin >/dev/null 2>&1; then
+    printf 'origin'
+    return 0
+  fi
+
+  # Rung 3. Exactly one remote makes the choice unambiguous whatever it is
+  # named; two or more with neither a branch-configured nor an `origin` default
+  # is a genuine ambiguity, and guessing one would be worse than the caller-
+  # visible HEAD fallback. (`checkout.defaultRemote` settles exactly that
+  # ambiguity for git's own branch-name disambiguation and is a candidate rung
+  # here; it is deliberately not consulted yet, because it would widen the
+  # resolution order beyond the one this helper's callers were specified against.)
+  while IFS= read -r r; do
+    r=${r%$'\r'}
+    [[ -n "$r" ]] && remotes+=("$r")
+  done < <(git -C "$repo_top" remote 2>/dev/null)
+  if (( ${#remotes[@]} == 1 )); then
+    printf '%s' "${remotes[0]}"
+    return 0
+  fi
+
+  return 1
+}
+
 case "$base_ref" in
   head)
     base_commit="HEAD"
     ;;
   fresh)
-    # Resolve the remote's default branch symbolically (never hardcode
-    # origin/main — the portability lint forbids it). When origin/HEAD is not cached
-    # locally, fall back to local HEAD (matching Claude Code's documented
-    # behavior) but warn loudly: "fresh" promises the remote default branch, so a
-    # silent fall-through to HEAD could carry unpushed local commits the caller
-    # did not want.
-    if head_ref=$(git -C "$toplevel" symbolic-ref -q refs/remotes/origin/HEAD 2>/dev/null); then
+    # Resolve the default REMOTE first, then that remote's default BRANCH
+    # symbolically (never hardcode origin/main — the portability lint forbids
+    # it). When the symref is not cached locally, fall back to local HEAD
+    # (matching Claude Code's documented behavior, which is itself origin-centric:
+    # https://code.claude.com/docs/en/worktrees) but warn loudly: "fresh"
+    # promises the remote default branch, so a silent fall-through to HEAD could
+    # carry unpushed local commits the caller did not want.
+    #
+    # The HEAD probe deliberately does NOT cascade back down the remote rungs.
+    # "fresh" means the EFFECTIVE remote's default branch; quietly substituting a
+    # different remote's default branch is a worse failure than the HEAD
+    # fallback, because the caller cannot see it happen.
+    default_remote=$(resolve_default_remote "$toplevel") || default_remote=""
+    head_ref=""
+    if [[ -n "$default_remote" ]]; then
+      head_ref=$(git -C "$toplevel" symbolic-ref -q "refs/remotes/$default_remote/HEAD" 2>/dev/null | tr -d '\r')
+    fi
+    if [[ -n "$head_ref" ]]; then
       base_commit="$head_ref"
     else
       base_commit="HEAD"
-      printf '%s: warning: --base-ref fresh could not resolve the remote default branch (origin/HEAD not set); branching from local HEAD instead. Run: git remote set-head origin --auto  to cache it.\n' "$PROG" >&2
+      if [[ -n "$default_remote" ]]; then
+        printf '%s: warning: --base-ref fresh could not resolve the remote default branch (%s/HEAD not set); branching from local HEAD instead. Run: git remote set-head %s --auto  to cache it.\n' \
+          "$PROG" "$default_remote" "$default_remote" >&2
+      else
+        printf '%s: warning: --base-ref fresh could not resolve the remote default branch (no default remote: the repository has no remotes, or has several with neither a branch-configured remote nor an origin); branching from local HEAD instead.\n' \
+          "$PROG" >&2
+      fi
     fi
     ;;
   *)
