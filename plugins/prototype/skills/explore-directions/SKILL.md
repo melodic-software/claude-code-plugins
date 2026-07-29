@@ -121,8 +121,10 @@ Constraints:
   nothing there and the template resolves against the **current directory**, silently writing into
   the consumer's repo. GNU also marks `-t` deprecated, and BSD's `-t` takes a prefix rather than a
   template. An absolute path in the positional template is reinterpreted by neither. The generated
-  directory also carries the `.html` name without depending on `mktemp` accepting a suffix after
-  the `XXXXXX`. On Windows, a user-scoped temp under
+  `XXXXXX` must also be **trailing** — BSD `mktemp` substitutes only trailing Xs, so
+  `explore-directions-XXXXXX.html` cannot be created at all on macOS — which is why the page takes
+  a fixed name inside the generated directory instead of an extension on the template. On Windows,
+  a user-scoped temp under
   `%LOCALAPPDATA%\Temp`. One file per run. The path is handed to the user to open from `file://`,
   so do not delete it — it must still be readable when they open it.
 - **Markdown captures the answer.** Copy the winning-variant key and notes into your durable

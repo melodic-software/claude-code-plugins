@@ -108,8 +108,10 @@ the flag does nothing there and the template resolves against the **current
 directory**, silently writing into the consumer's repo. GNU also marks `-t`
 deprecated, and BSD's `-t` takes a prefix rather than a template, so the two
 produce different names. An absolute path in the positional template is
-reinterpreted by neither. The generated directory also carries the `.html` name
-without depending on `mktemp` accepting a suffix after the `XXXXXX`. On Windows,
+reinterpreted by neither. The `XXXXXX` must also be **trailing** — BSD `mktemp`
+substitutes only trailing Xs, so `visualize-XXXXXX.html` cannot be created at
+all on macOS — which is why the page takes a fixed name inside the generated
+directory instead of an extension on the template. On Windows,
 a user-scoped temp under
 `%LOCALAPPDATA%\Temp`. One file per run. The path is handed back to the user, so
 do not delete it — it must still be readable when they open it. Open it for the

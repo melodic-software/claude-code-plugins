@@ -22,9 +22,10 @@ All notable changes to the `visualization` plugin are documented here. Format fo
   for `-t` when `TMPDIR` is unset — so with a bare template and no `-t` the flag
   does nothing there and the template resolves against the current directory,
   silently writing into the consumer's repo. GNU additionally marks `-t`
-  deprecated. Naming the page inside a generated directory also avoids
-  depending on `mktemp` accepting a suffix after the `XXXXXX`, which is a GNU
-  convenience rather than a portable one.
+  deprecated. The `XXXXXX` is also **trailing**: BSD `mktemp` substitutes only
+  trailing Xs, so `visualize-XXXXXX.html` cannot be created at all on macOS.
+  Naming the page inside a generated directory is what preserves the `.html`
+  extension without an unportable suffix on the template.
 
 ## [0.1.0]
 
