@@ -282,7 +282,7 @@ rm -f "$f"
 # =============================================================================
 
 # --- remote-name class: bare `origin` as a git remote ARGUMENT (#442) -------
-REMOTE_TOKEN='git (push|fetch|pull|clone|ls-remote|remote (prune|show|add|rename|get-url|set-url))([[:space:]]+-[^[:space:]]+)*[[:space:]]+origin([^a-zA-Z0-9_/.-]|$)'
+REMOTE_TOKEN='git([[:space:]]+-[^[:space:]]+([[:space:]]+[^[:space:]-][^[:space:]]*)?)*[[:space:]]+(push|fetch|pull|clone|ls-remote|remote (prune|show|add|rename|get-url|set-url))([[:space:]]+-[^[:space:]]+)*[[:space:]]+origin([^a-zA-Z0-9_/.-]|$)'
 assert_staged 'remote-name' "$REMOTE_TOKEN"
 rt="$(tokenfile "$REMOTE_TOKEN")"
 
@@ -304,9 +304,49 @@ else
 fi
 rm -f "$f"
 
+# Git's syntax is `git [<global-options>] <command> [<args>]`, so a global
+# option sits between `git` and the subcommand. A subcommand-adjacent anchor
+# reports this shape clean, which both understates the residue and lets the
+# same coupling through the future gate — the live corpus carries exactly this
+# form in plugins/source-control/skills/babysit-prs/reference/orchestration.md.
+f="$(tmpfile 'Re-fetch the base ref (`git -C <worktree> fetch origin <base>`) before merging.')"
+if out="$(scan_with "$rt" "$f" 2>&1)"; then
+  fail "a global option before the subcommand must not hide the hardcoded remote: $out"
+elif echo "$out" | grep -q "COUPLING: ${f}:1:"; then
+  ok "remote class: a global option before the subcommand still flags the remote"
+else
+  fail "expected line 1 flagged for 'git -C <path> fetch origin', got: $out"
+fi
+rm -f "$f"
+
+# Separate-value (`-c <k>=<v>`) and attached-value (`--git-dir=<path>`) global
+# options are both spanned, and several may precede the subcommand.
+f="$(tmpfile 'Run `git -c core.hooksPath=/dev/null --git-dir=/w/.git push origin HEAD` in the sandbox.')"
+if scan_with "$rt" "$f" >/dev/null 2>&1; then
+  fail "a run of global options must not hide the hardcoded remote"
+else
+  ok "remote class: a run of value-taking global options still flags the remote"
+fi
+rm -f "$f"
+
+# The option run is not a blanket matcher: it may only span options between
+# `git` and a remote-taking subcommand. A different subcommand whose line
+# merely mentions the word origin later must stay clean, or widening the anchor
+# would have traded a false negative for a false-positive class.
+f="$(tmpfile 'Run `git -C "$WT" status`, then push to the origin remote you resolved.')"
+if scan_with "$rt" "$f" >/dev/null 2>&1; then
+  ok "remote class: global options on a non-remote subcommand are not false-positives"
+else
+  fail "a global option on an unrelated subcommand must not flag on nearby prose"
+fi
+rm -f "$f"
+
 # The compliant shape: the remote is resolved into a variable first, so no
 # literal `origin` sits in the remote-argument position at all.
-f="$(tmpfile 'REMOTE="$(bash scripts/resolve-remote.sh --push)"; git push "$REMOTE" HEAD')"
+# Paired with the global-option cases above: widening the anchor must leave the
+# fix direction passing under a global option too, not only under bare `git`.
+f="$(tmpfile 'REMOTE="$(bash scripts/resolve-remote.sh --push)"; git push "$REMOTE" HEAD
+Re-fetch with `git -C "$WT" fetch "$REMOTE" "$BASE"` before merging.')"
 if scan_with "$rt" "$f" >/dev/null 2>&1; then
   ok "remote class: a resolved remote variable is not flagged"
 else
