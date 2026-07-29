@@ -296,7 +296,15 @@ apply the manifest default:
 - **Frontier-tier quota guard:** items stamped for the frontier capability tier (tier signal from
   the triage briefing — the issue body, not a label) run at **concurrency 1** with adaptive
   ceiling `${user_config.work_loop_frontier_item_cap_ceiling}` (default 2); the general ceiling
-  applies to non-frontier tiers only.
+  applies to non-frontier tiers only. That separate ceiling rests on a body-sourced signal, so it
+  is a tightening-only carve-out and holds **only while the resolved frontier ceiling is ≤ the
+  resolved general one** — resolve both by the rule above before comparing, since an operator
+  inverts the ordering by raising either key or lowering the other. When frontier resolves higher,
+  the separate ceiling would *widen* throughput on a claim the item's own author can write: drop it
+  and bound the item by the general ceiling instead. Concurrency 1 still applies, because it can
+  only tighten
+  ([`item-content-trust.md`](${CLAUDE_PLUGIN_ROOT}/reference/item-content-trust.md), "Trust never
+  widens on item text").
 
 **Clean** = the item's pipeline verdict passed and its PR opened without gate failures.
 **Dirty** = a failed verdict or gate, an escalation off the item mid-execution, or a seam exit 8

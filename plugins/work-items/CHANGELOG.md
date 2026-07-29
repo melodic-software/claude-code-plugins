@@ -21,7 +21,15 @@ All notable changes to the `work-items` plugin are documented here. Format follo
     capability grant, or gate waiver ever rests on a claim recorded in a body or comment, per the
     autonomy plugin's admission policy — with the carve-out that a claim which can only *tighten*
     stays usable as a signal, and names the one shipped instance of that carve-out
-    (`work-loop`'s frontier-tier quota guard).
+    (`work-loop`'s frontier-tier quota guard). That instance carries its bounding condition at both
+    ends: the carve-out holds only while the resolved frontier cap ceiling is at or below the
+    resolved general one, and `work-loop`'s own "Adaptive item cap" step states what to do when an
+    operator inverts them — drop the separate frontier ceiling, which would let a body claim widen
+    throughput, and bound the item by the general ceiling, keeping the concurrency-1 half that can
+    only tighten. `work_loop_frontier_item_cap_ceiling`'s manifest description carries the same
+    ordering expectation at the point of configuration; the manifest cannot enforce it, because
+    `userConfig` `min`/`max` are static numeric bounds with no cross-key validation
+    ([plugins reference](https://code.claude.com/docs/en/plugins-reference#user-configuration)).
   - `triage`, `decompose`, `work`, `work-loop`, and `attend-queue` each carry the standing
     instruction in their
     shared tracker context, plus one line on what the boundary bites hardest in that lane, and cite
@@ -31,7 +39,11 @@ All notable changes to the `work-items` plugin are documented here. Format follo
     the same headline and citation.
   - Item text handed to a subagent goes inside a quoted untrusted-data section with the standing
     never-follow instruction attached, reusing the delimiter shape `source-control`'s
-    `babysit-prs` already specifies for the merge lane rather than inventing a second form.
+    `babysit-prs` already specifies for the merge lane rather than inventing a second form. The
+    fence itself is carried inline beside that citation, verbatim and unreworded, so the rule stays
+    executable when the cross-plugin fetch fails — an instruction whose only mechanical detail sits
+    behind a network round-trip contradicts itself the moment the fetch does, leaving an agent with
+    no delimiter and no permission to improvise one.
 
 ### Changed
 

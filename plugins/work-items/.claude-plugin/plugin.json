@@ -49,7 +49,7 @@
     "work_loop_frontier_item_cap_ceiling": {
       "type": "number",
       "title": "Work-loop frontier-tier item cap ceiling",
-      "description": "Quota guard for frontier-capability-tier items in the work-loop lane: such items run at concurrency 1 and their adaptive cap is bounded by this ceiling instead of the general one.",
+      "description": "Quota guard for frontier-capability-tier items in the work-loop lane: such items run at concurrency 1 and their adaptive cap is bounded by this ceiling instead of the general one. Keep it at or below work_loop_item_cap_ceiling. The frontier tier is read from the item body, which any item author can write, so a frontier ceiling above the general one would let a body claim buy higher throughput; the lane detects that inversion and ignores this ceiling, bounding the item by the general one instead. The manifest cannot enforce the ordering — userConfig min/max are static bounds with no cross-key validation.",
       "default": 2,
       "min": 1
     }

@@ -1174,7 +1174,8 @@ Filled instance for the repository in use as of 2026-07-25.
   authoring this document the open count read 50, 44, 40, 38, 28, then 25 —
   it fell by three *between two commands in the same session*, because the
   worker lane drains it continuously. Any number written here is wrong before
-  it is read. Run the union command above and use what it returns; a rung
+  it is read. Run the classification-count command above — the one returning
+  `fetched`, `classified`, and `body_only` — and use what it returns; a rung
   decision made from a quoted figure is a decision about a repository that no
   longer exists.
 - No autonomy binding file exists, so the C2 promotion evidence above is
