@@ -129,7 +129,7 @@ Read the reference file matching the user's question. Multi-topic question = rea
 | Auto vs Plan Mode | 4.6+ plans implicitly — Boris runs auto mode, plan mode retired |
 | Context Minimalism | Minimal prompt + a way to fetch context; over-specifying = micromanaging |
 | Write It Down | On every mistake: rule into CLAUDE.md / skill, not a chat correction |
-| Nested Subagents | Agents spawn agents (depth=5 cap) — context management primitive |
+| Nested Subagents | Agents spawn agents — context management primitive; never author a tree needing a specific depth (configurable ceiling, `CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH`) |
 | fork: true | Experimental — run a skill in its own context window |
 | Fable 5 | Best coding model by a wide margin; 2× Opus 4.8 price; trigger-happy safety classifiers |
 | Four Unknowns | Known/unknown × known/unknown — the gap between your prompt and the codebase |
