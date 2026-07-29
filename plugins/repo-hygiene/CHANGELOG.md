@@ -3,6 +3,31 @@
 All notable changes to the `repo-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.0]
+
+### Changed
+
+- **`clean`'s confirmation gates now state an invariant plus a conditional surface, instead of
+  naming `AskUserQuestion` as the only way to confirm (#1724).** Every gate — §1.5 pre-flight, §4.2
+  branch deletion, §4.3 stash drop, §6 `tree`, §6.5 `tree-batch`, §7 orphaned-path removal, §8
+  selective batch — and the `context/` spokes that restate them pointed at that one tool. The tool is
+  not always in the pool: permission mode `dontAsk` denies it unconditionally, a bare-name
+  `permissions.deny` rule removes it from Claude's context entirely, and a `disallowed-tools` entry
+  removes it from the pool while the skill is active. In
+  those sessions the gate named something absent, so it was unsatisfiable rather than strict, and the
+  model had to improvise a confirmation the text did not describe — with no floor underneath it,
+  because `destructive-guard.sh` is bypassed by the model-settable `CLEAN_GUARD_ACK=1` prefix and §6's
+  destructive work happens inside `git-tree-reset.sh --apply`, which the guard's pattern list does not
+  match. A new **Confirmation gate** section now owns both halves once: the bar (the user's own
+  affirmative answer, in this interactive session, naming exactly the set the dry-run showed; no prior
+  general request, alias, flag, "clean everything", approval of a different set, or silence; never
+  self-supplied or inferred; autonomous sessions abort) and the surface (`AskUserQuestion` preferred
+  because its answer cannot be fabricated, an inline numbered question when it is absent). Every gate
+  site now points at that section rather than restating it. **The bar is unchanged and no gate was
+  removed** — only the surface became conditional. This is #1724 on its own merits and settles
+  nothing in #1722: the operator-level question of whether `AskUserQuestion` may be called at all is
+  still open, and a rewrite on one side is not that decision.
+
 ## [0.7.2]
 
 ### Fixed

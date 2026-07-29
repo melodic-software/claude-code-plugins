@@ -70,6 +70,23 @@ unless bounded with `--max-depth` or confirmed with `--confirmed-large-scan`.
   deletion path.
 - Automated, scheduled, remote, unattended, or no-human-in-loop sessions always audit and stop.
 
+## Confirmation gate
+
+Every question this skill asks passes this gate — including the no-target prompt above, the
+large-scan confirmation in §1, the removal approval in §5, and the unsupported-platform handoff
+in §6.
+
+**Question surface.** Prefer `AskUserQuestion`: its answer is the user's own and cannot be
+fabricated. It is not always in the pool — permission mode `dontAsk` denies it unconditionally, and
+a bare-name `permissions.deny` rule or a `disallowed-tools` entry removes it — so when it is absent,
+ask the same question inline as a numbered choice and wait for the reply. The surface varies; the bar
+below does not.
+
+**The bar.** Take the user's own affirmative answer, given in this interactive session, naming
+exactly the tier and path list just shown. A prior general request, `--execute`, "clean everything",
+approval of another tier, or silence is not confirmation — never supply or infer the answer
+yourself. On rejection, stop.
+
 ## 1. Create a read-only snapshot
 
 Create a unique run directory under `${CLAUDE_PLUGIN_DATA}/runs/`; snapshots, plans, and reports must
@@ -98,9 +115,9 @@ this gate) and carries neither `--max-depth` nor `--confirmed-large-scan` return
 `large-target-confirmation-required` (after a cheap top-level probe, not a full walk) instead of the
 unbounded traversal, so a forgotten bound never becomes an accidental whole-volume scan. `--max-depth`
 is the preferred bounded response.
-Reserve `--confirmed-large-scan` for a deliberate full walk the human has confirmed — ask with
-`AskUserQuestion` first, exactly as the apply lane requires before an expensive step; a general
-"clean my home directory" is not that confirmation. Every
+Reserve `--confirmed-large-scan` for a deliberate full walk the human has confirmed — pass the
+[confirmation gate](#confirmation-gate) first, exactly as the apply lane requires before an
+expensive step; a general "clean my home directory" is not that confirmation. Every
 directory whose descendants were not walked — cut off by `--max-depth`, a protected root, or a VCS
 boundary — is recorded in `truncated_paths`; report them as coverage gaps, never as clean, and
 never plan them for removal (the preview blocks them as `truncated-not-inventoried` and skips the
@@ -197,9 +214,8 @@ directory-descriptor prerequisites. Windows and macOS return `execution-platform
 blocker means no approval prompt and no deletion. Fix nothing behind the gate; rescan.
 
 When status is `ready-for-explicit-approval`, show a table naming every path, the single tier, logical
-bytes, and the preview's approval token. Use `AskUserQuestion` to ask whether to remove **exactly that
-tier and list**. A prior general request, `--execute`, “clean everything,” approval of another tier, or
-silence is not confirmation. On rejection, stop. Process another tier only with a new plan, preview,
+bytes, and the preview's approval token, then pass the [confirmation gate](#confirmation-gate) — the
+approval must name **exactly that tier and list**. Process another tier only with a new plan, preview,
 and question.
 
 ## 6. Apply only the confirmed preview
@@ -225,8 +241,8 @@ Preview reports `execution-platform-unsupported` as a per-candidate blocker on t
 the engine never deletes there. The default outcome is the report. The manual lane is gated by
 `--execute` exactly as the engine lane is — without it, no deletion lane may be offered on any
 platform. If — and only if — `--execute` was requested and the human reviews the report and
-approves an exact path list in this interactive session (the same `AskUserQuestion` exact-tier-and-
-list bar as the engine lane; a general "clean it up" is still not approval), removal is a manual
+approves an exact path list in this interactive session (the same [confirmation gate](#confirmation-gate)
+exact-tier-and-list bar as the engine lane; a general "clean it up" is still not approval), removal is a manual
 handoff, not an engine plan:
 
 1. Write the approved exact paths to `<run-dir>/handoff-paths.json` as
