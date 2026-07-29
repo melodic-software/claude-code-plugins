@@ -311,9 +311,11 @@ scheduled time, or up to half the interval for a task running more often than ho
   loop keeps running until stopped by hand or until the seven-day expiry, so a drain lane launched
   that way cannot honor its own stop condition
   (<https://code.claude.com/docs/en/scheduled-tasks#stop-a-loop>, verified 2026-07-27). Self-paced is
-  the lane shape by construction, not by preference. The lane's other per-cycle signals — the
-  adaptive-cap streak, seam exit 8 counted as dirty, the drain-exit snapshot — govern *how much work
-  a cycle takes on*, not when the next one fires, and are unaffected by either shape.
+  the lane shape by construction, not by preference. Two of the lane's other per-cycle signals —
+  the adaptive-cap streak, and seam exit 8 counted as dirty — govern *how much work a cycle takes
+  on*, not when the next one fires, and are unaffected by either shape. The drain-exit snapshot is
+  not one of them: it is the pacing signal named above, the input deciding whether the cycle calls
+  `ScheduleWakeup` with `stop: true` instead of scheduling another run at all.
 - **A fixed interval is the operator's shape for invoking a single-pass mechanic directly.** The
   interval chosen once *is* the whole cadence policy: no per-cycle state derives a better one, so
   there is nothing for the cron schedule to discard. `babysit-prs`'s documented
