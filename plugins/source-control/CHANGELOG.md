@@ -26,6 +26,37 @@ All notable changes to the `source-control` plugin are documented here. Format f
   - The C4/C5 floor is unchanged — it always tested the pull request rather than the linked item's
     stamp, so a fork PR was never eligible through a self-stamped issue.
 
+## [0.33.3]
+
+### Fixed
+
+- **A configured review reviewer that GitHub types as `User` counted as no reviewer at all
+  (melodic-software/claude-code-plugins#1642).** `is_review_bot_item` in
+  `babysit_review_trigger.py` admitted an item only when GitHub's authoritative actor type said
+  `Bot`, so an automation account posting as an ordinary user — no `[bot]` login suffix,
+  `__typename` of `User` — had its real, current-head review read as no review. That is the exact
+  account class `babysit_extra_bot_logins` exists for and that `actor_kind` and
+  `babysit_resolve_thread.py` (#637) already honor, so the same operator-declared account was
+  classified two different ways by two consumers of one plugin.
+  - `ReviewTriggerConfig` gains `extra_bot_logins`, and the predicate now reads: the login must be
+    in `reviewer_logins` AND the author must be a bot. Both halves are required, so declaring an
+    account a bot never promotes it to reviewer. The field ships empty, so the predicate is
+    structural-only exactly as before for anyone who has not configured it, and no
+    default-configuration blocker state moves.
+  - Bot-ness is delegated whole to `is_bot` rather than restated, so this module can no longer
+    drift from the classification every other consumer uses. The REST `type` key is normalized
+    into the `__typename` slot first — `is_bot` reads `__typename` alone, and the reaction and
+    review-comment paths carry only `type`, so that normalization is load-bearing and pinned.
+  - The widening is applied at the shared predicate rather than per consumer, so all three reach
+    the same verdict: review evidence (`fetch_review_evidence`), current-head completion
+    (`has_current_head_review`), and reaction engagement (`fetch_review_reactions`). It is not
+    uniformly permissive — recognizing a declared reviewer's eyes reaction *adds* the
+    `engaged_reaction_reviewing` blocker that strictness was suppressing.
+  - `--extra-bot-logins` now threads into the review-trigger config from `pr_queue_snapshot.py`
+    (which already parsed it for `FeedbackConfig`) and from `request_review.py`, which gains the
+    flag; `SKILL.md`'s delivery mapping and `reference/review-trigger.md`'s pinned invocation and
+    completion rule follow.
+
 ## [0.33.2]
 
 ### Fixed
