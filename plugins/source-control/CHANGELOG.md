@@ -28,6 +28,12 @@ All notable changes to the `source-control` plugin are documented here. Format f
     config cannot shadow a healthy `origin`, and it rejects git's `.` sentinel (which means "tracks a
     local branch", not a remote — `refs/remotes/./HEAD` is nonsense). A detached `HEAD` has no
     branch, so the rung is skipped rather than erroring.
+  - That existence probe passes the configured name after an option terminator
+    (`git remote get-url -- "$cfg"`). A remote name may legally begin with `-` — `git clone -o -foo
+    <url>` creates one and writes it straight into `branch.<name>.remote` — and without the
+    terminator `git remote get-url` parses it as switches (`unknown switch 'f'`). Rung 1 then
+    rejected a perfectly healthy remote and resolution fell through to `origin`, producing exactly
+    the silently wrong base this release exists to prevent.
   - The `HEAD` probe deliberately does **not** cascade back down the rungs. `fresh` means the
     *effective* remote's default branch; quietly substituting a different remote's default branch is
     a worse failure than the fallback, because the caller cannot see it happen.
@@ -45,8 +51,10 @@ All notable changes to the `source-control` plugin are documented here. Format f
   - Regression tests cover a sole non-`origin` remote, branch-config precedence over a coexisting
     `origin` (asserted against three distinct commits so it cannot pass vacuously), a stale
     branch-configured remote, the `.` sentinel, a detached `HEAD`, several remotes with no resolvable
-    default, and the remoteless case. The test fixture gained `--remote-name` plus helpers for
-    seeding a second remote at a distinguishable tip.
+    default, the remoteless case, and an option-shaped branch-configured remote coexisting with
+    `origin`. The test fixture gained `--remote-name` plus helpers for seeding a second remote at a
+    distinguishable tip; both fixture helpers now add remotes with `--` so an option-shaped name is
+    constructible at all.
 
 ## [0.33.2]
 

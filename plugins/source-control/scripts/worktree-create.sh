@@ -468,13 +468,20 @@ resolve_default_remote() {
   # is nonsense), and a name whose remote no longer exists is stale config that
   # must not shadow a healthy `origin` below — so require it to resolve.
   #
+  # The `--` before the name is load-bearing: `git remote get-url` takes options
+  # (`[--push] [--all] <name>`) and a remote name may legally begin with `-`
+  # (`git clone -o -foo <url>` creates exactly that, and writes it straight into
+  # `branch.<name>.remote`). Without the terminator git reads `-foo` as switches,
+  # this rung fails on a remote that is perfectly healthy, and resolution falls
+  # silently through to `origin` — the one outcome "fresh" must never produce.
+  #
   # Every git read here is piped through `tr -d '\r'`: under git.exe on an MSYS
   # or Cygwin shell the output carries CRLF, and an untrimmed `upstream\r` makes
   # every downstream lookup miss while looking correct in an error message.
   branch=$(git -C "$repo_top" symbolic-ref --quiet --short HEAD 2>/dev/null | tr -d '\r')
   if [[ -n "$branch" ]]; then
     cfg=$(git -C "$repo_top" config --get "branch.$branch.remote" 2>/dev/null | tr -d '\r')
-    if [[ -n "$cfg" && "$cfg" != "." ]] && git -C "$repo_top" remote get-url "$cfg" >/dev/null 2>&1; then
+    if [[ -n "$cfg" && "$cfg" != "." ]] && git -C "$repo_top" remote get-url -- "$cfg" >/dev/null 2>&1; then
       printf '%s' "$cfg"
       return 0
     fi

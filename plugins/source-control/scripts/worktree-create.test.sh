@@ -62,7 +62,9 @@ mkrepo() {
     git -C "$repo" add README.md
     git -C "$repo" commit -qm init
     if [[ -n "$origin_url" ]]; then
-      git -C "$repo" remote add "$remote_name" "$origin_url"
+      # `--` so an option-shaped remote name is a name, not switches: git accepts
+      # one (`git clone -o -foo`), so the fixtures must be able to build one.
+      git -C "$repo" remote add -- "$remote_name" "$origin_url"
       if [[ "$seed_head" == 1 ]]; then
         # Point <remote>/HEAD at main without a network fetch so `fresh` resolves.
         git -C "$repo" update-ref "refs/remotes/$remote_name/main" "$(git -C "$repo" rev-parse HEAD)"
@@ -80,7 +82,7 @@ mkrepo() {
 addremote() {
   local repo="$1" name="$2" url="$3"
   {
-    git -C "$repo" remote add "$name" "$url"
+    git -C "$repo" remote add -- "$name" "$url"
     git -C "$repo" update-ref "refs/remotes/$name/main" "$(git -C "$repo" rev-parse HEAD)"
     git -C "$repo" symbolic-ref "refs/remotes/$name/HEAD" "refs/remotes/$name/main"
   } >/dev/null 2>&1
@@ -333,6 +335,24 @@ root="$TEST_TMPDIR/wtroot-branchcfg"
 out=$(bash "$HELPER" --name feat/branchcfg --root "$root" --base-ref fresh --repo-dir "$repo" 2>/dev/null)
 assert_file_exists "branch-configured remote wins over origin" "$out/UPSTREAM_ONLY.md"
 assert_file_absent "branch-configured remote is not local HEAD" "$out/UNPUSHED.md"
+
+# --- Case: an option-shaped branch-configured remote still outranks origin ---
+# `git clone -o -foo <url>` is legal and writes `-foo` into branch.<name>.remote,
+# so the rung's existence probe must pass the name after an option terminator.
+# Without it git reads `-foo` as switches, the healthy remote is judged missing,
+# and resolution falls through to origin — a silently wrong base, not an error.
+# `origin` must be present for this to discriminate: with `-foo` as the sole
+# remote the sole-remote rung answers correctly whatever rung 1 does.
+repo=$(mkrepo --origin "git@github.com:acme/widget.git")
+commitfile "$repo" DASHED_ONLY.md
+addremote "$repo" -foo "git@github.com:acme/widget-fork.git"
+commitfile "$repo" UNPUSHED.md
+git -C "$repo" config -- branch.main.remote -foo
+root="$TEST_TMPDIR/wtroot-dashedremote"
+out=$(bash "$HELPER" --name feat/dashedremote --root "$root" --base-ref fresh --repo-dir "$repo" 2>/dev/null)
+assert_exit "option-shaped branch remote still succeeds" 0 "$?"
+assert_file_exists "option-shaped branch remote wins over origin" "$out/DASHED_ONLY.md"
+assert_file_absent "option-shaped branch remote is not local HEAD" "$out/UNPUSHED.md"
 
 # --- Case: a branch.<name>.remote naming a missing remote falls through to origin ---
 # Stale config must not shadow a healthy origin, so the rung requires the name to
