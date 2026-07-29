@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "work-items",
-  "version": "0.26.1",
+  "version": "0.28.1",
   "description": "Manages development work items through a provider-neutral tracker seam that ships with the plugin (bundled dispatcher plus github and local-markdown adapters; seam plugin-dir canonical, adapters consumer-local-first): dashboard, taxonomy-labeled creation, a race-safe assignee-plus-lease claim protocol, recurring-schedule checks, TODO scanning, stale-lease auditing, plan decomposition into vertical-slice items, raw-intake triage (issues and unsolicited PRs through raw, verified, briefed, autonomous-eligible states), plus the two work-items loop lanes of the loop-lane convention: a self-paced autonomous work-loop drain (work-class admission gate, adaptive item cap, PR-only) and an attended attend-queue escalation lane. The re-runnable setup skill binds the provider (.work-item-tracker.json), seeds the recurring-schedule seam (.github/recurring-schedule.json), and remaps canonical role labels.",
   "author": {
     "name": "Melodic Software",
@@ -51,6 +51,13 @@
       "title": "Work-loop frontier-tier item cap ceiling",
       "description": "Quota guard for frontier-capability-tier items in the work-loop lane: such items run at concurrency 1 and their adaptive cap is bounded by this ceiling instead of the general one. Keep it at or below work_loop_item_cap_ceiling. The frontier tier is read from the item body, which any item author can write, so a frontier ceiling above the general one would let a body claim buy higher throughput; the lane detects that inversion and ignores this ceiling, bounding the item by the general one instead. The manifest cannot enforce the ordering — userConfig min/max are static bounds with no cross-key validation.",
       "default": 2,
+      "min": 1
+    },
+    "work_loop_no_progress_threshold": {
+      "type": "number",
+      "title": "Work-loop no-progress stall threshold",
+      "description": "Consecutive no-progress cycles (actionable work in view, no item advanced and no PR opened) before the work-loop lane raises its stall escalation. The lane escalates and keeps looping; it never stops on a stall. Idle cycles with nothing actionable neither count nor reset.",
+      "default": 3,
       "min": 1
     }
   }

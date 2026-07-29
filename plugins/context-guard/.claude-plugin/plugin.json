@@ -1,8 +1,8 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "context-guard",
-  "version": "0.3.1",
-  "description": "Per-session context-window observability: a statusline wrapper tees each session's context_window fields to a per-session snapshot file, a zone resolver classifies usage into smart/acceptable/dumb bands (zones.json SSOT with shipped defaults), and a reader contract fixes how consuming sessions interpret the snapshots.",
+  "version": "0.4.1",
+  "description": "Per-session context-window observability plus the first shipped consumer: a statusline wrapper tees each session's context_window fields to a per-session snapshot file, a zone resolver classifies usage into smart/acceptable/dumb bands (percentage bands plus window-class token bands, conservative-min combination, zones.json SSOT with shipped defaults), a reader contract fixes how consuming sessions interpret the snapshots, and zone-crossing hooks inject continuation guidance once per transition into a worse zone (advisory by default; an optional blocking mode gates new mutating work on a fresh dumb-zone snapshot with handoff-writing exempt), with a PostCompact hook persisting an evidence-degraded marker.",
   "author": {
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
@@ -14,6 +14,28 @@
     "tee",
     "zones",
     "context-degradation",
-    "session"
-  ]
+    "session",
+    "hooks"
+  ],
+  "hooks": "./hooks/hooks.json",
+  "userConfig": {
+    "context_guard_hooks_enabled": {
+      "type": "boolean",
+      "title": "context-guard hooks kill switch",
+      "description": "Master switch for the zone-crossing injection, blocking gate, and PostCompact marker hooks",
+      "default": true
+    },
+    "zone_hook_mode": {
+      "type": "string",
+      "title": "Zone hook posture",
+      "description": "advisory (default) injects guidance only; blocking additionally denies new Write/Edit/NotebookEdit/Agent/Workflow calls on a fresh dumb-zone snapshot past the grace budget (fail-open on unknown; handoff-path writes, reads, Bash, and Skill stay allowed)",
+      "default": "advisory"
+    },
+    "zone_gate_grace_calls": {
+      "type": "string",
+      "title": "Blocking-gate grace budget",
+      "description": "Blocking mode only: number of matched tool calls allowed after the session first resolves dumb before the gate denies (in-script default 20)",
+      "default": "20"
+    }
+  }
 }

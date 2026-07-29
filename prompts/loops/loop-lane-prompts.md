@@ -300,9 +300,10 @@ because `.claude/loop.md` is git-tracked and conflicts across machines.
 - **One worker lane per repository.** Item claims are provider-arbitrated
   and safe across machines, but durable loop state is not: both lanes
   resolve the same telemetry issue and sentinel, making `item_cap`,
-  `clean_streak`, `rate_limit_latch` and `first_drain_complete`
-  last-writer-wins. One machine setting `first_drain_complete` ends the C3
-  earn-trust gate for both. Use two machines for two repositories.
+  `clean_streak`, `no_progress_streak`, `rate_limit_latch` and
+  `first_drain_complete` last-writer-wins. One machine setting
+  `first_drain_complete` ends the C3 earn-trust gate for both. Use two
+  machines for two repositories.
 - **One merge lane per repository.** babysit-prs leases are machine-local
   files, so a second machine gets no mutual exclusion.
 - **Merge lane off the attended machine.** It competes for the same
@@ -389,8 +390,9 @@ The claim is provider-arbitrated (assignee plus lease; exit 7 means
 correctly. Durable loop state is the problem — both resolve the same
 telemetry issue and sentinel, making these last-writer-wins:
 
-- `item_cap` and `clean_streak` — the adaptive cap stops reflecting either
-  machine's real experience. Annoying, not dangerous.
+- `item_cap`, `clean_streak`, and `no_progress_streak` — the adaptive cap and
+  the stall detector stop reflecting either machine's real experience.
+  Annoying, not dangerous.
 - `rate_limit_latch` — one machine can clear the other's pause latch.
 - `first_drain_complete` — one machine setting it ends C3 earn-trust
   admission for **both**. This is the one that matters: it widens autonomy

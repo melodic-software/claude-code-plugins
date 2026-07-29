@@ -121,11 +121,9 @@ done
 
 # --- Snapshot session_id must match the requested id -------------------------
 write_snapshot "$H" simposter 40
-# portability-ok: GNU sed -i (no suffix) fails on BSD; perl -pi -e below is the
-# actual portable fallback (perl's -i needs no backup-suffix argument on
-# either dialect) — not the auto-recognized -i ''/-i "" guard shape.
-sed -i 's/"session_id":"simposter"/"session_id":"someone-else"/' "$H/$CTX_REL/simposter.json" 2>/dev/null ||
-  perl -pi -e 's/"session_id":"simposter"/"session_id":"someone-else"/' "$H/$CTX_REL/simposter.json"
+sed 's/"session_id":"simposter"/"session_id":"someone-else"/' "$H/$CTX_REL/simposter.json" \
+  >"$H/$CTX_REL/simposter.json.tmp" &&
+  mv "$H/$CTX_REL/simposter.json.tmp" "$H/$CTX_REL/simposter.json"
 expect "snapshot session_id mismatch (copied/renamed file)" unknown "$H" simposter
 
 # --- zones.json override -----------------------------------------------------
@@ -162,6 +160,96 @@ if grep -qi 'zones' "$WORK/m2-stderr"; then ok "inverted bands → visible stder
 printf '{"smart_max_used_percentage":"low","acceptable_max_used_percentage":60}\n' >"$HM/.claude/context-guard/zones.json"
 GOT="$(HOME="$HM" bash "$ZONE" m40 2>/dev/null)"
 if [[ "$GOT" == "smart" ]]; then ok "non-numeric band → shipped defaults applied"; else fail "non-numeric band: got '$GOT'"; fi
+
+# --- Token shape: version gate, window-class bands, combination, plausibility -
+# write_snapshot_tok <home> <sid> <used-json> <ti-json> <to-json> <cws-json> [<captured_at>] [<cli_version-json>]
+# cli_version defaults to a version at or above the current-occupancy floor;
+# pass the literal `omit` to write a snapshot with no cli_version at all.
+write_snapshot_tok() {
+  local home="$1" sid="$2" used="$3" ti="$4" to="$5" cws="$6" ts="${7:-}" ver="${8:-\"2.1.218\"}"
+  [[ -n "$ts" ]] || ts=$(date -u '+%Y-%m-%dT%H:%M:%SZ')
+  local verfield=""
+  [[ "$ver" == "omit" ]] || verfield=",\"cli_version\":$ver"
+  mkdir -p "$home/$CTX_REL"
+  printf '{"captured_at":"%s","session_id":"%s"%s,"context_window":{"total_input_tokens":%s,"total_output_tokens":%s,"context_window_size":%s,"used_percentage":%s,"remaining_percentage":50,"current_usage":{"input_tokens":100}}}\n' \
+    "$ts" "$sid" "$verfield" "$ti" "$to" "$cws" "$used" >"$home/$CTX_REL/$sid.json"
+}
+
+HT="$WORK/h-token"
+# Token shape stands alone when used_percentage is null but tokens are valid.
+write_snapshot_tok "$HT" t1 null 150000 10000 1000000 && expect "tokens alone: occ=160k on 1M" smart "$HT" t1
+write_snapshot_tok "$HT" t2 null 280000 20000 1000000 && expect "tokens alone: occ=300k on 1M" acceptable "$HT" t2
+write_snapshot_tok "$HT" t3 null 390000 10001 1000000 && expect "tokens alone: occ=400001 on 1M" dumb "$HT" t3
+# Shipped 200k-class edges, uppers inclusive.
+write_snapshot_tok "$HT" t4 null 90000 10000 200000 && expect "200k class: occ=100000 (smart edge)" smart "$HT" t4
+write_snapshot_tok "$HT" t5 null 150000 10000 200000 && expect "200k class: occ=160000 (acceptable edge)" acceptable "$HT" t5
+write_snapshot_tok "$HT" t6 null 150001 10000 200000 && expect "200k class: occ=160001" dumb "$HT" t6
+# Combination rule: the worse of the two computable shapes wins.
+write_snapshot_tok "$HT" c1 40 150000 20000 200000 && expect "pct smart + tokens dumb → dumb" dumb "$HT" c1
+write_snapshot_tok "$HT" c2 80 40000 10000 200000 && expect "pct dumb + tokens smart → dumb" dumb "$HT" c2
+write_snapshot_tok "$HT" c3 40 40000 10000 200000 && expect "pct smart + tokens smart → smart" smart "$HT" c3
+write_snapshot_tok "$HT" c4 60 40000 10000 200000 && expect "pct acceptable + tokens smart → acceptable" acceptable "$HT" c4
+# Plausibility guard: occupancy above the window size is impossible as current
+# occupancy (corrupt or forged data); the percentage shape stands alone.
+write_snapshot_tok "$HT" p1 40 450000 50000 200000 && expect "implausible occ=500k>200k: pct stands alone" smart "$HT" p1
+write_snapshot_tok "$HT" p2 null 450000 50000 200000 && expect "implausible occ + null pct → unknown" unknown "$HT" p2
+
+# Version gate. Before 2.1.132 the token fields were CUMULATIVE session totals,
+# and a cumulative total below the window size is indistinguishable from a real
+# occupancy — the occupancy>window guard alone never catches it. The regression
+# case is exactly that: 170k cumulative in a 200k window sits inside the window,
+# passes the plausibility guard, and would resolve dumb while the live context
+# is smart-zone.
+write_snapshot_tok "$HT" g1 10 160000 10000 200000 '' '"2.1.131"' &&
+  expect "pre-2.1.132 cumulative 170k in a 200k window: token shape dropped, pct stands alone" smart "$HT" g1
+write_snapshot_tok "$HT" g2 null 160000 10000 200000 '' '"2.1.131"' &&
+  expect "pre-2.1.132 + null pct → unknown, never a token-band zone" unknown "$HT" g2
+write_snapshot_tok "$HT" g3 null 160000 10000 200000 '' '"2.1.132"' &&
+  expect "2.1.132 exactly (floor, inclusive): token shape computable" dumb "$HT" g3
+write_snapshot_tok "$HT" g4 null 160000 10000 200000 '' '"2.2"' &&
+  expect "2.2 (short form, > floor): token shape computable" dumb "$HT" g4
+write_snapshot_tok "$HT" g5 null 160000 10000 200000 '' '"3.0.0"' &&
+  expect "3.0.0 (major bump): token shape computable" dumb "$HT" g5
+write_snapshot_tok "$HT" g6 null 160000 10000 200000 '' '"2.1.99"' &&
+  expect "2.1.99 (numeric, not lexical, comparison): token shape dropped" unknown "$HT" g6
+write_snapshot_tok "$HT" g7 null 160000 10000 200000 '' omit &&
+  expect "cli_version absent (older tee, or no version on stdin): token shape dropped" unknown "$HT" g7
+write_snapshot_tok "$HT" g8 null 160000 10000 200000 '' '"2.1.132-beta"' &&
+  expect "non-numeric version string: token shape dropped" unknown "$HT" g8
+write_snapshot_tok "$HT" g9 null 160000 10000 200000 '' 2 &&
+  expect "cli_version not a string: token shape dropped" unknown "$HT" g9
+# Window smaller than every configured class: token shape not computable.
+write_snapshot_tok "$HT" w1 null 40000 10000 100000 && expect "window below all classes + null pct → unknown" unknown "$HT" w1
+write_snapshot_tok "$HT" w2 40 40000 10000 100000 && expect "window below all classes: pct stands alone" smart "$HT" w2
+
+# token_bands override honored.
+HTB="$WORK/h-tokenbands"
+mkdir -p "$HTB/.claude/context-guard"
+printf '{"smart_max_used_percentage":50,"acceptable_max_used_percentage":75,"token_bands":{"200000":{"smart_max_tokens":50000,"acceptable_max_tokens":80000}}}\n' \
+  >"$HTB/.claude/context-guard/zones.json"
+write_snapshot_tok "$HTB" b1 null 60000 10000 200000 && expect "override token bands 50k/80k: occ=70k" acceptable "$HTB" b1
+write_snapshot_tok "$HTB" b2 null 40000 5000 200000 && expect "override token bands 50k/80k: occ=45k" smart "$HTB" b2
+
+# Malformed token_bands → shipped token defaults + visible stderr notice;
+# valid percentage keys in the same file still apply.
+HTM="$WORK/h-tokenmal"
+mkdir -p "$HTM/.claude/context-guard"
+printf '{"smart_max_used_percentage":50,"acceptable_max_used_percentage":75,"token_bands":{"200000":{"smart_max_tokens":300000,"acceptable_max_tokens":400000}}}\n' \
+  >"$HTM/.claude/context-guard/zones.json"
+write_snapshot_tok "$HTM" tm1 null 150000 20000 200000
+GOT="$(HOME="$HTM" bash "$ZONE" tm1 2>"$WORK/tb-stderr")"
+if [[ "$GOT" == "dumb" ]]; then ok "malformed token_bands (acceptable>class) → shipped token defaults"; else fail "malformed token_bands: got '$GOT'"; fi
+if grep -qi 'token_bands' "$WORK/tb-stderr"; then ok "malformed token_bands → visible stderr notice"; else fail "malformed token_bands: silent fallback"; fi
+
+# v1 percentage-only zones.json: token_bands absent is zero-config (shipped
+# token defaults apply, silently).
+HTV="$WORK/h-tokenv1"
+mkdir -p "$HTV/.claude/context-guard"
+printf '{"smart_max_used_percentage":30,"acceptable_max_used_percentage":60}\n' >"$HTV/.claude/context-guard/zones.json"
+write_snapshot_tok "$HTV" v1 null 150000 20000 200000
+GOT="$(HOME="$HTV" bash "$ZONE" v1 2>"$WORK/v1-stderr")"
+if [[ "$GOT" == "dumb" ]]; then ok "v1 zones.json: shipped token defaults still apply"; else fail "v1 zones.json token defaults: got '$GOT'"; fi
+if [[ -s "$WORK/v1-stderr" ]]; then fail "v1 zones.json: unexpected stderr notice for absent token_bands"; else ok "v1 zones.json: absent token_bands is silent zero-config"; fi
 
 # --- Exactly one word on stdout, always --------------------------------------
 for sid in s0 s75x snull nosuchsession storn; do
