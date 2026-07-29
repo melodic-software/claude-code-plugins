@@ -1,5 +1,29 @@
 # Changelog — session-flow plugin
 
+## [0.17.17]
+
+### Fixed
+
+- **`continue-in-background`'s dirty-tree gate had no branch for a consuming directory that is not
+  a git repository (melodic-software/claude-code-plugins#929).** The gate opened by running
+  `git status --porcelain -uall`, which in a non-repo directory (a session started in `$HOME`, say)
+  fails with `fatal: not a git repository` and leaves the skill with no specified behavior.
+  - The gate now establishes repository status first with `git rev-parse --is-inside-work-tree` and
+    specifies all three outcomes. `true` → inspect the tree as before. Not a git repository →
+    launch: there is no uncommitted work to protect and no worktree isolation to lose, because
+    outside a repository background sessions write to the working directory directly rather than
+    moving into an isolated worktree (<https://code.claude.com/docs/en/agent-view>); the launch
+    report states that reading.
+  - Any *other* `rev-parse` failure — dubious ownership, a damaged repository, git missing from
+    `PATH` — is specified as UNKNOWN tree state, not clean, and does not launch. Reading a
+    non-zero exit alone as "no repository" would have turned a gate that protects uncommitted work
+    into one that fails open on exactly the cases where the tree is most likely dirty and least
+    likely readable.
+  - The post-launch enforcement checklist and the gotchas index carry the same branches, so the
+    surfaces the user verifies the exit shape against no longer disagree with the gate.
+  - Two eval cases added: a non-repo directory that launches, and a git failure that is not
+    "not a git repository" that does not.
+
 ## [0.17.16]
 
 ### Fixed

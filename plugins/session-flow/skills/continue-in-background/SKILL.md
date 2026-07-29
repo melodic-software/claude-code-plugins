@@ -68,7 +68,20 @@ directive to the handoff file; prompt-only: the remaining-work bullets travel in
 The rails prompt from the engine doc is still emitted FIRST (transparency + manual fallback),
 then:
 
-1. **Dirty-tree gate.** Run `git status --porcelain -uall` in the consuming project (`-uall`
+1. **Dirty-tree gate.** First establish there is a tree to inspect, with
+   `git rev-parse --is-inside-work-tree` in the consuming project. Three outcomes, and only the
+   first reaches the gate below: prints `true` → inspect the tree. Fails *specifically* because
+   this is not a git repository → there is no uncommitted work to protect and no worktree
+   isolation to lose, since outside a repository (and absent a `WorktreeCreate` hook) background
+   sessions write to the working directory directly rather than moving into one
+   (<https://code.claude.com/docs/en/agent-view>) → launch, and state both in the launch report.
+   Fails for any OTHER reason — dubious ownership, a damaged repository, git missing from `PATH`
+   — → the tree's state is UNKNOWN, which is not the same as clean → do NOT launch; fall back
+   exactly as the dirty case does below, reporting what the command said. Never infer the
+   non-repo branch from a non-zero exit alone: every one of those other failures can sit on top
+   of a dirty tree, so an exit-code-only reading turns this gate into one that fails open.
+
+   Inspect the tree with `git status --porcelain -uall` in the consuming project (`-uall`
    lists files inside untracked directories individually; the default collapses a brand-new
    handoff directory into one directory entry, which both defeats the exemption below and can
    hide other dirt behind it) and IGNORE save-point files under the handoff location — the
@@ -138,9 +151,11 @@ doc's save-point items, which the sibling `handoff` skill's checklists mirror):
 
 - [ ] Explicit user intent for background delegation verified (hard gate) — absent intent →
   save-point + `/clear`-then-paste exit, no launch, reason stated
-- [ ] Dirty-tree gate evaluated (`git status --porcelain -uall` this turn, ignoring save-point
-  files under the handoff location); other uncommitted changes without the linked-worktree
-  exception → no launch, reason reported, fallback to `/clear`-then-paste
+- [ ] Dirty-tree gate evaluated this turn: `git rev-parse --is-inside-work-tree` first, then
+  `git status --porcelain -uall` when it says `true`, ignoring save-point files under the handoff
+  location; other uncommitted changes without the linked-worktree exception → no launch, reason
+  reported, fallback to `/clear`-then-paste. Not a git repository → launch, non-repo reading
+  stated in the report; any other `rev-parse` failure → state unknown, no launch, same fallback
 - [ ] Background agent launched with the rails prompt (`claude --bg --name …`) and the launch
   result reported (including any non-inherited flags mirrored or worth flagging) — OR the
   non-zero exit reported with fallback to `/clear`-then-paste
@@ -149,7 +164,8 @@ doc's save-point items, which the sibling `handoff` skill's checklists mirror):
 ## Gotchas
 
 Failure patterns are documented inline at the step that owns them: the `-uall` untracked-directory
-collapse (dirty-tree gate, step 1), the no-inline-prompt rule and the session-persistence env
+collapse and the non-repo-vs-unknown split that keeps the gate from failing open (dirty-tree gate,
+step 1), the no-inline-prompt rule and the session-persistence env
 requirement (launch command, step 2), slug sanitization ("Arguments"), and non-inheritance
 surprises — model, effort, CLI flags ("What the launched session inherits").
 

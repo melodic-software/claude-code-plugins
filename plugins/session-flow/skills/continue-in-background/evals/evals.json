@@ -51,6 +51,31 @@
         "It does NOT fall back to /clear-then-paste on account of the dirty tree",
         "The launch result is reported and the skill STOPS — no monitoring or babysitting"
       ]
+    },
+    {
+      "id": 5,
+      "name": "non-repo-directory-launches",
+      "prompt": "/continue-in-background — I'm done for the night, hand it to a background agent. (Note: this session was started in my home directory, which is not a git repository at all — git rev-parse --is-inside-work-tree fails with 'fatal: not a git repository'.)",
+      "expected_output": "The dirty-tree gate identifies the consuming directory as not a git repository — not merely a failed command — and takes the non-repo branch: there is no uncommitted work to protect and no worktree isolation to lose, because outside a repository background sessions write to the working directory directly. It launches the background agent, states the non-repo reading in the launch report, and STOPS.",
+      "files": [],
+      "expectations": [
+        "The skill establishes repository status first (git rev-parse --is-inside-work-tree) rather than running git status --porcelain -uall blind and stalling on 'fatal: not a git repository'",
+        "It identifies the non-repo case positively and launches the background agent",
+        "The launch report states the non-repo reading: no uncommitted work to protect, and the launched session writes to the working directory directly instead of moving into an isolated worktree",
+        "The skill STOPS after the launch report — no monitoring, polling, or new work items"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "unknown-tree-state-does-not-launch",
+      "prompt": "/continue-in-background — keep it moving, I'm away. (Note: git rev-parse --is-inside-work-tree exits non-zero with 'fatal: detected dubious ownership in repository at ...' — this IS a repository, git just refuses to read it.)",
+      "expected_output": "The gate's third branch applies: git failed for a reason other than 'not a git repository', so the tree's state is unknown rather than clean. The skill does NOT launch — it reports the git failure and falls back to the standard /clear-then-paste instruction, exactly as it does for a dirty tree.",
+      "files": [],
+      "expectations": [
+        "The skill does NOT treat a non-zero exit as the non-repo branch — the failure is not 'not a git repository', so the tree may be dirty and cannot be proven clean",
+        "It does NOT launch the background agent: unknown tree state is handled like dirty state, not like clean state",
+        "It reports what the command said and falls back to the standard /clear-then-paste instruction"
+      ]
     }
   ]
 }
