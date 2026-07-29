@@ -169,6 +169,11 @@ intake arriving mid-cycle is reported, never chased.
 
 ## Cycle shape
 
+0. **Lane-start preflight (once per lane, before the first cycle).** Keep step 5's unconditional
+   record write out of the tracked tree, per §2: if `git check-ignore -q .claude/lane-escalations/`
+   reports the path unignored, append `/.claude/lane-escalations/` to the clone's untracked
+   `$(git rev-parse --git-common-dir)/info/exclude`. Skipped outside a git checkout, which the
+   neutral-directory launch mode allows.
 1. **Re-anchor.** Re-read the durable loop state block from the telemetry comment (conversation
    context is compaction-lossy — the comment is the source of truth for the counters); classify
    guard mode against the floor below; take the cycle-start snapshot: open PRs with head SHAs,
@@ -306,8 +311,23 @@ escalation comment whose first line is
 `<!-- work-items:escalation lane=babysit-loop kind=escalated -->`. That marker grammar is the
 attended queue's escalated-view data contract; the sentinel names the contract owner, not the
 writer (the same one-directional pattern as the `claude-ops:lane-telemetry` sentinel below), so
-babysit escalations surface in the same attention view as worker escalations. Telemetry is the
-report surface, never the escalation channel.
+babysit escalations surface in the same attention view as worker escalations. The same step
+performs the contract's escalation record write — shape, suppression, and the seam it feeds are
+§2's, held by citation; three things a lane executor must not get wrong are restated here.
+**Immediately before posting that comment**, create
+`.claude/lane-escalations/<UTC-stamp>-<item>-babysit-loop.json` (stamp `YYYYMMDDTHHMMSSZ`,
+`lane` `babysit-loop`, `kind` `escalated`) with the **Write tool**: only a Write call fires the
+`PostToolUse` event the notification hook keys on, a shell redirect emits only a `Bash` event the
+seam's `Write` matcher never sees, and **record-before-marker is load-bearing** — a stop between
+the two non-atomic writes then costs the tracker comment, which the next cycle re-files, where the
+reverse order strands a standing marker that suppresses the record forever and loses the
+notification silently. The record path is relative to **this session's checkout**, which carries
+one consequence this lane owns: when `<owner/repo>` names a repository other than that checkout,
+the notification reaches the *launching* project's endpoint and the target's tracked hook is never
+consulted, since the harness fires hooks from loaded settings and no lane can redirect that.
+**Launching from the target repository's own checkout is therefore required, not preferred,
+whenever that repository's endpoint is the one that must hear.** Telemetry is the report surface,
+never the escalation channel.
 
 **Pre-escalation resolution attempt, explicit-`autopilot` only.** When — and only when — this
 invocation's own argument line typed both the literal `autopilot` tier argument and

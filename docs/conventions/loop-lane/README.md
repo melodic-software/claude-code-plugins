@@ -125,12 +125,188 @@ never compared as a string literal
 the canonical roles and the resolution). A machine-marked bot comment discriminates a
 worker-*escalated* item from an operator-*parked* one — both wear the same role label, so the marker,
 not a second label, carries the distinction. No lane creates labels; the label set is IaC-owned.
+The same step that files the escalation writes the local escalation record (below), the
+deterministic surface for out-of-band notification.
 
 The event classes that oblige escalation are governing policy owned by
 [`guardrails.md`](../../../plugins/autonomy/reference/guardrails.md#escalation) (gate failure,
 verification divergence, admission rejection, demotion, structural-plan approval, and
 untrusted-provenance). This convention adds no second escalation channel; the telemetry comment (§4)
-is the report surface, never the sole path when human action is required.
+is the report surface, never the sole path when human action is required. The escalation record
+write and the out-of-band notification seam below are notification depth on the one filed
+escalation — the fan-out posture the runner design
+([`escalation.md`](../../../plugins/autonomy/reference/runner/escalation.md)) names — never a
+second channel: the tracker item remains the single escalation of record.
+
+### Escalation record write
+
+Every escalation an autonomous lane files (`work-loop`, `babysit-loop`; the attended queue answers
+escalations, it does not file them) also writes a local **escalation record** in the same step that
+files the tracker item, **immediately before** it posts the marker comment: a new JSON file created
+with the **Write tool** at
+`.claude/lane-escalations/<UTC-stamp>-<item>-<lane>.json` in the session's checkout — stamp
+`YYYYMMDDTHHMMSSZ`, `<item>` the tracker item number (e.g.
+`20260726T031500Z-1234-work-loop.json`). The record carries the machine-readable shape of the
+escalation the tracker item already holds:
+
+```json
+{"schema":"loop-lane/escalation-record@1","lane":"work-loop","kind":"escalated",
+ "repo":"<owner>/<repo>","item":"<tracker item URL>",
+ "summary":"<the marker comment's one-line question>","written_at":"<UTC ISO-8601>"}
+```
+
+`kind` mirrors the marker comment's `kind` token. The write is signal, not storage: no lane reads
+the record back, and the tracker item stays the escalation of record.
+
+**Ignoring the record directory is the lane's own preflight, not a consumer obligation.** Because
+the write is unconditional, an unignored directory strands an untracked file in the working tree a
+lane runs its gates against, and escalation detail sits one careless stage from being committed.
+Nothing delivers a tracked ignore rule into a consuming repo — this marketplace's root rule covers
+only its own dogfooding checkout, and a plugin ships no consumer-side `.gitignore` — so a lane that
+depended on the consumer having added one would break for every existing consumer that upgrades
+without noticing. Each lane therefore closes this itself, once at lane start, before any cycle runs:
+if `git check-ignore -q .claude/lane-escalations/` reports the path unignored, append
+`/.claude/lane-escalations/` to `$(git rev-parse --git-common-dir)/info/exclude`. That file is
+per-clone and untracked, shared across the clone's worktrees, so the repair needs no consumer
+change, alters no tracked file, and cannot itself dirty the tree. A consuming repo may still add the
+rule to its tracked `.gitignore` through its lane-enabling adoption change — the durable form,
+carried to every clone — and the preflight then finds the path already ignored and does nothing.
+Three rules make the signal deterministic:
+
+- **Write tool, never a shell redirect.** Only a `Write` tool call emits the `PostToolUse` event
+  the seam below keys on; a shell redirect writes the same bytes but emits only a `Bash` tool
+  event, which the seam's `Write` matcher never sees.
+- **One record per newly filed escalation.** What suppresses a duplicate is the read the lane
+  already performs before escalating: an item that already carries its marker for this kind — a
+  still-unratified `ratify-c3`, an idempotent label re-convergence — is not a new escalation, so
+  the cycle files no second comment and writes no second record. Within that rule the
+  `<UTC-stamp>-<item>` filename is unique, so each newly filed escalation is a fresh `Write`
+  (never an `Edit`) producing exactly one hook event.
+- **Record first, marker second — the failure direction is chosen.** The two writes are not
+  atomic, and a lane can stop between them. Written in this order, a stop after the record leaves
+  an escalation with no tracker comment; the next cycle reads no marker, re-escalates, and writes a
+  second record — a duplicate notification, recoverable by the human who receives it. The reverse
+  order fails the other way and cannot be recovered: a stop after the marker post leaves the marker
+  standing with no record ever written, and that standing marker suppresses the record on every
+  later cycle, so the out-of-band notification for that escalation is lost permanently. Ordering is
+  what makes the seam fail loud rather than silent; no reconciliation pass is needed, and none
+  would be reliable, since a compensating write can stop in exactly the same window.
+
+The `summary` restates the marker comment's one-line question — text the lane already published on
+the tracker — so the record itself adds no new secret surface. The hook payload the seam sends is
+larger than the record; see the egress note below.
+
+### Out-of-band notification seam
+
+The local channels (OS toast, terminal bell/OSC 9 — the `autonomy` plugin's `lane-notify.sh`)
+reach only an operator at the machine running the lane. The escalation record write gives a
+consuming repo a deterministic surface that reaches one who is not: a `PostToolUse` hook in the
+consuming repo's own tracked `.claude/settings.json`, matched on the `Write` tool, filtered to the
+record directory, with a `type: "http"` handler that POSTs the hook event's JSON —
+`tool_input.content` carries the record — to the repo's chosen endpoint. Documented default shape:
+
+```json
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write",
+        "hooks": [
+          {
+            "type": "http",
+            "url": "https://alerts.example.com/lane-escalations",
+            "if": "Edit(/.claude/lane-escalations/**)",
+            "headers": { "Authorization": "Bearer $LANE_ESCALATION_WEBHOOK_TOKEN" },
+            "allowedEnvVars": ["LANE_ESCALATION_WEBHOOK_TOKEN"],
+            "timeout": 30,
+            "statusMessage": "Notifying escalation webhook..."
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+Every element is a documented first-party mechanism (verified against
+<https://code.claude.com/docs/en/hooks> and <https://code.claude.com/docs/en/permissions> on
+2026-07-27):
+
+- `type: "http"` handlers POST the hook's JSON input with `Content-Type: application/json` and are
+  supported in project `.claude/settings.json` — and every other settings scope — on `PostToolUse`;
+  the one documented handler-type restriction that excludes them is on `SessionStart`. The seam is
+  therefore per-consuming-repo configuration; no plugin ships it. It is deterministic (the handler
+  fires on the matched lifecycle event, no model judgment) and carries no claude.ai subscription or
+  Remote Control dependency.
+- The `if` field holds exactly one permission rule and is evaluated on `PostToolUse`. File rules
+  use the `Edit(...)` form — Edit rules cover all file-editing tools, `Write` included, and a
+  `Write(path)` rule is never matched — and the single leading `/` anchors at the settings source
+  (`<project root>` for project settings). Each worktree checkout carries its own copy of the
+  tracked settings file, so by that settings-source rule the one tracked rule anchors at each
+  worktree's own root — an applied inference: the docs state worktree matching explicitly only
+  for local-settings rules.
+- Header values interpolate environment variables only for names listed in `allowedEnvVars`. The
+  docs document interpolation for `headers` alone and say nothing about `url`, so treat the `url`
+  field as non-interpolating — an applied inference, and the reason the endpoint URL is tracked
+  config while the secret rides only in a header sourced from the operator's environment, never in
+  the repo.
+- **Egress note.** The POST body is the full `PostToolUse` hook input, not just the record:
+  alongside `tool_input` (the record's path and content) it carries session metadata — for
+  example `session_id`, `cwd`, and `transcript_path`, which are absolute local paths and project
+  identity. Configuring the hook is the consuming repo's deliberate opt-in to that egress; point
+  the URL only at an endpoint trusted with it.
+- A non-2xx response or a connection failure is a non-blocking error: a dead endpoint never blocks
+  a lane.
+
+**Destination is the consumer's choice.** The URL is any HTTP endpoint the consuming repo
+controls: a generic webhook receiver, an internal alerting service, or a relay that reshapes the
+payload for a chat service (a Slack incoming webhook expects its own JSON shape and rejects the
+raw hook payload, so Slack reach goes through a relay). Two non-deterministic layers may ride
+alongside, never instead: the built-in `PushNotification` tool, and model-driven outbound send via
+a chat plugin (UNVERIFIED here — confirm the plugin and its send capability against its own docs
+before relying on it). `PushNotification` "sends a desktop notification, and a phone push when
+Remote Control is connected"; it prompts for no permission, but the model decides when to call it.
+Its phone leg therefore inherits Remote Control's documented requirements — a claude.ai Pro, Max,
+Team, or Enterprise plan (API keys unsupported), a claude.ai login, a session talking directly to
+the Anthropic API, and accepted workspace trust — and additionally needs the separately documented
+mobile setup: the app installed and signed in on the same account, OS notifications allowed, and
+push enabled in `/config` (verified 2026-07-27:
+<https://code.claude.com/docs/en/tools-reference>, <https://code.claude.com/docs/en/remote-control>).
+Only the http hook is the deterministic leg.
+
+**The seam binds to the session's project, never to the repository a lane targets.** The record
+path is relative to the session's checkout, and the hook that fires is the one in that session's
+loaded project settings. So a lane whose scope argument names a repository other than its own
+checkout — a supported merge-lane mode — POSTs to the *launching* project's endpoint, and the
+target repository's tracked hook is never consulted. That is the seam as specified rather than a
+misconfiguration: "the consuming repo" is whichever project the lane session runs in, which is also
+the project whose settings the harness loaded. **Running the lane from the target repository's own
+checkout is therefore a requirement, not a preference, whenever that repository's endpoint is the
+one that must hear** — a lane launched from a neutral directory or another repository's checkout
+notifies that project's endpoint or nobody, and no configuration in the target repository changes
+it. Writing the record into the target repository's tree instead would be strictly worse, not a
+fix: the seam's `if` rule anchors at its own settings source, so a record written outside the
+session's project matches no loaded rule and fires no hook at all, trading a
+notification-to-the-wrong-endpoint for silence. Note the asymmetry with
+policy resolution, which deliberately reaches the target repository's tracked file over `gh api`:
+that is a read a lane performs, while the hook is fired by the harness from loaded settings, which
+no lane can redirect.
+
+**Degradation.** A consuming repo with no hook configured loses only the out-of-band leg — the
+tracker escalation and the local notify are unchanged, and the record files are inert exhaust. A
+closed laptop or a dead process emits no hook event at all; the record write covers a lane that is
+running but unattended, and lane-down detection stays with the stop gate and telemetry freshness
+(§4).
+
+**A configured hook can also fail silently.** An env-var name absent from `allowedEnvVars`
+interpolates as an empty string (documented: "references to unlisted variables are replaced with
+empty strings"); a listed name unset in the operator's environment has no value to supply and
+plausibly interpolates the same way — an applied inference, not stated in the docs. Either way, a
+non-2xx response or connection failure is a non-blocking error, so a misconfigured hook can 401 on
+every escalation while the lane runs on with nothing surfaced outside debug logs. Verify the leg
+when wiring it — write a throwaway record file with the Write tool and confirm the endpoint
+received the POST — and treat webhook silence across cycles that filed escalations as a
+check-the-hook signal, never as proof of health.
 
 ## 3. Capability tiers
 

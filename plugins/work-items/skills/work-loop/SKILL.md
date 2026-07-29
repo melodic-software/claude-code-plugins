@@ -157,6 +157,12 @@ while the latch is set (clear it on a fresh healthy snapshot after the pause end
 
 ## Cycle shape
 
+0. **Lane-start preflight (once per lane, before the first cycle).** Make the escalation record
+   directory ignored in this checkout so step 5's unconditional write can never dirty the tree:
+   if `git check-ignore -q .claude/lane-escalations/` reports it unignored, append
+   `/.claude/lane-escalations/` to `$(git rev-parse --git-common-dir)/info/exclude`. That file is
+   per-clone and untracked, so this repairs an existing consumer that upgraded without adding a
+   tracked rule, changes nothing the repo tracks, and no-ops where the rule is already present.
 1. **Re-anchor.** Re-read the durable loop state block; classify guard mode against the floor
    above; take the cycle-start snapshot of the frontier and open items. The drain exit is evaluated
    against this snapshot — new automated intake arriving mid-cycle is **reported, never chased**
@@ -166,8 +172,9 @@ while the latch is set (clear it on a fresh healthy snapshot after the pause end
    comment or item it creates carries the AI disclaimer. Sweep hardening: an advisory issue
    authored by a workflow bot routes to the human-gated role label by default (this also lets drain
    exits terminate against automated intake) — applied together with a machine-marked
-   `kind=routed-advisory` escalation comment (step 5's marker shape), so the routing surfaces in
-   the attended queue's escalated view instead of vanishing behind a bare label.
+   `kind=routed-advisory` escalation comment (step 5's marker shape and record write), so the
+   routing surfaces in the attended queue's escalated view instead of vanishing behind a bare
+   label.
 3. **Admission gate.** Classify each frontier candidate and admit per the gate below — fail-closed.
 4. **Execute.** Work admitted items via `/work-items:work` (one invocation per item slot), up to
    the adaptive item cap. Each invocation uses that skill's **autonomous invocation** path: it
@@ -197,6 +204,23 @@ while the latch is set (clear it on a fresh healthy snapshot after the pause end
    line is `<!-- work-items:escalation lane=work-loop kind=escalated|ratify-c3|routed-advisory -->`
    — the marker,
    not a second label, is what discriminates a worker-escalated item from an operator-parked one.
+   The same step performs the contract's escalation record write, **immediately before posting that
+   comment**: create
+   `.claude/lane-escalations/<UTC-stamp>-<item>-work-loop.json` (stamp `YYYYMMDDTHHMMSSZ`) with
+   the **Write tool** — only a Write tool call fires the `PostToolUse` event a consuming repo's
+   out-of-band notification hook keys on; a shell redirect writes the same bytes but emits only a
+   `Bash` event the seam's `Write` matcher never sees — body
+   `{"schema":"loop-lane/escalation-record@1","lane":"work-loop","kind":"<marker kind>","repo":"<owner>/<repo>","item":"<item URL>","summary":"<the marker comment's one-line question>","written_at":"<UTC ISO-8601>"}`.
+   Duplicate suppression is the marker read this step already performs before escalating: an item
+   whose marker already stands — a still-unratified `ratify-c3`, an idempotent label
+   re-convergence — is not a new escalation, so the cycle files no second comment and writes no
+   second record. **Record before marker is load-bearing, not incidental**: a stop between the two
+   then loses the tracker comment, which the next cycle re-files (one duplicate notification),
+   whereas the reverse order leaves a standing marker that suppresses the record on every later
+   cycle and loses the notification permanently. The summary restates only the already-public
+   comment text. No configured hook means the file is inert exhaust — the tracker item stays the
+   escalation of record. The record path is relative to this session's checkout; step 0's preflight
+   is what keeps that directory out of the tree this lane runs its gates against.
 6. **Report and pace.** Upsert the telemetry comment (cycle report + updated state block + guard
    mode), then evaluate the exit condition; if not exiting, `ScheduleWakeup` the next cycle.
 
@@ -237,7 +261,11 @@ Hard gates that override any classification:
   `list-frontier --autonomous` while still failing `attend-queue`'s `[ratify]` row condition,
   so no later cycle and no operator view can repair it. Confirm or create the marker, then edit
   the labels; if the comment cannot be written, change no label and leave the item on the frontier
-  for the next cycle to retry.
+  for the next cycle to retry. Creating the marker here files an escalation, so it carries step
+  5's escalation record write on the same terms — one record per NEWLY posted marker, none when
+  the marker already stands. Order it after the comment and before the labels; unlike the comment,
+  a failed record write blocks nothing, because the tracker item is already the escalation of
+  record and only the out-of-band leg degrades.
 
   - **`kind=ratify-c3` comment — at most one, ever.** Before posting, read the item's existing
     comments; if a `kind=ratify-c3` marker comment **authored by the tracker seam's configured
@@ -347,5 +375,5 @@ report and stop cleanly rather than idling forever.
 - **Do not chase intake.** A bot filing items mid-cycle can hold a drain open forever; the
   snapshot rule exists precisely so new intake is reported and left for the next cycle's sweep.
 - **Telemetry is the report surface, never the escalation channel.** When human action is
-  required, the escalation contract (role label + machine-marked comment) is the path; a note in
-  the telemetry comment alone is invisible to the attended queue.
+  required, the escalation contract (role label + machine-marked comment + the step-5 record
+  write) is the path; a note in the telemetry comment alone is invisible to the attended queue.
