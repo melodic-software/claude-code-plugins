@@ -564,10 +564,15 @@ Lane rules, dated 2026-07-29 (recheck trigger: a model change on any pinned lane
 model-config effort table changes — the effort scale is calibrated per model, so the same level
 name is not the same underlying value across models):
 
-- **Consequential-output lanes pin `high`** — verdicts, and research that feeds decisions. The
-  pin exists so the lane does not silently degrade inside a session tuned down for cost. The pin
-  is not relative: on a model whose own default sits above `high`, it caps the lane below that
-  model's default — the recheck trigger above exists exactly for this.
+- **Consequential-output lanes with a frontmatter surface pin `high`** — verdicts, and research
+  that feeds decisions, wherever the lane is a named agent or a skill. The pin exists so the lane
+  does not silently degrade inside a session tuned down for cost. The pin is not relative: on a
+  model whose own default sits above `high`, it caps the lane below that model's default — the
+  recheck trigger above exists exactly for this. The reach is the mechanism's, not the rule's:
+  a generic Agent-tool dispatch carries no effort control (the tool accepts a `model` parameter,
+  no `effort`), so it structurally inherits the session level and its floor is the session
+  baseline; promoting such a lane to a named agent is how it gains the pin — an effort pin being
+  load-bearing counts toward the named-agent bar the same way a model pin does.
 - **Bulk mechanical sweeps may pin `low`** — upstream pitches `low` for simpler tasks needing the
   best speed and lowest cost, "such as subagents", and lower effort spends fewer tool calls
   ([effort](https://platform.claude.com/docs/en/build-with-claude/effort)).
