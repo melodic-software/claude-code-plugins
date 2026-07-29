@@ -55,6 +55,7 @@ All notable changes to the `source-control` plugin are documented here. Format f
     `--extra-bot-logins`, so every copyable resolve-thread command actually threads the caller's
     own identity through. `plugin.json`'s `babysit_self_logins` description now names the
     resolve-thread bot-only test among the surfaces the self set covers.
+
 ## [0.34.0]
 
 ### Changed
