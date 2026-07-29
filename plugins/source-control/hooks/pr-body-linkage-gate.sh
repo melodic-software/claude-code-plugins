@@ -391,10 +391,43 @@ parse_short_cluster() {
   return 0
 }
 
+# Whether a wrapper's flag consumes the FOLLOWING word. Without this, the
+# separated form of an option value (`sudo -u root gh …`, `env -u VAR gh …`)
+# leaves the value sitting where the command name is expected, and the wrapped
+# `gh` is never found. An attached value (`-uroot`, `--user=root`) is part of
+# the flag word and consumes nothing.
+# shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
+wrapper_flag_takes_value() {
+  local wrapper="$1" flag="$2"
+  case "$flag" in
+  *=*) return 1 ;;
+  *) ;;
+  esac
+  case "$wrapper" in
+  sudo)
+    case "$flag" in
+    -u | -g | -h | -p | -C | -D | -R | -T | -U | \
+      --user | --group | --host | --prompt | --close-from | --chdir | --chroot | \
+      --command-timeout | --other-user)
+      return 0
+      ;;
+    *) return 1 ;;
+    esac
+    ;;
+  env)
+    case "$flag" in
+    -u | --unset | -C | --chdir | -S | --split-string) return 0 ;;
+    *) return 1 ;;
+    esac
+    ;;
+  *) return 1 ;;
+  esac
+}
+
 # shellcheck disable=SC2329  # invoked indirectly as the hook::bash_parse_segments callback
 check_segment() {
   local -a w=("$@")
-  local n=$# i=0 word next have_next bin
+  local n=$# i=0 word next have_next bin wrapper
   local body_flag="" body_val="" body=""
 
   if hook::shell_c_operand "$@"; then
@@ -413,8 +446,23 @@ check_segment() {
     fi
     case "${word##*/}" in
     env | command | sudo)
+      wrapper="${word##*/}"
       ((i++))
-      while ((i < n)) && [[ "${w[i]}" == -* || ("${w[i]}" == *=* && "${w[i]}" != -*) ]]; do ((i++)); done
+      while ((i < n)); do
+        case "${w[i]}" in
+        --)
+          ((i++))
+          break
+          ;;
+        -*)
+          # shellcheck disable=SC2310  # pure classifier; a false return is the "no value" case
+          if wrapper_flag_takes_value "$wrapper" "${w[i]}"; then ((i++)); fi
+          ((i++))
+          ;;
+        *=*) ((i++)) ;;
+        *) break ;;
+        esac
+      done
       continue
       ;;
     *) break ;;

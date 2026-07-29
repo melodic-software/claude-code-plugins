@@ -218,6 +218,18 @@ assert_allow "-R attached form is out of scope too" "$GATED" \
   "$(printf "gh pr create -Rother/repo -t T --body '%s'" "$NO_RELATED")"
 assert_block "sudo wrapper is unwrapped" "$GATED" \
   "$(printf "sudo gh pr create -t T --body '%s'" "$NO_RELATED")"
+# A wrapper option's SEPARATED value sits where the command name is expected;
+# skipping the flag alone leaves the gate looking at the value.
+assert_block "sudo -u root consumes its value" "$GATED" \
+  "$(printf "sudo -u root gh pr create -t T --body '%s'" "$NO_RELATED")"
+assert_block "sudo -uroot attaches its value" "$GATED" \
+  "$(printf "sudo -uroot gh pr create -t T --body '%s'" "$NO_RELATED")"
+assert_block "sudo --user=root attaches its value" "$GATED" \
+  "$(printf "sudo --user=root gh pr create -t T --body '%s'" "$NO_RELATED")"
+assert_block "sudo -- ends its own options" "$GATED" \
+  "$(printf "sudo -- gh pr create -t T --body '%s'" "$NO_RELATED")"
+assert_block "env -u VAR consumes its value" "$GATED" \
+  "$(printf "env -u GH_TOKEN gh pr create -t T --body '%s'" "$NO_RELATED")"
 
 # --- How `gh` is spelled -----------------------------------------------------
 # The wrapper loop above already reads basenames; matching the binary any other
