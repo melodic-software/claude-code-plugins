@@ -4,6 +4,10 @@ description: "Run the work-item backlog as a self-paced autonomous drain loop: e
 argument-hint: "(no arguments — cycle behavior comes from the launch prompt's standing rules and persisted config)"
 user-invocable: true
 disable-model-invocation: false
+metadata:
+  workflow-stage: operator
+  summary: Drain the backlog as a self-paced autonomous loop
+  cadence: continuous
 ---
 
 ## Variables

@@ -5,6 +5,9 @@ argument-hint: "[scope] [action] (e.g., /planning:design library, /planning:desi
 user-invocable: true
 disable-model-invocation: false
 shell: bash
+metadata:
+  workflow-stage: plan
+  summary: Resolve types, contracts, and module boundaries before planning
 ---
 
 ## Pre-computed context

@@ -3,6 +3,9 @@ name: clean-stop
 description: "Get a session to a clean stopping point before the machine may go away — everything durable, everything linked, nothing stranded on local disk. Sweep every repo and worktree touched for uncommitted, unpushed, or PR-less work, push it durable, put follow-ups and context in PR/issue bodies a cold agent could resume from, prune only what is provably safe, then give a free-and-clear verdict. Use when: 'clean stop', 'get to a clean stopping point', 'safe to shut down', 'wrap up before I lose this machine', 'make everything durable', 'stopping for the day', 'is anything stranded', 'leave it clean'. Makes durable freely; gates destructive cleanup."
 user-invocable: true
 disable-model-invocation: false
+metadata:
+  workflow-stage: session
+  summary: Make everything durable before the machine goes away
 ---
 
 # Clean stop

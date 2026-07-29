@@ -6,6 +6,9 @@ user-invocable: true
 disable-model-invocation: false
 allowed-tools: ["Bash(git branch:*)", "Bash(git status:*)", "Bash(head:*)", "Bash(echo:*)", "Bash(bash ${CLAUDE_PLUGIN_ROOT}/scripts/detect-ecosystems.sh:*)"]
 shell: bash
+metadata:
+  workflow-stage: plan
+  summary: Throwaway UI variations answering what should this look like
 ---
 
 ## Pre-computed context

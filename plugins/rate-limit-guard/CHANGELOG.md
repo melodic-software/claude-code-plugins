@@ -3,7 +3,7 @@
 All notable changes to the `rate-limit-guard` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.3.5]
+## [0.3.6]
 
 ### Fixed
 
@@ -17,6 +17,29 @@ All notable changes to the `rate-limit-guard` plugin are documented here. Format
   per-volume property (`fsutil 8dot3name query`), so the defect was live only for checkouts on a
   volume that generates short names. Synced from `lib/hook-utils.sh`; this plugin's own hooks do
   not consume the membership guard, so their behavior is unchanged.
+
+## [0.3.5]
+
+### Fixed
+
+- **The tee's `account` forward-pass no longer promises a no-change upgrade path it cannot deliver
+  (#1685).** Four surfaces claimed that the release adding an account identifier upgrades the tee
+  file for free — the reader contract's tee-shape bullet and single-account gap invariant, the
+  README's known-gap bullet ("the wrapper automatically adopts any future account-identifying field
+  the schema grows"), and the tee script's own header comment. Each described the writer accurately
+  and then drew a conclusion broader than it supports. The writer selects on the **top-level key
+  name only** (`to_entries` over the root object), matching `account` as a **case-insensitive
+  substring**; an unmatched key is dropped with no diagnostic, in a contract that fail-closes on
+  every other unresolvable input. The promise therefore holds only when the new field's own
+  top-level key name contains `account`: `user`, `identity`, `org`, `seat`, and an `account_uuid`
+  buried inside a non-matching object all vanish silently. All four surfaces now scope the claim to
+  that shape and say every other shape needs a writer change.
+- **The reader contract now states that a forward-passed key carries its whole value.** A selected
+  top-level key crosses complete, nested objects included (`account_info: {uuid, display_name}`), so
+  the untrusted-value discipline is restated to cover an **object of arbitrary strings** rather than
+  only a scalar — the parse-with-a-JSON-parser, never-interpolate rule applies to the whole subtree.
+- `statusline-tee.sh`'s **behavior is unchanged**; only its header comment was corrected. Widening
+  the filter is a design question owned by `TODO(#1218)`, not this correction.
 
 ## [0.3.4]
 
