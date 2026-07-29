@@ -4,6 +4,10 @@ description: "Bring a machine's plugin fleet current on demand: marketplace refr
 argument-hint: "[action] [<marketplace>|all] — actions: sync (default), audit, converge"
 user-invocable: true
 disable-model-invocation: true
+metadata:
+  workflow-stage: operator
+  summary: Bring the machine's plugin fleet current — refresh, update, install per policy
+  cadence: weekly
 ---
 
 ## Variables

@@ -1,17 +1,18 @@
 #!/usr/bin/env node
 
-// Generates the grouped plugin catalog in README.md from the manifests, per the
-// generation contract in docs/CATALOG-TAXONOMY.md: marketplace.json owns each
-// plugin's category and ordering; plugin.json owns each description. The block
-// between the catalog markers is generated, never hand-edited. Run with no
+// Generates the grouped plugin catalog in docs/CATALOG.md from the manifests,
+// per the generation contract in docs/CATALOG-TAXONOMY.md: marketplace.json owns
+// each plugin's category and ordering; plugin.json owns each description. The
+// block between the catalog markers is generated, never hand-edited. Run with no
 // argument to rewrite the block; run with --check to fail on drift (CI gate).
 
 import { readFileSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join, relative, sep } from "node:path";
 import process from "node:process";
 
 const root = join(import.meta.dirname, "..");
-const readmePath = join(root, "README.md");
+const outputPath = join(root, "docs", "CATALOG.md");
+const outputLabel = relative(root, outputPath).split(sep).join("/");
 const marketplacePath = join(root, ".claude-plugin", "marketplace.json");
 
 const START = "<!-- catalog:start -->";
@@ -63,33 +64,37 @@ function buildBlock() {
     const manifest = join(root, path, ".claude-plugin", "plugin.json");
     const { description } = JSON.parse(readFileSync(manifest, "utf8"));
     if (!description) throw new Error(`${plugin.name}: plugin.json has no description`);
-    byCategory.get(plugin.category).push(`- [\`${plugin.name}\`](${path}) — ${description}`);
+    // Link relative to the output file's directory, so the rendered links
+    // resolve wherever outputPath points.
+    const link = relative(dirname(outputPath), join(root, path)).split(sep).join("/");
+    byCategory.get(plugin.category).push(`- [\`${plugin.name}\`](${link}) — ${description}`);
   }
 
   const sections = [];
   for (const category of CATEGORY_ORDER) {
     const items = byCategory.get(category);
     if (items.length === 0) continue; // skip empty categories (e.g. reserved deployment)
-    sections.push(`### ${heading(category)}\n\n${items.join("\n")}`);
+    // H2: the categories sit directly under the output page's H1.
+    sections.push(`## ${heading(category)}\n\n${items.join("\n")}`);
   }
 
   return `${START}\n\n${sections.join("\n\n")}\n\n${END}`;
 }
 
-function currentBlock(readme) {
-  const match = readme.match(new RegExp(`${START}[\\s\\S]*?${END}`));
+function currentBlock(content) {
+  const match = content.match(new RegExp(`${START}[\\s\\S]*?${END}`));
   if (!match) {
     throw new Error(
-      `README.md is missing the catalog markers (${START} … ${END}); add them once.`,
+      `${outputLabel} is missing the catalog markers (${START} … ${END}); add them once.`,
     );
   }
   return match[0];
 }
 
 const check = process.argv.includes("--check");
-const readme = readFileSync(readmePath, "utf8");
+const content = readFileSync(outputPath, "utf8");
 const expected = buildBlock();
-const existing = currentBlock(readme);
+const existing = currentBlock(content);
 
 if (check) {
   if (existing === expected) {
@@ -99,8 +104,8 @@ if (check) {
   const expectedLines = expected.split("\n");
   const existingLines = existing.split("\n");
   const at = expectedLines.findIndex((line, i) => line !== existingLines[i]);
-  console.error("Catalog drift: README.md catalog block is stale.");
-  console.error("Run `node scripts/generate-catalog.mjs` and commit README.md.");
+  console.error(`Catalog drift: ${outputLabel} catalog block is stale.`);
+  console.error(`Run \`node scripts/generate-catalog.mjs\` and commit ${outputLabel}.`);
   if (at !== -1) {
     console.error(`First difference at generated line ${at + 1}:`);
     console.error(`  expected: ${JSON.stringify(expectedLines[at] ?? null)}`);
@@ -110,8 +115,8 @@ if (check) {
 }
 
 if (existing === expected) {
-  console.log("Catalog already in sync; README.md unchanged.");
+  console.log(`Catalog already in sync; ${outputLabel} unchanged.`);
   process.exit(0);
 }
-writeFileSync(readmePath, readme.replace(existing, expected));
-console.log("Catalog regenerated in README.md.");
+writeFileSync(outputPath, content.replace(existing, expected));
+console.log(`Catalog regenerated in ${outputLabel}.`);

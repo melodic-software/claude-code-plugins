@@ -5,6 +5,9 @@ argument-hint: "[scope] (e.g., /discovery:explore payments module dependencies, 
 user-invocable: true
 disable-model-invocation: false
 shell: bash
+metadata:
+  workflow-stage: explore
+  summary: Explore code, history, tests, and config before changing anything
 ---
 
 ## Pre-computed context

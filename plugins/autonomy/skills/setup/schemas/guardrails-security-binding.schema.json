@@ -31,7 +31,7 @@
       "additionalProperties": { "$ref": "#/$defs/SurfaceLevels" }
     },
     "merge_policy": {
-      "description": "Per-class merge disposition, capped by the guardrail matrix: only the C2 cell is auto-merge ELIGIBLE (after promotion); every other class merges human, and C4/C5 human always.",
+      "description": "Per-class merge disposition, capped by the guardrail matrix: only the C2 and C3 cells are auto-merge ELIGIBLE (each after its own promotion); every other class merges human, and C4/C5 human always.",
       "type": "object",
       "additionalProperties": false,
       "required": ["C1", "C2", "C3", "C4", "C5"],
@@ -54,7 +54,7 @@
       }
     },
     "promotion_state": {
-      "description": "Keyed by PROMOTABLE cell id only (C2-auto-merge, C3-ai-review-blocking); an entry for a non-promotable cell (C4/C5 merge never promotes) makes the binding invalid. The bound state is a CEILING: consumers must resolve the effective state against live promotion-evidence telemetry before every autonomous dispatch/merge decision, fail-closing to unpromoted when evidence is unavailable.",
+      "description": "Keyed by PROMOTABLE cell id only (C2-auto-merge, C3-auto-merge, C3-ai-review-blocking); an entry for a non-promotable cell (C4/C5 merge never promotes) makes the binding invalid. The bound state is a CEILING: consumers must resolve the effective state against live promotion-evidence telemetry before every autonomous dispatch/merge decision, fail-closing to unpromoted when evidence is unavailable.",
       "type": "object",
       "additionalProperties": { "$ref": "#/$defs/PromotionEntry" }
     },

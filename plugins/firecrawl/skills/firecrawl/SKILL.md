@@ -6,6 +6,9 @@ user-invocable: true
 disable-model-invocation: false
 allowed-tools: Bash(command -v firecrawl*) Bash(firecrawl --status*)
 shell: bash
+metadata:
+  workflow-stage: research
+  summary: Scrape, search, crawl, or parse web pages when WebFetch is blocked
 ---
 
 ## Pre-computed context

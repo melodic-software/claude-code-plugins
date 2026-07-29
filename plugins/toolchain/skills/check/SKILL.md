@@ -4,6 +4,9 @@ description: "Run build, test, and lint verification for changed files, auto-det
 user-invocable: true
 argument-hint: "[ecosystem] (e.g., /toolchain:check dotnet, /toolchain:check python, /toolchain:check all — default: auto-detect from git status)"
 shell: bash
+metadata:
+  workflow-stage: verify
+  summary: Build, test, and lint changed files across detected ecosystems
 ---
 
 ## Pre-computed context

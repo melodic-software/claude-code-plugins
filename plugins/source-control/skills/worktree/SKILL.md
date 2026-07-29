@@ -5,14 +5,31 @@ user-invocable: true
 disable-model-invocation: false
 argument-hint: "<action> [args] (e.g., /worktree create feat/my-feature, /worktree status, /worktree cleanup, /worktree audit)"
 shell: bash
+metadata:
+  workflow-stage: session
+  summary: Create, inspect, and clean git worktrees for parallel sessions
 ---
 
-## Pre-computed context
+## Repository context — gather first
 
-Current branch: !`git branch --show-current 2>/dev/null || echo "unknown"`
-Worktree inventory: !`git worktree list 2>/dev/null | head -30 || echo "not a git repo"`
-Git dir: !`git rev-parse --git-dir 2>/dev/null || echo "none"`
-Git common dir (differs from git dir when in a linked worktree): !`git rev-parse --git-common-dir 2>/dev/null || echo "none"`
+Collect these with **individual** Bash calls, one command per call, never combined into a single
+invocation:
+
+- Current branch — `git branch --show-current`
+- Worktree inventory — `git worktree list | head -30`
+- Git dir — `git rev-parse --git-dir`
+- Git common dir (differs from the git dir when in a linked worktree) —
+  `git rev-parse --git-common-dir`
+
+The pipe is the bound and belongs in the command. A read-time cap ("read only the first 30
+entries") bounds nothing: the Bash tool returns the command's complete output into context before
+there is anything to decide about. These are ordinary body Bash calls, not pre-compute — the shape
+that #1619 is about is the harness composing the whole pre-compute block into one shell invocation.
+
+Treat a failure (not a repository, git unavailable) as an unknown value and carry on. These moved
+out of pre-compute in #1619 — the harness composes the block into one shell invocation and a
+worktree-isolated agent refuses a git-bearing compound command, which made the worktree skill itself
+uninvocable from inside a worktree; do not fold them back.
 
 ## Purpose
 
