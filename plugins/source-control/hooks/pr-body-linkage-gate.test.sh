@@ -1,11 +1,17 @@
 #!/usr/bin/env bash
 # Black-box contract test for pr-body-linkage-gate.sh.
 #
-# Proves the hook mirrors the ci-workflows pr-issue-linkage validator on the
-# cases a hand port silently gets wrong — comment stripping (terminated and
+# Asserts the hook's OWN behavior against expectations transcribed by hand from
+# a reading of the ci-workflows pr-issue-linkage validator — deliberately not a
+# claim that the two agree, because nothing here executes the validator. A real
+# mirroring proof needs the validator itself as an oracle, which would mean
+# vendoring a copy of upstream JavaScript into this repo; see the PR that added
+# this file for why that is a separate decision. What these cases DO cover is
+# every shape a hand port gets wrong: comment stripping (terminated and
 # unterminated), a `## Related` section whose content is a deeper subsection,
-# and the JavaScript word boundaries that make `#12abc` and `unclosed #5`
-# non-matches — and that every undeterminable body ALLOWS.
+# the JavaScript word boundaries that make `#12abc` and `unclosed #5`
+# non-matches, the locale-dependence of `[[:space:]]`, and that every
+# undeterminable body ALLOWS.
 #
 # Self-contained: builds throwaway git repos with runtime-generated fixtures and
 # invokes the hook as a subprocess from an UNRELATED cwd, so any reliance on the
@@ -38,20 +44,29 @@ UNRELATED="$(mktemp -d)"
 cleanup() { rm -rf "$WORK" "$UNRELATED"; }
 trap cleanup EXIT
 
+# new_repo <dir> <yml|yaml|plain> — a throwaway repo, optionally carrying the
+# gate workflow under either spelling the hook accepts.
 new_repo() {
   local r="$1" gated="$2"
   mkdir -p "$r"
   git -C "$r" init -q 2>/dev/null
-  if [[ "$gated" == "gated" ]]; then
+  case "$gated" in
+  yml | yaml)
     mkdir -p "$r/.github/workflows"
-    printf 'name: pr-issue-linkage\n' >"$r/.github/workflows/pr-issue-linkage.yml"
-  fi
+    printf 'name: pr-issue-linkage\n' >"$r/.github/workflows/pr-issue-linkage.$gated"
+    ;;
+  *) ;;
+  esac
 }
 
 GATED="$WORK/gated"
 UNGATED="$WORK/ungated"
-new_repo "$GATED" gated
+GATED_YAML="$WORK/gated-yaml"
+OTHER="$WORK/other"
+new_repo "$GATED" yml
 new_repo "$UNGATED" plain
+new_repo "$GATED_YAML" yaml
+new_repo "$OTHER" yml
 
 # run <repo> <command> -> sets RC and ERR from one hook invocation.
 RC=0
@@ -184,6 +199,7 @@ assert_allow "a label value spelled --body is not the body" "$GATED" \
 # --- gh pr edit --------------------------------------------------------------
 
 assert_block "gh pr edit --body is gated" "$GATED" "$(printf "gh pr edit 5 --body '%s'" "$NO_RELATED")"
+assert_block "gh pr edit --body-file is gated" "$GATED" "gh pr edit 5 --body-file body.md"
 assert_allow "gh pr edit changing no body allowed" "$GATED" "gh pr edit 5 --add-label ready"
 assert_allow "gh pr new alias with a compliant body allowed" "$GATED" \
   "$(printf "gh pr new -t T --body '%s'" "$GOOD")"
@@ -198,6 +214,278 @@ assert_block "sh -c operand is re-parsed" "$GATED" \
   "$(printf "bash -c \"gh pr create -t T --body '%s'\"" "$NO_RELATED")"
 assert_allow "--repo targets a repo whose gate is unknown" "$GATED" \
   "$(printf "gh pr create -R other/repo -t T --body '%s'" "$NO_RELATED")"
+assert_allow "-R attached form is out of scope too" "$GATED" \
+  "$(printf "gh pr create -Rother/repo -t T --body '%s'" "$NO_RELATED")"
+assert_block "sudo wrapper is unwrapped" "$GATED" \
+  "$(printf "sudo gh pr create -t T --body '%s'" "$NO_RELATED")"
+# A wrapper option's SEPARATED value sits where the command name is expected;
+# skipping the flag alone leaves the gate looking at the value.
+assert_block "sudo -u root consumes its value" "$GATED" \
+  "$(printf "sudo -u root gh pr create -t T --body '%s'" "$NO_RELATED")"
+assert_block "sudo -uroot attaches its value" "$GATED" \
+  "$(printf "sudo -uroot gh pr create -t T --body '%s'" "$NO_RELATED")"
+assert_block "sudo --user=root attaches its value" "$GATED" \
+  "$(printf "sudo --user=root gh pr create -t T --body '%s'" "$NO_RELATED")"
+assert_block "sudo -- ends its own options" "$GATED" \
+  "$(printf "sudo -- gh pr create -t T --body '%s'" "$NO_RELATED")"
+assert_block "env -u VAR consumes its value" "$GATED" \
+  "$(printf "env -u GH_TOKEN gh pr create -t T --body '%s'" "$NO_RELATED")"
+assert_block "sudo -r role consumes its SELinux value" "$GATED" \
+  "$(printf "sudo -r staff_r gh pr create -t T --body '%s'" "$NO_RELATED")"
+assert_block "sudo -t type consumes its SELinux value" "$GATED" \
+  "$(printf "sudo -t sysadm_t gh pr create -t T --body '%s'" "$NO_RELATED")"
+
+# A wrapper that moves the working directory or the root is the `cd` case
+# wearing a flag: the gate file and a relative body path resolve elsewhere.
+assert_allow "env -C moves the directory" "$GATED" \
+  "$(printf "env -C %s gh pr create -t T --body '%s'" "$UNGATED" "$NO_RELATED")"
+assert_allow "env --chdir= moves the directory" "$GATED" \
+  "$(printf "env --chdir=%s gh pr create -t T --body '%s'" "$UNGATED" "$NO_RELATED")"
+assert_allow "sudo -D moves the directory" "$GATED" \
+  "$(printf "sudo -D %s gh pr create -t T --body '%s'" "$UNGATED" "$NO_RELATED")"
+assert_allow "sudo -R moves the filesystem root" "$GATED" \
+  "$(printf "sudo -R %s gh pr create -t T --body '%s'" "$UNGATED" "$NO_RELATED")"
+
+# `env -S` carries an entire command line in one operand; it is a command to
+# re-parse, not a value to step over.
+assert_block "env -S operand is re-parsed" "$GATED" \
+  "$(printf "env -S \"gh pr create -t T --body '%s'\"" "$NO_RELATED")"
+assert_block "env --split-string= operand is re-parsed" "$GATED" \
+  "$(printf "env --split-string=\"gh pr create -t T --body '%s'\"" "$NO_RELATED")"
+assert_allow "env -S carrying a compliant body allowed" "$GATED" \
+  "$(printf "env -S \"gh pr create -t T --body '%s'\"" "$GOOD")"
+# env appends its remaining operands to the split string, so a `-S` carrying
+# only the command prefix still reaches a body sitting after it.
+assert_block "env -S prefix splices the trailing argv" "$GATED" \
+  "$(printf "env -S 'gh pr create' -t T --body '%s'" "$NO_RELATED")"
+assert_block "env --split-string= prefix splices the trailing argv" "$GATED" \
+  "env --split-string='gh pr create' -t T --body-file body.md"
+assert_allow "a spliced compliant body is allowed" "$GATED" \
+  "$(printf "env -S 'gh pr create' -t T --body '%s'" "$GOOD")"
+
+# A short wrapper word is a CLUSTER, not one flag: `sudo -Eu root` is valid, and
+# reading it as a single unknown flag leaves `root` where the command belongs.
+# `command -p` still executes; `-v`/`-V` only print a pathname, so no PR exists
+# to gate and blocking one would be a false block.
+assert_block "command -p is an execution wrapper" "$GATED" \
+  "$(printf "command -p gh pr create -t T --body '%s'" "$NO_RELATED")"
+assert_allow "command -v runs nothing" "$GATED" \
+  "$(printf "command -v gh pr create -t T --body '%s'" "$NO_RELATED")"
+
+# Only the current shell's own builtin can relocate a later segment. `sudo cd`
+# and `env cd` FAIL (cd is a builtin, not an executable), so a wrapped cd must
+# not poison the segments after it.
+assert_block "a sudo-wrapped cd does not poison later segments" "$GATED" \
+  "$(printf "sudo cd /tmp || gh pr create -t T --body '%s'" "$NO_RELATED")"
+assert_block "an env-wrapped cd does not poison later segments" "$GATED" \
+  "$(printf "env cd /tmp && gh pr create -t T --body '%s'" "$NO_RELATED")"
+# `command`, `builtin`, and `eval` DO dispatch the builtin inside this shell.
+assert_allow "command cd relocates the current shell" "$GATED" \
+  "$(printf "command cd %s && gh pr create -t T --body '%s'" "$UNGATED" "$NO_RELATED")"
+assert_allow "builtin cd relocates the current shell" "$GATED" \
+  "$(printf "builtin cd %s && gh pr create -t T --body '%s'" "$UNGATED" "$NO_RELATED")"
+assert_allow "eval cd relocates the current shell" "$GATED" \
+  "$(printf "eval cd %s && gh pr create -t T --body '%s'" "$UNGATED" "$NO_RELATED")"
+# `-p` preserves execution, so the cd really happens and the call is out of
+# scope; `-v` only prints a description, so nothing moves and the gate applies.
+assert_allow "command -p cd executes the builtin" "$GATED" \
+  "$(printf "command -p cd %s && gh pr create -t T --body '%s'" "$UNGATED" "$NO_RELATED")"
+assert_block "command -v cd only prints, so nothing moves" "$GATED" \
+  "$(printf "command -v cd && gh pr create -t T --body '%s'" "$NO_RELATED")"
+
+# Options that print and exit run no command, so there is no PR to gate.
+assert_allow "env --help runs nothing" "$GATED" \
+  "$(printf "env --help gh pr create -t T --body '%s'" "$NO_RELATED")"
+assert_allow "env --version runs nothing" "$GATED" \
+  "$(printf "env --version gh pr create -t T --body '%s'" "$NO_RELATED")"
+assert_allow "sudo -V runs nothing" "$GATED" \
+  "$(printf "sudo -V gh pr create -t T --body '%s'" "$NO_RELATED")"
+
+# An option the hook does not positively recognize could eat the next word, so
+# the call goes out of scope rather than being guessed at.
+assert_allow "an unrecognized sudo option bails" "$GATED" \
+  "$(printf "sudo --future-option x gh pr create -t T --body '%s'" "$NO_RELATED")"
+assert_allow "an unrecognized sudo shorthand bails" "$GATED" \
+  "$(printf "sudo -Z gh pr create -t T --body '%s'" "$NO_RELATED")"
+assert_block "recognized sudo booleans are stepped over" "$GATED" \
+  "$(printf "sudo -EH gh pr create -t T --body '%s'" "$NO_RELATED")"
+assert_block "recognized env booleans are stepped over" "$GATED" \
+  "$(printf "env -i gh pr create -t T --body '%s'" "$NO_RELATED")"
+# env's signal options take an OPTIONAL argument, which GNU accepts only
+# attached after `=`, so they never consume the following word.
+assert_block "env --block-signal takes no separate word" "$GATED" \
+  "$(printf "env --block-signal gh pr create -t T --body '%s'" "$NO_RELATED")"
+assert_block "env --ignore-signal=SIG is attached" "$GATED" \
+  "$(printf "env --ignore-signal=TERM gh pr create -t T --body '%s'" "$NO_RELATED")"
+assert_block "sudo -B is a boolean" "$GATED" \
+  "$(printf "sudo -B gh pr create -t T --body '%s'" "$NO_RELATED")"
+
+assert_block "sudo -Eu root is a cluster ending in a value" "$GATED" \
+  "$(printf "sudo -Eu root gh pr create -t T --body '%s'" "$NO_RELATED")"
+assert_block "sudo -Euroot attaches the clustered value" "$GATED" \
+  "$(printf "sudo -Euroot gh pr create -t T --body '%s'" "$NO_RELATED")"
+assert_block "env -iu VAR is a cluster ending in a value" "$GATED" \
+  "$(printf "env -iu GH_TOKEN gh pr create -t T --body '%s'" "$NO_RELATED")"
+assert_allow "a chdir letter inside a cluster still moves the directory" "$GATED" \
+  "$(printf "env -iC %s gh pr create -t T --body '%s'" "$UNGATED" "$NO_RELATED")"
+
+# sudo login mode runs from the target user's home; shell mode does not move.
+assert_allow "sudo -i is login mode" "$GATED" \
+  "$(printf "sudo -i gh pr create -t T --body '%s'" "$NO_RELATED")"
+assert_allow "sudo --login is login mode" "$GATED" \
+  "$(printf "sudo --login gh pr create -t T --body '%s'" "$NO_RELATED")"
+assert_block "sudo -s keeps the current directory" "$GATED" \
+  "$(printf "sudo -s gh pr create -t T --body '%s'" "$NO_RELATED")"
+
+# --- How `gh` is spelled -----------------------------------------------------
+# The wrapper loop above already reads basenames; matching the binary any other
+# way lets a path-qualified or Windows-suffixed call walk straight past.
+
+for spelling in "gh.exe" "/usr/bin/gh" "./gh" "/c/Program Files/GitHub CLI/gh.exe"; do
+  assert_block "'$spelling' is the same call" "$GATED" \
+    "$(printf "'%s' pr create -t T --body '%s'" "$spelling" "$NO_RELATED")"
+done
+assert_allow "a command merely containing gh is not gh" "$GATED" \
+  "npm run lighthouse-prod --body bad"
+
+# --- Directory changes -------------------------------------------------------
+# A cd/pushd earlier in the line moves the directory gh runs in, which is the
+# directory the gate file and any relative --body-file resolved against.
+
+printf '%s\n' "$GOOD" >"$OTHER/bad.md"
+assert_allow "cd retargets a relative --body-file" "$GATED" \
+  "cd $OTHER && gh pr create -t T --body-file bad.md"
+assert_allow "cd into an ungated repo is not gated" "$GATED" \
+  "cd $UNGATED && $(gh_body "$NO_RELATED")"
+assert_allow "pushd counts as a directory change" "$GATED" \
+  "pushd $UNGATED && $(gh_body "$NO_RELATED")"
+assert_allow "a cd inside sh -c still counts" "$GATED" \
+  "bash -c \"cd $UNGATED && gh pr create -t T --body 'bad'\""
+assert_block "a cd AFTER the gh call does not excuse it" "$GATED" \
+  "$(gh_body "$NO_RELATED") && cd $UNGATED"
+
+# --- pflag grouped shorthand -------------------------------------------------
+# `-db BODY`, `-dbBODY`, `-dF file`, `-dFfile` are all valid gh and all carry a
+# body a plain `-b`/`-F` match never sees.
+
+assert_block "-db takes the next word as the body" "$GATED" \
+  "$(printf "gh pr create -db '%s'" "$NO_RELATED")"
+assert_block "-dbVALUE takes the rest of the word" "$GATED" "gh pr create -dbBAD_BODY_NO_RELATED"
+assert_block "-dF takes the next word as the body file" "$GATED" "gh pr create -dF body.md"
+assert_block "-dFVALUE takes the rest of the word" "$GATED" "gh pr create -dFbody.md"
+assert_allow "-dF with a compliant file allowed" "$GATED" "gh pr create -dF good.md"
+assert_allow "-dR retargets the repo" "$GATED" \
+  "$(printf "gh pr create -dR other/repo -t T --body '%s'" "$NO_RELATED")"
+assert_allow "a value-taking shorthand before b consumes the body word" "$GATED" \
+  "gh pr create -tb T"
+assert_allow "an unknown shorthand letter is not guessed at" "$GATED" \
+  "$(printf "gh pr create -zb '%s'" "$NO_RELATED")"
+assert_allow "a trailing value-taking cluster has nothing to take" "$GATED" "gh pr create -t T -db"
+
+# --- Attached and absolute body-file forms -----------------------------------
+
+assert_block "--body-file=X attached form" "$GATED" "gh pr create -t T --body-file=body.md"
+assert_block "-FX attached form" "$GATED" "gh pr create -t T -Fbody.md"
+assert_block "an absolute body-file path is read" "$GATED" "gh pr create -t T --body-file $GATED/body.md"
+assert_allow "an absolute path to a compliant body allowed" "$GATED" \
+  "gh pr create -t T --body-file $GATED/good.md"
+
+# --- .yaml gate spelling -----------------------------------------------------
+
+printf '%s\n' "$NO_RELATED" >"$GATED_YAML/body.md"
+assert_block "a .yaml gate workflow enforces too" "$GATED_YAML" "gh pr create -t T --body-file body.md"
+
+# --- Locale independence -----------------------------------------------------
+# `[[:space:]]` is locale-defined; JavaScript's `\s` is not. Each body below
+# uses a non-ASCII `\s` member (NBSP, em space, ideographic space) where the
+# validator accepts whitespace, so both locales must ALLOW.
+
+locale_case() {
+  local label="$1" body="$2" payload utf c
+  printf '%s' "$body" >"$GATED/u.md"
+  payload=$(jq -n --arg cwd "$GATED" --arg cmd "gh pr create -t T --body-file u.md" \
+    '{session_id:"test",cwd:$cwd,tool_name:"Bash",tool_input:{command:$cmd}}')
+  printf '%s' "$payload" | LC_ALL=en_US.UTF-8 bash "$HOOK" >/dev/null 2>&1
+  utf=$?
+  printf '%s' "$payload" | LC_ALL=C bash "$HOOK" >/dev/null 2>&1
+  c=$?
+  if ((utf == 0 && c == 0)); then
+    ok "$label (locale-independent)"
+  else
+    fail "$label: utf8 rc=$utf, C rc=$c (both should allow)"
+  fi
+}
+
+locale_case "NBSP between keyword and issue" $'Closes:\xc2\xa0#5\n\n## Related\n\n- x'
+locale_case "em space between keyword and issue" $'Closes\xe2\x80\x83#5\n\n## Related\n\n- x'
+locale_case "ideographic space in the heading" $'Closes #5\n\n##\xe3\x80\x80Related\n\n- x'
+locale_case "BOM ahead of the heading" $'Closes #5\n\n\xef\xbb\xbf## Related\n\n- x'
+
+# --- CRLF --------------------------------------------------------------------
+
+printf 'Closes #5\r\n\r\n## Related\r\n\r\n- x\r\n' >"$GATED/crlf-good.md"
+printf 'Closes #5\r\n\r\nno related\r\n' >"$GATED/crlf-bad.md"
+assert_allow "a CRLF body validates" "$GATED" "gh pr create -t T --body-file crlf-good.md"
+assert_block "a CRLF body still fails when it should" "$GATED" "gh pr create -t T --body-file crlf-bad.md"
+
+# --- Large bodies stay inside the declared hook timeout ----------------------
+# One fork per body line put a 1000-line body past the 15 s hooks.json timeout,
+# where a cancelled hook silently stops gating. The bound below is deliberately
+# loose so a slow CI runner does not flake; the defect it guards was 18 s.
+
+{
+  printf 'Closes #5\n\n'
+  perf_i=0
+  while ((perf_i < 1000)); do
+    printf 'filler line %d with several words on it\n' "$perf_i"
+    perf_i=$((perf_i + 1))
+  done
+  printf '\n## Related\n\n- x\n'
+} >"$GATED/big.md"
+perf_start=${EPOCHREALTIME:-}
+run "$GATED" "gh pr create -t T --body-file big.md"
+perf_end=${EPOCHREALTIME:-}
+if [[ -z "$perf_start" || -z "$perf_end" ]]; then
+  echo "SKIP: EPOCHREALTIME unavailable -- large-body timing not measured"
+elif ((RC != 0)); then
+  fail "1000-line compliant body should allow, got rc=$RC"
+else
+  perf_ms=$(awk -v s="${perf_start/,/.}" -v e="${perf_end/,/.}" 'BEGIN{printf "%d", (e-s)*1000}')
+  if ((perf_ms < 8000)); then
+    ok "1000-line body judged in ${perf_ms}ms (hooks.json timeout is 15s)"
+  else
+    fail "1000-line body took ${perf_ms}ms -- too close to the 15s hook timeout"
+  fi
+fi
+
+# --- Missing jq fails open ---------------------------------------------------
+# The hook cannot parse its payload without jq, and a policy gate that cannot
+# read its input must not refuse the command.
+
+STUB="$WORK/stub-bin"
+mkdir -p "$STUB"
+jq_stub_ok=1
+# bash is invoked by absolute path: a PATH with no bash in it would fail the
+# invocation itself rather than exercising the hook's own missing-jq branch.
+BASH_ABS="${BASH:-$(command -v bash)}"
+for tool in dirname tr; do
+  if tool_path="$(command -v "$tool" 2>/dev/null)" && [[ -n "$tool_path" ]]; then
+    cp "$tool_path" "$STUB/" 2>/dev/null || jq_stub_ok=0
+  else
+    jq_stub_ok=0
+  fi
+done
+if ((jq_stub_ok)) && [[ -x "$BASH_ABS" ]] && ! PATH="$STUB" command -v jq >/dev/null 2>&1; then
+  payload=$(jq -n --arg cwd "$GATED" --arg cmd "$(gh_body "$NO_RELATED")" \
+    '{session_id:"test",cwd:$cwd,tool_name:"Bash",tool_input:{command:$cmd}}')
+  if (printf '%s' "$payload" | PATH="$STUB" "$BASH_ABS" "$HOOK" >/dev/null 2>&1); then
+    ok "a missing jq fails open"
+  else
+    fail "a missing jq did not fail open"
+  fi
+else
+  echo "SKIP: could not build a jq-free PATH -- missing-jq fail-open not measured"
+fi
 
 # --- Kill switch -------------------------------------------------------------
 
