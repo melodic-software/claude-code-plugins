@@ -77,6 +77,11 @@
 #     does not survive into the `gh` call, but the tracking flag here is
 #     process-wide, so the call is treated as out of scope. Fixing it needs
 #     subshell nesting the segment tokenizer does not expose.
+#   - a directory change that FAILS (`cd /nonexistent || gh pr create …`) leaves
+#     `gh` in the original directory, where the call could have been judged.
+#     Whether a `cd` succeeds is a runtime fact, so a static gate cannot know;
+#     assuming failure would false-block every case where it succeeds, and
+#     assuming success is this fail-open miss. The safe assumption is taken.
 #
 # Kill switch: pr_body_linkage_gate_enabled userConfig option.
 #
@@ -435,12 +440,17 @@ parse_wrapper_flag() {
       sudo:--role | sudo:--type)
       WRAP_KIND="value"
       ;;
-    # Positively known booleans; the loop steps over these.
-    env:--ignore-environment | env:--null | env:--debug | env:--help | env:--version | \
-      sudo:--askpass | sudo:--background | sudo:--preserve-env | sudo:--set-home | \
-      sudo:--remove-timestamp | sudo:--reset-timestamp | sudo:--non-interactive | \
-      sudo:--preserve-groups | sudo:--stdin | sudo:--shell | sudo:--help | \
-      sudo:--validate | sudo:--version)
+    # Positively known booleans; the loop steps over these. env's list is
+    # transcribed from `env --help` on a GNU coreutils host. Its three signal
+    # options take an OPTIONAL argument, which GNU only accepts attached after
+    # `=`, so they never consume the following word and belong here.
+    env:--ignore-environment | env:--null | env:--debug | env:--list-signal-handling | \
+      env:--block-signal | env:--default-signal | env:--ignore-signal | \
+      env:--help | env:--version | \
+      sudo:--askpass | sudo:--background | sudo:--bell | sudo:--preserve-env | \
+      sudo:--set-home | sudo:--remove-timestamp | sudo:--reset-timestamp | \
+      sudo:--non-interactive | sudo:--preserve-groups | sudo:--stdin | \
+      sudo:--shell | sudo:--help | sudo:--validate | sudo:--version)
       return 0
       ;;
     *)
@@ -489,8 +499,8 @@ parse_wrapper_flag() {
     # gating one would be a false block — they fall through to `unknown`, which
     # allows.
     command:p | \
-      env:i | env:0 | env:v | sudo:A | sudo:b | sudo:E | sudo:H | sudo:K | sudo:k | \
-      sudo:n | sudo:P | sudo:S | sudo:s | sudo:V | sudo:v)
+      env:i | env:0 | env:v | sudo:A | sudo:B | sudo:b | sudo:E | sudo:H | sudo:K | \
+      sudo:k | sudo:n | sudo:P | sudo:S | sudo:s | sudo:V | sudo:v)
       continue
       ;;
     *)

@@ -290,6 +290,14 @@ assert_block "recognized sudo booleans are stepped over" "$GATED" \
   "$(printf "sudo -EH gh pr create -t T --body '%s'" "$NO_RELATED")"
 assert_block "recognized env booleans are stepped over" "$GATED" \
   "$(printf "env -i gh pr create -t T --body '%s'" "$NO_RELATED")"
+# env's signal options take an OPTIONAL argument, which GNU accepts only
+# attached after `=`, so they never consume the following word.
+assert_block "env --block-signal takes no separate word" "$GATED" \
+  "$(printf "env --block-signal gh pr create -t T --body '%s'" "$NO_RELATED")"
+assert_block "env --ignore-signal=SIG is attached" "$GATED" \
+  "$(printf "env --ignore-signal=TERM gh pr create -t T --body '%s'" "$NO_RELATED")"
+assert_block "sudo -B is a boolean" "$GATED" \
+  "$(printf "sudo -B gh pr create -t T --body '%s'" "$NO_RELATED")"
 
 assert_block "sudo -Eu root is a cluster ending in a value" "$GATED" \
   "$(printf "sudo -Eu root gh pr create -t T --body '%s'" "$NO_RELATED")"
