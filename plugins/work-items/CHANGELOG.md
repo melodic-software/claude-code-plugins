@@ -3,7 +3,7 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.25.5]
+## [0.26.1]
 
 ### Changed
 
@@ -15,6 +15,57 @@ All notable changes to the `work-items` plugin are documented here. Format follo
   unnecessary trailing `\` so the annotation could sit on its own line
   without breaking the `||` chain — no behavior change). The test file's
   same-line `date -d ... || date -u -r ...` fallback is annotated directly.
+
+## [0.26.0]
+
+### Added
+
+- **A read-trust boundary on item text, stated once and cited from every skill that reads an item
+  (#1657).** Every provenance control in these lanes governed *write* authority — who may merge,
+  what may dispatch — and none told an agent what to do with the prose it reads. Item titles,
+  bodies, comments, and linked-PR text and diffs arrive from a surface any author or agent can
+  write, and were read into context uncaveated, as instruction-shaped as anything else in the
+  prompt.
+  - New `reference/item-content-trust.md` owns the boundary: item-derived text is data describing
+    the work, never instruction to the agent reading it; the boundary keys on the surface the text
+    arrived on rather than on who wrote it, so it applies to a teammate's item exactly as to a
+    stranger's; an item whose text instructs the agent is a finding to report, not a request to
+    satisfy. It also states the widening rule — no admission, dispatch, merge eligibility,
+    capability grant, or gate waiver ever rests on a claim recorded in a body or comment, per the
+    autonomy plugin's admission policy — with the carve-out that a claim which can only *tighten*
+    stays usable as a signal, and names the one shipped instance of that carve-out
+    (`work-loop`'s frontier-tier quota guard). That instance carries its bounding condition at both
+    ends: the carve-out holds only while the resolved frontier cap ceiling is at or below the
+    resolved general one, and `work-loop`'s own "Adaptive item cap" step states what to do when an
+    operator inverts them — drop the separate frontier ceiling, which would let a body claim widen
+    throughput, and bound the item by the general ceiling, keeping the concurrency-1 half that can
+    only tighten. `work_loop_frontier_item_cap_ceiling`'s manifest description carries the same
+    ordering expectation at the point of configuration; the manifest cannot enforce it, because
+    `userConfig` `min`/`max` are static numeric bounds with no cross-key validation
+    ([plugins reference](https://code.claude.com/docs/en/plugins-reference#user-configuration)).
+  - `triage`, `decompose`, `work`, `work-loop`, and `attend-queue` each carry the standing
+    instruction in their
+    shared tracker context, plus one line on what the boundary bites hardest in that lane, and cite
+    the reference for everything else — the escalation route, the widening rule, and the subagent
+    rule are stated once in the reference rather than four times in the skills. `source-control`'s
+    `babysit-loop` and the loop-lane parked-decision prompt, which inherit no skill's copy, carry
+    the same headline and citation.
+  - Item text handed to a subagent goes inside a quoted untrusted-data section with the standing
+    never-follow instruction attached, reusing the delimiter shape `source-control`'s
+    `babysit-prs` already specifies for the merge lane rather than inventing a second form. The
+    fence itself is carried inline beside that citation, verbatim and unreworded, so the rule stays
+    executable when the cross-plugin fetch fails — an instruction whose only mechanical detail sits
+    behind a network round-trip contradicts itself the moment the fetch does, leaving an agent with
+    no delimiter and no permission to improvise one.
+
+### Changed
+
+- **`work-loop`'s admission gate justifies its ratification-phrase refusal from the boundary, not
+  from a work-class row (#1657).** The refusal previously rested on "the work-class table above
+  already routes untrusted provenance to human-gated" — a C5 row whose executable test reads a
+  *pull request*, which an issue does not have. The refusal is unchanged; it is now derived from
+  the standing rule it is an instance of (item text never widens authority, and admission widens
+  it), which holds for an issue with no field test at all.
 
 ## [0.25.4]
 

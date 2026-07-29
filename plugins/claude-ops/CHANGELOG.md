@@ -3,7 +3,7 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.22.1]
+## [0.22.2]
 
 ### Changed
 
@@ -16,6 +16,24 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   fallback in an `else` branch or a separate statement) but not
   same-line-guardable, so each `date -d` call site now carries a
   `portability-ok:` annotation documenting why. No behavior change.
+
+## [0.22.1]
+
+### Fixed
+
+- **Shared `hook-utils.sh`: a path spelled as a Windows 8.3 short name now canonicalizes to the
+  same physical path as its long spelling (#1636).** `hook::physical_path` canonicalized with
+  GNU realpath, which under Git Bash resolves symlinks but leaves 8.3 short names (`KYLESE~1`)
+  unexpanded, so a short-form path — the shape Claude Code's own scratchpad paths take — read
+  as a different path than its long form everywhere the canonicalizer's output is compared. The
+  lib now expands short names on Windows/MSYS hosts (new `hook::expand_8dot3`, via `cygpath -l`)
+  on the resolver's success path, and only when the expanded form actually differs — a
+  legitimate long name containing `~` passes through untouched. 8.3 generation is a per-volume
+  property (`fsutil 8dot3name query`), so the mismatch was live only on volumes that generate
+  short names. For this plugin that means the path-membership validation in
+  `claude-ops-paths.sh` no longer rejects an in-project path over its spelling, and
+  `claude_ops::repo_slug` derives one slug per repository instead of a second, divergent slug
+  for a short-form spelling of the same root. Synced from `lib/hook-utils.sh`.
 
 ## [0.22.0]
 

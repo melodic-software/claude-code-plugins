@@ -307,6 +307,7 @@ rm -f "$ABS10" "$OUT10"
 # through unchanged, or the membership guard collapses it with /c/repo and
 # admits a sibling outside CLAUDE_PROJECT_DIR. normalize_path reads the shell's
 # OSTYPE, so override it in a subshell per case (the global stays intact).
+# shellcheck disable=SC2030 # the subshell-local override is the point; Test 12b's later read of the host's real OSTYPE is what pairs this with SC2031
 norm_as() { (
   OSTYPE="$1"
   hook::normalize_path "$2"
@@ -433,6 +434,68 @@ else
 fi
 
 rm -rf "$PROJ12" "$OUTSIDE12" "$SIB12"
+
+# --- Test 12b: read_file_path membership guard — Windows 8.3 short names ------
+# GNU realpath under Git Bash does not expand 8.3 short names, so before
+# hook::expand_8dot3 a short-form spelling of an IN-project file (the shape
+# Claude Code's own scratchpad paths take) failed the prefix comparison and was
+# silently skipped. Both sides are passed in Windows mixed form (C:/...), the
+# form production hooks receive — a POSIX/mixed cross-form pair is a case
+# production never produces (see Test 12's rfp note). 8.3 generation is a
+# PER-VOLUME property: on a volume that does not generate short names the
+# short-form fixture cannot be constructed, so these cases SKIP with a visible
+# reason — read that skip as ABSENCE of coverage on this volume, never as the
+# guard passing; only a generating volume exercises the defect.
+# shellcheck disable=SC2031 # Test 11's norm_as sets OSTYPE only inside its own subshell; this reads the host's real value
+if [[ "${OSTYPE:-}" == msys* || "${OSTYPE:-}" == cygwin* || "${OSTYPE:-}" == win32 ]] &&
+  command -v cygpath >/dev/null 2>&1; then
+  PROJ12B="$(mktemp -d)"
+  OUT12B="$(mktemp -d)"
+  echo 'x = 1' >"$PROJ12B/shortname-target.py"
+  echo 'y = 2' >"$OUT12B/shortname-outside.py"
+  echo 'z = 3' >"$PROJ12B/note~s.py"
+  PROJ12B_M=$(cygpath -m -- "$PROJ12B")
+  short_in=$(cygpath -s -m -- "$PROJ12B/shortname-target.py" 2>/dev/null)
+  plain_in=$(cygpath -m -- "$PROJ12B/shortname-target.py")
+
+  # A legitimate long name containing '~' must pass through untouched — the
+  # expansion must never mistake it for a short name. Independent of whether
+  # this volume generates short names ('note~s.py' fits 8.3, so none exists).
+  if got=$(rfp "$PROJ12B_M" "$PROJ12B_M/note~s.py") && [[ "$got" == "$PROJ12B_M/note~s.py" ]]; then
+    ok "read_file_path: literal-tilde long name accepted, original path emitted"
+  else
+    fail "read_file_path: literal-tilde long name rejected or mangled (got '$got')"
+  fi
+
+  if [[ -n "$short_in" && "$short_in" != "$plain_in" ]]; then
+    # The regression: an in-project file spelled in short form is linted, not
+    # silently skipped, and the caller's original (short) spelling is emitted.
+    if got=$(rfp "$PROJ12B_M" "$short_in") && [[ "$got" == "$short_in" ]]; then
+      ok "read_file_path: short-form in-project file accepted"
+    else
+      fail "read_file_path: short-form in-project file rejected (got '$got') — 8.3-blind membership guard"
+    fi
+    # The project dir itself in short form still admits its own files.
+    short_proj=$(cygpath -s -m -- "$PROJ12B" 2>/dev/null)
+    if got=$(rfp "$short_proj" "$PROJ12B_M/shortname-target.py") && [[ "$got" == "$PROJ12B_M/shortname-target.py" ]]; then
+      ok "read_file_path: short-form project dir admits in-project file"
+    else
+      fail "read_file_path: short-form project dir rejected in-project file (got '$got')"
+    fi
+    # Short form must not defeat the deliberate out-of-project skip.
+    short_out=$(cygpath -s -m -- "$OUT12B/shortname-outside.py" 2>/dev/null)
+    if got=$(rfp "$PROJ12B_M" "$short_out"); then
+      fail "read_file_path: short-form OUT-of-project file admitted (got '$got')"
+    else
+      ok "read_file_path: short-form out-of-project file still rejected"
+    fi
+  else
+    ok "read_file_path: 8.3 short-form SKIPPED (this volume does not generate short names — no coverage here, not a pass; the defect is volume-scoped)"
+  fi
+  rm -rf "$PROJ12B" "$OUT12B"
+else
+  ok "read_file_path: 8.3 short-form SKIPPED (non-Windows host or no cygpath — 8.3 names are a Windows volume feature)"
+fi
 
 # --- Test 13: hook::telemetry_enabled — cheap sink-presence probe -------------
 # Producers gate telemetry-payload construction on this, so its verdict must

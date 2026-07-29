@@ -3,6 +3,29 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.34.0]
+
+### Changed
+
+- **`babysit-loop`'s rung partition reads the work class from the `work-class:` label only, never
+  from a `Work-class: C<n>` body trailer (#1657).** The partition accepted "the triage stamp in the
+  item body **or** labels", so a class recorded in an item body decided merge eligibility. The class
+  widens merge authority, and an item body is editable by its own author — who need hold no
+  permission on the base repository — which made the item self-certifying and contradicted the
+  autonomy plugin's admission policy: "No repo-local (agent-writable) surface may supply any
+  admission input — rules, caps, or the work class used for admission." Applying a label takes
+  triage or write permission, the same permission surface the C5 trust test already keys on.
+  - A trailer stays legitimate as the operator's own record of a class and as a proposal, and is
+    reported as such, but it never partitions. An item classified only in its body is
+    **unclassified** for the partition — not eligible at any rung, exactly as an item with no
+    record at all.
+  - **Consumer impact.** A repository that recorded classes only as body trailers had a
+    merge-eligible population under the old reading and has an empty one under this reading:
+    everything there is human-merge, the shipped baseline, until the `work-class:` labels follow
+    the trailers. Nothing merges that would not have merged before.
+  - The C4/C5 floor is unchanged — it always tested the pull request rather than the linked item's
+    stamp, so a fork PR was never eligible through a self-stamped issue.
+
 ## [0.33.3]
 
 ### Fixed
