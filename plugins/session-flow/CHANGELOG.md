@@ -1,5 +1,42 @@
 # Changelog — session-flow plugin
 
+## [0.17.19]
+
+### Added
+
+- **workflow: end-of-phase continuation router (#1476).** The stage map answered "what comes
+  next"; a new `context/continuation.md` spoke (argument mode `continue`, plus a default-mode
+  step at phase boundaries) answers "which continuation MECHANISM carries the session there".
+  The outcome set is derived from the mechanisms this plugin actually installs plus the
+  built-ins — continue / `/clear` / `handoff` / `continue-in-background` / `clean-stop` /
+  `/compact` — not inherited from any source diagram; `reconcile`/`orient` are deliberately
+  non-terminals (state hygiene informs the decision, never carries the session). Every ordering
+  edge carries its stated purpose in the doc: machine-loss is asked FIRST (a save-point that
+  dies with the disk is no save-point), the zero-cost exits precede every writing mechanism,
+  background delegation precedes handoff (same save-point engine, different delivery, but the
+  strictly narrower gate — it is explicit-request-gated, and the generic handoff question would
+  otherwise swallow it, since a background continuation always passes the work to another agent),
+  and `/compact` is the deliberate last resort with the tradeoff owned
+  by handoff's "Fork beats compaction when the window is deep" section (pointer, not copy). Zone
+  input is presence-gated on the `context-guard` reader contract with NO inlined band values —
+  the router consumes only the zone word and degrades to judgment tests when the seam is absent
+  or `unknown`, honoring the evidence-degraded marker. Also documents the handoff-relay
+  convention for workers: a worker at its zone boundary writes its own handoff and returns the
+  PATH only; the parent spawns a successor pointed at the file without ever reading it.
+
+### Fixed
+
+- **The explicit-background question was ordered after the zero-cost continue-in-session
+  question, so it was unreachable whenever context was healthy.** The prior release ordered the
+  explicit-background check before the generic handoff question (so handoff would not swallow
+  it), but left it after the router's own first question — "is there enough smart zone left?" —
+  which answers yes whenever context is healthy and silently discards an explicit user request to
+  continue in the background, the exact "edge that loses its purpose" the router's own governing
+  rule warns against. The explicit-background-and-feasibility question is now asked first,
+  immediately after the machine-going-away check, on the same "a hard fact outranks a cost
+  heuristic" ground that check already established; a request that still needs human input, or
+  that the session cannot hand off autonomously, falls through unchanged to the questions below.
+
 ## [0.17.18]
 
 ### Fixed

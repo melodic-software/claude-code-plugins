@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/hook-telemetry/data/zone-crossing-inject.schema.json",
+  "title": "zone-crossing-inject telemetry data",
+  "description": "Per-hook `data` payload for context-guard's zone-crossing injection hook (PostToolBatch + UserPromptSubmit — the envelope `hook_event` distinguishes them). Discovered from the envelope `hook` value \"zone-crossing-inject\". Emitted only on a zone transition (either direction); unchanged-zone and unknown runs emit nothing. Evolves additive-only.",
+  "type": "object",
+  "required": ["zone", "injected"],
+  "additionalProperties": true,
+  "properties": {
+    "zone": {
+      "type": "string",
+      "description": "The newly resolved zone word: \"smart\" | \"acceptable\" | \"dumb\" (unknown never emits)."
+    },
+    "previous": {
+      "type": "string",
+      "description": "The last recorded zone word, empty string when this is the session's first recorded observation."
+    },
+    "injected": {
+      "type": "boolean",
+      "description": "true when guidance was injected (transition into a worse zone); false for a silently recorded improvement."
+    }
+  }
+}

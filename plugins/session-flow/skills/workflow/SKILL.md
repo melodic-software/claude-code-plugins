@@ -1,7 +1,7 @@
 ---
 name: workflow
-description: "Navigate a staged development workflow (explore → research → plan → implement → test → review → verify → retro) and suggest the next stage. Use when: 'workflow', 'what step am I on', 'what comes next', 'pre-pr sequence', 'wrap up', at session start, or whenever the next step is unclear."
-argument-hint: "[mode] (e.g., /workflow, /workflow steps, /workflow pre-pr, /workflow wrap-up, /workflow philosophy, /workflow spec-first)"
+description: "Navigate a staged development workflow (explore → research → plan → implement → test → review → verify → retro), suggest the next stage, and route the end-of-phase continuation mechanism (continue / clear / handoff / background / clean-stop / compact). Use when: 'workflow', 'what step am I on', 'what comes next', 'pre-pr sequence', 'wrap up', 'how should I continue', 'clear or compact', at session start, at a phase boundary, or whenever the next step is unclear."
+argument-hint: "[mode] (e.g., /workflow, /workflow steps, /workflow pre-pr, /workflow wrap-up, /workflow philosophy, /workflow spec-first, /workflow continue)"
 user-invocable: true
 disable-model-invocation: false
 shell: bash
@@ -71,6 +71,7 @@ Parse the first argument to determine mode:
 | `wrap-up` | **Wrap-up** | Load `context/wrap-up.md` — end-of-session checklist |
 | `philosophy` | **Philosophy** | Load `context/philosophy.md` — depth expectations and verification rigor |
 | `spec-first` | **Spec-first** | Load `context/spec-first.md` — stage-by-stage execution with `/clear` between stages |
+| `continue` | **Continuation** | Load `context/continuation.md` — end-of-phase continuation-mechanism router |
 
 ## Default mode (no arguments)
 
@@ -106,7 +107,16 @@ from conversation vibes.
 Based on what's been done, recommend the next stage with rationale. If the consuming repo has a
 skill for that stage, name it; otherwise describe the inline work.
 
-### 4. Track progress (tasks ≥3 stages)
+### 4. Route the continuation mechanism at a phase boundary
+
+When the just-finished work closed out a stage (its artifact exists) — or the user is asking how
+to carry on — the *mechanism* question is separate from the *next stage* question: continue here,
+`/clear`, handoff, background, clean-stop, or compact. Load `context/continuation.md` and walk
+its ordered router; recommend exactly one mechanism with its rationale, zone-informed when the
+context-guard seam has data and conservative when it does not. Mid-stage with a healthy window,
+skip this — the default is simply to continue.
+
+### 5. Track progress (tasks ≥3 stages)
 
 For work expected to span 3+ stages, create a task per applicable stage via TaskCreate, mark
 completed stages `completed` and the current one `in_progress`. For durable cross-`/clear` tracking,

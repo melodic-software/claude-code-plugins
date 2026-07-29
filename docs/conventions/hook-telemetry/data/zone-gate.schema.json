@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/hook-telemetry/data/zone-gate.schema.json",
+  "title": "zone-gate telemetry data",
+  "description": "Per-hook `data` payload for context-guard's blocking-mode PreToolUse gate. Discovered from the envelope `hook` value \"zone-gate\". Emitted only when the gate denies (envelope status \"blocked\"); every allowed or fail-open path emits nothing. Evolves additive-only.",
+  "type": "object",
+  "required": ["zone", "grace", "calls_seen"],
+  "additionalProperties": true,
+  "properties": {
+    "zone": {
+      "type": "string",
+      "description": "Always \"dumb\" — the only zone the gate can deny in."
+    },
+    "grace": {
+      "type": "integer",
+      "description": "The grace budget in effect (zone_gate_grace_calls, in-script default 20)."
+    },
+    "calls_seen": {
+      "type": "integer",
+      "description": "Matched tool calls observed for this session since it entered the dumb zone, including the denied one."
+    }
+  }
+}

@@ -115,6 +115,35 @@ call site) and runs the project's build/test gates before concluding via
 `--continue`. `--abort` is never a resolution strategy — only an explicit
 user decision to abandon the integration.
 
+## Hooks
+
+### `pr-body-linkage-gate`
+
+A `PreToolUse` hook on the Bash tool. When a `gh pr create` / `gh pr edit`
+carries a PR body the hook can read statically, it validates that body against
+the same contract the repository's required `pr-issue-linkage` check enforces —
+a closing keyword (or an explicit no-linked-issue marker) plus a non-empty
+`## Related` section — and blocks the call with the missing half named, so the
+failure surfaces before the PR exists rather than a CI round trip later.
+`/source-control:pull-request create` already gates its own body; this covers
+the calls that bypass the skill.
+
+Enforcement is keyed to the consuming repository's own policy: it runs only
+where `.github/workflows/pr-issue-linkage.yml` exists, and a body the hook
+cannot read statically (an unexpanded variable, an absent body flag, a
+`--repo`-targeted invocation) always passes. Set
+`pr_body_linkage_gate_enabled` to `false` to turn it off.
+
+#### Telemetry (opt-in)
+
+The hook emits one structured
+[hook-telemetry](../../docs/conventions/hook-telemetry/README.md) envelope per
+run to whatever `HOOK_TELEMETRY_SINK` names — carrying `status` (`blocked` on a
+block, `ok` otherwise), `duration_ms`, and a `data` payload of labels only: the
+outcome and which body form was read (`body-literal`, `body-file`,
+`stdin-heredoc`, `body-substitution`). Never the PR body, the command, or a
+path. Unset `HOOK_TELEMETRY_SINK` → no-op.
+
 ## Works in any repo
 
 - **Self-contained.** Everything runs on `git`, `gh` (authenticated), `jq`,
@@ -156,6 +185,7 @@ repo's owner.
 
 | Key | Type | Default / absent behavior |
 |---|---|---|
+| `pr_body_linkage_gate_enabled` | boolean | `true` (the PR-body hook above; inert in a repo with no `pr-issue-linkage` workflow) |
 | `babysit_watched_owners` | string (multiple) | infer the current repo's owner |
 | `babysit_self_logins` | string (multiple) | your `gh api user` login (extras add to it) |
 | `babysit_default_tier` | string | `safe` (explicit invocations only) |
@@ -198,8 +228,12 @@ The plugin-scope finding-classification gate accepts extra posting identities vi
 
 ## Security
 
-- No hooks, no MCP servers, no telemetry, no outbound network beyond `git`
-  and `gh` against the repository the session already targets.
+- One local hook (`pr-body-linkage-gate`, above), no MCP servers, no telemetry
+  unless you opt in (see below), no outbound network beyond `git` and `gh`
+  against the repository the session already targets. The hook reads only the
+  Bash command it is gating, the body file that command names, and the
+  repository's own workflow directory; it never runs `git`, `gh`, or any
+  network call.
 - Writes to GitHub (comments, reactions, thread resolution, PR creation,
   merge) happen only inside the documented `/pull-request` phases and the
   `/babysit-prs` loop. `/babysit-prs` merges only in its explicit
