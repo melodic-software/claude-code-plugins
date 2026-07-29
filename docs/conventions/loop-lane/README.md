@@ -242,8 +242,10 @@ the sample in each lane body: the readings are approximate and machine-local; th
 **account-scope**, so the three-lane topology means concurrent lanes move the same windows and a
 per-cycle rise is one lane's own consumption only when that lane is the sole active session; and they
 are a **percentage of a subscription window, not a token count**, absent entirely for
-non-subscription auth. No in-session signal exposes cumulative token spend, so no lane claims one —
-and attributing spend to a single lane needs a signal no current snapshot carries.
+non-subscription auth. No lane claims a token count, because none is *readable* at a cycle boundary:
+the machine-readable token fields a session exposes are current-context occupancy, not session
+totals, and the surfaces that do report cumulative spend are interactive displays a lane body cannot
+parse. Attributing spend to a single lane needs a signal no current snapshot carries.
 
 **Headless-config floor.** A headless lane launch never blocks on an interview: it takes explicit or
 persisted config, or tier defaults, and logs the assumption. The interactive path may run a

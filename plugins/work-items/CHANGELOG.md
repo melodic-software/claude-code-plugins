@@ -16,10 +16,13 @@ All notable changes to the `work-items` plugin are documented here. Format follo
   adaptive cap, or pause derives from it. Its caveats are recorded beside it because they bound what
   the data can support — the readings are approximate, machine-local, account-scope (concurrent lanes
   move the same windows, so a rise is this lane's own consumption only when it is the sole active
-  session), and a percentage of a subscription window rather than a token count. No in-session signal
-  exposes cumulative token spend: the status-line context-window token counts are current-context
-  occupancy, not session totals, as of Claude Code v2.1.132
-  (<https://code.claude.com/docs/en/statusline>, verified 2026-07-27).
+  session), and a percentage of a subscription window rather than a token count. No token count is
+  claimed because none is readable at a cycle boundary: the status-line context-window token counts
+  are current-context occupancy rather than session totals as of Claude Code v2.1.132, and the
+  surfaces that do report cumulative spend are interactive displays a lane body cannot parse
+  (<https://code.claude.com/docs/en/statusline>, re-verified 2026-07-28 — `used_percentage` 0–100,
+  `resets_at` epoch seconds, `rate_limits` subscriber-only and each window independently absent; no
+  drift).
 
 ## [0.25.4]
 

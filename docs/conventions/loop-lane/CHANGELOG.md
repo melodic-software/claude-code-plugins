@@ -25,8 +25,19 @@ inert does not soften the tier — the *write* is the obligation.
   machine-local; they are **account-scope**, so the three-lane topology means concurrent lanes move
   the same windows and a per-cycle rise is one lane's own consumption only when that lane is the
   sole active session; and they are a percentage of a subscription window, not a token count,
-  absent entirely for non-subscription auth. No in-session signal exposes cumulative token spend,
-  so no lane claims one.
+  absent entirely for non-subscription auth. No lane claims a token count, because none is readable
+  at a cycle boundary: the machine-readable token fields are current-context occupancy, not session
+  totals, and the surfaces reporting cumulative spend are interactive displays a lane body cannot
+  parse.
+- **Upstream re-verification (§Versioning trigger 2).** This entry relies on the status-line stdin
+  schema, so that claim was re-verified against its cited page and its stamp refreshed to
+  **2026-07-28** (<https://code.claude.com/docs/en/statusline>). Confirmed unchanged:
+  `rate_limits.{five_hour,seven_day}.used_percentage` is 0–100 and `resets_at` is Unix epoch
+  seconds; `rate_limits` is present only for Claude.ai subscribers after the session's first API
+  response, and each window may be independently absent. Confirmed still true, and the reason no
+  token count is claimed: `context_window.total_input_tokens` / `total_output_tokens` are "token
+  counts currently in the context window, from the most recent API response" — cumulative session
+  totals only before Claude Code v2.1.132. No drift found.
 
 ## 3.0.0 — 2026-07-25
 
