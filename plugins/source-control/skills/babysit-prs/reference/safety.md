@@ -291,14 +291,26 @@ auto-mode safety classifier and blocks the call before the wrapper runs.
 - Both wrappers **fail closed**: invoked without `--allowed-owners`, they exit `3` and refuse to
   act. The read-only forms are `source-control-babysit-merge owner/repo#42 --allowed-owners
   <watched-owners>` (merge-readiness gate) and `source-control-babysit-resolve-thread
-  owner/repo#42 --allowed-owners <watched-owners> --extra-bot-logins <extra-bot-logins>`
-  (thread list).
+  owner/repo#42 --allowed-owners <watched-owners> --extra-bot-logins <extra-bot-logins>
+  --self-logins @me,<self-logins>` (thread list).
 - **`--extra-bot-logins <extra-bot-logins>` rides on every resolve-thread form**, listing and
   mutating alike, whenever `babysit_extra_bot_logins` is configured. Bot classification is what
   decides which threads the resolver may touch at all, and structural detection cannot see a
   registered non-structural bot account (no `[bot]` suffix, API `__typename` of `User`); omitting
   the flag silently reclassifies that account's threads as human and skips them in worker tier.
   Omit the flag only when the key is unset.
+- **`--self-logins @me,<self-logins>` rides on every resolve-thread form too**, listing and
+  mutating alike, always (`@me` resolves your own `gh` login; append `babysit_self_logins`
+  extras). The bot-only classifier (`project_thread`'s `botOnly`) inspects every fetched
+  participant, not just the opener — so the worker's OWN reply to a bot thread (a classification
+  reply, a `Fixed in <sha>` follow-up) is itself a comment the classifier sees. Without
+  `--self-logins` that reply is indistinguishable from a genuine third-party human joining the
+  thread: `botOnly` goes false, which locks the thread out of the default bot-only scope, and
+  `--include-human` stays unset by design in worker/safe modes — so nothing lifts it back in and a
+  bot thread the worker correctly handled is permanently unresolvable by the normal flow.
+  `--self-logins` marks the caller's own posting identity as neutral for that test instead: still
+  not sufficient on its own to earn `botOnly` (a thread needs at least one ACTUAL bot comment), but
+  no longer disqualifying. Omit the flag only when `babysit_self_logins` is unset.
 - The merge wrapper mutates only with `--merge --expected-head <post-push-head-sha> --method
   <merge-method>`, and rejects `--allow-unpinned-head` outright — there is no unpinned merge. The
   expected-head pin semantics live in `SKILL.md`; do not re-derive them here.
@@ -584,13 +596,13 @@ assessment. Pin each vetted thread individually (the wrapper accepts exactly one
 per invocation; issue one pinned command per thread) with the thread-pin pair rule above:
 
 ```text
-bash "${CLAUDE_PLUGIN_ROOT}/bin/source-control-babysit-resolve-thread" owner/repo#42 --allowed-owners <watched-owners> --extra-bot-logins <extra-bot-logins> --autonomous --resolve --thread-id <id> --expected-comment-count <n> --expected-last-updated <ts>
+bash "${CLAUDE_PLUGIN_ROOT}/bin/source-control-babysit-resolve-thread" owner/repo#42 --allowed-owners <watched-owners> --extra-bot-logins <extra-bot-logins> --self-logins @me,<self-logins> --autonomous --resolve --thread-id <id> --expected-comment-count <n> --expected-last-updated <ts>
 ```
 
 for the unattended-worker case, or
 
 ```text
-bash "${CLAUDE_PLUGIN_ROOT}/bin/source-control-babysit-resolve-thread" owner/repo#42 --allowed-owners <watched-owners> --extra-bot-logins <extra-bot-logins> --resolve --include-human --thread-id <id> --expected-comment-count <n> --expected-last-updated <ts>
+bash "${CLAUDE_PLUGIN_ROOT}/bin/source-control-babysit-resolve-thread" owner/repo#42 --allowed-owners <watched-owners> --extra-bot-logins <extra-bot-logins> --self-logins @me,<self-logins> --resolve --include-human --thread-id <id> --expected-comment-count <n> --expected-last-updated <ts>
 ```
 
 for the autopilot case. This degradation is a successful, material finding to report, not a
