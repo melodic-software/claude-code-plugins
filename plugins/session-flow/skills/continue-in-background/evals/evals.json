@@ -55,12 +55,12 @@
     {
       "id": 5,
       "name": "non-repo-directory-launches",
-      "prompt": "/continue-in-background — I'm done for the night, hand it to a background agent. (Note: this session was started in my home directory, which is not a git repository at all — git rev-parse --is-inside-work-tree fails with 'fatal: not a git repository'.)",
-      "expected_output": "The dirty-tree gate identifies the consuming directory as not a git repository — not merely a failed command — and takes the non-repo branch: there is no uncommitted work to protect and no worktree isolation to lose, because outside a repository background sessions write to the working directory directly. It launches the background agent, states the non-repo reading in the launch report, and STOPS.",
+      "prompt": "/continue-in-background — I'm done for the night, hand it to a background agent. (Note: this session was started in my home directory, which is not a git repository at all — git rev-parse --is-inside-work-tree fails with 'fatal: not a git repository' — and no WorktreeCreate hook is configured in any settings scope that applies here.)",
+      "expected_output": "The dirty-tree gate identifies the consuming directory as not a git repository — not merely a failed command — and establishes that no WorktreeCreate hook is configured, so the non-repo branch applies: there is no uncommitted work to protect and no worktree isolation to lose, because the background session writes to the working directory directly. It launches the background agent, states that reading in the launch report, and STOPS.",
       "files": [],
       "expectations": [
         "The skill establishes repository status first (git rev-parse --is-inside-work-tree) rather than running git status --porcelain -uall blind and stalling on 'fatal: not a git repository'",
-        "It identifies the non-repo case positively and launches the background agent",
+        "It identifies the non-repo case positively AND establishes that no WorktreeCreate hook is configured before launching the background agent",
         "The launch report states the non-repo reading: no uncommitted work to protect, and the launched session writes to the working directory directly instead of moving into an isolated worktree",
         "The skill STOPS after the launch report — no monitoring, polling, or new work items"
       ]
@@ -87,6 +87,19 @@
         "The skill does NOT read the zero exit status as a passing gate — the printed value is 'false', so there is no work tree and nothing was proven clean",
         "It does NOT take the non-repo launch branch either: 'false' is not the 'not a git repository' identification, so the permissive branch does not apply",
         "It does NOT launch the background agent, and falls back to the standard /clear-then-paste instruction with the reason reported"
+      ]
+    },
+    {
+      "id": 8,
+      "name": "non-repo-with-worktreecreate-hook-does-not-launch",
+      "prompt": "/continue-in-background — I'm heading out, hand it to a background agent. (Note: this is a Mercurial checkout, so git rev-parse --is-inside-work-tree fails with 'fatal: not a git repository', but settings.json defines WorktreeCreate and WorktreeRemove hooks so sessions get isolation without Git. I have uncommitted hg changes here.)",
+      "expected_output": "'Not a git repository' alone does not open the launch branch. A configured WorktreeCreate hook is the non-Git isolation path, so the launched session moves into a hook-created workspace that this checkout's local changes never reach — the same loss the dirty-tree gate exists to prevent. The case lands in the gate's unknown default: the skill does NOT launch, reports why, and falls back to the standard /clear-then-paste instruction.",
+      "files": [],
+      "expectations": [
+        "The skill does NOT launch merely because git rev-parse reported 'not a git repository' — it checks whether a WorktreeCreate hook is configured before taking that branch",
+        "It recognises that a configured WorktreeCreate hook means the launched session works in an isolated workspace, so uncommitted local changes would not carry into it",
+        "It does NOT launch the background agent, and falls back to the standard /clear-then-paste instruction with the reason reported",
+        "An inability to establish the hook's absence is treated the same way — unknown, not clean, no launch"
       ]
     }
   ]

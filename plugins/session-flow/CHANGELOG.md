@@ -11,11 +11,19 @@
   - The gate now establishes repository status first with `git rev-parse --is-inside-work-tree`.
     Two results are specified and everything else falls through to a deliberate default, so the
     gate is exhaustive by construction rather than by enumeration. `true` → inspect the tree as
-    before. Positively identified as *not a git repository* → launch: there is no uncommitted work
-    to protect and no worktree isolation to lose, because outside a repository (absent a
-    `WorktreeCreate` hook) background sessions write to the working directory directly rather than
+    before. Positively identified as *not a git repository* **and** no `WorktreeCreate` hook
+    configured → launch: there is no uncommitted work to protect and no worktree isolation to
+    lose, because background sessions then write to the working directory directly rather than
     moving into an isolated worktree (<https://code.claude.com/docs/en/agent-view>); the launch
     report states that reading.
+  - The hook is part of that branch's condition, not a parenthetical premise. `WorktreeCreate` is
+    the isolation path for non-Git source control
+    (`plugins/playbooks/skills/boris/reference/worktrees.md`) and "replaces the default worktree
+    creation entirely" (`docs/conventions/topic-docs/README.md`), so a configured hook moves the
+    launched session into a workspace the consuming checkout's local changes never reach — exactly
+    what the dirty-tree gate exists to prevent. Absence of the hook must therefore be
+    *established*; a configured hook, or an absence that cannot be established, falls to the wide
+    default below and does not launch.
   - Anything else is UNKNOWN tree state, not clean, and does not launch. That default is wide on
     purpose: a failure for some other reason (dubious ownership, a damaged repository, git missing
     from `PATH`), and also a *successful* `false` — inside a bare repository or a `.git`
@@ -28,8 +36,9 @@
     way.
   - The post-launch enforcement checklist and the gotchas index carry the same branches, so the
     surfaces the user verifies the exit shape against no longer disagree with the gate.
-  - Three eval cases added: a non-repo directory that launches, a git failure that is not "not a
-    git repository" that does not, and a zero-exit `false` that does not.
+  - Four eval cases added: a non-repo directory with no `WorktreeCreate` hook that launches, a
+    non-repo directory *with* one that does not, a git failure that is not "not a git repository"
+    that does not, and a zero-exit `false` that does not.
 
 ## [0.17.16]
 
