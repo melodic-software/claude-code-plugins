@@ -171,11 +171,15 @@ loop's own escalation contract is not outside it.
   durable ledger records only that a round happened, not what it contained**
   (`manage_feedback_ledger.py::record_advisory_round` stores timestamps per head). Two duties
   follow, and the second only works because of the first:
-  - **Stamp at classification time.** The canonical D5 disposition vocabulary
-    (VALID/INCORRECT/UNCERTAIN) does not carry this section's taxonomy, so this section adds the
-    requirement: whenever the (a)/(b)/(c) classification runs, record the literal marker
+  - **Classify and stamp on EVERY advisory round, not only when an escalation is already being
+    prepared.** This section's heading scopes when to *escalate*; the classification itself is a
+    per-round duty, because a round that runs it only at escalation time has already lost the
+    history the tripwire consumes. Run the (a)/(b)/(c) taxonomy over the round's findings before
+    dispatching its fix (`orchestration.md`'s advisory-round step), and record the literal marker
     `(class (a))`, `(class (b))`, or `(class (c))` beside the disposition in the D5 reply row for
-    every finding classified. An unstamped round is invisible to the next worker.
+    every finding classified — the canonical D5 vocabulary (VALID/INCORRECT/UNCERTAIN) does not
+    carry this taxonomy, so it must be written alongside. An unstamped round is invisible to the
+    next worker, which is the same as never having classified it.
   - **Reconstruct at round start.** Derive the previous round's composition from the PR itself:
     read the prior round's threads (resolved ones included; resolution hides nothing from a
     direct thread query) and count the recorded `(class (c))` markers. A fresh worker that skips
