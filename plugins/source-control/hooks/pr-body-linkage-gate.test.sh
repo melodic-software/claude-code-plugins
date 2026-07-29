@@ -266,6 +266,14 @@ assert_block "env -iu VAR is a cluster ending in a value" "$GATED" \
 assert_allow "a chdir letter inside a cluster still moves the directory" "$GATED" \
   "$(printf "env -iC %s gh pr create -t T --body '%s'" "$UNGATED" "$NO_RELATED")"
 
+# sudo login mode runs from the target user's home; shell mode does not move.
+assert_allow "sudo -i is login mode" "$GATED" \
+  "$(printf "sudo -i gh pr create -t T --body '%s'" "$NO_RELATED")"
+assert_allow "sudo --login is login mode" "$GATED" \
+  "$(printf "sudo --login gh pr create -t T --body '%s'" "$NO_RELATED")"
+assert_block "sudo -s keeps the current directory" "$GATED" \
+  "$(printf "sudo -s gh pr create -t T --body '%s'" "$NO_RELATED")"
+
 # --- How `gh` is spelled -----------------------------------------------------
 # The wrapper loop above already reads basenames; matching the binary any other
 # way lets a path-qualified or Windows-suffixed call walk straight past.

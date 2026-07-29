@@ -424,7 +424,7 @@ parse_wrapper_flag() {
   case "$word" in
   --*)
     case "$wrapper:${word%%=*}" in
-    env:--chdir | sudo:--chdir | sudo:--chroot)
+    env:--chdir | sudo:--chdir | sudo:--chroot | sudo:--login)
       WRAP_KIND="chdir"
       return 0
       ;;
@@ -457,7 +457,10 @@ parse_wrapper_flag() {
     c="${rest:0:1}"
     rest="${rest:1}"
     case "$wrapper:$c" in
-    env:C | sudo:D | sudo:R)
+    # `sudo -i` is login mode: it runs the command from the target user's home,
+    # so it relocates the call exactly as an explicit `-D` does. `-s` (shell
+    # mode) does NOT — it keeps the current directory — and stays a boolean.
+    env:C | sudo:D | sudo:R | sudo:i)
       WRAP_KIND="chdir"
       return 0
       ;;
