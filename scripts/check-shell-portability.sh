@@ -79,13 +79,28 @@ usage() {
 
 # is_scannable <path> — a shell file this gate is responsible for. Vendor/
 # upstream-synced copies carry their own drift gate, not this contract.
+# Likewise the cross-plugin sync copies registered in
+# scripts/cross-plugin-source-registry.txt: a dedicated gate holds each copy
+# byte-identical to its in-repo SOURCE, so the source is where this contract
+# gates a change — scanning each copy would flag content no copy edit is
+# allowed to fix.
 is_scannable() {
   local f="$1"
   case "$f" in
   */vendor/*) return 1 ;;
-  *.sh) return 0 ;;
+  *.sh) ;;
   *) return 1 ;;
   esac
+  local registry="scripts/cross-plugin-source-registry.txt" rel line
+  if [[ "$f" == plugins/*/* && -r "$registry" ]]; then
+    rel="${f#plugins/}"
+    rel="${rel#*/}"
+    while IFS= read -r line; do
+      case "$line" in '' | \#*) continue ;; *) ;; esac
+      [[ "$rel" == "$line" ]] && return 1
+    done <"$registry"
+  fi
+  return 0
 }
 
 # Resolve the file set for the requested mode.

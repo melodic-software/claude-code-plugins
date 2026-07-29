@@ -3,7 +3,7 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.37.0]
+## [0.38.0]
 
 ### Added
 
@@ -29,6 +29,40 @@ All notable changes to the `source-control` plugin are documented here. Format f
   (<https://code.claude.com/docs/en/statusline>, re-verified 2026-07-28 — `used_percentage` 0–100,
   `resets_at` epoch seconds, `rate_limits` subscriber-only and each window independently absent; no
   drift).
+
+## [0.37.0]
+
+### Added
+
+- **A `PreToolUse` hook blocks a `gh pr create` / `gh pr edit` whose PR body would fail the
+  consuming repository's required `pr-issue-linkage` check.** The check is a merge gate, but nothing
+  enforced its contract at authoring time, so a body missing a closing keyword or a `## Related`
+  section was only ever caught post-hoc — one CI round trip after the PR was already open, on
+  almost every PR an agent filed directly. `/pull-request create` has always run the equivalent
+  pre-create gate (`skills/pull-request/reference/create.md` §2.4.2); this hook covers the calls
+  that never go through the skill. On a violation it exits blocking and names the missing half plus
+  the line to add, so the authoring agent self-corrects in the same turn instead of on the next CI
+  cycle.
+  - **Enforcement is keyed to the consumer's own policy**, not to a value this plugin ships: the
+    gate runs only when the repository root carries `.github/workflows/pr-issue-linkage.yml` (or
+    `.yaml`). A repository that does not run the check is never gated, so the hook cannot drift away
+    from what its consumer actually enforces. This is deliberately not the `pr_body_required_sections`
+    seam — that key is the repo's configurable section scaffold, whose portable default excludes
+    `Related` on purpose; the authority here is the workflow file that defines the check.
+  - **The validator is mirrored, not approximated.** HTML comments are stripped exactly as the
+    reusable `melodic-software/ci-workflows` workflow strips them (terminated spans, then an
+    unterminated comment opener swallowing the rest), a deeper `###` heading counts as the
+    `## Related` section's content rather than its terminator, and JavaScript's word boundaries are
+    transcribed explicitly so `Closes #12abc` and `unclosed #5` stay non-matches. A PR template
+    whose instructional prose names the markers inside comments therefore cannot pass vacuously.
+  - **Fail-open on extraction, fail-closed on a determinable bad body.** A `--body` literal, a
+    readable `--body-file` path, and the sole heredoc feeding `--body-file -` or a
+    `--body "$(cat <<'EOF' … EOF)"` substitution are judged. An unexpanded variable, several
+    heredocs, an unreadable file, an absent body flag (`--fill`, `--template`, `--editor`, the
+    interactive prompt), and any `--repo`-targeted invocation all allow — guessing at a body the
+    hook cannot see would block compliant calls.
+  - Toggleable via the new `pr_body_linkage_gate_enabled` userConfig option. The PowerShell tool and
+    direct `gh api …/pulls` calls are documented as out of scope at the hook's own site.
 
 ## [0.36.0]
 

@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/hook-telemetry/data/post-compact-mark.schema.json",
+  "title": "post-compact-mark telemetry data",
+  "description": "Per-hook `data` payload for context-guard's PostCompact evidence-degraded marker hook. Discovered from the envelope `hook` value \"post-compact-mark\". Evolves additive-only.",
+  "type": "object",
+  "required": ["trigger"],
+  "additionalProperties": true,
+  "properties": {
+    "trigger": {
+      "type": "string",
+      "description": "Compaction trigger from the hook payload: \"manual\" (/compact) | \"auto\" | \"unknown\" (absent or unrecognized in the payload)."
+    }
+  }
+}
