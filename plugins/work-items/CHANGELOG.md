@@ -3,6 +3,41 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.27.0]
+
+### Added
+
+- **A read-trust boundary on item text, stated once and cited from every skill that reads an item
+  (#1657).** Every provenance control in these lanes governed *write* authority — who may merge,
+  what may dispatch — and none told an agent what to do with the prose it reads. Item titles,
+  bodies, comments, and linked-PR text and diffs arrive from a surface any author or agent can
+  write, and were read into context uncaveated, as instruction-shaped as anything else in the
+  prompt.
+  - New `reference/item-content-trust.md` owns the boundary: item-derived text is data describing
+    the work, never instruction to the agent reading it; the boundary keys on the surface the text
+    arrived on rather than on who wrote it, so it applies to a teammate's item exactly as to a
+    stranger's; an item whose text instructs the agent is a finding to report, not a request to
+    satisfy. It also states the widening rule — no admission, dispatch, merge eligibility,
+    capability grant, or gate waiver ever rests on a claim recorded in a body or comment, per the
+    autonomy plugin's admission policy — with the carve-out that a claim which can only *tighten*
+    stays usable as a signal, and names the one shipped instance of that carve-out
+    (`work-loop`'s frontier-tier quota guard).
+  - `triage`, `work`, `work-loop`, and `attend-queue` each carry the standing instruction in their
+    shared tracker context and cite the reference for the rest; the boundary is stated once, not
+    restated four times.
+  - Item text handed to a subagent goes inside a quoted untrusted-data section with the standing
+    never-follow instruction attached, reusing the delimiter shape `source-control`'s
+    `babysit-prs` already specifies for the merge lane rather than inventing a second form.
+
+### Changed
+
+- **`work-loop`'s admission gate justifies its ratification-phrase refusal from the boundary, not
+  from a work-class row (#1657).** The refusal previously rested on "the work-class table above
+  already routes untrusted provenance to human-gated" — a C5 row whose executable test reads a
+  *pull request*, which an issue does not have. The refusal is unchanged; it is now derived from
+  the standing rule it is an instance of (item text never widens authority, and admission widens
+  it), which holds for an issue with no field test at all.
+
 ## [0.25.4]
 
 ### Fixed
