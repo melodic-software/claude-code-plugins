@@ -301,16 +301,17 @@ auto-mode safety classifier and blocks the call before the wrapper runs.
   Omit the flag only when the key is unset.
 - **`--self-logins @me,<self-logins>` rides on every resolve-thread form too**, listing and
   mutating alike, always (`@me` resolves your own `gh` login; append `babysit_self_logins`
-  extras). The bot-only classifier (`project_thread`'s `botOnly`) inspects every fetched
-  participant, not just the opener — so the worker's OWN reply to a bot thread (a classification
-  reply, a `Fixed in <sha>` follow-up) is itself a comment the classifier sees. Without
-  `--self-logins` that reply is indistinguishable from a genuine third-party human joining the
+  extras). The bot-only classifier (`project_thread`'s `botOnly`) requires a BOT OPENER **and**
+  inspects every other fetched participant — so the worker's OWN reply to a bot thread (a
+  classification reply, a `Fixed in <sha>` follow-up) is itself a comment the classifier sees.
+  Without `--self-logins` that reply is indistinguishable from a genuine third-party human joining the
   thread: `botOnly` goes false, which locks the thread out of the default bot-only scope, and
   `--include-human` stays unset by design in worker/safe modes — so nothing lifts it back in and a
   bot thread the worker correctly handled is permanently unresolvable by the normal flow.
-  `--self-logins` marks the caller's own posting identity as neutral for that test instead: still
-  not sufficient on its own to earn `botOnly` (a thread needs at least one ACTUAL bot comment), but
-  no longer disqualifying. Omit the flag only when `babysit_self_logins` is unset.
+  `--self-logins` marks the caller's own posting identity as neutral for that test instead —
+  neutral as a REPLY only: the OPENING comment must still be an ACTUAL bot's, so a thread the
+  worker itself opened stays out of scope even after a bot replies to it (`review-discipline.md`
+  D7.5 forbids resolving your own threads). Omit the flag only when `babysit_self_logins` is unset.
 - The merge wrapper mutates only with `--merge --expected-head <post-push-head-sha> --method
   <merge-method>`, and rejects `--allow-unpinned-head` outright — there is no unpinned merge. The
   expected-head pin semantics live in `SKILL.md`; do not re-derive them here.

@@ -22,12 +22,20 @@ false locks the thread out of the default bot-only scope, `--include-human`
 stays unset by design in worker/safe modes, and nothing lifted it back in: a
 correctly handled bot thread was permanently unresolvable by the normal flow.
 `--self-logins` neutralizes the caller's own posting identity for the
-`botOnly` test (still requiring at least one ACTUAL bot comment) so a
-self-reply no longer strands it -- and, since the mandated classification-
-reply table restates the source finding's own severity marker, the severity
-scan strips a self-authored comment's classification-table rows (not its
-whole body) before scanning, so fixing `botOnly` does not just move the
-stranding to `skipped-severity-marked` under `--autonomous`.
+`botOnly` test so a self-reply no longer strands it -- and, since the mandated
+classification-reply table restates the source finding's own severity marker,
+the severity scan strips a self-authored comment's classification-table rows
+(not its whole body) before scanning, so fixing `botOnly` does not just move
+the stranding to `skipped-severity-marked` under `--autonomous`.
+
+Golden regression for the converse hole that widening opened: neutralizing
+self authorship must not make a SELF-OPENED thread `botOnly` the moment a bot
+replies to it. `botOnly` therefore requires the thread's OPENING comment to be
+bot-authored -- the canonical rule (`reference/review-discipline.md` D7.5:
+resolve only bot-opened threads, never a human's, never your OWN) -- rather
+than settling for a bot somewhere among participants who are otherwise all
+self. Self authorship is admissible as a REPLY only. See
+`BotOnlyRequiresABotOpener` for the full matrix.
 """
 
 from __future__ import annotations
@@ -359,6 +367,143 @@ class SelfLoginsNeutralizeOwnReply(unittest.TestCase):
         )
         self.assertEqual(result["threads"][0]["action"], "would-resolve")
         self.assertEqual(result["eligibleCount"], 1)
+
+
+class BotOnlyRequiresABotOpener(unittest.TestCase):
+    """`botOnly` demands a BOT-authored OPENING comment, not a bot anywhere.
+
+    `review-discipline.md` D7.5 is the canonical policy: resolve ONLY threads
+    whose OPENING comment is authored by a bot reviewer, never a human's
+    thread, and never one of your OWN threads. A "some participant is a bot
+    and none is a third-party human" test satisfies that rule for every
+    bot-opened thread but ALSO admits a self-OPENED thread the moment a bot
+    replies to it -- every comment is then bot or self, so the thread reports
+    `botOnly` and becomes resolvable with no `--include-human`, and under
+    `--autonomous` once outdated. The opening-author test is the same one
+    `humanThreadsActed` has used since #512; both `is_bot` call sites now
+    agree on what makes a thread a bot's.
+    """
+
+    def test_bot_opened_with_self_reply_is_bot_only(self) -> None:
+        # The stranding fix this PR exists for: a self-reply UNDER a bot
+        # opener must stay botOnly, or the thread falls out of every scope.
+        record = {
+            "id": "T1",
+            "comments": [_comment("codex[bot]", "Bot"), _comment("worker-bot", "User")],
+            "comments_truncated": False,
+        }
+        projected = rt.project_thread(record, self_logins=frozenset({"worker-bot"}))
+        self.assertTrue(projected["botOnly"])
+
+    def test_self_opened_with_bot_reply_is_not_bot_only(self) -> None:
+        # The hole the opposite direction: the caller's own thread, joined by
+        # a bot. Every comment is bot-or-self, but the thread is the caller's
+        # OWN -- "NEVER resolve your OWN threads" (review-discipline.md D7.5).
+        record = {
+            "id": "T1",
+            "comments": [_comment("worker-bot", "User"), _comment("codex[bot]", "Bot")],
+            "comments_truncated": False,
+        }
+        projected = rt.project_thread(record, self_logins=frozenset({"worker-bot"}))
+        self.assertFalse(projected["botOnly"])
+
+    def test_bot_opened_with_third_party_human_reply_is_not_bot_only(self) -> None:
+        # A bot opener is necessary, never sufficient: a genuine third party
+        # anywhere in the thread still disqualifies it.
+        record = {
+            "id": "T1",
+            "comments": [_comment("codex[bot]", "Bot"), _comment("alice", "User")],
+            "comments_truncated": False,
+        }
+        projected = rt.project_thread(record, self_logins=frozenset({"worker-bot"}))
+        self.assertFalse(projected["botOnly"])
+
+    def test_bot_opened_alone_is_bot_only(self) -> None:
+        record = {
+            "id": "T1",
+            "comments": [_comment("codex[bot]", "Bot")],
+            "comments_truncated": False,
+        }
+        self.assertTrue(rt.project_thread(record)["botOnly"])
+
+    def test_human_opened_with_bot_reply_is_not_bot_only(self) -> None:
+        # The third-party form of the same shape, with no self-login involved.
+        record = {
+            "id": "T1",
+            "comments": [_comment("alice", "User"), _comment("codex[bot]", "Bot")],
+            "comments_truncated": False,
+        }
+        self.assertFalse(rt.project_thread(record)["botOnly"])
+
+    def test_no_comments_is_not_bot_only(self) -> None:
+        # Fail closed: with no opening comment there is nothing to prove a bot
+        # authored it.
+        record = {"id": "T1", "comments": [], "comments_truncated": False}
+        self.assertFalse(rt.project_thread(record)["botOnly"])
+
+    def test_opener_with_no_author_is_not_bot_only(self) -> None:
+        # A deleted/ghost account leaves the opener's author null -- the
+        # opening authorship is undeterminable, so it cannot be a bot's.
+        record = {
+            "id": "T1",
+            "comments": [{"author": None}, _comment("codex[bot]", "Bot")],
+            "comments_truncated": False,
+        }
+        self.assertFalse(rt.project_thread(record)["botOnly"])
+
+    def test_truncated_page_is_not_bot_only_even_with_a_bot_opener(self) -> None:
+        # Truncation stays an independent fail-closed guard on top of the
+        # opener test: an undisclosed page could hide a third-party human.
+        record = {
+            "id": "T1",
+            "comments": [_comment("codex[bot]", "Bot")],
+            "comments_truncated": True,
+        }
+        self.assertFalse(rt.project_thread(record)["botOnly"])
+
+    def test_end_to_end_self_opened_thread_is_skipped_under_autonomous(self) -> None:
+        # The exploit path end to end, through the REAL projection: an
+        # outdated self-opened thread with a bot reply, under the worker
+        # tier's own flags, must be refused without --include-human.
+        buffer = io.StringIO()
+        record = {
+            "id": "T1",
+            "isResolved": False,
+            "isOutdated": True,
+            "comments": [
+                _comment("worker-bot", "User", "Should we rename this?"),
+                _comment("codex[bot]", "Bot", "Agreed, renaming reads better."),
+            ],
+            "comments_total_count": 2,
+            "comments_truncated": False,
+        }
+        with (
+            mock.patch.object(
+                rt,
+                "fetch_review_threads",
+                side_effect=lambda repo, number, **kw: [kw["projection"](record)],
+            ),
+            mock.patch.object(
+                sys,
+                "argv",
+                [
+                    "babysit_resolve_thread.py",
+                    "owner/repo#1",
+                    "--allowed-owners",
+                    "owner",
+                    "--self-logins",
+                    "worker-bot",
+                    "--autonomous",
+                    "--only-outdated",
+                ],
+            ),
+            redirect_stdout(buffer),
+        ):
+            rt.main()
+        result = json.loads(buffer.getvalue())
+        self.assertFalse(result["threads"][0]["botOnly"])
+        self.assertEqual(result["threads"][0]["action"], "skipped-human-thread")
+        self.assertEqual(result["eligibleCount"], 0)
 
 
 class HumanThreadsActedExtraBotLogins(unittest.TestCase):

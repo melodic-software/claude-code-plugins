@@ -8,9 +8,9 @@ All notable changes to the `source-control` plugin are documented here. Format f
 ### Fixed
 
 - **A worker's own reply to a bot review thread could strand it outside every resolution scope
-  forever (#1729).** `babysit_resolve_thread.py`'s `project_thread` computes `botOnly` from EVERY
-  fetched comment, not just the opener, so a bot-started thread carrying a later human reply is
-  correctly excluded from the default bot-only scope. But the worker's own documented reply to a
+  forever (#1729).** `babysit_resolve_thread.py`'s `project_thread` inspects EVERY fetched
+  comment for `botOnly`, not just the opener, so a bot-started thread carrying a later human reply
+  is correctly excluded from the default bot-only scope. But the worker's own documented reply to a
   bot thread -- a classification reply, a `Fixed in <sha>` follow-up (`reference/orchestration.md`)
   -- is a real API comment too, posted under the worker's own login, not the bot's. Before this
   fix that reply was indistinguishable from a genuine third-party human joining the thread:
@@ -23,12 +23,20 @@ All notable changes to the `source-control` plugin are documented here. Format f
     extras, mirroring `babysit_merge.py`'s existing flag of the same name and the
     `babysit_self_logins` userConfig key, which was never threaded through this script).
     `project_thread`'s `botOnly` now treats a self-login-authored comment as a third admissible
-    authorship alongside bot and third-party human: neutral for `botOnly` (does not disqualify it,
-    unlike a genuine human reply) but not sufficient to earn it alone -- a thread still needs at
-    least one ACTUAL bot comment to be `botOnly`, so a thread with no bot participant at all is not
-    misclassified as a bot thread just because no third party showed up. Resolved after the
-    owner-scope refusal, mirroring `babysit_merge.py`'s ordering, so an out-of-scope owner still
-    refuses with no `gh` invocation for `@me` resolution.
+    authorship alongside bot and third-party human, admissible as a REPLY only: it does not
+    disqualify a bot-opened thread (unlike a genuine human reply), but neither can it open one.
+    `botOnly` requires the thread's OPENING comment to be bot-authored, which is what
+    `reference/review-discipline.md` D7.5 actually scopes resolution to ("resolve ONLY threads
+    whose OPENING comment is authored by a BOT reviewer... NEVER resolve your OWN threads") and
+    the same opening-author test `humanThreadsActed` has applied since #512. Neutralizing self
+    authorship against a weaker "some participant is a bot" test would have opened the converse
+    hole -- a SELF-OPENED thread would become `botOnly` the moment a bot replied to it, making the
+    caller's own thread resolvable with no `--include-human` and, once outdated, under
+    `--autonomous`. `botOnly` fails closed when the opening comment cannot be attributed at all
+    (no fetched comments, or an opener whose author the API withheld), as it already did on a
+    truncated comment page. `--self-logins` is resolved after the owner-scope refusal, mirroring
+    `babysit_merge.py`'s ordering, so an out-of-scope owner still refuses with no `gh` invocation
+    for `@me` resolution.
   - Fixing `botOnly` alone was not sufficient: the mandated classification-reply table
     (`reference/review-discipline.md`) restates the source finding's own severity marker (e.g. a
     `CRITICAL`/`P1` column, or "VALID -- not a security concern") as part of the worker's own
