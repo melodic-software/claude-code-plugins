@@ -2311,6 +2311,38 @@ fi
 rm -rf "$TREE"
 rm -f "$TOK"
 
+# --- a TOKEN LIST whose relative path is shaped like an awk variable assignment
+# must still be opened as a file. Parsed as `tokens = "custom.txt"` instead, the
+# loading pass never runs, no class is active, every file reports clean and awk
+# still exits 0 — a silent fail-open in the gate itself.
+TREE="$(mktemp -d)"
+printf 'grep[[:space:]]+-P\n' >"$TREE/tokens=custom.txt"
+f="$(tmpsh 'grep -P x')"
+if (
+  cd "$TREE" || exit 2
+  SHELL_PORTABILITY_TOKENS='tokens=custom.txt' bash "$SCRIPT" --paths "$f" >/dev/null 2>&1
+); then
+  fail "an identifier=value token path silently disabled every class"
+else
+  ok "an identifier=value token path is opened as a file, not read as an assignment"
+fi
+rm -rf "$TREE"
+rm -f "$f"
+
+# --- and if a token list somehow loads no active pattern at all, the run fails
+# CLOSED rather than reporting a corpus it never checked as clean.
+TOK="$(mktemp)"
+printf '# only a comment, no active pattern\n' >"$TOK"
+f="$(tmpsh 'grep -P x')"
+out="$(scan_paths "$TOK" "$f" 2>&1)"
+rc=$?
+if [[ $rc -eq 2 && "$out" == *"no active patterns"* ]]; then
+  ok "an empty pattern set fails closed instead of reporting clean"
+else
+  fail "empty pattern set did not fail closed: rc=$rc out=$out"
+fi
+rm -f "$TOK" "$f"
+
 echo
 echo "PASS=$PASS FAIL=$FAIL"
 [[ "$FAIL" -eq 0 ]]

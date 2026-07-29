@@ -88,6 +88,16 @@ if [[ ! -f "$TOKENS" ]]; then
   printf 'Error: token list not found: %s\n' "$TOKENS" >&2
   exit 2
 fi
+# Same awk operand disambiguation the scanned file already gets below, and for
+# a worse reason: a token path shaped like identifier=value (`tokens=custom.txt`)
+# is parsed by awk as a variable assignment rather than opened, so the
+# `FNR == NR` loading pass never runs, NO patterns are active, and every file
+# reports clean while awk still exits 0 — a silent fail-open in the gate itself,
+# invisible to the scanner-fault check. See #1513.
+case "$TOKENS" in
+./* | /*) ;;
+*) TOKENS="./$TOKENS" ;;
+esac
 
 usage() {
   printf 'usage: check-shell-portability.sh <base-ref> | --all | --paths FILE...\n' >&2
@@ -1011,7 +1021,18 @@ scan_file() {
       }
     }
     # A file whose last line ends in a continuation still has one command left.
-    END { if (pending) scan_logical(logical, logical_line, logical_mask) }
+    #
+    # An empty pattern set can only mean the token list failed to load — the
+    # shipped one is never empty, and a caller overriding it wants SOME class
+    # checked. Reporting clean in that state is the silent skip the contract
+    # forbids, so it fails closed instead.
+    END {
+      if (pending) scan_logical(logical, logical_line, logical_mask)
+      if (np == 0) {
+        print "Error: token list loaded no active patterns" > "/dev/stderr"
+        exit 2
+      }
+    }
   ' "$TOKENS" "$awk_file"
 }
 
