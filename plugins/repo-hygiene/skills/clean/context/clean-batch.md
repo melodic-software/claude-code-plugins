@@ -135,7 +135,7 @@ non-zero when any repo failed.
 ## Gates
 
 - **Single batch-wide gate:** run `--dry-run` once, show the whole-batch plan (the
-  per-repo outcomes + `Summary` + any `UnmatchedSkip`), `AskUserQuestion` once —
+  per-repo outcomes + `Summary` + any `UnmatchedSkip`), [confirmation gate](../SKILL.md#confirmation-gate) once —
   surface the `bytes` reclaimable total — then `--apply --batch-plan <path>` once.
   One confirmation covers the batch; do not gate per repo.
 - **Autonomous sessions** (`CLAUDE_CODE_REMOTE`, `/loop`, `/schedule`): `--apply`

@@ -17,13 +17,13 @@ Retarget this to the consuming project's actual documentation layout with a proj
 
 ## Merge semantics
 
-This lane is layered per the [config-cascade contract](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/config-cascade/README.md) ("Merge semantics"). A project lane at `.claude/tidy-lanes/docs-prose.md` does **not** replace this file wholesale — it merges with the bundled lane **per section**, so bundled improvements to sections the project does not touch keep reaching the repo:
+This lane is layered per the [config-cascade contract](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/config-cascade/README.md) ("Merge semantics"). A project lane at `.claude/tidy-lanes/docs-prose.md` is **not** meant to replace this file wholesale — it merges with the bundled lane **per section**, so bundled improvements to sections the project does not touch keep reaching the repo. This is the declaration a project lane adopts (by reference or by restating it); it is the recommended shape for this lane:
 
 - **`Scope`** — **per-section override.** A project `Scope` block replaces the bundled globs entirely; retargeting doc layout is the whole reason a project writes a lane, and two glob sets do not meaningfully concatenate. A project lane that omits `Scope` keeps the bundled globs.
 - **`Watch-for patterns`** — **additive (concatenate).** A project's watch-for entries are **appended** to the bundled P-1..P-6; the generic patterns are never frozen out, and new bundled patterns flow to the project on upgrade. A project adds repo-specific patterns here; it does not restate or replace the bundled ones.
 - **Every other section** (`Lane-specific extra exclusions`, `Verification commands`, `Conventional Commits type`, `Preferred research sources`) — **per-section override**, same as `Scope`: a section the project supplies replaces the bundled one; a section it omits keeps the bundled value.
 
-When a project lane at `.claude/tidy-lanes/docs-prose.md` includes a `## Merge semantics` section, `/code-tidying:tidy` reads **both** that project lane and this bundled lane and merges them per that declaration. A project lane without this section resolves project-only.
+When a project lane at `.claude/tidy-lanes/docs-prose.md` includes a `## Merge semantics` section, `/code-tidying:tidy` reads **both** that project lane and this bundled lane and merges them per **the project lane's** declaration — which is why adopting the shape above (`Merge semantics: per the bundled lane's declaration`) is what puts these rules in force. A project lane without that section resolves project-only, and none of the above applies to it.
 
 ## Watch-for patterns
 

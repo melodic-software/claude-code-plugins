@@ -1,6 +1,6 @@
 # Changelog — session-flow plugin
 
-## [0.17.17]
+## [0.17.18]
 
 ### Added
 
@@ -36,6 +36,46 @@
   immediately after the machine-going-away check, on the same "a hard fact outranks a cost
   heuristic" ground that check already established; a request that still needs human input, or
   that the session cannot hand off autonomously, falls through unchanged to the questions below.
+
+## [0.17.17]
+
+### Fixed
+
+- **`continue-in-background`'s dirty-tree gate had no branch for a consuming directory that is not
+  a git repository (melodic-software/claude-code-plugins#929).** The gate opened by running
+  `git status --porcelain -uall`, which in a non-repo directory (a session started in `$HOME`, say)
+  fails with `fatal: not a git repository` and leaves the skill with no specified behavior.
+  - The gate now establishes repository status first with `git rev-parse --is-inside-work-tree`.
+    Two results are specified and everything else falls through to a deliberate default, so the
+    gate is exhaustive by construction rather than by enumeration. `true` → inspect the tree as
+    before. Positively identified as *not a git repository* **and** no `WorktreeCreate` hook
+    configured → launch: there is no uncommitted work to protect and no worktree isolation to
+    lose, because background sessions then write to the working directory directly rather than
+    moving into an isolated worktree (<https://code.claude.com/docs/en/agent-view>); the launch
+    report states that reading.
+  - The hook is part of that branch's condition, not a parenthetical premise. `WorktreeCreate` is
+    the isolation path for non-Git source control
+    (`plugins/playbooks/skills/boris/reference/worktrees.md`) and "replaces the default worktree
+    creation entirely" (`docs/conventions/topic-docs/README.md`), so a configured hook moves the
+    launched session into a workspace the consuming checkout's local changes never reach — exactly
+    what the dirty-tree gate exists to prevent. Absence of the hook must therefore be
+    *established*; a configured hook, or an absence that cannot be established, falls to the wide
+    default below and does not launch.
+  - Anything else is UNKNOWN tree state, not clean, and does not launch. That default is wide on
+    purpose: a failure for some other reason (dubious ownership, a damaged repository, git missing
+    from `PATH`), and also a *successful* `false` — inside a bare repository or a `.git`
+    directory, where the command exits 0 and there is no work tree. Routing by exit status alone
+    in either direction would have turned a gate that protects uncommitted work into one that
+    fails open on exactly the cases where the tree is least readable.
+  - The context-gathering block's "treat any failure as an unknown value and carry on" is now
+    scoped to itself. It colors the save-point and is not the gate; its shrug, and its non-`-uall`
+    `git status` output, must not be carried into the gate, which reads a git failure the opposite
+    way.
+  - The post-launch enforcement checklist and the gotchas index carry the same branches, so the
+    surfaces the user verifies the exit shape against no longer disagree with the gate.
+  - Four eval cases added: a non-repo directory with no `WorktreeCreate` hook that launches, a
+    non-repo directory *with* one that does not, a git failure that is not "not a git repository"
+    that does not, and a zero-exit `false` that does not.
 
 ## [0.17.16]
 
