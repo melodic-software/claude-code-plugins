@@ -180,7 +180,7 @@ assert_file_absent "no worktree materialized inside repo via '..' bypass" \
 if [[ "$OSTYPE" == msys || "$OSTYPE" == cygwin ]] && command -v cygpath >/dev/null 2>&1; then
   # backslash root pointing directly into the repo working tree
   repo=$(mkrepo --origin "git@github.com:acme/widget.git")
-  err=$(bash "$HELPER" --name feat/bs --root "$(cygpath -w "$repo")\\.claude\\worktrees" --repo-dir "$repo" 2>&1 >/dev/null)
+  err=$(bash "$HELPER" --name feat/bs --root "$(cygpath -w "$repo")\\.claude\\worktrees" --repo-dir "$repo" 2>&1 >/dev/null) # portability-ok: Windows path string in a test fixture, not a regex/sed construct
   assert_exit "backslash root inside repo refuses exit 3" 3 "$?"
   assert_contains "backslash in-repo refuse names the repository" "$err" "inside the repository"
   assert_file_absent "no worktree via backslash-into-repo" "$repo/.claude/worktrees/acme-widget-feat-bs/README.md"
@@ -193,7 +193,7 @@ if [[ "$OSTYPE" == msys || "$OSTYPE" == cygwin ]] && command -v cygpath >/dev/nu
 
   # backslash root with `..` after a nonexistent component resolving into the repo
   repo=$(mkrepo --origin "git@github.com:acme/widget.git")
-  bs_dd="$(cygpath -w "$repo")\\..\\missing\\..\\${repo##*/}\\.claude\\worktrees"
+  bs_dd="$(cygpath -w "$repo")\\..\\missing\\..\\${repo##*/}\\.claude\\worktrees" # portability-ok: Windows path string in a test fixture, not a regex/sed construct
   bash "$HELPER" --name feat/bd --root "$bs_dd" --repo-dir "$repo" >/dev/null 2>&1
   assert_exit "backslash + '..' resolving inside repo refuses exit 3" 3 "$?"
 
