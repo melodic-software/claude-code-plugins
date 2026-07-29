@@ -3,6 +3,71 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.27.1]
+
+### Changed
+
+- `/planning:interview`'s dense-round decision table moves from the topic's memory
+  slice to the topic-docs **ephemeral tier**. `<memory_dir>/<topic-slug>/interview-round-<n>.html`
+  was memory-tier state that nothing downstream ever reads: the skill's own text names
+  the ledger and terminal as the tracked record, and a resumed session picks up from the
+  first open `interview-checklist.md` checkbox, never from a round's HTML. The binding's
+  artifact table never listed the file either. Rounds now render into **one** OS temp
+  directory per interview run — one directory per run rather than per-round files
+  accumulating in the repo — resolved deterministically, never the session scratchpad,
+  and never deleted before the path is handed back. A user reopening a table
+  mid-interview is what the tier's lifetime rule already guarantees, so it is not a
+  reason to persist. A resumed interview starts a new run directory, stated plainly
+  rather than left silently impossible: after a handoff and clear the prior directory
+  cannot be re-resolved, and the ledger and Brief already carry every resolved answer.
+  Both surfaces move together — `skills/interview/SKILL.md` (loaded eagerly, and the
+  one that governs default behavior) and `context/loop.md` (read on demand); changing
+  only the on-demand half would have left the memory-tier instruction in force. See
+  `docs/conventions/topic-docs/README.md` §"The ephemeral tier" and this plugin's
+  `reference/topic-docs.md`. Its `mktemp -d` invocation now names the temp root in the
+  template, the one form that cannot land the directory in the working tree.
+- **The plugin's four other optional HTML views get a placement.** `/planning:prd`'s
+  pitch view, `/planning:brainstorm`'s reaction-capture page, `/planning:plan`'s plan
+  view, and `/planning:design`'s topology view each offered a self-contained HTML render
+  with **no resolvable location** — three named none at all, and `design`'s said
+  "alongside the markdown", where the markdown is `library-topology.md` in the contract
+  slice, which reads as committing a rendered view to the tier the pre-merge prune is
+  supposed to empty. All four are optional views of a record kept elsewhere (the
+  conversation, or the markdown artifact they render), so nothing downstream reads them
+  again: they are ephemeral-tier, one file per run, and never beside the record they
+  render. `prd` and `brainstorm` also stop calling their view "ephemeral" as a loose
+  adjective now that the word names a tier. The binding's artifact table lists all five
+  HTML producers, so it no longer describes one while the plugin ships five.
+
+## [0.27.0]
+
+### Added
+
+- **`draft-goal-condition` drafts conditions for goals no metric can measure (#1652).** Step 2
+  assumed a checkable condition already existed, so an intent with no honest metric either got a
+  manufactured one or nothing. A new branch builds the condition from three moves instead — a
+  structural constraint, enumerated required contents, and a self-verification sub-step that
+  requires the verifying work rather than its verdict. The branch states why the third move must be
+  worded that way: the evaluator calls no tools, so it can only credit verification Claude performed
+  in the transcript, and an assertion that checking happened is indistinguishable from the checking.
+  Co-drafting a still-vague intent points at `/planning:interview` rather than restating it.
+- **`draft-goal-condition`'s Step 0 router gains the dynamic-workflows lever (#1654).** The router
+  offered `/loop`, routines and `/schedule`, a Stop hook, and a one-shot prompt as alternatives to
+  `/goal`, leaving work that needs more agents than one conversation can coordinate with nowhere to
+  route. Two caveats ship with the row, each because it turns a plausible recommendation into a dead
+  one. The `ultracode` keyword runs one task as a workflow, changes nothing else, and is honored
+  only from a human-typed prompt, whereas `/effort ultracode` is the standing session setting
+  (`xhigh` effort plus per-task workflow planning) and needs a model offering `xhigh` — so the two
+  are not interchangeable. And the `Workflow` tool is filtered out of every non-fork subagent, so a
+  lever whose work lands in dispatched non-fork subagents — the loop lanes' item-workers, for
+  instance — cannot be this one however well it otherwise fits. The row also carries the
+  availability fact that keeps it from being skipped as
+  preview-gated: all paid plans, switched on from the `/config` **Dynamic workflows** row on Pro.
+  Alone among the router's rows, this one is not exclusive of `/goal`: a workflow decides how a
+  single task fans out and the goal decides when to stop turning, so it routes away from drafting
+  only when the intent wants the fan-out and no across-turn completion condition — an intent
+  wanting both drafts the condition here and runs the workflow alongside it.
+
 ## [0.26.3]
 
 ### Fixed

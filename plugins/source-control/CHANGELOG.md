@@ -3,7 +3,7 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.34.0]
+## [0.37.0]
 
 ### Added
 
@@ -29,6 +29,237 @@ All notable changes to the `source-control` plugin are documented here. Format f
   (<https://code.claude.com/docs/en/statusline>, re-verified 2026-07-28 — `used_percentage` 0–100,
   `resets_at` epoch seconds, `rate_limits` subscriber-only and each window independently absent; no
   drift).
+
+## [0.36.0]
+
+### Added
+
+- **`babysit-loop` detects consecutive no-progress cycles and escalates instead of cycling
+  invisibly (#1648).** Every stall mechanism was per-PR (`needs_worker` delta, `quiet_recheck_due`,
+  `checks.stuck`), so a merge lane cycling repeatedly while its queue sat unmoved was invisible to
+  itself. The lane now persists a `no_progress_streak` counter beside `cycle` and `backoff_level`
+  in its `#502` durable state block: a cycle with open PRs in the cycle-start snapshot that ends
+  with no qualifying progress — no PR merged or closed, materially changed (head, reviews,
+  comments, checks, draft elevation — foreign activity included; the lane's own repeat attempt at
+  the same still-unresolved blocker never re-qualifies), and no new escalation written —
+  increments it, an idle cycle (no open PRs) — or one held by the rate-limit guard, meaning
+  `rate_limit_latch` set, which starts no new mutating work and outlives the pause end — leaves it
+  unchanged, and any qualifying progress resets it. At the threshold (new `babysit_loop_no_progress_threshold` seam key, default 3) the
+  lane raises a stall escalation through the existing escalation contract — a
+  `Lane stall: babysit-loop` issue with the human-gated role label and the machine-marked
+  escalation comment, at most one open at a time (author-matched) — and **keeps looping**: a
+  stalled lane is a signal about the queue, not a reason to terminate. Shared counter semantics
+  are owned by the loop-lane convention (§4, "No-progress detector", convention 5.0.0); the lane
+  body holds them by citation and defines only the merge-lane progress events.
+
+### Changed
+
+- **`babysit-loop`'s detector binding moved to a progressive-disclosure spoke (#1648).** With this
+  lane's share of #1650's escalation-record contract also landing in `SKILL.md`, the file crossed
+  the 500-line hard cap. The merge-lane binding — qualifying progress, the `rate_limit_latch`
+  held-cycle bar, the threshold key, and the stall-escalation shape — now lives in
+  `skills/babysit-loop/reference/no-progress-detector.md`, cited from the cycle-shape step that
+  updates the counter, matching the `pre-escalation-dispatch.md` spoke already beside it. The same
+  pass dropped the closed inventory of every contract the convention owns (it coupled this file to
+  the convention's table of contents) in favor of the three rules that bite hardest here, and
+  trimmed the pre-escalation paragraph to what its own spoke does not already own. No contract
+  changes.
+
+## [0.35.1]
+
+### Fixed
+
+- **`worktree-create.sh --base-ref fresh` degraded to local `HEAD` in a clone with no `origin`
+  remote (melodic-software/claude-code-plugins#904).** The helper probed `refs/remotes/origin/HEAD`
+  and nothing else, so a repository cloned with `git clone -o upstream` — which has no `origin` at
+  all — took the remoteless fallback path even though `upstream/HEAD` was correctly cached. A
+  worktree created from a feature branch then carried unpushed local commits into a base that
+  `fresh` promises is the remote default branch. The fallback did emit its warning, so the failure
+  was visible rather than silent — but the warning named `origin`, the one remote the repository did
+  not have, so it read as a misconfiguration rather than as the helper looking in the wrong place.
+  - `fresh` now resolves the effective default **remote** before probing any symref, through a
+    three-rung chain: the current branch's configured remote (`branch.<name>.remote`), then `origin`
+    when it exists, then the sole remote when the repository has exactly one. The resolved remote's
+    `HEAD` symref supplies the base. Nothing hardcodes a default branch name — resolution stays
+    symbolic, as the portability lint requires.
+  - Rung 1 also changes the base in a repository that *does* have `origin`: when the current branch's
+    `branch.<name>.remote` names a different existing remote, `fresh` now bases on that remote's
+    default branch rather than `origin`'s. That is the prescribed precedence, but it is a behavior
+    change beyond the non-`origin`-clone case in the headline.
+  - Rung 1 accepts a configured remote only when it names a remote that still exists, so stale
+    config cannot shadow a healthy `origin`, and it rejects git's `.` sentinel (which means "tracks a
+    local branch", not a remote — `refs/remotes/./HEAD` is nonsense). A detached `HEAD` has no
+    branch, so the rung is skipped rather than erroring.
+  - That existence probe passes the configured name after an option terminator
+    (`git remote get-url -- "$cfg"`). A remote name may legally begin with `-` — `git clone -o -foo
+    <url>` creates one and writes it straight into `branch.<name>.remote` — and without the
+    terminator `git remote get-url` parses it as switches (`unknown switch 'f'`). Rung 1 then
+    rejected a perfectly healthy remote and resolution fell through to `origin`, producing exactly
+    the silently wrong base this release exists to prevent.
+  - The `HEAD` probe deliberately does **not** cascade back down the rungs. `fresh` means the
+    *effective* remote's default branch; quietly substituting a different remote's default branch is
+    a worse failure than the fallback, because the caller cannot see it happen.
+  - The local-`HEAD` fallback and its loud warning remain for the genuinely unresolvable cases, and
+    the warning now names the cause: the resolved remote whose `HEAD` is uncached (with the
+    `git remote set-head <remote> --auto` fix), or the absence of any default remote — no remotes at
+    all, or several with neither a branch-configured remote nor an `origin`.
+  - Every git read in the resolver is `tr -d '\r'`-trimmed: under `git.exe` on an MSYS or Cygwin
+    shell the output carries CRLF, and an untrimmed `upstream\r` would make each downstream lookup
+    miss while still reading correctly in an error message.
+  - This closes a gap the helper shared with Claude Code's own native `fresh`, which
+    [keeps `origin/HEAD` current](https://code.claude.com/docs/en/worktrees#choose-the-base-branch)
+    and falls back to local `HEAD` when `origin/HEAD` is absent. The plugin helper is now
+    deliberately more general than the native behavior it otherwise mirrors.
+  - Regression tests cover a sole non-`origin` remote, branch-config precedence over a coexisting
+    `origin` (asserted against three distinct commits so it cannot pass vacuously), a stale
+    branch-configured remote, the `.` sentinel, a detached `HEAD`, several remotes with no resolvable
+    default, the remoteless case, and an option-shaped branch-configured remote coexisting with
+    `origin`. The test fixture gained `--remote-name` plus helpers for seeding a second remote at a
+    distinguishable tip; both fixture helpers now add remotes with `--` so an option-shaped name is
+    constructible at all.
+
+## [0.35.0]
+
+### Added
+
+- **`babysit-loop` escalation record write — deterministic surface for out-of-band notification
+  (#1650).** Escalating now also creates
+  `.claude/lane-escalations/<UTC-stamp>-<item>-babysit-loop.json` with the Write tool in the same
+  step that files the tracker escalation, immediately before posting the marker comment — one new
+  file per NEWLY filed escalation (suppressed by the marker read the step already performs),
+  `loop-lane/escalation-record@1`
+  shape, summary restating only the already-public marker-comment text. The Write tool call (never
+  a shell redirect, whose `Bash` event the seam's `Write` matcher never sees) is what a consuming
+  repo's `PostToolUse`
+  `type:"http"` hook keys on to reach an off-machine human deterministically; the documented seam
+  and settings shape are owned by the loop-lane convention (§2, v4.0.0). Record-before-marker is
+  load-bearing: a stop between the two non-atomic writes then costs one duplicate notification the
+  next cycle re-files, where the reverse order strands a standing marker that suppresses the record
+  on every later cycle and loses the notification permanently. Without a configured hook the file
+  is inert exhaust; the tracker item stays the escalation of record. Because the record path is
+  relative to the lane session's own checkout, a lane scoped to a repository other than its
+  checkout notifies the launching project's endpoint and never the target's — so launching from
+  the target's checkout is stated at the site as a requirement whenever that repository's endpoint
+  is the one that must hear, not a preference.
+
+### Changed
+
+- **`babysit-loop` gains a lane-start preflight that ignores the escalation record directory itself
+  (#1650).** The record write is unconditional, so an unignored `.claude/lane-escalations/` would
+  strand an untracked file per escalation in the tree this lane runs its gates against — and
+  nothing delivers a tracked ignore rule into a consuming repo, so an existing consumer that
+  upgrades would hit exactly that. New cycle-shape step 0 runs once per lane: if
+  `git check-ignore -q` reports the path unignored, append it to the clone's untracked
+  `$(git rev-parse --git-common-dir)/info/exclude`; skipped outside a git checkout, which the
+  neutral-directory launch mode allows. No consumer change, no tracked file touched, and a no-op
+  wherever the repo's own `.gitignore` already carries the rule.
+
+## [0.34.1]
+
+### Fixed
+
+- **A worker's own reply to a bot review thread could strand it outside every resolution scope
+  forever (#1729).** `babysit_resolve_thread.py`'s `project_thread` inspects EVERY fetched
+  comment for `botOnly`, not just the opener, so a bot-started thread carrying a later human reply
+  is correctly excluded from the default bot-only scope. But the worker's own documented reply to a
+  bot thread -- a classification reply, a `Fixed in <sha>` follow-up (`reference/orchestration.md`)
+  -- is a real API comment too, posted under the worker's own login, not the bot's. Before this
+  fix that reply was indistinguishable from a genuine third-party human joining the thread:
+  `botOnly` flipped `false` the moment it posted, which locked the thread out of the default
+  bot-only scope, and `--include-human` stays unset by design in worker/safe modes (it must never
+  touch a genuine human thread) so nothing lifted it back in -- a bot thread the worker correctly
+  replied to became permanently unresolvable by the normal flow, even though replying was exactly
+  the right action.
+  - `babysit_resolve_thread.py` gains a `--self-logins` flag (`@me` plus `babysit_self_logins`
+    extras, mirroring `babysit_merge.py`'s existing flag of the same name and the
+    `babysit_self_logins` userConfig key, which was never threaded through this script).
+    `project_thread`'s `botOnly` now treats a self-login-authored comment as a third admissible
+    authorship alongside bot and third-party human, admissible as a REPLY only: it does not
+    disqualify a bot-opened thread (unlike a genuine human reply), but neither can it open one.
+    `botOnly` requires the thread's OPENING comment to be bot-authored, which is what
+    `reference/review-discipline.md` D7.5 actually scopes resolution to ("resolve ONLY threads
+    whose OPENING comment is authored by a BOT reviewer... NEVER resolve your OWN threads") and
+    the same opening-author test `humanThreadsActed` has applied since #512. Neutralizing self
+    authorship against a weaker "some participant is a bot" test would have opened the converse
+    hole -- a SELF-OPENED thread would become `botOnly` the moment a bot replied to it, making the
+    caller's own thread resolvable with no `--include-human` and, once outdated, under
+    `--autonomous`. `botOnly` fails closed when the opening comment cannot be attributed at all
+    (no fetched comments, or an opener whose author the API withheld), as it already did on a
+    truncated comment page. `--self-logins` is resolved after the owner-scope refusal, mirroring
+    `babysit_merge.py`'s ordering, so an out-of-scope owner still refuses with no `gh` invocation
+    for `@me` resolution.
+  - Fixing `botOnly` alone was not sufficient: the mandated classification-reply table
+    (`reference/review-discipline.md`) restates the source finding's own severity marker (e.g. a
+    `CRITICAL`/`P1` column, or "VALID -- not a security concern") as part of the worker's own
+    reply, so a raw severity scan over that self-reply would re-trip `--autonomous`'s
+    `skipped-severity-marked` guard the moment `botOnly` stopped blocking it -- the stranding just
+    moved to a different verdict. `project_thread`'s severity scan now strips a self-authored
+    comment's classification-table rows (not its whole body) before scanning, mirroring
+    `babysit_classify.count_findings`'s identical rule for the finding-count gate; the underlying
+    `_strip_classification_rows` helper is promoted to public (`strip_classification_rows`) and
+    shared between the two modules rather than reimplemented. Non-table self content -- a
+    maintainer using a self-login to raise a genuine new finding -- still flags.
+  - `SKILL.md`'s thread-resolution bullet and flag-delivery table, `reference/safety.md`'s
+    documented resolve-thread command forms (both the read-only listing form and both
+    pinned-command-degradation forms), and `reference/orchestration.md`'s Worker Contract and
+    Worker Prompt Template now carry `--self-logins @me,<self-logins>` alongside
+    `--extra-bot-logins`, so every copyable resolve-thread command actually threads the caller's
+    own identity through. `plugin.json`'s `babysit_self_logins` description now names the
+    resolve-thread bot-only test among the surfaces the self set covers.
+
+## [0.34.0]
+
+### Changed
+
+- **`babysit-loop`'s rung partition reads the work class from the `work-class:` label only, never
+  from a `Work-class: C<n>` body trailer (#1657).** The partition accepted "the triage stamp in the
+  item body **or** labels", so a class recorded in an item body decided merge eligibility. The class
+  widens merge authority, and an item body is editable by its own author — who need hold no
+  permission on the base repository — which made the item self-certifying and contradicted the
+  autonomy plugin's admission policy: "No repo-local (agent-writable) surface may supply any
+  admission input — rules, caps, or the work class used for admission." Applying a label takes
+  triage or write permission, the same permission surface the C5 trust test already keys on.
+  - A trailer stays legitimate as the operator's own record of a class and as a proposal, and is
+    reported as such, but it never partitions. An item classified only in its body is
+    **unclassified** for the partition — not eligible at any rung, exactly as an item with no
+    record at all.
+  - **Consumer impact.** A repository that recorded classes only as body trailers had a
+    merge-eligible population under the old reading and has an empty one under this reading:
+    everything there is human-merge, the shipped baseline, until the `work-class:` labels follow
+    the trailers. Nothing merges that would not have merged before.
+  - The C4/C5 floor is unchanged — it always tested the pull request rather than the linked item's
+    stamp, so a fork PR was never eligible through a self-stamped issue.
+
+## [0.33.3]
+
+### Fixed
+
+- **A configured review reviewer that GitHub types as `User` counted as no reviewer at all
+  (melodic-software/claude-code-plugins#1642).** `is_review_bot_item` in
+  `babysit_review_trigger.py` admitted an item only when GitHub's authoritative actor type said
+  `Bot`, so an automation account posting as an ordinary user — no `[bot]` login suffix,
+  `__typename` of `User` — had its real, current-head review read as no review. That is the exact
+  account class `babysit_extra_bot_logins` exists for and that `actor_kind` and
+  `babysit_resolve_thread.py` (#637) already honor, so the same operator-declared account was
+  classified two different ways by two consumers of one plugin.
+  - `ReviewTriggerConfig` gains `extra_bot_logins`, and the predicate now reads: the login must be
+    in `reviewer_logins` AND the author must be a bot. Both halves are required, so declaring an
+    account a bot never promotes it to reviewer. The field ships empty, so the predicate is
+    structural-only exactly as before for anyone who has not configured it, and no
+    default-configuration blocker state moves.
+  - Bot-ness is delegated whole to `is_bot` rather than restated, so this module can no longer
+    drift from the classification every other consumer uses. The REST `type` key is normalized
+    into the `__typename` slot first — `is_bot` reads `__typename` alone, and the reaction and
+    review-comment paths carry only `type`, so that normalization is load-bearing and pinned.
+  - The widening is applied at the shared predicate rather than per consumer, so all three reach
+    the same verdict: review evidence (`fetch_review_evidence`), current-head completion
+    (`has_current_head_review`), and reaction engagement (`fetch_review_reactions`). It is not
+    uniformly permissive — recognizing a declared reviewer's eyes reaction *adds* the
+    `engaged_reaction_reviewing` blocker that strictness was suppressing.
+  - `--extra-bot-logins` now threads into the review-trigger config from `pr_queue_snapshot.py`
+    (which already parsed it for `FeedbackConfig`) and from `request_review.py`, which gains the
+    flag; `SKILL.md`'s delivery mapping and `reference/review-trigger.md`'s pinned invocation and
+    completion rule follow.
 
 ## [0.33.2]
 

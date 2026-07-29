@@ -8,18 +8,20 @@ references/shared/severity-rubric.md.
 .DESCRIPTION
 For each current check result:
 
- 1. Look up the most recent run in which this check.id ran (history tail).
+ 1. Look up the most recent run in which this check.id ran SUCCESSFULLY
+    (history tail, filtered by that run's `checks_ran`).
  2. Attach a `trend` field: { last_run, delta, adjusted_from } -- the shape
     catalog/schemas/check-result.schema.json fixes (additionalProperties:false).
     adjusted_from carries the pre-adjustment severity when step 3 upgrades.
- 3. Apply one severity adjustment per the rubric:
-       - Upgrade one level on WARN whose trend-relevant metric is worsening
-         week-over-week (metric increase >= +5 percentage points for
-         pct-style metrics, or any increase for count-style metrics).
-       - Downgrade one level when a threshold was crossed once and the check
-         has been OK/INFO for the prior 2 runs (revert).
+ 3. Apply the one severity adjustment this engine makes: upgrade WARN -> CRIT
+    when the trend-relevant metric worsens by >= 5 (raw units or percentage
+    points) against that baseline.
  4. Record the adjustment reason in `notes` ("trend upgrade: X crossed
     threshold last week too").
+
+Upgrades only. A revert-downgrade was described here before it existed and was
+never built; severity only ever moves up, so callers must not rely on this
+engine to walk one back down.
 
 Conservative defaults: when in doubt, do not adjust. The rubric explicitly
 prefers the lower severity on ambiguity and relies on trend upgrades to
@@ -56,9 +58,20 @@ function Invoke-TrendAnalysis {
         # (file order: oldest -> newest, since Read-HistoryJsonl uses
         # Get-Content -Tail). top_metrics keys are "<check.id>.<detailKey>"
         # per output-schema.md.
+        #
+        # Only runs in which this check SUCCEEDED contribute a baseline. A failed or
+        # incomplete run still persists whatever partial detail it gathered into
+        # top_metrics -- deliberately, so the human reads the floor in the history
+        # line -- but that figure is a lower bound. Comparing a later complete run
+        # against it reads the recovered difference as growth and upgrades a WARN to
+        # CRIT on nothing. checks_ran is already the repo's authority for "this check
+        # produced a usable result"; Get-CheckLastRun reads it the same way.
         $priorMetricValues = [System.Collections.Generic.List[object]]::new()
         foreach ($h in $HistoryTail) {
-            if ($relevantKey -and $h.PSObject.Properties['top_metrics']) {
+            if (-not $relevantKey) { continue }
+            if (-not $h.PSObject.Properties['checks_ran']) { continue }
+            if (@($h.checks_ran) -notcontains $r.id) { continue }
+            if ($h.PSObject.Properties['top_metrics']) {
                 $fullKey = "$($r.id).$relevantKey"
                 if ($h.top_metrics.PSObject.Properties[$fullKey]) {
                     $priorMetricValues.Add($h.top_metrics.$fullKey)
@@ -140,6 +153,7 @@ function Get-TrendRelevantKey {
         'services' { return 'stopped_auto_count' }
         'drivers' { return 'unsigned_in_store_count' }
         'reliability' { return 'stability_min_7d' }
+        'claude-temp-root' { return 'total_gb' }
         default { return $null }
     }
 }
@@ -167,7 +181,8 @@ function Test-WorseningTrend {
     # signature age days, etc.). Battery capacity worsens when DOWN.
     $upwardWorsens = @(
         'disk-space', 'defender', 'event-log-errors',
-        'winget-upgrades', 'windows-update', 'services', 'drivers'
+        'winget-upgrades', 'windows-update', 'services', 'drivers',
+        'claude-temp-root'
     )
     $downwardWorsens = @('battery', 'reliability')
 

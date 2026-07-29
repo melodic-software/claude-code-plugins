@@ -92,6 +92,32 @@ degrade **visibly** to the best terminal form with a one-line notice. Never assu
 the Artifact surface exists. The `file` preference deliberately stays on the
 machine (never published); `artifact` prefers publishing but degrades the same way.
 
+**Local-file placement.** Write the local HTML file via the platform's temp
+primitive — never into the consumer's repository tree. On Unix/Linux/Git Bash,
+create a private run directory and echo it in the same call —
+`d=$(mktemp -d "${TMPDIR:-/tmp}/visualize-XXXXXX"); echo "$d"` — then write the
+page to `<echoed dir>/visualize.html`. Echo it because shell state does not
+survive between Bash calls: the directory name is random, so an unechoed path is
+unrecoverable in the call that writes the file. Carry the temp root in the
+positional template rather than reaching for a flag: `-p` (which GNU also spells
+`--tmpdir`) exists in both dialects but means different things. GNU treats the
+template as relative to that directory and lets the flag beat `TMPDIR`;
+BSD/macOS consult it only as a
+fallback for `-t` when `TMPDIR` is unset — so with a bare template and no `-t`
+the flag does nothing there and the template resolves against the **current
+directory**, silently writing into the consumer's repo. GNU also marks `-t`
+deprecated, and BSD's `-t` takes a prefix rather than a template, so the two
+produce different names. An absolute path in the positional template is
+reinterpreted by neither. The `XXXXXX` must also be **trailing** — BSD `mktemp`
+substitutes only trailing Xs, so `visualize-XXXXXX.html` cannot be created at
+all on macOS — which is why the page takes a fixed name inside the generated
+directory instead of an extension on the template. On Windows,
+a user-scoped temp under
+`%LOCALAPPDATA%\Temp`. One file per run. The path is handed back to the user, so
+do not delete it — it must still be readable when they open it. Open it for the
+user (`start <path>` on Windows, `open <path>` on macOS, `xdg-open <path>` on
+Linux) and report the absolute path.
+
 A **mermaid diagram** is the sharp case: it renders natively only on a published
 Artifact. A local HTML file renders it only if the page **embeds** a mermaid
 renderer inline — keep the file self-contained; never load a renderer from the

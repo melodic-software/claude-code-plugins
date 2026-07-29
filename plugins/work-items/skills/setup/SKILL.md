@@ -143,7 +143,10 @@ check.
    (FAIL otherwise), and **both reconciliation keys are unique across the whole `items` array — every
    `id` AND every `title`**. A duplicate `id` (the key `recheck <id>` resolves against) or duplicate
    `title` (the key `due` / `work` match `[Maintenance] {title}` against) silently breaks
-   reconciliation — FAIL, naming the collision.
+   reconciliation — FAIL, naming the collision. A valid file whose `items` array is empty is the
+   skipped first-time bind's skeleton — INFO: the schedule carries no rows, so `due` / `recheck` /
+   `work` have nothing to act on; `apply --seed-schedule` seeds it. (Report this only once the root
+   shape validates — probe 3 establishes file presence alone and cannot tell empty from malformed.)
 5. **Tracked, not ignored** — a present schedule (and a present binding) must be committed to be
    team-shared: `git check-ignore -v` on the resolved paths; a non-empty result is FAIL with the
    matching pattern.
@@ -151,12 +154,28 @@ check.
    tracker-seam reference; probe it. With no binding (probe 2 INFO) the role remap has nothing to
    configure — INFO. With a binding present, resolve
    `config.role_labels["recurring-maintenance"]` (default `recurring` when the entry is absent; a
-   malformed, empty, or non-string configured value is FAIL). When a schedule exists, verify the
-   resolved label is present via the adapter's label listing (GitHub adapter: `gh label list`): an
-   absent label means a seeded `[Maintenance]` item lands unlabeled and goes invisible to the next
-   `due` / `work` pass — FAIL, with the remediation being the repo's declared label provisioning
-   process (never `gh label create` ad hoc). Missing `cadence:{cadence}` labels are taxonomy niceties —
-   INFO.
+   malformed, empty, or non-string configured value is FAIL); missing `cadence:{cadence}` labels are
+   taxonomy niceties — INFO. **That resolution FAIL settles probe 6 outright** — it is a binding
+   error, independent of any schedule, and `apply` step 6 calls the same value "an error, not a
+   fallback" at any row count. The branches below decide only whether a *resolved* label's absence is
+   a gate, so reach them only once the role resolves; the probe emits one verdict, and letting a row
+   count that is zero, absent, or unreadable pick INFO would drop the binding error from the table
+   entirely. With the role resolved, branch on the schedule's **row count**, exactly as `apply` step 6
+   does — never on whether the schedule file exists. The skipped first-time bind leaves a
+   present-but-empty `{"items": []}` on disk, so a file-presence gate hard-FAILs the expected
+   post-bind steady state over an item that can never be created:
+   - **Schedule carries ≥1 item** — verify the resolved label is present via the adapter's label
+     listing (GitHub adapter: `gh label list`): an absent label means a seeded `[Maintenance]` item
+     lands unlabeled and goes invisible to the next `due` / `work` pass — FAIL, with the remediation
+     being the repo's declared label provisioning process (never `gh label create` ad hoc).
+   - **Schedule absent, or present with an empty `items` array** — no `[Maintenance]` item can be
+     created from a schedule with no rows, so an absent label is INFO, not a gate: report it, and
+     note it must exist before the schedule is ever seeded.
+   - **Schedule present but not parseable as the `{"items": [ ... ]}` root** — it has no readable row
+     count, so the label requirement cannot be evaluated at all: INFO naming probe 4's FAIL as the
+     reason, so the table carries a row for every probe, and probe 4's FAIL is the gate. Never read
+     an unparsable schedule as zero rows, and never raise the ≥1-row FAIL on a guess about what it
+     holds — either would substitute this probe's own verdict for probe 4's.
 
 ## `apply` (idempotent)
 

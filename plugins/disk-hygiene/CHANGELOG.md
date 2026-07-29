@@ -3,6 +3,124 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.2]
+
+### Fixed
+
+- **The engine gate no longer denies commands naming a DIFFERENT file whose name ends in
+  `hygiene.py` (#1611).** `_engine_gate_relevant` decided marker relevance with a bare substring
+  test over the command string, so `test_hygiene.py` — this plugin's own test suite — read as an
+  engine invocation. In any consumer session with the plugin enabled, that denied the natural
+  commands for working on it: `python3 -m unittest -v .../test_hygiene.py` and
+  `ruff check .../test_hygiene.py` were both refused, on the Bash tool and on PowerShell. The
+  literal-parse path was already correct — it basename-matched (`Path(word).name == _ENGINE_MARKER`)
+  and deferred — so only the operator-carrying path misfired, which is why the failure looked
+  arbitrary: the same command gated or deferred depending on whether it contained a `&&`.
+  Relevance now uses that same basename equality everywhere, via one `_carries_marker` helper, so
+  the two paths agree on what "is the engine" means.
+
+  **This is a precision change, not a relaxation.** A basename test is only as good as the tokens
+  it reads, so the narrowing is paid for by deriving those tokens as maximal runs of path-legal
+  characters (`[^A-Za-z0-9._\-/\\:]+` as the delimiter). Enumerating shell syntax instead would be a
+  losing game — an assignment glues the filename with `=`, a list with `:`, a metacharacter with
+  `;` — and missing any one of them silently un-gates a real invocation. Inverting the question is
+  total: `hygiene.py` is spelled entirely from the kept characters, so splitting on everything else
+  can only expose the engine filename, never hide it. `engine=hygiene.py && python3 "$engine"
+  apply`, `FOO=1 BAR=hygiene.py python3 "$BAR" apply`, `foo;hygiene.py`, `$(hygiene.py scan)`, and
+  `true|hygiene.py` all still gate.
+
+  Identity still outranks the filename for the newly-deferred name. Because `test_hygiene.py` no
+  longer carries the marker, it routes to the marker-free branch, whose job is to catch a LINK to
+  the engine under another name — and that branch scanned only whitespace tokens, so an operator
+  glued to the path (`/tmp/test_hygiene.py;echo done`) left `...;echo` attached, `samefile` resolved
+  nothing, and a link to the real engine deferred. The path-legal tokens are scanned there too now,
+  which can only ever gate more. A link to the engine named like the suite gates beside `;`, `|`,
+  and `&&`, and now also gates with no operator at all, where it deferred before this release.
+
+  A relative marker path in an operator-carrying command is now treated as unknowable rather than
+  provable. The "provably a DIFFERENT file" escape resolves a token against the **guard's** working
+  directory, but that branch is reached precisely because the command carries an operator — and an
+  operator can be a `cd`. From a directory holding an unrelated `hygiene.py`,
+  `cd <plugin-scripts>;./hygiene.py scan` let the escape "prove" a different file and defer while
+  the shell ran the bundled engine. The escape now requires an absolute path. This also closes two
+  pre-existing fail-opens of the same shape (`cd <plugin-scripts> && ./hygiene.py apply` and its
+  bare-name spelling), which deferred before this release. **Behavior change worth noting:** a
+  consumer invoking its own `hygiene.py` by RELATIVE path inside an operator-carrying command
+  (`python3 ./hygiene.py --help && echo ok`) now gates where it previously deferred. That is the
+  fail-closed direction and it is deliberate — the guard cannot know which directory that path is
+  relative to; an absolute path still defers.
+
+  Two further shapes are handled where the token alone is not enough. A Bash line continuation is
+  removed before tokenizing, because the shell eats `\` + newline while reading the line and
+  otherwise it stays welded to the filename as `hygiene.py\`, hiding a multi-line invocation of the
+  real engine. And the basename is taken by splitting on both separators rather than with
+  `Path().name`, which is platform-flavoured: `PureWindowsPath("/x/hygiene.py\")` yields
+  `hygiene.py` while `PurePosixPath` keeps the backslash, so a `Path`-based predicate would gate on
+  Windows and fail open on Linux.
+
+  Copy-evasion coverage is untouched because it never routed through the marker: a link to the
+  engine under any other name gates by `os.path.samefile` identity, and a byte copy remains the
+  accepted residual the function's docstring already names.
+
+- **The engine gate no longer denies a consumer's own `hygiene.py` because of how its parent
+  directory is spelled (#1640).** Detection wants aggressive splitting and resolution wants whole
+  paths, and one token list was serving both. The "provably a DIFFERENT file" escape requires an
+  ABSOLUTE path, but it read the path-legal fragments — so any character outside that class split a
+  consumer's absolute path and left the fragment carrying the filename relative, unprovable, and
+  denied: `python3 /tmp/consumer+tools/hygiene.py --help && echo done` gated a file that has nothing
+  to do with this plugin. `~` is what makes this ordinary rather than exotic — a Windows 8.3
+  short-name segment (`C:\Users\<user>~1\...`) puts unpunctuated paths under ordinary temp
+  directories into the same population. Resolution now reads the whole shell word containing the
+  token, with quoted spans kept intact so a path with spaces resolves too, while detection keeps the
+  fine tokens exactly as they were.
+
+  The widening cannot travel: a token is paired with its enclosing word by SPAN, never by substring
+  containment, so a marker token is only ever proved a different file by its OWN word.
+  Containment-based pairing would let `python3 /abs/consumer/hygiene.py --help && python3
+  hygiene.py apply` borrow the first word's absolute path to "prove" its bare second invocation
+  different, and defer while the real engine ran. **Residual, deliberately left:** an operator with
+  no surrounding whitespace (`python3 /tmp/c+x/hygiene.py&&echo done`) still gates, because the
+  whole word is then `/tmp/c+x/hygiene.py&&echo`, which resolves to nothing. That is the fail-closed
+  direction, and widening the tokenizer to chase it would re-open the gluing seam this release
+  exists to close.
+
+- **A filename spelling the FILESYSTEM resolves to the engine no longer bypasses the gate.** Win32
+  discards trailing dots and spaces from a filename and resolves `::$DATA` to the main data stream,
+  so `cd <plugin-scripts> && python hygiene.py. apply` opened and ran the kill-switched engine while
+  no token's basename was the marker — the guard deferred. 8.3 short names are a third spelling of
+  the same kind. The fix asks the filesystem instead of listing spellings: a relative word is
+  identity-checked against the ENGINE'S OWN directory, which is precisely the directory such a
+  command must `cd` into for the alias to run. That closes trailing dots, trailing spaces, NTFS
+  stream suffixes, and short names in one move, where enumerating them closes one per review round.
+  The name predicate is unchanged and stays platform-independent; identity is what carries this.
+
+  Verified as a differential against the pre-change guard over 89 command shapes — engine
+  invocations, wrappers, assignments, concatenations, substitutions, pipes, backticks, redirects,
+  line continuations, post-`cd` relative paths, linked aliases, filename aliases, punctuated and
+  short-name consumer paths, proof-borrowing shapes, mentions, and near-miss names. Every shape
+  holds its prior verdict except the intended ones: four filename-alias shapes and one path-list
+  assignment move toward GATING, and fourteen consumer-path shapes move toward deferral. The suite
+  gained four regression tests, including a mechanical check that the span-located token partition
+  is identical to the split partition it mirrors, so a future refactor cannot quietly change what
+  detection reads.
+
+## [0.10.1]
+
+### Documentation
+
+- **Safety model now documents the live agent scratchpad hazard (#1637).** `machine-health`'s new
+  `claude-temp-root` check routes its findings here, which makes a Claude Code temp root a named
+  target for this skill. Its hazard is not the session running the clean but a *concurrently
+  running other* session, whose scratchpad is an active working directory with no marker separating
+  it from an abandoned one — and directory age cannot separate them, since a long-running session's
+  scratchpad is old and live at once. The new "Live agent scratchpads" section records that no new
+  machinery is needed: live-handle proof, live re-discovery of VCS markers, identity-and-descendant
+  equality since snapshot, and immediate verdict expiry already hold the line structurally rather
+  than by heuristic. It also states the two consequences plainly — a Windows temp root is a
+  manual-lane job because the engine returns `execution-platform-unsupported` there, and a temp root
+  is a low-confidence target however large it looks, because the tier follows what can be proven
+  quiescent rather than what would be reclaimed. No behavior change.
+
 ## [0.10.0]
 
 ### Changed
