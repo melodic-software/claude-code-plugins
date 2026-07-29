@@ -3,6 +3,9 @@ name: keep-going
 description: "Recover and continue after an interruption — rate limit, crash, disconnect, or gap — or when live off-thread work looks stalled and you are asked to check on it. Inventory off-thread work, inspect its REAL output, act only on evidence (resume / rerun / kill-and-restart), then continue the main task where it stood. Use when: 'keep going', 'continue', 'pick up where you left off', 'resume', 'you got cut off', 'we got interrupted', 'carry on', 'what were you doing', 'check the monitor', 'stop staring at it', 'poke it', 'is it stuck', 'are you stuck'. Infers intent from the conversation; arguments optional. After a usage limit lifts it continues rather than summarizing-and-stalling; it gates killing or re-firing side-effectful work. To retire finished off-thread work and reconcile the task ledger rather than resume, use /session-flow:reconcile."
 user-invocable: true
 disable-model-invocation: false
+metadata:
+  workflow-stage: session
+  summary: Recover after an interruption and continue where work stood
 ---
 
 # Keep going

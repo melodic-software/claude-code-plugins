@@ -5,6 +5,9 @@ argument-hint: "<action> [args] (e.g., /education:teach topic rust-ownership, /e
 user-invocable: true
 disable-model-invocation: true
 shell: bash
+metadata:
+  workflow-stage: anytime
+  summary: Multi-session learning coach for general topics or repo-grounded concepts
 ---
 
 ## Purpose
@@ -35,7 +38,7 @@ ${CLAUDE_PLUGIN_DATA}/<project-slug>/<mode>/<topic>/
 │   └── 0002-<slug>.md
 └── concepts/                per-concept slices
     └── <concept-slug>/      ONE tightly-scoped thing — things that change together, together
-        ├── lesson.md        ephemeral teaching unit (rarely revisited)
+        ├── lesson.md        the teaching unit — pedagogically ephemeral (rarely revisited, regenerable), NOT the topic-docs ephemeral tier; `lesson.html` instead when rendered as HTML, never both
         ├── reference.md     durable compressed cheat-sheet (revisited; the rot-relevant artifact)
         └── exercise.md      colocated practice (optional)
 ```
@@ -44,11 +47,11 @@ Path resolution rules every action MUST follow:
 
 - **`<project-slug>`** — **canonicalize the project path FIRST**, then derive BOTH the basename-slug and the hash from that one canonical path, so a project opened via a symlink and via its real path map to the same workspace (otherwise the alias basename would still split it — `alias-<hash>` vs `realname-<hash>`). Canonical path: `realpath "${CLAUDE_PROJECT_DIR}" 2>/dev/null || readlink -f "${CLAUDE_PROJECT_DIR}" 2>/dev/null || printf '%s' "${CLAUDE_PROJECT_DIR}"` (e.g. macOS repos under `/private/var/…`). Then `<project-slug>` = the **basename of the canonical path** slugified to lowercase alphanumerics and hyphens, then `-` plus the first 8 hex chars of `printf '%s' "<canonical-path>" | { sha256sum 2>/dev/null || shasum -a 256; } | cut -c1-8` (the fallback covers stock macOS). The hash discriminator is required because the basename alone collides when two clones or worktrees share a directory name. Both `topic` and `codebase` workspaces are scoped under `<project-slug>` — topic learning becomes associated with the project you launched from.
 - **`<mode>`** — literally `topic` or `codebase`, matching the action that created the workspace. This level keeps the two modes independent: `/education:teach topic auth-flow` and `/education:teach codebase auth-flow` in the same project resolve to separate workspaces (`.../topic/auth-flow/` vs `.../codebase/auth-flow/`) instead of one seeding over the other's `MISSION.md` / `RESOURCES.md`.
-- **`<topic>`** and **`<concept>`** — content-named kebab slugs (lowercase alphanumerics and hyphens only; strip `/`, `\`, `..`), NOT sequence-numbered. `"Domain-Driven Design"` → `domain-driven-design`; `"Rust Ownership"` → `rust-ownership`. **Record the exact raw subject/concept name** (`MISSION.md`'s `# Mission: {Topic}` title for a topic; the lesson's `**Concept:**` line for a concept) so it is the source of truth for collision checks. **Guard against slug collisions** — distinct subjects can normalize to the same slug (`C++` and `C#` → `c`; `Node.js` and `Node JS` → `node-js`), which would silently share one workspace. Before creating a workspace whose slug directory already exists, read that existing workspace's recorded raw name; if it names a DIFFERENT subject, append `-` plus the first 4 hex chars of `printf '%s' '<raw-name>' | { sha256sum 2>/dev/null || shasum -a 256; } | cut -c1-4` to the new slug, keeping per-subject state isolated while leaving non-colliding slugs readable.
+- **`<topic>`** and **`<concept>`** — content-named kebab slugs (lowercase alphanumerics and hyphens only; strip `/`, `\`, `..`), NOT sequence-numbered. `"Domain-Driven Design"` → `domain-driven-design`; `"Rust Ownership"` → `rust-ownership`. **Record the exact raw subject/concept name** (`MISSION.md`'s `# Mission: {Topic}` title for a topic; for a concept, the lesson's `**Concept:**` line in `lesson.md` or its `<meta name="concept" content="…">` in `lesson.html` — the lesson carries the raw name in whichever of the two formats it is written, so the guard below never depends on the extension) so it is the source of truth for collision checks. **Guard against slug collisions** — distinct subjects can normalize to the same slug (`C++` and `C#` → `c`; `Node.js` and `Node JS` → `node-js`), which would silently share one workspace. Before creating a workspace whose slug directory already exists, read that existing workspace's recorded raw name; if it names a DIFFERENT subject, append `-` plus the first 4 hex chars of `printf '%s' '<raw-name>' | { sha256sum 2>/dev/null || shasum -a 256; } | cut -c1-4` to the new slug, keeping per-subject state isolated while leaving non-colliding slugs readable.
 - **`learning-records/NNNN-<slug>.md`** keeps `NNNN-` numbering (sanctioned ADR-style append-only log). Scan the directory for the highest existing `NNNN` and increment.
 - `${CLAUDE_PLUGIN_DATA}` is created automatically the first time it is referenced and persists across plugin updates, so workspaces survive between sessions.
 
-`lesson` / `reference` / `exercise` default to `.md` — the durable teaching record stays markdown, the diffable source of truth. HTML session output is optional per "Lessons and Reference".
+`lesson` / `reference` / `exercise` default to `.md` — the durable teaching record stays markdown, the diffable source of truth. A lesson may be `lesson.html` instead where it pays, replacing `lesson.md` rather than joining it (one lesson file per concept, never both); it is a member of the concept slice either way, and only the workspace-less `primer` renders to a temp path. Placement, the replacement rule, and constraints: "Lessons and Reference".
 
 ## Pre-computed Context
 
@@ -65,7 +68,7 @@ Parse `$ARGUMENTS`: first token = action, remainder = args. If empty or ambiguou
 | `mission` | Review or update learning mission | [context/mission.md](context/mission.md) |
 | `glossary` | Review or update compressed terminology | [context/glossary.md](context/glossary.md) |
 | `resources` | Manage curated learning sources | [context/resources.md](context/resources.md) |
-| `explain <concept>` | Teach one tightly-scoped thing (a lesson) | Writes `concepts/<concept>/lesson.md` (ephemeral teaching unit); distill a durable `reference.md` alongside — see [context/lessons.md](context/lessons.md) |
+| `explain <concept>` | Teach one tightly-scoped thing (a lesson) | Writes `concepts/<concept>/lesson.md` — or `lesson.html`, never both — pedagogically ephemeral but durable machine state on disk; distill a durable `reference.md` alongside — see [context/lessons.md](context/lessons.md) |
 | `primer <domain>` | Single-session domain primer — NO workspace | See "Primer action" below |
 | `exercise` | Colocated practice for a concept | Writes `concepts/<concept>/exercise.md`; design per [context/exercises.md](context/exercises.md) |
 | `assess` | Check understanding, update learning records | [context/assessment.md](context/assessment.md) |
@@ -127,7 +130,7 @@ Every teaching session progresses through Knowledge → Skills → Wisdom. Don't
 
 ## Lessons and Reference
 
-The unit of teaching is a **lesson** — one tightly-scoped thing tied to the mission, completable quickly for a tangible win, in the user's zone of proximal development. Lessons are ephemeral (rarely revisited). Alongside, distill the durable **reference** — the compressed cheat-sheet the user returns to. Authoring format, reuse-first scaffolds, HTML placement, inline citations: [context/lessons.md](context/lessons.md).
+The unit of teaching is a **lesson** — one tightly-scoped thing tied to the mission, completable quickly for a tangible win, in the user's zone of proximal development. Lessons are ephemeral in the **pedagogical** sense only — rarely revisited and regenerable — never in the topic-docs sense: a lesson is a member of its concept slice and stays in machine state. Alongside, distill the durable **reference** — the compressed cheat-sheet the user returns to. Authoring format, reuse-first scaffolds, HTML placement, inline citations: [context/lessons.md](context/lessons.md).
 
 ## Zone of Proximal Development
 

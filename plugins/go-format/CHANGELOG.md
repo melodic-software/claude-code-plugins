@@ -3,6 +3,24 @@
 All notable changes to the `go-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.2.6]
+
+### Fixed
+
+- **Shared `hook-utils.sh`: an in-project file spelled as a Windows 8.3 short name is no longer
+  silently skipped (#1636).** `hook::physical_path` canonicalized with GNU realpath, which under
+  Git Bash resolves symlinks but leaves 8.3 short names (`KYLESE~1`) unexpanded, so a short-form
+  `file_path` — the shape Claude Code's own scratchpad paths take — failed the
+  `CLAUDE_PROJECT_DIR` prefix comparison in `hook::read_file_path` and the hook skipped the file
+  silently: no lint, no notice, no telemetry. The lib now expands short names on Windows/MSYS
+  hosts (new `hook::expand_8dot3`, via `cygpath -l`) before the comparison, and only when the
+  expanded form actually differs — a legitimate long name containing `~` passes through
+  untouched, and a genuinely out-of-project file is still skipped: that defense-in-depth scoping
+  is deliberate and preserved. 8.3 generation is a per-volume property (`fsutil 8dot3name
+  query`), so the defect was live only for checkouts on a volume that generates short names —
+  and invisible to contributors whose checkouts sit on one that does not. Synced from
+  `lib/hook-utils.sh`.
+
 ## [0.2.5]
 
 ### Fixed

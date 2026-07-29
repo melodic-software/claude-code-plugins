@@ -510,7 +510,7 @@ Report the PR URL, captured `<pr_number>`, and recorded list of expected CI work
 
 `create --pushed --worktree <path>` opens the PR when the branch is **already committed and pushed** — the orchestrated case where a dispatched worker did the edits, commit, and push inside its own out-of-tree worktree and returned that worktree's path (`/work-items:work`, `#572`). The invoking orchestrator is typically **out-of-tree** (its session sits on the default branch or elsewhere), so this mode runs neither the commit/push half of the normal `create` path nor trusts the session cwd.
 
-**Ignore the pre-computed context.** [SKILL.md](../SKILL.md)'s `!`-substituted frontmatter (`git branch --show-current`, `git diff --name-only HEAD`, working-tree status) reflects the **session cwd**, which for an out-of-tree orchestrator is the wrong branch and diff — and a `!`-substituted line cannot be `git -C`-redirected. Under `--pushed`, re-resolve everything from the target worktree instead:
+**Ignore the gathered repository context.** [SKILL.md](../SKILL.md)'s gather step (`git branch --show-current`, `git diff --name-only HEAD`, working-tree status) reports the **session cwd**, which for an out-of-tree orchestrator is the wrong branch and diff. Since #1619 those are ordinary Bash calls rather than `!`-substituted lines, so unlike before they *can* be `git -C`-redirected — but do not redirect them ad hoc. Under `--pushed`, re-resolve everything from the target worktree explicitly:
 
 ```bash
 WT="<path>"                                   # from --worktree

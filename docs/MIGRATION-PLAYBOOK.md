@@ -605,7 +605,8 @@ For each skill/hook/agent being migrated:
     `./`-prefixed relative path (e.g. `./plugins/<name>`). Bare names fail `claude plugin validate --strict`
     even with `metadata.pluginRoot` set, despite the marketplaces-doc example to the contrary (verified
     2026-06-23). Then run `claude plugin validate --strict <repo-root>` to validate the **catalog manifest
-    itself** — a bad entry surfaces only there, not in per-plugin validation. Document the plugin in the README.
+    itself** — a bad entry surfaces only there, not in per-plugin validation. The catalog page
+    (`docs/CATALOG.md`) regenerates from the manifests — run `node scripts/generate-catalog.mjs`.
 
 ## Migration order, PRs & parallelization
 
@@ -622,7 +623,7 @@ conflicts. Group units into one PR only when they are hard-coupled, or when the 
 mechanical bulk edit.
 
 **Expect one shared-file conflict, resolved at merge.** The two files parallel PRs all touch are the
-catalog manifest (`.claude-plugin/marketplace.json`) and the README catalog table. Those conflicts are
+catalog manifest (`.claude-plugin/marketplace.json`) and the generated catalog page (`docs/CATALOG.md`). Those conflicts are
 expected — resolve them by **serializing the final merges**, not by serializing authorship.
 
 **Gate every unit before publish.** Each unit clears its parity / acceptance gate — the per-plugin

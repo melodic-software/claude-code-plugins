@@ -5,6 +5,9 @@ argument-hint: "[scope] [action] (e.g., /planning:design library, /planning:desi
 user-invocable: true
 disable-model-invocation: false
 shell: bash
+metadata:
+  workflow-stage: plan
+  summary: Resolve types, contracts, and module boundaries before planning
 ---
 
 ## Pre-computed context
@@ -126,7 +129,7 @@ Define the structural layout:
 
 Produce: `library-topology.md` (library scope) or equivalent per scope.
 
-When the dependency graph reads more clearly visually than in markdown, optionally also emit a self-contained HTML topology view alongside the markdown (which stays the tracked record).
+When the dependency graph reads more clearly visually than in markdown, optionally also emit a self-contained HTML topology view — to the topic-docs **ephemeral tier**, never beside `library-topology.md` in the contract slice, which stays the tracked record. Placement and rules: [`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md).
 
 ### Phase 5: Discussion Rounds
 

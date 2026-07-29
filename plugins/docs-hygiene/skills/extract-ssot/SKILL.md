@@ -4,6 +4,9 @@ description: "Deduplicate repeated markdown content — rule files, skill bodies
 argument-hint: "[identify|verify|plan|execute|batch|unwind] [<cluster-name>]"
 user-invocable: true
 disable-model-invocation: false
+metadata:
+  workflow-stage: anytime
+  summary: Deduplicate repeated prose into one named source of truth
 ---
 
 # Extract SSOT

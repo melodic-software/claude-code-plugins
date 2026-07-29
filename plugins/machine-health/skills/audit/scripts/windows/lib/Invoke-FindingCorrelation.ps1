@@ -7,7 +7,8 @@ severity where warranted, cross-link via notes. Cross-OS framework.
 
 .DESCRIPTION
 Rules defined in-code (here), documented in references/shared/correlation-rules.md.
-Only upgrades severity; never downgrades (trend analysis handles downward).
+Only upgrades severity; never downgrades. Nothing downgrades -- trend analysis
+upgrades too, so a severity this run raised stays raised for the run.
 
 Always additive to notes; never truncates existing notes.
 #>

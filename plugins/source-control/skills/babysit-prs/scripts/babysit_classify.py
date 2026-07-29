@@ -508,12 +508,22 @@ def count_findings(
         author = str(comment.get("author") or "")
         body = str(comment.get("body") or "")
         if is_self_login(author, self_logins):
-            body = _strip_classification_rows(body)
+            body = strip_classification_rows(body)
         total += _severity_occurrences(body)
     return total
 
 
-def _strip_classification_rows(body: str) -> str:
+def strip_classification_rows(body: str) -> str:
+    """Drop classification-table rows (VALID/INCORRECT/UNCERTAIN) from a body.
+
+    Shared beyond `count_findings`: any severity scan over a SELF-authored
+    body faces the same false-positive -- the mandated disposition table
+    (`review-discipline.md`) restates the source finding's own severity marker
+    as one of its columns, so scanning it raw would re-trip a severity guard
+    on the worker's own echo of a finding it already classified. Stripping
+    only the table rows (not the whole body) preserves the "non-table self
+    content still counts" rule `count_findings` documents.
+    """
     return "\n".join(
         line for line in body.splitlines() if not CLASSIFY_ROW_RE.search(line)
     )

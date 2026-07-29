@@ -5,6 +5,9 @@ argument-hint: "[tier] [task description] (e.g., /planning:prd, /planning:prd on
 user-invocable: true
 disable-model-invocation: false
 shell: bash
+metadata:
+  workflow-stage: contract
+  summary: Lock product intent — problem, users, success metrics — before planning
 ---
 
 ## Pre-computed context
@@ -172,7 +175,7 @@ Test-seam sketching (where the feature will be tested, and at how few seams) is 
 
 Full template structures: [`context/templates.md`](context/templates.md).
 
-Optionally offer to render the finalized PRD as a self-contained, ephemeral HTML pitch view for non-engineer stakeholders — a static generated view, never an editor with real data bound in — while PRD.md stays the tracked record.
+Optionally offer to render the finalized PRD as a self-contained HTML pitch view for non-engineer stakeholders — a static generated view, never an editor with real data bound in — while PRD.md stays the tracked record. It lands in the topic-docs **ephemeral tier**, never the contract slice beside `PRD.md`; placement and rules: [`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md).
 
 ### Step 6 — Hand off
 

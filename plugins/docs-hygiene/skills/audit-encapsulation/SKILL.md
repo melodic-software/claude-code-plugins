@@ -4,6 +4,9 @@ description: "Audit and remediate skill-encapsulation violations — external ci
 argument-hint: "[detect|fix|file-issues]"
 user-invocable: true
 disable-model-invocation: false
+metadata:
+  workflow-stage: anytime
+  summary: Find external citations reaching into a skill's private surfaces
 ---
 
 ## Why this skill exists

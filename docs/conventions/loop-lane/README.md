@@ -158,6 +158,20 @@ same-context or self-continuation dispatch does not satisfy this requirement eve
 tier — the point of the tier is capability, the point of this rule is that the resolution is a
 genuinely independent second opinion, not the original author or reviewer re-affirming itself.
 
+**Where independence stops is a decision, not an omission.** The fresh-context requirement above is
+the *only* one this contract imposes, and there is deliberately **no** routine per-cycle independent
+review of ordinary loop output. The rationale: independence is the substitute for a *human
+decision*, and the ordinary path takes none. Its correctness rests on deterministic gates — the
+merge gate, CI, the work-class admission test — which are unbiased by construction, so a reviewer
+spending a frontier-tier dispatch every cycle would re-check machine-checkable facts and buy no
+independence that is not already there. The one path that does carry the requirement is precisely
+the one where no gate can decide and an agent's judgment stands in for a person's. A lane's conflict
+path is not a second instance: it dispatches a fresh conflict *worker* to resolve, which is a
+resolution role rather than a second opinion ratifying a decision a human would otherwise make. This
+is the boundary's stated justification, so the boundary is revisited when that premise changes — a
+path whose outcome stops being gate-decidable acquires the independence requirement, recorded as a
+versioned entry in [`CHANGELOG.md`](CHANGELOG.md) rather than silently.
+
 **Runtime resolution is by model alias only.** The bare family-word aliases
 (`fable` / `opus` / `sonnet` / `haiku`) are the live-updating handles that resolve to the current
 recommended model for the provider and update over time; a dated model name is a pinned snapshot and
@@ -188,29 +202,37 @@ reports and stops cleanly rather than idling forever — without it, an overnigh
 the first unanswered escalation.
 
 A standing lane is additionally bounded by the `/loop` launch surface's **seven-day expiry**: a
-self-paced `/loop` ends automatically seven days after it starts, idle backoff notwithstanding
-(<https://code.claude.com/docs/en/scheduled-tasks#seven-day-expiry>, verified 2026-07-23). A standing
-lane therefore requires a relaunch owner — today always the operator, for whom `claude-ops` `lanes`
+`/loop` ends automatically seven days after it starts, on either launch shape (§5) and idle backoff
+notwithstanding (<https://code.claude.com/docs/en/scheduled-tasks#seven-day-expiry>, verified
+2026-07-27, broadened from the 2026-07-23 stamp's self-paced-only wording). A standing lane
+therefore requires a relaunch owner — today always the operator, for whom `claude-ops` `lanes`
 `restart` is a one-command path (operator-initiated by contract; see the cycle-budget paragraph
-below). The lane records its loop-started timestamp in the
-lane's #502 telemetry block so the approaching expiry is visible ahead of time, and an expiry hit is
-handled exactly like the cycle-budget hit below: a restart-request into the #502 block, then a clean
-stop.
+below). The lane records its loop-started timestamp in the lane's #502 telemetry block so the
+approaching expiry is visible ahead of time, and an expiry hit is handled exactly like the
+cycle-budget hit below: a restart-request into the #502 block, then a clean stop.
 
 **Self-pacing.** A lane paces itself through `/loop` with the interval omitted; Claude schedules the
 next iteration with `ScheduleWakeup`, whose delay is clamped between one minute and one hour.
 `ScheduleWakeup` is called at the end of each iteration and is not operator-callable (verified
 against <https://code.claude.com/docs/en/tools-reference> and
-<https://code.claude.com/docs/en/scheduled-tasks> on 2026-07-23). Idle raises the delay toward the
-ceiling. The `source-control` babysit lane's own self-pacing section
+<https://code.claude.com/docs/en/scheduled-tasks> on 2026-07-27, no drift from the prior
+2026-07-23 stamp). Idle raises the delay toward the ceiling. The `source-control` babysit lane's own
+self-pacing section
 ([`babysit-prs` loop reference](../../../plugins/source-control/skills/babysit-prs/reference/loop.md))
 is the worked precedent.
+
+**The prompt runs fresh; the session does not.** Each cycle re-sends the lane's prompt verbatim into
+the **same** session, so "runs fresh every time" describes the prompt and never the context: a lane
+prompt never assumes a fresh one, and what carries forward also degrades, since auto-compaction
+summarizes earlier history in place rather than preserving it
+([`claude-ops` lanes](../../../plugins/claude-ops/skills/lanes/SKILL.md#a-relaunch-is-the-only-context-reset-a-loop-lane-gets)
+owns the mechanism).
 
 **Cycle budget (#691).** A per-session cycle budget bounds one session; a budget hit **always**
 emits a restart-request into the #502 telemetry block and stops the loop cleanly — a running loop
 cannot `/clear` or relaunch itself, since a relaunch is the only context reset a lane gets
-([`claude-ops` lanes](../../../plugins/claude-ops/skills/lanes/SKILL.md), section "A relaunch is the
-only context reset a loop lane gets"). What happens next is launcher-relative. Under a launcher that
+([`claude-ops` lanes](../../../plugins/claude-ops/skills/lanes/SKILL.md#a-relaunch-is-the-only-context-reset-a-loop-lane-gets)).
+What happens next is launcher-relative. Under a launcher that
 acts on restart-requests, the lane is relaunched and the loop continues — the budget restarts the
 **session**, never ends the **loop**. **No such automatic launcher exists today**: `claude-ops`
 `lanes` is operator-initiated by contract ("no scheduler runs `restart` for you today", per its
@@ -225,7 +247,9 @@ identified by a machine sentinel marker and **edited in place** every cycle — 
 `claude-ops`'s `telemetry-upsert.sh` is the interim home of this contract and a compatible reader
 (`morning-brief` reads the same surface); an installed plugin cannot invoke a sibling plugin's
 script, so each lane **inlines** the small `gh api` upsert and the coupling to `claude-ops` stays
-one-directional.
+one-directional. An inlined upsert carries none of the wrapper's body checks, so it is bound by the
+`@path`-as-body rule in [`claude-ops` lanes](../../../plugins/claude-ops/skills/lanes/SKILL.md),
+section "Never pass a body as an `@path` string".
 
 **Durable loop state.** Conversation context is lossy across compaction, so a lane persists its
 adaptive-cap streak counter, its rate-limit-warning latch, and its cycle count in a machine-readable
@@ -268,6 +292,54 @@ prompt through its `prompt_dir` seam (#480). `lanes` is a **supporting, strictly
 launcher: it launches the lane; no lane body ever requires, imports, or degrades without
 `claude-ops`. Every mention of `lanes` in a lane body is presence-gated with the `/loop` fallback
 documented at the site, per the [seam-phrasing convention](../seam-phrasing/README.md).
+
+**Two launch shapes, selected per invocation — neither deprecates the other.** Supplying an interval
+(`/loop 15m …`) converts it to a cron expression and fires on that fixed schedule, subject to
+jitter; omitting it hands the delay to Claude, which picks one per iteration within the §4 bounds
+and is not jittered. `ScheduleWakeup` reschedules a *self-paced* loop only, so it is not the pacing
+mechanism once an interval is supplied
+(<https://code.claude.com/docs/en/scheduled-tasks#let-claude-choose-the-interval>, verified
+2026-07-27). The §4 seven-day expiry binds both shapes. Both are current; this note reconciles which
+applies where and changes neither.
+
+Jitter is the scheduler's deterministic offset on a *cron* task: up to 30 minutes after the
+scheduled time, or up to half the interval for a task running more often than hourly.
+
+- **A lane always omits the interval.** Two §4 invariants need the self-paced shape and neither
+  survives a cron schedule. *Idle backoff* — the standing shape's "idle backs off toward longer
+  wakeups" — derives the next delay from what the cycle just observed, which a fixed cadence cannot
+  consume. And a self-paced loop can **end itself** — Claude calls `ScheduleWakeup` with
+  `stop: true` — which is how the drain shape's terminal state stops a lane cleanly; a fixed-interval
+  loop keeps running until stopped by hand or until the seven-day expiry, so a drain lane launched
+  that way cannot honor its own stop condition
+  (<https://code.claude.com/docs/en/scheduled-tasks#stop-a-loop>, verified 2026-07-27). Self-paced is
+  the lane shape by construction, not by preference. Two of the lane's other per-cycle signals —
+  the adaptive-cap streak, and seam exit 8 counted as dirty — govern *how much work a cycle takes
+  on*, not when the next one fires, and are unaffected by either shape. The drain-exit snapshot is
+  not one of them: it is the pacing signal named above, the input deciding whether the cycle calls
+  `ScheduleWakeup` with `stop: true` instead of scheduling another run at all.
+- **A fixed interval is the operator's shape for invoking a single-pass mechanic directly.** The
+  interval chosen once *is* the whole cadence policy: no per-cycle state derives a better one, so
+  there is nothing for the cron schedule to discard. `babysit-prs`'s documented
+  `/loop 15m /source-control:babysit-prs worker` line is that shape.
+
+The two shapes coexist inside one plugin without conflicting because they answer different
+invocations, not competing defaults: `babysit-prs` documents a fixed-interval launch of *itself*,
+while its cadence mapping
+([`loop.md` §5.3](../../../plugins/source-control/skills/babysit-prs/reference/loop.md#53-self-pacing-schedulewakeup))
+is the self-paced contract the `babysit-loop` lane consumes. Reading either as the other's default is
+the confusion this note exists to prevent.
+
+**Known gap — the self-paced shape is provider-conditional.** On Amazon Bedrock, Claude Platform on
+AWS, Google Cloud's Agent Platform, and Microsoft Foundry, an omitted interval does **not** hand the
+delay to Claude: the prompt runs on a fixed ten-minute schedule and `ScheduleWakeup` is unavailable
+(<https://code.claude.com/docs/en/scheduled-tasks>,
+<https://code.claude.com/docs/en/tools-reference>, verified 2026-07-27). A lane launched there keeps
+the loop but loses both properties the bullet above depends on: idle backoff cannot lengthen the
+wake, and the lane cannot end itself — so a **drain** lane there deadlocks on the first unanswered
+escalation exactly as §4's terminal state exists to prevent, and runs until stopped by hand or until
+the seven-day expiry. No lane detects the provider today, so this is recorded as a known gap rather
+than left as an unstated assumption, on the model §6 uses for the single-account assumption.
 
 ## 6. Rate-limit guard binding
 

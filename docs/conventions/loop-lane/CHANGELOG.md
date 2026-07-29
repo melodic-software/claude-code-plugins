@@ -5,7 +5,7 @@ topology, the escalation contract, the capability-tier vocabulary, or any loop-l
 major bump, and additive guidance is a minor bump. A new model release re-audits the capability-tier
 table (§3); drift found by that audit is recorded here.
 
-## 3.0.1 — 2026-07-26
+## 3.1.1 — 2026-07-29
 
 Docs-only, no topology, escalation, tier, or invariant change: §Versioning's "Re-derivation
 triggers" label becomes "Recheck triggers" and cites the
@@ -13,6 +13,64 @@ triggers" label becomes "Recheck triggers" and cites the
 stamp-and-trigger discipline; the generic date-is-never-authority rationale moves there. Both
 triggers stay unchanged; the recording policy aligns with the owner doc — a firing that finds
 drift lands here, a no-drift firing refreshes the claim's verification date only.
+
+## 3.1.0 — 2026-07-27
+
+Three convention notes recording distinctions and a boundary the contract already operated under,
+plus one newly named gap. Tier is **minor**: no topology, escalation contract, or tier vocabulary
+changes, and no consuming lane acquires an obligation. The §4 and §5 additions are descriptive —
+they state what the loop layer already does, and add no invariant a lane must newly hold. **Bump
+ambiguity:** §4 is headed "Every loop lane holds these" and this revision both adds a bolded
+paragraph there and widens a stated bound, which reads as a change to a shared invariant and a
+**major**; but correcting the *description* of a bound that already applied imposes nothing a lane
+must newly hold, which reads as additive guidance and a **minor**.
+
+- **Prompt-fresh versus session-persistent (§4).** A cycle re-sends the lane's prompt verbatim into
+  the *same* session; "runs fresh every time" describes the prompt, never the context. Stated in one
+  sentence anchored at `claude-ops` `lanes`, which owns the mechanism. Records that the carried-over
+  context also *degrades* — auto-compaction summarizes earlier history in place — so the note does
+  not read as a promise that every turn survives. Prevents the conflation for any reader arriving
+  from phrasing that describes only the prompt
+  ([#1655](https://github.com/melodic-software/claude-code-plugins/issues/1655)).
+- **Fixed-interval and self-paced launch shapes reconciled (§5).** A supplied interval becomes a
+  cron schedule (jittered); an omitted one hands the delay to Claude, and `ScheduleWakeup` paces
+  only the latter. A lane always omits the interval, because two §4 properties need the self-paced
+  shape: idle backoff derives the next delay from what the cycle just observed, and a self-paced loop
+  can end itself, which is how the drain shape's terminal state stops a lane cleanly. A fixed
+  interval is the operator's shape for invoking a single-pass mechanic directly, where the interval
+  chosen once is the whole cadence policy. Records which applies where; **neither mechanism
+  changes**, and the adaptive cadence is not replaced
+  ([#1656](https://github.com/melodic-software/claude-code-plugins/issues/1656)).
+- **Self-pacing is a named provider-conditional gap (§5).** On Bedrock, Claude Platform on AWS,
+  Google Cloud's Agent Platform, and Microsoft Foundry, an omitted interval runs on a fixed
+  ten-minute schedule and `ScheduleWakeup` is unavailable, so a lane launched there loses both
+  properties the self-paced shape supplies — idle backoff cannot lengthen the wake, and the lane
+  cannot end itself, which strands a **drain** lane on the deadlock §4's terminal state exists to
+  prevent — undetected. Recorded as a gap rather than left as the unstated assumption the §5 note
+  would otherwise carry — the treatment §6 already gives the single-account assumption.
+- **The fresh-context review boundary is now an explicit decision (§3).** The requirement fires on
+  the merge-authority exception's dispatch and deliberately not per cycle over ordinary loop output:
+  independence substitutes for a *human decision*, and the ordinary path takes none — its
+  correctness rests on deterministic gates that are unbiased by construction. States that a lane's
+  conflict path is not a second instance, since the fresh conflict *worker* it dispatches holds a
+  resolution role rather than ratifying a decision a human would otherwise make. Recorded with the
+  condition that revisits it, so the absence reads as a chosen boundary rather than a gap discovered
+  later ([#1658](https://github.com/melodic-software/claude-code-plugins/issues/1658)).
+
+Per §Versioning's upstream-claim trigger, the `/loop` pacing claims this revision relies on were
+re-verified against <https://code.claude.com/docs/en/scheduled-tasks> and
+<https://code.claude.com/docs/en/tools-reference> on 2026-07-27 before writing, and the §4 and §5
+dates are refreshed with the outcome. **No upstream drift:** every value the 2026-07-23 stamp
+covered still holds — the `ScheduleWakeup` bounds, its end-of-iteration call site, its
+non-operator-callability, and the seven-day expiry itself. The re-verification did change what this
+document says, in two ways:
+
+- **Two facts the prior stamp never recorded**, both now stated in §5: cron jitter, and the provider
+  carve-out that turns an omitted interval into a fixed ten-minute schedule.
+- **One claim the prior stamp scoped too narrowly**, now corrected in §4: the seven-day expiry was
+  written as a property of the self-paced shape, where the source binds **both** launch shapes — a
+  fixed-interval loop runs until stopped by hand or until the same seven days elapse. The bound
+  never changed; only this document's statement of it was narrower than the source.
 
 ## 3.0.0 — 2026-07-25
 

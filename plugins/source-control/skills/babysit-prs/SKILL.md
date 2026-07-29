@@ -5,14 +5,18 @@ user-invocable: true
 disable-model-invocation: false
 argument-hint: "[worker|autopilot|help] [owner/repo | #n | owner/repo#n] · default: configured default_tier (safe) over your own PRs; worker=fix+resolve-outdated+merge-ready; autopilot=max autonomy all authors; 'help' lists flows"
 shell: bash
+metadata:
+  workflow-stage: operator
+  summary: Tiered fleet pass advancing your open PRs
+  cadence: continuous
 ---
 
 ## Pre-computed context
 
-Current branch: !`git branch --show-current 2>/dev/null || echo "unknown"`
-Working tree status: !`git status --porcelain 2>/dev/null || echo "clean"`
 Current login: !`gh api user --jq .login 2>/dev/null || echo "unknown"`
 Own open PRs here: !`gh pr list --state open --author "@me" --limit 200 --json number --jq 'length' 2>/dev/null || echo "unknown"`
+
+Branch and working tree: gather with two separate Bash calls, `git branch --show-current` then `git status --porcelain`; treat a failure as an unknown value and carry on. They moved out of pre-compute in #1619 — the harness composes the block into one shell invocation and a worktree-isolated agent refuses a git-bearing compound command — so run them individually and do not fold them back.
 
 ## Purpose
 
@@ -30,8 +34,7 @@ Read it before processing findings; dispatched workers cite it directly.
 
 ## Modes and arguments
 
-An invocation is `[mode] [scope]`. Mode and scope are orthogonal — combine them freely
-(`worker owner/repo`, `worker #87`, etc.).
+An invocation is `[mode] [scope]`; mode and scope are orthogonal — combine them freely (`worker owner/repo`, `worker #87`, etc.).
 
 | Mode | What it does |
 | --- | --- |
@@ -49,8 +52,7 @@ a merge-capable tier engages only when the user names it — the `worker`/`autop
 a typed invocation under a deliberately changed `default_tier`. Configuration can never convert
 a casual invocation into standing merge authority.
 
-Any tier also honors an explicit user instruction to merge or resolve specific PRs now; that is
-a direct order, not autonomous behavior, and it runs the same guarded gates below.
+Any tier also honors an explicit user instruction to merge or resolve specific PRs now; that is a direct order, not autonomous behavior, and it runs the same guarded gates below.
 
 Common flows (this is what `help` prints, along with the effective configuration):
 
@@ -69,8 +71,7 @@ Explicit order (any tier): "merge owner/repo#87 now" | "resolve bot threads on #
 
 ## Scope resolution
 
-Scope resolves deterministically, most specific first. Read the current git context with
-`gh`/`git` (all read-only) before falling back:
+Scope resolves deterministically, most specific first. Read the current git context with `gh`/`git` (all read-only) before falling back:
 
 1. **Explicit full ref** in the invocation (`owner/repo#N` or `owner/repo`) — use it exactly.
 2. **Bare PR number** (`#87`, `pr 87`) inside a git repo — resolve the current repo with
@@ -214,11 +215,10 @@ home in [reference/safety.md](reference/safety.md). Both fail closed without `--
   exactly as it governs a worker's turn — proving readiness is never a license to arm a watch.
 
 - **Thread resolution** — `source-control-babysit-resolve-thread owner/repo#N --allowed-owners
-  <watched-owners> --extra-bot-logins <extra-bot-logins>` (lists by default; add `--resolve`). By
-  default it touches only bot-authored threads (structural `__typename == "Bot"` or the `[bot]`
-  login suffix — no hardcoded identity list) and never a human thread; `--extra-bot-logins` extends
-  that set with the configured non-structural bot accounts, and dropping it from any resolve-thread
-  form silently reclassifies their threads as human. In worker tier pass `--autonomous`, which
+  <watched-owners> --extra-bot-logins <extra-bot-logins> --self-logins @me,<self-logins>` (lists by
+  default; add `--resolve`). By default it touches only bot-authored threads (structural
+  `__typename == "Bot"` or the `[bot]` login suffix — no hardcoded identity list) and never a human
+  thread; `--extra-bot-logins` extends that set with the configured non-structural bot accounts (dropping it silently reclassifies their threads as human), and `--self-logins` rides on every form too — omitting it lets the worker's OWN bot-thread reply flip `botOnly` false and strand the thread outside every resolution scope (safety.md). In worker tier pass `--autonomous`, which
   resolves only threads GitHub marks `isOutdated`, each pinned via `--expected-comment-count` and
   `--expected-last-updated`. Those pins enforce comment-state only — they block a thread whose
   comment count or latest comment-edit timestamp drifted after vetting. The worker must additionally
@@ -290,7 +290,7 @@ this block. Values reach scripts ONLY as explicit CLI flags (option environment 
 | Key | Value | Flag delivery | Unset behavior |
 | --- | --- | --- | --- |
 | `babysit_watched_owners` | `${user_config.babysit_watched_owners}` | `--owners` (snapshot), `--allowed-owners` (both wrappers, fail-closed) | infer the current repo's owner |
-| `babysit_self_logins` | `${user_config.babysit_self_logins}` | `--extra-self` (readiness gate and snapshot); `--self-logins` (merge gate) | none — always added to your `gh api user --jq .login` login |
+| `babysit_self_logins` | `${user_config.babysit_self_logins}` | `--extra-self` (readiness gate and snapshot); `--self-logins` (merge gate, resolve-thread) | none — always added to your `gh api user --jq .login` login |
 | `babysit_intended_write_identity` | `${user_config.babysit_intended_write_identity}` | `--intended-write-identity` (snapshot) | attribution-drift check dormant |
 | `babysit_default_tier` | `${user_config.babysit_default_tier}` | prose only — tier of explicit bare invocations | `safe` |
 | `babysit_merge_method` | `${user_config.babysit_merge_method}` | `--method` (merge wrapper) | repo convention, then squash |
@@ -302,7 +302,7 @@ this block. Values reach scripts ONLY as explicit CLI flags (option environment 
 | `babysit_review_bot_logins` | `${user_config.babysit_review_bot_logins}` | `--review-bot-logins` (snapshot, request_review) | review-trigger module dormant |
 | `babysit_review_gate_context` | `${user_config.babysit_review_gate_context}` | `--review-gate-context` (snapshot) | gate treated as absent |
 | `babysit_ci_gateway_context` | `${user_config.babysit_ci_gateway_context}` | `--ci-gateway-context` (snapshot) | gateway check unused |
-| `babysit_extra_bot_logins` | `${user_config.babysit_extra_bot_logins}` | `--extra-bot-logins` (snapshot, resolve-thread) | structural bot detection only |
+| `babysit_extra_bot_logins` | `${user_config.babysit_extra_bot_logins}` | `--extra-bot-logins` (snapshot, resolve-thread, request_review) | structural bot detection only |
 | `babysit_extra_dependency_manager_logins` | `${user_config.babysit_extra_dependency_manager_logins}` | `--extra-dependency-manager-logins` (merge gate) | built-in dependabot/renovate dependency-manager set only |
 | `babysit_approval_downgrade_logins` | `${user_config.babysit_approval_downgrade_logins}` | `--approval-downgrade-logins` (snapshot) | an approval carrying blocking-looking prose is downgraded to ignored structurally (every bot); a named login instead surfaces its own as material. Real APPROVED-state reviews and plain clean approvals are ignored regardless. |
 | `babysit_skip_downgrade_logins` | `${user_config.babysit_skip_downgrade_logins}` | `--skip-downgrade-logins` (snapshot) | downgrade heuristic dormant |
@@ -313,9 +313,8 @@ this block. Values reach scripts ONLY as explicit CLI flags (option environment 
 | `babysit_worktree_root` | `${user_config.babysit_worktree_root}` | `--root` (prune; worktree creation) | `${CLAUDE_PLUGIN_DATA}/worktrees` |
 | state dir (not configurable) | `${CLAUDE_PLUGIN_DATA}/state/babysit-prs` | `--state-dir` (every state-touching script) | — |
 
-Configure via the `/plugin` dialog, or headless at install time with
-`claude plugin install --config KEY=VALUE`; `/source-control:setup` documents both plus the
-environment probes.
+Configure via the `/plugin` dialog, or headless at install time with `claude plugin install
+--config KEY=VALUE`; `/source-control:setup` documents both plus the environment probes.
 
 ## Engine and degrade
 
@@ -330,8 +329,7 @@ merge-readiness at all: report it unchecked, never inferred from the classificat
 
 ## Per-PR checklist (safe core — each PR, every iteration)
 
-Execute for EACH PR discovered, oldest first. Detailed mechanics:
-[reference/loop.md](reference/loop.md).
+Execute for EACH PR discovered, oldest first. Detailed mechanics: [reference/loop.md](reference/loop.md).
 
 - [ ] **Step 0 — PR discovery:** open PRs in scope (tier-scoped author filter), oldest-first
   FIFO (§5.0.2). Zero PRs → report and schedule the idle wake

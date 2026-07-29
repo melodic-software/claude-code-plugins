@@ -3,6 +3,43 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.1]
+
+### Documentation
+
+- **Safety model now documents the live agent scratchpad hazard (#1637).** `machine-health`'s new
+  `claude-temp-root` check routes its findings here, which makes a Claude Code temp root a named
+  target for this skill. Its hazard is not the session running the clean but a *concurrently
+  running other* session, whose scratchpad is an active working directory with no marker separating
+  it from an abandoned one — and directory age cannot separate them, since a long-running session's
+  scratchpad is old and live at once. The new "Live agent scratchpads" section records that no new
+  machinery is needed: live-handle proof, live re-discovery of VCS markers, identity-and-descendant
+  equality since snapshot, and immediate verdict expiry already hold the line structurally rather
+  than by heuristic. It also states the two consequences plainly — a Windows temp root is a
+  manual-lane job because the engine returns `execution-platform-unsupported` there, and a temp root
+  is a low-confidence target however large it looks, because the tier follows what can be proven
+  quiescent rather than what would be reclaimed. No behavior change.
+
+## [0.10.0]
+
+### Changed
+
+- **`clean`'s approval points now state an invariant plus a conditional surface, instead of naming
+  `AskUserQuestion` as the only way to confirm (#1724).** All three — the §1 large-scan confirmation,
+  the §5 removal approval, and the §6 unsupported-platform handoff — named that tool. It is not always
+  in the pool: permission mode `dontAsk` denies it unconditionally, a bare-name `permissions.deny`
+  rule removes it from Claude's context entirely, and a `disallowed-tools` entry removes it from the
+  pool while the skill is active — each leaving the text naming something absent. A new
+  **Confirmation gate** section owns both halves once: the bar (the
+  user's own affirmative answer, in this interactive session, naming exactly the tier and path list
+  just shown; no prior general request, `--execute`, "clean everything", approval of another tier, or
+  silence; never self-supplied or inferred; stop on rejection) and the surface (`AskUserQuestion`
+  preferred because its answer cannot be fabricated, an inline numbered question when it is absent).
+  The three sites now point at it rather than restating it. **The bar is unchanged**, and this
+  plugin's model-independent floor is untouched — the skill-scoped hook still blocks ad-hoc deletion
+  and still forces a final permission prompt for the exact engine `apply`, and the approval token
+  still binds an apply to the previewed plan.
+
 ## [0.9.7]
 
 ### Fixed

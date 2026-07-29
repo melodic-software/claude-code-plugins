@@ -4,6 +4,9 @@ description: "Diverge before scoping — turn a rough engineering/product proble
 argument-hint: "<rough-problem> (e.g., /planning:brainstorm users churn after onboarding)"
 user-invocable: true
 disable-model-invocation: false
+metadata:
+  workflow-stage: contract
+  summary: Diverge into codebase-grounded candidate approaches before scoping
 ---
 
 ## Purpose
@@ -19,7 +22,7 @@ Rough problem: $ARGUMENTS (if empty, infer from conversation; if nothing rough i
 1. **Intake** — restate the problem in one sentence; if the user's starting point is unknown, ask ONE question to establish where they are — this is divergence, not an interview.
 2. **Ground** — fast breadth pass (`Glob`/`Grep`/targeted Read — survey the file landscape before reading anything in depth) over where the problem lives: entry points, existing mechanisms that already partially address it, prior art in the repo.
 3. **Diverge** — generate the candidate list (default ~10; scale to the problem), ordered **cheapest → most ambitious**. Every candidate is codebase-grounded — names the files/mechanisms it would touch — one line each: what, where, effort tier, expected impact. Do not self-censor the ambitious end; the user calibrates, not you.
-4. **React** — the user marks what resonates. A prose numbered list is the default reaction surface; for a large or multi-axis spread, offer a self-contained HTML reaction-capture page (checkable candidates + a copy-out of the selection) as an ephemeral aid — the conversation record stays authoritative.
+4. **React** — the user marks what resonates. A prose numbered list is the default reaction surface; for a large or multi-axis spread, offer a self-contained HTML reaction-capture page (checkable candidates + a copy-out of the selection), rendered to the topic-docs **ephemeral tier** — never the memory slice, even when the user opts into persisting `brainstorm.md` there — while the conversation record stays authoritative. Placement and rules: [`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md).
 5. **Calibrate and hand off** — from the resonating candidates, propose a scope and route onward: `/prd` (product intent still fuzzy), `/interview` (engineering contract), `/design` (type/module decisions), or a feasibility/visual spike (`/prototype:pressure-test` / `/prototype:explore-directions` if installed; otherwise a throwaway spike you write and discard). State the recommended route with its basis, marked (RECOMMENDED).
 
 ## Output

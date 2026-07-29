@@ -82,6 +82,7 @@ def build_config(args: argparse.Namespace) -> delta.ClassifyConfig:
             reviewer_logins=_csv(getattr(args, "review_bot_logins", None)),
             gate_context=str(getattr(args, "review_gate_context", None) or ""),
             ci_gateway_context=str(getattr(args, "ci_gateway_context", None) or ""),
+            extra_bot_logins=_csv(getattr(args, "extra_bot_logins", None)),
         ),
         max_quiet_recheck_seconds=float(
             getattr(args, "max_quiet_recheck_seconds", None)

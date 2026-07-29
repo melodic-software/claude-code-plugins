@@ -5,6 +5,9 @@ argument-hint: "[scope] [--fix] [--docs-only|--code-only|--config-only|--arch-on
 user-invocable: true
 disable-model-invocation: false
 shell: bash
+metadata:
+  workflow-stage: anytime
+  summary: Audit for drift between docs, config, code, and architecture via verified findings
 ---
 
 ## Pre-computed context

@@ -5,6 +5,9 @@ argument-hint: "[--recommend-only] [--implement] [category] — category: hooks|
 user-invocable: true
 disable-model-invocation: false
 shell: bash
+metadata:
+  workflow-stage: anytime
+  summary: Audit the repo's automation landscape for hook, MCP, skill, and subagent gaps worth adding
 ---
 
 ## Pre-computed context

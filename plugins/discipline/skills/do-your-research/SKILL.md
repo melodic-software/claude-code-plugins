@@ -6,6 +6,8 @@ disable-model-invocation: false
 metadata:
   discipline-batch: core  # every session makes claims that need backing
   discipline-batch-rank: 20
+  workflow-stage: anytime
+  summary: Re-anchor research discipline, then audit and correct the current work
 ---
 
 # Do your research
@@ -37,6 +39,51 @@ re-anchor THAT. Otherwise re-anchor this portable baseline:
 - **Training-data recall is a starting point, not an answer.** Treat it as
   unverified until confirmed from a current, authoritative source.
 
+### "An authoritative source" is a bar with three dimensions
+
+Naming a source is not clearing the bar. A source has a **tier** — tool output
+and docs fetched this turn outrank secondary synthesis; ungrounded recall does
+not clear the bar at all until it is promoted. A claim needs **independent
+corroboration** — citations that trace back to one upstream pool are one source,
+not three. And a claim about anything that ships releases needs a **recency**
+check against the current upstream, because first-party docs lag their own
+releases.
+
+What clears each dimension resolves down the same ladder as the discipline
+itself: what the consuming project declares wins; failing that, the contract
+`/discovery:research` states as mandatory disciplines, when the `discovery`
+plugin is installed; failing both, the floor below. The floor is this skill's
+own baseline, not a copy of a heavier tier's numbers — it is deliberately
+lighter, because this tier settles one claim mid-conversation rather than
+running a research pass:
+
+- **Tier** — at least one source fetched THIS turn: the live environment, tool
+  output, or the upstream artifact itself. Recall, and a summary of a source
+  read in place of the source, are both below the floor.
+- **Corroboration** — before a claim carries a decision, a second source from a
+  DIFFERENT upstream pool. One pool restated by three intermediaries is one
+  source; where no second pool exists, say that instead of counting the
+  restatements.
+- **Recency** — for anything that ships releases, a check against the current
+  release or changelog, not only the page that named the value.
+
+Whichever rung resolves, hold all three dimensions and cite the rung that
+actually applied.
+
+## Two directions — grounding, and checking what was already said
+
+This corrector runs in both directions. They share the discipline and fail
+differently, so knowing which one fired tells you what to look for:
+
+- **Preventive** — grounding a claim BEFORE it is asserted. Fires at the moment
+  of assertion; skipping it ships a wrong claim.
+- **Detective** — checking claims ALREADY asserted, which is what "fact-check
+  that" asks for. Fires after the fact; skipping it leaves a wrong claim
+  standing while later work builds on it.
+
+Direction is not the skill boundary — DEPTH is. Both directions run here inline
+and in the sibling fan-out below; neither skill owns one direction.
+
 ## Audit — what to look for
 
 Name concrete, located findings (per the method doc's step 2):
@@ -44,6 +91,10 @@ Name concrete, located findings (per the method doc's step 2):
 - a claim asserted without a fetched source, or flagged "known" /
   "obvious" / "from memory";
 - a concrete specific stated without live or authoritative verification;
+- a claim resting on one source, or on corroborators that all trace to the same
+  upstream pool — corroboration count is part of the bar, not a bonus;
+- a version, default, flag, or API claim checked against a source that predates
+  the current release, with no changelog cross-check;
 - a solution proposed before the problem was framed;
 - verification skipped where the environment could have been checked;
 - an answer resting on training data alone.

@@ -5,6 +5,9 @@ argument-hint: "[action] [topic] (e.g., /planning:interview, /planning:interview
 user-invocable: true
 disable-model-invocation: false
 shell: bash
+metadata:
+  workflow-stage: contract
+  summary: Interview in frontier rounds until the task contract is locked
 ---
 
 ## Pre-computed context
@@ -53,7 +56,7 @@ Unknown actions route to `auto`; surface the unrecognized request as a one-line 
 
 **Question surface: inline prose by default.** Rounds render as numbered inline prose — dictation-friendly, no per-question cap, and each question carries its recommendation, reasoning, and probe in one readable block. `AskUserQuestion` is an opt-in surface, enabled via the plugin's `use_ask_user_question` user config (`${user_config.use_ask_user_question}`, default off). When opted in, use it ONLY for a round of ≤4 mutually independent questions that are **simple selections or binary confirms** — a card carries options, not a recommendation's reasoning or a constraint-surfacing probe, so any question needing its basis argued stays prose. Fall back to prose when the frontier exceeds 4, any question in the round depends on another, or a question needs more than a pick — the card cannot express a dependency or a rationale, and chunking a round across multiple cards fragments it. When in doubt, prose.
 
-**Artifact escape hatch for a dense round.** When a round is large or its questions are dense — a wall of prose the user cannot scan — OFFER to render the *whole frontier* as a **self-contained HTML decision table** written to the topic's memory slice (the ledger and terminal stay the tracked record; the HTML is a scannable view, not the source of truth). Rows are numbered to the terminal `Q<N>` so the user still answers by number in the terminal. The table preserves the full inline contract — each recommendation keeps its 2-3 sentence codebase-grounded basis (never a terse label), and the round's closing constraint probe renders with it — so grounding and the challenge mechanism are not lost. A rendering surface for the same frontier, never a round split or a question cap; degrade to a fenced markdown table (same columns and grounding) when HTML rendering is unavailable. Delivery path + column detail: [`context/loop.md`](context/loop.md) "Artifact escape hatch".
+**Artifact escape hatch for a dense round.** When a round is large or its questions are dense — a wall of prose the user cannot scan — OFFER to render the *whole frontier* as a **self-contained HTML decision table** written to the topic-docs **ephemeral tier** — one OS temp directory per interview run, never the memory slice and never the session scratchpad (the ledger and terminal stay the tracked record; the HTML is a scannable view, not the source of truth, and nothing downstream reads it again). Rows are numbered to the terminal `Q<N>` so the user still answers by number in the terminal. The table preserves the full inline contract — each recommendation keeps its 2-3 sentence codebase-grounded basis (never a terse label), and the round's closing constraint probe renders with it — so grounding and the challenge mechanism are not lost. A rendering surface for the same frontier, never a round split or a question cap; degrade to a fenced markdown table (same columns and grounding) when HTML rendering is unavailable. Delivery path + column detail: [`context/loop.md`](context/loop.md) "Artifact escape hatch".
 
 ## Stance: supportive, depth-first, opinionated
 

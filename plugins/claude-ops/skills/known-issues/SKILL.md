@@ -5,6 +5,9 @@ argument-hint: "<action> [args] — actions: status (default), search, check-all
 user-invocable: true
 disable-model-invocation: false
 shell: bash
+metadata:
+  workflow-stage: anytime
+  summary: Look up and track known Claude product issues, health, and workarounds
 ---
 
 ## Pre-computed context
