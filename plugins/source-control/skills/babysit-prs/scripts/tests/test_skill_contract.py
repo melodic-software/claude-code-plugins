@@ -126,15 +126,23 @@ class SkillContractTests(unittest.TestCase):
         # gap #675 closed): it points at safety.md, which holds both the base and
         # enabled-tier merge paths as one home so an enabled config cannot merge
         # via the flagless base path. The push discipline stays in the paragraph.
-        paragraph = _paragraph_containing(
-            self.skill_text, "After the worker's final push"
+        autopilot = (SKILL.parent / "reference" / "autopilot.md").read_text(
+            encoding="utf-8"
         )
+        paragraph = _paragraph_containing(autopilot, "After the worker's final push")
         self.assertIn("fresh post-push snapshot", paragraph)
         self.assertIn("exact pushed commit", paragraph)
         self.assertIn("Never reuse the pre-worker snapshot pin", paragraph)
         self.assertIn("--autopilot-merge-tier", paragraph)
-        self.assertIn("reference/safety.md", paragraph)
+        self.assertIn("safety.md", paragraph)
         self.assertNotIn("<snapshotted-head-sha>", paragraph)
+
+    def test_skill_body_routes_autopilot_detail_to_its_spoke(self) -> None:
+        # The body keeps the tier's identity and points at the spoke; the moment
+        # it re-inlines the per-PR steps, the two copies start drifting.
+        paragraph = _paragraph_containing(self.skill_text, "set-aside power-user tier")
+        self.assertIn("reference/autopilot.md", paragraph)
+        self.assertNotIn('"Every PR" means every PR', self.skill_text)
 
     def test_generic_merge_gate_requires_the_vetted_head(self) -> None:
         paragraph = _paragraph_containing(self.skill_text, "**Merge readiness**")
@@ -413,8 +421,11 @@ class SkillContractTests(unittest.TestCase):
         self.assertIn("treat the retry semantics of a classifier denial", safety)
 
     def test_full_queue_and_draft_contract_remains_explicit(self) -> None:
-        autopilot = _paragraph_containing(self.skill_text, '"Every PR" means every PR')
-        drafts = _paragraph_containing(self.skill_text, "**Draft PRs** are in scope")
+        spoke = (SKILL.parent / "reference" / "autopilot.md").read_text(
+            encoding="utf-8"
+        )
+        autopilot = _paragraph_containing(spoke, '"Every PR" means every PR')
+        drafts = _paragraph_containing(spoke, "**Draft PRs** are in scope")
 
         self.assertIn("priority judgment is never", autopilot)
         self.assertIn("lease contention", autopilot)
