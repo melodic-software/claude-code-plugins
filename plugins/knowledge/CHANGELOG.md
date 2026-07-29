@@ -4,6 +4,17 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.10.2]
+
+### Changed
+
+- **`docpage-digest` Anthropic profile: fable-5 prompting-guide queue entry removed.** The
+  prompting-claude-fable-5 slice completed — fetch through interview handoff, dual verification
+  (same-vendor PASS; cross-vendor corrections applied and re-verified PASS) — so its entry
+  leaves the doc queue per the queue's remove-on-completion rule. The two thinking docs the
+  effort-slice disposition enqueued were already queued in 0.10.1; verified still live at their
+  queued URLs.
+
 ## [0.10.1]
 
 ### Changed

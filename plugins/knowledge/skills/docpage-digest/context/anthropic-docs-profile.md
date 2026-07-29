@@ -58,7 +58,6 @@ their slices complete.
 
 Per-model guides:
 
-- <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5>
 - <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-sonnet-5>
 
 Guardrail guides:
