@@ -469,6 +469,19 @@
         "pull-requests": "write",
         "id-token": "write"
       }
+    },
+    "melodic-software/ci-workflows/.github/workflows/claude-security-review.yml@66073e58e730f8bcd1d6533e26ac9411a637fe83": {
+      "routing": "runner-input",
+      "runnerInput": "runner",
+      "allowedInputs": ["runner", "skip-actors", "paths"],
+      "allowedSecrets": {
+        "CLAUDE_CODE_OAUTH_TOKEN": "${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}"
+      },
+      "allowedCallerPermissions": {
+        "contents": "read",
+        "pull-requests": "write",
+        "id-token": "write"
+      }
     }
   },
   "canonicalSelectorInputs": {
