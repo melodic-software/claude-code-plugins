@@ -9,10 +9,18 @@ All notable changes to the `prototype` plugin are documented here. Format follow
 
 - **`explore-directions` mockup placement conforms to the topic-docs ephemeral
   tier.** The self-contained HTML mockup resolves one deterministic location via
-  the platform temp primitive (`mktemp` on Unix/Linux, a user-scoped temp under
-  `%LOCALAPPDATA%\Temp` on Windows) instead of an "OS temp **or** gitignored
-  scratch location" OR-branch — the gitignored option put the throwaway file
-  inside the repo. The handed-back path is never deleted.
+  the platform temp primitive — a private run directory from
+  `mktemp -d "${TMPDIR:-/tmp}/explore-directions-XXXXXX"` on Unix/Linux/Git Bash
+  with the page inside it, a user-scoped temp under `%LOCALAPPDATA%\Temp` on
+  Windows — instead of an "OS temp **or** gitignored scratch location"
+  OR-branch, whose gitignored option put the throwaway file inside the repo. The
+  handed-back path is never deleted.
+
+  Carrying the temp root in the positional TEMPLATE is the one `mktemp` form
+  GNU and BSD/macOS accept identically: `--tmpdir` is a GNU long option BSD
+  does not implement, and GNU marks `-t` deprecated. Naming the page inside a
+  generated directory also avoids depending on `mktemp` accepting a suffix
+  after the `XXXXXX`, which is a GNU convenience rather than a portable one.
 
 ## [0.3.2]
 

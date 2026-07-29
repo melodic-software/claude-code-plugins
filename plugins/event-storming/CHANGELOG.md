@@ -7,11 +7,17 @@ All notable changes to the `event-storming` plugin are documented here. Format f
 
 ### Changed
 
-- **`{system_temp}` is now bound to the platform temp primitive.** The agentic
-  simulation reference defines the session directory root as `${TMPDIR:-/tmp}`
-  on POSIX/Git Bash and `$env:TEMP` on Windows PowerShell instead of leaving the
-  placeholder unbound. The existing delete-vs-archive cleanup protocol is
-  unchanged.
+- **The simulation session directory is now created by a secure temp primitive.**
+  The agentic simulation reference previously left `{system_temp}` unbound and
+  composed a predictable directory name from the session id. It now *creates*
+  the directory with `mktemp -d "${TMPDIR:-/tmp}/eventstorming-session-XXXXXX"`
+  on POSIX/Git Bash, and with `New-Item -ItemType Directory` under a
+  `[IO.Path]::GetRandomFileName()` component in the per-user `$env:TEMP` on
+  Windows PowerShell. On a multi-user POSIX host the unset-`TMPDIR` fallback is
+  the shared world-readable `/tmp`, where a predictable name exposed the persona
+  and session Markdown to every local user and allowed pre-creation of the path;
+  the random component and `mkdtemp`'s mandated 0700 mode close both. The
+  existing delete-vs-archive cleanup protocol is unchanged.
 
 ## [0.5.5]
 

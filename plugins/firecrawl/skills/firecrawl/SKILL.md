@@ -51,11 +51,11 @@ Escalation order when WebFetch fails:
 
 ## Core pattern — write to disk, Read selectively
 
-Every firecrawl invocation writes to a spill file created by the platform's temp primitive (`mktemp -t`, never a hardcoded path and never a bare relative template — see the Windows note under Gotchas) and uses the `Read` tool to pull only the needed portion into context. Create the file and echo its path in the same Bash call so the follow-up `Read` can target it:
+Every firecrawl invocation writes to a spill file created by the platform's temp primitive (`mktemp "${TMPDIR:-/tmp}/<name>-XXXXXX"`, never a hardcoded path and never a bare relative template — see the Windows note under Gotchas) and uses the `Read` tool to pull only the needed portion into context. Passing the temp root in the positional template keeps the file out of the repo without `-t` (deprecated on GNU) or `--tmpdir` (absent on BSD). Create the file and echo its path in the same Bash call so the follow-up `Read` can target it:
 
 ```bash
 # Scrape a blocked doc page to markdown
-OUT=$(mktemp -t fc-scrape-XXXXXX); echo "$OUT"
+OUT=$(mktemp "${TMPDIR:-/tmp}/fc-scrape-XXXXXX"); echo "$OUT"
 firecrawl scrape "https://www.gnu.org/software/bash/manual/bash.html" \
   --format markdown \
   -o "$OUT"
@@ -64,7 +64,7 @@ firecrawl scrape "https://www.gnu.org/software/bash/manual/bash.html" \
 
 ```bash
 # Search for recent posts on a topic, saving URL list + excerpts to JSON
-OUT=$(mktemp -t fc-search-XXXXXX); echo "$OUT"
+OUT=$(mktemp "${TMPDIR:-/tmp}/fc-search-XXXXXX"); echo "$OUT"
 firecrawl search "HybridCache .NET 10" \
   --limit 5 \
   --json \
@@ -75,7 +75,7 @@ firecrawl search "HybridCache .NET 10" \
 ```bash
 # Interact with a page that needs a login-then-scrape flow (session model:
 # scrape first, then interact against the cached scrape-id).
-LOGIN=$(mktemp -t fc-login-XXXXXX); DASH=$(mktemp -t fc-interact-XXXXXX); echo "$LOGIN" "$DASH"
+LOGIN=$(mktemp "${TMPDIR:-/tmp}/fc-login-XXXXXX"); DASH=$(mktemp "${TMPDIR:-/tmp}/fc-interact-XXXXXX"); echo "$LOGIN" "$DASH"
 firecrawl scrape "https://example.com/login" \
   --format markdown \
   -o "$LOGIN"
@@ -84,7 +84,7 @@ firecrawl interact \
   -o "$DASH"
 ```
 
-**Spill files are self-consumed — clean up after the Read.** Once the needed portion is in context, remove the spill file in a follow-up Bash call (`rm -f "<echoed path>"` — shell state does not persist between calls, so use the literal echoed path). Nothing reclaims the OS temp tree on a schedule, so a research-heavy session that skips cleanup leaves one file per call behind. The one exception: when the user asked for the scraped file itself, the path is the deliverable — hand it back and do NOT delete it.
+**Spill files are self-consumed — clean up after the Read.** Once the needed portion is in context, remove the spill file in a follow-up Bash call (`rm -f "<echoed path>"` — shell state does not persist between calls, so use the literal echoed path). Nothing reclaims the OS temp tree on a schedule, so a research-heavy session that skips cleanup leaves one file per call behind. The one exception is command-agnostic: whenever the user asked for the file itself — from `scrape`, `search`, `crawl`, `map`, `parse`, `interact`, or `agent` alike — the path is the deliverable; hand it back and do NOT delete it.
 
 Direct stdout is acceptable only for tiny, single-paragraph results (e.g., "get the page title") where file I/O overhead exceeds the token savings. Default: `-o <path> && Read`.
 
@@ -133,7 +133,7 @@ Keeping in sync is a **maintainer-facing** concern, split into its own sibling s
 - **Credits are a shared resource.** Every call charges the account. Use `map` before `crawl`, use `--limit` aggressively on search, and skip Firecrawl entirely when a plain fetch would do.
 - **`firecrawl login` creates a second source of truth.** Auth via the `FIRECRAWL_API_KEY` env var; the login command writes to a user-level config dir — mixing them leaves two sources of truth.
 - **Transient DNS 503 on `api.firecrawl.dev` from sandboxed sessions.** Some cloud egress proxies intermittently return "DNS cache overflow" — retry after ~30s. This affects both the CLI and direct curl; it's an egress issue, not a Firecrawl outage.
-- **Windows tmp paths depend on which shell the Bash tool is.** Where it is Git Bash, `mktemp -t` resolves through the `/tmp` mount to the user's Windows temp directory (`%TEMP%`, by default under `%LOCALAPPDATA%\Temp`), and both path forms work for `Read` with no normalization on the agent side. On a Windows host **without** Git Bash the PowerShell tool runs instead and `mktemp` does not exist — fall back to a user-scoped temp under `%LOCALAPPDATA%\Temp`. The skill's `shell: bash` frontmatter does **not** cover this: that field governs only the `!` dynamic-context injection run at skill-load time, not the Bash tool calls this skill's body issues.
+- **Windows tmp paths depend on which shell the Bash tool is.** Where it is Git Bash, `${TMPDIR:-/tmp}` resolves through the `/tmp` mount to the user's Windows temp directory (`%TEMP%`, by default under `%LOCALAPPDATA%\Temp`), and both path forms work for `Read` with no normalization on the agent side. On a Windows host **without** Git Bash the PowerShell tool runs instead and `mktemp` does not exist — fall back to a user-scoped temp under `%LOCALAPPDATA%\Temp`. The skill's `shell: bash` frontmatter does **not** cover this: that field governs only the `!` dynamic-context injection run at skill-load time, not the Bash tool calls this skill's body issues.
 - **Self-hosted Firecrawl.** Set `FIRECRAWL_API_URL` as an OS user environment variable to switch the CLI to a local instance. Default is `https://api.firecrawl.dev` — only override when running against a self-hosted stack.
 - **CLI and `mcp__firecrawl__*` MCP tools overlap** — running both wastes context and splits configuration. If the consuming project also has the Firecrawl MCP registered, pick one surface.
 

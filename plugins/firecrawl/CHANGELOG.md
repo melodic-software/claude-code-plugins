@@ -8,17 +8,23 @@ All notable changes to the `firecrawl` plugin are documented here. Format follow
 ### Changed
 
 - **Core pattern now conforms to the topic-docs ephemeral tier.** Spill files are
-  created via the platform temp primitive (`mktemp -t`, never a bare relative
-  template, which would resolve against the current directory and drop the file
-  inside the consumer's repository) instead of a hand-rolled `date +%s%N` nonce
+  created via the platform temp primitive (`mktemp "${TMPDIR:-/tmp}/fc-…-XXXXXX"`,
+  never a bare relative template, which would resolve against the current
+  directory and drop the file inside the consumer's repository) instead of a
+  hand-rolled `date +%s%N` nonce
   under a hardcoded `/tmp`, and self-consumed spill files are
   removed after the selective `Read` (kept only when the user asked for the file
   itself), so a research-heavy session no longer accumulates one orphan file per
   call. The update skill's preservation rule, the command reference, and the eval
   expectations follow the same pattern.
 
+  Passing the temp root in the positional template keeps the file out of the
+  repo without `-t` (marked deprecated by GNU coreutils) or `--tmpdir` (a GNU
+  long option BSD/macOS `mktemp` does not implement), so one form serves every
+  platform.
+
   The Windows gotcha states what actually governs the outcome: where the Bash
-  tool is Git Bash, `mktemp -t` resolves through the `/tmp` mount to `%TEMP%`;
+  tool is Git Bash, `${TMPDIR:-/tmp}` resolves through the `/tmp` mount to `%TEMP%`;
   on a Windows host without Git Bash the PowerShell tool runs and `mktemp` does
   not exist. The skill's `shell: bash` frontmatter does **not** cover this —
   that field governs only the `!` dynamic-context injection evaluated at

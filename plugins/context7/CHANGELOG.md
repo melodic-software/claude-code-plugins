@@ -9,7 +9,11 @@ All notable changes to the `context7` plugin are documented here. Format follows
 
 - **Dump-to-disk pipe example uses `mktemp` instead of a hardcoded `/tmp` path**,
   conforming the illustrative CLI composability example to the topic-docs
-  ephemeral tier.
+  ephemeral tier. The temp root rides in the positional template
+  (`mktemp "${TMPDIR:-/tmp}/ctx7-XXXXXX"`) so the form works on both GNU and
+  BSD/macOS, and the example echoes the generated path in the same call — the
+  docs output is redirected, so without the echo a following `Read` has no way
+  to locate the randomly named file.
 
 ## [0.4.2]
 

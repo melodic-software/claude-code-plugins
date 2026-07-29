@@ -8,10 +8,18 @@ All notable changes to the `visualization` plugin are documented here. Format fo
 ### Changed
 
 - **Local HTML files get an explicit ephemeral-tier placement rule.** The
-  local-file medium now writes via the platform temp primitive (`mktemp` on
-  Unix/Linux, a user-scoped temp under `%LOCALAPPDATA%\Temp` on Windows), never
-  into the consumer's repository tree, one file per run — and the handed-back
-  path is never deleted. Previously the skill named no placement at all.
+  local-file medium now writes via the platform temp primitive — a private run
+  directory from `mktemp -d "${TMPDIR:-/tmp}/visualize-XXXXXX"` on
+  Unix/Linux/Git Bash with the page inside it, a user-scoped temp under
+  `%LOCALAPPDATA%\Temp` on Windows — never into the consumer's repository tree,
+  one file per run, and the handed-back path is never deleted. Previously the
+  skill named no placement at all.
+
+  Carrying the temp root in the positional TEMPLATE is the one `mktemp` form
+  GNU and BSD/macOS accept identically: `--tmpdir` is a GNU long option BSD
+  does not implement, and GNU marks `-t` deprecated. Naming the page inside a
+  generated directory also avoids depending on `mktemp` accepting a suffix
+  after the `XXXXXX`, which is a GNU convenience rather than a portable one.
 
 ## [0.1.0]
 
