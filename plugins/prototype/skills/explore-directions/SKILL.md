@@ -109,8 +109,11 @@ Constraints:
   only remote origins — CDNs, web fonts, `fetch`/XHR — are forbidden.
 - **Ephemeral placement.** Generate the mockup via the platform's temp primitive — never a tracked
   path and never inside the repo. On Unix/Linux/Git Bash, create a private run directory and write
-  the page inside it: `d=$(mktemp -d "${TMPDIR:-/tmp}/explore-directions-XXXXXX")`, then
-  `"$d/explore-directions.html"`. Carrying the temp root in the positional template is the one
+  the page inside it, echoing the directory in the same call —
+  `d=$(mktemp -d "${TMPDIR:-/tmp}/explore-directions-XXXXXX"); echo "$d"` — then writing to
+  `<echoed dir>/explore-directions.html`. Echo it because shell state does not survive between Bash
+  calls: the directory name is random, so an unechoed path is unrecoverable in the call that writes
+  the file. Carrying the temp root in the positional template is the one
   `mktemp` form GNU and BSD/macOS accept identically (`--tmpdir` is absent on BSD, `-t` is
   deprecated on GNU), and the directory carries the `.html` name without depending on `mktemp`
   accepting a suffix after the `XXXXXX`. On Windows, a user-scoped temp under

@@ -12,7 +12,7 @@ All notable changes to the `event-storming` plugin are documented here. Format f
   composed a predictable directory name from the session id. It now *creates*
   the directory with `mktemp -d "${TMPDIR:-/tmp}/eventstorming-session-XXXXXX"`
   on POSIX/Git Bash, and with `New-Item -ItemType Directory` under a
-  `[IO.Path]::GetRandomFileName()` component in the per-user `$env:TEMP` on
+  `[System.IO.Path]::GetRandomFileName()` component in the per-user `$env:TEMP` on
   Windows PowerShell. On a multi-user POSIX host the unset-`TMPDIR` fallback is
   the shared world-readable `/tmp`, where a predictable name exposed the persona
   and session Markdown to every local user and allowed pre-creation of the path;

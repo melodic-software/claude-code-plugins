@@ -94,9 +94,11 @@ machine (never published); `artifact` prefers publishing but degrades the same w
 
 **Local-file placement.** Write the local HTML file via the platform's temp
 primitive — never into the consumer's repository tree. On Unix/Linux/Git Bash,
-create a private run directory and write the page inside it:
-`d=$(mktemp -d "${TMPDIR:-/tmp}/visualize-XXXXXX")`, then `"$d/visualize.html"`.
-Carrying the temp root in the positional template is the one `mktemp` form GNU
+create a private run directory and echo it in the same call —
+`d=$(mktemp -d "${TMPDIR:-/tmp}/visualize-XXXXXX"); echo "$d"` — then write the
+page to `<echoed dir>/visualize.html`. Echo it because shell state does not
+survive between Bash calls: the directory name is random, so an unechoed path is
+unrecoverable in the call that writes the file. Carrying the temp root in the positional template is the one `mktemp` form GNU
 and BSD/macOS accept identically (`--tmpdir` is absent on BSD, `-t` is
 deprecated on GNU), and the directory carries the `.html` name without depending
 on `mktemp` accepting a suffix after the `XXXXXX`. On Windows, a user-scoped
