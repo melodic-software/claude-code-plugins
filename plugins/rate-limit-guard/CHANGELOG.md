@@ -3,6 +3,25 @@
 All notable changes to the `rate-limit-guard` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.5]
+
+### Fixed
+
+- **Reader contract: the tee's `account` forward-pass no longer promises a no-change upgrade path it
+  cannot deliver (#1685).** Two bullets — the tee-shape field list and the single-account gap
+  invariant — described the writer's filter accurately and then drew a conclusion broader than the
+  filter supports: that the release adding an account identifier "upgrades this file without a plugin
+  change" and "costs no plugin change". The filter is `to_entries` over the **root object only**, with
+  `test("account"; "i")` matching a **substring** of the key, and it has **no else branch**. So the
+  promise holds only for a field that is both top-level and `account`-named; a field nested inside an
+  object (`user.account_uuid`) or named `user`, `identity`, `org`, or `seat` is dropped, and dropped
+  silently — in a contract that fail-closes on every other unresolvable input. Both bullets now state
+  the filter's actual reach (top-level, substring, case-insensitive), name the silent drop, and scope
+  the no-change claim to that one shape; every other shape is called out as needing a writer change.
+  The tee-shape bullet owns the statement and the invariant bullet points at it. `statusline-tee.sh`
+  is unchanged — widening the filter is a design question owned by `TODO(#1218)`, not this
+  correction.
+
 ## [0.3.4]
 
 ### Fixed

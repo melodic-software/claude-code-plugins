@@ -47,9 +47,12 @@ never sees torn JSON; the file is **last-writer-wins** across all sessions on th
   (<https://code.claude.com/docs/en/statusline>, verified 2026-07-23): `used_percentage` is 0–100,
   `resets_at` is Unix epoch seconds. The key is present **only** when the session observes
   subscription windows; each window may be independently absent.
-- Session-distinguishing fields — `session_id`, `session_name`, and any future top-level field whose
-  key matches `account` (case-insensitive) are copied through automatically, so the release that
-  adds an account identifier upgrades this file without a plugin change. Treat these values as
+- Session-distinguishing fields — `session_id`, `session_name`, and any **top-level** field whose key
+  **contains** `account`, case-insensitively, are copied through automatically. That is the whole of
+  the writer's filter, and it has no else branch: a field nested inside an object
+  (`user.account_uuid`), or named anything else (`user`, `identity`, `org`, `seat`), is dropped
+  silently. A future account identifier therefore reaches this file unchanged only if it arrives
+  top-level and `account`-named; any other shape needs a writer change. Treat these values as
   **untrusted**: `session_name` (and potentially a future account field) is user/AI-influenced, so
   consumers parse them only with a JSON parser and never string-interpolate them into a shell
   command, another interpreter, or a prompt.
@@ -104,8 +107,10 @@ is part of the seam only in the sense that tooling sweeping the directory should
   on the first, and the guard cannot detect it. The loop-lane convention §6 owns the framing and
   records it as a gap rather than as a safe assumption; the account-identity design that resolves
   it — writer-side field, reader-side invalidation of latched state, lane-floor re-audit — is
-  `TODO(#1218)`. Locally relevant today: the writer already forward-passes any top-level key
-  matching `account`, so an identity field costs no plugin change the release one appears.
+  `TODO(#1218)`. Locally relevant today, and only this far: the writer already forward-passes a
+  top-level key containing `account` (see "Tee file shape"), so an identity field of exactly that
+  shape costs no writer change the release one appears. Any other shape — nested, or named anything
+  else — is dropped silently and needs a filter change.
 - **No shipped Monitor config.** Consumers arm their own session Monitor on the tee file (the
   staleness rule makes this mandatory while paused). The plugin ships no `experimental.monitors`
   entry — Monitors is an experimental Claude Code component, and this plugin takes no dependency on
