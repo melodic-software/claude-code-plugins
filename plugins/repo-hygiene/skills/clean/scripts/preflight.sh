@@ -6,7 +6,7 @@
 #   RECENT_BUILD: <paths | empty>
 #   IDE_OPEN: <lines | empty>
 #
-# Consumer (SKILL §1.5) owns verdict: AskUserQuestion vs autonomous abort.
+# Consumer (SKILL §1.5) owns verdict: confirmation gate vs autonomous abort.
 # Exit: always 0.
 set -u
 
