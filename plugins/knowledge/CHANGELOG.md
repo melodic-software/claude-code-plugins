@@ -4,6 +4,18 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.10.1]
+
+### Changed
+
+- **`docpage-digest` Anthropic profile: applicability-tag boundary + doc-queue dispositions.**
+  The Claude-Code-applicability filter gains the `cc-applicable`/`mixed` boundary rule (a claim
+  naming an API surface tags `mixed` even when its guidance transfers; `cc-applicable` is
+  reserved for claims naming no API surface). Doc queue: the choosing-a-model entry records its
+  routing vet as executed (melodic-software/claude-code-plugins#1697, digest slice still
+  pending); the two thinking docs are queued as two runs; the task-budgets doc is recorded as
+  deferred-with-trigger (api-only until harness support lands).
+
 ## [0.10.0]
 
 ### Added
