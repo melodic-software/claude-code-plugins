@@ -254,8 +254,13 @@ All checks emit the schema in `references/shared/output-schema.md`, use `scripts
   - `WARN` — total ≥5 GB, **or** the oldest session directory is ≥14 days old.
   - `INFO` — total ≥1 GB and neither WARN arm trips.
   - `OK` — total <1 GB, **or** the root does not exist.
-  - `UNKNOWN` — the 60-second walk budget was exceeded (partial figures still ship in `detail`), or
-    the walk threw.
+  - `UNKNOWN` — the walk did not complete: the 60-second budget was exceeded, **or** any path under
+    the root could not be read, **or** the walk threw. Partial figures still ship in `detail` so the
+    human sees the floor. An incomplete walk undercounts by an unbounded amount, so it cannot clear
+    a threshold in either direction — an inaccessible multi-gigabyte session would otherwise read as
+    `OK`. `ran_successfully = false` also keeps the run out of `checks_ran`, which is what keeps an
+    undercounted `total_gb` from becoming a trend baseline that a later complete walk would exceed
+    by the merely-recovered difference.
   - No `CRIT`. The tree is reclaimable cache with no data-loss or security consequence, and
     `references/shared/severity-rubric.md` reserves `CRIT` for imminent-failure and security
     conditions while directing ambiguity to the lower level. `container-disk-usage` — the other

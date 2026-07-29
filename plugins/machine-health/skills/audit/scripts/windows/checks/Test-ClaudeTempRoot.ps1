@@ -79,6 +79,70 @@ function Resolve-ClaudeTempRoot {
     return [pscustomobject]@{ Path = $candidates[0].Path; Source = $candidates[0].Source; Exists = $false }
 }
 
+function Measure-SessionTree {
+    <#
+    .SYNOPSIS
+    Accumulates size and file count under one session directory, yielding as soon
+    as the shared walk budget is spent.
+
+    .DESCRIPTION
+    An explicit queue rather than `Get-ChildItem -Recurse`. The recursive form
+    blocks until the whole subtree is enumerated, so the budget could only be
+    tested after it returned -- and a single session directory holding tens of
+    thousands of files can outlast the budget on its own, reaching the
+    orchestrator's 90s kill. That kill emits nothing at all, losing even the
+    partial figures the budget exists to preserve. Here the budget is tested per
+    directory and per entry, so the walk always yields in time to report.
+
+    Reparse points are skipped rather than followed. `Get-ChildItem -Recurse`
+    does not follow them absent -FollowSymlink, so skipping preserves the
+    behavior this replaces; a junction under the temp root would otherwise let
+    the walk wander outside the tree or cycle forever.
+    #>
+    [CmdletBinding()]
+    [OutputType([pscustomobject])]
+    param(
+        [Parameter(Mandatory = $true)] [string] $Path,
+        [Parameter(Mandatory = $true)] [System.Diagnostics.Stopwatch] $Stopwatch,
+        [Parameter(Mandatory = $true)] [int] $BudgetSeconds
+    )
+
+    $bytes = [long]0
+    $files = 0
+    $unreadable = 0
+    $truncated = $false
+
+    $pending = [System.Collections.Generic.Queue[string]]::new()
+    $pending.Enqueue($Path)
+
+    while ($pending.Count -gt 0) {
+        if ($Stopwatch.Elapsed.TotalSeconds -ge $BudgetSeconds) { $truncated = $true; break }
+
+        $entryErrors = @()
+        $entries = @(Get-ChildItem -LiteralPath $pending.Dequeue() -Force `
+                -ErrorAction SilentlyContinue -ErrorVariable entryErrors)
+        $unreadable += $entryErrors.Count
+
+        foreach ($e in $entries) {
+            if ($Stopwatch.Elapsed.TotalSeconds -ge $BudgetSeconds) { $truncated = $true; break }
+            if ($e.Attributes -band [System.IO.FileAttributes]::ReparsePoint) { continue }
+            if ($e.PSIsContainer) { $pending.Enqueue($e.FullName) }
+            else {
+                $bytes += $e.Length
+                $files++
+            }
+        }
+        if ($truncated) { break }
+    }
+
+    return [pscustomobject]@{
+        Bytes           = $bytes
+        FileCount       = $files
+        UnreadableCount = $unreadable
+        Truncated       = $truncated
+    }
+}
+
 $sw = [System.Diagnostics.Stopwatch]::StartNew()
 $id = 'claude-temp-root'
 $category = 'storage'
@@ -148,16 +212,15 @@ try {
                 $ageDays = [int][math]::Floor(($now - $s.CreationTime).TotalDays)
                 if ($ageDays -gt $oldestAgeDays) { $oldestAgeDays = $ageDays }
 
-                $fileErrors = @()
-                $files = @(Get-ChildItem -LiteralPath $s.FullName -Recurse -File -Force `
-                        -ErrorAction SilentlyContinue -ErrorVariable fileErrors)
-                $unreadable += $fileErrors.Count
-
-                $sessionBytes = [long]0
-                foreach ($f in $files) { $sessionBytes += $f.Length }
-                $totalBytes += $sessionBytes
-                $fileCount += $files.Count
-                if ($sessionBytes -gt $largestSessionBytes) { $largestSessionBytes = $sessionBytes }
+                $measured = Measure-SessionTree -Path $s.FullName -Stopwatch $sw `
+                    -BudgetSeconds $budgetSeconds
+                $unreadable += $measured.UnreadableCount
+                $totalBytes += $measured.Bytes
+                $fileCount += $measured.FileCount
+                if ($measured.Bytes -gt $largestSessionBytes) {
+                    $largestSessionBytes = $measured.Bytes
+                }
+                if ($measured.Truncated) { $truncated = $true; break }
             }
             if ($truncated) { break }
         }
@@ -181,16 +244,31 @@ try {
             remediation_route       = 'disk-hygiene:clean'
         }
 
-        if ($truncated) {
-            # Partial figures are an undercount, so they cannot clear a threshold in
-            # either direction. UNKNOWN is the rubric's answer for "check exceeded its
-            # budget"; the partial detail still ships so the human sees the floor.
+        if ($truncated -or $unreadable -gt 0) {
+            # Partial figures are an undercount by an unbounded amount, so they cannot
+            # clear a threshold in either direction -- an inaccessible multi-gigabyte
+            # session would otherwise read as OK. Both ways a walk comes back
+            # incomplete take the rubric's timeout row: UNKNOWN, with the partial
+            # detail still shipped so the human sees the floor.
+            #
+            # ran_successfully = false is also what keeps the run out of history's
+            # checks_ran, and so keeps an undercounted total_gb from becoming a trend
+            # baseline. Left in, the recovered difference on the next complete walk
+            # reads as growth and upgrades that WARN to CRIT on nothing.
+            $reason = if ($truncated) {
+                "Walk budget of ${budgetSeconds}s exceeded after $sessionCount " +
+                'session directories; figures are a partial undercount.'
+            } else {
+                "$unreadable path(s) could not be read; figures are a partial " +
+                'undercount, so no threshold verdict is possible.'
+            }
             $result = New-HealthResult -Id $id -Category $category -Os 'windows' `
-                -Severity 'UNKNOWN' -Summary 'Claude Code temp-root scan exceeded its budget.' `
+                -Severity 'UNKNOWN' `
+                -Summary ("Claude Code temp-root scan incomplete; measured at least $totalGb GB " +
+                    "across $sessionCount session dirs.") `
                 -Commands $commands -Detail $detail -NeedsAdmin $false `
                 -RanSuccessfully $false `
-                -ErrorMessage ("Walk budget of ${budgetSeconds}s exceeded after $sessionCount " +
-                    "session directories; figures are a partial undercount.") `
+                -ErrorMessage $reason `
                 -DurationMs ([int]$sw.ElapsedMilliseconds)
         } else {
             # Severity ladder (most severe first). This check never emits CRIT: the
@@ -216,14 +294,11 @@ try {
                 $summary += ' Route removal to disk-hygiene:clean.'
             }
 
-            $notes = $null
-            if ($unreadable -gt 0) {
-                $notes = "$unreadable path(s) unreadable during the walk; totals are a lower bound."
-            }
-
+            # Reached only on a complete walk, so every figure here is exact rather
+            # than a lower bound and the threshold verdict stands on its own.
             $result = New-HealthResult -Id $id -Category $category -Os 'windows' `
                 -Severity $severity -Summary $summary -Commands $commands -Detail $detail `
-                -NeedsAdmin $false -RanSuccessfully $true -Notes $notes `
+                -NeedsAdmin $false -RanSuccessfully $true `
                 -DurationMs ([int]$sw.ElapsedMilliseconds)
         }
     }

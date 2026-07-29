@@ -155,6 +155,78 @@ Describe 'Test-ClaudeTempRoot' -Tag 'check' {
         }
     }
 
+    Context 'incomplete walk' {
+        It 'reports UNKNOWN instead of a threshold verdict when a path cannot be read' {
+            $root = Join-Path $script:tmpDir 'base\claude'
+            New-Item -ItemType Directory -Path $root -Force | Out-Null
+            $session = New-SessionDir -Root $root -ProjectKey 'key' -SessionId 'aaa' -FileCount 1
+            $blocked = Join-Path $session 'blocked'
+            New-Item -ItemType Directory -Path $blocked -Force | Out-Null
+            Set-Content -LiteralPath (Join-Path $blocked 'hidden.bin') -Value 'unmeasurable'
+            # Deny the current user list access so enumeration errors, without needing
+            # elevation: the account still owns the directory and can restore the ACL.
+            $denyRule = [System.Security.AccessControl.FileSystemAccessRule]::new(
+                [System.Security.Principal.WindowsIdentity]::GetCurrent().User,
+                'ListDirectory', 'ContainerInherit,ObjectInherit', 'None', 'Deny')
+            $denied = $false
+            try {
+                $acl = Get-Acl -LiteralPath $blocked
+                $acl.AddAccessRule($denyRule)
+                Set-Acl -LiteralPath $blocked -AclObject $acl
+                $denied = $true
+            } catch {
+                Set-ItResult -Skipped -Because 'the harness could not apply a deny ACL'
+            }
+            $env:CLAUDE_CODE_TMPDIR = Join-Path $script:tmpDir 'base'
+
+            try {
+                $result = Invoke-ClaudeTempRootAsObject
+                { Assert-CheckResult $result } | Should -Not -Throw
+                $result.severity | Should -Be 'UNKNOWN'
+                $result.ran_successfully | Should -BeFalse
+                $result.detail.unreadable_dir_count | Should -BeGreaterThan 0
+                $result.error | Should -Match 'could not be read'
+                $result.detail.total_bytes | Should -BeGreaterThan 0 `
+                    -Because 'the partial floor still ships so the human sees what was measured'
+            } finally {
+                # The deny must come back off or AfterEach cannot delete the fixture.
+                if ($denied) {
+                    $acl = Get-Acl -LiteralPath $blocked
+                    $null = $acl.RemoveAccessRule($denyRule)
+                    Set-Acl -LiteralPath $blocked -AclObject $acl
+                }
+            }
+        }
+
+        It 'does not follow a junction out of the tree' {
+            # Get-ChildItem -Recurse does not traverse reparse points without
+            # -FollowSymlink; the hand-rolled walk must match, or a junction both
+            # inflates the total with content living elsewhere and can cycle forever.
+            $root = Join-Path $script:tmpDir 'base\claude'
+            New-Item -ItemType Directory -Path $root -Force | Out-Null
+            $session = New-SessionDir -Root $root -ProjectKey 'key' -SessionId 'aaa' -FileCount 1
+
+            $outside = Join-Path $script:tmpDir 'outside'
+            New-Item -ItemType Directory -Path $outside -Force | Out-Null
+            1..3 | ForEach-Object {
+                Set-Content -LiteralPath (Join-Path $outside "elsewhere$_.txt") -Value 'not ours'
+            }
+            try {
+                New-Item -ItemType Junction -Path (Join-Path $session 'link') `
+                    -Target $outside -ErrorAction Stop | Out-Null
+            } catch {
+                Set-ItResult -Skipped -Because 'the harness could not create a junction'
+            }
+            $env:CLAUDE_CODE_TMPDIR = Join-Path $script:tmpDir 'base'
+
+            $result = Invoke-ClaudeTempRootAsObject
+            { Assert-CheckResult $result } | Should -Not -Throw
+            $result.detail.file_count | Should -Be 1 `
+                -Because 'only the session own file counts; the junction target lives elsewhere'
+            $result.ran_successfully | Should -BeTrue
+        }
+    }
+
     Context 'root resolution' {
         It 'prefers a claude subdirectory under CLAUDE_CODE_TMPDIR' {
             $base = Join-Path $script:tmpDir 'base'

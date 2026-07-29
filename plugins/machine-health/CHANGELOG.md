@@ -30,9 +30,36 @@ All notable changes to the `machine-health` plugin are documented here. Format f
   which now tracks `total_gb` for this check. The age arm is independent of size because a small tree
   whose oldest entry never goes away is the unpruned-growth signal itself.
 
+  The walk enforces its 60-second budget *during* traversal, not only between session directories.
+  An explicit queue replaces `Get-ChildItem -Recurse`, which blocks until a whole subtree is
+  enumerated — one session directory holding tens of thousands of files could outlast the budget on
+  its own and reach the orchestrator's 90-second kill, which emits nothing at all and so loses the
+  partial figures the budget exists to preserve. Reparse points are skipped rather than followed,
+  matching what `-Recurse` does without `-FollowSymlink`: a junction under the temp root would
+  otherwise count content living elsewhere and could cycle forever.
+
+  An incomplete walk never reports a threshold verdict. Both ways one comes back incomplete — budget
+  exhaustion and an unreadable path — now yield `UNKNOWN` with `ran_successfully = false`, partial
+  detail still attached so the human sees the measured floor. Previously an unreadable path only
+  added a note, so an inaccessible multi-gigabyte session could be reported as `OK` from a lower
+  bound. `ran_successfully = false` is also what keeps the run out of `checks_ran`, and so keeps an
+  undercounted `total_gb` from being adopted as a trend baseline.
+
   Windows only. `scripts/macos/` and `scripts/linux/` remain `NOT_IMPLEMENTED`, so those hosts report
   `UNKNOWN` wholesale as before; `references/windows/check-catalog.md#17-claude-code-temp-root`
   records how a POSIX port derives the root.
+
+### Fixed
+
+- **Trend baselines no longer come from runs in which the check did not succeed (#1637).** A failed
+  or partial run still persists whatever it measured into `top_metrics` — deliberately, so the
+  history line records the floor — but `Invoke-TrendAnalysis` selected the newest such value with no
+  regard for `checks_ran`. Because those figures are lower bounds, the next *complete* run read the
+  merely-recovered difference as growth and could upgrade its `WARN` to `CRIT` on nothing. Baseline
+  selection now reuses `checks_ran`, already the repo's authority for "this check produced a usable
+  result" and already read that way by `Get-CheckLastRun`. This applies to every check, not only
+  `claude-temp-root`. The engine's own header also described a revert-downgrade that was never
+  built; it now states that severity only ever moves up.
 
 ## [0.7.1]
 
