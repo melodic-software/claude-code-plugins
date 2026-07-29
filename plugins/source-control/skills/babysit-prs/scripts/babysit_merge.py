@@ -716,6 +716,27 @@ def evaluate_review_settle(
     Two conditions, in this order, so the common case costs nothing: a
     current-head review from the reviewer clears the hold outright, and only a
     head with no such review is aged against the settle window.
+
+    The clearing review must postdate the newest CI start on the live head.
+    GitHub keeps a review against the SHA rather than against the head
+    position, so a force-push A -> B -> A restores a head that its FIRST
+    occurrence's review still matches by `commit_oid`; without the bound that
+    stale review cleared the hold before any clock was read, and the
+    merge-before-review race this gate exists to prevent came back through the
+    short-circuit instead of through the clock. `latest_check_activity` is the
+    bound because it is the same server-observed signal the age is measured
+    on, and it is read from the rollup already in hand, so the already-reviewed
+    case still issues no request of its own.
+
+    The bound cannot separate a restored head from a re-run on the standing
+    head -- both mint a check start after the review -- so a re-run now pushes
+    an already-reviewed head back into settling for up to one window instead of
+    short-circuiting past it. That is the fail-closed direction: the cost is
+    bounded latency, and the alternative is the safety failure.
+
+    A head with no check starts at all has no bound, so a review of the SHA
+    clears the hold as before. That is the residual `safety.md` already scopes:
+    when a restored head mints no fresh runs, it reads as settled.
     """
     reviewers = ", ".join(repr(login) for login in sorted(settle.reviewer_logins))
     result: dict[str, Any] = {
@@ -723,6 +744,7 @@ def evaluate_review_settle(
         "reviewerLogins": sorted(settle.reviewer_logins),
         "settleSeconds": settle.settle_seconds,
         "currentHeadReview": False,
+        "reviewRecencyFloor": None,
         "headAgeSeconds": None,
         "headAgeSource": None,
         "state": "unknown",
@@ -735,9 +757,13 @@ def evaluate_review_settle(
         result["state"] = "no-head"
         return [], result
 
+    recency_floor = latest_check_activity(status_rollup)
+    if recency_floor is not None:
+        result["reviewRecencyFloor"] = recency_floor.isoformat()
     if has_current_head_review(
         {}, head, review_evidence,
         config=ReviewTriggerConfig(reviewer_logins=settle.reviewer_logins),
+        not_before=recency_floor,
     ):
         result["currentHeadReview"] = True
         result["state"] = "reviewed"

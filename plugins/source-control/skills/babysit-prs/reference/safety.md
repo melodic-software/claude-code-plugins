@@ -280,9 +280,18 @@ fires at all:
    SHA, so a head returning to a previously-checked SHA — force-push A → B → A — still carries A's
    original runs even though the re-push draws a fresh review. Reading the oldest would call a
    brand-new head settled and merge straight through the window. The cost of reading the newest is
-   bounded and lands on latency: a re-run extends the wait by up to one window. It rarely bites,
-   because a re-run does not move the head — a head the reviewer already reviewed clears the hold
-   before this clock is read at all, and a head it has not is one that should be held anyway.
+   bounded and lands on latency: a re-run extends the wait by up to one window, and a head the
+   reviewer has not reviewed is one that should be held anyway.
+
+   **The same timestamp is also the review-recency floor.** GitHub keeps a review against the SHA,
+   not against the head position, so the earlier occurrence's review of A still matches `commit_oid`
+   when A returns as head — and matching on the SHA alone let that stale review clear the hold
+   before any clock was read, restoring the race through the short-circuit rather than through the
+   clock. A review clears the hold only when it postdates the newest CI start on the live head; one
+   that cannot be dated does not clear it. A check start cannot distinguish a restored head from a
+   re-run on the standing head, so a re-run minted after the review re-arms the hold for up to one
+   window instead of short-circuiting past it — the fail-closed direction, paying latency to refuse
+   the safety failure.
 
 2. **The head commit's committer date**, only when the rollup carries no usable timestamp. A weaker
    proxy that errs the wrong way: a commit pushed long after it was written — local batching, an
@@ -291,12 +300,14 @@ fires at all:
    its PRs gets only this fallback, so the hold is best-effort there.
 
 **One residual, stated because it is not closed.** If a force-push back to a previously-checked SHA
-produces new check runs, the newest timestamp is fresh and the hold fires correctly. If GitHub
-instead reuses the existing results and mints none, the rollup carries only the old timestamps and
-that head reads as settled. Which of those happens is not verified here, and no queryable
-"this SHA became the head at T" record covers both ordinary pushes and force-pushes — the
-force-push timeline event covers only the latter. Treat the hold as strong for ordinary pushes and
-best-effort across a head reverting to an already-tested SHA.
+produces new check runs, the newest timestamp is fresh: the head is aged from it, and any earlier
+review of that SHA falls below the recency floor, so the hold fires correctly whether or not that
+review exists. If GitHub instead reuses the existing results and mints none, the rollup carries only
+the old timestamps, there is no floor above them, and that head reads as settled. Which of those
+happens is not verified here, and no queryable "this SHA became the head at T" record covers both
+ordinary pushes and force-pushes — the force-push timeline event covers only the latter. Treat the
+hold as strong for ordinary pushes and best-effort across a head reverting to an already-tested SHA
+that mints no new checks.
 
 ## Guarded Mutation Wrappers
 
@@ -375,7 +386,14 @@ auto-mode safety classifier and blocks the call before the wrapper runs.
   --review-settle-minutes <review-settle-minutes>`. Dropping it from a merge command silently
   restores the pre-`#1629` behavior of merging inside a re-review's latency window, and supplying
   one half without the other is a usage error (exit `2`) rather than a partial hold. Omit the pair
-  only when either key is unset — see §Review-Settle Hold.
+  only when **both** keys are unset — see §Review-Settle Hold.
+- **`babysit_review_settle_minutes` set with `babysit_review_bot_logins` unset is a configuration
+  error, and it must be refused HERE rather than rendered away.** Omitting both flags because one
+  key is missing is the one case the CLI's exit `2` cannot catch: the lone flag never reaches it,
+  so the merge proceeds with the hold silently dormant under a setting that looks active. Stop and
+  report the misconfiguration instead of constructing the merge command. The converse is not an
+  error — `babysit_review_bot_logins` alone is the review-trigger module's own configuration and
+  leaves the settle hold correctly dormant.
 - **`--self-logins @me,<self-logins>` rides on every resolve-thread form too**, listing and
   mutating alike, always (`@me` resolves your own `gh` login; append `babysit_self_logins`
   extras). The bot-only classifier (`project_thread`'s `botOnly`) requires a BOT OPENER **and**

@@ -62,13 +62,18 @@ def _pr(**overrides: Any) -> dict[str, Any]:
     return pr
 
 
-def _review(oid: str, login: str = REVIEWER, state: str = "COMMENTED") -> dict[str, Any]:
+def _review(
+    oid: str,
+    login: str = REVIEWER,
+    state: str = "COMMENTED",
+    submitted_at: str = "2026-07-26T21:49:06Z",
+) -> dict[str, Any]:
     return {
-        "id": f"r-{oid[:4]}-{login}",
+        "id": f"r-{oid[:4]}-{login}-{submitted_at}",
         "state": state,
         "author": {"login": login, "__typename": "Bot", "is_bot": True},
         "commit": {"oid": oid},
-        "submittedAt": "2026-07-26T21:49:06Z",
+        "submittedAt": submitted_at,
         "body": "",
     }
 
@@ -254,11 +259,11 @@ class ServerClockIsPreferredOverCommitMetadata(SettleHarness):
         self.assertEqual(result["_commit_reads"], [])
 
     def test_a_head_returning_to_a_checked_sha_still_holds(self) -> None:
-        # Force-push A -> B -> A. Check runs live on the SHA, so A's original
-        # runs are still in the rollup even though the re-push draws a fresh
-        # review. Reading the oldest of them would call a brand-new head
-        # settled and merge straight through the window. This is the reason the
-        # clock takes the newest timestamp rather than the oldest.
+        # Force-push A -> B -> A, with no review of A at all. Check runs live on
+        # the SHA, so A's original runs are still in the rollup even though the
+        # re-push draws a fresh review. Reading the oldest of them would call a
+        # brand-new head settled and merge straight through the window. This is
+        # the reason the clock takes the newest timestamp rather than the oldest.
         result = self._evaluate(
             reviews=[],
             check_starts=["2026-07-26T18:00:00Z", "2026-07-26T21:45:00Z"],
@@ -279,11 +284,10 @@ class ServerClockIsPreferredOverCommitMetadata(SettleHarness):
         self.assertEqual(result["reviewSettle"]["state"], "settling")
         self.assertEqual(result["reviewSettle"]["headAgeSeconds"], 40)
 
-    def test_a_re_run_on_an_already_reviewed_head_never_reaches_the_clock(self) -> None:
-        # Why the cost above is small: a re-run does not move the head, so a
-        # head the reviewer already reviewed short-circuits at the review check
-        # before any timestamp is read. The re-run delay can only apply while
-        # the reviewer still owes this head a review -- when holding is right.
+    def test_a_re_run_a_review_already_postdates_never_reaches_the_clock(self) -> None:
+        # Why the cost above is usually small: a re-run does not move the head,
+        # so a review submitted AFTER the newest check start still clears the
+        # hold before any age is computed.
         result = self._evaluate(
             reviews=[_review(HEAD)],
             check_starts=["2026-07-26T21:00:00Z", "2026-07-26T21:48:00Z"],
@@ -291,6 +295,21 @@ class ServerClockIsPreferredOverCommitMetadata(SettleHarness):
         self.assertTrue(result["ready"], result["blockers"])
         self.assertEqual(result["reviewSettle"]["state"], "reviewed")
         self.assertIsNone(result["reviewSettle"]["headAgeSeconds"])
+
+    def test_a_re_run_that_postdates_the_review_re_arms_the_hold(self) -> None:
+        # The widened cost of the recency floor, priced deliberately. A check
+        # start is indistinguishable from a restored head's fresh runs, so a
+        # re-run minted after the review pushes an already-reviewed head back
+        # into settling. Bounded latency, never a merge past a pending review --
+        # the fail-closed direction.
+        result = self._evaluate(
+            reviews=[_review(HEAD, submitted_at="2026-07-26T21:30:00Z")],
+            check_starts=["2026-07-26T21:00:00Z", "2026-07-26T21:48:00Z"],
+        )
+        self.assertFalse(result["ready"])
+        self.assertEqual(result["reviewSettle"]["state"], "settling")
+        self.assertEqual(result["reviewSettle"]["headAgeSeconds"], 40)
+
 
     def test_newest_wins_across_distinct_check_identities_too(self) -> None:
         result = self._evaluate(
@@ -330,6 +349,68 @@ class ServerClockIsPreferredOverCommitMetadata(SettleHarness):
         )
         self.assertTrue(result["ready"], result["blockers"])
         self.assertEqual(result["reviewSettle"]["headAgeSource"], "committer-date")
+
+
+class ARestoredHeadIsNotItsOwnEarlierReview(SettleHarness):
+    """Force-push A -> B -> A with a review of A from its FIRST occurrence.
+
+    GitHub keeps a review against the SHA, not against the head position, so
+    that earlier review still matches `commit_oid == A` when A returns as head.
+    Matching on the SHA alone let it clear the hold before any clock was read,
+    restoring the merge-before-review race through the short-circuit rather than
+    through the clock direction the sibling finding was about.
+    """
+
+    def test_a_review_predating_the_fresh_runs_no_longer_clears_the_hold(self) -> None:
+        result = self._evaluate(
+            reviews=[_review(HEAD, submitted_at="2026-07-26T18:10:00Z")],
+            check_starts=["2026-07-26T18:00:00Z", "2026-07-26T21:45:00Z"],
+        )
+        self.assertFalse(result["ready"])
+        self.assertFalse(result["reviewSettle"]["currentHeadReview"])
+        self.assertEqual(result["reviewSettle"]["state"], "settling")
+        self.assertEqual(result["reviewSettle"]["headAgeSeconds"], 220)
+
+    def test_an_inline_comment_predating_the_fresh_runs_does_not_clear_it_either(
+        self,
+    ) -> None:
+        inline = [{
+            "id": 9,
+            "user": {"login": f"{REVIEWER}[bot]", "type": "Bot"},
+            "commit_id": HEAD,
+            "created_at": "2026-07-26T18:10:00Z",
+            "html_url": "https://example/c",
+            "body": "",
+        }]
+        result = self._evaluate(
+            reviews=[],
+            review_comments=inline,
+            check_starts=["2026-07-26T18:00:00Z", "2026-07-26T21:45:00Z"],
+        )
+        self.assertEqual(result["reviewSettle"]["state"], "settling")
+
+    def test_an_undatable_review_fails_closed_once_a_floor_exists(self) -> None:
+        # A review that cannot be shown to postdate the floor is not evidence
+        # about this occurrence of the head.
+        result = self._evaluate(
+            reviews=[_review(HEAD, submitted_at="")],
+            check_starts=["2026-07-26T21:45:00Z"],
+        )
+        self.assertFalse(result["ready"])
+        self.assertEqual(result["reviewSettle"]["state"], "settling")
+
+    def test_no_check_starts_leaves_no_floor_which_is_the_stated_residual(self) -> None:
+        # When the restored head mints no fresh runs there is no server-observed
+        # bound to compare against, so the earlier review still clears the hold.
+        # safety.md scopes exactly this case; the test pins it so the residual
+        # is a decision on record rather than an accident.
+        result = self._evaluate(
+            reviews=[_review(HEAD, submitted_at="2001-01-01T00:00:00Z")],
+            check_starts=[],
+        )
+        self.assertTrue(result["ready"], result["blockers"])
+        self.assertEqual(result["reviewSettle"]["state"], "reviewed")
+        self.assertIsNone(result["reviewSettle"]["reviewRecencyFloor"])
 
 
 class UnreadableClockHolds(SettleHarness):
