@@ -215,11 +215,10 @@ home in [reference/safety.md](reference/safety.md). Both fail closed without `--
   exactly as it governs a worker's turn — proving readiness is never a license to arm a watch.
 
 - **Thread resolution** — `source-control-babysit-resolve-thread owner/repo#N --allowed-owners
-  <watched-owners> --extra-bot-logins <extra-bot-logins>` (lists by default; add `--resolve`). By
-  default it touches only bot-authored threads (structural `__typename == "Bot"` or the `[bot]`
-  login suffix — no hardcoded identity list) and never a human thread; `--extra-bot-logins` extends
-  that set with the configured non-structural bot accounts, and dropping it from any resolve-thread
-  form silently reclassifies their threads as human. In worker tier pass `--autonomous`, which
+  <watched-owners> --extra-bot-logins <extra-bot-logins> --self-logins @me,<self-logins>` (lists by
+  default; add `--resolve`). By default it touches only bot-authored threads (structural
+  `__typename == "Bot"` or the `[bot]` login suffix — no hardcoded identity list) and never a human
+  thread; `--extra-bot-logins` extends that set with the configured non-structural bot accounts (dropping it silently reclassifies their threads as human), and `--self-logins` rides on every form too — omitting it lets the worker's OWN bot-thread reply flip `botOnly` false and strand the thread outside every resolution scope (safety.md). In worker tier pass `--autonomous`, which
   resolves only threads GitHub marks `isOutdated`, each pinned via `--expected-comment-count` and
   `--expected-last-updated`. Those pins enforce comment-state only — they block a thread whose
   comment count or latest comment-edit timestamp drifted after vetting. The worker must additionally
@@ -291,7 +290,7 @@ this block. Values reach scripts ONLY as explicit CLI flags (option environment 
 | Key | Value | Flag delivery | Unset behavior |
 | --- | --- | --- | --- |
 | `babysit_watched_owners` | `${user_config.babysit_watched_owners}` | `--owners` (snapshot), `--allowed-owners` (both wrappers, fail-closed) | infer the current repo's owner |
-| `babysit_self_logins` | `${user_config.babysit_self_logins}` | `--extra-self` (readiness gate and snapshot); `--self-logins` (merge gate) | none — always added to your `gh api user --jq .login` login |
+| `babysit_self_logins` | `${user_config.babysit_self_logins}` | `--extra-self` (readiness gate and snapshot); `--self-logins` (merge gate, resolve-thread) | none — always added to your `gh api user --jq .login` login |
 | `babysit_intended_write_identity` | `${user_config.babysit_intended_write_identity}` | `--intended-write-identity` (snapshot) | attribution-drift check dormant |
 | `babysit_default_tier` | `${user_config.babysit_default_tier}` | prose only — tier of explicit bare invocations | `safe` |
 | `babysit_merge_method` | `${user_config.babysit_merge_method}` | `--method` (merge wrapper) | repo convention, then squash |
@@ -303,7 +302,7 @@ this block. Values reach scripts ONLY as explicit CLI flags (option environment 
 | `babysit_review_bot_logins` | `${user_config.babysit_review_bot_logins}` | `--review-bot-logins` (snapshot, request_review) | review-trigger module dormant |
 | `babysit_review_gate_context` | `${user_config.babysit_review_gate_context}` | `--review-gate-context` (snapshot) | gate treated as absent |
 | `babysit_ci_gateway_context` | `${user_config.babysit_ci_gateway_context}` | `--ci-gateway-context` (snapshot) | gateway check unused |
-| `babysit_extra_bot_logins` | `${user_config.babysit_extra_bot_logins}` | `--extra-bot-logins` (snapshot, resolve-thread) | structural bot detection only |
+| `babysit_extra_bot_logins` | `${user_config.babysit_extra_bot_logins}` | `--extra-bot-logins` (snapshot, resolve-thread, request_review) | structural bot detection only |
 | `babysit_extra_dependency_manager_logins` | `${user_config.babysit_extra_dependency_manager_logins}` | `--extra-dependency-manager-logins` (merge gate) | built-in dependabot/renovate dependency-manager set only |
 | `babysit_approval_downgrade_logins` | `${user_config.babysit_approval_downgrade_logins}` | `--approval-downgrade-logins` (snapshot) | an approval carrying blocking-looking prose is downgraded to ignored structurally (every bot); a named login instead surfaces its own as material. Real APPROVED-state reviews and plain clean approvals are ignored regardless. |
 | `babysit_skip_downgrade_logins` | `${user_config.babysit_skip_downgrade_logins}` | `--skip-downgrade-logins` (snapshot) | downgrade heuristic dormant |
