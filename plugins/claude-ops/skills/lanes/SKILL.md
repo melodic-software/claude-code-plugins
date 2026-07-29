@@ -235,11 +235,13 @@ each — the summary below is a pointer, not a copy.
   file (a secret, a token store) as a public comment. Before the write it rejects
   a body that begins with a literal `@` or falls under a 16-byte floor, exiting
   `3` having called no API at all; after the write it re-reads the comment and
-  exits `6` if what landed lost the sentinel or fails those same assertions — or
-  if the read-back could not be performed at all, which reports the cycle
-  UNCONFIRMED rather than bad (#952). The `@` rule is positional, so a body whose
-  FIRST line is a GitHub @mention is rejected too: lead with a telemetry key
-  (`lane:`) and put mentions on a later line.
+  exits `6` if what landed lost the sentinel or fails those same assertions. A
+  read-back that could not be performed also exits `6`, reporting the cycle
+  UNCONFIRMED — except a `404`, which reports the comment NOT RETRIEVABLE
+  (deleted, its issue deleted, or read access lost) and rules the UNCONFIRMED
+  reading out (#952). The `@` rule is positional, so a body whose FIRST line is a
+  GitHub @mention is rejected too: lead with a telemetry key (`lane:`) and put
+  mentions on a later line.
 
 ### Never pass a body as an `@path` string
 

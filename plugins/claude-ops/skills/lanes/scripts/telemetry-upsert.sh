@@ -440,7 +440,14 @@ unconfirmed="the body cleared the pre-write gate, so the comment is probably int
 # otherwise good write: on a full or unwritable TMPDIR the capture is skipped and
 # the read-back proceeds blind rather than turning exit 0 into exit 6.
 verify_err="$(mktemp 2>/dev/null)" || verify_err=""
-[[ -n "$verify_err" ]] && trap 'rm -f "$verify_err"' EXIT INT TERM
+# INT/TERM are trapped SEPARATELY and re-exit. A handler that only cleans up
+# does not terminate: bash runs it and RESUMES the interrupted command, so a
+# single `trap … EXIT INT TERM` would swallow an operator's Ctrl-C (or a
+# supervisor's SIGTERM) during the retry sleep and carry on to exit 0.
+if [[ -n "$verify_err" ]]; then
+  trap 'rm -f "$verify_err"' EXIT
+  trap 'rm -f "$verify_err"; exit 130' INT TERM
+fi
 verify_body=""
 verify_read=0
 for verify_attempt in 1 2; do

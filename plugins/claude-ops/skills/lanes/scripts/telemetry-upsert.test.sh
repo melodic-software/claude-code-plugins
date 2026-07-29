@@ -505,6 +505,32 @@ assert_contains "404 read-back surfaces gh's error text" "$out" "HTTP 404"
 assert_contains "404 read-back says the comment is not retrievable" "$out" "NOT RETRIEVABLE"
 assert_not_contains "404 read-back does not assert the comment is intact" "$out" "so the comment is probably intact"
 
+# A signal during the read-back retry must TERMINATE, not be swallowed. A cleanup
+# trap that does not itself exit lets bash resume the interrupted command, so a
+# combined `trap … EXIT INT TERM` would absorb a supervisor's SIGTERM (or an
+# operator's Ctrl-C) and still report the cycle good. Driven through
+# STUB_READBACK_FAIL so the script is inside its `sleep 2` retry when it lands.
+# SIGTERM, not SIGINT: bash sets SIGINT to ignored in background children, so an
+# INT here would test the harness rather than the trap.
+# Timing is not guessed: the stub logs the read-back GET before failing it, so
+# waiting for that line puts the signal inside the retry sleep deterministically
+# — signalling on a fixed delay raced the trap's installation and reported the
+# un-trapped default (143) instead.
+SIGLOG="$TMP/sig.log"
+: >"$SIGLOG"
+STUB_LOG="$SIGLOG" STUB_READBACK_FAIL=1 STUB_COMMENTS_FILE="$TMP/empty.json" bash "$SCRIPT" \
+  --repo "$REPO" --issue 502 --marker "lane:triage" --body-file "$BODY" --body-dir "$SAFE_DIR" \
+  >/dev/null 2>&1 &
+sig_pid=$!
+for _ in $(seq 1 100); do
+  grep -q 'method=GET url=repos/.*/issues/comments/' "$SIGLOG" 2>/dev/null && break
+  sleep 0.1
+done
+kill -TERM "$sig_pid" 2>/dev/null
+wait "$sig_pid"
+rc=$?
+assert_eq "a signal during the retry terminates instead of resuming" 130 "$rc"
+
 # The stderr capture is a DIAGNOSTIC: an unwritable TMPDIR must not turn an
 # otherwise good write into a verification failure.
 out="$(TMPDIR="$TMP/nonexistent-dir" run "$TMP/empty.json" 2>&1)"
