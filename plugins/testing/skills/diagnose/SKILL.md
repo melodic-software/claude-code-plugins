@@ -5,6 +5,9 @@ argument-hint: "[failure] (e.g., /testing:diagnose, /testing:diagnose the frozen
 user-invocable: true
 disable-model-invocation: false
 shell: bash
+metadata:
+  workflow-stage: test
+  summary: Root-cause failing tests — never retry blindly
 ---
 
 ## Pre-computed context

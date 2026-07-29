@@ -5,6 +5,9 @@ user-invocable: true
 disable-model-invocation: false
 argument-hint: "<action> [args] (e.g., /pull-request prep, /pull-request create, /pull-request monitor, /pull-request merge, /pull-request full, /pull-request status)"
 shell: bash
+metadata:
+  workflow-stage: pr
+  summary: Full PR lifecycle — prep, create, monitor CI, address reviews, merge
 ---
 
 ## Repository context — gather first

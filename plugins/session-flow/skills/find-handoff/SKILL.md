@@ -4,6 +4,9 @@ description: "Recover a lost handoff after `/clear` — find the save-point file
 user-invocable: true
 disable-model-invocation: false
 shell: bash
+metadata:
+  workflow-stage: session
+  summary: Recover a lost handoff or resume prompt after /clear
 ---
 
 ## Pre-computed context

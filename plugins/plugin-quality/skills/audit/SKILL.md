@@ -3,6 +3,9 @@ name: audit
 description: "Post-use behavioral audit of a Claude Code plugin component — a skill, agent, hook, command, or config — after using or setting it up, ending in a work item emitted to the plugin's maintainers. Use WHENEVER you are vetting, reviewing, stress-testing, or hardening a plugin component, when you say 'audit this plugin/skill/hook', 'review this plugin component', 'vet this plugin', 'is this plugin well-designed', 'is this hook well-designed', 'find bugs/gaps in this plugin', 'find gaps in this plugin', right after invoking a plugin skill/command and wanting to check whether it behaves correctly and is well-architected, after setting up a plugin and wanting to review it, or when producing a handoff/work item for plugin maintainers. NOT for: static skill QA in isolation (skill-quality:check), general code review (review), or MCP-server audits (mcp-tools:audit, when installed)."
 argument-hint: "<plugin>[:<component>] (e.g. source-control:commit, or guardrails)"
 user-invocable: true
+metadata:
+  workflow-stage: review
+  summary: Behavioral audit of a plugin component ending in a maintainer work item
 ---
 
 # Plugin audit

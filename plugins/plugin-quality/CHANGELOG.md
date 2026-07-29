@@ -36,6 +36,14 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `*.test.sh` discovery; SKIPs cleanly in an installed plugin cache where the sibling contract
   file is unreachable.
 
+## [0.2.2] - 2026-07-29
+
+### Changed
+
+- **`auditor` agent pins `effort: high`.** The auditor is a consequential-verdict lane; the pin
+  keeps its audits from silently degrading when the dispatching session runs at a lowered effort
+  level, per the marketplace effort-tier rules (PLUGIN-PHILOSOPHY.md, "Effort tiers").
+
 ## [0.2.1] - 2026-07-26
 
 ### Fixed

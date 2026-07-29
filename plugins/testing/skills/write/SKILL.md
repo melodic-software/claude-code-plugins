@@ -5,6 +5,9 @@ argument-hint: "[task] (e.g., /testing:write, /testing:write the new handler, /t
 user-invocable: true
 disable-model-invocation: false
 shell: bash
+metadata:
+  workflow-stage: test
+  summary: Write and place tests with TDD cadence across ecosystems
 ---
 
 ## Pre-computed context

@@ -4,6 +4,9 @@ description: "Read-only session orientation from durable + off-thread state — 
 user-invocable: true
 disable-model-invocation: false
 shell: bash
+metadata:
+  workflow-stage: session
+  summary: Read-only situation report from durable and off-thread state
 ---
 
 ## Context — gather first

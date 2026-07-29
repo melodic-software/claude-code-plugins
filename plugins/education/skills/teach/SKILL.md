@@ -5,6 +5,9 @@ argument-hint: "<action> [args] (e.g., /education:teach topic rust-ownership, /e
 user-invocable: true
 disable-model-invocation: true
 shell: bash
+metadata:
+  workflow-stage: anytime
+  summary: Multi-session learning coach for general topics or repo-grounded concepts
 ---
 
 ## Purpose

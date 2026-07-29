@@ -5,6 +5,9 @@ argument-hint: "[file|prompt] [topic] (e.g., /handoff, /handoff prompt, /handoff
 user-invocable: true
 disable-model-invocation: false
 shell: bash
+metadata:
+  workflow-stage: session
+  summary: Write a mid-session save-point for clear-and-resume
 ---
 
 ## Context — gather first
