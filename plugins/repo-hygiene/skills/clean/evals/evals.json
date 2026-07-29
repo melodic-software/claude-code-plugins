@@ -10,7 +10,7 @@
       "expectations": [
         "Resolves the action to `tree` (not scan, caches, build, git, or all)",
         "Runs the tree reset in --dry-run first and never invokes --apply on the first turn",
-        "Requires an explicit AskUserQuestion confirmation before running the reset with --apply",
+        "Requires an explicit user confirmation naming the set the dry-run showed before running the reset with --apply",
         "Surfaces the dry-run's PreserveDeps / PreserveSecrets / AheadCount values in the confirmation so the user sees what survives",
         "Preserves secrets (.env*), runtime deps (node_modules/.venv), and skill data/ by default — adds no --include-deps or --include-secrets unless the user opts in"
       ]
@@ -46,7 +46,7 @@
       "expected_output": "With no conversational signal to infer intent, presents the action table and asks the user to choose rather than guessing, and treats scan as the safe fallback.",
       "files": [],
       "expectations": [
-        "Presents the action table / menu and uses AskUserQuestion instead of guessing an action",
+        "Presents the action table / menu and asks the user instead of guessing an action",
         "Executes no --apply mutation before the user selects an option",
         "Identifies `scan` as the safest fallback when intent stays unclear"
       ]
@@ -72,7 +72,7 @@
       "expectations": [
         "Resolves the action to `git`",
         "Runs git-prune.sh in --dry-run before any --apply",
-        "Gates branch deletion behind an explicit per-branch opt-in (AskUserQuestion), never auto-deleting branches"
+        "Gates branch deletion behind an explicit per-branch confirmation that defaults to keeping the branch, never auto-deleting branches"
       ]
     },
     {
@@ -84,7 +84,7 @@
       "expectations": [
         "Resolves the action to `caches-batch` and runs clean-batch.sh --tier caches (not the single-repo caches tier, not tree-batch)",
         "Runs --dry-run first, surfaces the aggregate reclaimable bytes from the `Summary:` line, and never applies on the first turn",
-        "Uses a single batch-wide AskUserQuestion for the whole fleet, not one confirmation per repo",
+        "Uses a single batch-wide confirmation for the whole fleet, not one confirmation per repo",
         "Applies the same batch plan captured from the dry-run (--apply --batch-plan <path>), never re-enumerating the fleet at apply"
       ]
     }

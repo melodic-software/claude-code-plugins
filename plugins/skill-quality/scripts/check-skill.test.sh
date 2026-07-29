@@ -1834,27 +1834,37 @@ else
   fail "nested quoted fence content should stay suppressed (rc=$rc): $out"
 fi
 
-# 37p. Check 21: an escaped \< renders literally, so \<!-- ... --> is text, not
-#      an HTML comment, and therefore not a directive at all.
-make_skill fe-escaped-angle '---
+# 37p. Check 21: an escaped backslash-< renders literally, so the escaped
+#      comment form is text, not an HTML comment, and therefore not a
+#      directive at all. The backslash reaches the fixture through ${fe_bs}
+#      so neither shell-portability-lint's backslash-< token nor a quote
+#      splice shellcheck misreads ever appears on a source line; the fixture
+#      bytes are unchanged.
+fe_bs="\\"
+fe_escaped_body=$(
+  cat <<FIXTURE
+---
 name: fe-escaped-angle
-description: "Fresh-eyes fixture. Use when: '"'"'fe escaped angle fixture'"'"'."
+description: "Fresh-eyes fixture. Use when: 'fe escaped angle fixture'."
 ---
 
 ## Steps
 
-Escaped angle bracket renders literally: \<!-- fresh-eyes-exempt: bogus -- z -->
+Escaped angle bracket renders literally: ${fe_bs}<!-- fresh-eyes-exempt: bogus -- z -->
 
 ## Gotchas
 
 None known.
-'
+FIXTURE
+)
+make_skill fe-escaped-angle "$fe_escaped_body
+"
 out="$(run fe-escaped-angle 2>&1)"
 rc=$?
 if [[ $rc -eq 0 ]] && ! grep -q 'fresh-eyes-exempt directive' <<<"$out"; then
   pass "escaped angle bracket is not a directive (check 21)"
 else
-  fail "escaped \\<!-- should not parse as a directive (rc=$rc): $out"
+  fail "escaped angle-bracket comment should not parse as a directive (rc=$rc): $out"
 fi
 
 # 37q. Check 21: an UNCLOSED fence inside a blockquote ends with the blockquote,
@@ -2136,6 +2146,84 @@ if [[ $rc -eq 1 ]] && grep -q 'description+when_to_use is 1537 chars (cap 1536' 
   pass "check 2 counts the joiner: a desc+wtu sum at the cap without it now fails at 1537"
 else
   fail "check 2 should count the 3-char joiner and fail at 1537/1536 (rc=$rc): $out"
+fi
+
+# 38a. Check 22: a summary of exactly 100 codepoints passes (boundary
+#      guard — the cap is >100, not >=100).
+sum_100="$(printf 's%.0s' $(seq 1 100))"
+make_skill cap-pass "---
+name: cap-pass
+description: \"Summary cap fixture. Use when: 'cap pass fixture'.\"
+metadata:
+  summary: $sum_100
+---
+
+## Purpose
+
+Boundary fixture with a summary at exactly the 100-codepoint cap.
+
+## Gotchas
+
+None known.
+"
+out="$(run cap-pass 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q 'summary 100/100 codepoints' <<<"$out"; then
+  pass "summary at exactly 100 codepoints passes (check 22)"
+else
+  fail "100-codepoint summary should pass at the boundary (rc=$rc): $out"
+fi
+
+# 38b. Check 22: 101 codepoints fails.
+sum_101="$(printf 's%.0s' $(seq 1 101))"
+make_skill cap-fail "---
+name: cap-fail
+description: \"Summary cap fixture. Use when: 'cap fail fixture'.\"
+metadata:
+  summary: $sum_101
+---
+
+## Purpose
+
+Fixture with a summary one codepoint over the cap.
+
+## Gotchas
+
+None known.
+"
+out="$(run cap-fail 2>&1)"
+rc=$?
+if [[ $rc -eq 1 ]] && grep -q 'metadata.summary is 101 codepoints' <<<"$out"; then
+  pass "summary at 101 codepoints fails (check 22)"
+else
+  fail "101-codepoint summary should FAIL (rc=$rc): $out"
+fi
+
+# 38c. Check 22: 99 ASCII chars + an em-dash = 100 CODEPOINTS but 102 UTF-8
+#      bytes — passing proves the gate counts codepoints, not bytes (a
+#      byte-counting regression would read 102 and fail this fixture).
+sum_mb="$(printf 's%.0s' $(seq 1 99))—"
+make_skill cap-multibyte "---
+name: cap-multibyte
+description: \"Summary cap fixture. Use when: 'cap multibyte fixture'.\"
+metadata:
+  summary: $sum_mb
+---
+
+## Purpose
+
+Fixture whose summary is 100 codepoints but more than 100 bytes.
+
+## Gotchas
+
+None known.
+"
+out="$(run cap-multibyte 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q 'summary 100/100 codepoints' <<<"$out"; then
+  pass "a 100-codepoint summary with a multi-byte em-dash passes (codepoints, not bytes)"
+else
+  fail "multi-byte 100-codepoint summary should pass (rc=$rc): $out"
 fi
 
 if [[ $fails -ne 0 ]]; then

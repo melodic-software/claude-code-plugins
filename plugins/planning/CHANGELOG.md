@@ -3,7 +3,7 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.26.4]
+## [0.27.1]
 
 ### Changed
 
@@ -38,6 +38,35 @@ All notable changes to the `planning` plugin are documented here. Format follows
   render. `prd` and `brainstorm` also stop calling their view "ephemeral" as a loose
   adjective now that the word names a tier. The binding's artifact table lists all five
   HTML producers, so it no longer describes one while the plugin ships five.
+
+## [0.27.0]
+
+### Added
+
+- **`draft-goal-condition` drafts conditions for goals no metric can measure (#1652).** Step 2
+  assumed a checkable condition already existed, so an intent with no honest metric either got a
+  manufactured one or nothing. A new branch builds the condition from three moves instead — a
+  structural constraint, enumerated required contents, and a self-verification sub-step that
+  requires the verifying work rather than its verdict. The branch states why the third move must be
+  worded that way: the evaluator calls no tools, so it can only credit verification Claude performed
+  in the transcript, and an assertion that checking happened is indistinguishable from the checking.
+  Co-drafting a still-vague intent points at `/planning:interview` rather than restating it.
+- **`draft-goal-condition`'s Step 0 router gains the dynamic-workflows lever (#1654).** The router
+  offered `/loop`, routines and `/schedule`, a Stop hook, and a one-shot prompt as alternatives to
+  `/goal`, leaving work that needs more agents than one conversation can coordinate with nowhere to
+  route. Two caveats ship with the row, each because it turns a plausible recommendation into a dead
+  one. The `ultracode` keyword runs one task as a workflow, changes nothing else, and is honored
+  only from a human-typed prompt, whereas `/effort ultracode` is the standing session setting
+  (`xhigh` effort plus per-task workflow planning) and needs a model offering `xhigh` — so the two
+  are not interchangeable. And the `Workflow` tool is filtered out of every non-fork subagent, so a
+  lever whose work lands in dispatched non-fork subagents — the loop lanes' item-workers, for
+  instance — cannot be this one however well it otherwise fits. The row also carries the
+  availability fact that keeps it from being skipped as
+  preview-gated: all paid plans, switched on from the `/config` **Dynamic workflows** row on Pro.
+  Alone among the router's rows, this one is not exclusive of `/goal`: a workflow decides how a
+  single task fans out and the goal decides when to stop turning, so it routes away from drafting
+  only when the intent wants the fan-out and no across-turn completion condition — an intent
+  wanting both drafts the condition here and runs the workflow alongside it.
 
 ## [0.26.3]
 

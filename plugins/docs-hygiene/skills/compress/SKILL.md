@@ -5,6 +5,9 @@ argument-hint: "[audit] [target] [--force] [--keep-snapshot]"
 user-invocable: true
 disable-model-invocation: false
 shell: bash
+metadata:
+  workflow-stage: anytime
+  summary: Tighten markdown by dropping flavor while preserving every directive
 ---
 
 ## Pre-computed context

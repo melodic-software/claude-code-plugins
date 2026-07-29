@@ -4,6 +4,9 @@ description: "Faithfully clarify a dense, decision-heavy message you were just h
 argument-hint: "[artifact to clarify] (empty = the previous assistant response)"
 user-invocable: true
 disable-model-invocation: false
+metadata:
+  workflow-stage: anytime
+  summary: Reshape a dense, decision-heavy message into clear one-decision-at-a-time chunks, losing nothing
 ---
 
 # Clarify a dense artifact into something you can act on

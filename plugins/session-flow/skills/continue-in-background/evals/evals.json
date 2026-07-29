@@ -51,6 +51,56 @@
         "It does NOT fall back to /clear-then-paste on account of the dirty tree",
         "The launch result is reported and the skill STOPS — no monitoring or babysitting"
       ]
+    },
+    {
+      "id": 5,
+      "name": "non-repo-directory-launches",
+      "prompt": "/continue-in-background — I'm done for the night, hand it to a background agent. (Note: this session was started in my home directory, which is not a git repository at all — git rev-parse --is-inside-work-tree fails with 'fatal: not a git repository' — and no WorktreeCreate hook is configured in any settings scope that applies here.)",
+      "expected_output": "The dirty-tree gate identifies the consuming directory as not a git repository — not merely a failed command — and establishes that no WorktreeCreate hook is configured, so the non-repo branch applies: there is no uncommitted work to protect and no worktree isolation to lose, because the background session writes to the working directory directly. It launches the background agent, states that reading in the launch report, and STOPS.",
+      "files": [],
+      "expectations": [
+        "The skill establishes repository status first (git rev-parse --is-inside-work-tree) rather than running git status --porcelain -uall blind and stalling on 'fatal: not a git repository'",
+        "It identifies the non-repo case positively AND establishes that no WorktreeCreate hook is configured before launching the background agent",
+        "The launch report states the non-repo reading: no uncommitted work to protect, and the launched session writes to the working directory directly instead of moving into an isolated worktree",
+        "The skill STOPS after the launch report — no monitoring, polling, or new work items"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "unknown-tree-state-does-not-launch",
+      "prompt": "/continue-in-background — keep it moving, I'm away. (Note: git rev-parse --is-inside-work-tree exits non-zero with 'fatal: detected dubious ownership in repository at ...' — this IS a repository, git just refuses to read it.)",
+      "expected_output": "The gate's third branch applies: git failed for a reason other than 'not a git repository', so the tree's state is unknown rather than clean. The skill does NOT launch — it reports the git failure and falls back to the standard /clear-then-paste instruction, exactly as it does for a dirty tree.",
+      "files": [],
+      "expectations": [
+        "The skill does NOT treat a non-zero exit as the non-repo branch — the failure is not 'not a git repository', so the tree may be dirty and cannot be proven clean",
+        "It does NOT launch the background agent: unknown tree state is handled like dirty state, not like clean state",
+        "It reports what the command said and falls back to the standard /clear-then-paste instruction"
+      ]
+    },
+    {
+      "id": 7,
+      "name": "no-work-tree-despite-zero-exit-does-not-launch",
+      "prompt": "/continue-in-background — hand this to a background agent, I'm off. (Note: the working directory is a bare repository, so git rev-parse --is-inside-work-tree exits 0 and prints 'false'.)",
+      "expected_output": "A zero exit is not evidence of a clean tree. The command printed 'false', not 'true', and this is not the positively-identified non-repo case either, so it lands in the gate's unknown default: the skill does NOT launch, reports that there is no work tree to inspect, and falls back to the standard /clear-then-paste instruction.",
+      "files": [],
+      "expectations": [
+        "The skill does NOT read the zero exit status as a passing gate — the printed value is 'false', so there is no work tree and nothing was proven clean",
+        "It does NOT take the non-repo launch branch either: 'false' is not the 'not a git repository' identification, so the permissive branch does not apply",
+        "It does NOT launch the background agent, and falls back to the standard /clear-then-paste instruction with the reason reported"
+      ]
+    },
+    {
+      "id": 8,
+      "name": "non-repo-with-worktreecreate-hook-does-not-launch",
+      "prompt": "/continue-in-background — I'm heading out, hand it to a background agent. (Note: this is a Mercurial checkout, so git rev-parse --is-inside-work-tree fails with 'fatal: not a git repository', but settings.json defines WorktreeCreate and WorktreeRemove hooks so sessions get isolation without Git. I have uncommitted hg changes here.)",
+      "expected_output": "'Not a git repository' alone does not open the launch branch. A configured WorktreeCreate hook is the non-Git isolation path, so the launched session moves into a hook-created workspace that this checkout's local changes never reach — the same loss the dirty-tree gate exists to prevent. The case lands in the gate's unknown default: the skill does NOT launch, reports why, and falls back to the standard /clear-then-paste instruction.",
+      "files": [],
+      "expectations": [
+        "The skill does NOT launch merely because git rev-parse reported 'not a git repository' — it checks whether a WorktreeCreate hook is configured before taking that branch",
+        "It recognises that a configured WorktreeCreate hook means the launched session works in an isolated workspace, so uncommitted local changes would not carry into it",
+        "It does NOT launch the background agent, and falls back to the standard /clear-then-paste instruction with the reason reported",
+        "An inability to establish the hook's absence is treated the same way — unknown, not clean, no launch"
+      ]
     }
   ]
 }

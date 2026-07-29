@@ -6,6 +6,9 @@ user-invocable: true
 disable-model-invocation: false
 allowed-tools: Bash(bash *audit-noise/scripts/detect.sh*)
 shell: bash
+metadata:
+  workflow-stage: anytime
+  summary: Classify markdown for stale citations, ghost refs, and meta-commentary
 ---
 
 ## Pre-computed context
@@ -46,7 +49,7 @@ Only a page that passes admission proceeds to the five in-page NOISE shapes belo
 | Shape | What it looks like | Default tier | Treatment |
 |---|---|---|---|
 | `citation` — historical citations | Dated incident citations, inline provenance attribution, migration/rename narration ("Empirically observed 2026-…", "was renamed to", "we pivoted from") when the current form suffices | 1 | Relocate to a per-file `## Sources` / `## History` footer; strip when non-load-bearing (version control preserves history). Keep inline only when the date is load-bearing (methodology or freshness stamp) |
-| `ghost-ref` — ephemeral working-directory refs | Concrete paths into the topic-docs convention's ephemeral tiers — memory slices (`.work/<slug>/`), branch-pruned contract slices (`docs/topics/<slug>/`), and concrete children of the concern-scoped roots — cited from durable surfaces, plus any citation of the retired `.claude/notes/` location | 2 | 3-way classify: promote the content to a durable home, replace with a commit-SHA permalink, or strip. Exemptions apply per matched path, never per line: slot-variable forms (`<slug>` as a schema placeholder, not a literal name) and the bare concern-scoped roots (`.work/handoffs/`, `.work/reviews/` with nothing concrete after) are NOT ghost refs — a concrete child under a concern root flags |
+| `ghost-ref` — refs into slice-scoped working paths | Concrete paths into a topic-docs work slice — memory slices (`.work/<slug>/`), branch-pruned contract slices (`docs/topics/<slug>/`), and concrete children of the concern-scoped roots — cited from durable surfaces, plus any citation of the retired `.claude/notes/` location. The citing document outlives the slice, so slice retirement breaks the reference; this holds whether or not the consumer's memory tier is gitignored | 2 | 3-way classify: promote the content to a durable home, replace with a commit-SHA permalink, or strip. Exemptions apply per matched path, never per line: slot-variable forms (`<slug>` as a schema placeholder, not a literal name) and the bare concern-scoped roots (`.work/handoffs/`, `.work/reviews/` with nothing concrete after) are NOT ghost refs — a concrete child under a concern root flags |
 | `preamble` — "Why this file exists" openers | Opening section explaining motivation/history/rationale | 2 | Diataxis classify: KEEP on Explanation-quadrant files (rule bodies, ADRs, convention rationale); STRIP on Reference-quadrant files (data tables, registries, cheat-sheets), replacing with a 1-sentence orientation |
 | `enum-list` — hard-coupled consumer lists | Tables/lists hardcoding N specific consumers that drift on every add/remove ("the following five skills…", bulleted `/skill — role` rosters) | 1 | Replace with a runtime derivation (a grep/list command cited inline) or a category citation; hardcode only when both fail |
 | `scope-meta` — scope/loading meta-commentary | Body prose restating loading mechanics that config/frontmatter already owns ("Path-scoped to X", "Loads on Read of Y", "Auto-loads when…") | 1 | Strip the clause — the frontmatter/config is the single source of truth; keep a genuine cross-ref riding the same sentence. Files with no scoping frontmatter MAY state scope in one sentence |

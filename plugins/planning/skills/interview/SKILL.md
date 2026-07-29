@@ -5,6 +5,9 @@ argument-hint: "[action] [topic] (e.g., /planning:interview, /planning:interview
 user-invocable: true
 disable-model-invocation: false
 shell: bash
+metadata:
+  workflow-stage: contract
+  summary: Interview in frontier rounds until the task contract is locked
 ---
 
 ## Pre-computed context
