@@ -63,6 +63,16 @@
   reclaims its temp tree. That is why one run writes one file and never
   a tree.
 
+  Rule 1 also constrains the template's **shape**, not just its root.
+  The `XXXXXX` placeholders must be trailing, because BSD `mktemp` on
+  macOS substitutes only trailing Xs — so a template appending an
+  extension after them (`<prefix>-XXXXXX.html`) cannot create the file
+  on macOS. Two adopters had independently written exactly that form,
+  which is the evidence that naming the temp root was not a sufficient
+  rule; a producer wanting a meaningful filename takes the `-d` form and
+  writes a fixed name inside the run directory, which is why the row
+  admits a temp file **or** a directory.
+
   Two claims are stated as constraints rather than capabilities, because
   neither capability exists today. Rule 1 does not route
   `CLAUDE_CODE_TMPDIR` into the temp primitive: that variable overrides

@@ -14,12 +14,16 @@ All notable changes to the `architecture` plugin are documented here. Format fol
   `CLAUDE_JOB_DIR`. The executable Phase 2 step in `actions/deepening.md`
   carries the rule, not only the format reference — that step is what
   `/architecture:improve deepening` actually follows. Its `mktemp` form is
-  now the positional absolute template
-  (`mktemp "${TMPDIR:-/tmp}/deepening-review-XXXXXX.html"`), replacing the
-  `--tmpdir` / `-t` examples: `--tmpdir` is GNU-only, `-t` is deprecated
-  there, and a bare relative template creates the report in the current
-  working directory — the consumer's repository. The positional form is
-  the one this marketplace already documents as GNU/BSD-identical. See
+  now a positional absolute template naming a run **directory**
+  (`mktemp -d "${TMPDIR:-/tmp}/deepening-review-XXXXXX"`, with `report.html`
+  written inside), replacing the `--tmpdir` / `-t` examples: `--tmpdir` is
+  GNU-only, `-t` is deprecated there, and a bare relative template creates
+  the report in the current working directory — the consumer's repository.
+  The directory form is required rather than cosmetic: BSD `mktemp` on
+  macOS substitutes only **trailing** `XXXXXX`, so the file template that
+  appended `.html` after the placeholders could not create the report on
+  macOS at all. A directory keeps the placeholders trailing while still
+  giving the report a meaningful filename. See
   `docs/conventions/topic-docs/README.md` §"The ephemeral tier".
 
 ## [0.4.1]

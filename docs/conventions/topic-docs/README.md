@@ -85,10 +85,16 @@ Five rules hold at this row:
    template**: on Unix `mktemp "${TMPDIR:-/tmp}/<prefix>-XXXXXX"` (add
    `-d` for a directory), the positional-template form both GNU and BSD
    `mktemp` accept identically; on Windows a user-scoped temp under
-   `%LOCALAPPDATA%\Temp`. A bare relative template does **not** reach the
-   temp tree — `mktemp report-XXXXXX.html` creates the file in the
-   current working directory, which is the consumer's repository
-   (reproduced against GNU coreutils 8.32, 2026-07-27) — and the flags
+   `%LOCALAPPDATA%\Temp`. The `XXXXXX` placeholders must be **trailing**:
+   BSD `mktemp` (macOS) substitutes only trailing Xs, so a template that
+   appends an extension after them — `<prefix>-XXXXXX.html` — is not
+   portable. A producer that wants a meaningful filename takes the `-d`
+   form and writes a fixed name inside the run directory, which is why
+   the row above admits a temp file **or** a directory. A bare relative
+   template does **not** reach the temp tree — `mktemp report-XXXXXX`
+   creates the file in the current working directory, which is the
+   consumer's repository (reproduced against GNU coreutils 8.32,
+   2026-07-27) — and the flags
    that would fix it are not portable (`--tmpdir` is GNU-only, `-t` is
    deprecated there). That root is the ambient `$TMPDIR` or system
    default — **not** `CLAUDE_CODE_TMPDIR`, which overrides the temp

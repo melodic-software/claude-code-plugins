@@ -29,7 +29,10 @@ All notable changes to the `education` plugin are documented here. Format follow
   via the platform's temp primitive, resolved deterministically, never the session
   scratchpad, and never deleted before the path is handed back. Its `mktemp` invocation
   names the temp root in the template, the one form that cannot land the file in the
-  working directory. See `docs/conventions/topic-docs/README.md` §"The ephemeral tier".
+  working directory, and takes the `-d` run-directory form with `primer.html` written
+  inside it: BSD `mktemp` on macOS substitutes only **trailing** `XXXXXX`, so the
+  `…-XXXXXX.html` file template this entry originally prescribed could not create the
+  primer on macOS. See `docs/conventions/topic-docs/README.md` §"The ephemeral tier".
 - An HTML lesson now has a **canonical filename and a replacement rule**. Allowing a
   lesson to be HTML left the name unspecified while the workspace schema and the
   `explain` action both named `concepts/<concept>/lesson.md`, so re-rendering a concept
@@ -37,6 +40,14 @@ All notable changes to the `education` plugin are documented here. Format follow
   resumed session which was current. The HTML lesson is `lesson.html`, it **replaces**
   `lesson.md` rather than joining it — one lesson file per concept, never both — and
   every surface that names the file now says so.
+- **The slug-collision guard survives an HTML lesson.** Letting `lesson.html` replace
+  `lesson.md` removed the guard's only identity source: `skills/teach/SKILL.md` "Path
+  resolution rules" compares an existing slice's recorded raw concept name before reusing
+  its slug directory, and that name lived solely in the Markdown `**Concept:**` line. With
+  an HTML lesson there was no equivalent field, so `C++` and `C#` — both normalizing to
+  `c` — could silently share one slice. `lesson.html` now MUST carry
+  `<meta name="concept" content="<raw concept name>">`, and the rule names the marker per
+  format rather than per file, so the guard no longer depends on the lesson's extension.
 
 ## [0.5.2]
 
