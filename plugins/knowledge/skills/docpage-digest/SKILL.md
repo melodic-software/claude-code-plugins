@@ -49,8 +49,11 @@ repository is a separate, human-gated act.
 sites repeat `overview`, `settings`, and `index` across dozens of pages, and two such pages
 sharing one work root lets a later run overwrite an immutable `source.*` or resume from another
 page's checklist. Derive `<slug>` deterministically from the canonical URL in one fixed form —
-the post-redirect page URL with no fragment, no query string, and no trailing slash, BEFORE any
-channel suffix like `.md` is appended — so equivalent URL spellings resume the same root:
+the post-redirect page URL with no fragment and no trailing slash, BEFORE any channel suffix
+like `.md` is appended, dropping only known tracking query parameters (`utm_*`, `gclid`,
+`fbclid`, `ref`) and KEEPING content-selecting ones (`?version=v2` selects a different document
+and must yield a different identity) — so equivalent spellings resume the same root and
+different resources never share one:
 
 1. Join the host (dots → hyphens) and every non-empty path segment with hyphens.
 2. Slugify to lowercase alphanumerics and hyphens only — strip `/`, `\`, and `..`, and collapse
@@ -100,10 +103,13 @@ plus `INDEX.md` and continue from the first unticked phase.
 
 1. **Resume guard:** if any `source.*` snapshot already exists at the work root (an interrupted
    run's fetch landed before its checklist tick), that snapshot IS the immutable original — do
-   not fetch again over it, whatever the checklist says: verify it is non-empty, tick Phase 1
-   with a resumed-snapshot note, and continue. A provably corrupt or empty snapshot is
-   reconciled explicitly, never silently replaced: move it aside with a dated suffix, record the
-   move in the checklist, then fetch fresh.
+   not fetch again over it, whatever the checklist says. Complete means the CHANNEL'S full file
+   set: a markdown/rendered channel needs a non-empty `source.md`; a PDF channel needs both
+   `source.pdf` and a non-empty `source.txt`. Set complete → tick Phase 1 with a
+   resumed-snapshot note and continue. `source.pdf` present but `source.txt` missing/empty →
+   keep the PDF (it is the original) and produce the extraction from it now — never re-download.
+   A provably corrupt or empty snapshot is reconciled explicitly, never silently replaced: move
+   it aside with a dated suffix, record the move in the checklist, then fetch fresh.
 2. Select the publisher profile: match the URL's host against the profiles under `context/`
    (currently [context/anthropic-docs-profile.md](context/anthropic-docs-profile.md)). No match →
    proceed with the generic steps below and record "no profile" in the checklist.
