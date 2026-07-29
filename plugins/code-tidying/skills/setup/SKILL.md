@@ -44,7 +44,10 @@ FAIL. Modify nothing, and do NOT run a tidy sweep — that is `/code-tidying:tid
    lanes; `apply` scaffolds project lanes when this repo's layout diverges from the bundled defaults.
 2. **Lane structure** — each present lane file carries the required sections (`## Scope`,
    `## Watch-for patterns`, `## Lane-specific extra exclusions`, `## Verification commands`,
-   `## Conventional Commits type`, `## Preferred research sources`). A lane missing a section is FAIL.
+   `## Conventional Commits type`, `## Preferred research sources`). A lane missing a section is FAIL —
+   except a lane that declares `## Merge semantics` **and** shares its name with a bundled lane: that one
+   inherits every section it omits from its bundled counterpart, so a missing section is expected, not a
+   FAIL. Report which sections it inherits.
 3. **No unreplaced placeholders** — a lane still containing a template `<placeholder>` resolves to a
    broken scope glob or watch-for pattern; FAIL, naming the file and the leftover token.
 4. **Tracked, not ignored** — run `git check-ignore -v <file>` per lane file. A non-empty result means a
@@ -88,9 +91,11 @@ only where a lane's scope genuinely needs the user's call.
    - **Template-pattern lanes** (apps, dependency-root, host-wiring, polyglot-services) start from the
      exact template filename presented in step 2 — `${CLAUDE_PLUGIN_ROOT}/skills/tidy/templates/<pattern>-lane.template.md`
      (e.g. `apps-lane.template.md`) — and every `<placeholder>` is replaced.
-   - **Bundled-lane overrides** (`shell-tooling`, `docs-prose`) have no template; start from the bundled
-     lane file `${CLAUDE_PLUGIN_ROOT}/skills/tidy/lanes/<lane>.md` and adjust its scope globs / exclusions
-     to this repo's actual layout.
+   - **Bundled-lane overrides** (`shell-tooling`, `docs-prose`) have no template; read the bundled lane
+     file `${CLAUDE_PLUGIN_ROOT}/skills/tidy/lanes/<lane>.md`, then write **only** the sections this repo
+     actually diverges on (usually `## Scope`, sometimes extra exclusions), plus a `## Merge semantics`
+     section adopting the bundled lane's declaration. Do not copy the sections the repo keeps: a copied
+     section is frozen at its copy-time value, while an omitted one keeps inheriting bundled improvements.
    - **Custom lanes** (accepted from step 3's "any other slice?" offer) have no dedicated source: start
      from whichever template pattern is closest in shape to the slice and re-fill it, or — when none fits —
      author a new lane file from scratch using the same section structure the templates use (`## Scope`,

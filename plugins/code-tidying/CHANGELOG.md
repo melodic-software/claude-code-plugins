@@ -3,6 +3,30 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.0]
+
+### Changed
+
+- **`shell-tooling` lane decomposed to conform with the config-cascade contract (#724).**
+  The bundled lane no longer tells a project lane at `.claude/tidy-lanes/shell-tooling.md` to replace
+  it wholesale. It now publishes a `## Merge semantics` declaration to adopt, mirroring the
+  `docs-prose` decomposition (#701): `Scope` is a per-section override (retargets tooling globs),
+  while the watch-for patterns are **additive per language subsection** (a project's `### Bash` /
+  `### PowerShell` entries append to the bundled ones), so bundled pattern improvements keep reaching
+  consuming repos. Three calls the flat `docs-prose` shape did not have to make, all driven by this
+  lane's two-language sections: `Lane-specific extra exclusions` is additive rather than an override
+  (the hook-directory HARD exclusions are what this lane exists around, and are on the global HARD
+  list besides), and both `Preferred research sources` and `Verification commands` override at
+  language granularity, so retargeting one language never silently wipes the other's authorities or
+  checks. No engine change — the resolution engine landed in 0.7.0 already merges whenever the
+  project lane declares the section.
+- **`setup` scaffolds bundled-lane overrides as merging lanes.** `apply` now writes only the sections
+  a repo actually diverges on plus a `## Merge semantics` block, instead of starting from a full copy
+  of the bundled lane — a copied section is frozen at its copy-time value, so the old instruction
+  produced exactly the freeze-out the decomposition removes. `check` correspondingly stops FAILing a
+  lane for a section it legitimately inherits (declared `## Merge semantics` + a bundled lane of the
+  same name); it reports the inherited sections instead.
+
 ## [0.7.2]
 
 ### Changed
