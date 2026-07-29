@@ -5,6 +5,40 @@ All notable changes to the `discipline` plugin are documented here. Format follo
 
 Entries below `0.9.0` were released under the plugin's former name, `re-anchor`.
 
+## [0.10.1]
+
+### Fixed
+
+- **`do-your-research` claimed triggers its body did not support (`#1269`).** The
+  description routes "fact-check that" and "make sure that's right" to this tier,
+  but the discipline asked only that a claim be checked "against an authoritative
+  source" — no notion of source tier, independent corroboration, or recency
+  appeared anywhere in the file. The bar someone reaches for most often was the
+  one stated most weakly, while the real contract sat in the heavy tiers. The
+  discipline now states that bar as three named dimensions — tier, independent
+  corroboration, recency — and resolves what clears each one down the same
+  ladder the method doc already uses: the consuming project's declared policy
+  first, then the contract `/discovery:research` states where the `discovery`
+  plugin is installed, then a floor this skill owns. The floor is the plugin's
+  own baseline calibrated for the inline tier rather than a copy of a heavier
+  tier's numbers, so a `discipline`-only install still knows what clears the
+  bar instead of resolving it from a plugin that may not be present. Two
+  matching audit triggers were added: a claim resting
+  on one source or on corroborators sharing an upstream pool, and a
+  version/default/flag/API claim checked against a source predating the current
+  release. The clean-audit eval fixture, written against the weaker bar,
+  now establishes corroboration and recency so conforming to the new contract
+  and returning "nothing to correct" stay the same answer.
+- **The skills split on depth but never named direction.** `do-your-research` and
+  `do-your-research-deep` are an inline-versus-fan-out pair, which left the
+  preventive/detective axis — grounding a claim before it is asserted, versus
+  checking claims already asserted — unnamed even though the two have different
+  trigger moments and different costs when skipped. Both directions are now
+  stated in `do-your-research`, with depth reaffirmed as the skill boundary.
+  Deliberately not a split: neither tier owns one direction.
+  `do-your-research-deep` is unchanged and inherits this by its existing
+  "no separate copy of the discipline here" pointer.
+
 ## [0.10.0]
 
 ### Fixed
