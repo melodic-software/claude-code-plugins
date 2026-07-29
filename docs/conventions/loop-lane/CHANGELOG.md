@@ -5,6 +5,23 @@ topology, the escalation contract, the capability-tier vocabulary, or any loop-l
 major bump, and additive guidance is a minor bump. A new model release re-audits the capability-tier
 table (§3); drift found by that audit is recorded here.
 
+## 6.0.1 — 2026-07-29
+
+Corrective, no topology, escalation, tier, or invariant change — 6.0.0's usage-sample invariant is
+clarified, not altered.
+
+- **The one permitted readback (§4) named the wrong scope.** 6.0.0 permitted reading the previous
+  sample back "for exactly one operation: subtracting its `five_hour_pct`", then forbade every other
+  read. But the same invariant withholds a delta when the window rolled over, and deciding that
+  requires comparing against the previous reading — a second read the text forbade, so no lane could
+  satisfy both clauses. The permission is now scoped by **purpose** rather than by operation:
+  deriving `five_hour_delta_pct`, covering the subtraction and the rollover comparison together. The
+  measure-only guarantee is unchanged — the value still reaches no decision at any threshold.
+- **Changelog version order corrected.** The `#1638` entry was authored against 3.1.0 and merged as
+  `3.1.1` after 4.0.0 had already landed, leaving a version regression in a descending-order file.
+  It is renumbered `4.0.1` and repositioned below 5.0.0, preserving both version order and the order
+  entries actually shipped in. No wording in that entry changed.
+
 ## 6.0.0 — 2026-07-29
 
 Adds the per-cycle usage sample to §4's loop-layer invariants, requested and scoped in
@@ -26,11 +43,12 @@ no durable-state block.
   question.
 - **Measure-only, with exactly one permitted readback (§4).** Deriving the delta needs the previous
   cycle's percentage, and after context compaction the telemetry block is the only durable place it
-  survives — so the invariant permits reading the previous sample back for exactly one operation:
-  subtracting its `five_hour_pct` to compute the new sample's `five_hour_delta_pct`. That derivation
-  is the field's only permitted consumer. No other read is permitted, and the value never reaches a
-  decision — not pacing, backoff, an adaptive or item cap, a merge rung, admission, escalation, a
-  warning, or a pause — at any threshold, in a lane or in any gate a lane runs.
+  survives — so the invariant permits reading the previous sample back for exactly one purpose:
+  deriving the new sample's `five_hour_delta_pct` from its `five_hour_pct` (the subtraction, and the
+  rollover comparison deciding whether a delta is written at all). That derivation is the field's
+  only permitted consumer. No other read is permitted, and the value never reaches a decision — not
+  pacing, backoff, an adaptive or item cap, a merge rung, admission, escalation, a warning, or a
+  pause — at any threshold, in a lane or in any gate a lane runs.
 - **The delta measures the preceding interval (§4).** The guard reading a lane copies is taken at
   cycle start, before that cycle's own work, so `at` is the cycle-start observation time and the
   delta is the rise between the previous cycle's reading and this one: it covers the interval
@@ -65,15 +83,6 @@ no durable-state block.
   `rate-limit-guard`'s reader contract carries its own 2026-07-23 stamp on the same page; it is
   unchanged by this entry and its refresh belongs to that plugin's own bump.
 
-## 3.1.1 — 2026-07-29
-
-Docs-only, no topology, escalation, tier, or invariant change: §Versioning's "Re-derivation
-triggers" label becomes "Recheck triggers" and cites the
-[upstream-drift convention](../upstream-drift/README.md) (#1638), the new owner of the
-stamp-and-trigger discipline; the generic date-is-never-authority rationale moves there. Both
-triggers stay unchanged; the recording policy aligns with the owner doc — a firing that finds
-drift lands here, a no-drift firing refreshes the claim's verification date only.
-
 ## 5.0.0 — 2026-07-29
 
 Adds the per-lane consecutive-no-progress detector to §4's loop-layer invariants, requested and
@@ -98,6 +107,15 @@ taken.
   qualifying progress. The attended queue is exempt — its operator is present by definition.
 - **Durable loop state (§4)** now lists the consecutive-no-progress counter among the persisted
   counters.
+
+## 4.0.1 — 2026-07-29
+
+Docs-only, no topology, escalation, tier, or invariant change: §Versioning's "Re-derivation
+triggers" label becomes "Recheck triggers" and cites the
+[upstream-drift convention](../upstream-drift/README.md) (#1638), the new owner of the
+stamp-and-trigger discipline; the generic date-is-never-authority rationale moves there. Both
+triggers stay unchanged; the recording policy aligns with the owner doc — a firing that finds
+drift lands here, a no-drift firing refreshes the claim's verification date only.
 
 ## 4.0.0 — 2026-07-27
 

@@ -3,6 +3,23 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.40.2]
+
+### Fixed
+
+- **`babysit-loop`'s `usage_sample` prose contradicted the loop-lane invariant it cites.** The
+  convention permits reading the previous sample back to derive `five_hour_delta_pct` — the
+  subtraction *and* the rollover comparison — but 0.39.0 described the field as "deliberately inert:
+  no lane behavior reads it back", which no lane computing a rollover-suppressed delta could satisfy.
+  The convention's wording is corrected upstream (loop-lane 6.0.1); the entry recording 0.39.0 is
+  left as shipped and superseded by this one. **The measure-only guarantee is unchanged** — the value
+  still reaches no decision, at any threshold.
+- **`at` was ambiguous between two timestamps.** It is when the lane read the tee, not the snapshot's
+  own `captured_at`, which the staleness rule permits to lag it.
+- **The delta's `null` condition read too narrowly.** "Either sample is missing" excluded a present
+  sample carrying a `null` `five_hour_pct`; it is now `null` whenever either side's `five_hour_pct`
+  is unavailable.
+
 ## [0.40.1]
 
 ### Fixed
