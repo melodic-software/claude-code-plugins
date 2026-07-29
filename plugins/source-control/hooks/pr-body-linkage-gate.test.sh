@@ -254,6 +254,14 @@ assert_block "env --split-string= operand is re-parsed" "$GATED" \
   "$(printf "env --split-string=\"gh pr create -t T --body '%s'\"" "$NO_RELATED")"
 assert_allow "env -S carrying a compliant body allowed" "$GATED" \
   "$(printf "env -S \"gh pr create -t T --body '%s'\"" "$GOOD")"
+# env appends its remaining operands to the split string, so a `-S` carrying
+# only the command prefix still reaches a body sitting after it.
+assert_block "env -S prefix splices the trailing argv" "$GATED" \
+  "$(printf "env -S 'gh pr create' -t T --body '%s'" "$NO_RELATED")"
+assert_block "env --split-string= prefix splices the trailing argv" "$GATED" \
+  "env --split-string='gh pr create' -t T --body-file body.md"
+assert_allow "a spliced compliant body is allowed" "$GATED" \
+  "$(printf "env -S 'gh pr create' -t T --body '%s'" "$GOOD")"
 
 # A short wrapper word is a CLUSTER, not one flag: `sudo -Eu root` is valid, and
 # reading it as a single unknown flag leaves `root` where the command belongs.

@@ -71,7 +71,8 @@
 #     two agree on every ordinary command line; a contrived operand exploiting
 #     the difference could be read wrong. Re-parsing is still strictly better
 #     than the alternative it replaced, which was to ignore the operand and let
-#     the call through unexamined.
+#     the call through unexamined. The operand is spliced with the wrapper's
+#     remaining argv first, since env appends those to whatever it split.
 #   - a directory change confined to a SUBSHELL (`(cd /tmp) && gh pr create …`)
 #     does not survive into the `gh` call, but the tracking flag here is
 #     process-wide, so the call is treated as out of scope. Fixing it needs
@@ -487,7 +488,7 @@ parse_wrapper_flag() {
 # shellcheck disable=SC2329  # invoked indirectly as the hook::bash_parse_segments callback
 check_segment() {
   local -a w=("$@")
-  local n=$# i=0 word next have_next bin wrapper
+  local n=$# i=0 k word next have_next bin wrapper split_from reparse
   local body_flag="" body_val="" body=""
 
   if hook::shell_c_operand "$@"; then
@@ -519,7 +520,14 @@ check_segment() {
           case "$WRAP_KIND" in
           chdir) return 0 ;;
           split)
-            hook::bash_parse_segments "$WRAP_VAL" check_segment
+            # env appends its remaining operands to the split string, so
+            # `env -S 'gh pr create' --body BAD` runs the two spliced together.
+            # Re-parsing the operand alone would see a command with no body.
+            split_from=$((i + 1))
+            ((WRAP_ATE_NEXT)) && split_from=$((i + 2))
+            reparse="$WRAP_VAL"
+            for ((k = split_from; k < n; k++)); do reparse+=" $(printf '%q' "${w[k]}")"; done
+            hook::bash_parse_segments "$reparse" check_segment
             return 0
             ;;
           value) ((WRAP_ATE_NEXT)) && ((i++)) ;;
