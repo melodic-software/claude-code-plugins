@@ -100,8 +100,9 @@ page to `<echoed dir>/visualize.html`. Echo it because shell state does not
 survive between Bash calls: the directory name is random, so an unechoed path is
 unrecoverable in the call that writes the file. Carry the temp root in the
 positional template rather than reaching for a flag: `-p` (which GNU also spells
-`--tmpdir`) exists in both dialects but means different things. GNU treats the template as relative to
-that directory and lets the flag beat `TMPDIR`; BSD/macOS consult it only as a
+`--tmpdir`) exists in both dialects but means different things. GNU treats the
+template as relative to that directory and lets the flag beat `TMPDIR`;
+BSD/macOS consult it only as a
 fallback for `-t` when `TMPDIR` is unset — so with a bare template and no `-t`
 the flag does nothing there and the template resolves against the **current
 directory**, silently writing into the consumer's repo. GNU also marks `-t`
