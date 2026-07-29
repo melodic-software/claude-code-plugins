@@ -41,7 +41,7 @@ behavioral descriptions:
 
 | Doc subject | Digest-agent model |
 |---|---|
-| Guide/card about a specific Claude model | That model (e.g. Opus guide → `opus`) |
+| Guide/card about a specific Claude model | The exact model version the doc describes, resolved to a full model ID — never a bare family alias, which resolves to the current family model and would digest a historical guide on the wrong version. When no exact-version ID is resolvable, omit the override (session default) |
 | Cross-model or harness doc (best practices, effort, guardrails) | Session default (no override) |
 | Non-Claude subject | Session default (no override) |
 

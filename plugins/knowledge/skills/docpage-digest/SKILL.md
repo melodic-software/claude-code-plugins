@@ -50,10 +50,11 @@ sites repeat `overview`, `settings`, and `index` across dozens of pages, and two
 sharing one work root lets a later run overwrite an immutable `source.*` or resume from another
 page's checklist. Derive `<slug>` deterministically from the canonical URL in one fixed form —
 the post-redirect page URL with no fragment and no trailing slash, BEFORE any channel suffix
-like `.md` is appended, dropping only known tracking query parameters (`utm_*`, `gclid`,
-`fbclid`, `ref`) and KEEPING content-selecting ones (`?version=v2` selects a different document
-and must yield a different identity) — so equivalent spellings resume the same root and
-different resources never share one:
+like `.md` is appended, dropping only known tracking-only query parameters (`utm_*`, `gclid`,
+`fbclid`) and KEEPING content-selecting ones (`?version=v2` selects a different document and
+must yield a different identity; `ref` often selects a branch or revision, so it stays in the
+identity unless the matched publisher profile establishes it as tracking-only for that host) —
+so equivalent spellings resume the same root and different resources never share one:
 
 1. Join the host (dots → hyphens) and every non-empty path segment with hyphens.
 2. Slugify to lowercase alphanumerics and hyphens only — strip `/`, `\`, and `..`, and collapse
