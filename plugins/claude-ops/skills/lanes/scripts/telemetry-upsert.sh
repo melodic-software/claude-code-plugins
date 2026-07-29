@@ -91,11 +91,13 @@
 #   it, and reading that id back finds exactly what we expect. (Nor is it the
 #   guard for editing another user's comment: that PATCH 403s and exits 5.)
 #
-#   The GET is retried once: the write has already landed by then, so a transient
-#   read failure must not report a good cycle as a bad one. A second failure is
-#   still fail-closed — the cycle is reported UNCONFIRMED rather than good — but
-#   its message says so, because a check that could not run is not a check that
-#   disagreed.
+#   The GET is retried once: the write has already landed by then, so a momentary
+#   read failure must not report a good cycle as a bad one. That retry is a
+#   network-blip guard only — it does not wait out a secondary rate limit. A
+#   second failure is still fail-closed — the cycle is reported UNCONFIRMED
+#   rather than good — but its message says so, because a check that could not
+#   run is not a check that disagreed, and it branches on gh's own error: a 404
+#   means the comment is gone, not merely unread.
 #
 # Output (stdout): one action line, e.g.
 #   telemetry-upsert: updated comment 12345 (marker=lane:triage) on <owner/repo>#<issue>
@@ -413,12 +415,17 @@ unconfirmed="the body cleared the pre-write gate, so the comment is probably int
 [[ "$new_id" =~ ^[0-9]+$ ]] ||
   verify_fail "the ${action} response carried a non-numeric comment id ('$new_id'), so the write cannot be read back" "$unconfirmed"
 
-# The write has already landed by this point, so a transient GET failure would
+# The write has already landed by this point, so a momentary GET failure would
 # otherwise report a good cycle as a bad one. Retry once before concluding the
-# comment is unverifiable; a second failure is still fail-closed. gh's stderr is
-# kept rather than discarded: a 404 (the comment is gone — act now) and a 403/429
-# (secondary rate limit — it will pass next cycle) are the same exit status here
-# and call for opposite responses, so the operator needs the real message.
+# comment is unverifiable; a second failure is still fail-closed. The retry is a
+# network-blip guard ONLY — it does not honor Retry-After, so a secondary rate
+# limit (which outlasts it by far) reliably burns both attempts.
+#
+# gh's stderr is kept rather than discarded, and the verdict branches on it: a
+# 404 means the comment is GONE, which contradicts the default "probably intact"
+# reading, while a 403/429 means it is almost certainly still there and simply
+# unread. The two call for opposite responses, so neither the raw message nor
+# the conclusion drawn from it can be one-size-fits-all.
 verify_err="$(mktemp)" || verify_fail "could not create a temp file to capture the read-back error" "$unconfirmed"
 trap 'rm -f "$verify_err"' EXIT
 verify_body=""
@@ -430,8 +437,16 @@ for verify_attempt in 1 2; do
   fi
   ((verify_attempt == 1)) && sleep 2
 done
-((verify_read)) ||
-  verify_fail "could not re-read comment $new_id after 2 attempts (gh api GET): $(tr -d '\r' <"$verify_err" | tr '\n' ' ')" "$unconfirmed"
+if ((verify_read == 0)); then
+  verify_err_text="$(tr -d '\r' <"$verify_err" | tr '\n' ' ')"
+  case "$verify_err_text" in
+  *"HTTP 404"*)
+    verify_verdict="comment $new_id is GONE — the write landed and the comment no longer exists (deleted, or the issue was); the next cycle will create a fresh one"
+    ;;
+  *) verify_verdict="$unconfirmed" ;;
+  esac
+  verify_fail "could not re-read comment $new_id after 2 attempts (gh api GET): $verify_err_text" "$verify_verdict"
+fi
 
 case "$verify_body" in
 *"$SENTINEL"*) : ;;

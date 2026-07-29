@@ -54,9 +54,11 @@ LOG="$TMP/gh.log"
 # .id / .html_url).
 #
 # Read-back knobs (all default to a body that verifies):
-#   STUB_READBACK_BODY  exact body the read-back GET returns
-#   STUB_READBACK_FAIL  non-empty: the read-back GET exits non-zero
+#   STUB_READBACK_BODY  exact body the read-back GET returns (emitted CRLF)
+#   STUB_READBACK_FAIL  non-empty: the read-back GET fails with a 403 rate limit
+#   STUB_READBACK_404   non-empty: the read-back GET fails with a 404
 #   STUB_NO_ID          non-empty: mutations answer with no `id` field
+#   STUB_NO_ID_PATCH    non-empty: only PATCH answers with no `id` field
 #   STUB_NO_HTML_URL    non-empty: mutations answer with an `id` but no `html_url`
 #   STUB_BAD_ID         non-empty: mutations answer with a non-numeric traversal `id`
 cat >"$STUB_BIN/gh" <<'STUB'
@@ -85,6 +87,8 @@ if [[ -n "$method" ]]; then
   printf 'CALL method=%s url=%s\n' "$method" "$url" >>"$STUB_LOG"
   if [[ -n "${STUB_NO_ID:-}" ]]; then
     printf '{"html_url":"https://github.com/o/r/issues/1#c0"}\n'
+  elif [[ -n "${STUB_NO_ID_PATCH:-}" && "$method" == "PATCH" ]]; then
+    printf '{"html_url":"https://github.com/o/r/issues/1#c222"}\n'
   elif [[ -n "${STUB_BAD_ID:-}" ]]; then
     printf '{"id":"../../../org2/target/issues/comments/1","html_url":"https://github.com/o/r/issues/1#c0"}\n'
   elif [[ -n "${STUB_NO_HTML_URL:-}" ]]; then
@@ -102,15 +106,28 @@ fi
 # the projection must not keep passing here.
 if [[ "$url" == */issues/comments/* ]]; then
   printf 'CALL method=GET url=%s\n' "$url" >>"$STUB_LOG"
-  [[ -n "${STUB_READBACK_FAIL:-}" ]] && exit 1
+  # Failure knobs write to STDERR the way real gh does, so the script's capture
+  # of that text (and the 404-vs-rate-limit verdict it derives) is exercised.
+  if [[ -n "${STUB_READBACK_404:-}" ]]; then
+    printf 'gh: Not Found (HTTP 404)\n' >&2
+    exit 1
+  fi
+  if [[ -n "${STUB_READBACK_FAIL:-}" ]]; then
+    printf 'gh: You have exceeded a secondary rate limit (HTTP 403)\n' >&2
+    exit 1
+  fi
   if [[ "$jq_query" != ".body" ]]; then
     printf '{"id":999,"body":"a JSON object, not the raw body"}\n'
     exit 0
   fi
+  # GitHub stores comment bodies with CRLF line endings, so the stub emits them:
+  # without the script's `tr -d '\r'` the `@`-prefix assertion below the sentinel
+  # silently stops matching, and the guard would go inert against the real API
+  # while a LF-only stub kept the suite green.
   if [[ -n "${STUB_READBACK_BODY+set}" ]]; then
-    printf '%s\n' "$STUB_READBACK_BODY"
+    printf '%s\n' "$STUB_READBACK_BODY" | sed 's/$/\r/'
   else
-    printf '%s\nlane: triage\nlast-cycle: 2026-07-21T06:00:00Z\nflags: none\n' "${STUB_SENTINEL:-}"
+    printf '%s\nlane: triage\nlast-cycle: 2026-07-21T06:00:00Z\nflags: none\n' "${STUB_SENTINEL:-}" | sed 's/$/\r/'
   fi
   exit 0
 fi
@@ -467,6 +484,17 @@ assert_eq "failed read-back is retried once before failing" 2 "$gets"
 # the body already cleared the pre-write gate, so the comment is unconfirmed
 # rather than known-bad, and the operator is told so.
 assert_contains "unreachable read-back is reported as unconfirmed" "$out" "UNCONFIRMED"
+# gh's own error text must reach the operator — it is the only thing separating a
+# rate limit (the comment is there, just unread) from a 404 (it is gone).
+assert_contains "rate-limited read-back surfaces gh's error text" "$out" "secondary rate limit"
+
+# A 404 contradicts the default "probably intact" reading, so the verdict branches.
+out="$(STUB_READBACK_404=1 run "$TMP/empty.json" 2>&1)"
+rc=$?
+assert_eq "404 read-back exits 6" 6 "$rc"
+assert_contains "404 read-back surfaces gh's error text" "$out" "HTTP 404"
+assert_contains "404 read-back says the comment is gone" "$out" "is GONE"
+assert_not_contains "404 read-back does not claim the comment is intact" "$out" "probably intact"
 
 # Same rule when the write response carries no id to read back.
 out="$(STUB_NO_ID=1 run "$TMP/empty.json" 2>&1)"
@@ -484,6 +512,16 @@ log="$(cat "$LOG")"
 assert_eq "non-numeric comment id exits 6" 6 "$rc"
 assert_contains "non-numeric id message" "$out" "non-numeric comment id"
 assert_not_contains "traversal id never reaches a read-back GET" "$log" "org2/target"
+
+# A PATCH response with no `id` is still verifiable: the update path already
+# resolved the target id, so it falls back to that rather than declaring a
+# successful write unverifiable over a missing response field.
+: >"$LOG"
+out="$(STUB_NO_ID_PATCH=1 run "$TMP/has-sentinel.json" 2>&1)"
+rc=$?
+log="$(cat "$LOG")"
+assert_eq "PATCH response with no id still exits 0" 0 "$rc"
+assert_contains "id-less PATCH reads back the resolved target id" "$log" "method=GET url=repos/$REPO/issues/comments/222"
 
 # A response carrying an id but NO html_url still exits 0. The trailing
 # `[[ -n "$html_url" ]] && printf` used to be the script's last command, so its

@@ -237,7 +237,9 @@ each — the summary below is a pointer, not a copy.
   `3` having called no API at all; after the write it re-reads the comment and
   exits `6` if what landed lost the sentinel or fails those same assertions — or
   if the read-back could not be performed at all, which reports the cycle
-  UNCONFIRMED rather than bad (#952).
+  UNCONFIRMED rather than bad (#952). The `@` rule is positional, so a body whose
+  FIRST line is a GitHub @mention is rejected too: lead with a telemetry key
+  (`lane:`) and put mentions on a later line.
 
 ### Never pass a body as an `@path` string
 

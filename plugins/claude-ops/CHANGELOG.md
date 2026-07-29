@@ -25,11 +25,13 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   another user's comment is not its job either (that `PATCH` 403s and exits `5`). The create/update
   response echo is deliberately not trusted in place of the re-read: it proves the request was
   accepted, not what landed. An unreachable `GET` is retried once and then reports the cycle
-  UNCONFIRMED rather than known-bad — a check that could not run is not a check that disagreed —
-  and now carries `gh`'s own error text, because a `404` (the comment is gone) and a `403`/`429`
-  (secondary rate limit) call for opposite responses. There is no `--no-verify` opt-out; this script
-  is driven by lane prompts, so an escape hatch would be reachable by the same caller the gate
-  exists to catch.
+  UNCONFIRMED rather than known-bad — a check that could not run is not a check that disagreed. It
+  carries `gh`'s own error text and branches its verdict on it: a `404` says the comment is GONE,
+  while anything else (a `403`/`429` secondary rate limit) keeps the "probably intact, unconfirmed"
+  reading. The retry is a network-blip guard only — it does not honor `Retry-After`, so a secondary
+  rate limit outlasts both attempts by design. There is no `--no-verify` opt-out; this script is
+  driven by lane prompts, so an escape hatch would be reachable by the same caller the gate exists
+  to catch.
 - **`lanes` doctrine: the `@path`-as-body anti-pattern is stated once, in the skill.** Telemetry and
   comment bodies are passed as file contents or piped, never as an `@path` string interpolated into
   a body value: `gh issue comment --body @path` and `gh api -f body=@path` send the literal text.
@@ -43,9 +45,10 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
 - **`telemetry-upsert.sh` now rejects bodies it previously accepted (#952).** A body beginning with
   a literal `@`, or shorter than 16 bytes, exits `3` instead of being posted. Both shapes are the
   #943 fail-open rather than legitimate telemetry, so the rejection is the point — but a caller
-  passing either today changes from a silent success to a hard failure. No in-repo caller is
-  affected: nothing invokes the wrapper yet, by design (routing the operator loop-prompt through it
-  is #943, out-of-repo).
+  passing either today changes from a silent success to a hard failure. The `@` rule is positional,
+  so a body whose FIRST line is a GitHub @mention is rejected too: lead with a telemetry key and put
+  mentions on a later line. No in-repo caller is affected: nothing invokes the wrapper yet, by
+  design (routing the operator loop-prompt through it is #943, out-of-repo).
 
 ### Fixed
 
