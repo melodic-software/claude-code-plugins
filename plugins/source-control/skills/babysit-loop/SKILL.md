@@ -313,8 +313,9 @@ worker lifecycle, and the re-partition rule — is owned by
 
 ## No-progress detector
 
-The counter semantics — increment on an actionable-but-zero-progress cycle, hold on an idle cycle,
-reset on any qualifying progress, escalate at the threshold and keep looping, at most one open
+The counter semantics — increment on an actionable-but-zero-progress cycle, hold on an idle cycle
+and on a guard-held one, reset on any qualifying progress, escalate at the threshold and keep
+looping, at most one open
 stall escalation (author-matched), neither the stall escalation nor a repeat attempt at the same
 still-unresolved blocker ever counting as progress, the resumption comment when progress returns
 while a stall escalation is open — are the convention's (§4, "No-progress detector"), held by
@@ -328,7 +329,10 @@ citation. This lane's specifics:
   no-self-reset rule); or this lane wrote a new escalation. Compare against the previous cycle's
   snapshot; across a session restart, anchor on the telemetry comment's last upsert time.
 - **Actionable work in view**: the cycle-start snapshot holds at least one open PR. Otherwise the
-  cycle is idle and the counter holds.
+  cycle is idle and the counter holds. A cycle running under the rate-limit guard's pause (the
+  inlined floor below) is **held** and the counter likewise holds however many PRs the snapshot
+  carries — the lane claimed no work because the guard forbade it, per the convention's held-cycle
+  rule.
 - **Threshold**: `babysit_loop_no_progress_threshold` on the layered config seam (key table in
   the config reference above; default 3).
 - **Stall escalation**: the Escalation contract above, unchanged — a `Lane stall: babysit-loop`

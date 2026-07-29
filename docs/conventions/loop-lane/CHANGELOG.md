@@ -19,7 +19,9 @@ taken.
   so a lane cycling with zero aggregate progress was invisible to itself. Each unattended lane now
   persists a `no_progress_streak` counter in its #502 durable state (absent = 0): a cycle with
   actionable work in the cycle-start snapshot and no lane-defined qualifying progress increments
-  it, an idle cycle leaves it unchanged, and any qualifying progress resets it. Reaching the stall
+  it, an idle cycle — or one held under the rate-limit guard's pause (§6), where the lane declines
+  mutating work by design — leaves it unchanged, and any qualifying progress resets it. Reaching
+  the stall
   threshold (default 3; lane-configurable) **escalates through §2's existing contract and keeps
   looping** — never a lane stop, no second channel, no new guardrail event class. At most one stall
   escalation per lane stays open at a time (author-matched dedup), and neither the stall escalation

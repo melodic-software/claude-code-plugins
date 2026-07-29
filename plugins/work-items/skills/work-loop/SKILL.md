@@ -305,8 +305,9 @@ arithmetic over those two factors bounds the fan-out.
 
 ## No-progress detector
 
-The counter semantics — increment on an actionable-but-zero-progress cycle, hold on an idle cycle,
-reset on any qualifying progress, escalate at the threshold and keep looping, at most one open
+The counter semantics — increment on an actionable-but-zero-progress cycle, hold on an idle cycle
+and on a guard-held one, reset on any qualifying progress, escalate at the threshold and keep
+looping, at most one open
 stall escalation (author-matched), neither the stall escalation nor a repeat attempt at the same
 still-unresolved blocker ever counting as progress, the resumption comment when progress returns
 while a stall escalation is open — are the convention's (§4, "No-progress detector"), held by
@@ -318,7 +319,10 @@ citation. This lane's specifics:
   execution that changed no tracker state (retried next cycle) is not progress; a dirty item that
   escalated off the item is.
 - **Actionable work in view**: the cycle-start snapshot holds at least one autonomous-frontier
-  candidate or untriaged intake item. Otherwise the cycle is idle and the counter holds.
+  candidate or untriaged intake item. Otherwise the cycle is idle and the counter holds. A cycle
+  running under the rate-limit guard's pause (the inlined floor above) is **held** and the counter
+  likewise holds whatever the snapshot carries — the lane claimed no work because the guard forbade
+  it, per the convention's held-cycle rule.
 - **Threshold**: `${user_config.work_loop_no_progress_threshold}` consecutive no-progress cycles;
   a surviving literal placeholder means the key is unset — apply the manifest default (3).
 - **Stall escalation**: the convention's escalation contract, unchanged — create a tracker item

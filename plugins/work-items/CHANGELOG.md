@@ -13,7 +13,8 @@ All notable changes to the `work-items` plugin are documented here. Format follo
   `no_progress_streak` counter beside `clean_streak` in its `#502` durable state block: a cycle
   with actionable work in the cycle-start snapshot (frontier candidates or untriaged intake) that
   ends with no qualifying progress — an item advanced or a PR opened — increments it, an idle
-  cycle leaves it unchanged, and any qualifying progress resets it. At the threshold (new
+  cycle — or one held under the rate-limit guard's pause, where the lane declines work by design —
+  leaves it unchanged, and any qualifying progress resets it. At the threshold (new
   `work_loop_no_progress_threshold` userConfig key, default 3) the lane raises a stall escalation
   through the existing escalation contract — a `Lane stall: work-loop` tracker item with the
   human-gated role label and the machine-marked escalation comment, at most one open at a time

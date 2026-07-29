@@ -15,7 +15,8 @@ All notable changes to the `source-control` plugin are documented here. Format f
   with no qualifying progress — no PR merged or closed, materially changed (head, reviews,
   comments, checks, draft elevation — foreign activity included; the lane's own repeat attempt at
   the same still-unresolved blocker never re-qualifies), and no new escalation written —
-  increments it, an idle cycle (no open PRs) leaves it unchanged, and any qualifying progress
+  increments it, an idle cycle (no open PRs) — or one held under the rate-limit guard's pause,
+  where the lane declines work by design — leaves it unchanged, and any qualifying progress
   resets it. At the threshold (new `babysit_loop_no_progress_threshold` seam key, default 3) the
   lane raises a stall escalation through the existing escalation contract — a
   `Lane stall: babysit-loop` issue with the human-gated role label and the machine-marked

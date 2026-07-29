@@ -241,7 +241,14 @@ durable counters in the #502 state block (absent from a re-read block = 0). What
 qualifying progress event is lane-specific and defined in each lane body; the semantics here are
 shared. A cycle whose cycle-start snapshot held actionable work for the lane and that ended with no
 qualifying progress increments the counter; an idle cycle — nothing actionable in view — leaves it
-unchanged (idle is not stalled); any qualifying progress resets it to zero. When an increment
+unchanged (idle is not stalled); any qualifying progress resets it to zero. A **held** cycle is a
+third state and also leaves the counter unchanged: while the rate-limit guard's pause is in force
+(§6 — drain-then-pause, "stop claiming new work"), the lane declines mutating work *by design*, so
+however much sits in its snapshot, no qualifying progress was available to make. Held is not
+stalled either, and the distinction is load-bearing at the default threshold: a pause outlasting
+three cycles would otherwise escalate a lane for obeying the guard exactly. Only cycles the lane was
+free to act in are counted, so the detector measures a lane failing to move a queue it could have
+moved. When an increment
 brings the counter to the stall threshold — default **3** consecutive no-progress cycles; a lane
 may expose the threshold on its own config surface — the lane **escalates and keeps looping**: a
 stalled lane is usually a signal about the queue, not a reason to terminate. The stall escalation
