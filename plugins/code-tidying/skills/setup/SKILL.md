@@ -45,7 +45,8 @@ FAIL. Modify nothing, and do NOT run a tidy sweep — that is `/code-tidying:tid
 2. **Lane structure** — each present lane file carries the required sections (`## Scope`,
    `## Watch-for patterns`, `## Lane-specific extra exclusions`, `## Verification commands`,
    `## Conventional Commits type`, `## Preferred research sources`). A lane missing a section is FAIL —
-   except a lane that declares `## Merge semantics` **and** shares its name with a bundled lane: that one
+   except a lane that declares `## Merge semantics` **and** shares its name with one of
+   `${CLAUDE_PLUGIN_ROOT}/skills/tidy/lanes/*.md`: that one
    inherits every section it omits from its bundled counterpart, so a missing section is expected, not a
    FAIL. Report which sections it inherits.
 3. **No unreplaced placeholders** — a lane still containing a template `<placeholder>` resolves to a
