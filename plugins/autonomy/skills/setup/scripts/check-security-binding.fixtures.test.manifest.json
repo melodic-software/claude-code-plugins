@@ -24,6 +24,12 @@
         "merge_policy.C2: \"auto\" without a ratified promotion_state.C2-auto-merge entry (state \"promoted\")"
       ]
     },
+    "c3-auto-unratified.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "merge_policy.C3: \"auto\" without a ratified promotion_state.C3-auto-merge entry (state \"promoted\")"
+      ]
+    },
     "c3-blocking-unratified.json": {
       "exit": 1,
       "findings_substrings": [
@@ -82,12 +88,55 @@
       "findings_substrings": [],
       "credential_roots": "/home/runner"
     },
+    "evidence-c2-reearn-no-c3-revival.json": {
+      "binding": "promoted-c2reearned-c3.json",
+      "evidence": "evidence-c2-reearn-no-c3-revival.json",
+      "exit": 0,
+      "findings_substrings": [
+        "C2-auto-merge: bound promoted -> effective promoted (1 pre-epoch contrary event(s) ignored",
+        "C3-auto-merge: bound promoted -> effective unpromoted",
+        "C2-auto-merge (prerequisite cell) reverted-merge"
+      ],
+      "credential_roots": "/home/runner"
+    },
+    "evidence-c2-revert-cascades-c3.json": {
+      "binding": "promoted-c2c3.json",
+      "evidence": "evidence-c2-revert-cascades-c3.json",
+      "exit": 0,
+      "findings_substrings": [
+        "C2-auto-merge: bound promoted -> effective unpromoted",
+        "C3-auto-merge: bound promoted -> effective unpromoted",
+        "C2-auto-merge (prerequisite cell) reverted-merge"
+      ],
+      "credential_roots": "/home/runner"
+    },
+    "evidence-c2-revert-mixed-epoch.json": {
+      "binding": "promoted-c2c3-late.json",
+      "evidence": "evidence-c2-revert-mixed-epoch.json",
+      "exit": 0,
+      "findings_substrings": [
+        "C2-auto-merge: bound promoted -> effective unpromoted",
+        "C3-auto-merge: bound promoted -> effective unpromoted",
+        "prerequisite cell(s) not effective-promoted (C2-auto-merge: demoted by contrary evidence"
+      ],
+      "credential_roots": "/home/runner"
+    },
     "evidence-contrary.json": {
       "binding": "promoted-c2.json",
       "evidence": "evidence-contrary.json",
       "exit": 0,
       "findings_substrings": [
         "ceiling lowered by contrary evidence"
+      ],
+      "credential_roots": "/home/runner"
+    },
+    "evidence-empty.json": {
+      "binding": "promoted-c3-only.json",
+      "evidence": "evidence-empty.json",
+      "exit": 0,
+      "findings_substrings": [
+        "C3-auto-merge: bound promoted -> effective unpromoted",
+        "prerequisite cell(s) not effective-promoted (C2-auto-merge: no promotion_state entry)"
       ],
       "credential_roots": "/home/runner"
     },
@@ -201,13 +250,6 @@
       ],
       "credential_roots": "/home/runner"
     },
-    "probe-evidence-credroots-root-slash.json": {
-      "exit": 1,
-      "credential_roots": "/",
-      "findings_substrings": [
-        "does not resolve under any configured --credential-roots"
-      ]
-    },
     "probe-evidence-credroots-case-mismatch.json": {
       "exit": 1,
       "credential_roots": "/home/Runner",
@@ -225,6 +267,13 @@
     "probe-evidence-credroots-relative-root.json": {
       "exit": 1,
       "credential_roots": "secrets",
+      "findings_substrings": [
+        "does not resolve under any configured --credential-roots"
+      ]
+    },
+    "probe-evidence-credroots-root-slash.json": {
+      "exit": 1,
+      "credential_roots": "/",
       "findings_substrings": [
         "does not resolve under any configured --credential-roots"
       ]
@@ -506,6 +555,26 @@
       ]
     },
     "promoted-c2.json": {
+      "exit": 0,
+      "findings_substrings": [],
+      "credential_roots": "/home/runner"
+    },
+    "promoted-c2c3-late.json": {
+      "exit": 0,
+      "findings_substrings": [],
+      "credential_roots": "/home/runner"
+    },
+    "promoted-c2c3.json": {
+      "exit": 0,
+      "findings_substrings": [],
+      "credential_roots": "/home/runner"
+    },
+    "promoted-c2reearned-c3.json": {
+      "exit": 0,
+      "findings_substrings": [],
+      "credential_roots": "/home/runner"
+    },
+    "promoted-c3-only.json": {
       "exit": 0,
       "findings_substrings": [],
       "credential_roots": "/home/runner"

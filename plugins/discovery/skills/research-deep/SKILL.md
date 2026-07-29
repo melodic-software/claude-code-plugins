@@ -5,6 +5,9 @@ argument-hint: "[topic] (e.g., /discovery:research-deep <library> <version> best
 user-invocable: true
 disable-model-invocation: false
 shell: bash
+metadata:
+  workflow-stage: research
+  summary: Dispatch deep multi-topic research to the heaviest isolated tier
 ---
 
 ## Pre-computed context

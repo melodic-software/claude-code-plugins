@@ -1,6 +1,6 @@
 ---
-version: 1.2.0
-last-updated: 2026-07-25
+version: 1.3.0
+last-updated: 2026-07-26
 ---
 
 # Instruction-Audit Criteria
@@ -14,8 +14,8 @@ cited URL, not restated here).
 docs when any fires: a new frontier model release; **a change to any page listed under Sources
 below**. Every check cites one of those pages, so the trigger set is the source set — naming a
 subset would leave the harness-behavior rows depending on pages nothing watches. One staleness event
-fires the whole catalog, not the check that noticed it. Model-specific pages (the Fable 5 guide) are
-superseded on each model generation.
+fires the whole catalog, not the check that noticed it. Model-specific pages (the Fable 5 and
+Opus 5 guides) are superseded on each model generation.
 
 **Axes.** Three orthogonal axes, never conflated:
 
@@ -25,6 +25,18 @@ superseded on each model generation.
 - **Authority** — `ANTHROPIC-DOCS` (official documentation), `TALK` (a recorded talk), `OPINION`
   (a practitioner's stated practice). A closed three-value set.
 - **Severity** — `error` / `warning` / `info`.
+
+**Model scoping.** A check or row sourced from a SINGLE model's guide is annotated
+`Model scope: <version>` and FIRES only when the run's resolved target model (the skill body owns
+`--target-model` resolution) matches that scope; otherwise it is inert and the report lists it as
+`skipped-for-target`. **The match is exact string equality of the normalized version token**
+(e.g. `opus-5`): a point release or a dated full model ID does NOT auto-match a base-version scope
+— model guides are calibrated per version, and successive guides have reversed each other, so a
+near-miss target skips the row (reported `skipped-for-target`, naming the near-miss) rather than
+inheriting a sibling version's doctrine. The scope value is data — no check body branches on a
+model name in prose. Promotion to fleet-wide (unscoped) happens only through the gate: an
+authoritative model-agnostic upstream doc states the claim, OR multiple model guides converge on
+it. Unannotated checks are model-agnostic and always fire.
 
 **`OPINION` enablement.** Enablement attaches to *detection*, never to advice, and splits on what a
 rule does:
@@ -58,6 +70,8 @@ I15–I16 apply to all surfaces; I13 and I14 name narrower surface sets in their
   <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices>
 - Prompting Claude Fable 5 —
   <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5>
+- Prompting Claude Opus 5 —
+  <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5>
 - Memory (CLAUDE.md, rules, auto memory) — <https://code.claude.com/docs/en/memory>
 - The `.claude` directory — <https://code.claude.com/docs/en/claude-directory>
 - Skills (what loads when, how supporting files are referenced, the listing budget,
@@ -173,17 +187,28 @@ Tier `mechanical` · Authority `ANTHROPIC-DOCS` · Severity `warning` · Surface
 
 ### I7: Reason with the request
 
-Tier `behavioral` · Authority `ANTHROPIC-DOCS` · Severity `info` · Surfaces: all.
+Tier `behavioral` · Authority `ANTHROPIC-DOCS` · Severity `info` · Surfaces: all. Unscoped —
+promotion gate MET: the model-agnostic best-practices page states the same claim (see Source),
+so this fires for every target model.
 
 - **Detect:** an instruction that states a request with no intent or motivation attached.
 - **Remediate:** add the why — the model connects the task to relevant context instead of inferring
   intent on its own.
 - **Source:** Fable 5 guide, "Give the reason, not only the request" — "Claude Fable 5 tends to
-  perform better when it understands the intent behind a request."
+  perform better when it understands the intent behind a request." Convergent model-agnostic
+  source (the gate-meeting one): Prompting best practices, "Add context to improve performance" —
+  "Providing context or motivation behind your instructions, such as explaining to Claude why
+  such behavior is important, can help Claude better understand your goals and deliver more
+  targeted responses."
 
 ### I8: Model-era re-audit
 
 Tier `behavioral` · Authority `ANTHROPIC-DOCS` · Severity `warning` · Surfaces: all.
+
+The base row and each model row carry their own `Model scope` (single-model guide sources;
+promotion gate unmet for all of them).
+
+**Base row** · Model scope: `fable-5`.
 
 - **Detect:** prior-model workarounds and over-prescriptive step lists — instructions enumerating
   behaviors a current model handles from a brief instruction, or scaffolding that pins an approach.
@@ -192,6 +217,61 @@ Tier `behavioral` · Authority `ANTHROPIC-DOCS` · Severity `warning` · Surface
 - **Bounded by:** the **Stopping condition** below, which is enabled by default.
 - **Source:** Fable 5 guide — "Skills developed for prior models are often too prescriptive for
   Claude Fable 5 and can degrade output quality."
+
+**Row I8-a: instructed self-check removal** · Tier `behavioral` · Model scope: `opus-5`.
+
+- **Detect:** instructions telling the model to re-check work it already checks — "double-check
+  your answer," "re-verify before responding," "include a final verification step," "use a
+  subagent to verify" — including legacy harness scaffolding that adds separate verification
+  steps.
+- **Classify by reviewer INDEPENDENCE, not invocation source:** architected independent review — a
+  fresh-context reviewer blind to the producing rationale, or a different-vendor verifier — is NOT
+  a finding; the anti-pattern is the instructed self-check. **Carve-out lanes (never flagged):**
+  security review, destructive operations, managed-upstream-file changes, PR merge gates.
+- **Remediate:** propose removal; verify via the delete-and-watch loop.
+- **Bounded by:** the **Stopping condition** below.
+- **Source:** Opus 5 guide, "Task scope and over-verification" — remove explicit verification
+  instructions: they "cause over-verification on Claude Opus 5, and removing them reduces wasted
+  tokens with no loss in quality"; "Self-correction" — avoid instructing re-checks it already
+  performs.
+
+**Row I8-b: conservative-reporting detection** · Tier `behavioral` · Model scope: `opus-5`.
+
+- **Detect:** review/report instructions that gate severity at the FINDING stage — "be
+  conservative," "only report high-severity issues," "don't nitpick" — which this model follows
+  literally, withholding real findings. The gate is about WITHHOLDING findings from the audit or
+  report output: severity-based routing where everything is still reported somewhere ("only page
+  on-call for high-severity; log the rest") and non-reporting uses of "conservative"
+  ("conservative time estimates") are not findings.
+- **Two fences, OWNED HERE (the scanner over-produces by contract; the model lane adjudicates):**
+  1. **Restraint-clause shape** — a clause bounding when a TRANSFORMATION or action applies
+     ("When NOT to apply…", "skip the change when…") is not a reporting gate; the canonical
+     non-finding shape is a tidying catalog's restraint text (in this monorepo:
+     `plugins/code-tidying/skills/tidy/reference/tidyings.md`; in a standalone install the shape,
+     not the path, is the fence).
+  2. **Quoted/meta surfaces** — a document that DISCUSSES the conservative-reporting pattern
+     (this criteria file, a model-adaptation delta chapter, verification records quoting it) is
+     not a finding. Judge at the level of the instruction's audience: quoted text embedded inside
+     an operative directive ("follow the maxim: 'only report high-severity issues'") is still
+     operative and IS a finding; the exemption is for documents about the pattern, never for
+     quotation as packaging.
+- **Remediate:** rephrase to report-everything + a separate filter/rank pass.
+- **Bounded by:** the **Stopping condition** below, which is enabled by default.
+- **Source:** Opus 5 guide, "Code review and bug-finding" — the model "may follow that
+  instruction literally and report less; ask it to report everything and filter in a separate
+  pass instead."
+
+**Row I8-c: don't-think / don't-reason directive** · Tier `behavioral` · Model scope: `opus-5`.
+
+- **Detect:** instructions telling the model not to think or not to reason — with thinking
+  disabled these increase internal-tag leakage. Also flag tag-hygiene rules that name thinking
+  tags specifically (less effective than the general form).
+- **Remediate:** remove the directive; where output-tag hygiene is genuinely needed, use the
+  general "internal or system XML tags" phrasing.
+- **Bounded by:** the **Stopping condition** below, which is enabled by default.
+- **Source:** Opus 5 guide, "Running with thinking disabled" — "If your system prompt contains a
+  rule instructing the model not to think or not to reason, remove it; that kind of instruction
+  increases tag leakage"; naming thinking tags is "less effective than the general form."
 
 ### I9: Example hygiene
 
@@ -212,7 +292,8 @@ Tier `behavioral` · Authority `ANTHROPIC-DOCS` · Severity `info` · Surfaces: 
 
 ### I10: Reasoning-echo directives
 
-Tier `mechanical` · Authority `ANTHROPIC-DOCS` · Severity `error` · Surfaces: all.
+Tier `mechanical` · Authority `ANTHROPIC-DOCS` · Severity `error` · Surfaces: all · Model scope:
+`fable-5` (the cited refusal category is documented for that model only; promotion gate unmet).
 
 - **Detect:** instructions telling the model to show, echo, transcribe, or explain its internal
   reasoning as response text. The deterministic pre-scan marks show-your-thinking phrasing.

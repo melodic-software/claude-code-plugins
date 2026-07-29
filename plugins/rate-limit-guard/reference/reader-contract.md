@@ -47,12 +47,18 @@ never sees torn JSON; the file is **last-writer-wins** across all sessions on th
   (<https://code.claude.com/docs/en/statusline>, verified 2026-07-23): `used_percentage` is 0–100,
   `resets_at` is Unix epoch seconds. The key is present **only** when the session observes
   subscription windows; each window may be independently absent.
-- Session-distinguishing fields — `session_id`, `session_name`, and any future top-level field whose
-  key matches `account` (case-insensitive) are copied through automatically, so the release that
-  adds an account identifier upgrades this file without a plugin change. Treat these values as
-  **untrusted**: `session_name` (and potentially a future account field) is user/AI-influenced, so
-  consumers parse them only with a JSON parser and never string-interpolate them into a shell
-  command, another interpreter, or a prompt.
+- Session-distinguishing fields — `session_id`, `session_name`, and any **top-level** key whose name
+  **contains** `account` (case-insensitive) are copied through automatically. The writer selects on
+  the **top-level key name only**, and a selected key carries its **whole value** across, nested
+  objects included: `account_info: {uuid, display_name}` arrives complete. A key that does not match
+  is dropped with no diagnostic — `user`, `identity`, `org`, and `seat` all vanish silently, and so
+  does an `account_uuid` buried inside a non-matching object such as `user`, because nothing at the
+  top level matched. A future account identifier therefore arrives without a writer change only when
+  its own top-level key name contains `account`; every other shape needs one. Treat these values as
+  **untrusted**: `session_name`, and any future account field — which may be an **object of
+  arbitrary strings**, not just a scalar — are user/AI-influenced, so consumers parse them only with
+  a JSON parser and never string-interpolate them into a shell command, another interpreter, or a
+  prompt.
 
 ## Capability detection (fail-open)
 
@@ -104,8 +110,9 @@ is part of the seam only in the sense that tooling sweeping the directory should
   on the first, and the guard cannot detect it. The loop-lane convention §6 owns the framing and
   records it as a gap rather than as a safe assumption; the account-identity design that resolves
   it — writer-side field, reader-side invalidation of latched state, lane-floor re-audit — is
-  `TODO(#1218)`. Locally relevant today: the writer already forward-passes any top-level key
-  matching `account`, so an identity field costs no plugin change the release one appears.
+  `TODO(#1218)`. Locally relevant today, and only this far: the writer already forward-passes an
+  account-matching key under the exact rule "Tee file shape" states, so an identity field of that
+  shape costs no writer change the release one appears — and every other shape costs one.
 - **No shipped Monitor config.** Consumers arm their own session Monitor on the tee file (the
   staleness rule makes this mandatory while paused). The plugin ships no `experimental.monitors`
   entry — Monitors is an experimental Claude Code component, and this plugin takes no dependency on

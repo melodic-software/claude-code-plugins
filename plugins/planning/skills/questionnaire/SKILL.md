@@ -4,6 +4,9 @@ description: "Turn a decision the user cannot answer — because another person 
 argument-hint: "[topic]"
 user-invocable: true
 disable-model-invocation: true
+metadata:
+  workflow-stage: contract
+  summary: Turn a decision someone else must answer into an async questionnaire
 ---
 
 ## Variables

@@ -4,6 +4,9 @@ description: "Routes the repetition-lever choice across /goal, /loop, routines a
 argument-hint: "[intent]"
 user-invocable: true
 disable-model-invocation: false
+metadata:
+  workflow-stage: plan
+  summary: Pick the right autonomy lever and craft a /goal completion condition
 ---
 
 ## Variables

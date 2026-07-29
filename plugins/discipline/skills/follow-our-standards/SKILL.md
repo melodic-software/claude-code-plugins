@@ -6,6 +6,8 @@ disable-model-invocation: false
 metadata:
   discipline-batch: situational  # only in a repo that declares standards
   discipline-batch-rank: 60
+  workflow-stage: anytime
+  summary: Re-anchor to org engineering standards and audit the work in flight
 ---
 
 # Follow our standards

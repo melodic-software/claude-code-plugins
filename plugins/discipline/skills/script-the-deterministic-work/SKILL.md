@@ -6,6 +6,8 @@ disable-model-invocation: false
 metadata:
   discipline-batch: situational  # only when count/diff/transform work is in play
   discipline-batch-rank: 90
+  workflow-stage: anytime
+  summary: Script counting, diffing, and transforms instead of eyeballing them
 ---
 
 # Script the deterministic work

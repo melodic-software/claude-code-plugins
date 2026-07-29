@@ -33,8 +33,10 @@ All notable changes to the `source-control` plugin are documented here. Format f
   re-run does not move the head and an already-reviewed head clears the hold before the clock is
   read. The committer date is the fallback only, since a commit pushed long after it was written
   reads as already-settled. Both that weak spot, the residual around a head reverting to an
-  already-tested SHA, and the inherited requirement that a configured reviewer be `Bot`-typed
-  (#1642) are documented at the hold's `safety.md` section rather than left implicit.
+  already-tested SHA, and the requirement that a configured reviewer be `Bot`-typed — this gate
+  does not pass `--extra-bot-logins`, so the operator declaration #1642 added to the shared
+  current-head test does not reach it — are documented at the hold's `safety.md` section rather
+  than left implicit.
 
   Unconfigured, the gate is byte-for-byte its prior self and issues no request it did not issue
   before — asserted against recorded call counts, not just the verdict. The reviewer corpus is now
@@ -48,6 +50,99 @@ All notable changes to the `source-control` plugin are documented here. Format f
   exclusions, draft handling, and widened scopes move verbatim to
   `skills/babysit-prs/reference/autopilot.md`, leaving a pointer; the body goes 499 -> 471. Nothing is
   deleted, and the tier's operative commands stay where they already lived, in `reference/safety.md`.
+
+## [0.33.3]
+
+### Fixed
+
+- **A configured review reviewer that GitHub types as `User` counted as no reviewer at all
+  (melodic-software/claude-code-plugins#1642).** `is_review_bot_item` in
+  `babysit_review_trigger.py` admitted an item only when GitHub's authoritative actor type said
+  `Bot`, so an automation account posting as an ordinary user — no `[bot]` login suffix,
+  `__typename` of `User` — had its real, current-head review read as no review. That is the exact
+  account class `babysit_extra_bot_logins` exists for and that `actor_kind` and
+  `babysit_resolve_thread.py` (#637) already honor, so the same operator-declared account was
+  classified two different ways by two consumers of one plugin.
+  - `ReviewTriggerConfig` gains `extra_bot_logins`, and the predicate now reads: the login must be
+    in `reviewer_logins` AND the author must be a bot. Both halves are required, so declaring an
+    account a bot never promotes it to reviewer. The field ships empty, so the predicate is
+    structural-only exactly as before for anyone who has not configured it, and no
+    default-configuration blocker state moves.
+  - Bot-ness is delegated whole to `is_bot` rather than restated, so this module can no longer
+    drift from the classification every other consumer uses. The REST `type` key is normalized
+    into the `__typename` slot first — `is_bot` reads `__typename` alone, and the reaction and
+    review-comment paths carry only `type`, so that normalization is load-bearing and pinned.
+  - The widening is applied at the shared predicate rather than per consumer, so all three reach
+    the same verdict: review evidence (`fetch_review_evidence`), current-head completion
+    (`has_current_head_review`), and reaction engagement (`fetch_review_reactions`). It is not
+    uniformly permissive — recognizing a declared reviewer's eyes reaction *adds* the
+    `engaged_reaction_reviewing` blocker that strictness was suppressing.
+  - `--extra-bot-logins` now threads into the review-trigger config from `pr_queue_snapshot.py`
+    (which already parsed it for `FeedbackConfig`) and from `request_review.py`, which gains the
+    flag; `SKILL.md`'s delivery mapping and `reference/review-trigger.md`'s pinned invocation and
+    completion rule follow.
+
+## [0.33.2]
+
+### Fixed
+
+- **Every git-bearing skill in this plugin was uninvocable from a worktree-isolated agent
+  (melodic-software/claude-code-plugins#1619).** The harness composes an entire
+  `## Pre-computed context` block into ONE shell invocation, and the worktree-isolation Bash guard
+  refuses a git-bearing compound command it cannot statically verify — so `commit`, `pull-request`,
+  `worktree`, `resolve-conflicts`, and `babysit-prs` all failed at load with `this command is too
+  complex to verify that it stays inside the worktree`. `worktree` is the sharpest case: the skill
+  for managing worktrees could not be invoked from inside one.
+  - The git lines are removed from each skill's pre-compute block and re-acquired in the skill body
+    as **individual** Bash calls, one command per call. Non-git pre-compute lines are untouched —
+    `commit` keeps its exec-bit and user-global config probes, `babysit-prs` keeps both `gh` lines.
+  - `commit`'s two repo-scoped config-layer probes were themselves compound one-liners that
+    re-derived the repository root inline. They are rebuilt on git's repo-root-relative magic
+    pathspec `:/` rather than on a substituted root — `git ls-files --error-unmatch --` and
+    `git ls-files --cached --others --`, each given `":/.claude/source-control.md"` (or the
+    `.local.md` overlay). Nothing is substituted, so a repository root containing a space, `$(…)`,
+    a backtick, or a double quote can neither break the command nor inject into it; double-quoting
+    a substituted root does *not* neutralize a command substitution, which is why quoting was the
+    wrong fix. Verified from a subdirectory: `:/` resolves against the working-tree root regardless
+    of the session's cwd, and the same existence probe replaces the personal overlay's old
+    `test -f "<root>/…"`.
+  - `commit`'s team layer keeps all three of its states — `present (tracked)`,
+    `present but UNTRACKED`, `absent` — which a single `--error-unmatch` call cannot express, since
+    it exits nonzero for both of the last two. The `git ls-files --cached --others` existence probe
+    separates them (`--exclude-standard` deliberately omitted so a gitignored file is still seen),
+    and the generic unknown-value rule is narrowed so it no longer swallows the distinction: a
+    nonzero `--error-unmatch` exit is a *result*, and only a probe that could not run at all (git
+    unavailable, not a repository) is an unknown value.
+  - `babysit-prs` is held at exactly 499 lines — the change is net-zero on line count, so it does
+    not consume the one line it has left under the 500-line hard cap (see #1626).
+  - The pre-compute lines carried `2>/dev/null || echo "unknown"` fallbacks **and** output caps
+    (`git status --short | head -20`, `git diff --cached --stat | tail -1`,
+    `git worktree list | head -30`, `git status | head -4`). The fallbacks are restated as a reading
+    rule — a failed command means "unknown, carry on". The caps are **kept as pipes** on the body
+    commands in `commit`, `worktree`, and `resolve-conflicts`. An earlier revision of this change
+    restated them as read-time prose ("read at most the first 20 entries"); that bounded nothing,
+    because the Bash tool returns a command's complete output into context before there is anything
+    to decide about. A real bound beats a fictional one.
+  - What was verified, precisely: from an `Agent` with `isolation: "worktree"`, the **unfixed**
+    skills were observed to be refused, plain git commands were observed to succeed as individual
+    Bash calls, and a multi-line non-git pre-compute block was observed to load. The restored pipes
+    (`git status --short | head -20`, `git diff --cached --stat | tail -1`) were observed to pass as
+    ordinary body Bash calls in a **non-isolated** session; whether a pipe also clears the isolation
+    guard as a body call is not verified here. The **edited** skills have not been invoked from an
+    isolated agent — skills load from the version-keyed plugin cache, so `0.33.2` does not exist
+    there until this ships. Confirm then; CI cannot prove it.
+  - `shell: bash` is deliberately left in place on every affected skill, including the three that
+    now have no `!` lines at all. The key is inert without pre-compute lines, and removing it is a
+    frontmatter-contract change with no behavioral benefit.
+
+### Changed
+
+- **Two reference spokes described the moved commands as pre-computed and are corrected.**
+  `commit/reference/exec-bit.md` no longer calls the config-layer probes pre-computed, and
+  `pull-request/reference/create.md`'s `--pushed` section is regrounded: it still says to ignore the
+  session-cwd context for an out-of-tree orchestrator, but its stated reason — that a
+  `!`-substituted line cannot be `git -C`-redirected — stopped being true once those became ordinary
+  Bash calls. The instruction to re-resolve explicitly from the target worktree is unchanged.
 
 ## [0.33.1]
 

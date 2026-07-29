@@ -63,6 +63,9 @@
 #      fresh-context delegation wording or a fresh-eyes-exempt directive nearby
 #      (WARN; heuristic); malformed/reason-less directives FAIL
 #      (spec: skills/check/reference/fresh-eyes-declarations.md)
+#  22. metadata.summary <= 100 Unicode codepoints (FAIL; the key is
+#      the generated skill cheat sheet's row source — the cap keeps rows
+#      scannable. Absent key = no finding)
 #
 # Notes (static, git-diff-based design):
 #   - Checks 3/8/9 diff the working tree against CHECK_SKILL_BASE_REF (default
@@ -199,8 +202,8 @@ FRONTMATTER="$(skill_frontmatter::extract <"$SKILL_MD")"
 if [[ -z "$FRONTMATTER" ]]; then
   err "no YAML frontmatter block found (expected content between two '---' fences)"
 else
-  grep -qE '^name:[[:space:]]*\S' <<<"$FRONTMATTER" || err "frontmatter missing 'name:'"
-  grep -qE '^description:[[:space:]]*\S' <<<"$FRONTMATTER" || err "frontmatter missing 'description:'"
+  grep -qE '^name:[[:space:]]*[^[:space:]]' <<<"$FRONTMATTER" || err "frontmatter missing 'name:'"
+  grep -qE '^description:[[:space:]]*[^[:space:]]' <<<"$FRONTMATTER" || err "frontmatter missing 'description:'"
 
   # The directory name is what Claude Code namespaces the skill by, so a
   # divergent frontmatter name silently relocates the invocation the doctrine
@@ -372,9 +375,9 @@ elif command -v npx >/dev/null 2>&1; then
   # rather than a hard FAIL on an otherwise valid skill.
   if ML_OUT="$(npx --no-install markdownlint-cli2 "$SKILL_MD" 2>&1)"; then
     note "markdownlint clean"
-  elif grep -qE '^\S+:[0-9]+' <<<"$ML_OUT"; then
+  elif grep -qE '^[^[:space:]]+:[0-9]+' <<<"$ML_OUT"; then
     err "markdownlint failed:
-$(printf '%s\n' "$ML_OUT" | grep -E '^\S+:[0-9]+' | head -10)"
+$(printf '%s\n' "$ML_OUT" | grep -E '^[^[:space:]]+:[0-9]+' | head -10)"
   else
     warn "markdownlint-cli2 unavailable (not installed / not resolvable) — markdownlint check skipped"
   fi
@@ -471,7 +474,7 @@ fi
 
 # --- Check 14: action-router shape without evals ------------------------------
 
-if grep -qE '^##+[[:space:]]+Actions?\b' "$SKILL_MD" && [[ ! -f "$SKILL_DIR/evals/evals.json" ]]; then
+if grep -qE '^##+[[:space:]]+Actions?([^[:alnum:]_]|$)' "$SKILL_MD" && [[ ! -f "$SKILL_DIR/evals/evals.json" ]]; then
   warn "action-router-shaped skill with no evals/evals.json — check whether the skill warrants triggering evals"
 fi
 
@@ -710,7 +713,7 @@ if ((${#INJECTIONS[@]} > 0)); then
   # them, so a pipe there is not a clean break.
   # shellcheck disable=SC2016  # single quotes deliberate: \| and $ are literal ERE, not shell expansion
   bash_only_re='/dev/null|(^|[[:space:]])command[[:space:]]+-v([[:space:]]|$)|\|[[:space:]]*(head|tail|grep|sed|awk|cut|tr|wc|xargs|rev|nl|fold|paste|comm|join|column|uniq)([[:space:]]|$)'
-  if grep -qE '^shell:[[:space:]]*\S' <<<"$FRONTMATTER"; then
+  if grep -qE '^shell:[[:space:]]*[^[:space:]]' <<<"$FRONTMATTER"; then
     note "shell: declared — dynamic-context injection portability is the author's explicit choice"
   else
     bash_only_hit=""
@@ -1078,6 +1081,32 @@ for fe_file in "${FRESH_EYES_FILES[@]}"; do
     }
   ' "$fe_file")
 done
+
+# --- Check 22: metadata.summary length cap -----------------------------------
+# The key is the generated skill cheat sheet's row source; the cap keeps rows
+# scannable. Length is Unicode CODEPOINTS, not bytes, counted
+# locale-independently: UTF-8 -> UTF-32BE via iconv makes every codepoint
+# exactly 4 bytes, so byte-count/4 is the codepoint count on any host — a
+# locale-pinned ${#var} silently degrades to byte counting where the pinned
+# locale does not exist, tightening the cap for multi-byte summaries. Hosts
+# without iconv fall back to the UTF-8-locale form. The value is read via
+# metadata_field (trailing-comment strip) + strip_quotes, matching how the
+# sheet generator reads it.
+
+SUMMARY_CP_CAP=100
+CUR_SUMMARY="$(skill_frontmatter::strip_quotes "$(skill_frontmatter::metadata_field summary <<<"$FRONTMATTER")")"
+if [[ -n "$CUR_SUMMARY" ]]; then
+  if command -v iconv >/dev/null 2>&1; then
+    SUMMARY_CP_LEN=$(($(printf '%s' "$CUR_SUMMARY" | iconv -f UTF-8 -t UTF-32BE | wc -c) / 4))
+  else
+    SUMMARY_CP_LEN="$(LC_ALL=C.UTF-8; printf '%s' "${#CUR_SUMMARY}")"
+  fi
+  if ((SUMMARY_CP_LEN > SUMMARY_CP_CAP)); then
+    err "metadata.summary is $SUMMARY_CP_LEN codepoints (cap $SUMMARY_CP_CAP — the cheat sheet row it generates must stay scannable)"
+  else
+    note "summary $SUMMARY_CP_LEN/$SUMMARY_CP_CAP codepoints"
+  fi
+fi
 
 # --- Summary ---------------------------------------------------------------
 

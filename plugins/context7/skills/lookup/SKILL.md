@@ -9,6 +9,8 @@ allowed-tools:
 metadata:
   upstream-version: upstash/context7@master
   synced: 2026-05-22
+  workflow-stage: research
+  summary: Look up current library docs, API references, and examples via Context7
 shell: bash
 ---
 

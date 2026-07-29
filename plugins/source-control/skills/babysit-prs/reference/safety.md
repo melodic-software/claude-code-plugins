@@ -247,10 +247,11 @@ than the window. Its shape, and why each part is that way:
   submitted review *or* an inline review comment whose own commit id equals the head, by a
   configured login **that GitHub types as a `Bot`**: the same current-head test
   `review-trigger.md` specifies, reused rather than restated. A review of an earlier head is not
-  evidence about this one. The `Bot`-type requirement is inherited from that shared test and is a
-  real limitation — a configured reviewer GitHub reports as a `User` (the account class
-  `--extra-bot-logins` exists for) never clears the hold early, so every merge waits the full
-  window. Fail-closed, but permanently slower; tracked as #1642.
+  evidence about this one. That shared test also admits a login the operator declared in
+  `--extra-bot-logins` (#1642), but the merge gate does not pass that declaration through, so at
+  *this* call site the `Bot`-type requirement still holds and is a real limitation — a configured
+  reviewer GitHub reports as a `User` never clears the hold early, so every merge waits the full
+  window. Fail-closed, but permanently slower until the gate threads the declaration through.
 - **The window bounds it.** A reviewer that never engages must not wedge a PR, so the hold expires
   rather than waiting forever. Past the window the gate stops waiting and merges on its ordinary
   criteria. The window is therefore a latency budget, not a review requirement: it buys the

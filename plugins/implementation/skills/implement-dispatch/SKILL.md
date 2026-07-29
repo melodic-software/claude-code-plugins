@@ -4,6 +4,9 @@ description: "Orchestrate worker subagents to execute an approved plan — the m
 argument-hint: "[phase] [--wave-cap <N>] (e.g., /implementation:implement-dispatch, /implementation:implement-dispatch phase-2 --wave-cap 3)"
 user-invocable: true
 disable-model-invocation: false
+metadata:
+  workflow-stage: implement
+  summary: Orchestrate worker subagents to execute an approved plan
 ---
 
 ## Purpose
