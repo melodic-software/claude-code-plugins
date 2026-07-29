@@ -268,7 +268,7 @@ LLM agents are stateless — each Agent tool invocation starts fresh. Without pe
 **Solution: Temp profile files loaded into each agent prompt.**
 
 **Directory structure** (created at session start, cleaned up at session end).
-`{session_dir}` is **created** by a secure temp primitive rather than merely named. Echo the created path in the same call and carry that literal value for the rest of the session — the name carries a random component and shell state does not survive between Bash calls, so it cannot be recomputed later. The primitive is `mktemp -d "${TMPDIR:-/tmp}/eventstorming-session-XXXXXX"` on POSIX/Git Bash, and on Windows PowerShell `(New-Item -ItemType Directory -Path (Join-Path $env:TEMP ('eventstorming-session-' + [System.IO.Path]::GetRandomFileName()))).FullName` (`$env:TEMP` is per-user, by default under `%LOCALAPPDATA%\Temp`). Never a hardcoded literal path, and never a name composed only from `{session_id}`: on a multi-user POSIX host `${TMPDIR:-/tmp}` falls back to the shared world-readable `/tmp`, where a predictable name both leaks the persona and session Markdown to every local user and lets one of them pre-create the path. The primitive closes both — the random component defeats pre-creation, and POSIX `mkdtemp` mandates mode 0700, which gates traversal into the directory regardless of the modes of the files inside it.
+`{session_dir}` is **created** by a secure temp primitive rather than merely named. Echo the created path in the same call and carry that literal value for the rest of the session — the name carries a random component and shell state does not survive between Bash calls, so it cannot be recomputed later. The primitive is `mktemp -d "${TMPDIR:-/tmp}/eventstorming-session-XXXXXX"` on POSIX/Git Bash, and on Windows PowerShell `(New-Item -ItemType Directory -Path (Join-Path $env:TEMP ('eventstorming-session-' + [System.IO.Path]::GetRandomFileName()))).FullName` (`$env:TEMP` is per-user, by default under `%LOCALAPPDATA%\Temp`). Never a hardcoded literal path, and never a name composed only from `{session_id}`: on a multi-user POSIX host `${TMPDIR:-/tmp}` falls back to the shared world-readable `/tmp`, where a predictable name both leaks the persona and session Markdown to every local user and lets one of them pre-create the path. The primitive closes both. The random component defeats pre-creation on either platform. On POSIX the mode is closed too: `mkdtemp` is specified to create the directory with mode 0700, which gates traversal regardless of the modes of the files inside it — that guarantee is POSIX's, not something the Windows branch inherits, where the protection comes instead from `$env:TEMP` already being per-user and ACL-scoped to that account.
 
 ```
 {session_dir}/
@@ -657,7 +657,7 @@ Every simulation session follows this lifecycle. The protocol ensures clean stat
 **Concurrent session safety:**
 
 - Session IDs include random suffix — no collision between conversations
-- Temp directories are namespaced — `eventstorming-session-{id}` never overlaps
+- Temp directories never overlap — each is created by the temp primitive with its own random component, so two concurrent sessions cannot land on the same path even within one conversation
 - Board names include version number — `v7`, `v8` etc. — visually distinct in Miro
 - Persona profiles are session-scoped — one session's Organizer doesn't bleed into another's
 

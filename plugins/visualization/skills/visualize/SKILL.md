@@ -98,11 +98,18 @@ create a private run directory and echo it in the same call —
 `d=$(mktemp -d "${TMPDIR:-/tmp}/visualize-XXXXXX"); echo "$d"` — then write the
 page to `<echoed dir>/visualize.html`. Echo it because shell state does not
 survive between Bash calls: the directory name is random, so an unechoed path is
-unrecoverable in the call that writes the file. Carrying the temp root in the
-positional template is the one `mktemp` form GNU and BSD/macOS accept
-identically (`--tmpdir` is absent on BSD, `-t` is deprecated on GNU), and the
-directory carries the `.html` name without depending on `mktemp` accepting a
-suffix after the `XXXXXX`. On Windows, a user-scoped temp under
+unrecoverable in the call that writes the file. Carry the temp root in the
+positional template rather than reaching for a flag: `-p`/`--tmpdir` exists in
+both dialects but means different things. GNU treats the template as relative to
+that directory and lets the flag beat `TMPDIR`; BSD/macOS consult it only as a
+fallback for `-t` when `TMPDIR` is unset — so with a bare template and no `-t`
+the flag does nothing there and the template resolves against the **current
+directory**, silently writing into the consumer's repo. GNU also marks `-t`
+deprecated, and BSD's `-t` takes a prefix rather than a template, so the two
+produce different names. An absolute path in the positional template is
+reinterpreted by neither. The generated directory also carries the `.html` name
+without depending on `mktemp` accepting a suffix after the `XXXXXX`. On Windows,
+a user-scoped temp under
 `%LOCALAPPDATA%\Temp`. One file per run. The path is handed back to the user, so
 do not delete it — it must still be readable when they open it. Open it for the
 user (`start <path>` on Windows, `open <path>` on macOS, `xdg-open <path>` on

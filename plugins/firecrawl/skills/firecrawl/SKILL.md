@@ -51,7 +51,7 @@ Escalation order when WebFetch fails:
 
 ## Core pattern — write to disk, Read selectively
 
-Every firecrawl invocation writes to a spill file created by the platform's temp primitive (`mktemp "${TMPDIR:-/tmp}/<name>-XXXXXX"`, never a hardcoded path and never a bare relative template — see the Windows note under Gotchas) and uses the `Read` tool to pull only the needed portion into context. Passing the temp root in the positional template keeps the file out of the repo without `-t` (deprecated on GNU) or `--tmpdir` (absent on BSD). Create the file and echo its path in the same Bash call so the follow-up `Read` can target it:
+Every firecrawl invocation writes to a spill file created by the platform's temp primitive (`mktemp "${TMPDIR:-/tmp}/<name>-XXXXXX"`, never a hardcoded path and never a bare relative template — see the Windows note under Gotchas) and uses the `Read` tool to pull only the needed portion into context. Carry the temp root in the positional template rather than reaching for a flag: `-p`/`--tmpdir` exists in both dialects but means different things — GNU treats the template as relative to that directory and lets the flag beat `TMPDIR`, while BSD/macOS consult it only as a fallback for `-t` when `TMPDIR` is unset, so with a bare template and no `-t` the flag does nothing there and the template resolves against the current directory, silently writing into the consumer's repo. GNU also marks `-t` deprecated, and BSD's `-t` takes a prefix rather than a template. An absolute path in the positional template is reinterpreted by neither. Create the file and echo its path in the same Bash call so the follow-up `Read` can target it:
 
 ```bash
 # Scrape a blocked doc page to markdown
@@ -84,7 +84,7 @@ firecrawl interact \
   -o "$DASH"
 ```
 
-**Spill files are self-consumed — clean up after the Read.** Once the needed portion is in context, remove the spill file in a follow-up Bash call (`rm -f "<echoed path>"` — shell state does not persist between calls, so use the literal echoed path). Nothing reclaims the OS temp tree on a schedule, so a research-heavy session that skips cleanup leaves one file per call behind. The one exception is command-agnostic: whenever the user asked for the file itself — from `scrape`, `search`, `crawl`, `map`, `parse`, `interact`, or `agent` alike — the path is the deliverable; hand it back and do NOT delete it.
+**Spill files are self-consumed — clean up after the Read.** Once the needed portion is in context, remove the spill file in a follow-up Bash call (`rm -f "<echoed path>"` — shell state does not persist between calls, so use the literal echoed path). Nothing reclaims the OS temp tree on a schedule, so a research-heavy session that skips cleanup leaves one file per call behind. The one exception is command-agnostic: whenever the user asked for the file itself, whichever command produced it, the path is the deliverable — hand it back and do NOT delete it.
 
 Direct stdout is acceptable only for tiny, single-paragraph results (e.g., "get the page title") where file I/O overhead exceeds the token savings. Default: `-o <path> && Read`.
 

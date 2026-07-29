@@ -15,11 +15,16 @@ All notable changes to the `visualization` plugin are documented here. Format fo
   one file per run, and the handed-back path is never deleted. Previously the
   skill named no placement at all.
 
-  Carrying the temp root in the positional TEMPLATE is the one `mktemp` form
-  GNU and BSD/macOS accept identically: `--tmpdir` is a GNU long option BSD
-  does not implement, and GNU marks `-t` deprecated. Naming the page inside a
-  generated directory also avoids depending on `mktemp` accepting a suffix
-  after the `XXXXXX`, which is a GNU convenience rather than a portable one.
+  The temp root rides in the positional TEMPLATE rather than in a flag.
+  `-p`/`--tmpdir` is documented in both dialects but does not mean the same
+  thing: GNU treats the template as relative to that directory and lets the
+  flag beat `TMPDIR`, while BSD/macOS consult it only as a fallback for `-t`
+  when `TMPDIR` is unset — so with a bare template and no `-t` the flag does
+  nothing there and the template resolves against the current directory,
+  silently writing into the consumer's repo. GNU additionally marks `-t`
+  deprecated. Naming the page inside a generated directory also avoids
+  depending on `mktemp` accepting a suffix after the `XXXXXX`, which is a GNU
+  convenience rather than a portable one.
 
 ## [0.1.0]
 

@@ -18,10 +18,19 @@ All notable changes to the `firecrawl` plugin are documented here. Format follow
   call. The update skill's preservation rule, the command reference, and the eval
   expectations follow the same pattern.
 
-  Passing the temp root in the positional template keeps the file out of the
-  repo without `-t` (marked deprecated by GNU coreutils) or `--tmpdir` (a GNU
-  long option BSD/macOS `mktemp` does not implement), so one form serves every
-  platform.
+  The temp root rides in the positional TEMPLATE rather than in a flag.
+  `-p`/`--tmpdir` is documented in both dialects but does not mean the same
+  thing: GNU treats the template as relative to that directory and lets the
+  flag beat `TMPDIR`, while BSD/macOS consult it only as a fallback for `-t`
+  when `TMPDIR` is unset — so with a bare template and no `-t` the flag does
+  nothing there and the template resolves against the current directory,
+  silently writing into the consumer's repo. GNU additionally marks `-t`
+  deprecated, and BSD's `-t` takes a prefix rather than a template. An absolute
+  path in the positional TEMPLATE is reinterpreted by neither dialect.
+
+  `scripts/update.sh` moves off `mktemp -d -t` to the same positional form. On
+  BSD that `-t` argument is a *prefix* rather than a template, so the run
+  directory came out named differently there than on GNU; both now agree.
 
   The Windows gotcha states what actually governs the outcome: where the Bash
   tool is Git Bash, `${TMPDIR:-/tmp}` resolves through the `/tmp` mount to `%TEMP%`;
