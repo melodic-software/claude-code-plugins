@@ -200,7 +200,7 @@ assert_contains "update PATCHes the sentinel comment" "$log" "method=PATCH url=r
 assert_not_contains "update does not POST a second comment" "$log" "method=POST"
 # The read-back must GET the comment that was actually written, not a fixed id:
 # reading back the wrong comment would verify somebody else's body as ours.
-assert_contains "update reads back the comment it PATCHed" "$log" "method=GET url=repos/$REPO/issues/comments/222"
+assert_contains "update reads back the comment it just wrote" "$log" "method=GET url=repos/$REPO/issues/comments/222"
 
 # ============================================================================
 # fallback — no sentinel, my comment carries the raw marker -> adopt (PATCH)
@@ -399,7 +399,7 @@ assert_contains "missing jq binary message" "$out" "jq not found"
 # The #943 defect itself: a caller composed `@path` as its body content, meaning
 # the file. Posting that verbatim is the fail-open — refuse before writing.
 ATPATH="$SAFE_DIR/atpath.txt"
-printf '@C:/Users/KYLESE~1/AppData/Local/Temp/telemetry_combined.txt\n' >"$ATPATH"
+printf '@/tmp/telemetry_combined.txt\n' >"$ATPATH"
 : >"$LOG"
 out="$(STUB_COMMENTS_FILE="$TMP/empty.json" bash "$SCRIPT" --repo "$REPO" --issue 502 \
   --marker "lane:triage" --body-file "$ATPATH" --body-dir "$SAFE_DIR" 2>&1)"
@@ -458,7 +458,7 @@ assert_contains "verified write re-reads the written comment" "$log" "method=GET
 # What landed starts with `@` although what was sent did not. The sentinel is
 # line one, so the check must look BELOW it.
 : >"$LOG"
-out="$(STUB_READBACK_BODY="$SENT"$'\n@C:/Users/KYLESE~1/AppData/Local/Temp/telemetry_combined.txt' \
+out="$(STUB_READBACK_BODY="$SENT"$'\n@/tmp/telemetry_combined.txt' \
   run "$TMP/empty.json" 2>&1)"
 rc=$?
 assert_eq "@path read-back body exits 6" 6 "$rc"
