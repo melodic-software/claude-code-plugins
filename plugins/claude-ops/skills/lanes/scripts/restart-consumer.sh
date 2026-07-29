@@ -365,8 +365,13 @@ resolve_config() {
 }
 
 # `owner/name`, nothing else — the value reaches a gh API path, so a traversal
-# or option-looking value must never get there.
-valid_repo_slug() { [[ "$1" =~ ^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$ ]]; }
+# or option-looking value must never get there. The character class admits `.`,
+# so dot-only segments (`../evil`) need their own rejection.
+valid_repo_slug() {
+  [[ "$1" =~ ^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$ ]] || return 1
+  local owner="${1%%/*}" name="${1#*/}"
+  [[ "$owner" != "." && "$owner" != ".." && "$name" != "." && "$name" != ".." ]]
+}
 
 resolve_target_repo() {
   if [[ -z "$TARGET_REPO" ]]; then

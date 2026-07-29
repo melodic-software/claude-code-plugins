@@ -101,6 +101,7 @@ JSON
 DATA="$TMP/data"
 
 state_comment() { # $1 marker, $2 restart_request JSON literal
+  # shellcheck disable=SC2016  # backticks are the literal markdown fence of the telemetry fixture
   printf '<!-- claude-ops:lane-telemetry marker=%s -->\nlane: x\n\n```json\n{"schema":"x@1","cycle":9,"loop_started_at":"2026-07-23T15:00:00Z","restart_request":%s}\n```\n' "$1" "$2"
 }
 
