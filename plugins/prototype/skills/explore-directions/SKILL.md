@@ -113,10 +113,10 @@ Constraints:
   `d=$(mktemp -d "${TMPDIR:-/tmp}/explore-directions-XXXXXX"); echo "$d"` — then writing to
   `<echoed dir>/explore-directions.html`. Echo it because shell state does not survive between Bash
   calls: the directory name is random, so an unechoed path is unrecoverable in the call that writes
-  the file. Carrying the temp root in the positional template is the one
-  `mktemp` form GNU and BSD/macOS accept identically (`--tmpdir` is absent on BSD, `-t` is
-  deprecated on GNU), and the directory carries the `.html` name without depending on `mktemp`
-  accepting a suffix after the `XXXXXX`. On Windows, a user-scoped temp under
+  the file. Carrying the temp root in the positional template is the one `mktemp` form GNU and
+  BSD/macOS accept identically (`--tmpdir` is absent on BSD, `-t` is deprecated on GNU), and the
+  directory carries the `.html` name without depending on `mktemp` accepting a suffix after the
+  `XXXXXX`. On Windows, a user-scoped temp under
   `%LOCALAPPDATA%\Temp`. One file per run. The path is handed to the user to open from `file://`,
   so do not delete it — it must still be readable when they open it.
 - **Markdown captures the answer.** Copy the winning-variant key and notes into your durable
