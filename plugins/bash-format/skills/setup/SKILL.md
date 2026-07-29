@@ -65,7 +65,9 @@ restores the FAIL semantics.
    (`/plugin` → Installed) rather than parsing settings files.
 9. **Project scope** — INFO: when `CLAUDE_PROJECT_DIR` is set, the hook acts only
    on shell files inside it (symlink-resolved membership guard in the shared hook
-   library); a `.sh`/`.bash` file written *outside* the project (temp/scratchpad
+   library, aware of Windows 8.3 short-name spellings of in-project paths — a
+   per-volume property; only volumes with 8.3 generation enabled produce them);
+   a `.sh`/`.bash` file written *outside* the project (temp/scratchpad
    dirs) is silently skipped — no lint, no format, no notice. When
    `CLAUDE_PROJECT_DIR` is **unset** (e.g. some headless `-p` sessions) the guard
    is skipped and any existing edited file is processed. Report this so a green
