@@ -291,9 +291,10 @@ intake arriving mid-cycle is reported, never chased.
 5. **Escalate.** Anything needing an operator decision follows the convention's escalation
    contract (below); a blocked action is escalated, never routed around.
 6. **Report and pace.** Update the no-progress streak — and, at the threshold, raise the stall
-   escalation — per the detector below; upsert the telemetry comment (cycle report + updated
-   state block + guard mode); evaluate the stop condition; if not stopping, `ScheduleWakeup` the
-   next cycle.
+   escalation — per the detector below; upsert the telemetry comment (cycle report + updated state
+   block + guard mode + the `usage_sample` built from step 1's cycle-start reading, whose delta
+   covers the preceding interval and never this cycle's work); evaluate the stop condition; if not
+   stopping, `ScheduleWakeup` the next cycle.
 
 ## do-not-merge
 
@@ -355,39 +356,10 @@ The telemetry home is a **per-lane tracking issue in the target repository**, re
 config; default: the open issue titled `Lane telemetry: babysit-loop` (exact match), created with
 `gh issue create` when absent (announce the creation). Maintain exactly ONE status comment on it,
 sentinel-identified and edited in place (the `claude-ops` lane-telemetry contract; one writer
-identity owns a marker). The upsert is inlined here because an installed plugin cannot invoke a sibling plugin's scripts:
-
-```bash
-MARKER="source-control:babysit-loop"
-SENT="<!-- claude-ops:lane-telemetry marker=$MARKER -->"   # first line of $BODY_FILE
-LOOKUP() { gh api --paginate "repos/$REPO/issues/$ISSUE/comments" \
-  --jq ".[] | select(.body | startswith(\"$SENT\")) | .id"; }
-if ! LIST=$(LOOKUP); then
-  echo "telemetry: comment lookup failed; skipping upsert this cycle (fail closed)" >&2
-else
-  if [ -z "$LIST" ]; then
-    gh api -X POST "repos/$REPO/issues/$ISSUE/comments" -F body=@"$BODY_FILE" >/dev/null
-    LIST=$(LOOKUP) || LIST=""   # re-list; a failure here converges next cycle
-  fi
-  CANON=$(printf '%s\n' "$LIST" | sort -n | head -n1)
-  if [ -n "$CANON" ]; then
-    gh api -X PATCH "repos/$REPO/issues/comments/$CANON" -F body=@"$BODY_FILE"
-    for DUP in $(printf '%s\n' "$LIST" | sort -n | tail -n +2); do
-      gh api -X PATCH "repos/$REPO/issues/comments/$DUP" \
-        -f body="Superseded duplicate - canonical telemetry comment: $CANON" || true
-    done
-  fi
-fi
-```
-
-**Creation race reconcile (encoded above).** Two sessions racing the first-ever upsert can both
-see an empty lookup and both POST, forking the singleton. The upsert converges every cycle
-duplicates are visible: the LOWEST comment id is canonical (numeric sort, deterministic for
-every session), the canonical comment receives the current cycle's full state, and every other
-sentinel comment is edited to a one-line tombstone so it never matches a lookup again — this
-covers a racer that died between its POST and its own re-list, because the NEXT session's
-ordinary upsert performs the same reconcile. A crashed racer's unmerged counters are an
-accepted loss (durable state re-derives over a cycle); nothing is deleted.
+identity owns a marker). The upsert itself — the singleton lookup, the POST/PATCH, and the creation-race reconcile that
+converges two sessions racing the first-ever comment — is owned by
+[reference/telemetry-upsert.md](reference/telemetry-upsert.md). It is inlined in this plugin (never
+invoked from `claude-ops`) because an installed plugin cannot invoke a sibling plugin's scripts.
 
 The comment carries the human-readable cycle report plus a machine-readable **durable loop state**
 block, re-read at every cycle start:
@@ -396,12 +368,27 @@ block, re-read at every cycle start:
 {"schema":"source-control/babysit-loop-state@1","cycle":12,"backoff_level":2,
  "no_progress_streak":0,"stop_mode":"standing","tier":"worker","merge_rung":"c2-mechanical",
  "rate_limit_latch":false,"guard_mode":"proactive",
- "loop_started_at":"2026-07-23T15:00:00Z","restart_request":null}
+ "loop_started_at":"2026-07-23T15:00:00Z","restart_request":null,
+ "usage_sample":{"at":"2026-07-23T15:04:05Z","five_hour_pct":23.5,"seven_day_pct":41.2,
+ "five_hour_delta_pct":1.8}}
 ```
 
 `cycle`, `backoff_level`, and `no_progress_streak` are the loop's durable counters;
 `loop_started_at` makes the approaching seven-day expiry visible; `restart_request` is where a
 budget or expiry hit records the relaunch ask; `guard_mode` is recorded every cycle.
+
+`usage_sample` copies the **same** two window percentages the rate-limit guard step below already
+read at this cycle's **start** — never a second reading, so `at` is that observation time, not the
+report time. `at` is always written, so a cycle that could not observe stays distinguishable from
+one that never sampled. `five_hour_pct` / `seven_day_pct` are the readings as taken: both `null`
+when the guard is not proactive, and independently `null` when a window is unreadable, absent, or
+rejected as unknown — never the rejected value, never a stale reading carried forward, never a
+fabricated one. `five_hour_delta_pct` is `null` when either sample is missing (so a first cycle's
+always is) or when the current reading is **lower** than the previous one (the window rolled over);
+only the five-hour window carries a delta, since a seven-day window moves too little per cycle to
+clear the readings' own approximation. Everything else — the single permitted readback, the delta
+covering the interval *preceding* its reporting cycle, and the three properties bounding what the
+data supports — is the convention's (§4, "Per-cycle usage sample"), held by citation.
 
 ## Rate-limit guard floor (inlined)
 
