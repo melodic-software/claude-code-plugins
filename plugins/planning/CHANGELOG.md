@@ -27,6 +27,10 @@ All notable changes to the `planning` plugin are documented here. Format follows
   instance — cannot be this one however well it otherwise fits. The row also carries the
   availability fact that keeps it from being skipped as
   preview-gated: all paid plans, switched on from the `/config` **Dynamic workflows** row on Pro.
+  Alone among the router's rows, this one is not exclusive of `/goal`: a workflow decides how a
+  single task fans out and the goal decides when to stop turning, so it routes away from drafting
+  only when the intent wants the fan-out and no across-turn completion condition — an intent
+  wanting both drafts the condition here and runs the workflow alongside it.
 
 ## [0.26.3]
 

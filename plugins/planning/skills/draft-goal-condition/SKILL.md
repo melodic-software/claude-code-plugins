@@ -26,7 +26,7 @@ The `/goal` contract — its condition shape and its character limit — can cha
 - **Interval-driven** ("every 5 minutes", "poll until") → `/loop` (a time interval starts each turn), not `/goal`.
 - **Cloud / sessionless / scheduled** ("nightly", "each morning", runs with no session open) → routines / `/schedule` (labelled research preview at the time of writing — check before recommending it).
 - **Custom per-turn logic across all sessions** (deterministic script check, settings-scoped) → a prompt-based Stop hook.
-- **More agents than one conversation can coordinate** (or the orchestration is worth codifying as a rerunnable script) → a dynamic workflow, not a goal loop.
+- **More agents than one conversation can coordinate** (or the orchestration is worth codifying as a rerunnable script) → a dynamic workflow. Unlike the rows above, this one is not exclusive of `/goal`: a workflow decides how a single task fans out, `/goal` decides when to stop turning, and the two compose — the goal sets the hard completion requirement while the workflow performs the parallel work. Route away from drafting only when the intent wants the fan-out and *no* across-turn completion condition; when it wants both, draft the condition here and say the workflow rides alongside it.
 - **One-shot** (a single prompt with no across-turn continuation) → just prompt; no goal.
 
 Two caveats belong to the workflow row, because each turns a plausible recommendation into a dead one:
