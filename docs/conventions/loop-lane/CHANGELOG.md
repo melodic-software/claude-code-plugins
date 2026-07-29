@@ -9,26 +9,34 @@ table (§3) and is recorded here.
 
 Adds the per-cycle usage sample to §4's loop-layer invariants, requested and scoped in
 [melodic-software/claude-code-plugins#1651](https://github.com/melodic-software/claude-code-plugins/issues/1651).
-Tier ratified as **major** on the same discriminator 2.0.0 and the no-progress detector used: a new
-loop-layer invariant is a new obligation every lane body must implement. That the recorded value is
-inert does not soften the tier — the *write* is the obligation.
+Tier ratified as **major** on 2.0.0's discriminator: a new §4 loop-layer invariant is a new
+obligation every loop-lane body must implement. That the recorded value is inert does not soften the
+tier — the *write* is the obligation. **Bump ambiguity:** a field nothing reads back changes no
+lane's behavior, and a purely additive telemetry key reads as additive guidance and a **minor**; but
+§4 states loop-layer invariants, and this adds one every loop-lane body must carry, which reads as a
+**major**. The attended `attend-queue` lane is unaffected: §4 binds loop lanes, and that lane holds
+no durable-state block.
 
 - **Per-cycle usage sample (§4).** A lane's spend was a blind spot: the cycle budget counts cycles,
   the rate-limit guard's pause is a ceiling, and nothing recorded how much of the shared
-  subscription windows a cycle consumed. Each lane now records a `usage_sample` in its #502 durable
-  state every cycle, holding the two window percentages the guard step (§6) **already read** that
-  cycle plus the rise since the previous sample — the reading is in hand, so the invariant costs a
-  write, not an observation. The field is deliberately **inert**: no lane reads it back and no
+  subscription windows a cycle consumed. Each loop lane now records a `usage_sample` in its #502
+  durable state every cycle, holding the two window percentages the guard step (§6) **already read**
+  that cycle plus the rise since the previous sample — the reading is in hand, so the invariant costs
+  a write, not an observation. The field is deliberately **inert**: no lane reads it back and no
   pacing, backoff, adaptive cap, merge rung, or pause derives from it. Whether the data supports
   acting on it is a later, separately decided question.
-- **Recorded caveats bound what the data can support.** The readings are approximate and
-  machine-local; they are **account-scope**, so the three-lane topology means concurrent lanes move
-  the same windows and a per-cycle rise is one lane's own consumption only when that lane is the
-  sole active session; and they are a percentage of a subscription window, not a token count,
-  absent entirely for non-subscription auth. No lane claims a token count, because none is readable
-  at a cycle boundary: the machine-readable token fields are current-context occupancy, not session
-  totals, and the surfaces reporting cumulative spend are interactive displays a lane body cannot
-  parse.
+- **Recorded caveats bound what the data can support.** The reading is a snapshot no fresher than
+  the guard's staleness rule allows, from a machine-local, last-writer-wins tee that refreshes only
+  while an interactive session renders a status line — so an unattended lane samples nothing, and an
+  empty sample means unobserved rather than zero. The figures are **account-scope**, so the
+  three-lane topology means concurrent lanes move the same windows and a per-cycle rise is one
+  lane's own consumption only when that lane is the sole active session; and they are a percentage
+  of a subscription window, not a token count, absent entirely for non-subscription auth. No lane
+  claims a token count, because none is readable at a cycle boundary: the machine-readable token
+  fields are current-context occupancy, not session totals. A machine-readable cumulative *cost*
+  field does exist and is session-scoped, so it would attribute to a lane — but the guard's tee does
+  not forward it, and widening the tee is a guard-side change this invariant deliberately does not
+  make.
 - **Upstream re-verification (§Versioning trigger 2).** This entry relies on the status-line stdin
   schema, so that claim was re-verified against its cited page and its stamp refreshed to
   **2026-07-28** (<https://code.claude.com/docs/en/statusline>). Confirmed unchanged:
@@ -37,7 +45,12 @@ inert does not soften the tier — the *write* is the obligation.
   response, and each window may be independently absent. Confirmed still true, and the reason no
   token count is claimed: `context_window.total_input_tokens` / `total_output_tokens` are "token
   counts currently in the context window, from the most recent API response" — cumulative session
-  totals only before Claude Code v2.1.132. No drift found.
+  totals only before Claude Code v2.1.132. Also recorded, because it bounds a future phase rather
+  than this one: `cost.total_cost_usd` is documented as the estimated session cost accumulated
+  client-side, resetting on `/clear` — machine-readable and session-scoped, and therefore the
+  deferred candidate for per-lane attribution once a guard-side change forwards it. No drift found.
+  `rate-limit-guard`'s reader contract carries its own 2026-07-23 stamp on the same page; it is
+  unchanged by this entry and its refresh belongs to that plugin's own bump.
 
 ## 3.0.0 — 2026-07-25
 

@@ -238,14 +238,17 @@ that same durable-state block every cycle, holding the two window percentages th
 so measuring costs nothing beyond the write. It is deliberately **inert**: no lane reads the field
 back and no lane behavior derives from it. Measure first; whether the data supports acting on it is a
 later, separately decided question. Three properties bound that decision and are recorded alongside
-the sample in each lane body: the readings are approximate and machine-local; they are
-**account-scope**, so the three-lane topology means concurrent lanes move the same windows and a
-per-cycle rise is one lane's own consumption only when that lane is the sole active session; and they
-are a **percentage of a subscription window, not a token count**, absent entirely for
-non-subscription auth. No lane claims a token count, because none is *readable* at a cycle boundary:
-the machine-readable token fields a session exposes are current-context occupancy, not session
-totals, and the surfaces that do report cumulative spend are interactive displays a lane body cannot
-parse. Attributing spend to a single lane needs a signal no current snapshot carries.
+the sample in each lane body: the reading is a snapshot no fresher than the guard's staleness rule
+allows, from a **machine-local**, last-writer-wins tee that refreshes only while an interactive
+session renders a status line — so an unattended lane samples nothing, and an empty sample means
+unobserved rather than zero; the figures are **account-scope**, so the three-lane topology means
+concurrent lanes move the same windows and a per-cycle rise is one lane's own consumption only when
+that lane is the sole active session; and they are a **percentage of a subscription window, not a
+token count**, absent entirely for non-subscription auth. No lane claims a token count, because none
+is *readable* at a cycle boundary: the machine-readable token fields a session exposes are
+current-context occupancy, not session totals. A machine-readable cumulative *cost* field does
+exist, and is session-scoped — so it would attribute to a lane — but the guard's tee does not
+forward it; widening the tee is a guard-side change this invariant deliberately does not make.
 
 **Headless-config floor.** A headless lane launch never blocks on an interview: it takes explicit or
 persisted config, or tier defaults, and logs the assumption. The interactive path may run a

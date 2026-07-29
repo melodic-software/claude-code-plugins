@@ -125,11 +125,15 @@ a stale reading forward, never fabricate one. `five_hour_delta_pct` is the rise 
 cycle's sample, `null` when either sample is missing or the current reading is **lower** than the
 previous one (the window rolled over); only the five-hour window carries a delta, because a
 seven-day window moves too little per cycle to clear the readings' own approximation. Caveats,
-recorded because they bound what the data can support: the
-figures are **approximate** and **machine-local**; they are **account-scope**, so concurrent
-sessions move them and a rise is this lane's own consumption only when this lane is the sole active
-session; and they are a **percentage of a subscription window, not a token count**, absent entirely
-for non-subscription usage.
+recorded because they bound what the data can support: the reading is a **snapshot**, only as fresh
+as the guard's staleness rule allows, taken from a **machine-local**, last-writer-wins tee that
+refreshes only while an interactive session renders a status line — so an unattended background lane
+with no interactive window open on the machine samples `null` every cycle, and an empty sample means
+unobserved, never zero; the figures are **account-scope**, so concurrent sessions move them and a
+rise is this lane's own consumption only when this lane is the sole active session; and they are a
+**percentage of a subscription window, not a token count**, absent entirely for non-subscription
+usage. Cumulative session cost is machine-readable upstream (`cost.total_cost_usd`) but the tee does
+not forward it; carrying it is a rate-limit-guard change, deferred here.
 
 ## Rate-limit guard floor (inlined)
 
