@@ -14,6 +14,31 @@ stamp-and-trigger discipline; the generic date-is-never-authority rationale move
 triggers stay unchanged; the recording policy aligns with the owner doc — a firing that finds
 drift lands here, a no-drift firing refreshes the claim's verification date only.
 
+## 5.0.0 — 2026-07-29
+
+Adds the per-lane consecutive-no-progress detector to §4's loop-layer invariants, requested and
+scoped in
+[melodic-software/claude-code-plugins#1648](https://github.com/melodic-software/claude-code-plugins/issues/1648).
+Tier ratified as **major**: a new loop-layer invariant is a new obligation every unattended lane
+body must implement, which is the discriminator 2.0.0 used. The minor reading — that a new
+invariant is additive guidance because no existing invariant changes — was considered and not
+taken.
+
+- **No-progress detector (§4).** Every stall mechanism below the loop layer is per-PR or per-item,
+  so a lane cycling with zero aggregate progress was invisible to itself. Each unattended lane now
+  persists a `no_progress_streak` counter in its #502 durable state (absent = 0): a cycle with
+  actionable work in the cycle-start snapshot and no lane-defined qualifying progress increments
+  it, an idle cycle — or one held, meaning the rate-limit guard (§6) barred the lane from claiming
+  new work, which each lane's floor defines and which can outlive the pause window — leaves it
+  unchanged, and any qualifying progress resets it. Reaching the stall
+  threshold (default 3; lane-configurable) **escalates through §2's existing contract and keeps
+  looping** — never a lane stop, no second channel, no new guardrail event class. At most one stall
+  escalation per lane stays open at a time (author-matched dedup), and neither the stall escalation
+  itself nor a lane's own repeat attempt at the same still-unresolved blocker ever counts as
+  qualifying progress. The attended queue is exempt — its operator is present by definition.
+- **Durable loop state (§4)** now lists the consecutive-no-progress counter among the persisted
+  counters.
+
 ## 4.0.0 — 2026-07-27
 
 Out-of-band escalation notification

@@ -428,8 +428,42 @@ one-directional. An inlined upsert carries none of the wrapper's body checks, so
 section "Never pass a body as an `@path` string".
 
 **Durable loop state.** Conversation context is lossy across compaction, so a lane persists its
-adaptive-cap streak counter, its rate-limit-warning latch, and its cycle count in a machine-readable
-block of that same #502 telemetry comment, and re-reads them at each cycle start.
+adaptive-cap streak counter, its rate-limit-warning latch, its consecutive-no-progress counter, and
+its cycle count in a machine-readable block of that same #502 telemetry comment, and re-reads them
+at each cycle start.
+
+**No-progress detector.** Every stall mechanism below the loop layer is per-PR or per-item, so a
+lane cycling repeatedly while accomplishing nothing in aggregate is invisible to itself: each gate
+correctly declines to spend a worker, and nothing notices the aggregate is zero. Each unattended
+lane (worker, merge — the attended queue is exempt: its operator is present by definition)
+therefore persists a consecutive-no-progress counter, `no_progress_streak`, beside its other
+durable counters in the #502 state block (absent from a re-read block = 0). What counts as a
+qualifying progress event is lane-specific and defined in each lane body; the semantics here are
+shared. A cycle whose cycle-start snapshot held actionable work for the lane and that ended with no
+qualifying progress increments the counter; an idle cycle — nothing actionable in view — leaves it
+unchanged (idle is not stalled); any qualifying progress resets it to zero. A **held** cycle is a
+third state and also leaves the counter unchanged: whenever the rate-limit guard (§6) bars the lane
+from claiming new work, the lane declines mutating work *by design*, so however much sits in its
+snapshot, no qualifying progress was available to make. The **bar** is what the hold keys on, never
+the pause window alone — a lane whose inlined floor latches that suppression in durable state stays
+barred after the pause ends, and a latch no fresh healthy snapshot ever clears would otherwise trip
+the threshold by itself. Held is not stalled: guard suppression outlasting three cycles would
+otherwise escalate a lane for obeying the guard exactly. Only cycles the lane was free to act in are
+counted, so the detector measures a lane failing to move a queue it could have moved.
+When an increment
+brings the counter to the stall threshold — default **3** consecutive no-progress cycles; a lane
+may expose the threshold on its own config surface — the lane **escalates and keeps looping**: a
+stalled lane is usually a signal about the queue, not a reason to terminate. The stall escalation
+rides §2's contract unchanged (role label + machine-marked comment) — a loop-health signal on the
+one channel, not a second channel and not a new guardrail event class. At most one stall escalation
+per lane is open at a time: before raising one, the lane checks for an existing open stall
+escalation authored by its own write identity (author-matched — a third party's lookalike never
+suppresses the signal) and raises nothing while one exists. The stall escalation itself is never a
+qualifying progress event, so the detector cannot reset itself by escalating — and more generally,
+a lane's own repeat attempt at the same still-unresolved blocker never qualifies either: the
+detector measures the queue moving, not the lane retrying. When progress resumes while a stall
+escalation is still open, the lane records the resumption as a comment on it and leaves the
+disposition to the operator.
 
 **Headless-config floor.** A headless lane launch never blocks on an interview: it takes explicit or
 persisted config, or tier defaults, and logs the assumption. The interactive path may run a
