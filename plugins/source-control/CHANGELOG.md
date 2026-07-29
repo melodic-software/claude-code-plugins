@@ -45,6 +45,8 @@ All notable changes to the `source-control` plugin are documented here. Format f
   wearing a flag and takes the same out-of-scope verdict, where before it **false-blocked** against
   the payload's directory; and `env -S 'gh pr create …'`, which carries an entire command line in
   one operand, is re-parsed the way an `sh -c` operand already was instead of being stepped over.
+  A short wrapper word is read as a **cluster** rather than a single flag, so `sudo -Eu root gh …`
+  and `env -iu VAR gh …` no longer leave their value where the command name belongs.
 - **A stalled hook payload blocked the command.** The gate inherited the sibling security guards'
   fail-closed posture on an unreadable stdin, which for a scoped policy gate means refusing an
   arbitrary Bash command because the hook could not read its own input. It allows now; the header

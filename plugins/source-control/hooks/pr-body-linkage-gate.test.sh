@@ -255,6 +255,17 @@ assert_block "env --split-string= operand is re-parsed" "$GATED" \
 assert_allow "env -S carrying a compliant body allowed" "$GATED" \
   "$(printf "env -S \"gh pr create -t T --body '%s'\"" "$GOOD")"
 
+# A short wrapper word is a CLUSTER, not one flag: `sudo -Eu root` is valid, and
+# reading it as a single unknown flag leaves `root` where the command belongs.
+assert_block "sudo -Eu root is a cluster ending in a value" "$GATED" \
+  "$(printf "sudo -Eu root gh pr create -t T --body '%s'" "$NO_RELATED")"
+assert_block "sudo -Euroot attaches the clustered value" "$GATED" \
+  "$(printf "sudo -Euroot gh pr create -t T --body '%s'" "$NO_RELATED")"
+assert_block "env -iu VAR is a cluster ending in a value" "$GATED" \
+  "$(printf "env -iu GH_TOKEN gh pr create -t T --body '%s'" "$NO_RELATED")"
+assert_allow "a chdir letter inside a cluster still moves the directory" "$GATED" \
+  "$(printf "env -iC %s gh pr create -t T --body '%s'" "$UNGATED" "$NO_RELATED")"
+
 # --- How `gh` is spelled -----------------------------------------------------
 # The wrapper loop above already reads basenames; matching the binary any other
 # way lets a path-qualified or Windows-suffixed call walk straight past.
