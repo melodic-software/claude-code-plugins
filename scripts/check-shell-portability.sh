@@ -342,6 +342,24 @@ scan_file() {
           else st = st "B"
           continue
         }
+        # An ARITHMETIC EXPANSION `$(( … ))` is data, not command text, and it
+        # must claim the `$((` spelling before the command-substitution branch
+        # below can read it as a `$(` plus a stray `(`. Letting that happen
+        # left the frame stack unbalanced — the first `)` popped the
+        # substitution and the second was consumed as expansion data, so
+        # collapse_subs() never closed every frame and blanked the rest of the
+        # line: `stat ${x:-$((1 | 2))} -c %s` reported clean (#1544).
+        #
+        # ARDEPTH tracks parenthesis nesting per frame so an inner `( … )`
+        # group (`$(( ((1)) + 2 ))`) cannot close the expansion early; the
+        # frame ends only at a `))` reached at depth zero.
+        if (c == "$" && substr(l, i + 1, 1) == "(" && substr(l, i + 2, 1) == "(") {
+          m = m "QQQ"
+          st = st "A"
+          ARDEPTH[length(st)] = 0
+          i += 2
+          continue
+        }
         if (c == "$" && substr(l, i + 1, 1) == "(") {
           m = m "Q("
           st = st "P"
@@ -363,6 +381,19 @@ scan_file() {
         # the expansion. Closing at the first `}` regardless let
         # `stat ${f:-"};part"} -c %s` end the expansion early, after which the
         # literal `;` read as a command boundary and hid the `-c` (#1544).
+        if (top == "A") {
+          m = m "Q"
+          if (c == "(") ARDEPTH[length(st)]++
+          else if (c == ")") {
+            if (ARDEPTH[length(st)] > 0) ARDEPTH[length(st)]--
+            else if (substr(l, i + 1, 1) == ")") {
+              m = m "Q"
+              st = substr(st, 1, length(st) - 1)
+              i++
+            }
+          }
+          continue
+        }
         if (top == "V") {
           m = m "Q"
           if (c == SQ) st = st "S"
@@ -585,15 +616,60 @@ scan_file() {
     # The lookback stops at `[;|&)]` and deliberately KEEPS `(` visible, unlike
     # is_negated(): that function asks what an outer `!` still governs and must
     # see past a frame, this one asks what ENCLOSES the frame and must see it.
-    function status_swallowed(q, at,   head, before) {
+    # A frame that IS the substitution of its own command still hands the `||`
+    # a status only while it is the LAST one to run. For an assignment-only
+    # command the exit status is the status of the last command substitution
+    # performed (2.9.1), so a sibling frame BESIDE the matched one takes
+    # ownership: in `x=$(stat -c …) y=$(true) || stat -f …` the `true` succeeds
+    # after BSD stat fails and the fallback never runs (#1544).
+    #
+    # This asks the whole question rather than ruling out one neighbour shape:
+    # the matched frame must be the status-determining frame of its command.
+    # Three routes reach the same principle — a later command INSIDE the frame,
+    # the command ENCLOSING it, and a later frame BESIDE it — and answering
+    # them one at a time is what kept a further variant findable.
+    #
+    # The forward walk reads the MASK, not the text: a paren or backquote still
+    # present there is structural by construction, so a `)` inside a quoted
+    # argument cannot close the frame early. It stops at the first command
+    # separator, which is the `||` itself in the shape this guards — anything
+    # past that operator belongs to the fallback, not to the command whose
+    # status the `||` tests.
+    function status_swallowed(q, at, m,   head, before, opener, i, c, depth, len, closed) {
       head = substr(q, 1, at - 1)
       if (match(head, /.*[;|&)]/)) head = substr(head, RSTART + RLENGTH)
       if (!match(head, ".*(\\$\\(|" BT ")")) return 0
       before = substr(head, 1, RLENGTH)
+      opener = substr(before, length(before), 1)
       sub("(\\$\\(|" BT ")$", "", before)
-      return before !~ "^[[:space:]]*([A-Za-z_][A-Za-z0-9_]*=)?[[:space:]]*$"
+      if (before !~ "^[[:space:]]*([A-Za-z_][A-Za-z0-9_]*=)?[[:space:]]*$") return 1
+      len = length(m)
+      closed = 0
+      if (opener == BT) {
+        # Backquotes do not nest without escaping, so the next one closes.
+        for (i = at; i <= len; i++) {
+          if (substr(m, i, 1) == BT) { closed = i; break }
+        }
+      } else {
+        depth = 1
+        for (i = at; i <= len; i++) {
+          c = substr(m, i, 1)
+          if (c == "(") depth++
+          else if (c == ")") {
+            depth--
+            if (depth == 0) { closed = i; break }
+          }
+        }
+      }
+      if (closed == 0) return 0
+      for (i = closed + 1; i <= len; i++) {
+        c = substr(m, i, 1)
+        if (c == "(" || c == BT) return 1
+        if (c == ";" || c == "|" || c == "&") return 0
+      }
+      return 0
     }
-    function is_guarded(q, p, at,   CMDPOS, SEG, PRE, NAME, QP, QL) {
+    function is_guarded(q, p, at, m,   CMDPOS, SEG, PRE, NAME, QP, QL) {
       if (is_negated(q, at)) return 0
       # An opener after the `||` may be any spelling that makes the command
       # which follows it what the `||` actually runs: either substitution
@@ -638,7 +714,7 @@ scan_file() {
       # rung — reached only because a portable attempt already failed — so where
       # its own status propagates to is not what that guard asks about.
       if (index(p, "stat")) {
-        if (status_swallowed(q, at)) return 0
+        if (status_swallowed(q, at, m)) return 0
         return substr(q, at) ~ ("^stat" PRE QP "(-" QL "c|--format|--printf)" SEG CMDPOS NAME "stat" PRE QP "-" QL "f")
       }
       return 0
@@ -653,7 +729,7 @@ scan_file() {
     # blanked in a scratch copy so the next `match()` finds the NEXT occurrence;
     # the guard still reads the untouched qline, and blanking preserves length
     # so offsets stay aligned.
-    function has_unguarded(view, q, p,   scan, st, len, at) {
+    function has_unguarded(view, q, p, m,   scan, st, len, at) {
       scan = view
       while (match(scan, p)) {
         st = RSTART
@@ -662,7 +738,7 @@ scan_file() {
         # Step over the leading word-boundary character the token consumed, so
         # the guard can anchor on the command name itself.
         if (substr(scan, at, 1) !~ /[A-Za-z]/) at++
-        if (!is_guarded(q, p, at)) return 1
+        if (!is_guarded(q, p, at, m)) return 1
         scan = substr(scan, 1, st - 1) blanks(len) substr(scan, st + len)
       }
       return 0
@@ -691,8 +767,8 @@ scan_file() {
       cline = collapse_subs(qline, mask)
       if (is_annotated(line) || annotated_above) return
       for (i = 1; i <= np; i++) {
-        if (has_unguarded(qline, qline, patterns[i]) ||
-          has_unguarded(cline, qline, patterns[i])) {
+        if (has_unguarded(qline, qline, patterns[i], mask) ||
+          has_unguarded(cline, qline, patterns[i], mask)) {
           printf "%d: %s -> %s\n", lineno, patterns[i], line
         }
       }
