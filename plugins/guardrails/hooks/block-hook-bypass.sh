@@ -223,6 +223,9 @@ strip_literals() {
           if ((i == 0)) ||
             {
               prev="${line:i-1:1}"
+              # portability-ok: `\<` and `\>` here are backslash-escaped literals
+              # inside a Bash bracket PATTERN, not GNU grep/sed word-boundary
+              # operators; Bash pattern matching is identical on BSD userland.
               [[ "$prev" == [[:space:]] || "$prev" == [\;\|\&\(\)\<\>] ]]
             }; then
             break
