@@ -3,6 +3,48 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.31.0]
+
+### Fixed
+
+- **Two lanes on one repository no longer clobber each other's durable state, including
+  `first_drain_complete` (#1295).** `work-loop` and `attend-queue` each built their telemetry
+  sentinel from a fixed marker naming the lane *type*, so every concurrent instance of a lane
+  resolved the same comment on the same telemetry issue and overwrote it last-writer-wins. The
+  reconcile already in the upsert did not help: it converges duplicate *comments* from a creation
+  race, not conflicting *state* written by two live lanes. `item_cap`, `clean_streak`, and
+  `rate_limit_latch` silently stopped reflecting either lane's experience, and
+  `first_drain_complete` — the flag that ends the first-drain C3 ratification gate — was set for
+  every machine by whichever one finished a drain first, widening autonomy with no human
+  ratification. The marker now carries the convention's lane-instance suffix
+  (`work-items:work-loop@<instance>`, `work-items:attend-queue@<instance>`), so each instance
+  creates, reads, and edits exactly one comment no sibling can match, and every counter in the
+  block is per-instance. Earn-trust is re-earned per instance; item-level ratifications still
+  travel with the item, so only the blanket period-end flag resets.
+
+### Added
+
+- **`lane_instance` config key, and an instance-collision check in `work-loop`'s durable state.**
+  The id defaults to the sanitized lowercased hostname and is validated `^[a-z0-9][a-z0-9-]{0,31}$`
+  inside the lane's own executable block — it is operator-supplied text interpolated into a shell
+  string and a `jq` program, so it is rejected rather than sanitized-and-continued. Partitioning is
+  only correct while ids are distinct, so the state block (now `work-items/loop-state@2`) carries
+  `lane_instance`, a per-session `writer_nonce`, a per-cycle `heartbeat_at`, and `paused_until`: a
+  differing nonce over a stale block is the ordinary restart adoption, and a differing nonce over a
+  *fresh* block means another live lane holds this id — the lane writes nothing, escalates, and
+  stops. The check runs before any write, so a duplicate id degrades to a stopped lane rather than
+  a clobbered `first_drain_complete`.
+
+### Changed
+
+- **The `Lane telemetry: <lane>` issue title is deliberately untouched.** The drain-exit snapshot,
+  the intake sweep, and the attention view all match lane infrastructure by that title contract, so
+  partitioning by marker rather than by title leaves every one of those consumers unmoved. Migration
+  is a deliberate reset: no pre-existing comment matches an instance's new sentinel — neither the
+  legacy un-suffixed markers nor the improvised `work-items:telemetry lane=… instance=…` comments
+  some lanes began posting in practice — so the first cycle posts a fresh block from defaults,
+  including `first_drain_complete:false`. That fails closed and is intended.
+
 ## [0.30.3]
 
 ### Added

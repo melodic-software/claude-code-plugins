@@ -1,14 +1,35 @@
-# Telemetry comment upsert (singleton, race-converging)
+# Telemetry comment upsert (per-instance singleton, race-converging)
 
 The exact upsert this lane runs at cycle-shape step 6 to maintain its ONE sentinel-identified status
-comment. `SKILL.md`'s "Telemetry and durable loop state" owns where the comment lives and what goes
-in it; this file owns how the singleton is maintained and how a creation race converges.
+comment **for this lane instance**. `SKILL.md`'s "Telemetry and durable loop state" owns where the
+comment lives and what goes in it; this file owns how the singleton is maintained and how a creation
+race converges.
 
 The upsert is inlined in this plugin rather than invoked from `claude-ops` because an installed
 plugin cannot invoke a sibling plugin's scripts.
 
+Per the convention's lane-instance identity rule, the marker names the **writer**, not the lane type
+(#1295): a marker naming only the lane makes two concurrent instances resolve one comment and
+clobber each other's durable state. `INSTANCE` comes from the `lane_instance` config key, else the
+sanitized lowercased hostname (headless-config floor: log the assumption). It is operator-supplied
+text about to be interpolated into a shell string and a `jq` program, so it is validated and
+**rejected**, never sanitized-and-continued, and the check runs before `MARKER` is built:
+
 ```bash
-MARKER="source-control:babysit-loop"
+INSTANCE="${LANE_INSTANCE:-$(hostname | tr '[:upper:]' '[:lower:]' | tr -c 'a-z0-9-' '-')}"
+# ^[a-z0-9][a-z0-9-]{0,31}$ — empty, a leading hyphen, any other character, or
+# over 32 chars is REJECTED, never trimmed into something that looks valid.
+case "$INSTANCE" in
+"" | -* | *[!a-z0-9-]*)
+  echo "telemetry: lane_instance '$INSTANCE' is not ^[a-z0-9][a-z0-9-]{0,31}\$; refusing to build a marker" >&2
+  exit 1
+  ;;
+esac
+[ "${#INSTANCE}" -le 32 ] || {
+  echo "telemetry: lane_instance '$INSTANCE' exceeds 32 characters; refusing to build a marker" >&2
+  exit 1
+}
+MARKER="source-control:babysit-loop@$INSTANCE"
 SENT="<!-- claude-ops:lane-telemetry marker=$MARKER -->"   # first line of $BODY_FILE
 LOOKUP() { gh api --paginate "repos/$REPO/issues/$ISSUE/comments" \
   --jq ".[] | select(.body | startswith(\"$SENT\")) | .id"; }
@@ -37,4 +58,6 @@ every session), the canonical comment receives the current cycle's full state, a
 sentinel comment is edited to a one-line tombstone so it never matches a lookup again — this
 covers a racer that died between its POST and its own re-list, because the NEXT session's
 ordinary upsert performs the same reconcile. A crashed racer's unmerged counters are an
-accepted loss (durable state re-derives over a cycle); nothing is deleted.
+accepted loss (durable state re-derives over a cycle); nothing is deleted. The reconcile converges
+duplicates **within one instance's own sentinel set** — a sibling instance's comment carries a
+different marker and never enters `$LIST`, so it is neither made canonical nor tombstoned.

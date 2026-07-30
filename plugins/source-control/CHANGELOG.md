@@ -3,6 +3,32 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.43.0]
+
+### Fixed
+
+- **`babysit-loop`'s telemetry marker named the lane type, not the writer (#1295).** Every
+  concurrent instance of the lane built the same fixed sentinel, so two merge lanes on one
+  repository resolved one comment and overwrote each other's durable state last-writer-wins — the
+  same defect `work-items`' lanes carried, and identical in shape, so fixing it in one lane would
+  have left it latent in this one. The marker now carries the loop-lane convention's lane-instance
+  suffix (`source-control:babysit-loop@<instance>`) and each instance owns exactly one comment no
+  sibling can match. The creation-race reconcile is unchanged and now converges duplicates within an
+  instance's own sentinel set. The `Lane telemetry: <lane>` issue title is untouched, so the
+  lane-infrastructure exclusion every consumer matches on does not move.
+
+### Added
+
+- **`lane_instance` config key, and an instance-collision check in the durable state block.** The id
+  defaults to the sanitized lowercased hostname and is validated `^[a-z0-9][a-z0-9-]{0,31}$` inside
+  the lane's own executable block, since it is operator-supplied text interpolated into a shell
+  string and a `jq` program. The block (now `source-control/babysit-loop-state@2`) carries
+  `lane_instance`, a per-session `writer_nonce`, a per-cycle `heartbeat_at`, and `paused_until`: a
+  differing nonce over a stale block is the ordinary restart adoption; over a *fresh* block it means
+  another live lane holds this id, and the lane writes nothing, escalates, and stops cleanly.
+  `paused_until` is not the rate-limit latch — the latch says do not claim work, `paused_until` says
+  do not read this lane's silence as death.
+
 ## [0.42.1]
 
 ### Fixed

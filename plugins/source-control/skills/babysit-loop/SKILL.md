@@ -360,9 +360,10 @@ stalled, the threshold key, and the stall-escalation shape are owned in full by
 
 The telemetry home is a **per-lane tracking issue in the target repository**, resolved from launch
 config; default: the open issue titled `Lane telemetry: babysit-loop` (exact match), created with
-`gh issue create` when absent (announce the creation). Maintain exactly ONE status comment on it,
-sentinel-identified and edited in place (the `claude-ops` lane-telemetry contract; one writer
-identity owns a marker). The upsert itself — the singleton lookup, the POST/PATCH, and the creation-race reconcile that
+`gh issue create` when absent (announce the creation). Maintain exactly ONE status comment on it
+**per lane instance**, sentinel-identified and edited in place (the `claude-ops` lane-telemetry
+contract; one writer identity owns a marker). The upsert itself — the lane-instance resolution and
+validation, the singleton lookup, the POST/PATCH, and the creation-race reconcile that
 converges two sessions racing the first-ever comment — is owned by
 [reference/telemetry-upsert.md](reference/telemetry-upsert.md). It is inlined in this plugin (never
 invoked from `claude-ops`) because an installed plugin cannot invoke a sibling plugin's scripts.
@@ -371,9 +372,11 @@ The comment carries the human-readable cycle report plus a machine-readable **du
 block, re-read at every cycle start:
 
 ```json
-{"schema":"source-control/babysit-loop-state@1","cycle":12,"backoff_level":2,
+{"schema":"source-control/babysit-loop-state@2","cycle":12,"backoff_level":2,
  "no_progress_streak":0,"stop_mode":"standing","tier":"worker","merge_rung":"c2-mechanical",
  "rate_limit_latch":false,"guard_mode":"proactive",
+ "lane_instance":"melo-lap-001","writer_nonce":"9f3c1a7e","heartbeat_at":"2026-07-23T15:04:05Z",
+ "paused_until":null,
  "loop_started_at":"2026-07-23T15:00:00Z","restart_request":null,
  "usage_sample":{"at":"2026-07-23T15:04:05Z","five_hour_pct":23.5,"seven_day_pct":41.2,
  "five_hour_delta_pct":1.8}}
@@ -382,6 +385,27 @@ block, re-read at every cycle start:
 `cycle`, `backoff_level`, and `no_progress_streak` are the loop's durable counters;
 `loop_started_at` makes the approaching seven-day expiry visible; `restart_request` is where a
 budget or expiry hit records the relaunch ask; `guard_mode` is recorded every cycle.
+
+Every counter here is **per-instance** — the marker partitions the block, so each measures the
+experience of *this* lane instance rather than an average of two lanes'. Report the instance on its
+own `instance:` line in the cycle report, never appended to `lane:`, whose reader capture is
+`[a-z0-9_-]+` and would truncate the suffix.
+
+**Instance-collision check (cycle start, before any write).** `writer_nonce` is generated once per
+session; `heartbeat_at` is rewritten every cycle. After re-reading the block:
+
+- Nonce matches mine → ordinary continuation.
+- Nonce differs **and** the block is stale (`heartbeat_at` over **2 hours** old, and past
+  `paused_until` when set) → an earlier session of this same instance restarted or died. Adopt the
+  block, write my nonce, continue — the ordinary restart path. Two hours is twice the one-hour
+  `ScheduleWakeup` ceiling, so a healthy lane at maximum idle backoff never reads as stale.
+- Nonce differs **and** the block is fresh → **another live lane holds my instance id.** Write
+  nothing to the block, escalate per the convention's escalation contract, and stop the loop
+  cleanly.
+
+`paused_until` is not `rate_limit_latch` and does not replace it: the latch says *do not claim
+work*; `paused_until` says *do not read my silence as death*. Write it before entering a rate-limit
+pause so a paused lane is never adopted as a dead one.
 
 `usage_sample` copies the **same** two window percentages the rate-limit guard step below already
 read at this cycle's **start** — never a second reading, so `at` is when the lane read the tee, not

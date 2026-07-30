@@ -3,6 +3,21 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.25.0]
+
+### Changed
+
+- **`telemetry-upsert.sh` accepts the writer-identity marker suffix (#1295).** The marker charset
+  gains `@`, so a marker can name one *writer* (`<lane>@<instance>`) rather than a lane type — the
+  loop-lane convention's fix for concurrent instances of one lane sharing, and clobbering, a single
+  telemetry comment. This script is that convention's interim home, so a marker shape its validator
+  rejected would have left the contract and its executable owner disagreeing. `@` is added to
+  **both** lookaround classes in the two-tier detection's fallback as well, for exactly the reason
+  `-` is already in them: without it, `lane:x` matches inside `lane:x@laptop-a` and would adopt that
+  instance's comment — the boundary rule one level down from the `lane:triage` /
+  `lane:triage-old` prefix collision it already guards. Two cases cover the new boundary in both
+  directions, plus one asserting a suffixed marker validates at all.
+
 ## [0.24.1]
 
 ### Fixed

@@ -418,8 +418,11 @@ lane telemetry, and the operator owns the restart (`lanes` `restart` is the oper
 path). The restart-request in the #502 block is written so that the operator today, and an
 automatic trigger when one exists, can act on the same surface.
 
-**Telemetry comment (#502).** Each lane maintains exactly **one** status comment on a tracking item,
-identified by a machine sentinel marker and **edited in place** every cycle — never a second comment.
+**Telemetry comment (#502).** Each lane **instance** maintains exactly **one** status comment on a
+tracking item, identified by a machine sentinel marker and **edited in place** every cycle — never a
+second comment for that instance. The unit is the writer identity, not the lane type: N concurrent
+instances of one lane legitimately hold N sentinel-identified comments on that lane's telemetry
+item, one each, and no instance ever edits another's.
 `claude-ops`'s `telemetry-upsert.sh` is the interim home of this contract and a compatible reader
 (`morning-brief` reads the same surface); an installed plugin cannot invoke a sibling plugin's
 script, so each lane **inlines** the small `gh api` upsert and the coupling to `claude-ops` stays
@@ -427,10 +430,67 @@ one-directional. An inlined upsert carries none of the wrapper's body checks, so
 `@path`-as-body rule in [`claude-ops` lanes](../../../plugins/claude-ops/skills/lanes/SKILL.md),
 section "Never pass a body as an `@path` string".
 
+**Lane-instance identity (#1295).** The marker names the **writer**, not the lane type. A marker
+that names only the lane makes two concurrent instances resolve one comment and clobber each other's
+durable state under last-writer-wins — including `first_drain_complete`, whose loss silently ends
+one instance's earn-trust ratification period because a different machine finished a drain. The
+marker therefore carries a lane-instance suffix, the lane-type marker becoming its prefix:
+
+```text
+MARKER="<lane-marker>@<lane_instance>"
+```
+
+`<lane_instance>` is resolved from launch config, defaulting to the sanitized lowercased machine
+hostname when unset (headless-config floor: never block on an interview, log the assumption). It
+must be **stable across restarts** — durable state is precisely what survives a `/loop` expiry or a
+cycle-budget relaunch — and **distinct across concurrently running instances**, so two lanes on one
+machine must each be given an explicit id. It is operator-supplied text interpolated into a shell
+string and a `jq` program, so every lane **validates it before use** — `^[a-z0-9][a-z0-9-]{0,31}$`,
+rejected outright, never sanitized-and-continued — and the validation lives in the lane's own
+executable block, not only in this prose. The value appears verbatim in tracker comments; an
+operator who does not want a machine name published in a public tracker sets an opaque id.
+
+The instance is reported on its **own `instance:` line** in the cycle report, never appended to the
+`lane:` line: `morning-brief`'s lane capture is `[a-z0-9_-]+`, which would silently truncate a
+suffix at the `@` and report the lane as if nothing were partitioned. Rendering one row per instance
+is that reader's own follow-up; emitting the field is this contract's obligation.
+
+Only the *instance* is new. The other two components of the (repo, lane, instance) identity already
+hold by construction: the comment lives on one issue in one repository, and the telemetry item is
+per-lane. The **issue title is not touched** — the `Lane telemetry: <lane>` title contract that the
+drain-exit snapshot, the intake sweep, and the attention view all match on is the reason the marker
+was chosen as the seam rather than the title.
+
+**Instance-collision detection.** Partitioning is correct only while ids are distinct, so a
+collision is detected rather than assumed away. This binds every lane that carries a durable-state
+block; the attended queue, which carries none, is bound by the marker partition alone — its operator
+is present by definition, so an id collision there surfaces to a human in the same pass. The durable
+state block carries `lane_instance`, a
+per-session random `writer_nonce`, an ISO-8601 UTC `heartbeat_at` rewritten every cycle, and
+`paused_until`. At cycle start, after reading its own block:
+
+- `writer_nonce` matches mine → ordinary continuation.
+- `writer_nonce` differs **and** the block is stale (`heartbeat_at` older than **2 hours**, and past
+  `paused_until` when set) → a previous session of this same instance restarted or died. Adopt the
+  block, write my nonce, continue. This is the ordinary restart path. Two hours is twice the
+  one-hour `ScheduleWakeup` ceiling above, so a healthy lane at maximum idle backoff can never look
+  stale.
+- `writer_nonce` differs **and** the block is fresh → **another live lane is using my instance id.**
+  Write nothing to the block, escalate per §2 (role label + machine-marked comment), and stop the
+  loop cleanly.
+
+`paused_until` is not the rate-limit latch and does not replace it: the latch says *do not claim
+work*, `paused_until` says *do not read my silence as death*. A lane entering a rate-limit pause
+writes it before pausing, so a paused lane is never adopted as a dead one. Detection runs before any
+write, so an id collision degrades to a stopped lane rather than a silently clobbered
+`first_drain_complete`.
+
 **Durable loop state.** Conversation context is lossy across compaction, so a lane persists its
-adaptive-cap streak counter, its rate-limit-warning latch, its consecutive-no-progress counter, and
-its cycle count in a machine-readable block of that same #502 telemetry comment, and re-reads them
-at each cycle start.
+adaptive-cap streak counter, its rate-limit-warning latch, its consecutive-no-progress counter, its
+cycle count, and its instance-identity fields in a machine-readable block of that same #502
+telemetry comment, and re-reads them at each cycle start. Every counter in the block is
+**per-instance** — each measures the experience of one lane instance, which averaging two instances'
+experience into one block never did.
 
 **No-progress detector.** Every stall mechanism below the loop layer is per-PR or per-item, so a
 lane cycling repeatedly while accomplishing nothing in aggregate is invisible to itself: each gate

@@ -68,12 +68,37 @@ defaults, and log the assumption.
 The telemetry home is a **per-lane tracking issue in the target repository**, resolved from launch
 config; default: the open issue titled `Lane telemetry: work-loop` (exact match), created through
 the seam `create-item` verb when absent (announce the creation). Maintain exactly ONE status
-comment on it, sentinel-identified and edited in place (the `claude-ops` lane-telemetry contract;
-one writer identity owns a marker). The upsert is inlined here because an installed plugin cannot
-invoke a sibling plugin's scripts:
+comment on it **per lane instance**, sentinel-identified and edited in place (the `claude-ops`
+lane-telemetry contract; one writer identity owns a marker). The upsert is inlined here because an
+installed plugin cannot invoke a sibling plugin's scripts.
+
+**Resolve the lane instance first (#1295).** The marker names the *writer*, not the lane type — per
+the convention's lane-instance identity rule. `INSTANCE` comes from the `lane_instance` config key,
+else the sanitized lowercased hostname (headless-config floor: log the assumption). It is
+operator-supplied text about to be interpolated into a shell string and a `jq` program, so it is
+validated and **rejected**, never sanitized-and-continued:
 
 ```bash
-MARKER="work-items:work-loop"
+INSTANCE="${LANE_INSTANCE:-$(hostname | tr '[:upper:]' '[:lower:]' | tr -c 'a-z0-9-' '-')}"
+# ^[a-z0-9][a-z0-9-]{0,31}$ — empty, a leading hyphen, any other character, or
+# over 32 chars is REJECTED, never trimmed into something that looks valid.
+case "$INSTANCE" in
+"" | -* | *[!a-z0-9-]*)
+  echo "telemetry: lane_instance '$INSTANCE' is not ^[a-z0-9][a-z0-9-]{0,31}\$; refusing to build a marker" >&2
+  exit 1
+  ;;
+esac
+[ "${#INSTANCE}" -le 32 ] || {
+  echo "telemetry: lane_instance '$INSTANCE' exceeds 32 characters; refusing to build a marker" >&2
+  exit 1
+}
+```
+
+The check runs **before** `MARKER` is built — a lane that validates only in prose has documented a
+guard that does not run.
+
+```bash
+MARKER="work-items:work-loop@$INSTANCE"
 SENT="<!-- claude-ops:lane-telemetry marker=$MARKER -->"   # first line of $BODY_FILE
 LOOKUP() { gh api --paginate "repos/$REPO/issues/$ISSUE/comments" \
   --jq ".[] | select(.body | startswith(\"$SENT\")) | .id"; }
@@ -102,7 +127,9 @@ every session), the canonical comment receives the current cycle's full state, a
 sentinel comment is edited to a one-line tombstone so it never matches a lookup again — this
 covers a racer that died between its POST and its own re-list, because the NEXT session's
 ordinary upsert performs the same reconcile. A crashed racer's unmerged counters are an
-accepted loss (durable state re-derives over a cycle); nothing is deleted.
+accepted loss (durable state re-derives over a cycle); nothing is deleted. The reconcile converges
+duplicates **within one instance's own sentinel set** — a sibling instance's comment carries a
+different marker and never enters `$LIST`, so it is neither canonical nor tombstoned.
 
 When the bound provider is not `github`, this upsert is unavailable: carry the same telemetry
 content — including the machine-readable state block — in the lane's cycle report/log instead,
@@ -113,8 +140,10 @@ block, re-read at every cycle start (conversation context is compaction-lossy �
 the conversation, is the source of truth for these counters):
 
 ```json
-{"schema":"work-items/loop-state@1","cycle":12,"clean_streak":1,"no_progress_streak":0,
+{"schema":"work-items/loop-state@2","cycle":12,"clean_streak":1,"no_progress_streak":0,
  "item_cap":2,"rate_limit_latch":false,"first_drain_complete":false,"guard_mode":"proactive",
+ "lane_instance":"melo-lap-001","writer_nonce":"9f3c1a7e","heartbeat_at":"2026-07-23T15:04:05Z",
+ "paused_until":null,
  "loop_started_at":"2026-07-23T15:00:00Z","restart_request":null,
  "usage_sample":{"at":"2026-07-23T15:04:05Z","five_hour_pct":23.5,"seven_day_pct":41.2,
  "five_hour_delta_pct":1.8}}
@@ -122,6 +151,33 @@ the conversation, is the source of truth for these counters):
 
 `loop_started_at` makes the approaching seven-day expiry visible; `restart_request` is where a
 budget/expiry hit records the relaunch ask; `guard_mode` is recorded every cycle.
+
+Every counter here is **per-instance** — the marker partitions the block, so `item_cap`,
+`clean_streak`, `no_progress_streak`, and `rate_limit_latch` each measure the experience of *this*
+lane instance, and `first_drain_complete` can only be set by this instance's own drain. Earn-trust
+is therefore re-earned per instance: a newly named instance runs its first drain under the C3
+ratification gate rather than inheriting a trust period another lane earned. Only the blanket
+period-end flag resets — item-level ratifications travel with the item.
+
+**Instance-collision check (cycle start, before any write).** `writer_nonce` is generated once per
+session; `heartbeat_at` is rewritten every cycle. After re-reading the block:
+
+- Nonce matches mine → ordinary continuation.
+- Nonce differs **and** the block is stale (`heartbeat_at` over **2 hours** old, and past
+  `paused_until` when set) → an earlier session of this same instance restarted or died. Adopt the
+  block, write my nonce, continue. This is the ordinary restart path; two hours is twice the
+  one-hour `ScheduleWakeup` ceiling, so a healthy lane at maximum idle backoff never reads as stale.
+- Nonce differs **and** the block is fresh → **another live lane holds my instance id.** Write
+  nothing to the block, escalate per the convention's escalation contract, and stop the loop
+  cleanly.
+
+`paused_until` is not `rate_limit_latch` and does not replace it: the latch says *do not claim
+work*; `paused_until` says *do not read my silence as death*. Write it before entering a rate-limit
+pause so a paused lane is never adopted as a dead one.
+
+Report the instance on its own `instance:` line in the cycle report, never appended to `lane:` —
+the telemetry reader's lane capture is `[a-z0-9_-]+` and would truncate the suffix at the `@`,
+reporting the lane as if nothing were partitioned.
 
 `usage_sample` copies the **same** two window percentages the rate-limit guard step below already
 read at this cycle's **start** — never a second reading, so `at` is when the lane read the tee, not

@@ -111,14 +111,28 @@ disclaimer; the operator's own words need none.
 
 ## Telemetry
 
-Per the convention, this lane too maintains exactly ONE sentinel-identified status comment on its
-per-lane tracking issue in the target repository (default title `Lane telemetry: attend-queue`,
-created through the seam `create-item` verb when absent), edited in place each pass with the rows
-handled, the answers written, and the guard mode. Same inlined upsert as the worker loop with
-`MARKER="work-items:attend-queue"`:
+Per the convention, this lane too maintains exactly ONE sentinel-identified status comment **per
+lane instance** on its per-lane tracking issue in the target repository (default title
+`Lane telemetry: attend-queue`, created through the seam `create-item` verb when absent), edited in
+place each pass with the rows handled, the answers written, and the guard mode. Same inlined upsert
+as the worker loop, including the lane-instance resolution and validation that runs before the
+marker is built — the marker names the writer, not the lane type (#1295), so two attended sessions
+on one repository never overwrite each other's pass record:
 
 ```bash
-MARKER="work-items:attend-queue"
+INSTANCE="${LANE_INSTANCE:-$(hostname | tr '[:upper:]' '[:lower:]' | tr -c 'a-z0-9-' '-')}"
+# ^[a-z0-9][a-z0-9-]{0,31}$ — rejected, never sanitized-and-continued.
+case "$INSTANCE" in
+"" | -* | *[!a-z0-9-]*)
+  echo "telemetry: lane_instance '$INSTANCE' is not ^[a-z0-9][a-z0-9-]{0,31}\$; refusing to build a marker" >&2
+  exit 1
+  ;;
+esac
+[ "${#INSTANCE}" -le 32 ] || {
+  echo "telemetry: lane_instance '$INSTANCE' exceeds 32 characters; refusing to build a marker" >&2
+  exit 1
+}
+MARKER="work-items:attend-queue@$INSTANCE"
 SENT="<!-- claude-ops:lane-telemetry marker=$MARKER -->"   # first line of $BODY_FILE
 LOOKUP() { gh api --paginate "repos/$REPO/issues/$ISSUE/comments" \
   --jq ".[] | select(.body | startswith(\"$SENT\")) | .id"; }
@@ -147,7 +161,15 @@ every session), the canonical comment receives the current cycle's full state, a
 sentinel comment is edited to a one-line tombstone so it never matches a lookup again — this
 covers a racer that died between its POST and its own re-list, because the NEXT session's
 ordinary upsert performs the same reconcile. A crashed racer's unmerged counters are an
-accepted loss (durable state re-derives over a cycle); nothing is deleted.
+accepted loss (durable state re-derives over a cycle); nothing is deleted. The reconcile converges
+duplicates **within one instance's own sentinel set**; a sibling instance's comment carries a
+different marker and never enters `$LIST`.
+
+Report the instance on its own `instance:` line in the pass report, never appended to `lane:` — the
+telemetry reader's lane capture is `[a-z0-9_-]+` and would truncate the suffix. This lane carries no
+durable-state block, so the convention's instance-collision check does not bind here; the marker
+partition alone is sufficient because an operator is present by definition and a duplicate id
+surfaces to them in the same pass.
 
 When the bound provider is not `github`, this upsert is unavailable: carry the same telemetry
 content in the lane's pass report/log instead, with a notice that the comment surface is absent.
