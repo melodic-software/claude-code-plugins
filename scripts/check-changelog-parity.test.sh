@@ -416,5 +416,52 @@ repo="$(mk_repo)"
 if [[ $? -eq 2 ]]; then ok "bad mode -> exit 2"; else fail "bad mode did not exit 2"; fi
 rm -rf "$repo"
 
+# --- --check-order -----------------------------------------------------------
+# Regression cover for the defect that shipped: a stale-based entry whose number
+# was already behind by the time it merged, in a file no other mode reads.
+write_changelog() { # $1 path, $2... headings
+  local path="$1"
+  shift
+  mkdir -p "$(dirname "$path")"
+  printf '# Changelog\n\n' >"$path"
+  local h
+  for h in "$@"; do printf '%s\n\nsome note\n\n' "$h" >>"$path"; done
+}
+
+repo="$(mk_repo)"
+mk_plugin "$repo" alpha 1.0.0 no
+write_changelog "$repo/plugins/alpha/CHANGELOG.md" '## [3.0.0]' '## [2.0.0]' '## [1.0.0]'
+if out="$(cd "$repo" && bash scripts/check-changelog-parity.sh --check-order 2>&1)"; then ok "descending plugin changelog passes"; else fail "descending changelog rejected: $out"; fi
+
+write_changelog "$repo/plugins/alpha/CHANGELOG.md" '## [3.0.0]' '## [1.5.0]' '## [2.0.0]'
+out="$(cd "$repo" && bash scripts/check-changelog-parity.sh --check-order 2>&1)"
+rc=$?
+if [[ $rc -eq 1 && "$out" == *"MISORDERED CHANGELOG"* ]]; then ok "a version below a later one is caught"; else fail "misordering not caught: rc=$rc $out"; fi
+if [[ "$out" == *"2.0.0 (below 1.5.0)"* ]]; then ok "the offending pair is named"; else fail "offender not named: $out"; fi
+
+write_changelog "$repo/plugins/alpha/CHANGELOG.md" '## [2.0.0]' '## [2.0.0]' '## [1.0.0]'
+out="$(cd "$repo" && bash scripts/check-changelog-parity.sh --check-order 2>&1)"
+rc=$?
+if [[ $rc -eq 1 && "$out" == *"DUPLICATE CHANGELOG VERSION"* ]]; then ok "two branches staging one version is caught"; else fail "duplicate not caught: rc=$rc $out"; fi
+
+# The exact shape that shipped, in the exact file class that shipped it: a
+# CONVENTION changelog, which is unversioned by any manifest and therefore
+# invisible to --check and --check-bump.
+write_changelog "$repo/plugins/alpha/CHANGELOG.md" '## [1.0.0]'
+write_changelog "$repo/docs/conventions/demo/CHANGELOG.md" \
+  '## 6.0.0 — 2026-07-29' '## 3.1.1 — 2026-07-29' '## 5.0.0 — 2026-07-29' '## 4.0.0 — 2026-07-27'
+out="$(cd "$repo" && bash scripts/check-changelog-parity.sh --check-order 2>&1)"
+rc=$?
+if [[ $rc -eq 1 && "$out" == *"docs/conventions/demo/CHANGELOG.md"* ]]; then ok "unbracketed CONVENTION changelogs are in scope"; else fail "convention changelog not checked: rc=$rc $out"; fi
+
+# A single-entry changelog has no order to violate.
+write_changelog "$repo/docs/conventions/demo/CHANGELOG.md" '## 1.0.0 — 2026-01-01'
+if out="$(cd "$repo" && bash scripts/check-changelog-parity.sh --check-order 2>&1)"; then ok "a single-entry changelog passes"; else fail "single entry rejected: $out"; fi
+
+# Numeric, not lexical: 10.0.0 sorts ABOVE 9.0.0.
+write_changelog "$repo/docs/conventions/demo/CHANGELOG.md" '## 10.0.0 — 2026-02-01' '## 9.0.0 — 2026-01-01'
+if out="$(cd "$repo" && bash scripts/check-changelog-parity.sh --check-order 2>&1)"; then ok "version order is numeric, not lexical (10.0.0 > 9.0.0)"; else fail "lexical comparison leaked in: $out"; fi
+rm -rf "$repo"
+
 printf '\nPASS=%d FAIL=%d\n' "$PASS" "$FAIL"
 ((FAIL == 0))

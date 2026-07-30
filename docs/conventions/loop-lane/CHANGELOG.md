@@ -17,10 +17,13 @@ clarified, not altered.
   satisfy both clauses. The permission is now scoped by **purpose** rather than by operation:
   deriving `five_hour_delta_pct`, covering the subtraction and the rollover comparison together. The
   measure-only guarantee is unchanged — the value still reaches no decision at any threshold.
-- **Changelog version order corrected.** The `#1638` entry was authored against 3.1.0 and merged as
-  `3.1.1` after 4.0.0 had already landed, leaving a version regression in a descending-order file.
-  It is renumbered `4.0.1` and repositioned below 5.0.0, preserving both version order and the order
-  entries actually shipped in. No wording in that entry changed.
+- **Changelog version order corrected, and gated.** The `#1638` entry was authored against 3.1.0 and
+  merged as `3.1.1` after 4.0.0 had already landed, leaving a version regression in a
+  descending-order file. It is renumbered `4.0.1` and repositioned below 5.0.0, preserving both
+  version order and the order entries actually shipped in. No wording in that entry changed. Nothing
+  caught it because no gate read the *sequence* — `check-changelog-parity.sh` now has a
+  `--check-order` mode, wired as a required check, covering convention changelogs as well as plugin
+  ones.
 
 ## 6.0.0 — 2026-07-29
 
