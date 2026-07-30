@@ -176,10 +176,22 @@ if shell_editorconfig_opt_in; then
     # run failed": where the flag exists, a failing run now leaves the file
     # untouched, which is the only safe reading of a formatter that did not
     # complete.
-    if shfmt --apply-ignore --version >/dev/null 2>&1; then
+    #
+    # The probe's own failure is classified the same way: only a confirmed
+    # unsupported-flag rejection (the Go flag parser's "flag provided but not
+    # defined", or a wrapper's "unknown flag", naming apply-ignore) takes the
+    # plain-format compatibility path. Any other probe failure — a wrapper
+    # flaking on its first invocation, a transient exec error — says nothing
+    # about the flag, so falling back would mutate through the same discarded
+    # opt-out; the file is left untouched and the skip is said out loud.
+    probe_err=""
+    if probe_err=$(shfmt --apply-ignore --version 2>&1 >/dev/null); then
       shfmt --apply-ignore -w "$FILE" 2>/dev/null
-    else
+    elif [[ "$probe_err" == *apply-ignore* ]] &&
+      [[ "$probe_err" == *"flag provided but not defined"* || "$probe_err" == *"unknown flag"* ]]; then
       shfmt -w "$FILE" 2>/dev/null
+    else
+      append_notice "bash-format: shfmt capability probe failed unexpectedly (${probe_err%%$'\n'*}) — formatting skipped for this file, opt-outs preserved."
     fi
     ran_any=1
   elif hook::notice_once "bash-format-shfmt" "$INPUT"; then

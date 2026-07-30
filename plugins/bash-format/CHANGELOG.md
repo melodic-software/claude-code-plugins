@@ -19,7 +19,11 @@ All notable changes to the `bash-format` plugin are documented here. Format foll
   by inferring it from a failed format run, which is what confused "this shfmt has no such flag"
   with "this run failed". Where the flag exists, a failing run now leaves the file untouched — the
   only safe reading of a formatter that did not complete. Old shfmt still gets the plain in-place
-  format it always did.
+  format it always did — but only on a **confirmed** unsupported-flag rejection (the flag parser's
+  error naming `apply-ignore`); a probe that fails for any other reason (a wrapper flaking on its
+  first invocation, a transient exec error) says nothing about the flag, so the file is left
+  untouched and the skip is reported in the hook's notice rather than falling back to a mutation
+  through the same discarded opt-out.
 
   Reproduced with a stub shfmt that answers the capability probe but fails the `-w` run: **before**,
   a file in an `ignore = true` repo is reformatted; **after**, it is byte-identical.
