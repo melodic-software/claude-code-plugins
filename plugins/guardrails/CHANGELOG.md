@@ -3,6 +3,28 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.18.2]
+
+### Fixed
+
+- **A wrapper's options were parsed as git's globals, bypassing the commit guard.** The directory and
+  locating-global helpers — `effective_dir`, `collect_locating_globals`, `explicit_git_dir` — were
+  handed the whole pre-git argv slice, wrapper arguments included, and they cannot know which wrapper
+  options take a value. In `env -u -C git …`, GNU env's `-u NAME` consumes `-C` as the variable to
+  unset and `git` as the command, so git itself receives no `-C` and never changes directory; the
+  0-based slice instead read the bare tokens `-C git` and resolved into `./git`. The guard then
+  inspected one repository's aliases while git executed another's — a reported, reproducible bypass
+  in which `env -u -C git -c alias.a='!git -C child p' a` returned 0 while real git committed via
+  `child`'s `commit --allow-empty -m`.
+
+  Those helpers now receive only the slice from the **resolved git token** to the subcommand. The two
+  sites that rebuild the command line still start at index 0, deliberately, because they reconstruct
+  the invocation rather than parse git's options.
+
+  The regression cases were verified to **fail against the unfixed hook** and pass against the fix,
+  and git's own `-C` is covered alongside them so the narrower slice cannot silently stop honouring a
+  relocation git really performs.
+
 ## [0.18.1]
 
 ### Fixed
