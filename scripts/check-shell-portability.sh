@@ -65,11 +65,13 @@
 # a string literal is the whole mechanism behind the regex-escape classes,
 # where `grep -E "\bword"` lives inside quotes and MUST still be caught.
 # Requiring command position for the option-based classes alone would need a
-# per-class axis in the token data plus word-level tokenization (#1562), and
-# every partial answer to it trades this false positive for a fail-OPEN — the
-# same trade already made and withdrawn for `--` (recorded above
-# collapse_subs()), which is the direction this gate is explicitly tuned
-# against. `portability-ok: <reason>` is the one-line escape for a diagnostic
+# per-class axis in the token data on top of the word layer (#1551), and every
+# partial answer to it trades this false positive for a fail-OPEN — the
+# direction this gate is explicitly tuned against. The word layer's first
+# consumer, `--` end-of-options (#1562, recorded above dashdash_between()),
+# shows the cost of doing it right: suppression fires on nothing weaker than a
+# statically unambiguous marker word inside the matched extent.
+# `portability-ok: <reason>` is the one-line escape for a diagnostic
 # or example that names one of these utilities.
 # Guard markers are seeded for the one class that needs one today
 # (readlink -f, requiring an actual `||` fallback relationship with a
@@ -617,21 +619,248 @@ scan_file() {
       }
       return r
     }
-    # `--` (end-of-options) is deliberately NOT honored — `stat -- -c` and
-    # `date -- -d` are reported even though the flag-shaped word after the
-    # marker is an operand. This is the documented over-flag direction, and
-    # `portability-ok: <reason>` is the one-line escape.
+    # ---- Word layer (#1551 stage 1) ----
+    # The mask decides which CHARACTER is quoted; these functions decide which
+    # run of characters is one shell WORD and what that word becomes after
+    # quote removal (2.6.7). They are the first slice of the word-aware layer
+    # #1551 records: word delimitation reads the MASK (a quoted space never
+    # splits a word, a masked separator never splits a command), and quote
+    # removal runs on the word text alone, which starts in the unquoted state
+    # by construction — its left boundary is structural.
     #
-    # It was implemented and withdrawn. Honoring it correctly needs the marker
-    # scoped to the invocation that owns it, resumed matching after a discarded
-    # occurrence, and recognition of a quoted `"--"` word — and each partial
-    # answer traded the false positive for a fail-OPEN, which is the worse
-    # direction this gate is explicitly tuned against:
+    # First consumer: `--` (end-of-options). `stat -- -c` passes `-c` as a
+    # FILE OPERAND, so reporting it was a false positive; the same marker on
+    # a fallback the guard trusts (`|| stat -- -f`) means the ladder has NO
+    # real BSD call, so trusting it failed OPEN. The feature was implemented
+    # three times inside #1544 and withdrawn whole (caecb44) because each
+    # partial answer traded the false positive for a fail-open:
     #   stat -- -c; stat -c "%s" "$f"      later real call went unreported
     #   printf -- "%s" "$(stat -c ...)"    outer marker hid the nested call
     #   stat -c "%s" "$f" || stat "--" -f  guard trusted an -f that names a file
-    # Tracked in #1562 rather than carried here half-built; that issue holds
-    # the reproductions and what a correct implementation needs.
+    # What was missing each time is exactly the word layer: per-invocation
+    # scope (the marker word must sit between the command word of THIS hit
+    # and its matched option, never reach a nested frame), resumed matching
+    # (already provided by has_unguarded blanking), and quoted-word
+    # recognition (the double-quoted, single-quoted, backslash and ANSI-C
+    # spellings of the marker all unquote to it).
+    #
+    # Both directions read a TRUSTED input, so both err toward over-flag:
+    #   - the REPORTING side suppresses a hit only on a word that STATICALLY
+    #     unquotes to exactly `--`. A word carrying an expansion (`$marker`),
+    #     a substitution frame, or undecoded escape content is never a marker
+    #     here — variable indirection sits outside the scope of this gate
+    #     throughout (#1513), and the residue direction is a reportable false
+    #     positive with the one-line `portability-ok:` escape, never a
+    #     fail-open;
+    #   - the GUARD side rejects a fallback whenever such a word precedes the
+    #     BSD option, and scans FLAT — a `--` inside a `|| y=$(stat -- -f)`
+    #     frame belongs to the command of the fallback itself and still
+    #     rejects. A wrongly rejected guard is an over-flag with the same
+    #     escape.
+    function is_wordbreak(mc) { return index(" \t;&|()<>" NL BT, mc) > 0 }
+    function word_start(m, pos,   i) {
+      for (i = pos; i > 1; i--)
+        if (is_wordbreak(substr(m, i - 1, 1))) return i
+      return 1
+    }
+    function word_end(m, pos,   i, len) {
+      len = length(m)
+      for (i = pos; i < len; i++)
+        if (is_wordbreak(substr(m, i + 1, 1))) return i
+      return len
+    }
+    # POSIX quote removal (2.6.7) over ONE word: quote characters go, content
+    # stays. A `$` directly before a quote (the ANSI-C and locale quoting
+    # forms) is removed with it, so those forms are quote OPENERS here; their
+    # content is NOT decoded (an octal `\055\055` spelling stays escaped), so
+    # an escape-spelled marker fails the `--` comparison on both sides — no
+    # suppression (safe) and no guard rejection (accepted residue, same
+    # indirection class as a marker held in a variable).
+    function unquote_word(w,   i, c, n, st, r, len) {
+      r = ""
+      st = "U"
+      len = length(w)
+      for (i = 1; i <= len; i++) {
+        c = substr(w, i, 1)
+        if (st == "S") {
+          if (c == SQ) st = "U"
+          else r = r c
+          continue
+        }
+        if (st == "D") {
+          if (c == DQ) { st = "U"; continue }
+          if (c == BS) {
+            n = substr(w, i + 1, 1)
+            # 2.2.3: in double quotes a backslash is removed only before the
+            # characters it can there escape; before anything else it stays.
+            if (n == DQ || n == "$" || n == BT || n == BS) { r = r n; i++ }
+            else r = r c
+            continue
+          }
+          r = r c
+          continue
+        }
+        if (c == "$" && (substr(w, i + 1, 1) == SQ || substr(w, i + 1, 1) == DQ)) continue
+        if (c == SQ) { st = "S"; continue }
+        if (c == DQ) { st = "D"; continue }
+        if (c == BS) { i++; if (i <= len) r = r substr(w, i, 1); continue }
+        r = r c
+      }
+      return r
+    }
+    # dashdash_between — does a whole ARGV word inside [from, to] statically
+    # unquote to `--`? Reporting-side trust rules:
+    #   - a structural separator ABORTS: the extent spans more than one
+    #     command (the gap of the sed token can cross `;`), so marker
+    #     ownership is undecidable and the hit stays reported;
+    #   - a nested `$(…)`/`(…)`/backquote frame is skipped whole and TAINTS
+    #     its word — a marker inside it belongs to the nested command
+    #     (`grep "$(printf -- x)" -P` keeps its hit), and a word gluing a
+    #     frame could expand to anything, so it never suppresses;
+    #   - a REDIRECTION target is not an argv word: in `stat > -- -c "%s"`
+    #     the `--` names the file stdout goes to and `-c` stays a real
+    #     option, so the operator (fd digits included) and its target word
+    #     are dropped, never compared. A bash `&>` reaches here through the
+    #     `&`-then-`>` peek; a plain control `&` still aborts above it.
+    function dashdash_between(view, m, from, to,   i, c, w, tainted, depth) {
+      w = ""
+      tainted = 0
+      for (i = from; i <= to; i++) {
+        c = substr(m, i, 1)
+        if (c == "<" || c == ">" || (c == "&" && substr(m, i + 1, 1) == ">")) {
+          w = ""
+          tainted = 0
+          while (i <= to && substr(m, i, 1) ~ /[<>&]/) i++
+          while (i <= to && substr(m, i, 1) ~ /[ \t]/) i++
+          while (i <= to && !is_wordbreak(substr(m, i, 1))) i++
+          i--
+          continue
+        }
+        if (c == ";" || c == "&" || c == "|" || c == NL) return 0
+        if (c == "(") {
+          depth = 1
+          while (i < to && depth > 0) {
+            i++
+            c = substr(m, i, 1)
+            if (c == "(") depth++
+            else if (c == ")") depth--
+          }
+          if (depth > 0) return 0
+          tainted = 1
+          continue
+        }
+        if (c == BT) {
+          i++
+          while (i <= to && substr(m, i, 1) != BT) i++
+          if (i > to) return 0
+          tainted = 1
+          continue
+        }
+        if (c == ")") return 0
+        if (is_wordbreak(c)) {
+          if (w != "" && !tainted && unquote_word(w) == "--") return 1
+          w = ""
+          tainted = 0
+          continue
+        }
+        w = w substr(view, i, 1)
+      }
+      if (w != "" && !tainted && unquote_word(w) == "--") return 1
+      return 0
+    }
+    # dashdash_demoted — is the OPTION this match ends in demoted to an
+    # operand by a `--` word earlier in its own invocation? Anchored entirely
+    # inside the matched extent: the extent starts at the command word and
+    # cannot cross the separators its token gap excludes, which is what scopes
+    # the marker to the invocation that owns it — a `--` belonging to an
+    # outer command sits BEFORE `at` and is never examined, and a hit inside
+    # a nested frame walks only that frame. Tokens whose match is not command-then-option
+    # (the bare regex-escape classes, a literal `--perl-regexp`) never demote:
+    # their match ends in the same word it starts in, or in a word that does
+    # not unquote to an option, and `--` does not un-GNU a regex operand.
+    function dashdash_demoted(view, m, at, matchend,   ce, pe, os, oe) {
+      pe = matchend
+      while (pe > at && is_wordbreak(substr(m, pe, 1))) pe--
+      ce = word_end(m, at)
+      if (pe <= ce) return 0
+      os = word_start(m, pe)
+      if (os <= ce + 1) return 0
+      oe = word_end(m, pe)
+      if (unquote_word(substr(view, os, oe - os + 1)) !~ /^-/) return 0
+      return dashdash_between(view, m, ce + 1, os - 1)
+    }
+    # fallback_proven — is the BSD-side `-f` of the ladder PROVEN to be an
+    # option the fallback stat call actually parses? Anything the guard reads
+    # in order to SUPPRESS a report is a trusted input, so this side must be
+    # at least as strict as the reporting side (#1562). The regex established
+    # the shape of the ladder; this walk, over [the `||` at opos, the option
+    # word at os..oe], rejects what BSD getopt would never parse as `-f`
+    # (FreeBSD/macOS stat(1): `stat [-FHhLnq] [-f format | -l | -r | -s |
+    # -x] [-t timefmt] [file ...]` — option parsing stops at the first
+    # operand, `--` ends it explicitly, `-f`/`-t` take an argument):
+    #   - a word unquoting to `--` before the option: `|| stat -- -f` names
+    #     a FILE `-f`, not an option — the shape that failed OPEN while `--`
+    #     was not honored. Scanned FLAT, frames included: in
+    #     `|| y=$(stat -- -f)` the marker belongs to the command of the
+    #     fallback itself and still rejects;
+    #   - an OPERAND word between the command name and the option:
+    #     `|| stat "$f" -f "%z"` — BSD getopt stops at `"$f"`, so `-f` is
+    #     never parsed (unlike GNU, which permutes). Redirections are not
+    #     operands and are skipped whole, fd digits and target included,
+    #     which is what keeps `|| stat 2>/dev/null -f "%z"` a real ladder;
+    #   - an ARGUMENT-TAKING letter before `f` in its own cluster:
+    #     `|| stat -tf "%z"` hands `f` to `-t` as its timefmt value;
+    #   - a missing FORMAT argument: `-f` requires one, so a ladder ending
+    #     at a bare `|| stat -f` runs no BSD call at all. Attached content
+    #     (`-f%z`) satisfies it; otherwise a following word must exist
+    #     before the command ends.
+    # Every rejection here is an over-flag with the one-line
+    # `portability-ok:` escape; accepting any of them ships a GNU-only call
+    # whose "fallback" cannot run.
+    function fallback_proven(q, m, opos, os, oe,   i, c, w, uw, phase, j) {
+      phase = 0
+      w = ""
+      i = opos + 2
+      while (i < os) {
+        c = substr(m, i, 1)
+        if (c == "<" || c == ">" || (c == "&" && substr(m, i + 1, 1) == ">")) {
+          w = ""
+          while (i < os && substr(m, i, 1) ~ /[<>&]/) i++
+          while (i < os && substr(m, i, 1) ~ /[ \t]/) i++
+          while (i < os && !is_wordbreak(substr(m, i, 1))) i++
+          continue
+        }
+        if (is_wordbreak(c)) {
+          if (w != "") {
+            uw = unquote_word(w)
+            if (uw == "--") return 0
+            if (phase == 0) {
+              # Before the command word only the shapes CMDPOS admitted can
+              # appear — assignments, wrappers, group openers — so nothing
+              # here is an operand of the stat call yet.
+              if (uw ~ /(^|\/)stat$/) phase = 1
+            } else if (uw !~ /^-/) return 0
+          }
+          w = ""
+          i++
+          continue
+        }
+        w = w substr(q, i, 1)
+        i++
+      }
+      uw = unquote_word(substr(q, os, oe - os + 1))
+      if (uw !~ /^-[FHhLlnqrsx]*f/) return 0
+      if (substr(uw, index(uw, "f") + 1) != "") return 1
+      j = oe + 1
+      while (substr(m, j, 1) ~ /[ \t]/) j++
+      c = substr(m, j, 1)
+      # The comment test reads the TEXT, not the mask: an inline comment is
+      # masked to the same filler a quoted argument is, but only a comment
+      # can put an unquoted `#` at a word start — that is why the mask
+      # blanked it. A quoted argument starts at its quote character.
+      if (c == "" || substr(q, j, 1) == "#" || index(";&|)" NL BT, c) > 0) return 0
+      return 1
+    }
     # SEG is the run between the GNU call and the `||`, and stops at a command
     # separator. Without it the two calls need not be in the same command at
     # all: `stat -c %s "$f"; true || stat -f %z "$f"` runs the GNU-only call
@@ -654,10 +883,11 @@ scan_file() {
     # that may swallow a `;` lets the guard be satisfied by a ladder belonging
     # to a later command.
     #
-    # Known gap, same one the `--` withdrawal above describes, on the TRUSTED
-    # side: a `stat "--" -f` counterpart is accepted as a fallback although the
-    # `-f` names a file there. That direction fails OPEN, which is the argument
-    # for honoring `--` properly rather than partially.
+    # The TRUSTED side of that regex is re-checked by fallback_proven() after
+    # it matches: a `stat -- -f` / `stat "--" -f` counterpart, an operand
+    # before the `-f`, an argument-taking cluster letter ahead of it, or a
+    # missing format argument each mean the "fallback" runs no BSD stat at
+    # all, and each previously failed OPEN.
     # A `!` in front of the GNU call inverts its status, so the `||` fires when
     # the call SUCCEEDS and is skipped when it fails — the fallback never runs
     # on the dialect that needs it. A negated probe therefore has no guard at
@@ -769,7 +999,7 @@ scan_file() {
       }
       return 0
     }
-    function is_guarded(q, p, at, m,   CMDPOS, SEG, PRE, NAME, QP, QL) {
+    function is_guarded(q, p, at, m,   CMDPOS, SEG, PRE, NAME, QP, QL, lend, opos, os, i) {
       if (is_negated(q, at)) return 0
       # An opener after the `||` may be any spelling that makes the command
       # which follows it what the `||` actually runs: either substitution
@@ -815,7 +1045,18 @@ scan_file() {
       # its own status propagates to is not what that guard asks about.
       if (index(p, STATNAME) || index(p, "stat")) {
         if (status_swallowed(q, at, m)) return 0
-        return substr(q, at) ~ ("^" STATNAME PRE QP "(-" QL "c|--format|--printf)" SEG CMDPOS NAME STATNAME PRE QP "-" QL "f")
+        if (!match(substr(q, at), "^" STATNAME PRE QP "(-" QL "c|--format|--printf)" SEG CMDPOS NAME STATNAME PRE QP "-" QL "f")) return 0
+        # match() so the EXTENT of the ladder is known: fallback_proven()
+        # walks from its `||` to its final `-f` word. SEG admits no `|`, so
+        # the first `||` inside the extent is the operator of the ladder
+        # itself.
+        lend = at + RLENGTH - 1
+        opos = 0
+        for (i = at; i < lend; i++)
+          if (substr(m, i, 1) == "|" && substr(m, i + 1, 1) == "|") { opos = i; break }
+        if (opos == 0) return 0
+        os = word_start(m, lend)
+        return fallback_proven(q, m, opos, os, word_end(m, lend))
       }
       return 0
     }
@@ -844,7 +1085,11 @@ scan_file() {
         # Step over the leading word-boundary character the token consumed, so
         # the guard can anchor on the command name itself.
         if (substr(scan, at, 1) !~ /[A-Za-z]/) at++
-        if (!is_guarded(q, p, at, m)) return at
+        # A `--` word inside this invocation demotes the matched option to an
+        # operand (dashdash_demoted); a demoted occurrence is discarded and
+        # matching RESUMES, exactly as it does past a guarded one, so a later
+        # real invocation on the same record is still evaluated.
+        if (!dashdash_demoted(view, m, at, st + len - 1) && !is_guarded(q, p, at, m)) return at
         scan = substr(scan, 1, st - 1) blanks(len) substr(scan, st + len)
       }
       return 0

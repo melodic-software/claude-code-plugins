@@ -1506,26 +1506,81 @@ rm -f "$f"
 # `;` between commands stop being the same character to it.
 # =============================================================================
 
-# --- `--` (end-of-options) is deliberately NOT honored: a flag-shaped word
-# after the marker is an operand, but reporting it is the documented over-flag
-# direction and `portability-ok:` is the escape. Pinned as a test so the
-# withdrawal is a stated behaviour rather than an absence -- honoring it needs
-# per-invocation scoping, resumed matching after a discarded occurrence, and
-# quoted-`"--"` recognition, and every partial answer traded this false
-# positive for a fail-OPEN (see the #1544 review rounds).
+# --- `--` (end-of-options) IS honored (#1562, via the #1551 word layer): a
+# flag-shaped word after the marker is an operand, so it no longer reports.
+# The three capabilities whose absence got the feature withdrawn in #1544 are
+# what the word layer supplies: per-invocation scoping (the marker must sit
+# inside the matched extent, between the command word and its option),
+# resumed matching after a discarded occurrence, and quoted-word recognition
+# (quote removal hands the utility the same `--` in every spelling).
 f="$(tmpsh "$(printf '%s\n' \
   'stat -- -c' \
-  'date -- -d')")"
+  'date -- -d' \
+  'stat "--" -c' \
+  "stat '--' -c" \
+  'stat \-\- -c' \
+  "stat \$'--' -c" \
+  'date -u -- -d tomorrow' \
+  'mktemp -- -p /tmp')")"
 if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
-  fail "the over-flag on -- operands is the documented behaviour, got success: $out"
+  ok "a flag-shaped operand after -- (any quote spelling) is not reported"
 else
-  ok "a flag-shaped operand after -- is still reported (documented over-flag)"
+  fail "an operand demoted by -- must not be reported, got: $out"
 fi
 rm -f "$f"
 
-# --- and a later real invocation on the same line is never lost behind one.
-# This is the direction that actually matters, and the one a partial `--`
-# implementation broke: the marker suppressed the whole line.
+# --- the marker is recognized inside the invocation that owns it, wherever
+# that invocation lives: a nested call whose own `--` precedes the flag-shaped
+# word is clean even inside a double-quoted substitution -- the shape a
+# partial implementation reported because the marker was invisible there.
+f="$(tmpsh 'printf "%s\n" "$(stat -- -c)"')"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  ok "a -- inside a quoted substitution demotes the nested option"
+else
+  fail "the nested marker must reach the nested invocation, got: $out"
+fi
+rm -f "$f"
+
+# --- suppression is TRUSTED-input territory, so only a word that statically
+# unquotes to exactly `--` demotes. Everything ambiguous keeps reporting (the
+# over-flag direction): a quoted string that merely CONTAINS the marker is one
+# word; a variable could expand to anything; ANSI-C escape content is not
+# decoded; a redirection target is not an argv word; a marker inside a nested
+# frame belongs to the nested command, on both views.
+for line in \
+  'stat "a -- b" -c %s' \
+  'stat "-- x" -c %s' \
+  'stat $marker -c %s' \
+  "stat \$'\\055\\055' -c %s" \
+  'stat > -- -c "%s" "$f"' \
+  'date 3>-- -d tomorrow' \
+  'date --utc -d @0' \
+  'stat "$(printf "%s" x --)" -c "%s" "$f"' \
+  'grep "$(printf -- x)" -P file'; do
+  f="$(tmpsh "$line")"
+  if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+    fail "an ambiguous marker shape must keep reporting: $line"
+  else
+    ok "no suppression from an ambiguous marker shape: $line"
+  fi
+  rm -f "$f"
+done
+
+# --- `--` demotes OPTIONS, not operands that were never options: the bare
+# regex-escape classes match pattern text, and a pattern operand after `--` is
+# still handed to grep as the same GNU-only regex.
+f="$(tmpsh "grep -- '\\bfoo' file")"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "a \\b pattern after -- should still fail, got success: $out"
+else
+  ok "a regex-escape operand is not demoted by --"
+fi
+rm -f "$f"
+
+# --- and a later real invocation on the same line is never lost behind one:
+# a demoted occurrence is discarded and matching RESUMES, so the marker
+# suppresses its own invocation only. A partial implementation without resume
+# suppressed the whole line -- the fail-open that got the feature withdrawn.
 f="$(tmpsh "$(printf '%s\n' \
   'stat -- -c; stat -c "%s" "$g"' \
   'date -- -d; date -d tomorrow')")"
@@ -1707,11 +1762,7 @@ else
 fi
 rm -f "$f"
 
-# --- the guard reads a real -f as a real fallback. A `stat -- -f` counterpart
-# is NOT recognized as a non-fallback today, because `--` is not honored at all
-# -- the same known gap, on the trusted side. Pinned here so its direction is
-# explicit: this one fails OPEN, which is why honoring `--` is worth doing
-# properly rather than partially.
+# --- the guard reads a real -f as a real fallback...
 f="$(tmpsh 'stat -c "%s" "$g" || stat -f "%z" "$g"')"
 if scan_paths "$REAL_TOKENS" "$f" >/dev/null 2>&1; then
   ok "a real BSD -f counterpart is recognized as the fallback"
@@ -1719,6 +1770,45 @@ else
   fail "the plain stat -f ladder must not be flagged"
 fi
 rm -f "$f"
+
+# --- ...and everything the guard reads in order to SUPPRESS a report is a
+# trusted input (#1562), so a fallback whose `-f` BSD getopt would never parse
+# as an option is rejected. FreeBSD/macOS stat(1): option parsing stops at the
+# first operand, `--` ends it explicitly, and `-f`/`-t` take an argument.
+# Every shape below previously read as a guarded ladder and failed OPEN -- the
+# GNU-only call shipped with a "fallback" that runs no BSD stat at all.
+for line in \
+  'stat -c "%s" "$g" || stat -- -f' \
+  'stat -c "%s" "$g" || stat "--" -f' \
+  'stat -c "%s" "$g" || y=$(stat -- -f)' \
+  'stat -c "%s" "$g" || stat "$g" -f "%z"' \
+  'stat -c "%s" "$g" || stat -tf "%z" "$g"' \
+  'stat -c "%s" "$g" || stat -f' \
+  'stat -c "%s" "$g" || stat -f # comment, not a format'; do
+  f="$(tmpsh "$line")"
+  if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+    fail "a fallback whose -f is not a parsed option must be rejected: $line"
+  else
+    ok "unprovable fallback rejected (trusted side): $line"
+  fi
+  rm -f "$f"
+done
+
+# --- while every fallback spelling BSD getopt genuinely parses stays a real
+# ladder: a no-argument cluster letter before `f`, an attached format
+# argument, and a redirection between the command name and its option are all
+# the documented BSD invocation.
+for line in \
+  'stat -c "%s" "$g" || stat -Lf "%z" "$g"' \
+  'stat -c "%s" "$g" || stat -f%z "$g"'; do
+  f="$(tmpsh "$line")"
+  if scan_paths "$REAL_TOKENS" "$f" >/dev/null 2>&1; then
+    ok "provable fallback still guarded: $line"
+  else
+    fail "a genuine BSD fallback spelling must stay guarded: $line"
+  fi
+  rm -f "$f"
+done
 
 # =============================================================================
 # Word structure the physical line hides -- #1544
