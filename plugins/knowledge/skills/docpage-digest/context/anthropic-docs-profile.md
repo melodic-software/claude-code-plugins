@@ -68,13 +68,6 @@ Every model-pinned spawn brief uses the conditional framing contract from `SKILL
 Pending Anthropic docs for this pipeline. Verify each URL live at fetch time; remove entries as
 their slices complete.
 
-Model selection (special handling — vet/validate/correct the consuming setup's existing
-model-routing configuration against the doc, rather than only digesting):
-
-- <https://platform.claude.com/docs/en/about-claude/models/choosing-a-model>
-  — routing vet executed 2026-07-29 (melodic-software/claude-code-plugins#1697); digest slice
-  still pending
-
 Thinking (two overlapping docs — two runs, one page per run by contract):
 
 - <https://platform.claude.com/docs/en/build-with-claude/thinking>
@@ -94,7 +87,23 @@ Supplementary references:
 Blog posts:
 
 - <https://claude.com/blog/claude-models-explained-choosing-the-best-model-for-your-use-case>
-  — pair with the choosing-a-model slice for the routing vet
+  — pairs with the completed choosing-a-model doc digest (routing vet executed 2026-07-29,
+  melodic-software/claude-code-plugins#1697). Cross-link contract for this run (portable copy
+  of that slice's pairing package; the fuller original also lives in the slice's interview
+  handoff, work-root slug `platform-claude-com-docs-en-abo-38ebff0f`, where that machine-local
+  memory-tier slice still exists): compare the blog against the choosing-a-model doc on
+  (a) the capabilities/speed/cost triad framing, also cross-linking the other model-choice
+  blog ("Choosing a Claude model and effort level in Claude Code") that
+  code.claude.com/docs/en/model-config.md links for harness model-fit guidance;
+  (b) whether Effort is a third consideration or a fourth factor (the considerations-count
+  split); (c) the selection-factors frame, the effort-vs-model-switch lever, and any
+  per-model effort recommendations; (d) the two-approach framing, Opus 5 / Fable 5 /
+  Mythos 5 positioning language, and pricing figures; (e) per-model fit sections vs the
+  doc's matrix rows (source lines 71–74); (f) the upgrade/switch decision's eval-first
+  four steps; (g) overlap with the models-overview cards, including Sonnet 5's "The best
+  combination of speed and intelligence" tagline. Divergences between the channels escalate
+  as the blog slice's own open questions; agreements are recorded once, pointer each way,
+  never restated in both.
 - <https://claude.com/blog/building-verification-loops-in-claude-code-with-skills>
   — pairs with any verification-loop or loop-engineering work the consuming setup already tracks
 
