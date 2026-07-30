@@ -98,11 +98,17 @@ def advisory_round_composition(record: Any) -> str:
 
 
 def ordered_advisory_rounds(rounds: Any) -> list[tuple[str, dict[str, Any]]]:
-    """Recorded advisory rounds oldest first, by their write-ahead timestamp."""
+    """Recorded advisory rounds oldest first, by their write-ahead timestamp.
+
+    Equal or unreadable timestamps fall back to write order: the sort is stable
+    and the ledger preserves write order as its own key order. The head SHA
+    carries no chronology, so tie-breaking on it would order tied rounds
+    arbitrarily.
+    """
     records = json_object(rounds)
     return sorted(
         ((str(head), json_object(record)) for head, record in records.items()),
-        key=lambda item: (str(item[1].get("recorded_at") or ""), item[0]),
+        key=lambda item: str(item[1].get("recorded_at") or ""),
     )
 
 

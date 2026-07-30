@@ -625,6 +625,28 @@ class AdvisoryRoundOrderingTests(unittest.TestCase):
             ["a" * 40, "b" * 40],
         )
 
+    def test_tied_timestamps_fall_back_to_write_order(self) -> None:
+        # The head SHA carries no chronology, so a lexicographic tiebreak would
+        # order these arbitrarily -- here, exactly backwards.
+        rounds = advisory_rounds(
+            ("b" * 40, "2026-07-10T01:00:00Z", MIXED),
+            ("a" * 40, "2026-07-10T01:00:00Z", ALL_C),
+        )
+        self.assertEqual(
+            [head for head, _ in delta.ordered_advisory_rounds(rounds)],
+            ["b" * 40, "a" * 40],
+        )
+
+    def test_a_timestampless_round_sorts_before_a_timestamped_one(self) -> None:
+        rounds = {
+            "a" * 40: {"finding_classes": ALL_C},
+            "b" * 40: {"recorded_at": "2026-07-10T01:00:00Z", "finding_classes": ALL_C},
+        }
+        self.assertEqual(
+            [head for head, _ in delta.ordered_advisory_rounds(rounds)],
+            ["a" * 40, "b" * 40],
+        )
+
 
 class NonConvergenceTripwireTests(unittest.TestCase):
     def test_one_round_cannot_be_a_second_consecutive_round(self) -> None:
@@ -645,9 +667,9 @@ class NonConvergenceTripwireTests(unittest.TestCase):
         self.assertEqual(tripwire["latest"]["head_sha"], "b" * 40)
 
     def test_an_unclassified_predecessor_fails_closed(self) -> None:
-        # The pre-adoption case #1660 names: the round before the current one
-        # was recorded without classes, so it is UNKNOWN rather than (a)/(b),
-        # and a current all-(c) round still arms rather than silently resetting.
+        # A round recorded before classes were persisted is UNKNOWN rather than
+        # (a)/(b), so a current all-(c) round still arms rather than silently
+        # resetting the count.
         tripwire = delta.advisory_non_convergence_tripwire(
             advisory_rounds(
                 ("a" * 40, "2026-07-10T01:00:00Z", None),

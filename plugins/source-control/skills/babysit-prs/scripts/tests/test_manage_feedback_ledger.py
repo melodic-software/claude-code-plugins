@@ -2,9 +2,9 @@
 
 `record-advisory-round` is the only durable record of what a fix round
 contained, so what it persists is what a post-rollover worker can know. These
-cover the write shape, the argument-layer refusals that keep an unclassified
-round out of the ledger, and the tripwire the helper reports back at record
-time.
+cover the write shape and the tripwire the helper reports back at record time;
+the two `--finding-class` argument refusals are guard-contract rows, executed
+by `test_guards.py`.
 """
 
 from __future__ import annotations
@@ -80,40 +80,7 @@ def invoke(*argv: str) -> subprocess.CompletedProcess[str]:
 
 
 class ArgumentRefusalTests(unittest.TestCase):
-    """`--finding-class` is required where it is meaningful and rejected elsewhere."""
-
-    def test_an_unclassified_advisory_round_is_refused(self) -> None:
-        with tempfile.TemporaryDirectory() as state_dir:
-            result = invoke(
-                "record-advisory-round",
-                "--pr",
-                "owner/repo#1",
-                "--expected-head-sha",
-                HEAD,
-                "--state-dir",
-                state_dir,
-                "--lease-token",
-                "token",
-                "--apply",
-            )
-        self.assertEqual(result.returncode, 2)
-        self.assertIn("--finding-class", result.stderr)
-
-    def test_a_finding_class_outside_an_advisory_round_is_refused(self) -> None:
-        with tempfile.TemporaryDirectory() as state_dir:
-            result = invoke(
-                "record-worker-checkin",
-                "--pr",
-                "owner/repo#1",
-                "--expected-head-sha",
-                HEAD,
-                "--state-dir",
-                state_dir,
-                "--finding-class",
-                "c",
-            )
-        self.assertEqual(result.returncode, 2)
-        self.assertIn("--finding-class", result.stderr)
+    """The one refusal outside `guard_contract.py`'s two `--finding-class` rows."""
 
     def test_an_unknown_class_is_refused(self) -> None:
         with tempfile.TemporaryDirectory() as state_dir:
