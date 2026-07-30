@@ -157,7 +157,9 @@ Keep every packet filename outside the report/summary/findings/analysis name cla
 nonetheless rejected on those grounds, treat it as a naming collision, not a stop signal: re-write
 the identical content as **`audit-data.md`** — the one documented alternative, never a
 freely-chosen name — and note the substitution in `evidence.md` for the human reader. Never degrade
-to prose-only, which is exactly the compaction exposure the packet exists to prevent.
+to prose-only, which is exactly the compaction exposure the packet exists to prevent; when both
+names are refused inside the `auditor`, step 3's persist-check is what holds that line from the
+dispatching side.
 
 The alternative is a fixed name rather than "any non-report name" precisely so the resume rule can
 probe a closed set instead of trusting a pointer. A note in `evidence.md` is a courtesy for a human
@@ -199,12 +201,39 @@ that produced the work under review. Never run the step inline in the main threa
 neither property. Any other mechanism must be justified against those two — not against what a fork
 does or does not inherit, which is contested (see the plan's caveat on #1258).
 
-### Step 3 — Blindspot + candidate findings (subagent output → user)
+### Step 3 — Persist-check, then blindspot + candidate findings (subagent output → user)
 
 The `auditor` returns: grounded findings (each with evidence + doc citation), blindspots (what
-the audit framing missed), and candidate remediations ordered cheapest → most ambitious. Present
-them to the user per the zone table (dumb/unknown: summary + packet pointer, no bulk re-read —
-the full list lives in the packet at `audit-notes.md`).
+the audit framing missed), and candidate remediations ordered cheapest → most ambitious.
+
+**Confirm the findings reached disk before presenting anything.** The zone table's dumb/unknown row
+deliberately hands the user a packet pointer *instead of* the findings, so a packet whose
+grounded-findings file never landed leaves this thread's compactable context as the only surviving
+copy — the exact exposure the packet exists to prevent. Probe the closed set of grounded-findings
+basenames the Resume rule defines above (and, for its reasons, never a name taken from
+`evidence.md`):
+
+- **A closed-set file exists** — proceed; present per the zone table.
+- **No closed-set file, and the `auditor` returned its documented both-names-refused form** (the
+  refusal stated outright, the COMPLETE findings inline in place of the summary) — persist it
+  yourself, immediately on receipt, before any other work: write the returned findings verbatim
+  into the packet as `audit-notes.md`, falling back to `audit-data.md` under the same guardrail,
+  exactly as the `auditor` would have. This is a backstop, not a relocation of the write — the
+  dispatching session is not reliably outside the guardrail either, which is why the filename rule
+  above remains the primary defense — but wherever it is outside, one write restores compaction
+  survival for findings that would otherwise live only in conversation.
+- **Your own writes are refused too** — terminal, and never a shrug: report it as a named blocker,
+  reproduce the full findings inline in your visible answer, and stop before step 4. Locking a
+  contract over findings that exist nowhere durable is precisely the ungrounded contract the
+  Resume rule refuses to carry.
+- **No closed-set file and the return is the ordinary summary form** — the dispatch died or skipped
+  the write, and a one-line-per-finding summary is not the ledger. Re-dispatch step 2. Never write
+  a summary into the packet under a closed-set name: presence of one of those names is what tells a
+  resumed session the grounded findings exist, so doing that forges the ledger instead of
+  recovering it.
+
+Then present per the zone table (dumb/unknown: summary + packet pointer, no bulk re-read — the full
+list lives in the packet's grounded-findings file).
 
 ### Step 4 — Contract lock (main thread, interactive)
 

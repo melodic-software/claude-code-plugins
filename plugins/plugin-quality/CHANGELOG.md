@@ -5,6 +5,35 @@ All notable changes to the `plugin-quality` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.1] - 2026-07-30
+
+### Fixed
+
+- **The dispatching session now verifies the packet's grounded findings landed, and persists them
+  when the `auditor` could not (#1674).** 0.2.0 moved the packet filename out of the report-name
+  class and 0.2.2 taught the resume rule the fallback name, but neither closed the case where
+  *every* packet write is refused inside the subagent. The `auditor` was told to return its
+  findings as text; nothing told the main session to catch them, so the compaction-surviving
+  guarantee held only when the operator happened to re-persist the returned text by hand — an
+  undocumented step. Step 3 now opens with a persist-check: probe the Resume rule's closed set of
+  grounded-findings basenames, and on the `auditor`'s documented both-names-refused return, write
+  the returned findings verbatim into the packet (`audit-notes.md`, falling back to
+  `audit-data.md`) before presenting or advancing. This is a backstop, not a relocation — the
+  dispatching session is itself a subagent under a loop lane, so the filename rule remains the
+  primary defense.
+- **A refused main-thread write is now a named blocker, not a shrug.** When the dispatching
+  session's own writes are refused too, step 3 reproduces the findings inline and stops before the
+  contract lock, rather than locking a contract over findings that exist nowhere durable — the
+  same ungrounded contract the resume rule already refuses to carry.
+- **The both-names-refused return got a machine-visible marker.** `agents/auditor.md` now requires
+  that return to open with the literal line `PACKET WRITE REFUSED — full findings inline` and to
+  carry the COMPLETE findings in place of the summary form, since a refusal mentioned in passing
+  reads as a successful run with a caveat and a one-line-per-finding summary is not a ledger the
+  main session can persist on the agent's behalf. Step 3 correspondingly refuses to write a
+  summary into the packet under a closed-set name: presence of one of those names is precisely
+  what tells a resumed session the grounded findings exist, so doing so would forge the ledger
+  instead of recovering it.
+
 ## [0.3.0] - 2026-07-26
 
 ### Changed
