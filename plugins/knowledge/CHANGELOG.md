@@ -4,6 +4,16 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.10.6]
+
+### Changed
+
+- **`docpage-digest` Anthropic profile: reduce-hallucinations queue entry removed.** The
+  reduce-hallucinations guardrail slice completed — raw-md fetch through interview handoff,
+  dual verification (two correction rounds, re-verified REVERIFY2: PASS by both verifiers, no
+  degraded fallback) — so its entry leaves the doc queue per the queue's remove-on-completion
+  rule. The increase-consistency guardrail entry remains queued.
+
 ## [0.10.5]
 
 ### Changed

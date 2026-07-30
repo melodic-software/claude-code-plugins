@@ -70,7 +70,6 @@ their slices complete.
 
 Guardrail guides:
 
-- <https://platform.claude.com/docs/en/test-and-evaluate/strengthen-guardrails/reduce-hallucinations>
 - <https://platform.claude.com/docs/en/test-and-evaluate/strengthen-guardrails/increase-consistency>
 
 Model selection (special handling — vet/validate/correct the consuming setup's existing
