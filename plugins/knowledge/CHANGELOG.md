@@ -4,6 +4,16 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.10.7]
+
+### Changed
+
+- **`docpage-digest` Anthropic profile: increase-consistency queue entry removed.** The
+  increase-consistency guardrail slice completed — raw-md fetch through interview handoff,
+  dual verification (one correction round, re-verified REVERIFY: PASS by both verifiers, no
+  degraded fallback) — so its entry leaves the doc queue per the queue's remove-on-completion
+  rule. It was the last remaining guardrail guide, so the emptied category heading goes with it.
+
 ## [0.10.6]
 
 ### Changed
