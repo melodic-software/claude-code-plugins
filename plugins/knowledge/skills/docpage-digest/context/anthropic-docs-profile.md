@@ -42,6 +42,12 @@ the tag asserts:
   uncertainty marker, never a substitute for the tag. (Both rulings from the sonnet-5 guide
   slice's cross-vendor verification, where citation-by-reference and marker-as-tag were the
   dominant correction class.)
+- **Harness docs are their own live basis:** when the digested page is itself a live
+  code.claude.com harness doc, intrinsic harness-guidance claims cite the canonical page URL +
+  section as their row-local basis; the boundary rule still routes claims naming an API surface
+  to `mixed`, and third-party APIs (e.g. the GitHub API) count as API surfaces — no vendor
+  exemption. (From the best-practices slice: the third-party-API ruling is its cross-vendor
+  finding; the own-basis rule was applied there and ratified by both re-verifications.)
 
 ## Digest-agent model matching
 
@@ -89,10 +95,6 @@ Supplementary references:
 
 - <https://platform.claude.com/docs/en/resources/overview>
 - <https://platform.claude.com/docs/en/release-notes/system-prompts>
-
-Applies across all of the above:
-
-- <https://code.claude.com/docs/en/best-practices>
 
 Blog posts:
 
