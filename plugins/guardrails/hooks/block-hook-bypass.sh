@@ -439,9 +439,10 @@ producer_redirect_bypass() {
 # command string, not a boundary — and it is deliberately producer-scoped, so
 # ordinary data-processing redirects (`sort f > out`, `curl … > page.html`) are
 # allowed by design too, not only writes inside an invoked script.
-_BYPASS_SCOPE_NOTE="Scope: only this command string is inspected, and only known \
-file-write forms in it. Writes performed inside a script or program this command \
-invokes, and redirects produced by another program, are not seen."
+_BYPASS_SCOPE_NOTE="Scope: only this command string is inspected — known shell \
+file-write forms plus recognized inline interpreter code (e.g. python -c). Writes \
+inside an invoked script file or a program's own opaque code, and redirects \
+produced by another program, are not seen."
 
 block_bypass() {
   local form="$1" reason="$2"

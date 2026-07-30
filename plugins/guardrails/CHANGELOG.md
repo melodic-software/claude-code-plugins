@@ -22,8 +22,9 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   producer-scoped design, as is `cat a.txt b.txt > c.txt` (only the stdin-consuming `cat > f` form
   is a write workaround). So the report's suggested line — "direct redirects in this command only" —
   would have overstated coverage in the other direction. The shipped note says instead that only
-  this command string is inspected, only known file-write forms in it are matched, and neither a
-  write inside an invoked script nor a redirect produced by another program is seen.
+  this command string is inspected — known shell file-write forms plus recognized inline
+  interpreter code (`python -c` IS scanned, so the blind spot claims only an invoked script file
+  or a program's own opaque code) — and that a redirect produced by another program is not seen.
 
   No hook logic changes. The behaviour the note describes is now pinned by tests beside the
   message-content assertions, so the two move together.

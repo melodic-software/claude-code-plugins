@@ -614,7 +614,9 @@ scopeout=$(bash "$HOOK" <<<"$(command_json "printf 'x' > out.log")" 2>&1)
 assert_contains "bash block states its scope" "$scopeout" \
   "only this command string is inspected"
 assert_contains "bash block names the invoked-script gap" "$scopeout" \
-  "inside a script or program this command invokes"
+  "inside an invoked script file"
+assert_contains "bash block exempts inspected inline code from the gap" "$scopeout" \
+  "recognized inline interpreter code"
 psscope=$(bash "$HOOK" <<<"$(pwsh_command_json "Set-Content f.txt 'x'")" 2>&1)
 assert_contains "powershell block states its scope" "$psscope" \
   "only this command string is inspected"
