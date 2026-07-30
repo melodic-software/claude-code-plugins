@@ -468,6 +468,11 @@ jobs:
         env:
           BASE_REF: ${{ github.base_ref }}
         run: scripts/check-changelog-parity.sh --check-bump "origin/$BASE_REF"
+      # Whole-file, not per-diff: the other two modes reason about one version at
+      # a time, so neither can see that two branches staged the same number or
+      # that a stale-based entry landed below one already on main.
+      - name: Verify every changelog reads newest-first with no duplicate versions
+        run: scripts/check-changelog-parity.sh --check-order
 
   # Contract-slice prune: docs/topics/<slug>/ is Contract tier per
   # docs/conventions/topic-docs/README.md — committed on a task branch only,
