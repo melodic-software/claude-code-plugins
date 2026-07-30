@@ -5,7 +5,7 @@ All notable changes to the `context-guard` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.4.2]
+## [0.4.3]
 
 ### Fixed
 
@@ -21,6 +21,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   suites run — its files are still accepted. Temp roots come from `TMPDIR` / `TMP` / `TEMP` plus the
   POSIX defaults, canonicalized through the same pipeline the membership comparison already uses.
   Synced from `lib/hook-utils.sh`.
+
+## [0.4.2]
+
+### Fixed
+
 - **Shared `hook-utils.sh`: a wrapper's working-directory change is no longer lost when a caller
   parses only git's own global options (#1503).** `hook::git_resolve_index` walks wrapper programs
   (`env`, `sudo`, …) to reach the real `git` token, and a caller that scopes its git-global parsing

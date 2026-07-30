@@ -3,7 +3,7 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.18.2]
+## [0.18.3]
 
 ### Fixed
 
@@ -19,6 +19,11 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   suites run — its files are still accepted. Temp roots come from `TMPDIR` / `TMP` / `TEMP` plus the
   POSIX defaults, canonicalized through the same pipeline the membership comparison already uses.
   Synced from `lib/hook-utils.sh`.
+
+## [0.18.2]
+
+### Fixed
+
 - **A wrapper's options were parsed as git's globals, bypassing the commit guard.** The directory and
   locating-global helpers — `effective_dir`, `collect_locating_globals`, `explicit_git_dir` — were
   handed the whole pre-git argv slice, wrapper arguments included, and they cannot know which wrapper

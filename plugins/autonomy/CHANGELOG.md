@@ -6,7 +6,7 @@ All notable changes to the `autonomy` plugin are documented here. Format follows
 Versions 0.1.0–0.7.0 predate this file (introduced with 0.7.1); their history lives in the
 merged work-package PRs (#333, #343, #356, #372, #377, #600, #676).
 
-## [0.11.6]
+## [0.11.7]
 
 ### Fixed
 
@@ -22,6 +22,11 @@ merged work-package PRs (#333, #343, #356, #372, #377, #600, #676).
   suites run — its files are still accepted. Temp roots come from `TMPDIR` / `TMP` / `TEMP` plus the
   POSIX defaults, canonicalized through the same pipeline the membership comparison already uses.
   Synced from `lib/hook-utils.sh`.
+
+## [0.11.6]
+
+### Fixed
+
 - **Shared `hook-utils.sh`: a wrapper's working-directory change is no longer lost when a caller
   parses only git's own global options (#1503).** `hook::git_resolve_index` walks wrapper programs
   (`env`, `sudo`, …) to reach the real `git` token, and a caller that scopes its git-global parsing
