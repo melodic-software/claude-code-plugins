@@ -557,11 +557,11 @@ if [[ -n "$PROJ12C" ]] && ! hook::under_temp_root "$(hook::normalize_path "$(hoo
     fail "read_file_path: in-project file outside the temp tree rejected (got '$got')"
   fi
 
-  # Windows spells its temp root with backslashes: TMP/TEMP arrive as
-  # C:\Users\...\Temp while TMPDIR carries the POSIX form of a DIFFERENT
-  # spelling of the same directory. A candidate list that only handles the
-  # POSIX form recognizes nothing on the host where this defect was reported,
-  # so the backslash spelling is exercised on its own.
+  # Windows spells its temp root with backslashes: TMP/TEMP arrive as a
+  # drive-letter path with backslash separators, while TMPDIR carries the POSIX
+  # form of a DIFFERENT spelling of the same directory. A candidate list that
+  # only handles the POSIX form recognizes nothing on the host where this defect
+  # was reported, so the backslash spelling is exercised on its own.
   if command -v cygpath >/dev/null 2>&1 &&
     win_tmp=$(cygpath -w -- "$PROJ12C/scratchpad" 2>/dev/null) && [[ -n "$win_tmp" ]]; then
     got=$(MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL='*' jq -n --arg fp "$PROJ12C/scratchpad/inventory.py" '{tool_input: {file_path: $fp}}' |
