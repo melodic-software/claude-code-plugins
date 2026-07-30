@@ -73,13 +73,17 @@ lane-telemetry contract; one writer identity owns a marker). The upsert is inlin
 installed plugin cannot invoke a sibling plugin's scripts.
 
 **Resolve the lane instance first (#1295).** The marker names the *writer*, not the lane type — per
-the convention's lane-instance identity rule. `INSTANCE` comes from the `lane_instance` config key,
-else the sanitized lowercased hostname (headless-config floor: log the assumption). It is
-operator-supplied text about to be interpolated into a shell string and a `jq` program, so it is
-validated and **rejected**, never sanitized-and-continued:
+the convention's lane-instance identity rule. The id is `${user_config.lane_instance}`; a surviving
+literal `${user_config.…}` placeholder means the key is unset, so fall back to the sanitized
+lowercased hostname (headless-config floor: log the assumption). It is operator-supplied text about
+to be interpolated into a shell string and a `jq` program, so it is validated and **rejected**,
+never sanitized-and-continued. Substitute the resolved value for `<lane-instance>` below; the check
+runs **before** `MARKER` is built, because a lane that validates only in prose has documented a
+guard that does not run:
 
 ```bash
-INSTANCE="${LANE_INSTANCE:-$(hostname | tr '[:upper:]' '[:lower:]' | tr -c 'a-z0-9-' '-')}"
+INSTANCE="<lane-instance>"   # ${user_config.lane_instance}, else `hostname` sanitized
+[ -n "$INSTANCE" ] || INSTANCE="$(hostname | tr '[:upper:]' '[:lower:]' | tr -c 'a-z0-9-' '-')"
 # ^[a-z0-9][a-z0-9-]{0,31}$ — empty, a leading hyphen, any other character, or
 # over 32 chars is REJECTED, never trimmed into something that looks valid.
 case "$INSTANCE" in
@@ -94,8 +98,9 @@ esac
 }
 ```
 
-The check runs **before** `MARKER` is built — a lane that validates only in prose has documented a
-guard that does not run.
+The hostname fallback is a *default*, not a sanitizer: it is validated by the same gate, so a
+hostname that cannot produce a conforming id stops the lane rather than yielding a marker nobody
+chose.
 
 ```bash
 MARKER="work-items:work-loop@$INSTANCE"

@@ -120,7 +120,8 @@ marker is built — the marker names the writer, not the lane type (#1295), so t
 on one repository never overwrite each other's pass record:
 
 ```bash
-INSTANCE="${LANE_INSTANCE:-$(hostname | tr '[:upper:]' '[:lower:]' | tr -c 'a-z0-9-' '-')}"
+INSTANCE="<lane-instance>"   # ${user_config.lane_instance}, else `hostname` sanitized
+[ -n "$INSTANCE" ] || INSTANCE="$(hostname | tr '[:upper:]' '[:lower:]' | tr -c 'a-z0-9-' '-')"
 # ^[a-z0-9][a-z0-9-]{0,31}$ — rejected, never sanitized-and-continued.
 case "$INSTANCE" in
 "" | -* | *[!a-z0-9-]*)

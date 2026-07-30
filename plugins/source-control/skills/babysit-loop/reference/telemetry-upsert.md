@@ -10,13 +10,18 @@ plugin cannot invoke a sibling plugin's scripts.
 
 Per the convention's lane-instance identity rule, the marker names the **writer**, not the lane type
 (#1295): a marker naming only the lane makes two concurrent instances resolve one comment and
-clobber each other's durable state. `INSTANCE` comes from the `lane_instance` config key, else the
-sanitized lowercased hostname (headless-config floor: log the assumption). It is operator-supplied
-text about to be interpolated into a shell string and a `jq` program, so it is validated and
-**rejected**, never sanitized-and-continued, and the check runs before `MARKER` is built:
+clobber each other's durable state. The id is `${user_config.lane_instance}`; a surviving literal
+`${user_config.…}` placeholder means the key is unset, so fall back to the sanitized lowercased
+hostname (headless-config floor: log the assumption). It is operator-supplied text about to be
+interpolated into a shell string and a `jq` program, so it is validated and **rejected**, never
+sanitized-and-continued. Substitute the resolved value for `<lane-instance>`; the check runs before
+`MARKER` is built. The hostname fallback is a *default*, not a sanitizer — it passes through the
+same gate, so a hostname that cannot produce a conforming id stops the lane rather than yielding a
+marker nobody chose:
 
 ```bash
-INSTANCE="${LANE_INSTANCE:-$(hostname | tr '[:upper:]' '[:lower:]' | tr -c 'a-z0-9-' '-')}"
+INSTANCE="<lane-instance>"   # ${user_config.lane_instance}, else `hostname` sanitized
+[ -n "$INSTANCE" ] || INSTANCE="$(hostname | tr '[:upper:]' '[:lower:]' | tr -c 'a-z0-9-' '-')"
 # ^[a-z0-9][a-z0-9-]{0,31}$ — empty, a leading hyphen, any other character, or
 # over 32 chars is REJECTED, never trimmed into something that looks valid.
 case "$INSTANCE" in

@@ -485,6 +485,16 @@ writes it before pausing, so a paused lane is never adopted as a dead one. Detec
 write, so an id collision degrades to a stopped lane rather than a silently clobbered
 `first_drain_complete`.
 
+**Adopting the partition (one-time).** No pre-existing comment matches an instance's new sentinel,
+so the first cycle after adoption posts a fresh block from defaults — including
+`first_drain_complete:false` for every lane. That is intended and fails closed; it produces one
+burst of ratification queue comments on the next drain and is not a regression. The legacy
+un-suffixed comment is left in place and **never adopted, edited, or tombstoned by a lane**: its
+marker names no writer, so no instance can prove it owns it, and a lane that adopted it would
+reintroduce exactly the shared-comment clobber this rule removes. Retiring it is an operator action.
+Until then it remains readable, and stale: `morning-brief` will show it aging past the staleness
+threshold, which is the honest reading — nothing is writing it.
+
 **Durable loop state.** Conversation context is lossy across compaction, so a lane persists its
 adaptive-cap streak counter, its rate-limit-warning latch, its consecutive-no-progress counter, its
 cycle count, and its instance-identity fields in a machine-readable block of that same #502

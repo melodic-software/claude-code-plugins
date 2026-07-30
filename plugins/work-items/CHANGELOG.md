@@ -43,7 +43,9 @@ All notable changes to the `work-items` plugin are documented here. Format follo
   is a deliberate reset: no pre-existing comment matches an instance's new sentinel — neither the
   legacy un-suffixed markers nor the improvised `work-items:telemetry lane=… instance=…` comments
   some lanes began posting in practice — so the first cycle posts a fresh block from defaults,
-  including `first_drain_complete:false`. That fails closed and is intended.
+  including `first_drain_complete:false`. That fails closed and is intended. A lane never adopts,
+  edits, or tombstones the legacy comment: its marker names no writer, so no instance can prove it
+  owns it, and adopting it would reintroduce the clobber. Retiring it is an operator action.
 
 ## [0.30.3]
 

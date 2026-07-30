@@ -40,7 +40,10 @@ body implements, and adds two more (instance identity, collision detection).
   `<!-- work-items:telemetry lane=… instance=… -->` comments some lanes began posting in practice —
   so the first cycle after adoption posts a fresh block from defaults, including
   `first_drain_complete:false`. That fails closed and is intended; it produces one burst of
-  ratification queue comments on the next drain. Orphaned legacy comments are tombstoned by hand.
+  ratification queue comments on the next drain. The legacy comment is never adopted, edited, or
+  tombstoned by a lane — its marker names no writer, so no instance can prove it owns it, and a lane
+  that adopted it would reintroduce the shared-comment clobber this change removes. Retiring it is
+  an operator action; until then it reads as stale, which is honest, because nothing is writing it.
 
 ## 6.0.1 — 2026-07-29
 
