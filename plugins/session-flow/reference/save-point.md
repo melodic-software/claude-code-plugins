@@ -63,17 +63,25 @@ persist. This pass gates the write — no artifact or prompt is emitted before i
 **Git remote URLs are a named vector on that list, and they take a different treatment.** A remote
 embeds its credential in the URL's userinfo component (`https://<token>@host/…`), where it reads as
 one more path segment rather than as a secret — the shape this sweep is likeliest to walk past. So
-any URL in the outbound set is checked for an `@` ahead of its host. **Drop the userinfo and keep the
-rest — do NOT replace the URL with a shape marker. This is a deliberate exception to the rule above,
-and for this one class it wins.** The general rule redacts to a marker because the whole value is
-secret and nothing downstream needs it; here the opposite holds. The scheme, host, and path are not
-secret, and they are load-bearing: `Handoff origin:` exists so a resume on another machine can
-re-resolve the file from the repository it names, and a `<REDACTED: remote URL>` marker would destroy
-the identity the line is emitted to carry — turning a credential leak into a broken recovery. So
+every **git remote** URL in the outbound set is checked for an `@` ahead of its host. **Drop the
+userinfo and keep the rest — do NOT replace the URL with a shape marker. This is a deliberate
+exception to the rule above, and it wins for git remote URLs and nothing else.** The general rule
+redacts to a marker because the whole value is secret and nothing downstream needs it; here the
+opposite holds. The scheme, host, and path are not secret, and they are load-bearing:
+`Handoff origin:` exists so a resume on another machine can re-resolve the file from the repository it
+names, and a `<REDACTED: remote URL>` marker would destroy the identity the line is emitted to carry —
+turning a credential leak into a broken recovery. So
 `https://<token>@github.com/<owner>/<repo>.git` becomes `https://github.com/<owner>/<repo>.git`,
 never a marker. `Handoff origin:` is where such a URL most plausibly appears, and it sits inside the
 copy region; `<repo-identity>` below requires it stripped at emit time so this pass has nothing left
 to catch.
+
+**The exception does not generalize to other credential-bearing URLs.** A connection string such as
+`mongodb+srv://<user>:<secret>@<host>/<db>` keeps the general treatment — a shape marker
+(`<REDACTED: database connection string>`), not a host-preserving strip. What earns a git remote URL
+its exception is that something downstream re-resolves from the surviving host and path; nothing
+re-resolves from a database host, so preserving it discloses infrastructure for no recovery benefit.
+Strip-and-keep applies where the remainder is load-bearing; everywhere else the marker still wins.
 
 ## Claim provenance — mandatory on BOTH paths
 

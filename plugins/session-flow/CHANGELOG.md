@@ -64,7 +64,10 @@
   local key the URL does not carry; and "cannot be sanitized with confidence" gets a test — fall back
   to the root directory name when the userinfo boundary is undeterminable, as with more than one `@`
   ahead of the path or the SCP-style `git@host:<owner>/<repo>.git` form that has no `://` to anchor
-  stripping on.
+  stripping on. The exception is scoped to git remote URLs and stated not to generalize: a connection
+  string keeps the shape marker, because what earns a remote URL its host-preserving strip is that
+  recovery re-resolves from the surviving host and path — nothing re-resolves from a database host, so
+  preserving one would disclose infrastructure for no benefit.
 
 ### Notes
 
