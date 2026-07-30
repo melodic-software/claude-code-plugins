@@ -26,9 +26,17 @@ Machine-readable JSON Schemas (editor validation for the JSON in this repo; Clau
 `https://json.schemastore.org/claude-code-marketplace.json`, `plugin.json` →
 `https://json.schemastore.org/claude-code-plugin-manifest.json` (published on SchemaStore).
 
-Cursor dual manifests under `.cursor-plugin/` are generated from the Claude SSOTs
-(`node scripts/generate-cursor-manifests.mjs`). Never hand-edit them; regenerate after catalog or
-`plugin.json` changes. Cursor schema reference: `https://cursor.com/docs/reference/plugins`.
+Cursor dual-target artifacts are generated from the Claude SSOTs by
+`node scripts/generate-cursor-manifests.mjs` (package: `scripts/cursor-export/`). Never
+hand-edit them; regenerate after catalog, `plugin.json`, `.mcp.json`, or Claude
+`hooks/hooks.json` presence changes. Generated outputs: `.cursor-plugin/**`,
+`plugins/*/.cursor-plugin/**` (including empty Cursor-native `hooks.json` stubs when a
+Claude plugin ships hooks — so Cursor does not discover Claude `hooks/hooks.json`), and
+`plugins/*/mcp.json` when Claude `.mcp.json` needs `${user_config.*}` /
+`${CLAUDE_PLUGIN_ROOT}` ported to Cursor `variables` / `${VAR}`. Cursor schema:
+`https://cursor.com/docs/reference/plugins`; hooks: `https://cursor.com/docs/hooks`;
+Claude settings-hook compatibility (not plugin hooks.json):
+`https://cursor.com/docs/reference/third-party-hooks`.
 
 ## Design rules for plugins added here
 

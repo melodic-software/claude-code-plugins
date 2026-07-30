@@ -25,13 +25,28 @@ from **Dashboard → Plugins** if you have admin access:
 
 1. Add `https://github.com/melodic-software/claude-code-plugins`.
 2. Install individual plugins from Customize (user or workspace scope).
-3. After catalog updates on `main`, refresh the marketplace in Customize. If the UI stays
+3. MCP plugins that need credentials declare Cursor [`variables`](https://cursor.com/docs/reference/plugins#variables);
+   set values under **Plugins → Configure** (generated `mcp.json` uses `${VAR}` placeholders).
+4. After catalog updates on `main`, refresh the marketplace in Customize. If the UI stays
    pinned to an old commit (a known Cursor personal-marketplace issue), remove the marketplace,
-   delete `~/.cursor/plugins/marketplaces/github.com/melodic-software/` and
-   `~/.cursor/plugins/cache/melodic-software/`, reload the window, and re-add the repo.
+   delete the local mirror + cache, reload the window, and re-add the repo:
+   - macOS/Linux: `~/.cursor/plugins/marketplaces/github.com/melodic-software/` and
+     `~/.cursor/plugins/cache/melodic-software/`
+   - Windows: `%USERPROFILE%\.cursor\plugins\marketplaces\github.com\melodic-software\` and
+     `%USERPROFILE%\.cursor\plugins\cache\melodic-software\`
 
-Claude-specific hooks and `userConfig` fields are not portable to Cursor; skills, agents,
-commands, rules, and MCP configs in the shared plugin directories are.
+**Portability (from official docs):** Claude `userConfig` / `${user_config.*}` /
+`${CLAUDE_PLUGIN_ROOT}` are Claude Code contracts
+([plugins reference](https://code.claude.com/docs/en/plugins-reference)). Cursor MCP uses
+generated `mcp.json` + `variables` / `${VAR}`
+([plugins reference](https://cursor.com/docs/reference/plugins)). Claude hook *settings*
+can load in Cursor via [third-party hooks](https://cursor.com/docs/reference/third-party-hooks);
+Claude *plugin* `hooks/hooks.json` is a different surface. For plugins that ship Claude
+plugin hooks, the Cursor export sets `hooks` to an empty Cursor-native stub under
+`.cursor-plugin/` so Cursor does not parse the Claude hooks file as a plugin hook
+config ([component discovery](https://cursor.com/docs/reference/plugins) — specifying
+`hooks` replaces default `hooks/hooks.json` discovery). Skills, agents, and rules still load.
+Export package: [`scripts/cursor-export/`](scripts/cursor-export/README.md).
 
 ### Enable plugin suggestions for an organization
 
@@ -76,9 +91,11 @@ user opts in with `/plugin enable`; an existing install is never flipped by cata
 
 - `.claude-plugin/marketplace.json` — Claude Code marketplace catalog (SSOT).
 - `.cursor-plugin/marketplace.json` — Cursor marketplace catalog (generated; run
-  `node scripts/generate-cursor-manifests.mjs`).
-- `plugins/` — one directory per plugin (`plugins/<name>/.claude-plugin/plugin.json` is SSOT;
-  `plugins/<name>/.cursor-plugin/plugin.json` is generated).
+  `node scripts/generate-cursor-manifests.mjs` — implementation in
+  [`scripts/cursor-export/`](scripts/cursor-export/README.md)).
+- `plugins/` — one directory per plugin (`plugins/<name>/.claude-plugin/plugin.json` and
+  `.mcp.json` / `hooks/hooks.json` are Claude SSOTs; Cursor
+  `plugins/<name>/.cursor-plugin/**` and ported `mcp.json` are generated).
 - `docs/MIGRATION-PLAYBOOK.md` — design charter, extensibility model, the per-plugin migration
   gate, and the local development loop.
 - `docs/` — further design records and audits (CI runner routing, extensibility-contract smoke

@@ -1,7 +1,7 @@
 {
   "name": "miro",
   "version": "0.2.2",
-  "description": "Miro board management over the Model Context Protocol: create and manage boards, sticky notes, shapes, frames, connectors, and tags for EventStorming, brainstorming, and diagramming. Bundles a local stdio MCP server (single self-contained Node artifact); installs disabled — opt in and supply a Miro API token.",
+  "description": "Miro board management over the Model Context Protocol: create and manage boards, sticky notes, shapes, frames, connectors, and tags for EventStorming, brainstorming, and diagramming. Bundles a local stdio MCP server (single self-contained Node artifact); installs disabled — opt in and supply a Miro API token. Configure the API credential in Cursor under Plugins → Configure after install.",
   "author": {
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
@@ -15,5 +15,18 @@
     "eventstorming",
     "diagramming",
     "visual-collaboration"
-  ]
+  ],
+  "variables": {
+    "type": "object",
+    "properties": {
+      "MIRO_API_TOKEN": {
+        "type": "string",
+        "title": "Miro API token",
+        "description": "Miro REST API token from https://miro.com/app/settings/user-profile/apps. Required — the bundled MCP server exits at startup without it. Set in Cursor under Plugins → Configure."
+      }
+    },
+    "required": [
+      "MIRO_API_TOKEN"
+    ]
+  }
 }

@@ -16,6 +16,7 @@ fi
 node scripts/validate-plugin-contracts.mjs || exit 1
 node scripts/generate-catalog.mjs --check || exit 1
 node scripts/generate-cheatsheet.mjs --check || exit 1
+node scripts/cursor-export/test.mjs || exit 1
 node scripts/generate-cursor-manifests.mjs --check || exit 1
 
 if ! command -v claude >/dev/null 2>&1; then
