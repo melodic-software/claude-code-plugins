@@ -528,6 +528,12 @@ def gh_http_status(proc: subprocess.CompletedProcess[str]) -> int | None:
     before dispatching -- and callers must treat it as "unverifiable", never as a
     negative answer. The LAST status in the stream wins: a retried request prints
     one line per attempt, and the final one is the outcome.
+
+    This parses another tool's message text, so it is deliberately unparsable-safe
+    rather than robust: if `gh` ever reformats or localizes that string, every
+    failure returns None and every caller degrades to "unverifiable". That is the
+    recoverable direction, so the coupling costs accuracy on a format change and
+    never correctness.
     """
     matches = GH_HTTP_STATUS_RE.findall(proc.stderr or "")
     return int(matches[-1]) if matches else None
@@ -634,6 +640,22 @@ def verify_tracker_item(default_repo: str, token: str) -> tuple[bool, str]:
     if not match:
         return False, "refused-tracker-item-not-found"
     repo = match.group("repo") or default_repo
+    # `TRACKER_ITEM_RE` admits an owner/repo shape, not a VALID one: its character
+    # class allows a leading dot and a bare `..`, so `validowner/..#1` would build
+    # `repos/validowner/../issues/1` and be normalized to a path that was never a
+    # GitHub endpoint. The same format validation `verify_fix_commit` applies to
+    # the analogous compare URL therefore applies here, so the refusal names the
+    # malformed reference rather than reporting a lookup miss for an item nobody
+    # ever looked up. Applied to the RESOLVED repo, which costs nothing on the
+    # `default_repo` path (already validated by `parse_repo_number`) and keeps one
+    # rule instead of two.
+    owner, _, name = repo.partition("/")
+    if not (
+        GITHUB_OWNER_RE.fullmatch(owner)
+        and GITHUB_REPOSITORY_RE.fullmatch(name)
+        and name not in {".", ".."}
+    ):
+        return False, "refused-evidence-unverifiable"
     proc = gh_capture(["api", f"repos/{repo}/issues/{match.group('number')}"])
     if proc.returncode != 0:
         # Only a confirmed 404 means the item is not there. A 403 on an issues

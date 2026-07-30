@@ -57,14 +57,19 @@ All notable changes to the `source-control` plugin are documented here. Format f
   `refused-tracker-item-not-found`, sending a caller off to replace evidence that may be perfectly
   valid when the real fix was to retry an outage.
 
-  **The compare URL's path segments are format-validated before interpolation**, matching
-  `babysit_gh.fetch_blocked_base_compare`'s rule for the identical call shape: `head_owner` and
-  `head_name` against `GITHUB_OWNER_RE` / `GITHUB_REPOSITORY_RE` (and `..` rejected), `head_oid`
-  and `sha` against the commit-SHA pattern. Two of those arrive in an API response body, so "the
-  API said so" was their only provenance — a crafted or compromised response carrying path syntax
-  could otherwise redirect the request to an unintended endpoint. Fail-closed either way (an
-  unexpected response always refused), so this narrows the reachable surface rather than fixing an
-  exploitable resolve.
+  **Every URL path segment is format-validated before interpolation**, matching
+  `babysit_gh.fetch_blocked_base_compare`'s rule for the identical call shape. In
+  `verify_fix_commit`: `head_owner` and `head_name` against `GITHUB_OWNER_RE` /
+  `GITHUB_REPOSITORY_RE` (and `..` rejected), `head_oid` and `sha` against the commit-SHA pattern.
+  Two of those arrive in an API response body, so "the API said so" was their only provenance — a
+  crafted or compromised response carrying path syntax could otherwise redirect the request to an
+  unintended endpoint. In `verify_tracker_item`, the same rule applies to the resolved `owner/repo`:
+  `TRACKER_ITEM_RE` admits an owner/repo *shape*, not a valid one (its character class allows a
+  leading dot and a bare `..`), so `validowner/..#1` built a path that was never a GitHub endpoint
+  and the resulting 404 reported `refused-tracker-item-not-found` — naming a missing item for a
+  lookup that never addressed one. Fail-closed either way in both functions (an unexpected response
+  always refused), so this narrows the reachable surface and sharpens the refusal reason rather than
+  fixing an exploitable resolve.
 
   Fail-closed throughout. Missing, unparsable, mismatched, or surplus evidence is a usage error at
   exit `2` before any lookup; evidence the world rejects refuses the resolve with its own

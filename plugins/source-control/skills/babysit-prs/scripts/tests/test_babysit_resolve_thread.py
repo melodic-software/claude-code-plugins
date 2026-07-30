@@ -1089,6 +1089,33 @@ class OutageIsNotARejection(unittest.TestCase):
             (False, "refused-tracker-item-not-found"),
         )
 
+    def test_tracker_item_owner_carrying_path_syntax_is_unverifiable(self) -> None:
+        # TRACKER_ITEM_RE admits an owner/repo SHAPE, not a valid one, so a `..`
+        # component builds a path that was never a GitHub endpoint. Reporting that
+        # as a missing item would name the wrong problem. A single scripted
+        # response would be reached only if the guard did not fire first.
+        with mock.patch.object(rt, "gh_capture", side_effect=[]):
+            self.assertEqual(
+                rt.verify_tracker_item("owner/repo", "validowner/..#1"),
+                (False, "refused-evidence-unverifiable"),
+            )
+
+    def test_tracker_item_leading_dot_owner_is_unverifiable(self) -> None:
+        with mock.patch.object(rt, "gh_capture", side_effect=[]):
+            self.assertEqual(
+                rt.verify_tracker_item("owner/repo", ".org/repo#1"),
+                (False, "refused-evidence-unverifiable"),
+            )
+
+    def test_a_well_formed_explicit_repo_is_still_looked_up(self) -> None:
+        with mock.patch.object(
+            rt, "gh_capture", return_value=_proc(0, json.dumps({"state": "open"}))
+        ):
+            self.assertEqual(
+                rt.verify_tracker_item("owner/repo", "other-owner/other.repo#1"),
+                (True, ""),
+            )
+
     def _compare(
         self, compare: subprocess.CompletedProcess[str]
     ) -> tuple[bool, str]:
