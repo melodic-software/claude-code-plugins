@@ -11,7 +11,7 @@
 # scripts/validate-plugins.sh, hygiene linters) run instead of SKIPping.
 # In-repo manifests stay the single source of truth where one exists:
 #   Node               — .node-version (standards-synced)
-#   ruff               — .github/requirements-ci.txt (hash-locked, standards-synced)
+#   ruff               — .github/requirements-ci.txt (hash-locked)
 #   claude CLI / Biome — root package-lock.json (installed via npm ci)
 # Tools with no in-repo manifest are pinned in the VERSION PINS block below.
 #
