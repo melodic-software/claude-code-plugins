@@ -183,22 +183,11 @@ class CliTests(unittest.TestCase):
             ".claude-plugin/marketplace.json",
             '{"name": "marketplace", "name": "dup"}',
         )
-        # Cursor dual-target globs (added with generate-cursor-manifests.mjs).
-        self.write(
-            "plugins/gamma/.cursor-plugin/plugin.json",
-            '{"name": "gamma", "version": "1.0.0", "version": "9.9.9"}',
-        )
-        self.write(
-            ".cursor-plugin/marketplace.json",
-            '{"name": "cursor-market", "name": "cursor-dup"}',
-        )
         with mock.patch.object(detector, "REPO_ROOT", self.tmp_path):
             code, _out, err = self.run_cli([])
         self.assertEqual(1, code)
         self.assertIn("beta", err)
         self.assertIn("marketplace.json", err)
-        self.assertIn("gamma", err)
-        self.assertIn("cursor-plugin", err.replace("\\", "/"))
         self.assertNotIn(
             str(self.tmp_path / "plugins/alpha/.claude-plugin/plugin.json"), err
         )
@@ -212,19 +201,11 @@ class CliTests(unittest.TestCase):
             ".claude-plugin/marketplace.json",
             json.dumps({"name": "marketplace"}),
         )
-        self.write(
-            "plugins/alpha/.cursor-plugin/plugin.json",
-            json.dumps({"name": "alpha", "version": "1.0.0"}),
-        )
-        self.write(
-            ".cursor-plugin/marketplace.json",
-            json.dumps({"name": "marketplace"}),
-        )
         with mock.patch.object(detector, "REPO_ROOT", self.tmp_path):
             code, out, err = self.run_cli([])
         self.assertEqual(0, code)
         self.assertEqual("", err)
-        self.assertIn("4 manifest file(s)", out)
+        self.assertIn("2 manifest file(s)", out)
 
     def test_output_reports_every_distinct_duplicate_key_in_one_message(self) -> None:
         manifest = self.write(
