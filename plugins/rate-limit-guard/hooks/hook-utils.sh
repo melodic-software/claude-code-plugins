@@ -944,21 +944,51 @@ hook::git_is_bin() {
   esac
 }
 
+# Record the directory a WRAPPER changes to, into the slot belonging to the
+# wrapper occurrence currently being walked. A repeat within ONE wrapper is
+# last-wins rather than cumulative — GNU env keeps its --chdir operand in a
+# single slot, so `env -C a -C b` lands in `b` resolved against the cwd env was
+# invoked from, not in `a/b`. Nested wrappers each take their own slot, in
+# execution order, so the caller composes them left to right.
+# Call as: hook::wrapper_chdir_record <slot-index-var-name> <dir>
+hook::wrapper_chdir_record() {
+  # shellcheck disable=SC2178  # nameref to the caller's integer slot, not a string
+  local -n slot="$1"
+  local dir="$2"
+  [[ -n "$dir" ]] || return 0
+  if ((slot < 0)); then
+    HOOK_GIT_RESOLVED_WRAPPER_DIRS+=("$dir")
+    slot=$((${#HOOK_GIT_RESOLVED_WRAPPER_DIRS[@]} - 1))
+  else
+    HOOK_GIT_RESOLVED_WRAPPER_DIRS[slot]="$dir"
+  fi
+}
+
 # Locate a real `git` executable at the segment's command position (after
 # env-var prefixes and known wrappers), or return 1 when absent. Results go in
 # globals, NOT a $( ) echo: `env -S` splicing rewrites the argv, and the caller
 # must match on the rewritten words, so the index alone is not enough.
 #   HOOK_GIT_RESOLVED_GI    — index of git in HOOK_GIT_RESOLVED_WORDS
 #   HOOK_GIT_RESOLVED_WORDS — the (possibly rewritten) segment argv
+#   HOOK_GIT_RESOLVED_WRAPPER_DIRS — directories the wrappers chdir into before
+#                            git runs, in execution order (empty when none)
 # Leading `NAME=value` env-assignment prefixes and `env NAME=value` operands are walked
 # PAST to reach the git token, but their values are not collected: a `--config-env` alias
 # for the invoked subcommand is refused by SHAPE (hook::git_alias_expansion), so the
 # resolver never needs to know what an environment variable holds.
+#
+# A wrapper's chdir IS collected, because a caller that scopes its git-global
+# parsing to `[gi, sub_idx)` — as it must, since this parser is the only place
+# that knows which wrapper options take a value — would otherwise lose the
+# relocation entirely and inspect the wrong repository. This resolver is the
+# single place that can answer it: `env -C <dir>` really does move git, while the
+# `-C` in `env -u -C git` is the operand of `-u` and moves nothing.
 # shellcheck disable=SC1003  # '\' compares a literal backslash char, not a quote escape
 # shellcheck disable=SC2034  # result globals are consumed by the sourcing guard, not this file
 hook::git_resolve_index() {
   HOOK_GIT_RESOLVED_WORDS=("$@")
   HOOK_GIT_RESOLVED_GI=-1
+  HOOK_GIT_RESOLVED_WRAPPER_DIRS=()
   # shellcheck disable=SC2178  # nameref to the array result global, not a string assignment
   local -n w=HOOK_GIT_RESOLVED_WORDS
   local n=${#w[@]} i=0 tok
@@ -983,10 +1013,19 @@ hook::git_resolve_index() {
       # assignment regardless of name shape so a hyphenated/leading-dash name git
       # reads via --config-env is captured, not dropped.
       ((i++))
-      local env_past_optmark=0
+      local env_past_optmark=0 env_ci=-1 etok
       while ((i < n)); do
         if ((env_past_optmark == 0)) && [[ "${w[i]}" == -* ]]; then
-          case "${w[i]}" in
+          # GNU env clusters short options, so `-vC dir` carries a chdir that no
+          # exact `-C` match sees. Peel the valueless shorts (-i/-0/-v, per
+          # `env --help`) off a single-dash token so the value-taking tail
+          # (-u/-C/-S) reaches its own branch; peel into a scratch copy, leaving
+          # HOOK_GIT_RESOLVED_WORDS as the caller matches on it.
+          etok="${w[i]}"
+          if [[ "$etok" == -[!-]* ]]; then
+            while [[ "$etok" =~ ^-[i0v](.+)$ ]]; do etok="-${BASH_REMATCH[1]}"; done
+          fi
+          case "$etok" in
           --)
             ((i++))
             env_past_optmark=1
@@ -994,7 +1033,10 @@ hook::git_resolve_index() {
           # -S/--split-string re-splits its operand into argv (GNU env), so a
           # quoted 'git commit --no-verify' would otherwise hide from the
           # resolver as one non-git word. Splice the split words back into the
-          # scan and restart at the command position.
+          # scan and restart at the command position. The splice drops every
+          # word before `i`, this `env` included, so a chdir already recorded for
+          # it is not re-walked and stays recorded — which is right, because env
+          # performs that chdir whether or not -S rewrites the command.
           -S | --split-string)
             local sval=""
             ((i + 1 < n)) && sval="${w[i + 1]}"
@@ -1005,7 +1047,7 @@ hook::git_resolve_index() {
             continue 2
             ;;
           -S* | --split-string=*)
-            local sval="${w[i]#-S}"
+            local sval="${etok#-S}"
             sval="${sval#--split-string=}"
             hook::env_s_split "$sval"
             w=(${HOOK_ENV_S_WORDS[@]+"${HOOK_ENV_S_WORDS[@]}"} "${w[@]:i+1}")
@@ -1013,13 +1055,30 @@ hook::git_resolve_index() {
             i=0
             continue 2
             ;;
-          -u | --unset | -C | --chdir) ((i += 2)) ;;
+          -C | --chdir)
+            ((i + 1 < n)) && hook::wrapper_chdir_record env_ci "${w[i + 1]}"
+            ((i += 2))
+            ;;
+          --chdir=*)
+            hook::wrapper_chdir_record env_ci "${etok#--chdir=}"
+            ((i++))
+            ;;
+          -C*)
+            hook::wrapper_chdir_record env_ci "${etok#-C}"
+            ((i++))
+            ;;
+          -u | --unset) ((i += 2)) ;;
           -*) ((i++)) ;;
           *) ((i++)) ;;
           esac
         elif [[ "${w[i]}" == *=* ]]; then
           # An `env NAME=value` operand — skip it to reach the command (git). Its value
           # is never read: a --config-env alias is refused by shape, not resolved.
+          # The operand also ENDS option parsing, as env's own grammar does
+          # (`env FOO=1 -C dir git …` makes env look for a command named `-C`, not
+          # chdir), so a later dash word is the command or its argument. Reading one
+          # as an option recorded a chdir env never performs.
+          env_past_optmark=1
           ((i++))
         else
           break
@@ -1043,10 +1102,30 @@ hook::git_resolve_index() {
       continue
       ;;
     sudo)
+      # sudo's own chdir is -D/--chdir (its -C is close-from, -R is --chroot).
+      # Only the unclustered spellings are read here; sudo's valueless short set
+      # is large and release-dependent, so peeling a cluster the way the env
+      # branch does would be guesswork rather than grammar.
+      # Known gap, fail-open: a clustered `sudo -bD dir git …` loses the chdir,
+      # and `-i` relocates to the target user's home without naming a directory
+      # at all.
       ((i++))
+      local sudo_ci=-1
       while ((i < n)) && [[ "${w[i]}" == -* ]]; do
         case "${w[i]}" in
-        -u | -g | -h | -p | -C | -D | -R | -T | --user | --group | --chdir) ((i += 2)) ;;
+        -D | --chdir)
+          ((i + 1 < n)) && hook::wrapper_chdir_record sudo_ci "${w[i + 1]}"
+          ((i += 2))
+          ;;
+        --chdir=*)
+          hook::wrapper_chdir_record sudo_ci "${w[i]#--chdir=}"
+          ((i++))
+          ;;
+        -D*)
+          hook::wrapper_chdir_record sudo_ci "${w[i]#-D}"
+          ((i++))
+          ;;
+        -u | -g | -h | -p | -C | -R | -T | --user | --group) ((i += 2)) ;;
         -*) ((i++)) ;;
         *) ((i++)) ;;
         esac

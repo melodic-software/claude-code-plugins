@@ -1460,6 +1460,66 @@ subject_is "ordinary command yields basename subject" \
 subject_is "non-Bash tool returns the tool name" \
   "Write" "irrelevant" "Write"
 
+# --- hook::git_resolve_index reports a wrapper's chdir ------------------------
+# A caller that scopes its git-global parsing to [gi, sub_idx) cannot see a
+# relocation the wrapper performs, so the resolver — the only parser that knows
+# which wrapper options take a value — reports it. `env -C DIR` moves git; the
+# `-C` in `env -u -C git` is -u's operand and moves nothing.
+# resolve_dirs_are <desc> <expected-dirs-joined-by-|> <argv...>
+resolve_dirs_are() {
+  local desc="$1" expected="$2"
+  shift 2
+  local got rc
+  hook::git_resolve_index "$@"
+  rc=$?
+  got=$(
+    IFS='|'
+    printf '%s' "${HOOK_GIT_RESOLVED_WRAPPER_DIRS[*]-}"
+  )
+  if ((rc != 0)); then
+    fail "$desc: resolver did not find git (rc=$rc)"
+  elif [[ "$got" == "$expected" ]]; then
+    ok "$desc"
+  else
+    fail "$desc: expected [$expected], got [$got]"
+  fi
+}
+
+resolve_dirs_are "no wrapper reports no chdir" "" git commit
+resolve_dirs_are "env with no options reports no chdir" "" env git commit
+resolve_dirs_are "env -C DIR reports the chdir" "other" env -C other git commit
+resolve_dirs_are "env -CDIR (attached short) reports the chdir" "other" env -Cother git commit
+resolve_dirs_are "env --chdir DIR reports the chdir" "other" env --chdir other git commit
+resolve_dirs_are "env --chdir=DIR reports the chdir" "other" env --chdir=other git commit
+# env clusters short options, so a valueless flag can carry the chdir in the same
+# word: -vC is --debug plus --chdir, which no exact -C match sees.
+resolve_dirs_are "env -vC DIR (clustered) reports the chdir" "other" env -vC other git commit
+resolve_dirs_are "env -iC DIR (clustered) reports the chdir" "other" env -iC other git commit
+# -u consumes the NEXT word as a variable name, so this -C is env's operand and
+# git never moves. Reporting it here is the bypass this whole boundary exists for.
+resolve_dirs_are "env -u swallows -C, so no chdir is reported" "" env -u -C git commit
+resolve_dirs_are "env -uNAME (attached) leaves a later -C as env's chdir" "other" env -uFOO -C other git commit
+# One env keeps --chdir in a single slot, so a repeat is last-wins, not cumulative.
+resolve_dirs_are "repeated env -C is last-wins within one env" "second" env -C first -C second git commit
+# Operands and the option terminator must not be read as options.
+resolve_dirs_are "env NAME=value operand carries no chdir" "" env FOO=bar git commit
+resolve_dirs_are "env -- ends option parsing" "other" env -C other -- git commit
+resolve_dirs_are "a chdir BEFORE the operand still counts" "other" env -C other FOO=1 git commit
+# A NAME=value operand ends option parsing too, so `env FOO=1 -C dir git …` makes
+# env look for a command literally named `-C` and fail — nothing runs, and the
+# resolver reports no git rather than recording a chdir env never performs.
+if hook::git_resolve_index env FOO=1 -C other git commit; then
+  fail "a NAME=value operand ends option parsing: resolved git at $HOOK_GIT_RESOLVED_GI, expected none"
+else
+  ok "a NAME=value operand ends option parsing, so no git resolves"
+fi
+# sudo's chdir is -D/--chdir; its -C is close-from and takes a value of its own.
+resolve_dirs_are "sudo -D DIR reports the chdir" "other" sudo -D other git commit
+resolve_dirs_are "sudo --chdir=DIR reports the chdir" "other" sudo --chdir=other git commit
+resolve_dirs_are "sudo -C fd is not a chdir" "" sudo -C 3 git commit
+# Nested wrappers each contribute, in execution order, for the caller to compose.
+resolve_dirs_are "nested wrappers report both chdirs in order" "a|b" env -C a sudo -D b git commit
+
 echo
 echo "PASS=$PASS FAIL=$FAIL"
 [[ $FAIL -eq 0 ]]
