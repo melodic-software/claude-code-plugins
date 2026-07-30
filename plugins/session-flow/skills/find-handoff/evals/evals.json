@@ -127,12 +127,12 @@
       "id": 10,
       "name": "rootless-miss-surfaces-unresolved-not-missing",
       "prompt": "Recover my handoff. It was written months ago, before the resume prompt started carrying absolute paths — the directive in the transcript reads `Read @.work/handoffs/…`. The session that wrote it was started from my home directory, but the work was in a different repo.",
-      "expected_output": "The directive is rootless, so the skill resolves it against the source transcript's cwd (the home directory) and finds no file there. It does NOT discard the candidate: it runs one bounded read-only widening over the repository roots already in hand, and if that does not produce a single unambiguous hit it surfaces the candidate marked UNRESOLVED — directive verbatim, filename, the cwd it was resolved against — and states that the path has no root rather than that the file is missing, offering to resolve it once the operator names the repository. No `Handoff origin:` line exists on a block this old, so nothing is expected to re-resolve from.",
+      "expected_output": "The directive is rootless, so the skill resolves it against the source transcript's cwd (the home directory) and finds no file there. It does NOT discard the candidate: it runs one bounded read-only widening over the VERIFIED repository roots already in hand, and a home directory is not one — it has no git top level, so it contributes no root to search under and is never globbed recursively. If the widening does not produce a single unambiguous hit the skill surfaces the candidate marked UNRESOLVED — directive verbatim, filename, the cwd it was resolved against — and states that the path has no root rather than that the file is missing, offering to resolve it once the operator names the repository. No `Handoff origin:` line exists on a block this old, so nothing is expected to re-resolve from.",
       "files": [],
       "expectations": [
         "A rootless directive whose resolved path does not exist is kept as an UNRESOLVED candidate, never dropped on the existence check",
         "The skill reports that the path has no root and names the transcript cwd it was resolved against, rather than reporting the file as missing — the two are different failures",
-        "The widening search is bounded to repository roots already in hand (current repo, the candidate transcript's cwd) and never becomes a machine-wide filesystem sweep",
+        "The widening is bounded to VERIFIED repository roots — the transcript cwd is a home directory with no git top level, so it is NOT globbed recursively and contributes no root, and the search never becomes a machine-wide filesystem sweep",
         "Two or more filename matches leave the candidate UNRESOLVED with the matches listed, rather than picking one",
         "An UNRESOLVED candidate is surfaced alongside resolved ones but never auto-wins or becomes the default when a resolved candidate exists",
         "It does not expect a `Handoff origin:` line on a pre-rooted block, and its absence disqualifies nothing",
@@ -151,6 +151,20 @@
         "A successful re-resolution surfaces the recovered file normally; a failed one surfaces the candidate marked UNRESOLVED",
         "The UNRESOLVED report states the absolute path that was tried and the repository the origin line named, and attributes the miss to this machine rather than to the handoff's absence",
         "The bounded widening may include the repository named by the origin line, and still never becomes a machine-wide filesystem sweep"
+      ]
+    },
+    {
+      "id": 12,
+      "name": "widening-verifies-a-repo-root-before-globbing-under-it",
+      "prompt": "Find my lost handoff. The session that wrote it was launched straight from my home directory, so that is what the transcript records as its cwd.",
+      "expected_output": "The candidate's path does not resolve, so the skill reaches its one bounded widening — and a home directory is not a repository root. It confirms the recorded cwd IS a repository root before searching under it (`git -C <cwd> rev-parse --show-toplevel`, globbing under the top level it prints rather than under cwd itself); a cwd with no git top level contributes no root at all. It therefore never recursively globs the home directory, which would sweep most of the user's files — the machine-wide scan the rule forbids, reached by accident — and it does not silently return empty either: the candidate stays UNRESOLVED and the operator is asked which checkout to look in.",
+      "files": [],
+      "expectations": [
+        "The skill verifies the transcript cwd is a git top level BEFORE globbing under it, and searches the top level it resolves to rather than cwd itself",
+        "A cwd with no git top level — a home directory being the canonical case — contributes no widening root and is never recursively globbed",
+        "The skill does not treat an unusable cwd as a dead end: the candidate is surfaced UNRESOLVED and the operator is asked which checkout to look in",
+        "The current repo and any `Handoff origin:` repository remain in the widening set — narrowing the cwd rule never removes the roots that are already verified",
+        "The widening stays read-only and bounded; no machine-wide filesystem sweep is performed under any branch"
       ]
     }
   ]

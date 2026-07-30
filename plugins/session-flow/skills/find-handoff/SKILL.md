@@ -181,8 +181,10 @@ one, since the producer emits a separate re-arm message per surviving loop, so "
        so a resume on a different machine or a different checkout of the same repository finds
        nothing there. That is exactly the case the producer emits `Handoff origin:` for — so on a
        rooted miss, read that line and re-resolve its repo-relative path against the repository it
-       names, then fall through to the shared rule below. Never treat a rooted miss as absence: it
-       is the same not-found-here condition, reached from the other direction.
+       names; a hit there surfaces the recovered file normally, and only if that re-resolution
+       ALSO finds nothing does the candidate fall through to the shared rule below. Never treat a
+       rooted miss as absence: it is the same not-found-here condition, reached from the other
+       direction.
      - **Rootless directive** (every handoff written before the producer rooted its path) —
        **resolve it against the source transcript's `cwd` field, not the current session's cwd**. A
        handoff recovered from another repo's transcript is otherwise falsely reported missing when
@@ -196,11 +198,18 @@ one, since the producer emits a separate re-arm message per surviving loop, so "
        discarding the candidate throws away a directive that names the right filename and is the
        strongest evidence in hand. Keep it, carry the filename plus whichever path form was tried,
        and surface it at step 4 marked UNRESOLVED. Before doing so, spend one bounded, read-only
-       widening: glob that filename under the repository roots already in hand — the current repo,
-       the `cwd` recorded by the candidate transcript, and the repository named by any
-       `Handoff origin:` line — and promote a single unambiguous hit to a resolved candidate. Two or
-       more hits stay UNRESOLVED with the matches listed; the operator picks. Never widen into a
-       machine-wide filesystem sweep.
+       widening: glob that filename under the **verified repository roots** already in hand — the
+       current repo, and the repository named by any `Handoff origin:` line. **A candidate
+       transcript's `cwd` earns a place in that set only once it is confirmed to BE a repository
+       root** — `git -C <cwd> rev-parse --show-toplevel`, and glob under the top level it prints
+       rather than `cwd` itself. A session launched from a home directory records that home
+       directory as its `cwd`, so globbing under an unverified `cwd` is a recursive sweep of most
+       of the user's files: the machine-wide scan this rule forbids, reached by accident rather
+       than by intent, and slow enough to time the recovery out. A `cwd` with no git top level
+       contributes no root — the candidate stays UNRESOLVED and step 4 asks the operator which
+       checkout to look in, which is the honest answer when nothing in hand can name one. Promote a
+       single unambiguous hit to a resolved candidate. Two or more hits stay UNRESOLVED with the
+       matches listed; the operator picks. Never widen into a machine-wide filesystem sweep.
 
      **Apply step 1's background-delivery screening to these candidates too** — the launch
      signature, if any, sits in this same transcript: a file whose exact directive a verifiably
@@ -332,6 +341,13 @@ one, since the producer emits a separate re-arm message per surviving loop, so "
   shape-marker redaction the producer uses (`save-point.md` "Redaction pass"): replace any
   secret / token / credential / connection string / PII with a shape marker (`<REDACTED: API key>`),
   never the value. A value acceptable in-session is not acceptable to re-surface from a transcript.
+- **The `Handoff origin:` value is a named credential vector.** It can carry a git remote URL, and a
+  remote embeds its credential in the URL's userinfo component (`https://<token>@host/…`), where it
+  reads as a path segment rather than as a secret. This skill surfaces that value at the confirm gate
+  and derives a widening root from it, so it is checked for an `@` ahead of its host and reduced to
+  the bare scheme-and-host form before either. The producer strips it at emit time
+  (`save-point.md` `<repo-identity>`), but a recovered handoff predates that rule as easily as it
+  predates the rooted path — recovery is exactly where an unsanitized one arrives.
 
 ## Boundaries — pick the right sibling
 

@@ -34,6 +34,26 @@
   already in hand, then surfaces the candidate at the confirm gate with its directive verbatim and
   names the precise reason — the path has no root, or nothing is at that absolute path on this
   machine — rather than reporting a missing file.
+- **The bounded widening could sweep a whole home directory, because it globbed under a `cwd` it
+  never verified was a repository root.** The recorded `cwd` of a session launched straight from a
+  home directory *is* that home directory, so globbing a filename under it recursively walks most of
+  the user's files — the machine-wide scan the rule forbids, reached by accident rather than by
+  intent, and slow enough to time the recovery out. A `cwd` now earns a place in the widening set
+  only once `git -C <cwd> rev-parse --show-toplevel` confirms it, and the search runs under the top
+  level that prints rather than under `cwd` itself. A `cwd` with no top level contributes no root;
+  the candidate stays UNRESOLVED and the operator is asked which checkout to look in, which is the
+  honest answer when nothing in hand can name one.
+- **`Handoff origin:` embedded the `origin` remote URL verbatim, and a remote URL routinely carries
+  a credential.** The userinfo component of an HTTPS remote holds a PAT, a stored password, or a
+  credential helper's `x-access-token:<token>@` — and this line sits *inside* the rails, in the
+  region the operator is told to copy, so an embedded secret travels into the next session and onto
+  every machine the prompt is forwarded to. The producer now strips everything from `://` up to and
+  including the `@` before embedding what is left, and falls back to the repository's root directory
+  name when a URL cannot be sanitized with confidence. Remote URLs are named as an explicit vector
+  in both redaction passes — a token in a URL reads as one more path segment, which is the shape a
+  model-driven sweep is likeliest to walk past — and `find-handoff` applies the same check to the
+  value it surfaces at the confirm gate and derives a widening root from, since a recovered handoff
+  predates this rule as easily as it predates the rooted path.
 
 ### Notes
 

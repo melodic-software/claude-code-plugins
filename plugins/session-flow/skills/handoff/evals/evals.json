@@ -41,7 +41,7 @@
     {
       "id": 4,
       "name": "resume-path-is-rooted-when-cwd-is-not-the-worked-in-repo",
-      "prompt": "I launched this session from my home directory but all the work is in D:/repos/acme/app. Handoff.",
+      "prompt": "I launched this session from my home directory but all the work is in D:/repos/<owner>/<repo>. Handoff.",
       "expected_output": "The handoff file is written under the worked-in repository's resolved <memory_dir>/handoffs/, and the resume prompt's Read directive states that file's ABSOLUTE, forward-slash-normalized path — not the bare .work/handoffs/<TS>-handoff-<topic>.md segment, which would resolve against the resuming session's cwd (the home directory) and land in an unrelated handoffs directory. A Handoff origin: line inside the rails names the repository and the repo-relative path so a resume on another machine or checkout can re-resolve.",
       "files": [],
       "expectations": [
@@ -50,6 +50,20 @@
         "A Handoff origin: line inside the rails names the repository identity and the repo-relative path, computed at emit time rather than read from a frontmatter field",
         "The directive remains actionable if the @ mention does not expand — the same line states the full absolute path, which the resuming session can read directly",
         "The emitted path is the location the write step actually used, never a default the file was not written to"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "handoff-origin-strips-remote-url-credentials",
+      "prompt": "Handoff. This repo's origin remote is an HTTPS URL with my personal access token embedded in it.",
+      "expected_output": "The Handoff origin: line names the repository WITHOUT the token. The userinfo component — everything from :// up to and including the @ — is removed before the URL is embedded, so a PAT-bearing remote is emitted as its bare scheme-and-host form. The line sits inside the rails, in the region the operator is told to copy, so an embedded credential would travel into the next session and onto every machine the prompt reaches; stripping it at emit time means the redaction pass has nothing left to catch there. When the URL cannot be sanitized with confidence, the root directory name is emitted instead rather than a URL that might still carry the secret.",
+      "files": [],
+      "expectations": [
+        "The emitted Handoff origin: line contains no token, password, or other userinfo component — everything from :// through the @ inclusive is removed",
+        "The sanitization happens at emit time in the producer, not left to the redaction pass to catch afterwards",
+        "The reasoning names why it matters that the line is INSIDE the rails: the copy region is what travels to other sessions and machines",
+        "A URL that cannot be sanitized with confidence falls back to the repository's root directory name rather than being emitted as-is",
+        "The line still names the repository well enough to re-resolve the repo-relative path on another machine — sanitizing does not drop the identity"
       ]
     }
   ]

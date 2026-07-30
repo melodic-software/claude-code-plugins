@@ -60,6 +60,13 @@ uncommitted-but-readable, travels to other sessions and machines, and gets read 
 current conversation never anticipated. A value acceptable to see in-session is not acceptable to
 persist. This pass gates the write — no artifact or prompt is emitted before it runs.
 
+**Git remote URLs are a named vector on that list.** A remote embeds its credential in the URL's
+userinfo component (`https://<token>@host/…`), where it reads as one more path segment rather than as
+a secret — the shape this sweep is likeliest to walk past. So any URL in the outbound set is checked
+for an `@` ahead of its host and reduced to the bare scheme-and-host form. The `Handoff origin:` line
+is where one most plausibly appears, and it sits inside the copy region; `<repo-identity>` below
+requires it stripped at emit time so this pass has nothing left to catch.
+
 ## Claim provenance — mandatory on BOTH paths
 
 A status claim earns plain statement only when THIS session verified it — a command run, a file
@@ -237,9 +244,22 @@ form rather than a trade.
 and a save-point's own "When to invoke" includes sharing state with another machine — so the third
 line names what the path can be re-derived from: the repository's `origin` remote URL when it has
 one, else its root directory name, and the repo-relative path under it. It is computed at emit time
-from the repository actually written into; it is NOT a stored field, and nothing in the handoff
-file's frontmatter carries it. A resume on a different machine or checkout ignores line 1's root and
-re-resolves from line 3.
+from the repository actually written into — when cwd is NOT that repository, name the repository the
+file was actually written to, never the one cwd happens to sit in; it is NOT a stored field, and
+nothing in the handoff file's frontmatter carries it. A resume on a different machine or checkout
+ignores line 1's root and re-resolves from line 3.
+
+**Strip the remote URL's userinfo before embedding it.** A remote URL routinely carries a credential
+in its userinfo component — `https://<token>@github.com/<owner>/<repo>.git` for HTTPS-with-PAT,
+`https://<user>:<token>@host/…` for a stored password, and the `x-access-token:<token>@` form a
+credential helper writes — and this line sits INSIDE the rails, in the region the operator is told
+to copy, so an embedded credential travels into the next session and onto every machine the prompt
+is forwarded to. Take `git remote get-url origin` and remove everything from `://` up to and
+including the `@` before embedding what is left, so a PAT-bearing remote is emitted as
+`https://github.com/<owner>/<repo>.git`. The redaction pass is the backstop, not the mechanism: it
+is a model-driven sweep that can read a bare token as just another path segment, and a credential
+never put into the string cannot be missed. When the URL cannot be sanitized with confidence, emit
+the root directory name instead — it re-resolves nearly as well and carries no secret.
 
 When the next stage is a specific skill in the consuming repo, swap the directive to
 `Read @… and execute /<skill>.` The `@`-reference is mandatory on the full path — the fresh session
