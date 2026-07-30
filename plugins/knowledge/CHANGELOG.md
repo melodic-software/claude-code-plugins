@@ -16,6 +16,23 @@ only after that version increases.
   and interval frames. Mirrored from the medley SSOT
   (`melodic-software/medley#1687`), where the authored fix and its regression test live.
 
+### Changed
+
+- **`docpage-digest` Anthropic profile: models-explained blog queue entry removed.** The
+  claude-models-explained blog slice completed — rendered-channel fetch (raw-md confirmed
+  absent, matching the profile's blog-post channel note) with firecrawl extraction, through
+  interview handoff, dual verification (two correction rounds, re-verified REVERIFY2: PASS by
+  both verifiers, no degraded fallback) — so its entry leaves the doc queue per the queue's
+  remove-on-completion rule, taking its inlined seven-item pairing cross-link contract with it
+  (the contract was executed by the slice; its results live in the slice's handoff).
+- **`docpage-digest` Anthropic profile: vendor-blog attestation rule.** Blog-only assertions
+  (behavioral, performance, figure/percentage, comparative, positioning — an illustrative, not
+  exhaustive, list) carry an assertion-specific `vendor-claimed (blog, <fetch date> fetch)`
+  marker beside their vocabulary tag — never satisfied by related-property citations, never
+  co-occurring with a same-assertion live-doc citation, never deferred to the interview. Closes
+  the rule gap the context-engineering blog slice's handoff flagged (its OQ-3), with the shape
+  enforced end-to-end by both verifiers on this slice.
+
 ## [0.10.8]
 
 ### Changed
