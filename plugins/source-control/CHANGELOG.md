@@ -3,6 +3,100 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.42.0]
+
+### Added
+
+- **babysit-prs: `--independent-resolver`, an evidence-gated third mode for
+  `babysit_resolve_thread.py` (#1632).** `--autonomous` admits only threads GitHub marks
+  `isOutdated`, which is the right guard for the merging worker but means "the referenced code
+  moved". On a prose or documentation PR a finding is normally addressed by rewriting elsewhere in
+  the file, so the anchor never moves, the finding is genuinely addressed, and the guard refuses —
+  measured across two real babysit runs, 7 of 20 resolved threads were still not `isOutdated`, and
+  that undercounts, because a worker's own push flips the flag without touching a comment. The
+  consequence was that an autonomous prose lane had no sanctioned route to zero unresolved
+  threads. The new mode is **parallel to `--autonomous`, never a relaxation of it**: it replaces
+  `isOutdated` with caller INDEPENDENCE (a fresh context that is neither the merging worker nor the
+  author of the fix — the actor resolving is not the actor whose permission slip it is) plus
+  machine-validated DISPOSITION EVIDENCE. Independence is a property of the dispatch that no script
+  can verify, which is exactly why the evidence half is checked here.
+
+  `--disposition` names one of three claims and carries exactly its own evidence flag, validated
+  against the world rather than trusted: `fixed` + `--fix-commit <sha>`, which must be reachable
+  from the PR's current head commit (resolved through the head repository, so a fork PR compares
+  correctly — existence elsewhere is not evidence this PR carries the fix); `deferred` +
+  `--tracker-item <id>`, which must exist and still be open (a closed follow-up is not a deferral,
+  it is the finding disappearing); and `incorrect` + `--counter-evidence <text>`, which must
+  already appear in a REPLY on the thread, posted by someone other than the thread's OPENER so the
+  finding's own author cannot supply the words that rebut it. Excluding the opening comment alone
+  was not enough: the mandated classification reply restates the finding's own text, so a finding
+  bot that also replies on its own thread would satisfy a `--counter-evidence` claim quoting it. A
+  different bot's reply, and the caller's own reply under a `--self-logins` identity, both stay
+  admissible — those are the independent parties the disposition is about.
+
+  **A multi-finding thread is refused outright** (`skipped-multi-finding-thread`). One
+  `--disposition` is a claim about ONE finding while `resolveReviewThread` clears the whole thread,
+  dropping every comment it carries out of the readiness denominator
+  (`babysit_classify.thread_is_open`) — so evidence for finding A would suppress an unaddressed
+  finding B and let the merge gate pass over it. That is the D7.5 whole-thread eligibility rule
+  (`reference/review-discipline.md`) enforced mechanically instead of left to the caller. The count
+  comes from the shared severity vocabulary (`babysit_classify.severity_occurrences`, made public
+  so the resolver and the readiness counters cannot drift apart) applied to the thread's own
+  comments, with a self classification reply's table rows stripped so the worker's own echo of a
+  finding is not counted twice; it fails closed, so a truncated comment page's unknown count
+  refuses too. The guard is scoped to this mode alone: `--autonomous` rests on `isOutdated`, which
+  GitHub computes for the whole thread rather than per finding, so it carries no per-finding claim
+  to under-cover. The receipt gains a `findingCount` per thread and a `skippedMultiFinding` summary
+  counter.
+
+  **Every `gh` failure now names which answer it got.** Only a confirmed HTTP 404 (parsed from the
+  `(HTTP nnn)` status `gh` reports on stderr, verified against gh 2.95.0) earns an
+  evidence-specific refusal; a 403, 429, 5xx, timeout, or unreachable API reports
+  `refused-evidence-unverifiable`. Previously any nonzero exit from the `compare` lookup reported
+  `refused-fix-commit-not-on-head` and any nonzero exit from the tracker-item lookup reported
+  `refused-tracker-item-not-found`, sending a caller off to replace evidence that may be perfectly
+  valid when the real fix was to retry an outage.
+
+  **Every URL path segment is format-validated before interpolation**, matching
+  `babysit_gh.fetch_blocked_base_compare`'s rule for the identical call shape. In
+  `verify_fix_commit`: `head_owner` and `head_name` against `GITHUB_OWNER_RE` /
+  `GITHUB_REPOSITORY_RE` (and `..` rejected), `head_oid` and `sha` against the commit-SHA pattern.
+  Two of those arrive in an API response body, so "the API said so" was their only provenance — a
+  crafted or compromised response carrying path syntax could otherwise redirect the request to an
+  unintended endpoint. In `verify_tracker_item`, the same rule applies to the resolved `owner/repo`:
+  `TRACKER_ITEM_RE` admits an owner/repo *shape*, not a valid one (its character class allows a
+  leading dot and a bare `..`), so `validowner/..#1` built a path that was never a GitHub endpoint
+  and the resulting 404 reported `refused-tracker-item-not-found` — naming a missing item for a
+  lookup that never addressed one. Fail-closed either way in both functions (an unexpected response
+  always refused), so this narrows the reachable surface and sharpens the refusal reason rather than
+  fixing an exploitable resolve.
+
+  Fail-closed throughout. Missing, unparsable, mismatched, or surplus evidence is a usage error at
+  exit `2` before any lookup; evidence the world rejects refuses the resolve with its own
+  `action` — `refused-fix-commit-not-on-head`, `refused-tracker-item-not-found`,
+  `refused-tracker-item-not-open`, `refused-counter-evidence-not-found`, and
+  `refused-evidence-unverifiable` kept distinct so an API outage is never reported as a false
+  claim. Evidence is validated in list mode too, so a dry run proves the evidence instead of
+  predicting the resolve. A stale `--thread-id` pin is likewise reported in list mode now, not only
+  under `--resolve`, so a dry run predicts what the resolve would do — this also corrects
+  `--autonomous`'s pre-existing list-mode output, which previously reported `would-resolve` for a
+  thread the very next `--resolve` refused. Every other guard is retained deliberately: bot-only authorship, both
+  TOCTOU pins, and the security/P1 bright line, because an independent resolver is still an
+  unattended path. `--autonomous`, `--include-human`, and `--allow-unpinned-thread` are each
+  refused alongside it, and bulk is refused in every mode here (list included) since evidence is a
+  claim about one finding. The JSON receipt shape is unchanged apart from additive `mode`,
+  `disposition`, and `refusedEvidence` fields; the `bin/` wrapper needed no change, and its
+  contract row already pins that it filters nothing.
+
+  `verify_disposition` names every disposition explicitly and its fallthrough refuses, so a
+  disposition added to `DISPOSITION_EVIDENCE` without a validator can no longer reach whichever
+  branch happened to be last and be reported as validated by a check that never read its evidence.
+
+  The existing modes are otherwise untouched, with regressions asserting it: `--autonomous` still
+  refuses a non-outdated thread, still refuses bulk, and is not narrowed by the multi-finding
+  guard. Five refusal rows and six classifier predicates were added to the guard contract
+  (`reference/guard-contract.md` regenerated from them).
+
 ## [0.41.0]
 
 ### Added
