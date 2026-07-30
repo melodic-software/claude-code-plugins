@@ -174,10 +174,10 @@ Persona 1 sits at the `y=0` timeline baseline.
 
 | Row | y | Purpose |
 |-----|---|---------|
-| BC Contracts (inbound) | -600 | Consumed events from other BCs |
-| Read Models | -400 | Information panels |
-| Actors | -200 | Who issues commands |
-| Commands | -100 | Blue imperative actions |
+| BC Contracts (inbound) | -800 | Consumed events from other BCs |
+| Read Models | -600 | Information panels |
+| Actors | -400 | Who issues commands |
+| Commands | -200 | Blue imperative actions |
 | **Aggregates** | **0** | Light yellow — blank first, named last |
 | Business Rules | 300 | Gray — invariants (stack at y=300, 550, 800) |
 | Domain Events | 1100 | Orange — outcomes |
@@ -185,34 +185,34 @@ Persona 1 sits at the `y=0` timeline baseline.
 | What-if challenges | 1700 | Red hot spots |
 | BC Contracts (outbound) | 2000 | Published events |
 
-**Main flow (y=0 baseline):**
+Every Design-Level y comes from the table above — it is the only place those
+values live. Rows are spaced ≥200px apart so no two bands overlap.
 
-- Commands, Events, Policies all sit on y=0
-- Flow reads left-to-right, incrementing x by 400 per item
+**X-axis placement (the table fixes y; this fixes x):**
 
-**Above the flow (negative y = up):**
+- The flow reads left-to-right, incrementing x by 400 per item along the spine.
+- An actor and the read model feeding it share the x of the command they issue.
+- A what-if challenge and an alternative outcome share the x of the event they
+  hang off.
 
-- Actors: y=-250 (directly above their command)
-- Read Models: y=-450 (above the actor)
-- Hot Spots: y=-250 (above the related event)
-
-**Below the flow (positive y = down):**
-
-- Alternative outcomes: y=+250 (below the happy path event)
-
-**Example: one complete flow segment**
+**Example: one complete flow segment** — x is literal, y is the element's row in
+the table above:
 
 ```
-Read Model:       x=0,    y=-450
-Actor:            x=0,    y=-250
-Command:          x=0,    y=0
-Domain Event:     x=400,  y=0       (happy path)
-Event (alt):      x=400,  y=250     (rejection/failure)
-Hot Spot:         x=400,  y=-250    (above the event)
-Policy:           x=800,  y=0       (reactive — "whenever")
-Next Command:     x=1200, y=0       (triggered by policy)
-Next Event:       x=1600, y=0
+Read Model:     x=0      (Read Models row)
+Actor:          x=0      (Actors row)
+Command:        x=0      (Commands row)
+Aggregate:      x=0      (Aggregates row — the spine)
+Domain Event:   x=400    (Domain Events row, happy path)
+Event (alt):    x=400    (Alternative outcomes row)
+What-if:        x=400    (What-if challenges row)
+Next Command:   x=800    (Commands row)
+Next Event:     x=1200   (Domain Events row)
 ```
+
+The table has no Policy row, so Design-Level policy placement is undefined here
+— unlike Process Modeling, whose spine row carries Event-Command-Policy
+together. Place policies by judgment until a row is agreed.
 
 **Legend frame positioning and sizing:**
 
