@@ -1,6 +1,6 @@
 {
   "name": "go-format",
-  "version": "0.2.7",
+  "version": "0.2.8",
   "description": "Auto-fix Go formatting and import management on edit via goimports — runs unconditionally (no consumer-config gate), skipping generated files. Cursor note: on-edit automation is a Claude Code plugin hook (hooks/hooks.json). Cursor's documented Claude hook compatibility loads from .claude/settings.json (third-party hooks), not this plugin's hooks.json; this export ships an empty Cursor-native hooks stub. Skills and agents still load.",
   "author": {
     "name": "Melodic Software",
