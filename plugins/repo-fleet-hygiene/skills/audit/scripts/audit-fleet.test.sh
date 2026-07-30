@@ -546,6 +546,28 @@ else
   failures=$((failures + 1))
 fi
 
+# ...and it must name the remedy. The operator never chose the implicit path, so a bare rejection
+# leaves the very first invocation on a machine whose fleet lives elsewhere with no way forward.
+if grep -Fq -- "--root <dir>" "$ladder_out" && grep -Fq -- "--repo <dir>" "$ladder_out" &&
+  grep -Fq -- "--config <file>" "$ladder_out" && grep -Fq "repo-fleet-hygiene:setup apply" "$ladder_out"; then
+  printf 'PASS: zero-config rejection names --root, --repo, --config, and the setup skill\n'
+else
+  printf 'FAIL: zero-config rejection does not name the scope remedies\n' >&2
+  failures=$((failures + 1))
+fi
+
+# The guidance belongs to the IMPLICIT default only: an explicitly supplied bad path is a typo, and
+# the operator already knows how to pass a scope -- they just did.
+if REPO_FLEET_TEST_FAST_TIMEOUTS=1 bash "$SCRIPT" --repo "$TMP/noconf" >"$ladder_out" 2>&1; then
+  printf 'FAIL: explicit --repo on a non-Git dir did not hard-fail\n' >&2
+  failures=$((failures + 1))
+elif grep -Fq "not a Git working tree" "$ladder_out" && ! grep -Fq -- "--config <file>" "$ladder_out"; then
+  printf 'PASS: explicit --repo rejection stays terse (no scope guidance)\n'
+else
+  printf 'FAIL: explicit --repo rejection leaked the implicit-default scope guidance\n' >&2
+  failures=$((failures + 1))
+fi
+
 # A CLI-supplied bad path is a typo, not config drift: the run must still hard-fail.
 if REPO_FLEET_TEST_FAST_TIMEOUTS=1 bash "$SCRIPT" --repo "$TMP/never-existed" >"$ladder_out" 2>&1; then
   printf 'FAIL: CLI-supplied missing repo did not hard-fail\n' >&2
