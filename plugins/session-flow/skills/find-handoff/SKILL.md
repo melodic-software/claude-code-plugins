@@ -341,13 +341,21 @@ one, since the producer emits a separate re-arm message per surviving loop, so "
   shape-marker redaction the producer uses (`save-point.md` "Redaction pass"): replace any
   secret / token / credential / connection string / PII with a shape marker (`<REDACTED: API key>`),
   never the value. A value acceptable in-session is not acceptable to re-surface from a transcript.
-- **The `Handoff origin:` value is a named credential vector.** It can carry a git remote URL, and a
-  remote embeds its credential in the URL's userinfo component (`https://<token>@host/…`), where it
-  reads as a path segment rather than as a secret. This skill surfaces that value at the confirm gate
-  and derives a widening root from it, so it is checked for an `@` ahead of its host and reduced to
-  the bare scheme-and-host form before either. The producer strips it at emit time
-  (`save-point.md` `<repo-identity>`), but a recovered handoff predates that rule as easily as it
-  predates the rooted path — recovery is exactly where an unsanitized one arrives.
+- **The `Handoff origin:` value is a named credential vector, and it takes a different treatment from
+  the bullet above.** It can carry a git remote URL, and a remote embeds its credential in the URL's
+  userinfo component (`https://<token>@host/…`), where it reads as a path segment rather than as a
+  secret. This skill surfaces that value at the confirm gate and derives a widening root from it, so
+  it is checked for an `@` ahead of its host before either. **Drop the userinfo and keep the rest — do
+  NOT replace the URL with a shape marker.** The shape-marker rule above assumes the whole value is
+  secret and unneeded downstream; a remote URL is the opposite. Its host and path are not secret and
+  they are what makes the value useful: this line is the input that re-resolves a rooted miss, so a
+  `<REDACTED: remote URL>` marker would destroy the identity recovery depends on and turn a
+  credential leak into a failed recovery. So `https://<token>@github.com/<owner>/<repo>.git` is
+  surfaced as `https://github.com/<owner>/<repo>.git`, never a marker; when the userinfo boundary is
+  not clear (`save-point.md` `<repo-identity>` gives the test), surface the repository name alone
+  rather than guessing. The producer strips it at emit time, but a recovered handoff predates that
+  rule as easily as it predates the rooted path — recovery is exactly where an unsanitized one
+  arrives.
 
 ## Boundaries — pick the right sibling
 

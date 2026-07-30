@@ -53,7 +53,18 @@
   in both redaction passes — a token in a URL reads as one more path segment, which is the shape a
   model-driven sweep is likeliest to walk past — and `find-handoff` applies the same check to the
   value it surfaces at the confirm gate and derives a widening root from, since a recovered handoff
-  predates this rule as easily as it predates the rooted path.
+  predates this rule as easily as it predates the rooted path. Both passes state the **precedence**
+  explicitly, because the git-URL rule and the general redaction rule prescribe different outputs for
+  the same secret class and a model executing them could not otherwise tell which wins: the URL is
+  reduced to its bare scheme-and-host form and NOT replaced with a shape marker. That is a deliberate
+  exception — the general rule redacts to a marker because the whole value is secret and unneeded,
+  whereas a remote URL's host and path are non-secret and load-bearing, so `<REDACTED: remote URL>`
+  would trade a credential leak for a broken recovery. The sanitization boundaries are stated too: a
+  bare ssh account name (`ssh://git@host/…`) is not a credential and stays, since the secret is the
+  local key the URL does not carry; and "cannot be sanitized with confidence" gets a test — fall back
+  to the root directory name when the userinfo boundary is undeterminable, as with more than one `@`
+  ahead of the path or the SCP-style `git@host:<owner>/<repo>.git` form that has no `://` to anchor
+  stripping on.
 
 ### Notes
 

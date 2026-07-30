@@ -60,12 +60,20 @@ uncommitted-but-readable, travels to other sessions and machines, and gets read 
 current conversation never anticipated. A value acceptable to see in-session is not acceptable to
 persist. This pass gates the write — no artifact or prompt is emitted before it runs.
 
-**Git remote URLs are a named vector on that list.** A remote embeds its credential in the URL's
-userinfo component (`https://<token>@host/…`), where it reads as one more path segment rather than as
-a secret — the shape this sweep is likeliest to walk past. So any URL in the outbound set is checked
-for an `@` ahead of its host and reduced to the bare scheme-and-host form. The `Handoff origin:` line
-is where one most plausibly appears, and it sits inside the copy region; `<repo-identity>` below
-requires it stripped at emit time so this pass has nothing left to catch.
+**Git remote URLs are a named vector on that list, and they take a different treatment.** A remote
+embeds its credential in the URL's userinfo component (`https://<token>@host/…`), where it reads as
+one more path segment rather than as a secret — the shape this sweep is likeliest to walk past. So
+any URL in the outbound set is checked for an `@` ahead of its host. **Drop the userinfo and keep the
+rest — do NOT replace the URL with a shape marker. This is a deliberate exception to the rule above,
+and for this one class it wins.** The general rule redacts to a marker because the whole value is
+secret and nothing downstream needs it; here the opposite holds. The scheme, host, and path are not
+secret, and they are load-bearing: `Handoff origin:` exists so a resume on another machine can
+re-resolve the file from the repository it names, and a `<REDACTED: remote URL>` marker would destroy
+the identity the line is emitted to carry — turning a credential leak into a broken recovery. So
+`https://<token>@github.com/<owner>/<repo>.git` becomes `https://github.com/<owner>/<repo>.git`,
+never a marker. `Handoff origin:` is where such a URL most plausibly appears, and it sits inside the
+copy region; `<repo-identity>` below requires it stripped at emit time so this pass has nothing left
+to catch.
 
 ## Claim provenance — mandatory on BOTH paths
 
@@ -242,8 +250,9 @@ form rather than a trade.
 
 **`<repo-identity>` keeps the prompt usable off this machine.** An absolute path is machine-local,
 and a save-point's own "When to invoke" includes sharing state with another machine — so the third
-line names what the path can be re-derived from: the repository's `origin` remote URL when it has
-one, else its root directory name, and the repo-relative path under it. It is computed at emit time
+line names what the path can be re-derived from: the repository's `origin` remote URL when it has one
+AND that URL can be sanitized with confidence (the test is below), else its root directory name, and
+the repo-relative path under it. It is computed at emit time
 from the repository actually written into — when cwd is NOT that repository, name the repository the
 file was actually written to, never the one cwd happens to sit in; it is NOT a stored field, and
 nothing in the handoff file's frontmatter carries it. A resume on a different machine or checkout
@@ -254,12 +263,24 @@ in its userinfo component — `https://<token>@github.com/<owner>/<repo>.git` fo
 `https://<user>:<token>@host/…` for a stored password, and the `x-access-token:<token>@` form a
 credential helper writes — and this line sits INSIDE the rails, in the region the operator is told
 to copy, so an embedded credential travels into the next session and onto every machine the prompt
-is forwarded to. Take `git remote get-url origin` and remove everything from `://` up to and
-including the `@` before embedding what is left, so a PAT-bearing remote is emitted as
-`https://github.com/<owner>/<repo>.git`. The redaction pass is the backstop, not the mechanism: it
-is a model-driven sweep that can read a bare token as just another path segment, and a credential
-never put into the string cannot be missed. When the URL cannot be sanitized with confidence, emit
-the root directory name instead — it re-resolves nearly as well and carries no secret.
+is forwarded to. Take `git remote get-url origin` and remove the credential-bearing userinfo —
+everything from `://` up to and including the `@` — before embedding what is left, so a PAT-bearing
+remote is emitted as `https://github.com/<owner>/<repo>.git`. The redaction pass is the backstop, not
+the mechanism: it is a model-driven sweep that can read a bare token as just another path segment,
+and a credential never put into the string cannot be missed.
+
+**A bare ssh account name is not a credential.** `ssh://git@github.com/<owner>/<repo>.git` carries no
+secret — the secret is the local key, which the URL does not contain — so the `git@` stays. Strip
+userinfo that carries a token or a password; leave userinfo that is only a well-known ssh account
+name. Dropping it would not hurt recovery, but it would state something false about the remote.
+
+**"Cannot be sanitized with confidence" has a test: can you say where the userinfo ends and the host
+begins?** Fall back to the root directory name when you cannot. Concretely: more than one `@` sits
+ahead of the path, so the boundary is ambiguous; there is no `://` to anchor on, as in the SCP-style
+`git@host:<owner>/<repo>.git` form, where the `@` delimits an ssh user and no scheme marks where
+stripping would begin; or the string is not a shape you recognize. Guessing the boundary risks
+leaving the token in or mangling the identity — the directory name loses neither, and it re-resolves
+nearly as well.
 
 When the next stage is a specific skill in the consuming repo, swap the directive to
 `Read @… and execute /<skill>.` The `@`-reference is mandatory on the full path — the fresh session
