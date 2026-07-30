@@ -26,8 +26,8 @@ the tag asserts:
 
 - **`cc-applicable` / `mixed` (positive claims):** verified against live code.claude.com docs at
   tag time — cite the URL consulted in the digest row. A positive tag assigned by inference,
-  without a live-doc check, is recorded as `unverified-inference` and becomes an interview
-  question, never a silent fact. (This rule exists because inference has already produced a
+  without a live-doc check, is additionally recorded as `unverified-inference` and becomes an
+  interview question, never a silent fact. (This rule exists because inference has already produced a
   wrong tag once — the failure mode is real.)
 - **`api-only` (a negative claim — "no harness surface exists"):** absence cannot be proven from
   one page. Record the basis (the harness doc section(s) checked, or `unverified-inference` when
@@ -36,6 +36,12 @@ the tag asserts:
 - **`cc-applicable`/`mixed` boundary:** a claim that names an API surface (parameter, endpoint,
   SDK call) tags `mixed` even when its guidance transfers to the harness; `cc-applicable` is
   reserved for claims naming no API surface.
+- **Row-local, tag always present:** the evidence (a positive tag's live-doc URL, an `api-only`
+  basis) appears in the claim's own row — "same basis as claim N" does not satisfy the contract —
+  and every claim carries exactly one vocabulary tag: `unverified-inference` is an additional
+  uncertainty marker, never a substitute for the tag. (Both rulings from the sonnet-5 guide
+  slice's cross-vendor verification, where citation-by-reference and marker-as-tag were the
+  dominant correction class.)
 
 ## Digest-agent model matching
 
@@ -55,10 +61,6 @@ Every model-pinned spawn brief uses the conditional framing contract from `SKILL
 
 Pending Anthropic docs for this pipeline. Verify each URL live at fetch time; remove entries as
 their slices complete.
-
-Per-model guides:
-
-- <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-sonnet-5>
 
 Guardrail guides:
 
