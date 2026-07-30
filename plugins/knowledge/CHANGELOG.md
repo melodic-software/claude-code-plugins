@@ -4,6 +4,20 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.10.4]
+
+### Changed
+
+- **`docpage-digest` Anthropic profile: sonnet-5 prompting-guide queue entry removed.** The
+  prompting-claude-sonnet-5 slice completed — raw-md fetch through interview handoff, dual
+  verification with corrections applied and cross-vendor re-verified — so its entry leaves the
+  doc queue per the queue's remove-on-completion rule. It was the last remaining per-model
+  guide, so the emptied category heading goes with it.
+- **`docpage-digest` Anthropic profile: applicability-filter clarifications from that slice's
+  verification.** Evidence is row-local ("same basis as claim N" never satisfies the contract),
+  and `unverified-inference` is an additional uncertainty marker, never a substitute for the
+  `cc-applicable`/`api-only`/`mixed` tag itself.
+
 ## [0.10.3]
 
 ### Changed
