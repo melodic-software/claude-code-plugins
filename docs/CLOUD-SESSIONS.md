@@ -71,6 +71,48 @@ Everything repo-specific goes in source control, following the docs' pattern in
   up. In a cloud session you can also just ask Claude to create the hook — an Anthropic-provided
   `session-start-hook` skill is preloaded there for exactly this.
 
+### Setup script vs SessionStart hook: decision criteria
+
+Where a given piece of setup belongs, per the
+[official split](https://code.claude.com/docs/en/cloud-environments#setup-scripts-vs-sessionstart-hooks)
+plus the cost model of
+[environment caching](https://code.claude.com/docs/en/cloud-environments#environment-caching):
+
+- **Setup script** (environment dialog; cached): heavy, repo-agnostic, static installs — SDKs
+  (e.g. .NET, which the docs call out as setup-script material), `apt` packages, Docker image
+  pulls. Runs as root; its cost is paid once per cache rebuild (script/network-config edit, or
+  roughly-seven-day expiry), not per session.
+- **SessionStart hook** (repo-committed; every session start and resume): anything driven by the
+  repo's own manifests or that must track branch state — dependency installs, pinned-tool
+  provisioning. Runs locally and in the cloud, so guard cloud-only work with
+  `CLAUDE_CODE_REMOTE` and make every step idempotent; the cost is paid per session.
+- **Neither is for processes**: the cache keeps files, not running services. Start databases or
+  `docker compose` stacks per session (ask Claude, or start them from the hook).
+- **Performance lever — cache the hook's work**: the setup script runs after the repository is
+  cloned, so a guarded line in the environment's setup script can run this repo's bootstrap and
+  bake its results into the cached snapshot, dropping per-session hook time to the idempotent
+  re-check (~3 s here):
+
+  ```bash
+  [ -f .claude/hooks/session-start.sh ] && CLAUDE_CODE_REMOTE=true bash .claude/hooks/session-start.sh || true
+  ```
+
+  The guard keeps it a no-op for repositories without the script, so the environment stays
+  generic. (How the cache interacts with sessions across *different* repos isn't documented;
+  the idempotent hook makes either behavior safe.)
+
+### One environment or several?
+
+Start with one Default. Environments are account-scoped and repo-agnostic, so a single
+Trusted-network environment serves every repository. Add a second, named environment only when a
+class of work needs something incompatible or heavy enough to isolate — a big SDK whose cache
+churn you want contained, or a
+[custom domain allowlist](https://code.claude.com/docs/en/cloud-environments#allow-specific-domains).
+A repo needing an uninstalled toolchain (the docs' example is the .NET SDK) means adding its
+install to a setup script — extend Default, or create a dedicated environment and select it when
+starting sessions on that repo; NuGet and dotnet.microsoft.com are already on the default
+allowlist.
+
 ## How this repository is set up
 
 The environment side stays generic (Default environment, Trusted network, no variables, at most
