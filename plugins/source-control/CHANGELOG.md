@@ -3,6 +3,49 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.41.0]
+
+### Added
+
+- **`pr-linkage-mcp-gate` hook — the MCP-surface sibling of `pr-body-linkage-gate`.** Cloud/remote
+  sessions have no `gh` CLI and open PRs through the GitHub MCP server
+  (`mcp__github__create_pull_request` / `mcp__github__update_pull_request`), a surface the Bash
+  hook never sees — so a body failing the consuming repo's required `pr-issue-linkage` check was
+  only discovered a full CI round trip after the PR was open. The new PreToolUse hook mirrors the
+  same validator semantics on the MCP payload (comment stripping, closing keyword or
+  `No linked issue`, present-and-non-empty `## Related` with deeper headings as content) and the
+  same scope guards (enforced only in a repo carrying
+  `.github/workflows/pr-issue-linkage.yml`/`.yaml`; a call targeting a different repo than origin
+  is out of scope, and a target that cannot be established — no origin remote, or a payload
+  missing owner/repo — allows rather than imposing this checkout's policy on an unproven
+  repository; an `update` with no `body` field allows). The MCP surface hands the hook the
+  body as a plain JSON field, so the Bash sibling's extraction caveats don't apply; the one
+  fail-closed addition is a `create` with no `body` field at all, which GitHub would open with an
+  empty body the CI gate rejects. Kill switch: `pr_linkage_mcp_gate_enabled` (default true).
+- **`pr-linkage-validator.sh` — the validator core extracted to one sourced lib.** The comment
+  stripping, keyword/`## Related` judging, and the verdict wording now exist once, sourced by both
+  hooks (and by the marketplace repo's checked-in MCP gate), so a drift fix against the upstream
+  ci-workflows validator lands on every surface atomically instead of being hand-mirrored across
+  copies. Behavior unchanged; each surface keeps its own extraction, scope guards, and block
+  message.
+
+## [0.40.2]
+
+### Fixed
+
+- **`babysit-loop`'s `usage_sample` prose contradicted the loop-lane invariant it cites.** The
+  convention permits reading the previous sample back to derive `five_hour_delta_pct` — the
+  subtraction *and* the rollover comparison — but 0.39.0 described the field as "deliberately inert:
+  no lane behavior reads it back", which no lane computing a rollover-suppressed delta could satisfy.
+  The convention's wording is corrected upstream (loop-lane 6.0.1); the entry recording 0.39.0 is
+  left as shipped and superseded by this one. **The measure-only guarantee is unchanged** — the value
+  still reaches no decision, at any threshold.
+- **`at` was ambiguous between two timestamps.** It is when the lane read the tee, not the snapshot's
+  own `captured_at`, which the staleness rule permits to lag it.
+- **The delta's `null` condition read too narrowly.** "Either sample is missing" excluded a present
+  sample carrying a `null` `five_hour_pct`; it is now `null` whenever either side's `five_hour_pct`
+  is unavailable.
+
 ## [0.40.1]
 
 ### Fixed
