@@ -3,6 +3,47 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.24.0]
+
+### Added
+
+- **`morning-brief` reports findings stranded on merged pull requests (#1777).** A review that lands
+  *after* a merge had nowhere to go: the ruleset's `required_review_thread_resolution` is a
+  merge-time predicate that already passed, the babysit lane works only *open* pull requests, and
+  nothing on a merged pull request surfaces its open threads. Six findings — one P1 — posted 46
+  seconds after #1720 merged sat unread for a day, and were found only because a later session
+  happened to audit the merge batch.
+
+  The new section compares each unresolved thread's first-comment timestamp against the pull
+  request's `mergedAt`, so it reports **only** threads that could never have been seen by the gate;
+  a thread predating the merge is an ordinary unresolved thread and is excluded. Findings are
+  collapsed to one line per pull request at that pull request's **worst** severity with a count, so
+  a P0 beside advisory findings can never be softened, and one noisy pull request cannot bury the
+  rest. The window is `--stranded-days` (default 3), wide enough to cover both slow bot review and
+  an operator-absent weekend.
+
+  Run against this repository on its first live invocation, it immediately surfaced four further
+  stranded findings on other merged pull requests, including a P1 recording that a shipped plugin
+  cell never reached installations — so this is a standing leak, not a one-off.
+
+  Severity is read from the **structured marker only** — the badge alt-text, the shields badge URL,
+  or a leading bracket — never from body prose. A body-wide substring test falsely promotes a P2
+  titled "Preserve P1 labels", and any finding that merely discusses `CRITICAL` or `SECURITY`.
+  Ranking is numeric rather than lexicographic, because `"--"` sorts before `"P0"` as a string: an
+  unclassified thread sitting beside a genuine P0 would otherwise collapse the pull request to
+  `[--]` and hide it.
+
+  A thread connection that **truncates** is reported as a partial read. `--paginate` follows only
+  the outer cursor, so a pull request with more than 100 review threads would be silently cut short
+  — and a partial read that renders as an all-clear is the same failure the section exists to catch.
+
+  The section **fails loud rather than clear**. A GraphQL error document is well-formed JSON that
+  simply carries no `data`, so an unread API would otherwise extract to an empty list and render as
+  "every merged PR in the window is clear" — an all-clear asserted from an answer never received,
+  which is the same fail-open shape the section exists to catch. Caught during development when a
+  rate-limit error did exactly that; an API error now says explicitly that it is not an all-clear
+  and prints the message.
+
 ## [0.23.2]
 
 ### Fixed
