@@ -71,8 +71,8 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
   [Drive for desktop settings](https://support.google.com/drive/answer/13470231)), not to a folder
   under the user profile.
 
-  Only the OneDrive class was measured. `iCloud Drive` — with the space, per Apple's documented
-  Windows path `C:\Users\[username]\iCloud Drive` — and `Dropbox` were confirmed unprotected by name
+  Only the OneDrive class was measured. `iCloud Drive` — with the space, the folder name Apple
+  documents directly under the Windows user profile — and `Dropbox` were confirmed unprotected by name
   on the audit host, but their file attributes were never sampled, so they are protected on name
   alone and their placeholder behaviour remains unverified.
 
