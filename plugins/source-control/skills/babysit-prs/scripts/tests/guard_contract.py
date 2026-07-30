@@ -525,6 +525,112 @@ REFUSALS: tuple[Refusal, ...] = (
         enforced_at="babysit_resolve_thread.py::main",
     ),
     Refusal(
+        id="resolve.independent-refuses-autonomous",
+        claim=(
+            "--independent-resolver is a PARALLEL mode, never a relaxation of "
+            "--autonomous: combining them is refused at exit 2, so the merging worker "
+            "can never wear the independent resolver's exemption from isOutdated."
+        ),
+        entry_point=RESOLVE_CLI,
+        argv=(
+            "owner/repo#1",
+            "--allowed-owners",
+            "owner",
+            "--independent-resolver",
+            "--autonomous",
+        ),
+        exit_code=2,
+        error_contains=("--independent-resolver", "--autonomous"),
+        refused_by=PYTHON_CLI,
+        enforced_at="babysit_resolve_thread.py::main",
+    ),
+    Refusal(
+        id="resolve.independent-bulk-refused",
+        claim=(
+            "--independent-resolver requires a single pinned --thread-id in EVERY mode, "
+            "list included -- stricter than --autonomous, which refuses bulk only under "
+            "--resolve. Evidence is a claim about one finding, so a bulk call would "
+            "apply one thread's evidence to every thread."
+        ),
+        entry_point=RESOLVE_CLI,
+        argv=(
+            "owner/repo#1",
+            "--allowed-owners",
+            "owner",
+            "--independent-resolver",
+            "--disposition",
+            "incorrect",
+            "--counter-evidence",
+            "the anchor is generated output",
+        ),
+        exit_code=2,
+        error_contains=("--thread-id",),
+        refused_by=PYTHON_CLI,
+        enforced_at="babysit_resolve_thread.py::main",
+    ),
+    Refusal(
+        id="resolve.independent-requires-disposition",
+        claim=(
+            "--independent-resolver without --disposition is a usage error at exit 2: "
+            "the mode resolves on validated evidence, and an unnamed disposition has no "
+            "evidence to validate."
+        ),
+        entry_point=RESOLVE_CLI,
+        argv=(
+            "owner/repo#1",
+            "--allowed-owners",
+            "owner",
+            "--independent-resolver",
+        ),
+        exit_code=2,
+        error_contains=("--disposition",),
+        refused_by=PYTHON_CLI,
+        enforced_at="babysit_resolve_thread.py::main",
+    ),
+    Refusal(
+        id="resolve.independent-requires-matching-evidence",
+        claim=(
+            "Each disposition is admissible only with ITS OWN evidence flag: "
+            "--disposition deferred without --tracker-item refuses at exit 2 rather "
+            "than resolving on an unproven claim."
+        ),
+        entry_point=RESOLVE_CLI,
+        argv=(
+            "owner/repo#1",
+            "--allowed-owners",
+            "owner",
+            "--independent-resolver",
+            "--disposition",
+            "deferred",
+            "--thread-id",
+            "PRRT_abc",
+        ),
+        exit_code=2,
+        error_contains=("--tracker-item",),
+        refused_by=PYTHON_CLI,
+        enforced_at="babysit_resolve_thread.py::main",
+    ),
+    Refusal(
+        id="resolve.evidence-flag-requires-the-mode",
+        claim=(
+            "An evidence flag outside --independent-resolver is refused at exit 2, not "
+            "accepted and ignored: silently dropping it would report an unchecked claim "
+            "to the caller as a checked one."
+        ),
+        entry_point=RESOLVE_CLI,
+        argv=(
+            "owner/repo#1",
+            "--allowed-owners",
+            "owner",
+            "--fix-commit",
+            "abc1234",
+        ),
+        exit_code=2,
+        error_contains=("--independent-resolver",),
+        refused_by=PYTHON_CLI,
+        enforced_at="babysit_resolve_thread.py::main",
+    ),
+    Refusal(
         id="resolve.wrapper-reaches-failclosed-cli",
         claim=(
             "The resolve wrapper is a pure passthrough: no --allowed-owners refuses at "
@@ -636,8 +742,33 @@ REFUSALS: tuple[Refusal, ...] = (
 CLASSIFY_ANCHOR = "babysit_resolve_thread.py::classify"
 
 
-def _thread(*, resolved: bool, bot_only: bool, outdated: bool) -> dict[str, object]:
-    return {"isResolved": resolved, "botOnly": bot_only, "isOutdated": outdated}
+_OMITTED = object()
+
+
+def _thread(
+    *,
+    resolved: bool,
+    bot_only: bool,
+    outdated: bool,
+    severity_flagged: bool | None = None,
+    finding_count: object = _OMITTED,
+) -> dict[str, object]:
+    thread: dict[str, object] = {
+        "isResolved": resolved,
+        "botOnly": bot_only,
+        "isOutdated": outdated,
+    }
+    if severity_flagged is not None:
+        # Omitted by default so the rows that never reach the severity guard
+        # keep exercising `classify`'s fail-closed `.get(..., True)` default.
+        thread["severityFlagged"] = severity_flagged
+    if finding_count is not _OMITTED:
+        # Likewise omitted by default, so the rows that never reach the
+        # multi-finding guard keep exercising its fail-closed default. None is a
+        # MEANINGFUL value here (the projection reports it for a truncated
+        # comment page), which is why omission needs its own sentinel.
+        thread["findingCount"] = finding_count
+    return thread
 
 
 PREDICATES: tuple[Predicate, ...] = (
@@ -710,6 +841,136 @@ PREDICATES: tuple[Predicate, ...] = (
         thread=_thread(resolved=False, bot_only=False, outdated=False),
         flags={"autonomous": True, "only_outdated": False, "include_human": True},
         expected="skipped-not-outdated",
+    ),
+    Predicate(
+        id="classify.independent-drops-only-the-outdated-requirement",
+        claim=(
+            "--independent-resolver is what makes a still-CURRENT bot thread eligible: "
+            "it replaces the isOutdated signal with caller independence plus evidence "
+            "validated in main. A permission rule reading 'only outdated threads' is "
+            "false for any invocation carrying this flag."
+        ),
+        enforced_at=CLASSIFY_ANCHOR,
+        thread=_thread(
+            resolved=False,
+            bot_only=True,
+            outdated=False,
+            severity_flagged=False,
+            finding_count=1,
+        ),
+        flags={
+            "autonomous": False,
+            "only_outdated": False,
+            "include_human": False,
+            "independent": True,
+        },
+        expected="eligible",
+    ),
+    Predicate(
+        id="classify.independent-keeps-the-human-line",
+        claim=(
+            "Dropping isOutdated does not widen authorship: a human thread is still "
+            "skipped under --independent-resolver, which additionally refuses "
+            "--include-human at the argument layer so nothing can lift it."
+        ),
+        enforced_at=CLASSIFY_ANCHOR,
+        thread=_thread(
+            resolved=False, bot_only=False, outdated=False, severity_flagged=False
+        ),
+        flags={
+            "autonomous": False,
+            "only_outdated": False,
+            "include_human": False,
+            "independent": True,
+        },
+        expected="skipped-human-thread",
+    ),
+    Predicate(
+        id="classify.independent-keeps-the-severity-line",
+        claim=(
+            "An independent resolver is still an UNATTENDED path, so the grants' "
+            "'never a security or P1 thread' holds unconditionally: no evidence buys "
+            "past a severity-marked thread."
+        ),
+        enforced_at=CLASSIFY_ANCHOR,
+        thread=_thread(
+            resolved=False, bot_only=True, outdated=True, severity_flagged=True
+        ),
+        flags={
+            "autonomous": False,
+            "only_outdated": False,
+            "include_human": False,
+            "independent": True,
+        },
+        expected="skipped-severity-marked",
+    ),
+    Predicate(
+        id="classify.independent-refuses-a-multi-finding-thread",
+        claim=(
+            "A permission rule reading '--independent-resolver resolves any addressed "
+            "bot thread' is FALSE for a thread carrying more than one source finding: "
+            "one --disposition is a claim about ONE finding while resolution clears the "
+            "whole thread, so evidence for finding A would drop an unaddressed finding "
+            "B out of the readiness denominator and let the merge gate pass over it."
+        ),
+        enforced_at=CLASSIFY_ANCHOR,
+        thread=_thread(
+            resolved=False,
+            bot_only=True,
+            outdated=True,
+            severity_flagged=False,
+            finding_count=2,
+        ),
+        flags={
+            "autonomous": False,
+            "only_outdated": False,
+            "include_human": False,
+            "independent": True,
+        },
+        expected="skipped-multi-finding-thread",
+    ),
+    Predicate(
+        id="classify.independent-refuses-an-unknown-finding-count",
+        claim=(
+            "The multi-finding guard fails CLOSED: the projection reports an unknown "
+            "count (None) when a truncated comment page could be hiding another "
+            "finding, and an unknown count refuses exactly as a known multi-finding "
+            "count does."
+        ),
+        enforced_at=CLASSIFY_ANCHOR,
+        thread=_thread(
+            resolved=False,
+            bot_only=True,
+            outdated=True,
+            severity_flagged=False,
+            finding_count=None,
+        ),
+        flags={
+            "autonomous": False,
+            "only_outdated": False,
+            "include_human": False,
+            "independent": True,
+        },
+        expected="skipped-multi-finding-thread",
+    ),
+    Predicate(
+        id="classify.multi-finding-guard-is-independent-only",
+        claim=(
+            "The multi-finding guard is scoped to --independent-resolver. --autonomous "
+            "rests on isOutdated, which GitHub computes for the thread as a whole "
+            "rather than per finding, so there is no per-finding claim there to "
+            "under-cover: a multi-finding outdated bot thread stays eligible."
+        ),
+        enforced_at=CLASSIFY_ANCHOR,
+        thread=_thread(
+            resolved=False,
+            bot_only=True,
+            outdated=True,
+            severity_flagged=False,
+            finding_count=4,
+        ),
+        flags={"autonomous": True, "only_outdated": False, "include_human": False},
+        expected="eligible",
     ),
     Predicate(
         id="classify.already-resolved-precedes-every-guard",

@@ -4,7 +4,7 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
-## [0.10.8]
+## [0.10.9]
 
 ### Fixed
 
@@ -15,6 +15,18 @@ only after that version increases.
   Counting is now unbounded and ends only at the first gap in the sequence, for both scene
   and interval frames. Mirrored from the medley SSOT
   (`melodic-software/medley#1687`), where the authored fix and its regression test live.
+
+## [0.10.8]
+
+### Changed
+
+- **`docpage-digest` Anthropic profile: choosing-a-model queue entry removed.** The
+  choosing-a-model digest slice completed — raw-md fetch through interview handoff, dual
+  verification (two correction rounds, re-verified REVERIFY2: PASS by both verifiers, no
+  degraded fallback) — closing the entry's second half; its routing-vet half was already
+  executed 2026-07-29 (#1697). The emptied "Model selection" special-handling category goes
+  with it. The paired models-explained blog entry now points at the completed slice's handoff
+  for its pairing observations.
 
 ## [0.10.7]
 

@@ -1,5 +1,86 @@
 # Changelog — session-flow plugin
 
+## [0.17.20]
+
+### Fixed
+
+- **The resume prompt's path was rootless, so it resolved against a real-but-wrong directory
+  whenever the resuming session's cwd was not the worked-in repo root (#1644).** The save-point
+  engine specified the directive as `Read @<memory_dir>/handoffs/<TS>-handoff-<topic>.md` — "the
+  path the write step actually used" — and `memory_dir` is repo-relative by contract, so the one
+  artifact the operator carries across `/clear` lost the root the handoff file was written under.
+  Pasted into a session whose cwd was a different repository (or a subdirectory of the right one),
+  the `@`-reference resolved somewhere else; when that somewhere else had its own `handoffs/`
+  directory, the failure presented as "the file is missing" rather than "the path has no root".
+  The directive now carries the **absolute**, forward-slash-normalized path, matching what the
+  topic-docs binding already does on its no-project-root branch, and a `Handoff origin:` line
+  inside the rails names the repository and repo-relative path so a resume on another machine or
+  checkout can re-resolve — computed at emit time, not a stored frontmatter field. The `@` mention
+  is documented as an accelerator rather than the mechanism: official docs state an `@` path "can
+  be relative or absolute" but document no drive-letter or whitespace-bearing form, so the
+  directive is written to stay actionable when expansion does not fire.
+- **`find-handoff` inherited the same single-root assumption, so the skill built to recover this
+  failure could not recover it (#1644).** Its transcript rung located the correct directive, then
+  resolved the relative path against the source transcript's `cwd` — which is not necessarily the
+  repository the producer wrote into — and dropped the candidate on the existence check. The
+  detection contract now accepts **both** the rooted and the legacy rootless form, matching on the
+  shape they share and diverging only at that check, so the corpus already on disk keeps
+  recovering. A path that resolves to nothing is now **UNRESOLVED, not discarded** — on both forms,
+  for different reasons: a rootless one because resolving it against the producer's `cwd` is an
+  inference, and a rooted one because an absolute path is machine-local and a resume on another
+  machine or checkout cannot satisfy it. The rooted miss is exactly what `Handoff origin:` exists
+  for, so the existence check reads that line and re-resolves against the repository it names before
+  giving up. Either way the skill spends one bounded, read-only widening over repository roots
+  already in hand, then surfaces the candidate at the confirm gate with its directive verbatim and
+  names the precise reason — the path has no root, or nothing is at that absolute path on this
+  machine — rather than reporting a missing file.
+- **The bounded widening could sweep a whole home directory, because it globbed under a `cwd` it
+  never verified was a repository root.** The recorded `cwd` of a session launched straight from a
+  home directory *is* that home directory, so globbing a filename under it recursively walks most of
+  the user's files — the machine-wide scan the rule forbids, reached by accident rather than by
+  intent, and slow enough to time the recovery out. A `cwd` now earns a place in the widening set
+  only once `git -C <cwd> rev-parse --show-toplevel` confirms it, and the search runs under the top
+  level that prints rather than under `cwd` itself. A `cwd` with no top level contributes no root;
+  the candidate stays UNRESOLVED and the operator is asked which checkout to look in, which is the
+  honest answer when nothing in hand can name one.
+- **`Handoff origin:` embedded the `origin` remote URL verbatim, and a remote URL routinely carries
+  a credential.** The userinfo component of an HTTPS remote holds a PAT, a stored password, or a
+  credential helper's `x-access-token:<token>@` — and this line sits *inside* the rails, in the
+  region the operator is told to copy, so an embedded secret travels into the next session and onto
+  every machine the prompt is forwarded to. The producer now strips everything from `://` up to and
+  including the `@` before embedding what is left, and falls back to the repository's root directory
+  name when a URL cannot be sanitized with confidence. Remote URLs are named as an explicit vector
+  in both redaction passes — a token in a URL reads as one more path segment, which is the shape a
+  model-driven sweep is likeliest to walk past — and `find-handoff` applies the same check to the
+  value it surfaces at the confirm gate and derives a widening root from, since a recovered handoff
+  predates this rule as easily as it predates the rooted path. Both passes state the **precedence**
+  explicitly, because the git-URL rule and the general redaction rule prescribe different outputs for
+  the same secret class and a model executing them could not otherwise tell which wins: the URL is
+  reduced to its bare scheme-and-host form and NOT replaced with a shape marker. That is a deliberate
+  exception — the general rule redacts to a marker because the whole value is secret and unneeded,
+  whereas a remote URL's host and path are non-secret and load-bearing, so `<REDACTED: remote URL>`
+  would trade a credential leak for a broken recovery. The sanitization boundaries are stated too: a
+  bare ssh account name (`ssh://git@host/…`) is not a credential and stays, since the secret is the
+  local key the URL does not carry; and "cannot be sanitized with confidence" gets a test — fall back
+  to the root directory name when the userinfo boundary is undeterminable, as with more than one `@`
+  ahead of the path or the SCP-style `git@host:<owner>/<repo>.git` form that has no `://` to anchor
+  stripping on. The exception is scoped to git remote URLs and stated not to generalize: a connection
+  string keeps the shape marker, because what earns a remote URL its host-preserving strip is that
+  recovery re-resolves from the surviving host and path — nothing re-resolves from a database host, so
+  preserving one would disclose infrastructure for no benefit.
+
+### Notes
+
+- **Rung 1 still cannot correlate a glob candidate to the repository the work was in (#1644).** A
+  handoff file records no durable repository identity — the frontmatter carries `type`, `date`,
+  `topic`, `session_id`, and `previous_handoff` — so nothing can reject a same-cwd, different-repo
+  candidate. Closing it requires a new frontmatter field, a cross-cutting schema change every
+  handoff already on disk would lack; that decision is deliberately left outside this fix and
+  tracked as #1778. The rung
+  now states the gap in place rather than reading as closed, and the transcript-based substitute is
+  explicitly rejected: it depends on a transcript that may be absent and returns nothing for every
+  rootless legacy handoff, which is exactly where the check is needed.
+
 ## [0.17.19]
 
 ### Added

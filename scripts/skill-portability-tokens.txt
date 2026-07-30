@@ -36,6 +36,32 @@
 # uses are auto-recognized as guarded).
 origin/(main|master)
 
+# Architecture-vocabulary hardcode (#714, Stage 3 of the stack/ecosystem class):
+# Clean-Architecture layer vocabulary shipped as THE architecture by a skill that
+# claims to work in any repository. A repo organized by feature folders, by
+# vertical slices, or as a modular monolith gets advice keyed to layers it does
+# not have.
+#
+# ACTIVE because the corpus proved it: `--all` at c7b0af78 returns 0 hits in 0
+# files, and a raw grep of the scanned corpus finds the phrase nowhere at all.
+# So this is pure prevention with zero migration debt — the one shape in this
+# class that can be locked in before it ever arrives, which is the whole point of
+# the umbrella issue (#531: prevention instead of hand-fixes plus indefinite
+# recurrence). A skill whose subject genuinely IS Clean Architecture declares
+# `portability-scope`; a skill illustrating one architecture among several uses
+# the placeholder-plus-illustration shape the ecosystem guard recognizes. Those
+# two are the whole escape set for this token — a `${user_config.*}` read is NOT
+# one of them, because an unrelated setting read on the line parameterizes
+# nothing about the architecture (see is_architecture_pattern in
+# check-skill-portability.sh).
+#
+# Phrase-delimited with the explicit `[^a-zA-Z0-9_]` boundaries this file already
+# uses for `.NET` and `C#`, never `\b` (which is the POSIX trap described below).
+# Being multi-word does not make the phrase self-delimiting: the boundaries are
+# what keep `UnClean Architecture` from matching on the left and `Clean Archive`
+# from matching where the optional suffix stops short on the right.
+(^|[^a-zA-Z0-9_])Clean Arch(itecture)?([^a-zA-Z0-9_]|$)
+
 # --- STAGED (commented until the class is proven clean against the corpus) ---
 #
 # Every staged entry carries a MEASURED residue (`--all` hit and file counts at
@@ -65,11 +91,50 @@ origin/(main|master)
 #     alternative.
 
 # Ecosystem hardcode: .NET-flavored defaults in an ecosystem-agnostic skill
-# (#491 #492). Enable when the .NET-example member issues land and an audit run
-# (`--all`) shows the agnostic skills clean (ecosystem-specific plugins declare
-# `portability-scope`). Bare token is high-volume in the corpus today (56 files).
-# dotnet
-# \bClean Arch(itecture)?\b
+# (#491 #492), staged one literal at a time per #714. Every pattern below is
+# POSIX-safe — the previously staged `\bdotnet\b` / `\bClean Arch\b` spellings
+# were INERT (see the POSIX note above: on gawk and on mawk/nawk `\b` matches a
+# literal backspace, so those entries matched nothing and would have gone green
+# on activation while missing every violation). They are replaced here rather
+# than merely uncommented.
+#
+# Residue measured at c7b0af78 through the gate itself, so the ecosystem guard
+# markers, per-site annotations, and whole-file scope declarations below are
+# already applied. Re-run `--all` before acting on any of these — a count is a
+# measurement with a shelf life.
+#
+# The blocker is shared by the whole set: these are not stray hardcodes, they are
+# skills that legitimately need to NAME an ecosystem and have no seam to read it
+# from. The fix is a `userConfig` seam per #405 / #406 / #421 / #428 (the gate is
+# the forcing function, not the fix), or a `portability-scope` declaration on the
+# genuinely ecosystem-locked files. Enable each literal when its own `--all`
+# audit is green.
+#
+# The dominant residual shape across every literal is a MULTI-ECOSYSTEM
+# ENUMERATION with no placeholder and no illustration lead — "`*.csproj`,
+# `package.json`, `pyproject.toml`, and equivalents". It reads as correct and it
+# is not guarded, deliberately: a co-occurrence test cannot distinguish it from a
+# line that hardcodes one stack and merely mentions another (see is_guarded in
+# check-skill-portability.sh). Those sites take a per-site `portability-ok`, or
+# somebody brings evidence for a tighter marker.
+#
+# Residue at c7b0af78 — 107 hits / 40 files.
+# [Dd]otnet
+# Residue at c7b0af78 — 63 hits / 37 files.
+# (^|[^a-zA-Z0-9_])\.NET([^a-zA-Z0-9_]|$)
+# Residue at c7b0af78 — 26 hits / 17 files.
+# \.csproj
+# Residue at c7b0af78 — 19 hits / 15 files.
+# (^|[^a-zA-Z0-9_])C#([^a-zA-Z0-9_]|$)
+# Residue at c7b0af78 — 13 hits / 5 files.
+# [Bb]lazor
+# Residue at c7b0af78 — 7 hits / 7 files.
+# \.sln([^a-zA-Z0-9_]|$)
+# Residue at c7b0af78 — 1 hit / 1 file (verification:confirm names the Blazor
+# component extensions as its browser-asset glob). Closest of the set to green.
+# \.razor
+# Residue at c7b0af78 — 1 hit / 1 file. Also near-green.
+# \*\*/\*\.cs([^a-zA-Z0-9_]|$)
 
 # Forge/marketplace-internal hardcode: a hardcoded raw GitHub content URL where a
 # portable fetch or a declared scope belongs (#432). Enable when the forge-lock

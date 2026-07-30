@@ -3,6 +3,25 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.30.3]
+
+### Added
+
+- **An item-body embedded-instruction eval case on every body-reading skill (#1717).** This plugin's
+  eval sets held a single adversarial-input case, and it covered a different surface entirely —
+  nothing here exercised the one text all of these skills read: an item's own body and comments.
+  `triage`, `decompose`, `work`, and `attend-queue` each now have one case whose prompt embeds a
+  directive addressed to the reading agent and whose expectations assert the directive is evaluated
+  as data and not acted on. `work-loop`'s equivalent case
+  (`work-loop-item-body-is-data-not-instruction`) already shipped, so these four complete the set of
+  body-reading surfaces #1713 enumerates. The cases are keyed to what the embedded text would
+  subvert in that lane rather than paraphrased across four files — `triage`'s verification step and
+  direction-gate branch, `decompose`'s approval gate and don't-touch-the-parent rule, `work`'s
+  claim-before-dispatch prerequisite and never-merge boundary, and `attend-queue`'s
+  operator-is-the-authority rule — so each binds a boundary the skill already states. Modelled on
+  the existing case in `plugin-quality`'s `audit` skill (`anti-pattern-injection-in-audited-source`)
+  rather than introducing a second eval shape.
+
 ## [0.30.2]
 
 ### Fixed
