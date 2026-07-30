@@ -524,6 +524,8 @@ nested_repo "$WRAP/outer/child"
 nested_repo "$WRAP/outer/git"
 nested_repo "$WRAP/outer/git/child"
 nested_repo "$WRAP/outer/other"
+nested_repo "$WRAP/outer/other/child"
+nested_repo "$WRAP/outer/has space"
 
 if [[ -d "$WRAP/outer/child/.git" && -d "$WRAP/outer/git/child/.git" ]]; then
   # The repository git ACTUALLY reaches carries the non-canonical commit; the
@@ -580,6 +582,8 @@ if [[ -d "$WRAP/outer/other/.git" ]]; then
   git -C "$WRAP/outer/other" config alias.k 'commit -F -'
   git -C "$WRAP/outer" config alias.a 'commit -F -'
   git -C "$WRAP/outer" config alias.k 'commit --allow-empty -m bypass'
+  [[ -d "$WRAP/outer/has space/.git" ]] &&
+    git -C "$WRAP/outer/has space" config alias.a 'commit --allow-empty -m bypass'
 
   wrapper_cd_case "env -C moves git, so the alias lookup follows" \
     "env -C other git a" 2
@@ -624,6 +628,41 @@ if [[ -d "$WRAP/outer/other/.git" ]]; then
   # there, and allow.
   wrapper_cd_case "sudo -C is close-from, not a chdir" \
     "sudo -C 3 git k" 2
+
+  # The chdir must survive the `-S` restart: env performs it before splitting,
+  # and the splice drops every word before the current index, so the recorded
+  # directory must not be re-walked NOR lost. (A chdir spelled INSIDE the -S
+  # operand is a different, unhandled case — see #1814.)
+  wrapper_cd_case "a chdir before -S survives the splice restart" \
+    "env -C other -S 'git a'" 2
+  # A directory operand containing a space must survive the array round-trip
+  # into effective_dir's argv.
+  wrapper_cd_case "a wrapper chdir into a directory with a space" \
+    "env -C 'has space' git a" 2
+  # GNU env refuses `-0` alongside a command outright ("cannot specify --null
+  # (-0) with command"), so nothing runs either way; the guard fails closed and
+  # the peel still reads the chdir out of the cluster. Pinned so a peel change
+  # that swallowed `-0` would surface here.
+  wrapper_cd_case "env -0 does not hide the chdir from the peel" \
+    "env -0 -C other git a" 2
+  wrapper_cd_case "env -vi0C (three-flag cluster) still yields the chdir" \
+    "env -vi0C other git a" 2
+fi
+
+# --- a wrapper's chdir composes AHEAD of git's own -C, in that order ----------
+# env relocates before git starts, so git's own `-C` composes onto the wrapper's
+# directory rather than replacing it or being replaced by it. Reversing the two
+# would land in `child` relative to the payload cwd, which is not a repository
+# at all — and reading no alias there allows. The canonical twin pins the arrival
+# point: exit 0 is only reachable from `other/child` itself.
+if [[ -d "$WRAP/outer/other/child/.git" ]]; then
+  git -C "$WRAP/outer/other/child" config alias.a 'commit --allow-empty -m bypass'
+  git -C "$WRAP/outer/other/child" config alias.c 'commit -F -'
+
+  wrapper_cd_case "env -C composes ahead of git's own -C" \
+    "env -C other git -C child a" 2
+  wrapper_cd_case "same composition, canonical leaf, stays allowed" \
+    "env -C other git -C child c" 0
 fi
 
 # --- the wrapper's chdir composes ONCE, on every recursion path ----------------
