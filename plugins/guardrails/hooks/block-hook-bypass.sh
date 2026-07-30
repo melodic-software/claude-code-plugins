@@ -428,10 +428,23 @@ producer_redirect_bypass() {
   return 1
 }
 
+# The scope this guard actually has, stated where a reader meets it. Without it
+# the block reads as "shell file writes are blocked" and is over-trusted in both
+# directions: an agent contorts around a restriction a script file does not
+# have, and a human credits the guard with coverage it never claimed. The guard
+# is a speed bump against specific accidental write-workaround forms in one
+# command string, not a boundary — and it is deliberately producer-scoped, so
+# ordinary data-processing redirects (`sort f > out`, `curl … > page.html`) are
+# allowed by design too, not only writes inside an invoked script.
+_BYPASS_SCOPE_NOTE="Scope: only this command string is inspected, and only known \
+file-write forms in it. Writes performed inside a script or program this command \
+invokes, and redirects produced by another program, are not seen."
+
 block_bypass() {
   local form="$1" reason="$2"
   echo "BLOCKED: $reason" >&2
   echo "Use the Write or Edit tool instead of a shell file-write workaround." >&2
+  echo "$_BYPASS_SCOPE_NOTE" >&2
   emit_tel "blocked" "$form"
   exit 2
 }
