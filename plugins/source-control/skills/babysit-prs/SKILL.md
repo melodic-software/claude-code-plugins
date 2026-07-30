@@ -213,7 +213,7 @@ home in [reference/safety.md](reference/safety.md). Both fail closed without `--
   `--disposition fixed|deferred|incorrect` with its own evidence flag: `--fix-commit <sha>` must be
   reachable from the PR head, `--tracker-item <id>` must exist and be open, `--counter-evidence
   <text>` must already appear in a reply on the thread. The script validates evidence against the
-  world, not against the claim, in list mode too — anything missing, unparseable, or unverifiable
+  world, not against the claim, in list mode too — anything missing, unparsable, or unverifiable
   refuses with its own `refused-*` action rather than warning. Bot-only and the security/P1 bright
   line still hold, and `--autonomous`, `--include-human`, and `--allow-unpinned-thread` are all
   refused alongside it.

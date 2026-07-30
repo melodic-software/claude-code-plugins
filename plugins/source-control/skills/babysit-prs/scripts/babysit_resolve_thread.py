@@ -83,7 +83,7 @@ Deterministic guards encoded here:
   `fixed` + `--fix-commit <sha>` (must be reachable from the PR's head commit),
   `deferred` + `--tracker-item <id>` (must exist and be open), `incorrect` +
   `--counter-evidence <text>` (must appear in a reply already on the thread).
-  Missing, unparseable, or unverifiable evidence REFUSES the resolve rather than
+  Missing, unparsable, or unverifiable evidence REFUSES the resolve rather than
   warning: refusing leaves the thread unresolved, which is the recoverable
   direction, while a suppressed finding is not. Evidence is validated in list mode
   too, so a dry run proves the evidence instead of merely predicting the resolve.
@@ -834,14 +834,14 @@ def main() -> int:
         if args.fix_commit is not None and not FIX_COMMIT_RE.match(args.fix_commit.strip()):
             return _usage_error(
                 f"--fix-commit {args.fix_commit!r} is not a 7-40 character hex "
-                "commit SHA; an unparseable SHA is refused, never looked up"
+                "commit SHA; an unparsable SHA is refused, never looked up"
             )
         if args.tracker_item is not None and not TRACKER_ITEM_RE.match(
             args.tracker_item.strip()
         ):
             return _usage_error(
                 f"--tracker-item {args.tracker_item!r} is not owner/repo#N, #N, "
-                "or N; an unparseable item id is refused, never looked up"
+                "or N; an unparsable item id is refused, never looked up"
             )
 
     if args.resolve and args.autonomous and not args.thread_id:

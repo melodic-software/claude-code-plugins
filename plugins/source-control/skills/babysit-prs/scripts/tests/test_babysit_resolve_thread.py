@@ -839,7 +839,7 @@ class IndependentResolverUsageGates(unittest.TestCase):
         )
         self.assertIn("--tracker-item", str(payload["error"]))
 
-    def test_unparseable_sha_is_refused_before_any_lookup(self) -> None:
+    def test_unparsable_sha_is_refused_before_any_lookup(self) -> None:
         payload = self._usage(
             [
                 "owner/repo#1", "--allowed-owners", "owner",
@@ -849,7 +849,7 @@ class IndependentResolverUsageGates(unittest.TestCase):
         )
         self.assertIn("--fix-commit", str(payload["error"]))
 
-    def test_unparseable_tracker_item_is_refused_before_any_lookup(self) -> None:
+    def test_unparsable_tracker_item_is_refused_before_any_lookup(self) -> None:
         payload = self._usage(
             [
                 "owner/repo#1", "--allowed-owners", "owner",

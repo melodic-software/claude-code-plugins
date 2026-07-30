@@ -30,7 +30,7 @@ All notable changes to the `source-control` plugin are documented here. Format f
   already appear in a REPLY on the thread, the opener excluded so the bot's own finding cannot
   satisfy the claim that the finding is wrong.
 
-  Fail-closed throughout. Missing, unparseable, mismatched, or surplus evidence is a usage error at
+  Fail-closed throughout. Missing, unparsable, mismatched, or surplus evidence is a usage error at
   exit `2` before any lookup; evidence the world rejects refuses the resolve with its own
   `action` — `refused-fix-commit-not-on-head`, `refused-tracker-item-not-found`,
   `refused-tracker-item-not-open`, `refused-counter-evidence-not-found`, and

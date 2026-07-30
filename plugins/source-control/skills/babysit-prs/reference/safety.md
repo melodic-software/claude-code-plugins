@@ -488,7 +488,7 @@ auto-mode safety classifier and blocks the call before the wrapper runs.
     that the finding is wrong). The rebuttal has to be visible where the finding is, not only on
     the command line of the process resolving it.
 
-  Missing, unparseable, or unverifiable evidence **refuses**: refusing leaves the thread
+  Missing, unparsable, or unverifiable evidence **refuses**: refusing leaves the thread
   unresolved, which is the recoverable direction, while a suppressed finding is not. Each refusal
   is its own per-thread `action` — `refused-fix-commit-not-on-head`,
   `refused-tracker-item-not-found`, `refused-tracker-item-not-open`,
