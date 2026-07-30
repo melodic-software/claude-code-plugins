@@ -218,6 +218,30 @@ class HygieneTests(unittest.TestCase):
         self.assertIn("cloud-placeholder", reasons)
         self.assertNotIn("symlink-junction-or-reparse-point", reasons)
 
+    def test_a_cloud_placeholder_target_does_not_blanket_mark_its_tree(self) -> None:
+        # The ancestor walk runs up to and INCLUDING the target, so a target
+        # that itself carries a recall/offline bit would mark every entry
+        # cloud-placeholder — and scan_tree truncates any directory with
+        # protections, collapsing the whole walk with no diagnostic. Same
+        # exemption the mount-point branch already makes, for the same reason.
+        target = Path("X:/cloud-target")
+        child = target / "notes.txt"
+        with (
+            mock.patch.object(hygiene, "is_volume_root", return_value=False),
+            mock.patch.object(hygiene, "mount_state", return_value=(False, None)),
+            mock.patch.object(
+                hygiene,
+                "link_and_cloud_state",
+                side_effect=lambda path: (False, path == target),
+            ),
+        ):
+            child_reasons = hygiene.hard_protection(child, target, set())
+            target_reasons = hygiene.hard_protection(target, target, set())
+        self.assertNotIn("cloud-placeholder", child_reasons)
+        # The condition stays visible on the target's own entry rather than
+        # being swallowed, so an operator can see why the target is unusable.
+        self.assertIn("cloud-placeholder", target_reasons)
+
     def test_scan_protects_and_qualifies_a_cloud_placeholder_entry(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary) / "target"

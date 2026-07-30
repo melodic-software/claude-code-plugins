@@ -62,7 +62,7 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
   Shipped: the glob `OneDrive - *` (measured on the audit host, and the documented shape of a
   OneDrive for Business sync root), the glob `Dropbox (*)` and the exact name `Dropbox` (Dropbox
   documents both `Dropbox (Personal)` and `Dropbox (<business name>)` as folder names), and the
-  exact name `iCloudDrive`.
+  exact name `iCloud Drive`.
 
   Two candidates from the report were **rejected** after checking them. `Box` is a common enough
   directory name in source trees that protecting it at every depth would make ordinary directories
@@ -71,10 +71,10 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
   [Drive for desktop settings](https://support.google.com/drive/answer/13470231)), not to a folder
   under the user profile.
 
-  Only the OneDrive class was measured. The Dropbox and iCloud roots were confirmed unprotected by
-  name on the audit host, but their file attributes were never sampled and `iCloudDrive`'s exact
-  default folder name could not be confirmed from an official Apple page — they are protected on
-  name alone and their placeholder behaviour remains unverified.
+  Only the OneDrive class was measured. `iCloud Drive` — with the space, per Apple's documented
+  Windows path `C:\Users\[username]\iCloud Drive` — and `Dropbox` were confirmed unprotected by name
+  on the audit host, but their file attributes were never sampled, so they are protected on name
+  alone and their placeholder behaviour remains unverified.
 
   Effect on the reported scenario: in a depth-1 scan of the user home, `OneDrive - <Organization>`
   moves from `protected_reasons: []` to `baseline-protected-name`, and the same path is now rejected

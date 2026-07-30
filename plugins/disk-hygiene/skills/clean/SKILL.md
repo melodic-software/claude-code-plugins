@@ -176,6 +176,12 @@ Report every finding with path, logical bytes, tier, evidence, owner/native-GC r
 work product, and disposition. Separately list protected, locked, needs-elevation, unverified, and
 coverage-gap entries. Empty directories are not inherently junk.
 
+An entry's `logical_size` is reclaimable local bytes only when its `size_qualifiers` is empty.
+Exclude every qualified entry from any reclaimable-bytes total and state the qualified bytes
+separately with their reasons — a `cloud-placeholder` carries its REMOTE size while occupying
+roughly nothing locally, so folding it into a total claims space that deleting it would never
+return.
+
 ## 4. Build one exact-tier plan
 
 Only when `--execute` was requested, write `<run-dir>/plan-<tier>.json`; never mix tiers:

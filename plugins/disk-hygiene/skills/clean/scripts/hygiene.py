@@ -407,10 +407,18 @@ def hard_protection(
         linkish, cloud_placeholder = link_and_cloud_state(current)
         if linkish:
             reasons.append("symlink-junction-or-reparse-point")
-        if cloud_placeholder:
+        if cloud_placeholder and (current != target or path == target):
             # Its bytes live in the provider's cloud, so deleting it here
             # propagates the delete THERE — for a tenant sync root, to the
             # organisation's only copy. Nothing local is reclaimed either way.
+            #
+            # The target's own iteration is exempted for every OTHER entry, on
+            # the same reasoning as target-is-mount-point below: a target that
+            # itself carries a recall/offline bit would otherwise mark EVERY
+            # entry cloud-placeholder, and scan_tree truncates any directory
+            # with protections — collapsing the whole walk with no diagnostic.
+            # The target entry itself still reports the reason honestly, so the
+            # condition is visible rather than silently swallowed.
             reasons.append("cloud-placeholder")
         mounted, mount_error = mount_state(current, known_linux_mounts)
         if mount_error:
