@@ -89,8 +89,10 @@ babysit-prs mechanic documents (watched owners, self logins, engine thresholds);
 the lane policy a team reviews and tracks. Loop keys carry the `babysit_loop_` prefix so the two key
 families sharing one file stay distinguishable.
 
-One `## <key>` H2 per key, exactly like the convention keys above; every value is a scalar, so the
-per-key override semantics below apply unchanged.
+One `## <key>` H2 per key, exactly like the convention keys above; every value is a scalar — except
+`babysit_loop_trusted_internal_bot_logins`, a closed bullet list like `pr_body_required_sections` —
+so the per-key override semantics below apply unchanged (a closed list is taken whole from its one
+binding layer, never unioned).
 
 | Key | Value | Default when absent |
 |---|---|---|
