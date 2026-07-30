@@ -1,7 +1,7 @@
 # Cross-Surface Conflict Criteria
 
-Version: 1.1.0
-Last updated: 2026-07-29
+Version: 1.2.0
+Last updated: 2026-07-30
 
 **The adjudication procedure for check I15.** [criteria.md](criteria.md)'s I15 entry owns the
 definition — what a cross-surface conflict *is*, its comparison set, its import and symlink
@@ -17,7 +17,9 @@ The three shared axes (evidence tier, authority, severity) are defined once in
 **Recheck triggers** — re-verify against live docs when any fires: a change to the memory page's
 precedence or load-order text; a change to the skills page's statements about instruction authority;
 any new instruction surface added to the product; a change to how permission rules or permission
-modes remove a tool from Claude's pool.
+modes remove a tool from Claude's pool; a change to **which hook events inject handler output into
+the session's context**, to the events `additionalContext` is accepted on, or to the handler types
+that can return it.
 
 ## Sources
 
@@ -30,6 +32,10 @@ pages do not make is recorded as unresolved and given no winner.
 - Output styles — how a style reaches the system prompt — <https://code.claude.com/docs/en/output-styles>
 - Permissions — how deny rules and permission modes remove a tool —
   <https://code.claude.com/docs/en/permissions>
+- Hooks — handler types, which events inject handler output into context, `additionalContext`,
+  exit-code semantics — <https://code.claude.com/docs/en/hooks>
+- Context window — what survives compaction, and which hook output reaches Claude —
+  <https://code.claude.com/docs/en/context-window>
 
 ## Boundary: what C6's population actually is
 
@@ -92,6 +98,9 @@ shapes without this gate produces noise, because most surface pairs never co-loa
 | Agent definition (its own subagent) | Always, as that subagent's system prompt — **alongside the full CLAUDE.md hierarchy** | subagents, "What loads at startup" |
 | Skill named in an agent's `skills:` field | Always, in that subagent | subagents: "The full content of each listed skill is injected, not only the description" |
 | Prompt-type hook text | **Never** — see "A prompt hook's text is not an instruction" below | hooks: a `prompt` hook "send[s] a prompt to a Claude model for single-turn evaluation" |
+| Handler **stdout** on `SessionStart`, `UserPromptSubmit`, `UserPromptExpansion` | From injection onward, as ordinary message history | hooks: "The exceptions are `UserPromptSubmit`, `UserPromptExpansion`, and `SessionStart`, where stdout is added as context that Claude can see and act on" |
+| Handler `hookSpecificOutput.additionalContext` | From injection onward, at the position the event dictates | hooks: "Where the reminder appears depends on the event" — session start, alongside the prompt, next to the tool result, or at the end of the turn |
+| Handler **stdout** on any other event | **Never** | context window: "Plain stdout on exit 0 does not. It is written to the debug log only" |
 | Output style (the **active** one) | Every session in the main conversation, appended to the system prompt | output-styles: "Output styles directly modify Claude Code's system prompt"; "read once at session start" |
 
 **An agent definition co-resides with the whole CLAUDE.md hierarchy, and that is a guaranteed pair.**
@@ -141,15 +150,58 @@ So a prompt hook enters the comparison set as the **constraint it imposes**, nev
 A pair is then real when a resident instruction tells the main session to do something the hook's
 gate would block under a matching input — "always run `git push --force` after a rebase" against a
 `PreToolUse` hook that denies force-pushes. That is a genuine unsatisfiable pair; a formatting
-directive addressed to the evaluator is not. Command-type hooks are outside this pass entirely
-(context-window doc: "hooks run as code, not context").
+directive addressed to the evaluator is not. An `agent` handler is treated the same way: it too
+"spawn[s] a subagent … before returning a decision", so it enters as the act it gates.
+
+**But the discriminator is whether the handler's output reaches this session's context, never the
+handler's `type`.** [hooks](https://code.claude.com/docs/en/hooks) lists five handler types —
+`command`, `http`, `mcp_tool`, `prompt`, `agent` — and settles the question per *event and output
+channel* rather than per type: for most events "stdout is written to the debug log but not shown in
+the transcript. The exceptions are `UserPromptSubmit`, `UserPromptExpansion`, and `SessionStart`,
+where stdout is added as context that Claude can see and act on", and
+`hookSpecificOutput.additionalContext` is accepted on a wider event set still. The channel is not
+type-scoped either: an `http` handler's "response body uses the same JSON output format as command
+hooks", and an `mcp_tool` handler's "tool's text content is treated like command-hook stdout".
+
+So **a handler whose output is injected as context enters the comparison set as that text**, on the
+same terms as any other instruction surface. A `SessionStart` command hook printing a standing
+behavioral block ("respond tersely … applies to every response") is live directive text in this
+session's context window, and pairing it against an output style's format contract or a `CLAUDE.md`
+rule is exactly what gate 1 is for. Excluding it because the handler is `type: "command"` drops one
+half of a pair that provably co-resides — and does so silently, since a per-surface lane never sees
+the surface at all.
+
+**What the compaction table does and does not say.** "Hooks — Not applicable; hooks run as code, not
+context" (context window, "What survives compaction") is a statement about the hook *mechanism*: a
+hook definition is not a context block to be re-injected, the way root `CLAUDE.md` is. It says
+nothing about the handler's output, and the same page says the opposite about that output — a
+`PostToolUse` hook "reports back via `hookSpecificOutput.additionalContext`. That field enters
+Claude's context." Reading the compaction row as an exclusion rule is what produced this gap.
+
+Three consequences for residency, and each one bounds a pair rather than admitting it wholesale:
+
+- **Injected text is ordinary message history, not a re-injected surface.** It is resident from the
+  moment it lands and, unlike root `CLAUDE.md`, nothing re-injects it from disk after compaction.
+  Composing two doc facts: a `SessionStart` hook does re-fire on the `compact` matcher ("Auto or
+  manual compaction"), so a hook registered for it re-injects and a hook registered only for
+  `startup` does not. Treat a pair whose hook half is `startup`-only as conditional after a
+  compaction, and say so rather than asserting permanent residency.
+- **Exit-2 stderr is turn-scoped error feedback, not a standing directive.** "Exit 2 means a
+  blocking error … stderr text is fed back to Claude as an error message." It reaches Claude, so it
+  is not nothing; but it is a one-turn message about one blocked act, and its conflict-bearing
+  content is the act it blocks — the treatment the prompt-hook bullets above already give.
+- **A hook's own configuration is still not instruction text.** The command line, its arguments, and
+  its `matcher` are the gate, not prose addressed to the model. Extract only what is injected, under
+  the same no-secrets handling every settings-sourced surface gets.
 
 **Guaranteed pairs** are any two of {user `CLAUDE.md`, project `CLAUDE.md`, unscoped rules,
 `MEMORY.md`}, and any agent definition against any of them **except `MEMORY.md`**, and except via
 `Explore` / `Plan`.
-**Conditional pairs** involve a skill body, a path-scoped rule, or a nested `CLAUDE.md` — real, but
-they only bite once that surface loads. Report the distinction; do not drop conditional pairs, because
-the worked example below is one.
+**Conditional pairs** involve a skill body, a path-scoped rule, a nested `CLAUDE.md`, or
+context-injected hook output — real, but they only bite once that surface loads. Hook output is
+conditional on its own event and `matcher` firing, which for a `SessionStart` `startup` hook means
+every new session but not necessarily after a compaction. Report the distinction; do not drop
+conditional pairs, because the worked example below is one.
 
 ## Prerequisite: effective liveness, which the tree does not determine
 
