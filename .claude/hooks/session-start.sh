@@ -43,6 +43,7 @@ actionlint_pin="1.7.12"  # matches the pin documented in .github/actionlint.yaml
 typos_pin="v1.42.1"
 ec_pin="v3.4.0" # editorconfig-checker 3.x, per .editorconfig-checker.json
 gitleaks_pin="8.28.0"
+shfmt_pin="v3.12.0"       # bash-format plugin hook; optional in CI by design
 markdownlint_pin="0.23.1" # matches the .markdownlint-cli2.jsonc schema pin
 
 # --- Node (required) ---------------------------------------------------------
@@ -108,8 +109,8 @@ fetch_release_tool() {
   tmp="$(mktemp -d)"
   local ok=1
   case "$url" in
-    *.tar.xz) curl -fsSL "$url" | tar -xJ -C "$tmp" || ok=0 ;;
-    *) curl -fsSL "$url" | tar -xz -C "$tmp" || ok=0 ;;
+  *.tar.xz) curl -fsSL "$url" | tar -xJ -C "$tmp" || ok=0 ;;
+  *) curl -fsSL "$url" | tar -xz -C "$tmp" || ok=0 ;;
   esac
   if [[ "$ok" -eq 1 && -f "$tmp/$member" ]]; then
     install -m 0755 "$tmp/$member" "$bin_dir/$name"
@@ -135,6 +136,22 @@ fetch_release_tool editorconfig-checker \
 fetch_release_tool gitleaks \
   "https://github.com/gitleaks/gitleaks/releases/download/v${gitleaks_pin}/gitleaks_${gitleaks_pin}_linux_x64.tar.gz" \
   "gitleaks"
+
+# shfmt ships as a bare binary, not an archive; enables the bash-format
+# plugin's format pass (its lint pass uses shellcheck above).
+if ! command -v shfmt >/dev/null 2>&1; then
+  if [[ "$(uname -m)" == "x86_64" ]]; then
+    if curl -fsSL -o "$bin_dir/shfmt" \
+      "https://github.com/mvdan/sh/releases/download/${shfmt_pin}/shfmt_${shfmt_pin}_linux_amd64"; then
+      chmod 0755 "$bin_dir/shfmt"
+    else
+      rm -f "$bin_dir/shfmt"
+      echo "session-start: warning: shfmt install failed; its checks will SKIP" >&2
+    fi
+  else
+    echo "session-start: warning: skipping shfmt (non-x86_64 VM)" >&2
+  fi
+fi
 
 if ! command -v markdownlint-cli2 >/dev/null 2>&1; then
   npm install -g --no-audit --no-fund "markdownlint-cli2@${markdownlint_pin}" ||
@@ -182,6 +199,7 @@ report_tool actionlint --version
 report_tool typos --version
 report_tool editorconfig-checker --version
 report_tool gitleaks version
+report_tool shfmt --version
 report_tool markdownlint-cli2 --help
 report_tool check-jsonschema --version
 report_tool jq --version

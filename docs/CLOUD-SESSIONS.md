@@ -73,8 +73,8 @@ Everything repo-specific goes in source control, following the docs' pattern in
 
 ## How this repository is set up
 
-The environment side stays generic (Default environment, Trusted network, no variables, empty
-setup script). The repo side:
+The environment side stays generic (Default environment, Trusted network, no variables, at most
+the optional `gh` setup-script one-liner from above). The repo side:
 
 - [`.claude/settings.json`](../.claude/settings.json) registers the `SessionStart` hook
   (matcher `startup|resume`).
@@ -103,6 +103,39 @@ npm roots (`plugins/miro`, `plugins/knowledge/skills/youtube-digest/extraction`,
 `plugins/ai-briefing/skills/generate/output/build`) and
 `.github/standards/runner-policy` — each is an `npm ci` in that directory; the heavy ones pull
 Playwright. `gh`, `pwsh`, and `lychee` are likewise on-demand.
+
+### Plugins in sessions on this repo
+
+Being the marketplace doesn't make this repo's plugins active in a session — plugins load only
+when a marketplace is declared and plugins are enabled. `.claude/settings.json` does both, which
+is the documented path for cloud sessions (see
+[Discover and install plugins](https://code.claude.com/docs/en/discover-plugins) and
+[extraKnownMarketplaces / enabledPlugins](https://code.claude.com/docs/en/settings#plugin-settings)):
+
+- `extraKnownMarketplaces` declares this repo as its own marketplace via a `directory` source
+  with a relative path, which
+  [resolves against the repository's checkout](https://code.claude.com/docs/en/plugin-marketplaces#relative-paths)
+  — cloud sessions install from the clone at session start; local collaborators are prompted
+  once they trust the folder.
+- `enabledPlugins` turns on a deliberately lean default set, curated to mirror this repo's own
+  gates rather than everything the marketplace ships (every enabled plugin adds per-turn context
+  cost): the six format/lint-on-edit hooks (`markdown-format`, `bash-format`, `biome-format`,
+  `typos-format`, `actionlint`, `eol-normalizer`), plus `guardrails`, `source-control`, and
+  `skill-quality`. The session-start hook provisions every tool those hooks shell out to.
+- Everything else stays on demand: `/plugin install <name>@melodic-software` in any session.
+
+### GitHub MCP tools vs the gh CLI
+
+Both exist in cloud sessions and don't conflict — they serve different callers:
+
+- The **built-in GitHub MCP tools** are how the agent itself reads issues, PRs, and CI; they
+  authenticate through the
+  [GitHub proxy](https://code.claude.com/docs/en/cloud-environments#github-proxy) with no setup.
+- The **`gh` CLI** is what this repo's plugin scripts and hooks shell out to (several
+  `source-control`, `guardrails`, and `work-items` suites SKIP without it). It isn't
+  pre-installed; the environment setup script installs it, and in cloud sessions it
+  [authenticates via the proxy automatically](https://code.claude.com/docs/en/cloud-environments#work-with-github-issues-and-pull-requests)
+  — no token needed. Locally, contributors authenticate `gh` themselves as usual.
 
 ### Maintenance caveats
 
