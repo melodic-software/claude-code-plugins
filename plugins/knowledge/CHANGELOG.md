@@ -4,6 +4,21 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.10.5]
+
+### Changed
+
+- **`docpage-digest` Anthropic profile: best-practices queue entry removed.** The
+  code.claude.com best-practices slice completed — raw-md fetch through interview handoff,
+  dual verification (one correction round, re-verified REVERIFY: PASS by both verifiers, no
+  degraded fallback) — so its entry leaves the doc queue per the queue's remove-on-completion
+  rule. It was the sole "Applies across all of the above" entry, so the emptied category
+  heading goes with it.
+- **`docpage-digest` Anthropic profile: applicability-filter clarification from that slice's
+  verification.** A digested page that is itself a live code.claude.com harness doc serves as
+  its own row-local basis for intrinsic harness-guidance claims; the boundary rule still routes
+  API-surface-naming claims to `mixed`, with third-party APIs counting as API surfaces.
+
 ## [0.10.4]
 
 ### Changed
