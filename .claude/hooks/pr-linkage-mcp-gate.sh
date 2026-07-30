@@ -92,108 +92,27 @@ fi
 
 BODY=$(printf '%s' "$INPUT" | jq -r '.tool_input.body // ""' 2>/dev/null)
 
-# --- Body validation (mirrors the ci-workflows validator; see the plugin
-# hook plugins/source-control/hooks/pr-body-linkage-gate.sh for the fully
-# annotated original of each function) ---------------------------------------
-
-UNICODE_SPACES=(
-  $'\xc2\xa0' $'\xe1\x9a\x80'
-  $'\xe2\x80\x80' $'\xe2\x80\x81' $'\xe2\x80\x82' $'\xe2\x80\x83'
-  $'\xe2\x80\x84' $'\xe2\x80\x85' $'\xe2\x80\x86' $'\xe2\x80\x87'
-  $'\xe2\x80\x88' $'\xe2\x80\x89' $'\xe2\x80\x8a'
-  $'\xe2\x80\xa8' $'\xe2\x80\xa9' $'\xe2\x80\xaf'
-  $'\xe2\x81\x9f' $'\xe3\x80\x80' $'\xef\xbb\xbf'
-)
-
-strip_html_comments() {
-  local body="$1" line rest kept out="" in_comment=0 sp
-  for sp in "${UNICODE_SPACES[@]}"; do body="${body//"$sp"/ }"; done
-  while IFS= read -r line || [[ -n "$line" ]]; do
-    rest="${line%$'\r'}"
-    kept=""
-    while [[ -n "$rest" ]]; do
-      if ((in_comment)); then
-        if [[ "$rest" == *"-->"* ]]; then
-          rest="${rest#*-->}"
-          in_comment=0
-        else
-          rest=""
-        fi
-      else
-        if [[ "$rest" == *"<!--"* ]]; then
-          kept+="${rest%%<!--*}"
-          rest="${rest#*<!--}"
-          in_comment=1
-        else
-          kept+="$rest"
-          rest=""
-        fi
-      fi
-    done
-    out+="$kept"$'\n'
-  done <<<"$body"
-  printf '%s' "$out"
-}
-
-trim() {
-  local s="$1"
-  s="${s#"${s%%[![:space:]]*}"}"
-  s="${s%"${s##*[![:space:]]}"}"
-  printf '%s' "$s"
-}
-
-KEYWORD_ERE='[^a-z0-9_](close[sd]?|fix(es|ed)?|resolve[sd]?)[[:space:]]*:?[[:space:]]*([a-z0-9_.-]+/[a-z0-9_.-]+)?#[0-9]+[^a-z0-9_]'
-NO_ISSUE_ERE='[^a-z0-9_]no (linked|related) issue[^a-z0-9_]'
-
-has_linkage() {
-  local probe
-  probe=$'\n'"${1,,}"$'\n'
-  [[ "$probe" =~ $KEYWORD_ERE || "$probe" =~ $NO_ISSUE_ERE ]]
-}
-
-related_section() {
-  local body="$1" line t start=0 lvl i=0 out=""
-  local -a lines=()
-  while IFS= read -r line || [[ -n "$line" ]]; do lines+=("$line"); done <<<"$body"
-  for ((i = 0; i < ${#lines[@]}; i++)); do
-    t="${lines[i]}"
-    t="${t#"${t%%[![:space:]]*}"}"
-    t="${t%"${t##*[![:space:]]}"}"
-    [[ "${t,,}" =~ ^##[[:space:]]+related$ ]] && {
-      start=$((i + 1))
-      break
-    }
-  done
-  ((start)) || return 1
-  for ((i = start; i < ${#lines[@]}; i++)); do
-    t="${lines[i]}"
-    t="${t#"${t%%[![:space:]]*}"}"
-    t="${t%"${t##*[![:space:]]}"}"
-    if [[ "$t" =~ ^#+[[:space:]]+[^[:space:]] ]]; then
-      lvl=0
-      while [[ "${t:lvl:1}" == "#" ]]; do ((lvl++)); done
-      ((lvl <= 2)) && break
-    fi
-    out+="${lines[i]}"$'\n'
-  done
-  trim "$out"
-}
-
-problems=()
-stripped=$(strip_html_comments "$BODY")
-# shellcheck disable=SC2310  # the two exits ARE the verdict: absent vs present
-if related=$(related_section "$stripped"); then
-  [[ -n "$related" ]] || problems+=('The "## Related" section is empty.')
-else
-  problems+=('Missing a "## Related" section.')
+# --- Body validation ----------------------------------------------------------
+# The validator core is the source-control plugin's pr-linkage-validator.sh,
+# resolved relative to THIS FILE — the hook is checked into the marketplace
+# repo whose checkout always carries the plugin source, so no plugin install
+# is needed and a drift fix lands on every surface at once. Resolution is
+# deliberately not via CLAUDE_PROJECT_DIR: the hook judges payloads against
+# whatever repo it ships in, wherever that checkout lives. If the lib moves,
+# fail OPEN with a loud note (policy gate, not a security guard) — CI still
+# holds the contract, and the test suite fails on the silent-skip.
+VALIDATOR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../../plugins/source-control/hooks/pr-linkage-validator.sh"
+# shellcheck source=../../plugins/source-control/hooks/pr-linkage-validator.sh
+if ! source "$VALIDATOR" 2>/dev/null; then
+  echo "pr-linkage-mcp-gate: shared validator not found at $VALIDATOR — gate skipped." >&2
+  exit 0
 fi
-has_linkage "$stripped" ||
-  problems+=('Missing a native closing keyword (Closes/Fixes/Resolves #N) and no "No linked issue" marker.')
 
-((${#problems[@]})) || exit 0
+# shellcheck disable=SC2310  # the return status IS the verdict
+linkage::problems "$BODY" && exit 0
 
 echo "BLOCKED: PR body fails this repo's required pr-issue-linkage check." >&2
-for p in "${problems[@]}"; do echo "  - $p" >&2; done
+for p in "${LINKAGE_PROBLEMS[@]}"; do echo "  - $p" >&2; done
 echo "Gate: ${GATE_FILE#"$ROOT/"} (required check 'pr-issue-linkage / pr-issue-linkage')." >&2
 echo "Add to the body:" >&2
 echo "  Closes #<issue>      (or the literal line: No linked issue)" >&2

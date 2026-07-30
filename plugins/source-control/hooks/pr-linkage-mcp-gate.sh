@@ -117,111 +117,23 @@ emit_tel() {
   hook::emit_telemetry "pr-linkage-mcp-gate" "PreToolUse" "$1" "$start" "$data" "${CLAUDE_PROJECT_DIR:-}"
 }
 
-# --- Body validation (mirrors the ci-workflows validator; see the sibling
-# pr-body-linkage-gate.sh for the fully annotated original of each function) --
+# --- Body validation ----------------------------------------------------------
+# The validator core is shared with the Bash-surface sibling
+# pr-body-linkage-gate.sh; the annotated functions live in
+# pr-linkage-validator.sh, sourced so a drift fix against the upstream
+# ci-workflows validator lands on every surface at once.
+# shellcheck source=pr-linkage-validator.sh
+source "$(dirname "${BASH_SOURCE[0]}")/pr-linkage-validator.sh"
 
-UNICODE_SPACES=(
-  $'\xc2\xa0' $'\xe1\x9a\x80'
-  $'\xe2\x80\x80' $'\xe2\x80\x81' $'\xe2\x80\x82' $'\xe2\x80\x83'
-  $'\xe2\x80\x84' $'\xe2\x80\x85' $'\xe2\x80\x86' $'\xe2\x80\x87'
-  $'\xe2\x80\x88' $'\xe2\x80\x89' $'\xe2\x80\x8a'
-  $'\xe2\x80\xa8' $'\xe2\x80\xa9' $'\xe2\x80\xaf'
-  $'\xe2\x81\x9f' $'\xe3\x80\x80' $'\xef\xbb\xbf'
-)
-
-strip_html_comments() {
-  local body="$1" line rest kept out="" in_comment=0 sp
-  for sp in "${UNICODE_SPACES[@]}"; do body="${body//"$sp"/ }"; done
-  while IFS= read -r line || [[ -n "$line" ]]; do
-    rest="${line%$'\r'}"
-    kept=""
-    while [[ -n "$rest" ]]; do
-      if ((in_comment)); then
-        if [[ "$rest" == *"-->"* ]]; then
-          rest="${rest#*-->}"
-          in_comment=0
-        else
-          rest=""
-        fi
-      else
-        if [[ "$rest" == *"<!--"* ]]; then
-          kept+="${rest%%<!--*}"
-          rest="${rest#*<!--}"
-          in_comment=1
-        else
-          kept+="$rest"
-          rest=""
-        fi
-      fi
-    done
-    out+="$kept"$'\n'
-  done <<<"$body"
-  printf '%s' "$out"
-}
-
-trim() {
-  local s="$1"
-  s="${s#"${s%%[![:space:]]*}"}"
-  s="${s%"${s##*[![:space:]]}"}"
-  printf '%s' "$s"
-}
-
-KEYWORD_ERE='[^a-z0-9_](close[sd]?|fix(es|ed)?|resolve[sd]?)[[:space:]]*:?[[:space:]]*([a-z0-9_.-]+/[a-z0-9_.-]+)?#[0-9]+[^a-z0-9_]'
-NO_ISSUE_ERE='[^a-z0-9_]no (linked|related) issue[^a-z0-9_]'
-
-has_linkage() {
-  local probe
-  probe=$'\n'"${1,,}"$'\n'
-  [[ "$probe" =~ $KEYWORD_ERE || "$probe" =~ $NO_ISSUE_ERE ]]
-}
-
-related_section() {
-  local body="$1" line t start=0 lvl i=0 out=""
-  local -a lines=()
-  while IFS= read -r line || [[ -n "$line" ]]; do lines+=("$line"); done <<<"$body"
-  for ((i = 0; i < ${#lines[@]}; i++)); do
-    t="${lines[i]}"
-    t="${t#"${t%%[![:space:]]*}"}"
-    t="${t%"${t##*[![:space:]]}"}"
-    [[ "${t,,}" =~ ^##[[:space:]]+related$ ]] && {
-      start=$((i + 1))
-      break
-    }
-  done
-  ((start)) || return 1
-  for ((i = start; i < ${#lines[@]}; i++)); do
-    t="${lines[i]}"
-    t="${t#"${t%%[![:space:]]*}"}"
-    t="${t%"${t##*[![:space:]]}"}"
-    if [[ "$t" =~ ^#+[[:space:]]+[^[:space:]] ]]; then
-      lvl=0
-      while [[ "${t:lvl:1}" == "#" ]]; do ((lvl++)); done
-      ((lvl <= 2)) && break
-    fi
-    out+="${lines[i]}"$'\n'
-  done
-  trim "$out"
-}
-
-problems=()
-stripped=$(strip_html_comments "$BODY")
-# shellcheck disable=SC2310  # the two exits ARE the verdict: absent vs present
-if related=$(related_section "$stripped"); then
-  [[ -n "$related" ]] || problems+=('The "## Related" section is empty.')
-else
-  problems+=('Missing a "## Related" section.')
-fi
-has_linkage "$stripped" ||
-  problems+=('Missing a native closing keyword (Closes/Fixes/Resolves #N) and no "No linked issue" marker.')
-
-if ((${#problems[@]} == 0)); then
+# shellcheck disable=SC2310  # the return status IS the verdict
+if linkage::problems "$BODY"; then
   emit_tel "ok"
   exit 0
 fi
 
 emit_tel "blocked"
 echo "BLOCKED: PR body fails this repo's required pr-issue-linkage check." >&2
-for p in "${problems[@]}"; do echo "  - $p" >&2; done
+for p in "${LINKAGE_PROBLEMS[@]}"; do echo "  - $p" >&2; done
 echo "Gate: ${GATE_FILE#"$REPO_ROOT/"} (required check 'pr-issue-linkage / pr-issue-linkage')." >&2
 echo "Add to the body:" >&2
 echo "  Closes #<issue>      (or the literal line: No linked issue)" >&2

@@ -20,6 +20,12 @@ All notable changes to the `source-control` plugin are documented here. Format f
   body as a plain JSON field, so the Bash sibling's extraction caveats don't apply; the one
   fail-closed addition is a `create` with no `body` field at all, which GitHub would open with an
   empty body the CI gate rejects. Kill switch: `pr_linkage_mcp_gate_enabled` (default true).
+- **`pr-linkage-validator.sh` — the validator core extracted to one sourced lib.** The comment
+  stripping, keyword/`## Related` judging, and the verdict wording now exist once, sourced by both
+  hooks (and by the marketplace repo's checked-in MCP gate), so a drift fix against the upstream
+  ci-workflows validator lands on every surface atomically instead of being hand-mirrored across
+  copies. Behavior unchanged; each surface keeps its own extraction, scope guards, and block
+  message.
 
 ## [0.40.2]
 
