@@ -39,9 +39,13 @@ export PATH="$bin_dir:$PATH"
 # The proxy blocks the GitHub API and /releases/latest redirects; only direct
 # /releases/download/ asset URLs resolve, hence hard pins. Each pinned asset
 # also carries a SHA-256 recorded from a verified download of that exact
-# version; a mismatch refuses the install. Bump pin and hash together: on a
-# bump, download the new asset, confirm the binary reports the pinned version,
-# then record `sha256sum <downloaded-asset>` here.
+# version; a mismatch refuses the install. Bump pin and hash together — and
+# authenticate before executing: on a bump, download the new asset, check it
+# against the checksums file / signature / attestation the project publishes
+# for that release BEFORE running the binary (a compromised artifact can lie
+# about its version, and hashing it here would only legitimize it), then
+# confirm the binary reports the pinned version and record
+# `sha256sum <downloaded-asset>` here.
 shellcheck_pin="v0.11.0" # .shellcheckrc targets 0.11.0+
 shellcheck_sha="8c3be12b05d5c177a04c29e3c78ce89ac86f1595681cab149b65b97c4e227198"
 actionlint_pin="1.7.12" # matches the pin documented in .github/actionlint.yaml
