@@ -557,8 +557,11 @@ fi
 # documents `-C, --chdir=DIR` as "change working directory to DIR", so
 # `env -C other git a` runs git in `other` and resolves `other`'s alias — a slice
 # that starts at the git token cannot see that, and reading the payload cwd's
-# alias instead let a non-canonical commit through. Every spelling env accepts is
-# covered, because one unhandled spelling is the whole bypass again.
+# alias instead let a non-canonical commit through. Five spellings are covered,
+# because one unhandled spelling is the whole bypass again. A chdir inside
+# `-S`/`--split-string` is the sixth and is NOT covered: the resolver's
+# post-splice restart re-enters outside env's option parsing, which fails open for
+# any command on main too — tracked in #1814, not asserted here.
 wrapper_cd_case() {
   local label="$1" command="$2" expected="$3" rc
   MSYS_NO_PATHCONV=1 jq -n --arg c "$command" --arg d "$WRAP/outer" \
@@ -604,8 +607,23 @@ if [[ -d "$WRAP/outer/other/.git" ]]; then
   # block, and it must compose ahead of git's own globals rather than replace them.
   wrapper_cd_case "a canonical commit through the same wrapper stays allowed" \
     "env -C other git k" 0
-  wrapper_cd_case "env -C with a plain canonical commit stays allowed" \
-    "env -C other git commit -F -" 0
+  # A NAME=value operand ends env's option parsing, so env looks for a command
+  # named `-C` and runs nothing. The guard must not read a chdir that never
+  # happens — and with no git resolved there is nothing to gate.
+  wrapper_cd_case "a NAME=value operand ends option parsing" \
+    "env FOO=1 -C other git a" 0
+  # sudo relocates through -D/--chdir (its -C is close-from, not a directory).
+  wrapper_cd_case "sudo -D moves git, so the alias lookup follows" \
+    "sudo -D other git a" 2
+  wrapper_cd_case "sudo --chdir=DIR moves git" \
+    "sudo --chdir=other git a" 2
+  wrapper_cd_case "sudo -DDIR (attached) moves git" \
+    "sudo -Dother git a" 2
+  # `k` is the non-canonical alias in the payload cwd, so a correctly-ignored
+  # `-C 3` blocks; misreading it as a chdir would probe `outer/3`, find no alias
+  # there, and allow.
+  wrapper_cd_case "sudo -C is close-from, not a chdir" \
+    "sudo -C 3 git k" 2
 fi
 
 # --- the wrapper's chdir composes ONCE, on every recursion path ----------------

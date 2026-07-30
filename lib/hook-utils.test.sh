@@ -1401,6 +1401,15 @@ resolve_dirs_are "repeated env -C is last-wins within one env" "second" env -C f
 # Operands and the option terminator must not be read as options.
 resolve_dirs_are "env NAME=value operand carries no chdir" "" env FOO=bar git commit
 resolve_dirs_are "env -- ends option parsing" "other" env -C other -- git commit
+resolve_dirs_are "a chdir BEFORE the operand still counts" "other" env -C other FOO=1 git commit
+# A NAME=value operand ends option parsing too, so `env FOO=1 -C dir git …` makes
+# env look for a command literally named `-C` and fail — nothing runs, and the
+# resolver reports no git rather than recording a chdir env never performs.
+if hook::git_resolve_index env FOO=1 -C other git commit; then
+  fail "a NAME=value operand ends option parsing: resolved git at $HOOK_GIT_RESOLVED_GI, expected none"
+else
+  ok "a NAME=value operand ends option parsing, so no git resolves"
+fi
 # sudo's chdir is -D/--chdir; its -C is close-from and takes a value of its own.
 resolve_dirs_are "sudo -D DIR reports the chdir" "other" sudo -D other git commit
 resolve_dirs_are "sudo --chdir=DIR reports the chdir" "other" sudo --chdir=other git commit

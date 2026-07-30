@@ -1023,6 +1023,11 @@ hook::git_resolve_index() {
         elif [[ "${w[i]}" == *=* ]]; then
           # An `env NAME=value` operand — skip it to reach the command (git). Its value
           # is never read: a --config-env alias is refused by shape, not resolved.
+          # The operand also ENDS option parsing, as env's own grammar does
+          # (`env FOO=1 -C dir git …` makes env look for a command named `-C`, not
+          # chdir), so a later dash word is the command or its argument. Reading one
+          # as an option recorded a chdir env never performs.
+          env_past_optmark=1
           ((i++))
         else
           break

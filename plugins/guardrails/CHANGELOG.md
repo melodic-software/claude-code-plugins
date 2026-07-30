@@ -33,10 +33,17 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   tell env's `-C` from `-u`'s operand, now reports the wrapper's chdir in
   `HOOK_GIT_RESOLVED_WRAPPER_DIRS`, and the guard composes it ahead of git's own globals.
 
-  Every spelling GNU env accepts is read — `-C DIR`, `-CDIR`, `--chdir DIR`, `--chdir=DIR`, and a
-  clustered `-vC DIR` — because one unhandled spelling is the whole bypass again; a repeat within one
-  `env` is last-wins against the invoking cwd, as env itself resolves it. `sudo`'s own `-D`/`--chdir`
-  is read in its unclustered spellings.
+  Five spellings are read — `-C DIR`, `-CDIR`, `--chdir DIR`, `--chdir=DIR`, and a clustered
+  `-vC DIR` — because one unhandled spelling is the whole bypass again; a repeat within one `env` is
+  last-wins against the invoking cwd, as env itself resolves it. `sudo`'s own `-D`/`--chdir` is read
+  in its unclustered spellings. A `NAME=value` operand now ends option parsing as env's own grammar
+  does, so `env FOO=1 -C dir git …` — which env refuses to run at all — no longer records a chdir
+  that never happens.
+
+  A sixth spelling is deliberately NOT covered: a chdir smuggled through `-S`/`--split-string`
+  (`env -S '-C dir git …'`). That path already fails open on `main` for any command, because the
+  resolver's post-splice restart re-enters outside env's option parsing — a distinct control-flow
+  defect in shared code, tracked in #1814 rather than folded into this fix.
 
   The resolver half of this lands in the shared `lib/hook-utils.sh` and is synced to every carrying
   plugin; guardrails is the only plugin that consumes the new global.
