@@ -37,14 +37,23 @@ export PATH="$bin_dir:$PATH"
 
 # --- VERSION PINS (only for tools with no in-repo manifest) -----------------
 # The proxy blocks the GitHub API and /releases/latest redirects; only direct
-# /releases/download/ asset URLs resolve, hence hard pins. Bump deliberately.
+# /releases/download/ asset URLs resolve, hence hard pins. Each pinned asset
+# also carries a SHA-256 recorded from a verified download of that exact
+# version; a mismatch refuses the install. Bump pin and hash together.
 shellcheck_pin="v0.11.0" # .shellcheckrc targets 0.11.0+
-actionlint_pin="1.7.12"  # matches the pin documented in .github/actionlint.yaml
+shellcheck_sha="8c3be12b05d5c177a04c29e3c78ce89ac86f1595681cab149b65b97c4e227198"
+actionlint_pin="1.7.12" # matches the pin documented in .github/actionlint.yaml
+actionlint_sha="8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8"
 typos_pin="v1.42.1"
+typos_sha="fe1492d6c1079c328ef66de2094b7a3a4569987ec972ab56002c5db4746a8d1b"
 ec_pin="v3.4.0" # editorconfig-checker 3.x, per .editorconfig-checker.json
+ec_sha="feae0baaf8d55e51fd9b6c9e04497f2fb288b40034110fb9ac83fb1bf0b6011e"
 gitleaks_pin="8.28.0"
-shfmt_pin="v3.12.0"       # bash-format plugin hook; optional in CI by design
-markdownlint_pin="0.23.1" # matches the .markdownlint-cli2.jsonc schema pin
+gitleaks_sha="a65b5253807a68ac0cafa4414031fd740aeb55f54fb7e55f386acb52e6a840eb"
+shfmt_pin="v3.12.0" # bash-format plugin hook; optional in CI by design
+shfmt_sha="d9fbb2a9c33d13f47e7618cf362a914d029d02a6df124064fff04fd688a745ea"
+markdownlint_pin="0.23.1"     # matches the .markdownlint-cli2.jsonc schema pin
+check_jsonschema_pin="0.37.4" # pip/uv installs carry registry integrity checks
 
 # --- Node (required) ---------------------------------------------------------
 # CI resolves Node from .node-version; the cloud image ships 20/21/22 via nvm,
@@ -72,8 +81,12 @@ node_bin="$(dirname -- "$(command -v node)")"
 # doc). node_modules/.bin exposes the pinned claude CLI and Biome from npm ci.
 if [[ -n "${CLAUDE_ENV_FILE:-}" ]]; then
   # shellcheck disable=SC2016 # $PATH must stay literal for the session to expand
-  printf 'export PATH="%s:%s/node_modules/.bin:%s:$PATH"\n' \
-    "$node_bin" "$repo_root" "$bin_dir" >>"$CLAUDE_ENV_FILE"
+  path_line="$(printf 'export PATH="%s:%s/node_modules/.bin:%s:$PATH"' \
+    "$node_bin" "$repo_root" "$bin_dir")"
+  # Resume re-runs must not stack duplicate lines: append only when absent.
+  if ! grep -qxF "$path_line" "$CLAUDE_ENV_FILE" 2>/dev/null; then
+    printf '%s\n' "$path_line" >>"$CLAUDE_ENV_FILE"
+  fi
 fi
 
 # --- Root npm toolchain (required) --------------------------------------------
@@ -97,8 +110,9 @@ python3 -m pip install --user --quiet --only-binary=:all: --require-hashes \
 # Failures warn instead of blocking: each corresponding contract test SKIPs
 # visibly when its tool is absent, and CI still enforces the real gate.
 fetch_release_tool() {
-  # fetch_release_tool <cmd-name> <asset-url> <path-inside-archive>
-  local name="$1" url="$2" member="$3" tmp
+  # fetch_release_tool <cmd-name> <asset-url> <asset-sha256> <path-inside-archive>
+  # Pass "-" as <path-inside-archive> for a bare-binary asset (no archive).
+  local name="$1" url="$2" sha="$3" member="$4" tmp
   if command -v "$name" >/dev/null 2>&1; then
     return 0
   fi
@@ -107,12 +121,20 @@ fetch_release_tool() {
     return 0
   fi
   tmp="$(mktemp -d)"
-  local ok=1
-  case "$url" in
-  *.tar.xz) curl -fsSL "$url" | tar -xJ -C "$tmp" || ok=0 ;;
-  *) curl -fsSL "$url" | tar -xz -C "$tmp" || ok=0 ;;
-  esac
-  if [[ "$ok" -eq 1 && -f "$tmp/$member" ]]; then
+  local failed=0
+  curl -fsSL -o "$tmp/asset" "$url" || failed=1
+  if [[ "$failed" -eq 0 ]] && ! echo "$sha  $tmp/asset" | sha256sum --check --quiet --status; then
+    echo "session-start: warning: $name checksum mismatch ($url); refusing to install" >&2
+    failed=1
+  fi
+  if [[ "$failed" -eq 0 ]]; then
+    case "$url" in
+    *.tar.xz) tar -xJf "$tmp/asset" -C "$tmp" || failed=1 ;;
+    *.tar.gz) tar -xzf "$tmp/asset" -C "$tmp" || failed=1 ;;
+    *) member="asset" ;; # bare binary: install the download itself
+    esac
+  fi
+  if [[ "$failed" -eq 0 && -f "$tmp/$member" ]]; then
     install -m 0755 "$tmp/$member" "$bin_dir/$name"
   else
     echo "session-start: warning: $name install failed ($url); its checks will SKIP" >&2
@@ -123,35 +145,24 @@ fetch_release_tool() {
 
 fetch_release_tool shellcheck \
   "https://github.com/koalaman/shellcheck/releases/download/${shellcheck_pin}/shellcheck-${shellcheck_pin}.linux.x86_64.tar.xz" \
-  "shellcheck-${shellcheck_pin}/shellcheck"
+  "$shellcheck_sha" "shellcheck-${shellcheck_pin}/shellcheck"
 fetch_release_tool actionlint \
   "https://github.com/rhysd/actionlint/releases/download/v${actionlint_pin}/actionlint_${actionlint_pin}_linux_amd64.tar.gz" \
-  "actionlint"
+  "$actionlint_sha" "actionlint"
 fetch_release_tool typos \
   "https://github.com/crate-ci/typos/releases/download/${typos_pin}/typos-${typos_pin}-x86_64-unknown-linux-musl.tar.gz" \
-  "typos"
+  "$typos_sha" "typos"
 fetch_release_tool editorconfig-checker \
   "https://github.com/editorconfig-checker/editorconfig-checker/releases/download/${ec_pin}/ec-linux-amd64.tar.gz" \
-  "bin/ec-linux-amd64"
+  "$ec_sha" "bin/ec-linux-amd64"
 fetch_release_tool gitleaks \
   "https://github.com/gitleaks/gitleaks/releases/download/v${gitleaks_pin}/gitleaks_${gitleaks_pin}_linux_x64.tar.gz" \
-  "gitleaks"
-
-# shfmt ships as a bare binary, not an archive; enables the bash-format
-# plugin's format pass (its lint pass uses shellcheck above).
-if ! command -v shfmt >/dev/null 2>&1; then
-  if [[ "$(uname -m)" == "x86_64" ]]; then
-    if curl -fsSL -o "$bin_dir/shfmt" \
-      "https://github.com/mvdan/sh/releases/download/${shfmt_pin}/shfmt_${shfmt_pin}_linux_amd64"; then
-      chmod 0755 "$bin_dir/shfmt"
-    else
-      rm -f "$bin_dir/shfmt"
-      echo "session-start: warning: shfmt install failed; its checks will SKIP" >&2
-    fi
-  else
-    echo "session-start: warning: skipping shfmt (non-x86_64 VM)" >&2
-  fi
-fi
+  "$gitleaks_sha" "gitleaks"
+# shfmt ships as a bare binary (no archive); enables the bash-format plugin's
+# format pass (its lint pass uses shellcheck above).
+fetch_release_tool shfmt \
+  "https://github.com/mvdan/sh/releases/download/${shfmt_pin}/shfmt_${shfmt_pin}_linux_amd64" \
+  "$shfmt_sha" "-"
 
 if ! command -v markdownlint-cli2 >/dev/null 2>&1; then
   npm install -g --no-audit --no-fund "markdownlint-cli2@${markdownlint_pin}" ||
@@ -160,10 +171,10 @@ fi
 
 if ! command -v check-jsonschema >/dev/null 2>&1; then
   if command -v uv >/dev/null 2>&1; then
-    uv tool install --quiet check-jsonschema ||
+    uv tool install --quiet "check-jsonschema==${check_jsonschema_pin}" ||
       echo "session-start: warning: check-jsonschema install failed" >&2
   else
-    python3 -m pip install --user --quiet check-jsonschema ||
+    python3 -m pip install --user --quiet "check-jsonschema==${check_jsonschema_pin}" ||
       echo "session-start: warning: check-jsonschema install failed" >&2
   fi
 fi
@@ -177,7 +188,9 @@ if [[ -f "$git_dir/shallow" ]]; then
   git fetch --quiet --unshallow ||
     echo "session-start: warning: could not unshallow; base-ref diffs may fail" >&2
 fi
-git fetch --quiet origin main ||
+# Explicit destination refspec: in a single-branch clone a bare `fetch origin
+# main` only writes FETCH_HEAD and never creates refs/remotes/origin/main.
+git fetch --quiet origin "+main:refs/remotes/origin/main" ||
   echo "session-start: warning: could not fetch origin/main" >&2
 
 # --- Report --------------------------------------------------------------------

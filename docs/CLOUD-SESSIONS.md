@@ -188,4 +188,6 @@ Both exist in cloud sessions and don't conflict — they serve different callers
   repo-owned.
 - The hook's own version pins exist only because those tools have no in-repo manifest; the cloud
   proxy blocks the GitHub API and `releases/latest` redirects, so the hook can't self-resolve
-  "latest". Bump them when the corresponding configs bump.
+  "latest". Each GitHub-release asset also carries a pinned SHA-256 the hook verifies before
+  installing (mismatch refuses the install and warns). Bump pin and hash together when the
+  corresponding configs bump.
