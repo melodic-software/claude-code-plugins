@@ -26,6 +26,10 @@ Machine-readable JSON Schemas (editor validation for the JSON in this repo; Clau
 `https://json.schemastore.org/claude-code-marketplace.json`, `plugin.json` →
 `https://json.schemastore.org/claude-code-plugin-manifest.json` (published on SchemaStore).
 
+Cursor dual manifests under `.cursor-plugin/` are generated from the Claude SSOTs
+(`node scripts/generate-cursor-manifests.mjs`). Never hand-edit them; regenerate after catalog or
+`plugin.json` changes. Cursor schema reference: `https://cursor.com/docs/reference/plugins`.
+
 ## Design rules for plugins added here
 
 - **Repo-agnostic.** No hardcoded paths, repo names, or project-specific values. Read the consumer's

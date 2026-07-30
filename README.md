@@ -1,10 +1,13 @@
 # Melodic Software — Claude Code plugins
 
-A public [Claude Code](https://code.claude.com/docs) plugin marketplace of reusable, repo-agnostic
-skills, hooks, and agents. Each plugin is designed to work in any repository and to be customized by
-consumers without editing the plugin itself.
+A public plugin marketplace of reusable, repo-agnostic skills, hooks, and agents for
+[Claude Code](https://code.claude.com/docs) and [Cursor](https://cursor.com/docs/plugins).
+Each plugin is designed to work in any repository and to be customized by consumers without
+editing the plugin itself.
 
 ## Use this marketplace
+
+### Claude Code
 
 ```shell
 /plugin marketplace add melodic-software/claude-code-plugins
@@ -12,6 +15,23 @@ consumers without editing the plugin itself.
 ```
 
 Browse and manage with `/plugin`. To refresh after updates: `/plugin marketplace update melodic-software`.
+
+### Cursor
+
+Cursor reads [`.cursor-plugin/marketplace.json`](https://cursor.com/docs/reference/plugins)
+(generated from the Claude catalog — do not hand-edit). Add the GitHub repo as a personal
+marketplace in **Customize**, or import it as a [Team Marketplace](https://cursor.com/docs/plugins#team-marketplaces)
+from **Dashboard → Plugins** if you have admin access:
+
+1. Add `https://github.com/melodic-software/claude-code-plugins`.
+2. Install individual plugins from Customize (user or workspace scope).
+3. After catalog updates on `main`, refresh the marketplace in Customize. If the UI stays
+   pinned to an old commit (a known Cursor personal-marketplace issue), remove the marketplace,
+   delete `~/.cursor/plugins/marketplaces/github.com/melodic-software/` and
+   `~/.cursor/plugins/cache/melodic-software/`, reload the window, and re-add the repo.
+
+Claude-specific hooks and `userConfig` fields are not portable to Cursor; skills, agents,
+commands, rules, and MCP configs in the shared plugin directories are.
 
 ### Enable plugin suggestions for an organization
 
@@ -54,8 +74,11 @@ user opts in with `/plugin enable`; an existing install is never flipped by cata
 
 ## What's here
 
-- `.claude-plugin/marketplace.json` — the marketplace catalog.
-- `plugins/` — one directory per plugin.
+- `.claude-plugin/marketplace.json` — Claude Code marketplace catalog (SSOT).
+- `.cursor-plugin/marketplace.json` — Cursor marketplace catalog (generated; run
+  `node scripts/generate-cursor-manifests.mjs`).
+- `plugins/` — one directory per plugin (`plugins/<name>/.claude-plugin/plugin.json` is SSOT;
+  `plugins/<name>/.cursor-plugin/plugin.json` is generated).
 - `docs/MIGRATION-PLAYBOOK.md` — design charter, extensibility model, the per-plugin migration
   gate, and the local development loop.
 - `docs/` — further design records and audits (CI runner routing, extensibility-contract smoke

@@ -1,0 +1,17 @@
+{
+  "name": "markdown-format",
+  "version": "0.8.5",
+  "description": "Auto-format and lint Markdown on edit via markdownlint-cli2, using the consuming repo's own markdownlint config.",
+  "author": {
+    "name": "Melodic Software",
+    "email": "info@melodicsoftware.com"
+  },
+  "license": "MIT",
+  "keywords": [
+    "markdown",
+    "markdownlint",
+    "formatter",
+    "linter",
+    "hook"
+  ]
+}

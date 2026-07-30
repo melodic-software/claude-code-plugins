@@ -1,0 +1,17 @@
+{
+  "name": "typos-format",
+  "version": "0.4.3",
+  "description": "Auto-fix spelling typos on edit via typos-cli, unconditionally — honoring the consuming repo's own typos configuration when one is present.",
+  "author": {
+    "name": "Melodic Software",
+    "email": "info@melodicsoftware.com"
+  },
+  "license": "MIT",
+  "keywords": [
+    "typos",
+    "spelling",
+    "formatter",
+    "linter",
+    "hook"
+  ]
+}

@@ -607,6 +607,10 @@ For each skill/hook/agent being migrated:
     2026-06-23). Then run `claude plugin validate --strict <repo-root>` to validate the **catalog manifest
     itself** — a bad entry surfaces only there, not in per-plugin validation. The catalog page
     (`docs/CATALOG.md`) regenerates from the manifests — run `node scripts/generate-catalog.mjs`.
+    Cursor dual manifests (`.cursor-plugin/marketplace.json` and each
+    `plugins/<name>/.cursor-plugin/plugin.json`) regenerate from the Claude SSOTs — run
+    `node scripts/generate-cursor-manifests.mjs` (CI checks drift via `--check`). Do not hand-edit
+    the Cursor manifests.
 
 ## Migration order, PRs & parallelization
 
