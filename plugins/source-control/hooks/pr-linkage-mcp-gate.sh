@@ -63,7 +63,6 @@ INPUT=$(hook::buffer_stdin) || exit 0
 [[ -n "$INPUT" ]] || exit 0
 
 hook::require_jq "PreToolUse" "source-control-pr-linkage-mcp-gate" "$INPUT"
-command -v jq >/dev/null 2>&1 || exit 0
 
 TOOL=$(printf '%s' "$INPUT" | jq -r '.tool_name // empty' 2>/dev/null)
 case "$TOOL" in
