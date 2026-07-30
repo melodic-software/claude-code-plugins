@@ -88,16 +88,18 @@ done
 # Out-of-scope guard: only judge PRs aimed at THIS repository. The origin URL's
 # separators are normalized so https, ssh (`git@host:owner/repo`), and proxied
 # forms all end in `/owner/repo`; comparison is case-insensitive because GitHub
-# routing is.
+# routing is. When the match cannot be ESTABLISHED — no origin remote, or a
+# payload missing owner/repo — the target is undeterminable and the call is
+# allowed: imposing this checkout's policy on a repository it was never proven
+# to be is the worse failure (see FAIL-OPEN above).
 T_OWNER=$(printf '%s' "$INPUT" | jq -r '.tool_input.owner // empty' 2>/dev/null)
 T_REPO=$(printf '%s' "$INPUT" | jq -r '.tool_input.repo // empty' 2>/dev/null)
 ORIGIN=$(git -C "$REPO_ROOT" remote get-url origin 2>/dev/null || true)
-if [[ -n "$ORIGIN" && -n "$T_OWNER" && -n "$T_REPO" ]]; then
-  norm="${ORIGIN%/}"
-  norm="${norm%.git}"
-  norm="${norm//:/\/}"
-  [[ "${norm,,}" == *"/${T_OWNER,,}/${T_REPO,,}" ]] || exit 0
-fi
+[[ -n "$ORIGIN" && -n "$T_OWNER" && -n "$T_REPO" ]] || exit 0
+norm="${ORIGIN%/}"
+norm="${norm%.git}"
+norm="${norm//:/\/}"
+[[ "${norm,,}" == *"/${T_OWNER,,}/${T_REPO,,}" ]] || exit 0
 
 # An update that carries no body leaves the body CI already validated
 # untouched.
@@ -130,7 +132,6 @@ if linkage::problems "$BODY"; then
   exit 0
 fi
 
-emit_tel "blocked"
 echo "BLOCKED: PR body fails this repo's required pr-issue-linkage check." >&2
 for p in "${LINKAGE_PROBLEMS[@]}"; do echo "  - $p" >&2; done
 echo "Gate: ${GATE_FILE#"$REPO_ROOT/"} (required check 'pr-issue-linkage / pr-issue-linkage')." >&2
@@ -138,4 +139,5 @@ echo "Add to the body:" >&2
 echo "  Closes #<issue>      (or the literal line: No linked issue)" >&2
 echo "  ## Related" >&2
 echo "  - <links, or N/A>" >&2
+emit_tel "blocked"
 exit 2

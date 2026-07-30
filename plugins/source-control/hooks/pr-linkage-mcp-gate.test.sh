@@ -29,11 +29,14 @@ trap 'rm -rf "$WORK"' EXIT
 
 GATED="$WORK/gated"
 NOGATE="$WORK/nogate"
-mkdir -p "$GATED/.github/workflows" "$NOGATE"
+NOORIGIN="$WORK/noorigin"
+mkdir -p "$GATED/.github/workflows" "$NOGATE" "$NOORIGIN/.github/workflows"
 : >"$GATED/.github/workflows/pr-issue-linkage.yml"
+: >"$NOORIGIN/.github/workflows/pr-issue-linkage.yml"
 git -C "$GATED" init -q
 git -C "$GATED" remote add origin https://github.com/acme-corp/widgets.git
 git -C "$NOGATE" init -q
+git -C "$NOORIGIN" init -q
 
 # run <expected-exit> <name> <cwd> <payload-json>
 run() {
@@ -69,6 +72,8 @@ NO_RELATED=$'Closes #12\n\n## Summary\n\nx'
 EMPTY_RELATED=$'Closes #12\n\n## Related\n'
 NO_KEYWORD=$'## Summary\n\nx\n\n## Related\n\n- N/A'
 OPTOUT=$'No linked issue\n\n## Related\n\n- N/A'
+OPTOUT_ALIAS=$'No related issue: tracked in the profile file itself.\n\n## Related\n\n- N/A'
+PAST_TENSE=$'Fixed #31\n\n## Related\n\n- N/A'
 COMMENTED=$'<!-- Closes #12 -->\n\n## Summary\n\nx\n\n<!-- ## Related\n- N/A -->'
 BARE_HASH=$'Closes #\n\n## Related\n\n- N/A'
 DEEP_HEADING=$'Fixes #7\n\n## Related\n\n### sub\n\ncontent'
@@ -79,6 +84,8 @@ run 2 "missing Related blocks" "$GATED" "$(payload "$GATED" $CREATE $OWNER $REPO
 run 2 "empty Related blocks" "$GATED" "$(payload "$GATED" $CREATE $OWNER $REPO "$EMPTY_RELATED")"
 run 2 "missing keyword blocks" "$GATED" "$(payload "$GATED" $CREATE $OWNER $REPO "$NO_KEYWORD")"
 run 0 "No linked issue opt-out passes" "$GATED" "$(payload "$GATED" $CREATE $OWNER $REPO "$OPTOUT")"
+run 0 "No related issue alias passes" "$GATED" "$(payload "$GATED" $CREATE $OWNER $REPO "$OPTOUT_ALIAS")"
+run 0 "past-tense keyword (Fixed #N) passes" "$GATED" "$(payload "$GATED" $CREATE $OWNER $REPO "$PAST_TENSE")"
 run 2 "markers only inside HTML comments block" "$GATED" "$(payload "$GATED" $CREATE $OWNER $REPO "$COMMENTED")"
 run 2 "bare 'Closes #' with no number blocks" "$GATED" "$(payload "$GATED" $CREATE $OWNER $REPO "$BARE_HASH")"
 run 0 "deeper heading is Related content" "$GATED" "$(payload "$GATED" $CREATE $OWNER $REPO "$DEEP_HEADING")"
@@ -87,6 +94,7 @@ run 2 "create with no body field blocks (empty body)" "$GATED" "$(payload "$GATE
 run 0 "update with no body field passes" "$GATED" "$(payload "$GATED" $UPDATE $OWNER $REPO)"
 run 2 "update with bad body blocks" "$GATED" "$(payload "$GATED" $UPDATE $OWNER $REPO "$NO_RELATED")"
 run 0 "different target repo is out of scope" "$GATED" "$(payload "$GATED" $CREATE other-org other-repo "$NO_RELATED")"
+run 0 "gated repo with no origin remote allows (undeterminable target)" "$NOORIGIN" "$(payload "$NOORIGIN" $CREATE $OWNER $REPO "$NO_RELATED")"
 run 0 "repo without the gate file never blocks" "$NOGATE" "$(payload "$NOGATE" $CREATE $OWNER $REPO "$NO_RELATED")"
 run 0 "unrelated tool passes" "$GATED" "$(payload "$GATED" mcp__github__get_me $OWNER $REPO "$NO_RELATED")"
 run 0 "empty stdin allows" "$GATED" ""

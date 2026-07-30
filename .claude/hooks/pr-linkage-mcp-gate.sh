@@ -41,6 +41,11 @@
 # whitespace characters are normalized to plain spaces first, so the verdict
 # does not depend on the ambient locale. Mirrors the plugin hook's LOCALE note.
 #
+# NO KILL SWITCH, by design — this hook IS this repository's tracked policy,
+# so "disable it" is an edit to .claude/settings.json that goes through a PR,
+# exactly like changing the CI gate itself. The plugin sibling carries the
+# per-user userConfig switch; a repo-level policy file deliberately does not.
+#
 # BLOCKING: exits 2 naming the missing half(s) plus the line to add.
 
 set -uo pipefail
@@ -56,6 +61,9 @@ mcp__github__create_pull_request | mcp__github__update_pull_request) ;;
 *) exit 0 ;;
 esac
 
+# `.` is a last-resort fallback for running outside a Claude session (tests
+# set CLAUDE_PROJECT_DIR); if it points somewhere without the gate workflow,
+# the gate-file check below simply fails to find it and the hook allows.
 ROOT="${CLAUDE_PROJECT_DIR:-.}"
 
 # The consuming repo's own gate definition is the authority; no gate, no
@@ -77,12 +85,14 @@ done
 T_OWNER=$(printf '%s' "$INPUT" | jq -r '.tool_input.owner // empty' 2>/dev/null)
 T_REPO=$(printf '%s' "$INPUT" | jq -r '.tool_input.repo // empty' 2>/dev/null)
 ORIGIN=$(git -C "$ROOT" remote get-url origin 2>/dev/null || true)
-if [[ -n "$ORIGIN" && -n "$T_OWNER" && -n "$T_REPO" ]]; then
-  norm="${ORIGIN%/}"
-  norm="${norm%.git}"
-  norm="${norm//:/\/}"
-  [[ "${norm,,}" == *"/${T_OWNER,,}/${T_REPO,,}" ]] || exit 0
-fi
+# Undeterminable target (no origin remote, or payload missing owner/repo):
+# allow — imposing this checkout's policy on a repository it was never proven
+# to be is the worse failure (see FAIL-OPEN above).
+[[ -n "$ORIGIN" && -n "$T_OWNER" && -n "$T_REPO" ]] || exit 0
+norm="${ORIGIN%/}"
+norm="${norm%.git}"
+norm="${norm//:/\/}"
+[[ "${norm,,}" == *"/${T_OWNER,,}/${T_REPO,,}" ]] || exit 0
 
 # An update that carries no body leaves the body CI already validated
 # untouched.

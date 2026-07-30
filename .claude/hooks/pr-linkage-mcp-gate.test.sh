@@ -18,8 +18,14 @@ git -C "$FIXTURE" remote add origin https://github.com/melodic-software/claude-c
 
 # Second fixture WITHOUT the gate file, for the no-policy case.
 NOGATE=$(mktemp -d)
-trap 'rm -rf "$FIXTURE" "$NOGATE"' EXIT
+# Third fixture WITH the gate file but NO origin remote: the target repo is
+# undeterminable, so even a bad body must allow.
+NOORIGIN=$(mktemp -d)
+trap 'rm -rf "$FIXTURE" "$NOGATE" "$NOORIGIN"' EXIT
 git -C "$NOGATE" init -q
+mkdir -p "$NOORIGIN/.github/workflows"
+: >"$NOORIGIN/.github/workflows/pr-issue-linkage.yml"
+git -C "$NOORIGIN" init -q
 
 PASS=0
 FAIL=0
@@ -77,6 +83,7 @@ run 0 "update with no body field passes" "$FIXTURE" "$(payload $UPDATE $OWNER $R
 run 2 "update with bad body blocks" "$FIXTURE" "$(payload $UPDATE $OWNER $REPO "$NO_RELATED")"
 run 0 "different target repo is out of scope" "$FIXTURE" "$(payload $CREATE other-org other-repo "$NO_RELATED")"
 run 0 "repo without the gate file never blocks" "$NOGATE" "$(payload $CREATE $OWNER $REPO "$NO_RELATED")"
+run 0 "gated repo with no origin remote allows (undeterminable target)" "$NOORIGIN" "$(payload $CREATE $OWNER $REPO "$NO_RELATED")"
 run 0 "unrelated tool passes" "$FIXTURE" "$(payload mcp__github__get_me $OWNER $REPO "$NO_RELATED")"
 run 0 "empty stdin allows" "$FIXTURE" ""
 

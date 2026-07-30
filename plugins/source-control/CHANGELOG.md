@@ -16,7 +16,9 @@ All notable changes to the `source-control` plugin are documented here. Format f
   `No linked issue`, present-and-non-empty `## Related` with deeper headings as content) and the
   same scope guards (enforced only in a repo carrying
   `.github/workflows/pr-issue-linkage.yml`/`.yaml`; a call targeting a different repo than origin
-  is out of scope; an `update` with no `body` field allows). The MCP surface hands the hook the
+  is out of scope, and a target that cannot be established — no origin remote, or a payload
+  missing owner/repo — allows rather than imposing this checkout's policy on an unproven
+  repository; an `update` with no `body` field allows). The MCP surface hands the hook the
   body as a plain JSON field, so the Bash sibling's extraction caveats don't apply; the one
   fail-closed addition is a `create` with no `body` field at all, which GitHub would open with an
   empty body the CI gate rejects. Kill switch: `pr_linkage_mcp_gate_enabled` (default true).
