@@ -87,12 +87,18 @@ raise, then the C4/C5 ceiling.
 **The C4/C5 floor tests the PR, not the item's stamp.** `work-classes.md` assigns a class from the
 risk-property bundle, "not the task's surface description", so a lane implementing the floor derives
 both from the pull request before comparing any recorded class to the rung. C5 follows the code's
-provenance — a cross-repository head, or an author the provider does not attest as an owner or
-member of the base repository (an outside collaborator pushing a base-repository branch is external
-despite a same-repository head; a missing or unreadable signal fails closed to C5) — which
+provenance — a cross-repository head, or an author neither attested by the provider as an owner or
+member of the base repository nor attested by that repository's own team-tracked seam config as a
+trusted internal bot (an outside collaborator pushing a base-repository branch is external despite
+a same-repository head; a missing or unreadable signal fails closed to C5) — which
 "dominates every other property", so a fork PR closing an internally classified C2/C3 item is still
 outside the exception; a repository-owner allowlist is not a trusted-author list and never stands in
-for that test. C4 follows the diff's blast radius: a refactor, migration, or contract change is C4
+for that test. The internal-bot attestation is itself a recorded, reviewed trust grant on the
+tracked seam — exact bot identities, honored from the target repository's team-tracked layer only,
+fail-closed to the empty set when unset, never bypassing the fork test and never weakening a
+dependency-manager merge hold — with the key, its grammar, and its composition rules owned by the
+babysit lane's config reference (`plugins/source-control/reference/config-resolution.md`,
+`babysit_loop_trusted_internal_bot_logins`). C4 follows the diff's blast radius: a refactor, migration, or contract change is C4
 however its item is stamped, and a PR whose shape no longer matches its recorded class fails closed
 to escalation. The floor's verdict attaches to the exact head SHA it examined: any push after the
 verdict — the pre-escalation resolver's or the merge-capable worker's own fix alike — re-derives

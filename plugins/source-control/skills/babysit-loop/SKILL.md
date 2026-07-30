@@ -235,14 +235,18 @@ intake arriving mid-cycle is reported, never chased.
    - **C5 — the code's provenance.** Two tests on the cycle-start snapshot, either one marking the
      PR C5, each failing closed to C5 when its field is missing or unreadable. **Fork test:** the
      head repository is not the base (`isCrossRepository: true`, or `headRepositoryOwner` differing
-     from the base owner). **Trust test:** the provider-computed `authorAssociation` is anything
-     other than `OWNER` or `MEMBER` — an outside collaborator's push to a base-repository branch
-     passes the fork test yet is exactly the same-repository external contribution C5 includes.
-     These two fields are the executable surface; absence of either is C5. Never test the author login against
-     `babysit_watched_owners`: that key is a repository-owner allowlist, not a trusted-author list
-     (`babysit-prs/SKILL.md`, "Scope resolution"), so on an org-owned repository it would call
-     every internally authored PR C5. A fork PR closing an internally classified C2/C3 issue is
-     still C5 — the class travels with the code's provenance, not the issue it closes.
+     from the base owner). **Trust test:** neither arm positively passes — `authorAssociation` is
+     `OWNER`/`MEMBER` (an outside collaborator's push to a base-repository branch passes the fork
+     test yet is exactly the same-repository external contribution C5 includes), or the author is a
+     structural bot (`[bot]` login suffix or provider `Bot` type) whose login matches the TARGET
+     repository's team-tracked `babysit_loop_trusted_internal_bot_logins` — grammar,
+     team-tracked-only binding, and fail-closed empty-set default owned by the config-resolution
+     reference ("the C5 trust test's one reviewed widening"); unset, `OWNER`/`MEMBER` is the whole
+     test. Trust-listing never bypasses the fork test (a listed bot on a cross-repository head is
+     still C5) and never weakens the dependency hold-merge invariant, which wins on intersection.
+     Never test the author login against `babysit_watched_owners`: a repository-owner allowlist,
+     never a trusted-author list. A fork PR closing an internally classified C2/C3 issue is still C5
+     — the class travels with the code's provenance, not the issue it closes.
    - **C4 — the diff's blast radius.** The stamp admits; the diff can still veto. A PR whose actual
      change is a refactor, migration, or contract change is C4 however its item is stamped, and a
      PR whose shape no longer matches its recorded class **fails closed** to escalation rather than
