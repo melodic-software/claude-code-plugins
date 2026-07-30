@@ -142,9 +142,12 @@ rule below.
 ## 2. Establish evidence and ownership
 
 A hint annotation is not the only trigger for triage: at a user-home target, treat any loose
-root-level entry that is not in `protected_exact_names` and does not belong to a recognizable
+root-level entry whose `protected_reasons` is empty and that does not belong to a recognizable
 app/config convention as suspicious too — the snapshot already carries it (every walked entry is
 recorded with a possibly-empty `hints` list), so nothing further needs discovering, only judging.
+Read the entry's own `protected_reasons`, never one policy field: protection also comes from name
+patterns and from live filesystem state, and an entry that names a single field as its filter will
+step straight past a cloud-sync root whose name embeds a tenant.
 This positional read is how session-state droppings that share no common name (a runner-controller
 status snapshot, a one-off data export) surface for ownership triage even without a matching hint.
 
@@ -172,6 +175,12 @@ Confidence is report priority, not permission:
 Report every finding with path, logical bytes, tier, evidence, owner/native-GC result, why it is not
 work product, and disposition. Separately list protected, locked, needs-elevation, unverified, and
 coverage-gap entries. Empty directories are not inherently junk.
+
+An entry's `logical_size` is reclaimable local bytes only when its `size_qualifiers` is empty.
+Exclude every qualified entry from any reclaimable-bytes total and state the qualified bytes
+separately with their reasons — a `cloud-placeholder` carries its REMOTE size while occupying
+roughly nothing locally, so folding it into a total claims space that deleting it would never
+return.
 
 ## 4. Build one exact-tier plan
 

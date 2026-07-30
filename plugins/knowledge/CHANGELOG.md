@@ -6,6 +6,16 @@ only after that version increases.
 
 ## [0.10.9]
 
+### Fixed
+
+- **Vendored `video-digestion` frame counting no longer stops at 500 frames.**
+  `countFrameFiles` carried a `max = 500` default bound, so a video with 500 or more
+  contiguous extracted frames silently lost everything past frame 500 — about 4h10m at the
+  interval fallback's 1 frame / 30 s, truncating long conference recordings with no warning.
+  Counting is now unbounded and ends only at the first gap in the sequence, for both scene
+  and interval frames. Mirrored from the medley SSOT
+  (`melodic-software/medley#1687`), where the authored fix and its regression test live.
+
 ### Changed
 
 - **`docpage-digest` Anthropic profile: models-explained blog queue entry removed.** The
