@@ -70,11 +70,17 @@ are counted per PR in the durable feedback ledger. Keep iterating and driving th
 mergeable as long as each round makes real progress or responds to a genuinely new finding — do
 not stop after a small, arbitrary number of rounds while real, still-fixable advisory findings
 remain. Record each round write-ahead, before starting the fix, keyed by the snapshot head SHA
-the findings were observed on:
+the findings were observed on, with one `--finding-class` per finding carrying that finding's
+`safety.md` (a)/(b)/(c) provenance class:
 
 ```text
-python "${CLAUDE_PLUGIN_ROOT}/skills/babysit-prs/scripts/manage_feedback_ledger.py" record-advisory-round --pr owner/repo#42 --expected-head-sha <head-sha> --lease-token <worker-token> --state-dir <state-dir> --apply
+python "${CLAUDE_PLUGIN_ROOT}/skills/babysit-prs/scripts/manage_feedback_ledger.py" record-advisory-round --pr owner/repo#42 --expected-head-sha <head-sha> --finding-class c --finding-class c --finding-class b --lease-token <worker-token> --state-dir <state-dir> --apply
 ```
+
+The classes are what makes the second-consecutive-all-(c) non-convergence tripwire evaluable after
+context rollover, so the helper refuses a round recorded without them. It reports the round's
+`composition` and the resulting `non_convergence_tripwire` verdict back to the caller, and the
+snapshot carries the same verdict forward under `advisory_fix_rounds` for the next worker.
 
 `<advisory-fix-round-cap>` sets the round ceiling deliberately high: it is not a normal
 operational limit meant to halt legitimate fix work, but a safety backstop that only trips a

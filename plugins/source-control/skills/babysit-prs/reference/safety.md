@@ -165,32 +165,34 @@ loop's own escalation contract is not outside it.
   this PR introduced. Provenance decides (c), never severity.
 - Fix (c) like any other in-scope defect — it is never deferrable, because it is a defect this
   change is shipping (`${CLAUDE_PLUGIN_ROOT}/reference/review-discipline.md`, D4.6) — but count
-  it. A second consecutive round whose findings are *all* (c) means incremental patching is
-  injecting defects about as fast as it removes them; that is the non-convergence signal a round
-  count only approximates. **The "second consecutive" test must survive context rollover, and the
-  durable ledger records only that a round happened, not what it contained**
-  (`manage_feedback_ledger.py::record_advisory_round` stores timestamps per head). Two duties
-  follow, and the second only works because of the first:
-  - **Classify and stamp on EVERY advisory round, not only when an escalation is already being
-    prepared.** This section's heading scopes when to *escalate*; the classification itself is a
-    per-round duty, because a round that runs it only at escalation time has already lost the
+  it. A second consecutive **advisory** round whose findings are *all* (c) means incremental
+  patching is injecting defects about as fast as it removes them; that is the non-convergence
+  signal a round count only approximates. The test is scoped to advisory rounds because those are
+  the rounds the ledger records — a blocking-defect round in between neither counts nor resets it.
+  It survives context rollover because the classification itself is durable, and two duties follow:
+  - **Classify at record time on EVERY advisory round, not only when an escalation is already
+    being prepared.** This section's heading scopes when to *escalate*; the classification itself
+    is a per-round duty, because a round that runs it only at escalation time has already lost the
     history the tripwire consumes. Run the (a)/(b)/(c) taxonomy over the round's findings before
-    dispatching its fix (`orchestration.md`'s advisory-round step), and record the literal marker
-    `(class (a))`, `(class (b))`, or `(class (c))` beside the disposition in the D5 reply row for
-    every finding classified — the canonical D5 vocabulary (VALID/INCORRECT/UNCERTAIN) does not
-    carry this taxonomy, so it must be written alongside. An unstamped round is invisible to the
-    next worker, which is the same as never having classified it.
-  - **Reconstruct at round start.** Derive the previous round's composition from the PR itself:
-    read the prior round's threads (resolved ones included; resolution hides nothing from a
-    direct thread query) and count the recorded `(class (c))` markers. A fresh worker that skips
-    this reconstruction and sees only the current round cannot fire the tripwire, which is
-    exactly when it is needed. A prior round with no markers found is UNKNOWN, not (a)/(b) —
-    treat a current all-(c) round following an UNKNOWN round as tripwire-eligible and say so in
-    the escalation rather than silently resetting the count. Change METHOD rather than stopping: rewrite the contested section
-  whole in one commit, or report it for a human decision. It is never a licence to ship a known
-  defect.
+    recording it, and pass one `--finding-class` per finding to `manage_feedback_ledger.py
+    record-advisory-round` (`feedback.md`); the helper refuses an unclassified round, so no silent
+    path leaves the tripwire nothing to read. Also stamp the literal marker `(class (a))`, `(class
+    (b))`, or `(class (c))` beside the disposition in the D5 reply row for every finding
+    classified — the canonical D5 vocabulary (VALID/INCORRECT/UNCERTAIN) does not carry this
+    taxonomy, and the markers are what let a human reading the PR check the ledger's arithmetic
+    against the threads themselves.
+  - **Read the verdict at round start; never re-derive it.** The snapshot reports
+    `advisory_fix_rounds.non_convergence_tripwire` as `armed` plus the `basis` it was decided on,
+    and `record-advisory-round` returns the same verdict for the round it just recorded. That
+    field is the whole input — a fresh worker with no prior context reads it instead of
+    reconstructing the previous round's composition from GitHub threads. A round recorded before
+    per-finding classes were persisted reads as UNKNOWN, not (a)/(b), and the tripwire **fails
+    closed** on it: a current all-(c) round following an UNKNOWN round arms, and the escalation
+    says so rather than silently resetting the count. Armed means change METHOD rather than
+    stopping: rewrite the contested section whole in one commit, or report it for a human
+    decision. It is never a licence to ship a known defect.
 - Escalate a bounding/cap-policy question only when verification shows (a), a second consecutive
-  all-(c) round, or a finding that is structurally impossible to resolve (the check itself is
+  all-(c) advisory round, or a finding that is structurally impossible to resolve (the check itself is
   external or non-deterministic). If every unresolved thread is (b) or (c) and each is
   individually fixable — a mechanical fix or a clearly-scoped judgment call — fix directly
   instead. A high round count alone is not evidence of non-convergence.

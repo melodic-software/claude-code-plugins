@@ -694,6 +694,33 @@ REFUSALS: tuple[Refusal, ...] = (
         enforced_at="manage_feedback_ledger.py::main",
     ),
     Refusal(
+        id="ledger.advisory-round-requires-finding-class",
+        claim=(
+            "An advisory round may not be recorded unclassified: record-advisory-round "
+            "without --finding-class refuses at exit 2. The round record is the only "
+            "durable input to the second-consecutive-all-(c) non-convergence tripwire, "
+            "so a silently unclassified round would leave a rule that reads as binding "
+            "unable to fire after context rollover."
+        ),
+        entry_point=LEDGER_CLI,
+        argv=(
+            "record-advisory-round",
+            "--pr",
+            "owner/repo#1",
+            "--expected-head-sha",
+            "0123456789abcdef0123456789abcdef01234567",
+            "--state-dir",
+            "{state_dir}",
+            "--lease-token",
+            "contract-row",
+            "--apply",
+        ),
+        exit_code=2,
+        error_contains=("--finding-class",),
+        refused_by=PYTHON_CLI,
+        enforced_at="manage_feedback_ledger.py::main",
+    ),
+    Refusal(
         id="prune.root-is-required",
         claim=(
             "prune_babysit_worktrees.py has no default root: omitting --root is a usage "
@@ -1226,7 +1253,10 @@ ENTRY_POINTS: tuple[EntryPoint, ...] = (
             "Local state only, no GitHub write. The lease token requirement means an "
             "--apply invocation still refuses without proof of lease ownership."
         ),
-        backed_by=("ledger.apply-requires-lease-token",),
+        backed_by=(
+            "ledger.apply-requires-lease-token",
+            "ledger.advisory-round-requires-finding-class",
+        ),
     ),
     EntryPoint(
         path=PRUNE_CLI,

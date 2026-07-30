@@ -98,16 +98,27 @@ def record_advisory_round(
             f"advisory fix-round cap ({args.fix_round_cap}) reached for {key}; new advisory findings are report-only pending user decision"
         )
     recorded_at = datetime.now(UTC).isoformat()
+    finding_classes = {
+        name: args.finding_class.count(name) for name in delta.ADVISORY_ROUND_CLASSES
+    }
+    record = {"recorded_at": recorded_at, "finding_classes": finding_classes}
     result = {
         "action": "record-advisory-round",
         "eligible": True,
         "count_after": len(rounds) + 1,
         "cap": args.fix_round_cap,
         "cap_reached_after": len(rounds) + 1 >= args.fix_round_cap,
+        "finding_classes": finding_classes,
+        "composition": delta.advisory_round_composition(record),
+        # Reported on the dry run too, so a caller can see what recording this
+        # round would arm before it writes.
+        "non_convergence_tripwire": delta.advisory_non_convergence_tripwire(
+            {**rounds, head_sha: record}
+        ),
     }
     if not args.apply:
         return result
-    rounds[head_sha] = {"recorded_at": recorded_at}
+    rounds[head_sha] = record
     ledger_entry["advisory_fix_rounds"] = {
         "count": len(rounds),
         "updated_at": recorded_at,
@@ -196,6 +207,17 @@ def main() -> int:
         help="dispose triage outcome, typically approval, stale, or non-actionable",
     )
     parser.add_argument(
+        "--finding-class",
+        action="append",
+        choices=delta.ADVISORY_ROUND_CLASSES,
+        default=[],
+        help=(
+            "provenance class of ONE finding in this advisory round, repeated once "
+            "per finding: a (genuine duplicate), b (new and distinct), c "
+            "(self-inflicted). Required for record-advisory-round."
+        ),
+    )
+    parser.add_argument(
         "--state-dir",
         required=True,
         help=(
@@ -221,6 +243,14 @@ def main() -> int:
         parser.error("dispose requires --feedback-id and --reason")
     if args.action != "dispose" and (args.feedback_id or args.reason):
         parser.error("--feedback-id and --reason are only valid with dispose")
+    if args.action == "record-advisory-round" and not args.finding_class:
+        parser.error(
+            "record-advisory-round requires --finding-class once per finding in the "
+            "round; an unclassified round leaves the second-consecutive-all-(c) "
+            "non-convergence tripwire nothing to read after context rollover"
+        )
+    if args.action != "record-advisory-round" and args.finding_class:
+        parser.error("--finding-class is only valid with record-advisory-round")
     try:
         print(json.dumps(run(args), indent=2, sort_keys=True))
     except Exception as exc:

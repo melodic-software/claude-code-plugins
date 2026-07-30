@@ -3,6 +3,44 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.43.0]
+
+### Added
+
+- **babysit-prs: the (c) non-convergence tripwire is now decided from durable state instead of
+  session memory (#1660).** `safety.md` shipped a rule that a **second consecutive advisory round
+  whose findings are all (c)** — self-inflicted, against text this lane's own prior fix introduced
+  — means incremental patching is injecting defects as fast as it removes them, and the lane must
+  change METHOD. That test needs to know what the PREVIOUS round contained, and nothing durable
+  recorded it: `manage_feedback_ledger.py record-advisory-round` stored `{"recorded_at": ...}` per
+  head and no more. The rule was therefore satisfiable only inside one uninterrupted session,
+  while the babysit loop crosses a context boundary on every cycle — a rule that reads as binding
+  and, for the case it was written for, silently never fires.
+
+  `record-advisory-round` now takes **`--finding-class` once per finding in the round** (`a`
+  genuine duplicate, `b` new and distinct, `c` self-inflicted) and persists the per-finding
+  provenance counts alongside the timestamp. The flag is **required**, refused at exit 2 — an
+  optional flag would have reproduced the same defect one layer down, because an unclassified
+  CURRENT round leaves the tripwire just as unevaluable as an unclassified predecessor, and a
+  silently unrecorded classification is exactly what #1660 is about. The refusal is a
+  `guard-contract.md` row (`ledger.advisory-round-requires-finding-class`), so it is asserted by
+  the guard suite rather than asserted in prose.
+
+  The verdict is computed once, in `babysit_delta`, and reported at both ends: the helper returns
+  the recorded round's `composition` and the resulting `non_convergence_tripwire` immediately, and
+  the snapshot carries `advisory_fix_rounds.non_convergence_tripwire` (`armed` plus the `basis` it
+  was decided on) for the next worker, adding a material finding when armed. **A fresh worker
+  reads that field; it no longer reconstructs the previous round's composition from GitHub
+  threads** — the expensive, resolution-fragile duty `safety.md` used to impose.
+
+  **Rounds recorded before this release read as UNKNOWN, and the tripwire fails closed on them**:
+  a current all-(c) round following an UNKNOWN round arms and says so, rather than silently
+  resetting the count. That preserves the disposition the previous prose already chose for an
+  unmarked predecessor. Two scoping facts are now stated where the rule lives, because the ledger
+  can only answer what it records: the test is over consecutive **advisory** rounds (blocking-defect
+  rounds are never capped and never recorded, so one in between neither counts nor resets), and
+  UNKNOWN is not a synonym for "no (c) findings".
+
 ## [0.42.0]
 
 ### Added
