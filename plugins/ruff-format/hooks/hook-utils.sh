@@ -229,6 +229,41 @@ hook::physical_path() {
   printf '%s' "$1"
 }
 
+# True when <normalized-path> sits inside one of this host's temp trees.
+# Both arguments and candidates go through the same canonicalize+normalize
+# pipeline as the membership comparison, because the same directory has several
+# spellings: on Git Bash `TMPDIR=/tmp` while `TEMP`/`TMP` carry the Windows form
+# of the identical directory, and `realpath` resolves the Windows form to a
+# drive path while leaving `/tmp` as `/tmp`. Neither form alone matches a
+# `file_path` that could arrive in either, so every candidate is compared and a
+# match on any one is a match. Duplicates are resolved once.
+#
+# Candidates are the environment's own answer (TMPDIR/TMP/TEMP) plus the POSIX
+# defaults, never a hardcoded platform assumption.
+#   hook::under_temp_root "$norm_path" && ...
+hook::under_temp_root() {
+  local target="$1" cand norm seen=""
+  for cand in "${TMPDIR:-}" "${TMP:-}" "${TEMP:-}" /tmp /var/tmp; do
+    [[ -n "$cand" && -d "$cand" ]] || continue
+    case "$seen" in
+    *"|$cand|"*) continue ;;
+    *) ;; # first sighting of this candidate — resolve it below
+    esac
+    seen="$seen|$cand|"
+    norm=$(hook::normalize_path "$(hook::physical_path "$cand")")
+    # The filesystem root as a temp candidate contains every absolute path;
+    # trimming its only slash would empty the candidate and discard it.
+    [[ "$norm" == / ]] && return 0
+    norm="${norm%/}"
+    [[ -n "$norm" ]] || continue
+    # Equality counts: a project root that IS the temp root must answer true,
+    # otherwise the exemption below would not recognize it as a temp-rooted
+    # project and would reject every file in it.
+    [[ "$target" == "$norm" || "$target" == "$norm"/* ]] && return 0
+  done
+  return 1
+}
+
 # Parse file_path from PostToolUse JSON on stdin; validate existence and (when
 # CLAUDE_PROJECT_DIR is set) project membership. Both sides of the membership
 # comparison are canonicalized (symlinks resolved) first, so neither an
@@ -249,6 +284,22 @@ hook::read_file_path() {
     # child under it, but not a sibling whose name merely shares the prefix
     # (e.g. /c/repo must not admit /c/repo-backup/...).
     if [[ "$norm_file" != "$norm_project" && "$norm_file" != "$norm_project"/* ]]; then
+      return 1
+    fi
+    # Prefix membership alone is not project membership. When the project dir is
+    # the user's home (or any ancestor of the temp tree), every scratch file the
+    # harness writes — its own per-session scratchpad lives under the OS temp
+    # root — passes the prefix test and reaches hooks that then lint, rewrite,
+    # or autocorrect a file that is not project content and has no project
+    # config to opt out with. Same shape as hook-precision rule 5: gate on what
+    # the path IS, not on a literal substring of an over-broad project dir.
+    #
+    # The exemption is deliberate and load-bearing: when the project root ITSELF
+    # lives under temp, a file under temp is the project (a fixture checkout
+    # built by `mktemp -d`, which is how this repo's own hook suites run), so
+    # the branch must not fire. Only a temp-tree file reached from a project
+    # root OUTSIDE the temp tree is scratch.
+    if hook::under_temp_root "$norm_file" && ! hook::under_temp_root "$norm_project"; then
       return 1
     fi
   fi
