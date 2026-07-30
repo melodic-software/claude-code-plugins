@@ -6,6 +6,13 @@ fleet loop). Both skills' always-loaded checklists are compact skeletons that ci
 the rules here are the single committed copy. Workers dispatched by either skill cite this file
 directly — never a sibling skill's router.
 
+Restating a clause of this file elsewhere is a declared act: the copy carries a
+`contract-restatement` marker naming the clause, and CI holds that passage to this file's
+qualifiers within its own bounds. An untagged copy is reported. Reducing a restatement to a
+pointer at this file is always the stronger answer — the marker exists so a NEW copy is visible
+enough to argue about, not to make copying cheap. The clause set and its qualifiers live in the
+marketplace's own `scripts/contract-clause-registry.json`.
+
 The deterministic companion scripts live beside this file:
 
 - `${CLAUDE_PLUGIN_ROOT}/scripts/fetch-all-pr-comments.sh <pr>` — fetches every comment from all

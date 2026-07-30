@@ -3,6 +3,26 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.42.1]
+
+### Added
+
+- **Every surface that restates a review-disposition clause now declares itself (#1659).** The
+  D4.6 grounding and provenance rules, D7.5 thread eligibility, and the authorization rule for a
+  resolution that ships no fix are canonical in `reference/review-discipline.md` and restated
+  across five other surfaces. Each restatement now carries a `contract-restatement` marker naming
+  the clause it copies, and `scripts/check-contract-clause-coverage.py` holds it to the canonical's
+  qualifiers within its own span. Untagged text that restates a clause is reported too, so a new
+  copy has to be argued for rather than appearing silently.
+
+### Fixed
+
+- **`pull-request/reference/monitor.md` restated D4.6 grounding without the id-citation
+  requirement.** It instructed filing the deferral in the work-item tracker with evidence and the
+  PR link, but not citing that item's id in the D5 reply — so a deferral could be filed and still
+  leave the thread with no route back to it, which is the dropped finding D4.6 exists to prevent.
+  Found by the new gate, not by review.
+
 ## [0.42.0]
 
 ### Added

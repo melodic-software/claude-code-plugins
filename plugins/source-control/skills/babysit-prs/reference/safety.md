@@ -162,10 +162,10 @@ loop's own escalation contract is not outside it.
   fix that should have addressed it, real evidence of non-convergence; (b) a new, distinct,
   code/line-cited finding — expected depth on complex or security-sensitive logic, not churn; or
   (c) a self-inflicted finding — new and distinct, but against text this lane's own prior fix on
-  this PR introduced. Provenance decides (c), never severity.
+  this PR introduced. Provenance decides (c), never severity. <!-- contract-restatement-begin: D4.6-deferral-provenance -->
 - Fix (c) like any other in-scope defect — it is never deferrable, because it is a defect this
   change is shipping (`${CLAUDE_PLUGIN_ROOT}/reference/review-discipline.md`, D4.6) — but count
-  it. A second consecutive round whose findings are *all* (c) means incremental patching is
+  it. <!-- contract-restatement-end: D4.6-deferral-provenance --> A second consecutive round whose findings are *all* (c) means incremental patching is
   injecting defects about as fast as it removes them; that is the non-convergence signal a round
   count only approximates. **The "second consecutive" test must survive context rollover, and the
   durable ledger records only that a round happened, not what it contained**
