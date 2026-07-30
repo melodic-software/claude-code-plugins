@@ -1055,8 +1055,9 @@ hook::git_resolve_index() {
       # Only the unclustered spellings are read here; sudo's valueless short set
       # is large and release-dependent, so peeling a cluster the way the env
       # branch does would be guesswork rather than grammar.
-      # TODO(#1811): `sudo -bD dir git …` loses the chdir, and `-i` relocates to
-      # the target user's home without naming a directory at all.
+      # Known gap, fail-open: a clustered `sudo -bD dir git …` loses the chdir,
+      # and `-i` relocates to the target user's home without naming a directory
+      # at all.
       ((i++))
       local sudo_ci=-1
       while ((i < n)) && [[ "${w[i]}" == -* ]]; do
