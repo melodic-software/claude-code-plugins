@@ -43,9 +43,11 @@ from __future__ import annotations
 import io
 import json
 import pathlib
+import subprocess
 import sys
 import unittest
 from contextlib import redirect_stdout
+from typing import cast
 from unittest import mock
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
@@ -61,6 +63,8 @@ def _thread(
     bot_only: bool,
     is_outdated: bool = False,
     severity_flagged: bool = False,
+    last_updated: str | None = None,
+    reply_bodies: list[str] | None = None,
 ) -> dict[str, object]:
     return {
         "id": thread_id,
@@ -72,7 +76,8 @@ def _thread(
         "botOnly": bot_only,
         "severityFlagged": severity_flagged,
         "commentCount": 2,
-        "lastCommentUpdatedAt": None,
+        "lastCommentUpdatedAt": last_updated,
+        "replyBodies": list(reply_bodies or []),
     }
 
 
@@ -664,6 +669,393 @@ class NoAbbreviatedFlags(unittest.TestCase):
             with self.assertRaises(SystemExit) as ctx:
                 rt.main()
         self.assertEqual(ctx.exception.code, 2)
+
+
+PINNED_UPDATED = "2026-07-30T00:00:00Z"
+HEAD_OID = "1111111111111111111111111111111111111111"
+FIX_SHA = "abc1234"
+
+
+def _proc(returncode: int, stdout: str = "") -> subprocess.CompletedProcess[str]:
+    return subprocess.CompletedProcess(
+        args=["gh"], returncode=returncode, stdout=stdout, stderr=""
+    )
+
+
+def _pr_view_ok() -> subprocess.CompletedProcess[str]:
+    return _proc(
+        0,
+        json.dumps(
+            {
+                "headRefOid": HEAD_OID,
+                "headRepository": {"name": "repo"},
+                "headRepositoryOwner": {"login": "owner"},
+            }
+        ),
+    )
+
+
+def _run_independent(
+    threads: list[dict[str, object]],
+    argv: list[str],
+    *,
+    gh_results: list[subprocess.CompletedProcess[str]] | None = None,
+    resolve_ok: bool = True,
+) -> tuple[int, dict[str, object]]:
+    """Drive `main` with gh responses scripted in call order."""
+    buffer = io.StringIO()
+    with (
+        mock.patch.object(rt, "fetch_threads", return_value=threads),
+        mock.patch.object(rt, "gh_capture", side_effect=list(gh_results or [])),
+        mock.patch.object(rt, "resolve_thread", return_value=(resolve_ok, "")),
+        mock.patch.object(sys, "argv", ["babysit_resolve_thread.py", *argv]),
+        redirect_stdout(buffer),
+    ):
+        code = rt.main()
+    return code, json.loads(buffer.getvalue())
+
+
+def _independent_argv(*evidence: str) -> list[str]:
+    return [
+        "owner/repo#1",
+        "--allowed-owners",
+        "owner",
+        "--resolve",
+        "--independent-resolver",
+        "--thread-id",
+        "T_bot",
+        "--expected-comment-count",
+        "2",
+        "--expected-last-updated",
+        PINNED_UPDATED,
+        *evidence,
+    ]
+
+
+def _bot_thread(**kwargs: object) -> dict[str, object]:
+    params: dict[str, object] = {
+        "bot_only": True,
+        "last_updated": PINNED_UPDATED,
+    }
+    params.update(kwargs)
+    return _thread("T_bot", "codex[bot]", "Bot", **params)  # type: ignore[arg-type]
+
+
+class IndependentResolverUsageGates(unittest.TestCase):
+    """#1632: the third mode's argument contract, refused at exit 2.
+
+    Every refusal here is a usage error rather than a silent narrowing: the
+    mode's whole claim is that evidence was validated, so a call that cannot be
+    validated must not be accepted and quietly downgraded.
+    """
+
+    def _usage(self, argv: list[str]) -> dict[str, object]:
+        buffer = io.StringIO()
+        with (
+            mock.patch.object(sys, "argv", ["babysit_resolve_thread.py", *argv]),
+            redirect_stdout(buffer),
+        ):
+            code = rt.main()
+        self.assertEqual(code, 2)
+        return json.loads(buffer.getvalue())
+
+    def test_evidence_flag_without_the_mode_is_refused(self) -> None:
+        payload = self._usage(
+            ["owner/repo#1", "--allowed-owners", "owner", "--fix-commit", FIX_SHA]
+        )
+        self.assertIn("--independent-resolver", str(payload["error"]))
+
+    def test_disposition_without_the_mode_is_refused(self) -> None:
+        payload = self._usage(
+            ["owner/repo#1", "--allowed-owners", "owner", "--disposition", "fixed"]
+        )
+        self.assertIn("--independent-resolver", str(payload["error"]))
+
+    def test_autonomous_combination_is_refused(self) -> None:
+        # The two modes answer for different actors; combining them would let the
+        # merging worker wear the independent resolver's evidence exemption.
+        payload = self._usage(
+            [
+                "owner/repo#1", "--allowed-owners", "owner",
+                "--independent-resolver", "--autonomous",
+            ]
+        )
+        self.assertIn("--autonomous", str(payload["error"]))
+
+    def test_include_human_combination_is_refused(self) -> None:
+        payload = self._usage(
+            [
+                "owner/repo#1", "--allowed-owners", "owner",
+                "--independent-resolver", "--include-human",
+            ]
+        )
+        self.assertIn("--include-human", str(payload["error"]))
+
+    def test_allow_unpinned_thread_combination_is_refused(self) -> None:
+        payload = self._usage(
+            [
+                "owner/repo#1", "--allowed-owners", "owner",
+                "--independent-resolver", "--allow-unpinned-thread",
+            ]
+        )
+        self.assertIn("--allow-unpinned-thread", str(payload["error"]))
+
+    def test_missing_disposition_is_refused(self) -> None:
+        payload = self._usage(
+            ["owner/repo#1", "--allowed-owners", "owner", "--independent-resolver"]
+        )
+        self.assertIn("--disposition", str(payload["error"]))
+
+    def test_bulk_is_refused_without_a_thread_id(self) -> None:
+        payload = self._usage(
+            [
+                "owner/repo#1", "--allowed-owners", "owner",
+                "--independent-resolver", "--disposition", "incorrect",
+                "--counter-evidence", "the anchor is wrong",
+            ]
+        )
+        self.assertIn("--thread-id", str(payload["error"]))
+
+    def test_disposition_without_its_evidence_is_refused(self) -> None:
+        payload = self._usage(
+            [
+                "owner/repo#1", "--allowed-owners", "owner",
+                "--independent-resolver", "--disposition", "fixed",
+                "--thread-id", "T_bot",
+            ]
+        )
+        self.assertIn("--fix-commit", str(payload["error"]))
+
+    def test_mismatched_evidence_flag_is_refused(self) -> None:
+        # Asserting `fixed` while handing over a tracker id would have the
+        # script validate something other than the claim being made.
+        payload = self._usage(
+            [
+                "owner/repo#1", "--allowed-owners", "owner",
+                "--independent-resolver", "--disposition", "fixed",
+                "--thread-id", "T_bot",
+                "--fix-commit", FIX_SHA, "--tracker-item", "#7",
+            ]
+        )
+        self.assertIn("--tracker-item", str(payload["error"]))
+
+    def test_unparseable_sha_is_refused_before_any_lookup(self) -> None:
+        payload = self._usage(
+            [
+                "owner/repo#1", "--allowed-owners", "owner",
+                "--independent-resolver", "--disposition", "fixed",
+                "--thread-id", "T_bot", "--fix-commit", "not-a-sha",
+            ]
+        )
+        self.assertIn("--fix-commit", str(payload["error"]))
+
+    def test_unparseable_tracker_item_is_refused_before_any_lookup(self) -> None:
+        payload = self._usage(
+            [
+                "owner/repo#1", "--allowed-owners", "owner",
+                "--independent-resolver", "--disposition", "deferred",
+                "--thread-id", "T_bot", "--tracker-item", "not/an/item",
+            ]
+        )
+        self.assertIn("--tracker-item", str(payload["error"]))
+
+
+class IndependentResolverBrightLines(unittest.TestCase):
+    """The guards the third mode keeps: human threads and severity."""
+
+    def test_human_thread_is_still_refused(self) -> None:
+        # Dropping isOutdated does not widen authorship. --include-human is
+        # refused in this mode, so nothing can lift the bot-only line here.
+        code, payload = _run_independent(
+            [_thread("T_bot", "alice", "User", bot_only=False,
+                     last_updated=PINNED_UPDATED)],
+            _independent_argv("--disposition", "incorrect",
+                              "--counter-evidence", "anything"),
+        )
+        threads = cast(list[dict[str, object]], payload["threads"])
+        self.assertEqual(threads[0]["action"], "skipped-human-thread")
+        self.assertEqual(payload["resolvedCount"], 0)
+        self.assertEqual(code, 10)
+
+    def test_severity_marked_thread_is_still_refused(self) -> None:
+        # Still an unattended path: "never a security or P1 thread" is
+        # unconditional, so evidence cannot buy past it.
+        code, payload = _run_independent(
+            [_bot_thread(severity_flagged=True)],
+            _independent_argv("--disposition", "incorrect",
+                              "--counter-evidence", "anything"),
+        )
+        threads = cast(list[dict[str, object]], payload["threads"])
+        self.assertEqual(threads[0]["action"], "skipped-severity-marked")
+        self.assertEqual(code, 10)
+
+    def test_stale_pin_still_refuses_before_evidence_is_consulted(self) -> None:
+        # gh_capture has no scripted results: reaching a lookup would raise
+        # StopIteration, so this passing proves the pin is checked first.
+        code, payload = _run_independent(
+            [_bot_thread(last_updated="2026-07-29T00:00:00Z")],
+            _independent_argv("--disposition", "fixed", "--fix-commit", FIX_SHA),
+        )
+        threads = cast(list[dict[str, object]], payload["threads"])
+        self.assertEqual(threads[0]["action"], "refused-stale-pin")
+        self.assertEqual(code, 10)
+
+
+class IndependentResolverEvidence(unittest.TestCase):
+    """Evidence is validated against the world, never against the assertion."""
+
+    def test_fixed_resolves_when_the_sha_is_reachable_from_head(self) -> None:
+        code, payload = _run_independent(
+            [_bot_thread()],
+            _independent_argv("--disposition", "fixed", "--fix-commit", FIX_SHA),
+            gh_results=[
+                _pr_view_ok(),
+                _proc(0, json.dumps({"status": "ahead", "behind_by": 0})),
+            ],
+        )
+        threads = cast(list[dict[str, object]], payload["threads"])
+        self.assertEqual(threads[0]["action"], "resolved")
+        self.assertEqual(threads[0]["disposition"], "fixed")
+        self.assertEqual(payload["mode"], "independent-resolver")
+        self.assertEqual(payload["resolvedCount"], 1)
+        self.assertEqual(code, 0)
+
+    def test_fixed_refuses_a_sha_that_is_not_on_head(self) -> None:
+        # A commit that exists but diverged from head is not evidence that THIS
+        # PR carries the fix.
+        code, payload = _run_independent(
+            [_bot_thread()],
+            _independent_argv("--disposition", "fixed", "--fix-commit", FIX_SHA),
+            gh_results=[
+                _pr_view_ok(),
+                _proc(0, json.dumps({"status": "diverged", "behind_by": 3})),
+            ],
+        )
+        threads = cast(list[dict[str, object]], payload["threads"])
+        self.assertEqual(threads[0]["action"], "refused-fix-commit-not-on-head")
+        self.assertEqual(payload["refusedEvidence"], 1)
+        self.assertEqual(payload["resolvedCount"], 0)
+        self.assertEqual(code, 10)
+
+    def test_fixed_refuses_when_the_world_cannot_be_consulted(self) -> None:
+        # An API failure is not the same answer as "the fix is not there", and
+        # both refuse — but reporting the outage as a false claim would send a
+        # caller to fix the wrong thing.
+        code, payload = _run_independent(
+            [_bot_thread()],
+            _independent_argv("--disposition", "fixed", "--fix-commit", FIX_SHA),
+            gh_results=[_proc(1)],
+        )
+        threads = cast(list[dict[str, object]], payload["threads"])
+        self.assertEqual(threads[0]["action"], "refused-evidence-unverifiable")
+        self.assertEqual(code, 10)
+
+    def test_deferred_resolves_for_an_open_tracker_item(self) -> None:
+        code, payload = _run_independent(
+            [_bot_thread()],
+            _independent_argv("--disposition", "deferred", "--tracker-item", "#42"),
+            gh_results=[_proc(0, json.dumps({"state": "open"}))],
+        )
+        threads = cast(list[dict[str, object]], payload["threads"])
+        self.assertEqual(threads[0]["action"], "resolved")
+        self.assertEqual(threads[0]["disposition"], "deferred")
+        self.assertEqual(code, 0)
+
+    def test_deferred_refuses_a_closed_tracker_item(self) -> None:
+        # A closed follow-up is not a deferral; it is the finding disappearing.
+        code, payload = _run_independent(
+            [_bot_thread()],
+            _independent_argv("--disposition", "deferred", "--tracker-item", "#42"),
+            gh_results=[_proc(0, json.dumps({"state": "closed"}))],
+        )
+        threads = cast(list[dict[str, object]], payload["threads"])
+        self.assertEqual(threads[0]["action"], "refused-tracker-item-not-open")
+        self.assertEqual(code, 10)
+
+    def test_deferred_refuses_a_tracker_item_that_does_not_exist(self) -> None:
+        code, payload = _run_independent(
+            [_bot_thread()],
+            _independent_argv("--disposition", "deferred", "--tracker-item", "#42"),
+            gh_results=[_proc(1)],
+        )
+        threads = cast(list[dict[str, object]], payload["threads"])
+        self.assertEqual(threads[0]["action"], "refused-tracker-item-not-found")
+        self.assertEqual(code, 10)
+
+    def test_incorrect_resolves_when_the_rebuttal_is_on_the_thread(self) -> None:
+        code, payload = _run_independent(
+            [_bot_thread(reply_bodies=["The anchor points at generated output."])],
+            _independent_argv(
+                "--disposition", "incorrect",
+                "--counter-evidence", "anchor points at generated output",
+            ),
+        )
+        threads = cast(list[dict[str, object]], payload["threads"])
+        self.assertEqual(threads[0]["action"], "resolved")
+        self.assertEqual(threads[0]["disposition"], "incorrect")
+        self.assertEqual(code, 0)
+
+    def test_incorrect_refuses_when_the_rebuttal_is_only_asserted(self) -> None:
+        # The rebuttal has to be visible where the finding is, not just on the
+        # command line of the process resolving it.
+        code, payload = _run_independent(
+            [_bot_thread(reply_bodies=["Acknowledged."])],
+            _independent_argv(
+                "--disposition", "incorrect",
+                "--counter-evidence", "anchor points at generated output",
+            ),
+        )
+        threads = cast(list[dict[str, object]], payload["threads"])
+        self.assertEqual(threads[0]["action"], "refused-counter-evidence-not-found")
+        self.assertEqual(code, 10)
+
+    def test_incorrect_ignores_the_opening_comment(self) -> None:
+        # replyBodies excludes the opener, so the bot's own finding text can
+        # never satisfy the claim that the finding is wrong.
+        code, payload = _run_independent(
+            [_bot_thread(reply_bodies=[])],
+            _independent_argv(
+                "--disposition", "incorrect", "--counter-evidence", "a.py",
+            ),
+        )
+        threads = cast(list[dict[str, object]], payload["threads"])
+        self.assertEqual(threads[0]["action"], "refused-counter-evidence-not-found")
+        self.assertEqual(code, 10)
+
+    def test_list_mode_validates_evidence_too(self) -> None:
+        # A dry run that skipped validation would predict would-resolve for
+        # evidence the world rejects — the one answer this mode exists to stop.
+        _, payload = _run_independent(
+            [_bot_thread(reply_bodies=["Acknowledged."])],
+            [
+                "owner/repo#1", "--allowed-owners", "owner",
+                "--independent-resolver", "--thread-id", "T_bot",
+                "--disposition", "incorrect", "--counter-evidence", "not present",
+            ],
+        )
+        threads = cast(list[dict[str, object]], payload["threads"])
+        self.assertEqual(threads[0]["action"], "refused-counter-evidence-not-found")
+
+
+class ExistingModesUnchanged(unittest.TestCase):
+    """#1632 regression: the new mode is parallel, not a relaxation."""
+
+    def test_autonomous_still_refuses_a_current_thread(self) -> None:
+        result = _run(
+            [_thread("T_bot", "codex[bot]", "Bot", bot_only=True, is_outdated=False)],
+            ["owner/repo#1", "--allowed-owners", "owner", "--autonomous"],
+        )
+        threads = cast(list[dict[str, object]], result["threads"])
+        self.assertEqual(threads[0]["action"], "skipped-not-outdated")
+        self.assertEqual(result["mode"], "autonomous")
+
+    def test_explicit_mode_reports_no_disposition(self) -> None:
+        result = _run(
+            [_thread("T_bot", "codex[bot]", "Bot", bot_only=True)],
+            ["owner/repo#1", "--allowed-owners", "owner"],
+        )
+        self.assertEqual(result["mode"], "explicit")
+        self.assertIsNone(result["disposition"])
 
 
 if __name__ == "__main__":

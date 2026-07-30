@@ -456,8 +456,45 @@ auto-mode safety classifier and blocks the call before the wrapper runs.
   exactly its prior self, so worker/autopilot's existing gate-proven merges are unchanged. This
   tier is only ever wired when `babysit_autopilot_merge_tier` is enabled.
 - The resolve wrapper's mutating forms are `--autonomous --resolve` (worker tier, constrained by
-  the pre-push-outdated rule in `orchestration.md`) and `--resolve --include-human` (autopilot's
-  addressed-thread widening).
+  the pre-push-outdated rule in `orchestration.md`), `--resolve --include-human` (autopilot's
+  addressed-thread widening), and `--independent-resolver --resolve` (the evidence-gated third
+  mode below).
+- **`--independent-resolver` is a third mode, not a widening of `--autonomous`.** `--autonomous`
+  admits only `isOutdated` threads, and `isOutdated` means the referenced code MOVED — so on a
+  prose or documentation PR, where a finding is normally addressed by rewriting elsewhere in the
+  file, the anchor never moves and the guard refuses a genuinely addressed finding forever. That
+  left an autonomous prose lane with no sanctioned route to zero unresolved threads. This mode
+  replaces `isOutdated` with two other properties. The first is **independence**: it is dispatched
+  to a fresh context that is neither the merging worker nor the author of the fix, so the actor
+  resolving is not the actor whose permission slip it is. That is a property of the dispatch and
+  cannot be checked by the script — which is precisely why the second half is machine-checked
+  here. Everything `--autonomous` guards besides `isOutdated` is retained: bot-only authorship, a
+  single pinned `--thread-id` with both TOCTOU pins, and the security/P1 bright line, because this
+  is still an unattended path. `--autonomous`, `--include-human`, and `--allow-unpinned-thread`
+  are each refused alongside it (exit `2`) — the first because the two modes answer for different
+  actors, the second because widening authorship in the same call that drops `isOutdated` is the
+  combination nothing would guard, the third because there is no unpinned unattended resolve.
+  Bulk is refused in **every** mode here, list included: evidence is a claim about one finding.
+- **The disposition evidence contract, validated against the world.** `--disposition` names the
+  claim and carries exactly its own evidence flag — a mismatched or surplus flag is a usage error,
+  so the script always validates what was actually asserted:
+  - `fixed` + `--fix-commit <sha>` — the SHA must be **reachable from the PR's current head
+    commit**, resolved through the head repository so a fork PR compares correctly. Existence
+    elsewhere in the repository is not evidence that this PR carries the fix.
+  - `deferred` + `--tracker-item <owner/repo#N|#N|N>` — the item must exist and still be **open**.
+    A closed follow-up is not a deferral; it is the finding disappearing.
+  - `incorrect` + `--counter-evidence <text>` — the text must already appear in a **reply** on the
+    thread (the opening comment is excluded, so the bot's own finding cannot satisfy the claim
+    that the finding is wrong). The rebuttal has to be visible where the finding is, not only on
+    the command line of the process resolving it.
+
+  Missing, unparseable, or unverifiable evidence **refuses**: refusing leaves the thread
+  unresolved, which is the recoverable direction, while a suppressed finding is not. Each refusal
+  is its own per-thread `action` — `refused-fix-commit-not-on-head`,
+  `refused-tracker-item-not-found`, `refused-tracker-item-not-open`,
+  `refused-counter-evidence-not-found`, and `refused-evidence-unverifiable` for an API that could
+  not be consulted, kept distinct so an outage is never reported as a false claim. Evidence is
+  validated in list mode too, so a dry run proves the evidence rather than predicting the resolve.
 - **Thread-pin pair rule.** Any `--thread-id` resolve must also pin both
   `--expected-comment-count <n>` and `--expected-last-updated <ts>`, read from that thread's
   `commentCount` and `lastCommentUpdatedAt` in the same list output used to vet it. The wrapper

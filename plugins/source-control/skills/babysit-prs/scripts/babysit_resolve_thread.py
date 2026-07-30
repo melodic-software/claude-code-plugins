@@ -61,6 +61,32 @@ Deterministic guards encoded here:
   thread whose comment page is truncated cannot prove the absence of a marker
   and is refused the same way. Interactive modes are unaffected -- severity
   judgment there stays with the evaluating agent.
+- `--independent-resolver` is a THIRD mode, parallel to `--autonomous` and not a
+  relaxation of it. `--autonomous`'s `isOutdated` requirement is right about the
+  merging worker, but `isOutdated` means "the referenced code moved" -- on a prose
+  or documentation PR a finding is usually addressed by rewriting elsewhere in the
+  file, so the anchor never moves, the finding is genuinely addressed, and the
+  guard refuses. That leaves an autonomous prose lane with no sanctioned route to
+  zero unresolved threads. This mode replaces `isOutdated` with two other
+  properties: INDEPENDENCE (the caller is a fresh context that is not the merging
+  worker and did not author the fix -- the actor resolving is not the actor whose
+  permission slip it is) and validated DISPOSITION EVIDENCE. Independence is a
+  property of the dispatch, not something this script can verify, which is exactly
+  why the evidence half is machine-checked here. Everything else `--autonomous`
+  guards stays: bot-authored threads only, a single pinned `--thread-id` with both
+  TOCTOU pins (bulk refused, `--allow-unpinned-thread` refused), and the
+  severity bright line -- this is still an unattended path, so "never a security or
+  P1 thread" still holds. `--include-human` is refused too: widening authorship and
+  dropping `isOutdated` in the same call is the combination nothing would guard.
+  `--disposition` names one of three claims and its matching evidence flag, and the
+  script validates the evidence AGAINST THE WORLD rather than trusting the claim:
+  `fixed` + `--fix-commit <sha>` (must be reachable from the PR's head commit),
+  `deferred` + `--tracker-item <id>` (must exist and be open), `incorrect` +
+  `--counter-evidence <text>` (must appear in a reply already on the thread).
+  Missing, unparseable, or unverifiable evidence REFUSES the resolve rather than
+  warning: refusing leaves the thread unresolved, which is the recoverable
+  direction, while a suppressed finding is not. Evidence is validated in list mode
+  too, so a dry run proves the evidence instead of merely predicting the resolve.
 - `--only-outdated` independently restricts to `isOutdated` threads in any mode.
 - `--thread-id` operates on one agent-vetted thread. Combined with `--resolve`,
   it requires `--expected-comment-count` AND `--expected-last-updated` to pin
@@ -299,6 +325,15 @@ def project_thread(
             if comments and is_json_object(comments[0])
             else None
         ),
+        # Reply bodies only (never the opener): the `incorrect` disposition is
+        # proven by counter-evidence someone POSTED IN REPLY to the finding, so
+        # scanning the opener would let the bot's own finding text satisfy the
+        # claim that the finding is wrong.
+        "replyBodies": [
+            body
+            for c in comments[1:]
+            if isinstance(body := (c.get("body") if is_json_object(c) else None), str)
+        ],
     }
 
 
@@ -350,8 +385,18 @@ def classify(
     autonomous: bool,
     only_outdated: bool,
     include_human: bool = False,
+    independent: bool = False,
 ) -> str:
-    """Deterministic action label under the active guards."""
+    """Deterministic action label under the active guards.
+
+    `independent` is the third mode's classifier half: it drops ONLY the
+    `isOutdated` requirement, which the mode replaces with caller independence
+    plus validated disposition evidence (validated in `main`, not here -- this
+    function stays a pure function of the projected thread). Every other guard
+    is retained deliberately: the bot-only bright line, and the severity bright
+    line, because an independent resolver is still an unattended path and the
+    permission grants' "never a security or P1 thread" is unconditional.
+    """
     if thread["isResolved"]:
         return "skipped-already-resolved"
     if not thread["botOnly"] and not include_human:
@@ -363,11 +408,153 @@ def classify(
         # unattended: require a deterministic "addressed" signal so the worker
         # cannot resolve a still-current finding and self-satisfy the merge gate
         return "skipped-not-outdated"
-    if autonomous and thread.get("severityFlagged", True):
+    if (autonomous or independent) and thread.get("severityFlagged", True):
         # unattended: never a security or P1 thread. Default True fails closed
         # when the projection did not compute the signal.
         return "skipped-severity-marked"
     return "eligible"
+
+
+# A disposition is admissible only with its own evidence flag, and only that
+# flag -- the pairing is what makes the claim checkable, so a caller cannot
+# assert `fixed` and hand over a tracker id.
+DISPOSITION_EVIDENCE: dict[str, str] = {
+    "fixed": "--fix-commit",
+    "deferred": "--tracker-item",
+    "incorrect": "--counter-evidence",
+}
+
+FIX_COMMIT_RE = re.compile(r"\A[0-9a-fA-F]{7,40}\Z")
+# owner/repo#N, #N, or a bare N (bare and #N default to the PR's own repo).
+TRACKER_ITEM_RE = re.compile(
+    r"\A(?:(?P<repo>[A-Za-z0-9._-]+/[A-Za-z0-9._-]+)#|#)?(?P<number>[0-9]+)\Z"
+)
+
+
+def verify_fix_commit(repo: str, number: int, sha: str) -> tuple[bool, str]:
+    """True when `sha` is reachable from the PR's CURRENT head commit.
+
+    Reachability, not existence: a SHA that exists somewhere in the repository
+    (another branch, an abandoned attempt) is not evidence that this PR carries
+    the fix. The comparison runs against the HEAD repository, which differs from
+    the base repository on a fork PR, so resolving it from the PR rather than
+    assuming `repo` is what makes the check work cross-fork.
+
+    Returns (verified, refusal_action). The refusal action distinguishes "the
+    world says no" from "the world could not be consulted" -- both refuse, but
+    conflating them would report an API outage as a caller lying about a fix.
+    """
+    proc = gh_capture(
+        [
+            "pr",
+            "view",
+            str(number),
+            "--repo",
+            repo,
+            "--json",
+            "headRefOid,headRepository,headRepositoryOwner",
+        ]
+    )
+    if proc.returncode != 0:
+        return False, "refused-evidence-unverifiable"
+    try:
+        payload = json.loads(proc.stdout or "null")
+    except json.JSONDecodeError:
+        return False, "refused-evidence-unverifiable"
+    head_oid = dig(payload, "headRefOid")
+    head_name = dig(payload, "headRepository", "name")
+    head_owner = dig(payload, "headRepositoryOwner", "login")
+    if not (
+        isinstance(head_oid, str)
+        and isinstance(head_name, str)
+        and isinstance(head_owner, str)
+    ):
+        return False, "refused-evidence-unverifiable"
+
+    compare = gh_capture(
+        ["api", f"repos/{head_owner}/{head_name}/compare/{sha}...{head_oid}"]
+    )
+    if compare.returncode != 0:
+        # A SHA absent from the head repository 404s here. That is the world
+        # answering "no such commit", which is a not-on-head refusal rather than
+        # an unreachable-API one.
+        return False, "refused-fix-commit-not-on-head"
+    try:
+        result = json.loads(compare.stdout or "null")
+    except json.JSONDecodeError:
+        return False, "refused-evidence-unverifiable"
+    status = dig(result, "status")
+    behind_by = dig(result, "behind_by")
+    # base=sha, head=head_oid: `identical` or `ahead` both mean head_oid
+    # descends from sha with no divergence, i.e. sha IS in the head branch's
+    # history. `behind_by == 0` restates that from the other side, so a
+    # `diverged`/`behind` result cannot slip through on status alone.
+    if status in ("identical", "ahead") and behind_by == 0:
+        return True, ""
+    return False, "refused-fix-commit-not-on-head"
+
+
+def verify_tracker_item(default_repo: str, token: str) -> tuple[bool, str]:
+    """True when the named tracker item exists and is OPEN.
+
+    An item that is already closed is not a deferral -- it is a claim that the
+    follow-up is filed pointing at work nobody will do, which is
+    indistinguishable from suppressing the finding.
+    """
+    match = TRACKER_ITEM_RE.match(token.strip())
+    if not match:
+        return False, "refused-tracker-item-not-found"
+    repo = match.group("repo") or default_repo
+    proc = gh_capture(["api", f"repos/{repo}/issues/{match.group('number')}"])
+    if proc.returncode != 0:
+        return False, "refused-tracker-item-not-found"
+    try:
+        payload = json.loads(proc.stdout or "null")
+    except json.JSONDecodeError:
+        return False, "refused-evidence-unverifiable"
+    state = dig(payload, "state")
+    if state == "open":
+        return True, ""
+    if isinstance(state, str):
+        return False, "refused-tracker-item-not-open"
+    return False, "refused-tracker-item-not-found"
+
+
+def verify_counter_evidence(thread: dict[str, object], text: str) -> tuple[bool, str]:
+    """True when `text` appears in a reply already posted on the thread.
+
+    The evidence must be ON the thread, not merely asserted on the command line:
+    the point of the `incorrect` disposition is that the rebuttal is visible to
+    whoever reads the thread later. Case-insensitive substring, because the
+    caller is quoting a fragment of a reply it did not necessarily author.
+    """
+    needle = text.strip().casefold()
+    if not needle:
+        return False, "refused-counter-evidence-not-found"
+    replies = thread.get("replyBodies")
+    if not isinstance(replies, list):
+        return False, "refused-counter-evidence-not-found"
+    if any(isinstance(body, str) and needle in body.casefold() for body in replies):
+        return True, ""
+    return False, "refused-counter-evidence-not-found"
+
+
+def verify_disposition(
+    thread: dict[str, object],
+    *,
+    repo: str,
+    number: int,
+    disposition: str,
+    fix_commit: str | None,
+    tracker_item: str | None,
+    counter_evidence: str | None,
+) -> tuple[bool, str]:
+    """Dispatch to the validator for the claimed disposition."""
+    if disposition == "fixed":
+        return verify_fix_commit(repo, number, str(fix_commit))
+    if disposition == "deferred":
+        return verify_tracker_item(repo, str(tracker_item))
+    return verify_counter_evidence(thread, str(counter_evidence))
 
 
 def parse_allowed_owners(raw: str | None) -> set[str]:
@@ -406,6 +593,51 @@ def main() -> int:
         "--autonomous",
         action="store_true",
         help="unattended-worker guard: resolve only outdated bot threads",
+    )
+    parser.add_argument(
+        "--independent-resolver",
+        action="store_true",
+        help=(
+            "third mode: a fresh non-merging context resolves ONE pinned bot "
+            "thread on validated disposition evidence instead of isOutdated; "
+            "requires --disposition and its matching evidence flag"
+        ),
+    )
+    parser.add_argument(
+        "--disposition",
+        choices=sorted(DISPOSITION_EVIDENCE),
+        default=None,
+        help=(
+            "the claim being made about the finding, for --independent-resolver: "
+            "fixed (--fix-commit), deferred (--tracker-item), or incorrect "
+            "(--counter-evidence). The script validates the evidence against the "
+            "world, not the claim"
+        ),
+    )
+    parser.add_argument(
+        "--fix-commit",
+        default=None,
+        help=(
+            "evidence for --disposition fixed: a commit SHA (7-40 hex) that must "
+            "be reachable from the PR's current head commit"
+        ),
+    )
+    parser.add_argument(
+        "--tracker-item",
+        default=None,
+        help=(
+            "evidence for --disposition deferred: owner/repo#N, #N, or N for the "
+            "filed follow-up, which must exist and still be open"
+        ),
+    )
+    parser.add_argument(
+        "--counter-evidence",
+        default=None,
+        help=(
+            "evidence for --disposition incorrect: text that must already appear "
+            "in a reply on the thread, so the rebuttal is visible where the "
+            "finding is"
+        ),
     )
     parser.add_argument(
         "--only-outdated",
@@ -527,6 +759,91 @@ def main() -> int:
         )
         return 2
 
+    def _usage_error(message: str) -> int:
+        print(json.dumps({"pr": args.pr, "error": message}))
+        return 2
+
+    evidence_args: dict[str, str | None] = {
+        "--fix-commit": args.fix_commit,
+        "--tracker-item": args.tracker_item,
+        "--counter-evidence": args.counter_evidence,
+    }
+
+    if not args.independent_resolver:
+        # Evidence flags outside the mode that consumes them would be accepted
+        # and ignored, which reads to the caller like the evidence was checked.
+        stray = [flag for flag, value in evidence_args.items() if value is not None]
+        if args.disposition is not None:
+            stray.insert(0, "--disposition")
+        if stray:
+            return _usage_error(
+                f"{', '.join(stray)} requires --independent-resolver -- these are "
+                "the third mode's evidence contract, and accepting them in a mode "
+                "that never validates them would silently report an unchecked "
+                "claim as a checked one"
+            )
+    else:
+        conflicting = [
+            flag
+            for flag, enabled in (
+                ("--autonomous", args.autonomous),
+                ("--include-human", args.include_human),
+                ("--allow-unpinned-thread", args.allow_unpinned_thread),
+            )
+            if enabled
+        ]
+        if conflicting:
+            return _usage_error(
+                f"--independent-resolver is refused with {', '.join(conflicting)}. "
+                "It is a parallel mode, never a relaxation: --autonomous is the "
+                "merging worker's own guard and cannot also be the independent "
+                "one, --include-human would widen authorship in the same call "
+                "that drops the isOutdated requirement, and there is no unpinned "
+                "unattended resolve"
+            )
+        if args.disposition is None:
+            return _usage_error(
+                "--independent-resolver requires --disposition "
+                f"{{{','.join(sorted(DISPOSITION_EVIDENCE))}}} -- the mode "
+                "resolves on validated evidence, and an unnamed disposition has "
+                "no evidence to validate"
+            )
+        if not args.thread_id:
+            return _usage_error(
+                "--independent-resolver requires a single pinned --thread-id; "
+                "bulk is refused. Evidence is a claim about ONE finding, so a "
+                "bulk call would apply one thread's evidence to every thread"
+            )
+        required_flag = DISPOSITION_EVIDENCE[args.disposition]
+        if evidence_args[required_flag] is None:
+            return _usage_error(
+                f"--disposition {args.disposition} requires {required_flag}; "
+                "missing evidence refuses rather than resolving unproven"
+            )
+        surplus = [
+            flag
+            for flag, value in evidence_args.items()
+            if value is not None and flag != required_flag
+        ]
+        if surplus:
+            return _usage_error(
+                f"--disposition {args.disposition} accepts only {required_flag}; "
+                f"remove {', '.join(surplus)}. Evidence is paired to its claim so "
+                "the script validates what was actually asserted"
+            )
+        if args.fix_commit is not None and not FIX_COMMIT_RE.match(args.fix_commit.strip()):
+            return _usage_error(
+                f"--fix-commit {args.fix_commit!r} is not a 7-40 character hex "
+                "commit SHA; an unparseable SHA is refused, never looked up"
+            )
+        if args.tracker_item is not None and not TRACKER_ITEM_RE.match(
+            args.tracker_item.strip()
+        ):
+            return _usage_error(
+                f"--tracker-item {args.tracker_item!r} is not owner/repo#N, #N, "
+                "or N; an unparseable item id is refused, never looked up"
+            )
+
     if args.resolve and args.autonomous and not args.thread_id:
         print(
             json.dumps(
@@ -638,6 +955,7 @@ def main() -> int:
             autonomous=args.autonomous,
             only_outdated=args.only_outdated,
             include_human=args.include_human,
+            independent=args.independent_resolver,
         )
         entry: dict[str, object] = {
             "id": thread["id"],
@@ -661,6 +979,23 @@ def main() -> int:
         stale_pin = (
             args.resolve and args.thread_id and (count_stale or last_updated_stale)
         )
+        evidence_refusal = ""
+        if verdict == "eligible" and not stale_pin and args.independent_resolver:
+            # Validate in list mode too: a dry run of an evidence-gated mode that
+            # skipped validation would report would-resolve for evidence the
+            # world rejects, which is the one answer this mode exists to prevent.
+            verified, evidence_refusal = verify_disposition(
+                thread,
+                repo=repo,
+                number=number,
+                disposition=args.disposition,
+                fix_commit=args.fix_commit,
+                tracker_item=args.tracker_item,
+                counter_evidence=args.counter_evidence,
+            )
+            if verified:
+                evidence_refusal = ""
+                entry["disposition"] = args.disposition
         if verdict != "eligible":
             entry["action"] = verdict
         elif stale_pin:
@@ -669,6 +1004,9 @@ def main() -> int:
                 entry["expectedCommentCount"] = args.expected_comment_count
             if args.expected_last_updated is not None:
                 entry["expectedLastUpdated"] = args.expected_last_updated
+        elif evidence_refusal:
+            entry["action"] = evidence_refusal
+            entry["disposition"] = args.disposition
         elif not args.resolve:
             entry["action"] = "would-resolve"
         else:
@@ -684,7 +1022,14 @@ def main() -> int:
         json.dumps(
             {
                 "pr": f"{repo}#{number}",
-                "mode": "autonomous" if args.autonomous else "explicit",
+                "mode": (
+                    "autonomous"
+                    if args.autonomous
+                    else "independent-resolver"
+                    if args.independent_resolver
+                    else "explicit"
+                ),
+                "disposition": args.disposition,
                 "action": "resolve" if args.resolve else "list",
                 "onlyOutdated": args.only_outdated,
                 "includeHuman": args.include_human,
@@ -712,6 +1057,18 @@ def main() -> int:
                 ),
                 "skippedSeverityMarked": len(
                     [r for r in results if r["action"] == "skipped-severity-marked"]
+                ),
+                # Independent-resolver refusals, rolled up alongside the other
+                # skip counters so a caller sees "the evidence did not hold"
+                # without re-deriving it from the per-thread action values.
+                "refusedEvidence": len(
+                    [
+                        r
+                        for r in results
+                        if isinstance(r["action"], str)
+                        and cast(str, r["action"]).startswith("refused-")
+                        and r["action"] != "refused-stale-pin"
+                    ]
                 ),
                 "humanThreads": len(
                     [r for r in results if r["action"] == "skipped-human-thread"]
