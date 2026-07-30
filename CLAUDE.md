@@ -64,3 +64,8 @@ costs a full CI round trip to discover. After stripping HTML comments, the body 
 
 Fill in `.github/pull_request_template.md`; an unedited template fails, because its guidance lives
 inside the HTML comments the check strips. A bare `Closes #` with no number also fails.
+
+Enforcement at authoring time: a checked-in PreToolUse gate
+(`.claude/hooks/pr-linkage-mcp-gate.sh`, wired in `.claude/settings.json`) blocks an MCP-created PR
+body that would fail the check; the source-control plugin's `pr-body-linkage-gate` hook covers
+`gh pr create`/`edit` the same way.

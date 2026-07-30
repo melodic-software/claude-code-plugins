@@ -1,5 +1,31 @@
 {
   "worktree": {
     "baseRef": "head"
+  },
+  "extraKnownMarketplaces": {
+    "melodic-software": {
+      "source": {
+        "source": "github",
+        "repo": "melodic-software/claude-code-plugins"
+      }
+    }
+  },
+  "enabledPlugins": {
+    "source-control@melodic-software": true
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "mcp__github__create_pull_request|mcp__github__update_pull_request",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/pr-linkage-mcp-gate.sh",
+            "timeout": 15,
+            "statusMessage": "Checking PR body against the repo's pr-issue-linkage gate..."
+          }
+        ]
+      }
+    ]
   }
 }
