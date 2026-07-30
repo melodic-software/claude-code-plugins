@@ -195,8 +195,21 @@ parity claim.
   both relaunch, and one lane name ends up with two `claude --bg` sessions and
   two `restarted` rows for one effective restart. A run that cannot take the
   lock skips cleanly: exit 0, a `lock-held` flag, nothing launched and nothing
-  written. A lock left by a hard-killed run (no EXIT trap) ages out after an
-  hour so an unattended schedule cannot wedge permanently. `check` and
+  written. A lock left by a hard-killed run (no EXIT trap) is reclaimed so an
+  unattended schedule cannot wedge permanently — but **age alone never
+  reclaims**: the holder records its PID *and a boot identity*, the one-hour
+  bound only decides when to ask, and a lock whose owner is still alive stays
+  held however old it is. The boot identity matters because `kill -0` proves
+  only that some process holds that number, and after a reboot it is very likely
+  reused; a lock from a previous boot is reclaimed whoever holds its PID now,
+  and where no boot identity is available a live PID only defers the reclaim to
+  a hard 24-hour ceiling. That
+  matters because a legitimate run can outlive any bound — `lane-launcher.sh`
+  does an unbounded `git pull --ff-only` and marketplace update before launch.
+  Failing to create the lock is separated from losing the race: an unusable lock
+  **store** (mistyped path, permissions, unavailable volume) exits 4 loudly
+  rather than reporting `lock-held` and exiting 0, which would let an unattended
+  consumer log healthy ticks forever while processing nothing. `check` and
   `--dry-run` mutate nothing and never contend.
 - **Exit codes are honest.** A relaunch that fails, never comes up, trips the
   breaker, or a lane whose telemetry could not be READ (`api-error` — never

@@ -1,7 +1,7 @@
 ---
 name: lanes
 description: "Start, restart, stop, and check loop lanes as named background Claude Code sessions seeded from canonical prompt files — the scripted replacement for the manual morning refresh (cancel loop, clear, re-paste the canonical prompt) across N lanes on a machine. `start`/`restart` first pull the repo and refresh the plugin marketplace, then launch each configured lane with its per-lane model/effort. `consume-restarts` reads each configured lane's telemetry `restart_request` and relaunches the stopped lanes that asked — the scheduled headless reader (#1653). Use when: 'launch my lanes', 'restart the loop lanes', 'start the work lanes', 'morning lane refresh', 'stop a lane', 'which lanes are running', 'lane status', 'consume restart requests', 'lane restart consumer', 'relaunch the lanes that asked'. Mutating and operator-initiated; never touches a session whose name is not a configured lane."
-argument-hint: "[start|restart|status|stop|consume-restarts] [lane...] — start (default); restart/stop accept lane names; consume-restarts takes [check|run|print-schedule]; --config, --repo, --dry-run, --no-pull, --no-update"
+argument-hint: "[start|restart|status|stop|consume-restarts] [lane...] — start (default); restart/stop accept lane names; consume-restarts takes [check|run|print-schedule]; --config, --repo, --target-repo, --dry-run, --no-pull, --no-update"
 user-invocable: true
 disable-model-invocation: true
 shell: bash
