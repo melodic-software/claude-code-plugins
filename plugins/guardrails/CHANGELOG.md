@@ -25,6 +25,19 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   and git's own `-C` is covered alongside them so the narrower slice cannot silently stop honouring a
   relocation git really performs.
 
+- **A wrapper's chdir moved git but no longer moved the guard.** Excluding wrapper argv from
+  git-global parsing must not discard a relocation the wrapper genuinely performs. GNU env documents
+  `-C, --chdir=DIR` as "change working directory to DIR", so `env -C other git a` runs git in `other`
+  and resolves `other`'s alias — while a slice beginning at the git token cannot see that operand at
+  all and read the payload cwd's alias instead. `hook::git_resolve_index`, the only parser that can
+  tell env's `-C` from `-u`'s operand, now reports the wrapper's chdir in
+  `HOOK_GIT_RESOLVED_WRAPPER_DIRS`, and the guard composes it ahead of git's own globals.
+
+  Every spelling GNU env accepts is read — `-C DIR`, `-CDIR`, `--chdir DIR`, `--chdir=DIR`, and a
+  clustered `-vC DIR` — because one unhandled spelling is the whole bypass again; a repeat within one
+  `env` is last-wins against the invoking cwd, as env itself resolves it. `sudo`'s own `-D`/`--chdir`
+  is read in its unclustered spellings.
+
 ## [0.18.1]
 
 ### Fixed

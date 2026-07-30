@@ -523,6 +523,7 @@ nested_repo "$WRAP/outer"
 nested_repo "$WRAP/outer/child"
 nested_repo "$WRAP/outer/git"
 nested_repo "$WRAP/outer/git/child"
+nested_repo "$WRAP/outer/other"
 
 if [[ -d "$WRAP/outer/child/.git" && -d "$WRAP/outer/git/child/.git" ]]; then
   # The repository git ACTUALLY reaches carries the non-canonical commit; the
@@ -548,6 +549,63 @@ if [[ -d "$WRAP/outer/child/.git" && -d "$WRAP/outer/git/child/.git" ]]; then
     '{tool_name:"Bash",tool_input:{command:$c},cwd:$d}' |
     timeout 30 bash "$HOOK" >/dev/null 2>&1
   assert_exit "git's own -C still relocates the alias lookup" 2 "$?"
+fi
+
+# --- a wrapper's chdir is not git's global, but it still MOVES git -------------
+# The mirror image of the case above: excluding wrapper argv from git-global
+# parsing must not discard a relocation the wrapper really performs. GNU env
+# documents `-C, --chdir=DIR` as "change working directory to DIR", so
+# `env -C other git a` runs git in `other` and resolves `other`'s alias — a slice
+# that starts at the git token cannot see that, and reading the payload cwd's
+# alias instead let a non-canonical commit through. Every spelling env accepts is
+# covered, because one unhandled spelling is the whole bypass again.
+if [[ -d "$WRAP/outer/other/.git" ]]; then
+  # `other` (where git lands) is non-canonical under `a` and canonical under `k`;
+  # the payload cwd `outer` is the reverse. So a dropped chdir shows up as exit 0
+  # on `a`, and an over-applied one as exit 2 on `k`.
+  git -C "$WRAP/outer/other" config alias.a 'commit --allow-empty -m bypass'
+  git -C "$WRAP/outer/other" config alias.k 'commit -F -'
+  git -C "$WRAP/outer" config alias.a 'commit -F -'
+  git -C "$WRAP/outer" config alias.k 'commit --allow-empty -m bypass'
+
+  wrapper_cd_case() {
+    local label="$1" command="$2" expected="$3" rc
+    MSYS_NO_PATHCONV=1 jq -n --arg c "$command" --arg d "$WRAP/outer" \
+      '{tool_name:"Bash",tool_input:{command:$c},cwd:$d}' |
+      timeout 30 bash "$HOOK" >/dev/null 2>&1
+    rc=$?
+    ((rc == 124)) && bad "$label: exceeded the 30s ceiling"
+    ((rc == 124)) || assert_exit "$label" "$expected" "$rc"
+  }
+
+  wrapper_cd_case "env -C moves git, so the alias lookup follows" \
+    "env -C other git a" 2
+  wrapper_cd_case "env --chdir=DIR (attached long form) moves git" \
+    "env --chdir=other git a" 2
+  wrapper_cd_case "env --chdir DIR (separated long form) moves git" \
+    "env --chdir other git a" 2
+  wrapper_cd_case "env -CDIR (attached short form) moves git" \
+    "env -Cother git a" 2
+  # env clusters its short options, so a valueless flag can hide the chdir in the
+  # same word: `-vC` is --debug plus --chdir, and an exact `-C` match misses it.
+  wrapper_cd_case "env -vC DIR (clustered short form) moves git" \
+    "env -vC other git a" 2
+  wrapper_cd_case "env -u NAME before the chdir does not consume it" \
+    "env -uFOO -C other git a" 2
+  # env keeps --chdir in ONE slot, so a repeat is last-wins and a relative
+  # operand resolves against the cwd env was invoked from: `-C other -C .` lands
+  # in the payload cwd, NOT in `other/.`. Composing them cumulatively would probe
+  # a path that does not exist and read no alias at all.
+  wrapper_cd_case "repeated env -C is last-wins, not cumulative (lands in cwd)" \
+    "env -C other -C . git a" 0
+  wrapper_cd_case "repeated env -C is last-wins (lands in the LAST operand)" \
+    "env -C . -C other git a" 2
+  # Over-correction guard: the chdir must not turn a canonical commit into a
+  # block, and it must compose ahead of git's own globals rather than replace them.
+  wrapper_cd_case "a canonical commit through the same wrapper stays allowed" \
+    "env -C other git k" 0
+  wrapper_cd_case "env -C with a plain canonical commit stays allowed" \
+    "env -C other git commit -F -" 0
 fi
 
 # --- `!` bodies start at the outer repository's TOP LEVEL ---------------------
