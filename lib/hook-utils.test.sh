@@ -357,6 +357,7 @@ fi
 rfp() { # <project_dir> <file_path> → stdout: emitted path; rc: guard verdict
   MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL='*' jq -n --arg fp "$2" '{tool_input: {file_path: $fp}}' |
     (
+      # shellcheck disable=SC2030 # subshell-local by design: the override must not leak into the suite
       export CLAUDE_PROJECT_DIR="$1"
       hook::read_file_path
     )
@@ -495,6 +496,108 @@ if [[ "${OSTYPE:-}" == msys* || "${OSTYPE:-}" == cygwin* || "${OSTYPE:-}" == win
   rm -rf "$PROJ12B" "$OUT12B"
 else
   ok "read_file_path: 8.3 short-form SKIPPED (non-Windows host or no cygpath — 8.3 names are a Windows volume feature)"
+fi
+
+# --- Test 12c: read_file_path — the OS temp tree is not project content -------
+# Prefix membership is not project membership. When CLAUDE_PROJECT_DIR is the
+# user's home — the shape a session started outside any checkout takes — the
+# harness's own per-session scratchpad under the OS temp root passes the prefix
+# test, and every hook that scopes on this guard then lints, rewrites, or
+# autocorrects a file that is not project content and has no project config to
+# opt out with (#1769).
+#
+# The fixture mirrors that shape without depending on where this host puts its
+# temp tree: an outer project root OUTSIDE any temp tree, with a stand-in temp
+# root nested inside it that TMPDIR/TMP/TEMP point at for the duration of the
+# case. $HOME is the one portable location guaranteed to sit outside the temp
+# tree on both hosts; when it does not (an exotic CI whose HOME is itself under
+# temp), the shape cannot be built and the cases SKIP with a visible reason —
+# absence of coverage, never a pass.
+rfp_tmp() { # <temp_root> <project_dir> <file_path> → stdout: path; rc: verdict
+  MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL='*' jq -n --arg fp "$3" '{tool_input: {file_path: $fp}}' |
+    (
+      # shellcheck disable=SC2030,SC2031 # subshell-local by design: the overrides must not leak into the suite
+      export CLAUDE_PROJECT_DIR="$2" TMPDIR="$1" TMP="$1" TEMP="$1"
+      hook::read_file_path
+    )
+}
+
+PROJ12C=""
+if [[ -n "${HOME:-}" && -d "${HOME:-}" ]]; then
+  PROJ12C=$(mktemp -d "$HOME/.hook-utils-test.XXXXXX" 2>/dev/null) || PROJ12C=""
+fi
+if [[ -n "$PROJ12C" ]] && ! hook::under_temp_root "$(hook::normalize_path "$(hook::physical_path "$PROJ12C")")"; then
+  mkdir -p "$PROJ12C/scratchpad"
+  echo 'y = 2' >"$PROJ12C/scratchpad/inventory.py"
+  echo 'x = 1' >"$PROJ12C/inside.py"
+
+  # THE REGRESSION: a file in the temp tree, reached from a project root that is
+  # not itself in the temp tree, is scratch — not project content.
+  if got=$(rfp_tmp "$PROJ12C/scratchpad" "$PROJ12C" "$PROJ12C/scratchpad/inventory.py"); then
+    fail "read_file_path: temp-tree file admitted under a non-temp project root (got '$got') — home-shaped project dir admits the harness scratchpad"
+  else
+    ok "read_file_path: temp-tree file rejected under a non-temp project root"
+  fi
+
+  # The exemption the fix must preserve: when the project root IS the temp root,
+  # a file under it is the project (a `mktemp -d` fixture checkout — how this
+  # repo's own hook suites run), so the branch must stay quiet.
+  if got=$(rfp_tmp "$PROJ12C/scratchpad" "$PROJ12C/scratchpad" "$PROJ12C/scratchpad/inventory.py") &&
+    [[ "$got" == "$PROJ12C/scratchpad/inventory.py" ]]; then
+    ok "read_file_path: temp-rooted project still admits its own files"
+  else
+    fail "read_file_path: temp-rooted project rejected its own file (got '$got') — the mktemp-fixture exemption regressed"
+  fi
+
+  # Control: an in-project file outside the temp tree is unaffected.
+  if got=$(rfp_tmp "$PROJ12C/scratchpad" "$PROJ12C" "$PROJ12C/inside.py") &&
+    [[ "$got" == "$PROJ12C/inside.py" ]]; then
+    ok "read_file_path: in-project file outside the temp tree still accepted"
+  else
+    fail "read_file_path: in-project file outside the temp tree rejected (got '$got')"
+  fi
+
+  # Windows spells its temp root with backslashes: TMP/TEMP arrive as a
+  # drive-letter path with backslash separators, while TMPDIR carries the POSIX
+  # form of a DIFFERENT spelling of the same directory. A candidate list that
+  # only handles the POSIX form recognizes nothing on the host where this defect
+  # was reported, so the backslash spelling is exercised on its own.
+  if command -v cygpath >/dev/null 2>&1 &&
+    win_tmp=$(cygpath -w -- "$PROJ12C/scratchpad" 2>/dev/null) && [[ -n "$win_tmp" ]]; then
+    got=$(MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL='*' jq -n --arg fp "$PROJ12C/scratchpad/inventory.py" '{tool_input: {file_path: $fp}}' |
+      (
+        # shellcheck disable=SC2030,SC2031 # subshell-local by design
+        export CLAUDE_PROJECT_DIR="$PROJ12C" TMP="$win_tmp" TEMP="$win_tmp"
+        unset TMPDIR
+        hook::read_file_path
+      ))
+    if [[ -n "$got" ]]; then
+      fail "read_file_path: backslash-spelled temp root not recognized (got '$got')"
+    else
+      ok "read_file_path: temp root spelled in Windows backslash form is recognized"
+    fi
+  else
+    ok "read_file_path: backslash temp-root spelling SKIPPED (no cygpath — the spelling is Windows-only)"
+  fi
+
+  rm -rf "$PROJ12C"
+else
+  [[ -n "$PROJ12C" ]] && rm -rf "$PROJ12C"
+  ok "read_file_path: temp-tree scoping SKIPPED (no writable HOME outside the temp tree on this host — no coverage here, not a pass)"
+fi
+
+# --- Test 12d: under_temp_root — the filesystem root as a temp candidate ------
+# A candidate of `/` contains every absolute path. Trimming its trailing slash
+# empties the string, and an empty candidate is discarded — so `TMPDIR=/` used
+# to recognize nothing at all instead of everything.
+if (
+  # shellcheck disable=SC2030,SC2031 # subshell-local by design: the overrides must not leak into the suite
+  export TMPDIR=/ TMP=/ TEMP=/
+  hook::under_temp_root "$HOME/anywhere/at-all.py"
+); then
+  ok "under_temp_root: root temp candidate contains every path"
+else
+  fail "under_temp_root: root temp candidate discarded — '/' trimmed to empty"
 fi
 
 # --- Test 13: hook::telemetry_enabled — cheap sink-presence probe -------------
@@ -887,7 +990,10 @@ fi
 # jq-present timeout shape specifically.
 bs_rc_file="$(mktemp)"
 bs_err_file="$(mktemp)"
-{ printf '{"incomplete":'; sleep 1; } | {
+{
+  printf '{"incomplete":'
+  sleep 1
+} | {
   CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT=0.4 hook::buffer_stdin >/dev/null 2>"$bs_err_file"
   echo "$?" >"$bs_rc_file"
 }
@@ -907,7 +1013,10 @@ rm -f "$bs_rc_file" "$bs_err_file"
 # the chunked read from turning every slow producer into a blocked tool call.
 bs_rc_file="$(mktemp)"
 bs_out_file="$(mktemp)"
-{ printf '{"complete":true}'; sleep 1; } | {
+{
+  printf '{"complete":true}'
+  sleep 1
+} | {
   CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT=0.4 hook::buffer_stdin >"$bs_out_file" 2>/dev/null
   echo "$?" >"$bs_rc_file"
 }
@@ -934,7 +1043,10 @@ fi
 bs_time_late_eof() { # $1 = shell prelude; prints elapsed ms (empty if untimed)
   local t_file
   t_file="$(mktemp)"
-  { printf '{"complete":true}'; sleep 3; } | {
+  {
+    printf '{"complete":true}'
+    sleep 3
+  } | {
     CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT=1.2 bash -c '
       source "$1"
       eval "$2"
@@ -1091,7 +1203,10 @@ else
 fi
 
 : >"$bs_out_file"
-{ printf '{"incomplete":'; sleep 2; } | {
+{
+  printf '{"incomplete":'
+  sleep 2
+} | {
   CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT=0.4 \
     bash -c "${force_legacy}"'hook::buffer_stdin' _ "$HOOK_DIR/hook-utils.sh" \
     >"$bs_out_file" 2>/dev/null
@@ -1137,7 +1252,10 @@ done
 # A VALID non-default value must still be honored — the guard must not collapse
 # every setting to the default. 0.5 s against a producer that stalls for 3 s.
 bs_rc_file="$(mktemp)"
-{ printf '{"incomplete":'; sleep 3; } | {
+{
+  printf '{"incomplete":'
+  sleep 3
+} | {
   CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT=0.5 hook::buffer_stdin >/dev/null 2>&1
   echo "$?" >"$bs_rc_file"
 }
@@ -1163,7 +1281,10 @@ bs_time_stall() { # $1 = shell prelude; prints elapsed ms (empty if untimed)
   local t_file
   t_file="$(mktemp)"
   # Bytes land immediately, then the pipe goes quiet well past two bounds.
-  { printf '{"partial":'; sleep 4; } | {
+  {
+    printf '{"partial":'
+    sleep 4
+  } | {
     CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT=1.2 bash -c '
       source "$1"
       eval "$2"
@@ -1208,7 +1329,10 @@ bs_time_held_open() { # $1 = exact payload length in bytes; prints elapsed ms
   payload_file="$(mktemp)"
   t_file="$(mktemp)"
   bs_make_payload "$1" "$payload_file"
-  { cat "$payload_file"; sleep 3; } | {
+  {
+    cat "$payload_file"
+    sleep 3
+  } | {
     CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT=1.2 bash -c '
       source "$1"
       printf "%s\n" "${EPOCHREALTIME:-0}"
@@ -1335,6 +1459,66 @@ subject_is "ordinary command yields basename subject" \
 # Preserved: a non-Bash tool returns its name unchanged.
 subject_is "non-Bash tool returns the tool name" \
   "Write" "irrelevant" "Write"
+
+# --- hook::git_resolve_index reports a wrapper's chdir ------------------------
+# A caller that scopes its git-global parsing to [gi, sub_idx) cannot see a
+# relocation the wrapper performs, so the resolver — the only parser that knows
+# which wrapper options take a value — reports it. `env -C DIR` moves git; the
+# `-C` in `env -u -C git` is -u's operand and moves nothing.
+# resolve_dirs_are <desc> <expected-dirs-joined-by-|> <argv...>
+resolve_dirs_are() {
+  local desc="$1" expected="$2"
+  shift 2
+  local got rc
+  hook::git_resolve_index "$@"
+  rc=$?
+  got=$(
+    IFS='|'
+    printf '%s' "${HOOK_GIT_RESOLVED_WRAPPER_DIRS[*]-}"
+  )
+  if ((rc != 0)); then
+    fail "$desc: resolver did not find git (rc=$rc)"
+  elif [[ "$got" == "$expected" ]]; then
+    ok "$desc"
+  else
+    fail "$desc: expected [$expected], got [$got]"
+  fi
+}
+
+resolve_dirs_are "no wrapper reports no chdir" "" git commit
+resolve_dirs_are "env with no options reports no chdir" "" env git commit
+resolve_dirs_are "env -C DIR reports the chdir" "other" env -C other git commit
+resolve_dirs_are "env -CDIR (attached short) reports the chdir" "other" env -Cother git commit
+resolve_dirs_are "env --chdir DIR reports the chdir" "other" env --chdir other git commit
+resolve_dirs_are "env --chdir=DIR reports the chdir" "other" env --chdir=other git commit
+# env clusters short options, so a valueless flag can carry the chdir in the same
+# word: -vC is --debug plus --chdir, which no exact -C match sees.
+resolve_dirs_are "env -vC DIR (clustered) reports the chdir" "other" env -vC other git commit
+resolve_dirs_are "env -iC DIR (clustered) reports the chdir" "other" env -iC other git commit
+# -u consumes the NEXT word as a variable name, so this -C is env's operand and
+# git never moves. Reporting it here is the bypass this whole boundary exists for.
+resolve_dirs_are "env -u swallows -C, so no chdir is reported" "" env -u -C git commit
+resolve_dirs_are "env -uNAME (attached) leaves a later -C as env's chdir" "other" env -uFOO -C other git commit
+# One env keeps --chdir in a single slot, so a repeat is last-wins, not cumulative.
+resolve_dirs_are "repeated env -C is last-wins within one env" "second" env -C first -C second git commit
+# Operands and the option terminator must not be read as options.
+resolve_dirs_are "env NAME=value operand carries no chdir" "" env FOO=bar git commit
+resolve_dirs_are "env -- ends option parsing" "other" env -C other -- git commit
+resolve_dirs_are "a chdir BEFORE the operand still counts" "other" env -C other FOO=1 git commit
+# A NAME=value operand ends option parsing too, so `env FOO=1 -C dir git …` makes
+# env look for a command literally named `-C` and fail — nothing runs, and the
+# resolver reports no git rather than recording a chdir env never performs.
+if hook::git_resolve_index env FOO=1 -C other git commit; then
+  fail "a NAME=value operand ends option parsing: resolved git at $HOOK_GIT_RESOLVED_GI, expected none"
+else
+  ok "a NAME=value operand ends option parsing, so no git resolves"
+fi
+# sudo's chdir is -D/--chdir; its -C is close-from and takes a value of its own.
+resolve_dirs_are "sudo -D DIR reports the chdir" "other" sudo -D other git commit
+resolve_dirs_are "sudo --chdir=DIR reports the chdir" "other" sudo --chdir=other git commit
+resolve_dirs_are "sudo -C fd is not a chdir" "" sudo -C 3 git commit
+# Nested wrappers each contribute, in execution order, for the caller to compose.
+resolve_dirs_are "nested wrappers report both chdirs in order" "a|b" env -C a sudo -D b git commit
 
 echo
 echo "PASS=$PASS FAIL=$FAIL"
