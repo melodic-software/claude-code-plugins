@@ -232,6 +232,12 @@ basenames the Resume rule defines above (and, for its reasons, never a name take
   resumed session the grounded findings exist, so doing that forges the ledger instead of
   recovering it.
 
+The Resume rule names the same refused-every-write case and answers it with a re-dispatch rather
+than a persist; that is not a contradiction but the discriminator between the two moments. Resume
+runs after context loss, when the `auditor`'s return is gone and re-dispatch is the only way to get
+findings at all. This check runs at receipt, while the return is still in hand — so persisting it is
+available, and skipping it is what manufactures the resume rule's problem one compaction later.
+
 Then present per the zone table (dumb/unknown: summary + packet pointer, no bulk re-read — the full
 list lives in the packet's grounded-findings file).
 

@@ -26,7 +26,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   contract lock, rather than locking a contract over findings that exist nowhere durable — the
   same ungrounded contract the resume rule already refuses to carry.
 - **The both-names-refused return got a machine-visible marker.** `agents/auditor.md` now requires
-  that return to open with the literal line `PACKET WRITE REFUSED — full findings inline` and to
+  that return to open with the literal ASCII line `PACKET WRITE REFUSED: full findings inline` and to
   carry the COMPLETE findings in place of the summary form, since a refusal mentioned in passing
   reads as a successful run with a caveat and a one-line-per-finding summary is not a ledger the
   main session can persist on the agent's behalf. Step 3 correspondingly refuses to write a

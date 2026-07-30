@@ -31,8 +31,8 @@ name you pick yourself — note the substitution in `evidence.md`, and name the 
 summary. The alternative is fixed rather than free because the main session's resume rule probes a
 closed set of basenames instead of trusting a pointer, so a name outside
 {`audit-notes.md`, `audit-data.md`, `findings.md`} would be unrecoverable after compaction. If BOTH
-names are refused, your return changes shape: open your final message with the literal line
-`PACKET WRITE REFUSED — full findings inline`, then give the COMPLETE findings text in place of the
+names are refused, your return changes shape: open your final message with the literal ASCII line
+`PACKET WRITE REFUSED: full findings inline`, then give the COMPLETE findings text in place of the
 summary form below. The dispatching session's persist-check keys its own backstop write on exactly
 that — a refusal mentioned in passing inside a summary reads as a successful run with a caveat, and
 a summary is not a ledger anyone can persist on your behalf. Never silently drop the packet write,
