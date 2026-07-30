@@ -44,7 +44,8 @@ pre-clear content sits in a sibling — never in the current session's own file.
 
 `/session-flow:handoff`'s output shape is a **stable detection contract** (documented in
 [`${CLAUDE_PLUGIN_ROOT}/reference/save-point.md`](${CLAUDE_PLUGIN_ROOT}/reference/save-point.md)
-"Detection contract"). This skill depends on three signals, in precision order:
+"Detection contract"). This skill depends on three DETECTION signals, in precision order — plus one
+resolution input, `Handoff origin:`, described after them:
 
 1. **The file directive** — `Read @<path>/handoffs/<TS>-handoff-<topic>.md …`. It embeds the exact
    path to recover and survives verbatim into transcript JSONL, so it is the highest-precision key
@@ -60,6 +61,15 @@ pre-clear content sits in a sibling — never in the current session's own file.
    signal that pins the session chain. Corroboration only: the file-mode shape emits the
    `Prior session:` line, but the producer's prompt-only checklist does not require it, so its
    absence never disqualifies a prompt-only candidate.
+
+**`Handoff origin:` is a resolution input, not a detection signal.** It cannot admit or reject a
+candidate — a block is already qualified by the three signals above before it is read — so it is
+deliberately outside that numbered list, and outside the conditional-signal slot the `/loop` re-arm
+note holds below. What the ladder depends on it for is step 3's existence check: it names the
+repository and repo-relative path that let a ROOTED directive survive a machine or checkout change,
+which is the one failure an absolute path has that a relative one does not. It is emitted by the
+file-mode shape only and only since the producer rooted its path, so its absence disqualifies
+nothing — prompt-only never emits it, and no handoff older than the rooted directive has one.
 
 **The resume prompt this skill recovers is the rails block PLUS every below-rail `/loop` re-arm
 message** (save-point.md "Detection contract"). Everything else the producer arms lives between the
@@ -166,21 +176,31 @@ one, since the producer emits a separate re-arm message per surviving loop, so "
      session's context — not a real handoff. Keep only concrete paths. Then confirm the referenced
      file exists on disk, **by the directive's path form**:
      - **Rooted directive** (the current producer shape) — check the absolute path as given. No cwd
-       is involved, so nothing can resolve it against the wrong root.
+       is involved, so nothing can resolve it against the wrong root. **A rooted path can still
+       miss**, and for a reason the rootless form does not have: an absolute path is machine-local,
+       so a resume on a different machine or a different checkout of the same repository finds
+       nothing there. That is exactly the case the producer emits `Handoff origin:` for — so on a
+       rooted miss, read that line and re-resolve its repo-relative path against the repository it
+       names, then fall through to the shared rule below. Never treat a rooted miss as absence: it
+       is the same not-found-here condition, reached from the other direction.
      - **Rootless directive** (every handoff written before the producer rooted its path) —
-       **resolve it against the source transcript's `cwd` field, not the current session's cwd**,
-       and read the `Handoff origin:` line if the block carries one. A handoff recovered from
-       another repo's transcript is otherwise falsely reported missing when checked from here.
-     - **A rootless path that resolves to nothing is UNRESOLVED, never dropped.** That resolution is
-       an inference — it assumes the producer's cwd *was* the repository it wrote into, which is the
-       very assumption that loses the handoff when a session works in a repo that is not cwd's
-       project root. Discarding the candidate there throws away a directive that names the right
-       filename and is the strongest evidence in hand. Keep it, carry the filename and the
-       unresolved relative path, and surface it at step 4 marked UNRESOLVED. Before doing so, spend
-       one bounded, read-only widening: glob that filename under the repository roots already in
-       hand — the current repo and the `cwd` recorded by the candidate transcript — and promote a
-       single unambiguous hit to a resolved candidate. Two or more hits stay UNRESOLVED with the
-       matches listed; the operator picks. Never widen into a machine-wide filesystem sweep.
+       **resolve it against the source transcript's `cwd` field, not the current session's cwd**. A
+       handoff recovered from another repo's transcript is otherwise falsely reported missing when
+       checked from here. These blocks carry no `Handoff origin:` line: it shipped with the rooted
+       form, so nothing older than that has one.
+     - **A path that resolves to nothing — rooted or rootless — is UNRESOLVED, never dropped.**
+       Neither resolution is proof of absence. The rootless one is an inference: it assumes the
+       producer's cwd *was* the repository it wrote into, which is the very assumption that loses
+       the handoff when a session works in a repo that is not cwd's project root. The rooted one is
+       a machine-local literal that a different machine or checkout cannot satisfy. Either way,
+       discarding the candidate throws away a directive that names the right filename and is the
+       strongest evidence in hand. Keep it, carry the filename plus whichever path form was tried,
+       and surface it at step 4 marked UNRESOLVED. Before doing so, spend one bounded, read-only
+       widening: glob that filename under the repository roots already in hand — the current repo,
+       the `cwd` recorded by the candidate transcript, and the repository named by any
+       `Handoff origin:` line — and promote a single unambiguous hit to a resolved candidate. Two or
+       more hits stay UNRESOLVED with the matches listed; the operator picks. Never widen into a
+       machine-wide filesystem sweep.
 
      **Apply step 1's background-delivery screening to these candidates too** — the launch
      signature, if any, sits in this same transcript: a file whose exact directive a verifiably
@@ -261,15 +281,21 @@ one, since the producer emits a separate re-arm message per surviving loop, so "
    resume prompt before the operator confirms. Resuming the **wrong** handoff is worse than
    recovering none.
 
-   **UNRESOLVED candidates are presented, not suppressed.** A candidate whose rootless directive
-   named a file that could not be located is surfaced alongside the resolved ones and labelled
-   `UNRESOLVED`, carrying the directive verbatim, the filename, the transcript `cwd` the relative
-   path was resolved against, and any `Handoff origin:` line. Say plainly that the path has no root
-   rather than that the file is missing — those are different failures, and reporting the second for
-   the first is what makes this expensive to diagnose. Offer the one thing that closes it: the
-   operator names the repository the work was in, and the relative path resolves under it. An
-   UNRESOLVED candidate never auto-wins over a resolved one, and it is never the default answer when
-   a resolved candidate exists.
+   **UNRESOLVED candidates are presented, not suppressed.** A candidate whose directive named a file
+   that could not be located is surfaced alongside the resolved ones and labelled `UNRESOLVED`,
+   carrying the directive verbatim, the filename, and any `Handoff origin:` line. Name the reason
+   precisely rather than reporting "the file is missing" — those are different failures, and
+   reporting absence for either of them is what makes this expensive to diagnose:
+   - **Rootless** — the path has no root, and the transcript `cwd` it was resolved against did not
+     hold it. Say which `cwd` was tried. Closing it takes one fact: the operator names the
+     repository the work was in, and the relative path resolves under it.
+   - **Rooted** — the path is absolute and nothing is at it on THIS machine, which is what a resume
+     on a different machine or checkout looks like. Say the absolute path that was tried, and the
+     repository the `Handoff origin:` line named. Closing it takes the local checkout of that
+     repository.
+
+   An UNRESOLVED candidate never auto-wins over a resolved one, and it is never the default answer
+   when a resolved candidate exists.
 5. **Chain validation (file mode).** Validate each frontmatter pointer against what it actually
    names:
    - `session_id` identifies the **emitting** session. Compare it with the source transcript when

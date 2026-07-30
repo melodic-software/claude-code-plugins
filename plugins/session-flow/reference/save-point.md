@@ -219,9 +219,10 @@ where handoffs land under `${CLAUDE_PLUGIN_DATA}/topic-docs/handoffs/` "with the
 announced prominently" ([`topic-docs.md`](topic-docs.md)) — absolute is already what this engine
 does wherever a relative path has no anchor.
 
-**Render it forward-slash normalized** (`D:/repos/<owner>/<repo>/.work/handoffs/…`), never with
-backslashes: the directive survives into transcript JSONL, where a backslash is escaped again, and
-`find-handoff` greps that record.
+**Render it forward-slash normalized** — `/home/<user>/src/<repo>/.work/handoffs/…` on a POSIX
+host, `D:/repos/<owner>/<repo>/.work/handoffs/…` on Windows — never with backslashes: the directive
+survives into transcript JSONL, where a backslash is escaped again, and `find-handoff` greps that
+record.
 
 **The `@` is an accelerator, not the mechanism.** Official docs state an `@` reference's path "can
 be relative or absolute"
@@ -274,10 +275,16 @@ is exactly the defect rooting removes — so a rootless candidate whose file is 
 **UNRESOLVED, never discarded**: dropping it is what made the recovery ladder unable to recover the
 failure it was written for.
 
-The `Handoff origin:` line is a fourth, **conditional** signal. It is emitted by the file-mode shape
-only, so its absence disqualifies nothing (prompt-only never emits it, and no pre-existing handoff
-has it); when present it names the repository and repo-relative path a recovery can re-resolve from
-when the rooted path does not exist on this machine.
+The `Handoff origin:` line is a **resolution input, not a detection signal** — it cannot admit or
+reject a candidate, so it is neither a fourth key nor the conditional slot the `/loop` re-arm note
+holds below. A consumer reads it only after a candidate has qualified, at the existence check: when
+the ROOTED path does not exist on this machine — a resume on another machine or another checkout,
+which is the one failure mode absolute paths have and relative ones do not — the line names the
+repository and repo-relative path to re-resolve from. **A rooted path that is not found is therefore
+the same not-found-here condition as a rootless one that does not resolve, and gets the same
+UNRESOLVED treatment**; a consumer that reports it as a missing file reintroduces the defect on the
+new path. The line is emitted by the file-mode shape only and only from this version on, so its
+absence disqualifies nothing: prompt-only never emits it, and no handoff written before this has it.
 
 **The recoverable unit is the rails prompt PLUS every below-rail `/loop` re-arm message.** Every other
 element of a resume prompt sits between the rails, so recovering the copy region recovers the whole

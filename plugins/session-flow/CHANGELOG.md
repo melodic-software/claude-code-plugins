@@ -25,12 +25,17 @@
   repository the producer wrote into — and dropped the candidate on the existence check. The
   detection contract now accepts **both** the rooted and the legacy rootless form, matching on the
   shape they share and diverging only at that check, so the corpus already on disk keeps
-  recovering. A rootless path that resolves to nothing is now **UNRESOLVED, not discarded**:
-  the skill spends one bounded, read-only widening over repository roots already in hand, then
-  surfaces the candidate at the confirm gate with its directive verbatim and states that the path
-  has no root rather than that the file is missing.
+  recovering. A path that resolves to nothing is now **UNRESOLVED, not discarded** — on both forms,
+  for different reasons: a rootless one because resolving it against the producer's `cwd` is an
+  inference, and a rooted one because an absolute path is machine-local and a resume on another
+  machine or checkout cannot satisfy it. The rooted miss is exactly what `Handoff origin:` exists
+  for, so the existence check reads that line and re-resolves against the repository it names before
+  giving up. Either way the skill spends one bounded, read-only widening over repository roots
+  already in hand, then surfaces the candidate at the confirm gate with its directive verbatim and
+  names the precise reason — the path has no root, or nothing is at that absolute path on this
+  machine — rather than reporting a missing file.
 
-### Known gaps
+### Notes
 
 - **Rung 1 still cannot correlate a glob candidate to the repository the work was in (#1644).** A
   handoff file records no durable repository identity — the frontmatter carries `type`, `date`,

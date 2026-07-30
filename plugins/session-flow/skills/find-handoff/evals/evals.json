@@ -126,16 +126,31 @@
     {
       "id": 10,
       "name": "rootless-miss-surfaces-unresolved-not-missing",
-      "prompt": "Recover my handoff. The session that wrote it was started from my home directory, but the work was in a different repo.",
-      "expected_output": "The scan finds the correct directive, whose relative path resolves against the transcript's cwd (the home directory) to a file that does not exist. The skill does NOT discard the candidate: it runs one bounded read-only widening over the repository roots already in hand, and if that does not produce a single unambiguous hit it surfaces the candidate marked UNRESOLVED — directive verbatim, filename, the cwd it was resolved against — and states that the path has no root rather than that the file is missing, offering to resolve it once the operator names the repository.",
+      "prompt": "Recover my handoff. It was written months ago, before the resume prompt started carrying absolute paths — the directive in the transcript reads `Read @.work/handoffs/…`. The session that wrote it was started from my home directory, but the work was in a different repo.",
+      "expected_output": "The directive is rootless, so the skill resolves it against the source transcript's cwd (the home directory) and finds no file there. It does NOT discard the candidate: it runs one bounded read-only widening over the repository roots already in hand, and if that does not produce a single unambiguous hit it surfaces the candidate marked UNRESOLVED — directive verbatim, filename, the cwd it was resolved against — and states that the path has no root rather than that the file is missing, offering to resolve it once the operator names the repository. No `Handoff origin:` line exists on a block this old, so nothing is expected to re-resolve from.",
       "files": [],
       "expectations": [
         "A rootless directive whose resolved path does not exist is kept as an UNRESOLVED candidate, never dropped on the existence check",
-        "The skill reports that the path has no root rather than reporting the file as missing — the two are different failures",
+        "The skill reports that the path has no root and names the transcript cwd it was resolved against, rather than reporting the file as missing — the two are different failures",
         "The widening search is bounded to repository roots already in hand (current repo, the candidate transcript's cwd) and never becomes a machine-wide filesystem sweep",
         "Two or more filename matches leave the candidate UNRESOLVED with the matches listed, rather than picking one",
         "An UNRESOLVED candidate is surfaced alongside resolved ones but never auto-wins or becomes the default when a resolved candidate exists",
+        "It does not expect a `Handoff origin:` line on a pre-rooted block, and its absence disqualifies nothing",
         "The skill does not claim rung 1's glob verified the candidate's repository — a handoff file records no durable repository identity, so that correlation stays open"
+      ]
+    },
+    {
+      "id": 11,
+      "name": "rooted-miss-on-another-machine-resolves-via-handoff-origin",
+      "prompt": "Recover the handoff from the session I ran on my work laptop — I'm on my desktop now. The transcript synced over but the repo lives at a different path here.",
+      "expected_output": "The directive is rooted, so its absolute path is checked as given and nothing is there — an absolute path is machine-local, which is precisely the case the producer emits `Handoff origin:` for. The skill reads that line, re-resolves its repo-relative path against the repository it names, and surfaces the recovered file when that lands. When it does not, the candidate is UNRESOLVED rather than missing: the absolute path that was tried and the repository the origin line named are both surfaced, and the reason given is that nothing is at that path on THIS machine — not that the handoff is gone.",
+      "files": [],
+      "expectations": [
+        "A rooted path that does not exist locally is NOT reported as a missing file and is never dropped on the existence check",
+        "The skill reads the `Handoff origin:` line on a rooted miss and re-resolves the repo-relative path against the repository it names",
+        "A successful re-resolution surfaces the recovered file normally; a failed one surfaces the candidate marked UNRESOLVED",
+        "The UNRESOLVED report states the absolute path that was tried and the repository the origin line named, and attributes the miss to this machine rather than to the handoff's absence",
+        "The bounded widening may include the repository named by the origin line, and still never becomes a machine-wide filesystem sweep"
       ]
     }
   ]
