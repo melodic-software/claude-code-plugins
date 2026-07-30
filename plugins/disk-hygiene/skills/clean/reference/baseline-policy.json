@@ -7,13 +7,20 @@
     "NTUSER.DAT",
     "ntuser.dat.LOG1",
     "ntuser.dat.LOG2",
+    "Box",
     "Desktop",
     "Documents",
     "Downloads",
+    "Dropbox",
+    "Google Drive",
+    "iCloudDrive",
     "Music",
     "OneDrive",
     "Pictures",
     "Videos"
+  ],
+  "protected_name_globs": [
+    "OneDrive - *"
   ],
   "hints": [
     {

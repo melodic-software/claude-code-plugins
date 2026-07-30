@@ -65,6 +65,23 @@ def refuse_call(name: str):
     )
 
 
+class StatWithAttributes:
+    """A real stat result re-read with one substituted st_file_attributes word.
+
+    Windows-only attributes cannot be produced on a POSIX test runner, and
+    os.stat_result is not constructible with an st_file_attributes member, so
+    the cloud-placeholder lanes are exercised by proxying a genuine stat and
+    overriding the single field under test.
+    """
+
+    def __init__(self, info: os.stat_result, attributes: int) -> None:
+        self._info = info
+        self.st_file_attributes = attributes
+
+    def __getattr__(self, name: str) -> object:
+        return getattr(self._info, name)
+
+
 class HygieneTests(unittest.TestCase):
     def setUp(self) -> None:
         # Keep every load_policy(None) call independent of the developer
@@ -148,6 +165,115 @@ class HygieneTests(unittest.TestCase):
         )
         with mock.patch.object(Path, "lstat", return_value=info):
             self.assertTrue(hygiene.is_linkish(Path("fixture")))
+
+    def test_cloud_placeholder_is_invisible_to_the_reparse_test(self) -> None:
+        # Measured on a OneDrive for Business sync root, Windows 11: a
+        # dehydrated placeholder reads 0x400020 through os.lstat — ARCHIVE plus
+        # RECALL_ON_DATA_ACCESS — with REPARSE_POINT clear. is_linkish was the
+        # engine's only structural cloud defense and it never fires on this
+        # class, which is why the placeholder predicate is independent of it.
+        placeholder = types.SimpleNamespace(
+            st_mode=0o100644,
+            st_file_attributes=0x20 | hygiene.FILE_ATTRIBUTE_RECALL_ON_DATA_ACCESS,
+        )
+        self.assertTrue(hygiene.is_cloud_placeholder_stat(placeholder))
+        self.assertFalse(hygiene.is_linkish_stat(placeholder))
+
+    def test_offline_attribute_is_read_as_a_cloud_placeholder(self) -> None:
+        # Never observed on OneDrive, which sets RECALL_ON_DATA_ACCESS alone.
+        # It is carried for the iCloud and Dropbox eviction states it documents,
+        # so it needs a pin of its own or a future narrowing would drop it
+        # silently.
+        offline = types.SimpleNamespace(
+            st_mode=0o100644, st_file_attributes=hygiene.FILE_ATTRIBUTE_OFFLINE
+        )
+        self.assertTrue(hygiene.is_cloud_placeholder_stat(offline))
+
+    def test_extended_attribute_bit_is_not_read_as_a_cloud_placeholder(self) -> None:
+        # 0x00040000 is FILE_ATTRIBUTE_RECALL_ON_OPEN and FILE_ATTRIBUTE_EA at
+        # once, and RECALL_ON_OPEN "only appears in directory enumeration
+        # classes" while every read here comes from lstat — so through lstat the
+        # bit means extended attributes. Sweeping two non-cloud trees on the
+        # audit host found 1,552 fully-local files carrying it (.NET build
+        # output, temp .node files). Reading it as a placeholder would protect
+        # exactly the build artifacts this engine exists to reclaim.
+        with_extended_attributes = types.SimpleNamespace(
+            st_mode=0o100644, st_file_attributes=0x20 | 0x00040000
+        )
+        self.assertFalse(hygiene.is_cloud_placeholder_stat(with_extended_attributes))
+
+    def test_hard_protection_names_a_cloud_placeholder(self) -> None:
+        target = Path("X:/target")
+        placeholder = target / "photo.heic"
+        with (
+            mock.patch.object(hygiene, "is_volume_root", return_value=False),
+            mock.patch.object(hygiene, "mount_state", return_value=(False, None)),
+            mock.patch.object(
+                hygiene,
+                "link_and_cloud_state",
+                side_effect=lambda path: (False, path == placeholder),
+            ),
+        ):
+            reasons = hygiene.hard_protection(placeholder, target, set())
+        self.assertIn("cloud-placeholder", reasons)
+        self.assertNotIn("symlink-junction-or-reparse-point", reasons)
+
+    def test_scan_protects_and_qualifies_a_cloud_placeholder_entry(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            root.mkdir()
+            (root / "photo.heic").write_text("dehydrated", encoding="utf-8")
+            (root / "notes.txt").write_text("local work product", encoding="utf-8")
+            real_lstat = Path.lstat
+
+            def lstat_with_placeholder(self: Path) -> object:
+                info = real_lstat(self)
+                if self.name == "photo.heic":
+                    return StatWithAttributes(
+                        info, hygiene.FILE_ATTRIBUTE_RECALL_ON_DATA_ACCESS
+                    )
+                return info
+
+            with mock.patch.object(Path, "lstat", lstat_with_placeholder):
+                snapshot = hygiene.scan_tree(root.resolve(), hygiene.load_policy(None))
+            entries = hygiene.entry_map(snapshot)
+
+            self.assertIn(
+                "cloud-placeholder", entries["photo.heic"]["protected_reasons"]
+            )
+            # The byte count stays recorded, but qualified: it is the REMOTE
+            # size, so a reader can never total it as reclaimable local bytes.
+            self.assertEqual(
+                ["cloud-placeholder"], entries["photo.heic"]["size_qualifiers"]
+            )
+            self.assertEqual([], entries["notes.txt"]["protected_reasons"])
+            self.assertEqual([], entries["notes.txt"]["size_qualifiers"])
+
+    def test_tenant_cloud_sync_root_name_is_protected(self) -> None:
+        # The OneDrive for Business sync root embeds the organization name, so
+        # no exact name can cover it and a consumer overlay cannot either:
+        # additional_protected_path_globs match relative to the scan target.
+        names = hygiene.baseline_protected_names()
+        for spelling in ("OneDrive - Contoso", "onedrive - contoso"):
+            self.assertTrue(hygiene.has_protected_name(Path(spelling), names))
+        self.assertFalse(hygiene.has_protected_name(Path("OneDriver"), names))
+
+    def test_cloud_sync_root_blocks_descendant_inventory(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            sync_root = root / "OneDrive - Contoso"
+            sync_root.mkdir(parents=True)
+            (sync_root / "quarterly.xlsx").write_text("tenant", encoding="utf-8")
+
+            snapshot = hygiene.scan_tree(root.resolve(), hygiene.load_policy(None))
+            entries = hygiene.entry_map(snapshot)
+
+            self.assertIn(
+                "baseline-protected-name",
+                entries["OneDrive - Contoso"]["protected_reasons"],
+            )
+            self.assertNotIn("OneDrive - Contoso/quarterly.xlsx", entries)
+            self.assertEqual(["OneDrive - Contoso"], snapshot["truncated_paths"])
 
     def test_reparse_in_any_target_component_is_rejected(self) -> None:
         target = Path("root") / "junction" / "child"

@@ -142,9 +142,12 @@ rule below.
 ## 2. Establish evidence and ownership
 
 A hint annotation is not the only trigger for triage: at a user-home target, treat any loose
-root-level entry that is not in `protected_exact_names` and does not belong to a recognizable
+root-level entry whose `protected_reasons` is empty and that does not belong to a recognizable
 app/config convention as suspicious too — the snapshot already carries it (every walked entry is
 recorded with a possibly-empty `hints` list), so nothing further needs discovering, only judging.
+Read the entry's own `protected_reasons`, never one policy field: protection also comes from name
+patterns and from live filesystem state, and an entry that names a single field as its filter will
+step straight past a cloud-sync root whose name embeds a tenant.
 This positional read is how session-state droppings that share no common name (a runner-controller
 status snapshot, a one-off data export) surface for ownership triage even without a matching hint.
 
