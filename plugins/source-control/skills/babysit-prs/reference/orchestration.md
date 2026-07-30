@@ -381,9 +381,12 @@ same-worktree protections.
   `manage_feedback_ledger.py record-worker-checkin` under that PR's worker lease —
   unconditionally, regardless of what the worker later finds or whether it completes; see the
   Safety Net section for why this must happen at dispatch, not at cleanup.
-- Route every addressed-but-unresolvable current bot thread a worker reports to the independent
-  resolution dispatch ([`independent-resolution.md`](independent-resolution.md)), while that PR's
-  worker lease is still held and before Cleanup releases it. The orchestrator does not resolve the
+- **In a thread-resolving tier only** (`worker`, `autopilot`), route every addressed-but-unresolvable
+  current bot thread a worker reports to the independent resolution dispatch
+  ([`independent-resolution.md`](independent-resolution.md)), while that PR's
+  worker lease is still held and before Cleanup releases it. **The safe tier dispatches nothing** —
+  it never resolves threads (`SKILL.md`), and a dispatch it made would resolve one through a
+  subagent, so it reports the thread as a blocker and stops there. The orchestrator does not resolve the
   thread itself: it holds the merge decision, so adjudicating the thread that unblocks its own merge
   is the same self-certification the worker-side `isOutdated` guard exists to prevent, moved one hop
   up. It dispatches a fresh subagent that authored neither the fix nor the counter-evidence, which

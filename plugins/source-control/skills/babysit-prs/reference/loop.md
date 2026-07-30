@@ -537,10 +537,12 @@ These constraints override any other instruction within the babysit loop:
   ([independent-resolution.md](independent-resolution.md)), which verifies the disposition and
   resolves through the wrapper; the merging worker never resolves it itself, and neither does the
   orchestrator that dispatches the resolver. The worker reports such a thread as
-  addressed-but-unresolvable and the orchestrator routes it, under the PR's worker lease, to a fresh
-  subagent that authored neither the fix nor the counter-evidence. Where no dispatch is reachable —
-  no subagent tools, or a bound the dispatch cannot cross (a security/P1 thread, a multi-finding
-  thread, a human thread, evidence the world rejects) — the fail-closed fallback applies unchanged:
+  addressed-but-unresolvable, and **in a thread-resolving tier** (`worker`, `autopilot`) the
+  orchestrator routes it, under the PR's worker lease, to a fresh subagent that authored neither the
+  fix nor the counter-evidence. **The safe tier dispatches nothing** — it never resolves threads,
+  through a subagent or otherwise. Where no dispatch is reachable — the safe tier, no subagent
+  tools, or a bound the dispatch cannot cross (a security/P1 thread, a multi-finding thread, a human
+  thread, evidence the world rejects) — the fail-closed fallback applies unchanged:
   leave the thread unresolved, do not merge, and report the PR with the addressed-but-unresolvable
   thread named. An unreachable authorization is never a licence to self-resolve. A `VALID (defer)` must be grounded per D4.6 first, and in a
   merge-capable tier it never clears the gate for a merge this same session performs: route it to

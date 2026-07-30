@@ -20,9 +20,11 @@ All notable changes to the `source-control` plugin are documented here. Format f
   fully and correctly addressed.
 
   The worker now **reports** such a thread as addressed-but-unresolvable (thread id, disposition,
-  where the evidence lives) instead of leaving it silently, and the orchestrator routes it — under
-  the PR's worker lease, before Cleanup releases it — to a fresh subagent that authored neither the
-  fix nor the counter-evidence. **`classify`'s `isOutdated` requirement under `--autonomous` is
+  where the evidence lives) instead of leaving it silently, and — **in a thread-resolving tier
+  (`worker`, `autopilot`) only** — the orchestrator routes it, under the PR's worker lease, before
+  Cleanup releases it, to a fresh subagent that authored neither the fix nor the counter-evidence.
+  The safe tier dispatches nothing: it never resolves threads, and a resolver it dispatched would
+  resolve one at one remove. **`classify`'s `isOutdated` requirement under `--autonomous` is
   untouched**; the property it was a proxy for (the context that authored the evidence is not the
   context that acts on it) is what the dispatch preserves. The orchestrator does not resolve the
   thread itself: it holds the merge decision, so adjudicating its own unblock would be the same
@@ -37,6 +39,10 @@ All notable changes to the `source-control` plugin are documented here. Format f
   bounds (frontier tier, the four blocker classes it never touches, the post-dispatch re-partition)
   and points here. `guard_contract.py` gains an `independent-resolution.dispatch-commands` doc row,
   so the file's copyable wrapper commands are parser-validated like every other documented command.
+  The pointer is scoped to *discipline*, not to the resolve form: the new file's severity bound is a
+  bound of `--independent-resolver`, terminal on the babysit-prs route because the mode is its only
+  form there, and `pre-escalation-dispatch.md` says explicitly that inheriting it would delete the
+  security/P1 exception it exists to carry rather than guard it.
 
 ### Fixed
 

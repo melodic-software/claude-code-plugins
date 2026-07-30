@@ -33,8 +33,10 @@ merge, adjudicates the disposition and resolves through the guarded wrapper's
 A context that holds the PR's worker lease and is **not** the context whose merge the resolution
 unblocks. Two callers today:
 
-- `babysit-prs`'s orchestrator, for a thread a fix worker reported as addressed-but-unresolvable
-  (`orchestration.md`, Main Agent Responsibilities). This is the ordinary worker-tier route.
+- `babysit-prs`'s orchestrator **in a thread-resolving tier** (`worker`, `autopilot`), for a thread a
+  fix worker reported as addressed-but-unresolvable (`orchestration.md`, Main Agent
+  Responsibilities). This is the ordinary worker-tier route. The **safe tier never dispatches** — it
+  never resolves threads (`SKILL.md`), and dispatching a resolver would resolve one at one remove.
 - `babysit-loop`'s explicit-`autopilot` pre-escalation dispatch, which adds its own widening-only
   bounds (`skills/babysit-loop/reference/pre-escalation-dispatch.md`).
 
@@ -122,8 +124,12 @@ to self-resolve, and never a reason to reach past the wrapper to raw `resolveRev
 
 - **Security/P1 threads.** `--independent-resolver` retains the severity bright line
   (`skipped-severity-marked`): "never a security or P1 thread" is unconditional on every unattended
-  path, and no evidence buys past it. Those escalate, and `babysit-loop`'s widening exception is the
-  only path that attempts them at all (`safety.md`, Security/P1 escalation).
+  path, and no evidence buys past it. This is a bound of **the mode**, not of the callers. It is
+  terminal on the `babysit-prs` orchestrator route, whose only resolve form for a current thread is
+  this mode — such a thread escalates. `babysit-loop`'s widening carries the one named exception
+  (`safety.md`, Security/P1 escalation), and which guarded form that exception uses is its own
+  contract's call, not this file's: this file governs the mode and the discipline every dispatch
+  owes, and it neither widens nor narrows what a caller's tier already permits.
 - **Multi-finding threads.** Refused outright (`skipped-multi-finding-thread`): one disposition is a
   claim about one finding, while resolution clears the whole thread.
 - **Human-authored threads.** `--include-human` is refused alongside this mode. A human closes their
@@ -131,8 +137,9 @@ to self-resolve, and never a reason to reach past the wrapper to raw `resolveRev
 - **Evidence the world rejects or cannot confirm.** Every `refused-*` action refuses the resolve.
   `refused-evidence-unverifiable` means the API could not be consulted — retry, never replace the
   evidence.
-- **No subagent tools.** There is no dispatch without an independent context to dispatch to. The
-  orchestrator does not substitute itself.
+- **No subagent tools, or a non-resolving tier.** There is no dispatch without an independent
+  context to dispatch to, and the orchestrator never substitutes itself. The safe tier makes no
+  dispatch at all.
 
 ## Lease and sequencing
 

@@ -25,13 +25,23 @@ release after, with a lease another worker already holds meaning no dispatch at 
 the blocker, the PR, and the convention's independence and frontier-tier requirements; it replies
 and resolves threads through babysit-prs's guarded-mutation path, never a raw mutation.
 
-**How the resolution itself runs is not this file's contract.** The D7.5 per-finding verification
-ledger, the independence requirements, the fresh-pin rule, the wrapper command shapes, the bounds
-the dispatch cannot cross, and the per-PR worker lifecycle a code-change blocker still needs are all
-owned by `babysit-prs/reference/independent-resolution.md`, which this dispatch is one of two
-callers of. Follow it in full; this file adds only the widening-specific bounds below. Any finding
-the dispatched agent cannot verify to that standard means **no resolution**: leave the thread
-unresolved, do not merge, and escalate with the unverifiable finding named.
+**The discipline the resolution owes is not this file's contract.** The D7.5 per-finding
+verification ledger, the independence requirements, the fresh-pin rule, the wrapper command shapes,
+and the per-PR worker lifecycle a code-change blocker still needs are all owned by
+`babysit-prs/reference/independent-resolution.md`, which this dispatch is one of two callers of.
+Follow it; this file adds only the widening-specific bounds below. Any finding the dispatched agent
+cannot verify to that standard means **no resolution**: leave the thread unresolved, do not merge,
+and escalate with the unverifiable finding named.
+
+**Which guarded form the resolve takes stays this widening's call.** That file's severity bound is a
+bound of `--independent-resolver` — the mode refuses a security/P1 thread
+(`skipped-severity-marked`), which is terminal on the babysit-prs orchestrator route because the
+mode is its only form. It is not terminal here: the security/P1 exception this widening carries
+(`babysit-prs/reference/safety.md`, "Security/P1 escalation") is the one path permitted to attempt
+such a thread at all, through the autopilot-tier guarded form named there, and inheriting the mode's
+bound would delete the exception rather than guard it. The exception still changes only *who* may
+attempt the resolution, never what the wrappers permit, and it still escalates whenever the
+resolution is unverified or the resolver is uncertain.
 
 ## Four blocker classes this dispatch never touches
 
