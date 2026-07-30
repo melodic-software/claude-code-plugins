@@ -68,10 +68,6 @@ Every model-pinned spawn brief uses the conditional framing contract from `SKILL
 Pending Anthropic docs for this pipeline. Verify each URL live at fetch time; remove entries as
 their slices complete.
 
-Guardrail guides:
-
-- <https://platform.claude.com/docs/en/test-and-evaluate/strengthen-guardrails/increase-consistency>
-
 Model selection (special handling — vet/validate/correct the consuming setup's existing
 model-routing configuration against the doc, rather than only digesting):
 
