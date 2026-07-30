@@ -312,6 +312,83 @@ else
   fail "windowless session wrote nothing on a fresh machine"
 fi
 
+# --- Case 18: window-bearing is a structural property, not a substring --------
+# A windowless payload whose forwarded value merely CONTAINS the string
+# "rate_limits" (session_name here) must still be classified windowless, or it
+# skips the preservation check and clobbers real windows.
+HOME18="$WORK/home18"
+mkdir -p "$HOME18"
+run "$HOME18" "$(build_input)" cat >/dev/null
+printf '{"session_id":"sess-imposter","session_name":"rate_limits"}' |
+  HOME="$HOME18" bash "$TEE" cat >/dev/null
+if jq -e '.rate_limits' <"$HOME18/$TEE_REL" >/dev/null 2>&1; then
+  ok "substring imposter payload stays windowless — windows preserved"
+else
+  fail "payload containing the literal string rate_limits clobbered real windows"
+fi
+
+# --- Case 19: the sweep runs even on a refresh that skips its write -----------
+# A machine where only windowless sessions remain active takes the preserve
+# early-return on every refresh; the orphan a killed window-bearing session
+# left must still be reclaimed there, or it survives indefinitely.
+HOME19="$WORK/home19"
+DIR19="$HOME19/.claude/rate-limit-guard"
+mkdir -p "$DIR19"
+run "$HOME19" "$(build_input)" cat >/dev/null
+OLD19="$DIR19/.rate-limits.json.tmp.555.666"
+printf 'orphan\n' >"$OLD19"
+touch -t 200001010000 "$OLD19"
+printf '{"session_id":"sess-no-windows"}' | HOME="$HOME19" bash "$TEE" cat >/dev/null
+if [[ ! -e "$OLD19" ]]; then
+  ok "sweep reclaims the orphan on a skipped windowless refresh"
+else
+  fail "orphan survived — sweep does not run before the windowless early return"
+fi
+if jq -e '.rate_limits' <"$HOME19/$TEE_REL" >/dev/null 2>&1; then
+  ok "skipped windowless refresh still preserved the windows"
+else
+  fail "windowless refresh clobbered windows in the sweep-order case"
+fi
+
+# --- Case 20: the writer lock serializes the preservation decision ------------
+# A fresh (unstealable) lock held by another writer: the windowless writer
+# must skip its write, the window-bearing writer must still write (its
+# payload carries data; last-writer-wins between window-bearing snapshots is
+# the pre-existing contract). A stale lock left by a killed writer is stolen.
+HOME20="$WORK/home20"
+DIR20="$HOME20/.claude/rate-limit-guard"
+LOCK20="$DIR20/.rate-limits.json.lock"
+mkdir -p "$LOCK20"
+printf '{"session_id":"sess-no-windows"}' | HOME="$HOME20" bash "$TEE" cat >/dev/null
+if [[ ! -e "$HOME20/$TEE_REL" ]]; then
+  ok "held lock → windowless writer skips its write"
+else
+  fail "windowless writer wrote through a held lock"
+fi
+run "$HOME20" "$(build_input)" cat >/dev/null
+if jq -e '.rate_limits' <"$HOME20/$TEE_REL" >/dev/null 2>&1; then
+  ok "held lock → window-bearing writer still writes"
+else
+  fail "window-bearing writer lost its snapshot to a held lock"
+fi
+rmdir "$LOCK20" 2>/dev/null || true
+HOME21="$WORK/home21"
+DIR21="$HOME21/.claude/rate-limit-guard"
+LOCK21="$DIR21/.rate-limits.json.lock"
+mkdir -p "$LOCK21"
+touch -t 200001010000 "$LOCK21"
+printf '{"session_id":"sess-no-windows"}' | HOME="$HOME21" bash "$TEE" cat >/dev/null
+if [[ -e "$HOME21/$TEE_REL" ]]; then
+  ok "stale lock is stolen — windowless writer proceeds on a fresh machine"
+else
+  fail "stale lock permanently blocked the writer"
+fi
+if [[ ! -e "$LOCK21" ]]; then
+  ok "stolen stale lock directory removed"
+else
+  fail "stale lock directory survived"
+fi
+
 echo
 echo "PASS=$PASS FAIL=$FAIL"
 [[ $FAIL -eq 0 ]]

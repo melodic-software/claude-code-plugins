@@ -86,11 +86,22 @@ reclaim_tee_tmp() {
   return 0
 }
 
+# Lock directory currently held (see acquire_tee_lock below); a global for
+# the same trap-lifetime reason as TEE_TMP, and defined before the trap is
+# installed so an early exit never references an undefined function.
+TEE_LOCK=""
+
+release_tee_lock() {
+  [[ -n "$TEE_LOCK" ]] && rmdir "$TEE_LOCK" 2>/dev/null
+  TEE_LOCK=""
+  return 0
+}
+
 # The signal traps exit rather than reclaiming directly, so the EXIT trap stays
 # the single reclaim path. Exiting is also the right response to a cancelling
 # signal: this refresh's snapshot is already superseded by the update that
 # cancelled it.
-trap 'reclaim_tee_tmp' EXIT
+trap 'reclaim_tee_tmp; release_tee_lock' EXIT
 trap 'exit 143' TERM
 trap 'exit 130' INT
 trap 'exit 129' HUP
@@ -112,6 +123,31 @@ sweep_stale_tee_temps() {
     return 0
   done
   return 0
+}
+
+# Serialize the preservation decision with the rename. Check-then-write
+# without mutual exclusion lets a windowless writer pass its check, lose the
+# CPU to a window-bearing writer's rename, and then clobber the fresh windows
+# anyway — concurrent sessions are the normal operating model here. The lock
+# is a directory (mkdir-as-lock is atomic on every platform this runs on,
+# including Git Bash on Windows, where flock is unavailable). A holder killed
+# between mkdir and rmdir would leave the lock forever, so a contender steals
+# any lock older than the same one-minute age floor the temp sweep uses —
+# far above the sub-second hold time of a live writer. The release side lives
+# with the traps above.
+acquire_tee_lock() {
+  local dir="$1" lock="$1/.rate-limits.json.lock" _try
+  # shellcheck disable=SC2034  # bounded-retry counter; the value itself is unused
+  for _try in 1 2 3; do
+    if mkdir "$lock" 2>/dev/null; then
+      TEE_LOCK="$lock"
+      return 0
+    fi
+    find "$dir" -maxdepth 1 -type d -name '.rate-limits.json.lock' \
+      -mmin +1 -exec rmdir {} + 2>/dev/null || true
+    sleep 0.1 2>/dev/null || true
+  done
+  return 1
 }
 
 # Write one contract snapshot. Every failure path returns 0: the tee must
@@ -138,22 +174,42 @@ tee_snapshot() {
   ' 2>/dev/null) || return 0
   [[ -n "$payload" ]] || return 0
 
+  # Window-bearing is a structural property — jq's has(), never a substring
+  # test: a forwarded value that merely contains the string "rate_limits"
+  # (e.g. "session_name":"rate_limits") must not count as window-bearing and
+  # overwrite a snapshot holding real windows.
+  local has_windows=false
+  jq -e 'has("rate_limits")' >/dev/null 2>&1 <<<"$payload" && has_windows=true
+
+  # Sweep before any early return: a machine where only windowless sessions
+  # remain active would otherwise skip below on every refresh and never
+  # reclaim the orphan a killed window-bearing session left behind.
+  sweep_stale_tee_temps "$dir"
+
+  # All writers take the lock around [check+]rename — serialization needs
+  # both parties. On acquisition failure the windowless writer skips its
+  # write (nothing precious is lost; the reader treats absence reactively),
+  # while the window-bearing writer proceeds unlocked: its payload carries
+  # data, and last-writer-wins between two window-bearing snapshots is the
+  # pre-existing contract.
+  if ! acquire_tee_lock "$dir"; then
+    [[ "$has_windows" == true ]] || return 0
+  fi
+
   # A session with no windows — API-key or enterprise auth — must not overwrite
   # a snapshot that HAS them. The reader contract routes a snapshot missing
   # rate_limits to whole-guard reactive-only, and this write would carry a FRESH
   # captured_at, so consumers would never see "stale" and would instead see a
   # current snapshot with no data: up to the contract's full 10-minute staleness
   # budget of usable proactive data destroyed on a mixed-auth machine, silently.
-  # Both tests are spawn-free, so this costs nothing on the hot path.
-  if [[ "$payload" != *'"rate_limits"'* && -f "$target" ]]; then
-    local existing=""
-    existing=$(<"$target") 2>/dev/null || existing=""
-    if [[ "$existing" == *'"rate_limits"'* ]]; then
+  # A target jq cannot parse counts as windowless — torn or corrupt content is
+  # exactly what an atomic overwrite should replace.
+  if [[ "$has_windows" != true && -f "$target" ]]; then
+    if jq -e 'has("rate_limits")' "$target" >/dev/null 2>&1; then
+      release_tee_lock
       return 0
     fi
   fi
-
-  sweep_stale_tee_temps "$dir"
 
   local tmp="$dir/.rate-limits.json.tmp.$$.$RANDOM"
   TEE_TMP="$tmp"
@@ -164,6 +220,7 @@ tee_snapshot() {
     printf '%s\n' "$payload" >"$tmp"
   ) 2>/dev/null || {
     reclaim_tee_tmp
+    release_tee_lock
     return 0
   }
   local _try
@@ -173,11 +230,13 @@ tee_snapshot() {
       # The temp path is the target now; clear it so the EXIT trap cannot
       # reclaim a name that no longer refers to this refresh's file.
       TEE_TMP=""
+      release_tee_lock
       return 0
     fi
     sleep 0.1 2>/dev/null || true
   done
   reclaim_tee_tmp
+  release_tee_lock
   return 0
 }
 

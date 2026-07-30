@@ -36,8 +36,18 @@ All notable changes to the `rate-limit-guard` plugin are documented here. Format
   ten-minute staleness budget of usable proactive data.
 
   The tee now skips the write when this session has no `rate_limits` and the target already has
-  them. Both tests are substring checks — one on the buffered stdin, one on the target read with
-  `$(<…)` — so the guard adds no process to the hot path. A windowless session still writes when the
+  them. Window-bearing is decided structurally (jq `has("rate_limits")`, on the payload and on the
+  target) — never by substring, which a forwarded value merely containing the string
+  `"rate_limits"` (e.g. a session name) would defeat and clobber real windows. The preservation
+  decision is serialized with the rename through a `mkdir`-based writer lock (atomic everywhere
+  this runs, including Git Bash where `flock` is unavailable; a lock left by a killed writer is
+  stolen past the same one-minute age floor the temp sweep uses), because an unserialized
+  check-then-write let a windowless writer pass its check, lose the CPU to a window-bearing
+  writer's rename, and clobber the fresh windows anyway. On lock-acquisition failure the
+  windowless writer skips its write and the window-bearing writer proceeds unlocked —
+  last-writer-wins between window-bearing snapshots is the pre-existing contract. The orphan sweep
+  runs before the preservation early-return, so a machine where only windowless sessions remain
+  active still reclaims a killed session's temp file. A windowless session still writes when the
   target has no windows either, so a machine with no window-bearing session keeps an honest
   staleness signal rather than an empty directory.
 
