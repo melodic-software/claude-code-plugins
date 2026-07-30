@@ -1,5 +1,46 @@
 # Changelog — session-flow plugin
 
+## [0.17.20]
+
+### Fixed
+
+- **The resume prompt's path was rootless, so it resolved against a real-but-wrong directory
+  whenever the resuming session's cwd was not the worked-in repo root (#1644).** The save-point
+  engine specified the directive as `Read @<memory_dir>/handoffs/<TS>-handoff-<topic>.md` — "the
+  path the write step actually used" — and `memory_dir` is repo-relative by contract, so the one
+  artifact the operator carries across `/clear` lost the root the handoff file was written under.
+  Pasted into a session whose cwd was a different repository (or a subdirectory of the right one),
+  the `@`-reference resolved somewhere else; when that somewhere else had its own `handoffs/`
+  directory, the failure presented as "the file is missing" rather than "the path has no root".
+  The directive now carries the **absolute**, forward-slash-normalized path, matching what the
+  topic-docs binding already does on its no-project-root branch, and a `Handoff origin:` line
+  inside the rails names the repository and repo-relative path so a resume on another machine or
+  checkout can re-resolve — computed at emit time, not a stored frontmatter field. The `@` mention
+  is documented as an accelerator rather than the mechanism: official docs state an `@` path "can
+  be relative or absolute" but document no drive-letter or whitespace-bearing form, so the
+  directive is written to stay actionable when expansion does not fire.
+- **`find-handoff` inherited the same single-root assumption, so the skill built to recover this
+  failure could not recover it (#1644).** Its transcript rung located the correct directive, then
+  resolved the relative path against the source transcript's `cwd` — which is not necessarily the
+  repository the producer wrote into — and dropped the candidate on the existence check. The
+  detection contract now accepts **both** the rooted and the legacy rootless form, matching on the
+  shape they share and diverging only at that check, so the corpus already on disk keeps
+  recovering. A rootless path that resolves to nothing is now **UNRESOLVED, not discarded**:
+  the skill spends one bounded, read-only widening over repository roots already in hand, then
+  surfaces the candidate at the confirm gate with its directive verbatim and states that the path
+  has no root rather than that the file is missing.
+
+### Known gaps
+
+- **Rung 1 still cannot correlate a glob candidate to the repository the work was in (#1644).** A
+  handoff file records no durable repository identity — the frontmatter carries `type`, `date`,
+  `topic`, `session_id`, and `previous_handoff` — so nothing can reject a same-cwd, different-repo
+  candidate. Closing it requires a new frontmatter field, a cross-cutting schema change every
+  handoff already on disk would lack; that decision is deliberately left outside this fix. The rung
+  now states the gap in place rather than reading as closed, and the transcript-based substitute is
+  explicitly rejected: it depends on a transcript that may be absent and returns nothing for every
+  rootless legacy handoff, which is exactly where the check is needed.
+
 ## [0.17.19]
 
 ### Added

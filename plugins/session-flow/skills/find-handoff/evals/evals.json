@@ -109,6 +109,34 @@
         "Before excluding, it rechecks the current claude agents state: a continuation that has since exited or failed keeps the candidate as the restart artifact, since transcript evidence proves only launch-time persistence",
         "When launch evidence is ambiguous, unverified, or shows failure, the candidate is kept with its provenance surfaced at the confirm gate"
       ]
+    },
+    {
+      "id": 9,
+      "name": "accepts-rooted-and-rootless-directive-forms",
+      "prompt": "Find my lost handoff. Some of these are from months ago and some are from this week.",
+      "expected_output": "The transcript scan matches the directive on the shared `…handoffs/<TS>-handoff-…` shape, so it recovers both the absolute path the current producer emits and the repo-relative path every older handoff carries. The two forms diverge only at the existence check: a rooted path is checked as given with no cwd involved, while a rootless one is resolved against the source transcript's cwd. Recognizing only the rooted form would stop recovering the entire corpus already on disk.",
+      "files": [],
+      "expectations": [
+        "The skill matches directives in both the rooted (absolute) and rootless (repo-relative) forms rather than requiring one shape",
+        "A rooted directive is checked for existence exactly as written, with no resolution against any cwd",
+        "A rootless directive is resolved against the SOURCE transcript's cwd field, not the current session's cwd",
+        "It reads a `Handoff origin:` line when present, and treats its absence as disqualifying nothing — prompt-only output and every pre-existing handoff lack it"
+      ]
+    },
+    {
+      "id": 10,
+      "name": "rootless-miss-surfaces-unresolved-not-missing",
+      "prompt": "Recover my handoff. The session that wrote it was started from my home directory, but the work was in a different repo.",
+      "expected_output": "The scan finds the correct directive, whose relative path resolves against the transcript's cwd (the home directory) to a file that does not exist. The skill does NOT discard the candidate: it runs one bounded read-only widening over the repository roots already in hand, and if that does not produce a single unambiguous hit it surfaces the candidate marked UNRESOLVED — directive verbatim, filename, the cwd it was resolved against — and states that the path has no root rather than that the file is missing, offering to resolve it once the operator names the repository.",
+      "files": [],
+      "expectations": [
+        "A rootless directive whose resolved path does not exist is kept as an UNRESOLVED candidate, never dropped on the existence check",
+        "The skill reports that the path has no root rather than reporting the file as missing — the two are different failures",
+        "The widening search is bounded to repository roots already in hand (current repo, the candidate transcript's cwd) and never becomes a machine-wide filesystem sweep",
+        "Two or more filename matches leave the candidate UNRESOLVED with the matches listed, rather than picking one",
+        "An UNRESOLVED candidate is surfaced alongside resolved ones but never auto-wins or becomes the default when a resolved candidate exists",
+        "The skill does not claim rung 1's glob verified the candidate's repository — a handoff file records no durable repository identity, so that correlation stays open"
+      ]
     }
   ]
 }

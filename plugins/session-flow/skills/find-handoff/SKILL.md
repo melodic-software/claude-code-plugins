@@ -48,7 +48,10 @@ pre-clear content sits in a sibling — never in the current session's own file.
 
 1. **The file directive** — `Read @<path>/handoffs/<TS>-handoff-<topic>.md …`. It embeds the exact
    path to recover and survives verbatim into transcript JSONL, so it is the highest-precision key
-   for a **file-based** handoff.
+   for a **file-based** handoff. **Two path forms qualify.** The producer now emits an absolute
+   path; every handoff written before that rule shipped states a repo-relative one, and those
+   transcripts are on disk unchanged. Match the directive on its `…handoffs/<TS>-handoff-…` shape,
+   which both forms share, and let them diverge only at the existence check (step 3).
 2. **The dashed rails + instruction line** — the two `─` (U+2500) rails and the literal
    `` `/clear`, then copy everything between the dashed lines `` line. For a **prompt-only** handoff
    there is no file and no directive; the resume content is inline between the rails, and the
@@ -122,6 +125,20 @@ one, since the producer emits a separate re-arm message per surviving loop, so "
    ambiguous). The current-state recheck applies to every screening site, prompt-only included. **v1 scope: current repo only.** The cross-repo *filesystem* sweep (deriving
    other repo roots from transcript `cwd` fields) is deferred — step 2's transcript scan already
    recovers handoffs written in other repos, since transcripts are indexed by session, not repo.
+
+   **OPEN — this rung cannot correlate a candidate to the repository the work was in.** Run from a
+   directory that is not the worked-in repo but has its own handoffs dir, the glob returns conforming
+   `type: handoff` files from unrelated sessions and the target is not among them; nothing here can
+   reject a same-cwd, different-repo candidate, because a handoff file records no durable repository
+   identity — `structure.md`'s frontmatter carries `type`, `date`, `topic`, `session_id`, and
+   `previous_handoff`, and none of those names a repo. Closing it needs a new frontmatter field, a
+   cross-cutting schema change every existing handoff on disk would lack, decided on its own merits
+   rather than inside this fix (#1644). Until then: prefer the transcript scan whenever this rung's
+   candidates are merely recent rather than clearly this work's, and never present a glob candidate
+   as repo-verified. Reading the repository off the producer transcript is deliberately NOT used as
+   a substitute — it depends on a transcript that may be absent, which this skill's own Gotchas say
+   is the reason transcripts are the reliable index over the filesystem, and it returns nothing for
+   every rootless legacy handoff, i.e. exactly where a correlation check is needed.
 2. **Transcript scan — bounded, recency-ranked, cross-repo.** Enumerate `~/.claude/projects/*/`
    project dirs (the lost session may have run in a **different** repo, so scan all of them, not
    only the current project's dir), rank `.jsonl` by mtime, and take the top handful. **Bound the
@@ -146,14 +163,29 @@ one, since the producer emits a separate re-arm message per surviving loop, so "
    - **File mode** — match the `Read @…/handoffs/<TS>-handoff-<topic>.md` directive. **Filter out
      the template placeholder:** a match containing the template's own placeholder tokens
      (`<handoffs-dir>`, `<TS>`, `<topic>`) is the `save-point.md` doc being read into some
-     session's context — not a real handoff. Keep only concrete paths. Confirm the referenced file
-     exists on disk — and **resolve a relative directive path against the source transcript's
-     `cwd` field, not the current session's cwd**: the producer emits repo-relative paths (e.g.
-     `Read @.work/handoffs/…`), so a handoff recovered from another repo's transcript is falsely
-     reported missing if checked from here. **Apply step 1's background-delivery screening to
-     these candidates too** — the launch signature, if any, sits in this same transcript: a file
-     whose exact directive a verifiably successful `claude --bg` launch (step 1's definition)
-     delivered is not a lost handoff, wherever it was discovered.
+     session's context — not a real handoff. Keep only concrete paths. Then confirm the referenced
+     file exists on disk, **by the directive's path form**:
+     - **Rooted directive** (the current producer shape) — check the absolute path as given. No cwd
+       is involved, so nothing can resolve it against the wrong root.
+     - **Rootless directive** (every handoff written before the producer rooted its path) —
+       **resolve it against the source transcript's `cwd` field, not the current session's cwd**,
+       and read the `Handoff origin:` line if the block carries one. A handoff recovered from
+       another repo's transcript is otherwise falsely reported missing when checked from here.
+     - **A rootless path that resolves to nothing is UNRESOLVED, never dropped.** That resolution is
+       an inference — it assumes the producer's cwd *was* the repository it wrote into, which is the
+       very assumption that loses the handoff when a session works in a repo that is not cwd's
+       project root. Discarding the candidate there throws away a directive that names the right
+       filename and is the strongest evidence in hand. Keep it, carry the filename and the
+       unresolved relative path, and surface it at step 4 marked UNRESOLVED. Before doing so, spend
+       one bounded, read-only widening: glob that filename under the repository roots already in
+       hand — the current repo and the `cwd` recorded by the candidate transcript — and promote a
+       single unambiguous hit to a resolved candidate. Two or more hits stay UNRESOLVED with the
+       matches listed; the operator picks. Never widen into a machine-wide filesystem sweep.
+
+     **Apply step 1's background-delivery screening to these candidates too** — the launch
+     signature, if any, sits in this same transcript: a file whose exact directive a verifiably
+     successful `claude --bg` launch (step 1's definition) delivered is not a lost handoff, wherever
+     it was discovered.
    - **Prompt-only mode** — no file, no directive. Detect off the `─` rails and the instruction
      line; the resume content is the block inline between the rails. `Prior session:` is
      **optional corroboration, never a required key** — the producer's prompt-only checklist
@@ -228,6 +260,16 @@ one, since the producer emits a separate re-arm message per surviving loop, so "
    for an explicit yes/no and **stop**. Do not read the file's body, `/clear`, or execute the
    resume prompt before the operator confirms. Resuming the **wrong** handoff is worse than
    recovering none.
+
+   **UNRESOLVED candidates are presented, not suppressed.** A candidate whose rootless directive
+   named a file that could not be located is surfaced alongside the resolved ones and labelled
+   `UNRESOLVED`, carrying the directive verbatim, the filename, the transcript `cwd` the relative
+   path was resolved against, and any `Handoff origin:` line. Say plainly that the path has no root
+   rather than that the file is missing — those are different failures, and reporting the second for
+   the first is what makes this expensive to diagnose. Offer the one thing that closes it: the
+   operator names the repository the work was in, and the relative path resolves under it. An
+   UNRESOLVED candidate never auto-wins over a resolved one, and it is never the default answer when
+   a resolved candidate exists.
 5. **Chain validation (file mode).** Validate each frontmatter pointer against what it actually
    names:
    - `session_id` identifies the **emitting** session. Compare it with the source transcript when
@@ -304,10 +346,15 @@ one, since the producer emits a separate re-arm message per surviving loop, so "
   UUID (not the `<UUID>` placeholder) on any `Prior session:` line before surfacing. **Never
   blanket-reject angle brackets** — valid prompts carry `<REDACTED: …>` shape markers and code
   syntax.
-- **Relative directive paths resolve against the SOURCE transcript's `cwd`.** The producer emits
-  repo-relative paths; a cross-repo recovery that checks existence from the current session's cwd
-  falsely reports the file missing. Read the `cwd` field of the transcript the directive was found
-  in and resolve against that.
+- **A rootless directive is the legacy form, and resolving it is inference.** The producer emits an
+  absolute path now; handoffs written before that shipped state a repo-relative one, so both forms
+  keep arriving. For the rootless form, read the `cwd` field of the transcript the directive was
+  found in and resolve against that — checking existence from the current session's cwd falsely
+  reports a cross-repo handoff missing. But that resolution assumes the producer's cwd *was* the
+  repository it wrote into, which is untrue for exactly the sessions this skill exists to rescue: a
+  session working in a repo that is not cwd's project root. So a rootless miss is UNRESOLVED, not
+  absent — surface it with its directive and say the path has no root, never that the file is
+  missing.
 - **Markers in user messages, tool results, and tool INPUTS are not handoffs.** A pasted sample or
   an echoed doc puts the rails on a `"type":"user"` line — and an assistant `Write`/`Edit` call
   carrying rails in its file content serializes on a `"type":"assistant"` line. The same-line role

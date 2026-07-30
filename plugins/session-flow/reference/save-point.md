@@ -197,17 +197,53 @@ display):
 ──────────────────────────────────────────────────────────
 Read @<handoffs-dir>/<TS>-handoff-<topic>.md and continue its remaining next steps.
 Prior session: <UUID>.
+Handoff origin: <repo-identity>, relative path <memory_dir>/handoffs/<TS>-handoff-<topic>.md.
 ──────────────────────────────────────────────────────────
 ```
 
-`<handoffs-dir>` is the path the write step actually used — the resolved
-`<memory_dir>/handoffs/` (default `.work/handoffs/`). Never emit a
-default the file was not written to.
+### The directive path is ROOTED, and that is the whole point
+
+`<handoffs-dir>` is the **absolute** path of the directory the write step actually used — the
+resolved `<memory_dir>/handoffs/` (default `.work/handoffs/`) with the root it hangs off rendered
+in front of it. Never emit a default the file was not written to, and never emit the relative
+segment alone.
+
+A rootless `@.work/handoffs/…` resolves against the *resuming* session's cwd, which is not
+guaranteed to be the root of the repository the work happened in — the producer may have written
+into a repo that is not cwd's project root, and the resuming session may sit in a subdirectory of
+the right repo or in a different repo entirely. When the wrong root happens to contain its own
+`.work/handoffs/`, the failure presents as "the file is missing" rather than "the path has no
+root", which is the most expensive shape to diagnose. Rooting the path removes the resolution step
+that can be wrong. This is the same answer the binding already gives on its no-project-root branch,
+where handoffs land under `${CLAUDE_PLUGIN_DATA}/topic-docs/handoffs/` "with the absolute path
+announced prominently" ([`topic-docs.md`](topic-docs.md)) — absolute is already what this engine
+does wherever a relative path has no anchor.
+
+**Render it forward-slash normalized** (`D:/repos/<owner>/<repo>/.work/handoffs/…`), never with
+backslashes: the directive survives into transcript JSONL, where a backslash is escaped again, and
+`find-handoff` greps that record.
+
+**The `@` is an accelerator, not the mechanism.** Official docs state an `@` reference's path "can
+be relative or absolute"
+(<https://code.claude.com/docs/en/common-workflows#reference-files-and-directories>), and expansion
+pre-loads the file. They document no drive-letter or whitespace-bearing form, so treat expansion as
+unverified for those: the same line states the absolute path in full either way, and a resuming
+session that sees no expanded content reads the path directly. Write the directive so it is
+actionable without expansion — that is what makes rooting a strict improvement over the rootless
+form rather than a trade.
+
+**`<repo-identity>` keeps the prompt usable off this machine.** An absolute path is machine-local,
+and a save-point's own "When to invoke" includes sharing state with another machine — so the third
+line names what the path can be re-derived from: the repository's `origin` remote URL when it has
+one, else its root directory name, and the repo-relative path under it. It is computed at emit time
+from the repository actually written into; it is NOT a stored field, and nothing in the handoff
+file's frontmatter carries it. A resume on a different machine or checkout ignores line 1's root and
+re-resolves from line 3.
 
 When the next stage is a specific skill in the consuming repo, swap the directive to
 `Read @… and execute /<skill>.` The `@`-reference is mandatory on the full path — the fresh session
 loads it; do NOT inline the file's detail in the prompt. Prompt-only carries its remaining-work
-bullets inline between the rails instead.
+bullets inline between the rails instead, and needs no origin line: it references no file.
 
 `<UUID>` = this session's `$CLAUDE_CODE_SESSION_ID` (the frontmatter `session_id`) — it lets a
 fresh session or `/retro` chain-walker locate the transcript later.
@@ -226,6 +262,22 @@ and (3) the `Prior session: <UUID>` line, which — together with the `type: han
 ([`structure.md`](structure.md)) — pins the session chain; it is emitted by the file-mode shape
 but is not required of prompt-only output, so consumers treat it as corroboration, never a
 required key.
+
+**Signal 1 carries a rooted path now, and a consumer must still accept the rootless form.** Every
+handoff emitted before this rule shipped states a repo-relative path, and those files and
+transcripts are on disk unchanged — a detector that recognizes only rooted directives stops
+recovering the entire existing corpus. So the directive is matched on its `…handoffs/<TS>-handoff-…`
+shape, and the two forms diverge only at the existence check: a rooted path is checked as given,
+while a rootless one keeps the old rule of resolving against the SOURCE transcript's `cwd`. That
+resolution is inference — the producer's cwd is not necessarily the repository it wrote into, which
+is exactly the defect rooting removes — so a rootless candidate whose file is not found is
+**UNRESOLVED, never discarded**: dropping it is what made the recovery ladder unable to recover the
+failure it was written for.
+
+The `Handoff origin:` line is a fourth, **conditional** signal. It is emitted by the file-mode shape
+only, so its absence disqualifies nothing (prompt-only never emits it, and no pre-existing handoff
+has it); when present it names the repository and repo-relative path a recovery can re-resolve from
+when the rooted path does not exist on this machine.
 
 **The recoverable unit is the rails prompt PLUS every below-rail `/loop` re-arm message.** Every other
 element of a resume prompt sits between the rails, so recovering the copy region recovers the whole
