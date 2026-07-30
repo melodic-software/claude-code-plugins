@@ -288,8 +288,11 @@ command's own `--help` (gh 2.95.0); `gh api` has no `--body-file` flag at all.
 The failure is invisible from the outside (#943): the comment's timestamp still
 moves, so the telemetry surface looks **fresh** while carrying no data, and a
 freshness check passes over a blind lane. `telemetry-upsert.sh` refuses such a
-body before it writes anything; an inlined upsert has no such gate, so this rule
-is the only thing standing between it and a silent observability fail-open.
+body before it writes anything, and an inlined upsert carries the same refusal as
+a pre-write gate in its own block (empty, leading `@`, under a byte floor, or not
+sentinel-prefixed → skip the cycle fail-closed, no API call). An inline gate
+replicates the pre-write half only; the post-write read-back stays here in the
+wrapper.
 
 ## Cross-references
 

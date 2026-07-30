@@ -3,6 +3,25 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.30.4]
+
+### Fixed
+
+- **`work-loop` and `attend-queue`'s inlined telemetry upserts refuse a degraded body before they
+  write one (#943).** Both lanes inline the same `gh api` upsert the babysit lane does — an installed
+  plugin cannot invoke `claude-ops`'s `telemetry-upsert.sh` — and so inherited none of that wrapper's
+  body checks. The defect that surfaced on the babysit lane is a property of the shared upsert shape,
+  not of one lane: an `@path` interpolated into a body value is sent as literal text (`gh` expands a
+  leading `@` only for `--body-file` / `-F field=@file`), and the resulting comment still moves its
+  `updatedAt`, so a freshness check passes over a lane carrying no data. Both blocks now open with a
+  pre-write gate: a `$BODY_FILE` that is empty, begins with a literal `@`, falls under the
+  sentinel-plus-16-byte floor, or is not sentinel-prefixed is refused with a visible notice and the
+  cycle skips the upsert fail-closed — no POST, no PATCH. Refusing leaves the comment **stale**,
+  which the freshness check does catch, instead of fresh-but-blind, which it cannot. The prefix
+  assertion compares bytes rather than a whole first line, so a CRLF-terminated body is not
+  false-rejected. Scope is pre-write only; the wrapper's post-write read-back is deliberately not
+  replicated into a prose block that ships without a test harness.
+
 ## [0.30.3]
 
 ### Added

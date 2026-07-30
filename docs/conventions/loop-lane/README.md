@@ -423,9 +423,12 @@ identified by a machine sentinel marker and **edited in place** every cycle — 
 `claude-ops`'s `telemetry-upsert.sh` is the interim home of this contract and a compatible reader
 (`morning-brief` reads the same surface); an installed plugin cannot invoke a sibling plugin's
 script, so each lane **inlines** the small `gh api` upsert and the coupling to `claude-ops` stays
-one-directional. An inlined upsert carries none of the wrapper's body checks, so it is bound by the
-`@path`-as-body rule in [`claude-ops` lanes](../../../plugins/claude-ops/skills/lanes/SKILL.md),
-section "Never pass a body as an `@path` string".
+one-directional. An inlined upsert is bound by the `@path`-as-body rule in
+[`claude-ops` lanes](../../../plugins/claude-ops/skills/lanes/SKILL.md), section "Never pass a body as
+an `@path` string", and encodes that rule as a **pre-write body gate** in its own block (#943): a body
+that is empty, a literal `@path`, under the sentinel-plus-16-byte floor, or not sentinel-prefixed is
+refused before any API call, and the cycle skips the upsert fail-closed. The wrapper's post-write
+read-back is deliberately not replicated inline — an inlined upsert carries the pre-write half only.
 
 **Durable loop state.** Conversation context is lossy across compaction, so a lane persists its
 adaptive-cap streak counter, its rate-limit-warning latch, its consecutive-no-progress counter, and

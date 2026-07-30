@@ -3,6 +3,26 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.42.2]
+
+### Fixed
+
+- **`babysit-loop`'s inlined telemetry upsert refuses a degraded body before it writes one (#943).**
+  The lane's telemetry comment was observed carrying a literal `@C:/…/telemetry_combined.txt` as its
+  entire body across three sessions: `gh` expands a leading `@` only for `--body-file` / `-F
+  field=@file`, so an `@path` interpolated into a body value is sent as text. Nothing about that
+  failure is visible from outside — the comment's `updatedAt` still moves, so `morning-brief`'s
+  freshness check passes over a lane that reported nothing. `claude-ops`'s `telemetry-upsert.sh`
+  already refuses such a body, but an installed plugin cannot invoke a sibling plugin's script, so
+  this lane inlines its own upsert and inherited none of that protection. The inlined block now opens
+  with a pre-write gate: a `$BODY_FILE` that is empty, begins with a literal `@`, falls under the
+  sentinel-plus-16-byte floor, or is not sentinel-prefixed is refused with a visible notice and the
+  cycle skips the upsert fail-closed — no POST, no PATCH. Refusing leaves the comment **stale**,
+  which the freshness check does catch, instead of fresh-but-blind, which it cannot. The prefix
+  assertion compares bytes rather than a whole first line, so a CRLF-terminated body is not
+  false-rejected. Scope is pre-write only; the wrapper's post-write read-back is deliberately not
+  replicated into a prose block that ships without a test harness.
+
 ## [0.42.1]
 
 ### Fixed

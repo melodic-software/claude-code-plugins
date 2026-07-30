@@ -3,6 +3,20 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.24.2]
+
+### Changed
+
+- **The `@path`-as-body rule now records that an inlined upsert enforces it mechanically, not on
+  trust (#943).** The rule's closing paragraph claimed the prose was "the only thing standing
+  between" an inlined upsert and a silent observability fail-open. That is no longer true: every
+  lane that inlines the `gh api` upsert — `source-control:babysit-loop`, `work-items:work-loop`,
+  `work-items:attend-queue` — now carries a pre-write body gate in its own block, refusing a body
+  that is empty, a literal `@path`, under a byte floor, or not sentinel-prefixed before any API
+  call. The paragraph states the split explicitly: an inline gate replicates the wrapper's pre-write
+  half only, and the post-write read-back stays in `telemetry-upsert.sh`, so a reader of either
+  surface knows which guarantees travel with which.
+
 ## [0.24.1]
 
 ### Fixed

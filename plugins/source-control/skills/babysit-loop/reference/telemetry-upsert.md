@@ -12,7 +12,11 @@ MARKER="source-control:babysit-loop"
 SENT="<!-- claude-ops:lane-telemetry marker=$MARKER -->"   # first line of $BODY_FILE
 LOOKUP() { gh api --paginate "repos/$REPO/issues/$ISSUE/comments" \
   --jq ".[] | select(.body | startswith(\"$SENT\")) | .id"; }
-if ! LIST=$(LOOKUP); then
+if [ ! -s "$BODY_FILE" ] || [ "$(head -c 1 "$BODY_FILE")" = "@" ] ||
+  [ "$(wc -c <"$BODY_FILE")" -lt $((${#SENT} + 16)) ] ||
+  [ "$(head -c ${#SENT} "$BODY_FILE")" != "$SENT" ]; then
+  echo "telemetry: body rejected before any write - empty, a literal @path, under the sentinel+16-byte floor, or not sentinel-prefixed; skipping upsert this cycle (fail closed)" >&2
+elif ! LIST=$(LOOKUP); then
   echo "telemetry: comment lookup failed; skipping upsert this cycle (fail closed)" >&2
 else
   if [ -z "$LIST" ]; then
@@ -29,6 +33,13 @@ else
   fi
 fi
 ```
+
+**Pre-write body gate (encoded above, #943).** The leading assertions run before any API call — the
+mechanical form of the `@path`-as-body rule owned by the `claude-ops` lanes skill ("Never pass a body
+as an `@path` string"), which an inlined upsert has no wrapper to enforce for it. A degraded body
+that reaches the comment still moves its timestamp, so the telemetry surface looks **fresh** while
+carrying no data; refusing the write leaves the comment stale instead, which the freshness check does
+catch. Pre-write only — the post-write read-back stays in `claude-ops`'s `telemetry-upsert.sh`.
 
 **Creation race reconcile (encoded above).** Two sessions racing the first-ever upsert can both
 see an empty lookup and both POST, forking the singleton. The upsert converges every cycle
