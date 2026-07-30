@@ -516,7 +516,13 @@ print_stranded() {
             pageInfo { hasNextPage endCursor }
             nodes {
               number title url mergedAt
-              reviewThreads(first:50) {
+              # 100 is the GraphQL page maximum. --paginate follows only the
+              # OUTER cursor, so a PR with more threads than this would be
+              # truncated with no signal. hasNextPage is read below and
+              # reported, because a partial read must never render as an
+              # all-clear.
+              reviewThreads(first:100) {
+                pageInfo { hasNextPage }
                 nodes {
                   isResolved
                   comments(first:1) { nodes { createdAt author { login } body } }
@@ -570,14 +576,24 @@ print_stranded() {
               pr: $pr.number, title: $pr.title, url: $pr.url,
               author: (.comments.nodes[0].author.login // "unknown"),
               # Severity must survive to the operator: a stranded P1 cannot read
-              # like a P3. Markers are matched on the badge alt-text/bracket
-              # forms the review bots actually emit.
+              # like a P3. Matched on the STRUCTURED marker only — the badge
+              # alt-text (`![P1 Badge]`), the shields URL (`badge/P1`), or a
+              # leading bracket — never on free prose. A body-wide substring
+              # test falsely promotes a P2 titled "Preserve P1 labels", and any
+              # finding that merely discusses CRITICAL or SECURITY.
               sev: (
                 (.comments.nodes[0].body // "")
-                | if test("P0|CRITICAL|SECURITY"; "i") then "P0"
-                  elif test("P1"; "i") then "P1"
-                  elif test("P2"; "i") then "P2"
-                  else "--" end
+                # `[ match(...) ]` rather than `capture(...).s` or a bare
+                # `match(...)`: a non-match must yield EMPTY so the next
+                # alternative is tried. Indexing a non-matching capture instead
+                # aborts the whole program, which renders every PR as clear.
+                | . as $b
+                | [ ( $b | [ match("!\\[[[:space:]]*(P[0-9])[ _-]?Badge"; "i") ] ),
+                    ( $b | [ match("badge/(P[0-9])"; "i") ] ),
+                    ( $b | [ match("^[[:space:]]*\\[(P[0-9])\\]"; "i") ] ) ]
+                | map(.[0].captures[0].string // empty)
+                | (.[0] // "")
+                | ascii_upcase
               )
             })
       )
@@ -591,12 +607,28 @@ print_stranded() {
         pr: .[0].pr, title: .[0].title, url: .[0].url,
         author: (map(.author) | unique | join(", ")),
         n: length,
-        sev: (map(.sev) | sort | .[0])
+        # Rank NUMERICALLY, never on the display string: "--" sorts before "P0"
+        # lexicographically, so an unclassified thread beside a P0 would hide
+        # the P0 behind a "[--]" label. Unrecognized ranks last (99).
+        sev: (map(.sev) | map(if . == "" then 99 else (.[1:] | tonumber) end) | min
+              | if . == 99 then "--" else "P\(.)" end)
       })
-    | sort_by(.sev, .pr)
+    | sort_by(if .sev == "--" then 99 else (.sev[1:] | tonumber) end, .pr)
     | .[]
     | "  [\(.sev)] #\(.pr) \(.title)  (\(.n) finding\(if .n == 1 then "" else "s" end))\n    \(.url)  by \(.author)"
   ' <<<"$merged" 2>/dev/null)"
+
+  # A truncated thread page means the read was PARTIAL, so neither a finding
+  # list nor an all-clear below can be trusted to be complete. Say so.
+  local truncated
+  truncated="$(jq -s -r '
+    [ .. | objects | select(has("data")) | .data.repository.pullRequests.nodes[]?
+      | select(.reviewThreads.pageInfo.hasNextPage == true) | .number ]
+    | unique | map("#\(.)") | join(", ")
+  ' <<<"$merged" 2>/dev/null)"
+  if [[ -n "$truncated" ]]; then
+    echo "  WARNING: more than 100 review threads on $truncated — this read is PARTIAL, not an all-clear"
+  fi
 
   if [[ -n "$stranded" ]]; then
     echo "$stranded"

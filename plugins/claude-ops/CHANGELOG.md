@@ -26,6 +26,17 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   stranded findings on other merged pull requests, including a P1 recording that a shipped plugin
   cell never reached installations — so this is a standing leak, not a one-off.
 
+  Severity is read from the **structured marker only** — the badge alt-text, the shields badge URL,
+  or a leading bracket — never from body prose. A body-wide substring test falsely promotes a P2
+  titled "Preserve P1 labels", and any finding that merely discusses `CRITICAL` or `SECURITY`.
+  Ranking is numeric rather than lexicographic, because `"--"` sorts before `"P0"` as a string: an
+  unclassified thread sitting beside a genuine P0 would otherwise collapse the pull request to
+  `[--]` and hide it.
+
+  A thread connection that **truncates** is reported as a partial read. `--paginate` follows only
+  the outer cursor, so a pull request with more than 100 review threads would be silently cut short
+  — and a partial read that renders as an all-clear is the same failure the section exists to catch.
+
   The section **fails loud rather than clear**. A GraphQL error document is well-formed JSON that
   simply carries no `data`, so an unread API would otherwise extract to an empty list and render as
   "every merged PR in the window is clear" — an all-clear asserted from an answer never received,

@@ -145,6 +145,56 @@ cat >"$TMP/merged.json" <<'EOF'
 ]
 EOF
 
+# Severity classification and ranking edge cases, all three found by review on
+# the PR that added this section:
+#   #300 — a P2 whose PROSE says "P1" and "CRITICAL": body-substring matching
+#          falsely promoted it. Only the structured marker counts.
+#   #301 — an unclassified thread beside a P0: "--" sorts before "P0"
+#          lexicographically, so the PR would render "[--]" and hide the P0.
+#   #302 — the shields badge/P0 URL form, with no alt-text marker.
+cat >"$TMP/merged-severity.json" <<'EOF'
+[
+  {"data": {"repository": {"pullRequests": {"pageInfo": {"hasNextPage": false, "endCursor": null}, "nodes": [
+    {"number": 300, "title": "prose mentions a higher severity",
+     "url": "https://github.com/o/r/pull/300", "mergedAt": "2026-07-19T16:00:00Z",
+     "reviewThreads": {"nodes": [
+       {"isResolved": false, "comments": {"nodes": [
+         {"createdAt": "2026-07-19T17:00:00Z", "author": {"login": "bot"},
+          "body": "![P2 Badge](x) Preserve P1 labels when CRITICAL SECURITY findings appear"}]}}]}},
+    {"number": 301, "title": "unclassified thread beside a real P0",
+     "url": "https://github.com/o/r/pull/301", "mergedAt": "2026-07-19T16:00:00Z",
+     "reviewThreads": {"nodes": [
+       {"isResolved": false, "comments": {"nodes": [
+         {"createdAt": "2026-07-19T17:00:00Z", "author": {"login": "bot"},
+          "body": "a plain comment carrying no severity marker at all"}]}},
+       {"isResolved": false, "comments": {"nodes": [
+         {"createdAt": "2026-07-19T17:01:00Z", "author": {"login": "bot"},
+          "body": "![P0 Badge](x) the real problem"}]}}]}},
+    {"number": 302, "title": "shields url badge form only",
+     "url": "https://github.com/o/r/pull/302", "mergedAt": "2026-07-19T16:00:00Z",
+     "reviewThreads": {"nodes": [
+       {"isResolved": false, "comments": {"nodes": [
+         {"createdAt": "2026-07-19T17:00:00Z", "author": {"login": "bot"},
+          "body": "see https://img.shields.io/badge/P0-red?style=flat for the rating"}]}}]}}
+  ]}}}}
+]
+EOF
+
+# A PR whose thread connection was TRUNCATED: the read is partial, so neither
+# the finding list nor an all-clear can be trusted to be complete.
+cat >"$TMP/merged-truncated.json" <<'EOF'
+[
+  {"data": {"repository": {"pullRequests": {"pageInfo": {"hasNextPage": false, "endCursor": null}, "nodes": [
+    {"number": 400, "title": "more than one page of review threads",
+     "url": "https://github.com/o/r/pull/400", "mergedAt": "2026-07-19T16:00:00Z",
+     "reviewThreads": {"pageInfo": {"hasNextPage": true}, "nodes": [
+       {"isResolved": true, "comments": {"nodes": [
+         {"createdAt": "2026-07-19T17:00:00Z", "author": {"login": "bot"},
+          "body": "![P2 Badge](x) resolved, so nothing is reported for this PR"}]}}]}}
+  ]}}}}
+]
+EOF
+
 # A GraphQL error document: well-formed JSON with no `data`. Must never render
 # as an all-clear — observed live, where a rate-limit error read as a clean
 # window, which is the fail-open shape this whole section exists to catch.
@@ -378,7 +428,7 @@ assert_not_contains "stranded: a merge outside the window is excluded" "$OUT" "#
 
 # Severity ordering: a P0/P1 must not sort below advisory findings.
 STRANDED_BLOCK="$(printf '%s\n' "$OUT" | sed -n '/stranded on merged/,$p')"
-FIRST_SEV="$(printf '%s\n' "$STRANDED_BLOCK" | grep -oE '^\s+\[P[0-9]\]' | head -1 | tr -d ' ')"
+FIRST_SEV="$(printf '%s\n' "$STRANDED_BLOCK" | grep -oE '^[[:space:]]+\[P[0-9]\]' | head -1 | tr -d ' ')"
 assert_contains "stranded: highest severity is listed first" "$FIRST_SEV" "[P1]"
 
 # Clean window renders the reassuring branch rather than an empty section.
@@ -399,6 +449,33 @@ OUT_ERR="$(bash "$BRIEF" --now "$NOW" --stale-hours 6 \
   --telemetry-json "$TMP/telemetry.json" \
   --merged-json "$TMP/merged-apierror.json" 2>&1)"
 assert_not_contains "stranded: an API error is NEVER reported as clear" "$OUT_ERR" "every merged PR in the window is clear"
+
+# --- Severity classification and ranking (PR #1781 review) -------------------
+OUT_SEV="$(bash "$BRIEF" --now "$NOW" --stale-hours 6 \
+  --counts-json "$TMP/counts.json" \
+  --pr-json "$TMP/pr.json" \
+  --decisions-json "$TMP/decisions.json" \
+  --telemetry-json "$TMP/telemetry.json" \
+  --merged-json "$TMP/merged-severity.json" 2>&1)"
+# Prose is not a severity marker: only the structured badge counts.
+assert_contains "severity: a P2 whose prose says P1/CRITICAL stays P2" "$OUT_SEV" "[P2] #300"
+assert_not_contains "severity: prose never promotes a finding" "$OUT_SEV" "[P1] #300"
+assert_not_contains "severity: the word CRITICAL in prose never promotes to P0" "$OUT_SEV" "[P0] #300"
+# Ranking is numeric, so an unclassified thread cannot mask a real P0.
+assert_contains "severity: an unclassified thread never hides a P0" "$OUT_SEV" "[P0] #301"
+assert_not_contains "severity: the unclassified marker never wins the collapse" "$OUT_SEV" "[--] #301"
+# Both structured marker forms the bots emit are recognized.
+assert_contains "severity: the shields badge/P0 URL form is recognized" "$OUT_SEV" "[P0] #302"
+
+# --- Truncated thread page is a PARTIAL read, never an all-clear -------------
+OUT_TRUNC="$(bash "$BRIEF" --now "$NOW" --stale-hours 6 \
+  --counts-json "$TMP/counts.json" \
+  --pr-json "$TMP/pr.json" \
+  --decisions-json "$TMP/decisions.json" \
+  --telemetry-json "$TMP/telemetry.json" \
+  --merged-json "$TMP/merged-truncated.json" 2>&1)"
+assert_contains "truncation: a partial thread read is reported" "$OUT_TRUNC" "this read is PARTIAL"
+assert_contains "truncation: the affected PR is named" "$OUT_TRUNC" "#400"
 assert_contains "stranded: an API error says it is not an all-clear" "$OUT_ERR" "NOT an all-clear"
 assert_contains "stranded: the API error message is surfaced" "$OUT_ERR" "rate limit already exceeded"
 
