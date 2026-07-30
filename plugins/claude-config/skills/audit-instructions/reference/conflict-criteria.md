@@ -100,7 +100,7 @@ shapes without this gate produces noise, because most surface pairs never co-loa
 | Prompt-type hook text | **Never** — see "A prompt hook's text is not an instruction" below | hooks: a `prompt` hook "send[s] a prompt to a Claude model for single-turn evaluation" |
 | Handler **stdout** on `SessionStart`, `UserPromptSubmit`, `UserPromptExpansion` | From injection onward, as ordinary message history | hooks: "The exceptions are `UserPromptSubmit`, `UserPromptExpansion`, and `SessionStart`, where stdout is added as context that Claude can see and act on" |
 | Handler `hookSpecificOutput.additionalContext` | From injection onward, at the position the event dictates | hooks: "Where the reminder appears depends on the event" — session start, alongside the prompt, next to the tool result, or at the end of the turn |
-| Handler **stdout** on any other event | **Never** | context window: "Plain stdout on exit 0 does not. It is written to the debug log only" |
+| Handler **stdout** on any other event | **Never** | hooks: "For most events, stdout is written to the debug log but not shown in the transcript" |
 | Output style (the **active** one) | Every session in the main conversation, appended to the system prompt | output-styles: "Output styles directly modify Claude Code's system prompt"; "read once at session start" |
 
 **An agent definition co-resides with the whole CLAUDE.md hierarchy, and that is a guaranteed pair.**
@@ -527,7 +527,11 @@ its real findings, and this is the most persuasive-looking instance in the repos
 
 A conflict finding is a **pair**, so it is reported as one. For each finding give:
 
-- both anchors as `path:line`, mandate side first
+- both anchors as `path:line`, mandate side first. **A hook-injected surface has no file of its
+  own**, so its anchor is the settings file, plugin `hooks/hooks.json`, or component frontmatter
+  where the emitting handler is *configured*, at that handler's line — qualified by its event and
+  `matcher`, since that is what makes the text resident. Name it that way rather than dropping the
+  anchor: an admitted surface a lane cannot cite is a fix present in name only
 - the behavior at issue, stated as the (verb, object, trigger) triple
 - the two contradictory claims **quoted verbatim**
 - the conflict type (A–C), and which surfaces are guaranteed versus conditional co-residents —

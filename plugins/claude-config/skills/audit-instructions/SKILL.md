@@ -194,8 +194,8 @@ involving one still carries the no-change representation and its routing recomme
   block is the case that motivated the two-kind split), hooks declared in the frontmatter of an
   active skill or agent (a supported location, live "while the component is active"), **the active
   output style when a plugin supplies it**, and any managed materialization. The output-style case
-  is easy to miss because the
-  user- and project-scope scans cannot reach the plugin cache: plugins ship styles in an
+  is easy to miss because the user- and project-scope scans cannot reach the plugin cache: plugins
+  ship styles in an
   `output-styles/` directory, and a plugin style with `force-for-plugin` applies "automatically
   whenever the plugin is enabled, without requiring users to select it", overriding the user's
   `outputStyle` setting ([output-styles](https://code.claude.com/docs/en/output-styles)). Resolve

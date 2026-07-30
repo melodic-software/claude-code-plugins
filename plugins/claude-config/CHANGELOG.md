@@ -34,12 +34,16 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   Phase A's hook inventory splits into the two kinds accordingly, across settings scopes, managed
   settings, and plugin `hooks/hooks.json`, under unchanged no-secrets handling; where the injected
   text is not literal in the config (a handler that runs a script) the surface is recorded with its
-  event and `matcher` and marked `unresolved` rather than invented. The `hooks` scope value and the
-  non-memory surface partition widen from "prompt-type hooks" to "hook instruction text" — without
-  which the newly admitted surface could be read but never produce a finding. Skill and agent
-  frontmatter is added to the inventoried hook locations, closing a gap the same audit exposed.
+  event and `matcher` and marked `unresolved` rather than invented. Because a hook-injected surface
+  has no file of its own, the Output format now defines its anchor as the settings file, plugin
+  `hooks/hooks.json`, or component frontmatter where the emitting handler is configured, qualified
+  by that handler's event and `matcher`. The `hooks` scope value and the non-memory surface
+  partition widen from "prompt-type hooks" to "hook instruction text" — without which the newly
+  admitted surface could be read but never produce a finding. Skill and agent frontmatter, a
+  documented hook location Phase A did not inventory at all, is added alongside.
 
-  The hooks page is added to Sources and to the recheck triggers in both criteria files.
+  The hooks page is added to Sources and to the recheck triggers in both criteria files (catalog
+  1.3.0 → 1.4.0, for the widened surface partition and I13 surface set).
 
 ## [0.16.0]
 
