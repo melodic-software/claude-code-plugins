@@ -498,6 +498,136 @@ assert_contains "a passed --data-dir is substituted into the offline form" "$OUT
 OUT="$(bash "$SCRIPT" print-schedule --repo "$REPO" 2>&1)"
 assert_contains "without one, the placeholder still says what to substitute" "$OUT" "<the CLAUDE_PLUGIN_DATA dir skill runs use>"
 
+# --- 22. A broken lock STORE is not reported as a held lock (#1759 P1) --------
+# An ignored `mkdir` failure used to fall through to the contention branch, so an
+# unattended consumer with a mistyped path or an unavailable volume reported
+# `lock-held` and exited 0 forever while Task Scheduler logged healthy ticks.
+NOTADIR="$TMP/notadir"
+: >"$NOTADIR" # a FILE where a directory must be: mkdir -p can never succeed
+TEL="$TMP/tel-22.json"
+write_telemetry "$TEL" 'true' 'null'
+OUT="$(bash "$SCRIPT" run --config "$CONFIG" --repo "$REPO" --data-dir "$NOTADIR/sub" \
+  --target-repo "owner/name" --launcher "$LAUNCHER" --no-telemetry --now 1800000000 \
+  --telemetry-json "$TEL" --agents-json "$AGENTS_NONE" 2>&1)"
+RC=$?
+assert_eq "an unusable lock store exits non-zero instead of 0" "4" "$RC"
+assert_contains "and says the store is unusable, not that a lock is held" "$OUT" "lock store is unusable"
+assert_not_contains "an unusable store is never reported as contention" "$OUT" "| (none) | lock-held |"
+
+# --- 23. A lock is never reclaimed on age alone (#1759 P2) --------------------
+# `lane-launcher.sh` does an unbounded `git pull` + marketplace update before
+# launch, so a legitimate run can outlive any age bound. Liveness decides.
+KEY="$(printf '%s' "$(git -C "$REPO" rev-parse --show-toplevel)" | git hash-object --stdin)"
+LOCKDIR="$DATA/lanes/$KEY/.restart-consumer-lock"
+seed_lock() { # $1 stamp, $2 owner pid
+  mkdir -p "$LOCKDIR"
+  printf '%s\n' "$1" >"$LOCKDIR/acquired-at"
+  printf '%s\n' "$2" >"$LOCKDIR/owner-pid"
+}
+release_seeded_lock() { rm -rf "$LOCKDIR"; }
+
+TEL="$TMP/tel-23.json"
+write_telemetry "$TEL" 'true' 'null'
+# Stamp is two hours old — well past LOCK_STALE_SECONDS=3600 — but pid 4242 is alive.
+seed_lock 1799992800 4242
+OUT="$(RESTART_CONSUMER_FAKE_ALIVE_PIDS='4242' run_consumer run \
+  --telemetry-json "$TEL" --agents-json "$AGENTS_NONE")"
+assert_contains "an aged lock whose owner is ALIVE stays held" "$OUT" "| (none) | lock-held |"
+assert_contains "and says why it declined to reclaim" "$OUT" "owner (pid 4242) is alive"
+assert_not_contains "a live owner's lock is never reclaimed" "$OUT" "reclaiming a lock"
+
+# Same aged stamp, but the owner is gone: reclaiming is correct here.
+# --max-restarts 0 disables the breaker, which earlier cases in this file have
+# already spent against lane `work` in the shared data dir — this case is about
+# the reclaim, not the budget.
+: >"$LAUNCH_LOG"
+OUT="$(RESTART_CONSUMER_FAKE_ALIVE_PIDS='' run_consumer run --max-restarts 0 \
+  --telemetry-json "$TEL" --agents-json "$AGENTS_NONE")"
+assert_contains "an aged lock whose owner is GONE is still reclaimed" "$OUT" "reclaiming a lock"
+assert_contains "and the reclaiming run goes on to do its work" "$(cat "$LAUNCH_LOG")" "restart work"
+release_seeded_lock
+
+# --- 24. Offline telemetry parse failures propagate (#1759 P2) ----------------
+# An unconditional `return 0` turned a jq failure into a successful empty read,
+# so unreadable telemetry was indistinguishable from "the lane did not ask".
+BADTEL="$TMP/tel-24-malformed.json"
+printf '{"work": [ THIS IS NOT JSON\n' >"$BADTEL"
+OUT="$(run_consumer run --telemetry-json "$BADTEL" --agents-json "$AGENTS_NONE")"
+assert_not_contains "malformed offline telemetry is NOT reported as no-state" "$OUT" "| work | no-state |"
+assert_contains "malformed offline telemetry surfaces as an error decision" "$OUT" "api-error"
+
+MISSINGTEL="$TMP/tel-24-absent.json" # deliberately never created
+OUT="$(run_consumer run --telemetry-json "$MISSINGTEL" --agents-json "$AGENTS_NONE")"
+assert_not_contains "an absent telemetry fixture is NOT reported as no-state" "$OUT" "| work | no-state |"
+assert_contains "an absent telemetry fixture surfaces as an error decision" "$OUT" "api-error"
+
+# --- 25. An unwritable ledger fails closed before relaunching (#1759 P2) ------
+# The breaker counts attempts by querying the ledger, so an attempt that cannot
+# be recorded is invisible to --max-restarts and would be retried every tick.
+LEDGER_AS_DIR="$DATA/lanes/$KEY/restart-consumer.jsonl"
+rm -rf "$LEDGER_AS_DIR"
+mkdir -p "$LEDGER_AS_DIR" # a DIRECTORY where the ledger file must be: append always fails
+TEL="$TMP/tel-25.json"
+write_telemetry "$TEL" 'true' 'null'
+: >"$LAUNCH_LOG"
+OUT="$(run_consumer run --telemetry-json "$TEL" --agents-json "$AGENTS_NONE")"
+RC=$?
+assert_contains "an unwritable ledger is an error decision, not a warning" "$OUT" "| work | error |"
+assert_contains "and the row says why the relaunch was refused" "$OUT" "refusing to relaunch a lane whose attempt cannot be counted"
+assert_not_contains "the lane is NOT launched when its attempt cannot be counted" "$(cat "$LAUNCH_LOG")" "restart work"
+assert_eq "an unwritable ledger exits non-zero" "5" "$RC"
+assert_not_contains "bash's own redirection error never leaks into the report" "$OUT" "Is a directory"
+rm -rf "$LEDGER_AS_DIR"
+
+# --- 26. Liveness is rechecked against a FRESH list before mutating (#1759 P2)-
+# The session snapshot is loaded once per run, so a lane started since — by a
+# concurrent operator invocation — still reads as stopped. `lane-launcher.sh
+# restart` STOPS a running lane before relaunching, so acting on the stale
+# snapshot would interrupt a healthy session.
+RACE_STUB="$TMP/stubs-race"
+mkdir -p "$RACE_STUB"
+RACE_COUNT="$TMP/race-count"
+: >"$RACE_COUNT"
+cat >"$RACE_STUB/claude" <<'SH'
+#!/usr/bin/env bash
+# First call (the run's snapshot) sees nothing running; every later call — the
+# pre-mutation recheck — sees the lane that started in between.
+n="$(wc -l <"$RACE_COUNT" | tr -d ' ')"
+echo x >>"$RACE_COUNT"
+if [[ "$n" -eq 0 ]]; then
+  echo '[]'
+else
+  echo '[{"name":"work","kind":"background","startedAt":1,"sessionId":"race"}]'
+fi
+SH
+chmod +x "$RACE_STUB/claude"
+cp "$STUBS/gh" "$RACE_STUB/gh"
+chmod +x "$RACE_STUB/gh"
+TEL="$TMP/tel-26.json"
+write_telemetry "$TEL" 'true' 'null'
+: >"$LAUNCH_LOG"
+OUT="$(RACE_COUNT="$RACE_COUNT" PATH="$RACE_STUB:$PATH" bash "$SCRIPT" run \
+  --config "$CONFIG" --repo "$REPO" --data-dir "$DATA" --target-repo "owner/name" \
+  --launcher "$LAUNCHER" --no-telemetry --now 1800000000 --telemetry-json "$TEL" 2>&1)"
+assert_contains "a lane that started after the snapshot is skipped, not restarted" "$OUT" "| work | skipped-running |"
+assert_contains "and the report says the snapshot was stale" "$OUT" "started after the run's snapshot"
+assert_not_contains "a lane alive at mutation time is never stopped-and-relaunched" "$(cat "$LAUNCH_LOG")" "restart work"
+
+# --- 27. print-schedule preserves behavior-affecting options (#1759 P2) -------
+# Dropping a passed --config/--target-repo silently schedules a run against
+# <repo>/.work/lanes.json and the checkout's own repository instead.
+OUT="$(bash "$SCRIPT" print-schedule --repo "$REPO" --config "$CONFIG" --target-repo "owner/name" 2>&1)"
+for form in 'schtasks /Create /TN' 'ONLOGON' '* * * * cd' "bash '"; do
+  line="$(printf '%s\n' "$OUT" | grep -F -- "$form" | head -1)"
+  assert_contains "the emitted form [$form] keeps --config" "$line" "--config"
+  assert_contains "the emitted form [$form] keeps --target-repo" "$line" "--target-repo"
+done
+assert_contains "the offline form quotes the passed --config" "$OUT" "--config '$CONFIG'"
+# A defaulted option is the one case it is safe to omit.
+OUT="$(bash "$SCRIPT" print-schedule --repo "$REPO" 2>&1)"
+assert_not_contains "a defaulted --config is not emitted as noise" "$OUT" "--config"
+assert_not_contains "a defaulted --target-repo is not emitted as noise" "$OUT" "--target-repo"
+
 # --- Summary -----------------------------------------------------------------
 printf '\n%d case(s), %d failure(s)\n' "$CASE_NUM" "$FAILED"
 ((FAILED == 0)) || exit 1

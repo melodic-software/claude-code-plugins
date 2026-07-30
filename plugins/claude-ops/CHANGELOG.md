@@ -3,6 +3,41 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.23.2]
+
+### Fixed
+
+Six review findings raised on #1720 forty-six seconds *after* it merged, so they were never triaged
+(#1759). All are in `lanes/scripts/restart-consumer.sh`.
+
+- **A broken lock store reported as a held lock.** An ignored `mkdir` failure fell through to the
+  contention branch: the absent stamp read as zero and the run reported `lock-held` with exit 0. An
+  unattended consumer with a mistyped path, a permissions problem, or an unavailable volume would
+  **never process a lane while Task Scheduler recorded successful ticks**. `acquire_lock` now
+  separates "the store is unusable" (exit 4, loud) from "another run holds it" (exit 0, routine).
+- **A lock reclaimed on age alone.** A legitimate run outliving the one-hour bound had its live lock
+  removed, letting a second run enter the relaunch span concurrently — reachable because
+  `lane-launcher.sh` performs an unbounded `git pull --ff-only` and marketplace update before launch.
+  The holder now records an owner PID, and age only gates *when to ask*; liveness decides.
+- **Offline telemetry parse failures swallowed.** An unconditional `return 0` after the fixture-read
+  `jq` turned a missing, unreadable, or malformed `--telemetry-json` into a successful empty read,
+  reported as `no-state` — indistinguishable from "the lane did not ask". The offline branch now
+  carries the same contract the network read already had.
+- **An unwritable ledger reduced to a warning.** The breaker counts attempts by querying the ledger,
+  so an attempt that could not be recorded was invisible to `--max-restarts`: a launcher that kept
+  failing was retried on every polling tick forever. Writability is now proved *before* the relaunch,
+  and a failed append fails the lane instead of warning past it.
+- **Liveness read from a stale snapshot before mutating.** The session list is loaded once per run,
+  so a lane started since — by a concurrent operator invocation — still read as stopped, and
+  `lane-launcher.sh restart` *stops* a running lane before relaunching. A healthy session could be
+  interrupted despite the documented "not currently running" predicate. The predicate is now
+  rechecked against a fresh list immediately before the mutation.
+- **`print-schedule` dropped behavior-affecting options.** A non-default `--config` or
+  `--target-repo` was absent from the emitted schtasks, logon, cron, and offline forms, so the
+  scheduled invocation silently fell back to `<repo>/.work/lanes.json` and the checkout's own
+  repository — a different lane configuration and a different telemetry repository than the command
+  that generated it. All four forms now carry them; a defaulted option is still omitted.
+
 ## [0.23.1]
 
 ### Changed

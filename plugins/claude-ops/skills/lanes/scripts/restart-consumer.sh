@@ -453,17 +453,20 @@ ledger_relpath() { printf '%s/restart-consumer.jsonl' "$(repo_marker_key)"; }
 LOCK_DIR=""
 OWN_LOCK=0
 # A run hard-killed mid-flight (reboot, Task Scheduler kill) never reaches its
-# EXIT trap, so a lock older than this is treated as abandoned and reclaimed.
-# Without that, a 15-minute unattended schedule wedges silently forever — the
-# exact failure mode this consumer exists not to become. The bound is far longer
-# than a real run, which is bounded by the per-lane confirmation retries.
+# EXIT trap, so an abandoned lock must eventually be reclaimed — without that, a
+# 15-minute unattended schedule wedges silently forever, the exact failure mode
+# this consumer exists not to become. Age alone is the WRONG discriminator: a
+# legitimate run can outlive any bound, because `lane-launcher.sh` performs an
+# unbounded `git pull --ff-only` and `claude plugin marketplace update` before
+# launch. So age is necessary but not sufficient — the holder's liveness decides,
+# and the age bound only gates when we bother to ask.
 LOCK_STALE_SECONDS=3600
 
 # shellcheck disable=SC2329  # invoked indirectly: acquire_lock installs it as the EXIT trap
 release_lock() {
   ((OWN_LOCK)) || return 0
   OWN_LOCK=0
-  rm -f "$LOCK_DIR/acquired-at" 2>/dev/null || true
+  rm -f "$LOCK_DIR/acquired-at" "$LOCK_DIR/owner-pid" 2>/dev/null || true
   rmdir "$LOCK_DIR" 2>/dev/null || true
 }
 
@@ -474,6 +477,25 @@ lock_stamp() {
   printf '%s' "$stamp"
 }
 
+lock_owner_pid() {
+  local pid=""
+  pid="$(tr -d '\r\n' <"$LOCK_DIR/owner-pid" 2>/dev/null)" || pid=""
+  [[ "$pid" =~ ^[0-9]+$ ]] || pid=0
+  printf '%s' "$pid"
+}
+
+# Is the recorded lock owner still running? Overridable so the tests can drive
+# both branches without spawning real processes.
+lock_owner_alive() {
+  local pid="$1"
+  ((pid > 0)) || return 1
+  if [[ -n "${RESTART_CONSUMER_FAKE_ALIVE_PIDS-}" ]]; then
+    [[ " $RESTART_CONSUMER_FAKE_ALIVE_PIDS " == *" $pid "* ]]
+    return
+  fi
+  kill -0 "$pid" 2>/dev/null
+}
+
 # `mkdir` is the atomic arbiter: exactly one process can create the directory, so
 # a loser never mutates. The stamp file dates the lock for the abandonment check.
 # A loser that finds NO stamp adopts one at `now` rather than reclaiming: the
@@ -481,28 +503,63 @@ lock_stamp() {
 # and stealing that lock is the very duplication this guards. Stamping instead
 # ages the lock out on a later tick, so a hard-killed run bounds the wedge at
 # LOCK_STALE_SECONDS after it is first observed instead of wedging forever.
+# Returns 0 = acquired, 1 = another run holds it, 2 = the lock STORE is unusable.
+# Distinguishing 2 from 1 matters more than it looks: an unattended consumer whose
+# data dir is mistyped, unwritable, or on an unavailable volume would otherwise
+# report `lock-held` and exit 0 forever, so Task Scheduler records healthy ticks
+# while no lane is ever processed.
 acquire_lock() {
-  local now="$1" stamp
+  local now="$1" stamp pid parent
   LOCK_DIR="$(dirname "$(ledger_path)")/.restart-consumer-lock"
-  # The data dir does not exist until the first ledger write, and an ENOENT
-  # mkdir is indistinguishable from a held lock — so materialize the parent.
-  mkdir -p "$(dirname "$LOCK_DIR")" 2>/dev/null || true
+  parent="$(dirname "$LOCK_DIR")"
+  # The data dir does not exist until the first ledger write, so materialize the
+  # parent — but a failure here is a storage fault, never contention.
+  if ! mkdir -p "$parent" 2>/dev/null && [[ ! -d "$parent" ]]; then
+    err "cannot create the lock directory's parent: $parent"
+    return 2
+  fi
   if ! mkdir "$LOCK_DIR" 2>/dev/null; then
+    # mkdir failed. Contention writes a stamp we can read; a storage fault does
+    # not even leave a directory behind.
+    if [[ ! -d "$LOCK_DIR" ]]; then
+      err "cannot create the lock directory: $LOCK_DIR"
+      return 2
+    fi
     stamp="$(lock_stamp)"
+    pid="$(lock_owner_pid)"
+    # A loser that finds NO stamp adopts one at `now` rather than reclaiming: the
+    # holder may have won the mkdir microseconds ago and not written its stamp
+    # yet, and stealing that lock is the very duplication this guards.
     if ((stamp == 0)); then
-      printf '%s\n' "$now" >"$LOCK_DIR/acquired-at" 2>/dev/null || true
+      write_lock_file "$LOCK_DIR/acquired-at" "$now" || return 2
       return 1
     fi
     ((now - stamp < LOCK_STALE_SECONDS)) && return 1
+    # Aged out — but age alone never reclaims. A recorded owner that is still
+    # running means a legitimately long run, not an abandoned lock.
+    if lock_owner_alive "$pid"; then
+      warn "lock held since epoch $stamp is past the stale bound but its owner (pid $pid) is alive; leaving it held: $LOCK_DIR"
+      return 1
+    fi
     warn "reclaiming a lock held since epoch $stamp with no live run to release it: $LOCK_DIR"
-    rm -f "$LOCK_DIR/acquired-at" 2>/dev/null || true
+    rm -f "$LOCK_DIR/acquired-at" "$LOCK_DIR/owner-pid" 2>/dev/null || true
     rmdir "$LOCK_DIR" 2>/dev/null || true
     mkdir "$LOCK_DIR" 2>/dev/null || return 1
   fi
   OWN_LOCK=1
   trap release_lock EXIT
-  printf '%s\n' "$now" >"$LOCK_DIR/acquired-at" 2>/dev/null || true
+  write_lock_file "$LOCK_DIR/acquired-at" "$now" || return 2
+  write_lock_file "$LOCK_DIR/owner-pid" "$$" || return 2
   return 0
+}
+
+# A lock whose stamp cannot be persisted is not a lock — silently continuing
+# would let the next tick reclaim it as unstamped while this run is live.
+write_lock_file() {
+  local path="$1" value="$2"
+  printf '%s\n' "$value" >"$path" 2>/dev/null && return 0
+  err "cannot write the lock file: $path"
+  return 1
 }
 
 resolve_launcher() {
@@ -620,7 +677,11 @@ resolve_issue_by_title() {
 lane_comment_bodies() {
   local lane="$1" repo="$2" issue="$3" raw
   if [[ -n "$TELEMETRY_JSON_FILE" ]]; then
-    jq -c --arg l "$lane" '[ (.[$l] // [])[] | .body // "" ]' "$TELEMETRY_JSON_FILE"
+    # The fixture read gets the same contract as the network read: a missing,
+    # unreadable, malformed, or wrongly-shaped file is a FAILURE, not an empty
+    # comment list. An unconditional `return 0` here would report `no-state` —
+    # indistinguishable from "the lane did not ask".
+    jq -c --arg l "$lane" '[ (.[$l] // [])[] | .body // "" ]' "$TELEMETRY_JSON_FILE" 2>/dev/null || return 1
     return 0
   fi
   raw="$(gh api --paginate "repos/$repo/issues/$issue/comments" -q '.[] | {body}' 2>/dev/null)" || return 1
@@ -702,6 +763,29 @@ ledger_decision() {
   esac
 }
 
+# Can the ledger take an append right now? Probed before a relaunch so a lane
+# whose attempt could not be counted is never launched. `check` and dry runs
+# never append, so nothing is claimed about them.
+ledger_writable() {
+  local ledger dir
+  ((DRY_RUN)) && return 0
+  [[ "$ACTION" == "run" ]] || return 0
+  ledger="$(ledger_path)"
+  dir="$(dirname "$ledger")"
+  mkdir -p "$dir" 2>/dev/null || [[ -d "$dir" ]] || return 1
+  # O_APPEND of nothing: creates the file when absent, proves writability when
+  # present, and adds no row either way. The redirection runs in a subshell so
+  # that bash's OWN failure message — which `2>/dev/null` on the command cannot
+  # suppress, because the shell emits it before the command runs — stays out of
+  # the operator's report.
+  (: >>"$ledger") 2>/dev/null || return 1
+}
+
+# Returns non-zero when the row could not be persisted. The breaker
+# (`--max-restarts`) is computed by querying this ledger, so an attempt that
+# never lands is an attempt the breaker cannot count: a launcher that keeps
+# failing would be retried on every polling tick, forever, without reaching the
+# cap. Persistence failure is therefore a run failure, not a warning.
 append_ledger() {
   local row="$1" ledger dir
   ((DRY_RUN)) && return 0
@@ -712,8 +796,12 @@ append_ledger() {
   [[ "$ACTION" == "run" ]] || return 0
   ledger="$(ledger_path)"
   dir="$(dirname "$ledger")"
-  if ! mkdir -p "$dir" 2>/dev/null || ! printf '%s\n' "$row" >>"$ledger" 2>/dev/null; then
-    warn "run ledger write failed: $ledger"
+  # Subshell for the same reason as ledger_writable: bash reports a failed
+  # redirection itself, before the command runs, so `2>/dev/null` on printf
+  # alone would still leak the message into the report.
+  if ! mkdir -p "$dir" 2>/dev/null || ! (printf '%s\n' "$row" >>"$ledger") 2>/dev/null; then
+    err "run ledger write failed: $ledger"
+    return 1
   fi
 }
 
@@ -722,6 +810,8 @@ declare -a REPORT_ROWS=()
 declare -a FLAGS=()
 EXIT_STATUS=0
 
+# Propagates append_ledger's status so a caller that is about to mutate (relaunch)
+# can refuse when its attempt could not be recorded.
 record() {
   local lane="$1" decision="$2" detail="$3" request="$4" now="$5"
   REPORT_ROWS+=("| $lane | $decision | $detail |")
@@ -729,7 +819,7 @@ record() {
   append_ledger "$(jq -c -n \
     --arg ts "$(iso_utc "$now")" --argjson epoch "$now" --arg lane "$lane" \
     --arg decision "$decision" --arg detail "$detail" --argjson request "$request" \
-    '{ts:$ts,epoch:$epoch,lane:$lane,decision:$decision,detail:$detail,request:$request}')"
+    '{ts:$ts,epoch:$epoch,lane:$lane,decision:$decision,detail:$detail,request:$request}')" || return 1
 }
 
 fail_lane() {
@@ -830,6 +920,28 @@ process_lane() {
     return 0
   fi
 
+  # Recheck liveness against a FRESH list immediately before mutating. The
+  # snapshot above is loaded once per run, so a lane started since — by a
+  # concurrent operator invocation — still reads as stopped. `lane-launcher.sh
+  # restart` deliberately STOPS a running lane before relaunching it, so acting
+  # on the stale snapshot would interrupt a healthy session, which the documented
+  # "not currently running" predicate promises never to do.
+  if read_sessions && lane_is_running "$lane"; then
+    record "$lane" "skipped-running" "lane started after the run's snapshot; not restarting ($reason)" "$request" "$now"
+    return 0
+  fi
+
+  # Prove the outcome row can land BEFORE mutating. The breaker counts attempts
+  # by querying the ledger, so a relaunch whose `restarted`/`failed` row cannot
+  # be written is invisible to `--max-restarts` — a launcher that keeps failing
+  # would be retried on every polling tick forever. Probing first keeps the
+  # breaker's memory intact without adding a second row per attempt.
+  if ! ledger_writable; then
+    record "$lane" "error" "run ledger is not writable; refusing to relaunch a lane whose attempt cannot be counted" "$request" "$now" || true
+    fail_lane "ledger-unwritable($lane)" 5
+    return 0
+  fi
+
   info "restarting lane '$lane' ($reason)"
   local -a launch=(restart "$lane" --config "$CONFIG" --repo "$REPO")
   [[ -n "$DATA_DIR_OVERRIDE" ]] && launch+=(--data-dir "$DATA_DIR_OVERRIDE")
@@ -914,8 +1026,22 @@ Run ledger: \`<data-dir>/$(ledger_relpath)\` on the machine running this consume
 
 # --- print-schedule -----------------------------------------------------------
 action_print_schedule() {
-  local self claude_bin run_cmd win_repo win_claude data_dir
+  local self claude_bin run_cmd win_repo win_claude data_dir opts opts_sq
   self="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/$(basename "${BASH_SOURCE[0]}")"
+  # Behavior-affecting options must survive into every emitted command. This
+  # action runs BEFORE resolve_config/resolve_target_repo, so these hold exactly
+  # what the operator passed — empty means "defaulted", and a defaulted option is
+  # the one case it is safe to omit. Dropping a passed one would silently
+  # schedule a run against `<repo>/.work/lanes.json` and the checkout's own
+  # repository: a different lane configuration and a different telemetry
+  # repository than the command that generated it.
+  opts=""
+  [[ -n "$CONFIG" ]] && opts+=" --config $CONFIG"
+  [[ -n "$TARGET_REPO" ]] && opts+=" --target-repo $TARGET_REPO"
+  # Single-quoted variant for the cron and offline forms, which quote their args.
+  opts_sq=""
+  [[ -n "$CONFIG" ]] && opts_sq+=" --config '$CONFIG'"
+  [[ -n "$TARGET_REPO" ]] && opts_sq+=" --target-repo '$TARGET_REPO'"
   # The offline form's --data-dir must be COPY-PASTEABLE, because the warning
   # under it is that a second data dir splits the breaker ledger. When the caller
   # passed one, echo it back; otherwise keep the placeholder that says what to
@@ -930,7 +1056,7 @@ action_print_schedule() {
   # `run` is load-bearing: the script's default action is the read-only
   # `check`, so a schedule registered without `run` would report forever and
   # never relaunch anything.
-  run_cmd='claude -p "/claude-ops:lanes consume-restarts run" --output-format text'
+  run_cmd="claude -p \"/claude-ops:lanes consume-restarts run${opts}\" --output-format text"
 
   cat <<EOF
 Registering the schedule is an OPERATOR action — this script never performs it.
@@ -951,7 +1077,7 @@ Reader: $run_cmd
   cmd.exe syntax). NOT from Git Bash: MSYS path conversion rewrites /-style
   options — 'schtasks /Query' becomes an invalid 'C:/Program Files/Git/Query'.
 
-schtasks /Create /TN "$TASK_NAME" /SC MINUTE /MO ${INTERVAL_MINUTES} /F /RU "%USERNAME%" /IT /RL LIMITED /TR "cmd /c cd /d \"$win_repo\" && \"$win_claude\" -p \"/claude-ops:lanes consume-restarts run\" --output-format text"
+schtasks /Create /TN "$TASK_NAME" /SC MINUTE /MO ${INTERVAL_MINUTES} /F /RU "%USERNAME%" /IT /RL LIMITED /TR "cmd /c cd /d \"$win_repo\" && \"$win_claude\" -p \"/claude-ops:lanes consume-restarts run${opts}\" --output-format text"
 
   /IT runs the task only while that user is logged on, so the CLI reads the
   credentials already in the user profile: no stored password, no elevation.
@@ -959,7 +1085,7 @@ schtasks /Create /TN "$TASK_NAME" /SC MINUTE /MO ${INTERVAL_MINUTES} /F /RU "%US
 
   Cold start after a reboot — add a logon trigger alongside the poll:
 
-schtasks /Create /TN "$TASK_NAME (logon)" /SC ONLOGON /F /RU "%USERNAME%" /IT /RL LIMITED /TR "cmd /c cd /d \"$win_repo\" && \"$win_claude\" -p \"/claude-ops:lanes consume-restarts run\" --output-format text"
+schtasks /Create /TN "$TASK_NAME (logon)" /SC ONLOGON /F /RU "%USERNAME%" /IT /RL LIMITED /TR "cmd /c cd /d \"$win_repo\" && \"$win_claude\" -p \"/claude-ops:lanes consume-restarts run${opts}\" --output-format text"
 
   Remove both (also from cmd.exe):
 
@@ -970,14 +1096,14 @@ schtasks /Delete /TN "$TASK_NAME (logon)" /F
 
   Same command on the same interval. cron form:
 
-*/${INTERVAL_MINUTES} * * * * cd '$REPO' && '$claude_bin' -p '/claude-ops:lanes consume-restarts run' --output-format text
+*/${INTERVAL_MINUTES} * * * * cd '$REPO' && '$claude_bin' -p '/claude-ops:lanes consume-restarts run${opts}' --output-format text
 
 == Offline variant (no model turn) ==
 
   The reader is a deterministic script; the headless 'claude -p' wrapper only
   routes through the skill. Schedule this where a model turn is unwanted:
 
-bash '$self' run --repo '$REPO' --data-dir '$data_dir'
+bash '$self' run --repo '$REPO' --data-dir '$data_dir'${opts_sq}
 
   --data-dir matters here: skill-invoked runs pass the resolved
   CLAUDE_PLUGIN_DATA directory explicitly, and this form's env-var fallback
@@ -1004,19 +1130,28 @@ main() {
   require_claude
   load_sessions
 
-  local now n i
+  local now n i lock_rc=0
   now="$(now_epoch)"
 
   # Held across the whole read -> decide -> relaunch -> append span, and across
   # the telemetry upsert, so a losing tick writes nothing at all. Only a real
   # `run` mutates, so only a real `run` contends.
-  if [[ "$ACTION" == "run" ]] && ((!DRY_RUN)) && ! acquire_lock "$now"; then
-    warn "another restart-consumer run holds the lock ($LOCK_DIR) — skipping this tick"
-    info "restart-consumer: $ACTION on ${TARGET_REPO:-<fixtures>} at $(iso_utc "$now")"
-    info "| lane | decision | detail |"
-    info "|---|---|---|"
-    info "| (none) | lock-held | another run holds $LOCK_DIR; skipped |"
-    exit 0
+  if [[ "$ACTION" == "run" ]] && ((!DRY_RUN)); then
+    acquire_lock "$now" || lock_rc=$?
+    # 2 = the lock store itself is unusable. Exiting 0 here would let an
+    # unattended schedule log healthy ticks forever while processing nothing.
+    if ((${lock_rc:-0} == 2)); then
+      err "restart-consumer: the lock store is unusable — not a held lock; failing rather than reporting a skipped tick"
+      exit 4
+    fi
+    if ((${lock_rc:-0} != 0)); then
+      warn "another restart-consumer run holds the lock ($LOCK_DIR) — skipping this tick"
+      info "restart-consumer: $ACTION on ${TARGET_REPO:-<fixtures>} at $(iso_utc "$now")"
+      info "| lane | decision | detail |"
+      info "|---|---|---|"
+      info "| (none) | lock-held | another run holds $LOCK_DIR; skipped |"
+      exit 0
+    fi
   fi
 
   n="$(jq -r '(.lanes // []) | length' "$CONFIG")"
