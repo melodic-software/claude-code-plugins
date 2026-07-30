@@ -586,6 +586,20 @@ else
   ok "read_file_path: temp-tree scoping SKIPPED (no writable HOME outside the temp tree on this host — no coverage here, not a pass)"
 fi
 
+# --- Test 12d: under_temp_root — the filesystem root as a temp candidate ------
+# A candidate of `/` contains every absolute path. Trimming its trailing slash
+# empties the string, and an empty candidate is discarded — so `TMPDIR=/` used
+# to recognize nothing at all instead of everything.
+if (
+  # shellcheck disable=SC2030,SC2031 # subshell-local by design: the overrides must not leak into the suite
+  export TMPDIR=/ TMP=/ TEMP=/
+  hook::under_temp_root "$HOME/anywhere/at-all.py"
+); then
+  ok "under_temp_root: root temp candidate contains every path"
+else
+  fail "under_temp_root: root temp candidate discarded — '/' trimmed to empty"
+fi
+
 # --- Test 13: hook::telemetry_enabled — cheap sink-presence probe -------------
 # Producers gate telemetry-payload construction on this, so its verdict must
 # track HOOK_TELEMETRY_SINK exactly: unset and empty are disabled, any

@@ -251,6 +251,9 @@ hook::under_temp_root() {
     esac
     seen="$seen|$cand|"
     norm=$(hook::normalize_path "$(hook::physical_path "$cand")")
+    # The filesystem root as a temp candidate contains every absolute path;
+    # trimming its only slash would empty the candidate and discard it.
+    [[ "$norm" == / ]] && return 0
     norm="${norm%/}"
     [[ -n "$norm" ]] || continue
     # Equality counts: a project root that IS the temp root must answer true,
