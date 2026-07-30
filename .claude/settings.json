@@ -1,4 +1,36 @@
 {
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/session-start.sh"
+          }
+        ]
+      }
+    ]
+  },
+  "extraKnownMarketplaces": {
+    "melodic-software": {
+      "source": {
+        "source": "directory",
+        "path": "./"
+      }
+    }
+  },
+  "enabledPlugins": {
+    "markdown-format@melodic-software": true,
+    "bash-format@melodic-software": true,
+    "biome-format@melodic-software": true,
+    "typos-format@melodic-software": true,
+    "actionlint@melodic-software": true,
+    "eol-normalizer@melodic-software": true,
+    "guardrails@melodic-software": true,
+    "source-control@melodic-software": true,
+    "skill-quality@melodic-software": true
+  },
   "worktree": {
     "baseRef": "head"
   }
