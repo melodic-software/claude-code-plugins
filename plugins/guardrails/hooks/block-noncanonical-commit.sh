@@ -252,8 +252,8 @@ git_rev_parse_field() {
     git -C "$dir" "$@" rev-parse "$flag" 2>/dev/null
     printf 'x'
   )
-  out="${out%x}"       # drop the sentinel, keeping any real trailing byte
-  out="${out%$'\n'}"   # git's single bare-LF line terminator (see od note above)
+  out="${out%x}"     # drop the sentinel, keeping any real trailing byte
+  out="${out%$'\n'}" # git's single bare-LF line terminator (see od note above)
   HOOK_REV_PARSE_FIELD="$out"
 }
 
@@ -366,6 +366,27 @@ collect_locating_globals() {
 # CURRENT one, because git starts the body at the current repo's top level and the
 # `#` discards the appended words. The same slice keeps `git commit -C HEAD`
 # (--reuse-message) from being read as a directory named HEAD.
+#
+# CALLERS MUST PASS GIT'S OWN GLOBALS ONLY — the slice from the resolved git
+# token (`gi`) up to the subcommand, never from index 0. Anything before `gi`
+# belongs to a wrapper, and this parser cannot know which wrapper options take a
+# value. In `env -u -C git …`, GNU env's `-u NAME` consumes `-C` as the variable
+# to unset and `git` as the command to run, so git itself receives no `-C` and
+# never changes directory — while a 0-based slice sees the bare tokens `-C git`
+# and resolves into `./git`. The hook then reads one repository's aliases while
+# git executes another's, which is a guard bypass, not a cosmetic mismatch. The
+# same boundary binds collect_locating_globals and explicit_git_dir, which scan
+# that slice for --git-dir/--work-tree. The slice is always non-empty:
+# hook::git_resolve_subcommand starts its scan at `gi + 1`, so `sub_idx > gi`
+# holds for every argv that reaches these call sites.
+#
+# Narrowing to that slice DROPS a relocation a wrapper really performs, so the
+# caller must reinstate it: `env -C <dir> git a` moves git before it starts, and
+# a slice that begins at `gi` cannot see it. hook::git_resolve_index — the only
+# parser that knows env's `-C` from `-u`'s operand — reports those directories in
+# HOOK_GIT_RESOLVED_WRAPPER_DIRS, and the caller passes them here as leading `-C`
+# words so they compose ahead of git's own globals, in that order. Dropping them
+# reads the payload cwd's aliases while git runs the relocated repository's.
 # shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
 effective_dir() {
   local base="${HOOK_EFFECTIVE_BASE:-${HOOK_CWD:-${CLAUDE_PROJECT_DIR:-.}}}" i n=$# arg
@@ -529,6 +550,15 @@ check_segment() {
   w=("${HOOK_GIT_RESOLVED_WORDS[@]}")
   nseg=${#w[@]}
 
+  # A wrapper's chdir happens before git starts, so it composes ahead of git's
+  # own globals — spelled as leading `-C` words rather than a second base, so the
+  # one path-composition rule in effective_dir covers both (see its docblock).
+  local -a wrapper_cd=()
+  local wdir
+  for wdir in ${HOOK_GIT_RESOLVED_WRAPPER_DIRS[@]+"${HOOK_GIT_RESOLVED_WRAPPER_DIRS[@]}"}; do
+    wrapper_cd+=(-C "$wdir")
+  done
+
   hook::git_resolve_subcommand "$gi" "${w[@]}" || return 0
   sub=$HOOK_GIT_SUB
   sub_idx=$HOOK_GIT_SUB_IDX
@@ -605,8 +635,8 @@ check_segment() {
           # onto it.
           reparse="${exp#!}"
           for a in "${w[@]:sub_idx+1}"; do reparse+=" $(printf '%q' "$a")"; done
-          [[ -n "$seg_dir" ]] || seg_dir="$(effective_dir "${w[@]:0:sub_idx}")"
-          collect_locating_globals "${w[@]:0:sub_idx}"
+          [[ -n "$seg_dir" ]] || seg_dir="$(effective_dir ${wrapper_cd[@]+"${wrapper_cd[@]}"} "${w[@]:gi:sub_idx-gi}")"
+          collect_locating_globals "${w[@]:gi:sub_idx-gi}"
           alias_launch_dir "$seg_dir" ${locating_globals[@]+"${locating_globals[@]}"} ||
             HOOK_ALIAS_LAUNCH_DIR="$seg_dir"
           HOOK_ALIAS_SEEN=()
@@ -630,7 +660,7 @@ check_segment() {
     # (its own precedence applies) only when no inline alias already matched.
     if ((inline_alias_handled == 0)) && [[ "$sub" != "commit" ]]; then
       local pexp
-      [[ -n "$seg_dir" ]] || seg_dir="$(effective_dir "${w[@]:0:sub_idx}")"
+      [[ -n "$seg_dir" ]] || seg_dir="$(effective_dir ${wrapper_cd[@]+"${wrapper_cd[@]}"} "${w[@]:gi:sub_idx-gi}")"
       persisted_alias "$seg_dir" "$sub"
       pexp="$HOOK_PERSISTED_ALIAS"
       if [[ -n "$pexp" ]]; then
@@ -658,7 +688,7 @@ check_segment() {
           # the directory forever (`-C .`) never repeats a key, so termination
           # there rests on the fail-closed traversal budget, not on this set.
           local pkey pseen_hit=0
-          collect_locating_globals "${w[@]:0:sub_idx}"
+          collect_locating_globals "${w[@]:gi:sub_idx-gi}"
           alias_launch_dir "$seg_dir" ${locating_globals[@]+"${locating_globals[@]}"} ||
             HOOK_ALIAS_LAUNCH_DIR="$seg_dir"
           pkey="$HOOK_ALIAS_LAUNCH_DIR"$'\n'"$sub="$'\n'"$pexp"
@@ -739,8 +769,8 @@ check_segment() {
   ((saw_commit)) || return 0
   ((stdin_form || exempt)) && return 0
   allowed "message-flag" && return 0
-  [[ -n "$seg_dir" ]] || seg_dir="$(effective_dir "${w[@]:0:sub_idx}")"
-  sequencer_in_progress "$seg_dir" "$(explicit_git_dir "${w[@]:0:sub_idx}")" && return 0
+  [[ -n "$seg_dir" ]] || seg_dir="$(effective_dir ${wrapper_cd[@]+"${wrapper_cd[@]}"} "${w[@]:gi:sub_idx-gi}")"
+  sequencer_in_progress "$seg_dir" "$(explicit_git_dir "${w[@]:gi:sub_idx-gi}")" && return 0
 
   echo "BLOCKED: \`git commit\` without \`-F -\` — the message must be piped via stdin." >&2
   echo "Use the /commit skill (source-control plugin), or its canonical form directly:" >&2
