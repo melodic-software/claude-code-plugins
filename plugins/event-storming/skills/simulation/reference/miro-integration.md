@@ -182,8 +182,9 @@ Persona 1 sits at the `y=0` timeline baseline.
 | Business Rules | 300 | Gray — invariants (stack at y=300, 550, 800) |
 | Domain Events | 1100 | Orange — outcomes |
 | Alternative outcomes | 1400 | Rejection/failure events |
-| What-if challenges | 1700 | Red hot spots |
-| BC Contracts (outbound) | 2000 | Published events |
+| Policies | 1650 | Violet — reactive `Whenever X, do Y` |
+| What-if challenges | 1950 | Red hot spots |
+| BC Contracts (outbound) | 2250 | Published events |
 
 **Reading the layout:** every row's y comes from that phase's Y-Coordinate Table
 above — negative is up, positive is down, and the bolded row is the baseline. The
@@ -194,11 +195,12 @@ item, independent of phase. A command and the actor that issues it share one x a
 differ only by row, so a single flow segment is a column per step:
 
 ```
+Read Model       x=0       row: Read Models
 Actor            x=0       row: Actors
 Command          x=0       row: Commands
 Domain Event     x=400     row: Domain Events        (happy path)
 Event (alt)      x=400     row: Alternative outcomes (rejection/failure)
-Policy           x=800     row: Domain Events        (reactive — "whenever")
+Policy           x=800     row: Policies             (reactive — "whenever")
 Next Command     x=1200    row: Commands             (triggered by policy)
 Next Event       x=1600    row: Domain Events
 ```
