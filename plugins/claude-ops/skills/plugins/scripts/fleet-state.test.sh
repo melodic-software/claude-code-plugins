@@ -370,6 +370,37 @@ current_flag=$(jq -r '.installed[0].currentProject' <<<"$out" 2>/dev/null)
 assert_eq "git-fallback: CLAUDE_PROJECT_DIR unset, cwd inside a subdir, resolves via git toplevel" "true" "$current_flag"
 
 # ============================================================================
+# Case: a non-git cwd with CLAUDE_PROJECT_DIR unset has NO project context.
+# Project root resolves from CLAUDE_PROJECT_DIR or a real git toplevel only;
+# neither exists here, so an install record whose projectPath happens to equal
+# the cwd must not be promoted to currentProject. Falling back to bare $PWD
+# manufactures project context for any non-repo directory -- and in $HOME the
+# "project" settings read is the user settings file itself.
+# ============================================================================
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+nonrepo_dir="$case_dir/not-a-git-repo"
+mkdir -p "$nonrepo_dir"
+native_nonrepo_path="${nonrepo_dir//\//\\}"
+write "$case_dir/installed_plugins.json" "$(
+  jq -cn --arg p "$native_nonrepo_path" \
+    '{version: 1, plugins: {"alpha@market1": [{scope: "project", projectPath: $p, installPath: "x", version: "0.1.0"}]}}'
+)"
+write "$case_dir/known_marketplaces.json" '{"market1": {"source": {"source": "github", "repo": "example/market1"}, "installLocation": "z", "lastUpdated": "2026-01-01T00:00:00Z"}}'
+write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "alpha"}]}'
+write "$case_dir/user_settings.json" '{"enabledPlugins":{}}'
+out=$(
+  cd "$nonrepo_dir" && env -u CLAUDE_PROJECT_DIR \
+    FLEET_STATE_INSTALLED_JSON="$case_dir/installed_plugins.json" \
+    FLEET_STATE_MARKETPLACES_JSON="$case_dir/known_marketplaces.json" \
+    FLEET_STATE_USER_SETTINGS="$case_dir/user_settings.json" \
+    FLEET_STATE_CATALOG_DIR="$case_dir/catalog" \
+    bash "$SCRIPT" --marketplace market1 2>&1
+)
+current_flag=$(jq -r '.installed[0].currentProject' <<<"$out" 2>/dev/null)
+assert_eq "no-project-context: non-git cwd with CLAUDE_PROJECT_DIR unset manufactures no currentProject" "null" "$current_flag"
+
+# ============================================================================
 # Case: --all sweeps every marketplace; one absent-catalog failure does not
 # abort the sweep
 # ============================================================================
@@ -795,7 +826,7 @@ fi
 # the fixed count of boolean-only remaining uses.
 # ============================================================================
 CASE_NUM=$((CASE_NUM + 1))
-argjson_code_count=$(grep -v '^\s*#' "$SCRIPT" | grep -c -- '--argjson' || true)
+argjson_code_count=$(grep -v '^[[:space:]]*#' "$SCRIPT" | grep -c -- '--argjson' || true)
 assert_eq "static guard: --argjson remains only on fixed-size booleans (au/ci/autoUpdate), not catalog-sized payloads" "7" "$argjson_code_count"
 
 # --- Summary -------------------------------------------------------------

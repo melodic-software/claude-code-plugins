@@ -3,6 +3,45 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.24.1]
+
+### Fixed
+
+- **`plugins` skill: `sync` Step 1 no longer claims to self-heal, and states what to do when the
+  refresh fails (#1764, F1).** `claude plugin marketplace update` is known to fail against an
+  existing non-empty marketplace directory
+  ([anthropics/claude-code#76129](https://github.com/anthropics/claude-code/issues/76129), open),
+  and Step 1 documented no behavior at all on a non-zero exit in single/default mode — only `all`
+  mode and Step 3 had inline-failure prose. Step 1 now says the refresh is attempted rather than
+  guaranteed, cites the upstream bug, and directs a failure to "Action needed" with the catalog
+  reported as possibly stale instead of current. Cache surgery stays out of scope; a read-only
+  `git fetch` inside the marketplace's `installLocation` is named as the safe diagnostic.
+- **`plugins` skill: `sync` now says where the report's `<old> → <new>` versions come from (#1764,
+  F3).** The report format mandated a per-plugin version pair that no step instructed capturing.
+  A new "Version capture for the report" section fixes three sources in precedence order — `<old>`
+  from the pre-mutation snapshot the Concurrency section already requires, `<new>` from the update
+  call's own output, and a post-sweep re-read as fallback — and forbids synthesizing a value.
+  The fallback is explicitly second because `claude plugin update`'s help says "restart required to
+  apply" and this skill has not established when the CLI writes `installed_plugins.json`; if that
+  write is deferred, a post-sweep re-read would report no change for a plugin that did update.
+- **`plugins` skill: the TOCTOU gotcha now covers catalog content, not just installed/enabled state
+  (#1764, F2).** A refresh landing mid-session rewrites the catalog, so two reads within one session
+  can legitimately disagree on plugin count — which is why diffing `fleet-state.sh`'s catalog
+  against a separately-read raw `marketplace.json` is not a valid staleness check, and why a
+  mismatch is not evidence of an enumeration bug.
+- **`fleet-state.sh`: a non-git working directory no longer manufactures project context (#1764,
+  F4).** `PROJECT_ROOT` fell through to bare `$PWD` whenever `CLAUDE_PROJECT_DIR` was unset and cwd
+  was not a git tree, so the "project" settings read became whatever `.claude/settings.json` sat
+  under cwd — in `$HOME`, the user settings file itself — and an install record whose `projectPath`
+  equalled that directory would be promoted to `currentProject: true`. Project context now resolves
+  only from `CLAUDE_PROJECT_DIR` or a real git toplevel, matching what `sync.md` Step 2 already
+  documented; the downstream reads were already guarded for an empty root.
+- **`plugins` skill: the action-router table reads as an index again (#1764, F5).** The `sync` row's
+  Description spelled out the full six-step chain, complete enough that a session could execute the
+  action without opening `context/sync.md` — which is how F1's and F3's gaps went unnoticed during a
+  live run. Descriptions now name territory only, above an explicit instruction to read the linked
+  detail file before executing.
+
 ## [0.24.0]
 
 ### Added

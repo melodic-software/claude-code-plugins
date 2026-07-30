@@ -196,13 +196,20 @@ fi
 # toplevel (e.g. a Bash call from a subdirectory, or a repo nested inside
 # another). But it is NOT reliably exported to every invocation context
 # (verified empirically: absent in a real headless `-p` session run from
-# inside a project directory) — fall back to the cwd's git toplevel, then
-# bare $PWD, rather than silently losing project context.
+# inside a project directory) — fall back to the cwd's git toplevel.
+#
+# Those two are the only sources. There is deliberately no bare-$PWD fallback:
+# a cwd that is neither exported as the project dir nor inside a git tree is
+# not project context, and treating it as one manufactures a phantom. The
+# settings read below would take whatever `.claude/settings.json` sits under
+# cwd — in $HOME that is the user settings file itself, making the "project"
+# map a copy of the user map — and an install record whose projectPath happens
+# to equal cwd would be promoted to `currentProject: true`. An empty root is
+# the honest answer and every consumer below already guards for it.
 PROJECT_ROOT="${CLAUDE_PROJECT_DIR:-}"
 if [[ -z "$PROJECT_ROOT" ]]; then
   PROJECT_ROOT=$(git rev-parse --show-toplevel 2>/dev/null | tr -d '\r')
 fi
-[[ -n "$PROJECT_ROOT" ]] || PROJECT_ROOT="$PWD"
 
 # --- Effective enabledPlugins (raw per-scope + merged local>project>user) --
 
