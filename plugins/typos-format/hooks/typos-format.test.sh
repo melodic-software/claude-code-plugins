@@ -667,6 +667,47 @@ RC=$?
 if [[ $RC -eq 0 && -z "$OUT" ]]; then ok "excluded file -> exit 0, silent (no nag)"; else fail "excluded file not silent (rc=$RC out=$OUT)"; fi
 if [[ "$(cat "$REPO_EX/gen/g.txt")" == "$BEFORE_EX" ]]; then ok "excluded file -> left untouched (respects config exclude)"; else fail "excluded file -> was rewritten"; fi
 
+# --- Case 7b: harness scratchpad under a home-shaped project dir -> untouched -
+# The production over-fire (#1769): a session whose CLAUDE_PROJECT_DIR is the
+# user's home admits the harness's own per-session scratchpad — it lives under
+# the OS temp root, which is under home — so this hook autocorrected a shell
+# variable in a throwaway script, in a location with no repo and therefore no
+# typos config to allow-list the token with. Rewriting there is a content
+# mutation of a file that is not project content and cannot be opted out of.
+#
+# Built without depending on where this host puts its temp tree: an outer
+# project root outside any temp tree ($HOME), a stand-in temp root nested
+# inside it that TMPDIR/TMP/TEMP point at, and the fixture file under that.
+# `env -u CLAUDE_PROJECT_DIR` in run_hook_env is applied before the caller's
+# own assignments, so passing CLAUDE_PROJECT_DIR here does set it.
+SCRATCH_HOME=""
+if [[ -n "${HOME:-}" && -d "${HOME:-}" ]]; then
+  SCRATCH_HOME=$(mktemp -d "$HOME/.typos-format-test.XXXXXX" 2>/dev/null) || SCRATCH_HOME=""
+fi
+if [[ -n "$SCRATCH_HOME" ]]; then
+  mkdir -p "$SCRATCH_HOME/scratchpad"
+  printf 'this has teh typo\n' >"$SCRATCH_HOME/scratchpad/inventory.txt" # spellchecker:disable-line
+  BEFORE_SP="$(cat "$SCRATCH_HOME/scratchpad/inventory.txt")"
+  OUT_SP=$(run_hook_env "$SCRATCH_HOME/scratchpad/inventory.txt" \
+    PATH="$(dirname "$REAL_TYPOS"):$PATH" CLAUDE_PLUGIN_OPTION_TYPOS_FORMAT_ENABLED=true \
+    CLAUDE_PROJECT_DIR="$SCRATCH_HOME" TMPDIR="$SCRATCH_HOME/scratchpad" \
+    TMP="$SCRATCH_HOME/scratchpad" TEMP="$SCRATCH_HOME/scratchpad")
+  RC_SP=$?
+  if [[ $RC_SP -eq 0 && -z "$OUT_SP" ]]; then
+    ok "temp-tree file under a home-shaped project dir -> exit 0, silent"
+  else
+    fail "temp-tree file not silent (rc=$RC_SP out=$OUT_SP)"
+  fi
+  if [[ "$(cat "$SCRATCH_HOME/scratchpad/inventory.txt")" == "$BEFORE_SP" ]]; then
+    ok "temp-tree file under a home-shaped project dir -> NOT rewritten"
+  else
+    fail "temp-tree file was rewritten: $(cat "$SCRATCH_HOME/scratchpad/inventory.txt")"
+  fi
+  rm -rf "$SCRATCH_HOME"
+else
+  ok "temp-tree scoping SKIPPED (no writable HOME on this host — no coverage here, not a pass)"
+fi
+
 # --- Case 8: kill switch bypasses hook ---------------------------------------
 printf 'this has teh typo\n' >"$REPO/kill.txt" # spellchecker:disable-line
 BEFORE_K="$(cat "$REPO/kill.txt")"
