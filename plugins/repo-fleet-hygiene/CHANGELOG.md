@@ -16,8 +16,10 @@ All notable changes to `repo-fleet-hygiene` are documented here. Format follows
   The implicit target now carries its own rejection origin: it still fails closed, and the failure
   now lists `--root`, `--repo`, and `--config` with a pointer to `/repo-fleet-hygiene:setup apply`.
   An explicitly supplied bad path stays terse — the operator just passed a scope, so repeating how
-  to pass one is noise. The skill body described the same default in discovery-root terms and now
-  states that it is an exact target.
+  to pass one is noise. When a config WAS consumed but carries no `fleet.root`/`fleet.repo` entries
+  (only `maxDepth`, acknowledgments, or overrides), the rejection no longer claims `--config` was
+  omitted: it names the consumed config and directs scope into it. The skill body described the
+  same default in discovery-root terms and now states that it is an exact target.
 
 ## [0.7.0]
 
