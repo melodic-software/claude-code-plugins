@@ -68,13 +68,6 @@ Every model-pinned spawn brief uses the conditional framing contract from `SKILL
 Pending Anthropic docs for this pipeline. Verify each URL live at fetch time; remove entries as
 their slices complete.
 
-Model selection (special handling — vet/validate/correct the consuming setup's existing
-model-routing configuration against the doc, rather than only digesting):
-
-- <https://platform.claude.com/docs/en/about-claude/models/choosing-a-model>
-  — routing vet executed 2026-07-29 (melodic-software/claude-code-plugins#1697); digest slice
-  still pending
-
 Thinking (two overlapping docs — two runs, one page per run by contract):
 
 - <https://platform.claude.com/docs/en/build-with-claude/thinking>
@@ -94,7 +87,10 @@ Supplementary references:
 Blog posts:
 
 - <https://claude.com/blog/claude-models-explained-choosing-the-best-model-for-your-use-case>
-  — pair with the choosing-a-model slice for the routing vet
+  — pair with the completed choosing-a-model slice (work-root slug
+  `platform-claude-com-docs-en-abo-38ebff0f` on the machine that ran it), whose interview
+  handoff records the pairing-relevant observations; the routing vet was executed 2026-07-29
+  (melodic-software/claude-code-plugins#1697)
 - <https://claude.com/blog/building-verification-loops-in-claude-code-with-skills>
   — pairs with any verification-loop or loop-engineering work the consuming setup already tracks
 
