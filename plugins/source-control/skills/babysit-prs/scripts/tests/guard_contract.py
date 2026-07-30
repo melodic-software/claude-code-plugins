@@ -1324,6 +1324,17 @@ DOC_COMMAND_SOURCES: tuple[DocCommandSource, ...] = (
         doc="skills/babysit-prs/reference/orchestration.md",
     ),
     DocCommandSource(
+        id="independent-resolution.dispatch-commands",
+        claim=(
+            "reference/independent-resolution.md spells out the list-then-resolve pair the "
+            "dispatched independent resolver runs. It is the third copy of the resolve "
+            "wrapper's argument shapes, and the only one naming --independent-resolver and "
+            "its disposition/evidence flags, so a flag the parser stopped accepting would "
+            "otherwise surface as a dispatch that always exits 2."
+        ),
+        doc="skills/babysit-prs/reference/independent-resolution.md",
+    ),
+    DocCommandSource(
         id="setup.reachability-canary-commands",
         claim=(
             "skills/setup/SKILL.md spells out the permission canary an operator runs to "

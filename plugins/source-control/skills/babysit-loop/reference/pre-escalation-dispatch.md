@@ -17,44 +17,19 @@ top tier row, requested by tier and resolved to a live-updating model alias thro
 into this lane as the tier's *definition* (tiers are ordered by capability; a family mapping rots).
 A run that cannot establish which alias currently satisfies `frontier` **escalates rather than
 dispatching** — inheriting the session's model, or a lower review-work model, forfeits the
-capability this dispatch stands on. The subagent shares no context with whatever produced the PR or
-previously replied on the blocking thread, and **runs under the PR's worker lease**: acquire and
-heartbeat before it starts, release after, exactly as `babysit-prs` requires before any per-PR fix
-or worker assignment (`babysit-prs/reference/safety.md` and
-`babysit-prs/reference/orchestration.md`); the guarded wrappers pin comment state, not concurrency
-ownership, and a lease another worker already holds means no dispatch at all. Brief it with the
-blocker, the PR, and the convention's independence and frontier-tier requirements; it replies and
-resolves threads through babysit-prs's guarded-mutation path, never a raw mutation.
+capability this dispatch stands on. The subagent's independence and lease requirements are
+`independent-resolution.md`'s, unchanged: no shared context with whatever produced the PR or
+previously replied on the blocking thread, and it runs under the PR's worker lease. Brief it with
+the blocker, the PR, and the convention's independence and frontier-tier requirements; it replies
+and resolves threads through babysit-prs's guarded-mutation path, never a raw mutation.
 
-**Resolving a thread requires a D7.5 verification ledger, per finding, before the wrapper is
-called.** The guarded wrapper checks authorship and comment-state pins; it cannot check whether a
-finding was actually addressed, and `review-discipline.md`'s D7.5 routes a current bot thread here
-precisely *because* this dispatch is supposed to establish that. Without the ledger the dispatched
-agent could resolve a current thread on an unaddressed finding and clear the merge gate's
-zero-unresolved-threads predicate — the same self-satisfaction the worker-side outdated-only guard
-exists to prevent, moved one hop. So: extract every finding in the thread (one comment carrying N
-findings is N work items), and record for each one the disposition plus its evidence —
-
-- `VALID (fix now)`: the pushed commit SHA that fixes it, verified present on the live PR head, and
-  the D7 follow-up citing it.
-- `VALID (defer)`: grounded per D4.6 — the provenance test passed (the defect reproduces on the
-  base branch), and the tracker item exists, carries the finding's own evidence, and its cited id
-  re-queries successfully.
-- `INCORRECT`: the counter-evidence, read from the code or docs at the live head rather than
-  asserted.
-- `UNCERTAIN`: not resolvable. It escalates, and so does the thread.
-
-**Every** finding in the thread must hold an eligible disposition; one addressed finding never
-makes the thread eligible while a sibling finding is open, because a resolved thread drops all of
-its comments from the readiness count. Any finding the dispatched agent cannot verify to this
-standard means **no resolution**: leave the thread unresolved, do not merge, and escalate with the
-unverifiable finding named. The ledger is reported back with the dispatch result, so what was
-verified is inspectable rather than asserted.
-
-**A blocker needing a code change runs the full per-PR worker lifecycle** — isolated PR worktree,
-HEAD asserted at the live PR head, commit and refspec push (`babysit-prs/reference/safety.md`) — not
-the wrappers alone, which implement merge and thread resolution and create no worktree; a lane
-launched from a neutral directory has no usable tree without it.
+**How the resolution itself runs is not this file's contract.** The D7.5 per-finding verification
+ledger, the independence requirements, the fresh-pin rule, the wrapper command shapes, the bounds
+the dispatch cannot cross, and the per-PR worker lifecycle a code-change blocker still needs are all
+owned by `babysit-prs/reference/independent-resolution.md`, which this dispatch is one of two
+callers of. Follow it in full; this file adds only the widening-specific bounds below. Any finding
+the dispatched agent cannot verify to that standard means **no resolution**: leave the thread
+unresolved, do not merge, and escalate with the unverifiable finding named.
 
 ## Four blocker classes this dispatch never touches
 

@@ -3,6 +3,54 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.43.0]
+
+### Added
+
+- **babysit-prs: an orchestrator-side independent resolution dispatch, so a disproved current bot
+  thread has a route to a terminal state (#1641).** `--independent-resolver` (0.42.0) supplied the
+  mechanism; nothing supplied the route. A worker that correctly disproves a bot finding —
+  classifies it `INCORRECT`, posts counter-evidence — ships no fix by definition, so the thread
+  stays current and satisfies neither `classify`'s `isOutdated` requirement under `--autonomous` nor
+  the Worker Contract's tighter pre-push-outdated rule. A grounded `VALID (defer)` and a prose fix
+  that rewrote elsewhere in the file land in the same place. The only dispatch that could retire
+  such a thread was `babysit-loop`'s pre-escalation resolver, reachable only on the explicit
+  `autopilot` + `--merge c3-this-run` widening, so on every ordinary worker-tier run the D7.5
+  routing rule terminated in a fail-closed report and the PR sat unmergeable on a finding that was
+  fully and correctly addressed.
+
+  The worker now **reports** such a thread as addressed-but-unresolvable (thread id, disposition,
+  where the evidence lives) instead of leaving it silently, and the orchestrator routes it — under
+  the PR's worker lease, before Cleanup releases it — to a fresh subagent that authored neither the
+  fix nor the counter-evidence. **`classify`'s `isOutdated` requirement under `--autonomous` is
+  untouched**; the property it was a proxy for (the context that authored the evidence is not the
+  context that acts on it) is what the dispatch preserves. The orchestrator does not resolve the
+  thread itself: it holds the merge decision, so adjudicating its own unblock would be the same
+  self-certification one hop up.
+
+- **babysit-prs: `reference/independent-resolution.md`, the single owner of that dispatch
+  contract.** The D7.5 per-finding verification ledger, the independence requirements, the
+  wrapper command shapes, the lease sequencing, and the fail-closed bounds previously lived only
+  inside `babysit-loop/reference/pre-escalation-dispatch.md`, which is one of the two callers.
+  Writing a second copy into `orchestration.md` would have forked the contract, so it moved to the
+  skill that owns the wrapper; `pre-escalation-dispatch.md` now keeps only its widening-specific
+  bounds (frontier tier, the four blocker classes it never touches, the post-dispatch re-partition)
+  and points here. `guard_contract.py` gains an `independent-resolution.dispatch-commands` doc row,
+  so the file's copyable wrapper commands are parser-validated like every other documented command.
+
+### Fixed
+
+- **The "reachable only on the explicit `autopilot` + `--merge c3-this-run` widening" claim was
+  true when written and is no longer (#1641).** `review-discipline.md`'s D7.5 authorization rule
+  and `babysit-prs/reference/loop.md`'s Never-Do entry both asserted it; both now name the two
+  invocations that reach a dispatch and keep the identical fail-closed fallback — leave the thread
+  unresolved, do not merge, report the PR with the addressed-but-unresolvable thread named — for
+  every bound the dispatch cannot cross: a security/P1 thread (`skipped-severity-marked`), a
+  multi-finding thread, a human thread, evidence the world rejects, or no subagent tools to
+  dispatch to. `safety.md`'s Security/P1 "only one dispatch path" bullet is unchanged in substance
+  and now says so explicitly: the orchestrator-side dispatch is not a second route to that
+  exception, because the wrapper's severity bright line refuses those threads on it.
+
 ## [0.42.2]
 
 ### Fixed

@@ -468,7 +468,10 @@ auto-mode safety classifier and blocks the call before the wrapper runs.
   to a fresh context that is neither the merging worker nor the author of the fix, so the actor
   resolving is not the actor whose permission slip it is. That is a property of the dispatch and
   cannot be checked by the script — which is precisely why the second half is machine-checked
-  here. Everything `--autonomous` guards besides `isOutdated` is retained: bot-only authorship, a
+  here. **Who dispatches it, and the D7.5 ledger the dispatched agent owes before calling the
+  wrapper, live in [`independent-resolution.md`](independent-resolution.md)**; this bullet is the
+  wrapper's half of the contract, not the route's. Everything `--autonomous` guards besides
+  `isOutdated` is retained: bot-only authorship, a
   single pinned `--thread-id` with both TOCTOU pins, and the security/P1 bright line, because this
   is still an unattended path. `--autonomous`, `--include-human`, and `--allow-unpinned-thread`
   are each refused alongside it (exit `2`) — the first because the two modes answer for different
@@ -557,7 +560,11 @@ paired-argument exception"), and it is this narrow:
 - **Only one dispatch path.** The `source-control:babysit-loop` explicit-`autopilot` pre-escalation
   resolver — the subagent that lane dispatches when a caller typed both the literal `autopilot`
   tier argument and the dedicated raise argument `--merge c3-this-run` on that invocation's own
-  line. No other invocation of this skill, at any tier, ever reaches this exception.
+  line. No other invocation of this skill, at any tier, ever reaches this exception. The
+  orchestrator-side independent resolution dispatch
+  ([`independent-resolution.md`](independent-resolution.md)) is **not** a second path to it: the
+  wrapper's severity bright line refuses a security/P1 thread on that route
+  (`skipped-severity-marked`), so it escalates exactly as it did before.
 - **Only a fresh, independent context.** The dispatch must share no conversation history with
   whatever produced the PR or previously replied on the blocking thread (the convention's §3
   independence requirement). A continuation of the authoring session, or a re-invocation of the
