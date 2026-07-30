@@ -46,6 +46,7 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
   **Residual:** a *copied* engine — one carried outside the cache tree — is still outside the prefix,
   as it is outside every identity check the gate makes. That is the copy-evasion class the gate has
   always accepted, and the engine's own preview/approval-token containment remains the authority.
+
 ## [0.11.0]
 
 ### Fixed
