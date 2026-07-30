@@ -43,7 +43,9 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   documented hook location Phase A did not inventory at all, is added alongside.
 
   The hooks page is added to Sources and to the recheck triggers in both criteria files (catalog
-  1.3.0 → 1.4.0, for the widened surface partition and I13 surface set).
+  1.3.0 → 1.4.0, for the widened surface partition and I13 surface set). Eval 14 pins the admission
+  on the case that exposed the gap: a `SessionStart` `type: "command"` handler injecting a standing
+  behavioral block, against an active output style's format contract.
 
 ## [0.16.0]
 
