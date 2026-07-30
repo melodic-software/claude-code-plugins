@@ -3,6 +3,54 @@
 All notable changes to the `rate-limit-guard` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.0]
+
+### Fixed
+
+- **The statusline tee no longer leaks its atomic-write temp file when the harness cancels it
+  (#1807).** Claude Code
+  [cancels an in-flight statusline script](https://code.claude.com/docs/en/statusline) when a new
+  update arrives while the previous one is still running, and a cancellation between the write and
+  the rename left the temp file behind permanently — no failed `rm` was needed to explain it, the
+  process simply never reached the reclaim line. The only reclaim paths were write-failure and
+  retry-exhaustion. 61 orphans were found clustered in one busy 27-hour window, which is the shape
+  the correlation predicts: the rename retry loop holds the file open longest exactly when the
+  target is contended, which is also when the session is busy enough to trigger a cancelling update.
+
+  Two mechanisms ship, because neither is sufficient alone. A trap reclaims on exit and on a
+  catch-able signal; an age-filtered sweep of leftover siblings on the next refresh recovers what a
+  SIGKILL, a crash, or power loss leaves, which no trap can. Reproduced with an `mv` shim that parks
+  so the kill lands inside the window: **before**, SIGTERM and SIGKILL each leak one file;
+  **after**, SIGTERM leaks none and a SIGKILL orphan is reclaimed by the next refresh.
+
+  The sweep costs nothing on a clean directory — a shell glob decides whether to spawn anything at
+  all, so a normal refresh runs no extra process on a path that already sits at two to four times
+  the 300 ms debounce interval. Its one-minute age floor cannot race a concurrent session's live
+  temp, whose write-to-rename window is sub-second and bounded by the 300 ms retry loop.
+
+- **A session with no rate-limit windows no longer overwrites a snapshot that has them (#1807).**
+  On a mixed-auth machine an API-key or enterprise session would land a snapshot with `rate_limits`
+  absent and a **fresh** `captured_at`, so consumers never saw "stale" — they saw a current snapshot
+  with no data and dropped to whole-guard reactive-only, on a machine where a window-bearing session
+  had good data available. Each such landing could destroy up to the reader contract's full
+  ten-minute staleness budget of usable proactive data.
+
+  The tee now skips the write when this session has no `rate_limits` and the target already has
+  them. Both tests are substring checks — one on the buffered stdin, one on the target read with
+  `$(<…)` — so the guard adds no process to the hot path. A windowless session still writes when the
+  target has no windows either, so a machine with no window-bearing session keeps an honest
+  staleness signal rather than an empty directory.
+
+### Changed
+
+- **`reference/reader-contract.md` inventories the temp-file shape.** The directory listing named
+  `stop-events.jsonl.lock` and explicitly told tooling sweeping the directory to expect it, while
+  omitting the only litter actually found there. It now documents
+  `.rate-limits.json.tmp.<pid>.<random>`, why it can outlive its writer, and that a cleanup tool
+  should leave it alone — one may belong to a live concurrent session, and the tee reclaims them
+  itself. The script header's atomicity comment says the same, rather than implying the rename is
+  the only outcome.
+
 ## [0.3.6]
 
 ### Fixed

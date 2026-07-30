@@ -236,6 +236,82 @@ printf '{"session_id":"sess-later","rate_limits":{"five_hour":{"used_percentage"
   HOME="$HOME1" bash "$TEE" cat >/dev/null
 if [[ "$(jq -r '.session_id' <"$TEEFILE")" == "sess-later" ]]; then ok "snapshot is last-writer-wins"; else fail "stale snapshot retained: $(jq -c . <"$TEEFILE")"; fi
 
+# --- Case 14: cancellation mid-window leaves no temp behind ------------------
+# Claude Code "cancels the in-flight script" when a new update arrives while
+# this one is still running, so a kill between the write and the rename is
+# routine rather than exceptional. Driven by an `mv` shim that parks, so the
+# signal lands inside the window deterministically.
+HOME14="$WORK/home14"
+mkdir -p "$HOME14"
+SHIM14="$WORK/shim14"
+mkdir -p "$SHIM14"
+printf '#!/usr/bin/env bash\nsleep 10\n' >"$SHIM14/mv"
+chmod +x "$SHIM14/mv"
+printf '%s' "$(build_input)" | HOME="$HOME14" PATH="$SHIM14:$PATH" bash "$TEE" >/dev/null 2>&1 &
+TEE_PID=$!
+sleep 2
+kill -TERM "$TEE_PID" 2>/dev/null
+wait "$TEE_PID" 2>/dev/null
+sleep 0.5
+LEFT14=$(find "$HOME14/.claude/rate-limit-guard" -name '.rate-limits.json.tmp.*' 2>/dev/null | wc -l | tr -d ' \r')
+if [[ "$LEFT14" == "0" ]]; then
+  ok "cancelled mid-window → temp reclaimed by trap"
+else
+  fail "$LEFT14 temp file(s) leaked on cancellation"
+fi
+
+# --- Case 15: the sweep reclaims an aged orphan and spares a live sibling -----
+# A trap cannot survive SIGKILL, a crash, or power loss, so the sweep is the
+# mechanism that actually bounds the litter. The age floor is what keeps it
+# from racing a concurrent session's in-flight temp.
+HOME15="$WORK/home15"
+DIR15="$HOME15/.claude/rate-limit-guard"
+mkdir -p "$DIR15"
+OLD15="$DIR15/.rate-limits.json.tmp.111.222"
+FRESH15="$DIR15/.rate-limits.json.tmp.333.444"
+printf 'orphan\n' >"$OLD15"
+printf 'live\n' >"$FRESH15"
+# POSIX `touch -t [[CC]YY]MMDDhhmm` — no GNU `-d 'N minutes ago'`.
+touch -t 200001010000 "$OLD15"
+run "$HOME15" "$(build_input)" cat >/dev/null
+if [[ ! -e "$OLD15" ]]; then ok "sweep reclaims an aged temp orphan"; else fail "aged orphan survived the sweep"; fi
+if [[ -e "$FRESH15" ]]; then ok "sweep spares a live sibling temp"; else fail "sweep deleted a live sibling temp"; fi
+if [[ -e "$HOME15/$TEE_REL" ]]; then ok "sweep does not disturb the snapshot write"; else fail "snapshot missing after sweep"; fi
+
+# --- Case 16: a windowless session never clobbers a snapshot with windows ----
+# The reader contract routes a snapshot missing rate_limits to whole-guard
+# reactive-only. Such a write carries a FRESH captured_at, so consumers never
+# see "stale" — they see a current snapshot with no data, and lose up to the
+# full staleness budget of usable proactive data on a mixed-auth machine.
+HOME16="$WORK/home16"
+mkdir -p "$HOME16"
+run "$HOME16" "$(build_input)" cat >/dev/null
+BEFORE16="$(jq -r '.captured_at' <"$HOME16/$TEE_REL")"
+printf '{"session_id":"sess-no-windows","model":{"display_name":"Opus"}}' |
+  HOME="$HOME16" bash "$TEE" cat >/dev/null
+if jq -e '.rate_limits' <"$HOME16/$TEE_REL" >/dev/null 2>&1; then
+  ok "windowless session does not clobber windows"
+else
+  fail "windowless write destroyed the window-bearing snapshot"
+fi
+if [[ "$(jq -r '.captured_at' <"$HOME16/$TEE_REL")" == "$BEFORE16" ]]; then
+  ok "windowless session does not refresh captured_at over real data"
+else
+  fail "windowless write refreshed captured_at, hiding staleness"
+fi
+
+# A windowless session still writes when there is nothing to preserve, so a
+# machine with no window-bearing session keeps its staleness signal honest.
+HOME17="$WORK/home17"
+mkdir -p "$HOME17"
+printf '{"session_id":"sess-no-windows","model":{"display_name":"Opus"}}' |
+  HOME="$HOME17" bash "$TEE" cat >/dev/null
+if [[ -e "$HOME17/$TEE_REL" ]]; then
+  ok "windowless session still writes when the target has no windows"
+else
+  fail "windowless session wrote nothing on a fresh machine"
+fi
+
 echo
 echo "PASS=$PASS FAIL=$FAIL"
 [[ $FAIL -eq 0 ]]

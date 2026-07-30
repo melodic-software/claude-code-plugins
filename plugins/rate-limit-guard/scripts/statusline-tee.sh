@@ -42,6 +42,19 @@
 # jq, unwritable path, failed rename — ever alters the wrapped statusline's
 # output or exit code.
 #
+# TEMP-FILE RECLAIM: a temp file can outlive this process. Claude Code
+# "cancels the in-flight script" when a new update arrives while this one is
+# still running (https://code.claude.com/docs/en/statusline), and a
+# cancellation between the write and the rename leaves the temp behind — no
+# failed rm is needed to explain it, the process simply never reaches the
+# reclaim line. Two mechanisms, because neither is sufficient alone: a trap
+# reclaims on exit and on a catch-able signal, and an age-filtered sweep of
+# leftover siblings recovers what a SIGKILL, a crash, or power loss leaves,
+# which no trap can. The sweep costs nothing on a clean directory — a glob
+# decides whether to spawn anything at all — and it cannot race a live
+# sibling, since the normal write-to-rename window is sub-second while the
+# age floor is a minute.
+#
 # jq is required for the tee and for the standalone line; when absent the
 # wrapper stays transparent and appends a visible one-line notice instead of
 # silently dropping the feature.
@@ -61,6 +74,45 @@ if ((BASH_VERSINFO[0] > 4 || (BASH_VERSINFO[0] == 4 && BASH_VERSINFO[1] >= 1)));
 else
   IFS= read -r -d '' -t 5 INPUT || true
 fi
+
+# Path of the temp file currently in flight, for the reclaim traps below. A
+# global rather than the function's local: the trap body is evaluated when the
+# trap fires, by which time the function's locals are gone.
+TEE_TMP=""
+
+reclaim_tee_tmp() {
+  [[ -n "$TEE_TMP" ]] && rm -f "$TEE_TMP" 2>/dev/null
+  TEE_TMP=""
+  return 0
+}
+
+# The signal traps exit rather than reclaiming directly, so the EXIT trap stays
+# the single reclaim path. Exiting is also the right response to a cancelling
+# signal: this refresh's snapshot is already superseded by the update that
+# cancelled it.
+trap 'reclaim_tee_tmp' EXIT
+trap 'exit 143' TERM
+trap 'exit 130' INT
+trap 'exit 129' HUP
+
+# Reclaim temp siblings left by a process that never got to clean up. Only
+# files older than the age floor are touched, so a concurrent session's live
+# temp — sub-second between write and rename — is never a candidate.
+#
+# The glob runs first and decides whether to spawn at all: on a clean
+# directory, which is every refresh in normal operation, this costs zero
+# processes on a path that already runs at two to four times the statusline
+# debounce interval.
+sweep_stale_tee_temps() {
+  local dir="$1" candidate
+  for candidate in "$dir"/.rate-limits.json.tmp.*; do
+    [[ -e "$candidate" ]] || continue
+    find "$dir" -maxdepth 1 -type f -name '.rate-limits.json.tmp.*' \
+      -mmin +1 -exec rm -f {} + 2>/dev/null || true
+    return 0
+  done
+  return 0
+}
 
 # Write one contract snapshot. Every failure path returns 0: the tee must
 # never propagate into the statusline pipeline.
@@ -86,25 +138,46 @@ tee_snapshot() {
   ' 2>/dev/null) || return 0
   [[ -n "$payload" ]] || return 0
 
+  # A session with no windows — API-key or enterprise auth — must not overwrite
+  # a snapshot that HAS them. The reader contract routes a snapshot missing
+  # rate_limits to whole-guard reactive-only, and this write would carry a FRESH
+  # captured_at, so consumers would never see "stale" and would instead see a
+  # current snapshot with no data: up to the contract's full 10-minute staleness
+  # budget of usable proactive data destroyed on a mixed-auth machine, silently.
+  # Both tests are spawn-free, so this costs nothing on the hot path.
+  if [[ "$payload" != *'"rate_limits"'* && -f "$target" ]]; then
+    local existing=""
+    existing=$(<"$target") 2>/dev/null || existing=""
+    if [[ "$existing" == *'"rate_limits"'* ]]; then
+      return 0
+    fi
+  fi
+
+  sweep_stale_tee_temps "$dir"
+
   local tmp="$dir/.rate-limits.json.tmp.$$.$RANDOM"
+  TEE_TMP="$tmp"
   # Subshell umask so the snapshot lands owner-only without altering the
   # umask the wrapped statusline command inherits.
   (
     umask 077
     printf '%s\n' "$payload" >"$tmp"
   ) 2>/dev/null || {
-    rm -f "$tmp" 2>/dev/null
+    reclaim_tee_tmp
     return 0
   }
   local _try
   # shellcheck disable=SC2034  # bounded-retry counter; the value itself is unused
   for _try in 1 2 3; do
     if mv -f "$tmp" "$target" 2>/dev/null; then
+      # The temp path is the target now; clear it so the EXIT trap cannot
+      # reclaim a name that no longer refers to this refresh's file.
+      TEE_TMP=""
       return 0
     fi
     sleep 0.1 2>/dev/null || true
   done
-  rm -f "$tmp" 2>/dev/null
+  reclaim_tee_tmp
   return 0
 }
 
