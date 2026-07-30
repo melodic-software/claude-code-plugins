@@ -49,16 +49,32 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
   `OneDrive - <Organization>` — the documented shape of a OneDrive for Business sync root, whose
   tenant portion varies per installation — matched nothing.
 
-  The baseline now carries a `protected_name_globs` list holding `OneDrive - *`, matched casefolded
-  through `fnmatchcase` so the verdict does not depend on the host platform's case rules. Consumers
-  could not have closed this themselves: `protected_exact_names` is not overlay-extensible, and an
-  overlay's `additional_protected_path_globs` are matched relative to the scan target, so a standing
-  policy protects such a root only when the target happens to be its parent. Protection that must
-  hold for every target has to ship in the baseline. `Box`, `Dropbox`, `Google Drive`, and
-  `iCloudDrive` are added as exact names in the same pass. Only the OneDrive class was measured —
-  the other four sync roots were confirmed unprotected by name on the audit host, but their file
-  attributes were never sampled, so they are protected on name alone and their placeholder
-  behaviour remains unverified.
+  The baseline now carries a `protected_name_globs` list, matched casefolded through `fnmatchcase`
+  so the verdict does not depend on the host platform's case rules. Consumers could not have closed
+  this themselves: `protected_exact_names` is not overlay-extensible, and an overlay's
+  `additional_protected_path_globs` are matched relative to the scan target, so a standing policy
+  protects such a root only when the target happens to be its parent. Protection that must hold for
+  every target has to ship in the baseline.
+
+  The list is deliberately short, because a protected name applies at **every depth**: a protected
+  directory is never traversed, and it reports `logical_size: 0`, which is byte-identical to a
+  genuinely empty directory. Over-protection is therefore not free — it silently under-reports.
+  Shipped: the glob `OneDrive - *` (measured on the audit host, and the documented shape of a
+  OneDrive for Business sync root), the glob `Dropbox (*)` and the exact name `Dropbox` (Dropbox
+  documents both `Dropbox (Personal)` and `Dropbox (<business name>)` as folder names), and the
+  exact name `iCloudDrive`.
+
+  Two candidates from the report were **rejected** after checking them. `Box` is a common enough
+  directory name in source trees that protecting it at every depth would make ordinary directories
+  untraversable and silently zero-sized. `Google Drive` is a legacy Backup-and-Sync name: current
+  Google Drive for desktop streams to a virtual drive letter (`G:` by default on Windows,
+  [Drive for desktop settings](https://support.google.com/drive/answer/13470231)), not to a folder
+  under the user profile.
+
+  Only the OneDrive class was measured. The Dropbox and iCloud roots were confirmed unprotected by
+  name on the audit host, but their file attributes were never sampled and `iCloudDrive`'s exact
+  default folder name could not be confirmed from an official Apple page — they are protected on
+  name alone and their placeholder behaviour remains unverified.
 
   Effect on the reported scenario: in a depth-1 scan of the user home, `OneDrive - <Organization>`
   moves from `protected_reasons: []` to `baseline-protected-name`, and the same path is now rejected
