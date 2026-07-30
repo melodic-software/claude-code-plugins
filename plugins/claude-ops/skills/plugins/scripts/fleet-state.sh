@@ -198,17 +198,31 @@ fi
 # (verified empirically: absent in a real headless `-p` session run from
 # inside a project directory) — fall back to the cwd's git toplevel.
 #
-# Those two are the only sources. There is deliberately no bare-$PWD fallback:
-# a cwd that is neither exported as the project dir nor inside a git tree is
-# not project context, and treating it as one manufactures a phantom. The
-# settings read below would take whatever `.claude/settings.json` sits under
-# cwd — in $HOME that is the user settings file itself, making the "project"
-# map a copy of the user map — and an install record whose projectPath happens
-# to equal cwd would be promoted to `currentProject: true`. An empty root is
-# the honest answer and every consumer below already guards for it.
+# A third, corroborated source covers the non-Git project: Claude Code does
+# not require a repo, so a headless session anchored in a plain directory has
+# neither the env var nor a git toplevel, yet its `.claude/settings*.json` and
+# install records are real project state that Step 2/Step 5 must not skip. The
+# corroboration is a `.claude` directory at cwd — evidence Claude was anchored
+# HERE, not a bare-$PWD guess that would manufacture project context for any
+# directory. $HOME is excluded even when it carries `.claude`: that directory
+# is USER scope, and reading $HOME/.claude/settings.json as the "project" map
+# would duplicate the user map. A cwd with no `.claude` stays an empty root —
+# the honest answer, and every consumer below already guards for it.
 PROJECT_ROOT="${CLAUDE_PROJECT_DIR:-}"
 if [[ -z "$PROJECT_ROOT" ]]; then
   PROJECT_ROOT=$(git rev-parse --show-toplevel 2>/dev/null | tr -d '\r')
+fi
+if [[ -z "$PROJECT_ROOT" && -d "$PWD/.claude" ]]; then
+  # `pwd -W` (Git Bash) yields the native drive-letter spelling — the form
+  # CC-written projectPath records carry. A raw MSYS mount alias like /tmp
+  # resolves to a different string than the record even after normalization,
+  # so the native spelling is taken where the shell can produce it.
+  cwd_native=$(pwd -W 2>/dev/null) || cwd_native="$PWD"
+  [[ -n "$cwd_native" ]] || cwd_native="$PWD"
+  home_norm=""
+  [[ -n "${HOME:-}" ]] && home_norm=$(hook::normalize_path "$(hook::physical_path "$HOME")")
+  [[ "$(hook::normalize_path "$(hook::physical_path "$cwd_native")")" != "$home_norm" ]] &&
+    PROJECT_ROOT="$cwd_native"
 fi
 
 # --- Effective enabledPlugins (raw per-scope + merged local>project>user) --

@@ -56,21 +56,28 @@ marketplace's failure is attributable and reported inline without aborting the s
 
 **On a non-zero exit — every mode, including single/default.** Not fatal, and never silently
 absorbed: report the marketplace and the CLI's own error text inline under "Action needed" and
-continue to Step 2. The rest of the algorithm operates on installed state, which a failed
-marketplace refresh leaves untouched; only the catalog may be stale, so say so in the report
-(`Marketplace: <name> — refresh failed, catalog may be stale`) rather than claiming it is current.
-Do not delete, rename, or re-clone the marketplace directory to work around it — that is cache
-surgery this skill does not do. A `git fetch` and comparison inside the marketplace's
-`installLocation` is read-only and safe as a diagnostic if you need to know how stale the catalog
-actually is.
+continue to Step 2. Steps 2–3 operate on installed state, which a failed marketplace refresh
+leaves untouched. Steps 4–5 do NOT: Step 4 derives installations from the catalog
+(`missing_from_user_install`) and Step 5 consults catalog metadata (`defaultEnabled`), so running
+them against a stale catalog can install a since-removed plugin or enable one the publisher has
+since made opt-in-only. For a marketplace whose refresh failed, **skip Steps 4–5** and list what
+they would have done under "Action needed" as deferred until a sync run where the refresh
+succeeds. Say so in the report (`Marketplace: <name> — refresh failed, catalog may be stale;
+install/enable maintenance deferred`) rather than claiming it is current. Do not delete, rename,
+or re-clone the marketplace directory to work around it — that is cache surgery this skill does
+not do. To learn how stale the catalog actually is, compare `git -C <installLocation> rev-parse
+HEAD` against `git ls-remote origin HEAD` run in that directory — `ls-remote` queries the remote
+without writing `FETCH_HEAD`, remote-tracking refs, or objects, all three of which a plain
+`git fetch` writes (mutations of the marketplace's internal clone, outside this skill's boundary).
 
 ## Step 2 — In-repo update (the primary value path)
 
 Always call `fleet-state.sh` first — never gate this step on `CLAUDE_PROJECT_DIR` being set before
-calling it. `fleet-state.sh` resolves the project root itself (`CLAUDE_PROJECT_DIR` when set, the
-cwd's git toplevel otherwise — see [gotchas.md](gotchas.md)), so a headless session where the env var
-is unset can still correctly compute `currentProject`; gating on the raw env var directly would skip
-this step in exactly the case that fallback exists for.
+calling it. `fleet-state.sh` resolves the project root itself (`CLAUDE_PROJECT_DIR` when set, else
+the cwd's git toplevel, else a non-git cwd corroborated by its own `.claude` directory — `$HOME`
+excluded; see [gotchas.md](gotchas.md)), so a headless session where the env var is unset can still
+correctly compute `currentProject`; gating on the raw env var directly would skip this step in
+exactly the case that fallback exists for.
 
 Look at `installed[]` entries with `currentProject: true` and run an update for **every one of
 them**, unconditionally:
@@ -111,6 +118,8 @@ One call per plugin — `claude plugin update` takes a single `<plugin>` argumen
 
 ## Step 4 — Install new catalog plugins (per `install_new` policy)
 
+Catalog-dependent: skipped (deferred) for a marketplace whose Step 1 refresh failed — see Step 1.
+
 Take `fleet-state.sh`'s `missing_from_user_install` — catalog ids not installed at `user` scope
 (already excludes anything explicitly opted out with `enabledPlugins: false` in any scope — never
 re-offer a deliberate decline). This is deliberately user-scope, not the all-scope `missing_from_install`:
@@ -134,6 +143,9 @@ it's an installed, opted-out plugin). But a plugin that's *uninstalled entirely*
 AND disable (`enabledPlugins: false`), or switch the policy to `ask`/`none`.
 
 ## Step 5 — `enabledPlugins` completeness
+
+Catalog-dependent (`defaultEnabled` comes from catalog metadata): skipped (deferred) for a
+marketplace whose Step 1 refresh failed — see Step 1.
 
 Take `fleet-state.sh`'s `missing_from_enabled` — ids installed somewhere but never mentioned (true
 or false) in any scope's `enabledPlugins`, already excluding ids the marketplace ships with

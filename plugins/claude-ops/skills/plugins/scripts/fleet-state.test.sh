@@ -370,12 +370,11 @@ current_flag=$(jq -r '.installed[0].currentProject' <<<"$out" 2>/dev/null)
 assert_eq "git-fallback: CLAUDE_PROJECT_DIR unset, cwd inside a subdir, resolves via git toplevel" "true" "$current_flag"
 
 # ============================================================================
-# Case: a non-git cwd with CLAUDE_PROJECT_DIR unset has NO project context.
-# Project root resolves from CLAUDE_PROJECT_DIR or a real git toplevel only;
-# neither exists here, so an install record whose projectPath happens to equal
-# the cwd must not be promoted to currentProject. Falling back to bare $PWD
-# manufactures project context for any non-repo directory -- and in $HOME the
-# "project" settings read is the user settings file itself.
+# Case: a non-git cwd with CLAUDE_PROJECT_DIR unset and NO .claude directory
+# has no project context. Without the corroborating `.claude` marker, falling
+# back to bare $PWD manufactures project context for any non-repo directory,
+# so an install record whose projectPath happens to equal the cwd must not be
+# promoted to currentProject.
 # ============================================================================
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
@@ -399,6 +398,73 @@ out=$(
 )
 current_flag=$(jq -r '.installed[0].currentProject' <<<"$out" 2>/dev/null)
 assert_eq "no-project-context: non-git cwd with CLAUDE_PROJECT_DIR unset manufactures no currentProject" "null" "$current_flag"
+
+# ============================================================================
+# Case: a non-git cwd WITH a .claude directory is project context. Claude Code
+# does not require a repo: a headless session anchored in a plain directory
+# has neither CLAUDE_PROJECT_DIR nor a git toplevel, but its .claude marker
+# corroborates the anchor, so its install records keep currentProject and its
+# .claude/settings*.json stays visible.
+# ============================================================================
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+nongit_proj="$case_dir/plain-project"
+mkdir -p "$nongit_proj/.claude"
+write "$nongit_proj/.claude/settings.json" '{"enabledPlugins":{"alpha@market1": true}}'
+# The native form a real CC-written projectPath carries: on Git Bash `pwd -W`
+# yields the long drive-letter form (no git toplevel exists here to derive it
+# from, and cygpath 8.3-shortens — see the git-fallback case's note); on POSIX
+# hosts plain pwd is already the native form.
+nongit_native=$(cd "$nongit_proj" && (pwd -W 2>/dev/null || pwd))
+native_nongit_path="${nongit_native//\//\\}"
+write "$case_dir/installed_plugins.json" "$(
+  jq -cn --arg p "$native_nongit_path" \
+    '{version: 1, plugins: {"alpha@market1": [{scope: "project", projectPath: $p, installPath: "x", version: "0.1.0"}]}}'
+)"
+write "$case_dir/known_marketplaces.json" '{"market1": {"source": {"source": "github", "repo": "example/market1"}, "installLocation": "z", "lastUpdated": "2026-01-01T00:00:00Z"}}'
+write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "alpha"}]}'
+write "$case_dir/user_settings.json" '{"enabledPlugins":{}}'
+out=$(
+  cd "$nongit_proj" && env -u CLAUDE_PROJECT_DIR \
+    FLEET_STATE_INSTALLED_JSON="$case_dir/installed_plugins.json" \
+    FLEET_STATE_MARKETPLACES_JSON="$case_dir/known_marketplaces.json" \
+    FLEET_STATE_USER_SETTINGS="$case_dir/user_settings.json" \
+    FLEET_STATE_CATALOG_DIR="$case_dir/catalog" \
+    bash "$SCRIPT" --marketplace market1 2>&1
+)
+current_flag=$(jq -r '.installed[0].currentProject' <<<"$out" 2>/dev/null)
+assert_eq "non-git project: .claude marker preserves currentProject without CLAUDE_PROJECT_DIR or git" "true" "$current_flag"
+effective_val=$(jq -r '.enabled."alpha@market1"' <<<"$out" 2>/dev/null)
+assert_eq "non-git project: .claude/settings.json read as the project scope" "true" "$effective_val"
+
+# ============================================================================
+# Case: $HOME is never project context, even though it carries .claude. That
+# directory is USER scope; reading $HOME/.claude/settings.json as the project
+# map would duplicate the user map.
+# ============================================================================
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+fake_home="$case_dir/fake-home"
+mkdir -p "$fake_home/.claude"
+write "$fake_home/.claude/settings.json" '{"enabledPlugins":{"alpha@market1": true}}'
+native_home_path="${fake_home//\//\\}"
+write "$case_dir/installed_plugins.json" "$(
+  jq -cn --arg p "$native_home_path" \
+    '{version: 1, plugins: {"alpha@market1": [{scope: "project", projectPath: $p, installPath: "x", version: "0.1.0"}]}}'
+)"
+write "$case_dir/known_marketplaces.json" '{"market1": {"source": {"source": "github", "repo": "example/market1"}, "installLocation": "z", "lastUpdated": "2026-01-01T00:00:00Z"}}'
+write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "alpha"}]}'
+write "$case_dir/user_settings.json" '{"enabledPlugins":{}}'
+out=$(
+  cd "$fake_home" && env -u CLAUDE_PROJECT_DIR HOME="$fake_home" \
+    FLEET_STATE_INSTALLED_JSON="$case_dir/installed_plugins.json" \
+    FLEET_STATE_MARKETPLACES_JSON="$case_dir/known_marketplaces.json" \
+    FLEET_STATE_USER_SETTINGS="$case_dir/user_settings.json" \
+    FLEET_STATE_CATALOG_DIR="$case_dir/catalog" \
+    bash "$SCRIPT" --marketplace market1 2>&1
+)
+current_flag=$(jq -r '.installed[0].currentProject' <<<"$out" 2>/dev/null)
+assert_eq "home exclusion: \$HOME with .claude is user scope, not project context" "null" "$current_flag"
 
 # ============================================================================
 # Case: --all sweeps every marketplace; one absent-catalog failure does not

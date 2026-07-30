@@ -14,8 +14,11 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   and Step 1 documented no behavior at all on a non-zero exit in single/default mode — only `all`
   mode and Step 3 had inline-failure prose. Step 1 now says the refresh is attempted rather than
   guaranteed, cites the upstream bug, and directs a failure to "Action needed" with the catalog
-  reported as possibly stale instead of current. Cache surgery stays out of scope; a read-only
-  `git fetch` inside the marketplace's `installLocation` is named as the safe diagnostic.
+  reported as possibly stale instead of current. Catalog-dependent mutations (Step 4 installs,
+  Step 5 enable-state) are deferred for that marketplace until a run where the refresh succeeds —
+  stale catalog metadata must not drive installs or enables. Cache surgery stays out of scope; the
+  named staleness diagnostic is `git ls-remote origin HEAD` against the local `HEAD` (genuinely
+  read-only — a plain `git fetch` writes `FETCH_HEAD`, remote-tracking refs, and objects).
 - **`plugins` skill: `sync` now says where the report's `<old> → <new>` versions come from (#1764,
   F3).** The report format mandated a per-plugin version pair that no step instructed capturing.
   A new "Version capture for the report" section fixes three sources in precedence order — `<old>`
@@ -34,8 +37,10 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   was not a git tree, so the "project" settings read became whatever `.claude/settings.json` sat
   under cwd — in `$HOME`, the user settings file itself — and an install record whose `projectPath`
   equalled that directory would be promoted to `currentProject: true`. Project context now resolves
-  only from `CLAUDE_PROJECT_DIR` or a real git toplevel, matching what `sync.md` Step 2 already
-  documented; the downstream reads were already guarded for an empty root.
+  from `CLAUDE_PROJECT_DIR`, a real git toplevel, or — because Claude Code does not require a
+  repo — a non-git cwd corroborated by its own `.claude` directory, with `$HOME` always excluded
+  (its `.claude` is user scope); an uncorroborated cwd stays an empty root, and the downstream
+  reads were already guarded for it.
 - **`plugins` skill: the action-router table reads as an index again (#1764, F5).** The `sync` row's
   Description spelled out the full six-step chain, complete enough that a session could execute the
   action without opening `context/sync.md` — which is how F1's and F3's gaps went unnoticed during a
