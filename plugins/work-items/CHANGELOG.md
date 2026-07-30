@@ -3,6 +3,30 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.30.4]
+
+### Fixed
+
+- **`triage` excludes lane infrastructure from raw intake, so the telemetry surface a lane reads to
+  operate can no longer be triaged as backlog (#1739).** Lane-infrastructure exclusion was
+  implemented in the two lane skills that select work — the worker loop's drain snapshot and the
+  attended queue's merged view — but not in `triage` itself, which defines the intake population
+  both of them compose. A bare `/work-items:triage` therefore listed an open `Lane telemetry:
+  <lane>` issue as untriaged intake whenever that issue carried the raw marker, and the skill's
+  closing invariant ("no outcome leaves a re-selectable raw item") pushes toward acting on what it
+  lists — relabelling or closing a surface the lane reads to operate. `triage` now carries the
+  exclusion as a third rule bounding what enters the flow, keyed on the same `Lane telemetry:
+  <lane>` title contract the worker loop already uses rather than a second detection rule, and
+  applied to the listing **before** bucketing so the raw marker cannot bucket an excluded item. The
+  exclusion is deliberately label-blind: the marker arrives as a creation-time filing default and a
+  lane can re-add it, so a label-keyed rule would keep re-acquiring the defect. An explicitly named
+  telemetry issue now stops the same way a named already-triaged item stops, instead of walking the
+  state machine toward a close.
+- **`attend-queue` stops re-deriving that exclusion (#1739).** Its `[intake]` rows already compose
+  `triage`'s attention view and are documented as not re-deriving its buckets; the lane-infrastructure
+  paragraph restated the title contract anyway. It now points at the composed view, leaving one
+  statement of the contract on the intake path instead of two.
+
 ## [0.30.3]
 
 ### Added
