@@ -31,7 +31,10 @@ trap 'rm -rf "$TMP"' EXIT
 
 FAILED=0
 CASE_NUM=0
-pass() { CASE_NUM=$((CASE_NUM + 1)); printf 'PASS: [%d] %s\n' "$CASE_NUM" "$1"; }
+pass() {
+  CASE_NUM=$((CASE_NUM + 1))
+  printf 'PASS: [%d] %s\n' "$CASE_NUM" "$1"
+}
 fail() {
   CASE_NUM=$((CASE_NUM + 1))
   printf 'FAIL: [%d] %s\n  expected: %q\n  got: %q\n' "$CASE_NUM" "$1" "$2" "$3" >&2
@@ -101,6 +104,67 @@ EOF
 
 printf '[]\n' >"$TMP/empty.json"
 
+# Merged-PR fixture for the stranded-findings section, shaped like the real case
+# (#1720): a P1 review comment posted 46 SECONDS AFTER the merge landed. The
+# fixture mirrors `gh api graphql --paginate` output — a list of page documents.
+#   #1720 — P1 thread created after merge      -> stranded, must report
+#   #1707 — thread created BEFORE the merge     -> gate saw it, must NOT report
+#   #1712 — post-merge thread already resolved  -> handled, must NOT report
+#   #1690 — merged outside the window           -> too old, must NOT report
+cat >"$TMP/merged.json" <<'EOF'
+[
+  {"data": {"repository": {"pullRequests": {"pageInfo": {"hasNextPage": false, "endCursor": null}, "nodes": [
+    {"number": 1720, "title": "feat(claude-ops): consume lane restart-requests",
+     "url": "https://github.com/o/r/pull/1720", "mergedAt": "2026-07-19T19:23:17Z",
+     "reviewThreads": {"nodes": [
+       {"isResolved": false, "comments": {"nodes": [
+         {"createdAt": "2026-07-19T19:24:03Z", "author": {"login": "chatgpt-codex-connector"},
+          "body": "![P1 Badge](x) Distinguish lock-storage errors from held locks"}]}},
+       {"isResolved": false, "comments": {"nodes": [
+         {"createdAt": "2026-07-19T19:24:03Z", "author": {"login": "chatgpt-codex-connector"},
+          "body": "![P2 Badge](x) Preserve scheduler options"}]}}]}},
+    {"number": 1707, "title": "feat(planning): draft non-quantifiable goals",
+     "url": "https://github.com/o/r/pull/1707", "mergedAt": "2026-07-19T16:23:23Z",
+     "reviewThreads": {"nodes": [
+       {"isResolved": false, "comments": {"nodes": [
+         {"createdAt": "2026-07-19T15:00:00Z", "author": {"login": "a-human"},
+          "body": "P1 this predates the merge"}]}}]}},
+    {"number": 1712, "title": "docs(loop-lane): pin the prompt-fresh distinction",
+     "url": "https://github.com/o/r/pull/1712", "mergedAt": "2026-07-19T16:24:00Z",
+     "reviewThreads": {"nodes": [
+       {"isResolved": true, "comments": {"nodes": [
+         {"createdAt": "2026-07-19T16:30:00Z", "author": {"login": "chatgpt-codex-connector"},
+          "body": "P1 already dealt with"}]}}]}},
+    {"number": 1690, "title": "feat(loop-lane): out-of-band escalation",
+     "url": "https://github.com/o/r/pull/1690", "mergedAt": "2026-07-01T10:00:00Z",
+     "reviewThreads": {"nodes": [
+       {"isResolved": false, "comments": {"nodes": [
+         {"createdAt": "2026-07-01T10:05:00Z", "author": {"login": "chatgpt-codex-connector"},
+          "body": "P1 but long outside the window"}]}}]}}
+  ]}}}}
+]
+EOF
+
+# A GraphQL error document: well-formed JSON with no `data`. Must never render
+# as an all-clear — observed live, where a rate-limit error read as a clean
+# window, which is the fail-open shape this whole section exists to catch.
+cat >"$TMP/merged-apierror.json" <<'EOF'
+[
+  {"errors": [{"type": "RATE_LIMIT", "code": "graphql_rate_limit",
+               "message": "API rate limit already exceeded for user ID 1."}]}
+]
+EOF
+
+# No merged PR carries a post-merge thread — the clean-window branch.
+cat >"$TMP/merged-clean.json" <<'EOF'
+[
+  {"data": {"repository": {"pullRequests": {"pageInfo": {"hasNextPage": false, "endCursor": null}, "nodes": [
+    {"number": 1707, "title": "all clear", "url": "https://github.com/o/r/pull/1707",
+     "mergedAt": "2026-07-19T16:23:23Z", "reviewThreads": {"nodes": []}}
+  ]}}}}
+]
+EOF
+
 # Non-empty telemetry array with zero lane-tagged comments (only scope notes) —
 # the any=0 branch, distinct from the null/no-issue-found case above.
 cat >"$TMP/telemetry-no-lanes.json" <<'EOF'
@@ -115,7 +179,8 @@ OUT="$(bash "$BRIEF" --now "$NOW" --stale-hours 6 \
   --counts-json "$TMP/counts.json" \
   --pr-json "$TMP/pr.json" \
   --decisions-json "$TMP/decisions.json" \
-  --telemetry-json "$TMP/telemetry.json" 2>&1)"
+  --telemetry-json "$TMP/telemetry.json" \
+  --merged-json "$TMP/merged.json" 2>&1)"
 RC=$?
 
 assert_exit "renders successfully" 0 "$RC"
@@ -292,6 +357,60 @@ STUB
   assert_contains "BSD fallback: stale verdict via date -j -f" "$OUT_BSD" "STALE (>6h)"
   assert_contains "BSD fallback: unparsable stamp still unparsable" "$OUT_BSD" "unparsable timestamp"
 fi
+
+# --- Stranded findings on merged PRs (#1777) ----------------------------------
+# The discriminator is the comment's timestamp vs the merge's: a thread the merge
+# gate could never have seen, because it did not exist yet.
+assert_contains "stranded: reports the post-merge P1" "$OUT" "#1720"
+assert_contains "stranded: severity survives to the operator" "$OUT" "[P1]"
+# One line per PR, not per thread: #1720 carries a P1 and a P2, and must render
+# once at its WORST severity with the count — repeating a title per thread buries
+# every other PR in the section.
+assert_contains "stranded: several findings on one PR collapse to one line" "$OUT" "(2 findings)"
+assert_not_contains "stranded: a collapsed PR is not softened to its lesser severity" "$OUT" "[P2] #1720"
+assert_contains "stranded: names the reviewer" "$OUT" "by chatgpt-codex-connector"
+assert_contains "stranded: says why it was missed" "$OUT" "merge gate could not see it"
+# The three negative cases matter more than the positive: a check that reports
+# every unresolved thread on every merged PR is noise, not a signal.
+assert_not_contains "stranded: a thread PREDATING the merge is not stranded" "$OUT" "#1707"
+assert_not_contains "stranded: an already-RESOLVED post-merge thread is excluded" "$OUT" "#1712"
+assert_not_contains "stranded: a merge outside the window is excluded" "$OUT" "#1690"
+
+# Severity ordering: a P0/P1 must not sort below advisory findings.
+STRANDED_BLOCK="$(printf '%s\n' "$OUT" | sed -n '/stranded on merged/,$p')"
+FIRST_SEV="$(printf '%s\n' "$STRANDED_BLOCK" | grep -oE '^\s+\[P[0-9]\]' | head -1 | tr -d ' ')"
+assert_contains "stranded: highest severity is listed first" "$FIRST_SEV" "[P1]"
+
+# Clean window renders the reassuring branch rather than an empty section.
+OUT_CLEAN="$(bash "$BRIEF" --now "$NOW" --stale-hours 6 \
+  --counts-json "$TMP/counts.json" \
+  --pr-json "$TMP/pr.json" \
+  --decisions-json "$TMP/decisions.json" \
+  --telemetry-json "$TMP/telemetry.json" \
+  --merged-json "$TMP/merged-clean.json" 2>&1)"
+assert_contains "stranded: a clean window says so explicitly" "$OUT_CLEAN" "every merged PR in the window is clear"
+
+# An API error must NOT read as an all-clear. This is the section's own fail-open
+# failure mode, and it was observed live before being fixed.
+OUT_ERR="$(bash "$BRIEF" --now "$NOW" --stale-hours 6 \
+  --counts-json "$TMP/counts.json" \
+  --pr-json "$TMP/pr.json" \
+  --decisions-json "$TMP/decisions.json" \
+  --telemetry-json "$TMP/telemetry.json" \
+  --merged-json "$TMP/merged-apierror.json" 2>&1)"
+assert_not_contains "stranded: an API error is NEVER reported as clear" "$OUT_ERR" "every merged PR in the window is clear"
+assert_contains "stranded: an API error says it is not an all-clear" "$OUT_ERR" "NOT an all-clear"
+assert_contains "stranded: the API error message is surfaced" "$OUT_ERR" "rate limit already exceeded"
+
+# The window is operator-tunable, and widening it must pull in the older merge.
+OUT_WIDE="$(bash "$BRIEF" --now "$NOW" --stale-hours 6 --stranded-days 60 \
+  --counts-json "$TMP/counts.json" \
+  --pr-json "$TMP/pr.json" \
+  --decisions-json "$TMP/decisions.json" \
+  --telemetry-json "$TMP/telemetry.json" \
+  --merged-json "$TMP/merged.json" 2>&1)"
+assert_contains "stranded: --stranded-days widens the window" "$OUT_WIDE" "#1690"
+assert_contains "stranded: the window is reported in the header" "$OUT_WIDE" "last 60d"
 
 # --- Summary ------------------------------------------------------------------
 echo

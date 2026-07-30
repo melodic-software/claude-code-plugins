@@ -48,6 +48,14 @@ re-query the sections by hand.
 | Merge-ready PRs | `gh pr list` filtered to non-draft + `mergeStateStatus=CLEAN` | A light glance signal; `reviewDecision` shown but not required (repos without required review leave it empty) |
 | Parked decisions | open `status: needs-decision` issues | Surfaces each one's RECOMMENDED line — the uppercase marker wins over an incidental lowercase mention; a case-insensitive fallback catches lowercase markers |
 | Lane telemetry | the loop-lane telemetry issue's per-lane comments | Each lane's `last-cycle` age (marked `STALE` past `--stale-hours`, default 6) and any `flags:` |
+| Stranded findings | merged PRs whose unresolved review threads were **created after the merge** | One line per PR at its worst severity, with a finding count; window is `--stranded-days`, default 3 |
+
+A review that lands after a merge has nowhere to go: the ruleset's
+`required_review_thread_resolution` is a merge-time predicate that already passed, the babysit lane
+works *open* PRs, and nothing on a merged PR surfaces its open threads. This section is the only
+place they appear (#1777). The comment-vs-merge timestamp comparison is the discriminator — a thread
+that predates the merge was visible to the gate and is an ordinary unresolved thread, not this
+failure mode.
 
 The telemetry issue is auto-discovered by title; pass `--telemetry-issue N` to pin it.
 When no such issue exists (e.g. a consuming repo without loop-lane telemetry), that
