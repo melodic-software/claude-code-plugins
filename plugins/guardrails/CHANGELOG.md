@@ -38,6 +38,9 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   `env` is last-wins against the invoking cwd, as env itself resolves it. `sudo`'s own `-D`/`--chdir`
   is read in its unclustered spellings.
 
+  The resolver half of this lands in the shared `lib/hook-utils.sh` and is synced to every carrying
+  plugin; guardrails is the only plugin that consumes the new global.
+
 ## [0.18.1]
 
 ### Fixed

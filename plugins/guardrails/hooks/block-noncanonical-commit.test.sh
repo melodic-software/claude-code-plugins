@@ -559,6 +559,16 @@ fi
 # that starts at the git token cannot see that, and reading the payload cwd's
 # alias instead let a non-canonical commit through. Every spelling env accepts is
 # covered, because one unhandled spelling is the whole bypass again.
+wrapper_cd_case() {
+  local label="$1" command="$2" expected="$3" rc
+  MSYS_NO_PATHCONV=1 jq -n --arg c "$command" --arg d "$WRAP/outer" \
+    '{tool_name:"Bash",tool_input:{command:$c},cwd:$d}' |
+    timeout 30 bash "$HOOK" >/dev/null 2>&1
+  rc=$?
+  ((rc == 124)) && bad "$label: exceeded the 30s ceiling"
+  ((rc == 124)) || assert_exit "$label" "$expected" "$rc"
+}
+
 if [[ -d "$WRAP/outer/other/.git" ]]; then
   # `other` (where git lands) is non-canonical under `a` and canonical under `k`;
   # the payload cwd `outer` is the reverse. So a dropped chdir shows up as exit 0
@@ -567,16 +577,6 @@ if [[ -d "$WRAP/outer/other/.git" ]]; then
   git -C "$WRAP/outer/other" config alias.k 'commit -F -'
   git -C "$WRAP/outer" config alias.a 'commit -F -'
   git -C "$WRAP/outer" config alias.k 'commit --allow-empty -m bypass'
-
-  wrapper_cd_case() {
-    local label="$1" command="$2" expected="$3" rc
-    MSYS_NO_PATHCONV=1 jq -n --arg c "$command" --arg d "$WRAP/outer" \
-      '{tool_name:"Bash",tool_input:{command:$c},cwd:$d}' |
-      timeout 30 bash "$HOOK" >/dev/null 2>&1
-    rc=$?
-    ((rc == 124)) && bad "$label: exceeded the 30s ceiling"
-    ((rc == 124)) || assert_exit "$label" "$expected" "$rc"
-  }
 
   wrapper_cd_case "env -C moves git, so the alias lookup follows" \
     "env -C other git a" 2
@@ -606,6 +606,38 @@ if [[ -d "$WRAP/outer/other/.git" ]]; then
     "env -C other git k" 0
   wrapper_cd_case "env -C with a plain canonical commit stays allowed" \
     "env -C other git commit -F -" 0
+fi
+
+# --- the wrapper's chdir composes ONCE, on every recursion path ----------------
+# The alias walk recurses two ways, and the chdir must be applied exactly once
+# down both. The git-alias splice rebuilds the command line from index 0, so the
+# recursive frame re-resolves the SAME wrapper argv — applying it again there
+# would compose `other/other` and probe a path that does not exist, which reads
+# as "no alias found" and allows the commit. The `!` shell-alias reparse instead
+# carries only the alias BODY, which has no wrapper argv, so it must not lose the
+# directory the outer hop already reached. Each case has a canonical twin: the
+# exit 0 proves the walk arrived at the right repository rather than at nothing.
+if [[ -d "$WRAP/outer/other/.git" ]]; then
+  nested_repo "$WRAP/outer/other/child"
+  nested_repo "$WRAP/outer/other/child/child"
+fi
+
+if [[ -d "$WRAP/outer/other/child/child/.git" ]]; then
+  git -C "$WRAP/outer/other" config alias.p '!git -C child p'
+  git -C "$WRAP/outer/other/child" config alias.p '!git -C child p'
+  git -C "$WRAP/outer/other/child/child" config alias.p 'commit --allow-empty -m bypass'
+  git -C "$WRAP/outer/other" config alias.s '!git -C child s'
+  git -C "$WRAP/outer/other/child" config alias.s '!git -C child s'
+  git -C "$WRAP/outer/other/child/child" config alias.s 'commit -F -'
+
+  wrapper_cd_case "wrapper chdir survives a persisted ! alias descent" \
+    "env -C other git p" 2
+  wrapper_cd_case "same descent, canonical leaf, stays allowed" \
+    "env -C other git s" 0
+  wrapper_cd_case "wrapper chdir is not applied twice on the git-alias splice" \
+    "env -C other git -c alias.z='!git -C child p' z" 2
+  wrapper_cd_case "same splice, canonical leaf, stays allowed" \
+    "env -C other git -c alias.z='!git -C child s' z" 0
 fi
 
 # --- `!` bodies start at the outer repository's TOP LEVEL ---------------------

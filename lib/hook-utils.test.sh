@@ -887,7 +887,10 @@ fi
 # jq-present timeout shape specifically.
 bs_rc_file="$(mktemp)"
 bs_err_file="$(mktemp)"
-{ printf '{"incomplete":'; sleep 1; } | {
+{
+  printf '{"incomplete":'
+  sleep 1
+} | {
   CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT=0.4 hook::buffer_stdin >/dev/null 2>"$bs_err_file"
   echo "$?" >"$bs_rc_file"
 }
@@ -907,7 +910,10 @@ rm -f "$bs_rc_file" "$bs_err_file"
 # the chunked read from turning every slow producer into a blocked tool call.
 bs_rc_file="$(mktemp)"
 bs_out_file="$(mktemp)"
-{ printf '{"complete":true}'; sleep 1; } | {
+{
+  printf '{"complete":true}'
+  sleep 1
+} | {
   CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT=0.4 hook::buffer_stdin >"$bs_out_file" 2>/dev/null
   echo "$?" >"$bs_rc_file"
 }
@@ -934,7 +940,10 @@ fi
 bs_time_late_eof() { # $1 = shell prelude; prints elapsed ms (empty if untimed)
   local t_file
   t_file="$(mktemp)"
-  { printf '{"complete":true}'; sleep 3; } | {
+  {
+    printf '{"complete":true}'
+    sleep 3
+  } | {
     CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT=1.2 bash -c '
       source "$1"
       eval "$2"
@@ -1091,7 +1100,10 @@ else
 fi
 
 : >"$bs_out_file"
-{ printf '{"incomplete":'; sleep 2; } | {
+{
+  printf '{"incomplete":'
+  sleep 2
+} | {
   CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT=0.4 \
     bash -c "${force_legacy}"'hook::buffer_stdin' _ "$HOOK_DIR/hook-utils.sh" \
     >"$bs_out_file" 2>/dev/null
@@ -1137,7 +1149,10 @@ done
 # A VALID non-default value must still be honored — the guard must not collapse
 # every setting to the default. 0.5 s against a producer that stalls for 3 s.
 bs_rc_file="$(mktemp)"
-{ printf '{"incomplete":'; sleep 3; } | {
+{
+  printf '{"incomplete":'
+  sleep 3
+} | {
   CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT=0.5 hook::buffer_stdin >/dev/null 2>&1
   echo "$?" >"$bs_rc_file"
 }
@@ -1163,7 +1178,10 @@ bs_time_stall() { # $1 = shell prelude; prints elapsed ms (empty if untimed)
   local t_file
   t_file="$(mktemp)"
   # Bytes land immediately, then the pipe goes quiet well past two bounds.
-  { printf '{"partial":'; sleep 4; } | {
+  {
+    printf '{"partial":'
+    sleep 4
+  } | {
     CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT=1.2 bash -c '
       source "$1"
       eval "$2"
@@ -1208,7 +1226,10 @@ bs_time_held_open() { # $1 = exact payload length in bytes; prints elapsed ms
   payload_file="$(mktemp)"
   t_file="$(mktemp)"
   bs_make_payload "$1" "$payload_file"
-  { cat "$payload_file"; sleep 3; } | {
+  {
+    cat "$payload_file"
+    sleep 3
+  } | {
     CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT=1.2 bash -c '
       source "$1"
       printf "%s\n" "${EPOCHREALTIME:-0}"
@@ -1335,6 +1356,57 @@ subject_is "ordinary command yields basename subject" \
 # Preserved: a non-Bash tool returns its name unchanged.
 subject_is "non-Bash tool returns the tool name" \
   "Write" "irrelevant" "Write"
+
+# --- hook::git_resolve_index reports a wrapper's chdir ------------------------
+# A caller that scopes its git-global parsing to [gi, sub_idx) cannot see a
+# relocation the wrapper performs, so the resolver — the only parser that knows
+# which wrapper options take a value — reports it. `env -C DIR` moves git; the
+# `-C` in `env -u -C git` is -u's operand and moves nothing.
+# resolve_dirs_are <desc> <expected-dirs-joined-by-|> <argv...>
+resolve_dirs_are() {
+  local desc="$1" expected="$2"
+  shift 2
+  local got rc
+  hook::git_resolve_index "$@"
+  rc=$?
+  got=$(
+    IFS='|'
+    printf '%s' "${HOOK_GIT_RESOLVED_WRAPPER_DIRS[*]-}"
+  )
+  if ((rc != 0)); then
+    fail "$desc: resolver did not find git (rc=$rc)"
+  elif [[ "$got" == "$expected" ]]; then
+    ok "$desc"
+  else
+    fail "$desc: expected [$expected], got [$got]"
+  fi
+}
+
+resolve_dirs_are "no wrapper reports no chdir" "" git commit
+resolve_dirs_are "env with no options reports no chdir" "" env git commit
+resolve_dirs_are "env -C DIR reports the chdir" "other" env -C other git commit
+resolve_dirs_are "env -CDIR (attached short) reports the chdir" "other" env -Cother git commit
+resolve_dirs_are "env --chdir DIR reports the chdir" "other" env --chdir other git commit
+resolve_dirs_are "env --chdir=DIR reports the chdir" "other" env --chdir=other git commit
+# env clusters short options, so a valueless flag can carry the chdir in the same
+# word: -vC is --debug plus --chdir, which no exact -C match sees.
+resolve_dirs_are "env -vC DIR (clustered) reports the chdir" "other" env -vC other git commit
+resolve_dirs_are "env -iC DIR (clustered) reports the chdir" "other" env -iC other git commit
+# -u consumes the NEXT word as a variable name, so this -C is env's operand and
+# git never moves. Reporting it here is the bypass this whole boundary exists for.
+resolve_dirs_are "env -u swallows -C, so no chdir is reported" "" env -u -C git commit
+resolve_dirs_are "env -uNAME (attached) leaves a later -C as env's chdir" "other" env -uFOO -C other git commit
+# One env keeps --chdir in a single slot, so a repeat is last-wins, not cumulative.
+resolve_dirs_are "repeated env -C is last-wins within one env" "second" env -C first -C second git commit
+# Operands and the option terminator must not be read as options.
+resolve_dirs_are "env NAME=value operand carries no chdir" "" env FOO=bar git commit
+resolve_dirs_are "env -- ends option parsing" "other" env -C other -- git commit
+# sudo's chdir is -D/--chdir; its -C is close-from and takes a value of its own.
+resolve_dirs_are "sudo -D DIR reports the chdir" "other" sudo -D other git commit
+resolve_dirs_are "sudo --chdir=DIR reports the chdir" "other" sudo --chdir=other git commit
+resolve_dirs_are "sudo -C fd is not a chdir" "" sudo -C 3 git commit
+# Nested wrappers each contribute, in execution order, for the caller to compose.
+resolve_dirs_are "nested wrappers report both chdirs in order" "a|b" env -C a sudo -D b git commit
 
 echo
 echo "PASS=$PASS FAIL=$FAIL"
