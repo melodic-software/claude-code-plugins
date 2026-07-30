@@ -163,12 +163,24 @@ append_notice() {
 # quiet (N/A, the repo chose not to format).
 if shell_editorconfig_opt_in; then
   if command -v shfmt >/dev/null 2>&1; then
-    # --apply-ignore requires shfmt 3.8+ (2024-02). On older shfmt the flag is
-    # unknown and the call fails without formatting, so fall back to a plain
-    # in-place format — those versions cannot honor direct-file ignore rules
-    # anyway (that is exactly the capability --apply-ignore adds). On shfmt 3.8+
-    # the first call succeeds (skipping ignored files), so the fallback never runs.
-    shfmt --apply-ignore -w "$FILE" 2>/dev/null || shfmt -w "$FILE" 2>/dev/null
+    # --apply-ignore requires shfmt 3.8+ (2024-02). Older versions reject the
+    # flag, and they cannot honor direct-file ignore rules anyway — that is
+    # exactly the capability the flag adds — so they get a plain in-place format.
+    #
+    # The version is decided by PROBING the flag, not by inferring it from a
+    # failed format run. `--apply-ignore -w || -w` re-formatted WITHOUT the flag
+    # whenever the first call failed for ANY reason, so a transient failure on a
+    # 3.8+ shfmt silently discarded the repo's `ignore = true` opt-out and
+    # re-tabbed a file the consumer had asked shfmt to leave alone (#1817). A
+    # capability probe cannot confuse "this shfmt has no such flag" with "this
+    # run failed": where the flag exists, a failing run now leaves the file
+    # untouched, which is the only safe reading of a formatter that did not
+    # complete.
+    if shfmt --apply-ignore --version >/dev/null 2>&1; then
+      shfmt --apply-ignore -w "$FILE" 2>/dev/null
+    else
+      shfmt -w "$FILE" 2>/dev/null
+    fi
     ran_any=1
   elif hook::notice_once "bash-format-shfmt" "$INPUT"; then
     append_notice "bash-format: .editorconfig opts this repo into shell formatting but 'shfmt' is not on PATH — formatting skipped for this session. Install: https://github.com/mvdan/sh#shfmt"

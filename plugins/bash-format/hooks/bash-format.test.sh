@@ -314,6 +314,51 @@ else
   fail "shfmt<3.8 fallback did not format: $(cat "$REPO_OLDSHFMT/x.sh")"
 fi
 
+# A shfmt that KNOWS --apply-ignore but whose format run fails must NOT be
+# re-run without the flag. Doing so discarded the repo's `ignore = true` opt-out
+# and re-tabbed a file the consumer asked shfmt to leave alone (#1817). The
+# stub answers the capability probe successfully and fails only the -w run, so
+# it separates "no such flag" from "this run failed" — the distinction the old
+# `--apply-ignore -w || -w` could not make.
+STUBDIR2="$(mktemp -d "$WORK/shfmtstub2.XXXXXX")"
+cat >"$STUBDIR2/shfmt" <<'STUB2'
+#!/usr/bin/env bash
+has_ignore=0 has_version=0
+for a in "$@"; do
+  [[ "$a" == "--apply-ignore" ]] && has_ignore=1
+  [[ "$a" == "--version" ]] && has_version=1
+done
+# Capability probe: the flag exists on this shfmt.
+if ((has_ignore && has_version)); then
+  echo v3.13.1
+  exit 0
+fi
+# Format run with the flag: fail transiently, formatting nothing.
+((has_ignore)) && exit 1
+# Plain `-w FILE`: rewrite the file, so a wrong fallback is observable.
+f="${*: -1}"
+printf '#!/usr/bin/env bash\nif true; then\n\techo hi\nfi\n' >"$f"
+STUB2
+chmod +x "$STUBDIR2/shfmt"
+REPO_IGN="$WORK/apply-ignore-transient"
+new_repo "$REPO_IGN"
+printf 'root = true\n[*.sh]\nignore = true\n' >"$REPO_IGN/.editorconfig"
+printf '#!/usr/bin/env bash\nif true; then\n  echo hi\nfi\n' >"$REPO_IGN/x.sh"
+# Byte-for-byte reference: `$(cat)` strips trailing newlines, so a string
+# compare would report a difference the file does not have.
+cp "$REPO_IGN/x.sh" "$WORK/apply-ignore-transient.expected"
+(
+  cd "$UNRELATED" || exit 1
+  printf '{"tool_input":{"file_path":"%s"},"tool_name":"Write"}' "$REPO_IGN/x.sh" |
+    env -u CLAUDE_PROJECT_DIR PATH="$STUBDIR2:$PATH" \
+      CLAUDE_PLUGIN_OPTION_BASH_FORMAT_ENABLED=true bash "$HOOK" >/dev/null
+)
+if cmp -s "$REPO_IGN/x.sh" "$WORK/apply-ignore-transient.expected"; then
+  ok "failed --apply-ignore run does not re-format without the flag"
+else
+  fail "opt-out discarded by fallback: $(cat "$REPO_IGN/x.sh")"
+fi
+
 # ============================================================================
 # Telemetry
 # ============================================================================

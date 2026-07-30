@@ -3,6 +3,27 @@
 All notable changes to the `bash-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.8]
+
+### Fixed
+
+- **A failed `shfmt --apply-ignore` run no longer re-formats the file without the flag (#1817).**
+  The format pass was `shfmt --apply-ignore -w "$FILE" || shfmt -w "$FILE"`. The fallback exists for
+  shfmt below 3.8, which rejects the flag and cannot honor direct-file `ignore` rules anyway — but
+  `||` fires on *any* failure, so on a 3.8+ shfmt a run that failed for an unrelated reason silently
+  re-formatted the file with the opt-out discarded, re-tabbing a script the repo's
+  `.editorconfig` `[*.sh] ignore = true` had asked shfmt to leave alone. It presents as
+  intermittent, because it only shows when the first call happens to fail.
+
+  The version is now decided by **probing the flag** (`shfmt --apply-ignore --version`) rather than
+  by inferring it from a failed format run, which is what confused "this shfmt has no such flag"
+  with "this run failed". Where the flag exists, a failing run now leaves the file untouched — the
+  only safe reading of a formatter that did not complete. Old shfmt still gets the plain in-place
+  format it always did.
+
+  Reproduced with a stub shfmt that answers the capability probe but fails the `-w` run: **before**,
+  a file in an `ignore = true` repo is reformatted; **after**, it is byte-identical.
+
 ## [0.6.7]
 
 ### Fixed
