@@ -107,10 +107,13 @@ if [[ "$mode" == "--check-order" ]]; then
   for changelog in "${changelogs[@]}"; do
     [[ -f "$changelog" ]] || continue
     checked=$((checked + 1))
-    # Both heading forms this repo uses: `## [1.2.3]` (plugins, Keep a Changelog)
-    # and `## 1.2.3 — date` (conventions).
-    mapfile -t versions < <(grep -oE '^##[[:space:]]+\[?[0-9]+\.[0-9]+\.[0-9]+\]?' "$changelog" |
-      grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
+    # Every heading form this repo actually uses: `## [1.2.3]` (plugins, Keep a
+    # Changelog), `## 1.2.3 — date` (conventions), and the two-component
+    # `## 1.2` several convention changelogs use. Requiring a patch component
+    # would make this gate silently check NOTHING in those files — worse than
+    # not covering them, because the pass would be indistinguishable.
+    mapfile -t versions < <(grep -oE '^##[[:space:]]+\[?[0-9]+\.[0-9]+(\.[0-9]+)?\]?([[:space:]]|$)' "$changelog" |
+      grep -oE '[0-9]+\.[0-9]+(\.[0-9]+)?')
     ((${#versions[@]} > 1)) || continue
 
     dupes="$(printf '%s\n' "${versions[@]}" | sort | uniq -d)"

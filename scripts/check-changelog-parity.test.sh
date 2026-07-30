@@ -461,6 +461,20 @@ if out="$(cd "$repo" && bash scripts/check-changelog-parity.sh --check-order 2>&
 # Numeric, not lexical: 10.0.0 sorts ABOVE 9.0.0.
 write_changelog "$repo/docs/conventions/demo/CHANGELOG.md" '## 10.0.0 — 2026-02-01' '## 9.0.0 — 2026-01-01'
 if out="$(cd "$repo" && bash scripts/check-changelog-parity.sh --check-order 2>&1)"; then ok "version order is numeric, not lexical (10.0.0 > 9.0.0)"; else fail "lexical comparison leaked in: $out"; fi
+
+# Two-component `## 1.2` headings: several convention changelogs use them, and
+# requiring a patch component made the gate silently check NOTHING there.
+write_changelog "$repo/docs/conventions/demo/CHANGELOG.md" '## 1.2 — 2026-02-01' '## 1.1 — 2026-01-15' '## 1.0 — 2026-01-01'
+if out="$(cd "$repo" && bash scripts/check-changelog-parity.sh --check-order 2>&1)"; then ok "descending two-component versions pass"; else fail "two-component descending rejected: $out"; fi
+
+write_changelog "$repo/docs/conventions/demo/CHANGELOG.md" '## 1.2 — 2026-02-01' '## 1.0 — 2026-01-01' '## 1.1 — 2026-01-15'
+out="$(cd "$repo" && bash scripts/check-changelog-parity.sh --check-order 2>&1)"
+rc=$?
+if [[ $rc -eq 1 && "$out" == *"MISORDERED CHANGELOG"* ]]; then ok "misordered two-component versions are caught"; else fail "two-component misordering missed: rc=$rc $out"; fi
+
+# Mixed widths in one file must compare correctly: 1.10 outranks 1.9.
+write_changelog "$repo/docs/conventions/demo/CHANGELOG.md" '## 1.10 — 2026-02-01' '## 1.9.1 — 2026-01-15' '## 1.9 — 2026-01-01'
+if out="$(cd "$repo" && bash scripts/check-changelog-parity.sh --check-order 2>&1)"; then ok "two- and three-component versions compare correctly together"; else fail "mixed-width comparison wrong: $out"; fi
 rm -rf "$repo"
 
 printf '\nPASS=%d FAIL=%d\n' "$PASS" "$FAIL"
