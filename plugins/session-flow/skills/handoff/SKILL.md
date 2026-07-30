@@ -141,8 +141,9 @@ ambiguous.
   `TaskList` call this turn (OR an explicit statement that there is nothing to recreate)
 - [ ] Resume prompt emitted between dashed rails, `@`-referencing the file by its **absolute**,
   forward-slash-normalized path — never the bare `<memory_dir>/handoffs/…` segment, which resolves
-  against the resuming session's cwd — with the `Handoff origin:` line naming the repository and
-  repo-relative path a different machine re-resolves from; copy instruction above
+  against the resuming session's cwd — with the `Handoff origin:` line naming the repository
+  (a remote URL with its userinfo credential stripped) and repo-relative path a different machine
+  re-resolves from; copy instruction above
   the top rail; `/goal` first line if a goal is active; a below-the-rails note re-arming EVERY
   surviving loop — one `/loop [<interval>] <original prompt>` line per loop, each its own follow-up
   message (engine doc, "Emit the copy/paste resume prompt")
