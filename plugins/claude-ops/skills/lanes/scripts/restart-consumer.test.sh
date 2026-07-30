@@ -519,18 +519,21 @@ assert_not_contains "an unusable store is never reported as contention" "$OUT" "
 # launch, so a legitimate run can outlive any age bound. Liveness decides.
 KEY="$(printf '%s' "$(git -C "$REPO" rev-parse --show-toplevel)" | git hash-object --stdin)"
 LOCKDIR="$DATA/lanes/$KEY/.restart-consumer-lock"
-seed_lock() { # $1 stamp, $2 owner pid
+seed_lock() { # $1 stamp, $2 owner pid, $3 optional recorded boot id
   mkdir -p "$LOCKDIR"
   printf '%s\n' "$1" >"$LOCKDIR/acquired-at"
   printf '%s\n' "$2" >"$LOCKDIR/owner-pid"
+  rm -f "$LOCKDIR/boot-id"
+  [[ -n "${3:-}" ]] && printf '%s\n' "$3" >"$LOCKDIR/boot-id"
 }
 release_seeded_lock() { rm -rf "$LOCKDIR"; }
 
 TEL="$TMP/tel-23.json"
 write_telemetry "$TEL" 'true' 'null'
-# Stamp is two hours old — well past LOCK_STALE_SECONDS=3600 — but pid 4242 is alive.
-seed_lock 1799992800 4242
-OUT="$(RESTART_CONSUMER_FAKE_ALIVE_PIDS='4242' run_consumer run \
+# Stamp is two hours old — well past LOCK_STALE_SECONDS=3600 — but pid 4242 is
+# alive and the recorded boot identity still matches, so the owner is genuine.
+seed_lock 1799992800 4242 boot-A
+OUT="$(RESTART_CONSUMER_FAKE_BOOT_ID='boot-A' RESTART_CONSUMER_FAKE_ALIVE_PIDS='4242' run_consumer run \
   --telemetry-json "$TEL" --agents-json "$AGENTS_NONE")"
 assert_contains "an aged lock whose owner is ALIVE stays held" "$OUT" "| (none) | lock-held |"
 assert_contains "and says why it declined to reclaim" "$OUT" "owner (pid 4242) is alive"
@@ -541,11 +544,115 @@ assert_not_contains "a live owner's lock is never reclaimed" "$OUT" "reclaiming 
 # already spent against lane `work` in the shared data dir — this case is about
 # the reclaim, not the budget.
 : >"$LAUNCH_LOG"
-OUT="$(RESTART_CONSUMER_FAKE_ALIVE_PIDS='' run_consumer run --max-restarts 0 \
+OUT="$(RESTART_CONSUMER_FAKE_BOOT_ID='boot-A' RESTART_CONSUMER_FAKE_ALIVE_PIDS='' run_consumer run --max-restarts 0 \
   --telemetry-json "$TEL" --agents-json "$AGENTS_NONE")"
 assert_contains "an aged lock whose owner is GONE is still reclaimed" "$OUT" "reclaiming a lock"
 assert_contains "and the reclaiming run goes on to do its work" "$(cat "$LAUNCH_LOG")" "restart work"
 release_seeded_lock
+
+# A REUSED pid must not masquerade as the owner. The machine has rebooted since
+# the lock was taken (boot id differs), so whatever holds pid 4242 now is an
+# unrelated process — trusting `kill -0` alone would wedge every later tick.
+seed_lock 1799992800 4242 boot-OLD
+: >"$LAUNCH_LOG"
+OUT="$(RESTART_CONSUMER_FAKE_BOOT_ID='boot-NEW' RESTART_CONSUMER_FAKE_ALIVE_PIDS='4242' run_consumer run --max-restarts 0 \
+  --telemetry-json "$TEL" --agents-json "$AGENTS_NONE")"
+assert_contains "a live pid from a PREVIOUS boot is a reused pid, not the owner" "$OUT" "reclaiming a lock"
+assert_contains "and the reclaiming run proceeds" "$(cat "$LAUNCH_LOG")" "restart work"
+release_seeded_lock
+
+# With no boot identity recorded at all, a live pid may only DEFER the reclaim —
+# past the hard ceiling the wedge is broken regardless.
+seed_lock 1799992800 4242 # no boot id
+OUT="$(RESTART_CONSUMER_FAKE_ALIVE_PIDS='4242' run_consumer run \
+  --telemetry-json "$TEL" --agents-json "$AGENTS_NONE")"
+assert_contains "without a boot identity a live pid still defers the reclaim" "$OUT" "| (none) | lock-held |"
+release_seeded_lock
+
+# Same, but the lock is older than LOCK_HARD_STALE_SECONDS=86400 (two days).
+seed_lock 1799827200 4242
+: >"$LAUNCH_LOG"
+OUT="$(RESTART_CONSUMER_FAKE_ALIVE_PIDS='4242' run_consumer run --max-restarts 0 \
+  --telemetry-json "$TEL" --agents-json "$AGENTS_NONE")"
+assert_contains "past the hard ceiling an unverifiable pid never wedges forever" "$OUT" "reclaiming a lock"
+release_seeded_lock
+
+# --- 28. A failed session re-read fails CLOSED (#1760 review) -----------------
+# `read_sessions && lane_is_running` would fall through to the launcher on a
+# transient read failure, still holding the stale snapshot — the exact race the
+# recheck exists to prevent.
+FAIL_STUB="$TMP/stubs-failread"
+mkdir -p "$FAIL_STUB"
+FAIL_COUNT="$TMP/failread-count"
+: >"$FAIL_COUNT"
+cat >"$FAIL_STUB/claude" <<'SH'
+#!/usr/bin/env bash
+# The run's own snapshot succeeds; the pre-mutation re-read fails.
+n="$(wc -l <"$FAIL_COUNT" | tr -d ' ')"
+echo x >>"$FAIL_COUNT"
+if [[ "$n" -eq 0 ]]; then echo '[]'; else exit 1; fi
+SH
+chmod +x "$FAIL_STUB/claude"
+cp "$STUBS/gh" "$FAIL_STUB/gh"
+chmod +x "$FAIL_STUB/gh"
+TEL="$TMP/tel-28.json"
+write_telemetry "$TEL" 'true' 'null'
+: >"$LAUNCH_LOG"
+OUT="$(FAIL_COUNT="$FAIL_COUNT" PATH="$FAIL_STUB:$PATH" bash "$SCRIPT" run \
+  --config "$CONFIG" --repo "$REPO" --data-dir "$DATA" --target-repo "owner/name" \
+  --launcher "$LAUNCHER" --no-telemetry --now 1800000000 --max-restarts 0 --telemetry-json "$TEL" 2>&1)"
+RC=$?
+assert_not_contains "a failed re-read NEVER relaunches on the stale snapshot" "$(cat "$LAUNCH_LOG")" "restart work"
+assert_contains "a failed re-read is an error decision" "$OUT" "| work | error |"
+assert_contains "and says it refused to act on a stale snapshot" "$OUT" "stale snapshot"
+assert_eq "a failed re-read exits non-zero" "5" "$RC"
+
+# --- 29. A POST-launch ledger failure fails the lane (#1760 review) -----------
+# The preflight probe cannot cover storage that disappears DURING the launcher's
+# unbounded work: a relaunch that leaves no breaker row would be repeatable.
+LEDGER_DIR_PATH="$DATA/lanes/$KEY"
+POST_LAUNCHER="$TMP/launcher-eats-ledger.sh"
+cat >"$POST_LAUNCHER" <<SH
+#!/usr/bin/env bash
+printf '%s\n' "\$*" >>"\$LAUNCH_LOG"
+# Storage goes away mid-launch, after ledger_writable already succeeded.
+rm -f '$LEDGER_DIR_PATH/restart-consumer.jsonl'
+mkdir -p '$LEDGER_DIR_PATH/restart-consumer.jsonl'
+exit 0
+SH
+chmod +x "$POST_LAUNCHER"
+TEL="$TMP/tel-29.json"
+write_telemetry "$TEL" 'true' 'null'
+: >"$LAUNCH_LOG"
+# The lane must read STOPPED for the run's snapshot and for the pre-mutation
+# recheck, then RUNNING once confirm_running looks — otherwise the relaunch
+# never happens and there is no post-launch append to fail.
+POST_STUB="$TMP/stubs-postledger"
+mkdir -p "$POST_STUB"
+POST_COUNT="$TMP/post-count"
+: >"$POST_COUNT"
+cat >"$POST_STUB/claude" <<'SH'
+#!/usr/bin/env bash
+n="$(wc -l <"$POST_COUNT" | tr -d ' ')"
+echo x >>"$POST_COUNT"
+if [[ "$n" -lt 2 ]]; then
+  echo '[]'
+else
+  echo '[{"name":"work","kind":"background","startedAt":1,"sessionId":"post"}]'
+fi
+SH
+chmod +x "$POST_STUB/claude"
+cp "$STUBS/gh" "$POST_STUB/gh"
+chmod +x "$POST_STUB/gh"
+OUT="$(POST_COUNT="$POST_COUNT" PATH="$POST_STUB:$PATH" bash "$SCRIPT" run \
+  --config "$CONFIG" --repo "$REPO" --data-dir "$DATA" \
+  --target-repo "owner/name" --launcher "$POST_LAUNCHER" --no-telemetry --now 1800000000 \
+  --max-restarts 0 --telemetry-json "$TEL" 2>&1)"
+RC=$?
+assert_contains "the launcher DID run, so the relaunch really happened" "$(cat "$LAUNCH_LOG")" "restart work"
+assert_contains "a post-launch ledger failure is reported, not swallowed" "$OUT" "breaker row could not be written"
+assert_eq "a post-launch ledger failure exits non-zero" "5" "$RC"
+rm -rf "$LEDGER_DIR_PATH/restart-consumer.jsonl"
 
 # --- 24. Offline telemetry parse failures propagate (#1759 P2) ----------------
 # An unconditional `return 0` turned a jq failure into a successful empty read,

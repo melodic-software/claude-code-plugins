@@ -32,6 +32,19 @@ Six review findings raised on #1720 forty-six seconds *after* it merged, so they
   `lane-launcher.sh restart` *stops* a running lane before relaunching. A healthy session could be
   interrupted despite the documented "not currently running" predicate. The predicate is now
   rechecked against a fresh list immediately before the mutation.
+- **A reused PID could masquerade as the lock owner.** `kill -0` proves only that *some* process
+  holds that number — and after the reboot this reclaim path exists to handle, the number is very
+  likely reused, which would wedge every later tick exactly as before. The lock now records a boot
+  identity beside the PID: a lock from a previous boot is reclaimed regardless of who holds its PID
+  now, and where no boot identity is available a live PID may only *defer* the reclaim, never defer
+  it past a hard 24-hour ceiling.
+- **The fresh liveness re-check failed open.** A transient `claude agents --json` failure made the
+  `&&` condition false and fell through to the launcher on the stale snapshot — reintroducing the
+  race the re-check exists to prevent. A failed re-read is now an error that skips the mutation.
+- **A post-launch ledger failure was still invisible.** The pre-flight probe cannot cover storage
+  that disappears *during* the launcher's unbounded work, so a relaunch could succeed while its
+  breaker row silently failed to persist and later ticks restarted the lane again. The outcome
+  append now fails the lane even when the restart itself worked.
 - **`print-schedule` dropped behavior-affecting options.** A non-default `--config` or
   `--target-repo` was absent from the emitted schtasks, logon, cron, and offline forms, so the
   scheduled invocation silently fell back to `<repo>/.work/lanes.json` and the checkout's own

@@ -466,7 +466,7 @@ LOCK_STALE_SECONDS=3600
 release_lock() {
   ((OWN_LOCK)) || return 0
   OWN_LOCK=0
-  rm -f "$LOCK_DIR/acquired-at" "$LOCK_DIR/owner-pid" 2>/dev/null || true
+  rm -f "$LOCK_DIR/acquired-at" "$LOCK_DIR/owner-pid" "$LOCK_DIR/boot-id" 2>/dev/null || true
   rmdir "$LOCK_DIR" 2>/dev/null || true
 }
 
@@ -484,11 +484,47 @@ lock_owner_pid() {
   printf '%s' "$pid"
 }
 
-# Is the recorded lock owner still running? Overridable so the tests can drive
-# both branches without spawning real processes.
+# An identity for THIS boot of the machine, recorded beside the owner PID.
+# `kill -0` proves only that SOME process currently holds that number: after the
+# reboot this reclaim path exists to handle, the PID is very likely reused by an
+# unrelated long-lived process, and trusting it would wedge every later tick
+# exactly as before. A boot identity settles the reboot case outright.
+boot_identity() {
+  [[ -n "${RESTART_CONSUMER_FAKE_BOOT_ID-}" ]] && {
+    printf '%s' "$RESTART_CONSUMER_FAKE_BOOT_ID"
+    return 0
+  }
+  [[ -r /proc/sys/kernel/random/boot_id ]] && {
+    tr -d '\r\n' </proc/sys/kernel/random/boot_id
+    return 0
+  }
+  return 1
+}
+
+lock_boot_id() { tr -d '\r\n' <"$LOCK_DIR/boot-id" 2>/dev/null || printf ''; }
+
+# The absolute ceiling. Reached only when boot identity is unavailable on this
+# platform, where a live PID cannot be distinguished from a reused one — so the
+# wedge is bounded rather than trusted away. Far beyond any real run.
+LOCK_HARD_STALE_SECONDS=86400
+
+# Is the recorded lock owner still the process that took the lock? Overridable
+# so the tests can drive every branch without spawning real processes.
 lock_owner_alive() {
-  local pid="$1"
+  local pid="$1" age="$2" recorded_boot current_boot
   ((pid > 0)) || return 1
+
+  recorded_boot="$(lock_boot_id)"
+  if current_boot="$(boot_identity)" && [[ -n "$recorded_boot" ]]; then
+    # Booted since the lock was taken: the owner cannot have survived, whatever
+    # process wears its PID now.
+    [[ "$recorded_boot" == "$current_boot" ]] || return 1
+  else
+    # No boot identity to compare. A live PID is suggestive, not proof, so it
+    # only defers the reclaim — it can never defer it forever.
+    ((age >= LOCK_HARD_STALE_SECONDS)) && return 1
+  fi
+
   if [[ -n "${RESTART_CONSUMER_FAKE_ALIVE_PIDS-}" ]]; then
     [[ " $RESTART_CONSUMER_FAKE_ALIVE_PIDS " == *" $pid "* ]]
     return
@@ -509,7 +545,7 @@ lock_owner_alive() {
 # report `lock-held` and exit 0 forever, so Task Scheduler records healthy ticks
 # while no lane is ever processed.
 acquire_lock() {
-  local now="$1" stamp pid parent
+  local now="$1" stamp pid parent boot_now
   LOCK_DIR="$(dirname "$(ledger_path)")/.restart-consumer-lock"
   parent="$(dirname "$LOCK_DIR")"
   # The data dir does not exist until the first ledger write, so materialize the
@@ -537,12 +573,12 @@ acquire_lock() {
     ((now - stamp < LOCK_STALE_SECONDS)) && return 1
     # Aged out — but age alone never reclaims. A recorded owner that is still
     # running means a legitimately long run, not an abandoned lock.
-    if lock_owner_alive "$pid"; then
-      warn "lock held since epoch $stamp is past the stale bound but its owner (pid $pid) is alive; leaving it held: $LOCK_DIR"
+    if lock_owner_alive "$pid" "$((now - stamp))"; then
+      warn "lock held since epoch $stamp is past the stale bound but its owner (pid $pid) is alive on the same boot; leaving it held: $LOCK_DIR"
       return 1
     fi
     warn "reclaiming a lock held since epoch $stamp with no live run to release it: $LOCK_DIR"
-    rm -f "$LOCK_DIR/acquired-at" "$LOCK_DIR/owner-pid" 2>/dev/null || true
+    rm -f "$LOCK_DIR/acquired-at" "$LOCK_DIR/owner-pid" "$LOCK_DIR/boot-id" 2>/dev/null || true
     rmdir "$LOCK_DIR" 2>/dev/null || true
     mkdir "$LOCK_DIR" 2>/dev/null || return 1
   fi
@@ -550,6 +586,11 @@ acquire_lock() {
   trap release_lock EXIT
   write_lock_file "$LOCK_DIR/acquired-at" "$now" || return 2
   write_lock_file "$LOCK_DIR/owner-pid" "$$" || return 2
+  # Best-effort: absent on platforms without a boot identity, which the
+  # liveness check handles by bounding the wedge instead of trusting the PID.
+  if boot_now="$(boot_identity)"; then
+    write_lock_file "$LOCK_DIR/boot-id" "$boot_now" || return 2
+  fi
   return 0
 }
 
@@ -926,8 +967,16 @@ process_lane() {
   # restart` deliberately STOPS a running lane before relaunching it, so acting
   # on the stale snapshot would interrupt a healthy session, which the documented
   # "not currently running" predicate promises never to do.
-  if read_sessions && lane_is_running "$lane"; then
-    record "$lane" "skipped-running" "lane started after the run's snapshot; not restarting ($reason)" "$request" "$now"
+  # Fail CLOSED on a failed re-read. `read_sessions && lane_is_running` would
+  # fall through to the launcher on a transient read failure, still holding the
+  # stale snapshot — which is precisely the race this recheck exists to prevent.
+  if ! read_sessions; then
+    record "$lane" "error" "could not re-read the session list immediately before relaunching; not restarting on a stale snapshot" "$request" "$now" || true
+    fail_lane "session-recheck-failed($lane)" 5
+    return 0
+  fi
+  if lane_is_running "$lane"; then
+    record "$lane" "skipped-running" "lane started after the run's snapshot; not restarting ($reason)" "$request" "$now" || true
     return 0
   fi
 
@@ -946,7 +995,8 @@ process_lane() {
   local -a launch=(restart "$lane" --config "$CONFIG" --repo "$REPO")
   [[ -n "$DATA_DIR_OVERRIDE" ]] && launch+=(--data-dir "$DATA_DIR_OVERRIDE")
   if ! bash "$LAUNCHER" "${launch[@]}"; then
-    record "$lane" "failed" "lane-launcher.sh restart exited non-zero" "$request" "$now"
+    record "$lane" "failed" "lane-launcher.sh restart exited non-zero" "$request" "$now" ||
+      fail_lane "ledger-unwritable($lane)" 5
     fail_lane "restart-failed($lane)" 5
     return 0
   fi
@@ -954,10 +1004,18 @@ process_lane() {
   # Confirm rather than trust: whether a `claude --bg` session launched from a
   # scheduler-spawned parent survives that parent is unverified on Windows, so a
   # relaunch that does not come up must be loud here, not silent.
+  # The preflight probe cannot cover this: storage can go away DURING the
+  # launcher's unbounded work. A relaunch that happened but left no breaker row
+  # would let later ticks restart the lane again without spending budget, so a
+  # post-mutation append failure fails the lane even though the restart worked.
   if confirm_running "$lane"; then
-    record "$lane" "restarted" "$reason" "$request" "$now"
+    if ! record "$lane" "restarted" "$reason" "$request" "$now"; then
+      err "lane '$lane' WAS relaunched but its breaker row could not be written; later ticks cannot count this attempt"
+      fail_lane "ledger-unwritable($lane)" 5
+    fi
   else
-    record "$lane" "failed" "relaunched but the lane never appeared in the session list" "$request" "$now"
+    record "$lane" "failed" "relaunched but the lane never appeared in the session list" "$request" "$now" ||
+      fail_lane "ledger-unwritable($lane)" 5
     fail_lane "restart-unconfirmed($lane)" 5
   fi
 }
