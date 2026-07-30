@@ -80,20 +80,6 @@ components are declared in, not a component, so it has no row.
 | Recommend your plugin from your CLI (plugin hints) | <https://code.claude.com/docs/en/plugin-hints> | 2026-07-17 |
 | Plugins in the Agent SDK | <https://code.claude.com/docs/en/agent-sdk/plugins> | 2026-07-17 |
 
-## Cursor dual-target (companion host)
-
-This marketplace also ships generated Cursor artifacts via
-[`scripts/cursor-export/`](../scripts/cursor-export/README.md) (companion-host **export**, not a
-runtime dual-read shim). Claude Code docs above remain authoritative for Claude behavior;
-Cursor's own docs are authoritative for Cursor import and manifest shape:
-
-| Page | Official doc page | Verified date |
-|---|---|---|
-| Cursor plugins overview | <https://cursor.com/docs/plugins> | 2026-07-30 |
-| Cursor plugins reference (manifests, marketplaces, variables, mcp.json; specifying a component path replaces discovery) | <https://cursor.com/docs/reference/plugins> | 2026-07-30 |
-| Cursor hooks (`version` + `hooks` object) | <https://cursor.com/docs/hooks> | 2026-07-30 |
-| Cursor third-party / Claude Code hooks compatibility (loads `.claude/settings.json`, not plugin `hooks/hooks.json`) | <https://cursor.com/docs/reference/third-party-hooks> | 2026-07-30 |
-
 The Agent SDK's own skills/hooks/subagents/MCP pages (`agent-sdk/skills`, `agent-sdk/hooks`,
 `agent-sdk/subagents`, `agent-sdk/mcp`) describe those concepts for custom SDK-built agent hosts, not
 for authoring or distributing a Claude Code CLI plugin — deliberately out of scope here. Only

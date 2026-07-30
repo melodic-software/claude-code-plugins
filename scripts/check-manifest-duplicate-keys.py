@@ -59,9 +59,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 # default scope is correct regardless of the caller's cwd.
 DEFAULT_GLOBS = (
     "plugins/*/.claude-plugin/plugin.json",
-    "plugins/*/.cursor-plugin/plugin.json",
     ".claude-plugin/marketplace.json",
-    ".cursor-plugin/marketplace.json",
 )
 
 
@@ -131,8 +129,8 @@ def main(argv: list[str] | None = None) -> int:
         "files",
         nargs="*",
         help=(
-            "manifest files to check (default: every Claude and Cursor "
-            "plugin.json plus both marketplace.json files)"
+            "manifest files to check (default: every plugins/*/.claude-plugin/"
+            "plugin.json plus .claude-plugin/marketplace.json)"
         ),
     )
     args = parser.parse_args(argv)
