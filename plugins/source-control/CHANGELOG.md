@@ -27,8 +27,44 @@ All notable changes to the `source-control` plugin are documented here. Format f
   correctly — existence elsewhere is not evidence this PR carries the fix); `deferred` +
   `--tracker-item <id>`, which must exist and still be open (a closed follow-up is not a deferral,
   it is the finding disappearing); and `incorrect` + `--counter-evidence <text>`, which must
-  already appear in a REPLY on the thread, the opener excluded so the bot's own finding cannot
-  satisfy the claim that the finding is wrong.
+  already appear in a REPLY on the thread, posted by someone other than the thread's OPENER so the
+  finding's own author cannot supply the words that rebut it. Excluding the opening comment alone
+  was not enough: the mandated classification reply restates the finding's own text, so a finding
+  bot that also replies on its own thread would satisfy a `--counter-evidence` claim quoting it. A
+  different bot's reply, and the caller's own reply under a `--self-logins` identity, both stay
+  admissible — those are the independent parties the disposition is about.
+
+  **A multi-finding thread is refused outright** (`skipped-multi-finding-thread`). One
+  `--disposition` is a claim about ONE finding while `resolveReviewThread` clears the whole thread,
+  dropping every comment it carries out of the readiness denominator
+  (`babysit_classify.thread_is_open`) — so evidence for finding A would suppress an unaddressed
+  finding B and let the merge gate pass over it. That is the D7.5 whole-thread eligibility rule
+  (`reference/review-discipline.md`) enforced mechanically instead of left to the caller. The count
+  comes from the shared severity vocabulary (`babysit_classify.severity_occurrences`, made public
+  so the resolver and the readiness counters cannot drift apart) applied to the thread's own
+  comments, with a self classification reply's table rows stripped so the worker's own echo of a
+  finding is not counted twice; it fails closed, so a truncated comment page's unknown count
+  refuses too. The guard is scoped to this mode alone: `--autonomous` rests on `isOutdated`, which
+  GitHub computes for the whole thread rather than per finding, so it carries no per-finding claim
+  to under-cover. The receipt gains a `findingCount` per thread and a `skippedMultiFinding` summary
+  counter.
+
+  **Every `gh` failure now names which answer it got.** Only a confirmed HTTP 404 (parsed from the
+  `(HTTP nnn)` status `gh` reports on stderr, verified against gh 2.95.0) earns an
+  evidence-specific refusal; a 403, 429, 5xx, timeout, or unreachable API reports
+  `refused-evidence-unverifiable`. Previously any nonzero exit from the `compare` lookup reported
+  `refused-fix-commit-not-on-head` and any nonzero exit from the tracker-item lookup reported
+  `refused-tracker-item-not-found`, sending a caller off to replace evidence that may be perfectly
+  valid when the real fix was to retry an outage.
+
+  **The compare URL's path segments are format-validated before interpolation**, matching
+  `babysit_gh.fetch_blocked_base_compare`'s rule for the identical call shape: `head_owner` and
+  `head_name` against `GITHUB_OWNER_RE` / `GITHUB_REPOSITORY_RE` (and `..` rejected), `head_oid`
+  and `sha` against the commit-SHA pattern. Two of those arrive in an API response body, so "the
+  API said so" was their only provenance — a crafted or compromised response carrying path syntax
+  could otherwise redirect the request to an unintended endpoint. Fail-closed either way (an
+  unexpected response always refused), so this narrows the reachable surface rather than fixing an
+  exploitable resolve.
 
   Fail-closed throughout. Missing, unparsable, mismatched, or surplus evidence is a usage error at
   exit `2` before any lookup; evidence the world rejects refuses the resolve with its own
@@ -36,7 +72,10 @@ All notable changes to the `source-control` plugin are documented here. Format f
   `refused-tracker-item-not-open`, `refused-counter-evidence-not-found`, and
   `refused-evidence-unverifiable` kept distinct so an API outage is never reported as a false
   claim. Evidence is validated in list mode too, so a dry run proves the evidence instead of
-  predicting the resolve. Every other guard is retained deliberately: bot-only authorship, both
+  predicting the resolve. A stale `--thread-id` pin is likewise reported in list mode now, not only
+  under `--resolve`, so a dry run predicts what the resolve would do — this also corrects
+  `--autonomous`'s pre-existing list-mode output, which previously reported `would-resolve` for a
+  thread the very next `--resolve` refused. Every other guard is retained deliberately: bot-only authorship, both
   TOCTOU pins, and the security/P1 bright line, because an independent resolver is still an
   unattended path. `--autonomous`, `--include-human`, and `--allow-unpinned-thread` are each
   refused alongside it, and bulk is refused in every mode here (list included) since evidence is a
@@ -44,9 +83,14 @@ All notable changes to the `source-control` plugin are documented here. Format f
   `disposition`, and `refusedEvidence` fields; the `bin/` wrapper needed no change, and its
   contract row already pins that it filters nothing.
 
-  The existing modes are untouched, with regressions asserting it: `--autonomous` still refuses a
-  non-outdated thread and still refuses bulk. Five refusal rows and three classifier predicates
-  were added to the guard contract (`reference/guard-contract.md` regenerated from them).
+  `verify_disposition` names every disposition explicitly and its fallthrough refuses, so a
+  disposition added to `DISPOSITION_EVIDENCE` without a validator can no longer reach whichever
+  branch happened to be last and be reported as validated by a check that never read its evidence.
+
+  The existing modes are otherwise untouched, with regressions asserting it: `--autonomous` still
+  refuses a non-outdated thread, still refuses bulk, and is not narrowed by the multi-finding
+  guard. Five refusal rows and six classifier predicates were added to the guard contract
+  (`reference/guard-contract.md` regenerated from them).
 
 ## [0.41.0]
 

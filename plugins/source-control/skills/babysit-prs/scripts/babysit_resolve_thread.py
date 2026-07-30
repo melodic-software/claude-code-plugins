@@ -82,11 +82,24 @@ Deterministic guards encoded here:
   script validates the evidence AGAINST THE WORLD rather than trusting the claim:
   `fixed` + `--fix-commit <sha>` (must be reachable from the PR's head commit),
   `deferred` + `--tracker-item <id>` (must exist and be open), `incorrect` +
-  `--counter-evidence <text>` (must appear in a reply already on the thread).
+  `--counter-evidence <text>` (must appear in a reply already on the thread,
+  posted by someone other than the thread's OPENER, so the finding's own author
+  cannot supply the words that rebut it).
   Missing, unparsable, or unverifiable evidence REFUSES the resolve rather than
   warning: refusing leaves the thread unresolved, which is the recoverable
-  direction, while a suppressed finding is not. Evidence is validated in list mode
-  too, so a dry run proves the evidence instead of merely predicting the resolve.
+  direction, while a suppressed finding is not. A refusal names WHICH answer it
+  got: only a confirmed HTTP 404 reports the evidence-specific refusal, while
+  every other operational failure reports `refused-evidence-unverifiable`, so an
+  outage is never read as a caller lying about its evidence. Evidence is validated
+  in list mode too, so a dry run proves the evidence instead of merely predicting
+  the resolve.
+- Because one `--disposition` is a claim about ONE finding while resolution clears
+  the WHOLE thread, this mode additionally refuses a thread carrying more than one
+  source finding (`skipped-multi-finding-thread`). Resolving it on a single
+  evidence tuple would drop the thread's other, unaddressed findings out of the
+  readiness denominator and let the merge gate pass over them. The count fails
+  closed: a truncated comment page could hide another finding, so an unknown count
+  refuses too.
 - `--only-outdated` independently restricts to `isOutdated` threads in any mode.
 - `--thread-id` operates on one agent-vetted thread. Combined with `--resolve`,
   it requires `--expected-comment-count` AND `--expected-last-updated` to pin
@@ -151,15 +164,24 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import subprocess
 from typing import Any, cast
 
 from babysit_classify import (
     is_bot,
     is_self_login,
     normalize_self_logins,
+    severity_occurrences,
     strip_classification_rows,
 )
-from babysit_gh import fetch_review_threads, gh_capture, parse_repo_number, resolve_authors
+from babysit_gh import (
+    GITHUB_OWNER_RE,
+    GITHUB_REPOSITORY_RE,
+    fetch_review_threads,
+    gh_capture,
+    parse_repo_number,
+    resolve_authors,
+)
 from babysit_util import configure_stdio, dig, is_json_object
 
 
@@ -304,6 +326,46 @@ def project_thread(
         (body := _severity_scan_body(c)) is not None and _has_severity_marker(body)
         for c in comments
     )
+
+    # How many SOURCE findings this thread carries, over the same bodies the
+    # severity scan reads -- so a self classification reply's table rows are
+    # stripped here too and the worker's own echo of a finding is not counted a
+    # second time. None means the count is unknown (a truncated comment page could
+    # hide another finding), which the independent-resolver guard treats as
+    # multi-finding rather than as one.
+    finding_count = (
+        None
+        if truncated
+        else sum(
+            severity_occurrences(body)
+            for c in comments
+            if (body := _severity_scan_body(c)) is not None
+        )
+    )
+
+    # The `incorrect` disposition is proven by counter-evidence someone POSTED IN
+    # REPLY to the finding, and "someone" cannot be the finding's own author:
+    # the opener is excluded, and so is every later reply under the OPENER'S
+    # login. The mandated classification reply restates the finding's own text
+    # (`reference/review-discipline.md`), so a finding bot that also replies on
+    # its own thread would otherwise supply the very words asserted as the
+    # rebuttal -- the finding rebutting itself. A DIFFERENT bot's reply, and the
+    # caller's own reply under a self-login, both remain admissible: those are
+    # the independent parties the disposition is about. An opener whose login the
+    # API withheld cannot be excluded by identity, so no reply is admitted at
+    # all (such a thread is already not `botOnly`).
+    opener_login = first_author.get("login")
+    opener_key = opener_login.casefold() if isinstance(opener_login, str) else None
+
+    def _reply_body(comment: object) -> str | None:
+        if opener_key is None or not is_json_object(comment):
+            return None
+        login = _comment_author(comment).get("login")
+        if not isinstance(login, str) or login.casefold() == opener_key:
+            return None
+        body = comment.get("body")
+        return body if isinstance(body, str) else None
+
     return {
         "id": record.get("id"),
         "isResolved": record.get("isResolved", False),
@@ -312,6 +374,7 @@ def project_thread(
         "authorType": first_author.get("__typename"),
         "botOnly": bot_only,
         "severityFlagged": severity_flagged,
+        "findingCount": finding_count,
         # Live count of ALL comments (not just the fetched page) -- the TOCTOU
         # comparison signal, so a reply beyond the first fetched page is detected.
         "commentCount": total_count if isinstance(total_count, int) else None,
@@ -325,14 +388,10 @@ def project_thread(
             if comments and is_json_object(comments[0])
             else None
         ),
-        # Reply bodies only (never the opener): the `incorrect` disposition is
-        # proven by counter-evidence someone POSTED IN REPLY to the finding, so
-        # scanning the opener would let the bot's own finding text satisfy the
-        # claim that the finding is wrong.
         "replyBodies": [
             body
             for c in comments[1:]
-            if isinstance(body := (c.get("body") if is_json_object(c) else None), str)
+            if (body := _reply_body(c)) is not None
         ],
     }
 
@@ -379,6 +438,19 @@ def resolve_thread(thread_id: str) -> tuple[bool, str]:
     return bool(ok), ""
 
 
+def _is_single_finding(thread: dict[str, object]) -> bool:
+    """True only when the thread provably carries at most ONE source finding.
+
+    Fails closed on an absent or non-integer `findingCount`: the projection
+    reports None when a truncated comment page could be hiding another finding,
+    and an unknown count is not evidence of one. A thread with NO severity marker
+    at all counts as one unmarked finding, which is the common shape -- most
+    reviewers mark severity once per comment, or not at all.
+    """
+    count = thread.get("findingCount")
+    return isinstance(count, int) and count <= 1
+
+
 def classify(
     thread: dict[str, object],
     *,
@@ -412,6 +484,22 @@ def classify(
         # unattended: never a security or P1 thread. Default True fails closed
         # when the projection did not compute the signal.
         return "skipped-severity-marked"
+    if independent and not _is_single_finding(thread):
+        # Resolution is a THREAD-level act while a disposition is a claim about ONE
+        # finding, so a thread carrying several findings cannot be cleared on one
+        # evidence tuple: `resolveReviewThread` drops every comment the thread
+        # carries out of the readiness denominator
+        # (`babysit_classify.thread_is_open`), so evidence for finding A would
+        # suppress an unaddressed finding B and let the merge gate pass over it.
+        # D7.5 (`reference/review-discipline.md`) states the same rule as a
+        # property of the whole thread: every finding extracted from it needs its
+        # own recorded disposition. This mode validates exactly one, so a
+        # multi-finding thread is refused and escalates instead.
+        #
+        # Scoped to `independent` alone: `--autonomous`'s addressed signal is
+        # `isOutdated`, which GitHub computes for the thread as a whole rather
+        # than per finding, so there is no per-finding claim there to under-cover.
+        return "skipped-multi-finding-thread"
     return "eligible"
 
 
@@ -425,6 +513,24 @@ DISPOSITION_EVIDENCE: dict[str, str] = {
 }
 
 FIX_COMMIT_RE = re.compile(r"\A[0-9a-fA-F]{7,40}\Z")
+# `gh api` reports the HTTP status in its stderr message, e.g.
+# `gh: Not Found (HTTP 404)` (verified against gh 2.95.0). The exit code alone is
+# 1 for every failure, so this is the only signal that separates "the world
+# answered no" from "the world could not be reached".
+GH_HTTP_STATUS_RE = re.compile(r"\(HTTP (\d{3})\)")
+
+
+def gh_http_status(proc: subprocess.CompletedProcess[str]) -> int | None:
+    """The HTTP status `gh` reported, or None when it reported none.
+
+    None covers every operational failure that never reached an HTTP response --
+    a timeout, an unreachable API, an expired credential, a `gh` that failed
+    before dispatching -- and callers must treat it as "unverifiable", never as a
+    negative answer. The LAST status in the stream wins: a retried request prints
+    one line per attempt, and the final one is the outcome.
+    """
+    matches = GH_HTTP_STATUS_RE.findall(proc.stderr or "")
+    return int(matches[-1]) if matches else None
 # owner/repo#N, #N, or a bare N (bare and #N default to the PR's own repo).
 TRACKER_ITEM_RE = re.compile(
     r"\A(?:(?P<repo>[A-Za-z0-9._-]+/[A-Za-z0-9._-]+)#|#)?(?P<number>[0-9]+)\Z"
@@ -470,15 +576,38 @@ def verify_fix_commit(repo: str, number: int, sha: str) -> tuple[bool, str]:
         and isinstance(head_owner, str)
     ):
         return False, "refused-evidence-unverifiable"
+    # Every segment interpolated into the compare path is FORMAT-VALIDATED first,
+    # matching `babysit_gh.fetch_blocked_base_compare`'s rule for the identical
+    # call shape. Two of the three arrive in an API response body, so "the API
+    # said so" is their only provenance: a crafted or compromised response
+    # carrying path syntax would otherwise redirect this request to an
+    # unintended endpoint. `sha` is validated here too rather than resting on
+    # `main`'s argument check, so the function's own contract holds for every
+    # caller.
+    if not (
+        GITHUB_OWNER_RE.fullmatch(head_owner)
+        and GITHUB_REPOSITORY_RE.fullmatch(head_name)
+        and head_name not in {".", ".."}
+        and FIX_COMMIT_RE.match(head_oid)
+        and FIX_COMMIT_RE.match(sha)
+    ):
+        return False, "refused-evidence-unverifiable"
 
     compare = gh_capture(
         ["api", f"repos/{head_owner}/{head_name}/compare/{sha}...{head_oid}"]
     )
     if compare.returncode != 0:
-        # A SHA absent from the head repository 404s here. That is the world
-        # answering "no such commit", which is a not-on-head refusal rather than
-        # an unreachable-API one.
-        return False, "refused-fix-commit-not-on-head"
+        # A SHA absent from the head repository 404s here -- the world answering
+        # "no such commit", which is a not-on-head refusal. Every OTHER failure
+        # (403, 5xx, rate limit, timeout, no HTTP response at all) is the world
+        # being unreachable, and reporting that as a not-on-head answer would send
+        # the caller off to replace evidence that may be perfectly valid instead
+        # of retrying the outage.
+        return False, (
+            "refused-fix-commit-not-on-head"
+            if gh_http_status(compare) == 404
+            else "refused-evidence-unverifiable"
+        )
     try:
         result = json.loads(compare.stdout or "null")
     except json.JSONDecodeError:
@@ -507,7 +636,16 @@ def verify_tracker_item(default_repo: str, token: str) -> tuple[bool, str]:
     repo = match.group("repo") or default_repo
     proc = gh_capture(["api", f"repos/{repo}/issues/{match.group('number')}"])
     if proc.returncode != 0:
-        return False, "refused-tracker-item-not-found"
+        # Only a confirmed 404 means the item is not there. A 403 on an issues
+        # endpoint is a permission answer, not a lookup miss, and a 5xx or a
+        # timeout is no answer at all -- telling the caller to fix a reference
+        # that does not exist while the API is merely unavailable is exactly what
+        # `refused-evidence-unverifiable` exists to prevent.
+        return False, (
+            "refused-tracker-item-not-found"
+            if gh_http_status(proc) == 404
+            else "refused-evidence-unverifiable"
+        )
     try:
         payload = json.loads(proc.stdout or "null")
     except json.JSONDecodeError:
@@ -549,12 +687,20 @@ def verify_disposition(
     tracker_item: str | None,
     counter_evidence: str | None,
 ) -> tuple[bool, str]:
-    """Dispatch to the validator for the claimed disposition."""
+    """Dispatch to the validator for the claimed disposition.
+
+    Every disposition is named explicitly and the fallthrough REFUSES: a
+    disposition added to `DISPOSITION_EVIDENCE` without a validator here would
+    otherwise reach whichever branch happened to be last and be reported as
+    validated by a check that never looked at its evidence.
+    """
     if disposition == "fixed":
         return verify_fix_commit(repo, number, str(fix_commit))
     if disposition == "deferred":
         return verify_tracker_item(repo, str(tracker_item))
-    return verify_counter_evidence(thread, str(counter_evidence))
+    if disposition == "incorrect":
+        return verify_counter_evidence(thread, str(counter_evidence))
+    return False, "refused-evidence-unverifiable"
 
 
 def parse_allowed_owners(raw: str | None) -> set[str]:
@@ -965,6 +1111,7 @@ def main() -> int:
             "isOutdated": thread["isOutdated"],
             "botOnly": thread["botOnly"],
             "severityFlagged": thread.get("severityFlagged"),
+            "findingCount": thread.get("findingCount"),
             "commentCount": thread.get("commentCount"),
             "lastCommentUpdatedAt": thread.get("lastCommentUpdatedAt"),
         }
@@ -976,9 +1123,13 @@ def main() -> int:
             args.expected_last_updated is not None
             and thread.get("lastCommentUpdatedAt") != args.expected_last_updated
         )
-        stale_pin = (
-            args.resolve and args.thread_id and (count_stale or last_updated_stale)
-        )
+        # Evaluated in list mode too, not only under --resolve. A dry run whose
+        # pins have already drifted would otherwise report would-resolve for a
+        # thread the very next --resolve refuses, making the prediction wrong in
+        # the one direction that matters. Both pin flags already require
+        # --thread-id (a usage error otherwise), so the pin has a target whenever
+        # either comparison can be true.
+        stale_pin = count_stale or last_updated_stale
         evidence_refusal = ""
         if verdict == "eligible" and not stale_pin and args.independent_resolver:
             # Validate in list mode too: a dry run of an evidence-gated mode that
@@ -1057,6 +1208,9 @@ def main() -> int:
                 ),
                 "skippedSeverityMarked": len(
                     [r for r in results if r["action"] == "skipped-severity-marked"]
+                ),
+                "skippedMultiFinding": len(
+                    [r for r in results if r["action"] == "skipped-multi-finding-thread"]
                 ),
                 # Independent-resolver refusals, rolled up alongside the other
                 # skip counters so a caller sees "the evidence did not hold"

@@ -212,11 +212,14 @@ home in [reference/safety.md](reference/safety.md). Both fail closed without `--
   one `--thread-id` (bulk refused in every mode here, list included), both pins, and
   `--disposition fixed|deferred|incorrect` with its own evidence flag: `--fix-commit <sha>` must be
   reachable from the PR head, `--tracker-item <id>` must exist and be open, `--counter-evidence
-  <text>` must already appear in a reply on the thread. The script validates evidence against the
-  world, not against the claim, in list mode too — anything missing, unparsable, or unverifiable
-  refuses with its own `refused-*` action rather than warning. Bot-only and the security/P1 bright
-  line still hold, and `--autonomous`, `--include-human`, and `--allow-unpinned-thread` are all
-  refused alongside it.
+  <text>` must already appear in a reply on the thread posted by someone OTHER than the thread's
+  opener. The script validates evidence against the world, not against the claim, in list mode too
+  — anything missing, unparsable, or unverifiable refuses with its own `refused-*` action rather
+  than warning, and only a confirmed HTTP 404 is read as the world saying no. A thread carrying
+  more than one finding is refused outright (`skipped-multi-finding-thread`) and escalates: one
+  disposition cannot clear a thread whose other findings nothing validated. Bot-only and the
+  security/P1 bright line still hold, and `--autonomous`, `--include-human`, and
+  `--allow-unpinned-thread` are all refused alongside it.
 
 - **The agent** decides severity (is this security/P1?), whether a finding is genuinely addressed,
   what a label means, and every fix-vs-escalate call — never a script. Escalate a security/P1

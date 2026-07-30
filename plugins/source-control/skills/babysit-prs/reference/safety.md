@@ -484,17 +484,39 @@ auto-mode safety classifier and blocks the call before the wrapper runs.
   - `deferred` + `--tracker-item <owner/repo#N|#N|N>` — the item must exist and still be **open**.
     A closed follow-up is not a deferral; it is the finding disappearing.
   - `incorrect` + `--counter-evidence <text>` — the text must already appear in a **reply** on the
-    thread (the opening comment is excluded, so the bot's own finding cannot satisfy the claim
-    that the finding is wrong). The rebuttal has to be visible where the finding is, not only on
-    the command line of the process resolving it.
+    thread, posted by **someone other than the thread's opener**. Excluding the opening comment
+    alone is not enough: the mandated classification reply restates the finding's own text, so a
+    finding bot that also replies on its own thread would supply the very words asserted as the
+    rebuttal — the finding rebutting itself. A *different* bot's reply and the caller's own reply
+    under a `--self-logins` identity both stay admissible, because those are the independent
+    parties the disposition is about. The rebuttal has to be visible where the finding is, not
+    only on the command line of the process resolving it.
 
   Missing, unparsable, or unverifiable evidence **refuses**: refusing leaves the thread
   unresolved, which is the recoverable direction, while a suppressed finding is not. Each refusal
   is its own per-thread `action` — `refused-fix-commit-not-on-head`,
   `refused-tracker-item-not-found`, `refused-tracker-item-not-open`,
   `refused-counter-evidence-not-found`, and `refused-evidence-unverifiable` for an API that could
-  not be consulted, kept distinct so an outage is never reported as a false claim. Evidence is
-  validated in list mode too, so a dry run proves the evidence rather than predicting the resolve.
+  not be consulted, kept distinct so an outage is never reported as a false claim. **Only a
+  confirmed HTTP 404 earns an evidence-specific refusal.** Every other operational failure — 403,
+  429, 5xx, a timeout, an unreachable API, no HTTP response at all — reports
+  `refused-evidence-unverifiable`, because telling a caller to replace evidence that may be
+  perfectly valid is the wrong instruction when the real fix is to retry. Evidence is validated in
+  list mode too, so a dry run proves the evidence rather than predicting the resolve, and a
+  `--thread-id` whose pins have already drifted reports `refused-stale-pin` in list mode as well —
+  a dry run predicts what `--resolve` would actually do, in every mode.
+- **A multi-finding thread is refused outright** (`skipped-multi-finding-thread`). One
+  `--disposition` is a claim about ONE finding, while `resolveReviewThread` clears the whole
+  thread and drops every comment it carries out of the readiness denominator — so evidence for
+  finding A would suppress an unaddressed finding B and let the merge gate pass over it. This is
+  the D7.5 whole-thread eligibility rule (`reference/review-discipline.md`) enforced
+  mechanically rather than left to the caller. The count comes from the shared severity
+  vocabulary over the thread's own comments, with a self classification reply's table rows
+  stripped so the worker's own echo of a finding is not counted twice, and it fails closed: a
+  truncated comment page could hide another finding, so an unknown count refuses too. Such a
+  thread escalates. The guard is scoped to this mode alone — `--autonomous` rests on `isOutdated`,
+  which GitHub computes for the thread as a whole rather than per finding, so it carries no
+  per-finding claim to under-cover.
 - **Thread-pin pair rule.** Any `--thread-id` resolve must also pin both
   `--expected-comment-count <n>` and `--expected-last-updated <ts>`, read from that thread's
   `commentCount` and `lastCommentUpdatedAt` in the same list output used to vet it. The wrapper

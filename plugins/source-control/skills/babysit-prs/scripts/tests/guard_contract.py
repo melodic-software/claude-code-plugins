@@ -742,12 +742,16 @@ REFUSALS: tuple[Refusal, ...] = (
 CLASSIFY_ANCHOR = "babysit_resolve_thread.py::classify"
 
 
+_OMITTED = object()
+
+
 def _thread(
     *,
     resolved: bool,
     bot_only: bool,
     outdated: bool,
     severity_flagged: bool | None = None,
+    finding_count: object = _OMITTED,
 ) -> dict[str, object]:
     thread: dict[str, object] = {
         "isResolved": resolved,
@@ -758,6 +762,12 @@ def _thread(
         # Omitted by default so the rows that never reach the severity guard
         # keep exercising `classify`'s fail-closed `.get(..., True)` default.
         thread["severityFlagged"] = severity_flagged
+    if finding_count is not _OMITTED:
+        # Likewise omitted by default, so the rows that never reach the
+        # multi-finding guard keep exercising its fail-closed default. None is a
+        # MEANINGFUL value here (the projection reports it for a truncated
+        # comment page), which is why omission needs its own sentinel.
+        thread["findingCount"] = finding_count
     return thread
 
 
@@ -842,7 +852,11 @@ PREDICATES: tuple[Predicate, ...] = (
         ),
         enforced_at=CLASSIFY_ANCHOR,
         thread=_thread(
-            resolved=False, bot_only=True, outdated=False, severity_flagged=False
+            resolved=False,
+            bot_only=True,
+            outdated=False,
+            severity_flagged=False,
+            finding_count=1,
         ),
         flags={
             "autonomous": False,
@@ -889,6 +903,74 @@ PREDICATES: tuple[Predicate, ...] = (
             "independent": True,
         },
         expected="skipped-severity-marked",
+    ),
+    Predicate(
+        id="classify.independent-refuses-a-multi-finding-thread",
+        claim=(
+            "A permission rule reading '--independent-resolver resolves any addressed "
+            "bot thread' is FALSE for a thread carrying more than one source finding: "
+            "one --disposition is a claim about ONE finding while resolution clears the "
+            "whole thread, so evidence for finding A would drop an unaddressed finding "
+            "B out of the readiness denominator and let the merge gate pass over it."
+        ),
+        enforced_at=CLASSIFY_ANCHOR,
+        thread=_thread(
+            resolved=False,
+            bot_only=True,
+            outdated=True,
+            severity_flagged=False,
+            finding_count=2,
+        ),
+        flags={
+            "autonomous": False,
+            "only_outdated": False,
+            "include_human": False,
+            "independent": True,
+        },
+        expected="skipped-multi-finding-thread",
+    ),
+    Predicate(
+        id="classify.independent-refuses-an-unknown-finding-count",
+        claim=(
+            "The multi-finding guard fails CLOSED: the projection reports an unknown "
+            "count (None) when a truncated comment page could be hiding another "
+            "finding, and an unknown count refuses exactly as a known multi-finding "
+            "count does."
+        ),
+        enforced_at=CLASSIFY_ANCHOR,
+        thread=_thread(
+            resolved=False,
+            bot_only=True,
+            outdated=True,
+            severity_flagged=False,
+            finding_count=None,
+        ),
+        flags={
+            "autonomous": False,
+            "only_outdated": False,
+            "include_human": False,
+            "independent": True,
+        },
+        expected="skipped-multi-finding-thread",
+    ),
+    Predicate(
+        id="classify.multi-finding-guard-is-independent-only",
+        claim=(
+            "The multi-finding guard is scoped to --independent-resolver. --autonomous "
+            "rests on isOutdated, which GitHub computes for the thread as a whole "
+            "rather than per finding, so there is no per-finding claim there to "
+            "under-cover: a multi-finding outdated bot thread stays eligible."
+        ),
+        enforced_at=CLASSIFY_ANCHOR,
+        thread=_thread(
+            resolved=False,
+            bot_only=True,
+            outdated=True,
+            severity_flagged=False,
+            finding_count=4,
+        ),
+        flags={"autonomous": True, "only_outdated": False, "include_human": False},
+        expected="eligible",
     ),
     Predicate(
         id="classify.already-resolved-precedes-every-guard",
