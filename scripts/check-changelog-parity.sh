@@ -89,6 +89,16 @@ version_of() { jq -r '.version // empty' "$1" 2>/dev/null; }
 # Convention changelogs are in scope precisely because that is where it shipped:
 # they are unversioned by any manifest, so --check and --check-bump never look
 # at them at all.
+# A fixed-width key so a lexical comparison orders versions NUMERICALLY. Five
+# digits per field is far beyond any version this repo will reach, and the
+# regex above admits only digits, so no field can overflow it silently.
+version_sort_key() {
+  local IFS='.'
+  # shellcheck disable=SC2086  # deliberate word-split of a digits-only version on IFS
+  set -- $1
+  printf '%05d.%05d.%05d' "$((10#${1:-0}))" "$((10#${2:-0}))" "$((10#${3:-0}))"
+}
+
 if [[ "$mode" == "--check-order" ]]; then
   changelogs=(plugins/*/CHANGELOG.md docs/conventions/*/CHANGELOG.md)
   misordered=0
@@ -109,22 +119,22 @@ if [[ "$mode" == "--check-order" ]]; then
       duplicated=$((duplicated + 1))
     fi
 
-    # `sort -V` is the only sane SemVer comparator here, and the repo's
-    # portability lint permits it.
-    sorted="$(printf '%s\n' "${versions[@]}" | sort -rV)"
-    if [[ "$sorted" != "$(printf '%s\n' "${versions[@]}")" ]]; then
-      first_bad=""
-      prev=""
-      for v in "${versions[@]}"; do
-        if [[ -n "$prev" ]] && [[ "$(printf '%s\n%s\n' "$prev" "$v" | sort -rV | head -1)" != "$prev" ]]; then
-          first_bad="$v (below $prev)"
-          break
-        fi
-        prev="$v"
-      done
-      echo "MISORDERED CHANGELOG: $changelog is not newest-first — $first_bad. A version that merged after a higher one already landed is a regression; renumber it above the entry it followed." >&2
-      misordered=$((misordered + 1))
-    fi
+    # Compare on a zero-padded key rather than `sort -V`, which this repo's
+    # shell-portability lint bans (it is a GNU extension). Padding each field to
+    # a fixed width makes a plain lexical `>` numerically correct, so 10.0.0
+    # still outranks 9.0.0.
+    prev=""
+    prev_key=""
+    for v in "${versions[@]}"; do
+      key="$(version_sort_key "$v")"
+      if [[ -n "$prev_key" && "$key" > "$prev_key" ]]; then
+        echo "MISORDERED CHANGELOG: $changelog is not newest-first — $v (below $prev). A version that merged after a higher one already landed is a regression; renumber it above the entry it followed." >&2
+        misordered=$((misordered + 1))
+        break
+      fi
+      prev="$v"
+      prev_key="$key"
+    done
   done
 
   if ((misordered > 0 || duplicated > 0)); then
