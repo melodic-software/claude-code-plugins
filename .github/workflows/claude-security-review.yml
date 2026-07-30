@@ -2,16 +2,18 @@ name: claude-security-review
 
 # Dedicated LLM security-review pass via the ci-workflows reusable workflow — the
 # security sibling of claude-review.yml, ADR 0002's default-on advisory posture.
-# The caller owns the triggers, the GITHUB_TOKEN grant, and the `paths` input
-# listing this repo's security-sensitive surfaces (workflows, scripts, hooks,
-# shell, and permission/settings config). There is deliberately NO workflow-level
-# path filter: a path miss would leave the required execution check Pending and
-# wedge prose PRs, so the reusable workflow evaluates `paths` in a job-level gate
-# and a not-applicable PR yields a name-stable skipped check the required-check
-# ruleset reads as success. The verdict stays advisory per ADR 0002. Fork PRs
-# receive no secrets and a read-only token, so they are simply not reviewed by
-# design. Requires `claude-code-plugins` in the CLAUDE_CODE_OAUTH_TOKEN org
-# secret's selected-repositories scope. Public repo: hosted default runner.
+# The caller owns the triggers, the GITHUB_TOKEN grant, and the `paths-file`
+# input pointing at `.github/claude-security-paths`, the repo-owned list of this
+# repo's security-sensitive surfaces (workflows, scripts, hooks, shell, and
+# permission/settings config) that the reusable reads from the PR's BASE branch.
+# There is deliberately NO workflow-level path filter: a path miss would leave
+# the required execution check Pending and wedge prose PRs, so the reusable
+# workflow evaluates those patterns in a job-level gate and a not-applicable PR
+# yields a name-stable skipped check the required-check ruleset reads as
+# success. The verdict stays advisory per ADR 0002. Fork PRs receive no secrets
+# and a read-only token, so they are simply not reviewed by design. Requires
+# `claude-code-plugins` in the CLAUDE_CODE_OAUTH_TOKEN org secret's
+# selected-repositories scope. Public repo: hosted default runner.
 on:
   pull_request:
     types: [opened, synchronize, ready_for_review, reopened]
@@ -29,37 +31,10 @@ jobs:
       contents: read         # checkout + read the diff
       pull-requests: write   # post the security review
       id-token: write        # OIDC — mints the Claude GitHub App token
-    uses: melodic-software/ci-workflows/.github/workflows/claude-security-review.yml@66073e58e730f8bcd1d6533e26ac9411a637fe83 # 66073e5 2026-07-26 fail the required check when an in-scope review could not run
+    uses: melodic-software/ci-workflows/.github/workflows/claude-security-review.yml@c136b27f404dd32ce3873f39a6f3443891d1c16e # v0.9.1
     with:
       runner: ubuntu-24.04
-      skip-actors: "dependabot[bot],melodic-standards-sync[bot]"
-      paths: |
-        .github/**
-        .claude/**
-        scripts/**
-        plugins/*/hooks/**
-        plugins/*/bin/**
-        plugins/*/tools/**
-        plugins/*/skills/**
-        plugins/*/agents/**
-        plugins/*/commands/**
-        .claude-plugin/**
-        REVIEW.md
-        CLAUDE.md
-        AGENTS.md
-        plugins/*/src/**
-        plugins/*/dist/**
-        **/*.sh
-        **/*.ps1
-        **/*.mjs
-        **/*.ts
-        **/*.js
-        **/*.cjs
-        **/.mcp.json
-        **/mcp.json
-        **/package.json
-        **/package-lock.json
-        plugins/*/.claude-plugin/plugin.json
+      paths-file: .github/claude-security-paths
     # One named secret (least privilege), never `secrets: inherit`.
     secrets:
       CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}

@@ -34,7 +34,11 @@ Parse `$ARGUMENTS` as opaque arguments for the bundled script. Supported flags:
   (repeatable; explicit wins over config).
 - `--max-depth <1..12>`: discovery bound; explicit wins over config/default `5`.
 
-If neither `--root` nor `--repo` is present, the script uses `${CLAUDE_PROJECT_DIR}`. Config
+If neither `--root` nor `--repo` is present, the script uses `${CLAUDE_PROJECT_DIR}` as an exact
+`--repo` target — not as a discovery root, so nothing beneath it is searched. A project directory
+that is not a Git working tree is therefore rejected, and the rejection names the three ways to
+supply scope plus `/repo-fleet-hygiene:setup apply`; pass that guidance through rather than
+re-deriving a root yourself. Config
 resolution is the script's own ladder — do not pre-resolve or pass a probed path yourself:
 explicit `--config` wins, else the script probes
 `${CLAUDE_PROJECT_DIR}/.claude/repo-fleet-hygiene.conf` (project-scoped), else
@@ -106,6 +110,9 @@ do not turn "no verified finding" into "fleet is clean".
 - Git missing or too old: stop before scanning and give the prerequisite error.
 - Invalid config SYNTAX, invalid override, or an invalid CLI-supplied `--repo`/`--root` path: report
   the exact invalid input and stop; never silently fall back.
+- No scope given and the project directory is not a Git working tree: stop, and relay the script's
+  remedy block verbatim — the operator did not choose that path, so the rejection alone is not
+  actionable.
 - A config-sourced `fleet.repo`/`fleet.root` path that is missing or not a Git working tree degrades
   per-entry, not per-run: the entry becomes an `UNKNOWN` `stale-config-entry` finding and the rest of
   the fleet is still audited (deleting repositories right after an audit must not abort every

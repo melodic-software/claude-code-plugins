@@ -3,6 +3,99 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.0]
+
+### Fixed
+
+- **Cloud-sync placeholders are now hard-protected instead of being the most attractive target in a
+  home audit (#1804).** The engine's only structural defense against cloud-sync content was
+  `is_linkish()`, which treats a Windows reparse point as protected. The dominant OneDrive
+  dehydrated-placeholder class carries **no reparse bit when read through `os.lstat`**, so the whole
+  subtree was walked and every placeholder was recorded as an ordinary file with
+  `protected_reasons: []`. Its `logical_size` is the **remote** byte count while local occupancy is
+  roughly zero, so the tree also looked like the largest reclaimable win on the volume — and
+  deleting a placeholder propagates the delete to the provider, which for a tenant sync root is the
+  organisation's only copy.
+
+  Measured on the audit host before the fix: 1,101 files walked, 872 dehydrated placeholders
+  totalling 13,770,936,008 bytes, **0 of 872** flagged by `is_linkish()`. After the fix the same
+  tree reports 842 entries carrying `cloud-placeholder` (the remaining 30 sit under subtrees an
+  existing name protection already truncates), and the only entries left unprotected are the 229
+  genuinely local, hydrated files.
+
+  `hard_protection()` now contributes a `cloud-placeholder` reason from the file attributes it
+  already reads, so the protection reaches every lane at once — `scan`, `preview`, `handoff-verify`,
+  and `apply`'s pre-removal recheck all consult that one predicate. It is deliberately independent
+  of the reparse test rather than folded into it: this is precisely the class a reparse test cannot
+  see. Both flags are derived from a single `lstat` per ancestor, so the walk's stat load is
+  unchanged.
+
+  **`FILE_ATTRIBUTE_RECALL_ON_OPEN` is deliberately excluded from the predicate**, against the
+  obvious reading of the attribute names. Its value, `0x00040000`, is the same number as
+  `FILE_ATTRIBUTE_EA`, and Microsoft documents `RECALL_ON_OPEN` as appearing "only in directory
+  enumeration classes" while every attribute read here comes from `lstat`
+  ([File Attribute Constants](https://learn.microsoft.com/en-us/windows/win32/fileio/file-attribute-constants)).
+  Read through `lstat` the bit therefore means "has extended attributes": a sweep of two non-cloud
+  trees on the audit host found 1,552 fully-local files carrying it, including .NET build output and
+  temporary `.node` files. Including it would have protected exactly the artifacts this engine
+  exists to reclaim. With the bit excluded, the same 412,270-entry sweep flags **zero** false
+  positives while the tenant sync root still flags correctly.
+
+- **A tenant cloud-sync root is protected by name, not only by its contents (#1804).** Attribute
+  protection covers placeholder *files*, but measurement showed the containing directories carry no
+  cloud attribute at all — 99 subdirectories under the tenant root all read plain `0x10`. A fully
+  hydrated sync root therefore has no protected descendant, and deleting it still destroys the cloud
+  copy. Name protection was exact-match and shipped the literal `OneDrive` only, so
+  `OneDrive - <Organization>` — the documented shape of a OneDrive for Business sync root, whose
+  tenant portion varies per installation — matched nothing.
+
+  The baseline now carries a `protected_name_globs` list, matched casefolded through `fnmatchcase`
+  so the verdict does not depend on the host platform's case rules. Consumers could not have closed
+  this themselves: `protected_exact_names` is not overlay-extensible, and an overlay's
+  `additional_protected_path_globs` are matched relative to the scan target, so a standing policy
+  protects such a root only when the target happens to be its parent. Protection that must hold for
+  every target has to ship in the baseline.
+
+  The list is deliberately short, because a protected name applies at **every depth**: a protected
+  directory is never traversed, and it reports `logical_size: 0`, which is byte-identical to a
+  genuinely empty directory. Over-protection is therefore not free — it silently under-reports.
+  Shipped: the glob `OneDrive - *` (measured on the audit host, and the documented shape of a
+  OneDrive for Business sync root), the glob `Dropbox (*)` and the exact name `Dropbox` (Dropbox
+  documents both `Dropbox (Personal)` and `Dropbox (<business name>)` as folder names), and the
+  exact name `iCloud Drive`.
+
+  Two candidates from the report were **rejected** after checking them. `Box` is a common enough
+  directory name in source trees that protecting it at every depth would make ordinary directories
+  untraversable and silently zero-sized. `Google Drive` is a legacy Backup-and-Sync name: current
+  Google Drive for desktop streams to a virtual drive letter (`G:` by default on Windows,
+  [Drive for desktop settings](https://support.google.com/drive/answer/13470231)), not to a folder
+  under the user profile.
+
+  Only the OneDrive class was measured. `iCloud Drive` — with the space, the folder name Apple
+  documents directly under the Windows user profile — and `Dropbox` were confirmed unprotected by name
+  on the audit host, but their file attributes were never sampled, so they are protected on name
+  alone and their placeholder behaviour remains unverified.
+
+  Effect on the reported scenario: in a depth-1 scan of the user home, `OneDrive - <Organization>`
+  moves from `protected_reasons: []` to `baseline-protected-name`, and the same path is now rejected
+  outright as an audit target rather than silently scanned.
+
+### Added
+
+- **Per-entry `size_qualifiers` and `file_attributes` in the snapshot (#1804).** A recorded byte
+  count carried no way to say "these are not local bytes", so a placeholder's remote size was
+  indistinguishable from reclaimable content. Every entry now records the attribute word `lstat`
+  already returned plus a `size_qualifiers` list, and a cloud placeholder is qualified whether or
+  not it is protected — protection stops the deletion, and the qualifier stops the misreading. This
+  is an additive per-entry trace only; no aggregate's definition changes here.
+
+### Changed
+
+- **The clean skill's positional-triage rule reads an entry's own `protected_reasons`** rather than
+  testing membership of `protected_exact_names`. Protection now also comes from name patterns and
+  from live filesystem state, and a rule naming a single policy field walks straight past a sync
+  root whose name embeds a tenant.
+
 ## [0.10.2]
 
 ### Fixed
