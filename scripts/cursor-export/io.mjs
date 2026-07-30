@@ -57,6 +57,18 @@ export function writeCursorExport(repoRoot, writes) {
   }
 }
 
+function firstDiffDetail(actual, expected) {
+  const max = Math.max(actual.length, expected.length);
+  for (let i = 0; i < max; i++) {
+    if (actual[i] !== expected[i]) {
+      const a = actual.slice(Math.max(0, i - 24), i + 24);
+      const e = expected.slice(Math.max(0, i - 24), i + 24);
+      return `byte ${i} actual=${JSON.stringify(a)} expected=${JSON.stringify(e)}`;
+    }
+  }
+  return "length-only mismatch";
+}
+
 export function checkCursorExport(repoRoot, writes) {
   const errors = [];
 
@@ -65,8 +77,12 @@ export function checkCursorExport(repoRoot, writes) {
       errors.push(`missing ${rel(repoRoot, path)}`);
       continue;
     }
-    if (readFileSync(path, "utf8") !== stableStringify(data)) {
-      errors.push(`${rel(repoRoot, path)} is stale`);
+    const expected = stableStringify(data);
+    const actual = readFileSync(path, "utf8");
+    if (actual !== expected) {
+      errors.push(
+        `${rel(repoRoot, path)} is stale (${firstDiffDetail(actual, expected)})`,
+      );
     }
   }
 

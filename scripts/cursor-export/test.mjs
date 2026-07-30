@@ -1,6 +1,6 @@
-#!/usr/bin/env node
-
 // Unit tests for the Cursor companion-host export.
+// Run via `node scripts/cursor-export/test.mjs` (no shebang: avoids the
+// repo exec-bit gate that requires git mode 100755 for shebang files).
 // Driven by:
 //   https://cursor.com/docs/reference/plugins (variables + mcp.json + hooks discovery)
 //   https://cursor.com/docs/hooks (version + hooks object)
@@ -86,7 +86,7 @@ assert(
     );
     assert(
       "rewrites Claude credential storage wording",
-      /Plugins → Configure/.test(
+      /Plugins -> Configure/.test(
         bundle.variables.properties.DEMO_API_KEY.description,
       ) &&
         !bundle.variables.properties.DEMO_API_KEY.description.includes(
@@ -160,8 +160,8 @@ assert(
     { hasClaudePluginHooks: false, hasCursorMcp: true },
   );
   assert(
-    "userConfig credential copy rewritten to Plugins → Configure",
-    withCreds.includes("Plugins → Configure") &&
+    "userConfig credential copy rewritten to Plugins -> Configure",
+    withCreds.includes("Plugins -> Configure") &&
       !withCreds.includes("masked userConfig"),
   );
 }

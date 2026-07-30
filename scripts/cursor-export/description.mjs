@@ -10,7 +10,7 @@
 //   https://code.claude.com/docs/en/plugins-reference   (userConfig, plugin hooks)
 
 const CURSOR_CREDENTIAL_NOTE =
-  "Configure the API credential in Cursor under Plugins → Configure after install.";
+  "Configure the API credential in Cursor under Plugins -> Configure after install.";
 
 const HOOKS_NOTE =
   " Cursor note: on-edit automation is a Claude Code plugin hook " +
@@ -31,14 +31,14 @@ export function cursorDescription(claudeDescription, flags) {
   );
   description = description.replace(
     /Claude Code's native masked userConfig prompt/gi,
-    "Cursor Plugins → Configure",
+    "Cursor Plugins -> Configure",
   );
   description = description.replace(
     /Stored by Claude Code in secure credential storage(?:,\s*never settings\.json)?\.?/gi,
-    "Set in Cursor under Plugins → Configure.",
+    "Set in Cursor under Plugins -> Configure.",
   );
 
-  if (flags.hasCursorMcp && !/Plugins → Configure/i.test(description)) {
+  if (flags.hasCursorMcp && !/Plugins -> Configure/i.test(description)) {
     description = ensureSentence(description) + ` ${CURSOR_CREDENTIAL_NOTE}`;
   }
 

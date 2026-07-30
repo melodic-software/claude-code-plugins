@@ -897,7 +897,7 @@
         "diagramming",
         "visual-collaboration"
       ],
-      "description": "Miro board management over the Model Context Protocol: create and manage boards, sticky notes, shapes, frames, connectors, and tags for EventStorming, brainstorming, and diagramming. Bundles a local stdio MCP server (single self-contained Node artifact); installs disabled — opt in and supply a Miro API token. Configure the API credential in Cursor under Plugins → Configure after install."
+      "description": "Miro board management over the Model Context Protocol: create and manage boards, sticky notes, shapes, frames, connectors, and tags for EventStorming, brainstorming, and diagramming. Bundles a local stdio MCP server (single self-contained Node artifact); installs disabled — opt in and supply a Miro API token. Configure the API credential in Cursor under Plugins -> Configure after install."
     },
     {
       "name": "dometrain",
@@ -912,7 +912,7 @@
         "learning",
         "grounding"
       ],
-      "description": "Dometrain course-content grounding over a third-party remote MCP server (Dometrain-hosted, Bearer auth): search lessons, pull curated lesson documents with on-screen code, and cite timestamped deep links. Requires an active Dometrain Pro subscription. Configure the API credential in Cursor under Plugins → Configure after install. Ships with a grounding usage skill kept in sync with Dometrain's own official Claude Code plugin."
+      "description": "Dometrain course-content grounding over a third-party remote MCP server (Dometrain-hosted, Bearer auth): search lessons, pull curated lesson documents with on-screen code, and cite timestamped deep links. Requires an active Dometrain Pro subscription. Configure the API credential in Cursor under Plugins -> Configure after install. Ships with a grounding usage skill kept in sync with Dometrain's own official Claude Code plugin."
     },
     {
       "name": "autonomy",

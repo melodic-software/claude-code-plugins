@@ -46,7 +46,7 @@ export function buildCursorMcpBundle(pluginDir, claudePlugin) {
         description = description
           .replace(
             /Stored by Claude Code in secure credential storage(?:,\s*never settings\.json)?\.?/gi,
-            "Set in Cursor under Plugins → Configure.",
+            "Set in Cursor under Plugins -> Configure.",
           )
           .replace(/Claude Code/gi, "Cursor")
           .trim();
