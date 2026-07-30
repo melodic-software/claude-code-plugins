@@ -68,7 +68,9 @@ restores the FAIL semantics.
    library, aware of Windows 8.3 short-name spellings of in-project paths — a
    per-volume property; only volumes with 8.3 generation enabled produce them);
    a `.sh`/`.bash` file written *outside* the project (temp/scratchpad
-   dirs) is silently skipped — no lint, no format, no notice. When
+   dirs) is silently skipped — no lint, no format, no notice. The OS temp tree
+   counts as outside even when it sits under `CLAUDE_PROJECT_DIR`, unless the
+   project root itself lives under temp. When
    `CLAUDE_PROJECT_DIR` is **unset** (e.g. some headless `-p` sessions) the guard
    is skipped and any existing edited file is processed. Report this so a green
    `check` is not read as "every shell edit anywhere is covered".

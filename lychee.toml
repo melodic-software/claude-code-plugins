@@ -7,6 +7,19 @@
 # checks both anchor and text fragments).
 include_fragments = "full"
 
+# A 429 is the SERVER rate-limiting the checker, never evidence the link is
+# dead — and it lands on whichever host the shared CI runner IP happens to be
+# throttled against that run, so it names a different healthy URL each time. The
+# range restates lychee's own documented default (`--accept` help:
+# `[default: 100..=103,200..=299]`, read from the pinned binary rather than
+# recalled) so adding 429 widens the accepted set instead of silently narrowing
+# it — `accept` REPLACES the default, it does not extend it.
+#
+# Deliberately NOT an exclude entry per rate-limited host: excluding a live URL
+# to silence a transient throttle stops checking a link that is fine, and the
+# next run just throttles a different one.
+accept = ["100..=103", "200..=299", "429"]
+
 # Build/dependency trees — not authored content. Values are regex (single-quoted
 # TOML literals, so backslashes are not double-escaped).
 exclude_path = [
@@ -17,8 +30,28 @@ exclude_path = [
 ]
 
 # URL excludes for the online lane (the offline lane skips URLs entirely):
-# exact bot-blocked URLs, auth-walled private repos, loopback, and placeholders.
+# exact bot-blocked URLs, auth-walled private repos, loopback, placeholders, and
+# hosts the checker cannot complete a TLS handshake against. Every entry is a
+# CHECKER-side limitation on a link verified to be alive — never a dead link
+# silenced. Each one below records the verification that earned it, so a future
+# reader can re-test rather than trust the list.
 exclude = [
+  # ACM blocks automated clients outright: both URLs answer 403 even with a full
+  # browser User-Agent (verified 2026-07-30), so no header tuning reaches them.
+  # A DOI link is also the most stable citation form there is — the failure is
+  # entirely the checker being refused at the door.
+  '^https?://dl\.acm\.org/doi/10\.1145/3611643\.3613871/?([?#].*)?$',
+  '^https?://queue\.acm\.org/detail\.cfm\?id=3454124$',
+  # 403 to the checker, 200 with a browser User-Agent (verified 2026-07-30) —
+  # the documented bot-block case this list already exists for.
+  '^https?://docs\.genius\.com/?([?#].*)?$',
+  # Reported by the checker as "SSL certificate not trusted". The chain verifies
+  # locally — `openssl s_client` returns `Verify return code: 0 (ok)` against a
+  # Cloudflare TLS Issuing ECC CA intermediate, and curl fetches it 200 under
+  # strict verification (both 2026-07-30) — so this is the runner or checker
+  # trust store failing to complete an ECC chain, not an untrustworthy host.
+  # Re-test before removing; a genuinely bad chain would fail locally too.
+  '^https?://www\.ntia\.gov/files/ntia/publications/sbom_minimum_elements_report\.pdf$',
   '^https?://(www\.)?x\.com/',
   '^https?://twitter\.com/',
   '^https?://(www\.)?linkedin\.com/',

@@ -3,6 +3,40 @@
 All notable changes to the `eol-normalizer` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.8]
+
+### Fixed
+
+- **Shared `hook-utils.sh`: the OS temp tree is no longer treated as project content (#1769).**
+  `hook::read_file_path` scoped a file to the project by prefix-matching `CLAUDE_PROJECT_DIR`, so a
+  session whose project directory is the user's home admitted everything under the OS temp root —
+  including Claude Code's own per-session scratchpad, which lives there. Hooks that lint, rewrite, or
+  autocorrect then ran on throwaway files that are not project content and carry no project config to
+  opt out with; the reported case was `typos-format` autocorrecting a shell variable in a scratch
+  script and silently breaking it. The guard now rejects a file inside the OS temp tree when the
+  project root is outside it. The exemption is deliberate and load-bearing: when the project root
+  itself lives under temp — a `mktemp -d` fixture checkout, which is how this repository's own hook
+  suites run — its files are still accepted. Temp roots come from `TMPDIR` / `TMP` / `TEMP` plus the
+  POSIX defaults, canonicalized through the same pipeline the membership comparison already uses.
+  Synced from `lib/hook-utils.sh`.
+
+## [0.5.7]
+
+### Fixed
+
+- **Shared `hook-utils.sh`: a wrapper's working-directory change is no longer lost when a caller
+  parses only git's own global options (#1503).** `hook::git_resolve_index` walks wrapper programs
+  (`env`, `sudo`, …) to reach the real `git` token, and a caller that scopes its git-global parsing
+  to the slice starting at that token cannot see a relocation the wrapper already performed — GNU env
+  documents `-C, --chdir=DIR` as "change working directory to DIR". The resolver now reports those
+  directories in a new `HOOK_GIT_RESOLVED_WRAPPER_DIRS` result global, in execution order, so a
+  caller composes them ahead of git's own globals instead of dropping them. Five spellings are read
+  (`-C DIR`, `-CDIR`, `--chdir DIR`, `--chdir=DIR`, and a clustered `-vC DIR`), a repeat within one
+  `env` is last-wins as env itself resolves it, and sudo's `-D`/`--chdir` is read in its unclustered
+  spellings. A chdir spelled inside `-S`/`--split-string` is NOT read; that path already fails open
+  for any command on `main` and is tracked in #1814. This plugin does not consume the new global; the sync keeps its copy
+  byte-identical with the source. Synced from `lib/hook-utils.sh`.
+
 ## [0.5.6]
 
 ### Fixed
