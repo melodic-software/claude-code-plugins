@@ -2771,6 +2771,100 @@ class GuardTests(unittest.TestCase):
                 self.run_guard_engine_gate(f'python3 "{consumer}" --help')
             )
 
+    @staticmethod
+    def _install_cached_versions(base: Path, versions: tuple[str, ...]) -> dict:
+        """Lay out a marketplace cache holding several versions of this plugin.
+
+        Mirrors Claude Code's documented layout,
+        `<plugins>/cache/<marketplace>/<name>/<version>`, because the guard
+        derives the family prefix from its own path — a fake that does not carry
+        the real `plugins/cache` marker would exercise nothing.
+        """
+        family = base / "plugins" / "cache" / "market" / "disk-hygiene"
+        engines = {}
+        for version in versions:
+            root = family / version
+            scripts = root / "skills" / "clean" / "scripts"
+            scripts.mkdir(parents=True)
+            shutil.copy2(
+                SCRIPT_DIR / "destructive_guard.py", scripts / "destructive_guard.py"
+            )
+            (scripts / "hygiene.py").write_text("# engine copy\n", encoding="utf-8")
+            lib = root / "lib"
+            lib.mkdir()
+            shutil.copy2(
+                SCRIPT_DIR.parents[2] / "lib" / "killswitch_config.py",
+                lib / "killswitch_config.py",
+            )
+            engines[version] = scripts
+        return engines
+
+    def test_engine_gate_no_longer_defers_this_plugins_own_stale_engines(self) -> None:
+        """A replaced version's engine is a different FILE, not a different ENGINE.
+
+        The "provably a DIFFERENT file" escape (#1640, #1611) exists so a
+        consumer's own `tools/hygiene.py` is not mistaken for this engine. A
+        previous version of this plugin sitting in the cache is not a consumer's
+        tool, and Claude Code keeps a replaced version's directory on disk after
+        an update — so the escape left the kill switch unenforced against every
+        cached sibling whenever the clean skill was not the active work (#1805).
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(os.path.realpath(tmp))
+            engines = self._install_cached_versions(base, ("0.9.0", "0.10.2"))
+            current = load_module(
+                "guard_cache_install",
+                engines["0.10.2"] / "destructive_guard.py",
+            )
+            stale = (engines["0.9.0"] / "hygiene.py").as_posix()
+            bundled = (engines["0.10.2"] / "hygiene.py").as_posix()
+
+            for command in (
+                f'python3 "{stale}" apply --execute',
+                f'cd /elsewhere && python3 "{stale}" apply --execute',
+            ):
+                self.assertTrue(
+                    current._engine_gate_relevant(command, "Bash"), command
+                )
+            # The install's own engine still gates, so the narrowing did not
+            # merely move which copy is unguarded.
+            self.assertTrue(
+                current._engine_gate_relevant(
+                    f'python3 "{bundled}" apply --execute', "Bash"
+                )
+            )
+
+    def test_engine_gate_still_defers_a_consumer_tool_outside_the_cache(self) -> None:
+        """The narrowing must not undo what #1640 and #1611 fixed."""
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(os.path.realpath(tmp))
+            engines = self._install_cached_versions(base, ("0.10.2",))
+            current = load_module(
+                "guard_cache_install_consumer",
+                engines["0.10.2"] / "destructive_guard.py",
+            )
+            consumer_dir = base / "consumer+tools"
+            consumer_dir.mkdir()
+            consumer = consumer_dir / "hygiene.py"
+            consumer.write_text("print('consumer tool')\n", encoding="utf-8")
+            for command in (
+                f'python3 "{consumer.as_posix()}" --help',
+                f'cd /elsewhere && python3 "{consumer.as_posix()}" --help',
+            ):
+                self.assertFalse(
+                    current._engine_gate_relevant(command, "Bash"), command
+                )
+
+    def test_cache_family_narrowing_is_inert_for_a_checkout_install(self) -> None:
+        """A --plugin-dir checkout has no cached siblings, so nothing narrows.
+
+        Pinned because the alternative — treating an unrecognized layout as
+        in-family — would gate a contributor's every command naming their own
+        working tree's engine.
+        """
+        self.assertIsNone(guard._plugin_cache_family_root())
+        self.assertFalse(guard._within_plugin_cache_family(str(SCRIPT_DIR)))
+
     def test_engine_gate_defers_files_whose_name_merely_ends_in_the_marker(
         self,
     ) -> None:

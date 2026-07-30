@@ -3,6 +3,50 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.12.0]
+
+> Version note: `0.11.0` is claimed by the cloud-placeholder fix (#1804, PR #1818), which is open
+> against the same manifest. This entry takes the next number so the two do not collide; merge
+> #1818 first and this changelog reads contiguously.
+
+### Fixed
+
+- **The engine gate's "provably a different file" escape no longer covers this plugin's own stale
+  engines (#1805).** #1640 and #1611 fixed over-gating: a word naming an existing file that is not
+  the bundled engine defers, so a consumer's own `tools/hygiene.py` is not mistaken for this engine.
+  Claude Code keeps a replaced version's directory on disk after an update, so that same escape also
+  covered every **previous version of this engine** sitting beside the current one — each a
+  genuinely different file, each deletion-capable, and each answering to nothing but its own
+  containment once the always-on gate defers.
+
+  The consequence is a kill-switch bypass, not an unbounded-delete bypass: with
+  `disk_hygiene_enabled: false` the plugin-level gate is the only guard whenever the clean skill is
+  not the active work, and it deferred. The stale engine's own preview, approval-token, and platform
+  blockers still applied. Versions at or below 0.8.1 predate settings-based kill-switch enforcement
+  entirely.
+
+  Measured on the audit host: 17 cached version directories, `0.3.0` through `0.10.2`, 16 carrying an
+  intact engine (`0.9.4`'s is absent). Against the installed 0.10.2 guard, all 15 non-current engines
+  resolve, are not `samefile` with the bundled one, and the plugin-level gate **deferred on an
+  `apply --execute` invocation of every one of them**. The documented "about two weeks" retention
+  bound does not hold in practice — `0.3.0` is still present — so the window is unbounded.
+
+  The gate now refuses the escape to any path resolving inside
+  `<plugins>/cache/<marketplace>/<name>`. That prefix is derived from the guard module's own
+  `__file__`, not from argv or the environment, so nothing outside the process can redirect it — the
+  same reasoning that keeps the kill-switch read off `CLAUDE_CONFIG_DIR`. A `--plugin-dir` checkout
+  carries no such prefix and the narrowing is inert there, which is correct: a checkout has no cached
+  siblings, and narrowing on it would gate a contributor's work on their own tree.
+
+  **This does not relax or re-break #1640 and #1611.** A consumer's own engine-named script outside
+  the cache still defers, on both the plain and the operator-carrying shapes; verified before and
+  after against an identical synthetic cache layout, where the stale sibling flips from `defers` to
+  `GATES` while the consumer tool stays `defers` and the bundled engine stays `GATES`.
+
+  **Residual:** a *copied* engine — one carried outside the cache tree — is still outside the prefix,
+  as it is outside every identity check the gate makes. That is the copy-evasion class the gate has
+  always accepted, and the engine's own preview/approval-token containment remains the authority.
+
 ## [0.10.2]
 
 ### Fixed
