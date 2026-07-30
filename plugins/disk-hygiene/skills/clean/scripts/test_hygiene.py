@@ -819,6 +819,64 @@ class HygieneTests(unittest.TestCase):
                 "baseline-protected-name", result["candidates"][0]["blockers"]
             )
 
+    def test_forged_snapshot_cannot_hide_a_tenant_sync_root(self) -> None:
+        # The exact-name equivalent above pins the same property. This one
+        # matters separately because name-pattern protection is read from the
+        # bundled baseline rather than from the snapshot's own policy, so a
+        # snapshot written by an older engine — or edited to drop the reason —
+        # still cannot make a sync root deletable.
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            (root / "OneDrive - Contoso").mkdir(parents=True)
+            snapshot = hygiene.scan_tree(root.resolve(), hygiene.load_policy(None))
+            for entry in snapshot["entries"]:
+                entry["protected_reasons"] = []
+            snapshot["policy"]["protected_name_globs"] = []
+            plan = {
+                "version": 1,
+                "tier": "high",
+                "candidates": [candidate("OneDrive - Contoso")],
+            }
+            with (
+                mock.patch.object(
+                    hygiene, "handle_state", return_value=("clear", None)
+                ),
+                mock.patch.object(hygiene, "execution_blockers", return_value=[]),
+            ):
+                result = hygiene.preview(snapshot, plan)
+            self.assertIn(
+                "baseline-protected-name", result["candidates"][0]["blockers"]
+            )
+            self.assertIsNone(result["approval_token"])
+
+    def test_preview_accepts_a_snapshot_lacking_the_new_entry_fields(self) -> None:
+        # A previous engine's snapshot carries no size_qualifiers or
+        # file_attributes. Cached plugin versions linger well past their
+        # documented cleanup window, so a snapshot written by one must stay
+        # previewable rather than raising on a missing key.
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            root.mkdir()
+            (root / "orphan.tmp").write_text("stale", encoding="utf-8")
+            snapshot = hygiene.scan_tree(root.resolve(), hygiene.load_policy(None))
+            for entry in snapshot["entries"]:
+                entry.pop("size_qualifiers")
+                entry.pop("file_attributes")
+            plan = {
+                "version": 1,
+                "tier": "high",
+                "candidates": [candidate("orphan.tmp")],
+            }
+            with (
+                mock.patch.object(
+                    hygiene, "handle_state", return_value=("clear", None)
+                ),
+                mock.patch.object(hygiene, "execution_blockers", return_value=[]),
+            ):
+                result = hygiene.preview(snapshot, plan)
+            self.assertEqual([], result["candidates"][0]["blockers"])
+            self.assertIsNotNone(result["approval_token"])
+
     def test_preview_blocks_changed_entries(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary) / "target"
