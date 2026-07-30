@@ -3,6 +3,24 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.41.0]
+
+### Added
+
+- **`pr-linkage-mcp-gate` hook — the MCP-surface sibling of `pr-body-linkage-gate`.** Cloud/remote
+  sessions have no `gh` CLI and open PRs through the GitHub MCP server
+  (`mcp__github__create_pull_request` / `mcp__github__update_pull_request`), a surface the Bash
+  hook never sees — so a body failing the consuming repo's required `pr-issue-linkage` check was
+  only discovered a full CI round trip after the PR was open. The new PreToolUse hook mirrors the
+  same validator semantics on the MCP payload (comment stripping, closing keyword or
+  `No linked issue`, present-and-non-empty `## Related` with deeper headings as content) and the
+  same scope guards (enforced only in a repo carrying
+  `.github/workflows/pr-issue-linkage.yml`/`.yaml`; a call targeting a different repo than origin
+  is out of scope; an `update` with no `body` field allows). The MCP surface hands the hook the
+  body as a plain JSON field, so the Bash sibling's extraction caveats don't apply; the one
+  fail-closed addition is a `create` with no `body` field at all, which GitHub would open with an
+  empty body the CI gate rejects. Kill switch: `pr_linkage_mcp_gate_enabled` (default true).
+
 ## [0.40.2]
 
 ### Fixed

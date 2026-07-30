@@ -67,5 +67,6 @@ inside the HTML comments the check strips. A bare `Closes #` with no number also
 
 Enforcement at authoring time: a checked-in PreToolUse gate
 (`.claude/hooks/pr-linkage-mcp-gate.sh`, wired in `.claude/settings.json`) blocks an MCP-created PR
-body that would fail the check; the source-control plugin's `pr-body-linkage-gate` hook covers
-`gh pr create`/`edit` the same way.
+body that would fail the check even in a session with no plugins; the source-control plugin
+enforces the same contract on both surfaces (`pr-body-linkage-gate` for `gh pr create`/`edit`,
+`pr-linkage-mcp-gate` for the MCP tools) wherever it is installed.
