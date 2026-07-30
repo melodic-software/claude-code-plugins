@@ -72,7 +72,7 @@ Report-only.
 Audits instruction *content* against current model capability — a different question from the
 sibling audits (config-file correctness) and from `skill-quality:check` (structural lint) or
 `docs-hygiene:compress` (token brevity). It sweeps the locally-owned surfaces (user + project
-`CLAUDE.md`, `.claude/rules`, skill bodies, agent definitions, prompt-type hooks, output styles)
+`CLAUDE.md`, `.claude/rules`, skill bodies, agent definitions, hook instruction text, output styles)
 against a sixteen-check catalog cited to current official prompting and harness doctrine, running
 a fresh read-only subagent per surface, then a fresh-context verify pass that re-judges every removal
 proposal before it is surfaced. Findings are tiered mechanical vs behavioral and delivered as a

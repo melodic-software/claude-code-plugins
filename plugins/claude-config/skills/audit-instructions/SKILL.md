@@ -1,6 +1,6 @@
 ---
 name: audit-instructions
-description: "Audit locally-owned Claude Code instruction surfaces — user + project CLAUDE.md, .claude/rules, skill bodies, agent definitions, prompt-type hooks, output styles — for instructions current models no longer need: prior-model workarounds, over-prescriptive scaffolding, bare prohibitions, reasoning-echo directives, stale examples — plus instructions that misstate Claude Code's own behavior, cite a file in a form that never loads, or re-read a surface already in context. Also detects cross-surface conflicts: two surfaces that both claim authority over one behavior and contradict each other. Report-only: emits a findings report with proposed diffs, gated to the human, never auto-applied. Use when: 'after a model upgrade', 'are my instructions holding the model back', 'instructions the model no longer needs', 'too prescriptive', 'audit instructions', 'instruction audit', 'stale Claude Code behavior', 'outdated harness claim', 'my @path import is not loading', 'instruction re-reads CLAUDE.md', 'conflicting instructions', 'contradictory instructions', 'which instruction wins'. Not a brevity pass and not memory-layer hygiene."
+description: "Audit locally-owned Claude Code instruction surfaces — user + project CLAUDE.md, .claude/rules, skill bodies, agent definitions, hook instruction text (prompt-type hooks, and hook output injected into context), output styles — for instructions current models no longer need: prior-model workarounds, over-prescriptive scaffolding, bare prohibitions, reasoning-echo directives, stale examples — plus instructions that misstate Claude Code's own behavior, cite a file in a form that never loads, or re-read a surface already in context. Also detects cross-surface conflicts: two surfaces that both claim authority over one behavior and contradict each other. Report-only: emits a findings report with proposed diffs, gated to the human, never auto-applied. Use when: 'after a model upgrade', 'are my instructions holding the model back', 'instructions the model no longer needs', 'too prescriptive', 'audit instructions', 'instruction audit', 'stale Claude Code behavior', 'outdated harness claim', 'my @path import is not loading', 'instruction re-reads CLAUDE.md', 'conflicting instructions', 'contradictory instructions', 'which instruction wins'. Not a brevity pass and not memory-layer hygiene."
 argument-hint: "[scope] [--target-model <version>] [--opinion] [--no-stopping-condition] — scope: claude-md|rules|skills|agents|hooks|output-styles|conflicts|all (default: all)"
 user-invocable: true
 disable-model-invocation: false
@@ -135,12 +135,15 @@ official memory and `.claude`-directory docs (cited in the report's Sources line
     treated the same way.
   - **Context-injecting handler output** — a handler that prints to stdout on `SessionStart`,
     `UserPromptSubmit`, or `UserPromptExpansion`, or returns `hookSpecificOutput.additionalContext`
-    on any event that accepts it, puts that text in this session's context window. It is live
-    instruction text and enters the comparison set as text. `command` is not an exclusion: `http`
-    and `mcp_tool` handlers return on the same JSON contract. Where the output is not literal in the
-    config — a handler that runs a script — record the surface with the emitting handler's event and
-    `matcher` and mark the text `unresolved` rather than inventing it; a run inside the session it
-    describes can read what was actually injected.
+    on a main-session event that accepts it, puts that text in this session's context window. It is
+    live instruction text and enters the comparison set as text. `command` is not an exclusion —
+    `mcp_tool` shares the stdout channel and `http` the JSON one. Two bounds the criteria file
+    states and cites: `SubagentStart` / `SubagentStop` `additionalContext` lands in **that
+    subagent's** context, not this session's; and type decides registrability, so resolve the
+    event×type pair before admitting a surface (`SessionStart` takes only `command` and `mcp_tool`).
+    Where the output is not literal in the config — a handler that runs a script — record the
+    surface with the emitting handler's event and `matcher` and mark the text `text-unresolved`
+    rather than inventing it; a run inside the session it describes can read what was injected.
 
   Never carry a command line, token, or other secret-bearing value out of a settings file into the
   report — extract only the injected text, under the same no-secrets handling for both kinds.

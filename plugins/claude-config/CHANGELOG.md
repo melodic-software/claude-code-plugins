@@ -9,38 +9,49 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
 
 - **`audit-instructions`: the conflict pass excluded command hooks whose output is injected into the
   session's context (#1726).** `conflict-criteria.md` carried "Command-type hooks are outside this
-  pass entirely", citing the context-window doc's compaction row "Hooks — Not applicable; hooks run
-  as code, not context". That row is about the hook *mechanism* — a hook definition is not a context
-  block to be re-injected — and the same page says the opposite about handler *output*: a
-  `PostToolUse` hook "reports back via `hookSpecificOutput.additionalContext`. That field enters
-  Claude's context." The exclusion therefore dropped one half of every pair whose hook side was live
-  standing instruction text, silently, since a per-surface lane never sees the surface at all.
+  pass entirely", citing the context-window doc's compaction table, whose hooks row reads "Not
+  applicable; hooks run as code, not context". That row is about the hook *mechanism* — a hook
+  definition is not a context block to be re-injected — and the same page says the opposite about
+  handler *output*: a `PostToolUse` hook "reports back via `hookSpecificOutput.additionalContext`.
+  That field enters Claude's context." The exclusion therefore dropped one half of every pair whose
+  hook side was live standing instruction text, silently, since a per-surface lane never sees the
+  surface at all.
 
-  **The discriminator is now whether the handler's output reaches this session's context, never the
-  handler's `type`** (criteria 1.1.0 → 1.2.0). Handler stdout on `SessionStart`, `UserPromptSubmit`,
-  and `UserPromptExpansion`, and `hookSpecificOutput.additionalContext` on every event that accepts
-  it, enter the comparison set **as text**; stdout on any other event still does not. `command` is
-  not an exclusion and neither is `http` or `mcp_tool`, whose responses use the same JSON contract.
-  `prompt` and `agent` handlers keep their existing treatment — they return a decision, so they
-  still enter as the act they gate, never as their prose.
+  **The discriminator is now whether the handler's output reaches this session's context, not
+  whether the handler is `type: "command"`** (criteria 1.1.0 → 1.2.0). Handler stdout on
+  `SessionStart`, `UserPromptSubmit`, and `UserPromptExpansion`, and
+  `hookSpecificOutput.additionalContext` on a main-session event that accepts it, enter the
+  comparison set **as text**; stdout on any other event still does not. `mcp_tool` shares the stdout
+  channel and `http` the JSON one. `prompt` and `agent` handlers keep their existing treatment —
+  they return a decision, so they still enter as the act they gate, never as their prose.
 
-  Three residency bounds ship with the admission, so the widening does not manufacture pairs:
-  injected text is ordinary message history rather than a re-injected surface (a `SessionStart` hook
-  re-injects after compaction only on the `compact` matcher, so a `startup`-only hook's pair is
-  conditional there); exit-2 stderr reaches Claude but is turn-scoped error feedback about one
-  blocked act, not a standing directive; and a hook's own configuration — command line, arguments,
-  `matcher` — remains the gate rather than instruction text.
+  **Type still decides registrability, and the pass resolves the event×type pair before admitting a
+  surface.** "Not all events support every hook type"; `SessionStart` takes only `command` and
+  `mcp_tool`, so an `http` handler there is not a surface with unreadable text but one that cannot
+  be registered at all. An `http` handler also has no stdout — it returns a response body.
+
+  Four residency bounds ship with the admission, so the widening does not manufacture pairs.
+  `SubagentStart` and `SubagentStop` `additionalContext` is "Context added to **the subagent's**
+  context", so it fails gate 1 against every main-session surface exactly as the active output style
+  does — it pairs against the agent definition it runs under, never against the main conversation's
+  `MEMORY.md` or output style. Injected text is ordinary message history rather than a re-injected
+  surface (a `SessionStart` hook re-injects after compaction only on the `compact` matcher, so a
+  `startup`-only hook's pair is conditional there). Exit-2 stderr reaches Claude but is turn-scoped
+  error feedback about one blocked act, not a standing directive. And a hook's own configuration —
+  command line, arguments, `matcher` — remains the gate rather than instruction text.
 
   Phase A's hook inventory splits into the two kinds accordingly, across settings scopes, managed
   settings, and plugin `hooks/hooks.json`, under unchanged no-secrets handling; where the injected
   text is not literal in the config (a handler that runs a script) the surface is recorded with its
-  event and `matcher` and marked `unresolved` rather than invented. Because a hook-injected surface
+  event and `matcher` and marked `text-unresolved` — a distinct marker, since a bare `unresolved`
+  already names a precedence verdict — rather than invented. Because a hook-injected surface
   has no file of its own, the Output format now defines its anchor as the settings file, plugin
   `hooks/hooks.json`, or component frontmatter where the emitting handler is configured, qualified
   by that handler's event and `matcher`. The `hooks` scope value and the non-memory surface
   partition widen from "prompt-type hooks" to "hook instruction text" — without which the newly
-  admitted surface could be read but never produce a finding. Skill and agent frontmatter, a
-  documented hook location Phase A did not inventory at all, is added alongside.
+  admitted surface could be read but never produce a finding — as do the two consumer surfaces that
+  restate the list, the skill's own `description` and the plugin README. Skill and agent frontmatter,
+  a documented hook location Phase A did not inventory at all, is added alongside.
 
   The hooks page is added to Sources and to the recheck triggers in both criteria files (catalog
   1.3.0 → 1.4.0, for the widened surface partition and I13 surface set). Eval 14 pins the admission

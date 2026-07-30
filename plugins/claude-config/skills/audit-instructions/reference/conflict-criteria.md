@@ -99,7 +99,8 @@ shapes without this gate produces noise, because most surface pairs never co-loa
 | Skill named in an agent's `skills:` field | Always, in that subagent | subagents: "The full content of each listed skill is injected, not only the description" |
 | Prompt-type hook text | **Never** — see "A prompt hook's text is not an instruction" below | hooks: a `prompt` hook "send[s] a prompt to a Claude model for single-turn evaluation" |
 | Handler **stdout** on `SessionStart`, `UserPromptSubmit`, `UserPromptExpansion` | From injection onward, as ordinary message history | hooks: "The exceptions are `UserPromptSubmit`, `UserPromptExpansion`, and `SessionStart`, where stdout is added as context that Claude can see and act on" |
-| Handler `hookSpecificOutput.additionalContext` | From injection onward, at the position the event dictates | hooks: "Where the reminder appears depends on the event" — session start, alongside the prompt, next to the tool result, or at the end of the turn |
+| Handler `hookSpecificOutput.additionalContext` on a **main-session** event | From injection onward, at the position the event dictates | hooks: "Where the reminder appears depends on the event" — session start, alongside the prompt, next to the tool result, or at the end of the turn |
+| Handler `hookSpecificOutput.additionalContext` on `SubagentStart` / `SubagentStop` | In **that subagent's** context, never the main session's | hooks, `SubagentStart`: "Context added to **the subagent's** context for the duration of the subagent session"; `SubagentStop`: "Context added to **the subagent's** context" |
 | Handler **stdout** on any other event | **Never** | hooks: "For most events, stdout is written to the debug log but not shown in the transcript" |
 | Output style (the **active** one) | Every session in the main conversation, appended to the system prompt | output-styles: "Output styles directly modify Claude Code's system prompt"; "read once at session start" |
 
@@ -153,15 +154,23 @@ gate would block under a matching input — "always run `git push --force` after
 directive addressed to the evaluator is not. An `agent` handler is treated the same way: it too
 "spawn[s] a subagent … before returning a decision", so it enters as the act it gates.
 
-**But the discriminator is whether the handler's output reaches this session's context, never the
-handler's `type`.** [hooks](https://code.claude.com/docs/en/hooks) lists five handler types —
-`command`, `http`, `mcp_tool`, `prompt`, `agent` — and settles the question per *event and output
-channel* rather than per type: for most events "stdout is written to the debug log but not shown in
-the transcript. The exceptions are `UserPromptSubmit`, `UserPromptExpansion`, and `SessionStart`,
-where stdout is added as context that Claude can see and act on", and
-`hookSpecificOutput.additionalContext` is accepted on a wider event set still. The channel is not
-type-scoped either: an `http` handler's "response body uses the same JSON output format as command
+**But the discriminator is whether the handler's output reaches this session's context, not whether
+the handler is `type: "command"`.** [hooks](https://code.claude.com/docs/en/hooks) lists five
+handler types — `command`, `http`, `mcp_tool`, `prompt`, `agent` — and settles *which channel
+reaches context* per **event**, not per type: for most events "stdout is written to the debug log
+but not shown in the transcript. The exceptions are `UserPromptSubmit`, `UserPromptExpansion`, and
+`SessionStart`, where stdout is added as context that Claude can see and act on", and
+`hookSpecificOutput.additionalContext` is accepted on a wider event set still. Nor is the JSON
+channel type-scoped: an `http` handler's "response body uses the same JSON output format as command
 hooks", and an `mcp_tool` handler's "tool's text content is treated like command-hook stdout".
+
+**Type still decides one thing, and it is not the channel: registrability.** "Not all events support
+every hook type" — `SessionStart`, for one, states "Only `type: "command"` and `type: "mcp_tool"`
+hooks are supported". So resolve the event×type pair against the docs before admitting a surface:
+an `http` handler on `SessionStart` is not a surface with unreadable text, it is a hook that cannot
+be registered there at all. An `http` handler also has no stdout — it returns a response body — so
+the stdout channel above is `command` and `mcp_tool` only, while the `additionalContext` channel is
+open to `http` on the events that accept both.
 
 So **a handler whose output is injected as context enters the comparison set as that text**, on the
 same terms as any other instruction surface. A `SessionStart` command hook printing a standing
@@ -171,12 +180,21 @@ rule is exactly what gate 1 is for. Excluding it because the handler is `type: "
 half of a pair that provably co-resides — and does so silently, since a per-surface lane never sees
 the surface at all.
 
-**What the compaction table does and does not say.** "Hooks — Not applicable; hooks run as code, not
-context" (context window, "What survives compaction") is a statement about the hook *mechanism*: a
-hook definition is not a context block to be re-injected, the way root `CLAUDE.md` is. It says
-nothing about the handler's output, and the same page says the opposite about that output — a
-`PostToolUse` hook "reports back via `hookSpecificOutput.additionalContext`. That field enters
-Claude's context." Reading the compaction row as an exclusion rule is what produced this gap.
+**A subagent-scoped injection is not resident here.** `SubagentStart` and `SubagentStop` add
+"Context added to **the subagent's** context", so their `additionalContext` fails gate 1 against any
+main-session surface exactly as the active output style does ("to the main conversation only: a
+subagent runs its own system prompt"). It is a real surface in the subagent's own context, where it
+can contradict the agent definition it runs under or a skill named in that agent's `skills:` field —
+pair it there, and never against the main conversation's `MEMORY.md` or active output style.
+
+**What the compaction table does and does not say.** The context-window page's "What survives
+compaction" table gives hooks one row, whose cell reads "Not applicable; hooks run as code, not
+context". That is a statement about the hook *mechanism*: a hook definition is not a context block
+to be re-injected, the way root `CLAUDE.md` is. It says nothing about the handler's output, and the
+same page says the opposite about that output — in the `desc` text of its embedded context-window
+simulation, a `PostToolUse` hook "reports back via `hookSpecificOutput.additionalContext`. That
+field enters Claude's context." Reading the compaction row as an exclusion rule is what produced
+this gap.
 
 Three consequences for residency, and each one bounds a pair rather than admitting it wholesale:
 
@@ -193,6 +211,14 @@ Three consequences for residency, and each one bounds a pair rather than admitti
 - **A hook's own configuration is still not instruction text.** The command line, its arguments, and
   its `matcher` are the gate, not prose addressed to the model. Extract only what is injected, under
   the same no-secrets handling every settings-sourced surface gets.
+- **Text the config does not contain is `text-unresolved`, and a pair touching it is reported rather
+  than graded.** A handler that runs a script has its injected text determined at run time, so an
+  inventory taken outside that run cannot read it. Phase A records the surface with the handler's
+  event and `matcher` and marks it; the lane then treats it exactly as the liveness gate below treats
+  a `liveness-unresolved` surface — report the pair as such, and never infer the text from the script
+  name, the handler's arguments, or what a hook of that shape usually emits. Inventing the half you
+  cannot read is a worse failure than the exclusion this section replaces, because it manufactures a
+  quotation.
 
 **Guaranteed pairs** are any two of {user `CLAUDE.md`, project `CLAUDE.md`, unscoped rules,
 `MEMORY.md`}, and any agent definition against any of them **except `MEMORY.md`**, and except via
