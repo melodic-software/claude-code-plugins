@@ -6,6 +6,23 @@ All notable changes to the `autonomy` plugin are documented here. Format follows
 Versions 0.1.0–0.7.0 predate this file (introduced with 0.7.1); their history lives in the
 merged work-package PRs (#333, #343, #356, #372, #377, #600, #676).
 
+## [0.11.6]
+
+### Fixed
+
+- **Shared `hook-utils.sh`: the OS temp tree is no longer treated as project content (#1769).**
+  `hook::read_file_path` scoped a file to the project by prefix-matching `CLAUDE_PROJECT_DIR`, so a
+  session whose project directory is the user's home admitted everything under the OS temp root —
+  including Claude Code's own per-session scratchpad, which lives there. Hooks that lint, rewrite, or
+  autocorrect then ran on throwaway files that are not project content and carry no project config to
+  opt out with; the reported case was `typos-format` autocorrecting a shell variable in a scratch
+  script and silently breaking it. The guard now rejects a file inside the OS temp tree when the
+  project root is outside it. The exemption is deliberate and load-bearing: when the project root
+  itself lives under temp — a `mktemp -d` fixture checkout, which is how this repository's own hook
+  suites run — its files are still accepted. Temp roots come from `TMPDIR` / `TMP` / `TEMP` plus the
+  POSIX defaults, canonicalized through the same pipeline the membership comparison already uses.
+  Synced from `lib/hook-utils.sh`.
+
 ## [0.11.5]
 
 ### Fixed
