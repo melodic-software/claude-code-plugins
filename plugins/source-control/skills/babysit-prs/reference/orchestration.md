@@ -371,12 +371,12 @@ same-worktree protections.
   dispatching the fix. The taxonomy is a per-round duty, not an escalation-time one: the
   second-consecutive-all-(c) tripwire is decided from the classes earlier rounds recorded, so a
   round that classifies only when an escalation is already being prepared leaves the tripwire
-  nothing to read; the helper refuses an unclassified round for that reason. Read the prior
-  round's verdict from the snapshot's `advisory_fix_rounds.non_convergence_tripwire` rather than
-  reconstructing it from GitHub, per that same section. Keep
-  iterating while rounds make real progress against real findings; only when the helper reports
-  the cap reached — the rare runaway-loop case — report the findings for user decision instead of
-  fixing. Clear blocking defects are never capped.
+  nothing to read; the helper refuses an unclassified round for that reason. The snapshot's
+  `advisory_fix_rounds.non_convergence_tripwire` reports where the PR already stood and the
+  helper's own return is what arms THIS round — neither is reconstructed from GitHub, per that
+  same section. Keep iterating while rounds make real progress against real findings; only when
+  the helper reports the cap reached — the rare runaway-loop case — report the findings for user
+  decision instead of fixing. Clear blocking defects are never capped.
 - Spawn at most one worker per PR whose snapshot `needs_worker` is `true` this cycle (see the
   Fan-Out Gate above), batched up to `<worker-concurrency-cap>`, when subagent tools are
   available. Immediately before spawning each such worker, record its check-in write-ahead with

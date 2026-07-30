@@ -26,12 +26,14 @@ All notable changes to the `source-control` plugin are documented here. Format f
   `guard-contract.md` row (`ledger.advisory-round-requires-finding-class`), so it is asserted by
   the guard suite rather than asserted in prose.
 
-  The verdict is computed once, in `babysit_delta`, and reported at both ends: the helper returns
-  the recorded round's `composition` and the resulting `non_convergence_tripwire` immediately, and
-  the snapshot carries `advisory_fix_rounds.non_convergence_tripwire` (`armed` plus the `basis` it
-  was decided on) for the next worker, adding a material finding when armed. **A fresh worker
-  reads that field; it no longer reconstructs the previous round's composition from GitHub
-  threads** — the expensive, resolution-fragile duty `safety.md` used to impose.
+  The verdict is computed once, in `babysit_delta`, and read in two places that answer different
+  questions. `record-advisory-round` returns the recorded round's `composition` and the resulting
+  `non_convergence_tripwire` immediately — that is the read that arms the round being dispatched,
+  and why the classification is recorded before the fix rather than after it. The snapshot carries
+  `advisory_fix_rounds.non_convergence_tripwire` (`armed` plus the `basis` it was decided on) over
+  the rounds recorded so far, adding a material finding when armed, so a worker picking the PR up
+  cold sees where it already stood. **Neither read reconstructs the previous round's composition
+  from GitHub threads** — the expensive, resolution-fragile duty `safety.md` used to impose.
 
   **Rounds recorded before this release read as UNKNOWN, and the tripwire fails closed on them**:
   a current all-(c) round following an UNKNOWN round arms and says so, rather than silently

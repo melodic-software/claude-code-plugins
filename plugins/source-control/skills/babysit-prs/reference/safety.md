@@ -181,19 +181,23 @@ loop's own escalation contract is not outside it.
     classified — the canonical D5 vocabulary (VALID/INCORRECT/UNCERTAIN) does not carry this
     taxonomy, and the markers are what let a human reading the PR check the ledger's arithmetic
     against the threads themselves.
-  - **Read the verdict at round start; never re-derive it.** The snapshot reports
-    `advisory_fix_rounds.non_convergence_tripwire` as `armed` plus the `basis` it was decided on,
-    and `record-advisory-round` returns the same verdict for the round it just recorded. That
-    field is the whole input — a fresh worker with no prior context reads it instead of
-    reconstructing the previous round's composition from GitHub threads. A round recorded before
-    per-finding classes were persisted reads as UNKNOWN, not (a)/(b), and the tripwire **fails
-    closed** on it: a current all-(c) round following an UNKNOWN round arms, and the escalation
-    says so rather than silently resetting the count. Armed means change METHOD rather than
-    stopping: rewrite the contested section whole in one commit, or report it for a human
-    decision. It is never a licence to ship a known defect.
+  - **Read the verdict; never re-derive it.** One computation, two reads, and they answer
+    different questions. The snapshot's `advisory_fix_rounds.non_convergence_tripwire` — `armed`
+    plus the `basis` it was decided on — covers the rounds already recorded, so at round start it
+    reports whether the lane arrived here already non-converging. The **decisive** read for the
+    round about to be dispatched is the verdict `record-advisory-round` returns once this round's
+    own classes are recorded: that is what answers "is THIS round all-(c) after an all-(c)
+    predecessor", and it is why the classification is recorded before the fix is dispatched rather
+    than after it. Either read is a field a fresh worker with no prior context can just read,
+    instead of reconstructing the previous round's composition from GitHub threads. A round
+    recorded before per-finding classes were persisted reads as UNKNOWN, not (a)/(b), and the
+    tripwire **fails closed** on it: a current all-(c) round following an UNKNOWN round arms, and
+    the escalation says so rather than silently resetting the count. Armed means change METHOD
+    rather than stopping: rewrite the contested section whole in one commit, or report it for a
+    human decision. It is never a licence to ship a known defect.
 - Escalate a bounding/cap-policy question only when verification shows (a), a second consecutive
-  all-(c) advisory round, or a finding that is structurally impossible to resolve (the check itself is
-  external or non-deterministic). If every unresolved thread is (b) or (c) and each is
+  all-(c) advisory round, or a finding that is structurally impossible to resolve (the check
+  itself is external or non-deterministic). If every unresolved thread is (b) or (c) and each is
   individually fixable — a mechanical fix or a clearly-scoped judgment call — fix directly
   instead. A high round count alone is not evidence of non-convergence.
 - This verification is required even when a sub-agent, advisor, or other second opinion reads

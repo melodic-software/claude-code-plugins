@@ -79,8 +79,9 @@ python "${CLAUDE_PLUGIN_ROOT}/skills/babysit-prs/scripts/manage_feedback_ledger.
 
 The classes are what makes the second-consecutive-all-(c) non-convergence tripwire evaluable after
 context rollover, so the helper refuses a round recorded without them. It reports the round's
-`composition` and the resulting `non_convergence_tripwire` verdict back to the caller, and the
-snapshot carries the same verdict forward under `advisory_fix_rounds` for the next worker.
+`composition` and the resulting `non_convergence_tripwire` verdict back to the caller — the read
+that arms the round being recorded — and the snapshot carries the verdict over the rounds recorded
+so far under `advisory_fix_rounds` for the next worker.
 
 `<advisory-fix-round-cap>` sets the round ceiling deliberately high: it is not a normal
 operational limit meant to halt legitimate fix work, but a safety backstop that only trips a
