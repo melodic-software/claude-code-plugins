@@ -136,15 +136,34 @@ class HygieneTests(unittest.TestCase):
         # case-robustly while being invisible to triage.
         policy = hygiene.load_policy(None)
         for name, expected in (
-            ("Thumbs.db", "windows-explorer-metadata"),
-            ("thumbs.db", "windows-explorer-metadata"),
             ("tmp-build", "common-temp-directory"),
             ("TMP-build", "common-temp-directory"),
             ("scratch.md", "scratch-artifact"),
             ("Scratch.md", "scratch-artifact"),
+            ("failed-write.tmp", "common-temp-file"),
+            ("FAILED-WRITE.TMP", "common-temp-file"),
         ):
             matched = {hint["id"] for hint in hygiene.matching_hints(name, name, policy)}
             self.assertIn(expected, matched, name)
+
+    def test_platform_scoped_hints_are_also_case_insensitive(self) -> None:
+        # Separated from the OS-agnostic rows and run under a pinned os_key:
+        # `matching_hints` filters by the current OS BEFORE matching, so asserting
+        # a windows-only hint on a Linux runner tests the OS filter, not the case
+        # discipline this is about.
+        policy = hygiene.load_policy(None)
+        with mock.patch.object(hygiene, "os_key", return_value="windows"):
+            for name in ("Thumbs.db", "thumbs.db", "THUMBS.DB"):
+                matched = {
+                    hint["id"] for hint in hygiene.matching_hints(name, name, policy)
+                }
+                self.assertIn("windows-explorer-metadata", matched, name)
+        with mock.patch.object(hygiene, "os_key", return_value="macos"):
+            for name in (".DS_Store", ".ds_store"):
+                matched = {
+                    hint["id"] for hint in hygiene.matching_hints(name, name, policy)
+                }
+                self.assertIn("macos-finder-metadata", matched, name)
 
     def test_atomic_write_staging_remnants_are_hinted_as_a_class(self) -> None:
         # The producer-specific hint encodes one filename while its own reason
