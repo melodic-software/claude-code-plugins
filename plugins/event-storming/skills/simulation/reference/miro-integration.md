@@ -174,44 +174,35 @@ Persona 1 sits at the `y=0` timeline baseline.
 
 | Row | y | Purpose |
 |-----|---|---------|
-| BC Contracts (inbound) | -600 | Consumed events from other BCs |
-| Read Models | -400 | Information panels |
-| Actors | -200 | Who issues commands |
-| Commands | -100 | Blue imperative actions |
+| BC Contracts (inbound) | -1000 | Consumed events from other BCs |
+| Read Models | -750 | Information panels |
+| Actors | -500 | Who issues commands |
+| Commands | -250 | Blue imperative actions |
 | **Aggregates** | **0** | Light yellow — blank first, named last |
 | Business Rules | 300 | Gray — invariants (stack at y=300, 550, 800) |
 | Domain Events | 1100 | Orange — outcomes |
 | Alternative outcomes | 1400 | Rejection/failure events |
-| What-if challenges | 1700 | Red hot spots |
-| BC Contracts (outbound) | 2000 | Published events |
+| Policies | 1650 | Violet — reactive `Whenever X, do Y` |
+| What-if challenges | 1950 | Red hot spots |
+| BC Contracts (outbound) | 2250 | Published events |
 
-**Main flow (y=0 baseline):**
+**Reading the layout:** every row's y comes from that phase's Y-Coordinate Table
+above — negative is up, positive is down, and the bolded row is the baseline. The
+tables are the only place y values are written down; nothing below restates them.
 
-- Commands, Events, Policies all sit on y=0
-- Flow reads left-to-right, incrementing x by 400 per item
-
-**Above the flow (negative y = up):**
-
-- Actors: y=-250 (directly above their command)
-- Read Models: y=-450 (above the actor)
-- Hot Spots: y=-250 (above the related event)
-
-**Below the flow (positive y = down):**
-
-- Alternative outcomes: y=+250 (below the happy path event)
-
-**Example: one complete flow segment**
+**Horizontal placement:** the flow reads left to right, incrementing x by 400 per
+item, independent of phase. A command and the actor that issues it share one x and
+differ only by row, so a single flow segment is a column per step:
 
 ```
-Read Model:       x=0,    y=-450
-Actor:            x=0,    y=-250
-Command:          x=0,    y=0
-Domain Event:     x=400,  y=0       (happy path)
-Event (alt):      x=400,  y=250     (rejection/failure)
-Hot Spot:         x=400,  y=-250    (above the event)
-Policy:           x=800,  y=0       (reactive — "whenever")
-Next Command:     x=1200, y=0       (triggered by policy)
-Next Event:       x=1600, y=0
+Read Model       x=0       row: Read Models
+Actor            x=0       row: Actors
+Command          x=0       row: Commands
+Domain Event     x=400     row: Domain Events        (happy path)
+Event (alt)      x=400     row: Alternative outcomes (rejection/failure)
+Policy           x=800     row: Policies             (reactive — "whenever")
+Next Command     x=1200    row: Commands             (triggered by policy)
+Next Event       x=1600    row: Domain Events
 ```
 
 **Legend frame positioning and sizing:**
