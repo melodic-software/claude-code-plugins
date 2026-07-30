@@ -54,6 +54,11 @@ COUNTS_JSON=""
 PR_JSON=""
 DECISIONS_JSON=""
 TELEMETRY_JSON=""
+MERGED_JSON=""
+# How far back to look for merged PRs still carrying unresolved review threads.
+# Wide enough to cover a bot that reviews well after a merge lands, and the
+# operator-absent stretch (a weekend) during which nobody would look.
+STRANDED_DAYS="3"
 
 usage() {
   # Sentinel-based, not a hardcoded line range: prints every comment line after
@@ -116,6 +121,16 @@ while (($# > 0)); do
     REC_MAXLEN="$((10#$2))"
     shift 2
     ;;
+  --stranded-days)
+    require_value "$1" "${2:-}"
+    [[ "$2" =~ ^[0-9]+$ ]] || {
+      printf 'morning-brief: --stranded-days requires a non-negative integer\n' >&2
+      exit 3
+    }
+    # 10# forces base-10 so a leading-zero value is not misread as octal.
+    STRANDED_DAYS="$((10#$2))"
+    shift 2
+    ;;
   --now)
     require_value "$1" "${2:-}"
     NOW_ISO="$2"
@@ -143,6 +158,12 @@ while (($# > 0)); do
     require_value "$1" "${2:-}"
     require_file "$1" "$2"
     TELEMETRY_JSON="$2"
+    shift 2
+    ;;
+  --merged-json)
+    require_value "$1" "${2:-}"
+    require_file "$1" "$2"
+    MERGED_JSON="$2"
     shift 2
     ;;
   -*)
@@ -462,6 +483,163 @@ print_telemetry() {
 }
 
 # =============================================================================
+# Section 5 — findings stranded on merged PRs
+# =============================================================================
+# A review that lands AFTER a merge has nowhere to go: the merge gate is a
+# merge-time predicate that already passed, the babysit lane works OPEN PRs, and
+# nothing on a merged PR surfaces its open threads. Real case: six findings (one
+# P1) posted 46 seconds after #1720 merged sat unread for a day (#1777).
+#
+# Only threads whose FIRST comment postdates the merge are reported. A thread
+# that predates it was visible to the gate, so its being open is an ordinary
+# unresolved-thread matter and not this failure mode.
+print_stranded() {
+  echo "== Findings stranded on merged PRs (last ${STRANDED_DAYS}d) =="
+  local merged
+  if [[ -n "$MERGED_JSON" ]]; then
+    merged="$(cat "$MERGED_JSON")"
+  elif [[ -z "$REPO" ]]; then
+    # Every other section can be driven entirely from fixtures, so a fixture-only
+    # run never resolves a repo. Degrade like the telemetry section does rather
+    # than making this section's live path a new requirement on those runs.
+    echo "  (no repo resolved — pass --repo or --merged-json)"
+    echo
+    return
+  else
+    # `search/issues` dates the merge; reviewThreads needs GraphQL. One paged
+    # GraphQL query does both, so this stays a single call rather than N+1.
+    # shellcheck disable=SC2016  # $owner/$name/$endCursor are GraphQL variables bound by -F, and MUST reach the server unexpanded
+    merged="$(gh api graphql --paginate -F owner="${REPO%%/*}" -F name="${REPO##*/}" -f query='
+      query($owner:String!, $name:String!, $endCursor:String) {
+        repository(owner:$owner, name:$name) {
+          pullRequests(states:MERGED, first:25, orderBy:{field:UPDATED_AT, direction:DESC}, after:$endCursor) {
+            pageInfo { hasNextPage endCursor }
+            nodes {
+              number title url mergedAt
+              # 100 is the GraphQL page maximum. --paginate follows only the
+              # OUTER cursor, so a PR with more threads than this would be
+              # truncated with no signal. hasNextPage is read below and
+              # reported, because a partial read must never render as an
+              # all-clear.
+              reviewThreads(first:100) {
+                pageInfo { hasNextPage }
+                nodes {
+                  isResolved
+                  comments(first:1) { nodes { createdAt author { login } body } }
+                }
+              }
+            }
+          }
+        }
+      }' 2>/dev/null)"
+  fi
+  if [[ -z "$merged" ]]; then
+    echo "  (unable to read merged PRs)"
+    echo
+    return
+  fi
+  # FAIL LOUD. A GraphQL error document is well-formed JSON that carries no
+  # `data`, so the extraction below yields an empty list and the section would
+  # print "every merged PR is clear" — reporting an unread API as an all-clear,
+  # which is the exact fail-open shape this section exists to catch. Observed
+  # live: a rate-limit error rendered as a clean window.
+  local api_err
+  api_err="$(jq -s -r '[ .. | objects | select(has("errors")) | .errors[]?.message ] | first // empty' <<<"$merged" 2>/dev/null)"
+  if [[ -n "$api_err" ]]; then
+    echo "  (unable to read merged PRs — the API returned an error, so this is NOT an all-clear)"
+    echo "    $api_err"
+    echo
+    return
+  fi
+
+  local cutoff stranded
+  cutoff="$((NOW_EPOCH - STRANDED_DAYS * 86400))"
+  # `--paginate` concatenates one JSON document per page, so slurp and walk every
+  # page's nodes rather than assuming a single top-level object.
+  stranded="$(jq -s -r --argjson cutoff "$cutoff" '
+    # `jq -s` wraps the input in one more array, and `gh --paginate` emits a
+    # bare sequence of page objects while a fixture file is already an array of
+    # them. `..|objects` walks both shapes without caring which arrived, then
+    # selects only true page documents.
+    [ .. | objects | select(has("data")) | .data.repository.pullRequests.nodes[]? ]
+    | map(select(.mergedAt != null and ((.mergedAt | fromdateiso8601) >= $cutoff)))
+    | map(
+        . as $pr
+        | ($pr.reviewThreads.nodes // [])
+          | map(select(
+              .isResolved == false
+              and (.comments.nodes[0].createdAt // null) != null
+              # The discriminator: the finding arrived after the gate had passed.
+              and ((.comments.nodes[0].createdAt | fromdateiso8601) > ($pr.mergedAt | fromdateiso8601))
+            ))
+          | map({
+              pr: $pr.number, title: $pr.title, url: $pr.url,
+              author: (.comments.nodes[0].author.login // "unknown"),
+              # Severity must survive to the operator: a stranded P1 cannot read
+              # like a P3. Matched on the STRUCTURED marker only — the badge
+              # alt-text (`![P1 Badge]`), the shields URL (`badge/P1`), or a
+              # leading bracket — never on free prose. A body-wide substring
+              # test falsely promotes a P2 titled "Preserve P1 labels", and any
+              # finding that merely discusses CRITICAL or SECURITY.
+              sev: (
+                (.comments.nodes[0].body // "")
+                # `[ match(...) ]` rather than `capture(...).s` or a bare
+                # `match(...)`: a non-match must yield EMPTY so the next
+                # alternative is tried. Indexing a non-matching capture instead
+                # aborts the whole program, which renders every PR as clear.
+                | . as $b
+                | [ ( $b | [ match("!\\[[[:space:]]*(P[0-9])[ _-]?Badge"; "i") ] ),
+                    ( $b | [ match("badge/(P[0-9])"; "i") ] ),
+                    ( $b | [ match("^[[:space:]]*\\[(P[0-9])\\]"; "i") ] ) ]
+                | map(.[0].captures[0].string // empty)
+                | (.[0] // "")
+                | ascii_upcase
+              )
+            })
+      )
+    | add // []
+    # Collapse to one line per PR. Several findings on one PR are one thing for
+    # the operator to go look at, and repeating the identical title once per
+    # thread buries the other PRs. The PR carries its WORST severity, so
+    # collapsing can never soften a P0 sitting beside advisory findings.
+    | group_by(.pr)
+    | map({
+        pr: .[0].pr, title: .[0].title, url: .[0].url,
+        author: (map(.author) | unique | join(", ")),
+        n: length,
+        # Rank NUMERICALLY, never on the display string: "--" sorts before "P0"
+        # lexicographically, so an unclassified thread beside a P0 would hide
+        # the P0 behind a "[--]" label. Unrecognized ranks last (99).
+        sev: (map(.sev) | map(if . == "" then 99 else (.[1:] | tonumber) end) | min
+              | if . == 99 then "--" else "P\(.)" end)
+      })
+    | sort_by(if .sev == "--" then 99 else (.sev[1:] | tonumber) end, .pr)
+    | .[]
+    | "  [\(.sev)] #\(.pr) \(.title)  (\(.n) finding\(if .n == 1 then "" else "s" end))\n    \(.url)  by \(.author)"
+  ' <<<"$merged" 2>/dev/null)"
+
+  # A truncated thread page means the read was PARTIAL, so neither a finding
+  # list nor an all-clear below can be trusted to be complete. Say so.
+  local truncated
+  truncated="$(jq -s -r '
+    [ .. | objects | select(has("data")) | .data.repository.pullRequests.nodes[]?
+      | select(.reviewThreads.pageInfo.hasNextPage == true) | .number ]
+    | unique | map("#\(.)") | join(", ")
+  ' <<<"$merged" 2>/dev/null)"
+  if [[ -n "$truncated" ]]; then
+    echo "  WARNING: more than 100 review threads on $truncated — this read is PARTIAL, not an all-clear"
+  fi
+
+  if [[ -n "$stranded" ]]; then
+    echo "$stranded"
+    echo "  these merged with the finding unread — the merge gate could not see it"
+  else
+    echo "  (none — every merged PR in the window is clear)"
+  fi
+  echo
+}
+
+# =============================================================================
 # Render
 # =============================================================================
 printf 'Morning brief — %s — %s\n\n' "${REPO:-<fixtures>}" "$(from_epoch "$NOW_EPOCH")"
@@ -469,4 +647,5 @@ print_queues
 print_merge_ready
 print_decisions
 print_telemetry
+print_stranded
 exit 0
