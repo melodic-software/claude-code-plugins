@@ -133,7 +133,7 @@ one, since the producer emits a separate re-arm message per surviving loop, so "
    identity — `structure.md`'s frontmatter carries `type`, `date`, `topic`, `session_id`, and
    `previous_handoff`, and none of those names a repo. Closing it needs a new frontmatter field, a
    cross-cutting schema change every existing handoff on disk would lack, decided on its own merits
-   rather than inside this fix (#1644). Until then: prefer the transcript scan whenever this rung's
+   rather than inside a path fix (#1778). Until then: prefer the transcript scan whenever this rung's
    candidates are merely recent rather than clearly this work's, and never present a glob candidate
    as repo-verified. Reading the repository off the producer transcript is deliberately NOT used as
    a substitute — it depends on a transcript that may be absent, which this skill's own Gotchas say

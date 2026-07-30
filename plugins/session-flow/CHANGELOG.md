@@ -36,7 +36,8 @@
   handoff file records no durable repository identity — the frontmatter carries `type`, `date`,
   `topic`, `session_id`, and `previous_handoff` — so nothing can reject a same-cwd, different-repo
   candidate. Closing it requires a new frontmatter field, a cross-cutting schema change every
-  handoff already on disk would lack; that decision is deliberately left outside this fix. The rung
+  handoff already on disk would lack; that decision is deliberately left outside this fix and
+  tracked as #1778. The rung
   now states the gap in place rather than reading as closed, and the transcript-based substitute is
   explicitly rejected: it depends on a transcript that may be absent and returns nothing for every
   rootless legacy handoff, which is exactly where the check is needed.
