@@ -901,8 +901,10 @@ not have.
   is a no-push.
 - **Keep** unchanged: the untrusted-data fencing, the worktree scoping, the target repository's own
   conventions, the head re-check before editing, and the no-background-monitor rule.
-- **Drop** the pre-push-outdated thread-resolution grant. A conflict worker resolves conflicts, not
-  review threads.
+- **Drop** the pre-push-outdated thread-resolution grant, and with it the
+  addressed-but-unresolvable reporting duty and its return field. A conflict worker resolves
+  conflicts, not review threads: it classifies no finding, so it has no disposition to report and
+  nothing for the orchestrator to route.
 
 ## Fallback
 

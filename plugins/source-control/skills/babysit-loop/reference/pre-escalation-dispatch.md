@@ -18,8 +18,10 @@ into this lane as the tier's *definition* (tiers are ordered by capability; a fa
 A run that cannot establish which alias currently satisfies `frontier` **escalates rather than
 dispatching** — inheriting the session's model, or a lower review-work model, forfeits the
 capability this dispatch stands on. The subagent's independence and lease requirements are
-`independent-resolution.md`'s, unchanged: no shared context with whatever produced the PR or
-previously replied on the blocking thread, and it runs under the PR's worker lease. Brief it with
+`babysit-prs/reference/independent-resolution.md`'s, unchanged: no shared context with whatever
+produced the PR or previously replied on the blocking thread, and — this lane holding no lease of
+its own when the dispatch fires — acquire and heartbeat the PR's worker lease before it starts and
+release after, with a lease another worker already holds meaning no dispatch at all. Brief it with
 the blocker, the PR, and the convention's independence and frontier-tier requirements; it replies
 and resolves threads through babysit-prs's guarded-mutation path, never a raw mutation.
 

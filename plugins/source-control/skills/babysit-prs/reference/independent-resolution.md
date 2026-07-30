@@ -136,18 +136,26 @@ to self-resolve, and never a reason to reach past the wrapper to raw `resolveRev
 
 ## Lease and sequencing
 
-The dispatch runs **under the PR's worker lease**: acquire and heartbeat before it starts, release
-after, exactly as any per-PR fix or worker assignment requires (`safety.md`, `orchestration.md`). A
-lease another worker already holds means no dispatch at all — the guarded wrappers pin comment
-state, not concurrency ownership.
+The dispatch always runs **under the PR's worker lease** — never unleased. The guarded wrappers pin
+comment state, not concurrency ownership, so the lease is the only thing keeping a second actor off
+the PR. Which context holds it differs by caller, and the two are not interchangeable:
 
-`orchestration.md`'s Cleanup releases the PR's worker lease at the end of integration, so a dispatch
-fired after a fix worker returns runs **before** that release, inside the same held lease, or under
-a re-acquired one if the lease was already released. Never dispatch unleased.
+- **`babysit-prs`'s orchestrator already holds the lease** for the whole of that PR's cycle, and
+  `orchestration.md`'s Cleanup releases it at the end of integration. The dispatch fires **inside**
+  that held lease, before Cleanup — the dispatched subagent operates under it and acquires nothing
+  of its own. Attempting an acquire here would refuse against the lease its own dispatcher holds.
+- **`babysit-loop`'s pre-escalation dispatch holds no lease** when it fires, so it acquires and
+  heartbeats before the subagent starts and releases after, exactly as any per-PR fix or worker
+  assignment requires (`safety.md`, `orchestration.md`). A lease another worker already holds means
+  no dispatch at all.
 
-A blocker needing a code change is not this dispatch's job — it runs the full per-PR worker
-lifecycle (isolated worktree, HEAD asserted at the live PR head, commit and refspec push). The
-wrappers implement merge and thread resolution and create no worktree.
+**A blocker needing a code change runs the full per-PR worker lifecycle** — isolated PR worktree,
+HEAD asserted at the live PR head, commit and refspec push (`safety.md`) — not the wrappers alone,
+which implement merge and thread resolution and create no worktree; a lane launched from a neutral
+directory has no usable tree without it. This applies to a caller whose dispatch may push code,
+which `babysit-loop`'s does. It does not arise on the `babysit-prs` orchestrator route: there the fix
+already landed through the ordinary worker, and what remains is a current thread to adjudicate, so
+that dispatch resolves and never pushes.
 
 ## After the dispatch
 
