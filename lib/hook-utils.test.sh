@@ -566,7 +566,7 @@ if [[ -n "$PROJ12C" ]] && ! hook::under_temp_root "$(hook::normalize_path "$(hoo
     win_tmp=$(cygpath -w -- "$PROJ12C/scratchpad" 2>/dev/null) && [[ -n "$win_tmp" ]]; then
     got=$(MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL='*' jq -n --arg fp "$PROJ12C/scratchpad/inventory.py" '{tool_input: {file_path: $fp}}' |
       (
-        # shellcheck disable=SC2031 # subshell-local by design
+        # shellcheck disable=SC2030,SC2031 # subshell-local by design
         export CLAUDE_PROJECT_DIR="$PROJ12C" TMP="$win_tmp" TEMP="$win_tmp"
         unset TMPDIR
         hook::read_file_path
