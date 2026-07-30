@@ -556,6 +556,29 @@ else
   failures=$((failures + 1))
 fi
 
+# A consumed config without any fleet.root/fleet.repo (e.g. only maxDepth) still falls back to the
+# implicit project-dir target, but the rejection must not claim --config was omitted -- the remedy
+# is adding scope to the config that was already consumed.
+cat >"$TMP/scopeless.conf" <<'SCOPELESS'
+[fleet]
+    maxDepth = 5
+SCOPELESS
+if REPO_FLEET_TEST_FAST_TIMEOUTS=1 CLAUDE_PROJECT_DIR="$TMP/noconf" HOME="$TMP/nohome" \
+  bash "$SCRIPT" --config "$TMP/scopeless.conf" >"$ladder_out" 2>&1; then
+  printf 'FAIL: scope-less config with non-Git project dir did not hard-fail\n' >&2
+  failures=$((failures + 1))
+elif grep -Fq "scopeless.conf" "$ladder_out" && grep -Fq -- "--add fleet.root" "$ladder_out"; then
+  if grep -Fq "No --root, --repo, or --config was given" "$ladder_out"; then
+    printf 'FAIL: scope-less config rejection claims --config was omitted\n' >&2
+    failures=$((failures + 1))
+  else
+    printf 'PASS: scope-less config rejection names the consumed config and directs scope into it\n'
+  fi
+else
+  printf 'FAIL: scope-less config rejection does not direct scope into the consumed config\n' >&2
+  failures=$((failures + 1))
+fi
+
 # The guidance belongs to the IMPLICIT default only: an explicitly supplied bad path is a typo, and
 # the operator already knows how to pass a scope -- they just did.
 if REPO_FLEET_TEST_FAST_TIMEOUTS=1 bash "$SCRIPT" --repo "$TMP/noconf" >"$ladder_out" 2>&1; then

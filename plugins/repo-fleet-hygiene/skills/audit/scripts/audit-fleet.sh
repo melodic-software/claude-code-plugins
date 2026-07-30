@@ -422,7 +422,24 @@ reject_target() {
   display_value "$message" >&2
   printf '\n' >&2
   if [[ "$origin" == "default" ]]; then
-    cat >&2 <<'EOF'
+    # A config can be consumed yet carry no scope: valid entries like maxDepth or
+    # acknowledgments without any fleet.root/fleet.repo. Claiming --config was
+    # omitted would send the operator to create a file that already exists, so
+    # the remedy names the consumed config and directs scope INTO it.
+    if [[ -n "$CONFIG_FILE" ]]; then
+      cat >&2 <<EOF
+
+No --root or --repo was given, and the consumed config ($CONFIG_SOURCE: $CONFIG_FILE) carries no
+fleet.root or fleet.repo entries, so the audit used this session's project directory as an exact
+repository target. Add scope to that config:
+
+  git config --file "$CONFIG_FILE" --add fleet.root <dir>   bounded recursive repository discovery
+  git config --file "$CONFIG_FILE" --add fleet.repo <dir>   one exact repository or worktree
+
+Or pass --root <dir> / --repo <dir> for a one-off scope.
+EOF
+    else
+      cat >&2 <<'EOF'
 
 No --root, --repo, or --config was given, so the audit used this session's project directory as an
 exact repository target. Give it a scope instead:
@@ -433,6 +450,7 @@ exact repository target. Give it a scope instead:
 
 Or run /repo-fleet-hygiene:setup apply to write a config the audit picks up on its own.
 EOF
+    fi
   fi
   exit 2
 }
