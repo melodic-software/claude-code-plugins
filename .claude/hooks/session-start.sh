@@ -39,7 +39,13 @@ export PATH="$bin_dir:$PATH"
 # The proxy blocks the GitHub API and /releases/latest redirects; only direct
 # /releases/download/ asset URLs resolve, hence hard pins. Each pinned asset
 # also carries a SHA-256 recorded from a verified download of that exact
-# version; a mismatch refuses the install. Bump pin and hash together.
+# version; a mismatch refuses the install. Bump pin and hash together — and
+# authenticate before executing: on a bump, download the new asset, check it
+# against the checksums file / signature / attestation the project publishes
+# for that release BEFORE running the binary (a compromised artifact can lie
+# about its version, and hashing it here would only legitimize it), then
+# confirm the binary reports the pinned version and record
+# `sha256sum <downloaded-asset>` here.
 shellcheck_pin="v0.11.0" # .shellcheckrc targets 0.11.0+
 shellcheck_sha="8c3be12b05d5c177a04c29e3c78ce89ac86f1595681cab149b65b97c4e227198"
 actionlint_pin="1.7.12" # matches the pin documented in .github/actionlint.yaml
@@ -164,6 +170,10 @@ fetch_release_tool shfmt \
   "https://github.com/mvdan/sh/releases/download/${shfmt_pin}/shfmt_${shfmt_pin}_linux_amd64" \
   "$shfmt_sha" "-"
 
+# The npm and pip/uv installs below carry no committed hash: both registries
+# verify package integrity against registry metadata (npm `_integrity`
+# sha512, PyPI digests), a weaker trust anchor than the committed SHA-256s
+# above but an accepted one — npm -g has no --require-hashes equivalent.
 if ! command -v markdownlint-cli2 >/dev/null 2>&1; then
   npm install -g --no-audit --no-fund "markdownlint-cli2@${markdownlint_pin}" ||
     echo "session-start: warning: markdownlint-cli2 install failed" >&2
