@@ -205,7 +205,9 @@ scan_file() {
     #   1. a userConfig read (`${user_config.<key>}`) — the consumer supplies
     #      the stack, which is the seam this class exists to force. Anchored to
     #      the read syntax, not the bare word: prose ABOUT a userConfig seam is
-    #      not a seam.
+    #      not a seam. Scoped to the ecosystem LITERALS; the architecture token
+    #      takes shape (2) alone, for the reason recorded at
+    #      is_architecture_pattern below.
     #   2. a neutral `<placeholder>` AND an explicit illustration lead (`e.g.`,
     #      `for example`, `such as`). The portable idiom already used across
     #      this corpus is a placeholder followed by a multi-ecosystem example
@@ -237,19 +239,58 @@ scan_file() {
     # metacharacters for the same reason; index() removes the trap instead of
     # re-solving it per pattern. Fragments are chosen to be metacharacter-free in
     # the pattern text, so each one survives however its pattern is escaped.
+    #
+    # A fragment also has to be UNIQUE to its pattern, not merely present in it.
+    # `\.NET` is the literal as the staged pattern spells it; a bare `NET` is a
+    # substring of `NETRC`, `CONNECT`, and `INTERNET`, so a future token class
+    # carrying that trigram would silently inherit the consumer-seam guard of
+    # this class, and a real violation of it could be excused by an unrelated
+    # userConfig read. assert_staged pins the pattern spelling verbatim, so the
+    # fragment and the pattern it selects cannot drift apart.
     function is_ecosystem_pattern(p) {
-      return index(p, "otnet") || index(p, "NET") || index(p, "Clean Arch") ||
+      return index(p, "otnet") || index(p, "\\.NET") ||
         index(p, "csproj") || index(p, "sln") || index(p, "razor") ||
         index(p, "lazor") || index(p, "C#") || index(p, ".cs(")
+    }
+    # Architecture vocabulary is guarded by the illustration shape ALONE — never
+    # by a userConfig read. The token file entry for it names exactly two
+    # escapes, a `portability-scope` declaration and the
+    # placeholder-plus-illustration shape, and a userConfig read is neither: the
+    # class-wide marker reaching this token was an accident of class membership.
+    # It excused an architecture hardcode whenever ANY unrelated setting was read
+    # on the line — `Read ${user_config.test_command}, then place handlers per
+    # Clean Architecture` — a false green on the one token in this class that is
+    # ACTIVE. Evidence has to parameterize the coupling it excuses, and no
+    # userConfig KEY NAME can be trusted to prove that for an architecture.
+    function is_architecture_pattern(p) { return index(p, "Clean Arch") }
+    # Shared by both branches so the two cannot drift apart. The placeholder is
+    # lowercase-hyphenated by corpus convention, which includes single-letter CLI
+    # operands (`<n>`, `<s>`); uppercase `<SCREAMING-CASE>` is deliberately not
+    # accepted, because nothing in this corpus uses it and admitting it would
+    # widen the guard past every shape under test.
+    #
+    # KNOWN RESIDUAL, admitted deliberately: inline HTML shares this spelling
+    # space, so `See the <a> docs, e.g. run dotnet build` satisfies both halves
+    # with no real seam. One line of text cannot separate the two here — `<b>`,
+    # `<i>`, `<p>`, `<s>`, and `<n>` are all genuine CLI operands in this corpus,
+    # so a minimum length rejects real placeholders, and a tag denylist
+    # enumerates instances of an open-ended shape while leaving `<var>` or any
+    # invented token. This is the same limit the token file records for the
+    # multi-ecosystem enumeration, and it takes the same remedy — a per-site
+    # portability-ok — until someone brings evidence for a tighter rule.
+    function is_illustrated_placeholder(l) {
+      return l ~ /<[a-z][a-z0-9-]*>/ && l ~ /(e\.g\.|for example|such as)/
     }
     function is_guarded(l, p) {
       if (p ~ /origin\/\(main\|master\)/) {
         return l ~ /origin\/HEAD/ || l ~ /symbolic-ref/ || l ~ /merge-base/ ||
           l ~ /baseRefName/ || l ~ /-> *origin\//
       }
+      if (is_architecture_pattern(p)) {
+        return is_illustrated_placeholder(l)
+      }
       if (is_ecosystem_pattern(p)) {
-        return l ~ /[$]\{user_config\./ ||
-          (l ~ /<[a-z][a-z0-9-]*>/ && l ~ /(e\.g\.|for example|such as)/)
+        return l ~ /[$]\{user_config\./ || is_illustrated_placeholder(l)
       }
       return 0
     }

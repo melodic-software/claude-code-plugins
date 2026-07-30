@@ -49,11 +49,18 @@ origin/(main|master)
 # the umbrella issue (#531: prevention instead of hand-fixes plus indefinite
 # recurrence). A skill whose subject genuinely IS Clean Architecture declares
 # `portability-scope`; a skill illustrating one architecture among several uses
-# the placeholder-plus-illustration shape the ecosystem guard recognizes.
+# the placeholder-plus-illustration shape the ecosystem guard recognizes. Those
+# two are the whole escape set for this token — a `${user_config.*}` read is NOT
+# one of them, because an unrelated setting read on the line parameterizes
+# nothing about the architecture (see is_architecture_pattern in
+# check-skill-portability.sh).
 #
-# No `\b` anywhere: the phrase is multi-word and space-delimited, so it needs no
-# word-boundary escape and cannot hit the POSIX trap described below.
-Clean Arch(itecture)?
+# Phrase-delimited with the explicit `[^a-zA-Z0-9_]` boundaries this file already
+# uses for `.NET` and `C#`, never `\b` (which is the POSIX trap described below).
+# Being multi-word does not make the phrase self-delimiting: the boundaries are
+# what keep `UnClean Architecture` from matching on the left and `Clean Archive`
+# from matching where the optional suffix stops short on the right.
+(^|[^a-zA-Z0-9_])Clean Arch(itecture)?([^a-zA-Z0-9_]|$)
 
 # --- STAGED (commented until the class is proven clean against the corpus) ---
 #
