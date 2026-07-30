@@ -4,6 +4,28 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.10.8]
+
+### Changed
+
+- **`docpage-digest` Anthropic profile: choosing-a-model queue entry removed.** The
+  choosing-a-model digest slice completed — raw-md fetch through interview handoff, dual
+  verification (two correction rounds, re-verified REVERIFY2: PASS by both verifiers, no
+  degraded fallback) — closing the entry's second half; its routing-vet half was already
+  executed 2026-07-29 (#1697). The emptied "Model selection" special-handling category goes
+  with it. The paired models-explained blog entry now points at the completed slice's handoff
+  for its pairing observations.
+
+## [0.10.7]
+
+### Changed
+
+- **`docpage-digest` Anthropic profile: increase-consistency queue entry removed.** The
+  increase-consistency guardrail slice completed — raw-md fetch through interview handoff,
+  dual verification (one correction round, re-verified REVERIFY: PASS by both verifiers, no
+  degraded fallback) — so its entry leaves the doc queue per the queue's remove-on-completion
+  rule. It was the last remaining guardrail guide, so the emptied category heading goes with it.
+
 ## [0.10.6]
 
 ### Changed
