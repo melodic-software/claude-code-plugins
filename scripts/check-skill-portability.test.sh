@@ -640,6 +640,182 @@ else
 fi
 rm -rf "$fx"
 
+# =============================================================================
+# Stage 3 (#714) — stack/ecosystem opinion class.
+#
+# The class ships one ACTIVE token (Clean-Architecture vocabulary, proven 0/0
+# against the corpus) and a staged set of ecosystem literals. What is new here
+# is the class-scoped guard: the ecosystem class is excused by CONSUMER-SEAM
+# evidence, not by branch-resolution evidence, so these fixtures pin both that
+# the seam is honored and that the seams do not cross between classes.
+# =============================================================================
+
+# --- the ecosystem class is flagged where nothing declares it --------------
+ECO_TOKEN='[Dd]otnet'
+et="$(tokenfile "$ECO_TOKEN")"
+
+f="$(tmpfile 'Build the project with `dotnet build` before running the tests.')"
+if out="$(scan_with "$et" "$f" 2>&1)"; then
+  fail "a bare 'dotnet build' should fail in an agnostic skill, got success: $out"
+elif echo "$out" | grep -q "COUPLING: ${f}:1:"; then
+  ok "ecosystem class: a bare stack default fails with file:line"
+else
+  fail "expected line 1 flagged for a bare stack default, got: $out"
+fi
+rm -f "$f"
+
+# --- a userConfig seam declares the stack and is honored --------------------
+# The acceptance criterion for this stage: the class is honored where a
+# `userConfig` seam supplies the ecosystem, because that is the seam the class
+# exists to force. The skill names the stack only as what it is NOT assuming.
+f="$(tmpfile 'Run `${user_config.build_command}` — never assume dotnet build.')"
+if scan_with "$et" "$f" >/dev/null 2>&1; then
+  ok "ecosystem class: a userConfig seam read on the line is honored"
+else
+  fail "a '\${user_config.*}' seam read must excuse the ecosystem class"
+fi
+rm -f "$f"
+
+# --- prose ABOUT a userConfig seam is not a seam ----------------------------
+# Anchored to the read syntax: a sentence mentioning userConfig supplies nothing
+# to the consumer and must not buy a bare hardcode past the gate.
+f="$(tmpfile 'This skill has a userConfig seam, so run dotnet build here.')"
+if scan_with "$et" "$f" >/dev/null 2>&1; then
+  fail "prose mentioning userConfig must NOT guard a bare stack default"
+else
+  ok "ecosystem class: prose about a seam does not stand in for a seam read"
+fi
+rm -f "$f"
+
+# --- placeholder PLUS illustration is the portable idiom and passes --------
+f="$(tmpfile 'Run `<build-command>` — e.g. `dotnet build`, `npm run build`, `cargo build`.')"
+if scan_with "$et" "$f" >/dev/null 2>&1; then
+  ok "ecosystem class: a placeholder with an explicit illustration lead is honored"
+else
+  fail "a '<placeholder> ... e.g. <stack>' illustration must be honored"
+fi
+rm -f "$f"
+
+# --- each half of that guard alone is NOT enough ---------------------------
+# A placeholder alone parameterizes the PATH while still shipping the stack.
+f="$(tmpfile 'Run dotnet build from <repo-root> before continuing.')"
+if scan_with "$et" "$f" >/dev/null 2>&1; then
+  fail "a placeholder alone must NOT guard a shipped stack default"
+else
+  ok "ecosystem class: a placeholder without an illustration lead still flags"
+fi
+rm -f "$f"
+
+# An illustration lead alone is the bare hardcode wearing a hedge.
+f="$(tmpfile 'Build the project, e.g. run dotnet build at the repository root.')"
+if scan_with "$et" "$f" >/dev/null 2>&1; then
+  fail "an 'e.g.' hedge alone must NOT guard a shipped stack default"
+else
+  ok "ecosystem class: an illustration lead without a placeholder still flags"
+fi
+rm -f "$f"
+
+# --- the per-site and whole-file escapes work for this class too -----------
+f="$(tmpfile 'Run `dotnet build`. <!-- portability-ok: this plugin ships a .NET analyzer -->')"
+if scan_with "$et" "$f" >/dev/null 2>&1; then
+  ok "ecosystem class: a per-site portability-ok escape is honored"
+else
+  fail "the ecosystem class must honor a per-site portability-ok escape"
+fi
+rm -f "$f"
+
+f="$(tmpfile '<!-- portability-scope: this skill targets .NET solutions only -->
+Run `dotnet build` to restore and compile.')"
+if scan_with "$et" "$f" >/dev/null 2>&1; then
+  ok "ecosystem class: a whole-file portability-scope declaration is honored"
+else
+  fail "the ecosystem class must honor a whole-file portability-scope declaration"
+fi
+rm -f "$f"
+
+# --- guard markers are CLASS-SCOPED, proven in both directions -------------
+# This is the failure the token file staged-class preamble warns about: without
+# scoping, the first additional class to activate inherits the branch class's
+# evidence as a blanket excuse. Branch-resolution evidence proves which BRANCH
+# was resolved and says nothing about which ECOSYSTEM the skill assumes.
+f="$(tmpfile 'Resolve the base with `git symbolic-ref refs/remotes/origin/HEAD`, then run dotnet build.')"
+if scan_with "$et" "$f" >/dev/null 2>&1; then
+  fail "branch-resolution evidence must NOT excuse an ecosystem hardcode"
+else
+  ok "ecosystem class: branch-detection evidence does not excuse a stack default"
+fi
+rm -f "$f"
+
+# And the converse: a consumer-seam read proves nothing about the branch.
+f="$(tmpfile 'Read `${user_config.build_command}`, then diff against origin/main.')"
+if scan_paths "$f" >/dev/null 2>&1; then
+  fail "a userConfig seam read must NOT excuse a bare branch default"
+else
+  ok "branch class: an ecosystem seam read does not excuse a branch default"
+fi
+rm -f "$f"
+
+rm -f "$et"
+
+# --- the Clean-Architecture token is ACTIVE in the shipped list ------------
+# Activated at 0 hits / 0 files against the corpus, so this asserts the shipped
+# list enforces it rather than leaving it staged like the ecosystem literals.
+f="$(tmpfile 'Place the handler in the Application layer per Clean Architecture.')"
+if out="$(SKILL_PORTABILITY_TOKENS="$REAL_TOKENS" bash "$SCRIPT" --paths "$f" 2>&1)"; then
+  fail "Clean Architecture vocabulary should be enforced by the shipped list: $out"
+elif echo "$out" | grep -q "COUPLING: ${f}:1:"; then
+  ok "Clean-Architecture vocabulary is ACTIVE in the shipped token list"
+else
+  fail "expected line 1 flagged for Clean-Architecture vocabulary, got: $out"
+fi
+rm -f "$f"
+
+# The same phrase under a declared scope is the intended escape, so the active
+# token cannot strand a skill whose subject genuinely is that architecture.
+f="$(tmpfile '<!-- portability-scope: this skill teaches Clean Architecture itself -->
+Place the handler in the Application layer per Clean Architecture.')"
+if SKILL_PORTABILITY_TOKENS="$REAL_TOKENS" bash "$SCRIPT" --paths "$f" >/dev/null 2>&1; then
+  ok "Clean-Architecture vocabulary is excused by a declared narrower scope"
+else
+  fail "an active Clean-Architecture token must honor portability-scope"
+fi
+rm -f "$f"
+
+# --- the ecosystem literals stay staged, verbatim --------------------------
+# Same discipline as Stage 2: a staged pattern edited into a shape that no
+# longer catches its own defect fails here rather than rotting unnoticed. Every
+# spelling is POSIX-safe — a `\b` anywhere in this class is the inert-pattern
+# trap the token file documents, so these literals also pin that the `\b`
+# spellings did not come back.
+for staged in \
+  '[Dd]otnet' \
+  '(^|[^a-zA-Z0-9_])\.NET([^a-zA-Z0-9_]|$)' \
+  '\.csproj' \
+  '(^|[^a-zA-Z0-9_])C#([^a-zA-Z0-9_]|$)' \
+  '[Bb]lazor' \
+  '\.sln([^a-zA-Z0-9_]|$)' \
+  '\.razor' \
+  '\*\*/\*\.cs([^a-zA-Z0-9_]|$)'; do
+  assert_staged 'ecosystem literal' "$staged"
+done
+
+# Scoped to ACTIVE lines: the token file necessarily QUOTES `\b` in the prose
+# that documents why it is forbidden, and a commented line is indistinguishable
+# from that prose by shape alone. The staged half is covered by the verbatim
+# assert_staged fixtures above, which is the same discipline Stage 2 uses.
+#
+# The search itself is written as a bracket expression, `[\]b`, rather than the
+# escape it is looking for: this file is scanned by the sibling
+# check-shell-portability.sh gate, whose own token class forbids a
+# backslash-b in a shell regex for exactly the POSIX reason under test. Spelling
+# the needle as a bracketed literal keeps this assertion from tripping the gate
+# that agrees with it.
+if grep -vE '^[[:space:]]*(#|$)' "$REAL_TOKENS" | grep -q '[\]b'; then
+  fail "a backslash-b word-boundary escape reached an ACTIVE token — POSIX ERE does not define it"
+else
+  ok "no ACTIVE token carries a backslash-b word-boundary escape"
+fi
+
 echo
 echo "PASS=$PASS FAIL=$FAIL"
 [[ "$FAIL" -eq 0 ]]

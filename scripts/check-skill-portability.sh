@@ -197,10 +197,59 @@ scan_file() {
     # (branch.<name>.remote / @{upstream}). That is the false green the token
     # file staged-class preamble forbids, so the scoping lands with the class
     # set that made it reachable rather than with the class that trips over it.
+    #
+    # Stack/ecosystem class (#714, Stage 3) markers are CONSUMER-SEAM evidence:
+    # the ecosystem has to come from the consuming project, not from the skill.
+    # Two shapes qualify, both co-located on the hit line so a reviewer sees the
+    # evidence in the diff:
+    #   1. a userConfig read (`${user_config.<key>}`) — the consumer supplies
+    #      the stack, which is the seam this class exists to force. Anchored to
+    #      the read syntax, not the bare word: prose ABOUT a userConfig seam is
+    #      not a seam.
+    #   2. a neutral `<placeholder>` AND an explicit illustration lead (`e.g.`,
+    #      `for example`, `such as`). The portable idiom already used across
+    #      this corpus is a placeholder followed by a multi-ecosystem example
+    #      run — `<build-command>  # e.g. dotnet build / npm run build / cargo
+    #      build` — where the ecosystem token illustrates the placeholder
+    #      instead of being the value the skill ships.
+    # BOTH halves of (2) are required, and that is the whole guard. A
+    # placeholder alone would excuse `run dotnet build in <repo-root>`, which
+    # ships the stack and merely parameterizes the path; an illustration lead
+    # alone would excuse `e.g. run dotnet build`, the bare hardcode wearing a
+    # hedge. That generic hedge is exactly what the token file staged-class
+    # preamble forbids as a guard, so neither half is admitted on its own.
+    #
+    # Deliberately NOT a marker: "another ecosystem is named on the same line".
+    # A multi-ecosystem enumeration with no placeholder and no illustration lead
+    # (`.csproj`, `package.json`, `pyproject.toml`, and equivalents) is the
+    # dominant residual shape in the corpus and reads as correct, but a
+    # co-occurrence test cannot tell it from a line that hardcodes one stack and
+    # merely mentions another. It uses the per-site portability-ok escape until
+    # someone brings evidence for a tighter rule.
+    #
+    # Class membership is tested with index() on literal fragments, never with a
+    # regex match against the pattern text. The argument here is a PATTERN, so a
+    # regex test reads its metacharacters as syntax: `p ~ /[Dd]otnet/` asks for a
+    # D-or-d followed by "otnet" and therefore does NOT match the pattern STRING
+    # `[Dd]otnet`, whose `d` is followed by `]otnet`. That silently returns 0 for
+    # every member and the whole class goes unguarded while the tests that only
+    # check flagging still pass. The branch class above escapes its
+    # metacharacters for the same reason; index() removes the trap instead of
+    # re-solving it per pattern. Fragments are chosen to be metacharacter-free in
+    # the pattern text, so each one survives however its pattern is escaped.
+    function is_ecosystem_pattern(p) {
+      return index(p, "otnet") || index(p, "NET") || index(p, "Clean Arch") ||
+        index(p, "csproj") || index(p, "sln") || index(p, "razor") ||
+        index(p, "lazor") || index(p, "C#") || index(p, ".cs(")
+    }
     function is_guarded(l, p) {
       if (p ~ /origin\/\(main\|master\)/) {
         return l ~ /origin\/HEAD/ || l ~ /symbolic-ref/ || l ~ /merge-base/ ||
           l ~ /baseRefName/ || l ~ /-> *origin\//
+      }
+      if (is_ecosystem_pattern(p)) {
+        return l ~ /[$]\{user_config\./ ||
+          (l ~ /<[a-z][a-z0-9-]*>/ && l ~ /(e\.g\.|for example|such as)/)
       }
       return 0
     }
