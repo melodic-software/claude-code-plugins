@@ -86,7 +86,7 @@ and wedges prose PRs (community discussion 72708); the gate must live inside the
 workflow. Caller-first against the old pin was also rejected: it would run a full security pass
 on every prose PR in the interim. The load-bearing constraint is unchanged — the ruleset flip
 stays LAST, after this caller restructure is verified
-([troubleshooting-required-status-checks](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-protected-branches/troubleshooting-required-status-checks)).
+([troubleshooting-required-status-checks](https://docs.github.com/en/pull-requests/how-tos/merge-and-close-pull-requests/troubleshooting-required-status-checks)).
 
 ## Addendum (2026-07-21): step 3 applied — required check live; skip-actor exception
 
