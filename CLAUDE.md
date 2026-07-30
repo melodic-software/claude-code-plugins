@@ -53,3 +53,20 @@ migration.
 PRs required; squash merge; branch `<type>/<description>`. `.github/workflows/pr-title.yml` enforces
 the PR-title convention (squash merge sets the commit subject to the PR title). Org convention home:
 `melodic-software/standards` `conventions/`.
+
+`.github/workflows/pr-issue-linkage.yml` is a required check on the PR **body** — write the body to
+this contract when opening the PR (through any surface: `gh`, API, or MCP tools), or the failure
+costs a full CI round trip to discover. After stripping HTML comments, the body must carry BOTH:
+
+1. a native closing keyword — `Closes`/`Fixes`/`Resolves #N` (or `owner/repo#N`) — or the literal
+   line `No linked issue` when the PR closes nothing; and
+2. a non-empty `## Related` section (`N/A` when nothing applies).
+
+Fill in `.github/pull_request_template.md`; an unedited template fails, because its guidance lives
+inside the HTML comments the check strips. A bare `Closes #` with no number also fails.
+
+Enforcement at authoring time: a checked-in PreToolUse gate
+(`.claude/hooks/pr-linkage-mcp-gate.sh`, wired in `.claude/settings.json`) blocks an MCP-created PR
+body that would fail the check even in a session with no plugins; the source-control plugin
+enforces the same contract on both surfaces (`pr-body-linkage-gate` for `gh pr create`/`edit`,
+`pr-linkage-mcp-gate` for the MCP tools) wherever it is installed.

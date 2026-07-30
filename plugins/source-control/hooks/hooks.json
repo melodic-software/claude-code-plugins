@@ -11,6 +11,17 @@
             "statusMessage": "Checking PR body against the repo's pr-issue-linkage gate..."
           }
         ]
+      },
+      {
+        "matcher": "^mcp__github__(create|update)_pull_request$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/pr-linkage-mcp-gate.sh",
+            "timeout": 15,
+            "statusMessage": "Checking PR body against the repo's pr-issue-linkage gate..."
+          }
+        ]
       }
     ]
   }
