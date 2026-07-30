@@ -8,10 +8,12 @@ directly — never a sibling skill's router.
 
 Restating a clause of this file elsewhere is a declared act: the copy carries a
 `contract-restatement` marker naming the clause, and CI holds that passage to this file's
-qualifiers within its own bounds. An untagged copy is reported. Reducing a restatement to a
-pointer at this file is always the stronger answer — the marker exists so a NEW copy is visible
-enough to argue about, not to make copying cheap. The clause set and its qualifiers live in the
-marketplace's own `scripts/contract-clause-registry.json`.
+qualifiers within its own bounds. This file declares the same markers around the passages it
+owns, so the rule is measured where it is written rather than anywhere in the file. An untagged
+copy is reported. Reducing a restatement to a pointer here is always the stronger answer — the
+marker exists so a NEW copy is visible enough to argue about, not to make copying cheap. The
+clause set and its qualifiers live in the marketplace's own
+`scripts/contract-clause-registry.json`.
 
 The deterministic companion scripts live beside this file:
 
@@ -183,12 +185,13 @@ D1–D7 cycles. Exploration and validation must run on the PR's head branch.
     identities — non-zero confirms. Use `pulls/comments/<id>/reactions` for inline review
     comments. **Exemption:** PR review BODIES have no reactions endpoint in the REST API — skip
     the reaction there; the D5 reply is the audit signal
-- [ ] D4.6 — **Ground a `VALID (defer)`.** A deferral ships the change without the fix, so it
+- [ ] D4.6 — **Ground a `VALID (defer)`.** <!-- contract-restatement-begin: D4.6-deferral-grounding --> A deferral ships the change without the fix, so it
   counts as a disposition only when it is durable and someone else can find it: file a tracker
   item carrying the finding's own evidence — the reviewer's claim, your D2–D3 validation, and
   the file and line it lands on — and cite that item's id in the D5 reply. A deferral whose only
   record is prose in a review thread is a dropped finding, and the thread stays open
-  - [ ] **Never defer a finding this change introduced.** The discriminator is the behavior on
+  <!-- contract-restatement-end: D4.6-deferral-grounding -->
+  - [ ] **Never defer a finding this change introduced.** <!-- contract-restatement-begin: D4.6-deferral-provenance --> The discriminator is the behavior on
     the base branch, never the file the finding surfaced in: if the defect did not reproduce
     before this change, this change introduced it, and it is `VALID (fix now)` — fix it, or
     revert the cause. That covers a contract this change altered breaking an unchanged caller;
@@ -196,6 +199,7 @@ D1–D7 cycles. Exploration and validation must run on the PR's head branch.
     licenses deferral. `VALID (defer)` is available only for a defect that already reproduced on
     the base branch. Provenance decides this, never severity: a self-introduced regression
     wearing a low-severity badge is still a regression this change is shipping
+    <!-- contract-restatement-end: D4.6-deferral-provenance -->
   - [ ] Record the work class the item was filed under, because it bounds when the finding gets
     addressed: an autonomously-drainable class is a materially stronger deferral candidate than
     a human-gated one, whose latency is unbounded
@@ -224,7 +228,7 @@ D1–D7 cycles. Exploration and validation must run on the PR's head branch.
     `pulls/<pr>/comments` filtered by `in_reply_to_id`; issue-level →
     `gh api repos/{owner}/{repo}/issues/<pr>/comments --jq '.[-1].body'`
 - [ ] D7.5 — Resolve review thread — **author- and classification-conditional, inline review
-  comments only** (this section is the canonical policy). **Resolution is a thread-level act
+  comments only** (this section is the canonical policy). <!-- contract-restatement-begin: D7.5-thread-eligibility --> **Resolution is a thread-level act
   while dispositions are per-finding, so eligibility is a property of the whole thread:** every
   finding extracted from it per §2 must carry one of three recorded dispositions — `VALID (fix
   now)` with the fix pushed and cited (D6–D7); `VALID (defer)` grounded per D4.6 with the item id
@@ -236,7 +240,9 @@ D1–D7 cycles. Exploration and validation must run on the PR's head branch.
   from the classification gate and the PR can merge over it. This is what
   `skills/babysit-prs/reference/safety.md`'s Never Do Automatically entry "Resolve any thread over
   a live, unaddressed finding" means operationally: *addressed* is one of those three records for
-  every finding present, never the absence of one. **What a tier may act on is bounded by its own
+  every finding present, never the absence of one.
+  <!-- contract-restatement-end: D7.5-thread-eligibility -->
+  **What a tier may act on is bounded by its own
   tooling, and this list never overrides that** — a disposition making a thread eligible here does
   not by itself authorize a resolve the invoking tier's guards refuse (see the tier notes below).
   The author conditions apply in full — this narrows the eligible set and never widens it. Resolve
@@ -258,6 +264,8 @@ D1–D7 cycles. Exploration and validation must run on the PR's head branch.
   - [ ] **verify thread resolved:** query the thread node via `gh api graphql` — `isResolved`
     must be `true`
 
+<!-- contract-restatement-begin: D7.5-merge-authorization -->
+
 **Who authorizes a resolution that ships no fix.** In a merge-capable tier, a `VALID (defer)`
 resolution on a PR the same session intends to merge is not that session's call. The requirement
 is a property, not one mechanism: the context adjudicating the deferral must not be the context
@@ -268,6 +276,8 @@ merge-capable path, the session neither resolves the thread nor merges on it: re
 the grounded deferral named and leave the call to the user. Fail closed — a path with no
 independent authorization available has no self-authorized route to merge over its own deferral.
 Outside a merge-capable tier the classification stands alone, because nothing merges on it.
+
+<!-- contract-restatement-end: D7.5-merge-authorization -->
 
 **Non-outdated threads in an autonomous tier route the same way, for the same reason.** The
 guarded resolver's `--autonomous` mode resolves only a thread GitHub reports `isOutdated`, because

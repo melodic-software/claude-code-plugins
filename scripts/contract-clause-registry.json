@@ -51,7 +51,7 @@
       "qualifiers": [
         {
           "name": "carries-the-findings-evidence",
-          "pattern": "evidence",
+          "pattern": "carr(y|ies|ying).{0,40}evidence|evidence.{0,60}(item|PR link)|item.{0,60}evidence",
           "hint": "say the tracker item carries the finding's own evidence — a bare title is a dropped finding wearing an id"
         },
         {
@@ -85,8 +85,8 @@
         },
         {
           "name": "disposition-incorrect",
-          "pattern": "INCORRECT",
-          "hint": "enumerate the incorrect disposition — `INCORRECT` with the counter-evidence posted"
+          "pattern": "INCORRECT.{0,80}counter[- ]evidence|counter[- ]evidence.{0,80}INCORRECT",
+          "hint": "enumerate the incorrect disposition — `INCORRECT` with the counter-evidence posted; the bare classification token is not the disposition"
         },
         {
           "name": "uncertain-holds-the-thread-open",

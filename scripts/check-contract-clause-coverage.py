@@ -30,9 +30,24 @@ list item needs no structural change to the list. Qualifiers are matched
 against the span's own text — a qualifier satisfied three paragraphs away no
 longer clears it.
 
+The canonical surface is held to the SAME span-scoped standard: it declares
+where the clause it owns lives, and must carry every qualifier inside those
+bounds. Checking the canonical file-wide instead would reproduce, in the one
+place it matters most, the exact defect the gate rejects everywhere else.
+
+What the gate guarantees is therefore PER SPAN, not per sentence: every
+qualifier appears somewhere inside each declared span. A span should bound ONE
+restatement. Widening a span to swallow neighbouring prose weakens the check on
+that prose, because the original restatement's qualifiers now clear it — the
+#1633 false negative re-admitted at smaller scale. Tag tightly.
+
 The gate also teaches, which is the point of keying on declared intent rather
 than phrasing: text that restates a clause OUTSIDE every span tagged for it is
-itself reported. The author's two exits are both improvements — tag the
+itself reported. That half is best-effort and phrasing-dependent — a paraphrase
+that dodges the `restates` vocabulary is neither detected nor flagged, and
+widening those patterns as new phrasings appear is ordinary maintenance of the
+registry. The qualifier check inside a declared span is the hard guarantee; the
+untagged sweep is the net that makes an undeclared copy expensive. The author's two exits are both improvements — tag the
 passage (and then it is held to the qualifiers), or reduce it to a pointer at
 the canonical file. Pointer-not-copy is the stronger fix, and a gate that
 makes a NEW restatement visible enough to argue about is what makes that
@@ -352,23 +367,50 @@ def check_clause(
     spans = [s for s in all_spans if s.clause_id == clause.id]
 
     if path == clause.canonical:
-        # The canonical surface OWNS the clause: it is not required to tag
-        # itself, but it must still carry every qualifier. A canonical that
-        # loses a qualifier silently redefines the clause, and every
-        # restatement would then be measured against the weakened rule.
+        # The canonical surface OWNS the clause, and is held to the SAME
+        # span-scoped standard as every copy: it declares where the clause
+        # lives and must carry every qualifier inside those bounds. Checking
+        # the canonical file-wide instead would reproduce the exact defect
+        # this gate rejects everywhere else — a qualifier three sections away
+        # clearing a passage that does not carry it.
+        #
+        # The one asymmetry, deliberate: the untagged-restatement check does
+        # not run here. A canonical's other passages referring to its own
+        # clause ARE the clause, not copies of it, so reporting them would
+        # demand the owner tag every mention of what it owns.
         report.owned += 1
-        for qualifier in clause.qualifiers:
-            if not qualifier.pattern.search(text):
-                report.findings.append(
-                    Finding(
-                        path=path,
-                        clause=clause.id,
-                        line=1,
-                        kind="canonical-missing-qualifier",
-                        detail=f"the canonical text no longer carries `{qualifier.name}`",
-                        remedy=qualifier.hint,
-                    )
+        if not spans:
+            report.findings.append(
+                Finding(
+                    path=path,
+                    clause=clause.id,
+                    line=1,
+                    kind="canonical-declares-no-span",
+                    detail=(
+                        f"the canonical surface for {clause.id} declares no "
+                        "`contract-restatement` span, so there is nothing to measure "
+                        "restatements against"
+                    ),
+                    remedy=(
+                        f"wrap the passage that DEFINES {clause.id} in "
+                        f"`<!-- contract-restatement-begin: {clause.id} -->` / `-end:`"
+                    ),
                 )
+            )
+            return
+        for span in spans:
+            for qualifier in clause.qualifiers:
+                if not qualifier.pattern.search(span.text):
+                    report.findings.append(
+                        Finding(
+                            path=path,
+                            clause=clause.id,
+                            line=span.start,
+                            kind="canonical-missing-qualifier",
+                            detail=f"the canonical passage no longer carries `{qualifier.name}`",
+                            remedy=qualifier.hint,
+                        )
+                    )
         return
 
     if not clause.detect.search(text):

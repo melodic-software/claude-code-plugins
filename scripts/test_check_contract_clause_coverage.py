@@ -68,7 +68,23 @@ TWO_CLAUSE_REGISTRY = """{
 }
 """
 
-CANONICAL = "# Canonical\n\nWidgets must be blue and be round.\n"
+CANONICAL = (
+    "# Canonical\n"
+    "\n"
+    "<!-- contract-restatement-begin: C1 -->\n"
+    "Widgets must be blue and be round.\n"
+    "<!-- contract-restatement-end: C1 -->\n"
+)
+
+CANONICAL_TWO_CLAUSE = (
+    "# Canonical\n"
+    "\n"
+    "<!-- contract-restatement-begin: C1 -->\n"
+    "<!-- contract-restatement-begin: C2 -->\n"
+    "Widgets must be blue and be round. And be heavy.\n"
+    "<!-- contract-restatement-end: C2 -->\n"
+    "<!-- contract-restatement-end: C1 -->\n"
+)
 
 
 class GateCase(unittest.TestCase):
@@ -195,15 +211,50 @@ class GateCase(unittest.TestCase):
         self.assertIn("beta", result.stderr)
 
     def test_canonical_losing_a_qualifier_fails(self) -> None:
-        self.write("canonical.md", "# Canonical\n\nWidgets must be blue.\n")
+        self.write(
+            "canonical.md",
+            "# Canonical\n"
+            "\n"
+            "<!-- contract-restatement-begin: C1 -->\n"
+            "Widgets must be blue.\n"
+            "<!-- contract-restatement-end: C1 -->\n",
+        )
         result = self.run_gate()
         self.assertEqual(result.returncode, 1)
         self.assertIn("canonical-missing-qualifier", result.stderr)
 
+    def test_canonical_is_span_scoped_like_every_copy(self) -> None:
+        """A qualifier OUTSIDE the canonical's own span does not clear it.
+
+        Checking the canonical file-wide would reproduce the exact defect the
+        gate rejects everywhere else, and the asymmetry would be the first
+        thing a reader of the header noticed.
+        """
+        self.write(
+            "canonical.md",
+            "# Canonical\n"
+            "\n"
+            "<!-- contract-restatement-begin: C1 -->\n"
+            "Widgets must be blue.\n"
+            "<!-- contract-restatement-end: C1 -->\n"
+            "\n"
+            "Elsewhere: a widget should also be round.\n",
+        )
+        result = self.run_gate()
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("canonical-missing-qualifier", result.stderr)
+        self.assertIn("beta", result.stderr)
+
+    def test_canonical_without_a_span_fails(self) -> None:
+        self.write("canonical.md", "# Canonical\n\nWidgets must be blue and be round.\n")
+        result = self.run_gate()
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("canonical-declares-no-span", result.stderr)
+
     def test_second_marker_on_one_line_is_not_dropped(self) -> None:
         """Two tags on one line: both are checked, not just the first."""
         self.registry.write_text(TWO_CLAUSE_REGISTRY, encoding="utf-8")
-        self.write("canonical.md", CANONICAL.rstrip("\n") + " And be heavy.\n")
+        self.write("canonical.md", CANONICAL_TWO_CLAUSE)
         self.write(
             "two.md",
             "Widgets must be blue and be round. "
