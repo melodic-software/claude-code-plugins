@@ -1338,8 +1338,31 @@ class CounterEvidenceExcludesTheFindingsAuthor(unittest.TestCase):
         self.assertEqual(projected["replyBodies"], [])
 
     def test_end_to_end_opener_reply_cannot_satisfy_the_claim(self) -> None:
+        # Projected through `project_thread` rather than the fixture helper: the
+        # helper takes `replyBodies` as a literal, so a hardcoded empty list would
+        # assert nothing about the exclusion and would pass with the fix reverted.
+        # Here the OPENER posts the later reply carrying the exact counter-evidence
+        # text, so reverting the exclusion admits that body and resolves the thread.
+        projected = rt.project_thread(
+            self._record(
+                self._comment("codex", "The anchor points at generated output."),
+                self._comment("codex", "Status: the anchor points at generated output."),
+            )
+        )
+        self.assertEqual(projected["replyBodies"], [])
         code, payload = _run_independent(
-            [_bot_thread(reply_bodies=[])],
+            [
+                dict(
+                    projected,
+                    id="T_bot",
+                    isResolved=False,
+                    botOnly=True,
+                    severityFlagged=False,
+                    findingCount=1,
+                    commentCount=2,
+                    lastCommentUpdatedAt=PINNED_UPDATED,
+                )
+            ],
             _independent_argv(
                 "--disposition", "incorrect",
                 "--counter-evidence", "the anchor points at generated output",
