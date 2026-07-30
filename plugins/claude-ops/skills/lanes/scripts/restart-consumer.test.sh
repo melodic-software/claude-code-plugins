@@ -266,6 +266,37 @@ OUT="$(run_consumer check --telemetry-json "$TEL_B" --agents-json "$AGENTS_NONE"
 assert_contains "the babysit marker selects the babysit block" "$OUT" "| babysit | would-restart |"
 assert_contains "the work marker still reads its own block" "$OUT" "| work | no-request |"
 
+# --- 8b. Instance-suffixed markers (#1295) ----------------------------------
+# A lane's marker names a WRITER, not a lane type, so live comments carry
+# `<marker>@<instance>`. A bound bare marker must keep matching them, or this
+# consumer goes silently blind the moment lanes adopt the suffix.
+TEL_INST="$TMP/tel-instance.json"
+jq -n \
+  --arg w "$(state_comment 'work-items:work-loop@laptop-a' 'true')" \
+  --arg b "$(state_comment 'source-control:babysit-loop@laptop-a' 'null')" \
+  '{work: [{body: $w}, {body: $b}], babysit: [{body: $w}, {body: $b}]}' >"$TEL_INST"
+OUT="$(run_consumer check --telemetry-json "$TEL_INST" --agents-json "$AGENTS_NONE")"
+assert_contains "a bare bound marker matches an instance-suffixed comment" "$OUT" "| work | would-restart |"
+assert_contains "instance suffix does not cross lane types" "$OUT" "| babysit | no-request |"
+
+# A superstring lane type must NOT be adopted: `work-items:work-loop` binding
+# must not read `work-items:work-loop-v2`'s block.
+TEL_SUPER="$TMP/tel-superstring.json"
+jq -n --arg w "$(state_comment 'work-items:work-loop-v2' 'true')" \
+  '{work: [{body: $w}], babysit: []}' >"$TEL_SUPER"
+OUT="$(run_consumer check --telemetry-json "$TEL_SUPER" --agents-json "$AGENTS_NONE")"
+assert_contains "a superstring lane marker is not adopted" "$OUT" "| work | no-state |"
+
+# Any bound instance asking is a request: a sibling instance's non-asking
+# comment appearing FIRST must not mask a later instance's request.
+TEL_MULTI="$TMP/tel-multi-instance.json"
+jq -n \
+  --arg quiet "$(state_comment 'work-items:work-loop@laptop-a' 'null')" \
+  --arg asking "$(state_comment 'work-items:work-loop@laptop-b' 'true')" \
+  '{work: [{body: $quiet}, {body: $asking}], babysit: []}' >"$TEL_MULTI"
+OUT="$(run_consumer check --telemetry-json "$TEL_MULTI" --agents-json "$AGENTS_NONE")"
+assert_contains "a quiet sibling instance does not mask a later request" "$OUT" "| work | would-restart |"
+
 # --- 9. Non-sentinel and unfenced comments are no-state ----------------------
 TEL_N="$TMP/tel-none.json"
 jq -n '{work: [{body: "restart_request: RESTART NOW, no sentinel here"}], babysit: []}' >"$TEL_N"

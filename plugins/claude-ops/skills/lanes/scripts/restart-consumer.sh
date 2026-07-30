@@ -74,12 +74,17 @@
 # context/restart-consumer.md):
 #   { "name": "work", "prompt": "work.md",
 #     "telemetry": { "issue": 42, "marker": "work-items:work-loop",
-#                    "repo": "owner/name" } }
-#   issue   default: the open issue titled exactly `Lane telemetry: <name>`.
-#   marker  default: any comment on that issue carrying the shared sentinel
-#           `<!-- claude-ops:lane-telemetry marker=... -->` whose fenced JSON
-#           block has a `restart_request` key.
-#   repo    default: --target-repo.
+#                    "instance": "laptop-a", "repo": "owner/name" } }
+#   issue    default: the open issue titled exactly `Lane telemetry: <name>`.
+#   marker   default: any comment on that issue carrying the shared sentinel
+#            `<!-- claude-ops:lane-telemetry marker=... -->` whose fenced JSON
+#            block has a `restart_request` key. A bound marker matches that lane
+#            type across EVERY writer instance (`<marker>@<instance>`, #1295) —
+#            an exact-equality match would go blind the moment lanes adopted the
+#            suffix. Bind `instance`, or write the suffix into `marker` itself,
+#            to pin one instance.
+#   instance default: unpinned. Only read when `marker` carries no `@`.
+#   repo     default: --target-repo.
 #
 # THE SHAPE CONSUMED. The producers (work-loop, babysit-loop) document
 # `restart_request` only as the field "where a budget or expiry hit records the
@@ -692,6 +697,33 @@ confirm_running() {
 lane_field() { jq -r --argjson i "$1" --arg k "$2" '.lanes[$i][$k] // ""' "$CONFIG"; }
 lane_telemetry_field() { jq -r --argjson i "$1" --arg k "$2" '(.lanes[$i].telemetry // {})[$k] // ""' "$CONFIG"; }
 
+# Does this comment carry the marker this lane binds? A lane's marker names a
+# WRITER, not a lane type (#1295): concurrent instances of one lane write
+# `<marker>@<instance>`, so an exact-equality match on the bare marker would stop
+# seeing every comment the moment lanes adopted the suffix — a restart consumer
+# that silently never restarts. Matching rules, in order:
+#   - no bound marker      -> any sentinel comment (the documented default)
+#   - bound marker with @  -> that instance and only it
+#   - bound marker, no @   -> that lane type, any instance, unless `instance` is
+#                             also bound, which pins it to one
+# The trailing ` ` / `@` boundary is what keeps `work-items:work-loop` from
+# matching `work-items:work-loop-v2`, the same superstring rule the upsert's own
+# fallback lookarounds enforce.
+lane_comment_marker_matches() {
+  local body="$1" marker="$2" instance="$3"
+  [[ -n "$marker" ]] || return 0
+  case "$marker" in
+  *@*) [[ "$body" == *"$SENTINEL_PREFIX$marker "* ]] ;;
+  *)
+    if [[ -n "$instance" ]]; then
+      [[ "$body" == *"$SENTINEL_PREFIX$marker@$instance "* ]]
+    else
+      [[ "$body" == *"$SENTINEL_PREFIX$marker "* || "$body" == *"$SENTINEL_PREFIX$marker@"* ]]
+    fi
+    ;;
+  esac
+}
+
 # `gh issue list --search` is a fuzzy full-text match, so the title is re-checked
 # EXACTLY here: a fuzzy hit on some other issue would point the consumer at an
 # unrelated comment stream. The search term deliberately omits the colon, which
@@ -910,6 +942,7 @@ process_lane() {
   fi
 
   marker="$(lane_telemetry_field "$idx" marker)"
+  instance="$(lane_telemetry_field "$idx" instance)"
   if ! bodies="$(lane_comment_bodies "$lane" "$repo" "$issue")"; then
     record "$lane" "api-error" "could not read the comments on #$issue (gh api); state unknown, not restarting" null "$now"
     fail_lane "api-error($lane)" 5
@@ -920,11 +953,15 @@ process_lane() {
   for ((i = 0; i < n; i++)); do
     body="$(jq -r ".[$i]" <<<"$bodies")"
     [[ "$body" == *"$SENTINEL_PREFIX"* ]] || continue
-    [[ -z "$marker" || "$body" == *"$SENTINEL_PREFIX$marker "* ]] || continue
+    lane_comment_marker_matches "$body" "$marker" "$instance" || continue
     state="$(extract_state_block "$body")" || continue
     found=1
     request="$(jq -c '.restart_request' <<<"$state")"
-    break
+    # Any bound instance asking is a request: the predicate's not-running
+    # condition (3) is what keeps one relaunch from firing twice, and a lane
+    # whose only asking instance is a sibling comment further down the issue
+    # would otherwise never be restarted at all.
+    [[ "$request" != "null" ]] && break
   done
 
   if ((!found)); then

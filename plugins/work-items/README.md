@@ -124,6 +124,15 @@ body's own arithmetic. `work_loop_no_progress_threshold` (default 3) sets how
 many consecutive no-progress cycles the lane tolerates before raising its
 stall escalation — it escalates and keeps looping, never stops on a stall.
 
+`lane_instance` is this machine's writer identity for loop-lane telemetry. It
+suffixes each lane's telemetry sentinel marker
+(`work-items:work-loop@<id>`), so concurrently running lane instances each own
+their own status comment and none can overwrite another's durable state. Absent,
+it is the sanitized lowercased hostname; two lanes on one machine each need an
+explicit value, since the id must be distinct across concurrent instances and
+stable across restarts. It appears verbatim in tracker comments — set an opaque
+id if a machine name should not be published in a public tracker.
+
 Everything else is project-specific behavior that routes through the consuming
 repo's own surfaces: the bound provider in `.work-item-tracker.json` (including
 the optional `config.role_labels` canonical-role → label remap), its labels
