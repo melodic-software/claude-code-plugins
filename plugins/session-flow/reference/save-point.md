@@ -60,6 +60,29 @@ uncommitted-but-readable, travels to other sessions and machines, and gets read 
 current conversation never anticipated. A value acceptable to see in-session is not acceptable to
 persist. This pass gates the write — no artifact or prompt is emitted before it runs.
 
+**Git remote URLs are a named vector on that list, and they take a different treatment.** A remote
+embeds its credential in the URL's userinfo component (`https://<token>@host/…`), where it reads as
+one more path segment rather than as a secret — the shape this sweep is likeliest to walk past. So
+every **git remote** URL in the outbound set is checked for an `@` ahead of its host. **Drop the
+userinfo and keep the rest — do NOT replace the URL with a shape marker. This is a deliberate
+exception to the rule above, and it wins for git remote URLs and nothing else.** The general rule
+redacts to a marker because the whole value is secret and nothing downstream needs it; here the
+opposite holds. The scheme, host, and path are not secret, and they are load-bearing:
+`Handoff origin:` exists so a resume on another machine can re-resolve the file from the repository it
+names, and a `<REDACTED: remote URL>` marker would destroy the identity the line is emitted to carry —
+turning a credential leak into a broken recovery. So
+`https://<token>@github.com/<owner>/<repo>.git` becomes `https://github.com/<owner>/<repo>.git`,
+never a marker. `Handoff origin:` is where such a URL most plausibly appears, and it sits inside the
+copy region; `<repo-identity>` below requires it stripped at emit time so this pass has nothing left
+to catch.
+
+**The exception does not generalize to other credential-bearing URLs.** A connection string such as
+`mongodb+srv://<user>:<secret>@<host>/<db>` keeps the general treatment — a shape marker
+(`<REDACTED: database connection string>`), not a host-preserving strip. What earns a git remote URL
+its exception is that something downstream re-resolves from the surviving host and path; nothing
+re-resolves from a database host, so preserving it discloses infrastructure for no recovery benefit.
+Strip-and-keep applies where the remainder is load-bearing; everywhere else the marker still wins.
+
 ## Claim provenance — mandatory on BOTH paths
 
 A status claim earns plain statement only when THIS session verified it — a command run, a file
@@ -197,17 +220,80 @@ display):
 ──────────────────────────────────────────────────────────
 Read @<handoffs-dir>/<TS>-handoff-<topic>.md and continue its remaining next steps.
 Prior session: <UUID>.
+Handoff origin: <repo-identity>, relative path <memory_dir>/handoffs/<TS>-handoff-<topic>.md.
 ──────────────────────────────────────────────────────────
 ```
 
-`<handoffs-dir>` is the path the write step actually used — the resolved
-`<memory_dir>/handoffs/` (default `.work/handoffs/`). Never emit a
-default the file was not written to.
+### The directive path is ROOTED, and that is the whole point
+
+`<handoffs-dir>` is the **absolute** path of the directory the write step actually used — the
+resolved `<memory_dir>/handoffs/` (default `.work/handoffs/`) with the root it hangs off rendered
+in front of it. Never emit a default the file was not written to, and never emit the relative
+segment alone.
+
+A rootless `@.work/handoffs/…` resolves against the *resuming* session's cwd, which is not
+guaranteed to be the root of the repository the work happened in — the producer may have written
+into a repo that is not cwd's project root, and the resuming session may sit in a subdirectory of
+the right repo or in a different repo entirely. When the wrong root happens to contain its own
+`.work/handoffs/`, the failure presents as "the file is missing" rather than "the path has no
+root", which is the most expensive shape to diagnose. Rooting the path removes the resolution step
+that can be wrong. This is the same answer the binding already gives on its no-project-root branch,
+where handoffs land under `${CLAUDE_PLUGIN_DATA}/topic-docs/handoffs/` "with the absolute path
+announced prominently" ([`topic-docs.md`](topic-docs.md)) — absolute is already what this engine
+does wherever a relative path has no anchor.
+
+**Render it forward-slash normalized** — `/home/<user>/src/<repo>/.work/handoffs/…` on a POSIX
+host, `D:/repos/<owner>/<repo>/.work/handoffs/…` on Windows — never with backslashes: the directive
+survives into transcript JSONL, where a backslash is escaped again, and `find-handoff` greps that
+record.
+
+**The `@` is an accelerator, not the mechanism.** Official docs state an `@` reference's path "can
+be relative or absolute"
+(<https://code.claude.com/docs/en/common-workflows#reference-files-and-directories>), and expansion
+pre-loads the file. They document no drive-letter or whitespace-bearing form, so treat expansion as
+unverified for those: the same line states the absolute path in full either way, and a resuming
+session that sees no expanded content reads the path directly. Write the directive so it is
+actionable without expansion — that is what makes rooting a strict improvement over the rootless
+form rather than a trade.
+
+**`<repo-identity>` keeps the prompt usable off this machine.** An absolute path is machine-local,
+and a save-point's own "When to invoke" includes sharing state with another machine — so the third
+line names what the path can be re-derived from: the repository's `origin` remote URL when it has one
+AND that URL can be sanitized with confidence (the test is below), else its root directory name, and
+the repo-relative path under it. It is computed at emit time
+from the repository actually written into — when cwd is NOT that repository, name the repository the
+file was actually written to, never the one cwd happens to sit in; it is NOT a stored field, and
+nothing in the handoff file's frontmatter carries it. A resume on a different machine or checkout
+ignores line 1's root and re-resolves from line 3.
+
+**Strip the remote URL's userinfo before embedding it.** A remote URL routinely carries a credential
+in its userinfo component — `https://<token>@github.com/<owner>/<repo>.git` for HTTPS-with-PAT,
+`https://<user>:<token>@host/…` for a stored password, and the `x-access-token:<token>@` form a
+credential helper writes — and this line sits INSIDE the rails, in the region the operator is told
+to copy, so an embedded credential travels into the next session and onto every machine the prompt
+is forwarded to. Take `git remote get-url origin` and remove the credential-bearing userinfo —
+everything from `://` up to and including the `@` — before embedding what is left, so a PAT-bearing
+remote is emitted as `https://github.com/<owner>/<repo>.git`. The redaction pass is the backstop, not
+the mechanism: it is a model-driven sweep that can read a bare token as just another path segment,
+and a credential never put into the string cannot be missed.
+
+**A bare ssh account name is not a credential.** `ssh://git@github.com/<owner>/<repo>.git` carries no
+secret — the secret is the local key, which the URL does not contain — so the `git@` stays. Strip
+userinfo that carries a token or a password; leave userinfo that is only a well-known ssh account
+name. Dropping it would not hurt recovery, but it would state something false about the remote.
+
+**"Cannot be sanitized with confidence" has a test: can you say where the userinfo ends and the host
+begins?** Fall back to the root directory name when you cannot. Concretely: more than one `@` sits
+ahead of the path, so the boundary is ambiguous; there is no `://` to anchor on, as in the SCP-style
+`git@host:<owner>/<repo>.git` form, where the `@` delimits an ssh user and no scheme marks where
+stripping would begin; or the string is not a shape you recognize. Guessing the boundary risks
+leaving the token in or mangling the identity — the directory name loses neither, and it re-resolves
+nearly as well.
 
 When the next stage is a specific skill in the consuming repo, swap the directive to
 `Read @… and execute /<skill>.` The `@`-reference is mandatory on the full path — the fresh session
 loads it; do NOT inline the file's detail in the prompt. Prompt-only carries its remaining-work
-bullets inline between the rails instead.
+bullets inline between the rails instead, and needs no origin line: it references no file.
 
 `<UUID>` = this session's `$CLAUDE_CODE_SESSION_ID` (the frontmatter `session_id`) — it lets a
 fresh session or `/retro` chain-walker locate the transcript later.
@@ -226,6 +312,28 @@ and (3) the `Prior session: <UUID>` line, which — together with the `type: han
 ([`structure.md`](structure.md)) — pins the session chain; it is emitted by the file-mode shape
 but is not required of prompt-only output, so consumers treat it as corroboration, never a
 required key.
+
+**Signal 1 carries a rooted path now, and a consumer must still accept the rootless form.** Every
+handoff emitted before this rule shipped states a repo-relative path, and those files and
+transcripts are on disk unchanged — a detector that recognizes only rooted directives stops
+recovering the entire existing corpus. So the directive is matched on its `…handoffs/<TS>-handoff-…`
+shape, and the two forms diverge only at the existence check: a rooted path is checked as given,
+while a rootless one keeps the old rule of resolving against the SOURCE transcript's `cwd`. That
+resolution is inference — the producer's cwd is not necessarily the repository it wrote into, which
+is exactly the defect rooting removes — so a rootless candidate whose file is not found is
+**UNRESOLVED, never discarded**: dropping it is what made the recovery ladder unable to recover the
+failure it was written for.
+
+The `Handoff origin:` line is a **resolution input, not a detection signal** — it cannot admit or
+reject a candidate, so it is neither a fourth key nor the conditional slot the `/loop` re-arm note
+holds below. A consumer reads it only after a candidate has qualified, at the existence check: when
+the ROOTED path does not exist on this machine — a resume on another machine or another checkout,
+which is the one failure mode absolute paths have and relative ones do not — the line names the
+repository and repo-relative path to re-resolve from. **A rooted path that is not found is therefore
+the same not-found-here condition as a rootless one that does not resolve, and gets the same
+UNRESOLVED treatment**; a consumer that reports it as a missing file reintroduces the defect on the
+new path. The line is emitted by the file-mode shape only and only from this version on, so its
+absence disqualifies nothing: prompt-only never emits it, and no handoff written before this has it.
 
 **The recoverable unit is the rails prompt PLUS every below-rail `/loop` re-arm message.** Every other
 element of a resume prompt sits between the rails, so recovering the copy region recovers the whole

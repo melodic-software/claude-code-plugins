@@ -7,7 +7,7 @@ the user's courses teach it.
 
 This is the marketplace's first plugin to ship a **remote** (not bundled/local) MCP server: the
 server is Dometrain-hosted (`https://mcp.dometrain.com/mcp`), closed-source, and requires an
-active [Dometrain Pro](https://dometrain.com/pro/) subscription — there is nothing to bundle,
+active [Dometrain Pro](https://dometrain.com/dometrain-pro/) subscription — there is nothing to bundle,
 unlike `miro`'s locally-run, self-contained Node server.
 
 ## Enabling and configuration

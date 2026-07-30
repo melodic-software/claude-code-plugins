@@ -15,7 +15,7 @@ data directory.
 
 GitHub's `mergeStateStatus` is a single-valued field (GraphQL `MergeStateStatus` enum: `BEHIND` =
 "The head ref is out of date."; `BLOCKED` = "The merge is blocked." —
-https://docs.github.com/en/graphql/reference/enums#mergestatestatus). When a PR is simultaneously
+https://docs.github.com/en/graphql/reference/pulls#enum-mergestatestatus). When a PR is simultaneously
 behind its base AND blocked by another gate (a failing required check, a missing review, ...),
 GitHub reports `BLOCKED` and the `BEHIND` signal is lost. This precedence is not documented by
 GitHub anywhere this skill's authors could find — it was observed live: a PR sat eleven commits
