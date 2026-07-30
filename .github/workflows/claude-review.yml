@@ -22,6 +22,16 @@ jobs:
       contents: read         # checkout + read the diff
       pull-requests: write   # post review + track_progress tracking comment
       id-token: write        # OIDC — mints the Claude GitHub App token
+    # Repo-wide review queue: serializes reviews so parallel PRs queue for the
+    # shared Claude seat instead of contending for it. Job-scoped and repo-wide
+    # by design, and deliberately distinct from the reusable's own inner group
+    # (keyed per PR and head SHA) — a caller group sharing that name would
+    # deadlock the call against itself. `queue: max` admits no
+    # `cancel-in-progress`, which the two cannot be combined with anyway
+    # (https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idconcurrency).
+    concurrency:
+      group: claude-review-${{ github.repository }}
+      queue: max
     uses: melodic-software/ci-workflows/.github/workflows/claude-review.yml@c136b27f404dd32ce3873f39a6f3443891d1c16e # v0.9.1
     with:
       runner: ubuntu-24.04
