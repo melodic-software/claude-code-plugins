@@ -627,7 +627,8 @@ class AdvisoryRoundOrderingTests(unittest.TestCase):
 
     def test_tied_timestamps_fall_back_to_write_order(self) -> None:
         # The head SHA carries no chronology, so a lexicographic tiebreak would
-        # order these arbitrarily -- here, exactly backwards.
+        # order these arbitrarily -- here, exactly backwards. Pre-sequence
+        # records have nothing better than the mapping's current order.
         rounds = advisory_rounds(
             ("b" * 40, "2026-07-10T01:00:00Z", MIXED),
             ("a" * 40, "2026-07-10T01:00:00Z", ALL_C),
@@ -635,6 +636,44 @@ class AdvisoryRoundOrderingTests(unittest.TestCase):
         self.assertEqual(
             [head for head, _ in delta.ordered_advisory_rounds(rounds)],
             ["b" * 40, "a" * 40],
+        )
+
+    def test_an_explicit_sequence_outranks_timestamps_and_key_order(self) -> None:
+        # The ledger reloads with sorted keys and timestamps can tie, so only
+        # the persisted sequence carries write order across a rollover. Both
+        # the mapping order and the timestamps here disagree with it.
+        rounds = {
+            "a" * 40: {
+                "recorded_at": "2026-07-10T01:00:00Z",
+                "sequence": 2,
+                "finding_classes": ALL_C,
+            },
+            "b" * 40: {
+                "recorded_at": "2026-07-10T01:00:00Z",
+                "sequence": 1,
+                "finding_classes": MIXED,
+            },
+        }
+        self.assertEqual(
+            [head for head, _ in delta.ordered_advisory_rounds(rounds)],
+            ["b" * 40, "a" * 40],
+        )
+
+    def test_pre_sequence_rounds_sort_before_sequenced_ones(self) -> None:
+        # A record without a sequence predates sequence persistence, so it was
+        # written before every record that has one -- whatever its timestamp
+        # says relative to theirs.
+        rounds = {
+            "a" * 40: {"recorded_at": "2026-07-10T09:00:00Z", "finding_classes": MIXED},
+            "b" * 40: {
+                "recorded_at": "2026-07-10T01:00:00Z",
+                "sequence": 1,
+                "finding_classes": ALL_C,
+            },
+        }
+        self.assertEqual(
+            [head for head, _ in delta.ordered_advisory_rounds(rounds)],
+            ["a" * 40, "b" * 40],
         )
 
     def test_a_timestampless_round_sorts_before_a_timestamped_one(self) -> None:

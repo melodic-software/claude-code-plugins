@@ -49,6 +49,30 @@ class RecordAdvisoryRoundTests(unittest.TestCase):
             {"a": 0, "b": 1, "c": 2},
         )
 
+    def test_each_round_gets_the_next_monotonic_sequence(self) -> None:
+        # The ledger serializes with sorted keys, so the persisted sequence is
+        # the only write order a post-rollover reader can reconstruct.
+        entry: dict[str, object] = {}
+        record(entry, OLDER, ["c"])
+        record(entry, HEAD, ["c"])
+        rounds = entry["advisory_fix_rounds"]["rounds"]
+        self.assertEqual(rounds[OLDER]["sequence"], 1)
+        self.assertEqual(rounds[HEAD]["sequence"], 2)
+
+    def test_the_sequence_continues_past_pre_sequence_rounds(self) -> None:
+        # A legacy round without a sequence neither blocks recording nor
+        # collides with the new numbering.
+        entry: dict[str, object] = {
+            "advisory_fix_rounds": {
+                "count": 1,
+                "rounds": {OLDER: {"recorded_at": "2026-07-10T01:00:00Z"}},
+            }
+        }
+        record(entry, HEAD, ["c"])
+        self.assertEqual(
+            entry["advisory_fix_rounds"]["rounds"][HEAD]["sequence"], 1
+        )
+
     def test_a_dry_run_persists_nothing_but_still_reports_the_tripwire(self) -> None:
         entry: dict[str, object] = {}
         result = record(entry, HEAD, ["c"], apply=False)

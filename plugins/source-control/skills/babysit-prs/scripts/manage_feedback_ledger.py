@@ -101,7 +101,18 @@ def record_advisory_round(
     finding_classes = {
         name: args.finding_class.count(name) for name in delta.ADVISORY_ROUND_CLASSES
     }
-    record = {"recorded_at": recorded_at, "finding_classes": finding_classes}
+    # The ledger serializes with sorted keys and timestamps can tie, so an
+    # explicit monotonic sequence is the only chronology that survives a
+    # reload (`ordered_advisory_rounds` sorts by it).
+    sequence = 1 + max(
+        (delta.advisory_round_sequence(record) for record in rounds.values()),
+        default=0,
+    )
+    record = {
+        "recorded_at": recorded_at,
+        "sequence": sequence,
+        "finding_classes": finding_classes,
+    }
     result = {
         "action": "record-advisory-round",
         "eligible": True,

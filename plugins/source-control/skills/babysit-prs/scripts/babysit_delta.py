@@ -97,18 +97,37 @@ def advisory_round_composition(record: Any) -> str:
     return "all-c" if counts["c"] and not counts["a"] and not counts["b"] else "mixed"
 
 
-def ordered_advisory_rounds(rounds: Any) -> list[tuple[str, dict[str, Any]]]:
-    """Recorded advisory rounds oldest first, by their write-ahead timestamp.
+def advisory_round_sequence(record: Any) -> int:
+    """The explicit write sequence of one recorded round, 0 when absent."""
+    if not is_json_object(record):
+        return 0
+    value = record.get("sequence")
+    if isinstance(value, int) and not isinstance(value, bool) and value > 0:
+        return value
+    return 0
 
-    Equal or unreadable timestamps fall back to write order: the sort is stable
-    and the ledger preserves write order as its own key order. The head SHA
-    carries no chronology, so tie-breaking on it would order tied rounds
-    arbitrarily.
+
+def ordered_advisory_rounds(rounds: Any) -> list[tuple[str, dict[str, Any]]]:
+    """Recorded advisory rounds oldest first, by their explicit write sequence.
+
+    The sequence is the chronology: the ledger serializes with sorted keys, so
+    after a reload the mapping order is head-SHA order, and a timestamp can tie
+    or be unreadable — neither survives as write order. Rounds recorded before
+    sequences were persisted have only their write-ahead timestamp; they sort
+    before every sequenced round, which is when they were written, with equal
+    or unreadable timestamps left to the stable sort.
     """
+
+    def order(item: tuple[str, dict[str, Any]]) -> tuple[int, str, int]:
+        sequence = advisory_round_sequence(item[1])
+        if not sequence:
+            return (0, str(item[1].get("recorded_at") or ""), 0)
+        return (1, "", sequence)
+
     records = json_object(rounds)
     return sorted(
         ((str(head), json_object(record)) for head, record in records.items()),
-        key=lambda item: str(item[1].get("recorded_at") or ""),
+        key=order,
     )
 
 
