@@ -16,7 +16,12 @@
   `docs/conventions/hook-config-delivery/`; that is the workaround, not the interface.) Its five
   siblings on the same hook — `observer_enabled`, `observer_analysis_*`, `observer_idle_seconds`,
   `observer_max_seconds` — were all declared; this one was missed. The manifest now declares it,
-  alongside the idle and lifetime knobs it is read with.
+  alongside the idle and lifetime knobs it is read with, bounded at `min: 1` because the value
+  reaches `time.sleep` unvalidated: `0` spins the detached observer continuously and a negative
+  value raises there, killing it silently since the launcher's output is suppressed. The key is
+  added to the two inventories that enumerate the observer knobs — the plugin README's config
+  table and `skills/setup`'s effective-value report — so `/session-flow:setup` reports it and its
+  reinstall guidance, which resupplies every non-default key, no longer silently resets it to 5.
 
 ## [0.17.20]
 

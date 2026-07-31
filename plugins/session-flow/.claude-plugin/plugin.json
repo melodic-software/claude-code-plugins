@@ -67,8 +67,9 @@
     "observer_poll_seconds": {
       "type": "number",
       "title": "Observer: transcript poll interval (seconds)",
-      "description": "How often the observer re-reads the transcript to distill new observations and re-check the mtime-idle threshold. Lower costs more wakeups for a faster end-detection; raise it on a busy machine. The idle threshold, not this, decides when the session is over.",
-      "default": 5
+      "description": "How often the observer re-reads the transcript to distill new observations and re-check the mtime-idle threshold. Lower costs more wakeups for a faster end-detection; raise it on a busy machine. The idle threshold, not this, decides when the session is over. Bounded below at 1: 0 spins the detached observer continuously, and a negative value raises at its sleep and kills it silently.",
+      "default": 5,
+      "min": 1
     },
     "observer_max_seconds": {
       "type": "number",
