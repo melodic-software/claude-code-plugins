@@ -426,9 +426,20 @@ item, one each, and no instance ever edits another's.
 `claude-ops`'s `telemetry-upsert.sh` is the interim home of this contract and a compatible reader
 (`morning-brief` reads the same surface); an installed plugin cannot invoke a sibling plugin's
 script, so each lane **inlines** the small `gh api` upsert and the coupling to `claude-ops` stays
-one-directional. An inlined upsert carries none of the wrapper's body checks, so it is bound by the
-`@path`-as-body rule in [`claude-ops` lanes](../../../plugins/claude-ops/skills/lanes/SKILL.md),
-section "Never pass a body as an `@path` string".
+one-directional. An inlined upsert is bound by the `@path`-as-body rule in
+[`claude-ops` lanes](../../../plugins/claude-ops/skills/lanes/SKILL.md), section "Never pass a body as
+an `@path` string", and encodes that rule mechanically in its own block (#943) as three checks. A
+**pre-write gate** refuses a body that is empty, a literal `@path`, not sentinel-prefixed, or under a
+16-byte payload floor measured below the sentinel line, before any API call. The **write's own exit
+status** is then checked, because a failed write leaves the previous cycle's body in place — which a
+read-back running regardless would accept. A **post-write read-back** re-reads what the write stored,
+the only check that sees a write which reported success and stored something else. Every branch that
+ends without a verified body reports UNREPORTED and skips the duplicate-supersede pass, so a cycle
+whose own write is unproven never tombstones a racing session's comment; carry that forward, since
+stderr does not survive the session. Known limits inherited from the wrapper: a PATCH that succeeds
+while storing the previous body still verifies, and the read-back proves *some* well-formed telemetry
+is present, not *this* cycle's. Not replicated inline: the 64 KiB cap, the body-file containment
+checks, retries, and the wrapper's distinct non-zero exits — every inline branch exits 0.
 
 **Lane-instance identity (#1295).** The marker names the **writer**, not the lane type. A marker
 that names only the lane makes two concurrent instances resolve one comment and clobber each other's

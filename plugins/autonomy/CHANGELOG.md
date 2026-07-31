@@ -6,6 +6,33 @@ All notable changes to the `autonomy` plugin are documented here. Format follows
 Versions 0.1.0–0.7.0 predate this file (introduced with 0.7.1); their history lives in the
 merged work-package PRs (#333, #343, #356, #372, #377, #600, #676).
 
+## [0.11.8]
+
+### Fixed
+
+- **`lane-stop-gate.sh`: a completion marker whose deletion fails no longer authorizes a later,
+  unrelated lane run (#1784).** The marker's one-shot authorization was latched solely by deleting
+  the file, and the marker lives in the watched checkout — a directory the hook is not guaranteed to
+  be able to write. An `rm` the OS refused left a file that still satisfied `[[ -f "$MARKER" ]]` on
+  the next run, which is exactly the cross-run bypass consuming the marker exists to close; the
+  surrounding comment asserted "the next run must not rely on that stale file" while nothing enforced
+  it. Consumption is now recorded in this plugin's own persistent data directory — path plus the
+  consumed file's identity (mtime and size) — and the deletion is the tidy-up rather than the latch. A
+  marker recorded as consumed is not a signal however long it survives on disk. Recreation recovery
+  is BEST-EFFORT, not guaranteed: a marker recreated with a different mtime or size reads as a new
+  file and authorizes normally, but one recreated at the same size within the same whole second — an
+  empty `touch`-style marker being the realistic case — is indistinguishable under a one-second
+  `stat`. It then stays latched for as long as it goes unwritten: an mtime does not advance on its
+  own, so what clears the record is the marker's NEXT write landing in a different second, not the
+  clock passing one. The cost is that single completion signal; the one after it authorizes. That is
+  the deliberate direction for a gate: a stop delayed, never a second unearned one. A host where
+  neither `stat` form reports an identity holds the record for the same reason. The
+  data directory is derived from the hook's own install path (the `plugins/cache` anchor Claude Code
+  documents), falling back to `CLAUDE_PLUGIN_DATA` only for a `--plugin-dir` install that carries no
+  such anchor: the script's own location is not something a watched repository can redirect. When no
+  data directory can be written the deletion remains the only latch, i.e. the behavior that predates
+  this ledger.
+
 ## [0.11.7]
 
 ### Fixed

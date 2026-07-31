@@ -3,6 +3,45 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.25.1]
+
+### Changed
+
+- **The `@path`-as-body rule now records that an inlined upsert enforces it mechanically, not on
+  trust — and corrects which consumer the failure actually deceives (#943).** The rule's closing
+  paragraph claimed the prose was "the only thing standing between" an inlined upsert and a silent
+  observability fail-open. That is no longer true: every lane that inlines the `gh api` upsert —
+  `source-control:babysit-loop`, `work-items:work-loop`, `work-items:attend-queue` — now carries three
+  checks in its own block: a pre-write body gate, a check of the write's own exit status, and a
+  post-write read-back of what the write stored. The paragraph states which guarantees travel inline
+  (those three) and which do not: the 64 KiB cap, the body-file containment checks, retries, and this
+  script's distinct non-zero exit codes — an inline branch always exits 0 and reports through stderr,
+  so a caller cannot detect a failed cycle from its exit status. It also names the limits an inline
+  block inherits rather than fixes: a PATCH that succeeds while storing the previous body still
+  verifies, and the read-back proves *some* well-formed telemetry is present, not *this* cycle's.
+- **Corrected: `morning-brief` is not the check a degraded telemetry body deceives.** The rule said a
+  freshness check "passes over a blind lane". Verified against `morning-brief.sh`'s `print_telemetry`:
+  it parses `lane:` and `last-cycle:` out of the comment BODY, so an `@path` body carries no `lane:`
+  field and the lane disappears from the report entirely rather than reading as healthy. What a
+  degraded body deceives is any consumer keying on the comment's timestamp instead of its body — the
+  timestamp moves on every successful write regardless of content. The rule now attributes the
+  failure that way rather than naming a sibling reader that would in fact surface it.
+
+### Fixed
+
+- **`lanes`: a lane field whose JSON value is `false` is no longer read as an absent field (#1784).**
+  Both field readers in `lane-launcher.sh` used jq's `//` alternative operator, which fires on every
+  FALSY value rather than on absence. A lane configured `"settings": false` therefore yielded
+  `empty`, reached bash as `""`, and — because `validate_launch_inputs` guards its "settings must be
+  a JSON object" check on `[[ -n "$settings" ]]` — that type check never ran at all: the lane launched
+  with `--settings` silently omitted, no error, nothing for the operator to see. `lane_json_field` now
+  tests presence with `has`, so `false` reaches the type check and the lane is skipped with the error
+  that was already written for it. The scalar reader had the same collapse for `name`/`model`/
+  `effort`/`prompt` (a mistyped `"effort": false` launched a lane with no effort), so those fields are
+  now typed once at config time and a non-string value is a config error alongside the existing
+  duplicate-name and path-traversal checks. An explicit `null` stays the JSON spelling of "no value"
+  and remains equivalent to an absent field in both readers.
+
 ## [0.25.0]
 
 ### Changed

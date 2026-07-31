@@ -29,6 +29,36 @@ All notable changes to the `source-control` plugin are documented here. Format f
   a fixed bug does not conclude the guard is obsolete.
 - **`worktree_root` was missing from the README's configuration table** while every sibling key was
   listed.
+## [0.44.1]
+
+### Fixed
+
+- **`babysit-loop`'s inlined telemetry upsert now gates its body and verifies what landed (#943).**
+  The lane's telemetry comment was observed carrying a literal `@C:/…/telemetry_combined.txt` as its
+  entire body across three sessions: `gh` expands a leading `@` only for `--body-file` / `-F
+  field=@file`, so an `@path` passed as a body VALUE is transmitted as text. `claude-ops`'s
+  `telemetry-upsert.sh` refuses such a body and re-reads what it wrote, but an installed plugin cannot
+  invoke a sibling plugin's script, so this lane inlines its own upsert and inherited neither
+  protection. The block now carries three checks, which catch different failures. A **pre-write gate**
+  rejects a `$BODY_FILE` that is empty, opens with a literal `@`, is not sentinel-prefixed, or holds
+  under 16 bytes of payload — no POST, no PATCH. The **write's own exit status** is then checked, because a
+  failed PATCH leaves the previous cycle's body in place and a read-back running regardless would
+  accept it. A **post-write read-back** then re-reads what the write stored and reports the cycle
+  UNREPORTED unless that body still opens with the sentinel and clears the same floor; this is the
+  check that would have caught the actual #943 shape, where the composed file is perfectly fine and
+  the defect is the invocation (`-f body=@FILE` instead of `-F body=@FILE`) — a file-only check is
+  structurally blind to it. The create path is covered by the same cycle's
+  PATCH, and a degraded POST leaves no sentinel-prefixed comment to re-read, so that branch now
+  reports UNREPORTED too instead of falling through silently. The 16-byte floor is measured on everything below the
+  sentinel LINE, so it matches the wrapper's `MIN_BODY_BYTES` byte-for-byte on LF and CRLF alike;
+  prefix comparison is byte-wise, so a CRLF body is not false-rejected. Every branch that ends without
+  a verified body reports UNREPORTED and skips the duplicate-supersede pass, so a cycle whose own
+  write is unproven never tombstones a racing session's comment. The `$BODY_FILE` sentinel-first-line contract is now stated in
+  prose rather than left implicit in a comment. Two wrapper limits are inherited rather than fixed: a
+  PATCH that succeeds while storing the previous body still verifies, and the read-back proves *some*
+  well-formed telemetry is present, not *this* cycle's. Not replicated at all: the 64 KiB cap, the
+  body-file containment checks, retries, and the wrapper's distinct non-zero exits — every inline
+  branch exits 0 and reports through stderr.
 
 ## [0.44.0]
 
