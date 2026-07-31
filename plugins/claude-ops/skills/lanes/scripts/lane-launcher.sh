@@ -598,6 +598,7 @@ arm_stop_gate() {
     if bash "$script" "${args[@]}" >&2; then armed=1; fi
   done < <(find_gate_arm_scripts)
   if ((found == 0)); then
+    # Normally unreachable: validate_launch_inputs preflights helper presence.
     err "lane '$name': lane-stop gate requested but no autonomy gate-arm helper was found (install/update the autonomy plugin, or pass --gate-arm-script) — skipped"
     return 1
   fi
@@ -647,6 +648,15 @@ validate_launch_inputs() {
   # fail to launch with an opaque CLI error instead of a per-lane skip here.
   if [[ -n "$settings" ]] && ! jq -e 'type == "object"' <<<"$settings" >/dev/null 2>&1; then
     err "lane '$name': settings must be a JSON object — skipped"
+    return 1
+  fi
+  # A gate request with no discoverable arm helper is a launch-input error too,
+  # and it belongs HERE so restart's preflight catches it BEFORE stopping a
+  # healthy running lane (same doctrine as the prompt/effort checks above). A
+  # helper that exists but fails at arm time still surfaces in launch_lane.
+  if [[ -n "$settings" ]] && lane_requests_stop_gate "$settings" &&
+    ! find_gate_arm_scripts | grep -q .; then
+    err "lane '$name': lane-stop gate requested but no autonomy gate-arm helper was found (install/update the autonomy plugin, or pass --gate-arm-script) — skipped"
     return 1
   fi
 }

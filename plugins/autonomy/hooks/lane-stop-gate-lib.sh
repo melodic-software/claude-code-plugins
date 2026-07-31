@@ -12,9 +12,14 @@
 #
 #   1. managed settings — fixed root-owned system paths plus the
 #      `managed-settings.d/` drop-in directory; a repo cannot forge them. The
-#      Windows path is hard-coded, NOT %ProgramFiles%-derived: env reaches hook
-#      subprocesses, so an env-derived base would let a repo redirect the
-#      HIGHEST-precedence scope.
+#      Windows path is hard-coded, NOT %ProgramFiles%-derived, AND the platform
+#      is read from `uname -s` (a process-intrinsic syscall) not `$OSTYPE` (a
+#      bash variable a repo `env` block can set): env reaches hook subprocesses,
+#      so anything env-derived — a base path OR the branch that selects one —
+#      would let a repo redirect or suppress the HIGHEST-precedence scope. The
+#      resolved primary path is asserted absolute before use, so a future
+#      platform-detection regression cannot yield a cwd-relative managed path a
+#      repo could plant inside its own checkout.
 #   2. the per-session arm record (gate only) — see lane-stop-gate.sh.
 #   3. the user settings.json, located ONLY from this script's own install path
 #      via the documented `<config>/plugins/cache/<marketplace>/<name>/<ver>`
@@ -60,10 +65,18 @@ gate_resolve_anchor() {
 }
 
 # This plugin's persistent data directory: install-derived when anchored, else
-# the CLAUDE_PLUGIN_DATA env fallback (a --plugin-dir install). The fallback is
-# acceptable ONLY for the marker-consumption ledger, whose env-redirect failure
-# direction is a withheld authorization; authorization-granting state (arm
-# records) must use gate_trusted_data_dir instead.
+# the CLAUDE_PLUGIN_DATA env fallback (a --plugin-dir install). Used ONLY for the
+# marker-consumption ledger, never for enablement or the arm record — those read
+# gate_trusted_data_dir (install-anchored, no env fallback). What a redirected
+# CLAUDE_PLUGIN_DATA can therefore reach is only the ledger, and only for the
+# MARKER completion channel, which is itself an agent-writable declaration: the
+# marker file lives in the watched checkout. It cannot enable the gate or forge
+# an arm record. The redirect is not failure-direction-safe on its own — an
+# empty/unwritable target makes marker_already_consumed find no ledger and a
+# surviving marker RE-authorizes (a granted stop) — but that is exactly the
+# "no writable data dir → deletion is the only latch" behavior #1851 already
+# documented and accepted for the marker channel, not a new exposure. Anchored
+# installs never touch this fallback.
 gate_data_dir() {
   if [[ -n "$GATE_CONFIG_ROOT" ]]; then
     printf '%s/plugins/data/%s' "$GATE_CONFIG_ROOT" "$GATE_PLUGIN_ID_SAFE"
@@ -97,13 +110,22 @@ gate_user_settings_file() {
 # Fixed per-platform paths (settings docs), primary file first, then the
 # `managed-settings.d/` drop-ins in glob (sorted) order — later files override
 # earlier ones in gate_managed_option, mirroring Claude Code's merge. Prints
-# nothing on an unrecognized platform.
+# nothing on an unrecognized platform. Platform comes from `uname -s`, never
+# `$OSTYPE` (see the header): the exemplar killswitch_config.py keys on
+# sys.platform, and this is the bash equivalent.
 gate_managed_settings_files() {
   local primary
-  case "${OSTYPE:-}" in
-  darwin*) primary="/Library/Application Support/ClaudeCode/managed-settings.json" ;;
-  msys* | cygwin* | win32) primary="C:/Program Files/ClaudeCode/managed-settings.json" ;;
-  linux*) primary="/etc/claude-code/managed-settings.json" ;;
+  case "$(uname -s 2>/dev/null)" in
+  Darwin) primary="/Library/Application Support/ClaudeCode/managed-settings.json" ;;
+  MINGW* | MSYS* | CYGWIN*) primary="C:/Program Files/ClaudeCode/managed-settings.json" ;;
+  Linux) primary="/etc/claude-code/managed-settings.json" ;;
+  *) return 0 ;;
+  esac
+  # Defense in depth: a managed path MUST be absolute (POSIX /… or a Windows
+  # drive). A relative value would resolve against the hook's cwd — the watched
+  # checkout — turning the highest-precedence scope into a repo-plantable file.
+  case "$primary" in
+  /* | [A-Za-z]:[/\\]*) ;;
   *) return 0 ;;
   esac
   [[ -f "$primary" ]] && printf '%s\n' "$primary"

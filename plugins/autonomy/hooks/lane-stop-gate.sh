@@ -36,8 +36,9 @@
 #      userConfig option. The env-delivered id is a capability POINTER, never
 #      authority: it is shape-validated, looked up only in the install-derived
 #      store, claimed by the first session that presents it (a different session
-#      replaying the same id is refused), TTL-bounded, and consumed on either
-#      terminal outcome;
+#      replaying the same id is refused), and TTL-bounded — it lives for the
+#      claiming session's whole life (every /loop cycle's stop stays gated),
+#      retired by TTL and the launcher's relaunch sweep, never by a single stop;
 #   3. user settings.json, located only from this script's own install path;
 #   4. the in-script defaults (enabled=false, sentinel=LANE-STOP-OK, no marker).
 #
@@ -134,12 +135,11 @@ SESSION_ID=$(printf '%s' "$INPUT" | jq -r '.session_id // ""' 2>/dev/null | tr -
 
 # --- Arm record ---------------------------------------------------------------
 # Load (and claim) the arm record named by the env-carried id, if any. Success
-# sets GATE_ARM_RECORD/GATE_ARM_JSON and means: this session was armed by the
-# operator-side launcher. TTL keeps a crashed lane's record from outliving its
-# usefulness; the session claim makes a replayed id (e.g. one a lane leaked and
-# a repo env block later serves to a different session) worthless.
+# sets GATE_ARM_JSON and means: this session was armed by the operator-side
+# launcher. TTL keeps a crashed lane's record from outliving its usefulness; the
+# session claim makes a replayed id (e.g. one a lane leaked and a repo env block
+# later serves to a different session) worthless.
 GATE_ARM_TTL_SECONDS=$((7 * 86400))
-GATE_ARM_RECORD=""
 GATE_ARM_JSON=""
 
 gate_load_arm_record() {
@@ -169,18 +169,18 @@ gate_load_arm_record() {
       rm -f -- "$tmp" 2>/dev/null
     fi
   fi
-  GATE_ARM_RECORD="$rec"
   GATE_ARM_JSON="$json"
 }
 gate_load_arm_record || true
 
-# Consume the arm record on a terminal outcome (completion signaled, or the
-# post-nudge down-lane stop): one arming, one lane life. A session resumed
-# later re-arms through the launcher.
-gate_consume_arm_record() {
-  [[ -n "$GATE_ARM_RECORD" ]] && rm -f -- "$GATE_ARM_RECORD" 2>/dev/null
-  return 0
-}
+# The arm record is NOT consumed on a stop. A lane is one session across many
+# /loop cycles (claude-ops lanes/context/refresh.md), and each cycle ends in a
+# Stop the gate must still guard; deleting the record on the first
+# completion-signaled or post-nudge stop would silently disarm every later
+# cycle. The record instead lives for the claiming session — bound to it by the
+# session-id claim above, so no other session can use it — and is retired by its
+# TTL (checked on load) plus the launcher's own `find -mtime` sweep at the next
+# relaunch.
 
 # Per-key resolution: managed ▷ arm record ▷ user settings ▷ caller default
 # (return 1). An armed session IS enabled; its record may also carry the
@@ -210,17 +210,27 @@ gate_option() {
 
 ENABLED=$(gate_option lane_stop_gate_enabled) || ENABLED=""
 if [[ "$ENABLED" != "true" ]]; then
-  # No trusted source says "on". When the env channel nevertheless claims it —
-  # a legacy launcher still delivering over --settings/env, or a repo env block
-  # attempting the pre-#1784 attack — disengaging silently would hide both, so
-  # say so once per session. A trusted explicit false stays silent: that is a
-  # configured verdict, not a claim the gate declined to honor.
-  if [[ -z "$ENABLED" ]] &&
-    [[ -n "${CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ARM_ID:-}" ||
-      "${CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ENABLED:-}" == "true" ]]; then
-    if hook::notice_once "autonomy-lane-stop-gate-untrusted-enable" "$INPUT"; then
-      hook::emit_skip_notice "Stop" \
-        "autonomy lane-stop gate: enablement was claimed on the environment channel only — no managed/user setting configures it and no valid arm record matches — so the gate stays off (#1784). A lane launched expecting the gate needs the current claude-ops lane launcher (which arms it at launch); a repository cannot opt sessions in via its own settings.json env block."
+  # No trusted source says "on". A trusted explicit false stays silent — that is
+  # a configured verdict, not a claim the gate declined to honor. The two ways a
+  # gate a lane EXPECTED can end up off get distinct, accurate once-per-session
+  # notices instead of a silent disengage:
+  if [[ -z "$ENABLED" ]]; then
+    if [[ -n "${CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ARM_ID:-}" && -z "$GATE_ARM_JSON" ]]; then
+      # An arm id reached the hook, but no valid record backs it — spent,
+      # TTL-expired, claimed by a different session, or malformed. This is the
+      # legitimately-armed-then-stale case; do NOT blame a repo env block.
+      if hook::notice_once "autonomy-lane-stop-gate-stale-arm" "$INPUT"; then
+        hook::emit_skip_notice "Stop" \
+          "autonomy lane-stop gate: this session carries an arm id but no matching arm record is present (it may have expired, been claimed by another session, or been cleaned up), so the gate stays off (#1784). Relaunch the lane through the claude-ops lane launcher to re-arm it."
+      fi
+    elif [[ "${CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ENABLED:-}" == "true" ]]; then
+      # Enablement claimed on the untrusted env channel with no arm id at all —
+      # a pre-0.12.0 launcher still delivering over --settings/env, or a repo
+      # env block attempting the pre-#1784 attack. Surfacing it beats silence.
+      if hook::notice_once "autonomy-lane-stop-gate-untrusted-enable" "$INPUT"; then
+        hook::emit_skip_notice "Stop" \
+          "autonomy lane-stop gate: enablement was claimed on the environment channel only — no managed/user setting configures it and no arm record matches — so the gate stays off (#1784). A lane launched expecting the gate needs the current claude-ops lane launcher (which arms it at launch); a repository cannot opt sessions in via its own settings.json env block."
+      fi
     fi
   fi
   exit 0
@@ -259,10 +269,13 @@ fi
 # permitted to write, and a delete the OS refuses would otherwise leave a file
 # that satisfies `[[ -f ]]` on a later, unrelated lane run — the cross-run
 # bypass consuming the marker exists to close. The durable record therefore
-# lives under this plugin's own data directory, which the hook does own
-# (gate_data_dir: install-derived first, CLAUDE_PLUGIN_DATA fallback — the
-# fallback is tolerable HERE because its failure direction is a withheld
-# authorization, never a granted one).
+# lives under this plugin's own data directory (gate_data_dir: install-derived
+# first, CLAUDE_PLUGIN_DATA fallback only on an unanchored install). The
+# fallback reaches nothing but THIS ledger — enablement and the arm record use
+# the install-anchored gate_trusted_data_dir — and the marker it gates is an
+# agent-writable declaration in the checkout anyway; see gate_data_dir in the
+# lib for why a redirected/unwritable fallback degrades to the documented
+# "deletion is the only latch" behavior rather than opening a new hole.
 
 # Identity of the file currently at <path>, as "<mtime> <size>", or "" when this
 # host's `stat` reports neither. Used to tell a recreated marker apart from the
@@ -354,9 +367,10 @@ if [[ "$SIGNALED" -eq 0 && -n "$MARKER" ]]; then
   fi
 fi
 
-# Completion signaled → this is a legitimate stop. Allow it, silently.
+# Completion signaled → this is a legitimate stop. Allow it, silently. The arm
+# record is NOT consumed here — the session may /loop into another cycle whose
+# stop must still be gated (see the load block).
 if [[ "$SIGNALED" -eq 1 ]]; then
-  gate_consume_arm_record
   emit_tel "ok" "completion-signaled" "$SIGNAL"
   exit 0
 fi
@@ -369,7 +383,6 @@ STOP_ACTIVE=$(printf '%s' "$INPUT" | jq -r '.stop_hook_active // false' 2>/dev/n
 # and Claude Code hard-caps consecutive Stop blocks regardless. The one bounded
 # structural nudge is the mechanism; the notification is the fail-safe handoff.
 if [[ "$STOP_ACTIVE" == "true" ]]; then
-  gate_consume_arm_record
   CWD=$(printf '%s' "$INPUT" | jq -r '.cwd // ""' 2>/dev/null | tr -d '\r')
   BRANCH=""
   [[ -n "$CWD" ]] && BRANCH=$(git -C "$CWD" branch --show-current 2>/dev/null | tr -d '\000-\037')

@@ -747,6 +747,24 @@ assert_contains "arm: dry-run previews the arming" "$out" "DRY-RUN: arm lane-sto
 if [[ -s "$ARM_LOG" ]]; then armran=1; else armran=0; fi
 assert_eq "arm: dry-run does not run the helper" 0 "$armran"
 
+# A missing helper is caught in validate_launch_inputs, so restart preflights it
+# BEFORE stopping a healthy running lane (same doctrine as the prompt/effort
+# checks). `work` is running; a gate-requesting config with no helper must not
+# take the session down. No --gate-arm-script → no helper discoverable.
+cat >"$TMP/gate-work.json" <<'JSON'
+{ "prompt_dir": ".work",
+  "lanes": [ { "name": "work", "prompt": "work.md",
+    "settings": { "pluginConfigs": { "autonomy@test-marketplace": { "options": {
+      "lane_stop_gate_enabled": true } } } } } ] }
+JSON
+: >"$CLAUDE_LOG"
+out="$(bash "$SCRIPT" restart work --repo "$REPO" --config "$TMP/gate-work.json" --agents-json "$AGENTS_RUNNING" 2>&1)"
+rc=$?
+log="$(cat "$CLAUDE_LOG")"
+assert_eq "arm: restart with an unarmable gate lane exits non-zero" 1 "$rc"
+assert_contains "arm: restart preflights the missing helper" "$out" "no autonomy gate-arm helper was found"
+assert_not_contains "arm: restart does not stop the healthy lane over a missing helper" "$log" "stop sid-work-1"
+
 # ============================================================================
 echo
 if ((FAILED)); then

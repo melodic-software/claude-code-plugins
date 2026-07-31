@@ -490,18 +490,37 @@ OUT="$(run_bare "$(build_input Stop "no token" false)" \
   CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ARM_ID="$ARM_ID_1")"
 if is_block "$OUT"; then ok "an armed session is gated (no settings entry needed)"; else fail "an armed session was not gated: $OUT"; fi
 
-# --- Case 30: the record's marker is honored, and a terminal stop consumes the record
+# --- Case 30: the record's marker is honored; the record SURVIVES the stop ---
+# A lane is one session across many /loop cycles: the record must not be
+# consumed by a single completion-signaled stop, or every later cycle runs
+# ungated (#1784, finding 2).
 : >"$LANE_MARKER"
 OUT="$(run_bare "$(build_input Stop "no token" false)" \
   CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ARM_ID="$ARM_ID_1")"
 if is_block "$OUT"; then fail "record-configured marker did not authorize: $OUT"; else ok "record-configured marker authorizes the stop"; fi
-if [[ -f "$DATA_DIR/lane-arms/$ARM_ID_1" ]]; then fail "arm record not consumed on the terminal (signaled) stop"; else ok "arm record consumed on the terminal stop"; fi
+if [[ -f "$DATA_DIR/lane-arms/$ARM_ID_1" ]]; then ok "the arm record survives a completion-signaled stop (not consumed)"; else fail "arm record was consumed on a stop — a later /loop cycle would run ungated"; fi
 
-# --- Case 31: a consumed/unknown arm id does not engage the gate (visible) --
-OUT="$(run_bare "$(build_input Stop "no token" false)" \
+# --- Case 30b: a LATER stop in the same armed session is still gated ---------
+# The record persisted through case 30's signaled stop; a subsequent unsignaled
+# stop of the same session must still be caught. This is the multi-cycle
+# coverage the no-consume design protects.
+rm -f "$LANE_MARKER"
+OUT="$(run_bare "$(build_input Stop "no token this cycle" false)" \
   CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ARM_ID="$ARM_ID_1")"
-if is_block "$OUT"; then fail "a consumed arm id wrongly re-engaged the gate: $OUT"; else ok "a consumed arm id does not re-engage the gate"; fi
-if [[ "$OUT" == *'"systemMessage"'* ]]; then ok "a dangling arm id surfaces the visible notice"; else fail "a dangling arm id stayed silent: $OUT"; fi
+if is_block "$OUT"; then ok "a later cycle of the same armed session is still gated (record persisted)"; else fail "a later cycle ran ungated after an earlier signaled stop: $OUT"; fi
+
+# --- Case 31: a DANGLING arm id does not engage the gate, with the RIGHT notice
+# An id whose record never existed (or was cleaned up) is not the env attack —
+# the notice must not blame a repo env block; it must point at re-arming.
+OUT="$(run_bare "$(build_input Stop "no token" false)" \
+  CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ARM_ID="deadbeefdeadbeef")"
+if is_block "$OUT"; then fail "a dangling arm id wrongly engaged the gate: $OUT"; else ok "a dangling arm id does not engage the gate"; fi
+if [[ "$OUT" == *'"systemMessage"'* && "$OUT" == *"no matching arm record"* ]]; then
+  ok "a dangling arm id surfaces the arm-specific notice (not the env-attack notice)"
+else
+  fail "a dangling arm id gave the wrong or no notice: $OUT"
+fi
+if [[ "$OUT" == *"environment channel"* ]]; then fail "a dangling arm id wrongly blamed the env channel"; else ok "a dangling arm id does not blame the env channel"; fi
 
 # --- Case 32: a replayed arm id is refused for a different session ----------
 # First presenter claims the record; a later session presenting the same id
@@ -533,18 +552,36 @@ OUT="$(run_bare "$(build_input Stop "no token" false)" \
 if is_block "$OUT"; then fail "an expired arm record wrongly engaged the gate: $OUT"; else ok "an expired arm record does not engage the gate (TTL)"; fi
 if [[ -f "$REC_4" ]]; then fail "an expired arm record was not dropped"; else ok "an expired arm record is dropped on sight"; fi
 
-# --- Case 35: a post-nudge (down-lane) stop also consumes the record --------
+# --- Case 35: a post-nudge (down-lane) stop is allowed; record still survives
+# The record is not consumed here either — the session may /loop onward.
 ARM_ID_5="1234abcd5678efab"
 bash "$ARM" --id "$ARM_ID_5" --cwd "$WORK" 2>/dev/null
 OUT="$(run_bare "$(build_input Stop "still no token" true)" \
   CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ARM_ID="$ARM_ID_5")"
 if is_block "$OUT"; then fail "post-nudge armed stop wrongly blocked: $OUT"; else ok "post-nudge armed stop allowed"; fi
-if [[ -f "$DATA_DIR/lane-arms/$ARM_ID_5" ]]; then fail "arm record not consumed on the post-nudge stop"; else ok "arm record consumed on the post-nudge stop"; fi
+if [[ -f "$DATA_DIR/lane-arms/$ARM_ID_5" ]]; then ok "the arm record survives a post-nudge stop (not consumed)"; else fail "arm record was consumed on the post-nudge stop"; fi
 
-# --- Case 36: a traversal-shaped or malformed arm id is rejected ------------
+# --- Case 36: a traversal-shaped arm id is rejected — at the GUARD, provably --
+# The gate not blocking would pass whether or not the id-shape guard existed
+# (a traversal path is not a readable JSON record either way), so this pins the
+# guard directly: gate_arm_record_path must REFUSE a traversal id, so no path
+# under lane-arms/ can ever be escaped. Sourced from the staged lib.
+if (
+  # shellcheck source=/dev/null
+  source "$STAGED_DIR/lane-stop-gate-lib.sh"
+  gate_resolve_anchor "$STAGED_DIR/.." >/dev/null 2>&1 || true
+  if gate_arm_record_path "../../../etc/passwd" >/dev/null 2>&1; then exit 1; fi
+  if gate_arm_record_path "a/b" >/dev/null 2>&1; then exit 1; fi
+  gate_arm_record_path "cafe1234deadbeef" >/dev/null 2>&1 || exit 1
+  exit 0
+); then
+  ok "gate_arm_record_path refuses a traversal/slash id but accepts a valid one"
+else
+  fail "gate_arm_record_path did not enforce the id shape at the path boundary"
+fi
 OUT="$(run_bare "$(build_input Stop "no token" false)" \
   CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ARM_ID="../../../etc/passwd")"
-if is_block "$OUT"; then fail "a traversal-shaped arm id engaged the gate: $OUT"; else ok "a traversal-shaped arm id is rejected"; fi
+if is_block "$OUT"; then fail "a traversal-shaped arm id engaged the gate: $OUT"; else ok "a traversal-shaped arm id does not engage the gate (end to end)"; fi
 if bash "$ARM" --id "bad/../id" --cwd "$WORK" 2>/dev/null; then
   fail "the arm helper accepted a malformed id"
 else
@@ -561,6 +598,40 @@ if bash "$UNANCHORED/lane-stop-gate-arm.sh" --id "$ARM_ID_1" --cwd "$WORK" 2>/de
   fail "the arm helper armed without a plugins/cache anchor"
 else
   ok "the arm helper fails closed without a plugins/cache anchor"
+fi
+
+# --- Case 38: the managed-settings path is selected by uname, not $OSTYPE ----
+# Regression guard for #1784 finding 1: $OSTYPE is a bash variable a repo `env`
+# block can set, so branching the highest-precedence (managed) scope on it let a
+# repo suppress or relocate it. Selection now reads `uname -s`, and the resolved
+# primary is asserted absolute. Sourced from the staged lib; `uname` is stubbed
+# so the platform is controlled independently of the host, and $OSTYPE is set
+# hostile.
+if (
+  # shellcheck source=/dev/null
+  source "$STAGED_DIR/lane-stop-gate-lib.sh"
+  # shellcheck disable=SC2329 # invoked indirectly by gate_managed_settings_files
+  uname() { printf '%s\n' "${STUB_UNAME:-Linux}"; }
+  export OSTYPE=msys # would force the Windows relative-on-POSIX branch in old code
+  # Every emitted managed path must be absolute, whatever uname reports.
+  for plat in Linux Darwin MINGW64_NT CYGWIN_NT bogus-platform; do
+    STUB_UNAME="$plat"
+    while IFS= read -r line; do
+      [[ -z "$line" ]] && continue
+      case "$line" in
+      /* | [A-Za-z]:[/\\]*) ;;
+      *) exit 1 ;; # a relative (cwd-resolved, repo-plantable) managed path
+      esac
+    done < <(gate_managed_settings_files)
+  done
+  # An unrecognized platform yields NO managed file, regardless of $OSTYPE.
+  STUB_UNAME="bogus-platform"
+  [[ -z "$(gate_managed_settings_files)" ]] || exit 1
+  exit 0
+); then
+  ok "managed-settings selection ignores hostile \$OSTYPE and never yields a relative path"
+else
+  fail "managed-settings path selection is influenced by \$OSTYPE or can be relative (#1784 finding 1)"
 fi
 
 echo

@@ -20,7 +20,9 @@ merged work-package PRs (#333, #343, #356, #372, #377, #600, #676).
   point the marker at a file of its choosing. Per-key resolution is now managed settings (fixed
   root-owned paths plus `managed-settings.d/` drop-ins) ▷ the per-session arm record (below) ▷ the
   user `settings.json` located only from the hook's own `plugins/cache` install anchor ▷ the
-  in-script defaults. Env-derived paths are never consulted for any of these; an unreadable or
+  in-script defaults. No file path any of these reads is env-derived — and the managed-settings
+  platform is read from `uname -s`, not the repo-settable `$OSTYPE`, with the resolved primary
+  asserted absolute so it can never become a cwd-relative (repo-plantable) path. An unreadable or
   malformed trusted source contributes no verdict and the default (off) applies — the gate keeps its
   fail-open, never-wedge posture. When the env channel *claims* enablement that no trusted source
   corroborates — a stale launcher still delivering over `--settings`/env, or a repo attempting the
@@ -40,13 +42,15 @@ merged work-package PRs (#333, #343, #356, #372, #377, #600, #676).
   plugin's **own install-derived** data directory, refusing when unanchored or when managed settings
   veto with `lane_stop_gate_enabled: false` — and passes the id to the session through the new
   string option. The env-delivered id is a capability pointer, never authority: the gate
-  shape-validates it (`^[A-Za-z0-9_-]{8,64}$`), looks it up only in the install-derived store (the
-  `CLAUDE_PLUGIN_DATA` fallback is deliberately not used for records — its failure direction there
-  would be a *granted* authorization), claims it for the first presenting session so a replayed id
-  is refused, expires it after 7 days, and consumes it on either terminal outcome
-  (completion-signaled, or the post-nudge down-lane stop). A repo env block can neither mint a valid
-  id nor clobber a configured one (harness injection wins for configured keys). Shared derivation
-  helpers live in `hooks/lane-stop-gate-lib.sh`, sourced by both scripts.
+  shape-validates it (`^[A-Za-z0-9_-]{8,64}$` before any path use), looks it up only in the
+  install-anchored store (the `CLAUDE_PLUGIN_DATA` fallback is used for the marker-consumption
+  ledger only, never for records or enablement), and claims it for the first presenting session so a
+  replayed id is refused, expires it after 7 days. The record is **not** consumed on a stop: a lane
+  is one session across many `/loop` cycles, each ending in a Stop the gate must still guard, so the
+  record lives for the claiming session (bound to it by the claim) and is retired by its TTL plus the
+  launcher's relaunch sweep. A repo env block can neither mint a valid id nor clobber a configured
+  one (harness injection wins for configured keys). Shared derivation helpers live in
+  `hooks/lane-stop-gate-lib.sh`, sourced by both scripts.
 
 ## [0.11.8]
 
