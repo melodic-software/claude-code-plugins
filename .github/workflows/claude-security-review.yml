@@ -2,9 +2,11 @@ name: claude-security-review
 
 # Dedicated LLM security-review pass via the ci-workflows reusable workflow — the
 # security sibling of claude-review.yml, ADR 0002's default-on advisory posture.
-# The caller owns the triggers, the GITHUB_TOKEN grant, and the `paths-file`
-# input pointing at `.github/claude-security-paths`, the repo-owned list of this
-# repo's security-sensitive surfaces (workflows, scripts, hooks, shell, and
+# The caller owns the triggers, the GITHUB_TOKEN grant, the narrowed
+# `skip-actors` list (see the comment beside it — ADR 0002's 2026-07-31
+# addendum), and the `paths-file` input pointing at
+# `.github/claude-security-paths`, the repo-owned list of this repo's
+# security-sensitive surfaces (workflows, scripts, hooks, shell, and
 # permission/settings config) that the reusable reads from the PR's BASE branch.
 # There is deliberately NO workflow-level path filter: a path miss would leave
 # the required execution check Pending and wedge prose PRs, so the reusable
@@ -35,6 +37,19 @@ jobs:
     with:
       runner: ubuntu-24.04
       paths-file: .github/claude-security-paths
+      # DELIBERATE DIVERGENCE from the reusable's inherited default — do not
+      # delete this line at a re-pin, and do not "simplify" it away. The
+      # upstream default is
+      # `dependabot[bot],claude[bot],melodic-ai[bot],melodic-standards-sync[bot]`;
+      # inheriting it lets `claude[bot]` and `melodic-ai[bot]` satisfy this
+      # repo's REQUIRED `security-review / security-review` check with no
+      # review run, on security-sensitive paths, with no compensating control
+      # (the two actors listed below each have one — see ADR 0002's
+      # 2026-07-31 addendum). A stale explicit list fails closed; a stale
+      # inherited default fails open. runner-policy rejects inputs outside the
+      # reviewed contract but cannot require one, so dropping this line
+      # re-widens the exception silently and CI stays green.
+      skip-actors: "dependabot[bot],melodic-standards-sync[bot]"
     # One named secret (least privilege), never `secrets: inherit`.
     secrets:
       CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}

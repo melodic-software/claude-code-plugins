@@ -113,6 +113,78 @@ mitigation is that workflow-file diffs are themselves security-review surface an
 file is human-reviewed. This is the consensus-accepted bound of Actions-based required checks,
 not a defect introduced here.
 
+## Addendum (2026-07-31): skip-actor exception re-deliberated — widening rejected
+
+The step-3 revisit trigger fired, through a channel it did not name. The v0.9.1 lane re-pin
+deleted both callers' explicit `skip-actors` lists so each inherited the reusable workflow's
+default — `dependabot[bot],claude[bot],melodic-ai[bot],melodic-standards-sync[bot]` — silently
+widening the exception above from two actors to four (#1767).
+
+**Ruling: the widening is REJECTED for the security lane.** The caller
+(`.github/workflows/claude-security-review.yml`) restores an explicit
+`skip-actors: "dependabot[bot],melodic-standards-sync[bot]"`, re-narrowing the exception to
+exactly the two actors the step-3 addendum ratified. The general lane (`claude-review.yml`)
+**keeps inheriting** the default: it is advisory with no required check, so its skip list is
+runner-minute economy, not evidence.
+
+Rationale:
+
+1. **Each ratified actor carries a compensating control; the two new ones carry none.**
+   Dependabot pin bumps are forced through the reviewed runner-policy contract and standards-sync
+   PRs materialize byte-exact upstream-reviewed content (step-3 addendum above). `claude[bot]` and
+   `melodic-ai[bot]` have no analogue — and the general review lane skips them too, so an
+   AI-app-pushed commit would satisfy the required security check with zero review of any kind.
+   AI-authored change is precisely the provenance class this lane exists to cover (NIST SP
+   800-218A's same-bar principle, already this ADR's attribution basis).
+2. **Latency is not absence.** No workflow here lets either app push today — no `@claude`
+   dispatcher exists in this repo — so the channel is dormant. Adding one is a routine, plausible
+   change that would silently activate a review bypass. Fail-closed bias: the exception must not
+   pre-authorize it.
+3. **Staleness asymmetry decides inheritance-vs-explicit for an evidence gate.** A stale explicit
+   list fails **closed** (an actor gets a review it may not have needed — a visible cost); a stale
+   inherited default fails **open** (an actor this repo never deliberated skips review silently —
+   exactly what the re-pin did). The fleet's inheritance-over-explicit-list decision stands for
+   defaults that are cost/config; an evidence-gate exception is the deliberate-divergence case the
+   caller seam exists for, and the runner-policy `allowedInputs` contract makes that divergence a
+   reviewed, standards-visible act.
+
+Rejected alternatives:
+
+- **Accept and document the widened exception** — converts a cost optimization into an
+  unreviewed-provenance bypass of a required check, contradicting the step-3 addendum's own
+  bounded-scope clause with no compensating control.
+- **Narrow the reusable workflow's default upstream (ci-workflows)** — not chosen as *this repo's*
+  fix: that default serves every consumer and its self-trigger/cost rationale is legitimate for
+  advisory lanes. Whether ci-workflows should split the security reusable's default from the
+  review one is ci-workflows' own deliberation; recorded there as a follow-up, not a blocker here.
+- **Do nothing, relying on human merge review of AI-provenance PRs** — process convention, not a
+  technical control. The required check exists to be evidence.
+
+Cross-vendor advisory (Codex, gpt-5.6-sol) concurred with the explicit narrow list. Strongest
+counterargument recorded: if the apps later gain push capability, the narrow list risks
+self-triggering recursion, extra spend, and "independent" review by substantially the same AI
+system. Accepted — those are visible availability and cost failures, while the inherited default's
+failure mode is a silent security bypass, the worse direction.
+
+Composition with the github-iac work: #248 (merged) app-pins all four required contexts to the
+GitHub Actions app, narrowing *who may report* a check — orthogonal and complementary to this
+ruling, which narrows *when the check may be satisfied without a review run*. #228 remains open
+for the live forgery test; this addendum deliberately does **not** touch the "creatable only by
+the App that runs the pass, so a branch cannot forge it" sentence in the step-3 enforcement
+addendum — that sentence stays #228's to update from the tested result.
+
+Sequencing (fail-closed, deliberate): `policy.json` is a managed materialization of the standards
+`runner-policy` component, and the contract for `claude-security-review.yml@c136b27` admitted only
+`runner` and `paths-file`, so restoring the input is an input-surface change that lands upstream
+first — standards contract PR → standards-to-here sync PR → this caller and addendum. This repo's
+`runner-policy` check stays red until the sync merges.
+
+**Residual gap (open, not fixed here):** the runner-policy validator rejects *unexpected* inputs
+but cannot *require* one, so a future re-pin that again drops the caller's `skip-actors` passes CI
+and silently re-widens the exception. The guard until standards grows a `requiredInputs`-style
+contract field is the rewritten revisit trigger below plus the caller-side comment beside the
+input.
+
 ## Revisit triggers
 
 - The security lane's findings prove precise over a sustained window → open the promotion
@@ -120,9 +192,16 @@ not a defect introduced here.
 - The general lane's advisory threads measurably gate merges again (#618's class) → tune
   scope before considering demotion.
 - ci-workflows ships a release changing either reusable workflow's contract → re-pin the
-  callers through the ordinary Dependabot/SHA-bump path.
+  callers through the ordinary Dependabot/SHA-bump path. Not a rubber stamp for the security
+  caller: a re-pin is one of the two channels that widens the skip-actor exception (below).
 - A merge queue is enabled on the base → the security workflow must add the `merge_group`
   trigger, or its required check is never reported for queued PRs (a required check that never
   runs blocks the merge).
-- An actor is added to the caller's `skip-actors` list → the step-3 skip-actor exception
-  widens; re-deliberate before landing, and record the rationale beside the addendum above.
+- The security caller's effective `skip-actors` set gains an actor, through **either** channel →
+  the skip-actor exception widens; re-deliberate before landing and record the rationale beside
+  the addenda above. Channel A: the caller's explicit list is edited. Channel B (the one that
+  actually fired, #1767): the caller's explicit list is deleted or the reusable workflow's pin
+  moves, so the *inherited default* supplies the set — CI stays green either way, because
+  runner-policy rejects unexpected inputs but cannot require one. Reviewing a re-pin of
+  `.github/workflows/claude-security-review.yml` therefore means diffing the new pin's
+  `skip-actors` default against the caller's explicit list, not just the SHA.
