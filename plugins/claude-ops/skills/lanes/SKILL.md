@@ -13,10 +13,10 @@ metadata:
 
 ## Pre-computed context
 
-claude CLI: !`command -v claude >/dev/null 2>&1 && echo "present ($(claude --version 2>/dev/null))" || echo "MISSING (required)"`
+claude CLI: !`claude --version 2>/dev/null || echo "MISSING (required)"`
 jq: !`command -v jq >/dev/null 2>&1 && echo "present" || echo "MISSING (required)"`
 Repo root: !`git rev-parse --show-toplevel 2>/dev/null || echo "unknown (pass --repo)"`
-Lane config: !`c="${CLAUDE_OPS_LANES_CONFIG:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)/.work/lanes.json}"; [[ -f "$c" ]] && echo "$c ($(jq -r '(.lanes//[])|length' "$c" 2>/dev/null) lanes)" || echo "absent ($c) — author one (see context/config.md)"`
+Lane config: !`bash "${CLAUDE_PLUGIN_ROOT}/skills/lanes/scripts/probe-lane-config.sh" 2>/dev/null || echo "unknown"`
 
 ## Variables
 
