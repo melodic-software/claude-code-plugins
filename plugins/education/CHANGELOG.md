@@ -3,6 +3,30 @@
 All notable changes to the `education` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.4]
+
+### Fixed
+
+- `/education:teach` failed to load entirely when invoked from a worktree-isolated agent.
+  Its `## Pre-computed Context` line derived the workspace slug inline, and the harness
+  composes a skill's pre-compute commands into a shell invocation the worktree-isolation
+  Bash guard checks: the guard refuses any genuine `$`-expansion, and the line carried
+  `$p` / `$b` / `$h` locals plus `$(realpath …)`, `$(basename …)` and `$(printf … sha256sum …)`
+  substitutions. The derivation now lives in a bundled
+  `skills/teach/scripts/list-workspaces.sh`, invoked with plugin variables only
+  (`${CLAUDE_PLUGIN_ROOT}`, `${CLAUDE_PROJECT_DIR}`, `${CLAUDE_PLUGIN_DATA}`), which the
+  harness substitutes into literal paths before any shell sees them — so the composed
+  command contains no `$` for the guard to refuse, while the script file uses `$` freely.
+  SKILL.md's "Workspace layout" section remains normative for the slug derivation and now
+  names the script as its implementation. Refs #1687.
+- The teach pre-compute probe reported **nothing at all** for a project with no
+  workspaces, instead of the `none` its own fallback intended. `ls -d … 2>/dev/null |
+  head -20 || echo "none"` binds `||` to the pipeline, whose status is `head`'s, and `head`
+  exits 0 even when `ls` matched nothing — so the fallback was unreachable and the skill
+  loaded with an empty value that reads the same as a broken probe. The bundled script now
+  prints `none` on a no-match; the invoking line keeps its own `|| echo "none"` for the
+  distinct case of the script itself being unavailable.
+
 ## [0.5.3]
 
 ### Fixed

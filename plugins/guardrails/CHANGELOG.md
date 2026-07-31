@@ -3,6 +3,54 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.18.5]
+
+### Fixed
+
+- **Shared-heavy content could push hardcoded-path-check past its hook timeout, and a guard killed at
+  its timeout fails open.** The macOS block defanged `Shared` tokens inside a per-candidate `while
+  read` loop, spawning a `sed` and a `grep` for every candidate line. The loop's only escape was the
+  trailing `head -3`, which fires when candidates *survive* the defang — so on a block where every
+  candidate is a legitimate `Users/Shared` reference, nothing was ever written, the short-circuit
+  never closed the pipe, and the loop ran to completion. The guard was slowest on precisely the
+  innocent content the exclusion exists to serve, and fastest on violations.
+
+  The defang now runs once over the whole candidate block. `sed` is line-oriented in this pipeline —
+  no `N`/`H` multiline commands, and `$` anchors per line in both shapes — so hoisting cannot change
+  any individual line's result. A `grep -nE` over the defanged block yields the block-relative
+  indices of the survivors, and `awk` selects those lines from the **original** block by `NR`, so the
+  reported entry still carries the original line number and original un-defanged text. `grep -E`
+  remains the sole matcher; `awk` does no regex work, so no second regex dialect enters and the
+  shared `HPP_*` bodies stay the single source of truth.
+
+  A block containing no `Shared` token at all skips the pipeline entirely via a bash-builtin
+  substring test — the defang is a provable no-op there, so the common case costs nothing.
+
+  The subprocess count is now constant instead of proportional to the candidate count. Measured
+  through the hook over the same corpora on one machine, swapping only this library: the
+  per-candidate loop spawned 210 `grep`/`sed` processes at 100 Shared-only lines (100 `sed` + 110
+  `grep`) and its wall clock grew 13x for a 4x input increase — 22s at 100 lines to 288s at 400. The
+  hoisted form spawns 12 at either size and holds flat at ~10s. The regression case pins that count
+  rather than a wall-clock ratio: elapsed time here is dominated by process-spawn latency, and
+  repeats of the identical 400-line corpus measured 5.0s and 15.2s — a spread wider than the signal
+  a timing ratio would have to resolve.
+
+- **The survivor re-test now strips `grep -n`'s line-number prefix before matching.** The hoisted
+  form re-tests the defanged candidates, and those lines still carried the `<n>:` prefix the first
+  `grep -n` added — so a violation at **column 0** reached the re-test as `<n>:/Users/…` and could no
+  longer satisfy the left boundary's `^` alternative. It matched only because the boundary class also
+  accepts `:`, which is there for yaml/docker value position and carries no obligation to this
+  pipeline: narrowing that class for its own stated purpose would have silently dropped a violation
+  the first pass had already flagged. The strip is one more expression on the `sed` the defang
+  already runs, so it costs no extra process, and it keeps both passes matching identical bytes
+  rather than coupling the second to an unrelated member of the class. Pinned by a column-0 case.
+
+- **The macOS candidate pipeline could abort a scan under `set -e`.** The candidate block now ends in
+  an explicit `|| true`: its trailing `grep -v` exits non-zero whenever nothing survives the Windows
+  exclusion — the common clean case — and this library is sourced by commit-time hooks whose shell
+  options it does not control. Aborting there would fail open, the same failure mode the hoisting
+  addresses.
+
 ## [0.18.4]
 
 ### Fixed

@@ -269,6 +269,31 @@ def _within_plugin_cache_family(value: str) -> bool:
         # Different drives on Windows; nothing on another volume is in the tree.
         return False
 
+
+# The subcommands `classify_exact_engine_command` accepts, named once so the
+# denial text cannot teach a grammar the classifier does not implement. The
+# classifier rejects anything outside this tuple before its own dispatch, so a
+# subcommand added to one and not the other fails closed rather than drifting
+# (#1806).
+_ALLOWED_ENGINE_SUBCOMMANDS = ("scan", "preview", "handoff-verify", "apply")
+
+
+def _engine_script_path() -> Path:
+    """The one bundled engine path both the classifier and the denial disclose."""
+    return Path(__file__).resolve().with_name(_ENGINE_MARKER)
+
+
+def _probe_script_path() -> Path:
+    """The one bundled kill-switch probe path, likewise shared."""
+    return (
+        Path(__file__).resolve().parents[2] / "setup" / "scripts" / "kill_switch_probe.py"
+    )
+
+
+def _display_path(path: Path) -> str:
+    """A Bash-friendly absolute spelling of a bundled script path."""
+    return os.fspath(path).replace("\\", "/")
+
 # Everything a path we care about cannot contain. Enumerating SHELL syntax here
 # would be a losing game — an assignment (`engine=hygiene.py`), a list separator
 # (`PATH=/x:hygiene.py`), and a metacharacter (`foo;hygiene.py`) each glue the
@@ -811,8 +836,9 @@ def classify_exact_engine_command(command: str, authority: str | None) -> str | 
         return None
     if len(tokens) < 3 or not _is_current_python(tokens[0]):
         return None
-    expected_script = str(Path(__file__).resolve().with_name("hygiene.py"))
-    if _script_path_key(tokens[1]) != _script_path_key(expected_script):
+    if _script_path_key(tokens[1]) != _script_path_key(str(_engine_script_path())):
+        return None
+    if tokens[2] not in _ALLOWED_ENGINE_SUBCOMMANDS:
         return None
 
     if tokens[2] == "scan":
@@ -904,10 +930,7 @@ def is_exact_kill_switch_probe(command: str) -> bool:
     tokens = _literal_shell_words(command)
     if tokens is None or len(tokens) != 2 or not _is_current_python(tokens[0]):
         return False
-    expected_script = str(
-        Path(__file__).resolve().parents[2] / "setup" / "scripts" / "kill_switch_probe.py"
-    )
-    return _script_path_key(tokens[1]) == _script_path_key(expected_script)
+    return _script_path_key(tokens[1]) == _script_path_key(str(_probe_script_path()))
 
 
 _POWERSHELL_MUTATION_WORDS = re.compile(
@@ -1012,8 +1035,13 @@ def _bash_denial_guidance(authority: str | None) -> str:
             " validated and engine calls fail closed."
         )
     )
+    subcommands = ", ".join(_ALLOWED_ENGINE_SUBCOMMANDS[:-1])
     return (
-        "Disk-hygiene fails closed: Bash is restricted to exact bundled scan, preview, handoff-verify, and apply invocations using the hook's absolute Python interpreter "
+        "Disk-hygiene fails closed: Bash is restricted to exact bundled "
+        f"{subcommands}, and {_ALLOWED_ENGINE_SUBCOMMANDS[-1]} invocations of "
+        f'"{_display_path(_engine_script_path())}", plus the argument-free '
+        f'read-only kill-switch probe "{_display_path(_probe_script_path())}" — '
+        "all of them using the hook's absolute Python interpreter "
         f'"{_display_python()}". Bare python/python3 commands are denied because shell functions and aliases can replace them.'
         + data_sentence
         + " Use non-Bash read-only tools for supporting inspection."

@@ -158,6 +158,42 @@
         "Refuses the @path import because @path does not import on an agent definition, so the referenced file would never load — not because imported files load at launch, which is the memory-layer behavior and not this surface's",
         "Names an agent-reachable load-deferring destination (a skill the agent invokes), rejects a paths:-scoped rule because path-scoped content is invisible to subagents, and states that destination cost alongside the recommendation"
       ]
+    },
+    {
+      "id": 14,
+      "name": "context-injecting-command-hook-enters-the-conflict-pass",
+      "prompt": "/claude-config:audit-instructions conflicts — my settings.json has a SessionStart hook with type \"command\" whose script echoes \"TERSE MODE ACTIVE. Answer in sentence fragments. Applies to every response.\", and my active output style requires every answer to be a structured markdown table. Anything wrong?",
+      "expected_output": "Enters the hook into the I15 comparison set as instruction TEXT and reports the pair. The discriminator is whether the handler's output reaches this session's context, not whether the handler is type \"command\": stdout on SessionStart is added as context Claude can see and act on, so a command handler is not excluded. Gate 1 holds — the injected text is resident from injection onward and the active output style is resident in the main conversation — and the pair is reported as a conditional co-resident, because residency depends on the hook's event and matcher firing, and a startup-only SessionStart hook does not re-inject after a compaction. The anchor for the hook side is the settings file and line where the handler is configured, qualified by its event and matcher, since the injected text has no file of its own. Because the script's output is not literal in the config, the text is marked text-unresolved rather than invented unless the run can read what was actually injected — text-unresolved, not the bare unresolved that names a precedence verdict. No winner is named: the docs state no authority relation here. It never carries the handler's command line or any secret-bearing value into the report, and it does not cite the context-window compaction row (\"hooks run as code, not context\") as grounds for excluding the hook — that row is about the hook mechanism, not the handler's output.",
+      "files": [],
+      "expectations": [
+        "Admits the type \"command\" SessionStart hook into the I15 comparison set as instruction text, on the ground that its stdout is injected into the session's context — not excluded for being a command hook",
+        "Reports the pair as a conditional co-resident tied to the hook's event and matcher, and anchors the hook side at the settings file and line where the handler is configured rather than dropping the anchor",
+        "Marks the injected text text-unresolved (not the bare unresolved that names a precedence verdict) when it is produced by a script rather than literal in the config, and carries no command line or secret-bearing value into the report"
+      ]
+    },
+    {
+      "id": 15,
+      "name": "local-frontmatter-hook-is-editable-not-read-only",
+      "prompt": "/claude-config:audit-instructions conflicts — my project's .claude/skills/release-notes/SKILL.md declares a hooks: UserPromptSubmit handler in its own frontmatter that echoes \"Always answer in British English spelling.\", and my project CLAUDE.md says to use US spelling throughout. What do you make of it?",
+      "expected_output": "Inventories the frontmatter hook as a LOCALLY OWNED, EDITABLE surface and reports the pair with a proposed diff. Frontmatter is a supported hook location, live while the component is active, so the handler's injected stdout on UserPromptSubmit is live instruction text that enters the I15 comparison set as text. Because the declaring file is a project-scope .claude/skills/**/SKILL.md, the hook is exactly as editable as the body it rides on: it belongs to the editable user/project inventory, NOT the read-only upstream-owned tier, so the finding produces a proposal of its own rather than the no-change representation plus a routing recommendation to another owner. The read-only tier's frontmatter item is reserved for components in an enabled plugin's cache. The hook side is anchored at the component's own file and frontmatter line, not at a settings file, since no settings file configures it. Reported as a conditional co-resident, since residency depends on the hook's event and matcher firing.",
+      "files": [],
+      "expectations": [
+        "Inventories the frontmatter-declared hook in a project .claude/skills/**/SKILL.md as an editable, locally owned surface and proposes a diff, rather than filing it under the read-only upstream-owned tier that produces no proposal and routes to another owner",
+        "Admits the handler's injected text into the I15 comparison set on the ground that frontmatter is a supported hook location live while the component is active",
+        "Anchors the hook side at the component's own file and frontmatter line rather than at a settings file, and reserves the read-only frontmatter item for an enabled plugin's cached components"
+      ]
+    },
+    {
+      "id": 16,
+      "name": "post-tool-use-exit-2-is-not-a-gate",
+      "prompt": "/claude-config:audit-instructions conflicts — my settings.json has a PostToolUse hook on Write that runs a linter and exits 2 with \"markdown lint failed: do not write this file\" on stderr, and my project CLAUDE.md instructs Claude to use the Write tool to create new docs. Is that a conflict?",
+      "expected_output": "Reports NO conflict, and gives the event-specific reason. Exit 2 is turn-scoped error feedback, never a standing directive, and whether it also carries a gate depends on the event: the hooks page's per-event exit-2 table makes PostToolUse non-blocking — the tool already ran — alongside Notification, SubagentStart, SessionStart, and SessionEnd, while exit 2 does block on PreToolUse, UserPromptSubmit, Stop, SubagentStop, PreCompact, and UserPromptExpansion. Because PostToolUse blocks nothing, there is no act for the stderr to stand in for and no gate to pair, so the message is transient feedback that pairs as nothing. Treating the stderr as a prohibition on Write would manufacture an unsatisfiable conflict against a CLAUDE.md that requires Write — the write already happened and the hook can neither block nor undo it. Had the same handler been registered on PreToolUse, it WOULD enter the comparison set as the act it blocks.",
+      "files": [],
+      "expectations": [
+        "Reports no conflict, on the ground that PostToolUse exit 2 blocks nothing because the tool already ran — not by treating every exit-2 stderr message as the act it blocks",
+        "Resolves blockability from the event before applying the gate abstraction, and gets the partition right: PreToolUse, UserPromptSubmit, Stop, SubagentStop, PreCompact, and UserPromptExpansion block, while PostToolUse, Notification, SubagentStart, SessionStart, and SessionEnd do not",
+        "States that the same handler on a blockable event such as PreToolUse would enter the comparison set as the act it blocks, so the non-blocking case is a scoped exclusion rather than a blanket exemption for exit-2 hooks"
+      ]
     }
   ]
 }

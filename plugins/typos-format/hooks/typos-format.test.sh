@@ -2,11 +2,13 @@
 # Black-box contract test for typos-format.sh (the typos-format plugin hook).
 #
 # Proves WIRING: the hook fires on any file (no extension filter) UNCONDITIONALLY
-# — with or without a consumer typos config — applies typos' safe corrections in
-# place, honors typos' own typos.toml > _typos.toml > .typos.toml > Cargo.toml >
-# pyproject.toml precedence when a config IS present, surfaces residual
-# (unfixable) findings via additionalContext with remediation guidance, honors
-# the kill switch, and emits a schema-valid telemetry envelope.
+# — with or without a consumer typos config — is REPORT-ONLY by default
+# (#1809's single-writer decision), applies typos' safe corrections in place
+# only under the typos_format_write_changes opt-in, honors typos' own
+# typos.toml > _typos.toml > .typos.toml > Cargo.toml > pyproject.toml
+# precedence when a config IS present, surfaces residual (unfixable) findings
+# via additionalContext with remediation guidance, honors the kill switch, and
+# emits a schema-valid telemetry envelope.
 #
 # Self-contained: builds throwaway git repos with runtime-generated fixtures.
 # The hook is invoked from an UNRELATED cwd so any reliance on the caller's
@@ -83,12 +85,17 @@ new_typos_repo() {
 # Invoke the hook from an unrelated cwd. CLAUDE_PROJECT_DIR is left UNSET so
 # read_file_path's membership guard is disabled (not part of the fire gate);
 # this isolates gate/fix behavior from path-form mismatch in the guard.
+# Write mode is opted IN here: these cases exercise the fix/config contract,
+# which only exists under the opt-in. The report-only DEFAULT has its own
+# cases (stub/default-report-only and the explicit-false override below).
 run_hook() {
   local file_path="$1"
   (
     cd "$UNRELATED" || return 1
     printf '{"tool_input":{"file_path":"%s"},"tool_name":"Write"}' "$file_path" |
-      env -u CLAUDE_PROJECT_DIR CLAUDE_PLUGIN_OPTION_TYPOS_FORMAT_ENABLED=true PATH="$(dirname "$REAL_TYPOS"):$PATH" bash "$HOOK"
+      env -u CLAUDE_PROJECT_DIR CLAUDE_PLUGIN_OPTION_TYPOS_FORMAT_ENABLED=true \
+        CLAUDE_PLUGIN_OPTION_TYPOS_FORMAT_WRITE_CHANGES=true \
+        PATH="$(dirname "$REAL_TYPOS"):$PATH" bash "$HOOK"
   )
 }
 
@@ -209,7 +216,10 @@ STUB
 # spellchecker:on
 chmod +x "$STUB_BIN/typos"
 
-# Invoke the hook with the stub on PATH.
+# Invoke the hook with the stub on PATH, in opted-in write mode (the
+# disclosure contract below is about the changes write mode makes). A caller's
+# own trailing env assignments win over the opt-in (env is last-wins), so the
+# explicit-false override case can still pass WRITE_CHANGES=false here.
 run_stub() {
   local file_path="$1"
   shift
@@ -217,6 +227,21 @@ run_stub() {
     cd "$UNRELATED" || return 1
     printf '{"session_id":"stub-1","tool_input":{"file_path":"%s"},"tool_name":"Write"}' "$file_path" |
       env -u CLAUDE_PROJECT_DIR PATH="$STUB_BIN:$PATH" \
+        CLAUDE_PLUGIN_OPTION_TYPOS_FORMAT_ENABLED=true \
+        CLAUDE_PLUGIN_OPTION_TYPOS_FORMAT_WRITE_CHANGES=true "$@" bash "$HOOK"
+  )
+}
+
+# Invoke the hook with the stub on PATH and NO write-mode option at all — the
+# out-of-the-box posture.
+run_stub_default() {
+  local file_path="$1"
+  shift
+  (
+    cd "$UNRELATED" || return 1
+    printf '{"session_id":"stub-1","tool_input":{"file_path":"%s"},"tool_name":"Write"}' "$file_path" |
+      env -u CLAUDE_PROJECT_DIR -u CLAUDE_PLUGIN_OPTION_TYPOS_FORMAT_WRITE_CHANGES \
+        PATH="$STUB_BIN:$PATH" \
         CLAUDE_PLUGIN_OPTION_TYPOS_FORMAT_ENABLED=true "$@" bash "$HOOK"
   )
 }
@@ -261,7 +286,34 @@ else
   fail "stub/applied: no extend-words guidance on the applied path: $CTX_AP"
 fi
 
-# --- Report-only mode never touches the file ---------------------------------
+# --- DEFAULT is report-only: the out-of-the-box hook never writes ------------
+# Pins #1809's single-writer decision: with no typos_format_write_changes
+# option set at all, the hook must report findings and leave the file
+# byte-identical. This is the invariant that removes the unconditional-writer
+# race with sibling formatter hooks — a regression here reintroduces it.
+printf 'this has teh typo\n' >"$STUB_REPO/default.txt" # spellchecker:disable-line
+BEFORE_DEF="$(cat "$STUB_REPO/default.txt")"
+OUT_DEF=$(run_stub_default "$STUB_REPO/default.txt")
+RC_DEF=$?
+if [[ $RC_DEF -eq 0 ]]; then ok "stub/default: exit 0"; else fail "stub/default: exit $RC_DEF"; fi
+if [[ "$(cat "$STUB_REPO/default.txt")" == "$BEFORE_DEF" ]]; then
+  ok "stub/default: file left byte-identical with NO write-mode option set (single-writer default)"
+else
+  fail "stub/default: out-of-the-box hook modified the file: $(cat "$STUB_REPO/default.txt")"
+fi
+CTX_DEF=$(printf '%s' "$OUT_DEF" | jq -r '.hookSpecificOutput.additionalContext // empty' 2>/dev/null)
+if printf '%s' "$CTX_DEF" | grep -q 'report-only' && printf '%s' "$CTX_DEF" | grep -q 'teh'; then # spellchecker:disable-line
+  ok "stub/default: findings still reported in report-only default"
+else
+  fail "stub/default: findings or mode statement missing: $CTX_DEF"
+fi
+if [[ -z "$(printf '%s' "$OUT_DEF" | jq -r '.systemMessage // empty' 2>/dev/null)" ]]; then
+  ok "stub/default: no user-channel message (nothing was mutated)"
+else
+  fail "stub/default: emitted a systemMessage without mutating anything"
+fi
+
+# --- Report-only can also be pinned explicitly (option set to false) ---------
 printf 'this has teh typo\n' >"$STUB_REPO/readonly.txt" # spellchecker:disable-line
 BEFORE_RO="$(cat "$STUB_REPO/readonly.txt")"
 OUT_RO=$(run_stub "$STUB_REPO/readonly.txt" CLAUDE_PLUGIN_OPTION_TYPOS_FORMAT_WRITE_CHANGES=false)
@@ -534,10 +586,11 @@ else
   exit
 fi
 
-# --- Case 1: no typos config anywhere -> hook still fixes unconditionally ---
+# --- Case 1: no typos config anywhere -> hook still runs unconditionally ----
 # typos ships a built-in spelling dictionary and runs with zero configuration.
-# A repo that has never adopted a typos config must still get its typos fixed
-# — the hook must not gate on a consumer config existing.
+# A repo that has never adopted a typos config must still get its typos found
+# — the hook must not gate on a consumer config existing. (run_hook opts into
+# write mode, so the fix landing proves the config-free run end to end.)
 REPO_NO="$WORK/no-config"
 new_typos_repo "$REPO_NO" NO_CONFIG
 printf 'this has teh typo\n' >"$REPO_NO/doc.txt" # spellchecker:disable-line
@@ -690,6 +743,7 @@ if [[ -n "$SCRATCH_HOME" ]]; then
   BEFORE_SP="$(cat "$SCRATCH_HOME/scratchpad/inventory.txt")"
   OUT_SP=$(run_hook_env "$SCRATCH_HOME/scratchpad/inventory.txt" \
     PATH="$(dirname "$REAL_TYPOS"):$PATH" CLAUDE_PLUGIN_OPTION_TYPOS_FORMAT_ENABLED=true \
+    CLAUDE_PLUGIN_OPTION_TYPOS_FORMAT_WRITE_CHANGES=true \
     CLAUDE_PROJECT_DIR="$SCRATCH_HOME" TMPDIR="$SCRATCH_HOME/scratchpad" \
     TMP="$SCRATCH_HOME/scratchpad" TEMP="$SCRATCH_HOME/scratchpad")
   RC_SP=$?
@@ -711,7 +765,8 @@ fi
 # --- Case 8: kill switch bypasses hook ---------------------------------------
 printf 'this has teh typo\n' >"$REPO/kill.txt" # spellchecker:disable-line
 BEFORE_K="$(cat "$REPO/kill.txt")"
-OUT=$(run_hook_env "$REPO/kill.txt" PATH="$(dirname "$REAL_TYPOS"):$PATH" CLAUDE_PLUGIN_OPTION_TYPOS_FORMAT_ENABLED=false)
+OUT=$(run_hook_env "$REPO/kill.txt" PATH="$(dirname "$REAL_TYPOS"):$PATH" \
+  CLAUDE_PLUGIN_OPTION_TYPOS_FORMAT_WRITE_CHANGES=true CLAUDE_PLUGIN_OPTION_TYPOS_FORMAT_ENABLED=false)
 RC=$?
 if [[ $RC -eq 0 && -z "$OUT" ]]; then ok "kill switch off -> exit 0 silent"; else fail "kill switch failed (rc=$RC out=$OUT)"; fi
 if [[ "$(cat "$REPO/kill.txt")" == "$BEFORE_K" ]]; then ok "kill switch -> file untouched"; else fail "kill switch -> file was modified"; fi
@@ -764,7 +819,8 @@ rm -f "$TEL"
 printf 'this has teh typo\n' >"$REPO_NO/tel2.txt" # spellchecker:disable-line
 TELS="$(mktemp)"
 SINKS="$(make_sink "cat >\"$TELS\"")"
-run_hook_env "$REPO_NO/tel2.txt" PATH="$(dirname "$REAL_TYPOS"):$PATH" CLAUDE_PLUGIN_OPTION_TYPOS_FORMAT_ENABLED=true HOOK_TELEMETRY_SINK="$SINKS" >/dev/null
+run_hook_env "$REPO_NO/tel2.txt" PATH="$(dirname "$REAL_TYPOS"):$PATH" CLAUDE_PLUGIN_OPTION_TYPOS_FORMAT_ENABLED=true \
+  CLAUDE_PLUGIN_OPTION_TYPOS_FORMAT_WRITE_CHANGES=true HOOK_TELEMETRY_SINK="$SINKS" >/dev/null
 wait_for_sink "$TELS"
 if [[ -s "$TELS" ]]; then
   if [[ "$(jq -r '.status' "$TELS")" == "ok" ]]; then ok "telemetry/no-config: status ok (unconditional run)"; else fail "telemetry/no-config: status=$(jq -r '.status' "$TELS")"; fi
