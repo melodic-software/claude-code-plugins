@@ -33,6 +33,14 @@ All notable changes to the `work-items` plugin are documented here. Format follo
   storing the previous body still verifies, and the read-back proves *some* well-formed telemetry is
   present, not *this* cycle's. Not replicated at all: the 64 KiB cap, the containment checks,
   retries, and the wrapper's distinct non-zero exits — every inline branch exits 0.
+- **`work-loop`'s telemetry upsert moves to `reference/telemetry-upsert.md`.** SKILL.md sat at 499 of
+  its 500-line hard cap, so the checks above did not fit. The upsert — lane-instance resolution and
+  validation, the singleton lookup, the body gate, the write-status check and read-back, the
+  POST/PATCH, and the creation-race reconcile — moves verbatim into a spoke, the same shape the
+  sibling `source-control:babysit-loop` lane already uses for the identical block. SKILL.md keeps the
+  telemetry home and the durable-state contract and points at the spoke for the mechanism; the
+  rationale for inlining rather than calling `claude-ops`'s wrapper is now stated once instead of
+  twice.
 
 ## [0.31.0]
 
