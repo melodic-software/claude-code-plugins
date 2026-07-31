@@ -35,7 +35,7 @@ fi
 # reds a clean tree with findings CI does not report (#1856).
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../../.." && pwd)"
 RUN_RUFF="$REPO_ROOT/scripts/run-ruff.sh"
-if [[ -x "$RUN_RUFF" ]] || [[ -f "$RUN_RUFF" ]]; then
+if [[ -f "$RUN_RUFF" ]]; then
   echo "== ruff (CI pin via scripts/run-ruff.sh) =="
   ruff_rc=0
   bash "$RUN_RUFF" check . tests || ruff_rc=$?
@@ -44,13 +44,8 @@ if [[ -x "$RUN_RUFF" ]] || [[ -f "$RUN_RUFF" ]]; then
   elif [[ "$ruff_rc" -ne 0 ]]; then
     FAILED=1
   fi
-elif command -v ruff >/dev/null 2>&1; then
-  echo "== ruff =="
-  if ! ruff check . tests; then
-    FAILED=1
-  fi
 else
-  echo "SKIP: ruff not installed (lint pass omitted)"
+  echo "SKIP: scripts/run-ruff.sh not found (lint pass omitted)"
 fi
 
 echo "== guarded-wrapper behavior =="
