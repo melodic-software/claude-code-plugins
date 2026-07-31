@@ -286,13 +286,19 @@ takes `gh issue comment --body-file`, or `gh api -F`/`--field key=@path` — per
 command's own `--help` (gh 2.95.0); `gh api` has no `--body-file` flag at all.
 
 The failure is invisible from the outside (#943): the comment's timestamp still
-moves, so the telemetry surface looks **fresh** while carrying no data, and a
-freshness check passes over a blind lane. `telemetry-upsert.sh` refuses such a
-body before it writes anything, and an inlined upsert carries the same refusal as
-a pre-write gate in its own block (empty, leading `@`, under a byte floor, or not
-sentinel-prefixed → skip the cycle fail-closed, no API call). An inline gate
-replicates the pre-write half only; the post-write read-back stays here in the
-wrapper.
+moves, so any check keying on `updatedAt` reads the lane as **fresh** while it
+carries no data. (This skill's sibling reader `morning-brief` is not that check —
+it parses `lane:` and `last-cycle:` out of the body, so a degraded comment makes
+the lane vanish from its report rather than look healthy. The deceived check is
+the tower's timestamp-based delivery check.)
+
+`telemetry-upsert.sh` refuses such a body before it writes anything and re-reads
+what landed afterward. An inlined upsert now encodes both halves itself: a
+pre-write gate (empty, leading `@`, not sentinel-prefixed, or under a 16-byte
+payload floor → skip the cycle, no API call) and a post-write read-back, which is
+the half that catches a well-composed file sent through `-f body=@FILE` instead of
+`-F body=@FILE`. What an inline block does NOT replicate: the 64 KiB cap and the
+body-file containment checks.
 
 ## Cross-references
 

@@ -119,13 +119,21 @@ handled, the answers written, and the guard mode. Same inlined upsert as the wor
 
 ```bash
 MARKER="work-items:attend-queue"
-SENT="<!-- claude-ops:lane-telemetry marker=$MARKER -->"   # first line of $BODY_FILE
+SENT="<!-- claude-ops:lane-telemetry marker=$MARKER -->"   # $BODY_FILE MUST open with this line
 LOOKUP() { gh api --paginate "repos/$REPO/issues/$ISSUE/comments" \
   --jq ".[] | select(.body | startswith(\"$SENT\")) | .id"; }
-if [ ! -s "$BODY_FILE" ] || [ "$(head -c 1 "$BODY_FILE")" = "@" ] ||
-  [ "$(wc -c <"$BODY_FILE")" -lt $((${#SENT} + 16)) ] ||
-  [ "$(head -c ${#SENT} "$BODY_FILE")" != "$SENT" ]; then
-  echo "telemetry: body rejected before any write - empty, a literal @path, under the sentinel+16-byte floor, or not sentinel-prefixed; skipping upsert this cycle (fail closed)" >&2
+SENTINEL_OK() { # $1 = text; true iff it opens with $SENT and carries a payload under it
+  [ "$(printf '%s' "$1" | head -c ${#SENT})" = "$SENT" ] &&
+    [ "$(printf '%s' "$1" | wc -c | tr -d ' ')" -ge $((${#SENT} + 17)) ]
+}
+VERIFY() { # $1 = comment id; re-read what LANDED, whatever form the write took
+  BACK="$(gh api "repos/$REPO/issues/comments/$1" --jq '.body' 2>/dev/null | tr -d '\r')" &&
+    SENTINEL_OK "$BACK"
+}
+if [ ! -s "$BODY_FILE" ] || [ "$(head -c 1 "$BODY_FILE")" = "@" ]; then
+  echo "telemetry: body is empty or a literal @path - nothing written; fix the body composition, do not re-run blind" >&2
+elif ! SENTINEL_OK "$(cat "$BODY_FILE")"; then
+  echo "telemetry: body is not sentinel-prefixed or carries no payload - nothing written; fix the body composition, do not re-run blind" >&2
 elif ! LIST=$(LOOKUP); then
   echo "telemetry: comment lookup failed; skipping upsert this cycle (fail closed)" >&2
 else
@@ -136,6 +144,8 @@ else
   CANON=$(printf '%s\n' "$LIST" | sort -n | head -n1)
   if [ -n "$CANON" ]; then
     gh api -X PATCH "repos/$REPO/issues/comments/$CANON" -F body=@"$BODY_FILE"
+    VERIFY "$CANON" ||
+      echo "telemetry: comment $CANON does NOT carry this cycle's telemetry after the write - treat the lane as UNREPORTED and record it in durable state; do not trust the timestamp" >&2
     for DUP in $(printf '%s\n' "$LIST" | sort -n | tail -n +2); do
       gh api -X PATCH "repos/$REPO/issues/comments/$DUP" \
         -f body="Superseded duplicate - canonical telemetry comment: $CANON" || true
@@ -144,12 +154,24 @@ else
 fi
 ```
 
-**Pre-write body gate (encoded above, #943).** The leading assertions run before any API call — the
-mechanical form of the `@path`-as-body rule owned by the `claude-ops` lanes skill ("Never pass a body
-as an `@path` string"), which an inlined upsert has no wrapper to enforce for it. A degraded body
-that reaches the comment still moves its timestamp, so the telemetry surface looks **fresh** while
-carrying no data; refusing the write leaves the comment stale instead, which the freshness check does
-catch. Pre-write only — the post-write read-back stays in `claude-ops`'s `telemetry-upsert.sh`.
+**`$BODY_FILE` contract.** The file's FIRST line must be exactly `$SENT`, with the pass report below
+it. The lookup matches on that prefix, so a body composed without it is not merely rejected here — it
+would never be found again, and the next pass would post a second comment. Compose the sentinel into
+the file; do not rely on anything downstream to add it.
+
+**Body gate and post-write verification (encoded above, #943).** Two halves, because they catch
+different failures. The **pre-write** assertions run before any API call and reject a `$BODY_FILE`
+that is empty, opens with a literal `@`, is not sentinel-prefixed, or carries under 16 bytes of
+payload — the mechanical form of the `@path`-as-body rule owned by the `claude-ops` lanes skill
+("Never pass a body as an `@path` string"). The **post-write** `VERIFY` re-reads what actually landed,
+which is what catches the failure the pre-write half structurally cannot: a correctly composed file
+sent through a body-value flag (`-f body=@"$BODY_FILE"`) rather than `-F body=@`, where `gh` transmits
+the literal path and the file itself was never at fault.
+
+A degraded body that lands still moves the comment's timestamp, so any check keying on `updatedAt`
+reads the lane as **fresh** while it carries nothing. Refusing, or reporting the write UNREPORTED, is
+what keeps that from passing silently. Not replicated from the wrapper: the 64 KiB cap and the
+body-file containment checks.
 
 **Creation race reconcile (encoded above).** Two sessions racing the first-ever upsert can both
 see an empty lookup and both POST, forking the singleton. The upsert converges every cycle

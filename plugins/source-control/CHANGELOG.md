@@ -7,21 +7,23 @@ All notable changes to the `source-control` plugin are documented here. Format f
 
 ### Fixed
 
-- **`babysit-loop`'s inlined telemetry upsert refuses a degraded body before it writes one (#943).**
+- **`babysit-loop`'s inlined telemetry upsert now gates its body and verifies what landed (#943).**
   The lane's telemetry comment was observed carrying a literal `@C:/…/telemetry_combined.txt` as its
   entire body across three sessions: `gh` expands a leading `@` only for `--body-file` / `-F
-  field=@file`, so an `@path` interpolated into a body value is sent as text. Nothing about that
-  failure is visible from outside — the comment's `updatedAt` still moves, so `morning-brief`'s
-  freshness check passes over a lane that reported nothing. `claude-ops`'s `telemetry-upsert.sh`
-  already refuses such a body, but an installed plugin cannot invoke a sibling plugin's script, so
-  this lane inlines its own upsert and inherited none of that protection. The inlined block now opens
-  with a pre-write gate: a `$BODY_FILE` that is empty, begins with a literal `@`, falls under the
-  sentinel-plus-16-byte floor, or is not sentinel-prefixed is refused with a visible notice and the
-  cycle skips the upsert fail-closed — no POST, no PATCH. Refusing leaves the comment **stale**,
-  which the freshness check does catch, instead of fresh-but-blind, which it cannot. The prefix
-  assertion compares bytes rather than a whole first line, so a CRLF-terminated body is not
-  false-rejected. Scope is pre-write only; the wrapper's post-write read-back is deliberately not
-  replicated into a prose block that ships without a test harness.
+  field=@file`, so an `@path` passed as a body VALUE is transmitted as text. `claude-ops`'s
+  `telemetry-upsert.sh` refuses such a body and re-reads what it wrote, but an installed plugin cannot
+  invoke a sibling plugin's script, so this lane inlines its own upsert and inherited neither
+  protection. The block now carries both halves, which catch different failures. A **pre-write gate**
+  rejects a `$BODY_FILE` that is empty, opens with a literal `@`, is not sentinel-prefixed, or holds
+  under 16 bytes of payload — no POST, no PATCH. A **post-write read-back** then re-reads the comment
+  and reports the cycle UNREPORTED unless the persisted body still opens with the sentinel and clears
+  the same floor; this is the half that catches the actual #943 shape, where the composed file is
+  perfectly fine and the defect is the invocation (`-f body=@FILE` instead of `-F body=@FILE`) — a
+  file-only check is structurally blind to it. The 16-byte floor is measured on the payload beneath
+  the sentinel, matching the wrapper's `MIN_BODY_BYTES` exactly; prefix comparison is byte-wise, so a
+  CRLF body is not false-rejected. The `$BODY_FILE` sentinel-first-line contract is now stated in
+  prose rather than left implicit in a comment. Not replicated from the wrapper: the 64 KiB cap and
+  the body-file containment checks.
 
 ## [0.42.1]
 

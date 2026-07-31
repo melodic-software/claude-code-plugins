@@ -8,14 +8,20 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
 ### Changed
 
 - **The `@path`-as-body rule now records that an inlined upsert enforces it mechanically, not on
-  trust (#943).** The rule's closing paragraph claimed the prose was "the only thing standing
-  between" an inlined upsert and a silent observability fail-open. That is no longer true: every
-  lane that inlines the `gh api` upsert — `source-control:babysit-loop`, `work-items:work-loop`,
-  `work-items:attend-queue` — now carries a pre-write body gate in its own block, refusing a body
-  that is empty, a literal `@path`, under a byte floor, or not sentinel-prefixed before any API
-  call. The paragraph states the split explicitly: an inline gate replicates the wrapper's pre-write
-  half only, and the post-write read-back stays in `telemetry-upsert.sh`, so a reader of either
-  surface knows which guarantees travel with which.
+  trust — and corrects which consumer the failure actually deceives (#943).** The rule's closing
+  paragraph claimed the prose was "the only thing standing between" an inlined upsert and a silent
+  observability fail-open. That is no longer true: every lane that inlines the `gh api` upsert —
+  `source-control:babysit-loop`, `work-items:work-loop`, `work-items:attend-queue` — now carries both
+  a pre-write body gate and a post-write read-back in its own block. The paragraph states which
+  guarantees travel inline (both halves) and which do not (the 64 KiB cap, the body-file containment
+  checks).
+- **Corrected: `morning-brief` is not the check a degraded telemetry body deceives.** The rule said a
+  freshness check "passes over a blind lane". Verified against `morning-brief.sh`'s `print_telemetry`:
+  it parses `lane:` and `last-cycle:` out of the comment BODY, so an `@path` body carries no `lane:`
+  field and the lane disappears from the report entirely rather than reading as healthy. The check
+  that is genuinely fooled is a timestamp-based delivery check reading `updatedAt`, which moves on
+  every successful write regardless of content. The rule now attributes the failure correctly instead
+  of naming a sibling reader that would in fact surface it.
 
 ## [0.24.1]
 

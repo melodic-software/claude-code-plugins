@@ -425,10 +425,15 @@ identified by a machine sentinel marker and **edited in place** every cycle — 
 script, so each lane **inlines** the small `gh api` upsert and the coupling to `claude-ops` stays
 one-directional. An inlined upsert is bound by the `@path`-as-body rule in
 [`claude-ops` lanes](../../../plugins/claude-ops/skills/lanes/SKILL.md), section "Never pass a body as
-an `@path` string", and encodes that rule as a **pre-write body gate** in its own block (#943): a body
-that is empty, a literal `@path`, under the sentinel-plus-16-byte floor, or not sentinel-prefixed is
-refused before any API call, and the cycle skips the upsert fail-closed. The wrapper's post-write
-read-back is deliberately not replicated inline — an inlined upsert carries the pre-write half only.
+an `@path` string", and encodes that rule mechanically in its own block (#943) as two halves. A
+**pre-write gate** refuses a body that is empty, a literal `@path`, not sentinel-prefixed, or under a
+16-byte payload floor, before any API call. A **post-write read-back** then re-reads what landed,
+because the pre-write half is structurally blind to the failure that produced #943 in the first
+place: a well-composed file passed through a body-VALUE flag (`-f body=@FILE` rather than `-F
+body=@FILE`), where `gh` transmits the literal path and the file was never at fault. A failed
+verification means the cycle did not report — record it in durable state, since stderr does not
+survive the session. Not replicated inline: the wrapper's 64 KiB cap and its body-file containment
+checks.
 
 **Durable loop state.** Conversation context is lossy across compaction, so a lane persists its
 adaptive-cap streak counter, its rate-limit-warning latch, its consecutive-no-progress counter, and
