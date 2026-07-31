@@ -3,6 +3,33 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.41.0]
+
+### Changed
+
+- **An unset `worktree_root` now defaults to `${CLAUDE_PLUGIN_DATA}/worktrees` instead of refusing
+  every `/worktree create`.** The key ships unset, so the refusal fired on a fresh install and the
+  command was unusable until the user configured a root by hand — a hard failure standing in for a
+  missing default. The invariant worth protecting is that the worktree lands OUTSIDE every
+  repository, and the plugin data dir satisfies it on its own: never inside a checkout, never a
+  repository-discovery root. It is the same default `babysit_worktree_root` already uses. Exit 3
+  survives for the one case with no safe root to pick — no configured value AND no
+  `CLAUDE_PLUGIN_DATA` (a raw CLI invocation outside a plugin install). The containment guard is
+  untouched: a root explicitly pointed inside a repository is still rejected, which is what actually
+  enforces the nesting invariant.
+
+### Fixed
+
+- **The refusal rationale cited a defect that no longer reproduces.** Four surfaces — the helper,
+  its `--help` text, the `worktree_root` config description, and both skill surfaces — attributed
+  the nesting ban to Claude Code's CLAUDE.md/rules double-load bug, fixed upstream in v2.1.69. The
+  ban is still correct, for a narrower reason measured on 2.1.220: from a worktree nested inside a
+  checkout, a read matching a path-scoped rule's glob also loads the PARENT checkout's copy of that
+  rule. Every surface now states the live constraint, so the next reader auditing the guard against
+  a fixed bug does not conclude the guard is obsolete.
+- **`worktree_root` was missing from the README's configuration table** while every sibling key was
+  listed.
+
 ## [0.40.1]
 
 ### Fixed

@@ -2,7 +2,7 @@
 
 Full detail for the `/worktree create [name]` action. SKILL.md carries the headline plus the shared-helper safety invariant; this file carries the pre-flight guards, name validation, base-ref selection, the explain-before-create block, the directory-rename caveats, and the post-create setup checks.
 
-`create` does **not** call `EnterWorktree(name:)` (which lands in the in-repo `.claude/worktrees/`, triggering Claude Code's CLAUDE.md/rules double-load bug — #400, upstream anthropics/claude-code #29599 / #23565). It routes through the shared helper `${CLAUDE_PLUGIN_ROOT}/scripts/worktree-create.sh`, which places the worktree at an **external root** (`<root>/<owner>-<repo>-<slug>`), copies `.worktreeinclude` files, and prints the path; the skill then calls `EnterWorktree(path:)` on that path.
+`create` does **not** call `EnterWorktree(name:)` (which lands in the in-repo `.claude/worktrees/`, where a read matching a path-scoped rule's glob also loads the parent checkout's copy of that rule — upstream anthropics/claude-code #29599 / #23565). It routes through the shared helper `${CLAUDE_PLUGIN_ROOT}/scripts/worktree-create.sh`, which places the worktree at an **external root** (`<root>/<owner>-<repo>-<slug>`), copies `.worktreeinclude` files, and prints the path; the skill then calls `EnterWorktree(path:)` on that path.
 
 Create a new worktree with guided naming and setup verification.
 
@@ -40,7 +40,7 @@ To start from a different, specific branch, create manually instead: `git worktr
 Before creating, tell the user:
 
 ```text
-Creating worktree (shared helper — external root, avoids the #400 double-load bug):
+Creating worktree (shared helper — external root, so no parent checkout's path-scoped rules load):
   Directory: <root>/<owner>-<repo>-<slug>   (root = the worktree_root config key)
   Branch: <name>                            (kept verbatim; slug derived for the dir)
   Local files: .worktreeinclude matches copied in (gitignored ones only)
@@ -93,7 +93,7 @@ Two steps — the helper creates and places the worktree; `EnterWorktree(path:)`
 
    The helper prints the created worktree path as its **sole stdout line**; capture it. When `worktree_root` is unset, Claude leaves the literal `${user_config.worktree_root}` token — `Write` puts that token in the file verbatim, and the helper's existing unset guard still fires (exit 3), same as before. A value carrying a newline byte anywhere — including a trailing one — is rejected loudly by the helper (exit 2); a path with a newline in it is malformed configuration, not a root to silently trim.
 
-2. **On a non-zero exit, STOP — do not create anything else, and never fall back to `EnterWorktree(name:)`** (that would re-create the in-repo `.claude/worktrees/` path and re-trigger #400). The important refusal is **exit 3 (root unconfigured)**: the `worktree_root` key is unset, so the helper declined and printed guidance on stderr. Surface that guidance to the user verbatim — they need to set `worktree_root` (run the worktree setup skill, or `/plugin` configure) — then stop. Other non-zero exits (2 usage, 4 environment — e.g. the branch already exists) surface the helper's stderr and stop likewise.
+2. **On a non-zero exit, STOP — do not create anything else, and never fall back to `EnterWorktree(name:)`** (that would re-create the in-repo `.claude/worktrees/` path, where the parent checkout's path-scoped rules load too). An unset `worktree_root` is NOT an error: the helper falls back to `${CLAUDE_PLUGIN_DATA}/worktrees` and notes the default on stderr while still exiting 0 — pass that note along, do not treat it as a failure. **Exit 3** now means no usable external root at all (no configured value AND no plugin data dir): surface the helper's guidance verbatim — the user needs to set `worktree_root` (run the worktree setup skill, or `/plugin` configure) — then stop. Other non-zero exits (2 usage, 4 environment — e.g. the branch already exists) surface the helper's stderr and stop likewise.
 
 3. **Enter the worktree** — call `EnterWorktree(path: "<printed-path>")` as the **final action**. Nothing may execute after it: the working directory changes and session state transitions. Because the path is outside `.claude/worktrees/`, Claude Code prompts for approval first (see the explain block); if the user **declines**, the worktree already exists on disk but the session did not enter it — tell them they can retry (approve the prompt) or `cd` into `<printed-path>` in a new session.
 

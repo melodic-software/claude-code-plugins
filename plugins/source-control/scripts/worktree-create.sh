@@ -16,10 +16,12 @@
 #     calls this same helper.
 # The flag CLI is the stable seam both consumers share.
 #
-# Refuse-with-guidance contract: when the external root is unconfigured the
-# helper refuses (exit 3) and never falls back to Claude Code's in-repo
-# `.claude/worktrees/`, whose nested placement triggers the confirmed, unfixed
-# CLAUDE.md/rules double-load bug.
+# Root-resolution contract: an unconfigured external root falls back to
+# `${CLAUDE_PLUGIN_DATA}/worktrees` (mirroring `babysit_worktree_root`), and the
+# helper refuses (exit 3) only when even that is unavailable. It never falls back
+# to Claude Code's in-repo `.claude/worktrees/`: from a worktree nested inside a
+# checkout, a read matching a path-scoped rule's glob also loads the PARENT
+# checkout's copy of that rule.
 #
 # Output contract: on success the created worktree path is the SOLE stdout line
 # (machine-parseable); all diagnostics go to stderr.
@@ -27,7 +29,7 @@
 # Exit codes:
 #   0  success — worktree created; path on stdout
 #   2  usage error — unknown/missing flag, or a --name git rejects as a branch
-#   3  refuse — external root unconfigured (guidance on stderr); nothing created
+#   3  refuse — no usable external root (guidance on stderr); nothing created
 #   4  environment error — not a git repo, or `git worktree add` failed
 
 set -uo pipefail
@@ -53,10 +55,12 @@ Options:
   --root <dir>        External worktree root, passed directly as a process
                       argument (e.g. from a hook or CLI caller — no shell
                       re-quoting of the value happens on that path). An empty
-                      value or an unexpanded \${user_config.*} token makes the
-                      helper refuse (exit 3) rather than fall back to the
-                      in-repo .claude/worktrees/ default (a known Claude Code
-                      double-load bug). Mutually exclusive with --root-file.
+                      value or an unexpanded \${user_config.*} token falls back
+                      to \${CLAUDE_PLUGIN_DATA}/worktrees, and refuses (exit 3)
+                      when that is unset too — never to the in-repo
+                      .claude/worktrees/ default, whose nested placement makes a
+                      read load the parent checkout's path-scoped rules as well.
+                      Mutually exclusive with --root-file.
   --root-file <path>  Read the external worktree root from <path> instead of a
                       --root argument. For a caller that cannot place the value
                       in shell source safely — e.g. a skill rendering
@@ -190,23 +194,47 @@ fi
 # The remaining name check — git's own ref grammar — needs a healthy repository
 # to run in, so it waits until $toplevel is resolved below.
 
-# Refuse-with-guidance: unconfigured root. Treat an empty value or an unexpanded
-# ${user_config.*} token (what Claude Code leaves when the key is unset) as unset.
+# Unconfigured root: fall back to the plugin data dir, mirroring
+# babysit_worktree_root. Treat an empty value or an unexpanded ${user_config.*}
+# token (what Claude Code leaves when the key is unset) as unset.
+#
+# The invariant worth protecting is that the worktree lands OUTSIDE every
+# repository — not that the user configured it by hand. ${CLAUDE_PLUGIN_DATA}
+# satisfies that invariant on its own: it is the harness's per-plugin state
+# directory, never inside a checkout, and never a repository-discovery root. So
+# the fallback is safe where the in-repo .claude/worktrees/ default is not, and
+# refusing outright only cost the user a working command.
+#
+# Refusal survives ONLY when there is no safe root to pick: the harness did not
+# export CLAUDE_PLUGIN_DATA (a raw CLI invocation outside a plugin install), so
+# the helper has nothing to fall back TO. The containment guard further down
+# still rejects any configured root that IS inside a repository — that check,
+# not this one, is what enforces the nesting invariant.
+#
 # SC2016: the single-quoted ${user_config token is matched literally on purpose —
 # we are detecting the UNexpanded placeholder, so expansion here would be a bug.
 # shellcheck disable=SC2016
 if [[ -z "$root" || "$root" == *'${user_config'* ]]; then
-  cat >&2 <<EOF
-$PROG: worktree root is not configured — refusing to create a worktree.
+  if [[ -n "${CLAUDE_PLUGIN_DATA:-}" ]]; then
+    root="${CLAUDE_PLUGIN_DATA%/}/worktrees"
+    printf '%s: worktree_root is not configured; using the plugin data dir default: %s\n' \
+      "$PROG" "$root" >&2
+    printf '%s: set the source-control plugin'\''s `worktree_root` directory key to place worktrees elsewhere.\n' \
+      "$PROG" >&2
+  else
+    cat >&2 <<EOF
+$PROG: worktree root is not configured and no plugin data dir is available — refusing to create a worktree.
 
 Set the source-control plugin's \`worktree_root\` directory key to an external
 root (a path OUTSIDE every repository, on the same drive as the repo on Windows),
 then retry. Run the worktree setup skill, or configure it via \`/plugin\`.
 
-Not falling back to the in-repo .claude/worktrees/ default: that nested
-placement triggers Claude Code's CLAUDE.md/rules double-load bug.
+Not falling back to the in-repo .claude/worktrees/ default: from a worktree
+nested inside a checkout, a read matching a path-scoped rule's glob also loads
+the PARENT checkout's copy of that rule.
 EOF
-  exit 3
+    exit 3
+  fi
 fi
 
 # Canonicalize a Windows backslash root to the forward-slash grammar git emits.
@@ -384,10 +412,10 @@ worktree_path=$(normalize_path "$worktree_path")
 
 # Reject placement inside any git repository — a working tree, a normal repo's
 # .git directory, or a bare clone. Keeping worktrees OUT of every repository is
-# the helper's core purpose: a worktree nested inside a working tree reintroduces
-# the CLAUDE.md/rules double-load bug for whichever checkout owns the ancestor,
-# and one dropped inside a .git or bare directory mixes the checkout into git
-# metadata. The unconfigured-root refuse above does not catch a root explicitly
+# the helper's core purpose: from a worktree nested inside a working tree, a read
+# matching a path-scoped rule's glob also loads the ancestor checkout's copy of
+# that rule, and one dropped inside a .git or bare directory mixes the checkout
+# into git metadata. The root resolution above does not catch a root explicitly
 # pointed inside a repository (e.g. the old .claude/worktrees/ path, a root under
 # a sibling clone, or a path beneath a .git directory), so ask git about the
 # target's location: walk up from the target's parent to the nearest existing
@@ -430,8 +458,9 @@ Set the source-control plugin's \`worktree_root\` directory key to an external
 root (a path OUTSIDE every repository, on the same drive as the repo on Windows),
 then retry.
 
-Not creating inside a checkout or a git directory: that placement triggers Claude
-Code's CLAUDE.md/rules double-load bug and mixes the worktree into git metadata.
+Not creating inside a checkout or a git directory: from there a read matching a
+path-scoped rule's glob also loads the enclosing checkout's copy of that rule,
+and a git-directory placement mixes the worktree into git metadata.
 EOF
     exit 3
   fi
