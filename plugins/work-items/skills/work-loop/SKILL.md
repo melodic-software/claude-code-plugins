@@ -100,7 +100,7 @@ else
   if [ -n "$CANON" ]; then
     gh api -X PATCH "repos/$REPO/issues/comments/$CANON" -F body=@"$BODY_FILE"
     VERIFY "$CANON" ||
-      echo "telemetry: comment $CANON does NOT carry this cycle's telemetry after the write - treat the lane as UNREPORTED and record it in durable state; do not trust the timestamp" >&2
+      echo "telemetry: comment $CANON does NOT carry a well-formed telemetry body after the write - treat the lane as UNREPORTED and record it in durable state; do not trust the timestamp" >&2
     for DUP in $(printf '%s\n' "$LIST" | sort -n | tail -n +2); do
       gh api -X PATCH "repos/$REPO/issues/comments/$DUP" \
         -f body="Superseded duplicate - canonical telemetry comment: $CANON" || true

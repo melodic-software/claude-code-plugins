@@ -38,9 +38,13 @@
 # formatter/autofix hook — whole-file scanning is the accepted posture here
 # (ruff-format/markdown-format do the same); rule 1's "changed hunk" framing
 # targets detector/guard hooks flagging pre-existing lines the edit never
-# touched. Rule 3 (bounded stdin): inherited via hook::buffer_stdin. Rules 2/4/5
-# (command-structure parsing, canonical-marker gating, repo-path/home-dir
-# branching): N/A — this hook has none of those shapes.
+# touched. Rule 3 (bounded stdin): inherited via hook::buffer_stdin. Rule 5
+# (gate path detection on the discovered checkout, not the raw project dir):
+# inherited via hook::read_file_path, which rejects a file in the OS temp tree
+# reached from a project root outside it — the shape a home-directory
+# CLAUDE_PROJECT_DIR takes, where the harness's own scratchpad would otherwise
+# prefix-match as project content. Rules 2/4 (command-structure parsing,
+# canonical-marker gating): N/A — this hook has neither shape.
 #
 # KNOWN RISK (not fixed here): Claude Code runs every matching PostToolUse hook
 # in parallel for one tool call. This hook has no extension filter, so on a
@@ -387,7 +391,7 @@ if ((APPLIED_COUNT > 0)); then
   if ((APPLIED_COUNT > MAX_REPORT)); then
     CTX+="  ... and $((APPLIED_COUNT - MAX_REPORT)) more."$'\n'
   fi
-  CTX+="  These come from typos' built-in dictionary, not from this repository. If any is wrong here (an acronym, an identifier, a proper noun), add it to extend-words / extend-identifiers in your typos config — the autocorrect has no memory, so repairing the word by hand alone gets it rewritten again on the next edit."$'\n'
+  CTX+="  These come from typos' built-in dictionary, not from this repository. If any is wrong here (an acronym, an identifier, a proper noun), add it to extend-words / extend-identifiers in your typos config; for a region quoted verbatim — a Markdown code fence, a transcript, a signature block — use an extend-ignore-re pattern instead, which typos documents for exactly that case. The autocorrect has no memory, so repairing the word by hand alone gets it rewritten again on the next edit."$'\n'
   # The person whose file was just changed is the one who has to judge whether
   # the change was correct, and they never asked for it. This is a content
   # mutation, not a lint finding, so it goes to the user channel too.

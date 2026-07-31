@@ -10,10 +10,16 @@
     "Desktop",
     "Documents",
     "Downloads",
+    "Dropbox",
+    "iCloud Drive",
     "Music",
     "OneDrive",
     "Pictures",
     "Videos"
+  ],
+  "protected_name_globs": [
+    "Dropbox (*)",
+    "OneDrive - *"
   ],
   "hints": [
     {

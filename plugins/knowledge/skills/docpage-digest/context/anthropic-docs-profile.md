@@ -81,7 +81,6 @@ their slices complete.
 
 Thinking (two overlapping docs — two runs, one page per run by contract):
 
-- <https://platform.claude.com/docs/en/build-with-claude/thinking>
 - <https://platform.claude.com/docs/en/build-with-claude/thinking-steering-and-cost>
 
 Deferred with trigger (not queued):

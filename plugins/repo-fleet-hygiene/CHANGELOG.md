@@ -3,6 +3,24 @@
 All notable changes to `repo-fleet-hygiene` are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.1]
+
+### Fixed
+
+- **A no-scope audit from a non-Git project directory now names the remedy (#1771).** With no
+  `--root`, `--repo`, or `--config` and no config on the ladder, the audit uses the session's
+  project directory as an exact repository target. When that directory is not a Git working tree —
+  the shape of the very first invocation on a machine whose fleet lives elsewhere — the run stopped
+  at `Error: not a Git working tree: <path>` and said nothing else, so recovering meant reading the
+  collector source to learn that the implicit default was a `--repo` rather than a discovery root.
+  The implicit target now carries its own rejection origin: it still fails closed, and the failure
+  now lists `--root`, `--repo`, and `--config` with a pointer to `/repo-fleet-hygiene:setup apply`.
+  An explicitly supplied bad path stays terse — the operator just passed a scope, so repeating how
+  to pass one is noise. When a config WAS consumed but carries no `fleet.root`/`fleet.repo` entries
+  (only `maxDepth`, acknowledgments, or overrides), the rejection no longer claims `--config` was
+  omitted: it names the consumed config and directs scope into it. The skill body described the
+  same default in discovery-root terms and now states that it is an exact target.
+
 ## [0.7.0]
 
 ### Changed
