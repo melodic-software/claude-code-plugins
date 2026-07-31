@@ -25,6 +25,44 @@ lower() {
   printf '%s' "$1" | tr '[:upper:]' '[:lower:]'
 }
 
+# Path presentation. MSYS/Cygwin render Windows drives as /c/..., a form no Windows shell, file
+# manager, or IDE accepts. This report is actionable text whose paths get pasted, so convert to the
+# drive form for PRESENTATION ONLY -- every comparison, dedup key, and filesystem test upstream
+# keeps the native form it was given.
+WINDOWS_PATH_DISPLAY=false
+CASE_INSENSITIVE_PATHS=false
+case "$(uname -s 2>/dev/null || true)" in
+MINGW* | MSYS* | CYGWIN*)
+  WINDOWS_PATH_DISPLAY=true
+  CASE_INSENSITIVE_PATHS=true
+  ;;
+*) ;;
+esac
+
+WINDOWS_DRIVE_LETTERS="abcdefghijklmnopqrstuvwxyz"
+
+to_native_path() {
+  local text="$1" i lower_drive upper_drive
+  [[ "$WINDOWS_PATH_DISPLAY" == "true" && "$text" == */* ]] || {
+    printf '%s' "$text"
+    return 0
+  }
+  # Convert at the value start and after a space: the report's two shapes are a bare path field and
+  # a path embedded in a handoff sentence. The case pre-filter keeps the tr fork to drives actually
+  # present, and avoids ${var^} / ${var,,} so bash 3.2 (macOS system bash) still runs this.
+  for ((i = 0; i < 26; i++)); do
+    lower_drive="${WINDOWS_DRIVE_LETTERS:i:1}"
+    case "$text" in
+    "/$lower_drive/"* | *" /$lower_drive/"*) ;;
+    *) continue ;;
+    esac
+    upper_drive="$(printf '%s' "$lower_drive" | tr '[:lower:]' '[:upper:]')"
+    [[ "$text" == "/$lower_drive/"* ]] && text="$upper_drive:/${text#"/$lower_drive/"}"
+    text="${text//" /$lower_drive/"/" $upper_drive:/"}"
+  done
+  printf '%s' "$text"
+}
+
 # Keep ordinary printable report values readable, but encode any control-bearing value as one Bash
 # %q field. Git permits newlines and terminal-control bytes in filesystem paths; raw rendering would
 # let a crafted registration forge Finding/Confidence/Handoff lines in this actionable report.
@@ -32,7 +70,7 @@ display_value() {
   local value="$1" escaped
   local LC_ALL=C
   if [[ "$value" =~ ^[[:print:]]*$ ]]; then
-    printf '%s' "$value"
+    to_native_path "$value"
   else
     printf -v escaped '%q' "$value"
     printf '%s' "$escaped"
@@ -174,6 +212,10 @@ gh_probe_allowed() {
 # GitHub CLI has no request-timeout flag. Prefer GNU timeout/gtimeout only when its documented
 # --kill-after capability is present. The pure-Bash watchdog is the platform-safe fallback and still
 # escalates TERM to KILL after a finite grace period. The test switch can only shorten both bounds.
+# The repository-scoped merged-PR batch window. Named rather than inlined so the query, the
+# truncation disclosure, and the evidence text can never drift apart; the value is also pinned in
+# gh_probe_allowed, which rejects any other --limit for this query.
+MERGED_PR_WINDOW=200
 GH_TIMEOUT_SECONDS=30
 GH_KILL_AFTER_SECONDS=5
 if [[ "${REPO_FLEET_TEST_FAST_TIMEOUTS:-}" == "1" ]]; then
@@ -236,18 +278,13 @@ fi
 
 command -v git >/dev/null 2>&1 || fail "git is required"
 
-CASE_INSENSITIVE_PATHS=false
-case "$(uname -s 2>/dev/null || true)" in
-MINGW* | MSYS* | CYGWIN*) CASE_INSENSITIVE_PATHS=true ;;
-*) ;;
-esac
-
 ROOT_ARGS=()
 REPO_ARGS=()
 OVERRIDE_KEYS=()
 OVERRIDE_PATHS=()
 CONFIG_FILE=""
 MAX_DEPTH=""
+PROJECT_DIR_ARG=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -285,6 +322,11 @@ while [[ $# -gt 0 ]]; do
     MAX_DEPTH="$2"
     shift 2
     ;;
+  --project-dir)
+    [[ $# -ge 2 ]] || fail "--project-dir requires a directory"
+    PROJECT_DIR_ARG="$2"
+    shift 2
+    ;;
   -h | --help)
     usage
     exit 0
@@ -292,6 +334,20 @@ while [[ $# -gt 0 ]]; do
   *) fail "unknown argument: $1" ;;
   esac
 done
+
+# Project directory. ${CLAUDE_PROJECT_DIR} is documented to substitute in a skill's markdown
+# content and in its allowed-tools Bash rules -- NOT to be present in the Bash tool's environment,
+# which is where this collector runs. Reading it from the environment left the project rung of the
+# config ladder permanently unreachable, so the skill body passes it in as --project-dir, where the
+# documented substitution applies. The environment is still honored for callers that genuinely have
+# it (hooks, MCP stdio servers, a direct shell). A value that is still an unexpanded ${...}
+# placeholder -- an older Claude Code that does not substitute it -- counts as absent, never as a
+# literal directory name.
+PROJECT_DIR="${PROJECT_DIR_ARG:-${CLAUDE_PROJECT_DIR:-}}"
+case "$PROJECT_DIR" in
+"\${"*) PROJECT_DIR="" ;;
+*) ;;
+esac
 
 # Config resolution ladder: explicit --config, then the project-scoped file,
 # then the user-global one. A fleet config is inherently machine-scoped, so a
@@ -304,8 +360,8 @@ if [[ -n "$CONFIG_FILE" ]]; then
   [[ -f "$CONFIG_FILE" ]] || fail "config file not found: $CONFIG_FILE"
   CONFIG_SOURCE="explicit --config"
 else
-  if [[ -n "${CLAUDE_PROJECT_DIR:-}" && -f "${CLAUDE_PROJECT_DIR}/.claude/repo-fleet-hygiene.conf" ]]; then
-    CONFIG_FILE="${CLAUDE_PROJECT_DIR}/.claude/repo-fleet-hygiene.conf"
+  if [[ -n "$PROJECT_DIR" && -f "$PROJECT_DIR/.claude/repo-fleet-hygiene.conf" ]]; then
+    CONFIG_FILE="$PROJECT_DIR/.claude/repo-fleet-hygiene.conf"
     CONFIG_SOURCE="project"
   else
     home_dir="${HOME:-${USERPROFILE:-}}"
@@ -382,8 +438,18 @@ is_acked() {
 }
 
 IMPLICIT_SCOPE=false
+UNRESOLVED_SCOPE=false
+SCOPE_FALLBACK_NOTE="so the audit fell back to this session's project directory as an exact repository target"
 if [[ ${#ROOT_ARGS[@]} -eq 0 && ${#REPO_ARGS[@]} -eq 0 ]]; then
-  REPO_ARGS+=("${CLAUDE_PROJECT_DIR:-$PWD}")
+  # No scope AND no project directory. $PWD is an agent session's incidental working directory, not
+  # a chosen scope, so falling back to it would audit wherever the shell happened to sit and report
+  # that as the project. Defer the rejection until reject_target is defined below, so the operator
+  # gets the same scope remedies the chosen-nothing case already earns.
+  if [[ -z "$PROJECT_DIR" ]]; then
+    UNRESOLVED_SCOPE=true
+    SCOPE_FALLBACK_NOTE="and no project directory was available, so no repository scope resolved"
+  fi
+  REPO_ARGS+=("$PROJECT_DIR")
   # The implicit current-project default is CLI-equivalent, not config-sourced: it is appended
   # after CLI_REPO_COUNT was captured, so count it there or the zero-configuration audit from a
   # non-Git directory would degrade to a stale-config-entry (with an empty source) instead of
@@ -392,6 +458,25 @@ if [[ ${#ROOT_ARGS[@]} -eq 0 && ${#REPO_ARGS[@]} -eq 0 ]]; then
   # CLI-shaped error tells them nothing about how to supply a scope.
   CLI_REPO_COUNT=$((CLI_REPO_COUNT + 1))
   IMPLICIT_SCOPE=true
+fi
+
+# Scope provenance: which rung actually supplied the audited roots/repos. This is a different
+# question from which config FILE was consumed, and the header used to answer it with a fixed
+# literal that could contradict the run's own inputs two lines later. Config-supplied scope is
+# ADDITIVE to any CLI-supplied scope, so both contributions are named rather than one masking the
+# other.
+if [[ "$IMPLICIT_SCOPE" == "true" ]]; then
+  SCOPE_PROVENANCE="project directory (no --root, --repo, or config-supplied scope)"
+else
+  cli_scope_count=$((CLI_ROOT_COUNT + CLI_REPO_COUNT))
+  config_scope_count=$((${#ROOT_ARGS[@]} - CLI_ROOT_COUNT + ${#REPO_ARGS[@]} - CLI_REPO_COUNT))
+  SCOPE_PROVENANCE=""
+  [[ "$cli_scope_count" -gt 0 ]] &&
+    SCOPE_PROVENANCE="command line ($cli_scope_count --root/--repo argument(s))"
+  if [[ "$config_scope_count" -gt 0 ]]; then
+    [[ -n "$SCOPE_PROVENANCE" ]] && SCOPE_PROVENANCE="$SCOPE_PROVENANCE + "
+    SCOPE_PROVENANCE="${SCOPE_PROVENANCE}config $CONFIG_SOURCE ($config_scope_count fleet.root/fleet.repo entr(ies))"
+  fi
 fi
 
 path_key() {
@@ -430,8 +515,7 @@ reject_target() {
       cat >&2 <<EOF
 
 No --root or --repo was given, and the consumed config ($CONFIG_SOURCE: $CONFIG_FILE) carries no
-fleet.root or fleet.repo entries, so the audit used this session's project directory as an exact
-repository target. Add scope to that config:
+fleet.root or fleet.repo entries, $SCOPE_FALLBACK_NOTE. Add scope to that config:
 
   git config --file "$CONFIG_FILE" --add fleet.root <dir>   bounded recursive repository discovery
   git config --file "$CONFIG_FILE" --add fleet.repo <dir>   one exact repository or worktree
@@ -439,10 +523,9 @@ repository target. Add scope to that config:
 Or pass --root <dir> / --repo <dir> for a one-off scope.
 EOF
     else
-      cat >&2 <<'EOF'
+      cat >&2 <<EOF
 
-No --root, --repo, or --config was given, so the audit used this session's project directory as an
-exact repository target. Give it a scope instead:
+No --root, --repo, or --config was given, $SCOPE_FALLBACK_NOTE. Give it a scope instead:
 
   --root <dir>     bounded recursive repository discovery
   --repo <dir>     one exact repository or worktree
@@ -455,12 +538,34 @@ EOF
   exit 2
 }
 
+if [[ "$UNRESOLVED_SCOPE" == "true" ]]; then
+  reject_target default \
+    "no scope resolved: no --root or --repo, no config-supplied scope, and no project directory (pass --project-dir, or supply a scope directly)"
+fi
+
+# main_worktree <dir>: the repository-of-record checkout for <dir>, or non-zero when the porcelain
+# cannot answer. `git worktree list --porcelain` lists the MAIN worktree first regardless of which
+# worktree it runs from (git-worktree(1)), and the collector already relies on that ordering when it
+# classifies registrations. `rev-parse --show-toplevel` cannot substitute: inside a linked worktree
+# it returns the LINKED root, so it can never distinguish the two.
+main_worktree() {
+  local dir="$1" record=""
+  # -z records are NUL-delimited and command substitution would drop the NULs outright, so read the
+  # first record directly off the stream.
+  IFS= read -r -d '' record < <(run_git_probe -C "$dir" worktree list --porcelain -z -- 2>/dev/null)
+  record="${record%$'\r'}"
+  [[ "$record" == "worktree "* ]] || return 1
+  record="${record#worktree }"
+  [[ -n "$record" ]] || return 1
+  printf '%s\n' "$record"
+}
+
 # add_target <path> <origin>: origin "cli" hard-fails on an invalid path (a typo should stop the
 # run); origin "default" hard-fails with the scope remedies; origin "config" records a
 # stale-config-entry and continues (the entry, not the run, is the failure unit for a tracked fleet
 # config). Invalid config SYNTAX still hard-fails upstream.
 add_target() {
-  local candidate="$1" origin="${2:-cli}" top common common_key existing
+  local candidate="$1" origin="${2:-cli}" top common common_key existing main_top
   if [[ ! -d "$candidate" ]]; then
     reject_target "$origin" "repository directory not found: $candidate"
     STALE_CONFIG_PATHS+=("$candidate")
@@ -479,6 +584,18 @@ add_target() {
     STALE_CONFIG_REASONS+=("cannot resolve the Git common directory for the configured path")
     return 0
   }
+  # Siblings sharing one common directory are one repository, and the dedup below keeps whichever
+  # arrives first -- which for recursive discovery is glob order. Retarget to the repository of
+  # record BEFORE that tie-break so a linked worktree reached first can never become the canonical
+  # path every emitted handoff points at. Falls back to --show-toplevel when the porcelain cannot
+  # answer; a repository whose worktree inventory is unusable is reported as UNKNOWN downstream.
+  # A main worktree carries .git as a DIRECTORY; a linked one carries it as a FILE. Gate the extra
+  # porcelain probe on that cheap local test so an ordinary fleet sweep pays nothing per repository
+  # -- and note the gate is an optimization only: --separate-git-dir also yields a .git file, and
+  # the porcelain then simply confirms the same main worktree.
+  if [[ ! -d "$top/.git" ]] && main_top="$(main_worktree "$candidate")" && [[ -n "$main_top" ]]; then
+    top="$main_top"
+  fi
   common_key="$(path_key "$common")"
   for existing in "${TARGET_COMMON_KEYS[@]:-}"; do
     [[ "$existing" == "$common_key" ]] && return 0
@@ -722,7 +839,7 @@ analyze_repo() {
   local pr_num pr_branch pr_oid pr_merged pr_url attached wt_index branch_index is_main ancestry_status
   local ref_record branch_status=1 branch_inventory_valid=true
   local remote_ref_record remote_branch_status=1 remote_branch_short remote_branch_known
-  local repo_pr_rows="" exact_pr_rows="" repo_pr_available=false protected=false
+  local repo_pr_rows="" exact_pr_rows="" repo_pr_available=false protected=false pr_row_count=0
   local remote_inventory_failed=false
   local -a WT_PATHS=() WT_BRANCHES=() WT_PRUNABLE=() WT_LOCKED=()
   local -a BRANCH_NAMES=() BRANCH_TIPS=() REMOTE_BRANCH_NAMES=() REMOTE_BRANCH_TIPS=()
@@ -1026,10 +1143,24 @@ analyze_repo() {
   # One repository-scoped query avoids N network round trips while keeping same-named branches
   # isolated by --repo. A finite limit can cause a false negative, never a false merged claim.
   if [[ -n "$github_repo" && "$GH_READY" == "true" ]]; then
-    repo_pr_rows="$(run_bounded_gh pr list --repo "github.com/$github_repo" --state merged --limit 200 \
+    repo_pr_rows="$(run_bounded_gh pr list --repo "github.com/$github_repo" --state merged --limit "$MERGED_PR_WINDOW" \
       --json number,headRefName,headRefOid,mergedAt,url \
       --template '{{range .}}{{printf "%v\t%s\t%s\t%s\t%s\n" .number .headRefName .headRefOid .mergedAt .url}}{{end}}' 2>/dev/null)" &&
       repo_pr_available=true
+    # A repository whose merged history exceeds the query window loses the older PRs silently, and
+    # a branch merged before the window then reports no merged finding at all -- indistinguishable
+    # in the report from a branch that was never merged. gh returns at most --limit rows, so a full
+    # batch means the window was reached; it cannot distinguish "exactly 200" from "far more", and
+    # deliberately errs toward warning, because a missing warning is the failure that costs history.
+    if [[ "$repo_pr_available" == "true" ]]; then
+      pr_row_count="$(printf '%s' "$repo_pr_rows" | grep -c . || true)"
+      if [[ "$pr_row_count" -ge "$MERGED_PR_WINDOW" ]]; then
+        emit_finding UNKNOWN merged-pr-window-truncated "$github_repo" \
+          "the merged-PR query returned $pr_row_count rows, equal to its $MERGED_PR_WINDOW-PR window; older merged PRs are outside it" \
+          "Merged evidence for this repository covers only the most recent $MERGED_PR_WINDOW merged PRs; an older merge reports no merged finding" \
+          "Treat absent merged findings here as unproven; verify an individual branch on GitHub before cleanup"
+      fi
+    fi
     if [[ "$repo_pr_available" != "true" ]]; then
       emit_finding UNKNOWN github-pr-evidence-unavailable "$github_repo" \
         "repository-scoped merged-PR query failed" "Do not infer branch merge state" \
@@ -1186,8 +1317,9 @@ printf 'Mode: read-only (no fetch, prune, repair, delete, checkout, or remote up
 if [[ -n "$CONFIG_FILE" ]]; then
   print_field Config "$CONFIG_FILE ($CONFIG_SOURCE)"
 else
-  print_field Config "none (no explicit, project, or user-global config; current-project scope)"
+  print_field Config "none (no explicit --config, and no project or user-global config file found)"
 fi
+print_field Scope "$SCOPE_PROVENANCE"
 if [[ "$GH_READY" == "true" && -n "$GH_ACCOUNT" ]]; then
   printf 'GitHub evidence: available (account: '
   display_value "$GH_ACCOUNT"
@@ -1195,7 +1327,10 @@ if [[ "$GH_READY" == "true" && -n "$GH_ACCOUNT" ]]; then
 else
   printf 'GitHub evidence: %s\n' "$([[ "$GH_READY" == "true" ]] && echo available || echo unavailable)"
 fi
-printf 'Repositories discovered: %s\n' "${#TARGETS[@]}"
+# Two different quantities previously shared the bare label "repositories": this one counts
+# discovery targets, the Summary line counts repositories that completed a local audit. Both are
+# qualified so a reader cannot read a shortfall as a discrepancy.
+printf 'Repositories discovered (audit targets after deduplication): %s\n' "${#TARGETS[@]}"
 for ((root_index = 0; root_index < ${#ROOT_LABELS[@]}; root_index++)); do
   printf 'Root '
   display_value "${ROOT_LABELS[$root_index]}"
@@ -1244,6 +1379,13 @@ for ((di = 0; di < ${#IDENT_KEYS[@]}; di++)); do
   fi
 done
 
-printf '\nSummary: repositories=%s high=%s medium=%s low=%s unknown=%s acknowledged=%s\n' \
+printf '\nSummary: repositories_audited=%s high=%s medium=%s low=%s unknown=%s acknowledged=%s\n' \
   "$REPOS_AUDITED" "$FINDINGS_HIGH" "$FINDINGS_MEDIUM" "$FINDINGS_LOW" "$FINDINGS_UNKNOWN" "$FINDINGS_ACKED"
-printf 'Mutation count: 0\n'
+# Deliberately a statement of the enforcing mechanism, not a tally. The previous line printed a
+# hardcoded "Mutation count: 0", which would have read identically in a build that mutated -- an
+# unfalsifiable reassurance in the exact place a reader looks for assurance. A real counter is not
+# available either: most probes run inside command substitution, so an increment would be lost with
+# the subshell and would undercount. The allowlists are the fact; they are named so a reader can go
+# read them.
+printf 'Mutations: none possible; every Git and gh invocation is checked against a read-only\n'
+printf '  command allowlist (git_probe_allowed / gh_probe_allowed) and rejected otherwise.\n'

@@ -3,6 +3,92 @@
 All notable changes to `repo-fleet-hygiene` are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.0]
+
+### Fixed
+
+- **Canonical resolution can no longer select a linked worktree (#1797).** Discovery reaches a
+  linked worktree and its own main worktree through the same glob, and both map to one
+  `--git-common-dir` dedup key, so the winner was decided by glob order. A sibling whose directory
+  name sorts before the canonical one under `LC_ALL=C` therefore became "Canonical" — and every
+  emitted handoff carries that path, so per-repository cleanup would be aimed at a checkout that is
+  not the repository of record, while the real canonical checkout was deduplicated away and never
+  reported. `add_target` now resolves each candidate to its main worktree, read as the first record
+  of `git worktree list --porcelain` (which lists the main worktree first wherever it runs), before
+  the dedup tie-break. `rev-parse --show-toplevel` cannot make this distinction: inside a linked
+  worktree it returns the linked root. The extra probe is gated on the candidate's `.git` being a
+  file rather than a directory, so an ordinary fleet sweep pays nothing per repository. Evidence
+  rule 1 in both skills is corrected to match.
+- **The `allowed-tools` grant used a variable that is not substituted there (#1798).** The rule named
+  `${CLAUDE_PLUGIN_ROOT}`, which the skills documentation does not list among the variables
+  substituted in skill content or `allowed-tools` Bash rules — only `${CLAUDE_SKILL_DIR}` and
+  `${CLAUDE_PROJECT_DIR}` are. The rule stayed a literal string, never matched the real invocation,
+  and the skill's one permission grant was inert in a workflow built for unattended sweeps. Both the
+  grant and the documented invocation now use `${CLAUDE_SKILL_DIR}`.
+- **The project-scoped config rung is reachable again (#1798).** The collector read
+  `CLAUDE_PROJECT_DIR` from its own environment, where it is not provided — that variable is
+  documented for hooks, MCP stdio servers, and skill content, not for Bash tool invocations. The
+  project rung of the config ladder therefore resolved against nothing, and the zero-argument
+  fallback silently became `$PWD`, an agent session's incidental working directory. The skill body
+  now passes `--project-dir "${CLAUDE_PROJECT_DIR}"`, where the documented substitution applies; the
+  environment variable is still honored for callers that genuinely have it, and a value left as an
+  unexpanded `${...}` placeholder counts as absent. When no project directory resolves, the run
+  stops with the scope remedies instead of auditing whatever directory the shell was sitting in.
+- **Report text no longer asserts things the run contradicts (#1800).** The header printed a fixed
+  `Config: none (… current-project scope)` literal that could contradict the very next lines — it
+  claimed project scope on a run whose scope came from `--root`, and described a mode that was not
+  reachable at all. A computed `Scope:` line now names each rung that actually contributed and its
+  entry count, which also discloses that config-supplied scope is additive to CLI-supplied scope.
+  `Mutation count: 0` was a hardcoded literal that would have read identically in a build that
+  mutated; it is replaced by a statement of the enforcing mechanism (the read-only git/gh command
+  allowlists), because a real counter would undercount — most probes run inside command
+  substitution, so increments are lost with the subshell. On Windows, MSYS-style `/c/...` paths are
+  converted to `C:/...` for presentation only, since the report is actionable text whose paths get
+  pasted into tools that reject the MSYS form. The two differently-scoped `repositories` counts are
+  now labelled distinctly (`Repositories discovered (audit targets after deduplication)` and
+  `repositories_audited`).
+- **`setup`'s verify step no longer violates `setup`'s own boundary (#1801).** `apply` step 5
+  prescribed running the collector, which is the full fleet walk the skill states it never performs —
+  minutes of per-repository network queries in a step described as validating that a config parses.
+  Verification is now config-only (parse validity plus per-entry path resolution); an end-to-end run
+  is an explicit handoff to `/repo-fleet-hygiene:audit`.
+- **`setup` can set `maxDepth` (#1801).** The grammar `setup` documents and owns includes `maxDepth`,
+  and the collector implements `--max-depth`, but `setup`'s argument grammar had no way to write it,
+  so a consumer needing a non-default depth had to hand-edit the file `setup` manages. `--max-depth`
+  is now part of `setup`'s grammar, and `--max-depth` was missing from the audit skill's
+  `argument-hint` as well.
+
+### Changed
+
+- **A truncated merged-PR window is disclosed (#1803).** The batched merged-PR query returns at most
+  200 rows; a repository with more merged history silently lost the remainder, and a branch merged
+  before the window then produced no merged finding — indistinguishable in the report from a branch
+  that was never merged. A full window now emits `merged-pr-window-truncated` (`UNKNOWN`) saying
+  that absent merged findings in that repository are unproven. It cannot distinguish "exactly 200"
+  from "far more" and deliberately errs toward warning.
+- **The confidence model documents every finding kind and what the tiers rest on (#1799).** The tier
+  table covered 12 of 24 emitted kinds, so a consumer meeting an untabulated kind had no documented
+  disposition. It now covers all 25, and a test asserts set equality in both directions between the
+  table and the collector's emitted kinds, so this drift is a test failure rather than a later
+  discovery. `ACKNOWLEDGED` is documented as a prominence demotion of an `UNKNOWN`, not a fifth
+  confidence value. Evidence rule 3 now describes the mechanism that actually runs — one batched
+  query per repository plus a privacy-gated per-branch fallback — rather than a per-branch
+  authoritative query. Two undisclosed dependencies are stated: the `LOW` ancestry tier is near-inert
+  under squash merges, and `missing-worktree` versus `prunable-worktree` turns on the user-tunable
+  `gc.worktreePruneExpire` window rather than on evidence strength. The two reference files that had
+  no pointer from the hub are now linked.
+
+### Added
+
+- **Behavioural coverage for the failures a real fleet produced (#1803).** The suite exercised the
+  documented happy path while a single 11-repository run surfaced defects none of it could reach.
+  New executable assertions cover canonical selection against an earlier-sorting linked worktree
+  (constructed red first), the computed scope-provenance line, merged-PR window truncation,
+  unauthenticated-`gh` degradation, and tier-table/collector drift. New model-graded evals cover
+  privacy-gated branches as unverified rather than unmerged, squash-merge semantics, worktree
+  disposability as deliberately out of scope, and — for `setup` — config-only verification,
+  cross-volume paths, and `maxDepth`.
+
 ## [0.7.1]
 
 ### Fixed
