@@ -3,6 +3,40 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.19.0]
+
+### Changed
+
+- **`block-noncanonical-commit` now DEFERS a PowerShell command the classifier cannot parse
+  instead of blocking it (#1858).** `ps::classify_git_command` rc 2 means "not faithfully
+  tokenizable, and something git-shaped is in there" — a form this guard never got to read, so its
+  block message named a commit shape it never saw while `block-dangerous-git` blocked the same
+  input with a message describing what was actually observed. The rc-2 arm now takes the same
+  `exit 0` the sibling content gate `block-convention-violation` already takes, collapsing both
+  nonzero arms into one deferral. Both arms emit a new telemetry `form` value,
+  `powershell-deferred`, so a deferral stays distinguishable from an evaluated allow (rc 1
+  previously exited with no telemetry record at all).
+
+  **Residual exposure, stated rather than buried.** The two guards that retain the rc-2 block —
+  `block-dangerous-git` and `block-no-verify` — each carry their own kill switch, so a
+  configuration setting `block_dangerous_git_enabled` and `block_no_verify_enabled` to false while
+  leaving `block_noncanonical_commit_enabled` on no longer blocks a git-shaped unparsable
+  PowerShell commit. Under a default install, and under any configuration retaining either
+  sibling, coverage is unchanged. The contract test asserts both halves — the deferral here, and a
+  live block on the same two inputs from each sibling, matched on the block reason — plus the
+  residual itself with both kill switches off, so the deferral cannot silently become a hole.
+
+### Fixed
+
+- **Five telemetry schemas no longer claim their guard is Bash-only.**
+  `hooks.json` registers `block-noncanonical-commit`, `block-no-verify`, `block-dangerous-git`,
+  `block-hook-bypass`, and `flag-commit-pr-skill-bypass` on `Bash|PowerShell`, and each emits the
+  payload's real `tool_name`, but every one of their schemas under
+  `docs/conventions/hook-telemetry/data/` described `tool` as always `"Bash"` and `subject` as
+  always the tokenized `Bash:<first-token>` form. A PowerShell call is not tokenized —
+  `hook::extract_bash_subject` returns the bare tool name — so both claims were wrong for half the
+  matcher. Descriptions corrected; no payload change.
+
 ## [0.18.4]
 
 ### Fixed
