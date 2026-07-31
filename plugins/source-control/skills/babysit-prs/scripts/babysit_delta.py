@@ -70,6 +70,105 @@ DEFAULT_MAX_QUIET_RECHECK_SECONDS = 4 * 60 * 60
 # detected structurally and are not subject to this threshold.
 DEFAULT_STUCK_CHECK_AGE_SECONDS = 30 * 60
 ADVISORY_FIX_ROUND_CAP = 100
+# Provenance classes in `safety.md`'s (a)/(b)/(c) round taxonomy: (a) a genuine
+# duplicate, (b) a new distinct finding, (c) a self-inflicted finding against
+# text this lane's own prior fix introduced.
+ADVISORY_ROUND_CLASSES = ("a", "b", "c")
+
+
+def advisory_round_composition(record: Any) -> str:
+    """Classify one recorded advisory round as `all-c`, `mixed`, or `unknown`.
+
+    `unknown` is the answer for every round recorded before per-finding classes
+    were persisted, and for any record whose counts are unreadable. It is not a
+    synonym for "no (c) findings": the tripwire treats it as fail-closed.
+    """
+    if not is_json_object(record):
+        return "unknown"
+    classes = json_object(record.get("finding_classes"))
+    counts: dict[str, int] = {}
+    for name in ADVISORY_ROUND_CLASSES:
+        value = classes.get(name)
+        if not isinstance(value, int) or isinstance(value, bool) or value < 0:
+            return "unknown"
+        counts[name] = value
+    if not sum(counts.values()):
+        return "unknown"
+    return "all-c" if counts["c"] and not counts["a"] and not counts["b"] else "mixed"
+
+
+def advisory_round_sequence(record: Any) -> int:
+    """The explicit write sequence of one recorded round, 0 when absent."""
+    if not is_json_object(record):
+        return 0
+    value = record.get("sequence")
+    if isinstance(value, int) and not isinstance(value, bool) and value > 0:
+        return value
+    return 0
+
+
+def ordered_advisory_rounds(rounds: Any) -> list[tuple[str, dict[str, Any]]]:
+    """Recorded advisory rounds oldest first, by their explicit write sequence.
+
+    The sequence is the chronology: the ledger serializes with sorted keys, so
+    after a reload the mapping order is head-SHA order, and a timestamp can tie
+    or be unreadable — neither survives as write order. Rounds recorded before
+    sequences were persisted have only their write-ahead timestamp; they sort
+    before every sequenced round, which is when they were written, with equal
+    or unreadable timestamps left to the stable sort.
+    """
+
+    def order(item: tuple[str, dict[str, Any]]) -> tuple[int, str, int]:
+        sequence = advisory_round_sequence(item[1])
+        if not sequence:
+            return (0, str(item[1].get("recorded_at") or ""), 0)
+        return (1, "", sequence)
+
+    records = json_object(rounds)
+    return sorted(
+        ((str(head), json_object(record)) for head, record in records.items()),
+        key=order,
+    )
+
+
+def _advisory_round_summary(entry: tuple[str, dict[str, Any]]) -> dict[str, Any]:
+    head, record = entry
+    return {"head_sha": head, "composition": advisory_round_composition(record)}
+
+
+def advisory_non_convergence_tripwire(rounds: Any) -> dict[str, Any]:
+    """Evaluate `safety.md`'s second-consecutive-all-(c) tripwire from the ledger.
+
+    The test is over consecutive ADVISORY rounds — the only rounds the ledger
+    records — and it fails closed on an unclassified predecessor, so a round
+    recorded before classification was persisted arms the tripwire rather than
+    silently resetting the count.
+    """
+    ordered = ordered_advisory_rounds(rounds)
+    result: dict[str, Any] = {
+        "armed": False,
+        "latest": _advisory_round_summary(ordered[-1]) if ordered else {},
+        "previous": _advisory_round_summary(ordered[-2]) if len(ordered) > 1 else {},
+    }
+    if len(ordered) < 2:
+        return {**result, "basis": "fewer than two recorded advisory rounds"}
+    latest = str(result["latest"]["composition"])
+    previous = str(result["previous"]["composition"])
+    if latest != "all-c":
+        return {**result, "basis": f"the latest advisory round is {latest}, not all-(c)"}
+    if previous == "all-c":
+        basis = "two consecutive all-(c) advisory rounds"
+    elif previous == "unknown":
+        basis = (
+            "the latest advisory round is all-(c) and the round before it is "
+            "unclassified; an unclassified predecessor fails closed"
+        )
+    else:
+        return {
+            **result,
+            "basis": f"the latest advisory round is all-(c) but the round before it is {previous}",
+        }
+    return {**result, "armed": True, "basis": basis}
 
 
 @dataclass(frozen=True)
@@ -415,8 +514,10 @@ def classify_pr(
     foreign_activity = detect_foreign_activity(pr, prev, config)
     attribution_drift = detect_attribution_drift(pr, prev, config)
     advisory_rounds = dict(prev.get("advisory_fix_rounds") or {})
-    advisory_round_count = len(dict(advisory_rounds.get("rounds") or {}))
+    recorded_advisory_rounds = dict(advisory_rounds.get("rounds") or {})
+    advisory_round_count = len(recorded_advisory_rounds)
     advisory_cap_reached = advisory_round_count >= config.advisory_fix_round_cap
+    advisory_tripwire = advisory_non_convergence_tripwire(recorded_advisory_rounds)
     branch_refresh = dict(prev.get("branch_refresh") or {})
     branch_refresh_history = dict(prev.get("branch_refresh_history") or {})
     if branch_refresh.get("requested_source_sha"):
@@ -578,6 +679,10 @@ def classify_pr(
     if advisory_cap_reached:
         material.append(
             "advisory fix-round cap reached; new advisory bot findings are report-only pending user decision"
+        )
+    if advisory_tripwire["armed"]:
+        material.append(
+            f"non-convergence tripwire armed ({advisory_tripwire['basis']}); change METHOD per safety.md's Verify Before Escalating Non-Convergence"
         )
     if feedback["human_blocking"]:
         blockers.append(
@@ -1176,6 +1281,7 @@ def classify_pr(
             "count": advisory_round_count,
             "cap": config.advisory_fix_round_cap,
             "cap_reached": advisory_cap_reached,
+            "non_convergence_tripwire": advisory_tripwire,
         },
         "checks": checks,
         "review_trigger": review_trigger,

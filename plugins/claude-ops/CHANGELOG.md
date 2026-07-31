@@ -36,6 +36,27 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   issue — sibling instances started by a request none of them owns. Only the pinned instance's
   comment, or the legacy un-suffixed one, is actionable.
 
+## [0.24.4]
+
+### Fixed
+
+- **`lanes` and `observability` load again when invoked from a worktree-isolated agent (#1687).**
+  Four `## Pre-computed context` lines carried genuine shell expansion — `lanes` line 16's
+  `$(claude --version)` and line 19's `$c` / `${CLAUDE_OPS_LANES_CONFIG:-…}` / `$(git rev-parse …)`,
+  `observability` line 19's `$f` / `$(…)` and line 21's `$d` / `${CC_OTEL_STORE:-…}`. The harness
+  composes that whole block into one shell invocation, and the worktree-isolation Bash guard refuses
+  any `$`-expansion, so the block failed and the skill never loaded. `lanes` line 16 is now the
+  `$`-free `claude --version 2>/dev/null || echo "MISSING (required)"`; the other three hoist their
+  logic into two bundled scripts — `skills/lanes/scripts/probe-lane-config.sh` and
+  `skills/observability/scripts/probe-observability-state.sh` (`--hook-events` / `--otel-store`) —
+  invoked through `${CLAUDE_PLUGIN_ROOT}`, which the harness substitutes into a literal path before
+  any shell sees it, so the replacement lines carry no `$` at all. Path resolution, env overrides
+  (`CLAUDE_OPS_LANES_CONFIG`, `CC_OTEL_STORE`), and every output string are unchanged and covered by
+  equivalence tests that diff each script against the line it replaced. **One output shape did
+  change:** the `claude CLI:` line now reads `2.1.220 (Claude Code)` rather than
+  `present (2.1.220 (Claude Code))` — same information, no `present (…)` wrapper. `observability`
+  line 20 (`OTEL collector :4318`) was already plugin-variable-only and is untouched.
+
 ## [0.24.3]
 
 ### Fixed
