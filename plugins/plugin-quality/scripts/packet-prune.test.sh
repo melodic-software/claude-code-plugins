@@ -71,9 +71,17 @@ has() {
 # canonicalized path (`pwd -P`) and mktemp's `/tmp/...` is a different spelling of
 # the same directory on Git Bash — comparing whole paths fails for a reason that
 # has nothing to do with the behavior under test.
+#
+# Split on the FIRST space only, never on the last whitespace field: a path is not
+# a whitespace-free token, and a TMPDIR containing a space would otherwise make
+# every assertion compare against a path fragment and quietly stop testing.
 verdict_is() {
-  local nonce="$1" expected="$2" label="$3" actual
-  actual="$(printf '%s\n' "$last_out" | awk -v n="$nonce" '$NF ~ ("/" n "$") {print $1; exit}')"
+  local nonce="$1" expected="$2" label="$3" line actual=""
+  while IFS= read -r line; do
+    [[ "${line#* }" == *"/$nonce" ]] || continue
+    actual="${line%% *}"
+    break
+  done <<<"$last_out"
   if [[ "$actual" == "$expected" ]]; then
     pass "$label"
   else
@@ -152,6 +160,72 @@ fi
 verdict_is "00000000T000000Z" UNPARSABLE "the all-zero nonce is reported UNPARSABLE, not DELETE"
 verdict_is "20260231T000000Z" UNPARSABLE "the Feb-31 nonce is reported UNPARSABLE, not DELETE"
 verdict_is "$OLD" DELETE "a real expired nonce is still reported DELETE"
+
+# A dry run must reach the same verdicts — the calendar check belongs to grading,
+# not to `--apply`, and an operator previewing the tree must see UNPARSABLE there
+# rather than a WOULD-DELETE that never materializes.
+shaped_dry="$WORK/shaped-dry/evidence"
+rm -rf "$WORK/shaped-dry"
+mkdir -p "$shaped_dry/s/g/00000000T000000Z"
+: >"$shaped_dry/s/g/00000000T000000Z/audit-notes.md"
+run 0 "dry run over a nonce-shaped non-date" --root "$shaped_dry"
+verdict_is "00000000T000000Z" UNPARSABLE "a dry run grades the non-date UNPARSABLE, not WOULD-DELETE"
+
+# Legitimate calendar values a too-strict round-trip would wrongly condemn. A leap
+# day, the epoch, and a far-future value must all still grade as real nonces —
+# `KEEP` or `DELETE` by age, never UNPARSABLE.
+real="$WORK/real-nonces/evidence"
+rm -rf "$WORK/real-nonces"
+mkdir -p "$real/s/g/20240229T000000Z" "$real/s/g/19700101T000000Z" "$real/s/g/20991231T235959Z"
+run 0 "dry run over legitimate calendar values" --root "$real"
+verdict_is "20240229T000000Z" WOULD-DELETE "a leap day is graded as a real nonce"
+verdict_is "19700101T000000Z" WOULD-DELETE "the epoch is graded as a real nonce"
+verdict_is "20991231T235959Z" KEEP "a far-future nonce is graded as a real nonce"
+
+# --- a broken date round-trip refuses LOUDLY, never silently ----------------
+#
+# Fail-closed is right, but silence is not: a `date` that exists yet cannot
+# round-trip would grade EVERY packet UNPARSABLE, stopping retention forever
+# while still printing a summary and exiting 0. The startup self-check runs the
+# already-validated cutoff through the same path, so a broken userland is
+# refused the way a missing `date` already is. Simulated with a stub `date`
+# earlier on PATH that satisfies the dialect probe and the cutoff computation
+# but fails every round-trip parse.
+
+stubdir="$WORK/stub-bin"
+rm -rf "$stubdir"
+mkdir -p "$stubdir"
+cat >"$stubdir/date" <<'STUB'
+#!/usr/bin/env bash
+# Round-trip parses use `-d <YYYY-MM-DD HH:MM:SS>`; the probe and cutoff use
+# relative forms ("N days ago"). Fail only the former.
+for a in "$@"; do
+  [[ "$a" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}\  ]] && exit 7
+done
+exec /usr/bin/env -i PATH=/usr/bin:/bin date "$@"
+STUB
+chmod +x "$stubdir/date"
+stub_root="$WORK/stub-tree/evidence"
+rm -rf "$WORK/stub-tree"
+mkdir -p "$stub_root/s/g/$OLD"
+: >"$stub_root/s/g/$OLD/audit-notes.md"
+last_out="$(PATH="$stubdir:$PATH" bash "$SUT" --root "$stub_root" --apply 2>&1)"
+stub_rc=$?
+if [[ "$stub_rc" -eq 2 ]]; then
+  pass "a date that cannot round-trip is refused with exit 2 (stub exit $stub_rc)"
+else
+  fail "a broken date round-trip exited $stub_rc, not 2 — retention would silently no-op: $last_out"
+fi
+if [[ "$last_out" == *"cannot round-trip a known-good nonce"* ]]; then
+  pass "the refusal names the real cause"
+else
+  fail "the broken-round-trip refusal did not name its cause — output: $last_out"
+fi
+if [[ -e "$stub_root/s/g/$OLD/audit-notes.md" ]]; then
+  pass "nothing was deleted when age could not be graded"
+else
+  fail "a packet was deleted despite an ungradable date implementation"
+fi
 # The regression guard: a round-trip strict enough to reject the two above must
 # still grade a REAL old nonce as expired. Without this, a validator that
 # refuses everything would pass both checks above and silently end retention.

@@ -142,8 +142,11 @@ Path: `<plugin-data-dir>/evidence/<session_id>/<target-slug>/<run-nonce>/`
   per target. That single shared value is the run's identity on disk: it is the only thing
   separating this run's packets from an earlier run's in the same session directory, and the Resume
   rule below selects on exactly it. Re-deriving it per target would straddle a second boundary on a
-  multi-target run and silently split one run into several. A same-target re-audit in a later run
-  gets its own directory instead of clobbering the first.
+  multi-target run and silently split one run into several. One value per run is only half the
+  property: if that name already exists in this session's evidence directory, two runs started in
+  the same second — routine on an unattended lane — would **share** a nonce and merge back into one
+  group, so advance it by one second until it is unused. A same-target re-audit in a later run gets
+  its own directory instead of clobbering the first.
 - **Retention (script, not prose):** run
   `bash "${CLAUDE_PLUGIN_ROOT}/scripts/packet-prune.sh" --root <plugin-data-dir>/evidence --apply`
   **once per audit run** — not once per target — after step 1 has created the first target's
@@ -156,26 +159,30 @@ Path: `<plugin-data-dir>/evidence/<session_id>/<target-slug>/<run-nonce>/`
   window 30 days (`--days N`); a directory whose name is not a parsable nonce is reported and kept,
   never deleted. Omitting `--apply` reports what would go without touching anything.
 - **Resume rule (must survive compaction):** to find the packets after context loss, **enumerate,
-  never re-derive** — but enumerate ONE RUN, not the whole session. List
-  `<plugin-data-dir>/evidence/${CLAUDE_SESSION_ID}/` and collect every `<target-slug>/<nonce>` pair
-  present. A session directory accumulates every audit that session has run, so taking every slug
-  and independently picking each one's latest nonce **mixes runs**: audit A, later audit only B, and
-  resuming B also loads A's older packet and carries its stale findings into the union contract and
-  the emit. Discriminate by the run nonce, which is one shared value per run precisely so this is
-  possible — take the lexically greatest nonce present anywhere under the session directory (that is
-  the run being resumed), then take **only** the slugs holding a packet under exactly that nonce.
-  A slug whose packets all carry an older nonce belongs to an earlier audit: leave it closed. Never
-  rely on remembering the path, and never re-sanitize the raw argument into a single expected slug
-  — one run allocates one slug per resolved target, and no single derivation reproduces that set.
+  never re-derive**. List `<plugin-data-dir>/evidence/${CLAUDE_SESSION_ID}/` and collect every
+  `<target-slug>/<nonce>` pair present, then **group by nonce — one nonce is one run — and never
+  union across groups.** A session directory accumulates every audit that session ran, so a set
+  taken slug-by-slug (each slug's own latest nonce) spans runs: audit A, later audit only B, and
+  resuming B also loads A's packet and carries its stale findings into the union contract and the
+  emit. Grouping is what prevents that; it is not a licence to see only the newest group.
+  **Report every group** — its nonce, its slug set, and whether any of its packets holds a
+  closed-set findings file — then say which group you selected and why (unattended, that report is
+  a new `evidence-<n>.md`, written *before* the packet's seal, never after it). Prefer the group the
+  request identifies (the one holding the named target); absent that, the greatest nonce **whose
+  packets hold grounded findings**. Never let a bare greatest-nonce rule decide: a later run that
+  died in step 1 leaves a findings-less packet whose nonce outsorts everything, and selecting on
+  that alone would report an earlier run's complete, sealed packets as missing. A group you did not
+  select is set aside **visibly**, never reduced to a count. Never rely on remembering the path,
+  and never re-sanitize the raw argument into a single expected slug — one run allocates one slug
+  per resolved target, and no single derivation reproduces that set.
   Enumeration reads no pointer, so unlike a name taken from packet content it cannot be *steered*
   by audited content. It is not unconditionally trustworthy, though, and the difference matters:
   the `auditor` holds Write, so an auditor subverted by an injection in the material under audit
-  could create a sibling slug directory that enumeration would then pick up. **Report the
-  enumerated slug set to the user** (or into `evidence-<n>.md` when unattended) — with the run
-  nonce it was selected on, and the count of slugs held back as belonging to earlier runs — rather
-  than silently consuming it, so a slug nobody's targets account for is visible and an earlier run's
-  packets are visibly set aside rather than indistinguishable from never having existed. If the
-  session directory is absent or holds no packet, the findings are missing — say so and stop.
+  could create a sibling slug directory — under a nonce of its choosing — that enumeration would
+  then pick up. Reporting every group is what keeps that visible: a group whose nonce matches no
+  audit this session accounts for is the signal, and a high-sorting planted nonce must never
+  silently become the selection. If the session directory is absent or holds no packet, the
+  findings are missing — say so and stop.
   **Verify each packet before trusting it**:
   `bash "${CLAUDE_PLUGIN_ROOT}/scripts/packet-seal.sh" verify <packet-dir>` (see write-once
   evidence below), and read the exit code — the three non-zero cases mean different things and
@@ -184,8 +191,8 @@ Path: `<plugin-data-dir>/evidence/<session_id>/<target-slug>/<run-nonce>/`
     ground truth.
   - **3** — every sealed file matches but some file was never sealed. **Not** tampering, and
     routine: a packet legitimately gains files after its last seal, and an interrupted run — the
-    very case resume exists for — is the likeliest packet to hold one. Seal it, note which files
-    arrived unsealed, and proceed.
+    very case resume exists for — is the likeliest packet to hold one. Note which files arrived
+    unsealed, THEN seal — sealing first leaves the note itself past the last seal — and proceed.
   - **2** — the packet cannot be graded (never sealed at all, no digest tool, or an entry that is
     a symlink pointing out of the packet). Integrity unknown: carry it forward as a stated
     limitation rather than reading it as either a pass or a failure.

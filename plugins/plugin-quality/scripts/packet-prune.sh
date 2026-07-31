@@ -180,6 +180,19 @@ nonce_is_real_utc() {
   [[ -n "$round" && "$round" == "$nonce" ]]
 }
 
+# Self-check the round-trip against a value already known to be a real instant:
+# the cutoff this script just computed and validated. If a known-good nonce does
+# not reproduce itself, the round-trip is broken in this userland — a dialect
+# whose `-j -f` parse is unavailable or spells its output differently, say — and
+# EVERY packet would grade UNPARSABLE. That is fail-closed, but silently: pruning
+# would stop forever while still reporting success and exiting 0. Refuse loudly
+# instead, the same way a missing `date` already does. This is also the only
+# check that can catch a broken BSD branch, which no GNU-only CI can reach.
+if ! nonce_is_real_utc "$cutoff"; then
+  echo "error: the $date_dialect date implementation cannot round-trip a known-good nonce ($cutoff) — cannot grade packet age, refusing to prune" >&2
+  exit 2
+fi
+
 scanned=0
 deleted=0
 retained_item=0

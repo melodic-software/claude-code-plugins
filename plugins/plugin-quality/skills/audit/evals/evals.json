@@ -134,12 +134,12 @@
       "id": 11,
       "name": "multi-target-fans-out-and-resume-enumerates",
       "prompt": "We compacted. Earlier this session I ran you on \"audit the plugins we used\" and you audited six components across five plugins. Re-derive the packet path from that argument and pull the findings back up.",
-      "expected_output": "Does not re-sanitize the raw argument into a single expected slug — that derivation matches no directory a fan-out run created, which is the defect. Enumerates the session directory <plugin-data-dir>/evidence/<session_id>/ instead, collecting every target-slug/nonce pair, then scopes the result to ONE RUN: the lexically greatest nonce present anywhere under the session directory identifies the run being resumed, and only the slugs holding a packet under exactly that nonce are taken. Probes the closed set of grounded-findings basenames in each selected packet. Reports per-target status rather than collapsing six packets into one answer, and verifies packet integrity before treating the content as ground truth. Concludes findings are missing only when the session directory is absent or holds no packet.",
+      "expected_output": "Does not re-sanitize the raw argument into a single expected slug — that derivation matches no directory a fan-out run created, which is the defect. Enumerates the session directory <plugin-data-dir>/evidence/<session_id>/ instead, collecting every target-slug/nonce pair and grouping them by nonce so one nonce is one run, then recovers all six packets of the selected run's group without unioning across groups. Probes the closed set of grounded-findings basenames in each selected packet. Reports per-target status rather than collapsing six packets into one answer, and verifies packet integrity before treating the content as ground truth. Concludes findings are missing only when the session directory is absent or holds no packet.",
       "files": [],
       "expectations": [
         "Enumerates the session directory rather than deriving one slug from the raw argument",
         "Recovers every per-target packet of the resumed run, not just one",
-        "Selects slugs by the run's shared nonce rather than picking each slug's own latest nonce independently",
+        "Groups the enumerated pairs by nonce rather than picking each slug's own latest nonce independently",
         "Probes the closed set of grounded-findings basenames per packet",
         "Verifies packet integrity (packet-seal.sh verify) before trusting packet content as ground truth",
         "Does not report the findings as missing merely because a slug derived from the raw argument matches nothing"
@@ -163,14 +163,28 @@
       "id": 13,
       "name": "resume-does-not-mix-a-prior-audit-into-this-run",
       "prompt": "Earlier in this same session you audited the context-guard hook, and just now you audited only the source-control babysit skill. We compacted. Pull the findings for the audit you just ran.",
-      "expected_output": "Recovers ONLY the just-run audit's packet. The session directory holds target-slug directories from both audits, so enumerating every slug and taking each one's own latest nonce would also load the earlier context-guard packet and carry its findings into this run's union contract and emit — a stale finding attributed to a run that never examined that component. The run nonce is the discriminator: one shared value per run, so the lexically greatest nonce under the session directory identifies the audit being resumed, and only slugs holding a packet under exactly that nonce belong to it. The earlier audit's slug carries an older nonce and is left closed, and the report states the run nonce selected on plus how many slugs were held back as earlier runs, rather than letting them vanish silently.",
+      "expected_output": "Recovers ONLY the just-run audit's packet. The session directory holds target-slug directories from both audits, so enumerating every slug and taking each one's own latest nonce would also load the earlier context-guard packet and carry its findings into this run's union contract and emit — a stale finding attributed to a run that never examined that component. Groups the enumerated target-slug/nonce pairs by nonce, one nonce per run, and never unions across groups. Reports both groups — each with its nonce, its slug set, and whether its packets hold grounded findings — and states which group was selected and why (here, the group holding the named source-control target). The earlier audit's group is set aside visibly, not reduced to a count and not silently dropped.",
       "files": [],
       "expectations": [
-        "Recovers only the most recent run's packet, not the earlier audit's packet in the same session",
-        "Identifies the run by the lexically greatest nonce under the session directory and selects slugs carrying exactly that nonce",
+        "Recovers only the just-run audit's packet, not the earlier audit's packet in the same session",
+        "Groups the enumerated pairs by nonce and never unions two groups into one recovered set",
         "Does not carry the earlier audit's findings into the union contract or the emit",
-        "Reports the run nonce selected on and the number of slugs held back as belonging to earlier runs",
-        "Does not treat the earlier audit's slug as a suspicious or injected slug — an older nonce means a prior run, not a planted directory"
+        "Reports every group with its nonce and slug set, and names which group it selected and why",
+        "Does not silently pick the greatest nonce when that group holds no grounded findings — an aborted later run must not shadow an earlier complete one"
+      ]
+    },
+    {
+      "id": 14,
+      "name": "resume-does-not-let-an-aborted-run-shadow-a-complete-one",
+      "prompt": "We compacted. Earlier this session you audited plugin-a and plugin-b and both finished. Then I kicked off an audit of plugin-c and it died before the auditor returned anything. Pull up the findings we have.",
+      "expected_output": "Does not report the findings as missing. The plugin-c packet carries the greatest nonce but holds no closed-set grounded-findings file, so selecting on greatest-nonce alone would return only that empty packet and declare an audit that produced two complete sealed packets to be findings-less. Groups by nonce, reports both groups with their slug sets and findings-present status, and selects the earlier group because it is the greatest nonce whose packets actually hold grounded findings — recovering plugin-a and plugin-b. States plainly that the plugin-c run died before persisting anything and needs a re-dispatch of step 2 if those findings are wanted, rather than conflating that with the completed run.",
+      "files": [],
+      "expectations": [
+        "Recovers the completed run's packets rather than reporting the findings as missing",
+        "Does not let the newest nonce alone decide the selection when its group holds no grounded findings",
+        "Reports the aborted run as its own group and names it as needing a step-2 re-dispatch",
+        "Does not merge the aborted run's empty packet into the completed run's recovered set",
+        "Does not treat the completed run's packets as stale merely because a newer directory exists"
       ]
     }
   ]

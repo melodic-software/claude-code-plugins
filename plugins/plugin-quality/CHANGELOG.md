@@ -24,6 +24,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   destroyed it — the precise fail-closed violation the rule exists to prevent. A value the
   implementation rejects (GNU) or silently normalizes to another day (BSD turns Feb 31 into Mar 3)
   cannot round-trip identically, and any uncertainty routes to `UNPARSABLE`, never to `DELETE`.
+  Because failing closed silently would be its own defect — a `date` that exists but cannot
+  round-trip would grade every packet ungradable, stopping retention forever while still reporting
+  success — the already-validated cutoff is run through the same path at startup, and a userland
+  that cannot reproduce a known-good nonce is refused with exit 2 like a missing `date`. That
+  self-check is also the only thing that can catch a broken BSD branch, which no GNU-only CI reaches.
   The root must be named `evidence`, so a mistyped path is refused before anything is walked, and
   containment is re-established **per candidate** by canonicalizing it — checking only the root let
   a symlinked session directory yield a path whose real location is outside the tree, which an
@@ -62,15 +67,21 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   so unlike a name taken from packet content it cannot be *steered* by audited content — but it is
   not unconditionally trustworthy: the `auditor` holds Write, so an auditor subverted by an
   injection could plant a sibling slug that enumeration would pick up. Resume therefore reports the
-  enumerated slug set rather than silently consuming it. Enumeration is scoped to ONE RUN, not the
-  session: a session directory accumulates every audit that session ran, so taking every slug and
+  enumerated slug set rather than silently consuming it. Enumeration is also **grouped by run**: a
+  session directory accumulates every audit that session ran, so taking every slug and
   independently picking each one's latest nonce mixed runs — audit A, later audit only B, and
   resuming B also loaded A's packet and carried its stale findings into the union contract and the
-  emit. The run nonce is the discriminator, and is now pinned as one value computed once at run
-  start and reused for every target packet (re-deriving it per target would straddle a second
-  boundary on a multi-target run and split one run into several). Resume takes the greatest nonce
-  under the session directory and only the slugs carrying exactly it, reporting that nonce and the
-  count of slugs held back as earlier runs.
+  emit. The run nonce is the discriminator, now pinned as one value computed once at run start and
+  reused for every target packet, and advanced when the name is already taken so two runs in the
+  same second cannot share one (re-deriving it per target would straddle a second boundary and
+  split one run into several; sharing it would merge two). Resume groups the enumerated pairs by
+  nonce — one nonce, one run — and never unions across groups. Selection is deliberately *not* a
+  bare greatest-nonce rule: a later run that died in step 1 leaves a findings-less packet whose
+  nonce outsorts everything, and picking on that alone would report an earlier run's complete
+  sealed packets as missing. Every group is reported with its slug set and whether it holds
+  grounded findings, the selected group is named along with the reason, and an unselected group is
+  set aside visibly rather than reduced to a count — which is also what keeps a planted slug under
+  an attacker-chosen high nonce from silently becoming the whole selection.
 - **Packet files are declared write-once, and their mutation by sibling hooks is now detectable
   (#1808).** The guardrail section anticipated a write being *rejected*; the likelier event is the
   write succeeding and the content being rewritten underneath it. `PostToolUse` runs after a tool
