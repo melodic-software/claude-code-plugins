@@ -76,10 +76,20 @@ anchors for the file tools, not shell-command expansion). A rule like
   path changes), and
 - leaks a username into version control.
 
-The one substitution that *is* expanded in `allowed-tools` is `${CLAUDE_PROJECT_DIR}` (Claude Code
-v2.1.196+, per [skills](https://code.claude.com/docs/en/skills)) — but that anchors to the consuming
-project, not to a portable command, so it still isn't the right tool for a shared code-execution
-helper.
+Two substitutions *are* expanded in `allowed-tools`: per
+[skills](https://code.claude.com/docs/en/skills#available-string-substitutions), Claude Code
+substitutes `${CLAUDE_SKILL_DIR}` and `${CLAUDE_PROJECT_DIR}` in the skill's markdown content and in
+Bash rules in `allowed-tools` (version floors: `${CLAUDE_SKILL_DIR}` v2.1.129+,
+`${CLAUDE_PROJECT_DIR}` v2.1.196+; below the floor the rule stays a literal string and never
+matches). `${CLAUDE_PLUGIN_ROOT}` is **not** among them — it is documented for hook/monitor/MCP/LSP
+JSON `command` fields, so a rule written with it stays literal and the grant is inert.
+
+`${CLAUDE_SKILL_DIR}` is therefore the correct token for a rule that must match a skill's own bundled
+script, and pairing it with the same token in the skill body is the documented way to run that script
+without a prompt. `${CLAUDE_PROJECT_DIR}` anchors to the consuming project rather than to a portable
+command, so it is not the right tool for a shared code-execution helper. Neither changes
+anti-pattern 1: auto mode still drops broad/interpreter-shaped rules regardless of how the path was
+written.
 
 ## Anti-pattern 3 — assuming a skill or plugin can self-grant
 
