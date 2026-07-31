@@ -577,6 +577,22 @@ else
   fail "missing jq warning absent: $OUT_NO_JQ"
 fi
 
+# --- Missing jq in a config-less repo: opt-in decided first, so NO notice ----
+# The opt-in gate's contract is "no config, no run, no notice", and a
+# prerequisite notice is still a notice: a repository that never opted into
+# Markdown formatting must not be nagged to install jq for it. The assertion
+# above pins the inverse (config present + jq absent -> notice), so the pair
+# distinguishes suppression from a hook that simply stopped warning.
+PD_NO_JQ_NOCFG="$(mktemp -d "$WORK/pd.XXXXXX")"
+OUT_NO_JQ_NOCFG="$(cd "$UNRELATED" && printf '{"tool_input":{"file_path":"%s"}}' "$NOCFG_FIXTURE" |
+  env -u CLAUDE_PROJECT_DIR BASH_ENV="$NO_JQ_ENV" CLAUDE_PLUGIN_DATA="$PD_NO_JQ_NOCFG" CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true bash "$HOOK")"
+RC_NO_JQ_NOCFG=$?
+if [[ $RC_NO_JQ_NOCFG -eq 0 && -z "$OUT_NO_JQ_NOCFG" ]]; then
+  ok "missing jq in a config-less repo -> exit 0, no notice (opt-in decided first)"
+else
+  fail "missing jq in a config-less repo emitted output (rc=$RC_NO_JQ_NOCFG out=$OUT_NO_JQ_NOCFG)"
+fi
+
 # --- Repository-config trust gate: risky config blocks lint until approved ---
 # Uses the official persistent plugin-data surface so separate hook processes
 # share the approval marker. A code-loading configuration must SKIP the lint
