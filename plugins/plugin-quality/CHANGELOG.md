@@ -5,6 +5,66 @@ All notable changes to the `plugin-quality` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2026-07-31
+
+### Added
+
+- **`scripts/packet-prune.sh` — retention as a mechanism instead of prose (#1808).** The rule was
+  a sentence telling the model to "delete packet directories older than 30 days": an unbounded
+  recursive delete, over the one tree that also holds the only durable copy of an unattended run's
+  emitted work item, left entirely to model obedience. The two safety properties now live in the
+  script and hold whether or not the paragraph is read — it is **dry-run by default**, and it
+  **never deletes a packet containing `item.md`** at any age, because step 6's unattended clause
+  sends every unattended run to rung 4 and makes that file the sole copy of the audit's entire
+  output. Age is graded from the nonce directory NAME, not mtime, so retention does not depend on
+  the same in-place mutation the packet exists to resist; an ungradable name is reported and kept.
+  The root must be named `evidence`, so a mis-passed path is refused before anything is walked.
+- **`scripts/packet-seal.sh` — tamper-evidence for packet files (#1808).** `record` writes a
+  `packet.sha256` manifest; `verify` reports `MATCH`/`CHANGED`/`MISSING`/`UNSEALED` per file and
+  fails closed on a packet it cannot grade. The resume rule and the `auditor` both verify before
+  trusting packet content.
+
+### Fixed
+
+- **The resume rule no longer breaks on a multi-target audit (#1808).** It re-derived the packet
+  path by re-sanitizing the raw argument into a single expected slug, while the packet model, slug
+  rule, and `argument-hint` were all singular. A request like "audit the plugins we used" resolves
+  to several components, the run reasonably allocates one conforming packet per component, and the
+  re-derived slug then matches **no directory at all** — so a post-compaction resume concludes the
+  findings are missing from a run that produced six packets. Fan-out is now documented behaviour
+  rather than an undocumented improvisation: the argument resolves to a LIST of targets, each gets
+  its own packet under a slug derived from the **resolved component identity** (capped at 64
+  characters, which also retires the Windows 260-character path hazard), and resume
+  **enumerates** the session directory instead of deriving one slug. Enumeration is safe under the
+  untrusted-content posture for the same reason the closed set is — these directory names are
+  allocated by this workflow, and audited content can neither create them nor point resume at one.
+- **Packet files are declared write-once, and their mutation by sibling hooks is now detectable
+  (#1808).** The guardrail section anticipated a write being *rejected*; the likelier event is the
+  write succeeding and the content being rewritten underneath it. `PostToolUse` runs after a tool
+  call succeeds, may rewrite content, and matches on **tool name**
+  (<https://code.claude.com/docs/en/hooks>, fetched 2026-07-31) — so every sibling plugin
+  registering `Write|Edit` post-processes every packet write, and two such formatters ship in this
+  fleet. Observed damage hit verbatim quotations and code-span identifiers, the two content
+  classes a packet exists to preserve, and it is silent with respect to the artifact: the notice
+  goes to the *session*, the very context the packet outlives. Three rules now apply — write once
+  (a correction is a new file, since the autocorrect has no memory and reverts hand-repairs),
+  read back immediately after each write, and seal. The scope is stated honestly: the digest
+  cannot detect the FIRST in-place rewrite (any later tool call necessarily hashes the
+  already-rewritten bytes) — the read-back is that detector — but it turns every divergence after
+  the seal from silent into reported. Three tempting escapes are recorded as disproved rather than
+  left to be re-proposed: a non-`.md` extension, a `typos`/`markdownlint` opt-out, and a shell
+  redirect that dodges the matcher (a hook bypass the fleet's own guardrails block by design).
+- **The `${CLAUDE_PLUGIN_DATA}` harness claim was false (#1808).** The packet section asserted the
+  token "does NOT substitute in skill markdown"; the plugins reference puts skill and agent content
+  in the "anywhere the placeholder appears" row alongside hook and monitor commands
+  (<https://code.claude.com/docs/en/plugins-reference>, fetched 2026-07-31). Corrected in place —
+  the prescribed manual derivation was itself doc-correct and is kept as the fallback. Fixed here
+  rather than deferred because this release's script invocations use `${CLAUDE_PLUGIN_ROOT}` in the
+  same files, which the false claim would have told a reader could not work.
+- **The `auditor` enumerates `evidence*.md` instead of assuming `evidence.md` (#1808).** Real
+  packets carry supplementary `evidence-<n>.md` files — and the write-once rule above makes more of
+  them — so a read of one assumed name that fails is not evidence the packet is empty.
+
 ## [0.3.1] - 2026-07-30
 
 ### Fixed
