@@ -70,7 +70,7 @@ Two steps — the helper creates and places the worktree; `EnterWorktree(path:)`
 
    `${user_config.worktree_root}` substitution into skill content is **raw text substitution, not shell-escaped** (Claude Code docs, [plugins-reference § User configuration](https://code.claude.com/docs/en/plugins-reference#user-configuration)) — a configured value containing a single quote (e.g. `~/worktrees/O'Connor`), `$`, or a backtick breaks out of any shell literal we write around it, and **no heredoc delimiter is safe either**: a value whose own body contains a line equal to the delimiter ends the heredoc early and the shell parses the remainder as commands. The value must therefore never reach a shell parser at all. Write it with the **`Write` tool** — the content travels as a JSON string parameter, so every byte lands verbatim and no delimiter, quote, or metacharacter can terminate anything — then hand the file to `--root-file`. Never inline the substitution in a `--root` shell literal or a heredoc body.
 
-   Three steps:
+   Four steps:
 
    ```bash
    root_dir="$(mktemp -d)"; printf '%s\n' "$root_dir"
@@ -78,9 +78,12 @@ Two steps — the helper creates and places the worktree; `EnterWorktree(path:)`
 
    `Write(file_path: "<printed root_dir>/worktree-root", content: "${user_config.worktree_root}")` — the substituted value is the entire `content`, written byte-exact with nothing appended (no trailing newline).
 
+   `Write(file_path: "<printed root_dir>/data-root", content: "<the plugin data directory carried down from SKILL.md>")` — SKILL.md's own body is the only surface where `${CLAUDE_PLUGIN_DATA}` expands, so write the RESOLVED path here, never the token. This file is what lets an unconfigured `worktree_root` still resolve to a root outside every repository.
+
    ```bash
    bash "${CLAUDE_PLUGIN_ROOT}/scripts/worktree-create.sh" \
-     --name "<validated-name>" --root-file "<root_dir>/worktree-root"
+     --name "<validated-name>" --root-file "<root_dir>/worktree-root" \
+     --data-root-file "<root_dir>/data-root"
    status=$?
    rm -rf "<root_dir>"
    exit "$status"
@@ -91,9 +94,9 @@ Two steps — the helper creates and places the worktree; `EnterWorktree(path:)`
    - **`mktemp -d`, not `mktemp`** — `Write` refuses to overwrite a file it has not read, so the directory must exist and the file inside it must not.
    - **`status=$?` before the cleanup, `exit "$status"` after** — `rm` almost always succeeds, so leaving it last would make the whole invocation report 0 and hide a helper refusal (exit 3) behind a green result, which step 2's "on a non-zero exit, STOP" would then never see.
 
-   The helper prints the created worktree path as its **sole stdout line**; capture it. When `worktree_root` is unset, Claude leaves the literal `${user_config.worktree_root}` token — `Write` puts that token in the file verbatim, and the helper's existing unset guard still fires (exit 3), same as before. A value carrying a newline byte anywhere — including a trailing one — is rejected loudly by the helper (exit 2); a path with a newline in it is malformed configuration, not a root to silently trim.
+   The helper prints the created worktree path as its **sole stdout line**; capture it. When `worktree_root` is unset, Claude leaves the literal `${user_config.worktree_root}` token — `Write` puts that token in the file verbatim, the helper reads it as "unconfigured", and the root resolves from the data-root file instead (`<data-dir>/worktrees`, announced on stderr, exit 0). Only when BOTH are unusable does it refuse. A value carrying a newline byte anywhere — including a trailing one — is rejected loudly by the helper (exit 2); a path with a newline in it is malformed configuration, not a root to silently trim.
 
-2. **On a non-zero exit, STOP — do not create anything else, and never fall back to `EnterWorktree(name:)`** (that would re-create the in-repo `.claude/worktrees/` path, where the parent checkout's path-scoped rules load too). An unset `worktree_root` is NOT an error: the helper derives a `worktrees/` directory beside the repository checkout and notes the default on stderr while still exiting 0 — pass that note along, do not treat it as a failure. **Exit 3** means the resolved root is unusable, notably one that lands inside a repository: surface the helper's guidance verbatim — the user needs to set `worktree_root` (run the worktree setup skill, or `/plugin` configure) — then stop. Other non-zero exits (2 usage, 4 environment — e.g. the branch already exists) surface the helper's stderr and stop likewise.
+2. **On a non-zero exit, STOP — do not create anything else, and never fall back to `EnterWorktree(name:)`** (that would re-create the in-repo `.claude/worktrees/` path, where the parent checkout's path-scoped rules load too). An unset `worktree_root` is NOT an error: the helper falls back to `<data-dir>/worktrees` and notes it on stderr while still exiting 0 — pass that note along, do not treat it as a failure. **Exit 3** means no usable root at all — neither configured nor supplied, or one the containment guard rejects for landing inside a repository: surface the helper's guidance verbatim — the user needs to set `worktree_root` (run the worktree setup skill, or `/plugin` configure) — then stop. Other non-zero exits (2 usage, 4 environment — e.g. the branch already exists) surface the helper's stderr and stop likewise.
 
 3. **Enter the worktree** — call `EnterWorktree(path: "<printed-path>")` as the **final action**. Nothing may execute after it: the working directory changes and session state transitions. Because the path is outside `.claude/worktrees/`, Claude Code prompts for approval first (see the explain block); if the user **declines**, the worktree already exists on disk but the session did not enter it — tell them they can retry (approve the prompt) or `cd` into `<printed-path>` in a new session.
 

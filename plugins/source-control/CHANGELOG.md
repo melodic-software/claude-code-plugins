@@ -7,14 +7,26 @@ All notable changes to the `source-control` plugin are documented here. Format f
 
 ### Changed
 
-- **An unset `worktree_root` now defaults to a `worktrees/` directory beside the repository
-  checkout instead of refusing every `/worktree create`.** The key ships unset, so the refusal fired
-  on a fresh install and the command was unusable until the user configured a root by hand — a hard
-  failure standing in for a missing default. The invariant worth protecting is that the worktree
-  lands OUTSIDE every repository, and the parent of the checkout satisfies it by construction:
-  `/src/app` yields `/src/worktrees`. The containment guard is untouched — a root that resolves
-  inside a repository is still rejected, and that check, not the unset check, is what enforces the
-  nesting invariant.
+- **An unset `worktree_root` now defaults to `<plugin-data-dir>/worktrees` instead of refusing every
+  `/worktree create`.** The key ships unset, so the refusal fired on a fresh install and the command
+  was unusable until the user configured a root by hand — a hard failure standing in for a missing
+  default. The containment guard is untouched — a root that resolves inside a repository is still
+  rejected, and that check, not the unset check, is what enforces the nesting invariant.
+
+  **The data directory is supplied, not read from the environment.** In a general Bash-tool
+  subprocess — which is what every caller of the helper runs in — `CLAUDE_PLUGIN_DATA` is not scoped
+  to the invoking plugin; this repository's own probe recorded it naming an unrelated installed
+  plugin's data directory. The skill instead substitutes `${CLAUDE_PLUGIN_DATA}` into its own
+  SKILL.md body, where it does render per-plugin, and hands the resolved path to the new
+  `--data-root-file` flag through the same byte-verbatim file channel `--root-file` already uses.
+  A configured root always wins; the data dir is only the fallback. If substitution ever regresses,
+  the file carries the literal token, which the helper detects and refuses — never a wrong
+  directory.
+
+  A repository-derived default (`<parent>/worktrees`) was considered and rejected: under a
+  discovery layout such as ghq's `<root>/github.com/<owner>/<repo>` it lands INSIDE the tree the
+  discovery tool walks, and `ghq list` then reports each worktree as a repository of its own — a
+  leading dot does not hide it.
 
   **Not `${CLAUDE_PLUGIN_DATA}`**, which would have been the obvious mirror of
   `babysit_worktree_root`. This helper's callers are the worktree skill and orchestrated workers,

@@ -34,6 +34,17 @@ else
   TEST_TMPDIR_NATIVE="$TEST_TMPDIR"
 fi
 
+# DATA_DIR / DATA_ROOT_FILE — the unconfigured-root default comes from the plugin
+# data directory the caller hands over via --data-root-file, mirroring how the skill
+# substitutes ${CLAUDE_PLUGIN_DATA} into its own body and writes it to a temp file.
+# Native form because the helper prints the path git resolves, which carries a drive
+# letter on Windows; a POSIX spelling would fail on spelling alone even when the
+# behavior is right.
+DATA_DIR="$TEST_TMPDIR_NATIVE/plugindata"
+mkdir -p "$DATA_DIR"
+DATA_ROOT_FILE="$TEST_TMPDIR/data-root"
+printf '%s' "$DATA_DIR" > "$DATA_ROOT_FILE"
+
 # mkrepo [--origin <url>] [--remote-name <name>] [--no-head] — create a fresh git
 # repo fixture with one commit; unless --no-head, the remote's HEAD is pointed at
 # the default branch. --remote-name names that remote (default `origin`), which
@@ -108,11 +119,10 @@ assert_contains "--help documents refuse (exit 3)" "$help_out" "refuse"
 bash "$HELPER" --root "$TEST_TMPDIR/wt" >/dev/null 2>&1
 assert_exit "missing --name exit 2" 2 "$?"
 
-# --- Case: unset root defaults to a worktrees/ dir beside the checkout (exit 0) ---
+# --- Case: unset root defaults to <plugin-data-dir>/worktrees (exit 0) ---
 # The invariant is that the worktree lands OUTSIDE every repository, not that the
-# user configured a root by hand. The parent of the checkout satisfies it by
-# construction, and unlike a plugin-scoped path it is reachable from every caller
-# this helper actually has (all of which run it in a Bash-tool subprocess).
+# user configured a root by hand. The plugin data dir satisfies it, and reaches the
+# helper through the same non-shell file channel --root-file already uses.
 #
 # CLAUDE_PLUGIN_DATA is explicitly cleared throughout: the default must NOT depend
 # on it. In a Bash-tool subprocess that variable is not scoped to the invoking
@@ -120,23 +130,37 @@ assert_exit "missing --name exit 2" 2 "$?"
 # data directory — so a fallback reading it could place worktrees under someone
 # else's storage.
 repo=$(mkrepo --origin "git@github.com:acme/widget.git")
-expected_root="$(dirname "$(git -C "$repo" rev-parse --show-toplevel)")/worktrees"
-err=$(CLAUDE_PLUGIN_DATA='' bash "$HELPER" --name feat/fallback --repo-dir "$repo" 2>&1 >/dev/null)
+expected_root="$DATA_DIR/worktrees"
+err=$(CLAUDE_PLUGIN_DATA='' bash "$HELPER" --name feat/fallback --data-root-file "$DATA_ROOT_FILE" --repo-dir "$repo" 2>&1 >/dev/null)
 rc=$?
-out=$(CLAUDE_PLUGIN_DATA='' bash "$HELPER" --name feat/fallback2 --repo-dir "$repo" 2>/dev/null)
-assert_exit "unset root creates against the derived default (exit 0)" 0 "$rc"
+out=$(CLAUDE_PLUGIN_DATA='' bash "$HELPER" --name feat/fallback2 --data-root-file "$DATA_ROOT_FILE" --repo-dir "$repo" 2>/dev/null)
+assert_exit "unset root creates against the default (exit 0)" 0 "$rc"
 assert_contains "fallback announces the default root on stderr" "$err" "worktrees"
 assert_contains "fallback names the worktree_root key in its guidance" "$err" "worktree_root"
-assert_eq "fallback places the worktree beside the checkout" \
+assert_eq "fallback places the worktree under the plugin data dir" \
   "$expected_root/acme-widget-feat-fallback2" "$out"
 assert_file_exists "fallback worktree materialized" "$out/README.md"
 
-# The whole point of the derived default: it is OUTSIDE the repository. A path
-# inside the checkout would re-trigger the nesting defect this helper exists to
-# prevent, so assert the negative explicitly rather than inferring it.
+# The whole point of the default: it is OUTSIDE the repository. A path inside the
+# checkout would re-trigger the nesting defect this helper exists to prevent, so
+# assert the negative explicitly rather than inferring it.
 case "$out" in
-  "$repo"/*) fail "derived default is outside the repository" "not under $repo" "$out" ;;
-  *) pass "derived default is outside the repository" ;;
+  "$repo"/*) fail "default is outside the repository" "not under $repo" "$out" ;;
+  *) pass "default is outside the repository" ;;
+esac
+
+# --- Case: the default does not land in a repository-discovery tree ---
+# The rejected alternative was a sibling of the checkout (<parent>/worktrees).
+# Under a discovery layout such as ghq's <root>/github.com/<owner>/<repo>, that
+# resolves INSIDE the tree the discovery tool walks, and `ghq list` then reports
+# the worktree as a repository of its own (a leading dot does not hide it). The
+# default must therefore not be anchored anywhere under the checkout's ancestry.
+repo=$(mkrepo --origin "git@github.com:acme/widget.git")
+repo_parent="$(dirname "$(git -C "$repo" rev-parse --show-toplevel)")"
+out=$(CLAUDE_PLUGIN_DATA='' bash "$HELPER" --name feat/nodiscovery --data-root-file "$DATA_ROOT_FILE" --repo-dir "$repo" 2>/dev/null)
+case "$out" in
+  "$repo_parent"/*) fail "default avoids the checkout's parent tree" "not under $repo_parent" "$out" ;;
+  *) pass "default avoids the checkout's parent tree" ;;
 esac
 
 # --- Case: an unexpanded token reaches the same default (exit 0) ---
@@ -144,22 +168,77 @@ esac
 # so the token path must resolve identically — otherwise the common case (key
 # never configured) still fails.
 repo=$(mkrepo --origin "git@github.com:acme/widget.git")
-expected_root="$(dirname "$(git -C "$repo" rev-parse --show-toplevel)")/worktrees"
-out=$(CLAUDE_PLUGIN_DATA='' bash "$HELPER" --name feat/tokenfallback --root '${user_config.worktree_root}' --repo-dir "$repo" 2>/dev/null)
-assert_exit "unexpanded token creates against the derived default (exit 0)" 0 "$?"
-assert_eq "token fallback places the worktree beside the checkout" \
+expected_root="$DATA_DIR/worktrees"
+out=$(CLAUDE_PLUGIN_DATA='' bash "$HELPER" --name feat/tokenfallback --data-root-file "$DATA_ROOT_FILE" --root '${user_config.worktree_root}' --repo-dir "$repo" 2>/dev/null)
+assert_exit "unexpanded token creates against the default (exit 0)" 0 "$?"
+assert_eq "token fallback places the worktree under the plugin data dir" \
   "$expected_root/acme-widget-feat-tokenfallback" "$out"
 
 # --- Case: the default does NOT read CLAUDE_PLUGIN_DATA (regression guard) ---
 # A stray CLAUDE_PLUGIN_DATA pointing at another plugin's storage must not change
 # where the worktree lands. This is the P1 the earlier draft of this fallback had.
 repo=$(mkrepo --origin "git@github.com:acme/widget.git")
-expected_root="$(dirname "$(git -C "$repo" rev-parse --show-toplevel)")/worktrees"
+expected_root="$DATA_DIR/worktrees"
 foreign="$TEST_TMPDIR_NATIVE/some-other-plugin-data"
-out=$(CLAUDE_PLUGIN_DATA="$foreign" bash "$HELPER" --name feat/noenv --repo-dir "$repo" 2>/dev/null)
+out=$(CLAUDE_PLUGIN_DATA="$foreign" bash "$HELPER" --name feat/noenv --data-root-file "$DATA_ROOT_FILE" --repo-dir "$repo" 2>/dev/null)
 assert_eq "a foreign CLAUDE_PLUGIN_DATA does not steer the default" \
   "$expected_root/acme-widget-feat-noenv" "$out"
 assert_file_absent "nothing created under the foreign plugin data dir" "$foreign/worktrees"
+
+# --- Case: no root of any kind refuses (exit 3), nothing created ---
+# A raw CLI invocation with neither a configured root nor a data dir has nothing
+# safe to pick, so refusal is the only answer left.
+repo=$(mkrepo --origin "git@github.com:acme/widget.git")
+err=$(CLAUDE_PLUGIN_DATA='' bash "$HELPER" --name feat/noroot --repo-dir "$repo" 2>&1 >/dev/null)
+assert_exit "no root and no data dir refuses exit 3" 3 "$?"
+assert_contains "refuse message names worktree_root key" "$err" "worktree_root"
+assert_contains "refuse message rejects the in-repo fallback" "$err" ".claude/worktrees/"
+
+# --- Case: a data-root-file still holding the literal token refuses (exit 3) ---
+# If ${CLAUDE_PLUGIN_DATA} substitution ever regresses, the caller writes the token
+# verbatim. Treating that as a directory would create a literally-named relative
+# path INSIDE the repository — the nesting this helper exists to prevent — so the
+# token is detected and refused instead. This is the fail-closed property of
+# delivering the value by substitution rather than reading the environment.
+repo=$(mkrepo --origin "git@github.com:acme/widget.git")
+token_data_file="$TEST_TMPDIR/data-root-token"
+# shellcheck disable=SC2016
+printf '%s' '${CLAUDE_PLUGIN_DATA}' > "$token_data_file"
+err=$(CLAUDE_PLUGIN_DATA='' bash "$HELPER" --name feat/datatoken --data-root-file "$token_data_file" --repo-dir "$repo" 2>&1 >/dev/null)
+assert_exit "unsubstituted data-root-file token refuses exit 3" 3 "$?"
+assert_contains "token refusal names worktree_root key" "$err" "worktree_root"
+assert_file_absent "no literally-named token directory created in the repo" "$repo/\${CLAUDE_PLUGIN_DATA}"
+
+# --- Case: a configured root WINS over the data dir (precedence) ---
+# --data-root-file is a fallback, not an override: supplying both must place the
+# worktree at the configured root. Without this, a data dir could silently displace
+# a root the user deliberately chose.
+repo=$(mkrepo --origin "git@github.com:acme/widget.git")
+chosen="$TEST_TMPDIR_NATIVE/chosen-root"
+out=$(CLAUDE_PLUGIN_DATA='' bash "$HELPER" --name feat/precedence --root "$chosen" --data-root-file "$DATA_ROOT_FILE" --repo-dir "$repo" 2>/dev/null)
+assert_exit "configured root plus data-root-file creates (exit 0)" 0 "$?"
+assert_eq "the configured root wins over the data dir" \
+  "$chosen/acme-widget-feat-precedence" "$out"
+assert_file_absent "nothing created under the data dir when a root is configured" \
+  "$DATA_DIR/worktrees/acme-widget-feat-precedence"
+
+# --- Case: a missing --data-root-file path is a usage error (exit 2) ---
+# Mirrors the --root-file contract: a caller naming a file that is not there has a
+# broken handoff, which is not the same as declining to supply one.
+repo=$(mkrepo --origin "git@github.com:acme/widget.git")
+CLAUDE_PLUGIN_DATA='' bash "$HELPER" --name feat/nodatafile --data-root-file "$TEST_TMPDIR/absent-data-root" --repo-dir "$repo" >/dev/null 2>&1
+assert_exit "--data-root-file missing file exit 2" 2 "$?"
+
+# --- Case: --data-root-file rejects a newline, like --root-file (exit 2) ---
+# The shared reader enforces this for both flags; assert it on the new one so the
+# two channels cannot drift apart.
+repo=$(mkrepo --origin "git@github.com:acme/widget.git")
+multi_data_file="$TEST_TMPDIR/data-root-multiline"
+printf '%s\n%s\n' "$TEST_TMPDIR_NATIVE/one" "touch $TEST_TMPDIR/pwned-data" > "$multi_data_file"
+err=$(CLAUDE_PLUGIN_DATA='' bash "$HELPER" --name feat/datanewline --data-root-file "$multi_data_file" --repo-dir "$repo" 2>&1 >/dev/null)
+assert_exit "--data-root-file embedded newline is a usage error (exit 2)" 2 "$?"
+assert_contains "--data-root-file newline error names the newline" "$err" "newline"
+assert_file_absent "--data-root-file newline payload never executed" "$TEST_TMPDIR/pwned-data"
 
 # --- Case: refuse when the configured root is inside the repo (exit 3) ---
 repo=$(mkrepo --origin "git@github.com:acme/widget.git")
@@ -566,13 +645,13 @@ assert_file_exists "--root-file special-char worktree materialized" "$out/README
 repo=$(mkrepo --origin "git@github.com:acme/widget.git")
 root_file="$TEST_TMPDIR/rootfile-empty"
 : > "$root_file"
-expected_root="$(dirname "$(git -C "$repo" rev-parse --show-toplevel)")/worktrees"
-err=$(CLAUDE_PLUGIN_DATA='' bash "$HELPER" --name feat/emptyfallback --root-file "$root_file" --repo-dir "$repo" 2>&1 >/dev/null)
+expected_root="$DATA_DIR/worktrees"
+err=$(CLAUDE_PLUGIN_DATA='' bash "$HELPER" --name feat/emptyfallback --data-root-file "$DATA_ROOT_FILE" --root-file "$root_file" --repo-dir "$repo" 2>&1 >/dev/null)
 rc=$?
-assert_exit "--root-file empty content creates against the derived default (exit 0)" 0 "$rc"
+assert_exit "--root-file empty content creates against the default (exit 0)" 0 "$rc"
 assert_contains "--root-file empty content names worktree_root key" "$err" "worktree_root"
-out=$(CLAUDE_PLUGIN_DATA='' bash "$HELPER" --name feat/emptyfallback2 --root-file "$root_file" --repo-dir "$repo" 2>/dev/null)
-assert_eq "--root-file empty content places the worktree beside the checkout" \
+out=$(CLAUDE_PLUGIN_DATA='' bash "$HELPER" --name feat/emptyfallback2 --data-root-file "$DATA_ROOT_FILE" --root-file "$root_file" --repo-dir "$repo" 2>/dev/null)
+assert_eq "--root-file empty content places the worktree under the plugin data dir" \
   "$expected_root/acme-widget-feat-emptyfallback2" "$out"
 
 # --- Case: --root-file holding the literal unexpanded token reaches the default ---
@@ -584,10 +663,10 @@ repo=$(mkrepo --origin "git@github.com:acme/widget.git")
 root_file="$TEST_TMPDIR/rootfile-token"
 # shellcheck disable=SC2016
 printf '%s' '${user_config.worktree_root}' > "$root_file"
-expected_root="$(dirname "$(git -C "$repo" rev-parse --show-toplevel)")/worktrees"
-out=$(CLAUDE_PLUGIN_DATA='' bash "$HELPER" --name feat/token --root-file "$root_file" --repo-dir "$repo" 2>/dev/null)
-assert_exit "--root-file unexpanded token creates against the derived default (exit 0)" 0 "$?"
-assert_eq "--root-file token fallback places the worktree beside the checkout" \
+expected_root="$DATA_DIR/worktrees"
+out=$(CLAUDE_PLUGIN_DATA='' bash "$HELPER" --name feat/token --data-root-file "$DATA_ROOT_FILE" --root-file "$root_file" --repo-dir "$repo" 2>/dev/null)
+assert_exit "--root-file unexpanded token creates against the default (exit 0)" 0 "$?"
+assert_eq "--root-file token fallback places the worktree under the plugin data dir" \
   "$expected_root/acme-widget-feat-token" "$out"
 
 # --- Case: a root whose last byte is significant survives intact (exit 0) ---
