@@ -11,7 +11,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - **The dispatching session now verifies the packet's grounded findings landed, and persists them
   when the `auditor` could not (#1674).** 0.2.0 moved the packet filename out of the report-name
-  class and 0.2.2 taught the resume rule the fallback name, but neither closed the case where
+  class and 0.2.1 taught the resume rule the fallback name, but neither closed the case where
   *every* packet write is refused inside the subagent. The `auditor` was told to return its
   findings as text; nothing told the main session to catch them, so the compaction-surviving
   guarantee held only when the operator happened to re-persist the returned text by hand — an
@@ -33,6 +33,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   summary into the packet under a closed-set name: presence of one of those names is precisely
   what tells a resumed session the grounded findings exist, so doing so would forge the ledger
   instead of recovering it.
+- **Backstop-persisted findings carry their provenance.** The backstop write keys on a
+  marker-string match with no independent confirmation a write was attempted and refused, so step
+  3 records the backstop path in `evidence.md`, and step 4's unattended contract lock marks each
+  such finding `backstop-persisted: unverified` rather than extending the severities-stand-as-is
+  rule to the least-verified route into the packet.
 
 ## [0.3.0] - 2026-07-26
 

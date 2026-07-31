@@ -214,14 +214,18 @@ basenames the Resume rule defines above (and, for its reasons, never a name take
 `evidence.md`):
 
 - **A closed-set file exists** — proceed; present per the zone table.
-- **No closed-set file, and the `auditor` returned its documented both-names-refused form** (the
-  refusal stated outright, the COMPLETE findings inline in place of the summary) — persist it
-  yourself, immediately on receipt, before any other work: write the returned findings verbatim
-  into the packet as `audit-notes.md`, falling back to `audit-data.md` under the same guardrail,
-  exactly as the `auditor` would have. This is a backstop, not a relocation of the write — the
-  dispatching session is not reliably outside the guardrail either, which is why the filename rule
-  above remains the primary defense — but wherever it is outside, one write restores compaction
-  survival for findings that would otherwise live only in conversation.
+- **No closed-set file, and the `auditor` returned its documented both-names-refused form** (its
+  final message opens with the literal ASCII line `PACKET WRITE REFUSED: full findings inline` —
+  the exact marker `agents/auditor.md` mandates — and carries the COMPLETE findings inline in
+  place of the summary) — persist it yourself, immediately on receipt, before any other work:
+  write the returned findings verbatim into the packet as `audit-notes.md`, falling back to
+  `audit-data.md` under the same guardrail, exactly as the `auditor` would have. Then record the
+  provenance in `evidence.md`: the grounded findings entered the packet via this backstop — a
+  marker-matched subagent return, with no independent confirmation a write was attempted and
+  refused — so a later reader can weight them accordingly. This is a backstop, not a relocation
+  of the write — the dispatching session is not reliably outside the guardrail either, which is
+  why the filename rule above remains the primary defense — but wherever it is outside, one write
+  restores compaction survival for findings that would otherwise live only in conversation.
 - **Your own writes are refused too** — terminal, and never a shrug: report it as a named blocker,
   reproduce the full findings inline in your visible answer, and stop before step 4. Locking a
   contract over findings that exist nowhere durable is precisely the ungrounded contract the
@@ -262,7 +266,7 @@ Applied to the four contract-lock decisions:
 | Decision | Unattended resolution |
 |---|---|
 | Scope (which findings are in) | The dispatching item's own acceptance criteria and out-of-scope list bind it when it carries them. Absent that, **every** finding the `auditor` returned is in scope — the conservative answer, since narrowing scope is what needs a human. |
-| Severity calibration | The `auditor`'s returned severities stand as-is, marked uncalibrated. Never re-grade a severity without a human. |
+| Severity calibration | The `auditor`'s returned severities stand as-is, marked uncalibrated. Never re-grade a severity without a human. Findings persisted through step 3's backstop are the exception to "stand as-is": that path rests on a marker-string match with the least verification of any route into the packet, so mark each such finding `backstop-persisted: unverified` in `contract.md` and never let an unattended run treat it as ground truth for anything beyond carrying it forward to a human. |
 | Named assumptions | Carry forward the `auditor`'s own stated assumptions and unverified claims verbatim, plus one assumption naming the unattended invocation itself. |
 | Target repo for the emit | Resolve by step 6's ladder rungs 1–2 only (tracked config, then registration inference) and record which one hit. Rung 3 ("ask") has no unattended form, but an unresolved target is **not** a blocker — step 6 sends every unattended run to rung 4 whether or not 1–2 resolved, and rung 4 names "no repo" as one of its own entry conditions. The resolution recorded here is therefore either "would have targeted `<owner/repo>` via rung N" or "no external target resolved"; the emit lands on rung 4 either way. Blocking would strand precisely the targetless runs rung 4 exists for — a plugin loaded with `--plugin-dir` has no marketplace registration to infer from and no tracked config, which is the case most likely to be audited unattended. |
 
