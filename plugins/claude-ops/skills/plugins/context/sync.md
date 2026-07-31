@@ -13,6 +13,27 @@ off a snapshot taken several steps ago; a background `autoUpdate` sweep or a con
 change installed/enabled state between steps. Note in the report when a mutation's outcome doesn't
 match what the pre-mutation snapshot predicted — that's this race, not a bug.
 
+## Version capture for the report
+
+SKILL.md's report requires `<id>@<marketplace>: <old> → <new>` for every updated plugin, so both
+values have to be collected while the sweep runs — neither can be reconstructed afterward. Three
+sources, in precedence order, and **never** a synthesized value:
+
+1. **`<old>`** — that id's `installed[].version` from the pre-mutation `fleet-state.sh` re-read the
+   section above already requires. It is the pre-update value by construction.
+2. **`<new>`** — the `claude plugin update` call's own output for that id when it names a version.
+   Capture the CLI's line as it runs; it is the only source that reflects the update immediately.
+3. **`<new>` fallback** — that id's `installed[].version` from one `fleet-state.sh` re-read after
+   the Step 2 + Step 3 sweep completes, diffed against the pre-sweep snapshot.
+
+Source 3 is a fallback rather than the primary because `claude plugin update`'s own help says
+"restart required to apply", and this skill has not established when the CLI writes
+`installed_plugins.json` relative to that restart. If the write is deferred, the post-sweep re-read
+shows the pre-update version for a plugin that did update. So: when the CLI reported an update for
+an id and the post-sweep version is unchanged, report the CLI's reported value, or `<unknown>` if it
+named none — never report `<old> → <old>`, and never count that id as not-updated. A report line
+that says nothing changed for a plugin that did change is worse than one that admits it cannot tell.
+
 ## Step 1 — Marketplace refresh
 
 For each target marketplace (the resolved default, the named one, or every marketplace when the
@@ -22,18 +43,41 @@ argument is `all`):
 claude plugin marketplace update <marketplace-name>
 ```
 
-Self-heals a stale or corrupt local clone by re-fetching from the marketplace's registered source
-(per Brief Decision 4 — no manual re-clone or cache surgery). In `all` mode, loop this per
-marketplace name (rather than the bulk no-argument form) so a single marketplace's failure is
-attributable and reported inline without aborting the sweep for the rest.
+Attempts to re-fetch from the marketplace's registered source (per Brief Decision 4 — no manual
+re-clone or cache surgery). It does not reliably self-heal: the refresh is known to fail against an
+existing non-empty marketplace directory
+([anthropics/claude-code#76129](https://github.com/anthropics/claude-code/issues/76129), open —
+reported on macOS, reproduced on Windows), where it reports `Failed to clone marketplace
+repository: fatal: destination path '...' already exists and is not an empty directory`. Treat a
+successful refresh as the expected case, not a guarantee.
+
+In `all` mode, loop this per marketplace name (rather than the bulk no-argument form) so a single
+marketplace's failure is attributable and reported inline without aborting the sweep for the rest.
+
+**On a non-zero exit — every mode, including single/default.** Not fatal, and never silently
+absorbed: report the marketplace and the CLI's own error text inline under "Action needed" and
+continue to Step 2. Steps 2–3 operate on installed state, which a failed marketplace refresh
+leaves untouched. Steps 4–5 do NOT: Step 4 derives installations from the catalog
+(`missing_from_user_install`) and Step 5 consults catalog metadata (`defaultEnabled`), so running
+them against a stale catalog can install a since-removed plugin or enable one the publisher has
+since made opt-in-only. For a marketplace whose refresh failed, **skip Steps 4–5** and list what
+they would have done under "Action needed" as deferred until a sync run where the refresh
+succeeds. Say so in the report (`Marketplace: <name> — refresh failed, catalog may be stale;
+install/enable maintenance deferred`) rather than claiming it is current. Do not delete, rename,
+or re-clone the marketplace directory to work around it — that is cache surgery this skill does
+not do. To learn how stale the catalog actually is, compare `git -C <installLocation> rev-parse
+HEAD` against `git ls-remote origin HEAD` run in that directory — `ls-remote` queries the remote
+without writing `FETCH_HEAD`, remote-tracking refs, or objects, all three of which a plain
+`git fetch` writes (mutations of the marketplace's internal clone, outside this skill's boundary).
 
 ## Step 2 — In-repo update (the primary value path)
 
 Always call `fleet-state.sh` first — never gate this step on `CLAUDE_PROJECT_DIR` being set before
-calling it. `fleet-state.sh` resolves the project root itself (`CLAUDE_PROJECT_DIR` when set, the
-cwd's git toplevel otherwise — see [gotchas.md](gotchas.md)), so a headless session where the env var
-is unset can still correctly compute `currentProject`; gating on the raw env var directly would skip
-this step in exactly the case that fallback exists for.
+calling it. `fleet-state.sh` resolves the project root itself (`CLAUDE_PROJECT_DIR` when set, else
+the cwd's git toplevel, else a non-git cwd corroborated by its own `.claude` directory — `$HOME`
+excluded; see [gotchas.md](gotchas.md)), so a headless session where the env var is unset can still
+correctly compute `currentProject`; gating on the raw env var directly would skip this step in
+exactly the case that fallback exists for.
 
 Look at `installed[]` entries with `currentProject: true` and run an update for **every one of
 them**, unconditionally:
@@ -74,6 +118,8 @@ One call per plugin — `claude plugin update` takes a single `<plugin>` argumen
 
 ## Step 4 — Install new catalog plugins (per `install_new` policy)
 
+Catalog-dependent: skipped (deferred) for a marketplace whose Step 1 refresh failed — see Step 1.
+
 Take `fleet-state.sh`'s `missing_from_user_install` — catalog ids not installed at `user` scope
 (already excludes anything explicitly opted out with `enabledPlugins: false` in any scope — never
 re-offer a deliberate decline). This is deliberately user-scope, not the all-scope `missing_from_install`:
@@ -97,6 +143,9 @@ it's an installed, opted-out plugin). But a plugin that's *uninstalled entirely*
 AND disable (`enabledPlugins: false`), or switch the policy to `ask`/`none`.
 
 ## Step 5 — `enabledPlugins` completeness
+
+Catalog-dependent (`defaultEnabled` comes from catalog metadata): skipped (deferred) for a
+marketplace whose Step 1 refresh failed — see Step 1.
 
 Take `fleet-state.sh`'s `missing_from_enabled` — ids installed somewhere but never mentioned (true
 or false) in any scope's `enabledPlugins`, already excluding ids the marketplace ships with
@@ -126,7 +175,8 @@ recorded either way.
 
 ## Step 6 — Report
 
-Emit the report per SKILL.md's "Report" section. End with reload guidance: bare `/reload-plugins` by
+Emit the report per SKILL.md's "Report" section, filling each updated plugin's `<old> → <new>` from
+the sources the "Version capture for the report" section above fixes. End with reload guidance: bare `/reload-plugins` by
 default; suggest `--force` only when an updated/installed component ships an MCP server whose tools
 aren't deferred (see [scope-semantics.md](scope-semantics.md) — `--force` exists to opt into a real
 token cost, not a blanket recommendation). Call out a session restart separately only when an updated

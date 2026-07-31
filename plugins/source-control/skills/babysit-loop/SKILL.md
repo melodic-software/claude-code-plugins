@@ -364,20 +364,21 @@ stalled, the threshold key, and the stall-escalation shape are owned in full by
 
 The telemetry home is a **per-lane tracking issue in the target repository**, resolved from launch
 config; default: the open issue titled `Lane telemetry: babysit-loop` (exact match), created with
-`gh issue create` when absent (announce the creation). Maintain exactly ONE status comment on it,
-sentinel-identified and edited in place (the `claude-ops` lane-telemetry contract; one writer
-identity owns a marker). The upsert itself — the singleton lookup, the POST/PATCH, and the creation-race reconcile that
-converges two sessions racing the first-ever comment — is owned by
-[reference/telemetry-upsert.md](reference/telemetry-upsert.md). It is inlined in this plugin (never
-invoked from `claude-ops`) because an installed plugin cannot invoke a sibling plugin's scripts.
+`gh issue create` when absent (announce the creation). Maintain exactly ONE status comment on it
+**per lane instance**, sentinel-identified and edited in place (the `claude-ops` lane-telemetry
+contract; one writer identity owns a marker). The upsert itself — lane-instance resolution and
+validation, the singleton lookup, the POST/PATCH, the creation-race reconcile, and the
+instance-collision check — is owned by
+[reference/telemetry-upsert.md](reference/telemetry-upsert.md).
 
 The comment carries the human-readable cycle report plus a machine-readable **durable loop state**
 block, re-read at every cycle start:
 
 ```json
-{"schema":"source-control/babysit-loop-state@1","cycle":12,"backoff_level":2,
+{"schema":"source-control/babysit-loop-state@2","cycle":12,"backoff_level":2,
  "no_progress_streak":0,"stop_mode":"standing","tier":"worker","merge_rung":"c2-mechanical",
- "rate_limit_latch":false,"guard_mode":"proactive",
+ "rate_limit_latch":false,"guard_mode":"proactive","lane_instance":"melo-lap-001",
+ "writer_nonce":"9f3c1a7e","heartbeat_at":"2026-07-23T15:04:05Z","paused_until":null,
  "loop_started_at":"2026-07-23T15:00:00Z","restart_request":null,
  "usage_sample":{"at":"2026-07-23T15:04:05Z","five_hour_pct":23.5,"seven_day_pct":41.2,
  "five_hour_delta_pct":1.8}}
@@ -385,7 +386,10 @@ block, re-read at every cycle start:
 
 `cycle`, `backoff_level`, and `no_progress_streak` are the loop's durable counters;
 `loop_started_at` makes the approaching seven-day expiry visible; `restart_request` is where a
-budget or expiry hit records the relaunch ask; `guard_mode` is recorded every cycle.
+budget or expiry hit records the relaunch ask; `guard_mode` is recorded every cycle. Every counter
+is **per-instance** — the marker partitions the block, so each measures *this* instance's experience
+rather than an average of two lanes'. The four instance fields carry the collision check that
+partition depends on; it and the `instance:` cycle-report line are the reference's.
 
 `usage_sample` copies the **same** two window percentages the rate-limit guard step below already
 read at this cycle's **start** — never a second reading, so `at` is when the lane read the tee, not

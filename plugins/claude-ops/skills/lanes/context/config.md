@@ -51,6 +51,13 @@ targeted restart of either would corrupt the other's staleness probe. The
 `<repo-key>` component keeps same-named lanes in different repos apart, since the
 data directory is plugin-wide rather than per-repo.
 
+Types are checked, and a wrong type is never read as an absent field. `name`, `prompt`, `model` and
+`effort` must be JSON strings; a non-string value exits `3` at preflight alongside the checks above.
+`settings` is checked per lane instead, so only that lane is skipped. An explicit `null` is the JSON
+spelling of "no value" and is equivalent to omitting the field. The distinction is load-bearing: a
+`false` is falsy, and a reader that treats falsy as absent silently launches the lane without the
+setting rather than reporting the mistake (#1784).
+
 ## Prompt-storage seam (#480)
 
 `prompt_dir` defaulting to `.work` reflects today's reality: canonical prompts live

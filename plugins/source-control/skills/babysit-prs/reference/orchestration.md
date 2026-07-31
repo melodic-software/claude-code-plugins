@@ -365,16 +365,18 @@ same-worktree protections.
   durable disposition with `manage_feedback_ledger.py dispose` while holding that PR's worker
   lease, so later snapshots report it as material history instead of a blocker.
 - Before starting an autonomous fix round for advisory-only bot findings (`P2`/nonblocking
-  suggestions), record it write-ahead with `manage_feedback_ledger.py record-advisory-round`, then
-  run `safety.md`'s (a)/(b)/(c) taxonomy over this round's findings and stamp each D5 reply row
-  with its class marker **before** dispatching the fix. The taxonomy is a per-round duty, not an
-  escalation-time one: the second-consecutive-all-(c) tripwire reads markers left by earlier
-  rounds, so a round that classifies only when an escalation is already being prepared leaves the
-  tripwire nothing to read. Reconstruct the prior round's composition first, per that same
-  section. Keep
-  iterating while rounds make real progress against real findings; only when the helper reports
-  the cap reached — the rare runaway-loop case — report the findings for user decision instead of
-  fixing. Clear blocking defects are never capped.
+  suggestions), run `safety.md`'s (a)/(b)/(c) taxonomy over this round's findings, record the
+  round write-ahead with `manage_feedback_ledger.py record-advisory-round` carrying one
+  `--finding-class` per finding, and stamp each D5 reply row with its class marker — all **before**
+  dispatching the fix. The taxonomy is a per-round duty, not an escalation-time one: the
+  second-consecutive-all-(c) tripwire is decided from the classes earlier rounds recorded, so a
+  round that classifies only when an escalation is already being prepared leaves the tripwire
+  nothing to read; the helper refuses an unclassified round for that reason. The snapshot's
+  `advisory_fix_rounds.non_convergence_tripwire` reports where the PR already stood and the
+  helper's own return is what arms THIS round — neither is reconstructed from GitHub, per that
+  same section. Keep iterating while rounds make real progress against real findings; only when
+  the helper reports the cap reached — the rare runaway-loop case — report the findings for user
+  decision instead of fixing. Clear blocking defects are never capped.
 - Spawn at most one worker per PR whose snapshot `needs_worker` is `true` this cycle (see the
   Fan-Out Gate above), batched up to `<worker-concurrency-cap>`, when subagent tools are
   available. Immediately before spawning each such worker, record its check-in write-ahead with

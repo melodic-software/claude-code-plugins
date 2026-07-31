@@ -35,8 +35,8 @@
 # dir (the documented multi-account alias), so the shim would silently take the
 # no-tee path forever after they wired it.
 #
-# RESOLUTION: the newest installed tee by MTIME across marketplaces, which is
-# the most recently installed one — deliberately not a version sort, since
+# RESOLUTION: the newest NON-ORPHANED tee by MTIME across marketplaces, which
+# is the most recently installed one — deliberately not a version sort, since
 # version directory names sort lexically ("0.9.0" > "0.10.0") and carry no
 # guarantee of being semver at all. Marketplace directories named temp_* are
 # skipped: the cache holds transient temp_git_*/temp_local_* clones during
@@ -46,12 +46,39 @@
 # Verified empirically 2026-07-24: the cache copy does NOT preserve the source
 # file's timestamps — an installed tee carries its INSTALL time (measured: a
 # source committed at 03:08 installed at 12:38 carried 12:38), so "newest
-# mtime" is "most recently installed" even against an orphaned older version
-# directory lingering from a previous install. An alternative authoritative
-# source exists — ~/.claude/plugins/installed_plugins.json maps
-# <plugin>@<marketplace> to the current installPath — but it is an UNDOCUMENTED
-# internal file carrying its own schema version, and reading it would put a jq
-# spawn on every statusline refresh. Revisit only if upstream documents it.
+# mtime" is "most recently installed".
+#
+# ORPHAN SKIP — why mtime alone is not enough: "When you update or uninstall a
+# plugin, the previous version directory is marked as orphaned and removed
+# automatically 14 days later. The grace period lets concurrent Claude Code
+# sessions that already loaded the old version keep running without errors"
+# (plugins reference, "Plugin caching and file resolution",
+# https://code.claude.com/docs/en/plugins-reference, fetched 2026-07-30).
+# UNINSTALL therefore leaves the tee on disk for ~14 days, and an mtime-only
+# shim keeps executing it for that whole window: the operator removes the
+# plugin and it keeps writing snapshots, with no signal that it is still
+# running. A candidate whose version directory carries the orphan marker is
+# skipped, so uninstalling stops the tee at the next statusline refresh.
+#
+# The MARKING is documented; the marker's on-disk spelling is not. Measured on
+# Claude Code 2.1.220, 2026-07-30, against a relocated CLAUDE_CONFIG_DIR: an
+# uninstall writes `<version-dir>/.orphaned_at` (epoch-ms) and leaves
+# scripts/statusline-tee.sh in place. Reproducible on any live cache: every
+# superseded version directory of a plugin carries the marker and the currently
+# installed one does not. A directory can also be marker-less while merely
+# STAGED — a newer version fetched for a pending update — so the marker's
+# absence is not itself a claim of installation; mtime still picks the winner
+# among unmarked candidates, as it did before. If upstream renames or drops the
+# marker, the test finds nothing and resolution falls back to today's
+# mtime-only behavior — a stale tee, never a broken statusline.
+#
+# An alternative authoritative source exists — ~/.claude/plugins/
+# installed_plugins.json maps <plugin>@<marketplace> to the current installPath
+# — but it is an UNDOCUMENTED internal file carrying its own schema version,
+# and reading it would put a jq spawn on every statusline refresh. The orphan
+# marker is preferred over it on both counts: the behavior it reports is
+# documented, and the test is a builtin. Revisit only if upstream documents the
+# file.
 #
 # Pure builtins — glob + `-nt` tests, no subprocesses — because the statusline
 # command runs on every session event and on the refresh interval.
@@ -60,7 +87,7 @@ set -uo pipefail
 
 PLUGIN_NAME="context-guard"
 
-# shim-revision: 2
+# shim-revision: 3
 # Bumped whenever this file's content changes. The installed copy is a
 # BYTE-IDENTICAL copy of this file, so /context-guard:setup check compares the
 # two directly; the marker is for humans reading the installed copy.
@@ -85,6 +112,9 @@ resolve_tee() {
     rest="${cand#"$cache"/}"
     mkt="${rest%%/*}"
     [[ "$mkt" == temp_* ]] && continue
+    # Uninstalled or superseded: the version directory is marked orphaned and
+    # lingers ~14 days. Running it would keep an uninstalled plugin writing.
+    [[ -e "${cand%/scripts/statusline-tee.sh}/.orphaned_at" ]] && continue
     if [[ -z "$RESOLVED" || "$cand" -nt "$RESOLVED" ]]; then
       RESOLVED="$cand"
     fi

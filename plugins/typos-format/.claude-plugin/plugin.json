@@ -1,8 +1,8 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "typos-format",
-  "version": "0.4.3",
-  "description": "Auto-fix spelling typos on edit via typos-cli, unconditionally — honoring the consuming repo's own typos configuration when one is present.",
+  "version": "0.5.0",
+  "description": "Spell-check on edit via typos-cli, unconditionally — report-only by default, honoring the consuming repo's own typos configuration when one is present.",
   "author": {
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
@@ -19,14 +19,14 @@
     "typos_format_enabled": {
       "type": "boolean",
       "title": "typos-format hook",
-      "description": "Run typos --write-changes on edit of any file, unconditionally",
+      "description": "Spell-check on edit of any file, unconditionally (report-only unless typos_format_write_changes is on)",
       "default": true
     },
     "typos_format_write_changes": {
       "type": "boolean",
       "title": "Apply corrections",
-      "description": "Rewrite the file in place. Turn off for a report-only hook that reports findings without ever modifying a file.",
-      "default": true
+      "description": "Rewrite the file in place. Off by default: findings are reported without modifying the file. Turning this on accepts last-writer-wins ordering with any sibling formatter hook that rewrites the same file.",
+      "default": false
     }
   }
 }

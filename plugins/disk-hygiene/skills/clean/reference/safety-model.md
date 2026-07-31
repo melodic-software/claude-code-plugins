@@ -218,6 +218,20 @@ active and forces a human prompt before every mutation **it sees** — every Bas
 PowerShell only the flagged spellings above — so an unreadable toggle never silently disables the
 guard.
 
+**The gate's "different file" escape stops at this plugin's own cache tree.** A word naming an existing
+file that is not the bundled engine defers, so a consumer's own `tools/hygiene.py` is not mistaken for
+this engine (#1640, #1611). Claude Code keeps a replaced version's directory on disk after an update,
+so that escape also covered every previous version of *this* engine sitting beside the current one —
+each a genuinely different file, each deletion-capable, and each answering to nothing but its own
+containment once the always-on gate defers. The gate now refuses that escape to any path resolving
+inside `<plugins>/cache/<marketplace>/<name>`, derived from the guard module's own `__file__` rather
+than from argv, so no environment channel can redirect it. A `--plugin-dir` checkout has no such
+prefix and the narrowing is inert there, which is correct: a checkout has no cached siblings, and
+narrowing on it would gate a contributor's work on their own tree. **Residual:** versions at or below
+0.8.1 predate settings-based kill-switch enforcement entirely, and a copied — rather than
+cache-resident — engine remains outside the prefix, as it is outside every identity check the gate
+makes.
+
 This replaces the earlier delivery, where the gate carried a bare `${user_config.disk_hygiene_enabled}`
 argument. Because the declared userConfig `default` is not implemented upstream
 (#46477 / #39455 / #39827), an unset-but-defaulted token was neither substituted nor exported as `CLAUDE_PLUGIN_OPTION_*` and
