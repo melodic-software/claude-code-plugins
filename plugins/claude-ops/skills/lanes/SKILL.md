@@ -256,8 +256,13 @@ each — the summary below is a pointer, not a copy.
   that sentinel across ALL comments (paginated — a match on any page prevents a
   duplicate) and PATCHes it; failing that (first migration off a hand-authored
   comment) it adopts the most recent comment BY THE AUTHENTICATED USER carrying the
-  raw marker text; else it creates one. `STR` is `[A-Za-z0-9:._-]+` (so it can
-  never close the HTML comment early), and one writer identity owns a given marker.
+  raw marker text; else it creates one. `STR` is `[A-Za-z0-9:@._-]+` (so it can
+  never close the HTML comment early), and one writer identity owns a given marker
+  — which is what the loop-lane convention's `<lane>@<instance>` suffix makes true
+  rather than aspirational (#1295): a marker naming only a lane type is shared by
+  every concurrent instance of that lane, so they clobber one another's durable
+  state. Both fallback boundaries treat `@` as a marker char, so `lane:x` never
+  adopts `lane:x@laptop-a`'s comment, nor `lane:x@a` adopt `lane:x@a@b`'s.
   Body input: prefer `--body-file -` (stdin) for a body generated in memory (e.g.
   piped from `machine-behavior.sh`); a real `--body-file PATH` must resolve under
   `--body-dir` (default `$CLAUDE_PLUGIN_DATA`), may not be a symlink, and is capped

@@ -207,6 +207,7 @@ repo's owner.
 
 | Key | Type | Default / absent behavior |
 |---|---|---|
+| `lane_instance` | string | sanitized lowercased hostname (writer identity suffixing `babysit-loop`'s telemetry marker; must be distinct across concurrent lane instances) |
 | `pr_body_linkage_gate_enabled` | boolean | `true` (the PR-body hook above; inert in a repo with no `pr-issue-linkage` workflow) |
 | `pr_linkage_mcp_gate_enabled` | boolean | `true` (the MCP-surface sibling; inert in a repo with no `pr-issue-linkage` workflow) |
 | `babysit_watched_owners` | string (multiple) | infer the current repo's owner |

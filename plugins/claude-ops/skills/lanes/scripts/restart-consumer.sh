@@ -74,12 +74,21 @@
 # context/restart-consumer.md):
 #   { "name": "work", "prompt": "work.md",
 #     "telemetry": { "issue": 42, "marker": "work-items:work-loop",
-#                    "repo": "owner/name" } }
-#   issue   default: the open issue titled exactly `Lane telemetry: <name>`.
-#   marker  default: any comment on that issue carrying the shared sentinel
-#           `<!-- claude-ops:lane-telemetry marker=... -->` whose fenced JSON
-#           block has a `restart_request` key.
-#   repo    default: --target-repo.
+#                    "instance": "laptop-a", "repo": "owner/name" } }
+#   issue    default: the open issue titled exactly `Lane telemetry: <name>`.
+#   marker   default: any comment on that issue carrying the shared sentinel
+#            `<!-- claude-ops:lane-telemetry marker=... -->` whose fenced JSON
+#            block has a `restart_request` key. A bound marker matches that lane
+#            type across EVERY writer instance (`<marker>@<instance>`, #1295) —
+#            an exact-equality match would go blind the moment lanes adopted the
+#            suffix. Bind `instance`, or write the suffix into `marker` itself,
+#            to pin one instance.
+#   instance default: unpinned. Only read when `marker` carries no `@`. Unpinned
+#            means suffixed writers are OBSERVED, not consumed: their requests
+#            report as `unbound-instance` and never relaunch anything — a
+#            sibling machine's ask must not start this machine's lane. Only the
+#            legacy un-suffixed comment is actionable without a pin.
+#   repo     default: --target-repo.
 #
 # THE SHAPE CONSUMED. The producers (work-loop, babysit-loop) document
 # `restart_request` only as the field "where a budget or expiry hit records the
@@ -98,7 +107,12 @@
 #
 # RELAUNCH PREDICATE — a lane is restarted iff ALL hold:
 #   1. it is named in the resolved lane config (and in --lane, if given);
-#   2. its telemetry state block parses and `restart_request` is non-null;
+#   2. its telemetry state block parses and `restart_request` is non-null, in a
+#      comment this binding is entitled to consume: the pinned instance's
+#      comment, or the legacy un-suffixed one. An instance-suffixed comment
+#      under an unpinned binding is another machine's writer — report-only
+#      (`unbound-instance`), because relaunching the LOCAL lane off a sibling's
+#      ask would start unintended instances on every stopped consumer;
 #   3. it is NOT currently running (`claude agents --json`, name match plus
 #      kind == "background", exactly lane-launcher.sh's own liveness test);
 #   4. the circuit breaker has room for it in the rolling window (counted in
@@ -692,6 +706,33 @@ confirm_running() {
 lane_field() { jq -r --argjson i "$1" --arg k "$2" '.lanes[$i][$k] // ""' "$CONFIG"; }
 lane_telemetry_field() { jq -r --argjson i "$1" --arg k "$2" '(.lanes[$i].telemetry // {})[$k] // ""' "$CONFIG"; }
 
+# Does this comment carry the marker this lane binds? A lane's marker names a
+# WRITER, not a lane type (#1295): concurrent instances of one lane write
+# `<marker>@<instance>`, so an exact-equality match on the bare marker would stop
+# seeing every comment the moment lanes adopted the suffix — a restart consumer
+# that silently never restarts. Matching rules, in order:
+#   - no bound marker      -> any sentinel comment (the documented default)
+#   - bound marker with @  -> that instance and only it
+#   - bound marker, no @   -> that lane type, any instance, unless `instance` is
+#                             also bound, which pins it to one
+# The trailing ` ` / `@` boundary is what keeps `work-items:work-loop` from
+# matching `work-items:work-loop-v2`, the same superstring rule the upsert's own
+# fallback lookarounds enforce.
+lane_comment_marker_matches() {
+  local body="$1" marker="$2" instance="$3"
+  [[ -n "$marker" ]] || return 0
+  case "$marker" in
+  *@*) [[ "$body" == *"$SENTINEL_PREFIX$marker "* ]] ;;
+  *)
+    if [[ -n "$instance" ]]; then
+      [[ "$body" == *"$SENTINEL_PREFIX$marker@$instance "* ]]
+    else
+      [[ "$body" == *"$SENTINEL_PREFIX$marker "* || "$body" == *"$SENTINEL_PREFIX$marker@"* ]]
+    fi
+    ;;
+  esac
+}
+
 # `gh issue list --search` is a fuzzy full-text match, so the title is re-checked
 # EXACTLY here: a fuzzy hit on some other issue would point the consumer at an
 # unrelated comment stream. The search term deliberately omits the colon, which
@@ -910,6 +951,7 @@ process_lane() {
   fi
 
   marker="$(lane_telemetry_field "$idx" marker)"
+  instance="$(lane_telemetry_field "$idx" instance)"
   if ! bodies="$(lane_comment_bodies "$lane" "$repo" "$issue")"; then
     record "$lane" "api-error" "could not read the comments on #$issue (gh api); state unknown, not restarting" null "$now"
     fail_lane "api-error($lane)" 5
@@ -917,14 +959,36 @@ process_lane() {
   fi
   n="$(jq -r 'length' <<<"$bodies" 2>/dev/null)" || n=0
   request="null"
+  sibling_request="null"
+  sibling_instance=""
   for ((i = 0; i < n; i++)); do
     body="$(jq -r ".[$i]" <<<"$bodies")"
     [[ "$body" == *"$SENTINEL_PREFIX"* ]] || continue
-    [[ -z "$marker" || "$body" == *"$SENTINEL_PREFIX$marker "* ]] || continue
+    lane_comment_marker_matches "$body" "$marker" "$instance" || continue
     state="$(extract_state_block "$body")" || continue
     found=1
-    request="$(jq -c '.restart_request' <<<"$state")"
-    break
+    req="$(jq -c '.restart_request' <<<"$state")"
+    # An instance-suffixed comment names ONE machine's writer. Unless this
+    # binding pins that instance (`instance` key, or the suffix written into
+    # `marker`), its request is a SIBLING's: relaunching the locally
+    # configured lane because another machine's writer asked would start
+    # unintended instances on every stopped consumer that shares the issue.
+    # Sibling requests are surfaced (`unbound-instance`), never acted on.
+    comment_marker="${body#*"$SENTINEL_PREFIX"}"
+    comment_marker="${comment_marker%%[[:space:]]*}"
+    if [[ "$comment_marker" == *@* && "$marker" != *@* && -z "$instance" ]]; then
+      if [[ "$req" != "null" && "$sibling_request" == "null" ]]; then
+        sibling_request="$req"
+        sibling_instance="${comment_marker#*@}"
+      fi
+      continue
+    fi
+    # A bound writer asking is a request: the predicate's not-running
+    # condition (3) is what keeps one relaunch from firing twice, and a lane
+    # whose only asking bound comment sits further down the issue — behind a
+    # quiet one — would otherwise never be restarted at all.
+    request="$req"
+    [[ "$request" != "null" ]] && break
   done
 
   if ((!found)); then
@@ -932,6 +996,10 @@ process_lane() {
     return 0
   fi
   if [[ "$request" == "null" ]]; then
+    if [[ "$sibling_request" != "null" ]]; then
+      record "$lane" "unbound-instance" "restart_request from writer instance '$(sanitize "$sibling_instance")' but this binding pins no instance; bind lanes[].telemetry.instance (or write the @<instance> suffix into marker) to consume it" "$sibling_request" "$now"
+      return 0
+    fi
     record "$lane" "no-request" "restart_request is null" null "$now"
     return 0
   fi

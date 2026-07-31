@@ -3,7 +3,7 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.24.5]
+## [0.25.1]
 
 ### Changed
 
@@ -22,6 +22,39 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   degraded body deceives is any consumer keying on the comment's timestamp instead of its body — the
   timestamp moves on every successful write regardless of content. The rule now attributes the
   failure that way rather than naming a sibling reader that would in fact surface it.
+
+## [0.25.0]
+
+### Changed
+
+- **`telemetry-upsert.sh` accepts the writer-identity marker suffix (#1295).** The marker charset
+  gains `@`, so a marker can name one *writer* (`<lane>@<instance>`) rather than a lane type — the
+  loop-lane convention's fix for concurrent instances of one lane sharing, and clobbering, a single
+  telemetry comment. This script is that convention's interim home, so a marker shape its validator
+  rejected would have left the contract and its executable owner disagreeing. `@` is added to
+  **both** lookaround classes in the two-tier detection's fallback as well, for exactly the reason
+  `-` is already in them: without it, `lane:x` matches inside `lane:x@laptop-a` and would adopt that
+  instance's comment — the boundary rule one level down from the `lane:triage` /
+  `lane:triage-old` prefix collision it already guards. Two cases cover the new boundary in both
+  directions, plus one asserting a suffixed marker validates at all.
+
+### Fixed
+
+- **`restart-consumer.sh` would have gone silently blind on suffixed markers.** Its per-lane
+  `telemetry.marker` binding matched a comment by exact marker equality, so once lanes carry
+  `<marker>@<instance>` no bound lane's comment would match — the consumer would report `no-state`
+  forever and restart nothing, the worst failure shape for an unattended relaunch trigger. A bound
+  marker now names a lane **type** and matches every writer instance of it, with the same trailing
+  boundary that keeps `work-items:work-loop` from adopting `work-items:work-loop-v2`. A new optional
+  `telemetry.instance` key pins one instance, as does writing the suffix into `marker` itself. The
+  scan also no longer stops at the first matching comment when that comment is not asking: with
+  several instances writing to one issue, a quiet sibling appearing first would otherwise mask a
+  later instance's live restart request. What an unpinned binding does with a suffixed writer's
+  request is *report* it: the run records `unbound-instance` naming the asking writer and
+  relaunches nothing, because an instance-suffixed comment is some machine's writer and consuming
+  it unpinned would relaunch the locally configured lane on **every** stopped consumer sharing the
+  issue — sibling instances started by a request none of them owns. Only the pinned instance's
+  comment, or the legacy un-suffixed one, is actionable.
 
 ## [0.24.4]
 

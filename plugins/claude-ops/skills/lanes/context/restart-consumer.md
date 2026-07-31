@@ -219,8 +219,15 @@ parity claim.
 
 ## Telemetry binding per lane
 
-Optional `lanes[].telemetry` config keys (`issue`, `marker`, `repo`) bind a lane
-to its telemetry comment; every one has a working default (issue resolved by the
-exact `Lane telemetry: <lane>` title, marker matched by the shared sentinel plus
-a `restart_request`-bearing state block, repo defaulting to the consumer's
-`--target-repo`). Full semantics: the script's `--help` header.
+Optional `lanes[].telemetry` config keys (`issue`, `marker`, `instance`, `repo`)
+bind a lane to its telemetry comment; every one has a working default (issue
+resolved by the exact `Lane telemetry: <lane>` title, marker matched by the shared
+sentinel plus a `restart_request`-bearing state block, instance unpinned, repo
+defaulting to the consumer's `--target-repo`). A bound `marker` names a lane
+**type** and matches every writer instance of it, since a live comment's marker
+carries the loop-lane convention's `@<instance>` writer suffix; pin one instance
+with `instance`, or by writing the suffix into `marker` itself. Unpinned, a
+suffixed writer's request is observed but never consumed — it reports as
+`unbound-instance` and relaunches nothing, since a sibling machine's ask must
+not start this machine's lane; only the legacy un-suffixed comment is
+actionable without a pin. Full semantics: the script's `--help` header.
