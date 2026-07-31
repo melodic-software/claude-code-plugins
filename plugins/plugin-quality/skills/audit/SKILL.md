@@ -397,7 +397,9 @@ Resolve the sink by the ladder (first hit wins; full key reference in the plugin
 3. **Ask** — no config, no inference: ask the user for the target, offer to persist it to the
    tracked config.
 4. **Local markdown fallback** — no `gh` or no repo: write the item as a local markdown work item
-   next to the packet (`item.md`) and tell the user where it is.
+   INSIDE the packet directory (`item.md` — in the run-nonce directory itself, never beside it)
+   and tell the user where it is. The location is load-bearing, not incidental: retention keys its
+   never-delete-the-deliverable rule on finding `item.md` in the packet.
 
 **Egress gate (unconditional, every externally-visible emit):** show the user, in one confirm
 surface — (a) the FULL item draft (title + body), (b) the destination (target repo, tracker, or
@@ -405,7 +407,7 @@ directory), and (c) the ACTING identity (`gh auth status` for `gh`; the tracker'
 for a seam emit — machines can hold multiple identity domains and the wrong one cross-pollinates
 them). Only on explicit confirmation perform the emit. This gate covers `gh issue create` AND any
 presence-gated `work-items` seam emit (`create-item` writes to an external tracker — invoking
-this audit is not itself authorization); only the rung-4 local file next to the packet skips it.
+this audit is not itself authorization); only the rung-4 local file inside the packet skips it.
 There is no auto-file mode.
 
 **Autonomous invocation (no interactive user) — the gate does NOT relax.** Unlike step 4, this
@@ -413,7 +415,7 @@ step has no safe default, so the unattended rule that applies is "never guessed"
 run has nobody to show the draft, the destination, and the acting identity to, and an
 externally-visible emit performed without that surface is precisely the egress this gate exists to
 deny — an absent confirmer is not an implicit confirmation. So an unattended run **falls to rung 4
-unconditionally**: write the fully-drafted item as a local markdown file next to the packet
+unconditionally**: write the fully-drafted item as a local markdown file inside the packet
 (`item.md`), report the path plus the rung it would have taken and the identity it would have
 acted as, and stop. This is a deferral, not a downgrade — the drafted item is complete and an
 attended session can emit it later after seeing the same confirm surface. No auto-file mode is
