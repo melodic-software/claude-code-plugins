@@ -17,8 +17,10 @@ All notable changes to `repo-fleet-hygiene` are documented here. Format follows
   of `git worktree list --porcelain` (which lists the main worktree first wherever it runs), before
   the dedup tie-break. `rev-parse --show-toplevel` cannot make this distinction: inside a linked
   worktree it returns the linked root. The extra probe is gated on the candidate's `.git` being a
-  file rather than a directory, so an ordinary fleet sweep pays nothing per repository. Evidence
-  rule 1 in both skills is corrected to match.
+  file rather than a directory, so an ordinary fleet sweep pays nothing per repository. The
+  substitution is disclosed on a `Resolved to main worktree:` header line rather than applied
+  silently — the operator named one path and the report is about another. Evidence rule 1 in both
+  skills is corrected to match.
 - **The `allowed-tools` grant used a variable that is not substituted there (#1798).** The rule named
   `${CLAUDE_PLUGIN_ROOT}`, which the skills documentation does not list among the variables
   substituted in skill content or `allowed-tools` Bash rules — only `${CLAUDE_SKILL_DIR}` and

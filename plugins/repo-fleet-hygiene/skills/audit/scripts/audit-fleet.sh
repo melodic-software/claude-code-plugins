@@ -7,10 +7,14 @@ usage() {
   cat <<'EOF'
 Usage: audit-fleet.sh [--root DIR]... [--repo DIR]... [--config FILE]
                       [--canonical github.com/owner/repo=PATH]...
-                      [--max-depth 1..12]
+                      [--max-depth 1..12] [--project-dir DIR]
 
 Read-only. Discovers repositories, resolves optional canonical checkouts, and
 reports confidence-tiered branch, worktree, and GitHub-identity findings.
+
+--project-dir supplies the session's project directory, used for the
+project-scoped config rung and as the target when no scope is given. It is
+passed in rather than read from the environment, which does not carry it.
 EOF
 }
 
@@ -491,6 +495,10 @@ path_key() {
 
 TARGETS=()
 TARGET_COMMON_KEYS=()
+# Candidates that resolved to a different main worktree than the path reached, reported in the
+# header so the substitution is never silent.
+RETARGETED_FROM=()
+RETARGETED_TO=()
 # Stale config-sourced entries collected during argument processing; the report header has not
 # printed yet, so they are emitted as per-entry UNKNOWN findings once it has.
 STALE_CONFIG_PATHS=()
@@ -594,6 +602,13 @@ add_target() {
   # -- and note the gate is an optimization only: --separate-git-dir also yields a .git file, and
   # the porcelain then simply confirms the same main worktree.
   if [[ ! -d "$top/.git" ]] && main_top="$(main_worktree "$candidate")" && [[ -n "$main_top" ]]; then
+    # Disclose the retarget. The operator supplied or discovered one path and the report is about
+    # another, so substituting it silently would be the same class of defect as a header asserting a
+    # scope the run's own inputs contradict.
+    if [[ "$(path_key "$main_top")" != "$(path_key "$top")" ]]; then
+      RETARGETED_FROM+=("$top")
+      RETARGETED_TO+=("$main_top")
+    fi
     top="$main_top"
   fi
   common_key="$(path_key "$common")"
@@ -1331,6 +1346,13 @@ fi
 # discovery targets, the Summary line counts repositories that completed a local audit. Both are
 # qualified so a reader cannot read a shortfall as a discrepancy.
 printf 'Repositories discovered (audit targets after deduplication): %s\n' "${#TARGETS[@]}"
+for ((rt_index = 0; rt_index < ${#RETARGETED_FROM[@]}; rt_index++)); do
+  printf 'Resolved to main worktree: '
+  display_value "${RETARGETED_FROM[$rt_index]}"
+  printf ' -> '
+  display_value "${RETARGETED_TO[$rt_index]}"
+  printf '\n'
+done
 for ((root_index = 0; root_index < ${#ROOT_LABELS[@]}; root_index++)); do
   printf 'Root '
   display_value "${ROOT_LABELS[$root_index]}"

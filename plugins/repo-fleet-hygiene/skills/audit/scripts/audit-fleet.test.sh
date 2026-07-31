@@ -695,6 +695,14 @@ assert_not_contains_file() {
   fi
 }
 assert_not_contains_file "no false current-project scope claim" "current-project scope" "$ladder_out"
+# Retargeting a supplied/discovered path to the repository of record is a substitution the operator
+# did not ask for, so it must be stated rather than silently applied.
+if grep -Fq "Resolved to main worktree: $TMP/wt-root/aaa-linked -> $TMP/wt-root/zzz-canonical" "$ladder_out"; then
+  printf 'PASS: retarget to the main worktree is disclosed in the header\n'
+else
+  printf 'FAIL: retarget to the main worktree is disclosed in the header\n' >&2
+  failures=$((failures + 1))
+fi
 # A full merged-PR window silently drops older history, which reads in the report exactly like a
 # branch that was never merged. The truncation must be disclosed, never inferred by the reader.
 if grep -Fq "Finding: merged-pr-window-truncated" "$ladder_out" &&
