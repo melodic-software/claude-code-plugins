@@ -102,7 +102,7 @@ done
 }
 
 # Root containment. This script's only job is deleting directories, so a
-# mis-passed path is the whole risk surface. Require the root to be literally
+# mistyped path is the whole risk surface. Require the root to be literally
 # named `evidence` — the one directory name the packet layout gives it — so a
 # fat-fingered `--root ~` or `--root .` is refused rather than walked.
 root_abs="$(cd "$root" && pwd -P)" || {

@@ -48,10 +48,13 @@ fresh_packet() {
   local p="$WORK/packet"
   rm -rf "$p"
   mkdir -p "$p"
-  # A verbatim upstream citation carrying a deliberate misspelling — the content
-  # class the sibling formatters were observed to damage, and the one whose
-  # rewrite silently falsifies the finding it was cited to prove.
-  printf 'upstream dictionary entry: "hte" corrects to "the"\n' >"$p/audit-notes.md"
+  # Stands in for a verbatim upstream citation — the content class the sibling
+  # formatters were observed to damage, and the one whose rewrite silently
+  # falsifies the finding it was cited to prove. The stand-in token is
+  # deliberately NOT a real dictionary typo: this repo's own spell-check hook
+  # would otherwise "correct" the fixture and defeat the test it anchors, which
+  # is the very failure mode under test one level up.
+  printf 'upstream dictionary entry: "zzqx" maps to "zzqy"\n' >"$p/audit-notes.md"
   printf 'invocation record\n' >"$p/evidence.md"
   printf '%s' "$p"
 }
@@ -85,7 +88,7 @@ packet="$(fresh_packet)"
 run 0 "record for the rewrite case" record "$packet"
 # Exactly the observed damage: a formatter "corrects" a deliberate misspelling
 # inside a verbatim quotation.
-printf 'upstream dictionary entry: "the" corrects to "the"\n' >"$packet/audit-notes.md"
+printf 'upstream dictionary entry: "zzqy" maps to "zzqy"\n' >"$packet/audit-notes.md"
 run 1 "verify fails after an in-place rewrite" verify "$packet"
 has "CHANGED audit-notes.md" "the rewritten file is named"
 has "NOT INTACT" "the verdict is unambiguous"
