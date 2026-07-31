@@ -46,7 +46,10 @@ ruff_reported_version() {
 }
 
 if command -v ruff >/dev/null 2>&1; then
-  got="$(ruff_reported_version ruff)" || got=""
+  got=""
+  if version="$(ruff_reported_version ruff)"; then
+    got="$version"
+  fi
   if [[ "$got" == "$pin" ]]; then
     exec ruff "$@"
   fi
@@ -57,7 +60,10 @@ if command -v uvx >/dev/null 2>&1; then
 fi
 
 if command -v ruff >/dev/null 2>&1; then
-  got="$(ruff_reported_version ruff)" || got="unknown"
+  got="unknown"
+  if version="$(ruff_reported_version ruff)"; then
+    got="$version"
+  fi
   echo "error: ruff on PATH is ${got}, but CI pins ruff==${pin} (.github/requirements-ci.txt)." >&2
   echo "error: install the pin, or install uv and re-run (uvx ruff==${pin} ...)." >&2
   exit 2
