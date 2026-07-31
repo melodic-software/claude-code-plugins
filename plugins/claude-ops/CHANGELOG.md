@@ -3,6 +3,227 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.25.0]
+
+### Changed
+
+- **`telemetry-upsert.sh` accepts the writer-identity marker suffix (#1295).** The marker charset
+  gains `@`, so a marker can name one *writer* (`<lane>@<instance>`) rather than a lane type — the
+  loop-lane convention's fix for concurrent instances of one lane sharing, and clobbering, a single
+  telemetry comment. This script is that convention's interim home, so a marker shape its validator
+  rejected would have left the contract and its executable owner disagreeing. `@` is added to
+  **both** lookaround classes in the two-tier detection's fallback as well, for exactly the reason
+  `-` is already in them: without it, `lane:x` matches inside `lane:x@laptop-a` and would adopt that
+  instance's comment — the boundary rule one level down from the `lane:triage` /
+  `lane:triage-old` prefix collision it already guards. Two cases cover the new boundary in both
+  directions, plus one asserting a suffixed marker validates at all.
+
+### Fixed
+
+- **`restart-consumer.sh` would have gone silently blind on suffixed markers.** Its per-lane
+  `telemetry.marker` binding matched a comment by exact marker equality, so once lanes carry
+  `<marker>@<instance>` no bound lane's comment would match — the consumer would report `no-state`
+  forever and restart nothing, the worst failure shape for an unattended relaunch trigger. A bound
+  marker now names a lane **type** and matches every writer instance of it, with the same trailing
+  boundary that keeps `work-items:work-loop` from adopting `work-items:work-loop-v2`. A new optional
+  `telemetry.instance` key pins one instance, as does writing the suffix into `marker` itself. The
+  scan also no longer stops at the first matching comment when that comment is not asking: with
+  several instances writing to one issue, a quiet sibling appearing first would otherwise mask a
+  later instance's live restart request. What an unpinned binding does with a suffixed writer's
+  request is *report* it: the run records `unbound-instance` naming the asking writer and
+  relaunches nothing, because an instance-suffixed comment is some machine's writer and consuming
+  it unpinned would relaunch the locally configured lane on **every** stopped consumer sharing the
+  issue — sibling instances started by a request none of them owns. Only the pinned instance's
+  comment, or the legacy un-suffixed one, is actionable.
+
+## [0.24.4]
+
+### Fixed
+
+- **`lanes` and `observability` load again when invoked from a worktree-isolated agent (#1687).**
+  Four `## Pre-computed context` lines carried genuine shell expansion — `lanes` line 16's
+  `$(claude --version)` and line 19's `$c` / `${CLAUDE_OPS_LANES_CONFIG:-…}` / `$(git rev-parse …)`,
+  `observability` line 19's `$f` / `$(…)` and line 21's `$d` / `${CC_OTEL_STORE:-…}`. The harness
+  composes that whole block into one shell invocation, and the worktree-isolation Bash guard refuses
+  any `$`-expansion, so the block failed and the skill never loaded. `lanes` line 16 is now the
+  `$`-free `claude --version 2>/dev/null || echo "MISSING (required)"`; the other three hoist their
+  logic into two bundled scripts — `skills/lanes/scripts/probe-lane-config.sh` and
+  `skills/observability/scripts/probe-observability-state.sh` (`--hook-events` / `--otel-store`) —
+  invoked through `${CLAUDE_PLUGIN_ROOT}`, which the harness substitutes into a literal path before
+  any shell sees it, so the replacement lines carry no `$` at all. Path resolution, env overrides
+  (`CLAUDE_OPS_LANES_CONFIG`, `CC_OTEL_STORE`), and every output string are unchanged and covered by
+  equivalence tests that diff each script against the line it replaced. **One output shape did
+  change:** the `claude CLI:` line now reads `2.1.220 (Claude Code)` rather than
+  `present (2.1.220 (Claude Code))` — same information, no `present (…)` wrapper. `observability`
+  line 20 (`OTEL collector :4318`) was already plugin-variable-only and is untouched.
+
+## [0.24.3]
+
+### Fixed
+
+- **`plugins` skill: `sync` Step 1 no longer claims to self-heal, and states what to do when the
+  refresh fails (#1764, F1).** `claude plugin marketplace update` is known to fail against an
+  existing non-empty marketplace directory
+  ([anthropics/claude-code#76129](https://github.com/anthropics/claude-code/issues/76129), open),
+  and Step 1 documented no behavior at all on a non-zero exit in single/default mode — only `all`
+  mode and Step 3 had inline-failure prose. Step 1 now says the refresh is attempted rather than
+  guaranteed, cites the upstream bug, and directs a failure to "Action needed" with the catalog
+  reported as possibly stale instead of current. Catalog-dependent mutations (Step 4 installs,
+  Step 5 enable-state) are deferred for that marketplace until a run where the refresh succeeds —
+  stale catalog metadata must not drive installs or enables. Cache surgery stays out of scope; the
+  named staleness diagnostic is `git ls-remote origin HEAD` against the local `HEAD` (genuinely
+  read-only — a plain `git fetch` writes `FETCH_HEAD`, remote-tracking refs, and objects).
+- **`plugins` skill: `sync` now says where the report's `<old> → <new>` versions come from (#1764,
+  F3).** The report format mandated a per-plugin version pair that no step instructed capturing.
+  A new "Version capture for the report" section fixes three sources in precedence order — `<old>`
+  from the pre-mutation snapshot the Concurrency section already requires, `<new>` from the update
+  call's own output, and a post-sweep re-read as fallback — and forbids synthesizing a value.
+  The fallback is explicitly second because `claude plugin update`'s help says "restart required to
+  apply" and this skill has not established when the CLI writes `installed_plugins.json`; if that
+  write is deferred, a post-sweep re-read would report no change for a plugin that did update.
+- **`plugins` skill: the TOCTOU gotcha now covers catalog content, not just installed/enabled state
+  (#1764, F2).** A refresh landing mid-session rewrites the catalog, so two reads within one session
+  can legitimately disagree on plugin count — which is why diffing `fleet-state.sh`'s catalog
+  against a separately-read raw `marketplace.json` is not a valid staleness check, and why a
+  mismatch is not evidence of an enumeration bug.
+- **`fleet-state.sh`: a non-git working directory no longer manufactures project context (#1764,
+  F4).** `PROJECT_ROOT` fell through to bare `$PWD` whenever `CLAUDE_PROJECT_DIR` was unset and cwd
+  was not a git tree, so the "project" settings read became whatever `.claude/settings.json` sat
+  under cwd — in `$HOME`, the user settings file itself — and an install record whose `projectPath`
+  equalled that directory would be promoted to `currentProject: true`. Project context now resolves
+  from `CLAUDE_PROJECT_DIR`, a real git toplevel, or — because Claude Code does not require a
+  repo — a non-git cwd corroborated by its own `.claude` directory, with `$HOME` always excluded
+  (its `.claude` is user scope); an uncorroborated cwd stays an empty root, and the downstream
+  reads were already guarded for it.
+- **`plugins` skill: the action-router table reads as an index again (#1764, F5).** The `sync` row's
+  Description spelled out the full six-step chain, complete enough that a session could execute the
+  action without opening `context/sync.md` — which is how F1's and F3's gaps went unnoticed during a
+  live run. Descriptions now name territory only, above an explicit instruction to read the linked
+  detail file before executing.
+
+## [0.24.2]
+
+### Fixed
+
+- **Shared `hook-utils.sh`: the OS temp tree is no longer treated as project content (#1769).**
+  `hook::read_file_path` scoped a file to the project by prefix-matching `CLAUDE_PROJECT_DIR`, so a
+  session whose project directory is the user's home admitted everything under the OS temp root —
+  including Claude Code's own per-session scratchpad, which lives there. Hooks that lint, rewrite, or
+  autocorrect then ran on throwaway files that are not project content and carry no project config to
+  opt out with; the reported case was `typos-format` autocorrecting a shell variable in a scratch
+  script and silently breaking it. The guard now rejects a file inside the OS temp tree when the
+  project root is outside it. The exemption is deliberate and load-bearing: when the project root
+  itself lives under temp — a `mktemp -d` fixture checkout, which is how this repository's own hook
+  suites run — its files are still accepted. Temp roots come from `TMPDIR` / `TMP` / `TEMP` plus the
+  POSIX defaults, canonicalized through the same pipeline the membership comparison already uses.
+  Synced from `lib/hook-utils.sh`.
+
+## [0.24.1]
+
+### Fixed
+
+- **Shared `hook-utils.sh`: a wrapper's working-directory change is no longer lost when a caller
+  parses only git's own global options (#1503).** `hook::git_resolve_index` walks wrapper programs
+  (`env`, `sudo`, …) to reach the real `git` token, and a caller that scopes its git-global parsing
+  to the slice starting at that token cannot see a relocation the wrapper already performed — GNU env
+  documents `-C, --chdir=DIR` as "change working directory to DIR". The resolver now reports those
+  directories in a new `HOOK_GIT_RESOLVED_WRAPPER_DIRS` result global, in execution order, so a
+  caller composes them ahead of git's own globals instead of dropping them. Five spellings are read
+  (`-C DIR`, `-CDIR`, `--chdir DIR`, `--chdir=DIR`, and a clustered `-vC DIR`), a repeat within one
+  `env` is last-wins as env itself resolves it, and sudo's `-D`/`--chdir` is read in its unclustered
+  spellings. A chdir spelled inside `-S`/`--split-string` is NOT read; that path already fails open
+  for any command on `main` and is tracked in #1814. This plugin does not consume the new global; the sync keeps its copy
+  byte-identical with the source. Synced from `lib/hook-utils.sh`.
+
+## [0.24.0]
+
+### Added
+
+- **`morning-brief` reports findings stranded on merged pull requests (#1777).** A review that lands
+  *after* a merge had nowhere to go: the ruleset's `required_review_thread_resolution` is a
+  merge-time predicate that already passed, the babysit lane works only *open* pull requests, and
+  nothing on a merged pull request surfaces its open threads. Six findings — one P1 — posted 46
+  seconds after #1720 merged sat unread for a day, and were found only because a later session
+  happened to audit the merge batch.
+
+  The new section compares each unresolved thread's first-comment timestamp against the pull
+  request's `mergedAt`, so it reports **only** threads that could never have been seen by the gate;
+  a thread predating the merge is an ordinary unresolved thread and is excluded. Findings are
+  collapsed to one line per pull request at that pull request's **worst** severity with a count, so
+  a P0 beside advisory findings can never be softened, and one noisy pull request cannot bury the
+  rest. The window is `--stranded-days` (default 3), wide enough to cover both slow bot review and
+  an operator-absent weekend.
+
+  Run against this repository on its first live invocation, it immediately surfaced four further
+  stranded findings on other merged pull requests, including a P1 recording that a shipped plugin
+  cell never reached installations — so this is a standing leak, not a one-off.
+
+  Severity is read from the **structured marker only** — the badge alt-text, the shields badge URL,
+  or a leading bracket — never from body prose. A body-wide substring test falsely promotes a P2
+  titled "Preserve P1 labels", and any finding that merely discusses `CRITICAL` or `SECURITY`.
+  Ranking is numeric rather than lexicographic, because `"--"` sorts before `"P0"` as a string: an
+  unclassified thread sitting beside a genuine P0 would otherwise collapse the pull request to
+  `[--]` and hide it.
+
+  A thread connection that **truncates** is reported as a partial read. `--paginate` follows only
+  the outer cursor, so a pull request with more than 100 review threads would be silently cut short
+  — and a partial read that renders as an all-clear is the same failure the section exists to catch.
+
+  The section **fails loud rather than clear**. A GraphQL error document is well-formed JSON that
+  simply carries no `data`, so an unread API would otherwise extract to an empty list and render as
+  "every merged PR in the window is clear" — an all-clear asserted from an answer never received,
+  which is the same fail-open shape the section exists to catch. Caught during development when a
+  rate-limit error did exactly that; an API error now says explicitly that it is not an all-clear
+  and prints the message.
+
+## [0.23.2]
+
+### Fixed
+
+Six review findings raised on #1720 forty-six seconds *after* it merged, so they were never triaged
+(#1759). All are in `lanes/scripts/restart-consumer.sh`.
+
+- **A broken lock store reported as a held lock.** An ignored `mkdir` failure fell through to the
+  contention branch: the absent stamp read as zero and the run reported `lock-held` with exit 0. An
+  unattended consumer with a mistyped path, a permissions problem, or an unavailable volume would
+  **never process a lane while Task Scheduler recorded successful ticks**. `acquire_lock` now
+  separates "the store is unusable" (exit 4, loud) from "another run holds it" (exit 0, routine).
+- **A lock reclaimed on age alone.** A legitimate run outliving the one-hour bound had its live lock
+  removed, letting a second run enter the relaunch span concurrently — reachable because
+  `lane-launcher.sh` performs an unbounded `git pull --ff-only` and marketplace update before launch.
+  The holder now records an owner PID, and age only gates *when to ask*; liveness decides.
+- **Offline telemetry parse failures swallowed.** An unconditional `return 0` after the fixture-read
+  `jq` turned a missing, unreadable, or malformed `--telemetry-json` into a successful empty read,
+  reported as `no-state` — indistinguishable from "the lane did not ask". The offline branch now
+  carries the same contract the network read already had.
+- **An unwritable ledger reduced to a warning.** The breaker counts attempts by querying the ledger,
+  so an attempt that could not be recorded was invisible to `--max-restarts`: a launcher that kept
+  failing was retried on every polling tick forever. Writability is now proved *before* the relaunch,
+  and a failed append fails the lane instead of warning past it.
+- **Liveness read from a stale snapshot before mutating.** The session list is loaded once per run,
+  so a lane started since — by a concurrent operator invocation — still read as stopped, and
+  `lane-launcher.sh restart` *stops* a running lane before relaunching. A healthy session could be
+  interrupted despite the documented "not currently running" predicate. The predicate is now
+  rechecked against a fresh list immediately before the mutation.
+- **A reused PID could masquerade as the lock owner.** `kill -0` proves only that *some* process
+  holds that number — and after the reboot this reclaim path exists to handle, the number is very
+  likely reused, which would wedge every later tick exactly as before. The lock now records a boot
+  identity beside the PID: a lock from a previous boot is reclaimed regardless of who holds its PID
+  now, and where no boot identity is available a live PID may only *defer* the reclaim, never defer
+  it past a hard 24-hour ceiling.
+- **The fresh liveness re-check failed open.** A transient `claude agents --json` failure made the
+  `&&` condition false and fell through to the launcher on the stale snapshot — reintroducing the
+  race the re-check exists to prevent. A failed re-read is now an error that skips the mutation.
+- **A post-launch ledger failure was still invisible.** The pre-flight probe cannot cover storage
+  that disappears *during* the launcher's unbounded work, so a relaunch could succeed while its
+  breaker row silently failed to persist and later ticks restarted the lane again. The outcome
+  append now fails the lane even when the restart itself worked.
+- **`print-schedule` dropped behavior-affecting options.** A non-default `--config` or
+  `--target-repo` was absent from the emitted schtasks, logon, cron, and offline forms, so the
+  scheduled invocation silently fell back to `<repo>/.work/lanes.json` and the checkout's own
+  repository — a different lane configuration and a different telemetry repository than the command
+  that generated it. All four forms now carry them; a defaulted option is still omitted.
+
 ## [0.23.1]
 
 ### Changed

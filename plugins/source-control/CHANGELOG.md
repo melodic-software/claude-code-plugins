@@ -3,7 +3,7 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.41.0]
+## [0.45.0]
 
 ### Changed
 
@@ -29,6 +29,269 @@ All notable changes to the `source-control` plugin are documented here. Format f
   a fixed bug does not conclude the guard is obsolete.
 - **`worktree_root` was missing from the README's configuration table** while every sibling key was
   listed.
+
+## [0.44.0]
+
+### Fixed
+
+- **`babysit-loop`'s telemetry marker named the lane type, not the writer (#1295).** Every
+  concurrent instance of the lane built the same fixed sentinel, so two merge lanes on one
+  repository resolved one comment and overwrote each other's durable state last-writer-wins — the
+  same defect `work-items`' lanes carried, and identical in shape, so fixing it in one lane would
+  have left it latent in this one. The marker now carries the loop-lane convention's lane-instance
+  suffix (`source-control:babysit-loop@<instance>`) and each instance owns exactly one comment no
+  sibling can match. The creation-race reconcile is unchanged and now converges duplicates within an
+  instance's own sentinel set. The `Lane telemetry: <lane>` issue title is untouched, so the
+  lane-infrastructure exclusion every consumer matches on does not move.
+
+### Added
+
+- **`lane_instance` config key, and an instance-collision check in the durable state block.** The id
+  defaults to the sanitized lowercased hostname and is validated `^[a-z0-9][a-z0-9-]{0,31}$` inside
+  the lane's own executable block, since it is operator-supplied text interpolated into a shell
+  string and a `jq` program. The block (now `source-control/babysit-loop-state@2`) carries
+  `lane_instance`, a per-session `writer_nonce`, a per-cycle `heartbeat_at`, and `paused_until`: a
+  differing nonce over a stale block is the ordinary restart adoption; over a *fresh* block it means
+  another live lane holds this id, and the lane writes nothing, escalates, and stops cleanly.
+  `paused_until` is not the rate-limit latch — the latch says do not claim work, `paused_until` says
+  do not read this lane's silence as death. Two shapes the freshness test alone misreads are carved
+  out: a fresh block carrying a non-null `restart_request` is a stopped predecessor's clean handoff
+  (recording the ask is its last write), so the replacement adopts immediately — clearing the
+  request — instead of waiting out the staleness window; and an unclaimed marker is claimed with a
+  cycle-0 block plus a re-read through the creation-race reconcile *before any work*, so two
+  same-id sessions starting together stop before either overwrites the other's first durable
+  state.
+
+## [0.43.0]
+
+### Added
+
+- **babysit-prs: the (c) non-convergence tripwire is now decided from durable state instead of
+  session memory (#1660).** `safety.md` shipped a rule that a **second consecutive advisory round
+  whose findings are all (c)** — self-inflicted, against text this lane's own prior fix introduced
+  — means incremental patching is injecting defects as fast as it removes them, and the lane must
+  change METHOD. That test needs to know what the PREVIOUS round contained, and nothing durable
+  recorded it: `manage_feedback_ledger.py record-advisory-round` stored `{"recorded_at": ...}` per
+  head and no more. The rule was therefore satisfiable only inside one uninterrupted session,
+  while the babysit loop crosses a context boundary on every cycle — a rule that reads as binding
+  and, for the case it was written for, silently never fires.
+
+  `record-advisory-round` now takes **`--finding-class` once per finding in the round** (`a`
+  genuine duplicate, `b` new and distinct, `c` self-inflicted) and persists the per-finding
+  provenance counts alongside the timestamp. The flag is **required**, refused at exit 2 — an
+  optional flag would have reproduced the same defect one layer down, because an unclassified
+  CURRENT round leaves the tripwire just as unevaluable as an unclassified predecessor, and a
+  silently unrecorded classification is exactly what #1660 is about. The refusal is a
+  `guard-contract.md` row (`ledger.advisory-round-requires-finding-class`), so it is asserted by
+  the guard suite rather than asserted in prose.
+
+  The verdict is computed once, in `babysit_delta`, and read in two places that answer different
+  questions. `record-advisory-round` returns the recorded round's `composition` and the resulting
+  `non_convergence_tripwire` immediately — that is the read that arms the round being dispatched,
+  and why the classification is recorded before the fix rather than after it. The snapshot carries
+  `advisory_fix_rounds.non_convergence_tripwire` (`armed` plus the `basis` it was decided on) over
+  the rounds recorded so far, adding a material finding when armed, so a worker picking the PR up
+  cold sees where it already stood. **Neither read reconstructs the previous round's composition
+  from GitHub threads** — the expensive, resolution-fragile duty `safety.md` used to impose.
+
+  **Rounds recorded before this release read as UNKNOWN, and the tripwire fails closed on them**:
+  a current all-(c) round following an UNKNOWN round arms and says so, rather than silently
+  resetting the count. That preserves the disposition the previous prose already chose for an
+  unmarked predecessor. Two scoping facts are now stated where the rule lives, because the ledger
+  can only answer what it records: the test is over consecutive **advisory** rounds (blocking-defect
+  rounds are never capped and never recorded, so one in between neither counts nor resets), and
+  UNKNOWN is not a synonym for "no (c) findings".
+
+## [0.42.3]
+
+### Added
+
+- **Every surface that restates a review-disposition clause now declares itself (#1659).** The
+  D4.6 grounding and provenance rules, D7.5 thread eligibility, and the authorization rule for a
+  resolution that ships no fix are canonical in `reference/review-discipline.md` and restated
+  across five other surfaces. Each restatement now carries a `contract-restatement` marker naming
+  the clause it copies, and `scripts/check-contract-clause-coverage.py` holds it to the canonical's
+  qualifiers within its own span. Untagged text that restates a clause is reported too, so a new
+  copy has to be argued for rather than appearing silently.
+
+### Fixed
+
+- **`pull-request/reference/monitor.md` restated D4.6 grounding without the id-citation
+  requirement.** It instructed filing the deferral in the work-item tracker with evidence and the
+  PR link, but not citing that item's id in the D5 reply — so a deferral could be filed and still
+  leave the thread with no route back to it, which is the dropped finding D4.6 exists to prevent.
+  Found by the new gate, not by review.
+
+## [0.42.2]
+
+### Fixed
+
+- **Shared `hook-utils.sh`: the OS temp tree is no longer treated as project content (#1769).**
+  `hook::read_file_path` scoped a file to the project by prefix-matching `CLAUDE_PROJECT_DIR`, so a
+  session whose project directory is the user's home admitted everything under the OS temp root —
+  including Claude Code's own per-session scratchpad, which lives there. Hooks that lint, rewrite, or
+  autocorrect then ran on throwaway files that are not project content and carry no project config to
+  opt out with; the reported case was `typos-format` autocorrecting a shell variable in a scratch
+  script and silently breaking it. The guard now rejects a file inside the OS temp tree when the
+  project root is outside it. The exemption is deliberate and load-bearing: when the project root
+  itself lives under temp — a `mktemp -d` fixture checkout, which is how this repository's own hook
+  suites run — its files are still accepted. Temp roots come from `TMPDIR` / `TMP` / `TEMP` plus the
+  POSIX defaults, canonicalized through the same pipeline the membership comparison already uses.
+  Synced from `lib/hook-utils.sh`.
+
+## [0.42.1]
+
+### Fixed
+
+- **Shared `hook-utils.sh`: a wrapper's working-directory change is no longer lost when a caller
+  parses only git's own global options (#1503).** `hook::git_resolve_index` walks wrapper programs
+  (`env`, `sudo`, …) to reach the real `git` token, and a caller that scopes its git-global parsing
+  to the slice starting at that token cannot see a relocation the wrapper already performed — GNU env
+  documents `-C, --chdir=DIR` as "change working directory to DIR". The resolver now reports those
+  directories in a new `HOOK_GIT_RESOLVED_WRAPPER_DIRS` result global, in execution order, so a
+  caller composes them ahead of git's own globals instead of dropping them. Five spellings are read
+  (`-C DIR`, `-CDIR`, `--chdir DIR`, `--chdir=DIR`, and a clustered `-vC DIR`), a repeat within one
+  `env` is last-wins as env itself resolves it, and sudo's `-D`/`--chdir` is read in its unclustered
+  spellings. A chdir spelled inside `-S`/`--split-string` is NOT read; that path already fails open
+  for any command on `main` and is tracked in #1814. This plugin does not consume the new global; the sync keeps its copy
+  byte-identical with the source. Synced from `lib/hook-utils.sh`.
+
+## [0.42.0]
+
+### Added
+
+- **babysit-prs: `--independent-resolver`, an evidence-gated third mode for
+  `babysit_resolve_thread.py` (#1632).** `--autonomous` admits only threads GitHub marks
+  `isOutdated`, which is the right guard for the merging worker but means "the referenced code
+  moved". On a prose or documentation PR a finding is normally addressed by rewriting elsewhere in
+  the file, so the anchor never moves, the finding is genuinely addressed, and the guard refuses —
+  measured across two real babysit runs, 7 of 20 resolved threads were still not `isOutdated`, and
+  that undercounts, because a worker's own push flips the flag without touching a comment. The
+  consequence was that an autonomous prose lane had no sanctioned route to zero unresolved
+  threads. The new mode is **parallel to `--autonomous`, never a relaxation of it**: it replaces
+  `isOutdated` with caller INDEPENDENCE (a fresh context that is neither the merging worker nor the
+  author of the fix — the actor resolving is not the actor whose permission slip it is) plus
+  machine-validated DISPOSITION EVIDENCE. Independence is a property of the dispatch that no script
+  can verify, which is exactly why the evidence half is checked here.
+
+  `--disposition` names one of three claims and carries exactly its own evidence flag, validated
+  against the world rather than trusted: `fixed` + `--fix-commit <sha>`, which must be reachable
+  from the PR's current head commit (resolved through the head repository, so a fork PR compares
+  correctly — existence elsewhere is not evidence this PR carries the fix); `deferred` +
+  `--tracker-item <id>`, which must exist and still be open (a closed follow-up is not a deferral,
+  it is the finding disappearing); and `incorrect` + `--counter-evidence <text>`, which must
+  already appear in a REPLY on the thread, posted by someone other than the thread's OPENER so the
+  finding's own author cannot supply the words that rebut it. Excluding the opening comment alone
+  was not enough: the mandated classification reply restates the finding's own text, so a finding
+  bot that also replies on its own thread would satisfy a `--counter-evidence` claim quoting it. A
+  different bot's reply, and the caller's own reply under a `--self-logins` identity, both stay
+  admissible — those are the independent parties the disposition is about.
+
+  **A multi-finding thread is refused outright** (`skipped-multi-finding-thread`). One
+  `--disposition` is a claim about ONE finding while `resolveReviewThread` clears the whole thread,
+  dropping every comment it carries out of the readiness denominator
+  (`babysit_classify.thread_is_open`) — so evidence for finding A would suppress an unaddressed
+  finding B and let the merge gate pass over it. That is the D7.5 whole-thread eligibility rule
+  (`reference/review-discipline.md`) enforced mechanically instead of left to the caller. The count
+  comes from the shared severity vocabulary (`babysit_classify.severity_occurrences`, made public
+  so the resolver and the readiness counters cannot drift apart) applied to the thread's own
+  comments, with a self classification reply's table rows stripped so the worker's own echo of a
+  finding is not counted twice; it fails closed, so a truncated comment page's unknown count
+  refuses too. The guard is scoped to this mode alone: `--autonomous` rests on `isOutdated`, which
+  GitHub computes for the whole thread rather than per finding, so it carries no per-finding claim
+  to under-cover. The receipt gains a `findingCount` per thread and a `skippedMultiFinding` summary
+  counter.
+
+  **Every `gh` failure now names which answer it got.** Only a confirmed HTTP 404 (parsed from the
+  `(HTTP nnn)` status `gh` reports on stderr, verified against gh 2.95.0) earns an
+  evidence-specific refusal; a 403, 429, 5xx, timeout, or unreachable API reports
+  `refused-evidence-unverifiable`. Previously any nonzero exit from the `compare` lookup reported
+  `refused-fix-commit-not-on-head` and any nonzero exit from the tracker-item lookup reported
+  `refused-tracker-item-not-found`, sending a caller off to replace evidence that may be perfectly
+  valid when the real fix was to retry an outage.
+
+  **Every URL path segment is format-validated before interpolation**, matching
+  `babysit_gh.fetch_blocked_base_compare`'s rule for the identical call shape. In
+  `verify_fix_commit`: `head_owner` and `head_name` against `GITHUB_OWNER_RE` /
+  `GITHUB_REPOSITORY_RE` (and `..` rejected), `head_oid` and `sha` against the commit-SHA pattern.
+  Two of those arrive in an API response body, so "the API said so" was their only provenance — a
+  crafted or compromised response carrying path syntax could otherwise redirect the request to an
+  unintended endpoint. In `verify_tracker_item`, the same rule applies to the resolved `owner/repo`:
+  `TRACKER_ITEM_RE` admits an owner/repo *shape*, not a valid one (its character class allows a
+  leading dot and a bare `..`), so `validowner/..#1` built a path that was never a GitHub endpoint
+  and the resulting 404 reported `refused-tracker-item-not-found` — naming a missing item for a
+  lookup that never addressed one. Fail-closed either way in both functions (an unexpected response
+  always refused), so this narrows the reachable surface and sharpens the refusal reason rather than
+  fixing an exploitable resolve.
+
+  Fail-closed throughout. Missing, unparsable, mismatched, or surplus evidence is a usage error at
+  exit `2` before any lookup; evidence the world rejects refuses the resolve with its own
+  `action` — `refused-fix-commit-not-on-head`, `refused-tracker-item-not-found`,
+  `refused-tracker-item-not-open`, `refused-counter-evidence-not-found`, and
+  `refused-evidence-unverifiable` kept distinct so an API outage is never reported as a false
+  claim. Evidence is validated in list mode too, so a dry run proves the evidence instead of
+  predicting the resolve. A stale `--thread-id` pin is likewise reported in list mode now, not only
+  under `--resolve`, so a dry run predicts what the resolve would do — this also corrects
+  `--autonomous`'s pre-existing list-mode output, which previously reported `would-resolve` for a
+  thread the very next `--resolve` refused. Every other guard is retained deliberately: bot-only authorship, both
+  TOCTOU pins, and the security/P1 bright line, because an independent resolver is still an
+  unattended path. `--autonomous`, `--include-human`, and `--allow-unpinned-thread` are each
+  refused alongside it, and bulk is refused in every mode here (list included) since evidence is a
+  claim about one finding. The JSON receipt shape is unchanged apart from additive `mode`,
+  `disposition`, and `refusedEvidence` fields; the `bin/` wrapper needed no change, and its
+  contract row already pins that it filters nothing.
+
+  `verify_disposition` names every disposition explicitly and its fallthrough refuses, so a
+  disposition added to `DISPOSITION_EVIDENCE` without a validator can no longer reach whichever
+  branch happened to be last and be reported as validated by a check that never read its evidence.
+
+  The existing modes are otherwise untouched, with regressions asserting it: `--autonomous` still
+  refuses a non-outdated thread, still refuses bulk, and is not narrowed by the multi-finding
+  guard. Five refusal rows and six classifier predicates were added to the guard contract
+  (`reference/guard-contract.md` regenerated from them).
+
+## [0.41.0]
+
+### Added
+
+- **`pr-linkage-mcp-gate` hook — the MCP-surface sibling of `pr-body-linkage-gate`.** Cloud/remote
+  sessions have no `gh` CLI and open PRs through the GitHub MCP server
+  (`mcp__github__create_pull_request` / `mcp__github__update_pull_request`), a surface the Bash
+  hook never sees — so a body failing the consuming repo's required `pr-issue-linkage` check was
+  only discovered a full CI round trip after the PR was open. The new PreToolUse hook mirrors the
+  same validator semantics on the MCP payload (comment stripping, closing keyword or
+  `No linked issue`, present-and-non-empty `## Related` with deeper headings as content) and the
+  same scope guards (enforced only in a repo carrying
+  `.github/workflows/pr-issue-linkage.yml`/`.yaml`; a call targeting a different repo than origin
+  is out of scope, and a target that cannot be established — no origin remote, or a payload
+  missing owner/repo — allows rather than imposing this checkout's policy on an unproven
+  repository; an `update` with no `body` field allows). The MCP surface hands the hook the
+  body as a plain JSON field, so the Bash sibling's extraction caveats don't apply; the one
+  fail-closed addition is a `create` with no `body` field at all, which GitHub would open with an
+  empty body the CI gate rejects. Kill switch: `pr_linkage_mcp_gate_enabled` (default true).
+- **`pr-linkage-validator.sh` — the validator core extracted to one sourced lib.** The comment
+  stripping, keyword/`## Related` judging, and the verdict wording now exist once, sourced by both
+  hooks (and by the marketplace repo's checked-in MCP gate), so a drift fix against the upstream
+  ci-workflows validator lands on every surface atomically instead of being hand-mirrored across
+  copies. Behavior unchanged; each surface keeps its own extraction, scope guards, and block
+  message.
+
+## [0.40.2]
+
+### Fixed
+
+- **`babysit-loop`'s `usage_sample` prose contradicted the loop-lane invariant it cites.** The
+  convention permits reading the previous sample back to derive `five_hour_delta_pct` — the
+  subtraction *and* the rollover comparison — but 0.39.0 described the field as "deliberately inert:
+  no lane behavior reads it back", which no lane computing a rollover-suppressed delta could satisfy.
+  The convention's wording is corrected upstream (loop-lane 6.0.1); the entry recording 0.39.0 is
+  left as shipped and superseded by this one. **The measure-only guarantee is unchanged** — the value
+  still reaches no decision, at any threshold.
+- **`at` was ambiguous between two timestamps.** It is when the lane read the tee, not the snapshot's
+  own `captured_at`, which the staleness rule permits to lag it.
+- **The delta's `null` condition read too narrowly.** "Either sample is missing" excluded a present
+  sample carrying a `null` `five_hour_pct`; it is now `null` whenever either side's `five_hour_pct`
+  is unavailable.
 
 ## [0.40.1]
 

@@ -146,6 +146,26 @@ outcome and which body form was read (`body-literal`, `body-file`,
 `stdin-heredoc`, `body-substitution`). Never the PR body, the command, or a
 path. Unset `HOOK_TELEMETRY_SINK` → no-op.
 
+### `pr-linkage-mcp-gate`
+
+The MCP-surface sibling of `pr-body-linkage-gate`: a `PreToolUse` hook on the
+GitHub MCP server's `create_pull_request` / `update_pull_request` tools, which
+is how cloud/remote sessions — where the `gh` CLI doesn't exist — open PRs.
+Same contract, same authority (the consuming repository's own
+`.github/workflows/pr-issue-linkage.yml`), same block-with-the-fix-named
+behavior. The MCP payload hands over the body as a plain JSON field, so the
+Bash sibling's static-readability caveats don't apply here; the scope guards
+that remain are the gate-file check, an origin-remote match on the call's
+`owner`/`repo` (another repository's PR is not this repo's policy), and an
+`update_pull_request` that carries no `body` field, which changes nothing CI
+already validated and passes. A `create_pull_request` with no `body` at all
+blocks — GitHub would open the PR with an empty body, which the CI check
+rejects. Set `pr_linkage_mcp_gate_enabled` to `false` to turn it off.
+
+Telemetry matches the sibling's: one envelope per run (`ok`/`blocked`,
+`duration_ms`, and the tool name as its only data label), only when
+`HOOK_TELEMETRY_SINK` is set.
+
 ## Works in any repo
 
 - **Self-contained.** Everything runs on `git`, `gh` (authenticated), `jq`,
@@ -187,7 +207,9 @@ repo's owner.
 
 | Key | Type | Default / absent behavior |
 |---|---|---|
+| `lane_instance` | string | sanitized lowercased hostname (writer identity suffixing `babysit-loop`'s telemetry marker; must be distinct across concurrent lane instances) |
 | `pr_body_linkage_gate_enabled` | boolean | `true` (the PR-body hook above; inert in a repo with no `pr-issue-linkage` workflow) |
+| `pr_linkage_mcp_gate_enabled` | boolean | `true` (the MCP-surface sibling; inert in a repo with no `pr-issue-linkage` workflow) |
 | `babysit_watched_owners` | string (multiple) | infer the current repo's owner |
 | `babysit_self_logins` | string (multiple) | your `gh api user` login (extras add to it) |
 | `babysit_default_tier` | string | `safe` (explicit invocations only) |

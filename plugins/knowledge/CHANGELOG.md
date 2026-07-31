@@ -4,6 +4,108 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.10.10]
+
+### Changed
+
+- **`docpage-digest` Anthropic profile: thinking queue entry removed.** The extended-thinking
+  platform doc slice completed — raw-md fetch through interview handoff, dual verification (one
+  correction round of ten items, re-verified PASS by both verifiers, no degraded fallback) — so
+  its entry leaves the doc queue per the queue's remove-on-completion rule. The paired
+  thinking-steering-and-cost entry and the "Thinking" category heading remain: that page is a
+  separate concurrent run under the category's one-page-per-run contract, and its own queue PR
+  removes both.
+
+## [0.10.9]
+
+### Fixed
+
+- **Vendored `video-digestion` frame counting no longer stops at 500 frames.**
+  `countFrameFiles` carried a `max = 500` default bound, so a video with 500 or more
+  contiguous extracted frames silently lost everything past frame 500 — about 4h10m at the
+  interval fallback's 1 frame / 30 s, truncating long conference recordings with no warning.
+  Counting is now unbounded and ends only at the first gap in the sequence, for both scene
+  and interval frames. Mirrored from the medley SSOT
+  (`melodic-software/medley#1687`), where the authored fix and its regression test live.
+
+### Changed
+
+- **`docpage-digest` Anthropic profile: models-explained blog queue entry removed.** The
+  claude-models-explained blog slice completed — rendered-channel fetch (raw-md confirmed
+  absent, matching the profile's blog-post channel note) with firecrawl extraction, through
+  interview handoff, dual verification (two correction rounds, re-verified REVERIFY2: PASS by
+  both verifiers, no degraded fallback) — so its entry leaves the doc queue per the queue's
+  remove-on-completion rule, taking its inlined seven-item pairing cross-link contract with it
+  (the contract was executed by the slice; its results live in the slice's handoff).
+- **`docpage-digest` Anthropic profile: vendor-blog attestation rule.** Blog-only assertions
+  (behavioral, performance, figure/percentage, comparative, positioning — an illustrative, not
+  exhaustive, list) carry an assertion-specific `vendor-claimed (blog, <fetch date> fetch)`
+  marker beside their vocabulary tag — never satisfied by related-property citations, never
+  co-occurring with a same-assertion live-doc citation, never deferred to the interview. Closes
+  the rule gap the context-engineering blog slice's handoff flagged (its OQ-3), with the shape
+  enforced end-to-end by both verifiers on this slice.
+
+## [0.10.8]
+
+### Changed
+
+- **`docpage-digest` Anthropic profile: choosing-a-model queue entry removed.** The
+  choosing-a-model digest slice completed — raw-md fetch through interview handoff, dual
+  verification (two correction rounds, re-verified REVERIFY2: PASS by both verifiers, no
+  degraded fallback) — closing the entry's second half; its routing-vet half was already
+  executed 2026-07-29 (#1697). The emptied "Model selection" special-handling category goes
+  with it. The paired models-explained blog entry now points at the completed slice's handoff
+  for its pairing observations.
+
+## [0.10.7]
+
+### Changed
+
+- **`docpage-digest` Anthropic profile: increase-consistency queue entry removed.** The
+  increase-consistency guardrail slice completed — raw-md fetch through interview handoff,
+  dual verification (one correction round, re-verified REVERIFY: PASS by both verifiers, no
+  degraded fallback) — so its entry leaves the doc queue per the queue's remove-on-completion
+  rule. It was the last remaining guardrail guide, so the emptied category heading goes with it.
+
+## [0.10.6]
+
+### Changed
+
+- **`docpage-digest` Anthropic profile: reduce-hallucinations queue entry removed.** The
+  reduce-hallucinations guardrail slice completed — raw-md fetch through interview handoff,
+  dual verification (two correction rounds, re-verified REVERIFY2: PASS by both verifiers, no
+  degraded fallback) — so its entry leaves the doc queue per the queue's remove-on-completion
+  rule. The increase-consistency guardrail entry remains queued.
+
+## [0.10.5]
+
+### Changed
+
+- **`docpage-digest` Anthropic profile: best-practices queue entry removed.** The
+  code.claude.com best-practices slice completed — raw-md fetch through interview handoff,
+  dual verification (one correction round, re-verified REVERIFY: PASS by both verifiers, no
+  degraded fallback) — so its entry leaves the doc queue per the queue's remove-on-completion
+  rule. It was the sole "Applies across all of the above" entry, so the emptied category
+  heading goes with it.
+- **`docpage-digest` Anthropic profile: applicability-filter clarification from that slice's
+  verification.** A digested page that is itself a live code.claude.com harness doc serves as
+  its own row-local basis for intrinsic harness-guidance claims; the boundary rule still routes
+  API-surface-naming claims to `mixed`, with third-party APIs counting as API surfaces.
+
+## [0.10.4]
+
+### Changed
+
+- **`docpage-digest` Anthropic profile: sonnet-5 prompting-guide queue entry removed.** The
+  prompting-claude-sonnet-5 slice completed — raw-md fetch through interview handoff, dual
+  verification with corrections applied and cross-vendor re-verified — so its entry leaves the
+  doc queue per the queue's remove-on-completion rule. It was the last remaining per-model
+  guide, so the emptied category heading goes with it.
+- **`docpage-digest` Anthropic profile: applicability-filter clarifications from that slice's
+  verification.** Evidence is row-local ("same basis as claim N" never satisfies the contract),
+  and `unverified-inference` is an additional uncertainty marker, never a substitute for the
+  `cc-applicable`/`api-only`/`mixed` tag itself.
+
 ## [0.10.3]
 
 ### Changed

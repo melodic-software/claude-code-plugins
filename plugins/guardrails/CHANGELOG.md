@@ -3,6 +3,98 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.18.4]
+
+### Fixed
+
+- **`block-hook-bypass`'s block message now states the scope the guard actually has (#1802).** The
+  message said a write was prevented and that Write/Edit is the sanctioned path, with nothing about
+  scope, so it read as "shell file writes are blocked". The guard is deliberately producer-scoped
+  over a single command string, and the gap runs in both directions: an agent concludes shell file
+  writes are unavailable and contorts around a restriction a script file does not have, while a
+  human credits the guard with coverage it never claimed — the more expensive error where the guard
+  is load-bearing in someone's threat model.
+
+  Verified against the hook with fixture input: `printf 'x' > out.log` blocks, while `bash
+  execute.sh` — whose script may write freely — is allowed, as reported. Two shapes the report did
+  **not** name are allowed too, and they matter for the wording: `bash execute.sh >> run.log` and
+  `sort data.txt > out.txt` are *direct redirects in the command string* and are allowed by the
+  producer-scoped design, as is `cat a.txt b.txt > c.txt` (only the stdin-consuming `cat > f` form
+  is a write workaround). So the report's suggested line — "direct redirects in this command only" —
+  would have overstated coverage in the other direction. The shipped note says instead that only
+  this command string is inspected — known shell file-write forms plus recognized inline
+  interpreter code (`python -c` IS scanned, so the blind spot claims only an invoked script file
+  or a program's own opaque code) — and that a redirect produced by another program is not seen.
+
+  No hook logic changes. The behaviour the note describes is now pinned by tests beside the
+  message-content assertions, so the two move together.
+
+- **The `README` residuals section names the same scope**, next to the existing quoted-span residual
+  for this guard, so the guarantee is stated where consumers read the guard's limits rather than
+  only at the moment of a block.
+
+## [0.18.3]
+
+### Fixed
+
+- **Shared `hook-utils.sh`: the OS temp tree is no longer treated as project content (#1769).**
+  `hook::read_file_path` scoped a file to the project by prefix-matching `CLAUDE_PROJECT_DIR`, so a
+  session whose project directory is the user's home admitted everything under the OS temp root —
+  including Claude Code's own per-session scratchpad, which lives there. Hooks that lint, rewrite, or
+  autocorrect then ran on throwaway files that are not project content and carry no project config to
+  opt out with; the reported case was `typos-format` autocorrecting a shell variable in a scratch
+  script and silently breaking it. The guard now rejects a file inside the OS temp tree when the
+  project root is outside it. The exemption is deliberate and load-bearing: when the project root
+  itself lives under temp — a `mktemp -d` fixture checkout, which is how this repository's own hook
+  suites run — its files are still accepted. Temp roots come from `TMPDIR` / `TMP` / `TEMP` plus the
+  POSIX defaults, canonicalized through the same pipeline the membership comparison already uses.
+  Synced from `lib/hook-utils.sh`.
+
+## [0.18.2]
+
+### Fixed
+
+- **A wrapper's options were parsed as git's globals, bypassing the commit guard.** The directory and
+  locating-global helpers — `effective_dir`, `collect_locating_globals`, `explicit_git_dir` — were
+  handed the whole pre-git argv slice, wrapper arguments included, and they cannot know which wrapper
+  options take a value. In `env -u -C git …`, GNU env's `-u NAME` consumes `-C` as the variable to
+  unset and `git` as the command, so git itself receives no `-C` and never changes directory; the
+  0-based slice instead read the bare tokens `-C git` and resolved into `./git`. The guard then
+  inspected one repository's aliases while git executed another's — a reported, reproducible bypass
+  in which `env -u -C git -c alias.a='!git -C child p' a` returned 0 while real git committed via
+  `child`'s `commit --allow-empty -m`.
+
+  Those helpers now receive only the slice from the **resolved git token** to the subcommand. The two
+  sites that rebuild the command line still start at index 0, deliberately, because they reconstruct
+  the invocation rather than parse git's options.
+
+  The regression cases were verified to **fail against the unfixed hook** and pass against the fix,
+  and git's own `-C` is covered alongside them so the narrower slice cannot silently stop honouring a
+  relocation git really performs.
+
+- **A wrapper's chdir moved git but no longer moved the guard.** Excluding wrapper argv from
+  git-global parsing must not discard a relocation the wrapper genuinely performs. GNU env documents
+  `-C, --chdir=DIR` as "change working directory to DIR", so `env -C other git a` runs git in `other`
+  and resolves `other`'s alias — while a slice beginning at the git token cannot see that operand at
+  all and read the payload cwd's alias instead. `hook::git_resolve_index`, the only parser that can
+  tell env's `-C` from `-u`'s operand, now reports the wrapper's chdir in
+  `HOOK_GIT_RESOLVED_WRAPPER_DIRS`, and the guard composes it ahead of git's own globals.
+
+  Five spellings are read — `-C DIR`, `-CDIR`, `--chdir DIR`, `--chdir=DIR`, and a clustered
+  `-vC DIR` — because one unhandled spelling is the whole bypass again; a repeat within one `env` is
+  last-wins against the invoking cwd, as env itself resolves it. `sudo`'s own `-D`/`--chdir` is read
+  in its unclustered spellings. A `NAME=value` operand now ends option parsing as env's own grammar
+  does, so `env FOO=1 -C dir git …` — which env refuses to run at all — no longer records a chdir
+  that never happens.
+
+  A sixth spelling is deliberately NOT covered: a chdir smuggled through `-S`/`--split-string`
+  (`env -S '-C dir git …'`). That path already fails open on `main` for any command, because the
+  resolver's post-splice restart re-enters outside env's option parsing — a distinct control-flow
+  defect in shared code, tracked in #1814 rather than folded into this fix.
+
+  The resolver half of this lands in the shared `lib/hook-utils.sh` and is synced to every carrying
+  plugin; guardrails is the only plugin that consumes the new global.
+
 ## [0.18.1]
 
 ### Fixed

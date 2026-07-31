@@ -48,9 +48,9 @@ BASELINE="${CHANGELOG_PARITY_BASELINE:-scripts/changelog-parity-baseline.txt}"
 
 mode="${1:-}"
 case "$mode" in
---check | --check-bump) ;;
+--check | --check-bump | --check-order) ;;
 *)
-  echo "usage: $(basename "$0") [--check | --check-bump <base-ref>]" >&2
+  echo "usage: $(basename "$0") [--check | --check-bump <base-ref> | --check-order]" >&2
   exit 2
   ;;
 esac
@@ -74,6 +74,79 @@ if [[ ! -e "${manifests[0]}" ]]; then
 fi
 
 version_of() { jq -r '.version // empty' "$1" 2>/dev/null; }
+
+# --check-order: every changelog reads newest-first, with no version repeated.
+#
+# The gap this closes shipped: docs/conventions/loop-lane/CHANGELOG.md reached
+# main reading 6.0.0 -> 3.1.1 -> 5.0.0 -> 4.0.0. The 3.1.1 entry was authored
+# against 3.1.0 and merged after 4.0.0 had already landed, so its number was a
+# regression the moment it merged. Nothing caught it: --check and --check-bump
+# both reason about ONE version at a time, and neither reads the sequence. Any
+# two branches that stage the same next version, or one that sits on a stale
+# base, produce this — and the reviewer sees only their own diff hunk, never the
+# resulting order.
+#
+# Convention changelogs are in scope precisely because that is where it shipped:
+# they are unversioned by any manifest, so --check and --check-bump never look
+# at them at all.
+# A fixed-width key so a lexical comparison orders versions NUMERICALLY. Five
+# digits per field is far beyond any version this repo will reach, and the
+# regex above admits only digits, so no field can overflow it silently.
+version_sort_key() {
+  local IFS='.'
+  # shellcheck disable=SC2086  # deliberate word-split of a digits-only version on IFS
+  set -- $1
+  printf '%05d.%05d.%05d' "$((10#${1:-0}))" "$((10#${2:-0}))" "$((10#${3:-0}))"
+}
+
+if [[ "$mode" == "--check-order" ]]; then
+  changelogs=(plugins/*/CHANGELOG.md docs/conventions/*/CHANGELOG.md)
+  misordered=0
+  duplicated=0
+  checked=0
+  for changelog in "${changelogs[@]}"; do
+    [[ -f "$changelog" ]] || continue
+    checked=$((checked + 1))
+    # Every heading form this repo actually uses: `## [1.2.3]` (plugins, Keep a
+    # Changelog), `## 1.2.3 — date` (conventions), and the two-component
+    # `## 1.2` several convention changelogs use. Requiring a patch component
+    # would make this gate silently check NOTHING in those files — worse than
+    # not covering them, because the pass would be indistinguishable.
+    mapfile -t versions < <(grep -oE '^##[[:space:]]+\[?[0-9]+\.[0-9]+(\.[0-9]+)?\]?([[:space:]]|$)' "$changelog" |
+      grep -oE '[0-9]+\.[0-9]+(\.[0-9]+)?')
+    ((${#versions[@]} > 1)) || continue
+
+    dupes="$(printf '%s\n' "${versions[@]}" | sort | uniq -d)"
+    if [[ -n "$dupes" ]]; then
+      echo "DUPLICATE CHANGELOG VERSION: $changelog lists $(printf '%s' "$dupes" | tr '\n' ' ')more than once. Two branches almost certainly staged the same version; renumber one." >&2
+      duplicated=$((duplicated + 1))
+    fi
+
+    # Compare on a zero-padded key rather than `sort -V`, which this repo's
+    # shell-portability lint bans (it is a GNU extension). Padding each field to
+    # a fixed width makes a plain lexical `>` numerically correct, so 10.0.0
+    # still outranks 9.0.0.
+    prev=""
+    prev_key=""
+    for v in "${versions[@]}"; do
+      key="$(version_sort_key "$v")"
+      if [[ -n "$prev_key" && "$key" > "$prev_key" ]]; then
+        echo "MISORDERED CHANGELOG: $changelog is not newest-first — $v (below $prev). A version that merged after a higher one already landed is a regression; renumber it above the entry it followed." >&2
+        misordered=$((misordered + 1))
+        break
+      fi
+      prev="$v"
+      prev_key="$key"
+    done
+  done
+
+  if ((misordered > 0 || duplicated > 0)); then
+    echo "Changelogs must read newest-first with no repeated version. Renumber against what is on the DEFAULT BRANCH, not against the base the branch was cut from." >&2
+    exit 1
+  fi
+  echo "All $checked changelog(s) read newest-first with no duplicate versions."
+  exit 0
+fi
 
 if [[ "$mode" == "--check" ]]; then
   declare -A saw_debt

@@ -16,9 +16,9 @@ metadata:
 Current branch: !`git branch --show-current 2>/dev/null || echo "unknown"`
 Repo slug: !`git rev-parse --show-toplevel 2>/dev/null | sed 's|.*/||' || echo "unknown"`
 ccusage availability: !`command -v npx >/dev/null 2>&1 && echo "npx present" || echo "npx MISSING"`
-Hook event log: !`f="$(git rev-parse --show-toplevel 2>/dev/null || pwd)/.claude/observability/hook-events.jsonl"; if [[ -f "$f" ]]; then echo "$(wc -l < "$f") events"; else echo "EMPTY (no hook-event emitter wired, or no hooks fired yet)"; fi`
+Hook event log: !`bash "${CLAUDE_PLUGIN_ROOT}/skills/observability/scripts/probe-observability-state.sh" --hook-events 2>/dev/null || echo "unknown"`
 OTEL collector :4318: !`bash -c 'source "${CLAUDE_PLUGIN_ROOT}/skills/observability/otel/net-probe.sh" && port_status 4318' 2>/dev/null || echo unknown`
-OTEL store: !`d="${CC_OTEL_STORE:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)/.claude/observability/otel}"; for f in cc-logs.json cc-metrics.json cc-traces.json; do if [[ -f "$d/$f" ]]; then echo "$f:$(wc -c < "$d/$f" 2>/dev/null || echo 0)B"; else echo "$f:absent"; fi; done 2>/dev/null || echo "unknown"`
+OTEL store: !`bash "${CLAUDE_PLUGIN_ROOT}/skills/observability/scripts/probe-observability-state.sh" --otel-store 2>/dev/null || echo "unknown"`
 
 ## Purpose
 

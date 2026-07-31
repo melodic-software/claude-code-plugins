@@ -1,7 +1,7 @@
 ---
 name: lanes
 description: "Start, restart, stop, and check loop lanes as named background Claude Code sessions seeded from canonical prompt files — the scripted replacement for the manual morning refresh (cancel loop, clear, re-paste the canonical prompt) across N lanes on a machine. `start`/`restart` first pull the repo and refresh the plugin marketplace, then launch each configured lane with its per-lane model/effort. `consume-restarts` reads each configured lane's telemetry `restart_request` and relaunches the stopped lanes that asked — the scheduled headless reader (#1653). Use when: 'launch my lanes', 'restart the loop lanes', 'start the work lanes', 'morning lane refresh', 'stop a lane', 'which lanes are running', 'lane status', 'consume restart requests', 'lane restart consumer', 'relaunch the lanes that asked'. Mutating and operator-initiated; never touches a session whose name is not a configured lane."
-argument-hint: "[start|restart|status|stop|consume-restarts] [lane...] — start (default); restart/stop accept lane names; consume-restarts takes [check|run|print-schedule]; --config, --repo, --dry-run, --no-pull, --no-update"
+argument-hint: "[start|restart|status|stop|consume-restarts] [lane...] — start (default); restart/stop accept lane names; consume-restarts takes [check|run|print-schedule]; --config, --repo, --target-repo, --dry-run, --no-pull, --no-update"
 user-invocable: true
 disable-model-invocation: true
 shell: bash
@@ -13,10 +13,10 @@ metadata:
 
 ## Pre-computed context
 
-claude CLI: !`command -v claude >/dev/null 2>&1 && echo "present ($(claude --version 2>/dev/null))" || echo "MISSING (required)"`
+claude CLI: !`claude --version 2>/dev/null || echo "MISSING (required)"`
 jq: !`command -v jq >/dev/null 2>&1 && echo "present" || echo "MISSING (required)"`
 Repo root: !`git rev-parse --show-toplevel 2>/dev/null || echo "unknown (pass --repo)"`
-Lane config: !`c="${CLAUDE_OPS_LANES_CONFIG:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)/.work/lanes.json}"; [[ -f "$c" ]] && echo "$c ($(jq -r '(.lanes//[])|length' "$c" 2>/dev/null) lanes)" || echo "absent ($c) — author one (see context/config.md)"`
+Lane config: !`bash "${CLAUDE_PLUGIN_ROOT}/skills/lanes/scripts/probe-lane-config.sh" 2>/dev/null || echo "unknown"`
 
 ## Variables
 
@@ -256,8 +256,13 @@ each — the summary below is a pointer, not a copy.
   that sentinel across ALL comments (paginated — a match on any page prevents a
   duplicate) and PATCHes it; failing that (first migration off a hand-authored
   comment) it adopts the most recent comment BY THE AUTHENTICATED USER carrying the
-  raw marker text; else it creates one. `STR` is `[A-Za-z0-9:._-]+` (so it can
-  never close the HTML comment early), and one writer identity owns a given marker.
+  raw marker text; else it creates one. `STR` is `[A-Za-z0-9:@._-]+` (so it can
+  never close the HTML comment early), and one writer identity owns a given marker
+  — which is what the loop-lane convention's `<lane>@<instance>` suffix makes true
+  rather than aspirational (#1295): a marker naming only a lane type is shared by
+  every concurrent instance of that lane, so they clobber one another's durable
+  state. Both fallback boundaries treat `@` as a marker char, so `lane:x` never
+  adopts `lane:x@laptop-a`'s comment, nor `lane:x@a` adopt `lane:x@a@b`'s.
   Body input: prefer `--body-file -` (stdin) for a body generated in memory (e.g.
   piped from `machine-behavior.sh`); a real `--body-file PATH` must resolve under
   `--body-dir` (default `$CLAUDE_PLUGIN_DATA`), may not be a symlink, and is capped

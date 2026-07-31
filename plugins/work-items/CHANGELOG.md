@@ -3,6 +3,92 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.31.0]
+
+### Fixed
+
+- **Two lanes on one repository no longer clobber each other's durable state, including
+  `first_drain_complete` (#1295).** `work-loop` and `attend-queue` each built their telemetry
+  sentinel from a fixed marker naming the lane *type*, so every concurrent instance of a lane
+  resolved the same comment on the same telemetry issue and overwrote it last-writer-wins. The
+  reconcile already in the upsert did not help: it converges duplicate *comments* from a creation
+  race, not conflicting *state* written by two live lanes. `item_cap`, `clean_streak`, and
+  `rate_limit_latch` silently stopped reflecting either lane's experience, and
+  `first_drain_complete` — the flag that ends the first-drain C3 ratification gate — was set for
+  every machine by whichever one finished a drain first, widening autonomy with no human
+  ratification. The marker now carries the convention's lane-instance suffix
+  (`work-items:work-loop@<instance>`, `work-items:attend-queue@<instance>`), so each instance
+  creates, reads, and edits exactly one comment no sibling can match, and every counter in the
+  block is per-instance. Earn-trust is re-earned per instance; item-level ratifications still
+  travel with the item, so only the blanket period-end flag resets.
+
+### Added
+
+- **`lane_instance` config key, and an instance-collision check in `work-loop`'s durable state.**
+  The id defaults to the sanitized lowercased hostname and is validated `^[a-z0-9][a-z0-9-]{0,31}$`
+  inside the lane's own executable block — it is operator-supplied text interpolated into a shell
+  string and a `jq` program, so it is rejected rather than sanitized-and-continued. Partitioning is
+  only correct while ids are distinct, so the state block (now `work-items/loop-state@2`) carries
+  `lane_instance`, a per-session `writer_nonce`, a per-cycle `heartbeat_at`, and `paused_until`: a
+  differing nonce over a stale block is the ordinary restart adoption, and a differing nonce over a
+  *fresh* block means another live lane holds this id — the lane writes nothing, escalates, and
+  stops. The check runs before any write, so a duplicate id degrades to a stopped lane rather than
+  a clobbered `first_drain_complete`. Two shapes the freshness test alone misreads are carved out:
+  a fresh block carrying a non-null `restart_request` is a stopped predecessor's clean handoff
+  (recording the ask is its last write), so the replacement adopts immediately — clearing the
+  request — instead of waiting out the staleness window; and an unclaimed marker is claimed with a
+  cycle-0 block plus a re-read through the creation-race reconcile *before any work*, so two
+  same-id sessions starting together stop before either overwrites the other's first durable
+  state.
+
+### Changed
+
+- **The `Lane telemetry: <lane>` issue title is deliberately untouched.** The drain-exit snapshot,
+  the intake sweep, and the attention view all match lane infrastructure by that title contract, so
+  partitioning by marker rather than by title leaves every one of those consumers unmoved. Migration
+  is a deliberate reset: no pre-existing comment matches an instance's new sentinel — neither the
+  legacy un-suffixed markers nor the improvised `work-items:telemetry lane=… instance=…` comments
+  some lanes began posting in practice — so the first cycle posts a fresh block from defaults,
+  including `first_drain_complete:false`. That fails closed and is intended. A lane never adopts,
+  edits, or tombstones the legacy comment: its marker names no writer, so no instance can prove it
+  owns it, and adopting it would reintroduce the clobber. Retiring it is an operator action.
+
+## [0.30.3]
+
+### Added
+
+- **An item-body embedded-instruction eval case on every body-reading skill (#1717).** This plugin's
+  eval sets held a single adversarial-input case, and it covered a different surface entirely —
+  nothing here exercised the one text all of these skills read: an item's own body and comments.
+  `triage`, `decompose`, `work`, and `attend-queue` each now have one case whose prompt embeds a
+  directive addressed to the reading agent and whose expectations assert the directive is evaluated
+  as data and not acted on. `work-loop`'s equivalent case
+  (`work-loop-item-body-is-data-not-instruction`) already shipped, so these four complete the set of
+  body-reading surfaces #1713 enumerates. The cases are keyed to what the embedded text would
+  subvert in that lane rather than paraphrased across four files — `triage`'s verification step and
+  direction-gate branch, `decompose`'s approval gate and don't-touch-the-parent rule, `work`'s
+  claim-before-dispatch prerequisite and never-merge boundary, and `attend-queue`'s
+  operator-is-the-authority rule — so each binds a boundary the skill already states. Modelled on
+  the existing case in `plugin-quality`'s `audit` skill (`anti-pattern-injection-in-audited-source`)
+  rather than introducing a second eval shape.
+
+## [0.30.2]
+
+### Fixed
+
+- **`work-loop`'s `usage_sample` prose contradicted the loop-lane invariant it cites.** The
+  convention permits reading the previous sample back to derive `five_hour_delta_pct` — the
+  subtraction *and* the rollover comparison — but 0.29.0 described the field as "deliberately inert:
+  no lane behavior reads it back", which no lane computing a rollover-suppressed delta could satisfy.
+  The convention's wording is corrected upstream (loop-lane 6.0.1); the entry recording 0.29.0 is
+  left as shipped and superseded by this one. **The measure-only guarantee is unchanged** — the value
+  still reaches no decision, at any threshold.
+- **`at` was ambiguous between two timestamps.** It is when the lane read the tee, not the snapshot's
+  own `captured_at`, which the staleness rule permits to lag it.
+- **The delta's `null` condition read too narrowly.** "Either sample is missing" excluded a present
+  sample carrying a `null` `five_hour_pct`; it is now `null` whenever either side's `five_hour_pct`
+  is unavailable.
+
 ## [0.30.1]
 
 ### Changed

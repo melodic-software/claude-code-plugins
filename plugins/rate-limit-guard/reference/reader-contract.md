@@ -99,9 +99,18 @@ The hook is side-effect-only (the harness ignores StopFailure output and exit co
 payload carries no reset or quota data — a record means "a rate limit stopped a turn at this time",
 nothing more. The file is bounded (rotated to the newest 100 records past 200).
 
-The contract directory holds one more file: `stop-events.jsonl.lock`, the advisory-lock sibling the
-hook's serialized append and rotation use (present wherever `flock` exists). Readers ignore it; it
-is part of the seam only in the sense that tooling sweeping the directory should expect it.
+The contract directory holds two more shapes, neither of which readers consume, listed so tooling
+sweeping the directory expects them:
+
+- `stop-events.jsonl.lock` — the advisory-lock sibling the hook's serialized append and rotation use
+  (present wherever `flock` exists).
+- `.rate-limits.json.tmp.<pid>.<random>` — the tee's atomic-write staging file. Normally it exists
+  for well under a second between write and rename. It can outlive its writer: Claude Code
+  [cancels an in-flight statusline script](https://code.claude.com/docs/en/statusline) when a new
+  update arrives, and a cancellation inside that window leaves the file behind. The tee reclaims its
+  own on exit and on a catch-able signal, and sweeps siblings older than a minute on the next
+  refresh, which is what recovers from a SIGKILL, a crash, or power loss. A cleanup tool should
+  leave these alone: one may belong to a live concurrent session, and the tee reclaims them itself.
 
 ## Invariants and boundaries
 

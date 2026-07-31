@@ -568,6 +568,220 @@ class QuietRecheckOverrideTests(unittest.TestCase):
             delta.classify_pr(make_pr(), None, None, OBS, config=config)
 
 
+def advisory_rounds(*rounds: tuple[str, str, object]) -> dict[str, object]:
+    return {
+        head: (
+            {"recorded_at": recorded_at}
+            if classes is None
+            else {"recorded_at": recorded_at, "finding_classes": classes}
+        )
+        for head, recorded_at, classes in rounds
+    }
+
+
+ALL_C = {"a": 0, "b": 0, "c": 2}
+MIXED = {"a": 0, "b": 1, "c": 2}
+
+
+class AdvisoryRoundCompositionTests(unittest.TestCase):
+    def test_only_c_findings_are_all_c(self) -> None:
+        self.assertEqual(
+            delta.advisory_round_composition({"finding_classes": ALL_C}), "all-c"
+        )
+
+    def test_any_non_c_finding_is_mixed(self) -> None:
+        self.assertEqual(
+            delta.advisory_round_composition({"finding_classes": MIXED}), "mixed"
+        )
+
+    def test_unclassifiable_records_are_unknown(self) -> None:
+        # Pre-adoption records carry no classes at all; the rest are records a
+        # hand edit or a partial write could produce. None of them may read as
+        # "no (c) findings" -- the tripwire fails closed on unknown.
+        for record in (
+            None,
+            "not-an-object",
+            {"recorded_at": "2026-07-10T00:00:00Z"},
+            {"finding_classes": {"a": 0, "b": 0, "c": 0}},
+            {"finding_classes": {"a": 0, "c": 1}},
+            {"finding_classes": {"a": 0, "b": 0, "c": "2"}},
+            {"finding_classes": {"a": 0, "b": 0, "c": True}},
+            {"finding_classes": {"a": 0, "b": 0, "c": -1}},
+        ):
+            with self.subTest(record=record):
+                self.assertEqual(delta.advisory_round_composition(record), "unknown")
+
+
+class AdvisoryRoundOrderingTests(unittest.TestCase):
+    def test_rounds_are_ordered_by_write_ahead_timestamp(self) -> None:
+        # Insertion order deliberately disagrees with chronology: a dict keyed
+        # by head SHA carries no ordering the tripwire could trust.
+        rounds = advisory_rounds(
+            ("b" * 40, "2026-07-10T02:00:00Z", ALL_C),
+            ("a" * 40, "2026-07-10T01:00:00Z", MIXED),
+        )
+        self.assertEqual(
+            [head for head, _ in delta.ordered_advisory_rounds(rounds)],
+            ["a" * 40, "b" * 40],
+        )
+
+    def test_tied_timestamps_fall_back_to_write_order(self) -> None:
+        # The head SHA carries no chronology, so a lexicographic tiebreak would
+        # order these arbitrarily -- here, exactly backwards. Pre-sequence
+        # records have nothing better than the mapping's current order.
+        rounds = advisory_rounds(
+            ("b" * 40, "2026-07-10T01:00:00Z", MIXED),
+            ("a" * 40, "2026-07-10T01:00:00Z", ALL_C),
+        )
+        self.assertEqual(
+            [head for head, _ in delta.ordered_advisory_rounds(rounds)],
+            ["b" * 40, "a" * 40],
+        )
+
+    def test_an_explicit_sequence_outranks_timestamps_and_key_order(self) -> None:
+        # The ledger reloads with sorted keys and timestamps can tie, so only
+        # the persisted sequence carries write order across a rollover. Both
+        # the mapping order and the timestamps here disagree with it.
+        rounds = {
+            "a" * 40: {
+                "recorded_at": "2026-07-10T01:00:00Z",
+                "sequence": 2,
+                "finding_classes": ALL_C,
+            },
+            "b" * 40: {
+                "recorded_at": "2026-07-10T01:00:00Z",
+                "sequence": 1,
+                "finding_classes": MIXED,
+            },
+        }
+        self.assertEqual(
+            [head for head, _ in delta.ordered_advisory_rounds(rounds)],
+            ["b" * 40, "a" * 40],
+        )
+
+    def test_pre_sequence_rounds_sort_before_sequenced_ones(self) -> None:
+        # A record without a sequence predates sequence persistence, so it was
+        # written before every record that has one -- whatever its timestamp
+        # says relative to theirs.
+        rounds = {
+            "a" * 40: {"recorded_at": "2026-07-10T09:00:00Z", "finding_classes": MIXED},
+            "b" * 40: {
+                "recorded_at": "2026-07-10T01:00:00Z",
+                "sequence": 1,
+                "finding_classes": ALL_C,
+            },
+        }
+        self.assertEqual(
+            [head for head, _ in delta.ordered_advisory_rounds(rounds)],
+            ["a" * 40, "b" * 40],
+        )
+
+    def test_a_timestampless_round_sorts_before_a_timestamped_one(self) -> None:
+        rounds = {
+            "a" * 40: {"finding_classes": ALL_C},
+            "b" * 40: {"recorded_at": "2026-07-10T01:00:00Z", "finding_classes": ALL_C},
+        }
+        self.assertEqual(
+            [head for head, _ in delta.ordered_advisory_rounds(rounds)],
+            ["a" * 40, "b" * 40],
+        )
+
+
+class NonConvergenceTripwireTests(unittest.TestCase):
+    def test_one_round_cannot_be_a_second_consecutive_round(self) -> None:
+        tripwire = delta.advisory_non_convergence_tripwire(
+            advisory_rounds(("a" * 40, "2026-07-10T01:00:00Z", ALL_C))
+        )
+        self.assertFalse(tripwire["armed"])
+        self.assertEqual(tripwire["previous"], {})
+
+    def test_two_consecutive_all_c_rounds_arm_it(self) -> None:
+        tripwire = delta.advisory_non_convergence_tripwire(
+            advisory_rounds(
+                ("a" * 40, "2026-07-10T01:00:00Z", ALL_C),
+                ("b" * 40, "2026-07-10T02:00:00Z", ALL_C),
+            )
+        )
+        self.assertTrue(tripwire["armed"])
+        self.assertEqual(tripwire["latest"]["head_sha"], "b" * 40)
+
+    def test_an_unclassified_predecessor_fails_closed(self) -> None:
+        # A round recorded before classes were persisted is UNKNOWN rather than
+        # (a)/(b), so a current all-(c) round still arms rather than silently
+        # resetting the count.
+        tripwire = delta.advisory_non_convergence_tripwire(
+            advisory_rounds(
+                ("a" * 40, "2026-07-10T01:00:00Z", None),
+                ("b" * 40, "2026-07-10T02:00:00Z", ALL_C),
+            )
+        )
+        self.assertTrue(tripwire["armed"])
+        self.assertEqual(tripwire["previous"]["composition"], "unknown")
+
+    def test_a_mixed_predecessor_does_not_arm_it(self) -> None:
+        tripwire = delta.advisory_non_convergence_tripwire(
+            advisory_rounds(
+                ("a" * 40, "2026-07-10T01:00:00Z", MIXED),
+                ("b" * 40, "2026-07-10T02:00:00Z", ALL_C),
+            )
+        )
+        self.assertFalse(tripwire["armed"])
+
+    def test_a_mixed_latest_round_does_not_arm_it(self) -> None:
+        tripwire = delta.advisory_non_convergence_tripwire(
+            advisory_rounds(
+                ("a" * 40, "2026-07-10T01:00:00Z", ALL_C),
+                ("b" * 40, "2026-07-10T02:00:00Z", MIXED),
+            )
+        )
+        self.assertFalse(tripwire["armed"])
+
+
+class AdvisoryTripwireSnapshotTests(unittest.TestCase):
+    """The tripwire reaches a fresh worker through the snapshot, not context."""
+
+    def _classify(self, rounds: dict[str, object]) -> dict[str, object]:
+        return classify(
+            make_pr(), make_prev(advisory_fix_rounds={"rounds": rounds})
+        )
+
+    def test_armed_tripwire_is_surfaced_and_reported_material(self) -> None:
+        result = self._classify(
+            advisory_rounds(
+                ("a" * 40, "2026-07-10T01:00:00Z", ALL_C),
+                ("b" * 40, "2026-07-10T02:00:00Z", ALL_C),
+            )
+        )
+        self.assertTrue(
+            result["advisory_fix_rounds"]["non_convergence_tripwire"]["armed"]
+        )
+        self.assertTrue(
+            any(
+                "non-convergence tripwire armed" in finding
+                for finding in result["material_findings"]
+            )
+        )
+
+    def test_a_converging_pr_reports_nothing(self) -> None:
+        result = self._classify(
+            advisory_rounds(
+                ("a" * 40, "2026-07-10T01:00:00Z", MIXED),
+                ("b" * 40, "2026-07-10T02:00:00Z", MIXED),
+            )
+        )
+        self.assertFalse(
+            result["advisory_fix_rounds"]["non_convergence_tripwire"]["armed"]
+        )
+        self.assertEqual(
+            [
+                finding
+                for finding in result["material_findings"]
+                if "non-convergence tripwire" in finding
+            ],
+            [],
+        )
+
+
 class RecommendCadenceTests(unittest.TestCase):
     def test_cadence_precedence(self) -> None:
         self.assertEqual(delta.recommend_cadence([]), "idle")

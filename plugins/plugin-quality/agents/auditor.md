@@ -31,8 +31,12 @@ name you pick yourself — note the substitution in `evidence.md`, and name the 
 summary. The alternative is fixed rather than free because the main session's resume rule probes a
 closed set of basenames instead of trusting a pointer, so a name outside
 {`audit-notes.md`, `audit-data.md`, `findings.md`} would be unrecoverable after compaction. If BOTH
-names are refused, say so explicitly in your summary and return the full findings as text — never
-silently drop the packet write, since the dumb-zone contract depends on the file existing. This guardrail is **observed harness behavior, not
+names are refused, your return changes shape: open your final message with the literal ASCII line
+`PACKET WRITE REFUSED: full findings inline`, then give the COMPLETE findings text in place of the
+summary form below. The dispatching session's persist-check keys its own backstop write on exactly
+that — a refusal mentioned in passing inside a summary reads as a successful run with a caveat, and
+a summary is not a ledger anyone can persist on your behalf. Never silently drop the packet write,
+since the dumb-zone contract depends on the file existing. This guardrail is **observed harness behavior, not
 documented**: it appears on no official Claude Code page (sub-agents reference checked
 2026-07-26, <https://code.claude.com/docs/en/sub-agents>), so treat it as environment-dependent
 and expect contexts where it does not fire at all.
@@ -73,6 +77,8 @@ component + location, the claim vs observed behavior, evidence (packet reference
 doc citation (URL + fetch date) for any harness-behavior assertion, severity suggestion, and a
 candidate remediation ordered cheapest-first. List blindspots and unverified claims separately and
 honestly. Your final message must be the summary form: finding count by severity, the top findings
-in one line each, and the packet path — the main session decides everything downstream (contract
+in one line each, and the packet path — with one exception, the both-names-refused branch above,
+which replaces the summary with the refusal marker plus the complete findings so the dispatching
+session can persist what you could not. The main session decides everything downstream (contract
 lock, review seams, emit); you never file issues, never write outside the packet, and never touch
 the audited plugin.

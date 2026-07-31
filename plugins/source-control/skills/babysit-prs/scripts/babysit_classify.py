@@ -477,7 +477,15 @@ def comment_surface(comment: dict[str, Any]) -> str:
     return UNKNOWN_SURFACE
 
 
-def _severity_occurrences(text: str) -> int:
+def severity_occurrences(text: str) -> int:
+    """Count source-finding severity markers in one body.
+
+    Public because the finding vocabulary has exactly one home: the resolver's
+    per-thread finding count (`babysit_resolve_thread.project_thread`) asks the
+    same question of a GraphQL comment body that `count_findings` asks of the
+    REST-shaped snapshot, and a second copy of the three patterns is the
+    divergence class this module exists to close.
+    """
     return (
         len(SEVERITY_WORDS_RE.findall(text))
         + len(SEVERITY_BADGE_RE.findall(text))
@@ -509,7 +517,7 @@ def count_findings(
         body = str(comment.get("body") or "")
         if is_self_login(author, self_logins):
             body = strip_classification_rows(body)
-        total += _severity_occurrences(body)
+        total += severity_occurrences(body)
     return total
 
 

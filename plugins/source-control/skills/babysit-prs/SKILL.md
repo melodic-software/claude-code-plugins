@@ -203,6 +203,24 @@ home in [reference/safety.md](reference/safety.md). Both fail closed without `--
   --thread-id` without matching `--expected-comment-count` and `--expected-last-updated` (or an
   explicit `--allow-unpinned-thread` override) is refused before anything is fetched or resolved.
 
+- **Independent resolution** — `--independent-resolver` is a THIRD mode, parallel to `--autonomous`
+  and never a relaxation of it. `isOutdated` means the referenced code moved, so on a prose or
+  documentation PR a genuinely addressed finding never becomes outdated and the worker guard refuses
+  forever. This mode is dispatched to a FRESH context that is not the merging worker and did not
+  author the fix — that independence is what replaces `isOutdated` as the anti-self-certification
+  property, and the script cannot verify it, which is why the other half is machine-checked. Pass
+  one `--thread-id` (bulk refused in every mode here, list included), both pins, and
+  `--disposition fixed|deferred|incorrect` with its own evidence flag: `--fix-commit <sha>` must be
+  reachable from the PR head, `--tracker-item <id>` must exist and be open, `--counter-evidence
+  <text>` must already appear in a reply on the thread posted by someone OTHER than the thread's
+  opener. The script validates evidence against the world, not against the claim, in list mode too
+  — anything missing, unparsable, or unverifiable refuses with its own `refused-*` action rather
+  than warning, and only a confirmed HTTP 404 is read as the world saying no. A thread carrying
+  more than one finding is refused outright (`skipped-multi-finding-thread`) and escalates: one
+  disposition cannot clear a thread whose other findings nothing validated. Bot-only and the
+  security/P1 bright line still hold, and `--autonomous`, `--include-human`, and
+  `--allow-unpinned-thread` are all refused alongside it.
+
 - **The agent** decides severity (is this security/P1?), whether a finding is genuinely addressed,
   what a label means, and every fix-vs-escalate call — never a script. Escalate a security/P1
   thread instead of resolving it, even in autopilot — one named exception, scoped in `safety.md`.

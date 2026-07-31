@@ -5,6 +5,66 @@ topology, the escalation contract, the capability-tier vocabulary, or any loop-l
 major bump, and additive guidance is a minor bump. A new model release re-audits the capability-tier
 table (§3); drift found by that audit is recorded here.
 
+## 7.0.0 — 2026-07-30
+
+Repartitions §4's telemetry binding from the lane **type** to the lane **instance**, resolving
+[melodic-software/claude-code-plugins#1295](https://github.com/melodic-software/claude-code-plugins/issues/1295).
+Tier ratified as **major** on 2.0.0's discriminator: it rewrites a loop-layer invariant every lane
+body implements, and adds two more (instance identity, collision detection).
+
+- **The telemetry marker now names the writer, not the lane (§4).** The marker was a fixed constant
+  per lane, so two instances of one lane on one repository resolved the same sentinel and overwrote
+  each other's durable state under last-writer-wins. The serious loss was `first_drain_complete`:
+  one machine finishing a drain ended the earn-trust C3 ratification gate for every other machine,
+  widening autonomy with no human ratification — a safety property failing open. The marker gains a
+  lane-instance suffix (`<lane-marker>@<lane_instance>`), the lane-type marker becoming its prefix,
+  and "exactly one comment" is restated as **one comment per writer identity**: N concurrent
+  instances legitimately hold N comments on one telemetry item.
+- **Lane-instance identity (§4, new invariant).** Resolved from launch config, defaulting to the
+  sanitized lowercased hostname; stable across restarts, distinct across concurrent instances,
+  charset-validated `^[a-z0-9][a-z0-9-]{0,31}$` inside each lane's own executable block rather than
+  in prose alone, since the value is operator-supplied text interpolated into a shell string and a
+  `jq` program.
+- **Instance-collision detection (§4, new invariant).** The state block gains `lane_instance`,
+  `writer_nonce`, `heartbeat_at`, and `paused_until`. A differing nonce over a stale block is the
+  ordinary restart path (adopt and continue); a differing nonce over a *fresh* block means another
+  live lane holds this id — write nothing, escalate per §2, stop cleanly. The staleness window is
+  two hours, twice the one-hour `ScheduleWakeup` ceiling, so maximum idle backoff can never read as
+  death. Detection runs before any write, so a collision degrades to a stopped lane rather than a
+  clobbered `first_drain_complete`.
+- **The `Lane telemetry: <lane>` title contract is deliberately untouched.** The drain-exit
+  snapshot, the intake sweep, and the attention view all match lane infrastructure by that title;
+  the marker was chosen as the partition seam precisely so no title-matching consumer moves.
+- **Migration is a deliberate reset.** No pre-existing comment matches an instance's new sentinel —
+  neither the legacy un-suffixed `marker=<lane>` comments nor the improvised
+  `<!-- work-items:telemetry lane=… instance=… -->` comments some lanes began posting in practice —
+  so the first cycle after adoption posts a fresh block from defaults, including
+  `first_drain_complete:false`. That fails closed and is intended; it produces one burst of
+  ratification queue comments on the next drain. The legacy comment is never adopted, edited, or
+  tombstoned by a lane — its marker names no writer, so no instance can prove it owns it, and a lane
+  that adopted it would reintroduce the shared-comment clobber this change removes. Retiring it is
+  an operator action; until then it reads as stale, which is honest, because nothing is writing it.
+
+## 6.0.1 — 2026-07-29
+
+Corrective, no topology, escalation, tier, or invariant change — 6.0.0's usage-sample invariant is
+clarified, not altered.
+
+- **The one permitted readback (§4) named the wrong scope.** 6.0.0 permitted reading the previous
+  sample back "for exactly one operation: subtracting its `five_hour_pct`", then forbade every other
+  read. But the same invariant withholds a delta when the window rolled over, and deciding that
+  requires comparing against the previous reading — a second read the text forbade, so no lane could
+  satisfy both clauses. The permission is now scoped by **purpose** rather than by operation:
+  deriving `five_hour_delta_pct`, covering the subtraction and the rollover comparison together. The
+  measure-only guarantee is unchanged — the value still reaches no decision at any threshold.
+- **Changelog version order corrected, and gated.** The `#1638` entry was authored against 3.1.0 and
+  merged as `3.1.1` after 4.0.0 had already landed, leaving a version regression in a
+  descending-order file. It is renumbered `4.0.1` and repositioned below 5.0.0, preserving both
+  version order and the order entries actually shipped in. No wording in that entry changed. Nothing
+  caught it because no gate read the *sequence* — `check-changelog-parity.sh` now has a
+  `--check-order` mode, wired as a required check, covering convention changelogs as well as plugin
+  ones.
+
 ## 6.0.0 — 2026-07-29
 
 Adds the per-cycle usage sample to §4's loop-layer invariants, requested and scoped in
@@ -26,11 +86,12 @@ no durable-state block.
   question.
 - **Measure-only, with exactly one permitted readback (§4).** Deriving the delta needs the previous
   cycle's percentage, and after context compaction the telemetry block is the only durable place it
-  survives — so the invariant permits reading the previous sample back for exactly one operation:
-  subtracting its `five_hour_pct` to compute the new sample's `five_hour_delta_pct`. That derivation
-  is the field's only permitted consumer. No other read is permitted, and the value never reaches a
-  decision — not pacing, backoff, an adaptive or item cap, a merge rung, admission, escalation, a
-  warning, or a pause — at any threshold, in a lane or in any gate a lane runs.
+  survives — so the invariant permits reading the previous sample back for exactly one purpose:
+  deriving the new sample's `five_hour_delta_pct` from its `five_hour_pct` (the subtraction, and the
+  rollover comparison deciding whether a delta is written at all). That derivation is the field's
+  only permitted consumer. No other read is permitted, and the value never reaches a decision — not
+  pacing, backoff, an adaptive or item cap, a merge rung, admission, escalation, a warning, or a
+  pause — at any threshold, in a lane or in any gate a lane runs.
 - **The delta measures the preceding interval (§4).** The guard reading a lane copies is taken at
   cycle start, before that cycle's own work, so `at` is the cycle-start observation time and the
   delta is the rise between the previous cycle's reading and this one: it covers the interval
@@ -65,15 +126,6 @@ no durable-state block.
   `rate-limit-guard`'s reader contract carries its own 2026-07-23 stamp on the same page; it is
   unchanged by this entry and its refresh belongs to that plugin's own bump.
 
-## 3.1.1 — 2026-07-29
-
-Docs-only, no topology, escalation, tier, or invariant change: §Versioning's "Re-derivation
-triggers" label becomes "Recheck triggers" and cites the
-[upstream-drift convention](../upstream-drift/README.md) (#1638), the new owner of the
-stamp-and-trigger discipline; the generic date-is-never-authority rationale moves there. Both
-triggers stay unchanged; the recording policy aligns with the owner doc — a firing that finds
-drift lands here, a no-drift firing refreshes the claim's verification date only.
-
 ## 5.0.0 — 2026-07-29
 
 Adds the per-lane consecutive-no-progress detector to §4's loop-layer invariants, requested and
@@ -98,6 +150,15 @@ taken.
   qualifying progress. The attended queue is exempt — its operator is present by definition.
 - **Durable loop state (§4)** now lists the consecutive-no-progress counter among the persisted
   counters.
+
+## 4.0.1 — 2026-07-29
+
+Docs-only, no topology, escalation, tier, or invariant change: §Versioning's "Re-derivation
+triggers" label becomes "Recheck triggers" and cites the
+[upstream-drift convention](../upstream-drift/README.md) (#1638), the new owner of the
+stamp-and-trigger discipline; the generic date-is-never-authority rationale moves there. Both
+triggers stay unchanged; the recording policy aligns with the owner doc — a firing that finds
+drift lands here, a no-drift firing refreshes the claim's verification date only.
 
 ## 4.0.0 — 2026-07-27
 

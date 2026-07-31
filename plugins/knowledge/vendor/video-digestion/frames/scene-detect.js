@@ -25,20 +25,28 @@ export const DEFAULT_FFMPEG_USER_AGENT =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36";
 
 /**
+ * Frame filename for a 1-based index, matching ffmpeg's `%04d` output pattern.
+ * @param {string} prefix
+ * @param {number} index
+ * @returns {string}
+ */
+function frameFileName(prefix, index) {
+  return `${prefix}_${String(index).padStart(4, "0")}.png`;
+}
+
+/**
  * Count sequentially numbered frame files in a directory.
+ *
+ * Deliberately unbounded — the sequence ends at the first missing file, never
+ * at a frame ceiling, so a long recording is not silently truncated.
  * @param {string} dir
  * @param {string} prefix
- * @param {number} [max]
  * @returns {number}
  */
-export function countFrameFiles(dir, prefix, max = 500) {
+export function countFrameFiles(dir, prefix) {
   let count = 0;
-  for (let i = 1; i <= max; i++) {
-    if (existsSync(join(dir, `${prefix}_${String(i).padStart(4, "0")}.png`))) {
-      count++;
-    } else {
-      break;
-    }
+  while (existsSync(join(dir, frameFileName(prefix, count + 1)))) {
+    count++;
   }
   return count;
 }
@@ -55,7 +63,7 @@ export function listFrameCandidates(outputDir, prefix, isInterval = false) {
   /** @type {FrameCandidate[]} */
   const frames = [];
   for (let i = 1; i <= count; i++) {
-    const file = `${prefix}_${String(i).padStart(4, "0")}.png`;
+    const file = frameFileName(prefix, i);
     frames.push({
       path: join(outputDir, file),
       file,
