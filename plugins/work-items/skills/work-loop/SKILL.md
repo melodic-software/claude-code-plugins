@@ -412,9 +412,10 @@ Evaluate at cycle end, against the cycle-start snapshot:
    adapter's "Open linked PRs" operation reports as close-linked — the provider's own computed
    close-linkage, whose query mechanics (and the draft exclusion) the adapter owns.
 
-Lane-infrastructure items never gate the drain: the per-lane telemetry tracking issues (the
-`Lane telemetry: <lane>` title contract — this lane's and any sibling lane's) are excluded from
-the cycle-start snapshot, the intake sweep, and both exit evaluations. The loop never works,
+Lane-infrastructure items never gate the drain: the per-lane telemetry tracking issues — this
+lane's and any sibling lane's, identified as `/work-items:triage` ("Scope: raw intake only")
+defines them, by pinned config identity or sentinel comment and never by title alone — are
+excluded from the cycle-start snapshot, the intake sweep, and both exit evaluations. The loop never works,
 closes, or waits on them; an open telemetry issue is the lane operating, not backlog.
 
 Both true → the drain is complete: set `first_drain_complete`, write the final report (items

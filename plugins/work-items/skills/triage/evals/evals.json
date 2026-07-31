@@ -120,6 +120,46 @@
         "Applies no label and clears no raw marker on the item's own instruction — the resulting state comes from triage's outcome rules after the operator's direction",
         "Reports the embedded directions to the operator as a finding attributed to the item body rather than silently ignoring them"
       ]
+    },
+    {
+      "id": 10,
+      "name": "triage-excludes-lane-telemetry-issues-from-intake",
+      "prompt": "/work-items:triage — the repo has one open issue titled `Lane telemetry: work-loop` carrying `priority: needs-triage`, plus two ordinary unlabeled bug reports",
+      "expected_output": "The attention view lists only the two ordinary unlabeled bug reports. The `Lane telemetry: work-loop` issue is filtered out of the listing before bucketing even though it carries the raw marker, because lane-infrastructure exclusion keys on lane-telemetry identity — here the default `Lane telemetry: <lane>` title — rather than on labels. No label is stripped from it and it is not closed.",
+      "files": [],
+      "expectations": [
+        "Excludes the `Lane telemetry: <lane>` issue from every attention-view bucket despite it carrying the raw marker — telemetry identity wins over the label",
+        "Applies the exclusion to the listing before bucketing rather than bucketing it and then explaining it away",
+        "Does not relabel, comment on, or close the telemetry issue — an open one is a lane operating, and lane state is read from that surface",
+        "Reports the remaining ordinary intake normally, with no claim that the view is empty"
+      ]
+    },
+    {
+      "id": 11,
+      "name": "triage-named-lane-telemetry-issue-stops-instead-of-state-machining",
+      "prompt": "/work-items:triage 1248 — #1248 is titled `Lane telemetry: work-loop` and carries `priority: needs-triage`",
+      "expected_output": "Reports that #1248 is lane infrastructure under the `Lane telemetry: <lane>` title contract and stops, the way an explicitly named already-triaged item stops. It does not run the raw-to-verified-to-briefed state machine, does not recommend a category or target state, and does not relabel or close it.",
+      "files": [],
+      "expectations": [
+        "Identifies the item as lane infrastructure by title contract, not by its labels",
+        "Stops without entering the state machine — no verification step, no category or target-state recommendation",
+        "Applies no label edit, posts no triage note, and does not close the item",
+        "States why: the lane reads that surface to operate, so working or closing it breaks the lane"
+      ]
+    },
+    {
+      "id": 12,
+      "name": "triage-excludes-a-config-pinned-telemetry-issue-with-a-non-default-title",
+      "prompt": "/work-items:triage — `.work/lanes.json` pins `lanes[0] = {\"name\": \"work\", \"telemetry\": {\"issue\": 412}}`, and open issue #412 is titled `Worker lane state (do not close)`, carries `priority: needs-triage` and one comment opening `<!-- claude-ops:lane-telemetry marker=work-items:work-loop -->`; there is also one ordinary unlabeled bug report",
+      "expected_output": "The attention view lists only the ordinary bug report. #412 is excluded as lane infrastructure even though its title does not match `Lane telemetry: <lane>`, on either signal available: the launch config pins it as the `work` lane's telemetry home, and it carries the convention's sentinel status comment. It is not relabeled, not commented on, and not closed.",
+      "files": [],
+      "expectations": [
+        "Excludes #412 despite the non-default title — a title-only test would admit it, and the pinned config identity or the sentinel comment is what it is recognized by",
+        "Reads the lane launch config's `lanes[].telemetry.issue` where it is visible rather than assuming the default title is the only telemetry home",
+        "Treats the sentinel status comment as sufficient identity on its own, so a pinned issue is still excluded where the config is not visible from this session",
+        "Does not relabel, comment on, or close #412 — closing or relabeling it would destroy or hide the surface holding durable lane state",
+        "Reports the ordinary bug report normally"
+      ]
     }
   ]
 }
