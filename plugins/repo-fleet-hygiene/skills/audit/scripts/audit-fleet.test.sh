@@ -709,7 +709,13 @@ rev-parse)
   *) exit 1 ;;
   esac
   ;;
-remote) printf '%s\n' 'https://github.com/acme/'"$base"'.git' ;;
+remote)
+  if [[ "${1:-}" == "get-url" ]]; then
+    printf '%s\n' "https://github.com/acme/${base}.git"
+  else
+    printf '%s\n' origin
+  fi
+  ;;
 worktree)
   [[ "${1:-}" == "list" ]] || exit 97
   printf 'worktree %s\0HEAD main\0branch refs/heads/main\0\0' "$TEST_ROOT/$base"
@@ -730,7 +736,9 @@ EOF
 cat >"$WINDOW_BIN/gh" <<'EOF'
 #!/usr/bin/env bash
 set -u
-[[ "${GH_HOST:-}" == "github.com" && "${GH_PROMPT_DISABLED:-}" == "1" ]] || exit 92
+[[ "${GH_HOST:-}" == "github.com" && "${GH_PROMPT_DISABLED:-}" == "1" &&
+  "${GH_TELEMETRY:-}" == "false" && "${GH_NO_UPDATE_NOTIFIER:-}" == "1" &&
+  "${GH_NO_EXTENSION_UPDATE_NOTIFIER:-}" == "1" && "${GH_SPINNER_DISABLED:-}" == "1" ]] || exit 92
 case "${1:-}" in
 auth) exit 0 ;;
 api)
