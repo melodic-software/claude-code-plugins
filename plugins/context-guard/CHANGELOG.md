@@ -5,6 +5,28 @@ All notable changes to the `context-guard` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.3]
+
+### Fixed
+
+- **The shim no longer runs an uninstalled plugin's tee (#1787).** `claude plugin uninstall` does
+  not delete the version directory: the plugins reference documents that updating or uninstalling
+  marks the previous version directory orphaned and removes it automatically 14 days later, so the
+  files — `scripts/statusline-tee.sh` included — stay on disk for that whole window. `resolve_tee()`
+  matched on the glob and mtime alone, so a removed plugin kept teeing and kept writing snapshots
+  with no signal to the operator. A candidate whose version directory carries the orphan marker is
+  now skipped, so uninstalling stops the tee at the next statusline refresh. The marking is
+  documented; the marker's on-disk spelling was measured (Claude Code 2.1.220, against a relocated
+  `CLAUDE_CONFIG_DIR`) and the shim's header records both, along with the fallback: a marker upstream
+  renames or drops leaves resolution exactly as it is today, never a broken statusline. The
+  undocumented `installed_plugins.json` the header previously rejected stays rejected.
+- **`setup` no longer adds an `sh -c` layer per run (#1787).** "Unwrap before you compose" stripped
+  guard-shim prefixes but not the `sh -c '<escaped …>'` adapter the skill's own shell-syntax guard
+  prints, so a rerun read that adapter as the renderer, found shell syntax in it, and wrapped it
+  again — one layer per run. Unwrapping is now two rules applied until a pass strips nothing, so
+  several layers from earlier reruns collapse rather than only the outermost, and a rerun over
+  already-correct wiring prints byte-identical wiring.
+
 ## [0.4.2]
 
 ### Fixed
