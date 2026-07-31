@@ -241,6 +241,117 @@ OUT=$(CLAUDE_PROJECT_DIR="$TEST_TMPDIR" bash "$HOOK" <<<"$(write_json "$FIXTURE"
 RC=$?
 assert_exit "single-quoted Shared → exit 0" 0 "$RC"
 
+# Every macOS-body candidate is a Windows path, so the candidate block is empty
+# once the Windows exclusion has run. Under `pipefail` that stage reports
+# failure, and a scan that aborts there would fail OPEN rather than pass clean.
+OUT=$(CLAUDE_PROJECT_DIR="$TEST_TMPDIR" bash "$HOOK" <<<"$(write_json "$PS1_FIXTURE" "copy ${WIN_HOME}${BS}a.txt ${WIN_HOME}${BS}b.txt")" 2>&1)
+RC=$?
+assert_exit "macOS candidates all excluded as Windows → exit 0" 0 "$RC"
+assert_silent "all-Windows candidates → no stderr" "$OUT"
+
+# The defang is evaluated over the whole candidate block, so the survivor's
+# reported entry must still carry its ORIGINAL line number and ORIGINAL
+# un-defanged text. Padding with Shared-only lines puts the real violation
+# beyond the first three candidates, which is exactly where a block-relative
+# index would be reported in place of the file-relative one.
+MIXED="ls ${SL}Users${SL}Shared${SL}a
+ls ${SL}Users${SL}Shared${SL}b
+ls ${SL}Users${SL}Shared${SL}c
+ls ${SL}Users${SL}Shared${SL}d
+cd ${MAC_HOME}"
+OUT=$(CLAUDE_PROJECT_DIR="$TEST_TMPDIR" bash "$HOOK" <<<"$(write_json "$FIXTURE" "$MIXED")" 2>&1)
+RC=$?
+assert_exit "Shared-padded block, violation at line 5 → exit 2" 2 "$RC"
+assert_contains "padded block → original file line number" "$OUT" "5:cd ${MAC_HOME}"
+assert_absent "padded block → never reports the defanged copy" "$OUT" "${SL}Users-Shared"
+
+# Survivor at COLUMN 0 of its line, inside a block that also carries a Shared
+# token so the defang branch runs. The candidate reaches the re-test carrying
+# `grep -n`'s line-number prefix, so the boundary's `^` alternative no longer
+# sits at the start of the string — the lib strips that prefix to keep both
+# passes' conditions identical. Without the strip this case is matched only by
+# the boundary class also happening to accept ":", and a violation flagged on
+# the first pass would be silently dropped on the second.
+COL0="ls ${SL}Users${SL}Shared${SL}a
+${MAC_HOME} is the checkout"
+OUT=$(CLAUDE_PROJECT_DIR="$TEST_TMPDIR" bash "$HOOK" <<<"$(write_json "$FIXTURE" "$COL0")" 2>&1)
+RC=$?
+assert_exit "Shared block, violation at column 0 → exit 2" 2 "$RC"
+assert_contains "column-0 violation → original file line number" "$OUT" "2:${MAC_HOME}"
+
+# Shared-heavy content must cost a BOUNDED number of subprocesses, not one per
+# candidate. All-Shared is the pathological shape: no candidate survives the
+# defang, so the reporting short-circuit never fires and a per-candidate loop
+# runs to completion, spawning a sed and a grep on every line. A guard killed
+# at its hook timeout fails OPEN, so this is a correctness property.
+#
+# The pin COUNTS SPAWNS instead of timing the run. Elapsed time here is
+# dominated by process-spawn latency: repeats of the identical 400-line corpus
+# measured 5.0s and 15.2s on one machine, a spread wider than the 4x signal a
+# wall-clock ratio exists to detect, so any such ratio is either flaky or too
+# loose to discriminate. A count is exact and load-invariant. `grep`/`sed`
+# shims on PATH tally every spawn the hook makes; the hoisted form issues one
+# fixed pipeline, so quadrupling the input must not add a single process.
+# Measured on Git Bash: 12 spawns at both sizes hoisted, against 210 at 100
+# lines for the per-candidate loop (100 `sed` + 110 `grep`) — and that shape's
+# wall clock grew 13x for 4x the input (22s to 288s), fork pressure compounding
+# into exactly the timeout death this case exists to prevent.
+SPAWN_SHIM="$TEST_TMPDIR/spawn-shim"
+SPAWN_LOG="$TEST_TMPDIR/spawn-log"
+mkdir -p "$SPAWN_SHIM"
+for _bin in grep sed; do
+  _real="$(command -v "$_bin")"
+  # Unquoted delimiter so the real binary path is baked in; every other
+  # expansion is escaped and resolves when the shim RUNS.
+  cat >"$SPAWN_SHIM/$_bin" <<SHIM
+#!/usr/bin/env bash
+printf 'x\n' >>"\${HPP_SPAWN_LOG:-/dev/null}"
+exec '$_real' "\$@"
+SHIM
+  chmod +x "$SPAWN_SHIM/$_bin"
+done
+
+shared_block() {
+  local n="$1" i out=""
+  for ((i = 1; i <= n; i++)); do out="${out}cp ${SL}Users${SL}Shared${SL}lib${i}${SL}a.txt out${i}"$'\n'; done
+  printf '%s' "$out"
+}
+SHARED_100=$(write_json "$FIXTURE" "$(shared_block 100)")
+SHARED_400=$(write_json "$FIXTURE" "$(shared_block 400)")
+
+# Sets SPAWN_RC and SPAWN_COUNT. Not a command substitution — that would run
+# the body in a subshell and strand both.
+run_shimmed() {
+  : >"$SPAWN_LOG"
+  CLAUDE_PROJECT_DIR="$TEST_TMPDIR" HPP_SPAWN_LOG="$SPAWN_LOG" PATH="$SPAWN_SHIM:$PATH" \
+    bash "$HOOK" <<<"$1" >/dev/null 2>&1
+  SPAWN_RC=$?
+  SPAWN_COUNT=$(wc -l <"$SPAWN_LOG")
+  SPAWN_COUNT=${SPAWN_COUNT//[[:space:]]/}
+}
+
+run_shimmed "$SHARED_100"
+assert_exit "100 Shared-only lines → exit 0" 0 "$SPAWN_RC"
+SPAWNS_SMALL=$SPAWN_COUNT
+
+run_shimmed "$SHARED_400"
+assert_exit "400 Shared-only lines → exit 0" 0 "$SPAWN_RC"
+SPAWNS_LARGE=$SPAWN_COUNT
+
+# A zero tally means the shims never ran, which would make the equality below
+# pass vacuously — the silent-skip shape this suite otherwise guards against.
+if ((SPAWNS_SMALL > 0)); then
+  ok "spawn shims active (${SPAWNS_SMALL} grep/sed spawns at 100 lines)"
+else
+  bad "spawn shims never fired — the bounded-cost pin cannot discriminate"
+fi
+
+if ((SPAWNS_LARGE == SPAWNS_SMALL)); then
+  ok "Shared defang is bounded, not per-candidate (${SPAWNS_SMALL} spawns at 100 lines, ${SPAWNS_LARGE} at 400)"
+else
+  bad "Shared defang scales with candidate count: ${SPAWNS_SMALL} spawns at 100 lines, ${SPAWNS_LARGE} at 400"
+fi
+
 # Left boundary: a URL whose path merely CONTAINS a home-root suffix is not a
 # filesystem root — must stay clean (macOS and Linux shapes).
 OUT=$(CLAUDE_PROJECT_DIR="$TEST_TMPDIR" bash "$HOOK" <<<"$(write_json "$FIXTURE" "see https://example.test${SL}home${SL}alice for docs")" 2>&1)
