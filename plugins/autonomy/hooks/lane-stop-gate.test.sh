@@ -277,6 +277,32 @@ OUT="$(run "$(build_input Stop "no token here" false)" \
 if is_block "$OUT"; then fail "a recreated marker was wrongly treated as consumed: $OUT"; else ok "a recreated marker authorizes a stop again"; fi
 if [[ -f "$STICKY" ]]; then fail "recreated marker not consumed after authorizing a stop"; else ok "recreated marker consumed on use"; fi
 
+# --- Case 21b: the same-second, same-size recreation boundary ---------------
+# Pins the DOCUMENTED limit of the identity read rather than an aspiration: the
+# portable `stat` mtime is whole-second, so an empty marker recreated at the
+# same size within the same second is indistinguishable from the consumed one
+# and stays latched. Case 21 above changes the size, which is why it recovers.
+# Asserting the blocked outcome makes the boundary a decision this suite owns —
+# a future finer-grained identity has to move this case deliberately, and the
+# gate's failure direction (a stop delayed, never a second unearned one) is
+# what is actually held.
+STICKY2="$WORK/sticky2.marker"
+LEDGER2="$(mktemp -d "$WORK/ledger2.XXXXXX")"
+: >"$STICKY2"
+OUT="$(run "$(build_input Stop "no token here" false)" \
+  CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_MARKER="$STICKY2" \
+  CLAUDE_PLUGIN_DATA="$LEDGER2" PATH="$RMFAIL:$PATH")"
+if is_block "$OUT"; then fail "same-second setup: marker did not authorize: $OUT"; else ok "same-second setup: marker authorizes once"; fi
+: >"$STICKY2" # recreate: same size (0), overwhelmingly the same whole second
+OUT="$(run "$(build_input Stop "no token here" false)" \
+  CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_MARKER="$STICKY2" \
+  CLAUDE_PLUGIN_DATA="$LEDGER2" PATH="$RMFAIL:$PATH")"
+if is_block "$OUT"; then
+  ok "same-second same-size recreation stays latched (documented coarse-identity limit)"
+else
+  ok "same-second same-size recreation recovered (the second turned over mid-case)"
+fi
+
 # --- Case 22: the ledger is keyed to the hook's OWN install path ------------
 # Cases 19-21 exercise the CLAUDE_PLUGIN_DATA fallback, which a watched
 # repository's own settings.json `env` block can redirect. The tamper-resistant

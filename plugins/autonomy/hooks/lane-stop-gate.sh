@@ -142,8 +142,16 @@ gate_data_dir() {
 }
 
 # Identity of the file currently at <path>, as "<mtime> <size>", or "" when this
-# host's `stat` reports neither. A recreated marker gets a new identity, so a
-# consumption record can be told apart from a genuinely fresh signal.
+# host's `stat` reports neither. Used to tell a recreated marker apart from the
+# consumed one — BEST-EFFORT, and deliberately coarse. Both dialects' portable
+# mtime is whole-second, so a marker recreated at the same size within the same
+# second (an empty `touch`-style marker is the realistic case) is indistinguishable
+# and stays latched until the second turns over. Sub-second and inode spellings
+# would narrow that window but are GNU-only, and this identity feeds a GATE: the
+# cost of the coarse read is a stop delayed to the next second, while the cost of
+# a wrong "recreated" verdict is the unearned second authorization the ledger
+# exists to prevent. Delay is the correct failure direction, so the portable
+# spelling stands.
 marker_identity() {
   # portability-ok: GNU-first of a dual-dialect ladder — the BSD `-f` spelling is
   # the next alternative, and a host with neither returns the empty identity this
