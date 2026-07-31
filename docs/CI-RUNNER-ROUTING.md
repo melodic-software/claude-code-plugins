@@ -42,6 +42,24 @@ wheel and SHA-256 in `.github/requirements-ci.txt`, and Dependabot tracks both
 dependency roots. CI consumes those manifests with `npm ci` and hash-required
 `pip`, never mutable global installs.
 
+### Local / workstation ruff
+
+Do **not** trust a bare `ruff` on `PATH` for verification in this repository.
+Workstation package managers routinely auto-upgrade past the CI pin; a newer
+ruff (for example 0.16.x while CI is on `ruff==0.15.22`) reports dozens of
+findings on an unmodified `main` tree that CI still accepts. Prefer the pin:
+
+```shell
+scripts/run-ruff.sh check <paths>
+# equivalent: uvx ruff==$(awk '/^ruff==/{sub(/^ruff==/,""); sub(/[[:space:]\\].*$/,""); print; exit}' .github/requirements-ci.txt) check <paths>
+```
+
+`scripts/run-ruff.sh` uses a PATH `ruff` only when it already reports the pinned
+version (the CI install path); otherwise it runs `uvx ruff==<pin>`. Plugin
+contract tests that lint Python (`engine.test.sh`) invoke that wrapper. Bumping
+the pin is a deliberate Dependabot/CI change — do not "fix" a clean tree by
+adopting a newer ruff's new rules in an unrelated PR.
+
 ## Authoritative references
 
 - [Reuse workflows and pin a commit SHA](https://docs.github.com/en/actions/how-tos/reuse-automations/reuse-workflows)

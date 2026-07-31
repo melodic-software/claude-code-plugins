@@ -3,6 +3,17 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.45.1]
+
+### Fixed
+
+- **`babysit-prs` `engine.test.sh` no longer lints with a drifted global ruff (#1856).** A
+  workstation `ruff` that auto-upgraded past the CI pin (for example 0.16.0 while CI installs
+  `ruff==0.15.22` from `.github/requirements-ci.txt`) made the harness fail on an unmodified
+  tree with dozens of findings CI does not report. The lint pass now goes through
+  `scripts/run-ruff.sh`, which uses a PATH `ruff` only when it matches the pin and otherwise
+  runs `uvx ruff==<pin>`.
+
 ## [0.45.0]
 
 ### Changed

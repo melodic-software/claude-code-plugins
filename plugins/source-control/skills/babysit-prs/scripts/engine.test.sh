@@ -30,7 +30,21 @@ if ! "$PY" -m unittest discover -s tests -p 'test_*.py'; then
   FAILED=1
 fi
 
-if command -v ruff >/dev/null 2>&1; then
+# Lint through the repo's CI pin (.github/requirements-ci.txt) rather than a
+# bare PATH ruff: a workstation global that auto-upgraded past the pin false-
+# reds a clean tree with findings CI does not report (#1856).
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../../.." && pwd)"
+RUN_RUFF="$REPO_ROOT/scripts/run-ruff.sh"
+if [[ -x "$RUN_RUFF" ]] || [[ -f "$RUN_RUFF" ]]; then
+  echo "== ruff (CI pin via scripts/run-ruff.sh) =="
+  ruff_rc=0
+  bash "$RUN_RUFF" check . tests || ruff_rc=$?
+  if [[ "$ruff_rc" -eq 127 ]]; then
+    echo "SKIP: pinned ruff not available (install uv or the CI pin; lint pass omitted)"
+  elif [[ "$ruff_rc" -ne 0 ]]; then
+    FAILED=1
+  fi
+elif command -v ruff >/dev/null 2>&1; then
   echo "== ruff =="
   if ! ruff check . tests; then
     FAILED=1
