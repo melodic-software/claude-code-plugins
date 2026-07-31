@@ -131,15 +131,28 @@ zone bands, zones.json shape) are owned by
    and belongs in no operator file:
 
    **Unwrap before you compose.** `<current statusline command>` below means the operator's OWN
-   renderer, never the raw effective `command` string. Before substituting, strip every leading
-   guard-shim invocation from that string — `bash <path>/context-guard/bin/statusline-shim.sh` and
-   `bash <path>/rate-limit-guard/bin/statusline-shim.sh`, in whatever order they appear — plus any
-   legacy `bash <plugin-cache>/…/statusline-tee.sh` prefix, and treat what remains as the renderer.
+   renderer, never the raw effective `command` string. Recover it by peeling off the wrapping this
+   skill itself prints, applying BOTH rules repeatedly until a pass strips nothing:
+
+   1. **Guard-shim prefixes** — every leading `bash <path>/context-guard/bin/statusline-shim.sh` and
+      `bash <path>/rate-limit-guard/bin/statusline-shim.sh`, in whatever order they appear, plus any
+      legacy `bash <plugin-cache>/…/statusline-tee.sh` prefix.
+   2. **A generated `sh -c` adapter** — when what remains is EXACTLY `sh -c '<single-quoted string>'`
+      with nothing after the closing quote, that is the shell-syntax adapter a previous run printed,
+      not the renderer. Unescape it back: drop the leading `sh -c` and the outer quotes, then
+      replace every `'\''` with `'`. A trailing word (`sh -c '…' extra`) makes it a real command,
+      not an adapter — leave that alone.
+
+   One pass is not enough: an operator may already carry several layers from earlier reruns, and a
+   single peel over three layers leaves three.
+
    Substituting the raw string instead is what produces `context → rate → rate → renderer` when the
    sibling plugin was configured first, or a doubled self-wrap on a re-run: each duplicated tee runs
-   and writes on EVERY refresh and costs another 0.6–0.9 s (below). Unwrapping also makes the
-   printed edit idempotent — re-running `check` on already-correct wiring prints the wiring it
-   already has.
+   and writes on EVERY refresh and costs another 0.6–0.9 s (below). Skipping rule 2 compounds the
+   shell-syntax guard instead — the leftover adapter still contains shell syntax, so it is wrapped in
+   ANOTHER `sh -c` layer, one more on every run. Unwrapping both makes the printed edit idempotent:
+   re-running `check` on already-correct wiring prints byte-identical wiring, with exactly one shim
+   invocation per plugin and at most one `sh -c` layer.
 
    Wrapping an existing statusline command (preserve the user's unwrapped command verbatim as the
    trailing arguments):
@@ -182,7 +195,9 @@ zone bands, zones.json shape) are owned by
    replace every `'` in it with `'\''` before substituting (then JSON-escape the whole `command`
    string as usual). Show the final, fully escaped line — never hand the operator a template with
    raw quotes left to fix. Verify your printed edit round-trips: mentally unquote it back and
-   confirm it reproduces the original command byte-for-byte.
+   confirm it reproduces the original command byte-for-byte. Print this variant only when the
+   UNWRAPPED renderer still carries shell syntax — an already-adapted command reaching this step
+   with its `sh -c` layer intact is rule 2 above having been skipped, and wrapping it adds a layer.
 
    Sibling tees compose by nesting, each through its OWN shim — the tees are transparent wrappers,
    so the innermost command still owns stdout and the exit code. Print this form only when

@@ -89,6 +89,19 @@
         "Does not present the two steps as order-independent",
         "Notes that uninstalling the plugin itself is safe on its own — the shim degrades to running the wrapped command"
       ]
+    },
+    {
+      "id": 8,
+      "name": "rerun-does-not-compound-the-sh-c-wrap",
+      "prompt": "/context-guard:setup check\n\nMy statusLine command is already: bash ~/.claude/context-guard/bin/statusline-shim.sh sh -c 'THEME=dark my-statusline --flag' — I ran this skill once before and applied what it printed. Both the shim and the plugin are installed.",
+      "expected_output": "Unwraps the shim prefix AND the previously-generated sh -c adapter back to THEME=dark my-statusline --flag, then re-applies the shell-syntax guard to that renderer, printing wiring that carries exactly one sh -c layer — byte-identical to the wiring already in settings.json, so the operator has nothing to apply.",
+      "files": [],
+      "expectations": [
+        "Treats the existing `sh -c '...'` as a previously-generated adapter to unwrap, never as the operator's own renderer",
+        "Prints exactly ONE `sh -c` layer and one context-guard shim invocation — never a nested `sh -c 'sh -c '\\''...'\\'''`",
+        "Recovers `THEME=dark my-statusline --flag` byte-for-byte, unescaping `'\\''` back to `'`",
+        "Reports the wiring as already correct rather than presenting an identical line as a change to apply"
+      ]
     }
   ]
 }
