@@ -25,6 +25,9 @@
 #     message, matched only when it stands alone on its own line, or
 #   - the existence of the marker file named by lane_stop_gate_marker (consumed
 #     on use, so a prior run's leftover marker never authorizes a later run).
+#     Consumption is recorded in this plugin's own data directory, not carried
+#     solely by the file's deletion: an `rm` the hook is not permitted to
+#     perform must not leave a file a later run reads as a live signal.
 #
 # Config (userConfig mirror):
 #   CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ENABLED=true    opt this session in (default false)
@@ -104,14 +107,100 @@ if [[ -n "$SENTINEL" ]]; then
   fi
 fi
 
+# --- Marker consumption ledger ------------------------------------------------
+# One marker, one authorized stop. Deleting the marker is the tidy-up, NOT the
+# latch: the marker lives in the watched checkout, which the hook may not be
+# permitted to write, and a delete the OS refuses would otherwise leave a file
+# that satisfies `[[ -f ]]` on a later, unrelated lane run — the cross-run
+# bypass consuming the marker exists to close. The durable record therefore
+# lives under this plugin's own data directory, which the hook does own.
+
+# This plugin's persistent data directory, derived from the hook's OWN location
+# first. Claude Code lays a marketplace plugin out at
+# <plugins>/cache/<marketplace>/<name>/<version> and persists its data at
+# <plugins>/data/<id>, where <id> is "<name>@<marketplace>" with every character
+# outside [A-Za-z0-9_-] replaced by "-" (plugins reference, "Persistent data
+# directory"). The script's own path is a thing a watched repository cannot
+# redirect; CLAUDE_PLUGIN_DATA is an environment value a repo settings.json
+# `env` block reaches, so it is only the fallback — for a --plugin-dir checkout
+# install whose root carries no plugins/cache marker.
+gate_data_dir() {
+  local root rest marketplace name id
+  root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." 2>/dev/null && pwd) || root=""
+  if [[ -n "$root" && "$root" == */plugins/cache/*/*/* ]]; then
+    rest="${root#*/plugins/cache/}"
+    marketplace="${rest%%/*}"
+    rest="${rest#*/}"
+    name="${rest%%/*}"
+    if [[ -n "$marketplace" && -n "$name" ]]; then
+      id="${name}@${marketplace}"
+      printf '%s/plugins/data/%s' "${root%%/plugins/cache/*}/plugins" "${id//[^A-Za-z0-9_-]/-}"
+      return 0
+    fi
+  fi
+  printf '%s' "${CLAUDE_PLUGIN_DATA:-}"
+}
+
+# Identity of the file currently at <path>, as "<mtime> <size>", or "" when this
+# host's `stat` reports neither. A recreated marker gets a new identity, so a
+# consumption record can be told apart from a genuinely fresh signal.
+marker_identity() {
+  # portability-ok: GNU-first of a dual-dialect ladder — the BSD `-f` spelling is
+  # the next alternative, and a host with neither returns the empty identity this
+  # function documents (#1784)
+  stat -c '%Y %s' -- "$1" 2>/dev/null ||
+    stat -f '%m %z' -- "$1" 2>/dev/null ||
+    printf ''
+}
+
+# Ledger path for a marker path. cksum keys the file name (POSIX, present where
+# md5sum is not); the recorded path is re-checked on read, so a cksum collision
+# costs a miss, never a wrong verdict.
+marker_ledger_path() {
+  local dir key
+  dir=$(gate_data_dir)
+  [[ -n "$dir" ]] || return 1
+  key=$(printf '%s' "$1" | cksum 2>/dev/null | tr -cd '0-9') || return 1
+  [[ -n "$key" ]] || return 1
+  printf '%s/consumed-markers/%s' "$dir" "$key"
+}
+
+# Has the file now at <path> already authorized a stop? True when a ledger entry
+# names this exact path AND the file has not changed since (or this host cannot
+# tell, in which case a marker whose deletion failed stays consumed — the strict
+# direction for a gate: it withholds authorization rather than granting it
+# twice). A record whose file has since been recreated is stale and removed, so
+# the fresh marker authorizes normally.
+marker_already_consumed() {
+  local path="$1" ledger recorded_path="" recorded_id="" current
+  ledger=$(marker_ledger_path "$path") || return 1
+  [[ -f "$ledger" ]] || return 1
+  { IFS= read -r recorded_path && IFS= read -r recorded_id; } <"$ledger" 2>/dev/null
+  [[ "$recorded_path" == "$path" ]] || return 1
+  current=$(marker_identity "$path")
+  if [[ -n "$current" && -n "$recorded_id" && "$current" != "$recorded_id" ]]; then
+    rm -f -- "$ledger" 2>/dev/null
+    return 1
+  fi
+  return 0
+}
+
+# Record that the file at <path> has authorized a stop: its path on line 1, its
+# identity on line 2. Best-effort — a data directory this hook cannot write
+# leaves the deletion as the only latch, which is the behavior that predates
+# this ledger.
+marker_record_consumed() {
+  local path="$1" ledger
+  ledger=$(marker_ledger_path "$path") || return 0
+  mkdir -p -- "$(dirname -- "$ledger")" 2>/dev/null || return 0
+  printf '%s\n%s\n' "$path" "$(marker_identity "$path")" >"$ledger" 2>/dev/null || true
+}
+
 # Signal 2 — the completion-marker file. Absolute path used as-is; a relative
-# path resolves against the session cwd from the payload. The marker is
-# CONSUMED (deleted) when it authorizes a stop: it lives in the checkout, not
-# the session, so a file left by a prior completed run would otherwise satisfy
-# this check immediately and authorize every stop of a later lane run in the
-# same checkout regardless of that run's goal. One marker, one authorized
-# stop. A failed delete does not un-signal the stop it already authorized —
-# it only means the next run must not rely on that stale file.
+# path resolves against the session cwd from the payload. A marker already
+# consumed by an earlier stop is not a signal, however long it survives on
+# disk. On use it is deleted AND — when the delete did not take — recorded, so
+# the next run reads the same verdict the delete was meant to produce.
 MARKER="${CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_MARKER:-}"
 if [[ "$SIGNALED" -eq 0 && -n "$MARKER" ]]; then
   case "$MARKER" in
@@ -121,10 +210,14 @@ if [[ "$SIGNALED" -eq 0 && -n "$MARKER" ]]; then
     [[ -n "$CWD" ]] && MARKER="${CWD%/}/$MARKER"
     ;;
   esac
-  if [[ -f "$MARKER" ]]; then
+  if [[ -f "$MARKER" ]] && ! marker_already_consumed "$MARKER"; then
     SIGNALED=1
     SIGNAL="marker"
     rm -f -- "$MARKER" 2>/dev/null || true
+    # The record is written only when the file survived the delete: a marker
+    # that is gone cannot resurrect, and an empty ledger is one less thing to
+    # keep correct.
+    [[ -e "$MARKER" ]] && marker_record_consumed "$MARKER"
   fi
 fi
 

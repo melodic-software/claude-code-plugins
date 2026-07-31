@@ -242,6 +242,41 @@ else
   fail "telemetry on post-nudge allow: bad or missing envelope: $(cat "$TEL" 2>/dev/null)"
 fi
 
+# --- Case 19: a marker whose deletion FAILS is still consumed ---------------
+# Regression (#1784): consumption was latched ONLY by deleting the marker, so
+# an `rm` the OS refuses left a file that satisfied `[[ -f ]]` on a later,
+# unrelated lane run — the cross-run bypass consuming the marker exists to
+# close. Deletion is made to fail with a PATH-stub `rm`: a read-only parent
+# directory does not reliably block deletion on every host this suite runs on,
+# an `rm` that refuses does.
+RMFAIL="$(mktemp -d "$WORK/rmfail.XXXXXX")"
+printf '#!/bin/sh\nexit 1\n' >"$RMFAIL/rm"
+chmod +x "$RMFAIL/rm"
+LEDGER_DATA="$(mktemp -d "$WORK/ledger.XXXXXX")"
+STICKY="$WORK/sticky.marker"
+: >"$STICKY"
+OUT="$(run "$(build_input Stop "no token here" false)" \
+  CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_MARKER="$STICKY" \
+  CLAUDE_PLUGIN_DATA="$LEDGER_DATA" PATH="$RMFAIL:$PATH")"
+if is_block "$OUT"; then fail "marker present with a failing rm → still blocked: $OUT"; else ok "marker present with a failing rm → stop allowed"; fi
+if [[ -f "$STICKY" ]]; then ok "the rm stub really prevented the delete (case precondition)"; else fail "the rm stub did not take — the next case would prove nothing"; fi
+
+# --- Case 20: the surviving marker does not authorize a later run -----------
+OUT="$(run "$(build_input Stop "no token here" false)" \
+  CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_MARKER="$STICKY" \
+  CLAUDE_PLUGIN_DATA="$LEDGER_DATA")"
+if is_block "$OUT"; then ok "an undeletable consumed marker does not authorize a later run"; else fail "a surviving consumed marker wrongly authorized a later run: $OUT"; fi
+
+# --- Case 21: recreating the marker authorizes again ------------------------
+# The consumption record is keyed to the file that was consumed, not to the
+# path forever — a fresh marker is a fresh signal.
+printf 'done\n' >"$STICKY"
+OUT="$(run "$(build_input Stop "no token here" false)" \
+  CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_MARKER="$STICKY" \
+  CLAUDE_PLUGIN_DATA="$LEDGER_DATA")"
+if is_block "$OUT"; then fail "a recreated marker was wrongly treated as consumed: $OUT"; else ok "a recreated marker authorizes a stop again"; fi
+if [[ -f "$STICKY" ]]; then fail "recreated marker not consumed after authorizing a stop"; else ok "recreated marker consumed on use"; fi
+
 echo
 echo "PASS=$PASS FAIL=$FAIL"
 [[ $FAIL -eq 0 ]]

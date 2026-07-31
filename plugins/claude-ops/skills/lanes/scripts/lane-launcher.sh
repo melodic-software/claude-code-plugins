@@ -282,6 +282,31 @@ resolve_config() {
     err "  (a name must not contain '/' or '\\', or be '.' or '..'): $CONFIG"
     exit 3
   }
+  # The scalar lane fields are strings, and typing them HERE is what lets
+  # `lane_field` keep answering "" for an absent field: `// ""` is jq's
+  # alternative operator, so it fires on any falsy value — a mistyped
+  # `"effort": false` collapsed to the same "" an unset field produces and the
+  # lane launched with no effort at all, silently. A wrong type is a config
+  # error like the duplicate/traversal names above, not a per-lane skip. An
+  # explicit `null` is the JSON spelling of "no value" and stays equivalent to
+  # an absent field. `settings` is deliberately NOT typed here — it is checked
+  # per lane in validate_launch_inputs, which skips just that lane.
+  local mistyped
+  mistyped="$(jq -r '
+    [ .lanes
+      | to_entries[]
+      | .key as $i
+      | .value
+      | to_entries[]
+      | select(.key == "name" or .key == "model" or .key == "effort" or .key == "prompt")
+      | select(.value != null and (.value | type) != "string")
+      | "lane #\($i) .\(.key) is \(.value | type)" ]
+    | join(", ")' "$CONFIG")"
+  [[ -z "$mistyped" ]] || {
+    err "lane config has non-string values for string fields: $mistyped"
+    err "  (name/model/effort/prompt must be JSON strings): $CONFIG"
+    exit 3
+  }
 }
 
 # The one prompt-storage seam — repoint here when a durable prompt home exists.
@@ -437,11 +462,25 @@ running_session_id() {
 }
 
 # --- Per-lane field extraction ------------------------------------------------
+# String lane field; "" when absent. The `//` alternative is falsy-triggered
+# rather than presence-triggered, so "" would also be the answer for a
+# non-string value — resolve_config rejects those at config time, which is what
+# keeps "" here meaning exactly one thing: the field is absent.
 lane_field() { jq -r --argjson i "$1" --arg k "$2" '.lanes[$i][$k] // ""' "$CONFIG"; }
 
-# Structured (non-string) lane field, emitted as compact JSON; empty when unset.
-# Used for `settings`, whose value is a JSON object rather than a scalar.
-lane_json_field() { jq -c --argjson i "$1" --arg k "$2" '.lanes[$i][$k] // empty' "$CONFIG"; }
+# Structured (non-string) lane field, emitted as compact JSON; empty ONLY when
+# the field is absent. Used for `settings`, whose value is a JSON object rather
+# than a scalar. Presence is `has`, not `//`: the alternative operator fires on
+# every falsy value, so a `"settings": false` yielded `empty` and reached bash
+# as "" — indistinguishable from unset. validate_launch_inputs guards its type
+# check on `[[ -n "$settings" ]]`, so that check was skipped entirely and
+# launch_lane omitted `--settings` with no error at all. An explicit `null` is
+# the JSON spelling of "no value" and still reads as absent; every other value,
+# `false` included, now reaches the type check.
+lane_json_field() {
+  jq -c --argjson i "$1" --arg k "$2" \
+    '.lanes[$i] as $l | if ($l | has($k)) and $l[$k] != null then $l[$k] else empty end' "$CONFIG"
+}
 
 # Absolute path to a lane's prompt file.
 lane_prompt_path() {
