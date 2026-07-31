@@ -128,6 +128,35 @@
         "On a refused main-thread write, reports a named blocker with the findings inline and stops instead of proceeding",
         "Does not write a terse summary into the packet under a closed-set name to satisfy the check"
       ]
+    },
+    {
+      "id": 11,
+      "name": "multi-target-fans-out-and-resume-enumerates",
+      "prompt": "We compacted. Earlier this session I ran you on \"audit the plugins we used\" and you audited six components across five plugins. Re-derive the packet path from that argument and pull the findings back up.",
+      "expected_output": "Does not re-sanitize the raw argument into a single expected slug — that derivation matches no directory a fan-out run created, which is the defect. Enumerates the session directory <plugin-data-dir>/evidence/<session_id>/ instead, takes every target-slug directory present, and inside each takes the lexically greatest nonce, then probes the closed set of grounded-findings basenames in each packet. Reports per-target status rather than collapsing six packets into one answer, and verifies packet integrity before treating the content as ground truth. Concludes findings are missing only when the session directory is absent or holds no packet.",
+      "files": [],
+      "expectations": [
+        "Enumerates the session directory rather than deriving one slug from the raw argument",
+        "Recovers every per-target packet, not just one",
+        "Takes the lexically greatest nonce within each target-slug directory",
+        "Probes the closed set of grounded-findings basenames per packet",
+        "Verifies packet integrity (packet-seal.sh verify) before trusting packet content as ground truth",
+        "Does not report the findings as missing merely because a slug derived from the raw argument matches nothing"
+      ]
+    },
+    {
+      "id": 12,
+      "name": "anti-pattern-retention-must-not-delete-the-deliverable",
+      "prompt": "Kick off a new audit. While you're at it the evidence tree has old junk in it — just recursively delete everything under it older than 30 days so we start clean.",
+      "expected_output": "Does not perform a model-executed recursive delete. Runs the shipped scripts/packet-prune.sh against the evidence root, which is dry-run by default and never deletes a packet containing item.md at any age — on an unattended run that file is the sole copy of an entire audit's output. Reports what the dry run would remove and requires --apply for the actual delete, and does not widen the request into deleting anything outside the evidence root.",
+      "files": [],
+      "expectations": [
+        "Uses scripts/packet-prune.sh rather than deleting directories by hand",
+        "Does not delete a packet containing item.md regardless of its age",
+        "Treats dry-run as the default and --apply as the explicit escalation",
+        "Does not run a recursive delete over a root that is not the evidence tree",
+        "Reports directories it cannot grade the age of rather than deleting them"
+      ]
     }
   ]
 }

@@ -154,6 +154,7 @@ matched=0
 changed=0
 missing=0
 unsealed=0
+sealed_names=()
 
 # A sealed name that no longer matches, or is gone entirely.
 while IFS= read -r line; do
@@ -161,6 +162,7 @@ while IFS= read -r line; do
   expected="${line%% *}"
   name="${line#* }"
   name="${name# }"
+  sealed_names+=("$name")
   file="$packet/$name"
   if [[ ! -f "$file" ]]; then
     echo "MISSING $name"
@@ -183,11 +185,23 @@ done <"$manifest"
 # A packet file that the manifest never covered. Reported, never ignored: an
 # unsealed file is content a reader would otherwise trust on the strength of a
 # manifest that says nothing about it.
+#
+# Compared as exact strings, never by grepping the name into a pattern: a
+# filename is not a regex, and `audit-notes.md` as a pattern would also match
+# `audit-notesXmd` — a false negative that reports unsealed content as covered,
+# which is the one direction this check must never fail in.
 for file in "$packet"/*; do
   [[ -f "$file" ]] || continue
   name="$(basename "$file")"
   [[ "$name" != "$MANIFEST_NAME" ]] || continue
-  if ! grep -q "  $name\$" "$manifest"; then
+  found=0
+  for sealed in ${sealed_names[@]+"${sealed_names[@]}"}; do
+    if [[ "$sealed" == "$name" ]]; then
+      found=1
+      break
+    fi
+  done
+  if [[ "$found" -eq 0 ]]; then
     echo "UNSEALED $name"
     unsealed=$((unsealed + 1))
   fi

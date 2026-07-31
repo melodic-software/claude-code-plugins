@@ -28,8 +28,9 @@ what it is called. `audit-notes.md` is chosen to sit outside that name class. If
 still rejected for this reason, it is a naming collision and never a signal to stop persisting:
 re-write the identical content as **`audit-data.md`** — the one documented alternative, never a
 name you pick yourself — note the substitution in a new `evidence-<n>.md` (packet files are
-write-once; see below), and name the file you used in your summary. The alternative is fixed rather than free because the main session's resume rule probes a
-closed set of basenames instead of trusting a pointer, so a name outside
+write-once; see below), and name the file you used in your summary. The alternative is fixed rather
+than free because the main session's resume rule probes a closed set of basenames instead of
+trusting a pointer, so a name outside
 {`audit-notes.md`, `audit-data.md`, `findings.md`} would be unrecoverable after compaction. If BOTH
 names are refused, your return changes shape: open your final message with the literal ASCII line
 `PACKET WRITE REFUSED: full findings inline`, then give the COMPLETE findings text in place of the

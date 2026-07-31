@@ -31,10 +31,17 @@
 # directory. Its layout is <root>/<session-id>/<target-slug>/<run-nonce>/.
 #
 # Output (stdout, greppable): one `<verdict> <path>` line per packet, then a
-# summary line `scanned=<n> deleted=<n> retained-item=<n> kept=<n> unparsable=<n>`.
-# Verdicts: DELETE (or WOULD-DELETE in dry run), RETAIN-ITEM, KEEP, UNPARSABLE.
+# summary line
+# `scanned=<n> deleted=<n> retained-item=<n> kept=<n> unparsable=<n> failed=<n>`.
+# Verdicts: DELETE (or WOULD-DELETE in dry run), RETAIN-ITEM, KEEP, UNPARSABLE,
+# FAILED.
 #
-# Exit 0 = ran (dry run or apply). Exit 2 = usage error or a refused root.
+# Exit 0 = ran (dry run or apply) with nothing left unresolved.
+# Exit 1 = ran, but at least one delete FAILED. Reported, never swallowed: a
+#          retention pass that could not delete what it decided to delete has
+#          not done its job, and exiting 0 would make that indistinguishable
+#          from a clean run.
+# Exit 2 = usage error, a refused root, or a userland that cannot grade age.
 
 set -uo pipefail
 
@@ -129,6 +136,7 @@ deleted=0
 retained_item=0
 kept=0
 unparsable=0
+failed=0
 
 # <root>/<session-id>/<target-slug>/<run-nonce>
 for packet in "$root_abs"/*/*/*; do
@@ -157,8 +165,9 @@ for packet in "$root_abs"/*/*/*; do
         echo "DELETE $packet"
         deleted=$((deleted + 1))
       else
+        echo "FAILED $packet"
         echo "error: failed to delete: $packet" >&2
-        kept=$((kept + 1))
+        failed=$((failed + 1))
       fi
     else
       echo "WOULD-DELETE $packet"
@@ -170,6 +179,7 @@ for packet in "$root_abs"/*/*/*; do
   fi
 done
 
-echo "scanned=$scanned deleted=$deleted retained-item=$retained_item kept=$kept unparsable=$unparsable"
+echo "scanned=$scanned deleted=$deleted retained-item=$retained_item kept=$kept unparsable=$unparsable failed=$failed"
 [[ "$apply" -eq 1 ]] || echo "(dry run — re-run with --apply to delete)"
+[[ "$failed" -eq 0 ]] || exit 1
 exit 0

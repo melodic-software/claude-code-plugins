@@ -98,7 +98,7 @@ Steps 2–3 run in the fresh `auditor` subagent in EVERY zone — the zone modul
 |---|---|---|---|
 | smart | full candidate list re-read into main context | inline allowed | at step transitions |
 | acceptable | full candidate list | dispatch preferred, inline permitted | at step transitions |
-| dumb | summary + packet pointer only (no bulk re-read) | MUST dispatch to fresh subagents | immediate flush of all main-thread evidence to the packet at every step boundary (the flush artifact is the observable) |
+| dumb | summary + packet pointer only (no bulk re-read) | MUST dispatch to fresh subagents | immediate flush of all main-thread evidence to the packet at every step boundary — each flush is a NEW `evidence-<n>.md`, never an append to an existing one (packet files are write-once); the flush artifact is the observable |
 | unknown (absent/stale/no-jq) | conservative = dumb row + one-line visible notice: `plugin-quality: no fresh context snapshot — running conservative dispatch` | as dumb | as dumb |
 
 ## Target resolution (fan-out is normal, not an improvisation)

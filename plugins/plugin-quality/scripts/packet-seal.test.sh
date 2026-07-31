@@ -98,6 +98,22 @@ printf 'later\n' >"$packet/audit-notes-2.md"
 run 1 "verify fails on an unsealed file" verify "$packet"
 has "UNSEALED audit-notes-2.md" "the unsealed file is named"
 
+# --- a filename is compared as a string, never as a pattern -----------------
+#
+# The unsealed check must not match a manifest name by regex. `audit-notes.md`
+# read as a pattern also matches the sealed name `audit-notesXmd`, so an
+# unsealed file would report as covered — a false negative in the one direction
+# this check exists to prevent.
+
+packet="$WORK/regex-packet"
+rm -rf "$packet"
+mkdir -p "$packet"
+printf 'sealed\n' >"$packet/audit-notesXmd"
+run 0 "record for the metacharacter case" record "$packet"
+printf 'never sealed\n' >"$packet/audit-notes.md"
+run 1 "verify reports an unsealed name that a regex would have matched" verify "$packet"
+has "UNSEALED audit-notes.md" "the unsealed file is not swallowed by a pattern match"
+
 # --- a deleted file --------------------------------------------------------
 
 packet="$(fresh_packet)"
