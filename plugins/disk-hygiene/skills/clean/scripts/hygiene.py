@@ -135,6 +135,25 @@ def os_key() -> str:
     )
 
 
+def glob_matches(subject: str, pattern: str) -> bool:
+    """Case-insensitive glob match, on every platform.
+
+    One matcher for every glob the engine evaluates — hints, consumer
+    protection globs, and the protection re-checks in the preview, verify, and
+    apply lanes — so discovery and protection cannot disagree about what a name
+    is. `fnmatch.fnmatch` is not that matcher: its case folding follows the host
+    platform, so its verdict would change with where the scan runs.
+
+    Casefolding is the safe direction for both roles. A protection glob that
+    matches more can only keep more, and on Windows and macOS the filesystem is
+    case-insensitive anyway, so a case-sensitive protection glob was a hole
+    rather than a precision. A hint that matches more can only surface more for
+    triage — hints are discovery signals, never cleanup verdicts. This also
+    aligns globs with `has_protected_name`, which has always casefolded.
+    """
+    return fnmatch.fnmatchcase(subject.casefold(), pattern.casefold())
+
+
 def is_within(path: Path, parent: Path) -> bool:
     try:
         return os.path.commonpath(
@@ -594,7 +613,7 @@ def matching_hints(
         if "all" not in hint["os"] and current_os not in hint["os"]:
             continue
         subject = name if hint["kind"] == "name_glob" else relative
-        if fnmatch.fnmatchcase(subject, hint["pattern"]):
+        if glob_matches(subject, hint["pattern"]):
             matches.append(
                 {
                     "id": hint["id"],
@@ -830,7 +849,7 @@ def scan_tree(
             if path.name.casefold() in VCS_NAMES:
                 repositories.append(path.parent.resolve())
             if any(
-                fnmatch.fnmatchcase(relative, pattern)
+                glob_matches(relative, pattern)
                 for pattern in policy["additional_protected_path_globs"]
             ):
                 protections.append("consumer-protected-path")
@@ -1508,7 +1527,7 @@ def preview(snapshot: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]:
             blockers.extend(hard_protection(current, target, exact_names, known_mounts))
             relative_current = current.relative_to(target).as_posix()
             if any(
-                fnmatch.fnmatchcase(relative_current, pattern)
+                glob_matches(relative_current, pattern)
                 for pattern in snapshot.get("policy", {}).get(
                     "additional_protected_path_globs", []
                 )
@@ -1674,7 +1693,7 @@ def handoff_verify(snapshot: dict[str, Any], approved: list[str]) -> dict[str, A
             )
             relative_current = current.relative_to(target).as_posix()
             if any(
-                fnmatch.fnmatchcase(relative_current, pattern) for pattern in globs
+                glob_matches(relative_current, pattern) for pattern in globs
             ):
                 contested.add("consumer-protected-path")
         if not truncated:
@@ -1919,7 +1938,7 @@ def apply_plan(snapshot: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]
                 fresh_mounts,
             )
             if any(
-                fnmatch.fnmatchcase(relative, pattern)
+                glob_matches(relative, pattern)
                 for pattern in snapshot.get("policy", {}).get(
                     "additional_protected_path_globs", []
                 )

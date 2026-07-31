@@ -1,6 +1,6 @@
 ---
 name: audit-instructions
-description: "Audit locally-owned Claude Code instruction surfaces — user + project CLAUDE.md, .claude/rules, skill bodies, agent definitions, prompt-type hooks, output styles — for instructions current models no longer need: prior-model workarounds, over-prescriptive scaffolding, bare prohibitions, reasoning-echo directives, stale examples — plus instructions that misstate Claude Code's own behavior, cite a file in a form that never loads, or re-read a surface already in context. Also detects cross-surface conflicts: two surfaces that both claim authority over one behavior and contradict each other. Report-only: emits a findings report with proposed diffs, gated to the human, never auto-applied. Use when: 'after a model upgrade', 'are my instructions holding the model back', 'instructions the model no longer needs', 'too prescriptive', 'audit instructions', 'instruction audit', 'stale Claude Code behavior', 'outdated harness claim', 'my @path import is not loading', 'instruction re-reads CLAUDE.md', 'conflicting instructions', 'contradictory instructions', 'which instruction wins'. Not a brevity pass and not memory-layer hygiene."
+description: "Audit locally-owned Claude Code instruction surfaces — user + project CLAUDE.md, .claude/rules, skill bodies, agent definitions, hook instruction text (prompt-type hooks, and hook output injected into context), output styles — for instructions current models no longer need: prior-model workarounds, over-prescriptive scaffolding, bare prohibitions, reasoning-echo directives, stale examples — plus instructions that misstate Claude Code's own behavior, cite a file in a form that never loads, or re-read a surface already in context. Also detects cross-surface conflicts: two surfaces that both claim authority over one behavior and contradict each other. Report-only: emits a findings report with proposed diffs, gated to the human, never auto-applied. Use when: 'after a model upgrade', 'are my instructions holding the model back', 'instructions the model no longer needs', 'too prescriptive', 'audit instructions', 'instruction audit', 'stale Claude Code behavior', 'outdated harness claim', 'my @path import is not loading', 'instruction re-reads CLAUDE.md', 'conflicting instructions', 'contradictory instructions', 'which instruction wins'. Not a brevity pass and not memory-layer hygiene."
 argument-hint: "[scope] [--target-model <version>] [--opinion] [--no-stopping-condition] — scope: claude-md|rules|skills|agents|hooks|output-styles|conflicts|all (default: all)"
 user-invocable: true
 disable-model-invocation: false
@@ -50,7 +50,7 @@ installed, route memory-layer hygiene to its `audit` skill; when it is not insta
 one-line pointer to the official CLAUDE.md include/exclude guidance (recorded with I1–I5 in
 [reference/criteria.md](reference/criteria.md)) so the operator knows where that audit lives — this
 skill still does not perform it. Either way, no I1–I5 hygiene finding is ever produced here. On
-**non-memory surfaces** (skill bodies, agent definitions, prompt-type hooks, output styles) the
+**non-memory surfaces** (skill bodies, agent definitions, hook instruction text, output styles) the
 catalog applies — no incumbent auditor covers instruction content there — **bounded by each row's
 own surface declaration**, which is narrower than the partition for some checks. I13 and I14 name
 their own surface sets and are not run outside them; this partition never widens a row.
@@ -75,7 +75,8 @@ relation between two surfaces and a scoped run still needs the counterpart:
 - `rules` — findings on `.claude/rules/` and `~/.claude/rules/`
 - `skills` — findings on skill bodies and their context/reference files
 - `agents` — findings on agent definition markdown
-- `hooks` — findings on prompt-type hook text
+- `hooks` — findings on hook instruction text: prompt-type hook text, and handler output injected
+  into the session's context
 - `output-styles` — findings on output-style markdown
 - `conflicts` — Phase A plus Phase B2 only, so a scheduled routine can compose it on its own budget
 - `all` — findings on every locally-owned surface, and the conflict pass (default)
@@ -122,14 +123,39 @@ official memory and `.claude`-directory docs (cited in the report's Sources line
   `CLAUDE.md` / `CLAUDE.local.md` in subdirectories of the project tree (Claude loads these on
   demand when it reads files in those directories, so walk the tree — do not stop at the root);
   `.claude/rules/`, `.claude/skills/`, `.claude/agents/`, `.claude/output-styles/`.
-- Prompt-type hook text configured in the project or user `settings.json`, **and in
+- **Hook instruction text** configured in the project or user `settings.json`, **and in
   `.claude/settings.local.json`** — local settings are a supported hook-configuration scope, so a
-  hook configured there gates the session as much as one configured anywhere else. Extract the
-  prompt text only; never carry a command line, token, or other secret-bearing value out of a
-  settings file into the report. **What is compared is the gate, not the prose:** a prompt hook's
-  text goes to a separate evaluator model, never into this session's context, so it enters the
-  comparison set as the act it blocks under its event and `matcher` — see
-  [reference/conflict-criteria.md](reference/conflict-criteria.md).
+  hook configured there gates the session as much as one configured anywhere else — **and declared
+  in the `hooks:` frontmatter of the user- and project-scope skills and agents listed above**.
+  Frontmatter is a supported hook location, live "while the component is active", so a hook in a
+  locally owned `.claude/skills/**/SKILL.md` or `.claude/agents/*.md` is exactly as editable as the
+  body it rides on and belongs in this set, not the read-only tier below — that tier's counterpart
+  item covers the plugin cache, whose components no proposal may touch. Anchor a frontmatter hook at
+  its own component file and frontmatter line rather than at a settings file. A subagent's
+  frontmatter `Stop` hook is registered as `SubagentStop`, so resolve the effective event before
+  pairing. Two kinds, and the discriminator is **whether the handler's output reaches this session's
+  context, never the handler's `type`**
+  ([reference/conflict-criteria.md](reference/conflict-criteria.md) owns the distinction and its
+  citations):
+  - **Prompt-type hook text** — extract the prompt text. **What is compared is the gate, not the
+    prose:** it goes to a separate evaluator model, never into this session's context, so it enters
+    the comparison set as the act it blocks under its event and `matcher`. An `agent` handler is
+    treated the same way.
+  - **Context-injecting handler output** — a handler that prints to stdout on `SessionStart`,
+    `UserPromptSubmit`, or `UserPromptExpansion`, or returns `hookSpecificOutput.additionalContext`
+    on a main-session event that accepts it, puts that text in this session's context window. It is
+    live instruction text and enters the comparison set as text. `command` is not an exclusion —
+    `mcp_tool` shares the stdout channel and `http` the JSON one. Two bounds the criteria file
+    states and cites: `SubagentStart` / `SubagentStop` `additionalContext` lands in **that
+    subagent's** context, not this session's; and type decides registrability, so resolve the
+    event×type pair before admitting a surface (`SessionStart` takes only `command` and `mcp_tool`).
+    Where the output is not literal in the config — a handler that runs a script — record the
+    surface with the emitting handler's event and `matcher` and mark the text `text-unresolved`
+    rather than inventing it; a run inside the session it describes can read what was injected.
+
+  Never carry a command line, token, or other secret-bearing value out of a settings file or a
+  component's frontmatter into the report — extract only the injected text, under the same
+  no-secrets handling for both kinds and both locations.
 
 **The tree does not decide what is live.** Before the inventory is handed to any lane, resolve the
 session's effective liveness controls — the launch directory, the merged `claudeMdExcludes`,
@@ -169,16 +195,21 @@ involving one still carries the no-change representation and its routing recomme
   and are not resident. Ownership is unchanged: `claude-memory` still owns auto memory, and a finding
   here routes there rather than editing it.
 - **Org-managed policy** — the managed-policy `CLAUDE.md`, any `claudeMd` value in managed settings,
-  and prompt-type hook text configured in managed settings. All three are live instruction text, and
-  a managed hook contradicting a project skill is exactly the conflict I15 explicitly owns; that
-  comparison is impossible if the text is never read. Extract managed hook text under the same
-  prompt-text-only, no-secrets handling as the other settings scopes.
+  and hook instruction text configured in managed settings, of **both** kinds above. All three are
+  live instruction text, and a managed hook contradicting a project skill is exactly the conflict I15
+  explicitly owns; that comparison is impossible if the text is never read. Extract managed hook text
+  under the same two-kind, no-secrets handling as the other settings scopes.
 - **Upstream-owned instruction text that is nonetheless live** — skill bodies and agent definitions
-  from the cache of an **enabled** plugin, `type: "prompt"` handler text in an enabled plugin's
-  `hooks/hooks.json` (a plugin is a supported hook location and `prompt` a supported handler type, so
-  that text is as live as a settings-configured hook), **the active output style when a plugin
-  supplies it**, and any managed materialization. The output-style case is easy to miss because the
-  user- and project-scope scans cannot reach the plugin cache: plugins ship styles in an
+  from the cache of an **enabled** plugin, hook instruction text of both kinds in an enabled
+  plugin's `hooks/hooks.json` (a plugin is a supported hook location, so that text is as live as a
+  settings-configured hook — and a plugin `SessionStart` handler injecting a standing behavioral
+  block is the case that motivated the two-kind split), hooks declared in the frontmatter of an
+  active skill or agent **from that cache** (a supported location, live "while the component is
+  active"; the user- and project-scope counterparts are locally owned and are inventoried in the
+  editable set above, not here), **the active
+  output style when a plugin supplies it**, and any managed materialization. The output-style case
+  is easy to miss because the user- and project-scope scans cannot reach the plugin cache: plugins
+  ship styles in an
   `output-styles/` directory, and a plugin style with `force-for-plugin` applies "automatically
   whenever the plugin is enabled, without requiring users to select it", overriding the user's
   `outputStyle` setting ([output-styles](https://code.claude.com/docs/en/output-styles)). Resolve

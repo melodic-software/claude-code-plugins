@@ -40,6 +40,7 @@ those already caught by a narrower ``except OSError``).
 from __future__ import annotations
 
 import contextlib
+import functools
 import json
 import math
 import os
@@ -215,6 +216,84 @@ _MODE_BELT = "belt"
 _MODE_ENGINE_GATE = "engine-gate"
 _ENGINE_MARKER = "hygiene.py"
 
+
+@functools.lru_cache(maxsize=1)
+def _plugin_cache_family_root() -> str | None:
+    """The tree holding EVERY cached version of THIS plugin, or None.
+
+    Claude Code lays a marketplace plugin out at
+    ``<plugins>/cache/<marketplace>/<name>/<version>`` and keeps a replaced
+    version's directory on disk after an update, so the sibling of this
+    install's version leaf is another *complete copy of this engine* — a
+    deletion-capable script that is a genuinely different file from the bundled
+    one. That is what makes the "provably a DIFFERENT file" escape wrong here:
+    the escape exists so a consumer's own ``tools/hygiene.py`` is not mistaken
+    for this engine (#1640, #1611), and a previous version of this plugin is
+    not a consumer's tool. Handing it the escape leaves the kill switch
+    unenforced against it whenever the clean skill is not the active work,
+    because the plugin-level gate is the only guard in that state (#1805).
+
+    The prefix is derived from this module's OWN path rather than from
+    ``--plugin-root``: ``__file__`` is the file actually executing, so it needs
+    no argv channel and nothing outside the process can redirect it. A root
+    without the ``plugins/cache`` marker — a ``--plugin-dir`` checkout install,
+    or a working tree — yields None and no narrowing applies, which is correct:
+    such an install has no cached siblings to protect against, and narrowing
+    there would gate a contributor's work on their own checkout.
+    """
+    parts = Path(__file__).resolve().parts
+    for index in range(1, len(parts)):
+        if not (
+            parts[index].casefold() == _PLUGIN_CACHE_DIRNAME
+            and parts[index - 1].casefold() == _PLUGINS_DIRNAME
+        ):
+            continue
+        if index + 2 >= len(parts):
+            return None
+        return os.path.normcase(os.fspath(Path(*parts[: index + 3])))
+    return None
+
+
+def _within_plugin_cache_family(value: str) -> bool:
+    """Whether ``value`` resolves inside this plugin's own cached-version tree."""
+    family = _plugin_cache_family_root()
+    if family is None:
+        return False
+    try:
+        candidate = os.path.normcase(os.fspath(Path(value).resolve(strict=True)))
+    except OSError:
+        return False
+    try:
+        return os.path.commonpath([candidate, family]) == family
+    except ValueError:
+        # Different drives on Windows; nothing on another volume is in the tree.
+        return False
+
+
+# The subcommands `classify_exact_engine_command` accepts, named once so the
+# denial text cannot teach a grammar the classifier does not implement. The
+# classifier rejects anything outside this tuple before its own dispatch, so a
+# subcommand added to one and not the other fails closed rather than drifting
+# (#1806).
+_ALLOWED_ENGINE_SUBCOMMANDS = ("scan", "preview", "handoff-verify", "apply")
+
+
+def _engine_script_path() -> Path:
+    """The one bundled engine path both the classifier and the denial disclose."""
+    return Path(__file__).resolve().with_name(_ENGINE_MARKER)
+
+
+def _probe_script_path() -> Path:
+    """The one bundled kill-switch probe path, likewise shared."""
+    return (
+        Path(__file__).resolve().parents[2] / "setup" / "scripts" / "kill_switch_probe.py"
+    )
+
+
+def _display_path(path: Path) -> str:
+    """A Bash-friendly absolute spelling of a bundled script path."""
+    return os.fspath(path).replace("\\", "/")
+
 # Everything a path we care about cannot contain. Enumerating SHELL syntax here
 # would be a losing game — an assignment (`engine=hygiene.py`), a list separator
 # (`PATH=/x:hygiene.py`), and a metacharacter (`foo;hygiene.py`) each glue the
@@ -332,7 +411,10 @@ def _engine_gate_relevant(command: str, tool_name: str = "Bash") -> bool:
       DIFFERENT file: a word that resolves to an existing file other than the
       bundled ``hygiene.py`` (a consumer's own ``tools/hygiene.py``) is not this
       engine and defers; the bundled script itself, or an unresolvable word,
-      stays in play;
+      stays in play. A path inside this plugin's OWN cached-version tree never
+      earns that escape (``_within_plugin_cache_family``): a replaced version's
+      engine is a different file but the same engine, and deferring on it left
+      the kill switch unenforced against it (#1805);
     - such a word counts as an INVOCATION when it is the command itself or ANY
       earlier word is an interpreter token (``python*``/``py``) — "immediately
       preceding" is not required, so interpreter options
@@ -441,10 +523,14 @@ def _engine_gate_relevant(command: str, tool_name: str = "Bash") -> bool:
             return True
 
         def _provably_other_file(token: str, word: str) -> bool:
+            # A path inside this plugin's own cached-version tree is a
+            # different FILE but not a different ENGINE, so it never earns the
+            # escape (#1805).
             return any(
                 os.path.isabs(candidate)
                 and _script_path_key(candidate) is not None
                 and not _samefile(candidate)
+                and not _within_plugin_cache_family(candidate)
                 for candidate in (token, word)
             )
 
@@ -478,13 +564,15 @@ def _engine_gate_relevant(command: str, tool_name: str = "Bash") -> bool:
     for index, word in enumerate(words):
         folded = word.casefold()
         if _carries_marker(word):
-            if _samefile(word):
-                # The word IS the bundled engine — gate regardless of launcher
-                # (pypy3, an unknown interpreter, anything). Identity beats
-                # launcher enumeration. Accepted overbreadth: a MENTION of the
-                # bundled engine by a resolving path gates too; real-world
-                # mentions use names that resolve to nothing (deferred below)
-                # or to consumer files (deferred below).
+            if _samefile(word) or _within_plugin_cache_family(word):
+                # The word is one of THIS PLUGIN'S engines — the bundled one,
+                # or a previous version still cached beside it — so gate
+                # regardless of launcher (pypy3, an unknown interpreter,
+                # anything). Identity beats launcher enumeration. Accepted
+                # overbreadth: a MENTION of such an engine by a resolving path
+                # gates too; real-world mentions use names that resolve to
+                # nothing (deferred below) or to consumer files (deferred
+                # below).
                 return True
             resolved_key = _script_path_key(word)
             if resolved_key is not None:
@@ -748,8 +836,9 @@ def classify_exact_engine_command(command: str, authority: str | None) -> str | 
         return None
     if len(tokens) < 3 or not _is_current_python(tokens[0]):
         return None
-    expected_script = str(Path(__file__).resolve().with_name("hygiene.py"))
-    if _script_path_key(tokens[1]) != _script_path_key(expected_script):
+    if _script_path_key(tokens[1]) != _script_path_key(str(_engine_script_path())):
+        return None
+    if tokens[2] not in _ALLOWED_ENGINE_SUBCOMMANDS:
         return None
 
     if tokens[2] == "scan":
@@ -841,10 +930,7 @@ def is_exact_kill_switch_probe(command: str) -> bool:
     tokens = _literal_shell_words(command)
     if tokens is None or len(tokens) != 2 or not _is_current_python(tokens[0]):
         return False
-    expected_script = str(
-        Path(__file__).resolve().parents[2] / "setup" / "scripts" / "kill_switch_probe.py"
-    )
-    return _script_path_key(tokens[1]) == _script_path_key(expected_script)
+    return _script_path_key(tokens[1]) == _script_path_key(str(_probe_script_path()))
 
 
 _POWERSHELL_MUTATION_WORDS = re.compile(
@@ -949,8 +1035,13 @@ def _bash_denial_guidance(authority: str | None) -> str:
             " validated and engine calls fail closed."
         )
     )
+    subcommands = ", ".join(_ALLOWED_ENGINE_SUBCOMMANDS[:-1])
     return (
-        "Disk-hygiene fails closed: Bash is restricted to exact bundled scan, preview, handoff-verify, and apply invocations using the hook's absolute Python interpreter "
+        "Disk-hygiene fails closed: Bash is restricted to exact bundled "
+        f"{subcommands}, and {_ALLOWED_ENGINE_SUBCOMMANDS[-1]} invocations of "
+        f'"{_display_path(_engine_script_path())}", plus the argument-free '
+        f'read-only kill-switch probe "{_display_path(_probe_script_path())}" — '
+        "all of them using the hook's absolute Python interpreter "
         f'"{_display_python()}". Bare python/python3 commands are denied because shell functions and aliases can replace them.'
         + data_sentence
         + " Use non-Bash read-only tools for supporting inspection."

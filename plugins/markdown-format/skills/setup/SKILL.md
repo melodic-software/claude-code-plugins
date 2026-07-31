@@ -32,8 +32,10 @@ restores the FAIL semantics.
 
 1. **Bash version** — check against the hook's documented floor (README Requirements),
    noting any features the hook degrades without (for example telemetry's Bash builtin).
-2. **`jq`** — `command -v jq`. FAIL if absent: the hook then skips with a visible
-   once-per-session notice instead of formatting.
+2. **`jq`** — `command -v jq`. FAIL if absent *and* the repository opted in per item 4: the
+   hook then skips with a visible once-per-session notice instead of formatting. Without
+   that opt-in the hook decides the opt-in first and emits nothing at all, so report jq's
+   absence as INFO there — the missing config, not jq, is why nothing happens.
 3. **`markdownlint-cli2`** — resolve it exactly the way the hook's resolution code does
    (its sanctioned lookup paths, including its symlink/escape validation of a repo-local
    shim). A binary or shim the hook would reject must not PASS here. Then confirm the
@@ -41,12 +43,19 @@ restores the FAIL semantics.
    still be broken: missing Node interpreter, dangling target); resolution without
    successful execution is FAIL, with the execution error in the remediation line. FAIL
    when nothing the hook would accept resolves.
-4. **Consumer markdownlint config** — mirror the hook's config walk: it loads configs from
-   an edited file's directory up to the repo root, so nested configs apply to nested files.
-   Search the whole tree (skip `node_modules`), report the root config the cascade
-   discovers (or INFO that none exists — tool defaults then apply), list nested configs
-   with their directory scope, and surface the README's configuration trust boundary for
-   every config the hook's own risk collection (`collect_risky_configs`) would flag.
+4. **Consumer markdownlint config — the opt-in** — this is what activates the hook, not a
+   style detail. Mirror its walk: from an edited file's directory up to the repo root, so
+   nested configs apply to nested files and the opt-in is per-path (a root config covers
+   the tree; a `docs/` config covers only `docs/`). Where that walk finds nothing the hook
+   exits silently — no `--fix`, no findings, and no notice of any kind, not even a missing
+   prerequisite. Search the whole tree (skip `node_modules`), report the root config the
+   cascade discovers, list nested configs with their directory scope, and surface the
+   README's configuration trust boundary for every config the hook's own risk collection
+   (`collect_risky_configs`) would flag. For a path no config governs, report the hook as
+   **INFO — inactive, not PASS**: nothing is broken, the repository simply never opted in,
+   and that is the whole reason formatting is not happening. Name the remediation in the
+   same line rather than leaving the reader to infer it. Never report markdownlint's own
+   default rules as the fallback — an unconfigured repo gets no rules, not the defaults.
 5. **Hook toggle** — report the effective `markdown_format_enabled` value:
    `${user_config.markdown_format_enabled}` (unexpanded or empty means default `true`).
 6. **Hook registration** — INFO: confirm the plugin is enabled for this project
@@ -85,8 +94,11 @@ install command's exit code alone. For everything else `apply` only points:
   directory for a `project`/`local` scope. Defaulting instead uninstalls a separate user-scope
   record while the effective install stays in place, so the reinstall lands at a scope that
   does not load.
-- no markdownlint config: offer to create a minimal `.markdownlint-cli2.jsonc` in the
-  repository root only when explicitly asked — the plugin imposes no rules of its own.
+- no markdownlint config: this is why the hook does nothing here, so lead with it rather
+  than leaving it as a footnote under the passing prerequisites. Then offer to create a
+  minimal `.markdownlint-cli2.jsonc` in the repository root only when explicitly asked —
+  the plugin imposes no rules of its own, and which rules a repository adopts is its own
+  decision, never this skill's.
 
 Re-running `apply` after everything passes changes nothing and reports "already configured".
 

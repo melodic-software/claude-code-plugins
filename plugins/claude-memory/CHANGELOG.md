@@ -3,6 +3,20 @@
 All notable changes to the `claude-memory` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.2]
+
+### Fixed
+
+- **The `audit` skill no longer fails to load when invoked from a worktree-isolated agent.** Two
+  `## Pre-computed context` lines resolved the memory dir inline — `d=$(… resolve-memory-dir.sh);
+  ls "$d"/*.md …` — and the harness composes that block into one shell invocation whose
+  worktree-isolation guard refuses any `$` expansion, so the whole skill was refused rather than
+  merely reporting `0`. Both lines now call a bundled `memory-dir-stats.sh` (`--md-count` /
+  `--memory-lines`) through the harness-substituted `${CLAUDE_PLUGIN_ROOT}`, leaving the pre-compute
+  command free of every expansion the guard rejects; the script still resolves the memory dir via
+  the single-source-of-truth `resolve-memory-dir.sh`, reports `0` on every failure path the old
+  fallback covered, and now also survives BSD `wc` padding. Refs #1687.
+
 ## [0.5.1]
 
 ### Fixed

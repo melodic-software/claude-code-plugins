@@ -12,8 +12,8 @@ metadata:
 
 ## Pre-computed context
 
-Memory files: !`d=$(bash "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/resolve-memory-dir.sh" 2>/dev/null); ls "$d"/*.md 2>/dev/null | wc -l | tr -d '\r' || echo "0"`
-MEMORY.md lines: !`d=$(bash "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/resolve-memory-dir.sh" 2>/dev/null); test -f "$d/MEMORY.md" && wc -l < "$d/MEMORY.md" | tr -d '\r' || echo "0"`
+Memory files: !`bash "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/memory-dir-stats.sh" --md-count 2>/dev/null || echo "0"`
+MEMORY.md lines: !`bash "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/memory-dir-stats.sh" --memory-lines 2>/dev/null || echo "0"`
 Rules files: !`find .claude/rules -name "*.md" 2>/dev/null | wc -l | tr -d '\r' || echo "0"`
 CLAUDE.md lines: !`test -f CLAUDE.md && wc -l < CLAUDE.md | tr -d '\r' || echo "0"`
 CLAUDE.local.md exists: !`test -f CLAUDE.local.md && echo "yes" || echo "no"`

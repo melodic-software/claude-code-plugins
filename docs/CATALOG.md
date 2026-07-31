@@ -27,11 +27,11 @@ plugin manifests and kept in sync by CI — never hand-edit it; the category voc
 
 ## Development
 
-- [`markdown-format`](../plugins/markdown-format) — Auto-format and lint Markdown on edit via markdownlint-cli2, using the consuming repo's own markdownlint config.
+- [`markdown-format`](../plugins/markdown-format) — Auto-format and lint Markdown on edit via markdownlint-cli2 — only in repos that carry their own markdownlint config.
 - [`bash-format`](../plugins/bash-format) — Auto-format and lint shell scripts on edit via shfmt + ShellCheck, using the consuming repo's own .editorconfig and .shellcheckrc.
 - [`biome-format`](../plugins/biome-format) — Auto-format and lint JS/TS/JSX/JSON on edit via Biome, only when a biome.json governs the repo — using the consuming repo's own Biome config.
 - [`ruff-format`](../plugins/ruff-format) — Auto-format and lint Python on edit via Ruff, only when a Ruff config governs the repo — using the consuming repo's own Ruff config.
-- [`typos-format`](../plugins/typos-format) — Auto-fix spelling typos on edit via typos-cli, unconditionally — honoring the consuming repo's own typos configuration when one is present.
+- [`typos-format`](../plugins/typos-format) — Spell-check on edit via typos-cli, unconditionally — report-only by default, honoring the consuming repo's own typos configuration when one is present.
 - [`go-format`](../plugins/go-format) — Auto-fix Go formatting and import management on edit via goimports — runs unconditionally (no consumer-config gate), skipping generated files.
 - [`eol-normalizer`](../plugins/eol-normalizer) — Normalize a written file's working-tree line endings to its .gitattributes eol value on edit — symmetric CRLF/LF driven by git check-attr, advisory and never blocking.
 - [`powershell-format`](../plugins/powershell-format) — Auto-format and lint PowerShell on edit via PSScriptAnalyzer, only when a PSScriptAnalyzerSettings.psd1 governs the repo — using the consuming repo's own analyzer settings.

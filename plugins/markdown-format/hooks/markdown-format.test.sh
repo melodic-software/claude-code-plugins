@@ -239,6 +239,49 @@ else
   fail "missing .md not skipped (rc=$RC_M out=$OUT_M)"
 fi
 
+# --- Opt-in gate: repo with NO markdownlint config -> no run at all ----------
+# Pins #1809's single-writer decision: without a config the repo has chosen no
+# Markdown style, so the hook must impose neither --fix rewrites nor
+# default-rule findings. The fixture carries issues the stub WOULD fix (MD004
+# star marker, MD047 missing final newline), so an unmodified file proves the
+# gate, not a clean run.
+REPO_NOCFG="$WORK/no-config"
+mkdir -p "$REPO_NOCFG"
+git -C "$REPO_NOCFG" init -q
+NOCFG_FIXTURE="$REPO_NOCFG/doc.md"
+printf '# Doc\n\n* star item' >"$NOCFG_FIXTURE"
+NOCFG_BEFORE="$(cat "$NOCFG_FIXTURE")"
+OUT_NOCFG="$(run_hook "$NOCFG_FIXTURE")"
+RC_NOCFG=$?
+if [[ $RC_NOCFG -eq 0 && -z "$OUT_NOCFG" ]]; then
+  ok "no markdownlint config -> exit 0, no output (opt-in gate)"
+else
+  fail "no markdownlint config -> hook ran anyway (rc=$RC_NOCFG out=$OUT_NOCFG)"
+fi
+if [[ "$(cat "$NOCFG_FIXTURE")" == "$NOCFG_BEFORE" ]]; then
+  ok "no markdownlint config -> file left byte-identical (no imposed style)"
+else
+  fail "no markdownlint config -> file was rewritten: $(cat "$NOCFG_FIXTURE")"
+fi
+
+# --- Opt-in gate: config NESTED below the repo root still opts in ------------
+# The gate walks from the edited file's directory up to the repo root, the same
+# span markdownlint-cli2's own discovery covers for this file — a config in the
+# file's subtree must open the gate even when the root carries none.
+mkdir -p "$REPO_NOCFG/docs"
+cat >"$REPO_NOCFG/docs/.markdownlint.json" <<'JSON'
+{ "MD004": { "style": "dash" } }
+JSON
+NESTED_FIXTURE="$REPO_NOCFG/docs/nested.md"
+printf '# Nested\n\n* nested item\n' >"$NESTED_FIXTURE"
+run_hook "$NESTED_FIXTURE" >/dev/null
+RC_NESTED=$?
+if [[ $RC_NESTED -eq 0 ]] && grep -q '^- nested item$' "$NESTED_FIXTURE"; then
+  ok "nested markdownlint config (no root config) -> gate opens, --fix applied"
+else
+  fail "nested config did not open the gate (rc=$RC_NESTED): $(cat "$NESTED_FIXTURE")"
+fi
+
 # --- Git-tree scoping: CLAUDE_PROJECT_DIR unset, file outside any git tree ----
 # Regression for out-of-tree scratchpad-lint noise: with CLAUDE_PROJECT_DIR
 # unset (run_hook already unsets it), a .md written outside any git working tree
@@ -532,6 +575,22 @@ if printf '%s' "$OUT_NO_JQ" | jq -e '(.hookSpecificOutput.additionalContext | co
   ok "missing jq emits visible notice on both channels"
 else
   fail "missing jq warning absent: $OUT_NO_JQ"
+fi
+
+# --- Missing jq in a config-less repo: opt-in decided first, so NO notice ----
+# The opt-in gate's contract is "no config, no run, no notice", and a
+# prerequisite notice is still a notice: a repository that never opted into
+# Markdown formatting must not be nagged to install jq for it. The assertion
+# above pins the inverse (config present + jq absent -> notice), so the pair
+# distinguishes suppression from a hook that simply stopped warning.
+PD_NO_JQ_NOCFG="$(mktemp -d "$WORK/pd.XXXXXX")"
+OUT_NO_JQ_NOCFG="$(cd "$UNRELATED" && printf '{"tool_input":{"file_path":"%s"}}' "$NOCFG_FIXTURE" |
+  env -u CLAUDE_PROJECT_DIR BASH_ENV="$NO_JQ_ENV" CLAUDE_PLUGIN_DATA="$PD_NO_JQ_NOCFG" CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true bash "$HOOK")"
+RC_NO_JQ_NOCFG=$?
+if [[ $RC_NO_JQ_NOCFG -eq 0 && -z "$OUT_NO_JQ_NOCFG" ]]; then
+  ok "missing jq in a config-less repo -> exit 0, no notice (opt-in decided first)"
+else
+  fail "missing jq in a config-less repo emitted output (rc=$RC_NO_JQ_NOCFG out=$OUT_NO_JQ_NOCFG)"
 fi
 
 # --- Repository-config trust gate: risky config blocks lint until approved ---

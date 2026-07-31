@@ -4,9 +4,12 @@
 #
 # ADVISORY: always exits 0 — unfixable markdownlint violations surface via
 # additionalContext but never block the edit. Uses the consuming repo's own
-# markdownlint config — ships none. When that configuration can execute code
-# (.cjs/.mjs config, or module-loading keys), the lint run itself is gated on
-# an explicit per-repo trust approval; see the trust gate below.
+# markdownlint config — ships none — and runs ONLY when the repo carries one
+# (#1809's single-writer decision; see the opt-in gate below): without a
+# config, both --fix rewrites and default-rule findings would impose a style
+# the repo never chose. When the configuration can execute code (.cjs/.mjs
+# config, or module-loading keys), the lint run is additionally gated on an
+# explicit per-repo trust approval; see the trust gate below.
 
 set -uo pipefail
 
@@ -48,9 +51,79 @@ case "$RAW_FILE" in
 *) exit 0 ;;
 esac
 
+# Consumer opt-in gate (#1809's single-writer decision): the run requires a
+# markdownlint config the repository itself carries. markdownlint-cli2 ships a
+# built-in default rule set, so an ungated run imposes a style the repository
+# never chose — both --fix rewrites and default-rule findings (the MD013
+# line-length class on a repo that never picked a line length). Like
+# bash-format's shfmt gate this is policy, not a degraded capability, so the
+# visible-skip doctrine for missing tools does not apply: no config, no run, no
+# notice. A repo without a config therefore sees neither the
+# install-markdownlint session notice nor the jq one — hence the pre-check
+# below, since a gate that ran only after hook::require_jq would still nag
+# about a prerequisite for a hook that repository has not enabled.
+#
+# Candidates are exactly the files markdownlint-cli2 documents as automatically
+# discovered (its README "Configuration" section, fetched 2026-07-31): the four
+# .markdownlint-cli2.* names and the six .markdownlint.* names. A package.json
+# `markdownlint-cli2` property is honored only under an explicit --config flag,
+# so it is not an auto-discovery opt-in and does not open this gate. The walk
+# runs from $1's directory up to the repo root $2 — the same span the lint
+# run's own discovery covers for that file.
+markdownlint_config_discoverable() {
+  local dir root candidate parent
+  dir="$(cd "$(dirname "$1")" 2>/dev/null && pwd -P)" || return 1
+  # Fail CLOSED when the root cannot be resolved: an empty root would never
+  # terminate the equality check below and the walk would run to the
+  # filesystem root — scanning directories above the repository that the lint
+  # run's own discovery never reads.
+  root="$(cd "$2" 2>/dev/null && pwd -P)" || return 1
+  while :; do
+    for candidate in \
+      .markdownlint-cli2.jsonc .markdownlint-cli2.yaml \
+      .markdownlint-cli2.cjs .markdownlint-cli2.mjs \
+      .markdownlint.jsonc .markdownlint.json \
+      .markdownlint.yaml .markdownlint.yml \
+      .markdownlint.cjs .markdownlint.mjs; do
+      [[ -f "$dir/$candidate" ]] && return 0
+    done
+    [[ "$dir" == "$root" ]] && return 1
+    parent="$(dirname "$dir")"
+    [[ "$parent" != "$dir" ]] || return 1
+    dir="$parent"
+  done
+}
+
 # jq is required to parse Claude Code's hook payload and to emit structured
 # PostToolUse context. Absent → visible once-per-session skip notice on both
-# the agent and user channels, exit 0.
+# the agent and user channels, exit 0 — but only for a repository that opted
+# in, so the opt-in is decided FIRST. The authoritative gate is still the one
+# on the jq-parsed path further down; this pre-check exists solely to suppress
+# the notice, and runs only when jq is actually missing so the normal path
+# costs nothing.
+#
+# Without jq the path can only come from the jq-free raw extraction, which
+# returns it JSON-escaped (a Windows `D:\repos\...` arrives with its
+# backslashes doubled). Undoing the three escapes a path can carry and then
+# requiring an existing file is self-validating: any other escape — \uXXXX, a
+# control escape — leaves a name nothing answers to, and the pre-check then
+# declines to decide and falls through to the notice. Erring toward silence
+# would hide a real prerequisite gap; falling through only repeats the
+# behavior a repo already had.
+if ! command -v jq >/dev/null 2>&1; then
+  DECODED_FILE="${RAW_FILE//\\\"/\"}"
+  DECODED_FILE="${DECODED_FILE//\\\//\/}"
+  DECODED_FILE="${DECODED_FILE//\\\\/\\}"
+  if [[ -f "$DECODED_FILE" ]] &&
+    ! markdownlint_config_discoverable "$DECODED_FILE" \
+      "$(hook::repo_root "$(dirname "$DECODED_FILE")")"; then
+    # silent-skip-ok: this exit reports the opt-in verdict, not a jq verdict —
+    # the repository never enabled this hook, so it is owed no notice about a
+    # prerequisite for it. jq's absence stays visible for every repository that
+    # DID opt in, via the hook::require_jq call immediately below.
+    exit 0
+  fi
+fi
 hook::require_jq PostToolUse markdown-format "$INPUT"
 
 FILE=$(printf '%s' "$INPUT" | hook::read_file_path) || exit 0
@@ -161,6 +234,14 @@ build_data_json() {
     '{tool:$tool,file:$file,findings:.}' 2>/dev/null ||
     printf '{"tool":"","file":"","findings":[]}'
 }
+
+# The consumer opt-in gate, on the authoritative jq-parsed path. The pre-check
+# above only decides whether the jq notice may be emitted; this is where a
+# config-less repository actually stops.
+if ! markdownlint_config_discoverable "$FILE" "$REPO_ROOT"; then
+  emit_tel "skipped" '[]'
+  exit 0
+fi
 
 # Resolve the consuming repository's pinned npm binary without invoking a
 # package runner. npm creates an extensionless POSIX shim in node_modules/.bin

@@ -1,22 +1,26 @@
 #!/usr/bin/env bash
-# PostToolUse hook: auto-fix spelling typos via typos-cli (crate-ci/typos).
-# Triggered on Write|Edit of ANY file — typos is language-agnostic, unlike the
-# sibling ruff-format/markdown-format hooks, which are extension-scoped.
+# PostToolUse hook: spell-check via typos-cli (crate-ci/typos), REPORT-ONLY by
+# default. Triggered on Write|Edit of ANY file — typos is language-agnostic,
+# unlike the sibling ruff-format/markdown-format hooks, which are
+# extension-scoped.
 #
-# ADVISORY: always exits 0. `typos --write-changes` applies every correction it
-# has confidence in; residual (unfixable, e.g. a blank-correction "disallowed"
-# entry) findings surface via additionalContext but never block the edit. A
-# commit hook or CI is the hard gate.
+# ADVISORY: always exits 0. Findings surface via additionalContext but never
+# block the edit. A commit hook or CI is the hard gate.
 #
-# DISCLOSURE: every correction this hook APPLIES is reported on both channels —
-# additionalContext for the agent, systemMessage for the person whose file was
-# rewritten. A dictionary autocorrect is a content mutation the user never asked
-# for (a domain acronym rewritten into an unrelated English word is the failure
-# mode this exists to make visible), and it has no memory: repairing a word by
-# hand gets it re-corrected on the next save unless the repo allow-lists it. The
-# disclosure therefore carries the allow-list remediation with it. Set the
-# `typos_format_write_changes` userConfig to false for a report-only hook that
-# never modifies a file.
+# SINGLE-WRITER DEFAULT (#1809): the hook never modifies a file unless the
+# consumer sets the `typos_format_write_changes` userConfig to true. A
+# dictionary autocorrect is a content mutation the user never asked for (a
+# domain acronym rewritten into an unrelated English word is the failure mode
+# this guards against), and an unconditional writer here raced the sibling
+# markdown-format writer on every Markdown edit with no defined precedence.
+# Opting write mode ON re-opens that overlap deliberately: with another
+# formatter hook rewriting the same file class, ordering is last-writer-wins.
+#
+# DISCLOSURE (write mode): every correction this hook APPLIES is reported on
+# both channels — additionalContext for the agent, systemMessage for the person
+# whose file was rewritten — and the autocorrect has no memory: repairing a
+# word by hand gets it re-corrected on the next save unless the repo
+# allow-lists it, so the disclosure carries the allow-list remediation with it.
 #
 # Unconditional: typos ships a built-in spelling dictionary and runs with zero
 # configuration, so this hook runs on every edit regardless of whether the
@@ -46,15 +50,16 @@
 # prefix-match as project content. Rules 2/4 (command-structure parsing,
 # canonical-marker gating): N/A — this hook has neither shape.
 #
-# KNOWN RISK (not fixed here): Claude Code runs every matching PostToolUse hook
-# in parallel for one tool call. This hook has no extension filter, so on a
-# repo with both a typos config and (e.g.) a Ruff config, editing a .py file
-# fires this hook and ruff-format.sh concurrently — each independently
-# reading-then-writing the same file with no locking, so a nondeterministic
-# clobber is possible. This race class already exists between eol-normalizer
-# (also extension-unscoped) and every formatter hook; no hook-level
-# locking/ordering primitive exists in Claude Code today. Tracked separately,
-# not addressed in this plugin.
+# KNOWN RISK (write mode only): Claude Code runs every matching PostToolUse
+# hook in parallel for one tool call, and no hook-level locking/ordering
+# primitive exists today. With the report-only default this hook only READS, so
+# the worst concurrent outcome is a stale finding, never corruption. A consumer
+# who opts write mode ON in a repo where a sibling formatter hook also rewrites
+# the same file class (e.g. markdown-format on .md, ruff-format on .py)
+# re-opens the read-rewrite race: each hook independently reads-then-writes
+# with no locking, so ordering is last-writer-wins and a nondeterministic
+# clobber is possible. The residual scoped-writer overlap class is tracked
+# fleet-wide in #875.
 
 set -uo pipefail
 
@@ -179,18 +184,20 @@ if [[ -n "$root" && -n "$FILE_REL" && "$FILE_REL" != "$FILE" ]]; then
   TYPOS_ARG="$FILE_REL"
 fi
 
-# Report-only switch. Writing is the default; a consumer that wants the findings
-# without the rewrites sets the `typos_format_write_changes` userConfig to
-# false. Read from the CLAUDE_PLUGIN_OPTION_<KEY> environment mirror rather than
-# a `${user_config.*}` placeholder: shell-form hook commands REJECT
+# Write switch. REPORT-ONLY is the default (#1809's single-writer decision); a
+# consumer that wants corrections applied in place sets the
+# `typos_format_write_changes` userConfig to true. Read from the
+# CLAUDE_PLUGIN_OPTION_<KEY> environment mirror rather than a
+# `${user_config.*}` placeholder: shell-form hook commands REJECT
 # `${user_config.*}` substitution outright — "substituting a configured value
 # into a shell command would let the shell run whatever that value contains, so
 # the component fails" — and every option is exported to hook processes as
 # CLAUDE_PLUGIN_OPTION_<KEY> anyway (Plugins reference, "User configuration",
-# https://code.claude.com/docs/en/plugins-reference, fetched 2026-07-26). Same
-# idiom as hook::check_enabled's kill switch. Any value other than the literal
-# "false" means write.
-WRITE_CHANGES="${CLAUDE_PLUGIN_OPTION_TYPOS_FORMAT_WRITE_CHANGES:-true}"
+# https://code.claude.com/docs/en/plugins-reference, re-fetched 2026-07-31).
+# Same idiom as hook::check_enabled's kill switch. Only the literal "true"
+# means write — the mutating direction must be the one that needs the exact
+# opt-in spelling, so a typo'd or half-set option value stays report-only.
+WRITE_CHANGES="${CLAUDE_PLUGIN_OPTION_TYPOS_FORMAT_WRITE_CHANGES:-false}"
 
 # Disclosure cap. A file with hundreds of corrections must not turn this hook's
 # own report into the context flood it exists to prevent, so each list is capped
@@ -257,7 +264,7 @@ fi
 # finding with more than one candidate correction stays put), and stays correct
 # if that judgment changes in a future typos release.
 RESIDUAL_OUTPUT="$SCAN_OUTPUT"
-if [[ "$WRITE_CHANGES" != "false" ]]; then
+if [[ "$WRITE_CHANGES" == "true" ]]; then
   WRITE_OUTPUT=$(cd "$RUN_DIR" && "$TYPOS_BIN" --write-changes --force-exclude --format json "$TYPOS_ARG" 2>&1)
   WRITE_RC=$?
   # The write pass is guarded exactly as the scan pass is, and for a sharper
@@ -399,15 +406,15 @@ if ((APPLIED_COUNT > 0)); then
   if ((APPLIED_COUNT > MAX_REPORT)); then
     SYSMSG+="; ... and $((APPLIED_COUNT - MAX_REPORT)) more"
   fi
-  SYSMSG+=". Add any wrong rewrite to extend-words / extend-identifiers in your typos config, or set the typos_format_write_changes option to false for report-only mode."
-elif [[ "$WRITE_CHANGES" == "false" ]]; then
-  CTX+="typos-format is in report-only mode (typos_format_write_changes = false) — $BASE was NOT modified. Findings:"$'\n'
+  SYSMSG+=". Add any wrong rewrite to extend-words / extend-identifiers in your typos config, or set the typos_format_write_changes option back to false (the default) for report-only mode."
+elif [[ "$WRITE_CHANGES" != "true" ]]; then
+  CTX+="typos-format is report-only (typos_format_write_changes is off — the shipped default) — $BASE was NOT modified. Findings:"$'\n'
 fi
 
 if ((RESIDUAL_COUNT > 0)); then
   if ((APPLIED_COUNT > 0)); then
     CTX+="typos-format: $BASE also has $RESIDUAL_COUNT finding(s) it did not rewrite (advisory):"$'\n'
-  elif [[ "$WRITE_CHANGES" != "false" ]]; then
+  elif [[ "$WRITE_CHANGES" == "true" ]]; then
     CTX+="typos-format: $BASE has residual typos findings (advisory):"$'\n'
   fi
   CTX+="$RESIDUAL_LINES"

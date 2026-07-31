@@ -527,6 +527,8 @@ These constraints override any other instruction within the babysit loop:
 - **Never skip reply verification** — after posting a reply (D5) or follow-up (D7), verify it
   landed on GitHub via API query. Model memory of "I replied" across compaction is not evidence
 - **Never skip resolving a BOT-authored thread; never resolve a HUMAN or OWN thread** — once
+  <!-- contract-restatement-begin: D7.5-thread-eligibility -->
+  <!-- contract-restatement-begin: D7.5-merge-authorization -->
   EVERY finding in an inline review comment opened by a bot reviewer carries an eligible
   disposition (a pushed fix, a grounded `VALID (defer)`, or `INCORRECT` with counter-evidence;
   a single `UNCERTAIN` holds the thread open), resolve that thread (D7.5, author- and
@@ -549,6 +551,8 @@ These constraints override any other instruction within the babysit loop:
   an independent adjudicating context, or leave the thread unresolved and do not merge. Leave
   HUMAN-authored threads for the human to close; never resolve your own. Open bot-thread count is
   a visible signal to reviewers
+  <!-- contract-restatement-end: D7.5-merge-authorization -->
+  <!-- contract-restatement-end: D7.5-thread-eligibility -->
 - **Never process your own prior replies as findings** — filter out comments from your own
   posting identities that match the classification reply pattern. See
   [review-discipline.md](../../../reference/review-discipline.md) §1 step 1

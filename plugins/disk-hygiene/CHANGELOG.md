@@ -3,6 +3,101 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.13.0]
+
+> Version note: `0.11.0` is claimed by #1804 (PR #1818) and `0.12.0` by #1805 (PR #1819), both open
+> against this manifest. This entry takes the next number so the three do not collide; merged in
+> issue order the changelog reads contiguously.
+
+### Fixed
+
+- **Hint matching is case-insensitive, on every platform (#1806).** `has_protected_name()` casefolds
+  and `matching_hints()` did not, so on Windows and macOS — where both spellings name the *same*
+  file — protection was case-robust while discovery was not. Measured against the shipped baseline
+  before the fix: `Thumbs.db`, `tmp-build`, and `scratch.md` each matched a hint while `thumbs.db`,
+  `TMP-build`, and `Scratch.md` matched nothing.
+
+  Every glob the engine evaluates now goes through one `glob_matches()` helper — hints, consumer
+  protection globs, and the protection re-checks in the preview, verify, and apply lanes — so
+  discovery and protection cannot disagree about what a name is. The protection-side globs move
+  deliberately rather than by accident, and casefolding is the safe direction for both roles: a
+  protection glob that matches more can only keep more, and a hint that matches more can only
+  surface more for triage, since hints are discovery signals and never cleanup verdicts. The helper
+  uses `fnmatchcase` on casefolded operands rather than `fnmatch`, whose folding follows the host
+  platform — a matcher whose verdict changes with where the scan runs is not a matcher a protection
+  can rest on.
+
+- **Atomic-write staging remnants are hinted as a class, not as one producer's filename (#1806).**
+  `*.tmp` requires `.tmp` as a *suffix* and `.claude.json.tmp.*` encodes one producer's exact
+  prefix. Neither matches `.tmp` as an **infix** before a pid and random suffix — the standard
+  write-temp-then-rename shape — while the producer-specific hint's own `reason` claimed to cover
+  the class. A scan of one sibling plugin's state directory returned **`hinted_entries: 0` across 63
+  entries**, 61 of which were remnants of exactly that shape; they surfaced only because a subagent
+  read the directory positionally.
+
+  A new `atomic-write-staging-remnant` hint (`*.tmp.*`, ceiling `medium`) covers the class.
+  `.rate-limits.json.tmp.<pid>.<random>` and `settings.json.tmp.4` now hint where they previously
+  matched nothing. The producer-specific hint still fires alongside it, since it carries a narrower
+  reason and a class hint does not replace that.
+
+- **The Bash denial text no longer under-reports the allow-list (#1806).** The documented bootstrap
+  path is to submit a wrong shape so the denial teaches the grammar, and it enumerated four engine
+  subcommands while omitting the read-only kill-switch probe that `_decide` allows before the
+  classifier ever runs. A consumer learning the allow-list from the denial never learned the probe
+  is permitted — and the probe is the step that lets the model state the kill-switch value honestly
+  instead of assuming the default. The denial now also discloses the bundled engine's own path,
+  which is the only route left when a rendered body's `${CLAUDE_PLUGIN_ROOT}` arrives unexpanded and
+  the exact-path identity check denies every guess.
+
+  The enumeration and the grammar are now one list: `classify_exact_engine_command` rejects any
+  subcommand outside `_ALLOWED_ENGINE_SUBCOMMANDS` before its own dispatch, and both bundled script
+  paths come from one accessor each, so the message cannot teach a grammar the classifier does not
+  implement.
+
+## [0.12.0]
+
+> Version note: `0.11.0` is claimed by the cloud-placeholder fix (#1804, PR #1818), which is open
+> against the same manifest. This entry takes the next number so the two do not collide; merge
+> #1818 first and this changelog reads contiguously.
+
+### Fixed
+
+- **The engine gate's "provably a different file" escape no longer covers this plugin's own stale
+  engines (#1805).** #1640 and #1611 fixed over-gating: a word naming an existing file that is not
+  the bundled engine defers, so a consumer's own `tools/hygiene.py` is not mistaken for this engine.
+  Claude Code keeps a replaced version's directory on disk after an update, so that same escape also
+  covered every **previous version of this engine** sitting beside the current one — each a
+  genuinely different file, each deletion-capable, and each answering to nothing but its own
+  containment once the always-on gate defers.
+
+  The consequence is a kill-switch bypass, not an unbounded-delete bypass: with
+  `disk_hygiene_enabled: false` the plugin-level gate is the only guard whenever the clean skill is
+  not the active work, and it deferred. The stale engine's own preview, approval-token, and platform
+  blockers still applied. Versions at or below 0.8.1 predate settings-based kill-switch enforcement
+  entirely.
+
+  Measured on the audit host: 17 cached version directories, `0.3.0` through `0.10.2`, 16 carrying an
+  intact engine (`0.9.4`'s is absent). Against the installed 0.10.2 guard, all 15 non-current engines
+  resolve, are not `samefile` with the bundled one, and the plugin-level gate **deferred on an
+  `apply --execute` invocation of every one of them**. The documented "about two weeks" retention
+  bound does not hold in practice — `0.3.0` is still present — so the window is unbounded.
+
+  The gate now refuses the escape to any path resolving inside
+  `<plugins>/cache/<marketplace>/<name>`. That prefix is derived from the guard module's own
+  `__file__`, not from argv or the environment, so nothing outside the process can redirect it — the
+  same reasoning that keeps the kill-switch read off `CLAUDE_CONFIG_DIR`. A `--plugin-dir` checkout
+  carries no such prefix and the narrowing is inert there, which is correct: a checkout has no cached
+  siblings, and narrowing on it would gate a contributor's work on their own tree.
+
+  **This does not relax or re-break #1640 and #1611.** A consumer's own engine-named script outside
+  the cache still defers, on both the plain and the operator-carrying shapes; verified before and
+  after against an identical synthetic cache layout, where the stale sibling flips from `defers` to
+  `GATES` while the consumer tool stays `defers` and the bundled engine stays `GATES`.
+
+  **Residual:** a *copied* engine — one carried outside the cache tree — is still outside the prefix,
+  as it is outside every identity check the gate makes. That is the copy-evasion class the gate has
+  always accepted, and the engine's own preview/approval-token containment remains the authority.
+
 ## [0.11.0]
 
 ### Fixed

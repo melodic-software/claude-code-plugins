@@ -288,9 +288,13 @@ fi
 STUBDIR="$(mktemp -d "$WORK/shfmtstub.XXXXXX")"
 cat >"$STUBDIR/shfmt" <<'STUB'
 #!/usr/bin/env bash
-# Simulate shfmt < 3.8: --apply-ignore is an unknown flag -> fail, no format.
+# Simulate shfmt < 3.8: --apply-ignore is an unknown flag -> the Go flag
+# parser's rejection text (verified against real shfmt), then fail, no format.
 for a in "$@"; do
-  [[ "$a" == "--apply-ignore" ]] && exit 2
+  if [[ "$a" == "--apply-ignore" ]]; then
+    echo "flag provided but not defined: -apply-ignore" >&2
+    exit 2
+  fi
 done
 # Plain `-w FILE` path: rewrite the (last-arg) file to a formatted shape so the
 # caller's fallback branch is observable.
@@ -312,6 +316,93 @@ if grep -q '^  echo hi$' "$REPO_OLDSHFMT/x.sh"; then
   ok "shfmt<3.8 (--apply-ignore rejected) -> plain -w fallback still formats"
 else
   fail "shfmt<3.8 fallback did not format: $(cat "$REPO_OLDSHFMT/x.sh")"
+fi
+
+# A shfmt that KNOWS --apply-ignore but whose format run fails must NOT be
+# re-run without the flag. Doing so discarded the repo's `ignore = true` opt-out
+# and re-tabbed a file the consumer asked shfmt to leave alone (#1817). The
+# stub answers the capability probe successfully and fails only the -w run, so
+# it separates "no such flag" from "this run failed" — the distinction the old
+# `--apply-ignore -w || -w` could not make.
+STUBDIR2="$(mktemp -d "$WORK/shfmtstub2.XXXXXX")"
+cat >"$STUBDIR2/shfmt" <<'STUB2'
+#!/usr/bin/env bash
+has_ignore=0 has_version=0
+for a in "$@"; do
+  [[ "$a" == "--apply-ignore" ]] && has_ignore=1
+  [[ "$a" == "--version" ]] && has_version=1
+done
+# Capability probe: the flag exists on this shfmt.
+if ((has_ignore && has_version)); then
+  echo v3.13.1
+  exit 0
+fi
+# Format run with the flag: fail transiently, formatting nothing.
+((has_ignore)) && exit 1
+# Plain `-w FILE`: rewrite the file, so a wrong fallback is observable.
+f="${*: -1}"
+printf '#!/usr/bin/env bash\nif true; then\n\techo hi\nfi\n' >"$f"
+STUB2
+chmod +x "$STUBDIR2/shfmt"
+REPO_IGN="$WORK/apply-ignore-transient"
+new_repo "$REPO_IGN"
+printf 'root = true\n[*.sh]\nignore = true\n' >"$REPO_IGN/.editorconfig"
+printf '#!/usr/bin/env bash\nif true; then\n  echo hi\nfi\n' >"$REPO_IGN/x.sh"
+# Byte-for-byte reference: `$(cat)` strips trailing newlines, so a string
+# compare would report a difference the file does not have.
+cp "$REPO_IGN/x.sh" "$WORK/apply-ignore-transient.expected"
+(
+  cd "$UNRELATED" || exit 1
+  printf '{"tool_input":{"file_path":"%s"},"tool_name":"Write"}' "$REPO_IGN/x.sh" |
+    env -u CLAUDE_PROJECT_DIR PATH="$STUBDIR2:$PATH" \
+      CLAUDE_PLUGIN_OPTION_BASH_FORMAT_ENABLED=true bash "$HOOK" >/dev/null
+)
+if cmp -s "$REPO_IGN/x.sh" "$WORK/apply-ignore-transient.expected"; then
+  ok "failed --apply-ignore run does not re-format without the flag"
+else
+  fail "opt-out discarded by fallback: $(cat "$REPO_IGN/x.sh")"
+fi
+
+# An UNCLASSIFIED probe failure must not take the plain-format path either. A
+# wrapper that flakes on its first invocation fails the probe without saying
+# anything about the flag; treating that as "old shfmt" would mutate through
+# the same discarded opt-out. Only a confirmed unsupported-flag rejection may
+# fall back — anything else leaves the file untouched and says so.
+STUBDIR3="$(mktemp -d "$WORK/shfmtstub3.XXXXXX")"
+cat >"$STUBDIR3/shfmt" <<'STUB3'
+#!/usr/bin/env bash
+for a in "$@"; do
+  if [[ "$a" == "--apply-ignore" ]]; then
+    echo "shfmt-wrapper: transient startup failure" >&2
+    exit 1
+  fi
+done
+# Plain `-w FILE`: rewrite the file, so a wrong compatibility fallback is
+# observable.
+f="${*: -1}"
+printf '#!/usr/bin/env bash\nif true; then\n\techo hi\nfi\n' >"$f"
+STUB3
+chmod +x "$STUBDIR3/shfmt"
+REPO_FLAKE="$WORK/probe-flake"
+new_repo "$REPO_FLAKE"
+printf 'root = true\n[*.sh]\nignore = true\n' >"$REPO_FLAKE/.editorconfig"
+printf '#!/usr/bin/env bash\nif true; then\n  echo hi\nfi\n' >"$REPO_FLAKE/x.sh"
+cp "$REPO_FLAKE/x.sh" "$WORK/probe-flake.expected"
+FLAKE_OUT="$(
+  cd "$UNRELATED" || exit 1
+  printf '{"tool_input":{"file_path":"%s"},"tool_name":"Write"}' "$REPO_FLAKE/x.sh" |
+    env -u CLAUDE_PROJECT_DIR PATH="$STUBDIR3:$PATH" \
+      CLAUDE_PLUGIN_OPTION_BASH_FORMAT_ENABLED=true bash "$HOOK"
+)"
+if cmp -s "$REPO_FLAKE/x.sh" "$WORK/probe-flake.expected"; then
+  ok "unclassified probe failure -> file untouched (no plain -w fallback)"
+else
+  fail "unclassified probe failure mutated the file: $(cat "$REPO_FLAKE/x.sh")"
+fi
+if [[ "$FLAKE_OUT" == *"capability probe failed unexpectedly"* ]]; then
+  ok "unclassified probe failure is said out loud, not a silent skip"
+else
+  fail "unclassified probe failure skipped silently: $FLAKE_OUT"
 fi
 
 # ============================================================================

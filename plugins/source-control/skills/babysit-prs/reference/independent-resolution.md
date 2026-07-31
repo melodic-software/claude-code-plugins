@@ -72,11 +72,13 @@ guard exists to prevent, moved one hop.
 Extract every finding in the thread (one comment carrying N findings is N work items) and record for
 each one the disposition plus its evidence:
 
+<!-- contract-restatement-begin: D7.5-thread-eligibility -->
+
 - `VALID (fix now)`: the pushed commit SHA that fixes it, verified present on the live PR head, and
   the D7 follow-up citing it.
-- `VALID (defer)`: grounded per D4.6 — the provenance test passed (the defect reproduces on the base
+- `VALID (defer)`: grounded per D4.6 — the provenance test passed (the defect reproduces on the base <!-- contract-restatement-begin: D4.6-deferral-grounding -->
   branch), and the tracker item exists, carries the finding's own evidence, and its cited id
-  re-queries successfully.
+  re-queries successfully. <!-- contract-restatement-end: D4.6-deferral-grounding -->
 - `INCORRECT`: the counter-evidence, read from the code or docs at the live head rather than
   asserted.
 - `UNCERTAIN`: not resolvable. It escalates, and so does the thread.
@@ -86,6 +88,8 @@ the thread eligible while a sibling finding is open, because a resolved thread d
 comments from the readiness count. Any finding the dispatched agent cannot verify to this standard
 means **no resolution**. The ledger is reported back with the dispatch result, so what was verified
 is inspectable rather than asserted.
+
+<!-- contract-restatement-end: D7.5-thread-eligibility -->
 
 ## Read the pins fresh; never forward the dispatch snapshot's
 

@@ -3,6 +3,143 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.25.1]
+
+### Changed
+
+- **The `@path`-as-body rule now records that an inlined upsert enforces it mechanically, not on
+  trust — and corrects which consumer the failure actually deceives (#943).** The rule's closing
+  paragraph claimed the prose was "the only thing standing between" an inlined upsert and a silent
+  observability fail-open. That is no longer true: every lane that inlines the `gh api` upsert —
+  `source-control:babysit-loop`, `work-items:work-loop`, `work-items:attend-queue` — now carries three
+  checks in its own block: a pre-write body gate, a check of the write's own exit status, and a
+  post-write read-back of what the write stored. The paragraph states which guarantees travel inline
+  (those three) and which do not: the 64 KiB cap, the body-file containment checks, retries, and this
+  script's distinct non-zero exit codes — an inline branch always exits 0 and reports through stderr,
+  so a caller cannot detect a failed cycle from its exit status. It also names the limits an inline
+  block inherits rather than fixes: a PATCH that succeeds while storing the previous body still
+  verifies, and the read-back proves *some* well-formed telemetry is present, not *this* cycle's.
+- **Corrected: `morning-brief` is not the check a degraded telemetry body deceives.** The rule said a
+  freshness check "passes over a blind lane". Verified against `morning-brief.sh`'s `print_telemetry`:
+  it parses `lane:` and `last-cycle:` out of the comment BODY, so an `@path` body carries no `lane:`
+  field and the lane disappears from the report entirely rather than reading as healthy. What a
+  degraded body deceives is any consumer keying on the comment's timestamp instead of its body — the
+  timestamp moves on every successful write regardless of content. The rule now attributes the
+  failure that way rather than naming a sibling reader that would in fact surface it.
+
+### Fixed
+
+- **`lanes`: a lane field whose JSON value is `false` is no longer read as an absent field (#1784).**
+  Both field readers in `lane-launcher.sh` used jq's `//` alternative operator, which fires on every
+  FALSY value rather than on absence. A lane configured `"settings": false` therefore yielded
+  `empty`, reached bash as `""`, and — because `validate_launch_inputs` guards its "settings must be
+  a JSON object" check on `[[ -n "$settings" ]]` — that type check never ran at all: the lane launched
+  with `--settings` silently omitted, no error, nothing for the operator to see. `lane_json_field` now
+  tests presence with `has`, so `false` reaches the type check and the lane is skipped with the error
+  that was already written for it. The scalar reader had the same collapse for `name`/`model`/
+  `effort`/`prompt` (a mistyped `"effort": false` launched a lane with no effort), so those fields are
+  now typed once at config time and a non-string value is a config error alongside the existing
+  duplicate-name and path-traversal checks. An explicit `null` stays the JSON spelling of "no value"
+  and remains equivalent to an absent field in both readers.
+
+## [0.25.0]
+
+### Changed
+
+- **`telemetry-upsert.sh` accepts the writer-identity marker suffix (#1295).** The marker charset
+  gains `@`, so a marker can name one *writer* (`<lane>@<instance>`) rather than a lane type — the
+  loop-lane convention's fix for concurrent instances of one lane sharing, and clobbering, a single
+  telemetry comment. This script is that convention's interim home, so a marker shape its validator
+  rejected would have left the contract and its executable owner disagreeing. `@` is added to
+  **both** lookaround classes in the two-tier detection's fallback as well, for exactly the reason
+  `-` is already in them: without it, `lane:x` matches inside `lane:x@laptop-a` and would adopt that
+  instance's comment — the boundary rule one level down from the `lane:triage` /
+  `lane:triage-old` prefix collision it already guards. Two cases cover the new boundary in both
+  directions, plus one asserting a suffixed marker validates at all.
+
+### Fixed
+
+- **`restart-consumer.sh` would have gone silently blind on suffixed markers.** Its per-lane
+  `telemetry.marker` binding matched a comment by exact marker equality, so once lanes carry
+  `<marker>@<instance>` no bound lane's comment would match — the consumer would report `no-state`
+  forever and restart nothing, the worst failure shape for an unattended relaunch trigger. A bound
+  marker now names a lane **type** and matches every writer instance of it, with the same trailing
+  boundary that keeps `work-items:work-loop` from adopting `work-items:work-loop-v2`. A new optional
+  `telemetry.instance` key pins one instance, as does writing the suffix into `marker` itself. The
+  scan also no longer stops at the first matching comment when that comment is not asking: with
+  several instances writing to one issue, a quiet sibling appearing first would otherwise mask a
+  later instance's live restart request. What an unpinned binding does with a suffixed writer's
+  request is *report* it: the run records `unbound-instance` naming the asking writer and
+  relaunches nothing, because an instance-suffixed comment is some machine's writer and consuming
+  it unpinned would relaunch the locally configured lane on **every** stopped consumer sharing the
+  issue — sibling instances started by a request none of them owns. Only the pinned instance's
+  comment, or the legacy un-suffixed one, is actionable.
+
+## [0.24.4]
+
+### Fixed
+
+- **`lanes` and `observability` load again when invoked from a worktree-isolated agent (#1687).**
+  Four `## Pre-computed context` lines carried genuine shell expansion — `lanes` line 16's
+  `$(claude --version)` and line 19's `$c` / `${CLAUDE_OPS_LANES_CONFIG:-…}` / `$(git rev-parse …)`,
+  `observability` line 19's `$f` / `$(…)` and line 21's `$d` / `${CC_OTEL_STORE:-…}`. The harness
+  composes that whole block into one shell invocation, and the worktree-isolation Bash guard refuses
+  any `$`-expansion, so the block failed and the skill never loaded. `lanes` line 16 is now the
+  `$`-free `claude --version 2>/dev/null || echo "MISSING (required)"`; the other three hoist their
+  logic into two bundled scripts — `skills/lanes/scripts/probe-lane-config.sh` and
+  `skills/observability/scripts/probe-observability-state.sh` (`--hook-events` / `--otel-store`) —
+  invoked through `${CLAUDE_PLUGIN_ROOT}`, which the harness substitutes into a literal path before
+  any shell sees it, so the replacement lines carry no `$` at all. Path resolution, env overrides
+  (`CLAUDE_OPS_LANES_CONFIG`, `CC_OTEL_STORE`), and every output string are unchanged and covered by
+  equivalence tests that diff each script against the line it replaced. **One output shape did
+  change:** the `claude CLI:` line now reads `2.1.220 (Claude Code)` rather than
+  `present (2.1.220 (Claude Code))` — same information, no `present (…)` wrapper. `observability`
+  line 20 (`OTEL collector :4318`) was already plugin-variable-only and is untouched.
+
+## [0.24.3]
+
+### Fixed
+
+- **`plugins` skill: `sync` Step 1 no longer claims to self-heal, and states what to do when the
+  refresh fails (#1764, F1).** `claude plugin marketplace update` is known to fail against an
+  existing non-empty marketplace directory
+  ([anthropics/claude-code#76129](https://github.com/anthropics/claude-code/issues/76129), open),
+  and Step 1 documented no behavior at all on a non-zero exit in single/default mode — only `all`
+  mode and Step 3 had inline-failure prose. Step 1 now says the refresh is attempted rather than
+  guaranteed, cites the upstream bug, and directs a failure to "Action needed" with the catalog
+  reported as possibly stale instead of current. Catalog-dependent mutations (Step 4 installs,
+  Step 5 enable-state) are deferred for that marketplace until a run where the refresh succeeds —
+  stale catalog metadata must not drive installs or enables. Cache surgery stays out of scope; the
+  named staleness diagnostic is `git ls-remote origin HEAD` against the local `HEAD` (genuinely
+  read-only — a plain `git fetch` writes `FETCH_HEAD`, remote-tracking refs, and objects).
+- **`plugins` skill: `sync` now says where the report's `<old> → <new>` versions come from (#1764,
+  F3).** The report format mandated a per-plugin version pair that no step instructed capturing.
+  A new "Version capture for the report" section fixes three sources in precedence order — `<old>`
+  from the pre-mutation snapshot the Concurrency section already requires, `<new>` from the update
+  call's own output, and a post-sweep re-read as fallback — and forbids synthesizing a value.
+  The fallback is explicitly second because `claude plugin update`'s help says "restart required to
+  apply" and this skill has not established when the CLI writes `installed_plugins.json`; if that
+  write is deferred, a post-sweep re-read would report no change for a plugin that did update.
+- **`plugins` skill: the TOCTOU gotcha now covers catalog content, not just installed/enabled state
+  (#1764, F2).** A refresh landing mid-session rewrites the catalog, so two reads within one session
+  can legitimately disagree on plugin count — which is why diffing `fleet-state.sh`'s catalog
+  against a separately-read raw `marketplace.json` is not a valid staleness check, and why a
+  mismatch is not evidence of an enumeration bug.
+- **`fleet-state.sh`: a non-git working directory no longer manufactures project context (#1764,
+  F4).** `PROJECT_ROOT` fell through to bare `$PWD` whenever `CLAUDE_PROJECT_DIR` was unset and cwd
+  was not a git tree, so the "project" settings read became whatever `.claude/settings.json` sat
+  under cwd — in `$HOME`, the user settings file itself — and an install record whose `projectPath`
+  equalled that directory would be promoted to `currentProject: true`. Project context now resolves
+  from `CLAUDE_PROJECT_DIR`, a real git toplevel, or — because Claude Code does not require a
+  repo — a non-git cwd corroborated by its own `.claude` directory, with `$HOME` always excluded
+  (its `.claude` is user scope); an uncorroborated cwd stays an empty root, and the downstream
+  reads were already guarded for it.
+- **`plugins` skill: the action-router table reads as an index again (#1764, F5).** The `sync` row's
+  Description spelled out the full six-step chain, complete enough that a session could execute the
+  action without opening `context/sync.md` — which is how F1's and F3's gaps went unnoticed during a
+  live run. Descriptions now name territory only, above an explicit instruction to read the linked
+  detail file before executing.
+
 ## [0.24.2]
 
 ### Fixed

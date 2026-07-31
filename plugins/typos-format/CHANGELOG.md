@@ -3,6 +3,25 @@
 All notable changes to the `typos-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.0]
+
+### Changed
+
+- **Report-only is now the default; write mode is an explicit opt-in (#1809).** The
+  `typos_format_write_changes` userConfig default flips `true` → `false` in both the manifest and
+  the script fallback, so the out-of-the-box hook reports findings and never modifies a file. A
+  dictionary autocorrect is a content mutation the user never asked for (#1257's silent SHA
+  corruption is one instance), and an unconditional writer here raced the sibling
+  `markdown-format` writer on every Markdown edit with no defined precedence — Claude Code runs
+  matching `PostToolUse` hooks in parallel with no ordering primitive. Part of #1809's
+  single-writer decision: by default at most one in-place rewriter matches any file class.
+  Consumers who want corrections applied set the option to `true`, accepting last-writer-wins
+  ordering with any sibling formatter hook that rewrites the same file (disclosed in the README;
+  residual scoped-writer overlap is tracked fleet-wide in #875). The write gate now requires the
+  literal `true` — the mutating direction is the one that needs the exact opt-in spelling, so a
+  typo'd option value stays report-only. Zero-config reporting, disclosure of applied rewrites in
+  write mode, and remediation guidance are unchanged.
+
 ## [0.4.4]
 
 ### Fixed
