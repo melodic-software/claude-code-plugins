@@ -29,7 +29,12 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   `telemetry.instance` key pins one instance, as does writing the suffix into `marker` itself. The
   scan also no longer stops at the first matching comment when that comment is not asking: with
   several instances writing to one issue, a quiet sibling appearing first would otherwise mask a
-  later instance's live restart request.
+  later instance's live restart request. What an unpinned binding does with a suffixed writer's
+  request is *report* it: the run records `unbound-instance` naming the asking writer and
+  relaunches nothing, because an instance-suffixed comment is some machine's writer and consuming
+  it unpinned would relaunch the locally configured lane on **every** stopped consumer sharing the
+  issue — sibling instances started by a request none of them owns. Only the pinned instance's
+  comment, or the legacy un-suffixed one, is actionable.
 
 ## [0.24.3]
 

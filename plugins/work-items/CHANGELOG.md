@@ -33,7 +33,13 @@ All notable changes to the `work-items` plugin are documented here. Format follo
   differing nonce over a stale block is the ordinary restart adoption, and a differing nonce over a
   *fresh* block means another live lane holds this id — the lane writes nothing, escalates, and
   stops. The check runs before any write, so a duplicate id degrades to a stopped lane rather than
-  a clobbered `first_drain_complete`.
+  a clobbered `first_drain_complete`. Two shapes the freshness test alone misreads are carved out:
+  a fresh block carrying a non-null `restart_request` is a stopped predecessor's clean handoff
+  (recording the ask is its last write), so the replacement adopts immediately — clearing the
+  request — instead of waiting out the staleness window; and an unclaimed marker is claimed with a
+  cycle-0 block plus a re-read through the creation-race reconcile *before any work*, so two
+  same-id sessions starting together stop before either overwrites the other's first durable
+  state.
 
 ### Changed
 

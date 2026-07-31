@@ -27,7 +27,13 @@ All notable changes to the `source-control` plugin are documented here. Format f
   differing nonce over a stale block is the ordinary restart adoption; over a *fresh* block it means
   another live lane holds this id, and the lane writes nothing, escalates, and stops cleanly.
   `paused_until` is not the rate-limit latch — the latch says do not claim work, `paused_until` says
-  do not read this lane's silence as death.
+  do not read this lane's silence as death. Two shapes the freshness test alone misreads are carved
+  out: a fresh block carrying a non-null `restart_request` is a stopped predecessor's clean handoff
+  (recording the ask is its last write), so the replacement adopts immediately — clearing the
+  request — instead of waiting out the staleness window; and an unclaimed marker is claimed with a
+  cycle-0 block plus a re-read through the creation-race reconcile *before any work*, so two
+  same-id sessions starting together stop before either overwrites the other's first durable
+  state.
 
 ## [0.42.3]
 

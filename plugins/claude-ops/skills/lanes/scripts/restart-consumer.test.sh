@@ -268,16 +268,52 @@ assert_contains "the work marker still reads its own block" "$OUT" "| work | no-
 
 # --- 8b. Instance-suffixed markers (#1295) ----------------------------------
 # A lane's marker names a WRITER, not a lane type, so live comments carry
-# `<marker>@<instance>`. A bound bare marker must keep matching them, or this
-# consumer goes silently blind the moment lanes adopt the suffix.
+# `<marker>@<instance>`. A bound bare marker must keep SEEING them — an
+# exact-equality match goes silently blind the moment lanes adopt the suffix —
+# but without a pin a suffixed writer is another machine's: its request is
+# surfaced as `unbound-instance`, never consumed, or B's ask would relaunch
+# A's lane on every stopped consumer sharing the issue.
 TEL_INST="$TMP/tel-instance.json"
 jq -n \
   --arg w "$(state_comment 'work-items:work-loop@laptop-a' 'true')" \
   --arg b "$(state_comment 'source-control:babysit-loop@laptop-a' 'null')" \
   '{work: [{body: $w}, {body: $b}], babysit: [{body: $w}, {body: $b}]}' >"$TEL_INST"
 OUT="$(run_consumer check --telemetry-json "$TEL_INST" --agents-json "$AGENTS_NONE")"
-assert_contains "a bare bound marker matches an instance-suffixed comment" "$OUT" "| work | would-restart |"
+assert_contains "an unpinned binding surfaces a suffixed request without acting" "$OUT" "| work | unbound-instance |"
 assert_contains "instance suffix does not cross lane types" "$OUT" "| babysit | no-request |"
+
+: >"$LAUNCH_LOG"
+OUT="$(run_consumer run --telemetry-json "$TEL_INST" --agents-json "$AGENTS_NONE")"
+RC=$?
+assert_eq "a sibling instance's request relaunches nothing" "" "$(cat "$LAUNCH_LOG")"
+assert_eq "an observed-only sibling request is not an error" "0" "$RC"
+
+# Pinning selects the local writer and makes its request actionable: the
+# `instance` key on work, the marker-suffix spelling on babysit.
+CONFIG_PIN="$TMP/lanes-pin.json"
+cat >"$CONFIG_PIN" <<'JSON'
+{
+  "prompt_dir": ".work",
+  "lanes": [
+    { "name": "work", "prompt": "work.md",
+      "telemetry": { "issue": 42, "marker": "work-items:work-loop", "instance": "laptop-b" } },
+    { "name": "babysit", "prompt": "babysit.md",
+      "telemetry": { "issue": 42, "marker": "source-control:babysit-loop@laptop-b" } }
+  ]
+}
+JSON
+TEL_PIN="$TMP/tel-pin.json"
+jq -n \
+  --arg wq "$(state_comment 'work-items:work-loop@laptop-a' 'true')" \
+  --arg wa "$(state_comment 'work-items:work-loop@laptop-b' 'true')" \
+  --arg bq "$(state_comment 'source-control:babysit-loop@laptop-a' 'true')" \
+  --arg ba "$(state_comment 'source-control:babysit-loop@laptop-b' 'null')" \
+  '{work: [{body: $wq}, {body: $wa}], babysit: [{body: $bq}, {body: $ba}]}' >"$TEL_PIN"
+OUT="$(bash "$SCRIPT" check --config "$CONFIG_PIN" --repo "$REPO" --data-dir "$DATA" \
+  --target-repo "owner/name" --launcher "$LAUNCHER" --no-telemetry --now 1800000000 \
+  --telemetry-json "$TEL_PIN" --agents-json "$AGENTS_NONE" 2>&1)"
+assert_contains "an instance pin consumes the pinned writer's request" "$OUT" "| work | would-restart |"
+assert_contains "a marker@instance pin ignores a sibling's request" "$OUT" "| babysit | no-request |"
 
 # A superstring lane type must NOT be adopted: `work-items:work-loop` binding
 # must not read `work-items:work-loop-v2`'s block.
@@ -287,15 +323,16 @@ jq -n --arg w "$(state_comment 'work-items:work-loop-v2' 'true')" \
 OUT="$(run_consumer check --telemetry-json "$TEL_SUPER" --agents-json "$AGENTS_NONE")"
 assert_contains "a superstring lane marker is not adopted" "$OUT" "| work | no-state |"
 
-# Any bound instance asking is a request: a sibling instance's non-asking
-# comment appearing FIRST must not mask a later instance's request.
+# A quiet sibling appearing FIRST must not mask a later instance's request —
+# the scan keeps looking, and the surfaced decision names the ask it found.
 TEL_MULTI="$TMP/tel-multi-instance.json"
 jq -n \
   --arg quiet "$(state_comment 'work-items:work-loop@laptop-a' 'null')" \
   --arg asking "$(state_comment 'work-items:work-loop@laptop-b' 'true')" \
   '{work: [{body: $quiet}, {body: $asking}], babysit: []}' >"$TEL_MULTI"
 OUT="$(run_consumer check --telemetry-json "$TEL_MULTI" --agents-json "$AGENTS_NONE")"
-assert_contains "a quiet sibling instance does not mask a later request" "$OUT" "| work | would-restart |"
+assert_contains "a quiet sibling instance does not mask a later request" "$OUT" "| work | unbound-instance |"
+assert_contains "the surfaced decision names the asking writer" "$OUT" "laptop-b"
 
 # --- 9. Non-sentinel and unfenced comments are no-state ----------------------
 TEL_N="$TMP/tel-none.json"
