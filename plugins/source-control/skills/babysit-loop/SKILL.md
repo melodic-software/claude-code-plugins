@@ -269,15 +269,19 @@ intake arriving mid-cycle is reported, never chased.
      `--expected-head` (the lane pin; `babysit-prs/reference/safety.md`, "Lane-pinned merge
      authorization"); every other non-report-only PR is invoked at `safe` (fixes and reports;
      never resolves threads or merges). An empty eligible set means only `safe` per-PR invocations this cycle.
-     Under the explicit-`autopilot` widening, a merge-eligible PR still blocked on a
-     machine-escalated `needs-human` item, an open finding, or a contradictory thread gets the
-     leased fresh-subagent resolution dispatch ("Explicit-`autopilot` widening" above, Escalation
-     below) ahead of its `/source-control:babysit-prs autopilot <owner/repo>#<N>` invocation, not
-     instead of it.
-   - **Dimension overrides bind by tier flooring, never narrative.** Before invoking, lower the
-     tier for a PR to the highest babysit-prs tier whose behavior exceeds NO resolved dimension
-     override (babysit-prs's tier keyword is its only enforcement surface — a natural-language
-     narrowing handed to a higher tier is not enforcement). Capabilities the floor forgoes are
+     Under the explicit-`autopilot` widening, a merge-eligible PR blocked on a machine-escalated
+     `needs-human` item, an open finding, or a contradictory thread gets the leased fresh-subagent
+     resolution dispatch ("Explicit-`autopilot` widening" above, Escalation below) ahead of its
+     `autopilot` per-PR invocation, not instead of it — and only where the next bullet permits it.
+   - **Dimension overrides bind by tier flooring, never narrative, and bind every capability this
+     step exercises — not only the tier keyword it passes on.** Before invoking, lower the tier for
+     a PR to the highest babysit-prs tier whose behavior exceeds NO resolved dimension override
+     (babysit-prs's tier keyword is its only enforcement surface — a natural-language narrowing
+     handed to a higher tier is not enforcement). **The pre-escalation resolution dispatch is inside
+     that boundary**: the lane fires it directly rather than through the mechanic's tier keyword,
+     and resolving review threads is a dimension-3 action, so a thread-resolution override
+     forbidding it withholds the dispatch outright and the PR escalates — never dispatched and then
+     narratively told not to resolve. Capabilities the floor forgoes are
      reported as override-constrained this cycle; the deliberate cost, here and in the rung
      partition, is that coupled higher-tier actions (e.g. worker-tier bot-thread auto-resolution)
      are foregone on floored PRs — failing closed gives up only actions the overrides or rung
