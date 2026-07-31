@@ -3,6 +3,22 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.15.4]
+
+### Fixed
+
+- `fanout`'s pre-computed committed-diff-size probe no longer fails to load the skill from a
+  worktree-isolated agent. The harness composes a skill's `## Pre-computed context` lines into one
+  shell invocation, and the worktree-isolation Bash guard refuses any genuine `$` expansion — the
+  line's `D="$(git ls-remote …)"` assignment and command substitution were therefore enough to make
+  the whole block, and with it the skill, refuse to load. The fallback chain moves verbatim into a
+  bundled `skills/fanout/scripts/diff-vs-base.sh` invoked through `${CLAUDE_PLUGIN_ROOT}`, which the
+  harness substitutes into a literal path before any shell sees it; `$` inside the script file is
+  unrestricted. Behavior is unchanged, including the `git fetch origin <default-branch>` side effect
+  and the distinction between an empty resolved range (prints nothing) and no resolvable base
+  (prints `unavailable`). The line's awk `$2` was probed and is not a trigger, so it stays. Covered
+  by `diff-vs-base.test.sh` across all four branches of the chain (#1687).
+
 ## [0.15.3]
 
 ### Fixed
