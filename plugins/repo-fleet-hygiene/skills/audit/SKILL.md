@@ -80,8 +80,9 @@ The bundled collector is authoritative for classifications. Preserve its evidenc
    --show-toplevel` alone cannot identify a canonical checkout: inside a linked worktree it returns
    the linked root, so a sibling worktree reached first by discovery would otherwise become the
    path every handoff points at. When a supplied or discovered path resolves to a different main
-   worktree, the header states the substitution on a `Resolved to main worktree:` line — relay it,
-   because the operator named one path and the report is about another. The report always shows
+   worktree, the header states the substitution on one `Resolved to main worktree:` line per
+   repository, naming every path that resolved into it — relay it, because the operator named one
+   path and the report is about another. The report always shows
    discovered and canonical paths. An
    override target with a missing/non-GitHub remote, or a different identity that cannot be proven to
    resolve to the same GitHub repository, stops that repository's local audit before evidence combines.

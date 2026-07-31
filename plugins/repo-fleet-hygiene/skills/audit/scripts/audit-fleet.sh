@@ -293,18 +293,21 @@ PROJECT_DIR_ARG=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
+  # An empty value is rejected rather than accepted-and-skipped: the discovery loops ignore an
+  # empty entry, so accepting one would let the header's scope count claim an argument that
+  # contributed nothing. A CLI typo stops the run, as everywhere else in this grammar.
   --root)
-    [[ $# -ge 2 ]] || fail "--root requires a directory"
+    [[ $# -ge 2 && -n "$2" ]] || fail "--root requires a directory"
     ROOT_ARGS+=("$2")
     shift 2
     ;;
   --repo)
-    [[ $# -ge 2 ]] || fail "--repo requires a directory"
+    [[ $# -ge 2 && -n "$2" ]] || fail "--repo requires a directory"
     REPO_ARGS+=("$2")
     shift 2
     ;;
   --config)
-    [[ $# -ge 2 ]] || fail "--config requires a file"
+    [[ $# -ge 2 && -n "$2" ]] || fail "--config requires a file"
     [[ -z "$CONFIG_FILE" ]] || fail "--config may be supplied only once"
     CONFIG_FILE="$2"
     shift 2
@@ -574,7 +577,7 @@ main_worktree() {
 # stale-config-entry and continues (the entry, not the run, is the failure unit for a tracked fleet
 # config). Invalid config SYNTAX still hard-fails upstream.
 add_target() {
-  local candidate="$1" origin="${2:-cli}" top common common_key existing main_top
+  local candidate="$1" origin="${2:-cli}" top common common_key existing main_top rt_known rt_existing
   if [[ ! -d "$candidate" ]]; then
     reject_target "$origin" "repository directory not found: $candidate"
     STALE_CONFIG_PATHS+=("$candidate")
@@ -607,8 +610,19 @@ add_target() {
     # another, so substituting it silently would be the same class of defect as a header asserting a
     # scope the run's own inputs contradict.
     if [[ "$(path_key "$main_top")" != "$(path_key "$top")" ]]; then
-      RETARGETED_FROM+=("$top")
-      RETARGETED_TO+=("$main_top")
+      # A config may name one path twice; record each distinct source once so the grouped header
+      # line cannot list the same path repeatedly.
+      rt_known=false
+      for rt_existing in "${RETARGETED_FROM[@]:-}"; do
+        [[ -n "$rt_existing" && "$rt_existing" == "$top" ]] && {
+          rt_known=true
+          break
+        }
+      done
+      if [[ "$rt_known" == "false" ]]; then
+        RETARGETED_FROM+=("$top")
+        RETARGETED_TO+=("$main_top")
+      fi
     fi
     top="$main_top"
   fi
@@ -1347,12 +1361,33 @@ fi
 # discovery targets, the Summary line counts repositories that completed a local audit. Both are
 # qualified so a reader cannot read a shortfall as a discrepancy.
 printf 'Repositories discovered (audit targets after deduplication): %s\n' "${#TARGETS[@]}"
-for ((rt_index = 0; rt_index < ${#RETARGETED_FROM[@]}; rt_index++)); do
+# One line per repository of record, listing every path that resolved into it. A separate line per
+# retargeted path would print N lines for a repository the count above reports once, which reads as
+# N repositories -- the same header-contradicts-itself defect this report is being corrected for.
+RT_REPORTED=()
+for ((rt_index = 0; rt_index < ${#RETARGETED_TO[@]}; rt_index++)); do
+  rt_to="${RETARGETED_TO[$rt_index]}"
+  rt_seen=false
+  for rt_prev in "${RT_REPORTED[@]:-}"; do
+    [[ -n "$rt_prev" && "$rt_prev" == "$rt_to" ]] && {
+      rt_seen=true
+      break
+    }
+  done
+  [[ "$rt_seen" == "true" ]] && continue
+  RT_REPORTED+=("$rt_to")
   printf 'Resolved to main worktree: '
-  display_value "${RETARGETED_FROM[$rt_index]}"
-  printf ' -> '
-  display_value "${RETARGETED_TO[$rt_index]}"
-  printf '\n'
+  display_value "$rt_to"
+  printf ' (reached via'
+  rt_count=0
+  for ((rt_j = 0; rt_j < ${#RETARGETED_TO[@]}; rt_j++)); do
+    [[ "${RETARGETED_TO[$rt_j]}" == "$rt_to" ]] || continue
+    [[ "$rt_count" -gt 0 ]] && printf ','
+    printf ' '
+    display_value "${RETARGETED_FROM[$rt_j]}"
+    rt_count=$((rt_count + 1))
+  done
+  printf ')\n'
 done
 for ((root_index = 0; root_index < ${#ROOT_LABELS[@]}; root_index++)); do
   printf 'Root '

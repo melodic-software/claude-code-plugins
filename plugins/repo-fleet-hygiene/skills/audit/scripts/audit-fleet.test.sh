@@ -14,12 +14,13 @@ mkdir -p "$MOCK_BIN" "$TMP/config" "$TMP/discovered-a" "$TMP/canonical-a" "$TMP/
   "$TMP/emptyroot" \
   "$TMP/wt-a" "$TMP/wt-mismatch" \
   "$TMP/discovered-c" "$TMP/canonical-c" "$TMP/gone-repo" "$TMP/lost-repo" "$TMP/net-repo" \
-  "$TMP/wt-root/aaa-linked" "$TMP/wt-root/zzz-canonical/.git"
+  "$TMP/wt-root/aaa-linked" "$TMP/wt-root/bbb-linked" "$TMP/wt-root/zzz-canonical/.git"
 # Canonical-selection fixture: a LINKED worktree whose directory name sorts before its own main
 # worktree under LC_ALL=C, so bounded discovery reaches it first. A linked worktree carries .git as
 # a FILE, the main worktree as a DIRECTORY; both resolve to the same --git-common-dir, so whichever
 # the glob reaches first wins the dedup. The canonical checkout must not be decided by that order.
 : >"$TMP/wt-root/aaa-linked/.git"
+: >"$TMP/wt-root/bbb-linked/.git"
 : >"$TMP/calls.log"
 
 cat >"$MOCK_BIN/git" <<'EOF'
@@ -65,6 +66,7 @@ rev-parse)
     # Inside a linked worktree --show-toplevel returns the LINKED root, which is exactly the wrong
     # answer for a canonical checkout -- the defect this fixture pins.
     aaa-linked) printf '%s\n' "$TEST_ROOT/wt-root/aaa-linked" ;;
+    bbb-linked) printf '%s\n' "$TEST_ROOT/wt-root/bbb-linked" ;;
     zzz-canonical) printf '%s\n' "$TEST_ROOT/wt-root/zzz-canonical" ;;
     *) exit 1 ;;
     esac
@@ -87,7 +89,7 @@ rev-parse)
     gone-repo) printf '%s\n' "$TEST_ROOT/gone-repo/.git" ;;
     lost-repo) printf '%s\n' "$TEST_ROOT/lost-repo/.git" ;;
     net-repo) printf '%s\n' "$TEST_ROOT/net-repo/.git" ;;
-    aaa-linked | zzz-canonical) printf '%s\n' "$TEST_ROOT/wt-root/zzz-canonical/.git" ;;
+    aaa-linked | bbb-linked | zzz-canonical) printf '%s\n' "$TEST_ROOT/wt-root/zzz-canonical/.git" ;;
     *) exit 1 ;;
     esac
     ;;
@@ -112,7 +114,7 @@ remote)
     gone-repo) printf '%s\n' 'https://github.com/gone/away.git' ;;
     lost-repo) printf '%s\n' 'https://github.com/lost/cause.git' ;;
     net-repo) printf '%s\n' 'https://github.com/gone/net.git' ;;
-    aaa-linked | zzz-canonical) printf '%s\n' 'https://github.com/acme/wt-canon.git' ;;
+    aaa-linked | bbb-linked | zzz-canonical) printf '%s\n' 'https://github.com/acme/wt-canon.git' ;;
     *) exit 1 ;;
     esac
   else
@@ -165,9 +167,10 @@ worktree)
   # git-worktree(1): the porcelain lists the MAIN worktree first regardless of which worktree the
   # command ran from. Both fixtures answer identically, so the main worktree is discoverable from
   # inside the linked one.
-  aaa-linked | zzz-canonical)
+  aaa-linked | bbb-linked | zzz-canonical)
     printf 'worktree %s\0HEAD canon-main\0branch refs/heads/main\0\0' "$TEST_ROOT/wt-root/zzz-canonical"
     printf 'worktree %s\0HEAD canon-feat\0branch refs/heads/feature/linked\0\0' "$TEST_ROOT/wt-root/aaa-linked"
+    printf 'worktree %s\0HEAD canon-feat2\0branch refs/heads/feature/linked-2\0\0' "$TEST_ROOT/wt-root/bbb-linked"
     ;;
   esac
   ;;
@@ -178,7 +181,7 @@ branch)
   case "$base" in
   canonical-a) printf '%s\n' main ;;
   repo-b | old-repo | root-repo | wt-fail | ref-fail | rref-fail | dup-a | new-clone | canonical-c | gone-repo | lost-repo | net-repo) printf '%s\n' main ;;
-  aaa-linked | zzz-canonical) printf '%s\n' main ;;
+  aaa-linked | bbb-linked | zzz-canonical) printf '%s\n' main ;;
   esac
   ;;
 for-each-ref)
@@ -195,7 +198,7 @@ for-each-ref)
       printf 'origin\thead-a\0\norigin/main\tmain-a\0\norigin/feature/shared\tsha-a\0\norigin/stale/changed\tdrift-tip\0\n'
       ;;
     rref-fail) exit 9 ;;
-    aaa-linked | zzz-canonical) printf 'origin/main\tcanon-main\0\n' ;;
+    aaa-linked | bbb-linked | zzz-canonical) printf 'origin/main\tcanon-main\0\n' ;;
     esac
     exit 0
   fi
@@ -219,7 +222,7 @@ for-each-ref)
   gone-repo) printf 'main\tgone-main\0\n' ;;
   lost-repo) printf 'main\tlost-main\0\n' ;;
   net-repo) printf 'main\tnet-main\0\n' ;;
-  aaa-linked | zzz-canonical) printf 'main\tcanon-main\0\nfeature/linked\tcanon-feat\0\n' ;;
+  aaa-linked | bbb-linked | zzz-canonical) printf 'main\tcanon-main\0\nfeature/linked\tcanon-feat\0\n' ;;
   esac
   ;;
 merge-base) exit 1 ;;
@@ -696,11 +699,34 @@ assert_not_contains_file() {
 }
 assert_not_contains_file "no false current-project scope claim" "current-project scope" "$ladder_out"
 # Retargeting a supplied/discovered path to the repository of record is a substitution the operator
-# did not ask for, so it must be stated rather than silently applied.
-if grep -Fq "Resolved to main worktree: $TMP/wt-root/aaa-linked -> $TMP/wt-root/zzz-canonical" "$ladder_out"; then
-  printf 'PASS: retarget to the main worktree is disclosed in the header\n'
+# did not ask for, so it must be stated rather than silently applied. wt-root holds TWO linked
+# worktrees of one repository: the disclosure must be ONE line naming both sources, because a line
+# per retargeted path would read as two repositories against the "discovered: 1" count above.
+if grep -Fq "Resolved to main worktree: $TMP/wt-root/zzz-canonical (reached via $TMP/wt-root/aaa-linked, $TMP/wt-root/bbb-linked)" "$ladder_out"; then
+  printf 'PASS: retarget is disclosed once per repository, naming every source path\n'
 else
-  printf 'FAIL: retarget to the main worktree is disclosed in the header\n' >&2
+  printf 'FAIL: retarget is disclosed once per repository, naming every source path\n' >&2
+  failures=$((failures + 1))
+fi
+if [[ "$(grep -c "^Resolved to main worktree:" "$ladder_out")" -eq 1 ]]; then
+  printf 'PASS: one retarget line for one discovered repository\n'
+else
+  printf 'FAIL: one retarget line for one discovered repository\n' >&2
+  failures=$((failures + 1))
+fi
+
+# An empty CLI scope value is skipped by the discovery loops, so accepting it would let the header's
+# computed scope count claim an argument that contributed nothing. It must stop the run instead.
+# Its own output file: the surrounding assertions all read $ladder_out from the wt-root run above,
+# and reusing it here would silently invalidate whichever of them follows.
+scope_out="$TMP/scope-arg.txt"
+if REPO_FLEET_TEST_FAST_TIMEOUTS=1 bash "$SCRIPT" --root "" --root "$TMP/wt-root" >"$scope_out" 2>&1; then
+  printf 'FAIL: an empty --root value did not hard-fail\n' >&2
+  failures=$((failures + 1))
+elif grep -Fq -- "--root requires a directory" "$scope_out"; then
+  printf 'PASS: an empty --root value hard-fails instead of inflating the scope count\n'
+else
+  printf 'FAIL: an empty --root value hard-fails (wrong error)\n' >&2
   failures=$((failures + 1))
 fi
 # A full merged-PR window silently drops older history, which reads in the report exactly like a

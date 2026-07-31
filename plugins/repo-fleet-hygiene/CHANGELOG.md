@@ -18,9 +18,10 @@ All notable changes to `repo-fleet-hygiene` are documented here. Format follows
   the dedup tie-break. `rev-parse --show-toplevel` cannot make this distinction: inside a linked
   worktree it returns the linked root. The extra probe is gated on the candidate's `.git` being a
   file rather than a directory, so an ordinary fleet sweep pays nothing per repository. The
-  substitution is disclosed on a `Resolved to main worktree:` header line rather than applied
-  silently — the operator named one path and the report is about another. Evidence rule 1 in both
-  skills is corrected to match.
+  substitution is disclosed rather than applied silently — the operator named one path and the
+  report is about another — on one `Resolved to main worktree:` header line per repository naming
+  every path that resolved into it, so several worktrees of one repository cannot read as several
+  repositories against the discovered count. Evidence rule 1 in both skills is corrected to match.
 - **The `allowed-tools` grant used a variable that is not substituted there (#1798).** The rule named
   `${CLAUDE_PLUGIN_ROOT}`, which the skills documentation does not list among the variables
   substituted in skill content or `allowed-tools` Bash rules — only `${CLAUDE_SKILL_DIR}` and
@@ -48,7 +49,8 @@ All notable changes to `repo-fleet-hygiene` are documented here. Format follows
   converted to `C:/...` for presentation only, since the report is actionable text whose paths get
   pasted into tools that reject the MSYS form. The two differently-scoped `repositories` counts are
   now labelled distinctly (`Repositories discovered (audit targets after deduplication)` and
-  `repositories_audited`).
+  `repositories_audited`). An empty `--root`/`--repo`/`--config` value stops the run rather than
+  being counted toward the scope the header reports and then skipped by the discovery loops.
 - **`setup`'s verify step no longer violates `setup`'s own boundary (#1801).** `apply` step 5
   prescribed running the collector, which is the full fleet walk the skill states it never performs —
   minutes of per-repository network queries in a step described as validating that a config parses.
