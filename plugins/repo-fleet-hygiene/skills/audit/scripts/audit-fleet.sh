@@ -213,13 +213,14 @@ gh_probe_allowed() {
   esac
 }
 
-# GitHub CLI has no request-timeout flag. Prefer GNU timeout/gtimeout only when its documented
-# --kill-after capability is present. The pure-Bash watchdog is the platform-safe fallback and still
-# escalates TERM to KILL after a finite grace period. The test switch can only shorten both bounds.
 # The repository-scoped merged-PR batch window. Named rather than inlined so the query, the
 # truncation disclosure, and the evidence text can never drift apart; the value is also pinned in
 # gh_probe_allowed, which rejects any other --limit for this query.
 MERGED_PR_WINDOW=200
+
+# GitHub CLI has no request-timeout flag. Prefer GNU timeout/gtimeout only when its documented
+# --kill-after capability is present. The pure-Bash watchdog is the platform-safe fallback and still
+# escalates TERM to KILL after a finite grace period. The test switch can only shorten both bounds.
 GH_TIMEOUT_SECONDS=30
 GH_KILL_AFTER_SECONDS=5
 if [[ "${REPO_FLEET_TEST_FAST_TIMEOUTS:-}" == "1" ]]; then
@@ -594,13 +595,13 @@ add_target() {
   }
   # Siblings sharing one common directory are one repository, and the dedup below keeps whichever
   # arrives first -- which for recursive discovery is glob order. Retarget to the repository of
-  # record BEFORE that tie-break so a linked worktree reached first can never become the canonical
-  # path every emitted handoff points at. Falls back to --show-toplevel when the porcelain cannot
-  # answer; a repository whose worktree inventory is unusable is reported as UNKNOWN downstream.
-  # A main worktree carries .git as a DIRECTORY; a linked one carries it as a FILE. Gate the extra
-  # porcelain probe on that cheap local test so an ordinary fleet sweep pays nothing per repository
-  # -- and note the gate is an optimization only: --separate-git-dir also yields a .git file, and
-  # the porcelain then simply confirms the same main worktree.
+  # record BEFORE that tie-break, so a linked worktree reached first can never become the canonical
+  # path every emitted handoff points at. Two guards on the cost and the failure mode: a main
+  # worktree carries .git as a DIRECTORY and a linked one as a FILE, so the cheap local test keeps
+  # an ordinary sweep from paying for the extra probe at all (an optimization only --
+  # --separate-git-dir also yields a .git file, and the porcelain then confirms the same main
+  # worktree); and when the porcelain cannot answer, --show-toplevel stands, with the unusable
+  # worktree inventory reported as UNKNOWN downstream.
   if [[ ! -d "$top/.git" ]] && main_top="$(main_worktree "$candidate")" && [[ -n "$main_top" ]]; then
     # Disclose the retarget. The operator supplied or discovered one path and the report is about
     # another, so substituting it silently would be the same class of defect as a header asserting a
