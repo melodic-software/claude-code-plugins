@@ -17,15 +17,19 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   with no signal to the operator. A candidate whose version directory carries the orphan marker is
   now skipped, so uninstalling stops the tee at the next statusline refresh. The marking is
   documented; the marker's on-disk spelling was measured (Claude Code 2.1.220, against a relocated
-  `CLAUDE_CONFIG_DIR`) and the shim's header records both, along with the fallback: a marker upstream
-  renames or drops leaves resolution exactly as it is today, never a broken statusline. The
-  undocumented `installed_plugins.json` the header previously rejected stays rejected.
+  `CLAUDE_CONFIG_DIR`) and the shim's header records both, along with the fallback: should upstream
+  rename or drop the marker, resolution degrades to exactly what it does today — a stale tee, never
+  a broken statusline. The undocumented `installed_plugins.json` the header previously rejected
+  stays rejected.
 - **`setup` no longer adds an `sh -c` layer per run (#1787).** "Unwrap before you compose" stripped
   guard-shim prefixes but not the `sh -c '<escaped …>'` adapter the skill's own shell-syntax guard
   prints, so a rerun read that adapter as the renderer, found shell syntax in it, and wrapped it
   again — one layer per run. Unwrapping is now two rules applied until a pass strips nothing, so
   several layers from earlier reruns collapse rather than only the outermost, and a rerun over
-  already-correct wiring prints byte-identical wiring.
+  already-correct wiring prints byte-identical wiring. The adapter rule establishes provenance
+  before it peels: because the skill emits an adapter only for a renderer carrying shell syntax, an
+  `sh -c` over a string carrying none is the operator's own and is preserved — peeling
+  `sh -c 'ulimit -n'` would leave the shim `exec`-ing a shell builtin with no shell, exiting 127.
 
 ## [0.4.3]
 

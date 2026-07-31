@@ -138,10 +138,16 @@ zone bands, zones.json shape) are owned by
       `bash <path>/rate-limit-guard/bin/statusline-shim.sh`, in whatever order they appear, plus any
       legacy `bash <plugin-cache>/…/statusline-tee.sh` prefix.
    2. **A generated `sh -c` adapter** — when what remains is EXACTLY `sh -c '<single-quoted string>'`
-      with nothing after the closing quote, that is the shell-syntax adapter a previous run printed,
-      not the renderer. Unescape it back: drop the leading `sh -c` and the outer quotes, then
-      replace every `'\''` with `'`. A trailing word (`sh -c '…' extra`) makes it a real command,
-      not an adapter — leave that alone.
+      with nothing after the closing quote, AND the string it carries itself contains shell syntax,
+      that is the shell-syntax adapter a previous run printed, not the renderer. Unescape it back:
+      drop the leading `sh -c` and the outer quotes, then replace every `'\''` with `'`.
+
+      Both conditions establish provenance, and the second is load-bearing. This skill emits the
+      adapter ONLY for a renderer that carries shell syntax (the guard below), so an `sh -c` over a
+      string carrying NONE was written by the operator and must be preserved: peeling
+      `sh -c 'ulimit -n'` to `ulimit -n` would leave the shim `exec`-ing a shell builtin that no
+      longer has a shell, and the statusline would exit 127 instead of rendering. A trailing word
+      (`sh -c '…' extra`) makes it a real command, not an adapter — leave that alone too.
 
    One pass is not enough: an operator may already carry several layers from earlier reruns, and a
    single peel over three layers leaves three.
