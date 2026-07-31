@@ -5,6 +5,46 @@ topology, the escalation contract, the capability-tier vocabulary, or any loop-l
 major bump, and additive guidance is a minor bump. A new model release re-audits the capability-tier
 table (§3); drift found by that audit is recorded here.
 
+## 7.0.0 — 2026-07-30
+
+Repartitions §4's telemetry binding from the lane **type** to the lane **instance**, resolving
+[melodic-software/claude-code-plugins#1295](https://github.com/melodic-software/claude-code-plugins/issues/1295).
+Tier ratified as **major** on 2.0.0's discriminator: it rewrites a loop-layer invariant every lane
+body implements, and adds two more (instance identity, collision detection).
+
+- **The telemetry marker now names the writer, not the lane (§4).** The marker was a fixed constant
+  per lane, so two instances of one lane on one repository resolved the same sentinel and overwrote
+  each other's durable state under last-writer-wins. The serious loss was `first_drain_complete`:
+  one machine finishing a drain ended the earn-trust C3 ratification gate for every other machine,
+  widening autonomy with no human ratification — a safety property failing open. The marker gains a
+  lane-instance suffix (`<lane-marker>@<lane_instance>`), the lane-type marker becoming its prefix,
+  and "exactly one comment" is restated as **one comment per writer identity**: N concurrent
+  instances legitimately hold N comments on one telemetry item.
+- **Lane-instance identity (§4, new invariant).** Resolved from launch config, defaulting to the
+  sanitized lowercased hostname; stable across restarts, distinct across concurrent instances,
+  charset-validated `^[a-z0-9][a-z0-9-]{0,31}$` inside each lane's own executable block rather than
+  in prose alone, since the value is operator-supplied text interpolated into a shell string and a
+  `jq` program.
+- **Instance-collision detection (§4, new invariant).** The state block gains `lane_instance`,
+  `writer_nonce`, `heartbeat_at`, and `paused_until`. A differing nonce over a stale block is the
+  ordinary restart path (adopt and continue); a differing nonce over a *fresh* block means another
+  live lane holds this id — write nothing, escalate per §2, stop cleanly. The staleness window is
+  two hours, twice the one-hour `ScheduleWakeup` ceiling, so maximum idle backoff can never read as
+  death. Detection runs before any write, so a collision degrades to a stopped lane rather than a
+  clobbered `first_drain_complete`.
+- **The `Lane telemetry: <lane>` title contract is deliberately untouched.** The drain-exit
+  snapshot, the intake sweep, and the attention view all match lane infrastructure by that title;
+  the marker was chosen as the partition seam precisely so no title-matching consumer moves.
+- **Migration is a deliberate reset.** No pre-existing comment matches an instance's new sentinel —
+  neither the legacy un-suffixed `marker=<lane>` comments nor the improvised
+  `<!-- work-items:telemetry lane=… instance=… -->` comments some lanes began posting in practice —
+  so the first cycle after adoption posts a fresh block from defaults, including
+  `first_drain_complete:false`. That fails closed and is intended; it produces one burst of
+  ratification queue comments on the next drain. The legacy comment is never adopted, edited, or
+  tombstoned by a lane — its marker names no writer, so no instance can prove it owns it, and a lane
+  that adopted it would reintroduce the shared-comment clobber this change removes. Retiring it is
+  an operator action; until then it reads as stale, which is honest, because nothing is writing it.
+
 ## 6.0.1 — 2026-07-29
 
 Corrective, no topology, escalation, tier, or invariant change — 6.0.0's usage-sample invariant is
