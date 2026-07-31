@@ -3,6 +3,30 @@
 All notable changes to the `bash-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.11]
+
+### Fixed
+
+- **Bare `[*]` is no longer a shell formatting opt-in (#1817).** `section_applies_to_shell`
+  treated a catch-all `[*]` section as governing shell files, so any repo with a generic
+  `.editorconfig` (typically only `end_of_line` / `insert_final_newline` under `[*]`) had its
+  shell scripts rewritten to shfmt's built-in defaults. Opt-in now requires an explicit shell
+  glob — `[*.sh]`, `[*.bash]`, `[*.{sh,bash}]`, or a path-prefixed form like `[**/*.sh]`.
+  Path-only sections such as `[scripts/**]` remain excluded.
+
+- **ShellCheck/shfmt path handling no longer surfaces `openBinaryFile` on Windows (#1817).**
+  On Windows/MSYS the hook now prefers `cygpath -lm` (mixed long form) for tool invocations when
+  that path exists, re-checks that the file is still present immediately before shfmt/ShellCheck
+  run (closing a race with deleted scratch/worktree files), retries the original path spelling if
+  ShellCheck still reports `openBinaryFile`, and strips any remaining `openBinaryFile` noise so it
+  never becomes a findings line. `openBinaryFile: does not exist` is ShellCheck's (GHC's) missing-
+  file error — valid path forms already lint cleanly; this hardens the intermittent miss case.
+
+### Changed
+
+- README and `/bash-format:setup` now document that a bare `[*]` is not a formatting opt-in;
+  consumers who want shfmt must add an explicit shell glob section.
+
 ## [0.6.10]
 
 ### Fixed
