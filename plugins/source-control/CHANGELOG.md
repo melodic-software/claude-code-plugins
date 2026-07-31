@@ -7,7 +7,6 @@ All notable changes to the `source-control` plugin are documented here. Format f
 
 ### Added
 
-
 - **babysit-prs: an orchestrator-side independent resolution dispatch, so a disproved current bot
   thread has a route to a terminal state (#1641).** `--independent-resolver` (0.42.0) supplied the
   mechanism; nothing supplied the route. A worker that correctly disproves a bot finding —
@@ -47,7 +46,6 @@ All notable changes to the `source-control` plugin are documented here. Format f
 
 ### Changed
 
-
 - **An unset `worktree_root` now defaults to `<plugin-data-dir>/worktrees` instead of refusing every
   `/worktree create`.** The key ships unset, so the refusal fired on a fresh install and the command
   was unusable until the user configured a root by hand — a hard failure standing in for a missing
@@ -70,7 +68,6 @@ All notable changes to the `source-control` plugin are documented here. Format f
   leading dot does not hide it.
 
 ### Fixed
-
 
 - **The "reachable only on the explicit `autopilot` + `--merge c3-this-run` widening" claim was
   true when written and is no longer (#1641).** `review-discipline.md`'s D7.5 authorization rule
@@ -97,7 +94,6 @@ All notable changes to the `source-control` plugin are documented here. Format f
   span's own requirement) — the dropped alternate detected nothing the others did not. `detect` is
   untouched, because being in scope only means the file is read.
 
-
 - **The refusal rationale cited a defect that no longer reproduces.** Four surfaces — the helper,
   its `--help` text, the `worktree_root` config description, and both skill surfaces — attributed
   the nesting ban to Claude Code's CLAUDE.md/rules double-load bug, fixed upstream in v2.1.69. The
@@ -107,7 +103,6 @@ All notable changes to the `source-control` plugin are documented here. Format f
   a fixed bug does not conclude the guard is obsolete.
 - **`worktree_root` was missing from the README's configuration table** while every sibling key was
   listed.
-
 
 ## [0.44.1]
 
