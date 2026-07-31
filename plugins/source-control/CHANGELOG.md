@@ -13,7 +13,7 @@ All notable changes to the `source-control` plugin are documented here. Format f
   field=@file`, so an `@path` passed as a body VALUE is transmitted as text. `claude-ops`'s
   `telemetry-upsert.sh` refuses such a body and re-reads what it wrote, but an installed plugin cannot
   invoke a sibling plugin's script, so this lane inlines its own upsert and inherited neither
-  protection. The block now carries both halves, which catch different failures. A **pre-write gate**
+  protection. The block now carries three checks, which catch different failures. A **pre-write gate**
   rejects a `$BODY_FILE` that is empty, opens with a literal `@`, is not sentinel-prefixed, or holds
   under 16 bytes of payload — no POST, no PATCH. The **write's own exit status** is then checked, because a
   failed PATCH leaves the previous cycle's body in place and a read-back running regardless would

@@ -54,14 +54,14 @@ elif ! LIST=$(LOOKUP); then
   echo "telemetry: comment lookup failed; skipping upsert this cycle (fail closed)" >&2
 else
   if [ -z "$LIST" ]; then
-    gh api -X POST "repos/$REPO/issues/$ISSUE/comments" -F body=@"$BODY_FILE" >/dev/null
+    gh api -X POST "repos/$REPO/issues/$ISSUE/comments" -F body=@"$BODY_FILE" >/dev/null || true
     LIST=$(LOOKUP) || LIST=""   # re-list; a failure here converges next cycle
   fi
   CANON=$(printf '%s\n' "$LIST" | sort -n | head -n1)
   if [ -z "$CANON" ]; then
-    echo "telemetry: no sentinel-prefixed comment to write to - treat the lane as UNREPORTED and carry that forward to the next cycle" >&2
+    echo "telemetry: no comment available to write to (a create may have landed but was not re-found) - treat the lane as UNREPORTED and carry that forward to the next cycle" >&2
   elif ! gh api -X PATCH "repos/$REPO/issues/comments/$CANON" -F body=@"$BODY_FILE" >/dev/null; then
-    echo "telemetry: the PATCH of comment $CANON failed - treat the lane as UNREPORTED and carry that forward to the next cycle; the comment still holds an earlier cycle" >&2
+    echo "telemetry: the PATCH of comment $CANON failed - treat the lane as UNREPORTED and carry that forward to the next cycle; the comment holds an earlier body, not this cycle's write" >&2
   elif ! VERIFY "$CANON"; then
     echo "telemetry: comment $CANON does NOT carry a well-formed telemetry body after the write - treat the lane as UNREPORTED and carry that forward to the next cycle; do not trust the timestamp" >&2
   else
@@ -109,7 +109,8 @@ through stderr alone.
 see an empty lookup and both POST, forking the singleton. The upsert converges every cycle
 duplicates are visible: the LOWEST comment id is canonical (numeric sort, deterministic for
 every session), the canonical comment receives the current cycle's full state, and every other
-sentinel comment is edited to a one-line tombstone so it never matches a lookup again — this
+sentinel comment is edited to a one-line tombstone — only once the canonical write verifies — so
+it never matches a lookup again — this
 covers a racer that died between its POST and its own re-list, because the NEXT session's
 ordinary upsert performs the same reconcile. A crashed racer's unmerged counters are an
 accepted loss (durable state re-derives over a cycle); nothing is deleted. The reconcile converges
