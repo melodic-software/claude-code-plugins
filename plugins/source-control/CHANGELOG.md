@@ -14,8 +14,9 @@ All notable changes to the `source-control` plugin are documented here. Format f
   classes explicitly place in C2 — was categorically ineligible at every merge rung. The new
   loop-lane key names the exact bot logins a repository attests as its own internal automation: a
   flat bullet list on the tracked `.claude/source-control.md` surface, honored from the TARGET
-  repository's team-tracked layer only (default branch when the checkout differs) so every trust
-  grant is a recorded, reviewable config change; unset, unreadable, or malformed fails closed to
+  repository's team-tracked layer only — always read from its default branch, never any working
+  tree, so a checkout sitting on a bot-authored branch cannot self-grant — making every trust
+  grant a recorded, reviewable config change; unset, unreadable, or malformed fails closed to
   the empty set, leaving the trust test exactly `OWNER`/`MEMBER`. The match arm requires a
   structural bot (the `[bot]` login suffix or provider `Bot` type), the fork test stays
   independent (a listed bot authoring from a cross-repository head is still C5), the

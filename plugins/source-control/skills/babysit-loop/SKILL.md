@@ -64,12 +64,13 @@ Everything else resolves in order:
 1. **Invocation arguments** — the tier keyword (babysit-prs vocabulary) and any per-dimension or
    loop-knob override mirroring the seam keys (e.g. `--drain`, `--grace-window-minutes 45`, `--merge human-only`).
 2. **The layered config seam** — the `babysit_loop_*` keys on the `.claude/source-control.md`
-   surface (user-global → team-tracked → local overlay, merged per key). The key table, defaults, and
-   layering semantics live in
+   surface (user-global → team-tracked → local overlay, merged per key;
+   `babysit_loop_trusted_internal_bot_logins` binds only from the target repo's tracked default
+   branch, never an argument or another layer). Key table, defaults, and layering semantics:
    [`${CLAUDE_PLUGIN_ROOT}/reference/config-resolution.md`](../../reference/config-resolution.md).
 3. **Tier defaults** — the resolved tier's own dimension values (`safe` when nothing resolves a tier).
 
-**The merge dimension is the exception**: raises to the *standing* rung bind from the team-tracked
+**The merge dimension is the other exception**: raises to the *standing* rung bind from the team-tracked
 layer only — every other source may only select a *lower* (safer) rung, per the convention
 ("Merge-rung raises are seam-only"). The convention carries one named paired-argument exception:
 an invocation whose own argument line types **both** the literal `autopilot` tier keyword **and**
@@ -177,7 +178,8 @@ intake arriving mid-cycle is reported, never chased.
    context is compaction-lossy — the comment is the source of truth for the counters); classify
    guard mode against the floor below; take the cycle-start snapshot: open PRs with head SHAs,
    last-activity timestamps, and the provenance fields the rung partition consumes
-   (`isCrossRepository`, `headRepositoryOwner`, `authorAssociation`), and — in drain mode — open issues.
+   (`isCrossRepository`, `headRepositoryOwner`, `authorAssociation`, and the author login and bot
+   type the trust test's listed-bot arm reads), and — in drain mode — open issues.
 2. **Grace-window overlay.** From the snapshot, mark every PR whose head moved or that received
    comments within the grace window (default 30 minutes), and every draft carrying a WIP signal (a
    work-in-progress title marker, a do-not-merge label, or non-green checks). Marked PRs are
@@ -235,18 +237,16 @@ intake arriving mid-cycle is reported, never chased.
    - **C5 — the code's provenance.** Two tests on the cycle-start snapshot, either one marking the
      PR C5, each failing closed to C5 when its field is missing or unreadable. **Fork test:** the
      head repository is not the base (`isCrossRepository: true`, or `headRepositoryOwner` differing
-     from the base owner). **Trust test:** neither arm positively passes — `authorAssociation` is
-     `OWNER`/`MEMBER` (an outside collaborator's push to a base-repository branch passes the fork
-     test yet is exactly the same-repository external contribution C5 includes), or the author is a
-     structural bot (`[bot]` login suffix or provider `Bot` type) whose login matches the TARGET
-     repository's team-tracked `babysit_loop_trusted_internal_bot_logins` — grammar,
-     team-tracked-only binding, and fail-closed empty-set default owned by the config-resolution
-     reference ("the C5 trust test's one reviewed widening"); unset, `OWNER`/`MEMBER` is the whole
-     test. Trust-listing never bypasses the fork test (a listed bot on a cross-repository head is
-     still C5) and never weakens the dependency hold-merge invariant, which wins on intersection.
-     Never test the author login against `babysit_watched_owners`: a repository-owner allowlist,
-     never a trusted-author list. A fork PR closing an internally classified C2/C3 issue is still C5
-     — the class travels with the code's provenance, not the issue it closes.
+     from the base owner). **Trust test:** C5 unless one arm positively passes — `authorAssociation`
+     `OWNER`/`MEMBER`, or a structural bot (`[bot]` login suffix or provider `Bot` type) whose login
+     matches the TARGET repository's team-tracked, default-branch
+     `babysit_loop_trusted_internal_bot_logins` (grammar, binding, fail-closed empty set:
+     config-resolution reference, "the C5 trust test's one reviewed widening"). Trust-listing never
+     bypasses the fork test (a listed bot on a cross-repository head is still C5) and never weakens
+     the dependency hold-merge invariant, which wins on intersection. Never test the author login
+     against `babysit_watched_owners`: a repository-owner allowlist, never a trusted-author list. A
+     fork PR closing an internally classified C2/C3 issue is still C5 — the class travels with the
+     code's provenance, not the issue it closes.
    - **C4 — the diff's blast radius.** The stamp admits; the diff can still veto. A PR whose actual
      change is a refactor, migration, or contract change is C4 however its item is stamped, and a
      PR whose shape no longer matches its recorded class **fails closed** to escalation rather than

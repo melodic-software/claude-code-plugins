@@ -108,17 +108,21 @@ binding layer, never unioned).
 | `babysit_loop_grace_window_minutes` | positive integer — the concurrency-safety activity grace window | `30` |
 | `babysit_loop_cycle_budget` | positive integer — cycles per session before the budget-hit stop | none — no per-session budget |
 | `babysit_loop_no_progress_threshold` | positive integer — consecutive no-progress cycles (open PRs in view, none merged, materially changed, or escalated; cycles held by the rate-limit guard are not counted) before the lane raises its stall escalation; it escalates and keeps looping, never stops | `3` |
-| `babysit_loop_trusted_internal_bot_logins` | flat Markdown bullet list (`- <login>` per line) of exact GitHub App bot logins the repository attests as its own internal automation — the C5 trust test's reviewed internal-bot trust signal; **honored in the team-tracked layer only** (see the trust-signal section below) | none — empty set: the trust test accepts `OWNER`/`MEMBER` only |
+| `babysit_loop_trusted_internal_bot_logins` | flat Markdown bullet list (`- <login>` per line) of exact GitHub App bot logins the repository attests as its own internal automation — the C5 trust test's reviewed internal-bot trust signal; **honored in the team-tracked layer only** ("the C5 trust test's one reviewed widening" below) | none — empty set: the trust test accepts `OWNER`/`MEMBER` only |
 
 Dimension semantics — what each tier value grants per dimension — are owned by the babysit-prs
 autonomy table (`skills/babysit-prs/SKILL.md`, "Autonomy tiers (per action class)") and are not
 restated here. The merge dimension's rung semantics are owned by the loop-lane convention's autonomy
 ladder (`docs/conventions/loop-lane/README.md` §1 in the marketplace repository).
 
-**Precedence: invocation arguments win — except the merge dimension.** For every loop key above but
-`babysit_loop_merge`, an invocation argument overrides all three layers, exactly as an explicit skill
-argument outranks stored config everywhere else in this plugin. `babysit_loop_merge` is the one
-policy-floor key on this surface (the consumer-config layering convention's sanctioned policy-floor
+**Precedence: invocation arguments win — except the two policy-floor keys.** For every loop key
+above but `babysit_loop_merge` and `babysit_loop_trusted_internal_bot_logins`, an invocation
+argument overrides all three layers, exactly as an explicit skill argument outranks stored config
+everywhere else in this plugin. `babysit_loop_trusted_internal_bot_logins` is the stricter of the
+two: it binds from the target repository's team-tracked layer **only** — an invocation argument or
+any other layer supplying it, in any direction, is ignored and reported, never merged, never
+honored (its own section below owns the full rule). `babysit_loop_merge` is the other policy-floor
+key on this surface (the consumer-config layering convention's sanctioned policy-floor
 class, declared here next to its key): **raises bind from the team-tracked layer only** — every
 increase in *standing* merge authority is a reviewable, versioned config change, per the loop-lane
 convention's "Merge-rung raises are seam-only" rule. The user-global layer, the local overlay, and an
@@ -193,14 +197,18 @@ reconciles the two, and every rule below is fail-closed:
   `- my-lane-bot[bot]`) — the same closed-list grammar as `pr_body_required_sections`, taken whole
   from the binding layer. Matching is exact and ASCII case-insensitive (GitHub logins are
   case-insensitive); no globs, prefixes, aliases, or suffix inference.
-- **Team-tracked layer only, target repository, default branch.** Like `convention_source`, the key
-  is honored **only** in the team-tracked layer — and, like the merge rung, that layer is the
-  TARGET repository's tracked `.claude/source-control.md`, read from its default branch whenever
-  the current checkout is not that repository. A trust grant is a recorded, reviewable, versioned
-  config change, exactly like every other trust grant on this seam; an appearance in the
-  user-global layer, the local overlay, or an invocation argument is ignored and reported, and a PR
-  branch editing the tracked file can never self-grant, because resolution never reads the PR's own
-  tree.
+- **Team-tracked layer only, target repository, default branch — always.** Like
+  `convention_source`, the key is honored **only** in the team-tracked layer — and that layer is
+  the TARGET repository's tracked `.claude/source-control.md` read from its **default branch**
+  (`gh api` contents), on every resolution, even when the current checkout is that repository.
+  This is deliberately stricter than the merge rung's checkout-aware read: an ambient working-tree
+  read follows the checkout's current branch, and a checkout sitting on a bot-authored branch
+  would let the very PR under classification supply its own trust grant. Never read this key from
+  any working tree. A trust grant is a recorded, reviewable, versioned config change, exactly like
+  every other trust grant on this seam; an appearance in the user-global layer, the local overlay,
+  or an invocation argument is ignored and reported (see the precedence exception above), and a PR
+  branch editing the tracked file can never self-grant, because resolution never reads any branch
+  but the default.
 - **Unset is the empty set.** Absent, unreadable, or malformed → no trusted internal bots → the
   trust test is exactly the `OWNER`/`MEMBER` test. No fallback, no inference, no partial parse of a
   malformed list.

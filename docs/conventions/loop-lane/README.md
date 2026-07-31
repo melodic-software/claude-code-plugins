@@ -94,11 +94,13 @@ a same-repository head; a missing or unreadable signal fails closed to C5) — w
 "dominates every other property", so a fork PR closing an internally classified C2/C3 item is still
 outside the exception; a repository-owner allowlist is not a trusted-author list and never stands in
 for that test. The internal-bot attestation is itself a recorded, reviewed trust grant on the
-tracked seam — exact bot identities, honored from the target repository's team-tracked layer only,
-fail-closed to the empty set when unset, never bypassing the fork test and never weakening a
-dependency-manager merge hold — with the key, its grammar, and its composition rules owned by the
-babysit lane's config reference (`plugins/source-control/reference/config-resolution.md`,
-`babysit_loop_trusted_internal_bot_logins`). C4 follows the diff's blast radius: a refactor, migration, or contract change is C4
+tracked seam — exact bot identities, read only from the target repository's team-tracked config on
+its default branch (never any working tree, argument, or other layer), fail-closed to the empty
+set when unset, never bypassing the fork test and never weakening a dependency-manager merge hold
+— with the key, its grammar, and its composition rules owned by the babysit lane's config
+reference (`plugins/source-control/reference/config-resolution.md`,
+`babysit_loop_trusted_internal_bot_logins`). C4 follows the diff's blast radius: a refactor,
+migration, or contract change is C4
 however its item is stamped, and a PR whose shape no longer matches its recorded class fails closed
 to escalation. The floor's verdict attaches to the exact head SHA it examined: any push after the
 verdict — the pre-escalation resolver's or the merge-capable worker's own fix alike — re-derives
