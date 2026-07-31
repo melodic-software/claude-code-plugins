@@ -29,6 +29,43 @@ All notable changes to the `source-control` plugin are documented here. Format f
   `paused_until` is not the rate-limit latch — the latch says do not claim work, `paused_until` says
   do not read this lane's silence as death.
 
+## [0.42.3]
+
+### Added
+
+- **Every surface that restates a review-disposition clause now declares itself (#1659).** The
+  D4.6 grounding and provenance rules, D7.5 thread eligibility, and the authorization rule for a
+  resolution that ships no fix are canonical in `reference/review-discipline.md` and restated
+  across five other surfaces. Each restatement now carries a `contract-restatement` marker naming
+  the clause it copies, and `scripts/check-contract-clause-coverage.py` holds it to the canonical's
+  qualifiers within its own span. Untagged text that restates a clause is reported too, so a new
+  copy has to be argued for rather than appearing silently.
+
+### Fixed
+
+- **`pull-request/reference/monitor.md` restated D4.6 grounding without the id-citation
+  requirement.** It instructed filing the deferral in the work-item tracker with evidence and the
+  PR link, but not citing that item's id in the D5 reply — so a deferral could be filed and still
+  leave the thread with no route back to it, which is the dropped finding D4.6 exists to prevent.
+  Found by the new gate, not by review.
+
+## [0.42.2]
+
+### Fixed
+
+- **Shared `hook-utils.sh`: the OS temp tree is no longer treated as project content (#1769).**
+  `hook::read_file_path` scoped a file to the project by prefix-matching `CLAUDE_PROJECT_DIR`, so a
+  session whose project directory is the user's home admitted everything under the OS temp root —
+  including Claude Code's own per-session scratchpad, which lives there. Hooks that lint, rewrite, or
+  autocorrect then ran on throwaway files that are not project content and carry no project config to
+  opt out with; the reported case was `typos-format` autocorrecting a shell variable in a scratch
+  script and silently breaking it. The guard now rejects a file inside the OS temp tree when the
+  project root is outside it. The exemption is deliberate and load-bearing: when the project root
+  itself lives under temp — a `mktemp -d` fixture checkout, which is how this repository's own hook
+  suites run — its files are still accepted. Temp roots come from `TMPDIR` / `TMP` / `TEMP` plus the
+  POSIX defaults, canonicalized through the same pipeline the membership comparison already uses.
+  Synced from `lib/hook-utils.sh`.
+
 ## [0.42.1]
 
 ### Fixed

@@ -504,6 +504,37 @@ jobs:
           BASE_REF: ${{ github.base_ref }}
         run: scripts/check-contract-slice-prune.sh --check-diff "origin/$BASE_REF"
 
+  # The review-disposition-and-resolution contract (D4.6 grounding, D4.6
+  # provenance, D7.5 thread eligibility, and who may authorize a resolution
+  # that ships no fix) is canonical in ONE file and restated across half a
+  # dozen others; nothing checked that the copies agreed. #1633 shipped seven
+  # such defects across five review rounds — each an individually well-formed
+  # surface instructing a lane to do what another surface forbids — and the
+  # HAND-RUN sweep that finally converged then produced a false "no remaining
+  # gaps" of its own, because it asked whether a qualifier appeared ANYWHERE
+  # in a file rather than inside the passage that restates the rule. This gate
+  # is span-scoped for exactly that reason: a restatement declares itself with
+  # a `contract-restatement` marker and is held to the canonical's qualifiers
+  # within its own bounds, and text that restates a clause outside every span
+  # is itself reported (tag it, or reduce it to a pointer — the pointer is the
+  # stronger fix). The in-scope surface set is DERIVED from the clause
+  # vocabulary, never hardcoded, so a new restatement anywhere in the tree is
+  # in scope the moment it is written. Repo-wide and static, so it always runs.
+  # Self-test first, so a broken detector cannot mask a real gap behind a green
+  # gate. See #1659.
+  contract-clause-coverage-gate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Test the contract-clause coverage gate
+        run: bash scripts/check-contract-clause-coverage.test.sh
+      - name: Check every restatement carries the canonical clause's qualifiers
+        run: python3 scripts/check-contract-clause-coverage.py
+
   # Deep plugin-contract lane and the heaviest suite (Node + Python installs,
   # every plugins/**/*.test.sh, manifest + catalog validation). A PR whose diff
   # is confined to the docs-only allowlist (scripts/docs-only-paths.txt) cannot
@@ -940,6 +971,7 @@ jobs:
       - orphaned-fixture-gate
       - changelog-parity-gate
       - contract-slice-prune-gate
+      - contract-clause-coverage-gate
       - plugin-gate
       - miro-plugin
       - youtube-extraction

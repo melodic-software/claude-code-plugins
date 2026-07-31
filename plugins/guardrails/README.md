@@ -77,6 +77,15 @@ out of scope until such a signal exists.
   (`echo "$(python3 -c 'import pathlib …')"`) is **not** caught — the strip
   treats the quoted span as inert. Same friction-guard, not-a-sandbox posture as
   `block-no-verify`.
+- **`block-hook-bypass` inspects one command string, and only the write forms
+  listed above.** It reads `.tool_input.command`; it does not read the contents
+  of a script that command invokes, so `bash build.sh` runs whatever writes
+  `build.sh` performs. It is also producer-scoped by design, so a redirect whose
+  producer is another program (`sort f > out`, `curl … > page.html`, `cat a b >
+  c`) is allowed — only a content producer writing a real file
+  (`cat > f` consuming stdin, `echo`/`printf > f`, inline `python3 -c` writes,
+  the PowerShell write cmdlets) is blocked. The block message carries this scope
+  so a reader does not credit the guard with coverage it never claimed.
 - **`flag-commit-pr-skill-bypass` is a nudge, not a gate.** Detection is a
   literal-stripped top-level regex match, not a full argv-grammar parser — it
   does not evaluate shell variable / command substitution, and a determined

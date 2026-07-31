@@ -381,13 +381,17 @@ is_acked() {
   return 1
 }
 
+IMPLICIT_SCOPE=false
 if [[ ${#ROOT_ARGS[@]} -eq 0 && ${#REPO_ARGS[@]} -eq 0 ]]; then
   REPO_ARGS+=("${CLAUDE_PROJECT_DIR:-$PWD}")
   # The implicit current-project default is CLI-equivalent, not config-sourced: it is appended
   # after CLI_REPO_COUNT was captured, so count it there or the zero-configuration audit from a
   # non-Git directory would degrade to a stale-config-entry (with an empty source) instead of
-  # hard-failing like the explicit-path case it stands in for.
+  # hard-failing like the explicit-path case it stands in for. It carries its own origin so a
+  # rejection can name the remedies: the operator never chose this path, so the bare path in a
+  # CLI-shaped error tells them nothing about how to supply a scope.
   CLI_REPO_COUNT=$((CLI_REPO_COUNT + 1))
+  IMPLICIT_SCOPE=true
 fi
 
 path_key() {
@@ -406,25 +410,71 @@ TARGET_COMMON_KEYS=()
 # printed yet, so they are emitted as per-entry UNKNOWN findings once it has.
 STALE_CONFIG_PATHS=()
 STALE_CONFIG_REASONS=()
+# reject_target <origin> <message>: apply the rejection policy for a target that failed a
+# prerequisite. "config" returns 1 so the caller records a stale-config entry and continues; every
+# other origin stops the run. "default" is the implicit no-argument target — the same hard failure,
+# plus the scope remedies, because the operator did not choose this path and the bare rejection
+# gives them nothing to act on.
+reject_target() {
+  local origin="$1" message="$2"
+  [[ "$origin" == "config" ]] && return 1
+  printf 'Error: ' >&2
+  display_value "$message" >&2
+  printf '\n' >&2
+  if [[ "$origin" == "default" ]]; then
+    # A config can be consumed yet carry no scope: valid entries like maxDepth or
+    # acknowledgments without any fleet.root/fleet.repo. Claiming --config was
+    # omitted would send the operator to create a file that already exists, so
+    # the remedy names the consumed config and directs scope INTO it.
+    if [[ -n "$CONFIG_FILE" ]]; then
+      cat >&2 <<EOF
+
+No --root or --repo was given, and the consumed config ($CONFIG_SOURCE: $CONFIG_FILE) carries no
+fleet.root or fleet.repo entries, so the audit used this session's project directory as an exact
+repository target. Add scope to that config:
+
+  git config --file "$CONFIG_FILE" --add fleet.root <dir>   bounded recursive repository discovery
+  git config --file "$CONFIG_FILE" --add fleet.repo <dir>   one exact repository or worktree
+
+Or pass --root <dir> / --repo <dir> for a one-off scope.
+EOF
+    else
+      cat >&2 <<'EOF'
+
+No --root, --repo, or --config was given, so the audit used this session's project directory as an
+exact repository target. Give it a scope instead:
+
+  --root <dir>     bounded recursive repository discovery
+  --repo <dir>     one exact repository or worktree
+  --config <file>  a Git-format fleet config listing fleet.root / fleet.repo entries
+
+Or run /repo-fleet-hygiene:setup apply to write a config the audit picks up on its own.
+EOF
+    fi
+  fi
+  exit 2
+}
+
 # add_target <path> <origin>: origin "cli" hard-fails on an invalid path (a typo should stop the
-# run); origin "config" records a stale-config-entry and continues (the entry, not the run, is
-# the failure unit for a tracked fleet config). Invalid config SYNTAX still hard-fails upstream.
+# run); origin "default" hard-fails with the scope remedies; origin "config" records a
+# stale-config-entry and continues (the entry, not the run, is the failure unit for a tracked fleet
+# config). Invalid config SYNTAX still hard-fails upstream.
 add_target() {
   local candidate="$1" origin="${2:-cli}" top common common_key existing
   if [[ ! -d "$candidate" ]]; then
-    [[ "$origin" == "config" ]] || fail "repository directory not found: $candidate"
+    reject_target "$origin" "repository directory not found: $candidate"
     STALE_CONFIG_PATHS+=("$candidate")
     STALE_CONFIG_REASONS+=("configured fleet.repo path is not a directory")
     return 0
   fi
   top="$(run_git_probe -C "$candidate" rev-parse --show-toplevel 2>/dev/null | tr -d '\r')" || {
-    [[ "$origin" == "config" ]] || fail "not a Git working tree: $candidate"
+    reject_target "$origin" "not a Git working tree: $candidate"
     STALE_CONFIG_PATHS+=("$candidate")
     STALE_CONFIG_REASONS+=("configured fleet.repo path is not a Git working tree")
     return 0
   }
   common="$(run_git_probe -C "$candidate" rev-parse --path-format=absolute --git-common-dir 2>/dev/null | tr -d '\r')" || {
-    [[ "$origin" == "config" ]] || fail "cannot resolve Git common directory: $candidate"
+    reject_target "$origin" "cannot resolve Git common directory: $candidate"
     STALE_CONFIG_PATHS+=("$candidate")
     STALE_CONFIG_REASONS+=("cannot resolve the Git common directory for the configured path")
     return 0
@@ -441,7 +491,13 @@ repo_index=0
 for repo in "${REPO_ARGS[@]:-}"; do
   if [[ -n "$repo" ]]; then
     if [[ "$repo_index" -lt "$CLI_REPO_COUNT" ]]; then
-      add_target "$repo" cli
+      # IMPLICIT_SCOPE is set only when no --root and no --repo were given, so the sole CLI-counted
+      # entry in that case is the implicit default and no explicit target can be mislabelled.
+      if [[ "$IMPLICIT_SCOPE" == "true" ]]; then
+        add_target "$repo" default
+      else
+        add_target "$repo" cli
+      fi
     else
       add_target "$repo" config
     fi

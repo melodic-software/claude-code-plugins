@@ -3,6 +3,48 @@
 All notable changes to the `bash-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.10]
+
+### Fixed
+
+- **A failed `shfmt --apply-ignore` run no longer re-formats the file without the flag (#1817).**
+  The format pass was `shfmt --apply-ignore -w "$FILE" || shfmt -w "$FILE"`. The fallback exists for
+  shfmt below 3.8, which rejects the flag and cannot honor direct-file `ignore` rules anyway — but
+  `||` fires on *any* failure, so on a 3.8+ shfmt a run that failed for an unrelated reason silently
+  re-formatted the file with the opt-out discarded, re-tabbing a script the repo's
+  `.editorconfig` `[*.sh] ignore = true` had asked shfmt to leave alone. It presents as
+  intermittent, because it only shows when the first call happens to fail.
+
+  The version is now decided by **probing the flag** (`shfmt --apply-ignore --version`) rather than
+  by inferring it from a failed format run, which is what confused "this shfmt has no such flag"
+  with "this run failed". Where the flag exists, a failing run now leaves the file untouched — the
+  only safe reading of a formatter that did not complete. Old shfmt still gets the plain in-place
+  format it always did — but only on a **confirmed** unsupported-flag rejection (the flag parser's
+  error naming `apply-ignore`); a probe that fails for any other reason (a wrapper flaking on its
+  first invocation, a transient exec error) says nothing about the flag, so the file is left
+  untouched and the skip is reported in the hook's notice rather than falling back to a mutation
+  through the same discarded opt-out.
+
+  Reproduced with a stub shfmt that answers the capability probe but fails the `-w` run: **before**,
+  a file in an `ignore = true` repo is reformatted; **after**, it is byte-identical.
+
+## [0.6.9]
+
+### Fixed
+
+- **Shared `hook-utils.sh`: the OS temp tree is no longer treated as project content (#1769).**
+  `hook::read_file_path` scoped a file to the project by prefix-matching `CLAUDE_PROJECT_DIR`, so a
+  session whose project directory is the user's home admitted everything under the OS temp root —
+  including Claude Code's own per-session scratchpad, which lives there. Hooks that lint, rewrite, or
+  autocorrect then ran on throwaway files that are not project content and carry no project config to
+  opt out with; the reported case was `typos-format` autocorrecting a shell variable in a scratch
+  script and silently breaking it. The guard now rejects a file inside the OS temp tree when the
+  project root is outside it. The exemption is deliberate and load-bearing: when the project root
+  itself lives under temp — a `mktemp -d` fixture checkout, which is how this repository's own hook
+  suites run — its files are still accepted. Temp roots come from `TMPDIR` / `TMP` / `TEMP` plus the
+  POSIX defaults, canonicalized through the same pipeline the membership comparison already uses.
+  Synced from `lib/hook-utils.sh`.
+
 ## [0.6.8]
 
 ### Fixed

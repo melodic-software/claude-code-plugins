@@ -42,11 +42,15 @@ explicit per-plugin confirm.
 Parse `$ARGUMENTS` for the action (first token) and an optional marketplace target (second token:
 a marketplace name, or `all`).
 
+This table is an index, not a substitute: read the linked detail file before executing any action.
+Each Description names the territory an action covers, never its algorithm — the steps, their
+ordering, and their failure handling live only in the linked file.
+
 | Action | Mutates | Description | Detail |
 |---|---|---|---|
-| `sync` (default) | Yes — CLI only | Marketplace refresh → in-repo update → user-scope update sweep → install new per policy → enabledPlugins completeness → report | [context/sync.md](context/sync.md) |
+| `sync` (default) | Yes — CLI only | Marketplace, install, and enable-state maintenance for the effective fleet | [context/sync.md](context/sync.md) |
 | `audit` | No | Same algorithm as `sync`, every mutating step replaced with a prediction; issues zero mutating CLI calls | "Action: audit" below |
-| `converge` | Yes — the one action that can touch committed settings | Detects any plugin id with an actionable (non-benign) scope divergence, previews per-plugin intent, confirms, executes, surfaces the resulting diff | [context/converge.md](context/converge.md) |
+| `converge` | Yes — the one action that can touch committed settings | Cross-scope divergence reconciliation, preview- and confirm-gated | [context/converge.md](context/converge.md) |
 
 Bare invocation (no arguments) → `sync` against the default marketplace. `help` or an unrecognized
 action → show this table.

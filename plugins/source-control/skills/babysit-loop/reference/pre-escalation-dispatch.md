@@ -35,11 +35,13 @@ zero-unresolved-threads predicate — the same self-satisfaction the worker-side
 exists to prevent, moved one hop. So: extract every finding in the thread (one comment carrying N
 findings is N work items), and record for each one the disposition plus its evidence —
 
+<!-- contract-restatement-begin: D7.5-thread-eligibility -->
+
 - `VALID (fix now)`: the pushed commit SHA that fixes it, verified present on the live PR head, and
   the D7 follow-up citing it.
-- `VALID (defer)`: grounded per D4.6 — the provenance test passed (the defect reproduces on the
+- `VALID (defer)`: grounded per D4.6 — the provenance test passed (the defect reproduces on the <!-- contract-restatement-begin: D4.6-deferral-grounding -->
   base branch), and the tracker item exists, carries the finding's own evidence, and its cited id
-  re-queries successfully.
+  re-queries successfully. <!-- contract-restatement-end: D4.6-deferral-grounding -->
 - `INCORRECT`: the counter-evidence, read from the code or docs at the live head rather than
   asserted.
 - `UNCERTAIN`: not resolvable. It escalates, and so does the thread.
@@ -50,6 +52,8 @@ its comments from the readiness count. Any finding the dispatched agent cannot v
 standard means **no resolution**: leave the thread unresolved, do not merge, and escalate with the
 unverifiable finding named. The ledger is reported back with the dispatch result, so what was
 verified is inspectable rather than asserted.
+
+<!-- contract-restatement-end: D7.5-thread-eligibility -->
 
 **A blocker needing a code change runs the full per-PR worker lifecycle** — isolated PR worktree,
 HEAD asserted at the live PR head, commit and refspec push (`babysit-prs/reference/safety.md`) — not
