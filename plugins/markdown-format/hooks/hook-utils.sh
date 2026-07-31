@@ -913,8 +913,46 @@ hook::wrapper_chdir_record() {
   fi
 }
 
+# Compose the effective repository directory for a git invocation: <base> with
+# each bare `-C <dir>` in the following argv applied in order — an absolute
+# operand (POSIX or drive-lettered) replaces the base, a relative one joins onto
+# it. This is THE path-composition rule for the git guards' directory
+# resolution; the guards' own `effective_dir` wrappers supply their base and
+# delegate here, so the rule cannot drift between hooks (it did once: the
+# convention gate's private copy was left behind by the slice-boundary fix).
+# The result is a LITERAL composed path handed straight to `git -C` — git
+# applies its own path semantics; callers never normalize it.
+# Callers must pass only git's own globals (plus wrapper chdirs already spelled
+# as leading `-C` words) — see the boundary docblock at the guards' wrappers.
+hook::git_effective_dir() {
+  local base="$1"
+  shift
+  local i n=$# arg
+  local -a a=("$@")
+  for ((i = 0; i < n; i++)); do
+    arg="${a[i]}"
+    if [[ "$arg" == "-C" ]] && ((i + 1 < n)); then
+      if [[ "${a[i + 1]}" == /* || "${a[i + 1]}" =~ ^[A-Za-z]:[\/] ]]; then
+        base="${a[i + 1]}"
+      else
+        base="$base/${a[i + 1]}"
+      fi
+      ((i++))
+    fi
+  done
+  printf '%s' "$base"
+}
+
 # Locate a real `git` executable at the segment's command position (after
-# env-var prefixes and known wrappers), or return 1 when absent. Results go in
+# env-var prefixes and known wrappers). Return contract:
+#   0 — git found; results in the globals below
+#   1 — no git at the command position (callers treat the segment as not-git)
+#   2 — REFUSED: a wrapper prefix outside the verified grammar with something
+#       git-shaped downstream (see the sudo branch's fail-closed backstop).
+#       The command position is unknowable, so a git invocation may be hiding
+#       behind it — BLOCKING callers must fail closed on this code, never
+#       fold it into the return-1 no-op path.
+# Results go in
 # globals, NOT a $( ) echo: `env -S` splicing rewrites the argv, and the caller
 # must match on the rewritten words, so the index alone is not enough.
 #   HOOK_GIT_RESOLVED_GI    — index of git in HOOK_GIT_RESOLVED_WORDS
@@ -982,27 +1020,44 @@ hook::git_resolve_index() {
           # -S/--split-string re-splits its operand into argv (GNU env), so a
           # quoted 'git commit --no-verify' would otherwise hide from the
           # resolver as one non-git word. Splice the split words back into the
-          # scan and restart at the command position. The splice drops every
-          # word before `i`, this `env` included, so a chdir already recorded for
-          # it is not re-walked and stays recorded — which is right, because env
-          # performs that chdir whether or not -S rewrites the command.
+          # scan and resume INSIDE env's own option parsing (`continue` to this
+          # inner loop, never `continue 2` to the outer command scan): GNU env
+          # processes the split words as a continuation of its own argument
+          # list, so a leading `-i`/`-C`/`-u` in the operand is still env's
+          # option — the outer scan has no env grammar and read it as a failed
+          # command lookup, which no-opped every guard (`env -S '-i git commit
+          # -m x'` passed unchecked). The splice drops every word before `i`,
+          # this `env` included, so a chdir already recorded for it is not
+          # re-walked and stays recorded (env performs that chdir whether or
+          # not -S rewrites the command), and env_ci keeps the slot so a chdir
+          # spelled inside the operand stays last-wins within this one env.
+          # Termination without a depth guard: each splice consumes the -S and
+          # its operand and can only insert words derived from that operand, so
+          # a nested -S strictly shrinks the remaining text.
+          # The rewrite keeps a synthetic leading `env` word (resuming at
+          # i=1): callers RECONSTRUCT invocations from the rewritten words
+          # (`w[0:sub_idx]` around an alias splice), and without the wrapper
+          # word a spliced env option would sit bare at the command position
+          # of the re-parse — unresolvable, so the recursive check silently
+          # skipped exactly the expansions this resolver exists to surface.
+          # Semantically exact: the spliced words ARE env's continued argv.
           -S | --split-string)
             local sval=""
             ((i + 1 < n)) && sval="${w[i + 1]}"
             hook::env_s_split "$sval"
-            w=(${HOOK_ENV_S_WORDS[@]+"${HOOK_ENV_S_WORDS[@]}"} "${w[@]:i+2}")
+            w=(env ${HOOK_ENV_S_WORDS[@]+"${HOOK_ENV_S_WORDS[@]}"} "${w[@]:i+2}")
             n=${#w[@]}
-            i=0
-            continue 2
+            i=1
+            continue
             ;;
           -S* | --split-string=*)
             local sval="${etok#-S}"
             sval="${sval#--split-string=}"
             hook::env_s_split "$sval"
-            w=(${HOOK_ENV_S_WORDS[@]+"${HOOK_ENV_S_WORDS[@]}"} "${w[@]:i+1}")
+            w=(env ${HOOK_ENV_S_WORDS[@]+"${HOOK_ENV_S_WORDS[@]}"} "${w[@]:i+1}")
             n=${#w[@]}
-            i=0
-            continue 2
+            i=1
+            continue
             ;;
           -C | --chdir)
             ((i + 1 < n)) && hook::wrapper_chdir_record env_ci "${w[i + 1]}"
@@ -1052,31 +1107,88 @@ hook::git_resolve_index() {
       ;;
     sudo)
       # sudo's own chdir is -D/--chdir (its -C is close-from, -R is --chroot).
-      # Only the unclustered spellings are read here; sudo's valueless short set
-      # is large and release-dependent, so peeling a cluster the way the env
-      # branch does would be guesswork rather than grammar.
-      # Known gap, fail-open: a clustered `sudo -bD dir git …` loses the chdir,
-      # and `-i` relocates to the target user's home without naming a directory
-      # at all.
+      # The grammar here is read EXACTLY, never approximated with a generic
+      # dash-skip, because a misread option is a fail-open in one direction or
+      # the other: treating a value-taking option as valueless leaves its value
+      # at the command position (git never resolves, the guard no-ops), and the
+      # reverse swallows the command word. Option classes verified against the
+      # upstream sudo(8) manual (sudo 1.9 generation, sudo.ws/docs/man/sudo.man):
+      #   valueless shorts  -A -B -b -E -e -H -K -k -l -N -n -P -S -s -v -V
+      #                     (peeled off clusters the way the env branch peels
+      #                     env's, so `sudo -bD dir` reaches its chdir)
+      #   value-taking      -C -g -p -R -r -T -t -U -u (plus -D, handled as the
+      #                     chdir), attached or as the following word
+      # Anything OUTSIDE that verified grammar fails CLOSED via the backstop in
+      # the `*)` arm rather than guessing:
+      #   -h        optional-argument (bare = help, with operand = --host) —
+      #             unclassifiable by peeling; either guess is a bypass in one
+      #             direction or a swallowed command word in the other
+      #   -i/--login  relocates to the target user's home, which no operand
+      #             names, so no chdir can be recorded
+      #   unknown shorts/longs, clusters that do not peel clean — a future
+      #             sudo option degrades to a false positive, never a bypass
       ((i++))
-      local sudo_ci=-1
+      local sudo_ci=-1 stok sk
       while ((i < n)) && [[ "${w[i]}" == -* ]]; do
-        case "${w[i]}" in
+        stok="${w[i]}"
+        if [[ "$stok" == -[!-]* ]]; then
+          # Peel the valueless shorts off a cluster so a value-taking tail
+          # (`-bD dir`, `-bu root`) reaches its own branch; peel into a scratch
+          # copy, leaving HOOK_GIT_RESOLVED_WORDS as the caller matches on it.
+          while [[ "$stok" =~ ^-[ABbEeHKklNnPSsvV](.+)$ ]]; do stok="-${BASH_REMATCH[1]}"; done
+        fi
+        case "$stok" in
+        --)
+          ((i++))
+          break
+          ;;
+        -[ABbEeHKklNnPSsvV])
+          ((i++))
+          ;;
         -D | --chdir)
           ((i + 1 < n)) && hook::wrapper_chdir_record sudo_ci "${w[i + 1]}"
           ((i += 2))
           ;;
         --chdir=*)
-          hook::wrapper_chdir_record sudo_ci "${w[i]#--chdir=}"
+          hook::wrapper_chdir_record sudo_ci "${stok#--chdir=}"
           ((i++))
           ;;
         -D*)
-          hook::wrapper_chdir_record sudo_ci "${w[i]#-D}"
+          hook::wrapper_chdir_record sudo_ci "${stok#-D}"
           ((i++))
           ;;
-        -u | -g | -h | -p | -C | -R | -T | --user | --group) ((i += 2)) ;;
-        -*) ((i++)) ;;
-        *) ((i++)) ;;
+        -[CgpRrTtUu])
+          ((i += 2))
+          ;;
+        -[CgpRrTtUu]*)
+          ((i++)) # attached value (`-uroot`)
+          ;;
+        --close-from | --group | --prompt | --chroot | --role | --type | --command-timeout | --other-user | --user)
+          ((i += 2))
+          ;;
+        --close-from=* | --group=* | --prompt=* | --chroot=* | --role=* | --type=* | --command-timeout=* | --other-user=* | --user=* | --preserve-env=*)
+          ((i++))
+          ;;
+        --askpass | --background | --bell | --preserve-env | --edit | --set-home | --remove-timestamp | --reset-timestamp | --list | --no-update | --non-interactive | --preserve-groups | --stdin | --shell | --version | --validate | --help)
+          ((i++))
+          ;;
+        *)
+          # Fail-closed backstop: this prefix cannot be decomposed with
+          # confidence, so the command position — and any relocation — is
+          # unknowable. If anything git-shaped remains downstream, REFUSE
+          # (return 2; callers must block) rather than no-op the guard. The
+          # scan is a case-insensitive `git` substring on purpose: it must
+          # catch a quoted operand (`sudo -i 'git commit -m x'`) that
+          # hook::git_is_bin's word-shape test would miss, and an
+          # over-approximate refusal is a false positive while an exact one
+          # here would be a bypass. With nothing git-shaped downstream sudo
+          # cannot exec git from these words (up to the documented
+          # static-matcher residual), so plain return 1 stands.
+          for ((sk = i + 1; sk < n; sk++)); do
+            [[ "${w[sk],,}" == *git* ]] && return 2
+          done
+          return 1
+          ;;
         esac
       done
       continue

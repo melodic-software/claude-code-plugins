@@ -434,7 +434,20 @@ check_segment() {
     return 0
   fi
 
-  hook::git_resolve_index "$@" || return 0
+  # rc 2 is the resolver's REFUSAL — a wrapper prefix outside its verified
+  # grammar with something git-shaped downstream. The command position is
+  # unknowable there, so a guarded operation may be hiding behind it: fail
+  # closed rather than fold it into the not-git no-op. Each blocking guard
+  # holds this posture itself (per-hook kill switches mean none may delegate
+  # it to a sibling).
+  hook::git_resolve_index "$@"
+  case $? in
+  0) ;;
+  2) block "unparseable-wrapper" \
+    "BLOCKED: this command's wrapper prefix (e.g. a sudo option the parser cannot classify) hides the command position, and something git-shaped follows it — failing closed." \
+    "Run git directly (or under a wrapper spelling the guard can read), or set the guardrails block_dangerous_git_enabled option to false to bypass." ;;
+  *) return 0 ;;
+  esac
   gi=$HOOK_GIT_RESOLVED_GI
   # env -S splicing may have rewritten the argv — match on the resolved words.
   w=("${HOOK_GIT_RESOLVED_WORDS[@]}")

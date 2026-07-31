@@ -182,22 +182,17 @@ block_title() {
 
 # Same repo-dir/sequencer helpers as block-noncanonical-commit — an in-progress
 # sequencer commit carries a prepared message and is never content-gated.
+# The composition itself is hook::git_effective_dir — the ONE shared rule, so
+# this gate and the sibling mechanic guard cannot drift apart again (this
+# gate's private copy is exactly how it was left behind by the sibling's
+# slice-boundary fix). CALLERS MUST PASS GIT'S OWN GLOBALS ONLY — the slice
+# `[gi, sub_idx)` plus the wrapper chdirs already spelled as leading `-C`
+# words — never the whole argv: a wrapper's options are not git's globals
+# (`env -u -C git …` gives git no `-C` at all), and anything after the
+# subcommand is that subcommand's argument or alias-appended text.
 # shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
 effective_dir() {
-  local base="${HOOK_CWD:-${CLAUDE_PROJECT_DIR:-.}}" i n=$# arg
-  local -a a=("$@")
-  for ((i = 0; i < n; i++)); do
-    arg="${a[i]}"
-    if [[ "$arg" == "-C" ]] && ((i + 1 < n)); then
-      if [[ "${a[i + 1]}" == /* || "${a[i + 1]}" =~ ^[A-Za-z]:[\/] ]]; then
-        base="${a[i + 1]}"
-      else
-        base="$base/${a[i + 1]}"
-      fi
-      ((i++))
-    fi
-  done
-  printf '%s' "$base"
+  hook::git_effective_dir "${HOOK_CWD:-${CLAUDE_PROJECT_DIR:-.}}" "$@"
 }
 
 # shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
@@ -266,10 +261,23 @@ check_segment() {
 
   [[ -n "$SUBJECT_ERE" ]] || return 0
 
+  # Any nonzero rc skips: rc 1 is not-git, and rc 2 (the resolver's refusal of
+  # an unparseable wrapper prefix) is the MECHANIC guard's fail-closed concern
+  # — it blocks the call outright, so this content gate just skips, exactly as
+  # it does for the --config-env shape refusal below.
   hook::git_resolve_index "$@" || return 0
   gi=$HOOK_GIT_RESOLVED_GI
   w=("${HOOK_GIT_RESOLVED_WORDS[@]}")
   nseg=${#w[@]}
+
+  # A wrapper's chdir happens before git starts, so it composes ahead of git's
+  # own globals — spelled as leading `-C` words so the one composition rule in
+  # hook::git_effective_dir covers both (mirrors the sibling mechanic guard).
+  local -a wrapper_cd=()
+  local wdir seg_dir=""
+  for wdir in ${HOOK_GIT_RESOLVED_WRAPPER_DIRS[@]+"${HOOK_GIT_RESOLVED_WRAPPER_DIRS[@]}"}; do
+    wrapper_cd+=(-C "$wdir")
+  done
 
   hook::git_resolve_subcommand "$gi" "${w[@]}" || return 0
   sub=$HOOK_GIT_SUB
@@ -306,8 +314,13 @@ check_segment() {
       done
     fi
     if ((inline_alias_handled == 0)) && [[ "$sub" != "commit" ]]; then
+      # Git's own globals only — `[gi, sub_idx)` behind the wrapper's chdir.
+      # The whole argv read a wrapper's operands (and the subcommand's trailing
+      # arguments) as git's `-C`: `env -u -C git git x …` resolved `./git` and
+      # missed the alias persisted where git actually runs.
       local pexp
-      pexp=$(git -C "$(effective_dir "${w[@]}")" config --get "alias.$sub" 2>/dev/null)
+      [[ -n "$seg_dir" ]] || seg_dir="$(effective_dir ${wrapper_cd[@]+"${wrapper_cd[@]}"} "${w[@]:gi:sub_idx-gi}")"
+      pexp=$(git -C "$seg_dir" config --get "alias.$sub" 2>/dev/null)
       if [[ -n "$pexp" ]]; then
         if [[ "$pexp" == '!'* ]]; then
           local preparse pa
@@ -349,7 +362,8 @@ check_segment() {
 
   ((stdin_form)) || return 0
   ((exempt)) && return 0
-  sequencer_in_progress "$(effective_dir "${w[@]}")" && return 0
+  [[ -n "$seg_dir" ]] || seg_dir="$(effective_dir ${wrapper_cd[@]+"${wrapper_cd[@]}"} "${w[@]:gi:sub_idx-gi}")"
+  sequencer_in_progress "$seg_dir" && return 0
 
   local subj=""
   if [[ "$TOOL_NAME" == "PowerShell" ]]; then

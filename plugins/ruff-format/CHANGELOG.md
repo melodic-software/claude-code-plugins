@@ -3,6 +3,22 @@
 All notable changes to the `ruff-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.8]
+
+### Fixed
+
+- **Shared `hook-utils.sh`: wrapper prefixes are parsed by their own grammar or refused, never
+  guessed (#1814, #1811, #1810).** `hook::git_resolve_index` now resumes inside env's option
+  parsing after an `-S`/`--split-string` splice (an option leading the operand —
+  `env -S '-i git …'` — no longer hides the command from every git guard, and a chdir spelled
+  inside the operand is reported), peels sudo's short-option clusters against the verified sudo(8)
+  grammar (`sudo -bD <dir> git …` keeps its chdir), and refuses — new return code 2, which
+  blocking callers treat as fail-closed — any sudo shape outside that grammar (`-h`,
+  `-i`/`--login`, unknown options) when something git-shaped follows. A new shared
+  `hook::git_effective_dir` carries the git guards' single path-composition rule. This plugin
+  does not consume the resolver; the sync keeps its copy byte-identical with the source. Synced
+  from `lib/hook-utils.sh`.
+
 ## [0.5.7]
 
 ### Fixed

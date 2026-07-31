@@ -3,6 +3,50 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.18.3]
+
+### Fixed
+
+- **The `-S` restart re-entered the resolver outside env's option parsing, so any `-S` operand
+  beginning with an option bypassed every git guard (#1814).** `hook::git_resolve_index` handled
+  `env -S`/`--split-string` by splicing the split words into the scan and restarting the OUTER
+  command loop, which has no env grammar: a leading option in the operand failed the command lookup
+  and the resolver answered "no git here" — `env -S '-i git commit -m x'` passed the commit gate
+  with no alias or nested repo required, and `env -S '-C dir git …'` was a sixth chdir spelling no
+  guard read. The splice now resumes INSIDE env's option parsing, as GNU env itself processes the
+  split words: a leading `-i`/`-u`/`-C` is env's option, a chdir spelled inside the operand lands in
+  the same last-wins slot as one recorded before the `-S`, and a nested `-S` terminates because each
+  splice strictly shrinks the remaining operand text. Both bypass rows were verified to fail against
+  the unfixed resolver and pass fixed.
+
+- **sudo option clusters lost the wrapper chdir, and sudo shapes outside the verified grammar now
+  fail CLOSED instead of open (#1811).** The sudo branch read only unclustered `-D`/`--chdir`
+  spellings, so `sudo -bD <dir> git …` dropped the relocation AND left the scan pointing at the
+  directory operand — the git token never resolved and the guard no-opped. The branch now classifies
+  every option token against the upstream sudo(8) grammar (sudo 1.9 generation; provenance recorded
+  at the peel site): valueless shorts peel off clusters the way the env branch peels env's,
+  value-taking shorts consume an attached or following word, and `-D`/`--chdir` records the chdir.
+  Everything OUTSIDE that grammar — `-h` (optional-argument: help vs host), `-i`/`--login`
+  (relocates to the target user's home no operand names), unknown shorts/longs, clusters that do not
+  peel clean — makes the resolver REFUSE via a new return code 2 when something git-shaped
+  (case-insensitive substring, deliberately over-approximate so a quoted operand cannot hide)
+  remains downstream. `block-noncanonical-commit`, `block-dangerous-git`, and `block-no-verify` each
+  treat rc 2 as a block themselves — per-hook kill switches mean no guard may delegate its
+  fail-closed posture — while `block-convention-violation` skips, per its existing rule that
+  unparseable FORM is the mechanic guard's concern. A future sudo option therefore degrades to a
+  false positive, never a bypass.
+
+- **`block-convention-violation` passed its whole argv to `effective_dir`, so a wrapper's operands
+  hid a persisted alias (#1810).** In `env -u -C git x -F - <<'EOF'…`, env's `-u` consumes `-C` and
+  git runs in the payload cwd — but the whole-argv scan read the bare tokens `-C git`, resolved the
+  nested decoy `./git`, found no `alias.x` there, and the violating subject shipped. Both call sites
+  (the persisted-alias lookup and the sequencer probe) now receive only git's own globals
+  `[gi, sub_idx)` with the wrapper's real chdir composed from `HOOK_GIT_RESOLVED_WRAPPER_DIRS`,
+  exactly as the sibling mechanic guard does — and the path-composition rule both hooks previously
+  carried as private copies (which is how this one drifted) is collapsed into a single shared
+  `hook::git_effective_dir`. The `env -u -C git x` bypass row and a genuine-relocation twin
+  (`env -C other git y`, both violating and conforming) are pinned in the contract test.
+
 ## [0.18.2]
 
 ### Fixed

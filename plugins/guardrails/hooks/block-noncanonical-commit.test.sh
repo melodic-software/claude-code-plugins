@@ -647,6 +647,52 @@ if [[ -d "$WRAP/outer/other/.git" ]]; then
     "env -0 -C other git a" 2
   wrapper_cd_case "env -vi0C (three-flag cluster) still yields the chdir" \
     "env -vi0C other git a" 2
+
+  # --- the -S splice resumes INSIDE env's option parsing (#1814) --------------
+  # GNU env processes -S's split words as a continuation of its own argument
+  # list, so a leading option in the operand is env's option. The old restart
+  # re-entered the outer command scan, which has no env grammar: the option
+  # failed the command lookup and the resolver answered "no git here" — a bare
+  # `-i` in front of the command was enough to pass ANY guarded git invocation.
+  wrapper_cd_case "an option leading the -S operand no longer hides the command" \
+    "env -S '-i git commit -m x'" 2
+  # The sixth chdir spelling from #1785's ledger: env applies -C inside the
+  # split string exactly as outside, so the alias lookup must follow it.
+  wrapper_cd_case "a chdir spelled INSIDE the -S operand moves git" \
+    "env -S '-C other git a'" 2
+  # Canonical twin: the rc-0 path through the resumed parse must not over-block.
+  wrapper_cd_case "a canonical commit behind an env option inside -S stays allowed" \
+    "env -S '-i git commit -F -'" 0
+
+  # --- sudo clusters peel; unparseable sudo shapes fail CLOSED (#1811) --------
+  # sudo clusters short options, so `-bD dir` carries the chdir in a cluster no
+  # exact -D match saw — the chdir was lost AND the scan stopped short of git,
+  # so the guard no-opped entirely.
+  wrapper_cd_case "sudo -bD DIR (clustered) still moves the alias lookup" \
+    "sudo -bD other git a" 2
+  wrapper_cd_case "sudo -bDother (clustered, attached) still moves the alias lookup" \
+    "sudo -bDother git a" 2
+  # Value-taking shorts keep consuming their word: git still resolves, and the
+  # payload cwd's aliases still decide.
+  wrapper_cd_case "sudo -u USER still resolves git (non-canonical alias blocks)" \
+    "sudo -u root git k" 2
+  wrapper_cd_case "sudo -u USER still resolves git (canonical alias allowed)" \
+    "sudo -u root git a" 0
+  # Shapes outside the verified sudo grammar REFUSE when something git-shaped
+  # follows: -i relocates to the target user's home (which no operand names),
+  # -h is optional-argument (help vs host), unknown options may consume the
+  # next word. The refusal is form-blind — even a canonical `-F -` commit
+  # blocks, because the command position itself is unknowable.
+  wrapper_cd_case "sudo -i fails closed on a following git command" \
+    "sudo -i git commit -m x" 2
+  wrapper_cd_case "sudo -i fails closed even on a canonical form" \
+    "sudo -i git commit -F -" 2
+  wrapper_cd_case "sudo -h fails closed on a following git command" \
+    "sudo -h host git commit -F -" 2
+  # No git-shaped word downstream: sudo cannot exec git from those words, so a
+  # git-free command under an unparseable prefix stays allowed.
+  wrapper_cd_case "sudo unknown option with no git downstream stays allowed" \
+    "sudo -Z ls -la" 0
 fi
 
 # --- a wrapper's chdir composes AHEAD of git's own -C, in that order ----------

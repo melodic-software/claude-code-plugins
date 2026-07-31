@@ -1417,6 +1417,73 @@ resolve_dirs_are "sudo -C fd is not a chdir" "" sudo -C 3 git commit
 # Nested wrappers each contribute, in execution order, for the caller to compose.
 resolve_dirs_are "nested wrappers report both chdirs in order" "a|b" env -C a sudo -D b git commit
 
+# --- the -S splice resumes INSIDE env's option parsing (#1814) ----------------
+# GNU env processes the split words as a continuation of its own argument list,
+# so a leading option in the operand is env's option. The old restart re-entered
+# the OUTER command scan, which has no env grammar: the option failed the
+# command lookup and the resolver returned 1 — every guard no-opped on
+# `env -S '-i git commit -m x'`.
+resolve_dirs_are "an option leading the -S operand is env's, not the command" \
+  "" env -S '-i git commit -m x'
+resolve_dirs_are "a chdir spelled inside -S is reported" \
+  "other" env -S '-C other git commit'
+resolve_dirs_are "a chdir inside an attached -S operand is reported" \
+  "other" env '-S-C other git commit'
+resolve_dirs_are "a chdir before -S survives the splice" "a" env -C a -S 'git commit'
+# One env keeps --chdir in a single slot, so a chdir inside the operand is
+# last-wins against one recorded before the -S, not cumulative.
+resolve_dirs_are "a chdir inside -S is last-wins over one before it" \
+  "b" env -C a -S '-C b git commit'
+# A nested -S strictly shrinks the remaining operand text, so the resumed scan
+# terminates and still reaches the command.
+resolve_dirs_are "a nested -S still resolves the command" "" env -S "-S 'git commit'"
+resolve_dirs_are "a NAME=value word inside -S ends option parsing" \
+  "" env -S 'FOO=1 git commit'
+
+# --- sudo clusters peel; shapes outside the verified grammar refuse (#1811) ---
+# resolve_rc_is <desc> <expected-rc> <argv...> — for the refusal contract:
+# rc 2 means the wrapper prefix cannot be decomposed with confidence AND
+# something git-shaped follows, so blocking callers must fail closed.
+resolve_rc_is() {
+  local desc="$1" want="$2"
+  shift 2
+  hook::git_resolve_index "$@"
+  local rc=$?
+  if ((rc == want)); then
+    ok "$desc"
+  else
+    fail "$desc: expected rc=$want, got rc=$rc"
+  fi
+}
+
+# sudo clusters short options, so `-bD dir` carries the chdir in a cluster no
+# exact -D match sees — losing it aimed the guard at the wrong repository.
+resolve_dirs_are "sudo -bD DIR (clustered) reports the chdir" "other" sudo -bD other git commit
+resolve_dirs_are "sudo -bDother (clustered, attached) reports the chdir" "other" sudo -bDother git commit
+resolve_dirs_are "sudo -Dother (attached) reports the chdir" "other" sudo -Dother git commit
+# Value-taking shorts consume their word attached or separated, clustered or not.
+resolve_rc_is "sudo -u USER still resolves git" 0 sudo -u root git commit
+resolve_rc_is "sudo -uroot (attached value) still resolves git" 0 sudo -uroot git commit
+resolve_rc_is "sudo -bu USER (cluster ending in a value-taker) still resolves git" 0 sudo -bu root git commit
+resolve_rc_is "sudo -- ends option parsing" 0 sudo -- git commit
+resolve_rc_is "sudo -E (valueless) still resolves git" 0 sudo -E git commit
+# Shapes the grammar cannot classify REFUSE when something git-shaped follows:
+# -i relocates to the target user's home (no operand names it), -h is
+# optional-argument (help vs host), unknown options may consume the next word.
+resolve_rc_is "sudo -i refuses: relocates to an unresolvable home" 2 sudo -i git commit -m x
+resolve_rc_is "sudo --login refuses like -i" 2 sudo --login git commit
+resolve_rc_is "sudo -h refuses: optional-argument ambiguity" 2 sudo -h host git commit
+resolve_rc_is "sudo unknown option refuses when git follows" 2 sudo -Z git commit
+resolve_rc_is "sudo cluster hiding -i refuses" 2 sudo -bi git commit
+# The refusal scan is a substring match on purpose: a quoted operand carrying a
+# git command is not word-shaped like git, and missing it is the bypass.
+resolve_rc_is "a quoted git operand behind a refused prefix still refuses" \
+  2 sudo -i 'git commit -m x'
+# With nothing git-shaped downstream sudo cannot exec git from these words, so
+# an unparseable prefix on a git-free command stays a plain not-git answer.
+resolve_rc_is "sudo unknown option with no git downstream is not-git" 1 sudo -Z ls -la
+resolve_rc_is "sudo -i with no command is not-git" 1 sudo -i
+
 echo
 echo "PASS=$PASS FAIL=$FAIL"
 [[ $FAIL -eq 0 ]]

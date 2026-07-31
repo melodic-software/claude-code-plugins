@@ -124,6 +124,32 @@ run "configured alias commit: violating subject blocked" "$r" \
 run "configured alias commit: conforming subject allowed" "$r" \
   $'git qc -F - --cleanup=verbatim <<\'EOF\'\nABC-5: fine\nEOF' 0
 
+# --- a WRAPPER's options are not git's globals (#1810) -------------------------
+# effective_dir used to receive the WHOLE argv, so a wrapper's operands (and a
+# subcommand's trailing arguments) were read as git's `-C`. In
+# `env -u -C git x …`, GNU env's `-u` consumes `-C` as the variable to unset and
+# `git` is the command — git never leaves the payload cwd — but the whole-argv
+# scan read the bare tokens `-C git`, resolved the nested decoy `./git`, found
+# no `alias.x` there, and the violating subject shipped.
+r="$(newrepo "$TICKET")"
+git -C "$r" config alias.x 'commit -F -'
+git init -q -b main "$r/git" # decoy a wrongly-sliced parser resolves; carries NO alias.x
+run "persisted alias: violating subject blocked (baseline)" "$r" \
+  $'git x -F - --cleanup=verbatim <<\'EOF\'\njunk subject\nEOF' 2
+run "persisted alias: conforming subject allowed (baseline)" "$r" \
+  $'git x -F - --cleanup=verbatim <<\'EOF\'\nABC-1: conforming\nEOF' 0
+run "wrapper operand no longer read as git's -C (env -u -C git x)" "$r" \
+  $'env -u -C git x -F - --cleanup=verbatim <<\'EOF\'\njunk subject\nEOF' 2
+# The narrowing must NOT stop honouring a relocation the wrapper really
+# performs: `env -C other git y` runs git in `other`, so `other`'s alias is the
+# one that commits — composed from HOOK_GIT_RESOLVED_WRAPPER_DIRS.
+git init -q -b main "$r/other"
+git -C "$r/other" config alias.y 'commit -F -'
+run "wrapper chdir still followed: relocated alias gated" "$r" \
+  $'env -C other git y -F - --cleanup=verbatim <<\'EOF\'\njunk subject\nEOF' 2
+run "wrapper chdir still followed: relocated alias, conforming subject allowed" "$r" \
+  $'env -C other git y -F - --cleanup=verbatim <<\'EOF\'\nABC-2: conforming\nEOF' 0
+
 # --- kill switch ---------------------------------------------------------------
 r="$(newrepo "$TICKET")"
 json=$(jq -n --arg c "$BAD_COMMIT" --arg d "$r" \

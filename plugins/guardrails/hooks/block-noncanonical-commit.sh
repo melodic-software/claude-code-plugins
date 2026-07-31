@@ -387,22 +387,12 @@ collect_locating_globals() {
 # HOOK_GIT_RESOLVED_WRAPPER_DIRS, and the caller passes them here as leading `-C`
 # words so they compose ahead of git's own globals, in that order. Dropping them
 # reads the payload cwd's aliases while git runs the relocated repository's.
+# The composition itself is hook::git_effective_dir — the ONE shared rule, so
+# this hook and the convention gate cannot drift apart again; only the base
+# resolution is this hook's own (HOOK_EFFECTIVE_BASE tracks the `!` alias walk).
 # shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
 effective_dir() {
-  local base="${HOOK_EFFECTIVE_BASE:-${HOOK_CWD:-${CLAUDE_PROJECT_DIR:-.}}}" i n=$# arg
-  local -a a=("$@")
-  for ((i = 0; i < n; i++)); do
-    arg="${a[i]}"
-    if [[ "$arg" == "-C" ]] && ((i + 1 < n)); then
-      if [[ "${a[i + 1]}" == /* || "${a[i + 1]}" =~ ^[A-Za-z]:[\/] ]]; then
-        base="${a[i + 1]}"
-      else
-        base="$base/${a[i + 1]}"
-      fi
-      ((i++))
-    fi
-  done
-  printf '%s' "$base"
+  hook::git_effective_dir "${HOOK_EFFECTIVE_BASE:-${HOOK_CWD:-${CLAUDE_PROJECT_DIR:-.}}}" "$@"
 }
 
 # Is a merge / rebase / cherry-pick / revert in progress? Those commits carry a
@@ -545,7 +535,22 @@ check_segment() {
     return 0
   fi
 
-  hook::git_resolve_index "$@" || return 0
+  # rc 2 is the resolver's REFUSAL — a wrapper prefix outside its verified
+  # grammar with something git-shaped downstream. The command position is
+  # unknowable there, so a commit may be hiding behind it: fail closed rather
+  # than fold it into the not-git no-op. Each blocking guard holds this posture
+  # itself (per-hook kill switches mean none may delegate it to a sibling).
+  hook::git_resolve_index "$@"
+  case $? in
+  0) ;;
+  2)
+    echo "BLOCKED: this command's wrapper prefix (e.g. a sudo option the parser cannot classify) hides the command position, and something git-shaped follows it — failing closed." >&2
+    echo "Run git directly (or under a wrapper spelling the guard can read), or set the guardrails block_noncanonical_commit_enabled option to false to bypass." >&2
+    emit_tel "blocked" "unparseable-wrapper"
+    exit 2
+    ;;
+  *) return 0 ;;
+  esac
   gi=$HOOK_GIT_RESOLVED_GI
   w=("${HOOK_GIT_RESOLVED_WORDS[@]}")
   nseg=${#w[@]}
