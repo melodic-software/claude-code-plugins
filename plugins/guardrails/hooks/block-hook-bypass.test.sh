@@ -605,4 +605,28 @@ psout=$(bash "$HOOK" <<<"$(pwsh_command_json "Set-Content f.txt 'x'")" 2>&1)
 assert_contains "PS write block names Write/Edit" "$psout" "Write or Edit tool"
 assert_absent "PS write block message is shell-agnostic" "$psout" "Bash file-write"
 
+# --- Enforcement-scope disclosure -------------------------------------------
+# The message asserted "use Write or Edit instead" with no scope, so it read as
+# "shell file writes are blocked" when the guard is deliberately producer-scoped
+# over one command string. Both lanes must carry the scope, and the behaviour
+# the scope describes is pinned below it so message and reality move together.
+scopeout=$(bash "$HOOK" <<<"$(command_json "printf 'x' > out.log")" 2>&1)
+assert_contains "bash block states its scope" "$scopeout" \
+  "only this command string is inspected"
+assert_contains "bash block names the invoked-script gap" "$scopeout" \
+  "inside an invoked script file"
+assert_contains "bash block exempts inspected inline code from the gap" "$scopeout" \
+  "recognized inline interpreter code"
+psscope=$(bash "$HOOK" <<<"$(pwsh_command_json "Set-Content f.txt 'x'")" 2>&1)
+assert_contains "powershell block states its scope" "$psscope" \
+  "only this command string is inspected"
+
+# The behaviour the scope note describes. A write inside an invoked script is
+# not inspected, and a redirect whose producer is another program is allowed by
+# the producer-scoped design — so the note must not promise either is blocked.
+run "invoked script is not inspected (allowed)" "bash execute.sh" 0
+run "invoked script with its own redirect (allowed)" "bash execute.sh >> run.log" 0
+run "non-producer redirect (allowed)" "sort data.txt > out.txt" 0
+run "cat with input files is not a heredoc write (allowed)" "cat a.txt b.txt > c.txt" 0
+
 report

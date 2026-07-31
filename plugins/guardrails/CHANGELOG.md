@@ -3,6 +3,36 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.18.4]
+
+### Fixed
+
+- **`block-hook-bypass`'s block message now states the scope the guard actually has (#1802).** The
+  message said a write was prevented and that Write/Edit is the sanctioned path, with nothing about
+  scope, so it read as "shell file writes are blocked". The guard is deliberately producer-scoped
+  over a single command string, and the gap runs in both directions: an agent concludes shell file
+  writes are unavailable and contorts around a restriction a script file does not have, while a
+  human credits the guard with coverage it never claimed — the more expensive error where the guard
+  is load-bearing in someone's threat model.
+
+  Verified against the hook with fixture input: `printf 'x' > out.log` blocks, while `bash
+  execute.sh` — whose script may write freely — is allowed, as reported. Two shapes the report did
+  **not** name are allowed too, and they matter for the wording: `bash execute.sh >> run.log` and
+  `sort data.txt > out.txt` are *direct redirects in the command string* and are allowed by the
+  producer-scoped design, as is `cat a.txt b.txt > c.txt` (only the stdin-consuming `cat > f` form
+  is a write workaround). So the report's suggested line — "direct redirects in this command only" —
+  would have overstated coverage in the other direction. The shipped note says instead that only
+  this command string is inspected — known shell file-write forms plus recognized inline
+  interpreter code (`python -c` IS scanned, so the blind spot claims only an invoked script file
+  or a program's own opaque code) — and that a redirect produced by another program is not seen.
+
+  No hook logic changes. The behaviour the note describes is now pinned by tests beside the
+  message-content assertions, so the two move together.
+
+- **The `README` residuals section names the same scope**, next to the existing quoted-span residual
+  for this guard, so the guarantee is stated where consumers read the guard's limits rather than
+  only at the moment of a block.
+
 ## [0.18.3]
 
 ### Fixed
