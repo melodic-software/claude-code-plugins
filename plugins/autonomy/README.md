@@ -94,22 +94,34 @@ run never authorizes the stops of a later lane run. It is the settings-scoped,
 cross-session sibling of `/goal`'s session-only completion condition — use `/goal` for a single
 session, this gate for a standing lane.
 
-**Default OFF** — a Stop-blocking hook must never engage for an interactive session. A lane launcher
-opts a *single* session in by overriding the plugin's `userConfig` through `--settings` (which accepts
-inline JSON and applies for that session only, without persisting). The `pluginConfigs` key is the
-marketplace-qualified plugin id — `<plugin-name>@<marketplace-name>` for however this plugin was
-installed:
+**Default OFF** — a Stop-blocking hook must never engage for an interactive session.
 
-```shell
-claude --settings '{"pluginConfigs":{"autonomy@<marketplace>":{"options":{"lane_stop_gate_enabled":true,"lane_stop_gate_marker":".lane-complete"}}}}' ...
-```
+**Config is honored from trusted sources only (#1784).** The gate never takes its config off the
+bare `CLAUDE_PLUGIN_OPTION_*` environment: for an unconfigured key, a watched repository's own
+`.claude/settings.json` `env` block populates that variable freely, and a gate whose enablement (or
+sentinel, or marker path) the watched repository controls is not a gate
+(`docs/conventions/hook-config-delivery`). Per-key precedence, mirroring Claude Code's own settings
+merge:
 
-`--config <key=value>` is an option of `claude plugin install` (it *persists* the value to user
-settings, enabling the gate for every session — which defeats the default-OFF design), not a flag on
-the session-launch command, so the per-lane path is `--settings` above. The `claude-ops` lane
-launcher wires this per lane: give the lane a `settings` object in its lanes-config entry (see that
-skill's `context/config.md`) and the launcher passes it as `--settings` on every start/restart, so a
-standing lane opts in from tracked config rather than persistent global configuration.
+1. **Managed settings** (fixed root-owned paths + `managed-settings.d/` drop-ins) — an org can veto
+   with `lane_stop_gate_enabled: false`.
+2. **The per-session arm record** — the `claude-ops` lane launcher arms a lane at launch: give the
+   lane a `settings` object requesting the gate in its lanes-config entry (see that skill's
+   `context/config.md`), and the launcher runs this plugin's `hooks/lane-stop-gate-arm.sh` (writing
+   a record under the plugin's own install-derived data directory) and injects the random record id
+   as `lane_stop_gate_arm_id` in the session's `--settings`. The id is a capability pointer, never
+   authority: the gate validates it, honors only its own store, binds it to the first presenting
+   session, expires it after 7 days, and consumes it on either terminal stop. To arm a hand-launched
+   session, run the arm helper from the installed plugin the same way, then pass the id via
+   `--settings '{"pluginConfigs":{"autonomy@<marketplace>":{"options":{"lane_stop_gate_arm_id":"<id>"}}}}'`.
+3. **User `settings.json`**, located from the hook's own install path — a *persistent* enable that
+   also gates interactive sessions, which defeats the default-OFF design; prefer the launcher.
+
+A `--settings`-only `lane_stop_gate_enabled=true` (the pre-0.12.0 opt-in) is **no longer honored** —
+that value reaches the hook only as the forgeable env mirror. The gate says so with a visible
+once-per-session notice instead of disengaging silently, which is also how a stale (pre-arming)
+lane launcher surfaces. A `--plugin-dir` checkout install has no trusted user-settings or record
+location, so only managed settings can enable the gate there.
 
 It is fail-open (unreadable stdin / missing `jq` / a `SubagentStop` never trips it) and bounded
 against runaway by the `stop_hook_active` one-nudge guard plus Claude Code's consecutive-block cap.
@@ -126,6 +138,7 @@ The payload is a fixed vocabulary — never the sentinel token, marker path, cwd
 | `lane_stop_gate_enabled` | `false` | Opt this session's lane into the gate. |
 | `lane_stop_gate_sentinel` | `LANE-STOP-OK` | Token the agent emits alone on its own line to declare the goal met. |
 | `lane_stop_gate_marker` | *(unset)* | Marker file whose existence also authorizes a stop (absolute, or relative to the session cwd). Consumed on use. |
+| `lane_stop_gate_arm_id` | *(unset)* | Launcher-written arm-record id (capability pointer, never authority). Not set by hand. |
 | `lane_notify_enabled` | `true` | Master switch for the operator alert. |
 | `lane_notify_os_toast_enabled` | `true` | OS-native toast channel (macOS/Linux). |
 | `lane_notify_terminal_enabled` | `true` | Terminal bell + OSC 9 channel. |

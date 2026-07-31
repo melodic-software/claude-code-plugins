@@ -137,6 +137,21 @@ esac
 STUB
 chmod +x "$STUB_BIN/claude" "$STUB_BIN/git"
 
+# --- Gate-arm stub (#1784) ----------------------------------------------------
+# Stands in for the autonomy plugin's hooks/lane-stop-gate-arm.sh: logs its argv
+# and succeeds (or fails via STUB_ARM_RC) so the suite can pin the launcher's
+# fail-closed arming without a staged autonomy install. run_launcher passes it
+# via --gate-arm-script; a case that wants the no-helper path calls the script
+# directly.
+ARM_LOG="$TMP/arm.log"
+ARM_STUB="$TMP/arm-stub.sh"
+cat >"$ARM_STUB" <<STUB
+#!/usr/bin/env bash
+printf '%s\n' "\$*" >>"$ARM_LOG"
+exit "\${STUB_ARM_RC:-0}"
+STUB
+chmod +x "$ARM_STUB"
+
 # Hermetic: the suite must not depend on an ambient `claude` (CI runners have
 # none). Every case resolves `claude`/`git` to the logging stubs; cases that
 # inspect the log reset it first. Real git is never needed — repos are passed
@@ -151,7 +166,7 @@ export PATH="$STUB_BIN:$PATH"
 marker_repo_key() { printf '%s' "$1" | git hash-object --stdin; }
 REPO_KEY="$(marker_repo_key "$REPO")"
 
-run_launcher() { bash "$SCRIPT" "$@"; }
+run_launcher() { bash "$SCRIPT" --gate-arm-script "$ARM_STUB" "$@"; }
 
 # ============================================================================
 # Config resolution + validation
@@ -660,6 +675,77 @@ marker="$(cat "$DATA_DIR8/lanes/$(marker_repo_key "$CANONICAL")/work-launch-comm
 assert_eq "marker: keys on git's canonical toplevel, not the --repo argument" "deadbeefcafefeedfacefeeddeadbeefcafefeed" "$marker"
 if [[ -e "$DATA_DIR8/lanes/$REPO_KEY/work-launch-commit" ]]; then usedarg=1; else usedarg=0; fi
 assert_eq "marker: nothing is written under the un-canonicalized --repo key" 0 "$usedarg"
+
+# ============================================================================
+# #1784 — lane-stop gate arming: a lane whose settings request the gate is
+# armed at launch (arm id injected into --settings), and one that cannot be
+# armed is skipped — fail closed, never silently ungated.
+# ============================================================================
+# Real dispatch: the babysit lane requests the gate → the arm stub runs with
+# --id/--cwd, and the launched --settings carry the SAME id under
+# lane_stop_gate_arm_id.
+: >"$CLAUDE_LOG"
+: >"$ARM_LOG"
+out="$(run_launcher start --repo "$REPO" --config "$CONFIG" --agents-json "$AGENTS_EMPTY" 2>&1)"
+rc=$?
+log="$(cat "$CLAUDE_LOG")"
+armlog="$(cat "$ARM_LOG")"
+assert_eq "arm: gate-requesting start exits 0" 0 "$rc"
+assert_contains "arm: helper invoked with an arm id" "$armlog" "--id "
+assert_contains "arm: helper receives the lane cwd" "$armlog" "--cwd $REPO"
+assert_contains "arm: launched settings carry lane_stop_gate_arm_id" "$log" "lane_stop_gate_arm_id"
+armed_id="$(printf '%s' "$armlog" | sed -n 's/.*--id \([A-Za-z0-9_-]*\).*/\1/p' | head -n 1)"
+settings_id="$(printf '%s\n' "$log" | grep -o 'lane_stop_gate_arm_id[^,}]*' | sed 's/.*://; s/"//g' | head -n 1)"
+assert_eq "arm: the id the helper armed is the id the session receives" "$armed_id" "$settings_id"
+assert_not_eq "arm: the id is non-empty" "" "$armed_id"
+
+# The non-gate lanes (work, decide: no gate request in settings) never arm.
+gate_calls="$(grep -c -- '--id' "$ARM_LOG" 2>/dev/null || true)"
+assert_eq "arm: only the gate-requesting lane arms (one helper call)" 1 "$gate_calls"
+
+# The lane's sentinel/marker settings ride into the arm call.
+cat >"$TMP/gateopts.json" <<'JSON'
+{ "prompt_dir": ".work",
+  "lanes": [ { "name": "work", "prompt": "work.md",
+    "settings": { "pluginConfigs": { "autonomy@test-marketplace": { "options": {
+      "lane_stop_gate_enabled": true,
+      "lane_stop_gate_sentinel": "DONE-X",
+      "lane_stop_gate_marker": ".lane-complete" } } } } } ] }
+JSON
+: >"$ARM_LOG"
+out="$(run_launcher start --repo "$REPO" --config "$TMP/gateopts.json" --agents-json "$AGENTS_EMPTY" --no-pull --no-update 2>&1)"
+armlog="$(cat "$ARM_LOG")"
+assert_contains "arm: the lane's sentinel reaches the helper" "$armlog" "--sentinel DONE-X"
+assert_contains "arm: the lane's marker reaches the helper" "$armlog" "--marker .lane-complete"
+
+# Arming failure → that lane is skipped with an error (fail closed), the other
+# lanes still launch, and the sweep exits non-zero.
+: >"$CLAUDE_LOG"
+out="$(STUB_ARM_RC=1 run_launcher start --repo "$REPO" --config "$CONFIG" --agents-json "$AGENTS_EMPTY" 2>&1)"
+rc=$?
+log="$(cat "$CLAUDE_LOG")"
+assert_eq "arm: arming failure surfaces a non-zero exit" 1 "$rc"
+assert_contains "arm: arming failure names the lane and skips it" "$out" "lane-stop gate arming failed"
+assert_not_contains "arm: a lane that could not be armed is NOT launched" "$log" "--bg -n babysit"
+assert_contains "arm: other lanes still launch past an arm failure" "$log" "--bg -n work"
+
+# No helper found (no override, unanchored checkout) → same fail-closed skip
+# with an actionable message. Invoked directly, without run_launcher's
+# --gate-arm-script.
+: >"$CLAUDE_LOG"
+out="$(bash "$SCRIPT" start --repo "$REPO" --config "$CONFIG" --agents-json "$AGENTS_EMPTY" 2>&1)"
+rc=$?
+log="$(cat "$CLAUDE_LOG")"
+assert_eq "arm: missing helper surfaces a non-zero exit" 1 "$rc"
+assert_contains "arm: missing helper message is actionable" "$out" "no autonomy gate-arm helper was found"
+assert_not_contains "arm: no launch without a helper for a gate-requesting lane" "$log" "--bg -n babysit"
+
+# --dry-run mutates nothing: the arming is previewed, the helper is not run.
+: >"$ARM_LOG"
+out="$(run_launcher start --repo "$REPO" --config "$CONFIG" --agents-json "$AGENTS_EMPTY" --dry-run 2>&1)"
+assert_contains "arm: dry-run previews the arming" "$out" "DRY-RUN: arm lane-stop gate for babysit"
+if [[ -s "$ARM_LOG" ]]; then armran=1; else armran=0; fi
+assert_eq "arm: dry-run does not run the helper" 0 "$armran"
 
 # ============================================================================
 echo
