@@ -16,10 +16,12 @@
 #     calls this same helper.
 # The flag CLI is the stable seam both consumers share.
 #
-# Refuse-with-guidance contract: when the external root is unconfigured the
-# helper refuses (exit 3) and never falls back to Claude Code's in-repo
-# `.claude/worktrees/`, whose nested placement triggers the confirmed, unfixed
-# CLAUDE.md/rules double-load bug.
+# Root-resolution contract: a configured root (--root/--root-file) wins; absent one,
+# the plugin data directory supplied via --data-root-file yields <data-dir>/worktrees;
+# absent both, the helper refuses (exit 3). It never falls back to Claude Code's
+# in-repo `.claude/worktrees/`: from a worktree nested inside a checkout, a read
+# matching a path-scoped rule's glob also loads the PARENT checkout's copy of that
+# rule. The data dir is never read from the environment — see the resolution block.
 #
 # Output contract: on success the created worktree path is the SOLE stdout line
 # (machine-parseable); all diagnostics go to stderr.
@@ -27,7 +29,7 @@
 # Exit codes:
 #   0  success — worktree created; path on stdout
 #   2  usage error — unknown/missing flag, or a --name git rejects as a branch
-#   3  refuse — external root unconfigured (guidance on stderr); nothing created
+#   3  refuse — no usable external root (guidance on stderr); nothing created
 #   4  environment error — not a git repo, or `git worktree add` failed
 
 set -uo pipefail
@@ -39,7 +41,8 @@ usage() {
 $PROG — shared worktree-creation helper.
 
 Usage:
-  $PROG --name <name> (--root <dir> | --root-file <path>) [--base-ref fresh|head] [--repo-dir <dir>]
+  $PROG --name <name> (--root <dir> | --root-file <path>) [--data-root-file <path>]
+        [--base-ref fresh|head] [--repo-dir <dir>]
 
 Options:
   --name <name>       Branch/worktree name (e.g. feat/my-feature). Required.
@@ -53,10 +56,21 @@ Options:
   --root <dir>        External worktree root, passed directly as a process
                       argument (e.g. from a hook or CLI caller — no shell
                       re-quoting of the value happens on that path). An empty
-                      value or an unexpanded \${user_config.*} token makes the
-                      helper refuse (exit 3) rather than fall back to the
-                      in-repo .claude/worktrees/ default (a known Claude Code
-                      double-load bug). Mutually exclusive with --root-file.
+                      value or an unexpanded \${user_config.*} token falls
+                      through to --data-root-file — never to the in-repo
+                      .claude/worktrees/ default, whose nested placement makes a
+                      read load the parent checkout's path-scoped rules as well.
+                      Mutually exclusive with --root-file.
+  --data-root-file <path>
+                      Read the plugin's data directory from <path>, used as the
+                      root ONLY when no --root/--root-file value is configured
+                      (the resolved root is then <data-dir>/worktrees). Same
+                      byte-verbatim file channel as --root-file, and combinable
+                      with it: a configured root always wins. The caller obtains
+                      the value by substituting \${CLAUDE_PLUGIN_DATA} into its
+                      own SKILL.md body — never from the environment, which is
+                      not per-plugin in a Bash-tool subprocess. A file still
+                      holding the literal token is treated as absent.
   --root-file <path>  Read the external worktree root from <path> instead of a
                       --root argument. For a caller that cannot place the value
                       in shell source safely — e.g. a skill rendering
@@ -88,7 +102,7 @@ Options:
 On success the created worktree path is printed as the sole stdout line, for the
 caller to feed to EnterWorktree(path:).
 
-Exit codes: 0 success · 2 usage · 3 refuse (root unconfigured) · 4 environment.
+Exit codes: 0 success · 2 usage · 3 refuse (no usable root) · 4 environment.
 EOF
 }
 
@@ -97,6 +111,8 @@ root=""
 root_given=0
 root_file=""
 root_file_given=0
+data_root_file=""
+data_root_file_given=0
 base_ref=""
 repo_dir="."
 
@@ -115,6 +131,7 @@ while [[ $# -gt 0 ]]; do
     --name) need_value "$@"; name="$2"; shift 2 ;;
     --root) need_value "$@"; root="$2"; root_given=1; shift 2 ;;
     --root-file) need_value "$@"; root_file="$2"; root_file_given=1; shift 2 ;;
+    --data-root-file) need_value "$@"; data_root_file="$2"; data_root_file_given=1; shift 2 ;;
     --base-ref) need_value "$@"; base_ref="$2"; shift 2 ;;
     --repo-dir) need_value "$@"; repo_dir="$2"; shift 2 ;;
     -h|--help) usage; exit 0 ;;
@@ -149,9 +166,19 @@ fi
 # Reading a "first line" instead would silently proceed with a root the caller
 # never asked for, and a trailing newline is indistinguishable from a root whose
 # own last byte is a newline, so neither can be forgiven without guessing.
-if (( root_file_given )); then
-  if [[ ! -f "$root_file" ]]; then
-    printf '%s: --root-file not found: %s\n' "$PROG" "$root_file" >&2
+# read_path_file <flag-name> <path> — read a path a caller handed over out-of-band
+# through a file, with every byte intact, into the global PATH_FILE_VALUE. Shared
+# by --root-file and --data-root-file so the second channel cannot drift from the
+# first's guards. Exits 2 on anything that is not a usable single-line path.
+#
+# Assigns to a global rather than echoing: the guards below must terminate the
+# SCRIPT, and an `exit` inside a `$( )` capture kills only the subshell — the
+# caller would sail on with an empty root. Verified, not assumed.
+read_path_file() {
+  local flag="$1" file="$2" value
+  PATH_FILE_VALUE=""
+  if [[ ! -f "$file" ]]; then
+    printf '%s: %s not found: %s\n' "$PROG" "$flag" "$file" >&2
     exit 2
   fi
   # A NUL byte has to be caught BEFORE the value reaches a shell variable: command
@@ -159,18 +186,24 @@ if (( root_file_given )); then
   # which would turn `/root-<NUL>suffix` into `/root-suffix` and create a worktree
   # at a path nobody supplied. Compare the byte count with and without NULs rather
   # than matching on one, since the variable can never hold it.
-  if (( $(wc -c < "$root_file") != $(tr -d '\000' < "$root_file" | wc -c) )); then
-    printf '%s: --root-file %s contains a NUL byte; the file holds the worktree root verbatim and no pathname can contain NUL\n' \
-      "$PROG" "$root_file" >&2
+  if (( $(wc -c < "$file") != $(tr -d '\000' < "$file" | wc -c) )); then
+    printf '%s: %s %s contains a NUL byte; the file holds the path verbatim and no pathname can contain NUL\n' \
+      "$PROG" "$flag" "$file" >&2
     exit 2
   fi
-  root=$(cat "$root_file"; printf x)   # printf x defends the value's own trailing bytes from $( ) stripping
-  root=${root%x}
-  if [[ "$root" == *$'\n'* ]]; then
-    printf '%s: --root-file %s contains a newline byte; the file holds the worktree root verbatim and a path with a newline in it is malformed configuration, not a root to trim\n' \
-      "$PROG" "$root_file" >&2
+  value=$(cat "$file"; printf x)   # printf x defends the value's own trailing bytes from $( ) stripping
+  value=${value%x}
+  if [[ "$value" == *$'\n'* ]]; then
+    printf '%s: %s %s contains a newline byte; the file holds the path verbatim and a path with a newline in it is malformed configuration, not a value to trim\n' \
+      "$PROG" "$flag" "$file" >&2
     exit 2
   fi
+  PATH_FILE_VALUE="$value"
+}
+
+if (( root_file_given )); then
+  read_path_file --root-file "$root_file"
+  root="$PATH_FILE_VALUE"
 fi
 
 # Validate the name up front against the EnterWorktree schema: max 64 chars, and
@@ -190,23 +223,16 @@ fi
 # The remaining name check — git's own ref grammar — needs a healthy repository
 # to run in, so it waits until $toplevel is resolved below.
 
-# Refuse-with-guidance: unconfigured root. Treat an empty value or an unexpanded
-# ${user_config.*} token (what Claude Code leaves when the key is unset) as unset.
+# Unconfigured root: detected here, resolved after the repository is known below.
+# Treat an empty value or an unexpanded ${user_config.*} token (what Claude Code
+# leaves when the key is unset) as unset.
+#
 # SC2016: the single-quoted ${user_config token is matched literally on purpose —
 # we are detecting the UNexpanded placeholder, so expansion here would be a bug.
+root_unset=0
 # shellcheck disable=SC2016
 if [[ -z "$root" || "$root" == *'${user_config'* ]]; then
-  cat >&2 <<EOF
-$PROG: worktree root is not configured — refusing to create a worktree.
-
-Set the source-control plugin's \`worktree_root\` directory key to an external
-root (a path OUTSIDE every repository, on the same drive as the repo on Windows),
-then retry. Run the worktree setup skill, or configure it via \`/plugin\`.
-
-Not falling back to the in-repo .claude/worktrees/ default: that nested
-placement triggers Claude Code's CLAUDE.md/rules double-load bug.
-EOF
-  exit 3
+  root_unset=1
 fi
 
 # Canonicalize a Windows backslash root to the forward-slash grammar git emits.
@@ -232,6 +258,66 @@ fi
 if ! toplevel=$(git -C "$repo_dir" rev-parse --show-toplevel 2>/dev/null); then
   printf '%s: --repo-dir is not inside a git repository: %s\n' "$PROG" "$repo_dir" >&2
   exit 4
+fi
+
+# Resolve the unconfigured-root fallback: the plugin's own data directory,
+# delivered by the caller through --data-root-file.
+#
+# The value cannot be read from the environment here. In a general Bash-tool
+# subprocess — which is what every caller of this helper runs in — CLAUDE_PLUGIN_DATA
+# is not scoped to the invoking plugin; the repository's probe recorded it naming an
+# unrelated installed plugin's data directory (docs/extensibility-contract-smoke-tests.md,
+# Test B). It IS reliable inside a plugin's own declared command, so a future
+# WorktreeCreate hook passes it as a --root process argument instead.
+#
+# What the skill CAN do is substitute ${CLAUDE_PLUGIN_DATA} into its own SKILL.md
+# body, where it renders per-plugin (same probe, Test D), and hand the rendered
+# value over through the existing non-shell file channel. That is this flag.
+#
+# A repository-derived default was considered and rejected: a sibling of the
+# checkout lands inside a repository-discovery tree under a layout like
+# <root>/github.com/<owner>/<repo>, where `ghq list` then enumerates each worktree
+# as a repository of its own (a leading dot does not hide it) — the very pollution
+# the worktree skill tells users to keep their configured root clear of.
+#
+# Fail-closed by construction: if substitution ever regresses, the file carries the
+# literal token, which is detected below and refused rather than turned into a
+# relative path inside the repository. The containment guard further down still
+# validates whatever root wins.
+if (( root_unset )); then
+  data_root=""
+  if (( data_root_file_given )); then
+    read_path_file --data-root-file "$data_root_file"
+    data_root="$PATH_FILE_VALUE"
+    # A caller whose substitution did not fire hands over the literal token. That
+    # is not a directory, and treating it as one would create `${CLAUDE_PLUGIN_DATA}`
+    # as a relative path in the repository — the nesting this helper exists to
+    # prevent. Detect it and fall through to the refusal below.
+    # shellcheck disable=SC2016
+    [[ "$data_root" == *'${CLAUDE_PLUGIN_DATA'* ]] && data_root=""
+  fi
+
+  if [[ -z "$data_root" ]]; then
+    cat >&2 <<EOF
+$PROG: no worktree root available — refusing to create a worktree.
+
+Set the source-control plugin's \`worktree_root\` directory key to an external
+root (a path OUTSIDE every repository), then retry. Run the worktree setup
+skill, or configure it via \`/plugin\`.
+
+Not falling back to the in-repo .claude/worktrees/ default: from a worktree
+nested inside a checkout, a read matching a path-scoped rule's glob also loads
+the PARENT checkout's copy of that rule.
+EOF
+    exit 3
+  fi
+
+  root="${data_root%/}/worktrees"
+  printf '%s: worktree_root is not configured; defaulting to %s\n' "$PROG" "$root" >&2
+  # SC2016: the backticks are literal markdown in guidance text, not a command
+  # substitution — expansion is exactly what must NOT happen here.
+  # shellcheck disable=SC2016
+  printf '%s: set the plugin'\''s `worktree_root` directory key to place worktrees elsewhere.\n' "$PROG" >&2
 fi
 
 # Second half of name validation: the character class checked above is NOT a
@@ -384,10 +470,10 @@ worktree_path=$(normalize_path "$worktree_path")
 
 # Reject placement inside any git repository — a working tree, a normal repo's
 # .git directory, or a bare clone. Keeping worktrees OUT of every repository is
-# the helper's core purpose: a worktree nested inside a working tree reintroduces
-# the CLAUDE.md/rules double-load bug for whichever checkout owns the ancestor,
-# and one dropped inside a .git or bare directory mixes the checkout into git
-# metadata. The unconfigured-root refuse above does not catch a root explicitly
+# the helper's core purpose: from a worktree nested inside a working tree, a read
+# matching a path-scoped rule's glob also loads the ancestor checkout's copy of
+# that rule, and one dropped inside a .git or bare directory mixes the checkout
+# into git metadata. The root resolution above does not catch a root explicitly
 # pointed inside a repository (e.g. the old .claude/worktrees/ path, a root under
 # a sibling clone, or a path beneath a .git directory), so ask git about the
 # target's location: walk up from the target's parent to the nearest existing
@@ -430,8 +516,9 @@ Set the source-control plugin's \`worktree_root\` directory key to an external
 root (a path OUTSIDE every repository, on the same drive as the repo on Windows),
 then retry.
 
-Not creating inside a checkout or a git directory: that placement triggers Claude
-Code's CLAUDE.md/rules double-load bug and mixes the worktree into git metadata.
+Not creating inside a checkout or a git directory: from there a read matching a
+path-scoped rule's glob also loads the enclosing checkout's copy of that rule,
+and a git-directory placement mixes the worktree into git metadata.
 EOF
     exit 3
   fi

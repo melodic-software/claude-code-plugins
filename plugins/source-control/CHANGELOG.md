@@ -3,6 +3,43 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.45.0]
+
+### Changed
+
+- **An unset `worktree_root` now defaults to `<plugin-data-dir>/worktrees` instead of refusing every
+  `/worktree create`.** The key ships unset, so the refusal fired on a fresh install and the command
+  was unusable until the user configured a root by hand — a hard failure standing in for a missing
+  default. The containment guard is untouched — a root that resolves inside a repository is still
+  rejected, and that check, not the unset check, is what enforces the nesting invariant.
+
+  **The data directory is supplied, not read from the environment.** In a general Bash-tool
+  subprocess — which is what every caller of the helper runs in — `CLAUDE_PLUGIN_DATA` is not scoped
+  to the invoking plugin; this repository's own probe recorded it naming an unrelated installed
+  plugin's data directory. The skill instead substitutes `${CLAUDE_PLUGIN_DATA}` into its own
+  SKILL.md body, where it does render per-plugin, and hands the resolved path to the new
+  `--data-root-file` flag through the same byte-verbatim file channel `--root-file` already uses.
+  A configured root always wins; the data dir is only the fallback. If substitution ever regresses,
+  the file carries the literal token, which the helper detects and refuses — never a wrong
+  directory.
+
+  A repository-derived default (`<parent>/worktrees`) was considered and rejected: under a
+  discovery layout such as ghq's `<root>/github.com/<owner>/<repo>` it lands INSIDE the tree the
+  discovery tool walks, and `ghq list` then reports each worktree as a repository of its own — a
+  leading dot does not hide it.
+
+### Fixed
+
+- **The refusal rationale cited a defect that no longer reproduces.** Four surfaces — the helper,
+  its `--help` text, the `worktree_root` config description, and both skill surfaces — attributed
+  the nesting ban to Claude Code's CLAUDE.md/rules double-load bug, fixed upstream in v2.1.69. The
+  ban is still correct, for a narrower reason measured on 2.1.220: from a worktree nested inside a
+  checkout, a read matching a path-scoped rule's glob also loads the PARENT checkout's copy of that
+  rule. Every surface now states the live constraint, so the next reader auditing the guard against
+  a fixed bug does not conclude the guard is obsolete.
+- **`worktree_root` was missing from the README's configuration table** while every sibling key was
+  listed.
+
 ## [0.44.1]
 
 ### Fixed
