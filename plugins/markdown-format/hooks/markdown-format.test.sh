@@ -239,6 +239,49 @@ else
   fail "missing .md not skipped (rc=$RC_M out=$OUT_M)"
 fi
 
+# --- Opt-in gate: repo with NO markdownlint config -> no run at all ----------
+# Pins #1809's single-writer decision: without a config the repo has chosen no
+# Markdown style, so the hook must impose neither --fix rewrites nor
+# default-rule findings. The fixture carries issues the stub WOULD fix (MD004
+# star marker, MD047 missing final newline), so an unmodified file proves the
+# gate, not a clean run.
+REPO_NOCFG="$WORK/no-config"
+mkdir -p "$REPO_NOCFG"
+git -C "$REPO_NOCFG" init -q
+NOCFG_FIXTURE="$REPO_NOCFG/doc.md"
+printf '# Doc\n\n* star item' >"$NOCFG_FIXTURE"
+NOCFG_BEFORE="$(cat "$NOCFG_FIXTURE")"
+OUT_NOCFG="$(run_hook "$NOCFG_FIXTURE")"
+RC_NOCFG=$?
+if [[ $RC_NOCFG -eq 0 && -z "$OUT_NOCFG" ]]; then
+  ok "no markdownlint config -> exit 0, no output (opt-in gate)"
+else
+  fail "no markdownlint config -> hook ran anyway (rc=$RC_NOCFG out=$OUT_NOCFG)"
+fi
+if [[ "$(cat "$NOCFG_FIXTURE")" == "$NOCFG_BEFORE" ]]; then
+  ok "no markdownlint config -> file left byte-identical (no imposed style)"
+else
+  fail "no markdownlint config -> file was rewritten: $(cat "$NOCFG_FIXTURE")"
+fi
+
+# --- Opt-in gate: config NESTED below the repo root still opts in ------------
+# The gate walks from the edited file's directory up to the repo root, the same
+# span markdownlint-cli2's own discovery covers for this file — a config in the
+# file's subtree must open the gate even when the root carries none.
+mkdir -p "$REPO_NOCFG/docs"
+cat >"$REPO_NOCFG/docs/.markdownlint.json" <<'JSON'
+{ "MD004": { "style": "dash" } }
+JSON
+NESTED_FIXTURE="$REPO_NOCFG/docs/nested.md"
+printf '# Nested\n\n* nested item\n' >"$NESTED_FIXTURE"
+run_hook "$NESTED_FIXTURE" >/dev/null
+RC_NESTED=$?
+if [[ $RC_NESTED -eq 0 ]] && grep -q '^- nested item$' "$NESTED_FIXTURE"; then
+  ok "nested markdownlint config (no root config) -> gate opens, --fix applied"
+else
+  fail "nested config did not open the gate (rc=$RC_NESTED): $(cat "$NESTED_FIXTURE")"
+fi
+
 # --- Git-tree scoping: CLAUDE_PROJECT_DIR unset, file outside any git tree ----
 # Regression for out-of-tree scratchpad-lint noise: with CLAUDE_PROJECT_DIR
 # unset (run_hook already unsets it), a .md written outside any git working tree

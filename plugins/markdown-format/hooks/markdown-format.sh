@@ -4,9 +4,12 @@
 #
 # ADVISORY: always exits 0 — unfixable markdownlint violations surface via
 # additionalContext but never block the edit. Uses the consuming repo's own
-# markdownlint config — ships none. When that configuration can execute code
-# (.cjs/.mjs config, or module-loading keys), the lint run itself is gated on
-# an explicit per-repo trust approval; see the trust gate below.
+# markdownlint config — ships none — and runs ONLY when the repo carries one
+# (#1809's single-writer decision; see the opt-in gate below): without a
+# config, both --fix rewrites and default-rule findings would impose a style
+# the repo never chose. When the configuration can execute code (.cjs/.mjs
+# config, or module-loading keys), the lint run is additionally gated on an
+# explicit per-repo trust approval; see the trust gate below.
 
 set -uo pipefail
 
@@ -161,6 +164,47 @@ build_data_json() {
     '{tool:$tool,file:$file,findings:.}' 2>/dev/null ||
     printf '{"tool":"","file":"","findings":[]}'
 }
+
+# Consumer opt-in gate (#1809's single-writer decision): the run requires a
+# markdownlint config the repository itself carries. markdownlint-cli2 ships a
+# built-in default rule set, so an ungated run imposes a style the repository
+# never chose — both --fix rewrites and default-rule findings (the MD013
+# line-length class on a repo that never picked a line length). Mirrors
+# bash-format's shfmt gate: no config, no run, no notice — an opt-in gate is
+# policy, not a degraded capability, so the visible-skip doctrine for missing
+# tools does not apply. It also means a repo without a config never sees the
+# install-markdownlint session notice below.
+#
+# Candidates are exactly the files markdownlint-cli2 documents as automatically
+# discovered (its README "Configuration" section, fetched 2026-07-31): the four
+# .markdownlint-cli2.* names and the six .markdownlint.* names. A package.json
+# `markdownlint-cli2` property is honored only under an explicit --config flag,
+# so it is not an auto-discovery opt-in and does not open this gate. The walk
+# runs from the edited file's directory up to the repo root — the same span the
+# lint run's own discovery covers for this file.
+markdownlint_config_discoverable() {
+  local dir root candidate parent
+  dir="$(cd "$(dirname "$FILE")" 2>/dev/null && pwd -P)" || return 1
+  root="$(cd "$REPO_ROOT" 2>/dev/null && pwd -P)" || root=""
+  while :; do
+    for candidate in \
+      .markdownlint-cli2.jsonc .markdownlint-cli2.yaml \
+      .markdownlint-cli2.cjs .markdownlint-cli2.mjs \
+      .markdownlint.jsonc .markdownlint.json \
+      .markdownlint.yaml .markdownlint.yml \
+      .markdownlint.cjs .markdownlint.mjs; do
+      [[ -f "$dir/$candidate" ]] && return 0
+    done
+    [[ "$dir" == "$root" ]] && return 1
+    parent="$(dirname "$dir")"
+    [[ "$parent" != "$dir" ]] || return 1
+    dir="$parent"
+  done
+}
+if ! markdownlint_config_discoverable; then
+  emit_tel "skipped" '[]'
+  exit 0
+fi
 
 # Resolve the consuming repository's pinned npm binary without invoking a
 # package runner. npm creates an extensionless POSIX shim in node_modules/.bin
