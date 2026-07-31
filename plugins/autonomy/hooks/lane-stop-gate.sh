@@ -146,7 +146,9 @@ gate_data_dir() {
 # consumed one — BEST-EFFORT, and deliberately coarse. Both dialects' portable
 # mtime is whole-second, so a marker recreated at the same size within the same
 # second (an empty `touch`-style marker is the realistic case) is indistinguishable
-# and stays latched until the second turns over. Sub-second and inode spellings
+# and stays latched until the marker's NEXT write lands in a different second —
+# an mtime does not advance on its own, so the clock passing the second is not
+# what clears it. Sub-second and inode spellings
 # would narrow that window but are GNU-only, and this identity feeds a GATE: the
 # cost of the coarse read is a stop delayed to the next second, while the cost of
 # a wrong "recreated" verdict is the unearned second authorization the ledger
@@ -177,8 +179,9 @@ marker_ledger_path() {
 # names this exact path AND the file has not changed since (or this host cannot
 # tell, in which case a marker whose deletion failed stays consumed — the strict
 # direction for a gate: it withholds authorization rather than granting it
-# twice). A record whose file has since been recreated is stale and removed, so
-# the fresh marker authorizes normally.
+# twice). A record whose file now reads as a different one is stale and removed,
+# so the fresh marker authorizes normally — within the identity read's
+# documented coarseness above.
 marker_already_consumed() {
   local path="$1" ledger recorded_path="" recorded_id="" current
   ledger=$(marker_ledger_path "$path") || return 1

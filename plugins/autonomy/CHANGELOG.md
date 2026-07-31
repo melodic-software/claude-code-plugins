@@ -22,9 +22,11 @@ merged work-package PRs (#333, #343, #356, #372, #377, #600, #676).
   is BEST-EFFORT, not guaranteed: a marker recreated with a different mtime or size reads as a new
   file and authorizes normally, but one recreated at the same size within the same whole second — an
   empty `touch`-style marker being the realistic case — is indistinguishable under a one-second
-  `stat` and stays latched until the second turns over. That is the deliberate direction for a gate:
-  a delayed stop, never a second unearned one. A host where neither `stat` form reports an identity
-  holds the record for the same reason. The
+  `stat`. It then stays latched for as long as it goes unwritten: an mtime does not advance on its
+  own, so what clears the record is the marker's NEXT write landing in a different second, not the
+  clock passing one. The cost is that single completion signal; the one after it authorizes. That is
+  the deliberate direction for a gate: a stop delayed, never a second unearned one. A host where
+  neither `stat` form reports an identity holds the record for the same reason. The
   data directory is derived from the hook's own install path (the `plugins/cache` anchor Claude Code
   documents), falling back to `CLAUDE_PLUGIN_DATA` only for a `--plugin-dir` install that carries no
   such anchor: the script's own location is not something a watched repository can redirect. When no

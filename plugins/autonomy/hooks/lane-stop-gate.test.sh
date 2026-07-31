@@ -282,26 +282,29 @@ if [[ -f "$STICKY" ]]; then fail "recreated marker not consumed after authorizin
 # portable `stat` mtime is whole-second, so an empty marker recreated at the
 # same size within the same second is indistinguishable from the consumed one
 # and stays latched. Case 21 above changes the size, which is why it recovers.
-# Asserting the blocked outcome makes the boundary a decision this suite owns —
-# a future finer-grained identity has to move this case deliberately, and the
-# gate's failure direction (a stop delayed, never a second unearned one) is
-# what is actually held.
+#
+# The collision is FORCED with `touch -r` rather than raced for: recreating and
+# hoping the wall clock has not ticked yields a case that passes on either
+# outcome, which pins nothing. Copying the consumed file's own timestamp makes
+# the boundary a decision this suite owns, so a future finer-grained identity
+# has to move this case deliberately, and the gate's failure direction (a stop
+# delayed, never a second unearned one) is what is actually held.
 STICKY2="$WORK/sticky2.marker"
+MTIME_REF="$WORK/sticky2.mtime-ref"
 LEDGER2="$(mktemp -d "$WORK/ledger2.XXXXXX")"
 : >"$STICKY2"
 OUT="$(run "$(build_input Stop "no token here" false)" \
   CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_MARKER="$STICKY2" \
   CLAUDE_PLUGIN_DATA="$LEDGER2" PATH="$RMFAIL:$PATH")"
 if is_block "$OUT"; then fail "same-second setup: marker did not authorize: $OUT"; else ok "same-second setup: marker authorizes once"; fi
-: >"$STICKY2" # recreate: same size (0), overwhelmingly the same whole second
+if [[ -f "$STICKY2" ]]; then ok "same-second setup: the rm stub prevented the delete (case precondition)"; else fail "same-second setup: the rm stub did not take — the case would prove nothing"; fi
+touch -r "$STICKY2" "$MTIME_REF" # the consumed file's own mtime, before it moves
+: >"$STICKY2"                    # recreate: same size (0), new mtime
+touch -r "$MTIME_REF" "$STICKY2" # force the same whole second the record holds
 OUT="$(run "$(build_input Stop "no token here" false)" \
   CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_MARKER="$STICKY2" \
   CLAUDE_PLUGIN_DATA="$LEDGER2" PATH="$RMFAIL:$PATH")"
-if is_block "$OUT"; then
-  ok "same-second same-size recreation stays latched (documented coarse-identity limit)"
-else
-  ok "same-second same-size recreation recovered (the second turned over mid-case)"
-fi
+if is_block "$OUT"; then ok "same-second same-size recreation stays latched (documented coarse-identity limit)"; else fail "same-second same-size recreation read as a fresh signal — the identity read got finer without this case moving: $OUT"; fi
 
 # --- Case 22: the ledger is keyed to the hook's OWN install path ------------
 # Cases 19-21 exercise the CLAUDE_PLUGIN_DATA fallback, which a watched
