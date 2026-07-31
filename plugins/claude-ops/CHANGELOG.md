@@ -27,6 +27,21 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   timestamp moves on every successful write regardless of content. The rule now attributes the
   failure that way rather than naming a sibling reader that would in fact surface it.
 
+### Fixed
+
+- **`lanes`: a lane field whose JSON value is `false` is no longer read as an absent field (#1784).**
+  Both field readers in `lane-launcher.sh` used jq's `//` alternative operator, which fires on every
+  FALSY value rather than on absence. A lane configured `"settings": false` therefore yielded
+  `empty`, reached bash as `""`, and — because `validate_launch_inputs` guards its "settings must be
+  a JSON object" check on `[[ -n "$settings" ]]` — that type check never ran at all: the lane launched
+  with `--settings` silently omitted, no error, nothing for the operator to see. `lane_json_field` now
+  tests presence with `has`, so `false` reaches the type check and the lane is skipped with the error
+  that was already written for it. The scalar reader had the same collapse for `name`/`model`/
+  `effort`/`prompt` (a mistyped `"effort": false` launched a lane with no effort), so those fields are
+  now typed once at config time and a non-string value is a config error alongside the existing
+  duplicate-name and path-traversal checks. An explicit `null` stays the JSON spelling of "no value"
+  and remains equivalent to an absent field in both readers.
+
 ## [0.25.0]
 
 ### Changed
