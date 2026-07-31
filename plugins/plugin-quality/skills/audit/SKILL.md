@@ -238,7 +238,10 @@ Three rules, in force for every packet write:
 1. **Write once.** Never edit a packet file after it lands. A correction is a NEW file, never an
    edit of the old one — the formatters' own notices state the autocorrect "has no memory", so a
    hand-repair is simply rewritten on the next edit. Supplementary evidence is `evidence-<n>.md`
-   alongside `evidence.md`, not an append to it.
+   alongside `evidence.md`, not an append to it. The single exception is the seal manifest
+   `packet.sha256`, which `packet-seal.sh` rewrites whenever it re-seals and which is excluded from
+   its own coverage; nothing else in the packet is ever rewritten, and nothing rewrites the manifest
+   but that script.
 2. **Read back.** Immediately after each packet write, re-read the file. If it differs from what
    you wrote, or a formatter notice fired for it, record the observed rewrite in a new
    `evidence-<n>.md` — that record is the only detector for the FIRST in-place rewrite, because a
