@@ -40,8 +40,18 @@ fi
 # Native form because the helper prints the path git resolves, which carries a drive
 # letter on Windows; a POSIX spelling would fail on spelling alone even when the
 # behavior is right.
-DATA_DIR="$TEST_TMPDIR_NATIVE/plugindata"
-mkdir -p "$DATA_DIR"
+# Deliberately its OWN mktemp tree, not a subdirectory of TEST_TMPDIR: the
+# discovery-root case below asserts the resolved worktree escapes the repository's
+# whole ancestry, and a data dir sharing that ancestry would make the assertion
+# unfalsifiable — which is exactly how an earlier version of it passed on one
+# platform and failed on another.
+DATA_DIR_POSIX="$(mktemp -d)"
+if command -v cygpath >/dev/null 2>&1; then
+  DATA_DIR="$(cygpath -m "$DATA_DIR_POSIX")"
+else
+  DATA_DIR="$DATA_DIR_POSIX"
+fi
+trap 'rm -rf "$TEST_TMPDIR" "$DATA_DIR_POSIX"' EXIT
 DATA_ROOT_FILE="$TEST_TMPDIR/data-root"
 printf '%s' "$DATA_DIR" > "$DATA_ROOT_FILE"
 
@@ -153,14 +163,33 @@ esac
 # The rejected alternative was a sibling of the checkout (<parent>/worktrees).
 # Under a discovery layout such as ghq's <root>/github.com/<owner>/<repo>, that
 # resolves INSIDE the tree the discovery tool walks, and `ghq list` then reports
-# the worktree as a repository of its own (a leading dot does not hide it). The
-# default must therefore not be anchored anywhere under the checkout's ancestry.
-repo=$(mkrepo --origin "git@github.com:acme/widget.git")
-repo_parent="$(dirname "$(git -C "$repo" rev-parse --show-toplevel)")"
-out=$(CLAUDE_PLUGIN_DATA='' bash "$HELPER" --name feat/nodiscovery --data-root-file "$DATA_ROOT_FILE" --repo-dir "$repo" 2>/dev/null)
+# the worktree as a repository of its own (a leading dot does not hide it).
+#
+# The fixture mirrors that layout — a checkout nested two levels under a discovery
+# root — and the data dir sits OUTSIDE it, as a real plugin data dir does. The
+# assertion is that the resolved worktree escapes the discovery root entirely, not
+# merely that it escapes the checkout.
+discovery_root=$(mktemp -d "$TEST_TMPDIR/ghqrootXXXXXX")
+mkdir -p "$discovery_root/github.com/acme"
+disc_repo="$discovery_root/github.com/acme/widget"
+{
+  git init -q -b main "$disc_repo"
+  git -C "$disc_repo" config user.email t@t.t
+  git -C "$disc_repo" config user.name t
+  printf 'seed\n' > "$disc_repo/README.md"
+  git -C "$disc_repo" add README.md
+  git -C "$disc_repo" commit -qm init
+  git -C "$disc_repo" remote add origin "git@github.com:acme/widget.git"
+  git -C "$disc_repo" update-ref refs/remotes/origin/main "$(git -C "$disc_repo" rev-parse HEAD)"
+  git -C "$disc_repo" symbolic-ref refs/remotes/origin/HEAD refs/remotes/origin/main
+} >/dev/null 2>&1
+disc_root_native="$(git -C "$disc_repo" rev-parse --show-toplevel)"
+disc_root_native="${disc_root_native%/github.com/acme/widget}"
+out=$(CLAUDE_PLUGIN_DATA='' bash "$HELPER" --name feat/nodiscovery --data-root-file "$DATA_ROOT_FILE" --repo-dir "$disc_repo" 2>/dev/null)
+assert_exit "discovery-layout repo creates against the default (exit 0)" 0 "$?"
 case "$out" in
-  "$repo_parent"/*) fail "default avoids the checkout's parent tree" "not under $repo_parent" "$out" ;;
-  *) pass "default avoids the checkout's parent tree" ;;
+  "$disc_root_native"/*) fail "default escapes the repository-discovery root" "not under $disc_root_native" "$out" ;;
+  *) pass "default escapes the repository-discovery root" ;;
 esac
 
 # --- Case: an unexpanded token reaches the same default (exit 0) ---
