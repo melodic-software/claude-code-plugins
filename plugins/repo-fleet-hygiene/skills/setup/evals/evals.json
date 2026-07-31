@@ -5,12 +5,13 @@
       "id": 1,
       "name": "rerun-preserves-unrelated-config",
       "prompt": "/repo-fleet-hygiene:setup apply\n\nRe-run setup to add a second fleet.root and one canonical override. The existing config has comments, a fleet.repo, and another canonical section.",
-      "expected_output": "Setup updates only the requested entries, preserves comments and unrelated fleet/canonical entries, validates with git config, and runs a read-only audit. It does not edit user settings or remotes.",
+      "expected_output": "Setup updates only the requested entries, preserves comments and unrelated fleet/canonical entries, and verifies the result with config-only probes (git config --file parse plus per-entry path resolution). It does not edit user settings or remotes, and it does not run the fleet collector.",
       "files": [],
       "expectations": [
         "Preserves comments and unrelated existing entries",
         "Adds only the requested root and canonical override",
-        "Does not edit pluginConfigs, user settings, or Git remotes"
+        "Does not edit pluginConfigs, user settings, or Git remotes",
+        "Verifies with config parse and path resolution only"
       ]
     },
     {
@@ -23,6 +24,44 @@
         "Does not infer canonical equivalence from directory names",
         "Requires remote identity verification",
         "Leaves the config unchanged on mismatch"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "verification-never-walks-the-fleet",
+      "prompt": "/repo-fleet-hygiene:setup apply --root <fleet-root>\n\nThe config now lists 11 repositories. Verify the write actually worked before you report success.",
+      "expected_output": "Verification is config-only: the file parses under git config --file and every entry resolves to an existing Git working tree. Setup does not invoke audit-fleet.sh, because that is the full fleet walk this skill states it never runs and it would issue per-repository network queries. An end-to-end run is offered as an explicit handoff to /repo-fleet-hygiene:audit.",
+      "files": [],
+      "expectations": [
+        "Verifies with git config --file parse and per-entry path resolution",
+        "Does not invoke the audit collector script as a verification step",
+        "Does not claim success from the file edit alone",
+        "Routes a genuine end-to-end check to /repo-fleet-hygiene:audit and says it is a real audit"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "cross-volume-root-has-no-relative-form",
+      "prompt": "/repo-fleet-hygiene:setup apply --config <home>/.claude/repo-fleet-hygiene.conf --root <fleet-root>\n\nOn this Windows machine the config file and the fleet root are on different volumes. Write the fleet root using the portable relative form the skill prefers.",
+      "expected_output": "Setup explains that no relative path exists between two Windows volumes, writes the absolute root path, and says why the preferred relative form was unavailable so a path-portability guard rejection is not mistaken for consumer error. It does not fabricate a relative path or refuse to write.",
+      "files": [],
+      "expectations": [
+        "Recognizes that a cross-volume relative path does not exist",
+        "Writes the absolute path rather than inventing a relative one",
+        "States the cross-volume reason in the report",
+        "Does not refuse the write or report it as a failure"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "max-depth-is-settable-through-setup",
+      "prompt": "/repo-fleet-hygiene:setup apply --root <fleet-root> --max-depth 8\n\nMy repositories are nested deeper than the default discovery bound.",
+      "expected_output": "Setup validates 8 as an integer in 1..12 and writes it as [fleet] maxDepth alongside the root, preserving unrelated entries. It does not tell the user to hand-edit the config file that this skill owns.",
+      "files": [],
+      "expectations": [
+        "Validates the value against the 1..12 range",
+        "Writes maxDepth into the [fleet] section",
+        "Does not instruct the user to edit the config by hand"
       ]
     }
   ]
