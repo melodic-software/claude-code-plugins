@@ -56,6 +56,9 @@ user opts in with `/plugin enable`; an existing install is never flipped by cata
 
 - `.claude-plugin/marketplace.json` — the marketplace catalog.
 - `plugins/` — one directory per plugin.
+- `lib/` — single source of truth for the shared shell helpers; the self-contained copies at
+  `plugins/*/hooks/` are synced from here, never edited directly.
+- `scripts/` — repo-level CI checks and generators, with their tests alongside.
 - `docs/MIGRATION-PLAYBOOK.md` — design charter, extensibility model, the per-plugin migration
   gate, and the local development loop.
 - `docs/` — further design records and audits (CI runner routing, extensibility-contract smoke
