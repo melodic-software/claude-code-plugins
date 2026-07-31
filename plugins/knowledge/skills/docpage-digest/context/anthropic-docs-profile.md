@@ -79,10 +79,6 @@ Every model-pinned spawn brief uses the conditional framing contract from `SKILL
 Pending Anthropic docs for this pipeline. Verify each URL live at fetch time; remove entries as
 their slices complete.
 
-Thinking (two overlapping docs — two runs, one page per run by contract):
-
-- <https://platform.claude.com/docs/en/build-with-claude/thinking-steering-and-cost>
-
 Deferred with trigger (not queued):
 
 - <https://platform.claude.com/docs/en/build-with-claude/task-budgets> — api-only (the page

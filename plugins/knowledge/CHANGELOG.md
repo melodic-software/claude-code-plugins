@@ -4,6 +4,18 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.10.11]
+
+### Changed
+
+- **`docpage-digest` Anthropic profile: thinking-steering-and-cost queue entry removed, emptying
+  the "Thinking" category.** The thinking-steering-and-cost platform doc slice completed — raw-md
+  fetch through interview handoff, dual verification (three correction rounds, re-verified PASS by
+  both arms on identical frozen bytes, no degraded fallback) — so its entry leaves the doc queue
+  per the queue's remove-on-completion rule, and the now-empty "Thinking" category heading goes
+  with it, as its paired run-9 entry's PR anticipated. Both overlapping thinking docs are now
+  digested, one page per run under the category's contract.
+
 ## [0.10.10]
 
 ### Changed
