@@ -66,10 +66,9 @@ Build a single merged view, oldest first, each row tagged by kind:
 3. **`[intake]`** — untriaged raw intake, exactly the buckets `/work-items:triage`'s attention
    view defines. Compose that view; do not re-derive its buckets here.
 
-Lane-infrastructure items never enter the view: the per-lane telemetry tracking issues (the
-`Lane telemetry: <lane>` title contract, holding the loop-lane convention's sentinel-marked
-status comment) are excluded from the intake source — the same exclusion the worker loop applies
-to its drain snapshot. An open telemetry issue is a lane operating, not intake.
+Lane-infrastructure items never enter the view, and this lane re-derives nothing to keep them out:
+the composed triage view already excludes the per-lane telemetry tracking issues (`/work-items:triage`,
+"Scope: raw intake only"), so `[intake]` inherits that exclusion the same way it inherits the buckets.
 
 Present the merged table with one-line summaries, then work rows in the operator's chosen order
 (default: oldest first, `[ratify]` rows before `[escalated]` before `[intake]` at equal age —

@@ -371,7 +371,8 @@ if [[ "$TOOL_NAME" == "PowerShell" ]]; then
   # rc 1 (provably git-free unparsable) has nothing to gate — and if it could
   # still carry a `gh pr create`, the quote-intact reduced text was already
   # scanned by the classifier's own sink; rc 2 (git-shaped unparsable) is
-  # block-noncanonical-commit's fail-closed concern, not a content decision.
+  # `block-dangerous-git`/`block-no-verify`'s fail-closed concern, not a content
+  # decision.
   ps::classify_git_command "$TOOL_NAME" "$COMMAND"
   ps_rc=$?
   ((ps_rc == 0)) || {

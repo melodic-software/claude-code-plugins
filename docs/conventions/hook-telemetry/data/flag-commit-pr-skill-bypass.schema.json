@@ -9,11 +9,11 @@
   "properties": {
     "tool": {
       "type": "string",
-      "description": "Always \"Bash\" — this advisory matches only Bash tool calls."
+      "description": "The invoking tool — \"Bash\" or \"PowerShell\"; this advisory matches both."
     },
     "subject": {
       "type": "string",
-      "description": "Privacy-safe command subject `Bash:<first-token>` with leading sudo / env-assignment prefixes stripped and the token basenamed. NEVER the full command or its arguments."
+      "description": "Privacy-safe command subject: `Bash:<first-token>` for a Bash call, with leading sudo / env-assignment prefixes stripped and the token basenamed; the bare tool name (`PowerShell`) for a PowerShell call, which is not tokenized. NEVER the full command or its arguments."
     },
     "forms": {
       "type": "array",

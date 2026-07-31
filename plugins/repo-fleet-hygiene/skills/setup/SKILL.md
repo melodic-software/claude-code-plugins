@@ -3,7 +3,7 @@ name: setup
 description: "Verify and configure repo-fleet-hygiene for a consumer project. check inspects the optional .claude/repo-fleet-hygiene.conf read-only (presence, parse validity, path resolution); apply creates or updates it — adding bounded fleet roots, exact repositories, and remote-keyed canonical checkout overrides — preserving unrelated entries. Use when: 'set up repo fleet audit', 'is repo-fleet-hygiene configured', 'configure fleet roots', 'canonical repo override', 'dotfiles-manager checkout'. Re-runnable and safe."
 user-invocable: true
 disable-model-invocation: true
-argument-hint: "check | apply [--config <path>] [--root <dir>]... [--repo <dir>]... [--canonical <github.com/owner/repo=path>]... [--ack-unavailable <github.com/owner/repo>]..."
+argument-hint: "check | apply [--config <path>] [--root <dir>]... [--repo <dir>]... [--canonical <github.com/owner/repo=path>]... [--ack-unavailable <github.com/owner/repo>]... [--max-depth <1..12>]"
 ---
 
 ## Purpose
@@ -29,10 +29,10 @@ report header names which config (if any) was consumed.
 
 ## `check` (read-only)
 
-The audit script (`${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/audit-fleet.sh`) and the config file are
-the source of truth. Probe, report a PASS/FAIL/INFO table with one remediation line per FAIL, and
-modify nothing. Do NOT run the fleet walk itself — that is `/repo-fleet-hygiene:audit`; `check` only
-validates the configuration the audit would consume.
+The config file and the grammar below are the source of truth. Probe, report a PASS/FAIL/INFO table
+with one remediation line per FAIL, and modify nothing. Do NOT run the collector — that is
+`/repo-fleet-hygiene:audit`; `check` only validates the configuration the audit would consume, using
+`git config --file` and read-only filesystem probes.
 
 1. **Config presence** — resolve the config path (`--config` or the default). Absent → INFO naming
    the full ladder: the audit next probes the user-global `~/.claude/repo-fleet-hygiene.conf` (report
@@ -56,6 +56,8 @@ Run `check`, then create or update the config from the supplied arguments.
 1. Parse only the declared argument grammar. Validate every root/repository/canonical path with
    read-only filesystem and `git rev-parse` checks. Normalize canonical keys to
    `github.com/owner/repository` (lowercase host, case-preserving owner/name is acceptable).
+   Validate `--max-depth` as an integer in `1..12` and write it as `[fleet] maxDepth`; this skill
+   owns the file that carries it, so it must be settable here rather than by hand-editing.
    Validate each `--ack-unavailable` value as a normalizable `github.com/owner/repository`
    (no filesystem probe — the identity is expected to be inaccessible); write it as a repeatable
    `[fleet] ackUnavailable` entry, deduplicating case-insensitively against entries already
@@ -79,16 +81,28 @@ Run `check`, then create or update the config from the supplied arguments.
    path relative to the config file's directory for any root/repository/canonical target expressible
    that way — the grammar resolves relative paths from that directory and both forms audit
    identically, while some consumer environments run a write-time path-portability guard that rejects
-   absolute paths in tracked config.
+   absolute paths in tracked config. "Expressible that way" is the real constraint: on Windows, no
+   relative path exists between two volumes, so a fleet root on `D:` with a config on `C:` has only
+   the absolute form. Write the absolute path, and say in the report that the relative form was
+   unavailable because the target is on another volume — otherwise the guard's rejection reads as a
+   consumer mistake. This preference is prose guidance followed by the model, not a property a
+   deterministic component enforces; treat it as a default to justify departing from, not a
+   guarantee.
 5. Verify after remediation — re-run the `check` probes against the written file (never claim success on
-   the edit alone):
+   the edit alone). Config-only, exactly as `check` defines them: parse validity, then per-entry path
+   resolution.
 
    ```bash
    git config --file "<config-path>" --list >/dev/null
-   bash "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/audit-fleet.sh" --config "<config-path>"
    ```
 
-6. Report path, inferred/explicit entries, preserved entries, and the read-only audit result.
+   Do **not** invoke the collector to verify a write. It is the full fleet walk this skill says it
+   never runs — per-repository network queries across every configured root, minutes on a real fleet
+   — and it proves nothing about the file that the `check` probes do not already prove. If the user
+   explicitly wants an end-to-end run, say that it is a real audit and hand off to
+   `/repo-fleet-hygiene:audit`.
+
+6. Report path, inferred/explicit entries, preserved entries, and the config-verification result.
 
 Re-running `apply` with the same arguments after everything resolves changes nothing and reports
 "already configured".
@@ -112,9 +126,11 @@ affecting non-404/403 failures or successful-response evidence. Use it for fores
 upstream repositories made private or deleted, or repositories owned by a different GitHub account
 than the authenticated `gh` login.
 
-Resolution priority is explicit audit CLI override, canonical config entry, then discovered checkout's
-`git rev-parse --show-toplevel`. Never add a canonical override merely because two directory names look
-similar; verify the normalized GitHub remote identity on both sides first.
+Resolution priority is explicit audit CLI override, canonical config entry, then the discovered
+checkout's own **main worktree** (the first record of `git worktree list --porcelain`). A canonical
+override is therefore not needed merely to steer the audit away from a linked worktree — the audit
+resolves that itself. Never add one because two directory names look similar; verify the normalized
+GitHub remote identity on both sides first.
 
 ## What this skill does NOT do
 
@@ -129,8 +145,18 @@ similar; verify the normalized GitHub remote identity on both sides first.
 - **Absolute paths in tracked config can be rejected by consumer write guards.** A root, repository, or
   canonical target written as an absolute path may trip a consumer's write-time path-portability guard;
   the same target written relative to the config file's directory passes and resolves identically, so
-  `apply` prefers the relative form.
+  `apply` prefers the relative form — except across Windows volumes, where no relative form exists and
+  the absolute path is the only option. Say so when that happens rather than leaving the consumer to
+  conclude they misconfigured something.
 - **A project-scoped config is consumed only from its own project.** Per the Scoping rule above, a
   config meant to apply from every project belongs at the user-global
   `~/.claude/repo-fleet-hygiene.conf`, not a per-project path — otherwise the audit silently narrows to
-  the project it was authored in.
+  the project it was authored in. Two cases collapse this warning, and `check` should say which one
+  applies rather than repeating a caution that cannot bite: when the project directory *is* the home
+  directory both rungs name the same file, and when no project directory reaches the audit (the
+  session did not supply one) the project rung is not merely aliased but unreachable, leaving the
+  user-global path the only one that can be consumed.
+- **Config-supplied scope is additive to the audit's CLI scope.** A configured root is walked even
+  when the audit is invoked with an explicit `--repo`, so a persisted fleet config widens every later
+  run. The audit's `Scope:` header line names each contributing rung; there is currently no way to
+  suppress a config for a single run.

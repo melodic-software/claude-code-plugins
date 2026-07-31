@@ -108,6 +108,57 @@
         "Keeps the untrusted value within one report field",
         "Does not render a forged standalone Confidence or Handoff line"
       ]
+    },
+    {
+      "id": 10,
+      "name": "privacy-gated-branch-is-not-evidence-of-unmerged",
+      "prompt": "A repository reports merge-evidence-privacy-gated for 47 branches whose remote-tracking refs were pruned after GitHub auto-deleted the head branches on merge. None of the 47 produced a merged-local-branch finding. Summarize what the operator should do with those branches.",
+      "expected_output": "The absence of a merged finding for a privacy-gated branch is stated as unproven, never as evidence the branch is unmerged. The remedy is described accurately: the exact per-branch lookup was skipped because the branch name would otherwise be transmitted to github.com, so it returns only if remote evidence is restored (push or re-fetch) or the branch is verified manually on GitHub.",
+      "files": [],
+      "expectations": [
+        "Treats a privacy-gated branch as merge state unverified, not unmerged",
+        "Explains that the branch name is withheld from GitHub deliberately, not by failure",
+        "Offers no cleanup handoff for a privacy-gated branch",
+        "Does not claim re-running the audit unchanged would resolve the gap"
+      ]
+    },
+    {
+      "id": 11,
+      "name": "merged-pr-window-truncation-is-disclosed",
+      "prompt": "A repository with roughly 900 merged pull requests is audited. The batched merged-PR query returns a full window of rows. Report what the merged findings for this repository do and do not prove.",
+      "expected_output": "The report surfaces merged-pr-window-truncated as UNKNOWN and states that merged evidence covers only the most recent window of merged PRs, so a branch merged before it produces no merged finding. Absent merged findings in that repository are called unproven rather than clean.",
+      "files": [],
+      "expectations": [
+        "Discloses that the merged-PR query window was reached and older history is outside it",
+        "States that an absent merged finding in this repository is unproven, not evidence of an unmerged branch",
+        "Does not silently present the truncated batch as complete merged history"
+      ]
+    },
+    {
+      "id": 12,
+      "name": "squash-merge-makes-the-ancestry-tier-near-inert",
+      "prompt": "A fleet squash-merges every pull request. Local ancestry of the default branch held for only 27 of 506 branches, and git rev-list --count <tip> --not --remotes reads non-zero for most of them. Explain what the LOW local-ancestry-only tier is worth here.",
+      "expected_output": "The answer explains that a squash rewrites the branch commits, so the original tip is not an ancestor and the LOW ancestry predicate is near-inert on this fleet, leaving GitHub merged-PR evidence as the load-bearing signal. A non-zero unpushed-commit count and a NONE-UPSTREAM git cherry result are explained as expected consequences of squashing, not as evidence a branch is unmerged.",
+      "files": [],
+      "expectations": [
+        "Attributes the low ancestry hit rate to squash merging rather than to a collector defect",
+        "Does not read a non-zero rev-list --not --remotes count as proof a branch is unmerged",
+        "Notes that git cherry proves content landed only in the ALL-UPSTREAM direction",
+        "Keeps GitHub merged-PR evidence as the primary signal on a squash-merging fleet"
+      ]
+    },
+    {
+      "id": 13,
+      "name": "worktree-disposability-is-out-of-scope-by-design",
+      "prompt": "The audit lists 208 registered worktrees across the fleet. Which of them are safe to delete because nobody is using them any more?",
+      "expected_output": "The audit declines: it classifies registrations only by Git-observable state (merged, prunable, missing, locked, admin-mismatched) and has no evidence of whether a worktree is still wanted. Disposability is named as deliberately outside the evidence model rather than as a gap, and the request is routed to /source-control:worktree cleanup --dry-run.",
+      "files": [],
+      "expectations": [
+        "Declines to rank worktrees by whether anyone still needs them",
+        "Names the Git-observable registration states it can actually evidence",
+        "Does not infer disuse from directory naming, age, or activity",
+        "Routes the decision to the worktree cleanup dry-run and the human"
+      ]
     }
   ]
 }
