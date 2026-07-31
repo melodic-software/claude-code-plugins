@@ -242,6 +242,108 @@ else
   fail "telemetry on post-nudge allow: bad or missing envelope: $(cat "$TEL" 2>/dev/null)"
 fi
 
+# --- Case 19: a marker whose deletion FAILS is still consumed ---------------
+# Regression (#1784): consumption was latched ONLY by deleting the marker, so
+# an `rm` the OS refuses left a file that satisfied `[[ -f ]]` on a later,
+# unrelated lane run — the cross-run bypass consuming the marker exists to
+# close. Deletion is made to fail with a PATH-stub `rm`: a read-only parent
+# directory does not reliably block deletion on every host this suite runs on,
+# an `rm` that refuses does.
+RMFAIL="$(mktemp -d "$WORK/rmfail.XXXXXX")"
+printf '#!/bin/sh\nexit 1\n' >"$RMFAIL/rm"
+chmod +x "$RMFAIL/rm"
+LEDGER_DATA="$(mktemp -d "$WORK/ledger.XXXXXX")"
+STICKY="$WORK/sticky.marker"
+: >"$STICKY"
+OUT="$(run "$(build_input Stop "no token here" false)" \
+  CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_MARKER="$STICKY" \
+  CLAUDE_PLUGIN_DATA="$LEDGER_DATA" PATH="$RMFAIL:$PATH")"
+if is_block "$OUT"; then fail "marker present with a failing rm → still blocked: $OUT"; else ok "marker present with a failing rm → stop allowed"; fi
+if [[ -f "$STICKY" ]]; then ok "the rm stub really prevented the delete (case precondition)"; else fail "the rm stub did not take — the next case would prove nothing"; fi
+
+# --- Case 20: the surviving marker does not authorize a later run -----------
+OUT="$(run "$(build_input Stop "no token here" false)" \
+  CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_MARKER="$STICKY" \
+  CLAUDE_PLUGIN_DATA="$LEDGER_DATA")"
+if is_block "$OUT"; then ok "an undeletable consumed marker does not authorize a later run"; else fail "a surviving consumed marker wrongly authorized a later run: $OUT"; fi
+
+# --- Case 21: recreating the marker authorizes again ------------------------
+# The consumption record is keyed to the file that was consumed, not to the
+# path forever — a fresh marker is a fresh signal.
+printf 'done\n' >"$STICKY"
+OUT="$(run "$(build_input Stop "no token here" false)" \
+  CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_MARKER="$STICKY" \
+  CLAUDE_PLUGIN_DATA="$LEDGER_DATA")"
+if is_block "$OUT"; then fail "a recreated marker was wrongly treated as consumed: $OUT"; else ok "a recreated marker authorizes a stop again"; fi
+if [[ -f "$STICKY" ]]; then fail "recreated marker not consumed after authorizing a stop"; else ok "recreated marker consumed on use"; fi
+
+# --- Case 21b: the same-second, same-size recreation boundary ---------------
+# Pins the DOCUMENTED limit of the identity read rather than an aspiration: the
+# portable `stat` mtime is whole-second, so an empty marker recreated at the
+# same size within the same second is indistinguishable from the consumed one
+# and stays latched. Case 21 above changes the size, which is why it recovers.
+#
+# The collision is FORCED with `touch -r` rather than raced for: recreating and
+# hoping the wall clock has not ticked yields a case that passes on either
+# outcome, which pins nothing. Copying the consumed file's own timestamp makes
+# the boundary a decision this suite owns, so a future finer-grained identity
+# has to move this case deliberately, and the gate's failure direction (a stop
+# delayed, never a second unearned one) is what is actually held.
+STICKY2="$WORK/sticky2.marker"
+MTIME_REF="$WORK/sticky2.mtime-ref"
+LEDGER2="$(mktemp -d "$WORK/ledger2.XXXXXX")"
+: >"$STICKY2"
+OUT="$(run "$(build_input Stop "no token here" false)" \
+  CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_MARKER="$STICKY2" \
+  CLAUDE_PLUGIN_DATA="$LEDGER2" PATH="$RMFAIL:$PATH")"
+if is_block "$OUT"; then fail "same-second setup: marker did not authorize: $OUT"; else ok "same-second setup: marker authorizes once"; fi
+if [[ -f "$STICKY2" ]]; then ok "same-second setup: the rm stub prevented the delete (case precondition)"; else fail "same-second setup: the rm stub did not take — the case would prove nothing"; fi
+touch -r "$STICKY2" "$MTIME_REF" # the consumed file's own mtime, before it moves
+: >"$STICKY2"                    # recreate: same size (0), new mtime
+touch -r "$MTIME_REF" "$STICKY2" # force the same whole second the record holds
+OUT="$(run "$(build_input Stop "no token here" false)" \
+  CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_MARKER="$STICKY2" \
+  CLAUDE_PLUGIN_DATA="$LEDGER2" PATH="$RMFAIL:$PATH")"
+if is_block "$OUT"; then ok "same-second same-size recreation stays latched (documented coarse-identity limit)"; else fail "same-second same-size recreation read as a fresh signal — the identity read got finer without this case moving: $OUT"; fi
+
+# --- Case 22: the ledger is keyed to the hook's OWN install path ------------
+# Cases 19-21 exercise the CLAUDE_PLUGIN_DATA fallback, which a watched
+# repository's own settings.json `env` block can redirect. The tamper-resistant
+# property the ledger actually rests on is the primary path: the data directory
+# derived from the script's location under the documented plugins/cache anchor,
+# which no repo file reaches. A staged install proves it, with an unrelated
+# CLAUDE_PLUGIN_DATA present to show it does NOT win.
+CACHE_ROOT="$(mktemp -d "$WORK/install.XXXXXX")"
+STAGED_DIR="$CACHE_ROOT/plugins/cache/melodic/autonomy/9.9.9/hooks"
+mkdir -p "$STAGED_DIR"
+cp "$HOOK_DIR"/*.sh "$STAGED_DIR/"
+DECOY_DATA="$(mktemp -d "$WORK/decoy.XXXXXX")"
+STAGED_MARKER="$WORK/staged.marker"
+: >"$STAGED_MARKER"
+run_staged() {
+  (cd "$UNRELATED" && build_input Stop "no token here" false |
+    env -u CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_SENTINEL \
+      CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ENABLED=true \
+      CLAUDE_PLUGIN_OPTION_LANE_NOTIFY_ENABLED=false \
+      CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_MARKER="$STAGED_MARKER" \
+      CLAUDE_PLUGIN_DATA="$DECOY_DATA" \
+      "$@" \
+      bash "$STAGED_DIR/lane-stop-gate.sh" 2>/dev/null)
+}
+OUT="$(run_staged PATH="$RMFAIL:$PATH")"
+if is_block "$OUT"; then fail "staged install: marker present → wrongly blocked: $OUT"; else ok "staged install: marker authorizes a stop"; fi
+DERIVED_LEDGER="$CACHE_ROOT/plugins/data/autonomy-melodic/consumed-markers"
+if [[ -d "$DERIVED_LEDGER" ]] && [[ -n "$(ls -A "$DERIVED_LEDGER" 2>/dev/null)" ]]; then
+  ok "staged install: the record lands under the install-derived data directory"
+else
+  fail "staged install: no record under the install-derived data directory ($DERIVED_LEDGER)"
+fi
+if [[ -n "$(ls -A "$DECOY_DATA" 2>/dev/null)" ]]; then fail "CLAUDE_PLUGIN_DATA wrongly won over the install path"; else ok "CLAUDE_PLUGIN_DATA does not win over the install path"; fi
+
+# --- Case 23: the install-derived record is honored on the next run ---------
+OUT="$(run_staged)"
+if is_block "$OUT"; then ok "staged install: the derived record blocks a later run"; else fail "staged install: a consumed marker wrongly authorized a later run: $OUT"; fi
+
 echo
 echo "PASS=$PASS FAIL=$FAIL"
 [[ $FAIL -eq 0 ]]
