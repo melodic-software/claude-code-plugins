@@ -1269,16 +1269,20 @@ def same_stat_identity(info: os.stat_result, entry: dict[str, Any]) -> bool:
         if stat.S_ISREG(info.st_mode)
         else "other"
     )
-    return all(
-        (
-            kind == entry.get("kind"),
-            info.st_size == entry.get("stat_size"),
-            info.st_mtime_ns == entry.get("mtime_ns"),
-            info.st_dev == entry.get("device"),
-            info.st_ino == entry.get("inode"),
-            stat.S_IFMT(info.st_mode) == entry.get("mode"),
-        )
+    checks = (
+        kind == entry.get("kind"),
+        info.st_size == entry.get("stat_size"),
+        info.st_mtime_ns == entry.get("mtime_ns"),
+        info.st_dev == entry.get("device"),
+        info.st_ino == entry.get("inode"),
+        stat.S_IFMT(info.st_mode) == entry.get("mode"),
     )
+    # File hard-link count is part of reclaimability. A new name after scan
+    # leaves size/mtime/dev/ino/mode unchanged, so identity must notice nlink
+    # or preview/apply would still treat the full size as reclaimable.
+    if kind == "file":
+        checks = (*checks, int(info.st_nlink) == entry.get("nlink"))
+    return all(checks)
 
 
 def same_object_identity(info: os.stat_result, entry: dict[str, Any]) -> bool:
