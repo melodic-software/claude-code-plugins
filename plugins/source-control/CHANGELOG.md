@@ -37,6 +37,7 @@ All notable changes to the `source-control` plugin are documented here. Format f
   a fixed bug does not conclude the guard is obsolete.
 - **`worktree_root` was missing from the README's configuration table** while every sibling key was
   listed.
+
 ## [0.44.1]
 
 ### Fixed
