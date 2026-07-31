@@ -3,6 +3,24 @@
 All notable changes to the `rate-limit-guard` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.1]
+
+### Fixed
+
+- **The shim no longer runs an uninstalled plugin's tee (#1849).** `claude plugin uninstall` does
+  not delete the version directory: the plugins reference documents that updating or uninstalling
+  marks the previous version directory orphaned and removes it automatically 14 days later, so the
+  files — `scripts/statusline-tee.sh` included — stay on disk for that whole window. `resolve_tee()`
+  matched on the glob and mtime alone, so a removed plugin kept teeing and kept writing snapshots
+  with no signal to the operator. A candidate whose version directory carries the orphan marker is
+  now skipped, so uninstalling stops the tee at the next statusline refresh. The marking is
+  documented; the marker's on-disk spelling was measured (Claude Code 2.1.220, against a relocated
+  `CLAUDE_CONFIG_DIR`) and the shim's header records both, along with the fallback: should upstream
+  rename or drop the marker, resolution degrades to exactly what it does today — a stale tee, never
+  a broken statusline. The undocumented `installed_plugins.json` the header previously rejected
+  stays rejected. Port of the context-guard fix from #1787 / PR #1844; the two shims remain
+  deliberately unregistered as a byte-identical cluster (plugin name and header prose differ).
+
 ## [0.4.0]
 
 ### Fixed
