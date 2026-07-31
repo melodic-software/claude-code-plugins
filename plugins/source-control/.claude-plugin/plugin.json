@@ -174,7 +174,7 @@
     "worktree_root": {
       "type": "directory",
       "title": "Worktree root",
-      "description": "External root under which /worktree create places worktrees, as <root>/<owner>-<repo>-<slug> — a path OUTSIDE every repository (on Windows, the same drive as the repo). Absent: the worktrees/ subdirectory of the plugin data dir. Never the in-repo .claude/worktrees/ default: from a worktree nested inside a checkout, a read matching a path-scoped rule's glob also loads the parent checkout's copy of that rule."
+      "description": "External root under which /worktree create places worktrees, as <root>/<owner>-<repo>-<slug> — a path OUTSIDE every repository (on Windows, the same drive as the repo). Absent: a worktrees/ directory beside the repository checkout (/src/app yields /src/worktrees). Never the in-repo .claude/worktrees/ default: from a worktree nested inside a checkout, a read matching a path-scoped rule's glob also loads the parent checkout's copy of that rule."
     },
     "worktree_stale_days": {
       "type": "number",

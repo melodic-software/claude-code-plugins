@@ -16,12 +16,12 @@
 #     calls this same helper.
 # The flag CLI is the stable seam both consumers share.
 #
-# Root-resolution contract: an unconfigured external root falls back to
-# `${CLAUDE_PLUGIN_DATA}/worktrees` (mirroring `babysit_worktree_root`), and the
-# helper refuses (exit 3) only when even that is unavailable. It never falls back
-# to Claude Code's in-repo `.claude/worktrees/`: from a worktree nested inside a
-# checkout, a read matching a path-scoped rule's glob also loads the PARENT
-# checkout's copy of that rule.
+# Root-resolution contract: an unconfigured external root defaults to a
+# `worktrees/` directory beside the repository checkout (/src/app -> /src/worktrees),
+# and the helper refuses (exit 3) when the resolved root is unusable — notably one
+# that lands inside a repository. It never falls back to Claude Code's in-repo
+# `.claude/worktrees/`: from a worktree nested inside a checkout, a read matching a
+# path-scoped rule's glob also loads the PARENT checkout's copy of that rule.
 #
 # Output contract: on success the created worktree path is the SOLE stdout line
 # (machine-parseable); all diagnostics go to stderr.
@@ -55,9 +55,9 @@ Options:
   --root <dir>        External worktree root, passed directly as a process
                       argument (e.g. from a hook or CLI caller — no shell
                       re-quoting of the value happens on that path). An empty
-                      value or an unexpanded \${user_config.*} token falls back
-                      to \${CLAUDE_PLUGIN_DATA}/worktrees, and refuses (exit 3)
-                      when that is unset too — never to the in-repo
+                      value or an unexpanded \${user_config.*} token defaults to
+                      a worktrees/ directory beside the repository checkout
+                      (/src/app -> /src/worktrees) — never the in-repo
                       .claude/worktrees/ default, whose nested placement makes a
                       read load the parent checkout's path-scoped rules as well.
                       Mutually exclusive with --root-file.
@@ -194,47 +194,27 @@ fi
 # The remaining name check — git's own ref grammar — needs a healthy repository
 # to run in, so it waits until $toplevel is resolved below.
 
-# Unconfigured root: fall back to the plugin data dir, mirroring
-# babysit_worktree_root. Treat an empty value or an unexpanded ${user_config.*}
-# token (what Claude Code leaves when the key is unset) as unset.
+# Unconfigured root: detected here, but RESOLVED after $toplevel below — the
+# fallback is derived from the repository's own location, which is not known yet.
+# Treat an empty value or an unexpanded ${user_config.*} token (what Claude Code
+# leaves when the key is unset) as unset.
 #
-# The invariant worth protecting is that the worktree lands OUTSIDE every
-# repository — not that the user configured it by hand. ${CLAUDE_PLUGIN_DATA}
-# satisfies that invariant on its own: it is the harness's per-plugin state
-# directory, never inside a checkout, and never a repository-discovery root. So
-# the fallback is safe where the in-repo .claude/worktrees/ default is not, and
-# refusing outright only cost the user a working command.
-#
-# Refusal survives ONLY when there is no safe root to pick: the harness did not
-# export CLAUDE_PLUGIN_DATA (a raw CLI invocation outside a plugin install), so
-# the helper has nothing to fall back TO. The containment guard further down
-# still rejects any configured root that IS inside a repository — that check,
-# not this one, is what enforces the nesting invariant.
+# NOT ${CLAUDE_PLUGIN_DATA}. That would be the obvious mirror of
+# babysit_worktree_root, and it is wrong here: this helper's callers are the
+# worktree skill and orchestrated workers, both of which run it in a general
+# Bash-tool subprocess, where that variable is NOT scoped to the invoking plugin
+# — this repository's own probe recorded it pointing at an unrelated installed
+# plugin's data directory (docs/extensibility-contract-smoke-tests.md "Result").
+# Nor can the skill substitute the token into its markdown and hand it over: the
+# token substitutes only in hook/monitor/MCP paths, not skill content. So the
+# plugin data dir is unreachable from every caller this helper actually has.
 #
 # SC2016: the single-quoted ${user_config token is matched literally on purpose —
 # we are detecting the UNexpanded placeholder, so expansion here would be a bug.
+root_unset=0
 # shellcheck disable=SC2016
 if [[ -z "$root" || "$root" == *'${user_config'* ]]; then
-  if [[ -n "${CLAUDE_PLUGIN_DATA:-}" ]]; then
-    root="${CLAUDE_PLUGIN_DATA%/}/worktrees"
-    printf '%s: worktree_root is not configured; using the plugin data dir default: %s\n' \
-      "$PROG" "$root" >&2
-    printf '%s: set the source-control plugin'\''s `worktree_root` directory key to place worktrees elsewhere.\n' \
-      "$PROG" >&2
-  else
-    cat >&2 <<EOF
-$PROG: worktree root is not configured and no plugin data dir is available — refusing to create a worktree.
-
-Set the source-control plugin's \`worktree_root\` directory key to an external
-root (a path OUTSIDE every repository, on the same drive as the repo on Windows),
-then retry. Run the worktree setup skill, or configure it via \`/plugin\`.
-
-Not falling back to the in-repo .claude/worktrees/ default: from a worktree
-nested inside a checkout, a read matching a path-scoped rule's glob also loads
-the PARENT checkout's copy of that rule.
-EOF
-    exit 3
-  fi
+  root_unset=1
 fi
 
 # Canonicalize a Windows backslash root to the forward-slash grammar git emits.
@@ -260,6 +240,33 @@ fi
 if ! toplevel=$(git -C "$repo_dir" rev-parse --show-toplevel 2>/dev/null); then
   printf '%s: --repo-dir is not inside a git repository: %s\n' "$PROG" "$repo_dir" >&2
   exit 4
+fi
+
+# Resolve the unconfigured-root fallback now that the repository is known: a
+# `worktrees/` directory beside the checkout, e.g. /src/app -> /src/worktrees.
+#
+# Deriving from the repository is what makes the default reachable at all. The
+# helper's callers run it in a Bash-tool subprocess (see the detection above), so
+# no plugin-scoped path reaches it — but `--repo-dir`, and therefore $toplevel,
+# always does. The parent of the checkout is outside the repository by
+# construction, which is the invariant that matters; the containment guard below
+# still proves it rather than trusting this.
+#
+# A sibling rather than a child of the parent's parent, so that repositories
+# sharing a parent share one worktrees/ directory instead of scattering N of
+# them, and the per-worktree name already carries <owner>-<repo>-<slug>, so two
+# repositories cannot collide inside it.
+#
+# Deliberately NOT clever about a repository at a filesystem root: `dirname` of
+# `/repo` is `/`, giving `/worktrees`, which is outside the repository and
+# therefore still correct.
+if (( root_unset )); then
+  root="$(dirname "$toplevel")/worktrees"
+  printf '%s: worktree_root is not configured; defaulting to %s\n' "$PROG" "$root" >&2
+  # SC2016: the backticks are literal markdown in guidance text, not a command
+  # substitution — expansion is exactly what must NOT happen here.
+  # shellcheck disable=SC2016
+  printf '%s: set the plugin'\''s `worktree_root` directory key to place worktrees elsewhere.\n' "$PROG" >&2
 fi
 
 # Second half of name validation: the character class checked above is NOT a

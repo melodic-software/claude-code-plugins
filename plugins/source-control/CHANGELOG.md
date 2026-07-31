@@ -7,16 +7,24 @@ All notable changes to the `source-control` plugin are documented here. Format f
 
 ### Changed
 
-- **An unset `worktree_root` now defaults to `${CLAUDE_PLUGIN_DATA}/worktrees` instead of refusing
-  every `/worktree create`.** The key ships unset, so the refusal fired on a fresh install and the
-  command was unusable until the user configured a root by hand — a hard failure standing in for a
-  missing default. The invariant worth protecting is that the worktree lands OUTSIDE every
-  repository, and the plugin data dir satisfies it on its own: never inside a checkout, never a
-  repository-discovery root. It is the same default `babysit_worktree_root` already uses. Exit 3
-  survives for the one case with no safe root to pick — no configured value AND no
-  `CLAUDE_PLUGIN_DATA` (a raw CLI invocation outside a plugin install). The containment guard is
-  untouched: a root explicitly pointed inside a repository is still rejected, which is what actually
-  enforces the nesting invariant.
+- **An unset `worktree_root` now defaults to a `worktrees/` directory beside the repository
+  checkout instead of refusing every `/worktree create`.** The key ships unset, so the refusal fired
+  on a fresh install and the command was unusable until the user configured a root by hand — a hard
+  failure standing in for a missing default. The invariant worth protecting is that the worktree
+  lands OUTSIDE every repository, and the parent of the checkout satisfies it by construction:
+  `/src/app` yields `/src/worktrees`. The containment guard is untouched — a root that resolves
+  inside a repository is still rejected, and that check, not the unset check, is what enforces the
+  nesting invariant.
+
+  **Not `${CLAUDE_PLUGIN_DATA}`**, which would have been the obvious mirror of
+  `babysit_worktree_root`. This helper's callers are the worktree skill and orchestrated workers,
+  both of which run it in a general Bash-tool subprocess — where that variable is not scoped to the
+  invoking plugin. This repository's own probe recorded it naming an unrelated installed plugin's
+  data directory (`docs/extensibility-contract-smoke-tests.md`), so a default reading it could place
+  worktrees under another plugin's storage. The token cannot be substituted into skill markdown and
+  handed over either: it substitutes only in hook/monitor/MCP paths. The repository checkout is the
+  one root every caller can actually reach. A regression test pins this — a stray
+  `CLAUDE_PLUGIN_DATA` must not steer where the worktree lands.
 
 ### Fixed
 
