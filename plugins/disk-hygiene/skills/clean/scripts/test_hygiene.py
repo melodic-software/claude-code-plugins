@@ -404,12 +404,14 @@ class HygieneTests(unittest.TestCase):
             (root / "deep" / "sub" / "leaf.txt").write_text("hidden", encoding="utf-8")
             (root / "empty").mkdir()
             (root / "visible.tmp").write_text("x", encoding="utf-8")
+            # max_depth=2 walks top-level dirs (so empty is inventoriable) and
+            # truncates only the next level (deep/sub), which is the contrast.
             snapshot = hygiene.scan_tree(
-                root.resolve(), hygiene.load_policy(None), max_depth=1
+                root.resolve(), hygiene.load_policy(None), max_depth=2
             )
             entries = hygiene.entry_map(snapshot)
-            self.assertIsNone(entries["deep"]["logical_size"])
-            self.assertEqual(["not-walked"], entries["deep"]["size_qualifiers"])
+            self.assertIsNone(entries["deep/sub"]["logical_size"])
+            self.assertEqual(["not-walked"], entries["deep/sub"]["size_qualifiers"])
             # A genuinely empty walked directory still reports 0 with no qualifier.
             self.assertEqual(0, entries["empty"]["logical_size"])
             self.assertEqual([], entries["empty"]["size_qualifiers"])
