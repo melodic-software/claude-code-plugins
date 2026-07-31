@@ -173,12 +173,16 @@ self-triggering recursion, extra spend, and "independent" review by substantiall
 system. Accepted — those are visible availability and cost failures, while the inherited default's
 failure mode is a silent security bypass, the worse direction.
 
-Composition with the github-iac work: #248 (merged) app-pins all four required contexts to the
-GitHub Actions app, narrowing *who may report* a check — orthogonal and complementary to this
-ruling, which narrows *when the check may be satisfied without a review run*. #228 remains open
-for the live forgery test; this addendum deliberately does **not** touch the "creatable only by
-the App that runs the pass, so a branch cannot forge it" sentence in the step-3 enforcement
-addendum — that sentence stays #228's to update from the tested result.
+Composition with the github-iac work (repository-qualified — a bare `#N` here would resolve to this
+repository): [github-iac#248](https://github.com/melodic-software/github-iac/pull/248) (merged
+2026-07-30) app-pins all four required contexts — `pr-title / pr-title`,
+`do-not-merge / do-not-merge`, `ci-status`, and `security-review / security-review` — to the GitHub
+Actions app (`integration_id` 15368), narrowing *who may report* a check. That is orthogonal and
+complementary to this ruling, which narrows *when the check may be satisfied without a review run*.
+[github-iac#228](https://github.com/melodic-software/github-iac/issues/228) remains open for the
+live forgery test; this addendum deliberately does **not** touch the "creatable only by the App
+that runs the pass, so a branch cannot forge it" sentence in the step-3 enforcement addendum — that
+sentence stays github-iac#228's to update from the tested result.
 
 Sequencing (fail-closed, deliberate): `policy.json` is a managed materialization of the standards
 `runner-policy` component, and the contract for `claude-security-review.yml@c136b27` admitted only
