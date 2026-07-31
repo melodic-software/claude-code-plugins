@@ -18,11 +18,10 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
 - **Corrected: `morning-brief` is not the check a degraded telemetry body deceives.** The rule said a
   freshness check "passes over a blind lane". Verified against `morning-brief.sh`'s `print_telemetry`:
   it parses `lane:` and `last-cycle:` out of the comment BODY, so an `@path` body carries no `lane:`
-  field and the lane disappears from the report entirely rather than reading as healthy. The check
-  that is genuinely fooled is a timestamp-based delivery check reading `updatedAt`, which moves on
-  every successful write regardless of content. The rule now attributes the failure correctly instead
-  of naming a sibling reader that would in fact surface it.
-||||||| ec7ed1b3
+  field and the lane disappears from the report entirely rather than reading as healthy. What a
+  degraded body deceives is any consumer keying on the comment's timestamp instead of its body — the
+  timestamp moves on every successful write regardless of content. The rule now attributes the
+  failure that way rather than naming a sibling reader that would in fact surface it.
 
 ## [0.24.4]
 

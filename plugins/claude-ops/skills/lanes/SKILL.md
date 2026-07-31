@@ -289,16 +289,22 @@ The failure is invisible from the outside (#943): the comment's timestamp still
 moves, so any check keying on `updatedAt` reads the lane as **fresh** while it
 carries no data. (This skill's sibling reader `morning-brief` is not that check —
 it parses `lane:` and `last-cycle:` out of the body, so a degraded comment makes
-the lane vanish from its report rather than look healthy. The deceived check is
-the tower's timestamp-based delivery check.)
+the lane vanish from its report rather than look healthy. What a degraded body
+deceives is any consumer that keys on the comment's timestamp instead of reading
+its body.)
 
 `telemetry-upsert.sh` refuses such a body before it writes anything and re-reads
-what landed afterward. An inlined upsert now encodes both halves itself: a
+what landed afterward. An inlined upsert now encodes three checks itself: a
 pre-write gate (empty, leading `@`, not sentinel-prefixed, or under a 16-byte
-payload floor → skip the cycle, no API call) and a post-write read-back, which is
-the half that catches a well-composed file sent through `-f body=@FILE` instead of
-`-F body=@FILE`. What an inline block does NOT replicate: the 64 KiB cap and the
-body-file containment checks.
+payload floor measured below the sentinel line → skip the cycle, no API call), a
+check of the write's own exit status (a failed write leaves the previous cycle's
+body in place, which a read-back running regardless would accept), and a
+post-write read-back of what the write stored. What an inline block does NOT
+replicate: the 64 KiB cap, the body-file containment checks, retries, and this
+script's distinct non-zero exit codes — an inline branch always exits 0 and
+reports through stderr. It also inherits this script's own limits: a PATCH that
+succeeds while storing the previous body still verifies, and the read-back proves
+*some* well-formed telemetry is present, not *this* cycle's.
 
 ## Cross-references
 

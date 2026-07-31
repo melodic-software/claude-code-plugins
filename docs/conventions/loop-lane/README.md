@@ -425,16 +425,18 @@ identified by a machine sentinel marker and **edited in place** every cycle — 
 script, so each lane **inlines** the small `gh api` upsert and the coupling to `claude-ops` stays
 one-directional. An inlined upsert is bound by the `@path`-as-body rule in
 [`claude-ops` lanes](../../../plugins/claude-ops/skills/lanes/SKILL.md), section "Never pass a body as
-an `@path` string", and encodes that rule mechanically in its own block (#943) as two halves. A
+an `@path` string", and encodes that rule mechanically in its own block (#943) as three checks. A
 **pre-write gate** refuses a body that is empty, a literal `@path`, not sentinel-prefixed, or under a
-16-byte payload floor, before any API call. A **post-write read-back** then re-reads what landed,
-because the pre-write half is structurally blind to the failure that produced #943 in the first
-place: a well-composed file passed through a body-VALUE flag (`-f body=@FILE` rather than `-F
-body=@FILE`), where `gh` transmits the literal path and the file was never at fault. A degraded
-create is covered on the same footing: it leaves no sentinel-prefixed comment to re-read, so that
-branch reports UNREPORTED rather than falling through silently. A failed verification means the
-cycle did not report — record it in durable state, since stderr does not survive the session. Not replicated inline: the wrapper's 64 KiB cap and its body-file containment
-checks.
+16-byte payload floor measured below the sentinel line, before any API call. The **write's own exit
+status** is then checked, because a failed write leaves the previous cycle's body in place — which a
+read-back running regardless would accept. A **post-write read-back** re-reads what the write stored,
+the only check that sees a write which reported success and stored something else. Every branch that
+ends without a verified body reports UNREPORTED and skips the duplicate-supersede pass, so a cycle
+whose own write is unproven never tombstones a racing session's comment; carry that forward, since
+stderr does not survive the session. Known limits inherited from the wrapper: a PATCH that succeeds
+while storing the previous body still verifies, and the read-back proves *some* well-formed telemetry
+is present, not *this* cycle's. Not replicated inline: the 64 KiB cap, the body-file containment
+checks, retries, and the wrapper's distinct non-zero exits — every inline branch exits 0.
 
 **Durable loop state.** Conversation context is lossy across compaction, so a lane persists its
 adaptive-cap streak counter, its rate-limit-warning latch, its consecutive-no-progress counter, and

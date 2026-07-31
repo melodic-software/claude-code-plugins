@@ -12,20 +12,27 @@ All notable changes to the `work-items` plugin are documented here. Format follo
   plugin cannot invoke `claude-ops`'s `telemetry-upsert.sh` — and so inherited none of that wrapper's
   body checks. The defect that surfaced on the babysit lane is a property of the shared upsert shape,
   not of one lane: an `@path` passed as a body VALUE is transmitted as literal text (`gh` expands a
-  leading `@` only for `--body-file` / `-F field=@file`). Both blocks now carry two halves. A
+  leading `@` only for `--body-file` / `-F field=@file`). Both blocks now carry three checks. A
   **pre-write gate** rejects a `$BODY_FILE` that is empty, opens with a literal `@`, is not
-  sentinel-prefixed, or holds under 16 bytes of payload — no POST, no PATCH. A **post-write
-  read-back** then re-reads the comment and reports the cycle UNREPORTED unless the persisted body
-  still opens with the sentinel and clears the same floor; this is the half that catches the actual
-  #943 shape, where the composed file is fine and the defect is the invocation (`-f body=@FILE`
-  instead of `-F body=@FILE`) — a file-only check cannot see it. The create path is covered by the same
-  cycle's PATCH, and a degraded POST leaves no sentinel-prefixed comment to re-read, so that branch
-  now reports UNREPORTED too instead of falling through silently. The 16-byte floor is measured on the
-  payload beneath the sentinel, matching the wrapper's `MIN_BODY_BYTES`; prefix comparison is
+  sentinel-prefixed, or holds under 16 bytes of payload — no POST, no PATCH. The **write's own exit
+  status** is then checked, because a failed PATCH leaves the previous cycle's body in place and a
+  read-back running regardless would accept it. A **post-write read-back** re-reads what the write
+  stored and reports the cycle UNREPORTED unless that body still opens with the sentinel and clears
+  the same floor; this is the check that would have caught the actual #943 shape, where the composed
+  file is fine and the defect is the invocation (`-f body=@FILE` instead of `-F body=@FILE`) — a
+  file-only check cannot see it. Every branch that ends without a verified body — including a
+  degraded create, which leaves no sentinel-prefixed comment to re-read — reports UNREPORTED and
+  skips the duplicate-supersede pass, so a cycle whose own write is unproven never tombstones a
+  racing session's comment. The 16-byte floor is measured on everything below the sentinel LINE, so
+  it matches the wrapper's `MIN_BODY_BYTES` byte-for-byte on LF and CRLF alike; prefix comparison is
   byte-wise, so a CRLF body is not false-rejected. `work-loop` additionally records a refusal or
-  failed verification in durable loop state, since stderr does not survive the session and a cycle
-  that did not report must stay visible to the next one. The `$BODY_FILE` sentinel-first-line contract
-  is now stated in prose. Not replicated from the wrapper: the 64 KiB cap and containment checks.
+  failed verification in durable loop state; `attend-queue` has none, so it carries the same fact in
+  the cycle's own summary — either way stderr does not survive the session and a cycle that did not
+  report must stay visible to the next one. The `$BODY_FILE` sentinel-first-line contract is now
+  stated in prose. Two wrapper limits are inherited rather than fixed: a PATCH that succeeds while
+  storing the previous body still verifies, and the read-back proves *some* well-formed telemetry is
+  present, not *this* cycle's. Not replicated at all: the 64 KiB cap, the containment checks,
+  retries, and the wrapper's distinct non-zero exits — every inline branch exits 0.
 
 ## [0.30.3]
 
