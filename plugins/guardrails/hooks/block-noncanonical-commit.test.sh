@@ -510,6 +510,193 @@ if [[ -d "$NESTED/a/.git" && -d "$NESTED/a/child/child/.git" ]]; then
   done
 fi
 
+# --- a WRAPPER's options are not git's globals --------------------------------
+# The directory and locating-global parsers used to receive the whole pre-git
+# slice, wrapper argv included, and they cannot know which wrapper options take
+# a value. In `env -u -C git …`, GNU env's `-u NAME` consumes `-C` as the
+# variable to unset and `git` as the command, so git itself gets no `-C` and
+# stays put — while a 0-based slice read `-C git` as a relocation into `./git`.
+# The guard then inspected `git/child`'s canonical alias and allowed the call
+# while real git ran `child`'s `commit -m`. Reproduced from the report.
+WRAP="$TEST_TMPDIR/wrapper"
+nested_repo "$WRAP/outer"
+nested_repo "$WRAP/outer/child"
+nested_repo "$WRAP/outer/git"
+nested_repo "$WRAP/outer/git/child"
+nested_repo "$WRAP/outer/other"
+nested_repo "$WRAP/outer/other/child"
+nested_repo "$WRAP/outer/has space"
+
+if [[ -d "$WRAP/outer/child/.git" && -d "$WRAP/outer/git/child/.git" ]]; then
+  # The repository git ACTUALLY reaches carries the non-canonical commit; the
+  # decoy a wrongly-sliced parser would reach carries the canonical one, so a
+  # bypass shows up as a wrongly-allowed exit 0.
+  git -C "$WRAP/outer/child" config alias.p 'commit --allow-empty -m bypass'
+  git -C "$WRAP/outer/git/child" config alias.p 'commit -F -'
+
+  # `env -u -C git`: -u consumes `-C` as the variable name, so `git` is the
+  # COMMAND and the -C never belonged to git. The guard must still reach
+  # `child`'s `commit -m` rather than the decoy under `git/`.
+  MSYS_NO_PATHCONV=1 jq -n --arg c "env -u -C git -c alias.a='!git -C child p' a" --arg d "$WRAP/outer" \
+    '{tool_name:"Bash",tool_input:{command:$c},cwd:$d}' |
+    timeout 30 bash "$HOOK" >/dev/null 2>&1
+  rc=$?
+  ((rc == 124)) && bad "env -u swallows -C: exceeded the 30s ceiling"
+  ((rc == 124)) || assert_exit "env -u swallows -C, so the wrapper option is not git's -C" 2 "$rc"
+
+  # git's OWN -C must keep working — the fix narrows the slice, it does not
+  # stop honouring a relocation git really performs.
+  git -C "$WRAP/outer/git/child" config alias.q 'commit --allow-empty -m bypass'
+  MSYS_NO_PATHCONV=1 jq -n --arg c "git -C git -c alias.a='!git -C child q' a" --arg d "$WRAP/outer" \
+    '{tool_name:"Bash",tool_input:{command:$c},cwd:$d}' |
+    timeout 30 bash "$HOOK" >/dev/null 2>&1
+  assert_exit "git's own -C still relocates the alias lookup" 2 "$?"
+fi
+
+# --- a wrapper's chdir is not git's global, but it still MOVES git -------------
+# The mirror image of the case above: excluding wrapper argv from git-global
+# parsing must not discard a relocation the wrapper really performs. GNU env
+# documents `-C, --chdir=DIR` as "change working directory to DIR", so
+# `env -C other git a` runs git in `other` and resolves `other`'s alias — a slice
+# that starts at the git token cannot see that, and reading the payload cwd's
+# alias instead let a non-canonical commit through. Five spellings are covered,
+# because one unhandled spelling is the whole bypass again. A chdir inside
+# `-S`/`--split-string` is the sixth and is NOT covered: the resolver's
+# post-splice restart re-enters outside env's option parsing, which fails open for
+# any command on main too — tracked in #1814, not asserted here.
+wrapper_cd_case() {
+  local label="$1" command="$2" expected="$3" rc
+  MSYS_NO_PATHCONV=1 jq -n --arg c "$command" --arg d "$WRAP/outer" \
+    '{tool_name:"Bash",tool_input:{command:$c},cwd:$d}' |
+    timeout 30 bash "$HOOK" >/dev/null 2>&1
+  rc=$?
+  ((rc == 124)) && bad "$label: exceeded the 30s ceiling"
+  ((rc == 124)) || assert_exit "$label" "$expected" "$rc"
+}
+
+if [[ -d "$WRAP/outer/other/.git" ]]; then
+  # `other` (where git lands) is non-canonical under `a` and canonical under `k`;
+  # the payload cwd `outer` is the reverse. So a dropped chdir shows up as exit 0
+  # on `a`, and an over-applied one as exit 2 on `k`.
+  git -C "$WRAP/outer/other" config alias.a 'commit --allow-empty -m bypass'
+  git -C "$WRAP/outer/other" config alias.k 'commit -F -'
+  git -C "$WRAP/outer" config alias.a 'commit -F -'
+  git -C "$WRAP/outer" config alias.k 'commit --allow-empty -m bypass'
+  [[ -d "$WRAP/outer/has space/.git" ]] &&
+    git -C "$WRAP/outer/has space" config alias.a 'commit --allow-empty -m bypass'
+
+  wrapper_cd_case "env -C moves git, so the alias lookup follows" \
+    "env -C other git a" 2
+  wrapper_cd_case "env --chdir=DIR (attached long form) moves git" \
+    "env --chdir=other git a" 2
+  wrapper_cd_case "env --chdir DIR (separated long form) moves git" \
+    "env --chdir other git a" 2
+  wrapper_cd_case "env -CDIR (attached short form) moves git" \
+    "env -Cother git a" 2
+  # env clusters its short options, so a valueless flag can hide the chdir in the
+  # same word: `-vC` is --debug plus --chdir, and an exact `-C` match misses it.
+  wrapper_cd_case "env -vC DIR (clustered short form) moves git" \
+    "env -vC other git a" 2
+  wrapper_cd_case "env -u NAME before the chdir does not consume it" \
+    "env -uFOO -C other git a" 2
+  # env keeps --chdir in ONE slot, so a repeat is last-wins and a relative
+  # operand resolves against the cwd env was invoked from: `-C other -C .` lands
+  # in the payload cwd, NOT in `other/.`. Composing them cumulatively would probe
+  # a path that does not exist and read no alias at all.
+  wrapper_cd_case "repeated env -C is last-wins, not cumulative (lands in cwd)" \
+    "env -C other -C . git a" 0
+  wrapper_cd_case "repeated env -C is last-wins (lands in the LAST operand)" \
+    "env -C . -C other git a" 2
+  # Over-correction guard: the chdir must not turn a canonical commit into a
+  # block, and it must compose ahead of git's own globals rather than replace them.
+  wrapper_cd_case "a canonical commit through the same wrapper stays allowed" \
+    "env -C other git k" 0
+  # A NAME=value operand ends env's option parsing, so env looks for a command
+  # named `-C` and runs nothing. The guard must not read a chdir that never
+  # happens — and with no git resolved there is nothing to gate.
+  wrapper_cd_case "a NAME=value operand ends option parsing" \
+    "env FOO=1 -C other git a" 0
+  # sudo relocates through -D/--chdir (its -C is close-from, not a directory).
+  wrapper_cd_case "sudo -D moves git, so the alias lookup follows" \
+    "sudo -D other git a" 2
+  wrapper_cd_case "sudo --chdir=DIR moves git" \
+    "sudo --chdir=other git a" 2
+  wrapper_cd_case "sudo -DDIR (attached) moves git" \
+    "sudo -Dother git a" 2
+  # `k` is the non-canonical alias in the payload cwd, so a correctly-ignored
+  # `-C 3` blocks; misreading it as a chdir would probe `outer/3`, find no alias
+  # there, and allow.
+  wrapper_cd_case "sudo -C is close-from, not a chdir" \
+    "sudo -C 3 git k" 2
+
+  # The chdir must survive the `-S` restart: env performs it before splitting,
+  # and the splice drops every word before the current index, so the recorded
+  # directory must not be re-walked NOR lost. (A chdir spelled INSIDE the -S
+  # operand is a different, unhandled case — see #1814.)
+  wrapper_cd_case "a chdir before -S survives the splice restart" \
+    "env -C other -S 'git a'" 2
+  # A directory operand containing a space must survive the array round-trip
+  # into effective_dir's argv.
+  wrapper_cd_case "a wrapper chdir into a directory with a space" \
+    "env -C 'has space' git a" 2
+  # GNU env refuses `-0` alongside a command outright ("cannot specify --null
+  # (-0) with command"), so nothing runs either way; the guard fails closed and
+  # the peel still reads the chdir out of the cluster. Pinned so a peel change
+  # that swallowed `-0` would surface here.
+  wrapper_cd_case "env -0 does not hide the chdir from the peel" \
+    "env -0 -C other git a" 2
+  wrapper_cd_case "env -vi0C (three-flag cluster) still yields the chdir" \
+    "env -vi0C other git a" 2
+fi
+
+# --- a wrapper's chdir composes AHEAD of git's own -C, in that order ----------
+# env relocates before git starts, so git's own `-C` composes onto the wrapper's
+# directory rather than replacing it or being replaced by it. Reversing the two
+# would land in `child` relative to the payload cwd, which is not a repository
+# at all — and reading no alias there allows. The canonical twin pins the arrival
+# point: exit 0 is only reachable from `other/child` itself.
+if [[ -d "$WRAP/outer/other/child/.git" ]]; then
+  git -C "$WRAP/outer/other/child" config alias.a 'commit --allow-empty -m bypass'
+  git -C "$WRAP/outer/other/child" config alias.c 'commit -F -'
+
+  wrapper_cd_case "env -C composes ahead of git's own -C" \
+    "env -C other git -C child a" 2
+  wrapper_cd_case "same composition, canonical leaf, stays allowed" \
+    "env -C other git -C child c" 0
+fi
+
+# --- the wrapper's chdir composes ONCE, on every recursion path ----------------
+# The alias walk recurses two ways, and the chdir must be applied exactly once
+# down both. The git-alias splice rebuilds the command line from index 0, so the
+# recursive frame re-resolves the SAME wrapper argv — applying it again there
+# would compose `other/other` and probe a path that does not exist, which reads
+# as "no alias found" and allows the commit. The `!` shell-alias reparse instead
+# carries only the alias BODY, which has no wrapper argv, so it must not lose the
+# directory the outer hop already reached. Each case has a canonical twin: the
+# exit 0 proves the walk arrived at the right repository rather than at nothing.
+if [[ -d "$WRAP/outer/other/.git" ]]; then
+  nested_repo "$WRAP/outer/other/child"
+  nested_repo "$WRAP/outer/other/child/child"
+fi
+
+if [[ -d "$WRAP/outer/other/child/child/.git" ]]; then
+  git -C "$WRAP/outer/other" config alias.p '!git -C child p'
+  git -C "$WRAP/outer/other/child" config alias.p '!git -C child p'
+  git -C "$WRAP/outer/other/child/child" config alias.p 'commit --allow-empty -m bypass'
+  git -C "$WRAP/outer/other" config alias.s '!git -C child s'
+  git -C "$WRAP/outer/other/child" config alias.s '!git -C child s'
+  git -C "$WRAP/outer/other/child/child" config alias.s 'commit -F -'
+
+  wrapper_cd_case "wrapper chdir survives a persisted ! alias descent" \
+    "env -C other git p" 2
+  wrapper_cd_case "same descent, canonical leaf, stays allowed" \
+    "env -C other git s" 0
+  wrapper_cd_case "wrapper chdir is not applied twice on the git-alias splice" \
+    "env -C other git -c alias.z='!git -C child p' z" 2
+  wrapper_cd_case "same splice, canonical leaf, stays allowed" \
+    "env -C other git -c alias.z='!git -C child s' z" 0
+fi
+
 # --- `!` bodies start at the outer repository's TOP LEVEL ---------------------
 # git documents that a shell alias body runs from the top-level directory of the
 # repository, NOT from wherever the outer command was invoked. Invoked from

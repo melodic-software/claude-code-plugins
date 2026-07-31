@@ -43,6 +43,23 @@ All notable changes to the `source-control` plugin are documented here. Format f
   rounds are never capped and never recorded, so one in between neither counts nor resets), and
   UNKNOWN is not a synonym for "no (c) findings".
 
+## [0.42.1]
+
+### Fixed
+
+- **Shared `hook-utils.sh`: a wrapper's working-directory change is no longer lost when a caller
+  parses only git's own global options (#1503).** `hook::git_resolve_index` walks wrapper programs
+  (`env`, `sudo`, …) to reach the real `git` token, and a caller that scopes its git-global parsing
+  to the slice starting at that token cannot see a relocation the wrapper already performed — GNU env
+  documents `-C, --chdir=DIR` as "change working directory to DIR". The resolver now reports those
+  directories in a new `HOOK_GIT_RESOLVED_WRAPPER_DIRS` result global, in execution order, so a
+  caller composes them ahead of git's own globals instead of dropping them. Five spellings are read
+  (`-C DIR`, `-CDIR`, `--chdir DIR`, `--chdir=DIR`, and a clustered `-vC DIR`), a repeat within one
+  `env` is last-wins as env itself resolves it, and sudo's `-D`/`--chdir` is read in its unclustered
+  spellings. A chdir spelled inside `-S`/`--split-string` is NOT read; that path already fails open
+  for any command on `main` and is tracked in #1814. This plugin does not consume the new global; the sync keeps its copy
+  byte-identical with the source. Synced from `lib/hook-utils.sh`.
+
 ## [0.42.0]
 
 ### Added
