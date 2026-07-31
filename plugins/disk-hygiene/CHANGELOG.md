@@ -3,6 +3,57 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.13.0]
+
+> Version note: `0.11.0` is claimed by #1804 (PR #1818) and `0.12.0` by #1805 (PR #1819), both open
+> against this manifest. This entry takes the next number so the three do not collide; merged in
+> issue order the changelog reads contiguously.
+
+### Fixed
+
+- **Hint matching is case-insensitive, on every platform (#1806).** `has_protected_name()` casefolds
+  and `matching_hints()` did not, so on Windows and macOS — where both spellings name the *same*
+  file — protection was case-robust while discovery was not. Measured against the shipped baseline
+  before the fix: `Thumbs.db`, `tmp-build`, and `scratch.md` each matched a hint while `thumbs.db`,
+  `TMP-build`, and `Scratch.md` matched nothing.
+
+  Every glob the engine evaluates now goes through one `glob_matches()` helper — hints, consumer
+  protection globs, and the protection re-checks in the preview, verify, and apply lanes — so
+  discovery and protection cannot disagree about what a name is. The protection-side globs move
+  deliberately rather than by accident, and casefolding is the safe direction for both roles: a
+  protection glob that matches more can only keep more, and a hint that matches more can only
+  surface more for triage, since hints are discovery signals and never cleanup verdicts. The helper
+  uses `fnmatchcase` on casefolded operands rather than `fnmatch`, whose folding follows the host
+  platform — a matcher whose verdict changes with where the scan runs is not a matcher a protection
+  can rest on.
+
+- **Atomic-write staging remnants are hinted as a class, not as one producer's filename (#1806).**
+  `*.tmp` requires `.tmp` as a *suffix* and `.claude.json.tmp.*` encodes one producer's exact
+  prefix. Neither matches `.tmp` as an **infix** before a pid and random suffix — the standard
+  write-temp-then-rename shape — while the producer-specific hint's own `reason` claimed to cover
+  the class. A scan of one sibling plugin's state directory returned **`hinted_entries: 0` across 63
+  entries**, 61 of which were remnants of exactly that shape; they surfaced only because a subagent
+  read the directory positionally.
+
+  A new `atomic-write-staging-remnant` hint (`*.tmp.*`, ceiling `medium`) covers the class.
+  `.rate-limits.json.tmp.<pid>.<random>` and `settings.json.tmp.4` now hint where they previously
+  matched nothing. The producer-specific hint still fires alongside it, since it carries a narrower
+  reason and a class hint does not replace that.
+
+- **The Bash denial text no longer under-reports the allow-list (#1806).** The documented bootstrap
+  path is to submit a wrong shape so the denial teaches the grammar, and it enumerated four engine
+  subcommands while omitting the read-only kill-switch probe that `_decide` allows before the
+  classifier ever runs. A consumer learning the allow-list from the denial never learned the probe
+  is permitted — and the probe is the step that lets the model state the kill-switch value honestly
+  instead of assuming the default. The denial now also discloses the bundled engine's own path,
+  which is the only route left when a rendered body's `${CLAUDE_PLUGIN_ROOT}` arrives unexpanded and
+  the exact-path identity check denies every guess.
+
+  The enumeration and the grammar are now one list: `classify_exact_engine_command` rejects any
+  subcommand outside `_ALLOWED_ENGINE_SUBCOMMANDS` before its own dispatch, and both bundled script
+  paths come from one accessor each, so the message cannot teach a grammar the classifier does not
+  implement.
+
 ## [0.12.0]
 
 > Version note: `0.11.0` is claimed by the cloud-placeholder fix (#1804, PR #1818), which is open

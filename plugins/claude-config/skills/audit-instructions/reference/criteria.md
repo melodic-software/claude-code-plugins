@@ -1,6 +1,6 @@
 ---
-version: 1.3.0
-last-updated: 2026-07-26
+version: 1.4.0
+last-updated: 2026-07-30
 ---
 
 # Instruction-Audit Criteria
@@ -57,7 +57,7 @@ run, and the argument that enables them — an off-by-default tier nobody can fi
 only.
 
 **Surface partition.** Checks I1–I5 are the instruction-memory hygiene layer: they apply on
-non-memory surfaces (skill bodies, agent definitions, prompt-type hooks, output styles); on
+non-memory surfaces (skill bodies, agent definitions, hook instruction text, output styles); on
 memory-layer surfaces (CLAUDE.md, CLAUDE.local.md, `.claude/rules/`, `~/.claude/rules/`) their
 findings route to the `claude-memory` plugin's `audit` skill when it is installed, and fall back
 to the official include/exclude guidance (I1–I5 source below) when it is not. Checks I6–I12 and
@@ -79,6 +79,8 @@ I15–I16 apply to all surfaces; I13 and I14 name narrower surface sets in their
 - How features layer (per-surface precedence, routing between surfaces) —
   <https://code.claude.com/docs/en/features-overview>
 - Context window (what survives compaction) — <https://code.claude.com/docs/en/context-window>
+- Hooks (handler types, and which events inject handler output into context) —
+  <https://code.claude.com/docs/en/hooks>
 - Refusals and fallback (`reasoning_extraction`) —
   <https://platform.claude.com/docs/en/build-with-claude/refusals-and-fallback>
 - CLI reference (`claude doctor` and the other terminal forms) —
@@ -351,7 +353,7 @@ Tier `behavioral` · Authority `ANTHROPIC-DOCS` · Severity `warning` · Surface
 ### I13: Citation form that does not load
 
 Tier `mechanical` · Authority `ANTHROPIC-DOCS` · Severity `warning` · Surfaces: non-memory only
-(skill bodies and their reference files, agent definitions, prompt-type hooks, output styles).
+(skill bodies and their reference files, agent definitions, hook instruction text, output styles).
 
 - **Detect:** an `@path` written outside backticks and outside a fenced block on a surface where `@`
   carries no import meaning, **in prose that asserts the file has already arrived** — "as specified

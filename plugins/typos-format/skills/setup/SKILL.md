@@ -37,7 +37,7 @@ restores the FAIL semantics.
 1. **Bash version** — check against the hook's documented floor (README Requirements),
    noting any features the hook degrades without (telemetry's `EPOCHREALTIME`, Bash 5.0+).
 2. **`jq`** — `command -v jq`. FAIL if absent: the hook then skips with a visible
-   once-per-session notice instead of fixing typos.
+   once-per-session notice instead of running.
 3. **typos binary** — `command -v typos` (the hook resolves PATH only — no `.venv`-style
    per-repo convention). Report the resolved path and `typos --version` output when found.
    FAIL when absent; the hook then emits a visible once-per-session skip notice instead of
@@ -51,12 +51,13 @@ restores the FAIL semantics.
 5. **Hook toggle** — report the effective `typos_format_enabled` value:
    `${user_config.typos_format_enabled}` (unexpanded or empty means default `true`).
 6. **Write mode** — report the effective `typos_format_write_changes` value:
-   `${user_config.typos_format_write_changes}` (unexpanded or empty means default `true`).
-   When it is `false` the hook is in report-only mode: it still runs, still reports findings,
-   and never modifies a file. Report that as **INFO, not PASS** — every prerequisite can pass
-   while the one behavior the consumer came here for is deliberately off, and the commonest
-   reason to invoke this skill is that spell-fixing is not happening. Name the remediation in
-   the same line rather than leaving the reader to infer it.
+   `${user_config.typos_format_write_changes}` (unexpanded or empty means the shipped default
+   `false`, and only the literal `true` enables writes — any other value stays report-only).
+   Report-only is therefore what a default installation does: the hook still runs, still
+   reports findings, and never modifies a file. Report that as **INFO, not PASS** — every
+   prerequisite can pass while the one behavior the consumer came here for was never turned
+   on, and the commonest reason to invoke this skill is that spell-fixing is not happening.
+   Name the remediation in the same line rather than leaving the reader to infer it.
 7. **Hook registration** — INFO: confirm the plugin is enabled for this project
    (`/plugin` → Installed) rather than parsing settings files.
 
@@ -83,12 +84,14 @@ never claim resolved without re-verifying. For everything else `apply` only poin
   directory for a `project`/`local` scope. Defaulting instead uninstalls a separate user-scope
   record while the effective install stays in place, so the reinstall lands at a scope that
   does not load.
-- report-only mode on (`typos_format_write_changes=false`): the hook is working as configured,
-  so this is a configuration answer, not a repair. Say so, then offer the same
-  `/plugin configure typos-format` route (or the scope-preserving uninstall/reinstall
-  `--config typos_format_write_changes=true` recipe above) — and note the alternative that
-  usually fits better: keeping writes on and allow-listing the specific words in the
-  repository's typos config, since report-only turns off every correction to suppress a few.
+- report-only mode (`typos_format_write_changes` unset, or set to anything but `true`): the
+  hook is working as shipped — writes were never turned on — so this is a configuration
+  answer, not a repair. Say so, then offer the same `/plugin configure typos-format` route
+  (or the scope-preserving uninstall/reinstall `--config typos_format_write_changes=true`
+  recipe above), and state what turning it on accepts: last-writer-wins ordering against any
+  sibling hook that rewrites the same file. For the opposite case — writes already on and a
+  few corrections unwanted — the fit is allow-listing those words in the repository's typos
+  config, not switching the whole hook back to report-only.
 - no typos config: offer to create a minimal `_typos.toml` in the repository root only when
   explicitly asked — the plugin imposes no rules of its own.
 
