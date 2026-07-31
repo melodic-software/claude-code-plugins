@@ -35,10 +35,14 @@
 #   bash packet-seal.sh --help
 #
 # The manifest is `packet.sha256` inside the packet directory, in the standard
-# `<digest>  <name>` coreutils format, one line per non-manifest regular file at
-# the top level of the packet. Its own name is outside the .md class, so neither
-# known sibling formatter matches it (markdown-format filters to `*.md|*.mdc`;
-# typos leaves a hex digest alone).
+# `<digest>  <name>` coreutils format, one line per non-manifest regular file
+# anywhere under the packet, named by its path RELATIVE to the packet. Coverage
+# is recursive on purpose: a packet holds raw artifacts as well as the markdown
+# files, and content the manifest silently said nothing about is exactly the
+# content a reader would trust on the strength of a manifest that never covered
+# it. The manifest's own name is outside the .md class, so neither known sibling
+# formatter matches it (markdown-format filters to `*.md|*.mdc`; typos leaves a
+# hex digest alone).
 #
 # Output (stdout, greppable): per-file `<verdict> <name>` lines for verify
 # (MATCH / CHANGED / MISSING / UNSEALED), then a summary line.
@@ -54,6 +58,14 @@ MANIFEST_NAME="packet.sha256"
 
 usage() {
   sed -n '/^# Tamper-evidence/,/^# Exit 2/p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+}
+
+# Every regular file under the packet, as a path relative to it, one per line,
+# in a stable order. Recursive so raw artifacts in subdirectories are covered
+# rather than silently outside the manifest.
+packet_files() {
+  local root="$1"
+  (cd "$root" && find . -type f 2>/dev/null | sed 's|^\./||' | LC_ALL=C sort)
 }
 
 # GNU coreutils ships sha256sum; macOS ships shasum. Emits `<digest>  <name>`.
@@ -113,20 +125,19 @@ if [[ "$action" == record ]]; then
   # is itself a packet file, and a glob that walks it would seal the manifest
   # into itself under a name that vanishes on `mv`.
   files=()
-  for file in "$packet"/*; do
-    [[ -f "$file" ]] || continue
-    name="$(basename "$file")"
+  while IFS= read -r name; do
+    [[ -n "$name" ]] || continue
     [[ "$name" != "$MANIFEST_NAME" ]] || continue
-    files+=("$file")
-  done
+    files+=("$name")
+  done < <(packet_files "$packet")
 
   tmp="$manifest.tmp.$$"
   : >"$tmp" || {
     echo "error: cannot write the manifest in: $packet" >&2
     exit 2
   }
-  for file in ${files[@]+"${files[@]}"}; do
-    name="$(basename "$file")"
+  for name in ${files[@]+"${files[@]}"}; do
+    file="$packet/$name"
     d="$(digest_of "$file")" || {
       rm -f -- "$tmp"
       echo "error: cannot digest: $file" >&2
@@ -190,9 +201,8 @@ done <"$manifest"
 # filename is not a regex, and `audit-notes.md` as a pattern would also match
 # `audit-notesXmd` — a false negative that reports unsealed content as covered,
 # which is the one direction this check must never fail in.
-for file in "$packet"/*; do
-  [[ -f "$file" ]] || continue
-  name="$(basename "$file")"
+while IFS= read -r name; do
+  [[ -n "$name" ]] || continue
   [[ "$name" != "$MANIFEST_NAME" ]] || continue
   found=0
   for sealed in ${sealed_names[@]+"${sealed_names[@]}"}; do
@@ -205,7 +215,7 @@ for file in "$packet"/*; do
     echo "UNSEALED $name"
     unsealed=$((unsealed + 1))
   fi
-done
+done < <(packet_files "$packet")
 
 echo "matched=$matched changed=$changed missing=$missing unsealed=$unsealed"
 if [[ $changed -gt 0 || $missing -gt 0 || $unsealed -gt 0 ]]; then

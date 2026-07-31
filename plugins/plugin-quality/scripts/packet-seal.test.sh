@@ -122,6 +122,27 @@ rm -f "$packet/evidence.md"
 run 1 "verify fails on a missing sealed file" verify "$packet"
 has "MISSING evidence.md" "the missing file is named"
 
+# --- coverage is recursive --------------------------------------------------
+#
+# A packet holds raw artifacts as well as markdown. Content in a subdirectory
+# that the manifest never mentioned is content a reader trusts on the strength
+# of a manifest that says nothing about it.
+
+packet="$(fresh_packet)"
+mkdir -p "$packet/raw"
+printf 'captured stdout\n' >"$packet/raw/invocation.txt"
+run 0 "record seals a nested artifact" record "$packet"
+has "sealed=3" "the nested file is counted"
+if grep -q 'raw/invocation.txt$' "$packet/packet.sha256"; then
+  pass "the manifest names the nested file by its relative path"
+else
+  fail "the nested file is missing from the manifest"
+fi
+run 0 "verify passes with a nested artifact untouched" verify "$packet"
+printf 'tampered\n' >"$packet/raw/invocation.txt"
+run 1 "verify detects a rewritten nested artifact" verify "$packet"
+has "CHANGED raw/invocation.txt" "the nested rewrite is named"
+
 # --- fail closed ------------------------------------------------------------
 
 packet="$(fresh_packet)"
