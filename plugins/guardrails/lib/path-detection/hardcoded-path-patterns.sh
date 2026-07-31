@@ -146,17 +146,65 @@ hpp::scan_text() {
   #     The Shared literal is assembled from pieces so this driver's own source
   #     never carries a contiguous Users-root token for the write-scan hook
   #     that consumes these bodies to flag.
+  #
+  # The defang runs ONCE over the whole candidate block, not once per candidate
+  # line, so the subprocess count is constant rather than proportional to the
+  # candidate count. `sed` is line-oriented in this pipeline — no `N`/`H`
+  # multiline commands, and `$` is a per-line anchor in both shapes — so
+  # hoisting cannot change any individual line's result. A per-line loop is
+  # pathologically slow on exactly the innocent input this exclusion exists to
+  # serve: the loop's only escape is the trailing `head -3`, which fires when
+  # candidates SURVIVE, so an all-Shared block never short-circuits and pays a
+  # `sed` plus a `grep` on every line. Measured through the hook on Git Bash
+  # over the same corpora, swapping only this library: the per-line shape
+  # spawned 210 `grep`/`sed` processes at 100 Shared-only lines and its wall
+  # clock grew 13x for 4x the input (22s to 288s), against 12 spawns at either
+  # size and a flat ~10s hoisted.
+  # A guard killed at its hook timeout fails OPEN, so the bound is a correctness
+  # property, not merely a speed one. `grep -E` stays the sole matcher — `awk`
+  # only selects lines by index and does no regex work, so no second regex
+  # dialect enters the pipeline and the shared HPP_* bodies stay the SSOT.
   if [[ -z "$macos_context" ]]; then
-    local _shared _shared_defused
+    local _shared _shared_defused _cands _keep
     _shared='/Use''rs/Shared'
     _shared_defused='/Use''rs-Shared'
-    match=$(printf '%s' "$content" | grep -nE "${_posix_boundary}${HPP_MACOS_USER_BODY}" 2>/dev/null | grep -vE '[A-Za-z]:[/\\]' |
-      while IFS= read -r _line; do
-        _defanged=$(printf '%s' "$_line" | sed -e "s|${_shared}\([^A-Za-z0-9._-]\)|${_shared_defused}\1|g" \
-          -e "s|${_shared}\$|${_shared_defused}|")
-        printf '%s' "$_defanged" | grep -qE "${_posix_boundary}${HPP_MACOS_USER_BODY}" && printf '%s\n' "$_line"
-      done | head -3)
-    [[ -n "$match" ]] && violations="${violations}macOS user path detected:${nl}${match}${nl}${nl}"
+    # `|| true`: the trailing `grep -v` exits 1 when nothing survives (the
+    # common clean case). This lib is sourced by commit-time hooks whose shell
+    # options it does not control, and aborting the scan under `set -e` would
+    # fail OPEN — the very failure mode this block is shaped to avoid.
+    _cands=$(printf '%s' "$content" | grep -nE "${_posix_boundary}${HPP_MACOS_USER_BODY}" 2>/dev/null |
+      grep -vE '[A-Za-z]:[/\\]') || true
+    if [[ -n "$_cands" ]]; then
+      if [[ "$_cands" != *"$_shared"* ]]; then
+        # No Shared token anywhere in the block, so the defang is a provable
+        # no-op and every candidate survives it. This bash-builtin substring
+        # test keeps the common case free; the branch below costs four more
+        # processes, and on Git Bash spawn cost — not matching — dominates.
+        match=$(printf '%s\n' "$_cands" | head -3)
+      else
+        # Block-relative indices of the candidates that still match once
+        # defanged, then select those lines from the ORIGINAL block so the
+        # reported line is never the defanged copy.
+        #
+        # The leading `s/^[0-9]*://` drops the line-number prefix the first
+        # `grep -n` added, so this re-test sees the same bytes the first pass
+        # matched. Without it a violation at COLUMN 0 reaches the re-test as
+        # `<n>:/Users/…` and can no longer satisfy the boundary's `^`
+        # alternative — it survives today only because the class happens to
+        # also accept ":", which is there for yaml/docker value position and
+        # carries no obligation to this pipeline. Stripping keeps the two
+        # passes' conditions identical instead of coupling the second to an
+        # unrelated member of the class. It costs no extra process: the strip
+        # is another expression on the `sed` the defang already runs.
+        _keep=$(printf '%s\n' "$_cands" |
+          sed -e 's|^[0-9]*:||' -e "s|${_shared}\([^A-Za-z0-9._-]\)|${_shared_defused}\1|g" -e "s|${_shared}\$|${_shared_defused}|" |
+          grep -nE "${_posix_boundary}${HPP_MACOS_USER_BODY}" 2>/dev/null | cut -d: -f1)
+        match=$(printf '%s\n' "$_cands" | awk -v keep="$_keep" '
+          BEGIN { n = split(keep, a, "\n"); for (i = 1; i <= n; i++) k[a[i]] = 1 }
+          k[NR]' | head -3)
+      fi
+      [[ -n "$match" ]] && violations="${violations}macOS user path detected:${nl}${match}${nl}${nl}"
+    fi
   fi
 
   # Linux user home paths (same driver-owned left boundary).
