@@ -13,10 +13,16 @@
 #   comment body:
 #       <!-- claude-ops:lane-telemetry marker=<MARKER> -->
 #   <MARKER> is a caller-supplied short id (e.g. `lane:triage`) constrained to
-#   [A-Za-z0-9:._-] so it can never contain the `>` that would close the comment
+#   [A-Za-z0-9:@._-] so it can never contain the `>` that would close the comment
 #   early. The sentinel is an HTML comment: invisible in the rendered issue, and
 #   distinct per marker, so N lanes can each own one comment on the SAME issue
 #   without colliding. Upsert = find that sentinel and PATCH it, else create it.
+#
+#   `@` is in the charset for the loop-lane convention's writer-identity suffix
+#   (`<lane>@<instance>`, #1295): a marker that names only a lane type is shared
+#   by every concurrent instance of that lane, so they clobber one another's
+#   durable state. A marker names ONE writer, and the suffix is what makes that
+#   true rather than aspirational.
 #
 #   Detection is two-tier (mirrors the issue's spec):
 #     1. Primary — a comment whose body contains the exact sentinel above. The
@@ -33,7 +39,7 @@
 #                       [--body-dir DIR] [--repo owner/name] [--dry-run]
 #
 #   --issue N        Tracking issue number (required).
-#   --marker STR     Marker id, [A-Za-z0-9:._-]+ (required).
+#   --marker STR     Marker id, [A-Za-z0-9:@._-]+ (required).
 #   --body-file PATH File whose contents become the comment body BELOW the
 #                    sentinel (required; `-` reads stdin). Kept small — a
 #                    telemetry block, not an essay (hard cap: 64 KiB).
@@ -226,8 +232,8 @@ done
   err "--issue must be a positive integer (got: '${ISSUE:-}')"
   exit 3
 }
-[[ "$MARKER" =~ ^[A-Za-z0-9:._-]+$ ]] || {
-  err "--marker must match [A-Za-z0-9:._-]+ (got: '${MARKER:-}')"
+[[ "$MARKER" =~ ^[A-Za-z0-9:@._-]+$ ]] || {
+  err "--marker must match [A-Za-z0-9:@._-]+ (got: '${MARKER:-}')"
   exit 3
 }
 [[ -n "$BODY_FILE" ]] || {
@@ -352,8 +358,11 @@ detect="sentinel"
 # longer lane's comment: `lane:triage` is a prefix of `lane:triage-old`, so
 # `contains("lane:triage")` matches the other lane's comment and this run would
 # PATCH it — overwriting that lane's only telemetry comment. The lookaround
-# boundaries (marker charset [A-Za-z0-9:._-]) require the marker not abut another
-# marker-charset char on either side; `.` is escaped so it stays a literal.
+# boundaries (marker charset [A-Za-z0-9:@._-]) require the marker not abut another
+# marker-charset char on either side; `.` is escaped so it stays a literal. `@` is
+# in both classes for the same reason `-` is: with the writer-identity suffix in
+# play, `lane:triage` must not adopt `lane:triage@laptop-a`'s comment, and
+# `lane:work@a` must not adopt `lane:work@a@b`'s.
 if [[ -z "$target_id" ]]; then
   me="$(gh api user --jq '.login' 2>/dev/null | tr -d '\r')"
   if [[ -n "$me" ]]; then
@@ -361,7 +370,7 @@ if [[ -z "$target_id" ]]; then
       ($m | gsub("[.]"; "\\.")) as $mre
       | [ .[]
           | select((.user.login // "") == $me
-              and ((.body // "") | test("(?<![A-Za-z0-9:._-])" + $mre + "(?![A-Za-z0-9:._-])"))) ]
+              and ((.body // "") | test("(?<![A-Za-z0-9:@._-])" + $mre + "(?![A-Za-z0-9:@._-])"))) ]
       | sort_by(.created_at) | last | .id // empty
     ' <<<"$comments")"
     [[ -n "$target_id" ]] && detect="marker-fallback"

@@ -7,6 +7,7 @@ import argparse
 import ctypes
 import datetime as dt
 import fnmatch
+import functools
 import hashlib
 import json
 import os
@@ -26,6 +27,36 @@ MAX_SNAPSHOT_ENTRIES = 250_000
 TIERS = {"high", "medium", "low"}
 VCS_NAMES = {".git", ".hg", ".svn"}
 FILE_ATTRIBUTE_REPARSE_POINT = 0x0400
+# "The bytes are not here." Each of these marks a name whose content lives in a
+# provider's cloud rather than on this disk, so its st_size is a REMOTE byte
+# count while local occupancy is roughly zero — and deleting it propagates the
+# delete to the cloud copy, which for an organisation's sync root is the only
+# copy. FILE_ATTRIBUTE_OFFLINE is the long-standing HSM/remote-storage bit that
+# iCloud and Dropbox eviction reuse; FILE_ATTRIBUTE_RECALL_ON_DATA_ACCESS is
+# what the Windows Cloud Files API sets on a dehydrated placeholder.
+#
+# Measured against a OneDrive for Business sync root on Windows 11: a
+# dehydrated placeholder reads 0x400020 through os.lstat — ARCHIVE plus
+# RECALL_ON_DATA_ACCESS — with OFFLINE, SPARSE, and REPARSE_POINT all CLEAR.
+# So RECALL_ON_DATA_ACCESS is the only member observed on a real placeholder,
+# and a reparse-point test cannot stand in for this class (#1804). OFFLINE is
+# carried for the eviction states it documents and must not be assumed to fire.
+#
+# FILE_ATTRIBUTE_RECALL_ON_OPEN is deliberately ABSENT. Its value, 0x00040000,
+# is the same number as FILE_ATTRIBUTE_EA ("a file or directory with extended
+# attributes"), and RECALL_ON_OPEN "only appears in directory enumeration
+# classes" while every attribute read here comes from lstat
+# (https://learn.microsoft.com/en-us/windows/win32/fileio/file-attribute-constants,
+# fetched 2026-07-30). Read through lstat the bit therefore means EA, and
+# including it protected ordinary local files: a sweep of two non-cloud trees on
+# this host flagged .NET build output and temp .node files that are fully
+# present on disk. Protecting build artifacts from cleanup would defeat the
+# engine's purpose, so the ambiguous bit stays out.
+FILE_ATTRIBUTE_OFFLINE = 0x00001000
+FILE_ATTRIBUTE_RECALL_ON_DATA_ACCESS = 0x00400000
+CLOUD_PLACEHOLDER_ATTRIBUTES = (
+    FILE_ATTRIBUTE_OFFLINE | FILE_ATTRIBUTE_RECALL_ON_DATA_ACCESS
+)
 # Folders whose presence at a drive root identifies that drive as an OS/system
 # drive. A user-provisioned non-OS volume (a Windows Dev Drive) carries none of
 # them, so they are the discriminator for whole-volume-root classification.
@@ -104,6 +135,25 @@ def os_key() -> str:
     )
 
 
+def glob_matches(subject: str, pattern: str) -> bool:
+    """Case-insensitive glob match, on every platform.
+
+    One matcher for every glob the engine evaluates — hints, consumer
+    protection globs, and the protection re-checks in the preview, verify, and
+    apply lanes — so discovery and protection cannot disagree about what a name
+    is. `fnmatch.fnmatch` is not that matcher: its case folding follows the host
+    platform, so its verdict would change with where the scan runs.
+
+    Casefolding is the safe direction for both roles. A protection glob that
+    matches more can only keep more, and on Windows and macOS the filesystem is
+    case-insensitive anyway, so a case-sensitive protection glob was a hole
+    rather than a precision. A hint that matches more can only surface more for
+    triage — hints are discovery signals, never cleanup verdicts. This also
+    aligns globs with `has_protected_name`, which has always casefolded.
+    """
+    return fnmatch.fnmatchcase(subject.casefold(), pattern.casefold())
+
+
 def is_within(path: Path, parent: Path) -> bool:
     try:
         return os.path.commonpath(
@@ -113,15 +163,44 @@ def is_within(path: Path, parent: Path) -> bool:
         return False
 
 
-def is_linkish(path: Path) -> bool:
-    """Return true for every link-like Windows reparse point, including on 3.11."""
-    try:
-        info = path.lstat()
-    except OSError:
-        return False
+def is_linkish_stat(info: os.stat_result) -> bool:
+    """Link-like for an already-taken stat: symlink or Windows reparse point."""
     if stat.S_ISLNK(info.st_mode):
         return True
     return bool(getattr(info, "st_file_attributes", 0) & FILE_ATTRIBUTE_REPARSE_POINT)
+
+
+def is_cloud_placeholder_stat(info: os.stat_result) -> bool:
+    """Whether an already-taken stat describes cloud-resident, non-local content.
+
+    Deliberately independent of is_linkish_stat(): the placeholder class this
+    identifies is precisely the one that does NOT read as a reparse point
+    through this interpreter (see CLOUD_PLACEHOLDER_ATTRIBUTES), so the reparse
+    test can never stand in for it.
+    """
+    return bool(getattr(info, "st_file_attributes", 0) & CLOUD_PLACEHOLDER_ATTRIBUTES)
+
+
+def link_and_cloud_state(path: Path) -> tuple[bool, bool]:
+    """Return (link-like, cloud-placeholder) for one path from a SINGLE lstat.
+
+    Both questions are asked at every ancestor of every scanned entry and both
+    are answered by the same st_file_attributes word, so reading it twice would
+    double the stat load of a walk bounded at MAX_SNAPSHOT_ENTRIES entries for
+    no new information. An unreadable path answers "neither" — callers treat
+    protection as additive and the surrounding lanes already fail closed on an
+    entry they cannot stat.
+    """
+    try:
+        info = path.lstat()
+    except OSError:
+        return False, False
+    return is_linkish_stat(info), is_cloud_placeholder_stat(info)
+
+
+def is_linkish(path: Path) -> bool:
+    """Return true for every link-like Windows reparse point, including on 3.11."""
+    return link_and_cloud_state(path)[0]
 
 
 def has_linkish_component(path: Path, stop: Path | None = None) -> bool:
@@ -200,8 +279,13 @@ def windows_drive_roots() -> list[Path]:
 
 def has_protected_name(path: Path, exact_names: set[str]) -> bool:
     name = path.name.casefold()
-    return name in {value.casefold() for value in exact_names} or name.startswith(
-        "ntuser.dat"
+    return (
+        name in {value.casefold() for value in exact_names}
+        or name.startswith("ntuser.dat")
+        or any(
+            fnmatch.fnmatchcase(name, pattern.casefold())
+            for pattern in baseline_protected_name_globs()
+        )
     )
 
 
@@ -339,8 +423,22 @@ def hard_protection(
         reasons.append("os-managed-root")
     current = path
     while is_within(current, target):
-        if is_linkish(current):
+        linkish, cloud_placeholder = link_and_cloud_state(current)
+        if linkish:
             reasons.append("symlink-junction-or-reparse-point")
+        if cloud_placeholder and (current != target or path == target):
+            # Its bytes live in the provider's cloud, so deleting it here
+            # propagates the delete THERE — for a tenant sync root, to the
+            # organisation's only copy. Nothing local is reclaimed either way.
+            #
+            # The target's own iteration is exempted for every OTHER entry, on
+            # the same reasoning as target-is-mount-point below: a target that
+            # itself carries a recall/offline bit would otherwise mark EVERY
+            # entry cloud-placeholder, and scan_tree truncates any directory
+            # with protections — collapsing the whole walk with no diagnostic.
+            # The target entry itself still reports the reason honestly, so the
+            # condition is visible rather than silently swallowed.
+            reasons.append("cloud-placeholder")
         mounted, mount_error = mount_state(current, known_linux_mounts)
         if mount_error:
             reasons.append("mount-state-unverified")
@@ -384,6 +482,7 @@ def baseline_policy() -> dict[str, Any]:
     return {
         "version": SCHEMA_VERSION,
         "protected_exact_names": list(baseline.get("protected_exact_names", [])),
+        "protected_name_globs": list(baseline.get("protected_name_globs", [])),
         "hints": list(baseline.get("hints", [])),
         "additional_protected_path_globs": [],
         "policy_sources": ["baseline"],
@@ -395,6 +494,31 @@ def baseline_protected_names() -> set[str]:
     ambient standing policy; an approved snapshot stays previewable even if a
     standing file is later edited or malformed."""
     return set(baseline_policy()["protected_exact_names"])
+
+
+@functools.lru_cache(maxsize=1)
+def baseline_protected_name_globs() -> tuple[str, ...]:
+    """Bundled protected-name PATTERNS, for the names that vary per installation.
+
+    A cloud-sync root's name embeds the tenant — Microsoft documents the
+    OneDrive for Business sync root as ``OneDrive - <organization name>`` — so
+    no exact name can cover it, and a consumer cannot cover it either:
+    ``additional_protected_path_globs`` is matched against a path RELATIVE to
+    the scan target, so a standing overlay protects such a root only when the
+    target happens to be its parent. Protection that must hold for every target
+    has to ship in the baseline, which is why this reads the bundled file
+    directly rather than taking policy as a parameter — exactly as
+    ``baseline_protected_names`` does on the validation lanes.
+
+    Matched casefolded through ``fnmatchcase`` rather than ``fnmatch``, whose
+    case folding follows the host platform; a protection whose verdict depends
+    on where it runs is not a protection.
+
+    Cached because ``has_protected_name`` runs at every ancestor of every entry
+    of a walk bounded at MAX_SNAPSHOT_ENTRIES entries, and the bundled file is
+    a build-time constant.
+    """
+    return tuple(baseline_policy()["protected_name_globs"])
 
 
 def load_policy(
@@ -489,7 +613,7 @@ def matching_hints(
         if "all" not in hint["os"] and current_os not in hint["os"]:
             continue
         subject = name if hint["kind"] == "name_glob" else relative
-        if fnmatch.fnmatchcase(subject, hint["pattern"]):
+        if glob_matches(subject, hint["pattern"]):
             matches.append(
                 {
                     "id": hint["id"],
@@ -501,7 +625,19 @@ def matching_hints(
 
 
 def metadata(path: Path, kind: str, logical_size: int = 0) -> dict[str, Any]:
+    """Per-entry facts for the snapshot, including what QUALIFIES its byte count.
+
+    `size_qualifiers` exists so a reader can never mistake a recorded byte
+    count for bytes that deleting the entry would return to the volume. A cloud
+    placeholder's `logical_size` is its REMOTE size while its local occupancy is
+    roughly zero, so a total that silently includes it overstates what any
+    cleanup can reclaim. The qualifier is recorded for every entry, protected or
+    not: protection stops the deletion, and this stops the misreading.
+    """
     info = path.lstat()
+    qualifiers: list[str] = []
+    if is_cloud_placeholder_stat(info):
+        qualifiers.append("cloud-placeholder")
     return {
         "kind": kind,
         "stat_size": info.st_size,
@@ -510,6 +646,8 @@ def metadata(path: Path, kind: str, logical_size: int = 0) -> dict[str, Any]:
         "device": info.st_dev,
         "inode": info.st_ino,
         "mode": stat.S_IFMT(info.st_mode),
+        "file_attributes": int(getattr(info, "st_file_attributes", 0)),
+        "size_qualifiers": qualifiers,
     }
 
 
@@ -711,7 +849,7 @@ def scan_tree(
             if path.name.casefold() in VCS_NAMES:
                 repositories.append(path.parent.resolve())
             if any(
-                fnmatch.fnmatchcase(relative, pattern)
+                glob_matches(relative, pattern)
                 for pattern in policy["additional_protected_path_globs"]
             ):
                 protections.append("consumer-protected-path")
@@ -1389,7 +1527,7 @@ def preview(snapshot: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]:
             blockers.extend(hard_protection(current, target, exact_names, known_mounts))
             relative_current = current.relative_to(target).as_posix()
             if any(
-                fnmatch.fnmatchcase(relative_current, pattern)
+                glob_matches(relative_current, pattern)
                 for pattern in snapshot.get("policy", {}).get(
                     "additional_protected_path_globs", []
                 )
@@ -1555,7 +1693,7 @@ def handoff_verify(snapshot: dict[str, Any], approved: list[str]) -> dict[str, A
             )
             relative_current = current.relative_to(target).as_posix()
             if any(
-                fnmatch.fnmatchcase(relative_current, pattern) for pattern in globs
+                glob_matches(relative_current, pattern) for pattern in globs
             ):
                 contested.add("consumer-protected-path")
         if not truncated:
@@ -1800,7 +1938,7 @@ def apply_plan(snapshot: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]
                 fresh_mounts,
             )
             if any(
-                fnmatch.fnmatchcase(relative, pattern)
+                glob_matches(relative, pattern)
                 for pattern in snapshot.get("policy", {}).get(
                     "additional_protected_path_globs", []
                 )

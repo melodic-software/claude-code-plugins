@@ -223,6 +223,9 @@ strip_literals() {
           if ((i == 0)) ||
             {
               prev="${line:i-1:1}"
+              # portability-ok: `\<` and `\>` here are backslash-escaped literals
+              # inside a Bash bracket PATTERN, not GNU grep/sed word-boundary
+              # operators; Bash pattern matching is identical on BSD userland.
               [[ "$prev" == [[:space:]] || "$prev" == [\;\|\&\(\)\<\>] ]]
             }; then
             break
@@ -428,10 +431,24 @@ producer_redirect_bypass() {
   return 1
 }
 
+# The scope this guard actually has, stated where a reader meets it. Without it
+# the block reads as "shell file writes are blocked" and is over-trusted in both
+# directions: an agent contorts around a restriction a script file does not
+# have, and a human credits the guard with coverage it never claimed. The guard
+# is a speed bump against specific accidental write-workaround forms in one
+# command string, not a boundary — and it is deliberately producer-scoped, so
+# ordinary data-processing redirects (`sort f > out`, `curl … > page.html`) are
+# allowed by design too, not only writes inside an invoked script.
+_BYPASS_SCOPE_NOTE="Scope: only this command string is inspected — known shell \
+file-write forms plus recognized inline interpreter code (e.g. python -c). Writes \
+inside an invoked script file or a program's own opaque code, and redirects \
+produced by another program, are not seen."
+
 block_bypass() {
   local form="$1" reason="$2"
   echo "BLOCKED: $reason" >&2
   echo "Use the Write or Edit tool instead of a shell file-write workaround." >&2
+  echo "$_BYPASS_SCOPE_NOTE" >&2
   emit_tel "blocked" "$form"
   exit 2
 }

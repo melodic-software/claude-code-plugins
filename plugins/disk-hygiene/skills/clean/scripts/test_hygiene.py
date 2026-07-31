@@ -65,6 +65,23 @@ def refuse_call(name: str):
     )
 
 
+class StatWithAttributes:
+    """A real stat result re-read with one substituted st_file_attributes word.
+
+    Windows-only attributes cannot be produced on a POSIX test runner, and
+    os.stat_result is not constructible with an st_file_attributes member, so
+    the cloud-placeholder lanes are exercised by proxying a genuine stat and
+    overriding the single field under test.
+    """
+
+    def __init__(self, info: os.stat_result, attributes: int) -> None:
+        self._info = info
+        self.st_file_attributes = attributes
+
+    def __getattr__(self, name: str) -> object:
+        return getattr(self._info, name)
+
+
 class HygieneTests(unittest.TestCase):
     def setUp(self) -> None:
         # Keep every load_policy(None) call independent of the developer
@@ -113,6 +130,100 @@ class HygieneTests(unittest.TestCase):
             )
             self.assertIn("NTUSER.DAT", policy["protected_exact_names"])
 
+    def test_hints_match_a_name_whatever_its_case(self) -> None:
+        # Protection casefolds and discovery did not, so on Windows and macOS —
+        # where both spellings name the SAME file — an entry could be protected
+        # case-robustly while being invisible to triage.
+        policy = hygiene.load_policy(None)
+        for name, expected in (
+            ("tmp-build", "common-temp-directory"),
+            ("TMP-build", "common-temp-directory"),
+            ("scratch.md", "scratch-artifact"),
+            ("Scratch.md", "scratch-artifact"),
+            ("failed-write.tmp", "common-temp-file"),
+            ("FAILED-WRITE.TMP", "common-temp-file"),
+        ):
+            matched = {hint["id"] for hint in hygiene.matching_hints(name, name, policy)}
+            self.assertIn(expected, matched, name)
+
+    def test_platform_scoped_hints_are_also_case_insensitive(self) -> None:
+        # Separated from the OS-agnostic rows and run under a pinned os_key:
+        # `matching_hints` filters by the current OS BEFORE matching, so asserting
+        # a windows-only hint on a Linux runner tests the OS filter, not the case
+        # discipline this is about.
+        policy = hygiene.load_policy(None)
+        with mock.patch.object(hygiene, "os_key", return_value="windows"):
+            for name in ("Thumbs.db", "thumbs.db", "THUMBS.DB"):
+                matched = {
+                    hint["id"] for hint in hygiene.matching_hints(name, name, policy)
+                }
+                self.assertIn("windows-explorer-metadata", matched, name)
+        with mock.patch.object(hygiene, "os_key", return_value="macos"):
+            for name in (".DS_Store", ".ds_store"):
+                matched = {
+                    hint["id"] for hint in hygiene.matching_hints(name, name, policy)
+                }
+                self.assertIn("macos-finder-metadata", matched, name)
+
+    def test_atomic_write_staging_remnants_are_hinted_as_a_class(self) -> None:
+        # The producer-specific hint encodes one filename while its own reason
+        # claims the class. `.tmp` as an INFIX before a pid/random suffix is the
+        # standard write-temp-then-rename shape, and a scan of one plugin's
+        # state directory returned zero hinted entries across 63, of which 61
+        # were remnants of exactly this shape.
+        policy = hygiene.load_policy(None)
+        for name in (
+            ".rate-limits.json.tmp.1363789.17391",
+            "settings.json.tmp.4",
+            ".claude.json.tmp.9552.9bfba4e83eaa",
+        ):
+            matched = {hint["id"] for hint in hygiene.matching_hints(name, name, policy)}
+            self.assertIn("atomic-write-staging-remnant", matched, name)
+        # The producer-specific hint still fires alongside it: it carries a
+        # narrower reason, and a class hint does not replace that.
+        matched = {
+            hint["id"]
+            for hint in hygiene.matching_hints(
+                ".claude.json.tmp.9552.9bfba4e83eaa",
+                ".claude.json.tmp.9552.9bfba4e83eaa",
+                policy,
+            )
+        }
+        self.assertIn("claude-json-failed-atomic-write", matched)
+
+    def test_consumer_protection_globs_match_whatever_the_case(self) -> None:
+        # The same matcher serves hints and protection, so this moves with the
+        # hint change deliberately rather than by accident. Casefolding a
+        # protection glob can only ever keep more.
+        with tempfile.TemporaryDirectory() as temporary:
+            policy_path = Path(temporary) / "policy.json"
+            policy_path.write_text(
+                json.dumps(
+                    {
+                        "version": 1,
+                        "disabled_hint_ids": [],
+                        "additional_hints": [],
+                        "additional_protected_path_globs": ["Deliverables/**"],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            root = Path(temporary) / "target"
+            (root / "deliverables").mkdir(parents=True)
+            (root / "deliverables" / "report.tmp").write_text("x", encoding="utf-8")
+            snapshot = hygiene.scan_tree(
+                root.resolve(), hygiene.load_policy(policy_path)
+            )
+            entries = hygiene.entry_map(snapshot)
+            # `Deliverables/**` matches the descendants, not the directory
+            # entry itself — the pattern's own semantics, unchanged here. What
+            # changes is that a `Deliverables` pattern now reaches a
+            # `deliverables` path.
+            self.assertIn(
+                "consumer-protected-path",
+                entries["deliverables/report.tmp"]["protected_reasons"],
+            )
+
     def test_policy_rejects_non_array_boundary_input(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             policy_path = Path(temporary) / "policy.json"
@@ -148,6 +259,139 @@ class HygieneTests(unittest.TestCase):
         )
         with mock.patch.object(Path, "lstat", return_value=info):
             self.assertTrue(hygiene.is_linkish(Path("fixture")))
+
+    def test_cloud_placeholder_is_invisible_to_the_reparse_test(self) -> None:
+        # Measured on a OneDrive for Business sync root, Windows 11: a
+        # dehydrated placeholder reads 0x400020 through os.lstat — ARCHIVE plus
+        # RECALL_ON_DATA_ACCESS — with REPARSE_POINT clear. is_linkish was the
+        # engine's only structural cloud defense and it never fires on this
+        # class, which is why the placeholder predicate is independent of it.
+        placeholder = types.SimpleNamespace(
+            st_mode=0o100644,
+            st_file_attributes=0x20 | hygiene.FILE_ATTRIBUTE_RECALL_ON_DATA_ACCESS,
+        )
+        self.assertTrue(hygiene.is_cloud_placeholder_stat(placeholder))
+        self.assertFalse(hygiene.is_linkish_stat(placeholder))
+
+    def test_offline_attribute_is_read_as_a_cloud_placeholder(self) -> None:
+        # Never observed on OneDrive, which sets RECALL_ON_DATA_ACCESS alone.
+        # It is carried for the iCloud and Dropbox eviction states it documents,
+        # so it needs a pin of its own or a future narrowing would drop it
+        # silently.
+        offline = types.SimpleNamespace(
+            st_mode=0o100644, st_file_attributes=hygiene.FILE_ATTRIBUTE_OFFLINE
+        )
+        self.assertTrue(hygiene.is_cloud_placeholder_stat(offline))
+
+    def test_extended_attribute_bit_is_not_read_as_a_cloud_placeholder(self) -> None:
+        # 0x00040000 is FILE_ATTRIBUTE_RECALL_ON_OPEN and FILE_ATTRIBUTE_EA at
+        # once, and RECALL_ON_OPEN "only appears in directory enumeration
+        # classes" while every read here comes from lstat — so through lstat the
+        # bit means extended attributes. Sweeping two non-cloud trees on the
+        # audit host found 1,552 fully-local files carrying it (.NET build
+        # output, temp .node files). Reading it as a placeholder would protect
+        # exactly the build artifacts this engine exists to reclaim.
+        with_extended_attributes = types.SimpleNamespace(
+            st_mode=0o100644, st_file_attributes=0x20 | 0x00040000
+        )
+        self.assertFalse(hygiene.is_cloud_placeholder_stat(with_extended_attributes))
+
+    def test_hard_protection_names_a_cloud_placeholder(self) -> None:
+        target = Path("X:/target")
+        placeholder = target / "photo.heic"
+        with (
+            mock.patch.object(hygiene, "is_volume_root", return_value=False),
+            mock.patch.object(hygiene, "mount_state", return_value=(False, None)),
+            mock.patch.object(
+                hygiene,
+                "link_and_cloud_state",
+                side_effect=lambda path: (False, path == placeholder),
+            ),
+        ):
+            reasons = hygiene.hard_protection(placeholder, target, set())
+        self.assertIn("cloud-placeholder", reasons)
+        self.assertNotIn("symlink-junction-or-reparse-point", reasons)
+
+    def test_a_cloud_placeholder_target_does_not_blanket_mark_its_tree(self) -> None:
+        # The ancestor walk runs up to and INCLUDING the target, so a target
+        # that itself carries a recall/offline bit would mark every entry
+        # cloud-placeholder — and scan_tree truncates any directory with
+        # protections, collapsing the whole walk with no diagnostic. Same
+        # exemption the mount-point branch already makes, for the same reason.
+        target = Path("X:/cloud-target")
+        child = target / "notes.txt"
+        with (
+            mock.patch.object(hygiene, "is_volume_root", return_value=False),
+            mock.patch.object(hygiene, "mount_state", return_value=(False, None)),
+            mock.patch.object(
+                hygiene,
+                "link_and_cloud_state",
+                side_effect=lambda path: (False, path == target),
+            ),
+        ):
+            child_reasons = hygiene.hard_protection(child, target, set())
+            target_reasons = hygiene.hard_protection(target, target, set())
+        self.assertNotIn("cloud-placeholder", child_reasons)
+        # The condition stays visible on the target's own entry rather than
+        # being swallowed, so an operator can see why the target is unusable.
+        self.assertIn("cloud-placeholder", target_reasons)
+
+    def test_scan_protects_and_qualifies_a_cloud_placeholder_entry(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            root.mkdir()
+            (root / "photo.heic").write_text("dehydrated", encoding="utf-8")
+            (root / "notes.txt").write_text("local work product", encoding="utf-8")
+            real_lstat = Path.lstat
+
+            def lstat_with_placeholder(self: Path) -> object:
+                info = real_lstat(self)
+                if self.name == "photo.heic":
+                    return StatWithAttributes(
+                        info, hygiene.FILE_ATTRIBUTE_RECALL_ON_DATA_ACCESS
+                    )
+                return info
+
+            with mock.patch.object(Path, "lstat", lstat_with_placeholder):
+                snapshot = hygiene.scan_tree(root.resolve(), hygiene.load_policy(None))
+            entries = hygiene.entry_map(snapshot)
+
+            self.assertIn(
+                "cloud-placeholder", entries["photo.heic"]["protected_reasons"]
+            )
+            # The byte count stays recorded, but qualified: it is the REMOTE
+            # size, so a reader can never total it as reclaimable local bytes.
+            self.assertEqual(
+                ["cloud-placeholder"], entries["photo.heic"]["size_qualifiers"]
+            )
+            self.assertEqual([], entries["notes.txt"]["protected_reasons"])
+            self.assertEqual([], entries["notes.txt"]["size_qualifiers"])
+
+    def test_tenant_cloud_sync_root_name_is_protected(self) -> None:
+        # The OneDrive for Business sync root embeds the organization name, so
+        # no exact name can cover it and a consumer overlay cannot either:
+        # additional_protected_path_globs match relative to the scan target.
+        names = hygiene.baseline_protected_names()
+        for spelling in ("OneDrive - Contoso", "onedrive - contoso"):
+            self.assertTrue(hygiene.has_protected_name(Path(spelling), names))
+        self.assertFalse(hygiene.has_protected_name(Path("OneDriver"), names))
+
+    def test_cloud_sync_root_blocks_descendant_inventory(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            sync_root = root / "OneDrive - Contoso"
+            sync_root.mkdir(parents=True)
+            (sync_root / "quarterly.xlsx").write_text("tenant", encoding="utf-8")
+
+            snapshot = hygiene.scan_tree(root.resolve(), hygiene.load_policy(None))
+            entries = hygiene.entry_map(snapshot)
+
+            self.assertIn(
+                "baseline-protected-name",
+                entries["OneDrive - Contoso"]["protected_reasons"],
+            )
+            self.assertNotIn("OneDrive - Contoso/quarterly.xlsx", entries)
+            self.assertEqual(["OneDrive - Contoso"], snapshot["truncated_paths"])
 
     def test_reparse_in_any_target_component_is_rejected(self) -> None:
         target = Path("root") / "junction" / "child"
@@ -692,6 +936,64 @@ class HygieneTests(unittest.TestCase):
             self.assertIn(
                 "baseline-protected-name", result["candidates"][0]["blockers"]
             )
+
+    def test_forged_snapshot_cannot_hide_a_tenant_sync_root(self) -> None:
+        # The exact-name equivalent above pins the same property. This one
+        # matters separately because name-pattern protection is read from the
+        # bundled baseline rather than from the snapshot's own policy, so a
+        # snapshot written by an older engine — or edited to drop the reason —
+        # still cannot make a sync root deletable.
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            (root / "OneDrive - Contoso").mkdir(parents=True)
+            snapshot = hygiene.scan_tree(root.resolve(), hygiene.load_policy(None))
+            for entry in snapshot["entries"]:
+                entry["protected_reasons"] = []
+            snapshot["policy"]["protected_name_globs"] = []
+            plan = {
+                "version": 1,
+                "tier": "high",
+                "candidates": [candidate("OneDrive - Contoso")],
+            }
+            with (
+                mock.patch.object(
+                    hygiene, "handle_state", return_value=("clear", None)
+                ),
+                mock.patch.object(hygiene, "execution_blockers", return_value=[]),
+            ):
+                result = hygiene.preview(snapshot, plan)
+            self.assertIn(
+                "baseline-protected-name", result["candidates"][0]["blockers"]
+            )
+            self.assertIsNone(result["approval_token"])
+
+    def test_preview_accepts_a_snapshot_lacking_the_new_entry_fields(self) -> None:
+        # A previous engine's snapshot carries no size_qualifiers or
+        # file_attributes. Cached plugin versions linger well past their
+        # documented cleanup window, so a snapshot written by one must stay
+        # previewable rather than raising on a missing key.
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            root.mkdir()
+            (root / "orphan.tmp").write_text("stale", encoding="utf-8")
+            snapshot = hygiene.scan_tree(root.resolve(), hygiene.load_policy(None))
+            for entry in snapshot["entries"]:
+                entry.pop("size_qualifiers")
+                entry.pop("file_attributes")
+            plan = {
+                "version": 1,
+                "tier": "high",
+                "candidates": [candidate("orphan.tmp")],
+            }
+            with (
+                mock.patch.object(
+                    hygiene, "handle_state", return_value=("clear", None)
+                ),
+                mock.patch.object(hygiene, "execution_blockers", return_value=[]),
+            ):
+                result = hygiene.preview(snapshot, plan)
+            self.assertEqual([], result["candidates"][0]["blockers"])
+            self.assertIsNotNone(result["approval_token"])
 
     def test_preview_blocks_changed_entries(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -2770,6 +3072,127 @@ class GuardTests(unittest.TestCase):
             self.assertIsNone(
                 self.run_guard_engine_gate(f'python3 "{consumer}" --help')
             )
+
+    @staticmethod
+    def _install_cached_versions(base: Path, versions: tuple[str, ...]) -> dict:
+        """Lay out a marketplace cache holding several versions of this plugin.
+
+        Mirrors Claude Code's documented layout,
+        `<plugins>/cache/<marketplace>/<name>/<version>`, because the guard
+        derives the family prefix from its own path — a fake that does not carry
+        the real `plugins/cache` marker would exercise nothing.
+        """
+        family = base / "plugins" / "cache" / "market" / "disk-hygiene"
+        engines = {}
+        for version in versions:
+            root = family / version
+            scripts = root / "skills" / "clean" / "scripts"
+            scripts.mkdir(parents=True)
+            shutil.copy2(
+                SCRIPT_DIR / "destructive_guard.py", scripts / "destructive_guard.py"
+            )
+            (scripts / "hygiene.py").write_text("# engine copy\n", encoding="utf-8")
+            lib = root / "lib"
+            lib.mkdir()
+            shutil.copy2(
+                SCRIPT_DIR.parents[2] / "lib" / "killswitch_config.py",
+                lib / "killswitch_config.py",
+            )
+            engines[version] = scripts
+        return engines
+
+    def test_engine_gate_no_longer_defers_this_plugins_own_stale_engines(self) -> None:
+        """A replaced version's engine is a different FILE, not a different ENGINE.
+
+        The "provably a DIFFERENT file" escape (#1640, #1611) exists so a
+        consumer's own `tools/hygiene.py` is not mistaken for this engine. A
+        previous version of this plugin sitting in the cache is not a consumer's
+        tool, and Claude Code keeps a replaced version's directory on disk after
+        an update — so the escape left the kill switch unenforced against every
+        cached sibling whenever the clean skill was not the active work (#1805).
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(os.path.realpath(tmp))
+            engines = self._install_cached_versions(base, ("0.9.0", "0.10.2"))
+            current = load_module(
+                "guard_cache_install",
+                engines["0.10.2"] / "destructive_guard.py",
+            )
+            stale = (engines["0.9.0"] / "hygiene.py").as_posix()
+            bundled = (engines["0.10.2"] / "hygiene.py").as_posix()
+
+            for command in (
+                f'python3 "{stale}" apply --execute',
+                f'cd /elsewhere && python3 "{stale}" apply --execute',
+            ):
+                self.assertTrue(
+                    current._engine_gate_relevant(command, "Bash"), command
+                )
+            # The install's own engine still gates, so the narrowing did not
+            # merely move which copy is unguarded.
+            self.assertTrue(
+                current._engine_gate_relevant(
+                    f'python3 "{bundled}" apply --execute', "Bash"
+                )
+            )
+
+    def test_engine_gate_still_defers_a_consumer_tool_outside_the_cache(self) -> None:
+        """The narrowing must not undo what #1640 and #1611 fixed."""
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(os.path.realpath(tmp))
+            engines = self._install_cached_versions(base, ("0.10.2",))
+            current = load_module(
+                "guard_cache_install_consumer",
+                engines["0.10.2"] / "destructive_guard.py",
+            )
+            consumer_dir = base / "consumer+tools"
+            consumer_dir.mkdir()
+            consumer = consumer_dir / "hygiene.py"
+            consumer.write_text("print('consumer tool')\n", encoding="utf-8")
+            for command in (
+                f'python3 "{consumer.as_posix()}" --help',
+                f'cd /elsewhere && python3 "{consumer.as_posix()}" --help',
+            ):
+                self.assertFalse(
+                    current._engine_gate_relevant(command, "Bash"), command
+                )
+
+    def test_cache_family_narrowing_is_inert_for_a_checkout_install(self) -> None:
+        """A --plugin-dir checkout has no cached siblings, so nothing narrows.
+
+        Pinned because the alternative — treating an unrecognized layout as
+        in-family — would gate a contributor's every command naming their own
+        working tree's engine.
+        """
+        self.assertIsNone(guard._plugin_cache_family_root())
+        self.assertFalse(guard._within_plugin_cache_family(str(SCRIPT_DIR)))
+
+    def test_bash_denial_names_every_shape_the_classifier_accepts(self) -> None:
+        # The documented bootstrap path is to submit a wrong shape so the denial
+        # teaches the grammar. It enumerated four engine subcommands and omitted
+        # the read-only kill-switch probe, which `_decide` allows before it ever
+        # reaches the classifier — so a consumer learning the allow-list from
+        # the denial never learned the probe is permitted, and the probe is the
+        # step that lets the model state the kill-switch value honestly instead
+        # of assuming the default.
+        guidance = guard._bash_denial_guidance("/data/root")
+        for subcommand in guard._ALLOWED_ENGINE_SUBCOMMANDS:
+            self.assertIn(subcommand, guidance, subcommand)
+        self.assertIn("kill_switch_probe.py", guidance)
+        # The engine's own path: without it, a body whose ${CLAUDE_PLUGIN_ROOT}
+        # arrived unexpanded leaves no disclosed route to the engine, and the
+        # exact-path identity check denies every guess.
+        self.assertIn(guard._display_path(guard._engine_script_path()), guidance)
+
+    def test_classifier_rejects_a_subcommand_outside_the_shared_list(self) -> None:
+        """The denial text and the grammar are one list, so they cannot drift."""
+        python = guard._display_python()
+        engine = guard._display_path(guard._engine_script_path())
+        self.assertIsNone(
+            guard.classify_exact_engine_command(
+                f'"{python}" "{engine}" summarize --snapshot s', None
+            )
+        )
 
     def test_engine_gate_defers_files_whose_name_merely_ends_in_the_marker(
         self,

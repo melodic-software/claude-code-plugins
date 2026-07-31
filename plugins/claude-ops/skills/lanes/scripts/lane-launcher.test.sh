@@ -185,6 +185,8 @@ assert_contains "duplicate lane names named in message" "$out" "duplicate lane n
 # The lane name is also the launch-commit marker's filename (#792), so a name
 # that is not a single path component would let two distinct lanes share one
 # marker (`work` vs `group/../work`) or escape the data dir entirely.
+# portability-ok: 'back\slash' is a literal single-quoted test input naming a
+# Windows path separator, not a GNU `\s` regex class
 for bad_name in 'group/../work' 'back\slash' '.' '..'; do
   jq -n --arg n "$bad_name" \
     '{lanes: [{name: $n, prompt: "work.md"}, {name: "other", prompt: "babysit.md"}]}' \
@@ -202,6 +204,26 @@ JSON
 out="$(run_launcher start --repo "$REPO" --config "$TMP/ok-name.json" --agents-json "$AGENTS_EMPTY" --dry-run 2>&1)"
 rc=$?
 assert_eq "a free-form lane name without path separators is accepted" 0 "$rc"
+
+# A non-string scalar is a config error, not an absent field. `lane_field` reads
+# these with jq's `//` alternative, which fires on every FALSY value, so a
+# mistyped `"effort": false` collapsed to the same "" an unset field produces
+# and the lane launched with no effort at all — silently (#1784).
+for mistyped_field in name model effort prompt; do
+  jq -n --arg k "$mistyped_field" \
+    '{lanes: [({name: "work", prompt: "work.md"} | .[$k] = false)]}' >"$TMP/mistyped.json"
+  out="$(run_launcher start --repo "$REPO" --config "$TMP/mistyped.json" --agents-json "$AGENTS_EMPTY" --dry-run 2>&1)"
+  rc=$?
+  assert_eq "a boolean .$mistyped_field is rejected with exit 3" 3 "$rc"
+  assert_contains "a boolean .$mistyped_field is named in the message" "$out" ".$mistyped_field is boolean"
+done
+
+# `null` remains the JSON spelling of "no value" and stays equivalent to absent.
+jq -n '{lanes: [{name: "work", prompt: "work.md", model: null}]}' >"$TMP/nullmodel.json"
+out="$(run_launcher start --repo "$REPO" --config "$TMP/nullmodel.json" --agents-json "$AGENTS_EMPTY" --dry-run 2>&1)"
+rc=$?
+assert_eq "a null scalar field is treated as absent" 0 "$rc"
+assert_not_contains "a null model passes no --model flag" "$out" "--model"
 
 # ============================================================================
 # status
@@ -246,6 +268,37 @@ assert_contains "non-object settings skips the lane with an error" "$outbad" "se
 assert_not_contains "non-object settings lane not launched" "$outbad" "claude --bg -n work"
 assert_contains "other lanes still launch past a bad-settings lane" "$outbad" "claude --bg -n decide"
 assert_eq "bad settings surfaces a non-zero exit" 1 "$rcbad"
+
+# …and a JSON `false` is a VALUE, not an absent field. `//` is jq's alternative
+# operator, so `false` yielded `empty` and reached bash as "" — the type check
+# above is guarded on a non-empty value, so it never ran and the lane launched
+# with `--settings` silently omitted (#1784).
+cat >"$TMP/falsesettings.json" <<'JSON'
+{
+  "prompt_dir": ".work",
+  "lanes": [
+    { "name": "work",   "prompt": "work.md", "settings": false },
+    { "name": "decide", "prompt": "decide.md" }
+  ]
+}
+JSON
+outfalse="$(run_launcher start --repo "$REPO" --config "$TMP/falsesettings.json" --agents-json "$AGENTS_EMPTY" --dry-run --no-pull --no-update 2>&1)"
+rcfalse=$?
+assert_contains "settings:false reaches the type check" "$outfalse" "settings must be a JSON object"
+assert_not_contains "settings:false lane not launched" "$outfalse" "claude --bg -n work"
+assert_contains "other lanes still launch past a false-settings lane" "$outfalse" "claude --bg -n decide"
+assert_eq "settings:false surfaces a non-zero exit" 1 "$rcfalse"
+
+# `null` stays the JSON spelling of "no value": the lane launches, without
+# --settings, rather than being skipped as mistyped.
+cat >"$TMP/nullsettings.json" <<'JSON'
+{ "prompt_dir": ".work", "lanes": [ { "name": "work", "prompt": "work.md", "settings": null } ] }
+JSON
+outnull="$(run_launcher start --repo "$REPO" --config "$TMP/nullsettings.json" --agents-json "$AGENTS_EMPTY" --dry-run --no-pull --no-update 2>&1)"
+rcnull=$?
+assert_eq "settings:null launches the lane" 0 "$rcnull"
+assert_contains "settings:null still launches work" "$outnull" "claude --bg -n work"
+assert_not_contains "settings:null passes no --settings flag" "$outnull" "--settings"
 
 # refresh step present by default; suppressible
 assert_contains "start pulls by default" "$out" "git -C $REPO pull --ff-only"

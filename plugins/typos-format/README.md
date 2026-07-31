@@ -1,10 +1,11 @@
 # typos-format
 
-A Claude Code plugin that fixes spelling typos the moment you edit any file.
-On every `Write` or `Edit` it runs [typos](https://github.com/crate-ci/typos)'s
-`--write-changes`, reports every correction it applied, and surfaces any
-residual (unfixable) findings back to Claude as advisory context — including
-remediation guidance for allowlisting a false positive.
+A Claude Code plugin that spell-checks the moment you edit any file. On every
+`Write` or `Edit` it runs [typos](https://github.com/crate-ci/typos) and
+surfaces findings back to Claude as advisory context — including remediation
+guidance for allowlisting a false positive. It is **report-only by default**;
+with the `typos_format_write_changes` opt-in it applies typos' safe
+corrections in place and reports every correction it applied.
 
 It ships no rules of its own and runs unconditionally, using typos' built-in
 spelling dictionary. If your repository has its own typos configuration
@@ -22,9 +23,14 @@ opt-in required.
   its documented precedence order — this plugin never re-implements that walk.
 - **No extension filter.** Unlike sibling formatter plugins (Ruff, Markdown),
   typos is language-agnostic — it runs on any edited file.
-- **Fix in place.** `typos --write-changes` applies every correction it has
-  confidence in. Residual findings — an entry with no known correction (e.g.
-  a blank-correction `extend-words` entry marking a term "disallowed"), or one
+- **Report-only by default.** A dictionary autocorrect is a content mutation
+  you never asked for, and an unconditional writer here raced sibling
+  formatter hooks on the same file with no defined ordering (#1809). Out of
+  the box the hook reports findings and never modifies a file.
+- **Fix in place is an opt-in.** With `typos_format_write_changes` set to
+  `true`, `typos --write-changes` applies every correction it has confidence
+  in. Residual findings — an entry with no known correction (e.g. a
+  blank-correction `extend-words` entry marking a term "disallowed"), or one
   with more than one candidate correction — surface as advisory context, never
   auto-applied.
 - **Every applied rewrite is disclosed.** A correction changes the content of
@@ -37,8 +43,6 @@ opt-in required.
   This matters most on the *applied* path — the dictionary has no memory of
   your repair, so a word you correct by hand is rewritten again on the next
   edit until the allowlist entry exists.
-- **Report-only mode available.** Set `typos_format_write_changes` to `false`
-  and the hook reports what typos found without ever modifying a file.
 - **Respects your excludes.** The hook passes `--force-exclude`, so a path
   your config's `[files] exclude`/`extend-exclude` excludes (generated or
   vendored code, intentional-misspelling fixtures) is left untouched even
@@ -47,16 +51,17 @@ opt-in required.
   reported via `additionalContext`; they never reject the edit. Make a commit
   hook or CI your hard gate.
 
-## Known limitation
+## Known limitation (write mode only)
 
 Claude Code runs every matching `PostToolUse` hook in parallel for one tool
-call. This hook has no extension filter, so on a repo with both a typos
-config and another formatter's config (e.g. Ruff), editing a matching file
-fires both hooks concurrently — each independently reading-then-writing the
-same file with no locking, so a nondeterministic clobber is possible. This
-risk pre-exists this plugin (it already applies between `eol-normalizer` and
-every formatter hook) and is not addressed here; no hook-level
-locking/ordering primitive exists in Claude Code today.
+call, with no hook-level locking/ordering primitive. Under the report-only
+default this hook only reads, so the worst concurrent outcome is a stale
+finding. Opting `typos_format_write_changes` on in a repo where a sibling
+formatter hook also rewrites the same file class (e.g. `markdown-format` on
+`.md`, `ruff-format` on `.py`) re-opens the race: each hook independently
+reads-then-writes with no locking, so ordering is **last-writer-wins** and a
+nondeterministic clobber is possible. That double opt-in is your call to
+make; the residual overlap class is tracked fleet-wide in #875.
 
 ## Requirements
 
@@ -97,7 +102,7 @@ Two `userConfig` options tune the hook itself:
 | Option | Default | Effect |
 |--------|---------|--------|
 | `typos_format_enabled` | `true` | Kill switch — set `false` for a clean no-op. |
-| `typos_format_write_changes` | `true` | Set `false` for report-only: findings are reported, no file is modified. |
+| `typos_format_write_changes` | `false` | Set `true` to apply corrections in place (accepting last-writer-wins with any sibling formatter hook on the same file). Default is report-only: findings are reported, no file is modified. |
 
 Set them interactively with `/plugin configure typos-format`, or headless on the
 install command:

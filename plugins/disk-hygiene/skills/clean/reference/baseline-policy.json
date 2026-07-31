@@ -10,10 +10,16 @@
     "Desktop",
     "Documents",
     "Downloads",
+    "Dropbox",
+    "iCloud Drive",
     "Music",
     "OneDrive",
     "Pictures",
     "Videos"
+  ],
+  "protected_name_globs": [
+    "Dropbox (*)",
+    "OneDrive - *"
   ],
   "hints": [
     {
@@ -95,6 +101,14 @@
       "pattern": "*.crdownload",
       "confidence_ceiling": "low",
       "reason": "Browser partial download; browser process and resume state must be checked"
+    },
+    {
+      "id": "atomic-write-staging-remnant",
+      "os": ["all"],
+      "kind": "name_glob",
+      "pattern": "*.tmp.*",
+      "confidence_ceiling": "medium",
+      "reason": "Atomic-write staging remnant: a '.tmp' infix before a pid/random suffix is the standard write-temp-then-rename shape, so the producer crashed or was interrupted before the rename; identify the producer and confirm no live process owns it"
     },
     {
       "id": "claude-json-failed-atomic-write",

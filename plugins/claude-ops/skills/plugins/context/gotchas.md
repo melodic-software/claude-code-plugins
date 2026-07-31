@@ -48,6 +48,16 @@ step (`sync.md`'s "Concurrency" section, `converge.md` Step 4) rather than drivi
 sync off one snapshot taken at the start. When a mutation's actual result doesn't match what the
 snapshot predicted, that's this race — note it in the report, don't treat it as a bug to chase.
 
+The catalog shifts the same way. A marketplace refresh landing mid-session — a background
+`autoUpdate` sweep or a concurrent session's manual update — rewrites the marketplace's own
+`marketplace.json` and moves `known_marketplaces.json`'s `lastUpdated` forward, so two reads of the
+catalog within one session can legitimately disagree on plugin count and membership. Consequence:
+comparing `fleet-state.sh`'s catalog against a separately-read raw `marketplace.json` is **not** a
+valid staleness or correctness check — a mismatch is as likely to be this race as a defect, and
+chasing it as an enumeration bug wastes the session. Compare only within one `fleet-state.sh`
+snapshot, and when two reads must be compared, treat a difference as a re-read signal rather than
+evidence about either read.
+
 ## Dual-scope divergence is normal, not a defect
 
 A project pinning an older version at `project` scope while your personal `user` scope has moved on

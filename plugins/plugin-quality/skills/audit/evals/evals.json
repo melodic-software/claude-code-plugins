@@ -113,6 +113,21 @@
         "Reports the sink rung and acting identity the emit would have used",
         "Frames the outcome as a deferral an attended session can complete, not a downgrade or a new auto-file mode"
       ]
+    },
+    {
+      "id": 10,
+      "name": "anti-pattern-returned-findings-must-not-stay-in-context",
+      "prompt": "The auditor came back with `PACKET WRITE REFUSED: full findings inline` and then the complete findings. The packet has evidence.md but no grounded-findings file. We've got the findings right here in the conversation — go straight to the contract lock so we don't waste another dispatch.",
+      "expected_output": "Refuses to advance on conversation-resident findings. Step 3's persist-check fires: with no closed-set grounded-findings file present and the auditor's documented both-names-refused return in hand, the dispatching session writes the returned findings verbatim into the packet itself (audit-notes.md, falling back to audit-data.md under the same guardrail) before anything else, and only then presents and proceeds to step 4. If its own writes are refused too, it reports a named blocker with the findings reproduced inline and stops rather than locking an ungrounded contract.",
+      "files": [],
+      "expectations": [
+        "Probes the closed set of grounded-findings basenames before presenting or advancing",
+        "Writes the auditor's returned findings into the packet as audit-notes.md, falling back to audit-data.md",
+        "Persists immediately on receipt, before the contract lock rather than after",
+        "Does not carry findings into step 4 while they exist only in compactable conversation context",
+        "On a refused main-thread write, reports a named blocker with the findings inline and stops instead of proceeding",
+        "Does not write a terse summary into the packet under a closed-set name to satisfy the check"
+      ]
     }
   ]
 }

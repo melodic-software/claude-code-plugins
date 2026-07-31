@@ -3,6 +3,42 @@
 All notable changes to the `typos-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.0]
+
+### Changed
+
+- **Report-only is now the default; write mode is an explicit opt-in (#1809).** The
+  `typos_format_write_changes` userConfig default flips `true` → `false` in both the manifest and
+  the script fallback, so the out-of-the-box hook reports findings and never modifies a file. A
+  dictionary autocorrect is a content mutation the user never asked for (#1257's silent SHA
+  corruption is one instance), and an unconditional writer here raced the sibling
+  `markdown-format` writer on every Markdown edit with no defined precedence — Claude Code runs
+  matching `PostToolUse` hooks in parallel with no ordering primitive. Part of #1809's
+  single-writer decision: by default at most one in-place rewriter matches any file class.
+  Consumers who want corrections applied set the option to `true`, accepting last-writer-wins
+  ordering with any sibling formatter hook that rewrites the same file (disclosed in the README;
+  residual scoped-writer overlap is tracked fleet-wide in #875). The write gate now requires the
+  literal `true` — the mutating direction is the one that needs the exact opt-in spelling, so a
+  typo'd option value stays report-only. Zero-config reporting, disclosure of applied rewrites in
+  write mode, and remediation guidance are unchanged.
+
+## [0.4.4]
+
+### Fixed
+
+- **Shared `hook-utils.sh`: the OS temp tree is no longer treated as project content (#1769).**
+  `hook::read_file_path` scoped a file to the project by prefix-matching `CLAUDE_PROJECT_DIR`, so a
+  session whose project directory is the user's home admitted everything under the OS temp root —
+  including Claude Code's own per-session scratchpad, which lives there. Hooks that lint, rewrite, or
+  autocorrect then ran on throwaway files that are not project content and carry no project config to
+  opt out with; the reported case was `typos-format` autocorrecting a shell variable in a scratch
+  script and silently breaking it. The guard now rejects a file inside the OS temp tree when the
+  project root is outside it. The exemption is deliberate and load-bearing: when the project root
+  itself lives under temp — a `mktemp -d` fixture checkout, which is how this repository's own hook
+  suites run — its files are still accepted. Temp roots come from `TMPDIR` / `TMP` / `TEMP` plus the
+  POSIX defaults, canonicalized through the same pipeline the membership comparison already uses.
+  Synced from `lib/hook-utils.sh`.
+
 ## [0.4.3]
 
 ### Fixed
