@@ -185,7 +185,11 @@ build_data_json() {
 markdownlint_config_discoverable() {
   local dir root candidate parent
   dir="$(cd "$(dirname "$FILE")" 2>/dev/null && pwd -P)" || return 1
-  root="$(cd "$REPO_ROOT" 2>/dev/null && pwd -P)" || root=""
+  # Fail CLOSED when the root cannot be resolved: an empty root would never
+  # terminate the equality check below and the walk would run to the
+  # filesystem root — scanning directories above the repository that the lint
+  # run's own discovery never reads.
+  root="$(cd "$REPO_ROOT" 2>/dev/null && pwd -P)" || return 1
   while :; do
     for candidate in \
       .markdownlint-cli2.jsonc .markdownlint-cli2.yaml \

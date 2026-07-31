@@ -29,9 +29,12 @@ Wall-clock (`EPOCHREALTIME`) around direct hook invocation with a benign represe
 a representative dev host; singles averaged over ≥ 10 runs, sets launched concurrently (`&` +
 `wait`) to approximate the harness's parallel dispatch. Windows numbers are the binding ones:
 process spawn is most expensive there, and the fleet's reference measurements
-(2026-07-31, Windows 11 + Git Bash) are `bash -c :` ≈ 80 ms, `python3 -c pass` ≈ 160 ms — with the
-per-Bash-call always-on set (six guardrails classifiers + the disk-hygiene engine gate) measuring
-≈ 5.9 s parallel wall and the per-Write set (two formatters + three guardrails verifiers) ≈ 1.9 s.
+(2026-07-31, Windows 11 + Git Bash, at the pre-#1809 baseline `d5d02a2d`) are `bash -c :` ≈ 80 ms,
+`python3 -c pass` ≈ 160 ms — with the per-Bash-call always-on set (six guardrails classifiers + the
+disk-hygiene engine gate) measuring ≈ 5.9 s parallel wall and the per-Write set (two formatters +
+three guardrails verifiers) ≈ 1.9 s. #1809's single-writer change removes per-Write work only in
+repos without a markdownlint config; in an opted-in repo the per-Write set is unchanged (typos-format
+still scans in report-only mode), so these figures remain the binding accounting until re-measured.
 
 ## Rules
 

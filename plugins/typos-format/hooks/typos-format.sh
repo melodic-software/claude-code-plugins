@@ -408,7 +408,7 @@ if ((APPLIED_COUNT > 0)); then
   fi
   SYSMSG+=". Add any wrong rewrite to extend-words / extend-identifiers in your typos config, or set the typos_format_write_changes option back to false (the default) for report-only mode."
 elif [[ "$WRITE_CHANGES" != "true" ]]; then
-  CTX+="typos-format is report-only (the default) — $BASE was NOT modified. Findings:"$'\n'
+  CTX+="typos-format is report-only (typos_format_write_changes is off — the shipped default) — $BASE was NOT modified. Findings:"$'\n'
 fi
 
 if ((RESIDUAL_COUNT > 0)); then
