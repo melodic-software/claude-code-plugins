@@ -659,6 +659,136 @@ else
   printf 'PASS: portable watchdog killed a TERM-ignoring gh within the finite bound\n'
 fi
 
+# Probe allowlist and call site share MERGED_PR_BATCH_LIMIT (#1795): the live constant is admitted,
+# and a drifted literal that is not the constant is rejected before gh runs.
+batch_template='{{range .}}{{printf "%v\t%s\t%s\t%s\t%s\n" .number .headRefName .headRefOid .mergedAt .url}}{{end}}'
+if gh_probe_allowed pr list --repo github.com/acme/repo-b --state merged \
+  --limit "$MERGED_PR_BATCH_LIMIT" --json number,headRefName,headRefOid,mergedAt,url \
+  --template "$batch_template"; then
+  printf 'PASS: probe allowlist admits shared MERGED_PR_BATCH_LIMIT\n'
+else
+  printf 'FAIL: probe allowlist admits shared MERGED_PR_BATCH_LIMIT\n' >&2
+  failures=$((failures + 1))
+fi
+if [[ "$MERGED_PR_BATCH_LIMIT" != "200" ]] &&
+  gh_probe_allowed pr list --repo github.com/acme/repo-b --state merged \
+    --limit 200 --json number,headRefName,headRefOid,mergedAt,url \
+    --template "$batch_template"; then
+  printf 'FAIL: probe allowlist still admits drifted batch limit 200\n' >&2
+  failures=$((failures + 1))
+else
+  printf 'PASS: probe allowlist rejects drifted batch limit literal\n'
+fi
+if grep -E -- '--limit[[:space:]]+200([[:space:]]|$)' "$SCRIPT" >/dev/null ||
+  grep -E -- '--limit[[:space:]]+100([[:space:]]|$)' "$SCRIPT" >/dev/null; then
+  printf 'FAIL: hardcoded pr-list limit literal remains in collector\n' >&2
+  failures=$((failures + 1))
+else
+  printf 'PASS: collector uses shared limit variables at call sites\n'
+fi
+
+# #1795: when the batch returns exactly the evidence-window cap, emit UNKNOWN rather than silently
+# omitting older merged PRs. Under-cap responses must not raise the finding.
+WINDOW_BIN="$TMP/window-bin"
+mkdir -p "$WINDOW_BIN" "$TMP/window-full/.git" "$TMP/window-under/.git"
+cat >"$WINDOW_BIN/git" <<'EOF'
+#!/usr/bin/env bash
+set -u
+[[ "${GIT_NO_LAZY_FETCH:-}" == "1" && "${GIT_OPTIONAL_LOCKS:-}" == "0" &&
+  "${GIT_CONFIG_COUNT:-}" == "0" && "${GIT_TERMINAL_PROMPT:-}" == "0" ]] || exit 90
+repo=""
+if [[ "${1:-}" == "-C" ]]; then repo="$2"; shift 2; fi
+cmd="${1:-}"
+shift || true
+base="$(basename "$repo")"
+case "$cmd" in
+rev-parse)
+  case "${1:-}" in
+  --show-toplevel) printf '%s\n' "$TEST_ROOT/$base" ;;
+  --path-format=absolute) printf '%s\n' "$TEST_ROOT/$base/.git" ;;
+  *) exit 1 ;;
+  esac
+  ;;
+remote) printf '%s\n' 'https://github.com/acme/'"$base"'.git' ;;
+worktree)
+  [[ "${1:-}" == "list" ]] || exit 97
+  printf 'worktree %s\0HEAD main\0branch refs/heads/main\0\0' "$TEST_ROOT/$base"
+  ;;
+symbolic-ref) printf '%s\n' refs/remotes/origin/main ;;
+branch) printf '%s\n' main ;;
+for-each-ref)
+  if [[ "${3:-}" == refs/remotes/*/ ]]; then
+    printf 'origin/main\tmain-tip\0\n'
+    exit 0
+  fi
+  printf 'main\tmain-tip\0\n'
+  ;;
+merge-base) exit 1 ;;
+*) exit 96 ;;
+esac
+EOF
+cat >"$WINDOW_BIN/gh" <<'EOF'
+#!/usr/bin/env bash
+set -u
+[[ "${GH_HOST:-}" == "github.com" && "${GH_PROMPT_DISABLED:-}" == "1" ]] || exit 92
+case "${1:-}" in
+auth) exit 0 ;;
+api)
+  endpoint="${2:-}"
+  case "$endpoint" in
+  user) printf 'window-login' ;;
+  repos/acme/window-full) printf 'acme/window-full\tmain' ;;
+  repos/acme/window-under) printf 'acme/window-under\tmain' ;;
+  *) exit 1 ;;
+  esac
+  ;;
+pr)
+  repo=""
+  while [[ $# -gt 0 ]]; do
+    if [[ "$1" == "--repo" ]]; then repo="$2"; shift 2; else shift; fi
+  done
+  case "$repo" in
+  github.com/acme/window-full)
+    i=1
+    while [[ "$i" -le "${REPO_FLEET_MERGED_PR_BATCH_LIMIT:-3}" ]]; do
+      printf '%s\told/branch-%s\toid-%s\t2026-01-01T00:00:00Z\thttps://example.invalid/%s\n' \
+        "$i" "$i" "$i" "$i"
+      i=$((i + 1))
+    done
+    ;;
+  github.com/acme/window-under)
+    printf '1\told/branch\toid\t2026-01-01T00:00:00Z\thttps://example.invalid/1\n'
+    ;;
+  *) exit 1 ;;
+  esac
+  ;;
+*) exit 95 ;;
+esac
+EOF
+chmod +x "$WINDOW_BIN/git" "$WINDOW_BIN/gh"
+window_out="$TMP/window-out.txt"
+REPO_FLEET_MERGED_PR_BATCH_LIMIT=3 REPO_FLEET_TEST_FAST_TIMEOUTS=1 \
+  PATH="$WINDOW_BIN:$PATH" TEST_ROOT="$TMP" \
+  bash "$SCRIPT" --repo "$TMP/window-full" >"$window_out"
+if grep -A5 -F "Finding: merged-pr-evidence-window-truncated" "$window_out" |
+  grep -Fq "evidence window cap of 3"; then
+  printf 'PASS: full evidence window emits truncation UNKNOWN\n'
+else
+  printf 'FAIL: full evidence window emits truncation UNKNOWN\n' >&2
+  failures=$((failures + 1))
+  cat "$window_out" >&2
+fi
+REPO_FLEET_MERGED_PR_BATCH_LIMIT=3 REPO_FLEET_TEST_FAST_TIMEOUTS=1 \
+  PATH="$WINDOW_BIN:$PATH" TEST_ROOT="$TMP" \
+  bash "$SCRIPT" --repo "$TMP/window-under" >"$window_out"
+if grep -Fq "Finding: merged-pr-evidence-window-truncated" "$window_out"; then
+  printf 'FAIL: under-cap batch wrongly reported truncation\n' >&2
+  failures=$((failures + 1))
+  cat "$window_out" >&2
+else
+  printf 'PASS: under-cap batch does not report truncation\n'
+fi
+
 if [[ "$failures" -ne 0 ]]; then
   printf '\nCollector output:\n' >&2
   cat "$output" >&2

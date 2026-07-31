@@ -3,6 +3,17 @@
 All notable changes to `repo-fleet-hygiene` are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.2]
+
+### Fixed
+
+- **Merged-PR evidence window raised and truncation disclosed (#1795).** The repository-scoped
+  `gh pr list --state merged` batch was capped at 200 rows with no report signal when that cap
+  bound, so branches whose merged PR fell outside the window read as clean. The batch limit is now
+  1000 (covering measured busy fleet repos), shared with the probe allowlist so the two sites cannot
+  drift, and a full window emits `UNKNOWN merged-pr-evidence-window-truncated` naming the repository
+  and cap. The exact `--head` fallback limit is shared the same way.
+
 ## [0.7.1]
 
 ### Fixed

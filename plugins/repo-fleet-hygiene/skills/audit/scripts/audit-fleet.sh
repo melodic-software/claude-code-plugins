@@ -136,6 +136,19 @@ run_git_probe() {
   )
 }
 
+# Merged-PR evidence windows. Shared by call sites and gh_probe_allowed so raising one without
+# the other cannot silently turn into UNKNOWN via allowlist rejection (#1795). gh paginates
+# GraphQL internally up to --limit; a finite cap can still bind on busy repos, and that bind must
+# be disclosed. Optional positive-int overrides exist for the regression harness only.
+MERGED_PR_BATCH_LIMIT=1000
+MERGED_PR_HEAD_LIMIT=100
+if [[ "${REPO_FLEET_MERGED_PR_BATCH_LIMIT:-}" =~ ^[1-9][0-9]{0,4}$ ]]; then
+  MERGED_PR_BATCH_LIMIT="$REPO_FLEET_MERGED_PR_BATCH_LIMIT"
+fi
+if [[ "${REPO_FLEET_MERGED_PR_HEAD_LIMIT:-}" =~ ^[1-9][0-9]{0,4}$ ]]; then
+  MERGED_PR_HEAD_LIMIT="$REPO_FLEET_MERGED_PR_HEAD_LIMIT"
+fi
+
 gh_probe_allowed() {
   case "${1:-}" in
   auth)
@@ -156,13 +169,13 @@ gh_probe_allowed() {
       "${4:-}" =~ ^github\.com/[^/[:cntrl:][:space:]]+/[^/[:cntrl:][:space:]]+$ &&
       "${5:-}" == "--state" && "${6:-}" == "merged" ]] || return 1
     if [[ $# -eq 12 ]]; then
-      [[ "$7" == "--limit" && "$8" == "200" && "$9" == "--json" &&
+      [[ "$7" == "--limit" && "$8" == "$MERGED_PR_BATCH_LIMIT" && "$9" == "--json" &&
         "${10}" == "number,headRefName,headRefOid,mergedAt,url" && "${11}" == "--template" &&
         "${12}" == '{{range .}}{{printf "%v\t%s\t%s\t%s\t%s\n" .number .headRefName .headRefOid .mergedAt .url}}{{end}}' ]]
       return
     fi
     [[ $# -eq 14 && "$7" == "--head" && -n "$8" && "$8" != -* &&
-      ! "$8" =~ [[:cntrl:]] && "$9" == "--limit" && "${10}" == "100" &&
+      ! "$8" =~ [[:cntrl:]] && "$9" == "--limit" && "${10}" == "$MERGED_PR_HEAD_LIMIT" &&
       "${11}" == "--json" && "${12}" == "number,headRefName,headRefOid,mergedAt,url" &&
       "${13}" == "--template" &&
       "${14}" == '{{range .}}{{printf "%v\t%s\t%s\t%s\t%s\n" .number .headRefName .headRefOid .mergedAt .url}}{{end}}' ]]
@@ -723,7 +736,7 @@ analyze_repo() {
   local ref_record branch_status=1 branch_inventory_valid=true
   local remote_ref_record remote_branch_status=1 remote_branch_short remote_branch_known
   local repo_pr_rows="" exact_pr_rows="" repo_pr_available=false protected=false
-  local remote_inventory_failed=false
+  local repo_pr_row_count=0 _pr_row="" remote_inventory_failed=false
   local -a WT_PATHS=() WT_BRANCHES=() WT_PRUNABLE=() WT_LOCKED=()
   local -a BRANCH_NAMES=() BRANCH_TIPS=() REMOTE_BRANCH_NAMES=() REMOTE_BRANCH_TIPS=()
   local -a PRIVACY_GATED_BRANCHES=()
@@ -1024,9 +1037,12 @@ analyze_repo() {
   fi
 
   # One repository-scoped query avoids N network round trips while keeping same-named branches
-  # isolated by --repo. A finite limit can cause a false negative, never a false merged claim.
+  # isolated by --repo. gh paginates GraphQL up to MERGED_PR_BATCH_LIMIT; a finite cap can still
+  # omit older merged PRs (false negative, never a false merged claim) and that bind is disclosed
+  # below rather than left silent (#1795).
   if [[ -n "$github_repo" && "$GH_READY" == "true" ]]; then
-    repo_pr_rows="$(run_bounded_gh pr list --repo "github.com/$github_repo" --state merged --limit 200 \
+    repo_pr_rows="$(run_bounded_gh pr list --repo "github.com/$github_repo" --state merged \
+      --limit "$MERGED_PR_BATCH_LIMIT" \
       --json number,headRefName,headRefOid,mergedAt,url \
       --template '{{range .}}{{printf "%v\t%s\t%s\t%s\t%s\n" .number .headRefName .headRefOid .mergedAt .url}}{{end}}' 2>/dev/null)" &&
       repo_pr_available=true
@@ -1034,6 +1050,20 @@ analyze_repo() {
       emit_finding UNKNOWN github-pr-evidence-unavailable "$github_repo" \
         "repository-scoped merged-PR query failed" "Do not infer branch merge state" \
         "Restore GitHub access/authentication and rerun"
+    else
+      repo_pr_row_count=0
+      if [[ -n "$repo_pr_rows" ]]; then
+        while IFS= read -r _pr_row || [[ -n "$_pr_row" ]]; do
+          [[ -n "$_pr_row" ]] || continue
+          repo_pr_row_count=$((repo_pr_row_count + 1))
+        done <<<"$repo_pr_rows"
+      fi
+      if [[ "$repo_pr_row_count" -ge "$MERGED_PR_BATCH_LIMIT" ]]; then
+        emit_finding UNKNOWN merged-pr-evidence-window-truncated "$github_repo" \
+          "repository-scoped merged-PR query returned ${repo_pr_row_count} row(s), equaling the evidence window cap of ${MERGED_PR_BATCH_LIMIT}; older merged PRs are invisible to this audit" \
+          "Merged-state evidence may be incomplete for branches whose PR fell outside the window" \
+          "Verify affected branches manually on GitHub, or raise the shared MERGED_PR_BATCH_LIMIT (call site and probe allowlist stay in step), then rerun"
+      fi
     fi
   fi
 
@@ -1064,14 +1094,14 @@ analyze_repo() {
         fi
       done <<<"$repo_pr_rows"
       # The batch is an optimization, not an evidence boundary: an exact repository+head fallback
-      # catches a merged PR outside the recent-created batch window -- but only for a branch still
-      # present in the local remote-tracking inventory. After the common merge flow (head branch
-      # auto-deleted by GitHub, then a prune fetch) that ref is gone and the privacy gate below
-      # skips this lookup, so the gap is reported as merge-evidence-privacy-gated rather than
-      # passing silently. Only send a branch name GitHub can already see: --head transmits it
-      # verbatim to github.com, so a purely local branch (never pushed) must never reach this
-      # query at all. Deferred (revisit if the gap keeps biting): widening proof-of-prior-push
-      # via branch.<name>.merge/.remote config, and paginating the batch window.
+      # catches a merged PR outside the batch window -- but only for a branch still present in the
+      # local remote-tracking inventory. After the common merge flow (head branch auto-deleted by
+      # GitHub, then a prune fetch) that ref is gone and the privacy gate below skips this lookup,
+      # so the gap is reported as merge-evidence-privacy-gated rather than passing silently. Only
+      # send a branch name GitHub can already see: --head transmits it verbatim to github.com, so a
+      # purely local branch (never pushed) must never reach this query at all. The batch window
+      # itself is raised and disclosed when the cap binds (#1795). Deferred (revisit if the gap
+      # keeps biting): widening proof-of-prior-push via branch.<name>.merge/.remote config.
       if [[ -z "$pr_match" ]]; then
         remote_branch_known=false
         # ":-" guard: expanding an empty array under set -u is a fatal unbound-variable error on
@@ -1086,7 +1116,8 @@ analyze_repo() {
           }
         done
         if [[ "$remote_branch_known" == "true" ]]; then
-          if exact_pr_rows="$(run_bounded_gh pr list --repo "github.com/$github_repo" --state merged --head "$branch" --limit 100 \
+          if exact_pr_rows="$(run_bounded_gh pr list --repo "github.com/$github_repo" --state merged \
+            --head "$branch" --limit "$MERGED_PR_HEAD_LIMIT" \
             --json number,headRefName,headRefOid,mergedAt,url \
             --template '{{range .}}{{printf "%v\t%s\t%s\t%s\t%s\n" .number .headRefName .headRefOid .mergedAt .url}}{{end}}' 2>/dev/null)"; then
             while IFS=$'\t' read -r pr_num pr_branch pr_oid pr_merged pr_url; do
