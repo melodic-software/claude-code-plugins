@@ -51,6 +51,7 @@ All notable changes to the `source-control` plugin are documented here. Format f
   do-your-research)` inline, which the loop-lane convention's own no-enumeration rule forbids and
   which drifts from the plugin that owns the list. It now points at the sweep skill, which resolves
   its own membership.
+
 ## [0.45.0]
 
 ### Changed

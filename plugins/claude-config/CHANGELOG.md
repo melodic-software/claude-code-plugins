@@ -38,6 +38,7 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   finding unsuppressed, collision named with its occurrence count — reusing the section's
   established fail-closed answer to an ambiguous match rather than adding a fifth disposition. New
   assertion 4.7; new eval 28.
+
 ## [0.17.0]
 
 ### Fixed
