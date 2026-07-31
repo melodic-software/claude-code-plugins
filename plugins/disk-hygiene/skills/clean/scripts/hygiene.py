@@ -54,9 +54,15 @@ FILE_ATTRIBUTE_REPARSE_POINT = 0x0400
 # engine's purpose, so the ambiguous bit stays out.
 FILE_ATTRIBUTE_OFFLINE = 0x00001000
 FILE_ATTRIBUTE_RECALL_ON_DATA_ACCESS = 0x00400000
+FILE_ATTRIBUTE_SPARSE_FILE = 0x00000200
 CLOUD_PLACEHOLDER_ATTRIBUTES = (
     FILE_ATTRIBUTE_OFFLINE | FILE_ATTRIBUTE_RECALL_ON_DATA_ACCESS
 )
+# st_blocks is documented in units of 512-byte blocks on every Unix Python
+# cares about (POSIX, Linux, macOS). Multiplying here is the cheap allocated-
+# size read; Windows lstat does not expose st_blocks, so allocated_size stays
+# null there rather than paying for GetCompressedFileSizeW on every entry.
+ST_BLOCKS_BYTES = 512
 # Folders whose presence at a drive root identifies that drive as an OS/system
 # drive. A user-provisioned non-OS volume (a Windows Dev Drive) carries none of
 # them, so they are the discriminator for whole-volume-root classification.
@@ -624,31 +630,111 @@ def matching_hints(
     return matches
 
 
-def metadata(path: Path, kind: str, logical_size: int = 0) -> dict[str, Any]:
+def allocated_size_from_stat(info: os.stat_result) -> int | None:
+    """Cheap on-disk allocation when the platform exposes it; else unknown.
+
+    Returns null rather than inventing a figure. A missing allocated size is
+    itself a size signal ("we do not know") and must not collapse to zero.
+    """
+    blocks = getattr(info, "st_blocks", None)
+    if blocks is None:
+        return None
+    return int(blocks) * ST_BLOCKS_BYTES
+
+
+def metadata(
+    path: Path,
+    kind: str,
+    logical_size: int | None = 0,
+    *,
+    walked: bool = True,
+) -> dict[str, Any]:
     """Per-entry facts for the snapshot, including what QUALIFIES its byte count.
 
     `size_qualifiers` exists so a reader can never mistake a recorded byte
     count for bytes that deleting the entry would return to the volume. A cloud
     placeholder's `logical_size` is its REMOTE size while its local occupancy is
-    roughly zero, so a total that silently includes it overstates what any
-    cleanup can reclaim. The qualifier is recorded for every entry, protected or
-    not: protection stops the deletion, and this stops the misreading.
+    roughly zero; a hard-linked file's size is shared with every other name; a
+    truncated directory was never inventoried, so its size is unknown rather
+    than empty. The qualifier is recorded for every entry, protected or not:
+    protection stops the deletion, and this stops the misreading.
+
+    A truncated directory's `logical_size` is null, never 0. Zero remains the
+    genuine empty-directory signal; collapsing "not walked" into zero made a
+    1.35 GB truncated `.cache` indistinguishable from an empty folder.
     """
     info = path.lstat()
+    attributes = int(getattr(info, "st_file_attributes", 0))
+    nlink = int(info.st_nlink)
+    allocated = allocated_size_from_stat(info)
+    if kind == "directory":
+        recorded_logical: int | None = None if not walked else logical_size
+    else:
+        recorded_logical = info.st_size
     qualifiers: list[str] = []
+    if not walked:
+        qualifiers.append("not-walked")
     if is_cloud_placeholder_stat(info):
         qualifiers.append("cloud-placeholder")
+    # Directories carry st_nlink >= 2 for "." / ".." (and higher for each
+    # subdirectory) on POSIX; that is not multi-name hard-linking of content.
+    # Only regular files with more than one directory entry share one object.
+    if kind == "file" and nlink > 1:
+        qualifiers.append("hardlinked")
+    if kind == "file" and (
+        bool(attributes & FILE_ATTRIBUTE_SPARSE_FILE)
+        or (allocated is not None and allocated < info.st_size)
+    ):
+        qualifiers.append("sparse")
     return {
         "kind": kind,
         "stat_size": info.st_size,
-        "logical_size": logical_size if kind == "directory" else info.st_size,
+        "logical_size": recorded_logical,
+        "allocated_size": allocated,
+        "nlink": nlink,
         "mtime_ns": info.st_mtime_ns,
         "device": info.st_dev,
         "inode": info.st_ino,
         "mode": stat.S_IFMT(info.st_mode),
-        "file_attributes": int(getattr(info, "st_file_attributes", 0)),
-        "size_qualifiers": qualifiers,
+        "file_attributes": attributes,
+        "size_qualifiers": sorted(qualifiers),
     }
+
+
+def entry_logical_file_bytes(entry: dict[str, Any]) -> int:
+    """Snapshot-recorded logical bytes for a non-directory entry; 0 if unknown."""
+    if entry.get("kind") == "directory":
+        return 0
+    size = entry.get("logical_size")
+    return int(size) if isinstance(size, int) else 0
+
+
+def entry_reclaimable_local_bytes(entry: dict[str, Any]) -> int | None:
+    """Bytes deleting this one name is expected to return locally, if known.
+
+    Returns null when the entry is not a reclaimable local file or when any
+    qualifier means the recorded size is not "bytes this delete frees".
+    Hard links are excluded entirely: deleting one name does not free the
+    shared object, and counting every name would double-count.
+    """
+    if entry.get("kind") != "file":
+        return None
+    if entry.get("size_qualifiers"):
+        return None
+    size = entry.get("logical_size")
+    if not isinstance(size, int):
+        return None
+    return size
+
+
+def reclaimable_local_bytes(entries: list[dict[str, Any]]) -> int:
+    """Sum of per-entry reclaimable local bytes across an inventory."""
+    total = 0
+    for entry in entries:
+        value = entry_reclaimable_local_bytes(entry)
+        if value is not None:
+            total += value
+    return total
 
 
 def discover_enclosing_git(target: Path) -> tuple[list[Path], list[str]]:
@@ -859,23 +945,30 @@ def scan_tree(
                     data = metadata(path, kind)
                 elif child.is_dir(follow_symlinks=False):
                     kind = "directory"
+                    walked = True
                     if path.name.casefold() in VCS_NAMES:
-                        subtotal = 0
+                        subtotal: int | None = None
+                        walked = False
                         truncated.append(relative)
                     elif protections:
-                        subtotal = 0
+                        subtotal = None
+                        walked = False
                         truncated.append(relative)
                     elif max_depth is not None and depth >= max_depth:
-                        subtotal = 0
+                        subtotal = None
+                        walked = False
                         truncated.append(relative)
                     else:
                         subtotal = visit(path, depth + 1)
-                    data = metadata(path, kind, subtotal)
-                    total += subtotal
+                    data = metadata(path, kind, subtotal, walked=walked)
+                    # Truncated children contribute unknown, not zero: adding
+                    # null as 0 was what made a truncated subtree look empty.
+                    if subtotal is not None:
+                        total += subtotal
                 elif child.is_file(follow_symlinks=False):
                     kind = "file"
                     data = metadata(path, kind)
-                    total += data["logical_size"]
+                    total += entry_logical_file_bytes(data)
                 else:
                     kind = "other"
                     data = metadata(path, kind)
@@ -902,6 +995,15 @@ def scan_tree(
     total_size = visit(target)
     repositories = sorted(set(repositories))
     annotate_tracked(entries, target, repositories, truncated, repo_errors)
+    reclaimable = reclaimable_local_bytes(entries)
+    target_identity = metadata(target, "directory", total_size)
+    # The target itself was walked, but any truncated child means the target's
+    # byte roll-up is incomplete. Keep the known walked sum in logical_size and
+    # surface the gap on the qualifier rather than claiming the target is empty.
+    if truncated:
+        target_identity["size_qualifiers"] = sorted(
+            set(target_identity["size_qualifiers"] + ["not-walked"])
+        )
     return {
         "schema_version": SCHEMA_VERSION,
         "engine": "disk-hygiene-python-1",
@@ -909,8 +1011,9 @@ def scan_tree(
         "created_utc": dt.datetime.now(dt.timezone.utc).isoformat(),
         "platform": os_key(),
         "target": str(target),
-        "target_identity": metadata(target, "directory", total_size),
+        "target_identity": target_identity,
         "target_logical_bytes": total_size,
+        "target_reclaimable_local_bytes": reclaimable,
         "policy": policy,
         "repositories": [str(repo) for repo in repositories],
         "repository_errors": repo_errors,
@@ -1555,15 +1658,19 @@ def preview(snapshot: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]:
                 )
         blockers = sorted(set(blockers))
         logical_bytes = sum(
-            entries[name].get("logical_size", 0)
+            entry_logical_file_bytes(entries[name]) for name in expected_paths
+        )
+        reclaimable_bytes = sum(
+            value
             for name in expected_paths
-            if entries[name].get("kind") != "directory"
+            if (value := entry_reclaimable_local_bytes(entries[name])) is not None
         )
         results.append(
             {
                 "path": relative,
                 "tier": plan["tier"],
                 "logical_bytes": logical_bytes,
+                "reclaimable_local_bytes": reclaimable_bytes,
                 "handle_state": state,
                 "handle_detail": detail,
                 "blockers": blockers,
@@ -1576,6 +1683,9 @@ def preview(snapshot: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]:
         "target": str(target),
         "candidates": results,
         "logical_bytes": sum(item["logical_bytes"] for item in results),
+        "reclaimable_local_bytes": sum(
+            item["reclaimable_local_bytes"] for item in results
+        ),
         "approval_token": None if blocked else approval_token(snapshot, plan),
         "warning": "Approval is valid only for this tier, exact plan, and snapshot. Re-preview after any change.",
     }
@@ -1858,6 +1968,7 @@ def apply_plan(snapshot: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]
                 for item in candidates
             ],
             "logical_bytes_removed": 0,
+            "reclaimable_local_bytes_removed": 0,
             "observed_free_space_delta_bytes": 0,
         }
     checked = preview(snapshot, plan)
@@ -1877,12 +1988,14 @@ def apply_plan(snapshot: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]
                 for item in candidates
             ],
             "logical_bytes_removed": 0,
+            "reclaimable_local_bytes_removed": 0,
             "observed_free_space_delta_bytes": 0,
         }
     before = shutil.disk_usage(target).free
     removed: list[dict[str, Any]] = []
     skipped: list[dict[str, str]] = []
     logical_removed = 0
+    reclaimable_removed = 0
     target_fd = os.open(target, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
     if not same_object_identity(os.fstat(target_fd), snapshot["target_identity"]):
         os.close(target_fd)
@@ -1983,11 +2096,17 @@ def apply_plan(snapshot: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]
                     {"path": relative, "outcome": "delete-failed", "detail": str(exc)}
                 )
                 continue
-            logical = (
-                entry.get("logical_size", 0) if entry["kind"] != "directory" else 0
-            )
+            logical = entry_logical_file_bytes(entry)
+            reclaimable = entry_reclaimable_local_bytes(entry) or 0
             logical_removed += logical
-            removed.append({"path": relative, "logical_bytes": logical})
+            reclaimable_removed += reclaimable
+            removed.append(
+                {
+                    "path": relative,
+                    "logical_bytes": logical,
+                    "reclaimable_local_bytes": reclaimable,
+                }
+            )
     os.close(target_fd)
     after = shutil.disk_usage(target).free
     return {
@@ -1997,6 +2116,7 @@ def apply_plan(snapshot: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]
         "removed": removed,
         "skipped": skipped,
         "logical_bytes_removed": logical_removed,
+        "reclaimable_local_bytes_removed": reclaimable_removed,
         "observed_free_space_delta_bytes": after - before,
     }
 
@@ -2120,11 +2240,22 @@ def main(argv: list[str] | None = None) -> int:
                     "snapshot": str(output_path),
                     "entries": len(snapshot["entries"]),
                     "hinted_entries": hinted,
+                    "target_logical_bytes": snapshot["target_logical_bytes"],
+                    "target_reclaimable_local_bytes": snapshot[
+                        "target_reclaimable_local_bytes"
+                    ],
                     "truncated_paths": snapshot["truncated_paths"],
                     "errors": snapshot["errors"],
                     "policy_sources": policy["policy_sources"],
                     "os_autoclean": advisory,
-                    "note": "Hints are discovery signals, never cleanup verdicts.",
+                    "note": (
+                        "Hints are discovery signals, never cleanup verdicts. "
+                        "target_reclaimable_local_bytes excludes every entry "
+                        "whose size_qualifiers is non-empty (cloud-placeholder, "
+                        "hardlinked, sparse, not-walked); target_logical_bytes "
+                        "is the walked roll-up and may understate truncated "
+                        "subtrees."
+                    ),
                 }
             )
         snapshot = load_json(Path(args.snapshot))
