@@ -18,6 +18,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   sends every unattended run to rung 4 and makes that file the sole copy of the audit's entire
   output. Age is graded from the nonce directory NAME, not mtime, so retention does not depend on
   the same in-place mutation the packet exists to resist; an ungradable name is reported and kept.
+  "Ungradable" is decided by round-tripping the calendar value through `date`, not by the name's
+  character shape: `00000000T000000Z` matches the nonce pattern exactly, names no instant that
+  exists, and sorts below every cutoff, so a shape-only test classified it `DELETE` and `--apply`
+  destroyed it — the precise fail-closed violation the rule exists to prevent. A value the
+  implementation rejects (GNU) or silently normalizes to another day (BSD turns Feb 31 into Mar 3)
+  cannot round-trip identically, and any uncertainty routes to `UNPARSABLE`, never to `DELETE`.
   The root must be named `evidence`, so a mistyped path is refused before anything is walked, and
   containment is re-established **per candidate** by canonicalizing it — checking only the root let
   a symlinked session directory yield a path whose real location is outside the tree, which an
@@ -56,7 +62,15 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   so unlike a name taken from packet content it cannot be *steered* by audited content — but it is
   not unconditionally trustworthy: the `auditor` holds Write, so an auditor subverted by an
   injection could plant a sibling slug that enumeration would pick up. Resume therefore reports the
-  enumerated slug set rather than silently consuming it.
+  enumerated slug set rather than silently consuming it. Enumeration is scoped to ONE RUN, not the
+  session: a session directory accumulates every audit that session ran, so taking every slug and
+  independently picking each one's latest nonce mixed runs — audit A, later audit only B, and
+  resuming B also loaded A's packet and carried its stale findings into the union contract and the
+  emit. The run nonce is the discriminator, and is now pinned as one value computed once at run
+  start and reused for every target packet (re-deriving it per target would straddle a second
+  boundary on a multi-target run and split one run into several). Resume takes the greatest nonce
+  under the session directory and only the slugs carrying exactly it, reporting that nonce and the
+  count of slugs held back as earlier runs.
 - **Packet files are declared write-once, and their mutation by sibling hooks is now detectable
   (#1808).** The guardrail section anticipated a write being *rejected*; the likelier event is the
   write succeeding and the content being rewritten underneath it. `PostToolUse` runs after a tool
@@ -80,6 +94,14 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   the prescribed manual derivation was itself doc-correct and is kept as the fallback. Fixed here
   rather than deferred because this release's script invocations use `${CLAUDE_PLUGIN_ROOT}` in the
   same files, which the false claim would have told a reader could not work.
+- **The backstop persist seals last, after the provenance write (#1808).** Step 3's
+  both-writes-refused path sealed immediately after writing the recovered findings and only then
+  created `evidence-<n>.md`, so following it literally left the provenance file written past the
+  last seal — and the resume rule's mandatory verify then reported `UNSEALED` (exit 3) on *every*
+  backstop-recovered packet. The packet class whose provenance most needs to be trustworthy was the
+  one class that always arrived partly unsealed. The step now writes the findings, reads them back,
+  records the provenance, and seals **once, after every write the step makes**, matching write-once
+  rule 3's "when a step's packet writes are complete".
 - **The `auditor` enumerates `evidence*.md` instead of assuming `evidence.md` (#1808).** Real
   packets carry supplementary `evidence-<n>.md` files — and the write-once rule above makes more of
   them — so a read of one assumed name that fails is not evidence the packet is empty.

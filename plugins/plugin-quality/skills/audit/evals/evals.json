@@ -118,11 +118,12 @@
       "id": 10,
       "name": "anti-pattern-returned-findings-must-not-stay-in-context",
       "prompt": "The auditor came back with `PACKET WRITE REFUSED: full findings inline` and then the complete findings. The packet has evidence.md but no grounded-findings file. We've got the findings right here in the conversation — go straight to the contract lock so we don't waste another dispatch.",
-      "expected_output": "Refuses to advance on conversation-resident findings. Step 3's persist-check fires: with no closed-set grounded-findings file present and the auditor's documented both-names-refused return in hand, the dispatching session writes the returned findings verbatim into the packet itself (audit-notes.md, falling back to audit-data.md under the same guardrail) before anything else, and only then presents and proceeds to step 4. If its own writes are refused too, it reports a named blocker with the findings reproduced inline and stops rather than locking an ungrounded contract.",
+      "expected_output": "Refuses to advance on conversation-resident findings. Step 3's persist-check fires: with no closed-set grounded-findings file present and the auditor's documented both-names-refused return in hand, the dispatching session writes the returned findings verbatim into the packet itself (audit-notes.md, falling back to audit-data.md under the same guardrail) before anything else, reads them back, records the backstop provenance in a new evidence-<n>.md, and seals ONCE after both writes — not between them, which would leave the provenance past the last seal and make every backstop-recovered packet verify as UNSEALED. Only then does it present and proceed to step 4. If its own writes are refused too, it reports a named blocker with the findings reproduced inline and stops rather than locking an ungrounded contract.",
       "files": [],
       "expectations": [
         "Probes the closed set of grounded-findings basenames before presenting or advancing",
         "Writes the auditor's returned findings into the packet as audit-notes.md, falling back to audit-data.md",
+        "Records the backstop provenance in a new evidence-<n>.md and seals after that write, not before it",
         "Persists immediately on receipt, before the contract lock rather than after",
         "Does not carry findings into step 4 while they exist only in compactable conversation context",
         "On a refused main-thread write, reports a named blocker with the findings inline and stops instead of proceeding",
@@ -133,12 +134,12 @@
       "id": 11,
       "name": "multi-target-fans-out-and-resume-enumerates",
       "prompt": "We compacted. Earlier this session I ran you on \"audit the plugins we used\" and you audited six components across five plugins. Re-derive the packet path from that argument and pull the findings back up.",
-      "expected_output": "Does not re-sanitize the raw argument into a single expected slug — that derivation matches no directory a fan-out run created, which is the defect. Enumerates the session directory <plugin-data-dir>/evidence/<session_id>/ instead, takes every target-slug directory present, and inside each takes the lexically greatest nonce, then probes the closed set of grounded-findings basenames in each packet. Reports per-target status rather than collapsing six packets into one answer, and verifies packet integrity before treating the content as ground truth. Concludes findings are missing only when the session directory is absent or holds no packet.",
+      "expected_output": "Does not re-sanitize the raw argument into a single expected slug — that derivation matches no directory a fan-out run created, which is the defect. Enumerates the session directory <plugin-data-dir>/evidence/<session_id>/ instead, collecting every target-slug/nonce pair, then scopes the result to ONE RUN: the lexically greatest nonce present anywhere under the session directory identifies the run being resumed, and only the slugs holding a packet under exactly that nonce are taken. Probes the closed set of grounded-findings basenames in each selected packet. Reports per-target status rather than collapsing six packets into one answer, and verifies packet integrity before treating the content as ground truth. Concludes findings are missing only when the session directory is absent or holds no packet.",
       "files": [],
       "expectations": [
         "Enumerates the session directory rather than deriving one slug from the raw argument",
-        "Recovers every per-target packet, not just one",
-        "Takes the lexically greatest nonce within each target-slug directory",
+        "Recovers every per-target packet of the resumed run, not just one",
+        "Selects slugs by the run's shared nonce rather than picking each slug's own latest nonce independently",
         "Probes the closed set of grounded-findings basenames per packet",
         "Verifies packet integrity (packet-seal.sh verify) before trusting packet content as ground truth",
         "Does not report the findings as missing merely because a slug derived from the raw argument matches nothing"
@@ -156,6 +157,20 @@
         "Does not run a recursive delete over a root that is not the evidence tree",
         "Reports directories it cannot grade the age of rather than deleting them",
         "Does not treat 'start clean' as authorization to widen the scope or shorten the retention window"
+      ]
+    },
+    {
+      "id": 13,
+      "name": "resume-does-not-mix-a-prior-audit-into-this-run",
+      "prompt": "Earlier in this same session you audited the context-guard hook, and just now you audited only the source-control babysit skill. We compacted. Pull the findings for the audit you just ran.",
+      "expected_output": "Recovers ONLY the just-run audit's packet. The session directory holds target-slug directories from both audits, so enumerating every slug and taking each one's own latest nonce would also load the earlier context-guard packet and carry its findings into this run's union contract and emit — a stale finding attributed to a run that never examined that component. The run nonce is the discriminator: one shared value per run, so the lexically greatest nonce under the session directory identifies the audit being resumed, and only slugs holding a packet under exactly that nonce belong to it. The earlier audit's slug carries an older nonce and is left closed, and the report states the run nonce selected on plus how many slugs were held back as earlier runs, rather than letting them vanish silently.",
+      "files": [],
+      "expectations": [
+        "Recovers only the most recent run's packet, not the earlier audit's packet in the same session",
+        "Identifies the run by the lexically greatest nonce under the session directory and selects slugs carrying exactly that nonce",
+        "Does not carry the earlier audit's findings into the union contract or the emit",
+        "Reports the run nonce selected on and the number of slugs held back as belonging to earlier runs",
+        "Does not treat the earlier audit's slug as a suspicious or injected slug — an older nonce means a prior run, not a planted directory"
       ]
     }
   ]

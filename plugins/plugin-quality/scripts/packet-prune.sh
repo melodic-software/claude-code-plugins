@@ -29,7 +29,10 @@
 # PostToolUse formatters that rewrite packet files in place), so grading age by
 # mtime would make retention depend on the same mutation the packet exists to
 # resist. FAIL CLOSED: a directory whose name is not a parsable nonce is never
-# deleted — it is reported as unparsable.
+# deleted — it is reported as unparsable. Parsable means a real UTC instant, not
+# merely the right characters: `00000000T000000Z` has a nonce's exact shape and
+# names no date, so it is graded UNPARSABLE rather than compared as an ancient
+# timestamp and destroyed.
 #
 # Usage:
 #   bash packet-prune.sh --root <evidence-root> [--days N] [--apply]
@@ -155,6 +158,28 @@ if [[ ! "$cutoff" =~ ^[0-9]{8}T[0-9]{6}Z$ ]]; then
   exit 2
 fi
 
+# True when <nonce> names a real UTC instant, not merely something shaped like
+# one. The character-shape regex below is not a date check: `00000000T000000Z`
+# and `20260231T000000Z` both match it, neither names an instant that exists, and
+# lexical comparison grades both as ancient — so a shape-only test hands them to
+# `rm -rf` under `--apply`, destroying an ungradable packet the fail-closed rule
+# promises to keep. Round-trip the calendar value through `date` and require it
+# to reproduce the nonce EXACTLY: a value the implementation rejects outright
+# (GNU) or silently normalizes to a different day (BSD turns Feb 31 into Mar 3)
+# cannot come back identical. Fail closed in every uncertain case — a missing
+# binary, a non-zero exit, empty output, or any mismatch returns false, which
+# routes the packet to UNPARSABLE and never to DELETE.
+nonce_is_real_utc() {
+  local nonce="$1" ymd="${1:0:8}" hms="${1:9:6}" round=""
+  if [[ "$date_dialect" == gnu ]]; then
+    # portability-ok: reached only when the GNU dialect was probed successfully above
+    round="$(date -u -d "${ymd:0:4}-${ymd:4:2}-${ymd:6:2} ${hms:0:2}:${hms:2:2}:${hms:4:2}" +%Y%m%dT%H%M%SZ 2>/dev/null)"
+  else
+    round="$(date -u -j -f %Y%m%dT%H%M%SZ "$nonce" +%Y%m%dT%H%M%SZ 2>/dev/null)"
+  fi
+  [[ -n "$round" && "$round" == "$nonce" ]]
+}
+
 scanned=0
 deleted=0
 retained_item=0
@@ -199,7 +224,9 @@ for packet in "$root_abs"/*/*/*; do
     continue
   fi
 
-  if [[ ! "$nonce" =~ ^[0-9]{8}T[0-9]{6}Z$ ]]; then
+  # Shape THEN calendar. The shape test alone is not a date test, and a name that
+  # merely looks like a nonce must not be graded as one — see nonce_is_real_utc.
+  if [[ ! "$nonce" =~ ^[0-9]{8}T[0-9]{6}Z$ ]] || ! nonce_is_real_utc "$nonce"; then
     echo "UNPARSABLE $packet"
     unparsable=$((unparsable + 1))
     continue

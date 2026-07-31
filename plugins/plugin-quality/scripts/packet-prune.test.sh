@@ -64,6 +64,23 @@ has() {
   fi
 }
 
+# verdict_is <nonce> <expected-verdict> <label> — assert the verdict reported for
+# ONE named packet. `has` cannot do this: a run reporting several packets would
+# let a verdict belonging to a different directory satisfy the match. Keyed on the
+# nonce BASENAME rather than the full path, because the script prints the
+# canonicalized path (`pwd -P`) and mktemp's `/tmp/...` is a different spelling of
+# the same directory on Git Bash — comparing whole paths fails for a reason that
+# has nothing to do with the behavior under test.
+verdict_is() {
+  local nonce="$1" expected="$2" label="$3" actual
+  actual="$(printf '%s\n' "$last_out" | awk -v n="$nonce" '$NF ~ ("/" n "$") {print $1; exit}')"
+  if [[ "$actual" == "$expected" ]]; then
+    pass "$label"
+  else
+    fail "$label — expected $expected for $nonce, got '${actual:-<no line>}'"
+  fi
+}
+
 # --- dry run is the default -------------------------------------------------
 
 root="$(fresh_tree)"
@@ -105,6 +122,44 @@ else
   fail "--apply deleted a directory it could not grade the age of"
 fi
 has "UNPARSABLE" "an ungradable directory is reported, not silently kept"
+
+# --- a nonce's SHAPE is not a date ------------------------------------------
+#
+# The character-shape regex is not a calendar check. `00000000T000000Z` has a
+# nonce's exact shape, names no instant that exists, and sorts below every real
+# cutoff — so a shape-only test grades it DELETE and `--apply` destroys a packet
+# the fail-closed rule promises to keep. `20260231T000000Z` is the subtler one: a
+# naive range check (month<=12, day<=31) passes Feb 31, which BSD `date` silently
+# normalizes to Mar 3. Both must report UNPARSABLE and survive.
+
+shaped="$WORK/shaped-not-real/evidence"
+rm -rf "$WORK/shaped-not-real"
+mkdir -p "$shaped/s/g/00000000T000000Z" "$shaped/s/g/20260231T000000Z" "$shaped/s/g/$OLD"
+: >"$shaped/s/g/00000000T000000Z/audit-notes.md"
+: >"$shaped/s/g/20260231T000000Z/audit-notes.md"
+: >"$shaped/s/g/$OLD/audit-notes.md"
+run 0 "apply runs over nonce-shaped non-dates" --root "$shaped" --apply
+if [[ -e "$shaped/s/g/00000000T000000Z/audit-notes.md" ]]; then
+  pass "an all-zero nonce survives --apply"
+else
+  fail "--apply DESTROYED 00000000T000000Z — a nonce-shaped non-date was graded as an ancient timestamp"
+fi
+if [[ -e "$shaped/s/g/20260231T000000Z/audit-notes.md" ]]; then
+  pass "an impossible calendar day (Feb 31) survives --apply"
+else
+  fail "--apply DESTROYED 20260231T000000Z — a normalizing date parse graded a non-existent day"
+fi
+verdict_is "00000000T000000Z" UNPARSABLE "the all-zero nonce is reported UNPARSABLE, not DELETE"
+verdict_is "20260231T000000Z" UNPARSABLE "the Feb-31 nonce is reported UNPARSABLE, not DELETE"
+verdict_is "$OLD" DELETE "a real expired nonce is still reported DELETE"
+# The regression guard: a round-trip strict enough to reject the two above must
+# still grade a REAL old nonce as expired. Without this, a validator that
+# refuses everything would pass both checks above and silently end retention.
+if [[ ! -e "$shaped/s/g/$OLD" ]]; then
+  pass "a genuinely old nonce is still deleted under --apply"
+else
+  fail "the calendar check broke retention — a real expired packet was not deleted"
+fi
 
 # --- containment holds per candidate, not just for the root -----------------
 #

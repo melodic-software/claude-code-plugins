@@ -136,8 +136,14 @@ Path: `<plugin-data-dir>/evidence/<session_id>/<target-slug>/<run-nonce>/`
   character class the context-guard tee applies; path containment) and truncated to **64
   characters**. Never the raw argument: a resolved target is short and conforming by construction,
   which is also what keeps the full path clear of the Windows 260-character limit.
-- `<run-nonce>` = this run's start timestamp (`YYYYMMDDTHHMMSSZ`) — a same-target re-audit in one
-  session gets its own directory instead of clobbering the first.
+- `<run-nonce>` = this run's start timestamp (`YYYYMMDDTHHMMSSZ`), computed **once at run start,
+  before the first target's directory is created**, and reused verbatim for every target packet of
+  the run. One run, one nonce — never a fresh timestamp per target, even though step 1 writes once
+  per target. That single shared value is the run's identity on disk: it is the only thing
+  separating this run's packets from an earlier run's in the same session directory, and the Resume
+  rule below selects on exactly it. Re-deriving it per target would straddle a second boundary on a
+  multi-target run and silently split one run into several. A same-target re-audit in a later run
+  gets its own directory instead of clobbering the first.
 - **Retention (script, not prose):** run
   `bash "${CLAUDE_PLUGIN_ROOT}/scripts/packet-prune.sh" --root <plugin-data-dir>/evidence --apply`
   **once per audit run** — not once per target — after step 1 has created the first target's
@@ -150,17 +156,27 @@ Path: `<plugin-data-dir>/evidence/<session_id>/<target-slug>/<run-nonce>/`
   window 30 days (`--days N`); a directory whose name is not a parsable nonce is reported and kept,
   never deleted. Omitting `--apply` reports what would go without touching anything.
 - **Resume rule (must survive compaction):** to find the packets after context loss, **enumerate,
-  never re-derive**: list `<plugin-data-dir>/evidence/${CLAUDE_SESSION_ID}/`, take every
-  target-slug directory present, and inside each take the latest nonce (lexically greatest). Never
+  never re-derive** — but enumerate ONE RUN, not the whole session. List
+  `<plugin-data-dir>/evidence/${CLAUDE_SESSION_ID}/` and collect every `<target-slug>/<nonce>` pair
+  present. A session directory accumulates every audit that session has run, so taking every slug
+  and independently picking each one's latest nonce **mixes runs**: audit A, later audit only B, and
+  resuming B also loads A's older packet and carries its stale findings into the union contract and
+  the emit. Discriminate by the run nonce, which is one shared value per run precisely so this is
+  possible — take the lexically greatest nonce present anywhere under the session directory (that is
+  the run being resumed), then take **only** the slugs holding a packet under exactly that nonce.
+  A slug whose packets all carry an older nonce belongs to an earlier audit: leave it closed. Never
   rely on remembering the path, and never re-sanitize the raw argument into a single expected slug
   — one run allocates one slug per resolved target, and no single derivation reproduces that set.
   Enumeration reads no pointer, so unlike a name taken from packet content it cannot be *steered*
   by audited content. It is not unconditionally trustworthy, though, and the difference matters:
   the `auditor` holds Write, so an auditor subverted by an injection in the material under audit
   could create a sibling slug directory that enumeration would then pick up. **Report the
-  enumerated slug set to the user** (or into `evidence-<n>.md` when unattended) rather than
-  silently consuming it, so a slug nobody's targets account for is visible. If the session
-  directory is absent or holds no packet, the findings are missing — say so and stop. **Verify each packet before trusting it**:
+  enumerated slug set to the user** (or into `evidence-<n>.md` when unattended) — with the run
+  nonce it was selected on, and the count of slugs held back as belonging to earlier runs — rather
+  than silently consuming it, so a slug nobody's targets account for is visible and an earlier run's
+  packets are visibly set aside rather than indistinguishable from never having existed. If the
+  session directory is absent or holds no packet, the findings are missing — say so and stop.
+  **Verify each packet before trusting it**:
   `bash "${CLAUDE_PLUGIN_ROOT}/scripts/packet-seal.sh" verify <packet-dir>` (see write-once
   evidence below), and read the exit code — the three non-zero cases mean different things and
   must not be collapsed:
@@ -322,15 +338,20 @@ basenames the Resume rule defines above (and, for its reasons, never a name take
   the exact marker `agents/auditor.md` mandates — and carries the COMPLETE findings inline in
   place of the summary) — persist it yourself, immediately on receipt, before any other work:
   write the returned findings verbatim into the packet as `audit-notes.md`, falling back to
-  `audit-data.md` under the same guardrail, exactly as the `auditor` would have — then read back
-  and seal per the write-once rules, because a backstop write is a packet write like any other and
-  the formatters do not distinguish them. Then record the
-  provenance in a new `evidence-<n>.md`: the grounded findings entered the packet via this backstop — a
-  marker-matched subagent return, with no independent confirmation a write was attempted and
-  refused — so a later reader can weight them accordingly. This is a backstop, not a relocation
-  of the write — the dispatching session is not reliably outside the guardrail either, which is
-  why the filename rule above remains the primary defense — but wherever it is outside, one write
-  restores compaction survival for findings that would otherwise live only in conversation.
+  `audit-data.md` under the same guardrail, exactly as the `auditor` would have — then **read it
+  back**, because a backstop write is a packet write like any other and the formatters do not
+  distinguish them. Then record the provenance in a new `evidence-<n>.md`: the grounded findings
+  entered the packet via this backstop — a marker-matched subagent return, with no independent
+  confirmation a write was attempted and refused — so a later reader can weight them accordingly.
+  **Seal once, last, after every write this step makes** — the findings, the provenance, and any
+  rewrite record a read-back forced — per rule 3's "when a step's packet writes are complete".
+  Sealing straight after the findings instead leaves the provenance written past the last seal, so
+  the Resume rule's mandatory verify reports it UNSEALED (exit 3) on *every* backstop-recovered
+  packet: the one packet class whose provenance most needs to be trustworthy would be the one class
+  that always arrives partly unsealed. This is a backstop, not a relocation of the write — the
+  dispatching session is not reliably outside the guardrail either, which is why the filename rule
+  above remains the primary defense — but wherever it is outside, one write restores compaction
+  survival for findings that would otherwise live only in conversation.
 - **Your own writes are refused too** — terminal, and never a shrug: report it as a named blocker,
   reproduce the full findings inline in your visible answer, and stop before step 4. Locking a
   contract over findings that exist nowhere durable is precisely the ungrounded contract the
