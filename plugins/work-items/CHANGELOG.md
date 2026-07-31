@@ -3,6 +3,41 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.31.2]
+
+### Fixed
+
+- **`triage` excludes lane infrastructure from raw intake, so the telemetry surface a lane reads to
+  operate can no longer be triaged as backlog (#1739).** Lane-infrastructure exclusion was
+  implemented in the two lane skills that select work — the worker loop's drain snapshot and the
+  attended queue's merged view — but not in `triage` itself, which defines the intake population
+  both of them compose. A bare `/work-items:triage` therefore listed an open `Lane telemetry:
+  <lane>` issue as untriaged intake whenever that issue carried the raw marker, and the skill's
+  closing invariant ("no outcome leaves a re-selectable raw item") pushes toward acting on what it
+  lists — relabelling or closing a surface the lane reads to operate. `triage` now carries the
+  exclusion as a third rule bounding what enters the flow, applied to the listing **before**
+  bucketing so the raw marker cannot bucket an excluded item. The exclusion is deliberately
+  label-blind: the marker arrives as a creation-time filing default and a lane can re-add it, so a
+  label-keyed rule would keep re-acquiring the defect. An explicitly named telemetry issue now
+  stops the same way a named already-triaged item stops, instead of walking the state machine
+  toward a close.
+- **That exclusion identifies a telemetry issue the way the lane does, never by title alone
+  (#1739).** `Lane telemetry: <lane>` is only the DEFAULT home. A lane's launch config may pin
+  `lanes[].telemetry.issue` to an existing issue with an operator-chosen title (the `claude-ops`
+  lane config), and `work-loop` resolves its telemetry home from that config before falling back to
+  the title. A title-only test therefore admitted the one issue whose loss costs the most — a real,
+  configured telemetry home — to raw intake, where relabelling or closing it destroys durable lane
+  state. Identity is now the pinned config issue where the config is visible, else the default
+  title, and — independent of both — any issue carrying the convention's sentinel status comment
+  (`<!-- claude-ops:lane-telemetry marker=… -->`). The two signals cover each other's gap: a pin
+  defeats the title test, and an issue pinned but not yet written to carries no sentinel yet.
+  `work-loop`'s drain-snapshot exclusion, which stated the title contract itself, now points at
+  this definition instead of restating a narrower one.
+- **`attend-queue` stops re-deriving that exclusion (#1739).** Its `[intake]` rows already compose
+  `triage`'s attention view and are documented as not re-deriving its buckets; the lane-infrastructure
+  paragraph restated the title contract anyway. It now points at the composed view, leaving one
+  statement of the contract on the intake path instead of two.
+
 ## [0.31.1]
 
 ### Fixed
