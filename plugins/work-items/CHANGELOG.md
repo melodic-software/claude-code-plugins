@@ -18,7 +18,9 @@ All notable changes to the `work-items` plugin are documented here. Format follo
   read-back** then re-reads the comment and reports the cycle UNREPORTED unless the persisted body
   still opens with the sentinel and clears the same floor; this is the half that catches the actual
   #943 shape, where the composed file is fine and the defect is the invocation (`-f body=@FILE`
-  instead of `-F body=@FILE`) — a file-only check cannot see it. The 16-byte floor is measured on the
+  instead of `-F body=@FILE`) — a file-only check cannot see it. The create path is covered by the same
+  cycle's PATCH, and a degraded POST leaves no sentinel-prefixed comment to re-read, so that branch
+  now reports UNREPORTED too instead of falling through silently. The 16-byte floor is measured on the
   payload beneath the sentinel, matching the wrapper's `MIN_BODY_BYTES`; prefix comparison is
   byte-wise, so a CRLF body is not false-rejected. `work-loop` additionally records a refusal or
   failed verification in durable loop state, since stderr does not survive the session and a cycle

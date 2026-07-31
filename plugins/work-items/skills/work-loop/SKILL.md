@@ -105,6 +105,8 @@ else
       gh api -X PATCH "repos/$REPO/issues/comments/$DUP" \
         -f body="Superseded duplicate - canonical telemetry comment: $CANON" || true
     done
+  else
+    echo "telemetry: the write left no sentinel-prefixed comment to verify - treat the lane as UNREPORTED and record it in durable state; the next cycle retries the create" >&2
   fi
 fi
 ```
@@ -122,6 +124,9 @@ payload — the mechanical form of the `@path`-as-body rule owned by the `claude
 which is what catches the failure the pre-write half structurally cannot: a correctly composed file
 sent through a body-value flag (`-f body=@"$BODY_FILE"`) rather than `-F body=@`, where `gh` transmits
 the literal path and the file itself was never at fault.
+On the first-ever upsert the same cycle's PATCH is what verifies the create, so a POST that lands
+degraded carries no sentinel, the re-lookup finds nothing, and there is no comment to re-read. That
+path reports UNREPORTED as well rather than passing silently, and the next cycle retries the create.
 
 A degraded body that lands still moves the comment's timestamp, so any check keying on `updatedAt`
 reads the lane as **fresh** while it carries nothing. Refusing, or reporting the write UNREPORTED,
