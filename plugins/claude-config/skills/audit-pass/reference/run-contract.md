@@ -284,6 +284,18 @@ target.
   slow, not dead, and assertion 3.1 must hold for it — age-only reclamation there hands the lock to a
   second applying run and breaks "exactly one proceeds" on precisely the platform that can least
   detect it.
+- **A lock carrying no run id is a lock written before this rule, and it is not reclaimed on age
+  either.** The run id is what points reclamation at one lease; without it the second conjunct has
+  to be established the other way round, by enumerating `runs/<state-key>/*/lease` — every lease
+  under this state key, which is a bounded read of the run tree the state key already scopes. Any
+  one of them live by the same two-sided test defers the reclaim exactly as a named holder's live
+  lease would; only when none is live does the age bound reclaim. An upgrade mid-run is otherwise
+  the one moment this contract would hand a live holder's lock away, and it is precisely the moment
+  a second applying run is most likely — the operator has just changed something and is re-running.
+  The enumeration deliberately over-defers: a lease records no run mode, so a live **read-only**
+  run's lease also defers the reclaim of a legacy lock. That is the fail-closed direction and it is
+  bounded — a read-only run's lease goes `released` or stale on the same terms as any other — and it
+  applies only to locks predating this rule, since a lock carrying a run id names its holder exactly.
 - **This does not reintroduce the unreclaimable lock the age bound exists to prevent.** That failure
   needs a holder that is both past the age bound and *provably* alive; a crashed or killed run stops
   refreshing, so its lease goes stale within five minutes and the lock is reclaimable from then on. A
@@ -379,6 +391,7 @@ classification two implementations must reach identically or `--resume` is nonde
 | 3.3 | A run launched from a subdirectory produces the same state key as one launched from the root. Working directory is never an input. |
 | 3.12 | On a platform supplying no process start identity, a second applying run against a lock older than 30 minutes whose holder's lease is still live refuses non-zero, naming the holder's run id and `heartbeat_at`, and does not reclaim. The holder's `--fix` completes and 3.1 holds across the whole run, not only its first 30 minutes. |
 | 3.13 | The same lock, once the holder's lease has gone stale by the two-sided test — or is `released`, missing, or unreadable — is reclaimed by the next applying run, with the reclamation reported. A crashed holder therefore blocks for at most the liveness threshold past the age bound, never permanently. |
+| 3.14 | A lock written before this rule, carrying no run id, is not reclaimed on age while any lease under `runs/<state-key>/` is live by the same two-sided test: the second applying run refuses, naming the live lease. With no live lease under the state key, the age bound reclaims as it did before. Upgrading mid-run therefore never hands a live holder's lock away. |
 
 ## 4. Suppression, per target class
 

@@ -591,8 +591,8 @@ bot cannot hold a drain open indefinitely.
 preamble, because a dispatched subagent runs in a fresh, non-inherited context: it inherits no
 posture from the cycle root's own sweep and has to set its own. When the `discipline` plugin is
 installed, the dispatch prompt invokes its sweep skill, which resolves its own membership — the
-preamble never enumerates the individual disciplines, since a hand-copied list drifts from the
-plugin that owns it. Invoked at the subagent's conversation start that is the skill's cheap posture
+preamble never enumerates the individual disciplines, per this doc's own pointer-not-copy rule (§1):
+a hand-copied list drifts from the plugin that owns it. Invoked at the subagent's conversation start that is the skill's cheap posture
 digest rather than its audit fan-out, so the preamble costs one skill read per dispatch and does not
 recurse; the fan-out belongs to the cycle root's once-per-cycle pass, and the skill's own audit forks
 never re-invoke it. When the plugin is absent, the dispatch prompt inlines the equivalent standing

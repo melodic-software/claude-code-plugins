@@ -271,25 +271,22 @@ intake arriving mid-cycle is reported, never chased.
      never resolves threads or merges). An empty eligible set means only `safe` per-PR invocations this cycle.
      Under the explicit-`autopilot` widening, a merge-eligible PR blocked on a machine-escalated
      `needs-human` item, an open finding, or a contradictory thread gets the leased fresh-subagent
-     resolution dispatch ("Explicit-`autopilot` widening" above, Escalation below) ahead of its
-     `autopilot` per-PR invocation, not instead of it — and only where the next bullet permits it.
+     resolution dispatch ("Explicit-`autopilot` widening" above, Escalation below) ahead of its `autopilot` per-PR invocation, not instead of it — and only where the next bullet permits it.
    - **Dimension overrides bind by tier flooring, never narrative, and bind every capability this
      step exercises — not only the tier keyword it passes on.** Before invoking, lower the tier for
      a PR to the highest babysit-prs tier whose behavior exceeds NO resolved dimension override
      (babysit-prs's tier keyword is its only enforcement surface — a natural-language narrowing
      handed to a higher tier is not enforcement). **The pre-escalation resolution dispatch is inside
-     that boundary**: the lane fires it directly rather than through the mechanic's tier keyword,
-     and resolving review threads is a dimension-3 action, so a thread-resolution override
-     forbidding it withholds the dispatch outright and the PR escalates — never dispatched and then
-     narratively told not to resolve. Capabilities the floor forgoes are
-     reported as override-constrained this cycle; the deliberate cost, here and in the rung
-     partition, is that coupled higher-tier actions (e.g. worker-tier bot-thread auto-resolution)
-     are foregone on floored PRs — failing closed gives up only actions the overrides or rung
-     already denied. The same limit cuts the other way: an UPWARD override on a single dimension
-     is unenforceable when honoring it would exceed another — ignored and reported as
-     override-unenforceable, never smuggled in as narrative to a higher tier. Raising one
-     dimension means raising the preset (every dimension consents), until the invoked mechanic
-     exposes per-dimension enforcement (follow-up candidate).
+     that boundary** — the lane fires it directly rather than through that keyword, and it resolves
+     threads, so a thread-resolution override withholds it outright
+     ([reference/pre-escalation-dispatch.md](reference/pre-escalation-dispatch.md)). Capabilities the floor forgoes are reported as
+     override-constrained; the deliberate cost, here and in the rung partition, is that coupled
+     higher-tier actions (e.g. worker-tier bot-thread auto-resolution) are foregone on floored PRs —
+     failing closed gives up only actions the overrides or rung already denied. The same limit cuts
+     the other way: an UPWARD override on a single dimension is unenforceable when honoring it would
+     exceed another — ignored and reported as override-unenforceable, never smuggled in as narrative
+     to a higher tier. Raising one dimension means raising the preset (every dimension consents),
+     until the invoked mechanic exposes per-dimension enforcement (follow-up candidate).
    All per-PR mechanics — checkout, fixes, threads, gates, fan-out — run under that skill's own
    contract, and the do-not-merge stance rides every invocation.
 5. **Escalate.** Anything needing an operator decision follows the convention's escalation
@@ -451,8 +448,7 @@ the dispatching context does; every other blocker worker, the pre-escalation res
 runs the regular per-PR worker lifecycle and lands its own commit and refspec push (Escalation
 above). This loop adds two lane rules, per the convention: the subagent runs at the **frontier
 capability tier** (order-defined, resolved at runtime by model alias only, never a hard-coded
-model ID), and every dispatch prompt carries the subagent discipline preamble — when the
-`discipline` plugin is installed, invoke its sweep (sweep-all, use-your-skills, do-your-research); when absent, inline the equivalent standing instructions (verify claims against authoritative sources, prefer installed skills, re-check against active conventions), per the convention.
+model ID), and every dispatch prompt carries the subagent discipline preamble — when the `discipline` plugin is installed, invoke its sweep skill, which resolves its own membership (never a hand-copied list, which drifts from the plugin owning it); when absent, inline the equivalent standing instructions (verify claims against authoritative sources, prefer installed skills, re-check against active conventions), per the convention.
 
 The explicit-`autopilot` pre-escalation dispatch (Escalation, above) adds one further requirement:
 **context independence**, per the convention's §3 — the dispatched subagent must share no

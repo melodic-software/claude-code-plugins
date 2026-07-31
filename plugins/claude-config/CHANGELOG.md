@@ -22,8 +22,11 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   guards against: a crashed holder stops refreshing, so its lease goes stale within the liveness
   threshold, and a missing or unreadable lease is treated as stale — the absence of a heartbeat is
   not evidence of life. Same defect class and same remedy shape as `claude-ops`' restart-consumer
-  (#1759/#1760), where a live PID without a boot identity may only defer a reclaim. New assertions
-  3.12 and 3.13; new eval 27.
+  (#1759/#1760), where a live PID without a boot identity may only defer a reclaim — that deferral
+  needs a hard ceiling only because its holder publishes no lease. A lock written *before* this rule
+  carries no run id and is covered too: reclamation establishes the conjunct the other way round, by
+  enumerating every lease under `runs/<state-key>/`, so upgrading mid-run never hands a live holder's
+  lock away. New assertions 3.12, 3.13, and 3.14; new evals 27 and 29.
 - **`audit-pass`: a suppression no longer re-applies silently across an anchor collision (#1786).**
   §1 guarantees that two identical normalized excerpts under one heading path collide and that *"no
   suppression carries forward across it"* (assertion 1.10a), but §4's matching table had no

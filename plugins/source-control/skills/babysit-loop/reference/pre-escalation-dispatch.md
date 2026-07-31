@@ -133,9 +133,9 @@ those contracts:
   language, or an unresolved inline human thread stays a stop-and-ask condition until GitHub state
   resolves it — escalate, never fix or resolve past it (`babysit-prs/reference/feedback.md`,
   "Human Feedback"). No dispatch is made, and step 3 withholds the PR from the merge-capable
-  set. The one exception `babysit-prs` gained in this change is
-  scoped to security/P1 escalation and to that dispatch path alone (`babysit-prs/reference/safety.md`,
-  "Security/P1 escalation"); it does not widen to human blocks.
+  set. What the paired-argument invocation unlocks is this dispatch path alone
+  (`babysit-prs/reference/safety.md`, "Security/P1 escalation has no exception"); it widens neither
+  the severity bright line nor human blocks.
 - **Merge conflicts.** These route to the dedicated fresh conflict-resolution worker
   (`babysit-prs/reference/orchestration.md`, Merge Conflict Resolution), which integrates
   **merge-only and never rebases** — rebasing a PR branch needs the force-push babysit-prs forbids
