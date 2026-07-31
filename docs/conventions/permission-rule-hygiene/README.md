@@ -81,8 +81,8 @@ Two substitutions *are* expanded in `allowed-tools`: per
 substitutes `${CLAUDE_SKILL_DIR}` and `${CLAUDE_PROJECT_DIR}` in the skill's markdown content and in
 Bash rules in `allowed-tools` (version floors: `${CLAUDE_SKILL_DIR}` v2.1.129+,
 `${CLAUDE_PROJECT_DIR}` v2.1.196+; below the floor the rule stays a literal string and never
-matches). `${CLAUDE_PLUGIN_ROOT}` is **not** among them — it is documented for hook/monitor/MCP/LSP
-JSON `command` fields, so a rule written with it stays literal and the grant is inert.
+matches). `${CLAUDE_PLUGIN_ROOT}` is **not** among them — it does not appear anywhere on that page —
+so a rule written with it stays a literal string, never matches, and the grant is inert.
 
 `${CLAUDE_SKILL_DIR}` is therefore the correct token for a rule that must match a skill's own bundled
 script, and pairing it with the same token in the skill body is the documented way to run that script

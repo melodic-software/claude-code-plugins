@@ -15,6 +15,9 @@ reports confidence-tiered branch, worktree, and GitHub-identity findings.
 --project-dir supplies the session's project directory, used for the
 project-scoped config rung and as the target when no scope is given. It is
 passed in rather than read from the environment, which does not carry it.
+An empty value means "no project directory": the project config rung is
+skipped, and a run with no other scope stops rather than falling back to the
+current working directory.
 EOF
 }
 
@@ -178,6 +181,12 @@ run_git_probe() {
   )
 }
 
+# The repository-scoped merged-PR batch window, single-sourced so the query, the allowlist that pins
+# it, the truncation disclosure, and the evidence text cannot drift apart. It is a script constant
+# set before any argument or config is read, so the allowlist below stays as fixed a pin as the
+# literal it replaced -- nothing reachable by a caller can change it.
+MERGED_PR_WINDOW=200
+
 gh_probe_allowed() {
   case "${1:-}" in
   auth)
@@ -198,7 +207,7 @@ gh_probe_allowed() {
       "${4:-}" =~ ^github\.com/[^/[:cntrl:][:space:]]+/[^/[:cntrl:][:space:]]+$ &&
       "${5:-}" == "--state" && "${6:-}" == "merged" ]] || return 1
     if [[ $# -eq 12 ]]; then
-      [[ "$7" == "--limit" && "$8" == "200" && "$9" == "--json" &&
+      [[ "$7" == "--limit" && "$8" == "$MERGED_PR_WINDOW" && "$9" == "--json" &&
         "${10}" == "number,headRefName,headRefOid,mergedAt,url" && "${11}" == "--template" &&
         "${12}" == '{{range .}}{{printf "%v\t%s\t%s\t%s\t%s\n" .number .headRefName .headRefOid .mergedAt .url}}{{end}}' ]]
       return
@@ -212,11 +221,6 @@ gh_probe_allowed() {
   *) return 1 ;;
   esac
 }
-
-# The repository-scoped merged-PR batch window. Named rather than inlined so the query, the
-# truncation disclosure, and the evidence text can never drift apart; the value is also pinned in
-# gh_probe_allowed, which rejects any other --limit for this query.
-MERGED_PR_WINDOW=200
 
 # GitHub CLI has no request-timeout flag. Prefer GNU timeout/gtimeout only when its documented
 # --kill-after capability is present. The pure-Bash watchdog is the platform-safe fallback and still
@@ -348,9 +352,14 @@ done
 # which is where this collector runs. Reading it from the environment left the project rung of the
 # config ladder permanently unreachable, so the skill body passes it in as --project-dir, where the
 # documented substitution applies. The environment is still honored for callers that genuinely have
-# it (hooks, MCP stdio servers, a direct shell). A value that is still an unexpanded ${...}
-# placeholder -- an older Claude Code that does not substitute it -- counts as absent, never as a
-# literal directory name.
+# it (hooks, MCP stdio servers, a direct shell).
+#
+# The ${...} guard below is defence in depth, not the primary path: when Claude Code does not
+# substitute the placeholder, the literal reaches the shell, which expands the unset variable to an
+# empty string before this script is entered -- so the ordinary miss arrives as empty and is handled
+# by the emptiness checks. The guard catches only a literal that survives shell expansion (a
+# single-quoted argument, or a caller that invokes this script without a shell), where treating
+# "${CLAUDE_PROJECT_DIR}" as a directory name would be strictly worse than treating it as absent.
 PROJECT_DIR="${PROJECT_DIR_ARG:-${CLAUDE_PROJECT_DIR:-}}"
 case "$PROJECT_DIR" in
 "\${"*) PROJECT_DIR="" ;;
@@ -577,7 +586,7 @@ main_worktree() {
 # stale-config-entry and continues (the entry, not the run, is the failure unit for a tracked fleet
 # config). Invalid config SYNTAX still hard-fails upstream.
 add_target() {
-  local candidate="$1" origin="${2:-cli}" top common common_key existing main_top rt_known rt_existing
+  local candidate="$1" origin="${2:-cli}" top common common_key existing main_top main_resolved rt_known rt_existing
   if [[ ! -d "$candidate" ]]; then
     reject_target "$origin" "repository directory not found: $candidate"
     STALE_CONFIG_PATHS+=("$candidate")
@@ -599,19 +608,24 @@ add_target() {
   # Siblings sharing one common directory are one repository, and the dedup below keeps whichever
   # arrives first -- which for recursive discovery is glob order. Retarget to the repository of
   # record BEFORE that tie-break, so a linked worktree reached first can never become the canonical
-  # path every emitted handoff points at. Two guards on the cost and the failure mode: a main
-  # worktree carries .git as a DIRECTORY and a linked one as a FILE, so the cheap local test keeps
-  # an ordinary sweep from paying for the extra probe at all (an optimization only --
-  # --separate-git-dir also yields a .git file, and the porcelain then confirms the same main
-  # worktree); and when the porcelain cannot answer, --show-toplevel stands, with the unusable
-  # worktree inventory reported as UNKNOWN downstream.
+  # path every emitted handoff points at. The .git test is a cost gate only: a main worktree carries
+  # .git as a DIRECTORY and a linked one as a FILE, so an ordinary sweep never pays for the probe.
   if [[ ! -d "$top/.git" ]] && main_top="$(main_worktree "$candidate")" && [[ -n "$main_top" ]]; then
-    # Disclose the retarget. The operator supplied or discovered one path and the report is about
-    # another, so substituting it silently would be the same class of defect as a header asserting a
-    # scope the run's own inputs contradict.
-    if [[ "$(path_key "$main_top")" != "$(path_key "$top")" ]]; then
-      # A config may name one path twice; record each distinct source once so the grouped header
-      # line cannot list the same path repeatedly.
+    # The porcelain's first record is NOT always a checkout, and three ordinary shapes all present a
+    # .git file so they reach here: a submodule reports the superproject's .git/modules/<name> admin
+    # directory, --separate-git-dir reports the detached git directory, and a worktree of a bare
+    # repository reports the bare repository. Adopting any of them would aim every handoff INSIDE
+    # another repository's administrative directory -- the precise harm this retarget exists to
+    # prevent. So re-resolve the porcelain's answer as a working tree and adopt only a genuine,
+    # different checkout: bare and separate-git-dir fail this probe and are skipped, a submodule
+    # resolves back to the path we already had and self-cancels, and a real linked worktree resolves
+    # to its main worktree and retargets.
+    main_resolved="$(run_git_probe -C "$main_top" rev-parse --show-toplevel 2>/dev/null | tr -d '\r')" || main_resolved=""
+    if [[ -n "$main_resolved" && "$(path_key "$main_resolved")" != "$(path_key "$top")" ]]; then
+      # Disclose the retarget. The operator supplied or discovered one path and the report is about
+      # another, so substituting it silently would be the same class of defect as a header asserting
+      # a scope the run's own inputs contradict. A config may name one path twice; record each
+      # distinct source once so the grouped header line cannot list the same path repeatedly.
       rt_known=false
       for rt_existing in "${RETARGETED_FROM[@]:-}"; do
         [[ -n "$rt_existing" && "$rt_existing" == "$top" ]] && {
@@ -621,10 +635,10 @@ add_target() {
       done
       if [[ "$rt_known" == "false" ]]; then
         RETARGETED_FROM+=("$top")
-        RETARGETED_TO+=("$main_top")
+        RETARGETED_TO+=("$main_resolved")
       fi
+      top="$main_resolved"
     fi
-    top="$main_top"
   fi
   common_key="$(path_key "$common")"
   for existing in "${TARGET_COMMON_KEYS[@]:-}"; do

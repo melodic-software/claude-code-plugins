@@ -22,6 +22,16 @@ All notable changes to `repo-fleet-hygiene` are documented here. Format follows
   report is about another — on one `Resolved to main worktree:` header line per repository naming
   every path that resolved into it, so several worktrees of one repository cannot read as several
   repositories against the discovered count. Evidence rule 1 in both skills is corrected to match.
+
+  The porcelain's first record is **not** always a checkout, and three ordinary shapes all present a
+  `.git` file so they reach the retarget: a submodule reports the superproject's
+  `.git/modules/<name>` administrative directory, `--separate-git-dir` reports the detached git
+  directory, and a worktree of a bare repository reports the bare repository. Adopting any of them
+  would aim every handoff *inside* another repository's administrative directory — the precise harm
+  this retarget exists to prevent. The porcelain's answer is therefore re-resolved as a working tree
+  before it is adopted: bare and `--separate-git-dir` fail that probe and are skipped, a submodule
+  resolves back to the path already held and self-cancels, and a genuine linked worktree retargets.
+  All four shapes are pinned by regression fixtures.
 - **The `allowed-tools` grant used a variable that is not substituted there (#1798).** The rule named
   `${CLAUDE_PLUGIN_ROOT}`, which the skills documentation does not list among the variables
   substituted in skill content or `allowed-tools` Bash rules — only `${CLAUDE_SKILL_DIR}` and

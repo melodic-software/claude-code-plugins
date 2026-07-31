@@ -14,13 +14,18 @@ mkdir -p "$MOCK_BIN" "$TMP/config" "$TMP/discovered-a" "$TMP/canonical-a" "$TMP/
   "$TMP/emptyroot" \
   "$TMP/wt-a" "$TMP/wt-mismatch" \
   "$TMP/discovered-c" "$TMP/canonical-c" "$TMP/gone-repo" "$TMP/lost-repo" "$TMP/net-repo" \
-  "$TMP/wt-root/aaa-linked" "$TMP/wt-root/bbb-linked" "$TMP/wt-root/zzz-canonical/.git"
+  "$TMP/wt-root/aaa-linked" "$TMP/wt-root/bbb-linked" "$TMP/wt-root/zzz-canonical/.git" \
+  "$TMP/wt-admin/sub-wt" "$TMP/wt-admin/sep-wt"
 # Canonical-selection fixture: a LINKED worktree whose directory name sorts before its own main
 # worktree under LC_ALL=C, so bounded discovery reaches it first. A linked worktree carries .git as
 # a FILE, the main worktree as a DIRECTORY; both resolve to the same --git-common-dir, so whichever
 # the glob reaches first wins the dedup. The canonical checkout must not be decided by that order.
 : >"$TMP/wt-root/aaa-linked/.git"
 : >"$TMP/wt-root/bbb-linked/.git"
+# Admin-directory shapes. A submodule and a --separate-git-dir checkout both carry a .git FILE, so
+# both reach the retarget path, which must refuse to adopt an administrative directory as canonical.
+: >"$TMP/wt-admin/sub-wt/.git"
+: >"$TMP/wt-admin/sep-wt/.git"
 : >"$TMP/calls.log"
 
 cat >"$MOCK_BIN/git" <<'EOF'
@@ -68,6 +73,12 @@ rev-parse)
     aaa-linked) printf '%s\n' "$TEST_ROOT/wt-root/aaa-linked" ;;
     bbb-linked) printf '%s\n' "$TEST_ROOT/wt-root/bbb-linked" ;;
     zzz-canonical) printf '%s\n' "$TEST_ROOT/wt-root/zzz-canonical" ;;
+    # Admin-directory shapes. The porcelain's first record is not always a checkout, and all three
+    # present a .git FILE so they reach the retarget. sub-admin re-resolves to sub-wt's own toplevel
+    # (a submodule self-cancels); sep-gitdir and bare-gitdir are not working trees at all and fail
+    # this probe, which is what keeps them from being adopted.
+    sub-wt | sub-admin) printf '%s\n' "$TEST_ROOT/wt-admin/sub-wt" ;;
+    sep-wt) printf '%s\n' "$TEST_ROOT/wt-admin/sep-wt" ;;
     *) exit 1 ;;
     esac
     ;;
@@ -90,6 +101,8 @@ rev-parse)
     lost-repo) printf '%s\n' "$TEST_ROOT/lost-repo/.git" ;;
     net-repo) printf '%s\n' "$TEST_ROOT/net-repo/.git" ;;
     aaa-linked | bbb-linked | zzz-canonical) printf '%s\n' "$TEST_ROOT/wt-root/zzz-canonical/.git" ;;
+    sub-wt) printf '%s\n' "$TEST_ROOT/wt-admin/sub-admin" ;;
+    sep-wt) printf '%s\n' "$TEST_ROOT/wt-admin/sep-gitdir" ;;
     *) exit 1 ;;
     esac
     ;;
@@ -115,6 +128,8 @@ remote)
     lost-repo) printf '%s\n' 'https://github.com/lost/cause.git' ;;
     net-repo) printf '%s\n' 'https://github.com/gone/net.git' ;;
     aaa-linked | bbb-linked | zzz-canonical) printf '%s\n' 'https://github.com/acme/wt-canon.git' ;;
+    sub-wt) printf '%s\n' 'https://github.com/acme/sub-mod.git' ;;
+    sep-wt) printf '%s\n' 'https://github.com/acme/sep-mod.git' ;;
     *) exit 1 ;;
     esac
   else
@@ -172,6 +187,15 @@ worktree)
     printf 'worktree %s\0HEAD canon-feat\0branch refs/heads/feature/linked\0\0' "$TEST_ROOT/wt-root/aaa-linked"
     printf 'worktree %s\0HEAD canon-feat2\0branch refs/heads/feature/linked-2\0\0' "$TEST_ROOT/wt-root/bbb-linked"
     ;;
+  # First record is the superproject's .git/modules/<name> admin directory, exactly as real git
+  # reports it from inside a submodule (verified on git 2.54).
+  sub-wt)
+    printf 'worktree %s\0HEAD sub-main\0branch refs/heads/main\0\0' "$TEST_ROOT/wt-admin/sub-admin"
+    ;;
+  # First record is the detached git directory, which is not a working tree at all.
+  sep-wt)
+    printf 'worktree %s\0HEAD sep-main\0branch refs/heads/main\0\0' "$TEST_ROOT/wt-admin/sep-gitdir"
+    ;;
   esac
   ;;
 symbolic-ref)
@@ -182,6 +206,7 @@ branch)
   canonical-a) printf '%s\n' main ;;
   repo-b | old-repo | root-repo | wt-fail | ref-fail | rref-fail | dup-a | new-clone | canonical-c | gone-repo | lost-repo | net-repo) printf '%s\n' main ;;
   aaa-linked | bbb-linked | zzz-canonical) printf '%s\n' main ;;
+  sub-wt | sep-wt) printf '%s\n' main ;;
   esac
   ;;
 for-each-ref)
@@ -199,6 +224,8 @@ for-each-ref)
       ;;
     rref-fail) exit 9 ;;
     aaa-linked | bbb-linked | zzz-canonical) printf 'origin/main\tcanon-main\0\n' ;;
+    sub-wt) printf 'origin/main\tsub-main\0\n' ;;
+    sep-wt) printf 'origin/main\tsep-main\0\n' ;;
     esac
     exit 0
   fi
@@ -223,6 +250,8 @@ for-each-ref)
   lost-repo) printf 'main\tlost-main\0\n' ;;
   net-repo) printf 'main\tnet-main\0\n' ;;
   aaa-linked | bbb-linked | zzz-canonical) printf 'main\tcanon-main\0\nfeature/linked\tcanon-feat\0\n' ;;
+  sub-wt) printf 'main\tsub-main\0\n' ;;
+  sep-wt) printf 'main\tsep-main\0\n' ;;
   esac
   ;;
 merge-base) exit 1 ;;
@@ -265,6 +294,8 @@ api)
   repos/new/repo) printf 'new/repo\tmain' ;;
   repos/acme/repo-c) printf 'acme/repo-c\tmain' ;;
   repos/acme/wt-canon) printf 'acme/wt-canon\tmain' ;;
+  repos/acme/sub-mod) printf 'acme/sub-mod\tmain' ;;
+  repos/acme/sep-mod) printf 'acme/sep-mod\tmain' ;;
   repos/gone/net) printf 'gh: connection reset by peer\n' >&2; exit 1 ;;
   *) printf 'gh: Not Found (HTTP 404)\n' >&2; exit 1 ;;
   esac
@@ -284,6 +315,7 @@ pr)
   # A FULL merged-PR window: gh returns at most --limit rows, so 200 rows means older merged PRs
   # were silently dropped. Every row is a branch this repository does not have locally, so the
   # truncation disclosure is the only thing this fixture can produce.
+  github.com/acme/sub-mod | github.com/acme/sep-mod) ;;
   github.com/acme/wt-canon)
     i=1
     while [[ "$i" -le 200 ]]; do
@@ -715,6 +747,62 @@ else
   failures=$((failures + 1))
 fi
 
+# The porcelain's first record is NOT always a checkout. A submodule reports the superproject's
+# .git/modules/<name>, and --separate-git-dir reports the detached git directory; both carry a .git
+# FILE, so both reach the retarget. Adopting either would aim every handoff INSIDE another
+# repository's administrative directory -- the harm the retarget exists to prevent, reintroduced by
+# the retarget itself. Each must keep its own working tree and emit no retarget line.
+admin_out="$TMP/wt-admin-out.txt"
+REPO_FLEET_TEST_FAST_TIMEOUTS=1 CLAUDE_PROJECT_DIR="$TMP/discovered-a" HOME="$TMP/nohome" \
+  bash "$SCRIPT" --root "$TMP/wt-admin" >"$admin_out" 2>&1
+for admin_case in "sub-wt:sub-admin:submodule" "sep-wt:sep-gitdir:separate-git-dir"; do
+  admin_wt="${admin_case%%:*}"
+  admin_rest="${admin_case#*:}"
+  admin_dir="${admin_rest%%:*}"
+  admin_label="${admin_rest#*:}"
+  if grep -Fq "Repo: $TMP/wt-admin/$admin_wt" "$admin_out"; then
+    printf 'PASS: %s keeps its own working tree as the audited repository\n' "$admin_label"
+  else
+    printf 'FAIL: %s keeps its own working tree as the audited repository\n' "$admin_label" >&2
+    failures=$((failures + 1))
+  fi
+  # The administrative directory legitimately appears as a registered-worktree FINDING -- the
+  # porcelain really does register it, and reporting registrations is the collector's job. What must
+  # never happen is it becoming the audited repository or a handoff destination, because that is what
+  # sends a cleanup tool inside another repository's .git.
+  if grep -Eq "^(Repo|Canonical): $(printf '%s' "$TMP/wt-admin/$admin_dir" | sed 's/[][\\.*^$/]/\\&/g')$" "$admin_out" ||
+    grep -Fq "in $TMP/wt-admin/$admin_dir" "$admin_out"; then
+    printf 'FAIL: %s administrative directory became a canonical path or handoff target\n' "$admin_label" >&2
+    failures=$((failures + 1))
+  else
+    printf 'PASS: %s administrative directory is never a canonical path or handoff target\n' "$admin_label"
+  fi
+done
+assert_not_contains_file "no retarget claimed for an administrative directory" \
+  "Resolved to main worktree:" "$admin_out"
+
+# --project-dir is the primary #1798 fix path: CLAUDE_PROJECT_DIR is NOT in the Bash tool's
+# environment, so the argument is the only rung that works in the real invocation. Every other
+# ladder assertion supplies it as an env var, which would stay green if the argument were deleted.
+projarg_out="$TMP/projarg.txt"
+REPO_FLEET_TEST_FAST_TIMEOUTS=1 HOME="$TMP/nohome" \
+  env -u CLAUDE_PROJECT_DIR bash "$SCRIPT" --project-dir "$TMP/proj" >"$projarg_out" 2>&1
+if grep -Fq -- "repo-fleet-hygiene.conf (project)" "$projarg_out"; then
+  printf 'PASS: --project-dir argument reaches the project config rung with no env var set\n'
+else
+  printf 'FAIL: --project-dir argument reaches the project config rung with no env var set\n' >&2
+  failures=$((failures + 1))
+fi
+# The argument is what the skill body substitutes, so it must win over a stale inherited env value.
+REPO_FLEET_TEST_FAST_TIMEOUTS=1 CLAUDE_PROJECT_DIR="$TMP/noconf" HOME="$TMP/nohome" \
+  bash "$SCRIPT" --project-dir "$TMP/proj" >"$projarg_out" 2>&1
+if grep -Fq -- "repo-fleet-hygiene.conf (project)" "$projarg_out"; then
+  printf 'PASS: --project-dir argument overrides an inherited CLAUDE_PROJECT_DIR\n'
+else
+  printf 'FAIL: --project-dir argument overrides an inherited CLAUDE_PROJECT_DIR\n' >&2
+  failures=$((failures + 1))
+fi
+
 # An empty CLI scope value is skipped by the discovery loops, so accepting it would let the header's
 # computed scope count claim an argument that contributed nothing. It must stop the run instead.
 # Its own output file: the surrounding assertions all read $ladder_out from the wt-root run above,
@@ -761,7 +849,9 @@ assert_not_contains_file "no merged claim without GitHub evidence" "Finding: mer
 MODEL_DOC="$SCRIPT_DIR/../reference/confidence-model.md"
 emitted_kinds="$TMP/emitted-kinds.txt"
 documented_kinds="$TMP/documented-kinds.txt"
-grep -oE "emit_finding [A-Z]+ [a-z-]+" "$SCRIPT" | awk '{print $3}' | sort -u >"$emitted_kinds"
+# Skip comment lines: prose in this script names finding kinds while explaining them, and counting
+# those would let a kind be "documented" by a comment that emits nothing.
+grep -vE "^[[:space:]]*#" "$SCRIPT" | grep -oE "emit_finding [A-Z]+ [a-z-]+" | awk '{print $3}' | sort -u >"$emitted_kinds"
 # Table rows only: a kind is the first backticked cell of a row, so prose mentions elsewhere in the
 # document cannot satisfy the contract. The delimiter is built with printf rather than written
 # literally, so no quoting style has to carry a bare backtick through grep and sed.
