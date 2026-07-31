@@ -137,8 +137,10 @@ Rationale:
    AI-authored change is precisely the provenance class this lane exists to cover (NIST SP
    800-218A's same-bar principle, already this ADR's attribution basis).
 2. **Latency is not absence.** No workflow here lets either app push today — no `@claude`
-   dispatcher exists in this repo — so the channel is dormant. Adding one is a routine, plausible
-   change that would silently activate a review bypass. Fail-closed bias: the exception must not
+   dispatcher exists in this repo — so the channel is dormant. It is not speculative, though:
+   an org-wide `@claude` mention-responder lane is already proposed
+   ([ci-workflows#255](https://github.com/melodic-software/ci-workflows/issues/255)), and adopting
+   it would silently activate a review bypass. Fail-closed bias: the exception must not
    pre-authorize it.
 3. **Staleness asymmetry decides inheritance-vs-explicit for an evidence gate.** A stale explicit
    list fails **closed** (an actor gets a review it may not have needed — a visible cost); a stale
@@ -156,7 +158,9 @@ Rejected alternatives:
 - **Narrow the reusable workflow's default upstream (ci-workflows)** — not chosen as *this repo's*
   fix: that default serves every consumer and its self-trigger/cost rationale is legitimate for
   advisory lanes. Whether ci-workflows should split the security reusable's default from the
-  review one is ci-workflows' own deliberation; recorded there as a follow-up, not a blocker here.
+  review one is ci-workflows' own deliberation, filed there as
+  [ci-workflows#330](https://github.com/melodic-software/ci-workflows/issues/330) — a follow-up,
+  not a blocker here.
 - **Do nothing, relying on human merge review of AI-provenance PRs** — process convention, not a
   technical control. The required check exists to be evidence.
 
@@ -181,9 +185,10 @@ first — standards contract PR → standards-to-here sync PR → this caller an
 
 **Residual gap (open, not fixed here):** the runner-policy validator rejects *unexpected* inputs
 but cannot *require* one, so a future re-pin that again drops the caller's `skip-actors` passes CI
-and silently re-widens the exception. The guard until standards grows a `requiredInputs`-style
-contract field is the rewritten revisit trigger below plus the caller-side comment beside the
-input.
+and silently re-widens the exception. Closing it needs a `requiredInputs`-style contract field
+upstream, filed as
+[standards#308](https://github.com/melodic-software/standards/issues/308); until that lands the
+guard is the rewritten revisit trigger below plus the caller-side comment beside the input.
 
 ## Revisit triggers
 
