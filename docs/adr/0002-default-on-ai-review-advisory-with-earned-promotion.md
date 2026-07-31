@@ -173,8 +173,8 @@ self-triggering recursion, extra spend, and "independent" review by substantiall
 system. Accepted — those are visible availability and cost failures, while the inherited default's
 failure mode is a silent security bypass, the worse direction.
 
-Composition with the github-iac work (repository-qualified — a bare `#N` here would resolve to this
-repository): [github-iac#248](https://github.com/melodic-software/github-iac/pull/248) (merged
+Composition with the github-iac work:
+[github-iac#248](https://github.com/melodic-software/github-iac/pull/248) (merged
 2026-07-30) app-pins all four required contexts — `pr-title / pr-title`,
 `do-not-merge / do-not-merge`, `ci-status`, and `security-review / security-review` — to the GitHub
 Actions app (`integration_id` 15368), narrowing *who may report* a check. That is orthogonal and
