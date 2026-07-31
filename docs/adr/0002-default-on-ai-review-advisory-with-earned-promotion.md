@@ -137,11 +137,14 @@ Rationale:
    AI-authored change is precisely the provenance class this lane exists to cover (NIST SP
    800-218A's same-bar principle, already this ADR's attribution basis).
 2. **Latency is not absence.** No workflow here lets either app push today — no `@claude`
-   dispatcher exists in this repo — so the channel is dormant. It is not speculative, though:
-   an org-wide `@claude` mention-responder lane is already proposed
-   ([ci-workflows#255](https://github.com/melodic-software/ci-workflows/issues/255)), and adopting
-   it would silently activate a review bypass. Fail-closed bias: the exception must not
-   pre-authorize it.
+   dispatcher exists in this repo — so the channel is dormant. The path to it is charted, not
+   speculative: an org-wide `@claude` mention-responder lane is proposed as
+   [ci-workflows#255](https://github.com/melodic-software/ci-workflows/issues/255). Its V1 is
+   deliberately read-only (no Edit/Write, no push), so adopting V1 would *not* open the channel;
+   its V2 — tag-mode fix-and-push, behind that issue's own approval gate — would, and in tag mode
+   the action pushes to the PR's own branch. So the activating change is a gated future step
+   rather than an imminent one, which is exactly when a fail-closed exception is cheap to set:
+   the bypass must not already be pre-authorized when that gate is considered on its own merits.
 3. **Staleness asymmetry decides inheritance-vs-explicit for an evidence gate.** A stale explicit
    list fails **closed** (an actor gets a review it may not have needed — a visible cost); a stale
    inherited default fails **open** (an actor this repo never deliberated skips review silently —
