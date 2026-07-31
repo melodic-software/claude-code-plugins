@@ -117,6 +117,10 @@ if ! command -v jq >/dev/null 2>&1; then
   if [[ -f "$DECODED_FILE" ]] &&
     ! markdownlint_config_discoverable "$DECODED_FILE" \
       "$(hook::repo_root "$(dirname "$DECODED_FILE")")"; then
+    # silent-skip-ok: this exit reports the opt-in verdict, not a jq verdict —
+    # the repository never enabled this hook, so it is owed no notice about a
+    # prerequisite for it. jq's absence stays visible for every repository that
+    # DID opt in, via the hook::require_jq call immediately below.
     exit 0
   fi
 fi
