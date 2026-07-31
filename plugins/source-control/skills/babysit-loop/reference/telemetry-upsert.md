@@ -66,3 +66,31 @@ ordinary upsert performs the same reconcile. A crashed racer's unmerged counters
 accepted loss (durable state re-derives over a cycle); nothing is deleted. The reconcile converges
 duplicates **within one instance's own sentinel set** — a sibling instance's comment carries a
 different marker and never enters `$LIST`, so it is neither made canonical nor tombstoned.
+
+## Instance-collision check (cycle start, before any write)
+
+Partitioning is correct only while instance ids are distinct, so a collision is detected rather than
+assumed away. `SKILL.md`'s state block carries the four fields this reads: `writer_nonce` is
+generated once per session, `heartbeat_at` is rewritten every cycle, alongside `lane_instance` and
+`paused_until`. After re-reading the block:
+
+- Nonce matches mine → ordinary continuation.
+- Nonce differs **and** the block is stale (`heartbeat_at` over **2 hours** old, and past
+  `paused_until` when set) → an earlier session of this same instance restarted or died. Adopt the
+  block, write my nonce, continue — the ordinary restart path. Two hours is twice the one-hour
+  `ScheduleWakeup` ceiling, so a healthy lane at maximum idle backoff never reads as stale.
+- Nonce differs **and** the block is fresh → **another live lane holds my instance id.** Write
+  nothing to the block, escalate per the convention's escalation contract, and stop the loop
+  cleanly.
+
+`paused_until` is not `rate_limit_latch` and does not replace it: the latch says *do not claim
+work*; `paused_until` says *do not read my silence as death*. Write it before entering a rate-limit
+pause so a paused lane is never adopted as a dead one.
+
+Report the instance on its own `instance:` line in the cycle report, never appended to `lane:` —
+that reader's capture is `[a-z0-9_-]+` and would truncate the suffix at the `@`, rendering the lane
+as if nothing were partitioned.
+
+The legacy un-suffixed comment is never adopted, edited, or tombstoned: its marker names no writer,
+so no instance can prove it owns it, and adopting it would reintroduce the shared-comment clobber
+the partition removes. Retiring it is an operator action.
