@@ -778,8 +778,11 @@ scan_file() {
     # (the bare regex-escape classes, a literal `--perl-regexp`) never demote:
     # their match ends in the same word it starts in, or in a word that does
     # not unquote to an option, and `--` does not un-GNU a regex operand.
-    function dashdash_demoted(view, m, at, matchend,   ce, pe, os, oe) {
-      pe = matchend
+    # On demotion DD_OS holds the start offset of the demoted word so the
+    # caller can discard the tail alone — the greedy gap can carry one match
+    # THROUGH the marker, and an option before it is still real.
+    function dashdash_demoted(view, m, at, mend,   ce, pe, os, oe) {
+      pe = mend
       while (pe > at && is_wordbreak(substr(m, pe, 1))) pe--
       ce = word_end(m, at)
       if (pe <= ce) return 0
@@ -787,6 +790,7 @@ scan_file() {
       if (os <= ce + 1) return 0
       oe = word_end(m, pe)
       if (unquote_word(substr(view, os, oe - os + 1)) !~ /^-/) return 0
+      DD_OS = os
       return dashdash_between(view, m, ce + 1, os - 1)
     }
     # fallback_proven — is the BSD-side `-f` of the ladder PROVEN to be an
@@ -817,8 +821,9 @@ scan_file() {
     # Every rejection here is an over-flag with the one-line
     # `portability-ok:` escape; accepting any of them ships a GNU-only call
     # whose "fallback" cannot run.
-    function fallback_proven(q, m, opos, os, oe,   i, c, w, uw, phase, j) {
+    function fallback_proven(q, m, opos, os, oe,   i, c, w, uw, phase, j, wantarg) {
       phase = 0
+      wantarg = 0
       w = ""
       i = opos + 2
       while (i < os) {
@@ -833,13 +838,20 @@ scan_file() {
         if (is_wordbreak(c)) {
           if (w != "") {
             uw = unquote_word(w)
-            if (uw == "--") return 0
-            if (phase == 0) {
+            if (wantarg) {
+              # The previous word was a cluster whose detached `-t`/`-f`
+              # takes an argument: THIS word is that argument, not an
+              # operand and not an end-of-options marker, so
+              # `|| stat -t "%Y" -f "%z"` stays a real ladder.
+              wantarg = 0
+            } else if (uw == "--") return 0
+            else if (phase == 0) {
               # Before the command word only the shapes CMDPOS admitted can
               # appear — assignments, wrappers, group openers — so nothing
               # here is an operand of the stat call yet.
               if (uw ~ /(^|\/)stat$/) phase = 1
             } else if (uw !~ /^-/) return 0
+            else if (uw ~ /^-[FHhLlnqrsx]*[ft]$/) wantarg = 1
           }
           w = ""
           i++
@@ -848,6 +860,10 @@ scan_file() {
         w = w substr(q, i, 1)
         i++
       }
+      # A pending detached argument swallows the final word itself:
+      # `|| stat -t -f "%z"` hands `-f` to `-t` as its timefmt, so the
+      # ladder ends in an argument, not an option BSD getopt parses.
+      if (wantarg) return 0
       uw = unquote_word(substr(q, os, oe - os + 1))
       if (uw !~ /^-[FHhLlnqrsx]*f/) return 0
       if (substr(uw, index(uw, "f") + 1) != "") return 1
@@ -1088,8 +1104,15 @@ scan_file() {
         # A `--` word inside this invocation demotes the matched option to an
         # operand (dashdash_demoted); a demoted occurrence is discarded and
         # matching RESUMES, exactly as it does past a guarded one, so a later
-        # real invocation on the same record is still evaluated.
-        if (!dashdash_demoted(view, m, at, st + len - 1) && !is_guarded(q, p, at, m)) return at
+        # real invocation on the same record is still evaluated. Only the
+        # demoted word onward is discarded: the greedy gap can extend one
+        # match through the marker (`grep -P pattern -- -P`), and the real
+        # option before the marker must stay visible to the next match.
+        if (dashdash_demoted(view, m, at, st + len - 1)) {
+          scan = substr(scan, 1, DD_OS - 1) blanks(st + len - DD_OS) substr(scan, st + len)
+          continue
+        }
+        if (!is_guarded(q, p, at, m)) return at
         scan = substr(scan, 1, st - 1) blanks(len) substr(scan, st + len)
       }
       return 0

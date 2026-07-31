@@ -1602,6 +1602,25 @@ else
 fi
 rm -f "$f"
 
+# --- ...even when a flag-shaped OPERAND after the marker pulls the greedy
+# match through it: the demotion discards the demoted word alone, and the
+# real option before the marker is still evaluated by the resumed match.
+# Blanking the whole extent silenced it -- the lint passed a live GNU-only
+# option because a same-named operand followed the `--`.
+for line in \
+  'grep -P pattern -- -P' \
+  'sort -V -- -V' \
+  'stat -c "%s" -- -c' \
+  'mktemp -p /tmp -- -p'; do
+  f="$(tmpsh "$line")"
+  if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+    fail "a real option before -- must fail despite a demoted twin after it: $line"
+  else
+    ok "a real option before -- is reported past its demoted twin: $line"
+  fi
+  rm -f "$f"
+done
+
 # --- an invocation wrapper still reaches the real BSD utility, so a ladder
 # through one is a genuine fallback. `command` is POSIX-specified; `env` and a
 # leading backslash reach the same utility.
@@ -1800,7 +1819,9 @@ done
 # the documented BSD invocation.
 for line in \
   'stat -c "%s" "$g" || stat -Lf "%z" "$g"' \
-  'stat -c "%s" "$g" || stat -f%z "$g"'; do
+  'stat -c "%s" "$g" || stat -f%z "$g"' \
+  'stat -c "%s" "$g" || stat -t "%Y" -f "%z" "$g"' \
+  'stat -c "%s" "$g" || stat -Ht "%Y" -f "%z" "$g"'; do
   f="$(tmpsh "$line")"
   if scan_paths "$REAL_TOKENS" "$f" >/dev/null 2>&1; then
     ok "provable fallback still guarded: $line"
@@ -1809,6 +1830,18 @@ for line in \
   fi
   rm -f "$f"
 done
+
+# --- a detached `-t`/`-f` consumes the NEXT word as its argument, in both
+# directions: its argument is not an operand that ends option parsing
+# (above), and a `-f` sitting in the argument slot is timefmt content, not
+# the option the ladder needs.
+f="$(tmpsh 'stat -c "%s" "$g" || stat -t -f "%z" "$g"')"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "a -f consumed by a detached -t must be rejected, got success: $out"
+else
+  ok "a -f in a detached -t's argument slot is not a parsed option"
+fi
+rm -f "$f"
 
 # =============================================================================
 # Word structure the physical line hides -- #1544
