@@ -4,7 +4,7 @@
 The review-disposition-and-resolution contract (D4.6 grounding, D4.6
 provenance, D7.5 thread eligibility, and the authorization rule for a
 resolution that ships no fix) is canonical in ONE file and restated across
-half a dozen others. Nothing checked that the copies agreed, and the failure
+several others. Nothing checked that the copies agreed, and the failure
 mode is silent: every surface is individually well-formed, so a restatement
 that quietly drops a qualifier reads as correct while instructing a lane to do
 what another surface — or a Python guard — forbids.
