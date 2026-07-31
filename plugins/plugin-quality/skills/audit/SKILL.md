@@ -159,8 +159,10 @@ Path: `<plugin-data-dir>/evidence/<session_id>/<target-slug>/<run-nonce>/`
   them nor point resume at one. If the session directory is absent or holds no packet, the findings
   are missing — say so and stop. **Verify each packet before trusting it**:
   `bash "${CLAUDE_PLUGIN_ROOT}/scripts/packet-seal.sh" verify <packet-dir>` (see write-once
-  evidence below); a non-zero exit means the content diverged from what was written and is
-  evidence to weight, not ground truth.
+  evidence below). Exit **1** means the content diverged from what was written — evidence to
+  weight, not ground truth. Exit **2** means integrity is unknown (the packet was never sealed, or
+  no digest tool is available), which is neither a pass nor a failure: carry it forward as a stated
+  limitation rather than reading it as either.
   When reading a packet back, probe a **closed set** of grounded-findings basenames, in this order:
   `audit-notes.md` (current), `audit-data.md` (the single documented fallback below), `findings.md`
   (legacy — packets written before the rename still carry it). The set is closed **by design**: the
