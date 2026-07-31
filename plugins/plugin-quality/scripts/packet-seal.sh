@@ -18,10 +18,13 @@
 # What the digest does and does not cover (stated honestly, because a mechanism
 # that overclaims is worse than none):
 #
-#   COVERED — every divergence after the seal: a formatter re-run triggered by a
-#   subsequent edit (their own notices state the autocorrect "has no memory", so
-#   a hand-repair is rewritten again on the next edit), truncation, or tampering.
-#   VERIFY turns all of those from silent into reported.
+#   COVERED — every divergence after the LAST seal: a formatter re-run triggered
+#   by a subsequent edit (their own notices state the autocorrect "has no
+#   memory", so a hand-repair is rewritten again on the next edit), truncation,
+#   or tampering. VERIFY turns all of those from silent into reported. "Last"
+#   rather than "first" is exact, and `record` enforces the difference: it
+#   refuses to reseal over an already-divergent file, because doing so would
+#   replace the evidence of a rewrite with a digest of the rewritten bytes.
 #
 #   NOT COVERED — the FIRST in-place rewrite. PostToolUse runs after the write
 #   succeeds, so by the time any subsequent tool call can hash the file, the
@@ -47,25 +50,54 @@
 # Output (stdout, greppable): per-file `<verdict> <name>` lines for verify
 # (MATCH / CHANGED / MISSING / UNSEALED), then a summary line.
 #
-# Exit 0 = recorded, or verified with every file matching.
-# Exit 1 = verify found at least one CHANGED, MISSING, or UNSEALED file.
-# Exit 2 = usage error, unusable packet directory, or no digest tool. FAIL
-#          CLOSED: a packet this script cannot grade never reports as intact.
+# Exit 0 = recorded, or verified with every manifest entry matching and nothing
+#          unsealed. NOT a claim the content is pristine — only that nothing
+#          changed since the seal; a rewrite before the first seal is invisible
+#          to any digest and is the read-back's job, not this script's.
+# Exit 1 = verify found at least one CHANGED or MISSING file (altered evidence),
+#          or `record` refused to reseal over an already-divergent file.
+# Exit 2 = usage error, unusable packet directory, no digest tool, or a packet
+#          entry that is a symlink (never permitted). FAIL CLOSED: a packet this
+#          script cannot grade never reports as intact.
+# Exit 3 = verify found every sealed file matching but some file UNSEALED. A
+#          distinct code on purpose: files legitimately arrive after the last
+#          seal (`contract.md` at step 4, `item.md` at step 6), so this is
+#          "integrity unknown for these", never "evidence was altered".
 
 set -uo pipefail
 
 MANIFEST_NAME="packet.sha256"
 
 usage() {
-  sed -n '/^# Tamper-evidence/,/^# Exit 2/p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+  sed -n '/^# Tamper-evidence/,/^# Exit 3/p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
 }
 
 # Every regular file under the packet, as a path relative to it, one per line,
 # in a stable order. Recursive so raw artifacts in subdirectories are covered
 # rather than silently outside the manifest.
+# `! -type d` rather than `-type f`: a symlink is not a regular file, so a
+# `-type f` walk cannot see one — an all-symlink packet enumerated as EMPTY and
+# then verified as "intact", which is the worst possible answer from an
+# integrity tool. Everything that is not a directory is now enumerated, and
+# symlinks are adjudicated per entry by is_symlink below.
 packet_files() {
   local root="$1"
-  (cd "$root" && find . -type f 2>/dev/null | sed 's|^\./||' | LC_ALL=C sort)
+  (cd "$root" && find . ! -type d 2>/dev/null | sed 's|^\./||' | LC_ALL=C sort)
+}
+
+# True when <name> is a symlink. A packet entry is never allowed to be one.
+#
+# The rule is "no symlinks", not "no symlinks that escape", deliberately. An
+# evidence packet is written by Write-tool calls and never legitimately contains
+# a link, so the permissive case buys nothing — while resolving a link's real
+# target portably needs `readlink -f`, which is GNU-only and silently absent on
+# BSD userland, exactly where a resolution bug would go unnoticed. Refusing the
+# whole class is simpler, portable, and fails closed: a link's bytes are not the
+# packet's, they can change with nothing in the packet changing, and digesting
+# one would let a link inside an evidence directory make an arbitrary file on
+# the machine read as sealed packet content.
+is_symlink() {
+  [[ -L "$1/$2" ]]
 }
 
 # GNU coreutils ships sha256sum; macOS ships shasum. Emits `<digest>  <name>`.
@@ -131,6 +163,33 @@ if [[ "$action" == record ]]; then
     files+=("$name")
   done < <(packet_files "$packet")
 
+  # Re-sealing must not LAUNDER divergence. Overwriting the manifest blindly
+  # would replace the digest of an already-altered file with a digest of its
+  # altered bytes, converting a detectable rewrite into a clean bill of health —
+  # the one outcome that makes this tool worse than useless. So an existing
+  # manifest is verified first, and a changed entry stops the reseal.
+  if [[ -f "$manifest" ]]; then
+    relaundered=0
+    while IFS= read -r line; do
+      [[ -n "$line" ]] || continue
+      prev_digest="${line%% *}"
+      prev_name="${line#* }"
+      prev_name="${prev_name# }"
+      [[ -e "$packet/$prev_name" ]] || continue
+      now_digest="$(digest_of "$packet/$prev_name")" || continue
+      if [[ "$now_digest" != "$prev_digest" ]]; then
+        echo "CHANGED $prev_name"
+        relaundered=$((relaundered + 1))
+      fi
+    done <"$manifest"
+    if [[ "$relaundered" -gt 0 ]]; then
+      echo "error: $relaundered already-sealed file(s) differ from the existing manifest — refusing to reseal" >&2
+      echo "       resealing would overwrite the evidence of that divergence with a digest of the altered bytes." >&2
+      echo "       Treat the named files as altered evidence; record the divergence in a NEW packet file." >&2
+      exit 1
+    fi
+  fi
+
   tmp="$manifest.tmp.$$"
   : >"$tmp" || {
     echo "error: cannot write the manifest in: $packet" >&2
@@ -138,6 +197,12 @@ if [[ "$action" == record ]]; then
   }
   for name in ${files[@]+"${files[@]}"}; do
     file="$packet/$name"
+    if is_symlink "$packet" "$name"; then
+      rm -f -- "$tmp"
+      echo "error: packet entry is a symlink: $name" >&2
+      echo "       An evidence packet holds its own bytes; sealing a link would certify a file it does not own." >&2
+      exit 2
+    fi
     d="$(digest_of "$file")" || {
       rm -f -- "$tmp"
       echo "error: cannot digest: $file" >&2
@@ -218,9 +283,21 @@ while IFS= read -r name; do
 done < <(packet_files "$packet")
 
 echo "matched=$matched changed=$changed missing=$missing unsealed=$unsealed"
-if [[ $changed -gt 0 || $missing -gt 0 || $unsealed -gt 0 ]]; then
+
+# CHANGED/MISSING and UNSEALED are different facts and must not share an exit
+# code. A packet routinely acquires files after its last seal — `contract.md` at
+# step 4, `item.md` at step 6 — so collapsing them would make the ordinary
+# interrupted-run packet, the exact case resume exists for, report as tampered
+# evidence and get discarded.
+if [[ $changed -gt 0 || $missing -gt 0 ]]; then
   echo "packet integrity: NOT INTACT — treat the differing files as altered evidence, not ground truth" >&2
+  [[ $unsealed -eq 0 ]] || echo "packet integrity: additionally, $unsealed file(s) are outside the manifest" >&2
   exit 1
 fi
-echo "packet integrity: intact"
+if [[ $unsealed -gt 0 ]]; then
+  echo "packet integrity: INCOMPLETE — every sealed file matches, but $unsealed file(s) were never sealed" >&2
+  echo "       Unsealed is not altered: files added after the last seal land here. Their integrity is simply unknown." >&2
+  exit 3
+fi
+echo "packet integrity: sealed files intact (a rewrite BEFORE the first seal is outside what this can detect)"
 exit 0

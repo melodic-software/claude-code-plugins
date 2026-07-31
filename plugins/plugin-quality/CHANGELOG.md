@@ -18,13 +18,28 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   sends every unattended run to rung 4 and makes that file the sole copy of the audit's entire
   output. Age is graded from the nonce directory NAME, not mtime, so retention does not depend on
   the same in-place mutation the packet exists to resist; an ungradable name is reported and kept.
-  The root must be named `evidence`, so a mistyped path is refused before anything is walked. A
+  The root must be named `evidence`, so a mistyped path is refused before anything is walked, and
+  containment is re-established **per candidate** by canonicalizing it — checking only the root let
+  a symlinked session directory yield a path whose real location is outside the tree, which an
+  independent review reproduced as an `rm -rf` outside the evidence root. Such candidates report
+  `ESCAPED` and are skipped; deletion targets the canonical path. The `item.md` search is recursive
+  and case-insensitive, because a deliverable one directory down is exactly as unrecoverable. A
   delete that fails is its own `FAILED` verdict and exits 1, so an incomplete retention pass is not
-  indistinguishable from a clean one.
+  indistinguishable from a clean one; a dry run reports `would-delete=` rather than `deleted=`.
 - **`scripts/packet-seal.sh` — tamper-evidence for packet files (#1808).** `record` writes a
   `packet.sha256` manifest; `verify` reports `MATCH`/`CHANGED`/`MISSING`/`UNSEALED` per file and
   fails closed on a packet it cannot grade. The resume rule and the `auditor` both verify before
-  trusting packet content.
+  trusting packet content. Altered and merely-unsealed are **separate exit codes** (1 vs 3): a
+  packet legitimately gains files after its last seal — `contract.md` at step 4, `item.md` at step
+  6, both of which now re-seal — so collapsing them would have made the ordinary interrupted-run
+  packet, the exact case resume exists for, report as tampered. `record` refuses to reseal over an
+  already-divergent file rather than laundering the rewrite into a fresh digest, enumeration covers
+  everything that is not a directory (a `-type f` walk could not see symlinks, so an all-symlink
+  packet sealed zero files and then verified "intact"), and a symlink packet entry is refused
+  outright rather than digested — the whole class, not just escaping links, because resolving a
+  target portably would need GNU-only `readlink -f` and a packet never legitimately holds a link.
+  Exit 0 states its own limit: nothing changed *since the seal*, which is not a claim the content
+  is pristine.
 
 ### Fixed
 
@@ -37,9 +52,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   rather than an undocumented improvisation: the argument resolves to a LIST of targets, each gets
   its own packet under a slug derived from the **resolved component identity** (capped at 64
   characters, which also retires the Windows 260-character path hazard), and resume
-  **enumerates** the session directory instead of deriving one slug. Enumeration is safe under the
-  untrusted-content posture for the same reason the closed set is — these directory names are
-  allocated by this workflow, and audited content can neither create them nor point resume at one.
+  **enumerates** the session directory instead of deriving one slug. Enumeration reads no pointer,
+  so unlike a name taken from packet content it cannot be *steered* by audited content — but it is
+  not unconditionally trustworthy: the `auditor` holds Write, so an auditor subverted by an
+  injection could plant a sibling slug that enumeration would pick up. Resume therefore reports the
+  enumerated slug set rather than silently consuming it.
 - **Packet files are declared write-once, and their mutation by sibling hooks is now detectable
   (#1808).** The guardrail section anticipated a write being *rejected*; the likelier event is the
   write succeeding and the content being rewritten underneath it. `PostToolUse` runs after a tool

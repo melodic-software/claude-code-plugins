@@ -106,6 +106,68 @@ else
 fi
 has "UNPARSABLE" "an ungradable directory is reported, not silently kept"
 
+# --- containment holds per candidate, not just for the root -----------------
+#
+# Checking only the root is not containment: a symlink ANYWHERE on the way down
+# yields a path whose real location is elsewhere, and rm -rf follows the real
+# location. An independent review reproduced a delete outside the evidence root
+# through a symlinked session directory.
+#
+# Needs real symlinks; on Git Bash that means MSYS=winsymlinks:nativestrict.
+# Where they cannot be created, SKIP loudly rather than passing vacuously — a
+# containment test that silently no-ops is worse than no test.
+
+sym_root="$WORK/symlink-case"
+rm -rf "$sym_root"
+mkdir -p "$sym_root/data/evidence" "$sym_root/outside/slug/$OLD"
+: >"$sym_root/outside/slug/$OLD/evidence.md"
+if ln -s "$sym_root/outside" "$sym_root/data/evidence/sess-link" 2>/dev/null &&
+  [[ -L "$sym_root/data/evidence/sess-link" ]]; then
+  run 0 "apply runs over a symlinked session directory" --root "$sym_root/data/evidence" --apply
+  has "ESCAPED" "a candidate resolving outside the root is reported as escaped"
+  if [[ -e "$sym_root/outside/slug/$OLD/evidence.md" ]]; then
+    pass "nothing outside the evidence root was deleted"
+  else
+    fail "--apply DELETED a directory outside the evidence root via a symlink"
+  fi
+else
+  echo "SKIP - symlink containment case (cannot create symlinks here; set MSYS=winsymlinks:nativestrict on Git Bash)"
+fi
+
+# --- item.md protection is recursive ----------------------------------------
+
+nested="$WORK/nested-item/evidence"
+rm -rf "$WORK/nested-item"
+mkdir -p "$nested/s/g/$OLD/raw"
+: >"$nested/s/g/$OLD/raw/item.md"
+run 0 "apply runs with a nested item.md" --root "$nested" --apply
+has "RETAIN-ITEM" "a deliverable one directory down still retains the packet"
+if [[ -e "$nested/s/g/$OLD/raw/item.md" ]]; then
+  pass "an item.md in a subdirectory survives --apply"
+else
+  fail "--apply DELETED a nested item.md — the deliverable guard must not be depth-limited"
+fi
+
+# --- dry-run summary never claims deletions ---------------------------------
+
+root="$(fresh_tree)"
+run 0 "dry run for the summary check" --root "$root"
+has "would-delete=" "a dry run reports would-delete="
+if [[ "$last_out" != *"deleted="* ]]; then
+  pass "a dry run never prints deleted="
+else
+  fail "a dry run printed deleted=, which a log reader cannot distinguish from a real delete"
+fi
+
+# --- an unusable --days is diagnosed as such, not as a missing binary -------
+
+run 2 "an out-of-range --days is refused" --root "$(fresh_tree)" --days 999999999999
+if [[ "$last_out" == *"did not yield a usable cutoff"* ]]; then
+  pass "the overflow names the real cause"
+else
+  fail "the overflow was misdiagnosed — output: $last_out"
+fi
+
 # --- root containment -------------------------------------------------------
 
 mkdir -p "$WORK/not-evidence/sess/slug/$OLD"

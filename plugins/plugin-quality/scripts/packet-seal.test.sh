@@ -5,8 +5,9 @@
 #
 # The cases that matter are the silent ones: an in-place rewrite of a sealed
 # file must report CHANGED rather than pass, a file added after the seal must
-# report UNSEALED rather than be trusted, and an unsealed packet must fail
-# closed instead of reading as intact.
+# report UNSEALED rather than be trusted, an unsealed packet must fail closed
+# instead of reading as intact, and "altered" must never share an exit code with
+# "merely not sealed yet" — a packet routinely gains files after its last seal.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -71,12 +72,13 @@ else
 fi
 
 run 0 "verify passes on an untouched packet" verify "$packet"
-has "packet integrity: intact" "an untouched packet reports intact"
+has "sealed files intact" "an untouched packet reports its sealed files intact"
+has "BEFORE the first seal" "the intact verdict states what it cannot detect"
 has "MATCH audit-notes.md" "each sealed file is reported"
 
 # The manifest must not seal itself — re-recording would otherwise chase its
 # own digest and never converge.
-if ! grep -q 'packet.sha256$' "$packet/packet.sha256"; then
+if ! grep -qF 'packet.sha256' "$packet/packet.sha256"; then
   pass "the manifest excludes itself"
 else
   fail "the manifest seals its own name"
@@ -98,7 +100,7 @@ has "NOT INTACT" "the verdict is unambiguous"
 packet="$(fresh_packet)"
 run 0 "record for the added-file case" record "$packet"
 printf 'later\n' >"$packet/audit-notes-2.md"
-run 1 "verify fails on an unsealed file" verify "$packet"
+run 3 "verify reports an unsealed file as incomplete, not altered" verify "$packet"
 has "UNSEALED audit-notes-2.md" "the unsealed file is named"
 
 # --- a filename is compared as a string, never as a pattern -----------------
@@ -114,7 +116,7 @@ mkdir -p "$packet"
 printf 'sealed\n' >"$packet/audit-notesXmd"
 run 0 "record for the metacharacter case" record "$packet"
 printf 'never sealed\n' >"$packet/audit-notes.md"
-run 1 "verify reports an unsealed name that a regex would have matched" verify "$packet"
+run 3 "verify reports an unsealed name that a regex would have matched" verify "$packet"
 has "UNSEALED audit-notes.md" "the unsealed file is not swallowed by a pattern match"
 
 # --- a deleted file --------------------------------------------------------
@@ -136,7 +138,7 @@ mkdir -p "$packet/raw"
 printf 'captured stdout\n' >"$packet/raw/invocation.txt"
 run 0 "record seals a nested artifact" record "$packet"
 has "sealed=3" "the nested file is counted"
-if grep -q 'raw/invocation.txt$' "$packet/packet.sha256"; then
+if grep -qF 'raw/invocation.txt' "$packet/packet.sha256"; then
   pass "the manifest names the nested file by its relative path"
 else
   fail "the nested file is missing from the manifest"
@@ -145,6 +147,63 @@ run 0 "verify passes with a nested artifact untouched" verify "$packet"
 printf 'tampered\n' >"$packet/raw/invocation.txt"
 run 1 "verify detects a rewritten nested artifact" verify "$packet"
 has "CHANGED raw/invocation.txt" "the nested rewrite is named"
+
+# --- altered and merely-unsealed are DIFFERENT answers ----------------------
+#
+# A packet legitimately gains files after its last seal (contract.md at step 4,
+# item.md at step 6). Collapsing "never sealed" into the altered-evidence exit
+# would make the ordinary interrupted-run packet — the exact case resume exists
+# for — report as tampered and get discarded.
+
+packet="$(fresh_packet)"
+run 0 "record for the unsealed-only case" record "$packet"
+printf 'locked scope\n' >"$packet/contract.md"
+run 3 "an unsealed-only packet exits 3, not 1" verify "$packet"
+has "UNSEALED contract.md" "the unsealed file is named"
+has "INCOMPLETE" "the verdict distinguishes incomplete from altered"
+if [[ "$last_out" != *"NOT INTACT"* ]]; then
+  pass "an unsealed-only packet is never called altered evidence"
+else
+  fail "an unsealed file was reported as altered evidence"
+fi
+
+# A CHANGED file still outranks an unsealed one.
+printf 'rewritten\n' >"$packet/evidence.md"
+run 1 "a changed file still exits 1 even alongside an unsealed one" verify "$packet"
+has "CHANGED evidence.md" "the changed file is named"
+
+# --- resealing must not launder a rewrite -----------------------------------
+
+packet="$(fresh_packet)"
+run 0 "record before the laundering attempt" record "$packet"
+printf 'rewritten by a formatter\n' >"$packet/audit-notes.md"
+run 1 "record refuses to reseal over an already-divergent file" record "$packet"
+has "CHANGED audit-notes.md" "the divergent file is named at reseal time"
+run 1 "verify still reports the divergence after the refused reseal" verify "$packet"
+has "CHANGED audit-notes.md" "the rewrite was not laundered into a fresh digest"
+
+# --- symlinks are visible, and escaping ones are refused --------------------
+#
+# `-type f` cannot see a symlink, so an all-symlink packet enumerated as EMPTY
+# and then verified "intact" — the worst answer an integrity tool can give.
+# Needs real symlinks (MSYS=winsymlinks:nativestrict on Git Bash); SKIP loudly
+# otherwise rather than passing vacuously.
+
+sym="$WORK/symlink-packet"
+rm -rf "$sym"
+mkdir -p "$sym"
+printf 'not the packet\n' >"$WORK/outside-target.md"
+if ln -s "$WORK/outside-target.md" "$sym/audit-notes.md" 2>/dev/null && [[ -L "$sym/audit-notes.md" ]]; then
+  run 2 "record refuses a symlink packet entry" record "$sym"
+  has "packet entry is a symlink" "the refusal names the reason"
+  if [[ ! -f "$sym/packet.sha256" ]]; then
+    pass "no manifest is written for a packet it refused to seal"
+  else
+    fail "a manifest was written despite the refusal"
+  fi
+else
+  echo "SKIP - symlink visibility case (cannot create symlinks here; set MSYS=winsymlinks:nativestrict on Git Bash)"
+fi
 
 # --- fail closed ------------------------------------------------------------
 
