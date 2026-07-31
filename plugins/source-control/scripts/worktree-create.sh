@@ -223,20 +223,9 @@ fi
 # The remaining name check — git's own ref grammar — needs a healthy repository
 # to run in, so it waits until $toplevel is resolved below.
 
-# Unconfigured root: detected here, but RESOLVED after $toplevel below — the
-# fallback is derived from the repository's own location, which is not known yet.
+# Unconfigured root: detected here, resolved after the repository is known below.
 # Treat an empty value or an unexpanded ${user_config.*} token (what Claude Code
 # leaves when the key is unset) as unset.
-#
-# NOT ${CLAUDE_PLUGIN_DATA}. That would be the obvious mirror of
-# babysit_worktree_root, and it is wrong here: this helper's callers are the
-# worktree skill and orchestrated workers, both of which run it in a general
-# Bash-tool subprocess, where that variable is NOT scoped to the invoking plugin
-# — this repository's own probe recorded it pointing at an unrelated installed
-# plugin's data directory (docs/extensibility-contract-smoke-tests.md "Result").
-# Nor can the skill substitute the token into its markdown and hand it over: the
-# token substitutes only in hook/monitor/MCP paths, not skill content. So the
-# plugin data dir is unreachable from every caller this helper actually has.
 #
 # SC2016: the single-quoted ${user_config token is matched literally on purpose —
 # we are detecting the UNexpanded placeholder, so expansion here would be a bug.

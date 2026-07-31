@@ -28,16 +28,6 @@ All notable changes to the `source-control` plugin are documented here. Format f
   discovery tool walks, and `ghq list` then reports each worktree as a repository of its own — a
   leading dot does not hide it.
 
-  **Not `${CLAUDE_PLUGIN_DATA}`**, which would have been the obvious mirror of
-  `babysit_worktree_root`. This helper's callers are the worktree skill and orchestrated workers,
-  both of which run it in a general Bash-tool subprocess — where that variable is not scoped to the
-  invoking plugin. This repository's own probe recorded it naming an unrelated installed plugin's
-  data directory (`docs/extensibility-contract-smoke-tests.md`), so a default reading it could place
-  worktrees under another plugin's storage. The token cannot be substituted into skill markdown and
-  handed over either: it substitutes only in hook/monitor/MCP paths. The repository checkout is the
-  one root every caller can actually reach. A regression test pins this — a stray
-  `CLAUDE_PLUGIN_DATA` must not steer where the worktree lands.
-
 ### Fixed
 
 - **The refusal rationale cited a defect that no longer reproduces.** Four surfaces — the helper,
