@@ -1,7 +1,7 @@
 # Cross-Surface Conflict Criteria
 
-Version: 1.2.0
-Last updated: 2026-07-30
+Version: 1.3.0
+Last updated: 2026-07-31
 
 **The adjudication procedure for check I15.** [criteria.md](criteria.md)'s I15 entry owns the
 definition — what a cross-surface conflict *is*, its comparison set, its import and symlink
@@ -19,7 +19,8 @@ precedence or load-order text; a change to the skills page's statements about in
 any new instruction surface added to the product; a change to how permission rules or permission
 modes remove a tool from Claude's pool; a change to **which hook events inject handler output into
 the session's context**, to the events `additionalContext` is accepted on, or to the handler types
-that can return it.
+that can return it; a change to **which events exit 2 can actually block** in the hooks page's
+per-event exit-2 table, or to the set of locations a hook may be declared in.
 
 ## Sources
 
@@ -204,10 +205,24 @@ Three consequences for residency, and each one bounds a pair rather than admitti
   manual compaction"), so a hook registered for it re-injects and a hook registered only for
   `startup` does not. Treat a pair whose hook half is `startup`-only as conditional after a
   compaction, and say so rather than asserting permanent residency.
-- **Exit-2 stderr is turn-scoped error feedback, not a standing directive.** "Exit 2 means a
-  blocking error … stderr text is fed back to Claude as an error message." It reaches Claude, so it
-  is not nothing; but it is a one-turn message about one blocked act, and its conflict-bearing
-  content is the act it blocks — the treatment the prompt-hook bullets above already give.
+- **Exit-2 stderr is turn-scoped error feedback, not a standing directive — and only some events
+  have an act to block.** "Exit 2 means a blocking error … stderr text is fed back to Claude as an
+  error message." It reaches Claude, so it is not nothing; but it is a one-turn message, never a
+  standing rule. Whether it also carries a *gate* is event-specific, and the hooks page's per-event
+  exit-2 table settles it — resolve the handler's event before applying any gate abstraction:
+  - **Blockable events** — `PreToolUse`, `UserPromptSubmit`, `Stop`, `SubagentStop`, `PreCompact`,
+    and `UserPromptExpansion`. Here exit 2 does prevent something, so the conflict-bearing content
+    is the act it blocks — the treatment the prompt-hook bullets above already give. `SubagentStop`
+    is blockable but subagent-scoped: its act pairs inside the subagent, under the subagent-scoping
+    rule above, and never against a main-session surface.
+  - **Non-blockable events** — `PostToolUse`, `Notification`, `SubagentStart`, `SessionStart`, and
+    `SessionEnd`. Nothing is prevented, so there is no act and no gate to pair; the table says so
+    outright for `PostToolUse` ("the tool already ran"), and this repository's own `PostToolUse`
+    linter records the same thing at `plugins/actionlint/hooks/actionlint-check.sh`. Treat the
+    message as transient feedback and pair it as nothing. Reading a `PostToolUse` linter's exit-2
+    stderr as a prohibition on the tool it ran *after* would manufacture an unsatisfiable conflict
+    against any instruction requiring that tool — the tool already ran, and the hook can neither
+    block nor undo it.
 - **A hook's own configuration is still not instruction text.** The command line, its arguments, and
   its `matcher` are the gate, not prose addressed to the model. Extract only what is injected, under
   the same no-secrets handling every settings-sourced surface gets.

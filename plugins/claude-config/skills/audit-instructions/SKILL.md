@@ -125,10 +125,18 @@ official memory and `.claude`-directory docs (cited in the report's Sources line
   `.claude/rules/`, `.claude/skills/`, `.claude/agents/`, `.claude/output-styles/`.
 - **Hook instruction text** configured in the project or user `settings.json`, **and in
   `.claude/settings.local.json`** — local settings are a supported hook-configuration scope, so a
-  hook configured there gates the session as much as one configured anywhere else. Two kinds, and
-  the discriminator is **whether the handler's output reaches this session's context, never the
-  handler's `type`** ([reference/conflict-criteria.md](reference/conflict-criteria.md) owns the
-  distinction and its citations):
+  hook configured there gates the session as much as one configured anywhere else — **and declared
+  in the `hooks:` frontmatter of the user- and project-scope skills and agents listed above**.
+  Frontmatter is a supported hook location, live "while the component is active", so a hook in a
+  locally owned `.claude/skills/**/SKILL.md` or `.claude/agents/*.md` is exactly as editable as the
+  body it rides on and belongs in this set, not the read-only tier below — that tier's counterpart
+  item covers the plugin cache, whose components no proposal may touch. Anchor a frontmatter hook at
+  its own component file and frontmatter line rather than at a settings file. A subagent's
+  frontmatter `Stop` hook is registered as `SubagentStop`, so resolve the effective event before
+  pairing. Two kinds, and the discriminator is **whether the handler's output reaches this session's
+  context, never the handler's `type`**
+  ([reference/conflict-criteria.md](reference/conflict-criteria.md) owns the distinction and its
+  citations):
   - **Prompt-type hook text** — extract the prompt text. **What is compared is the gate, not the
     prose:** it goes to a separate evaluator model, never into this session's context, so it enters
     the comparison set as the act it blocks under its event and `matcher`. An `agent` handler is
@@ -145,8 +153,9 @@ official memory and `.claude`-directory docs (cited in the report's Sources line
     surface with the emitting handler's event and `matcher` and mark the text `text-unresolved`
     rather than inventing it; a run inside the session it describes can read what was injected.
 
-  Never carry a command line, token, or other secret-bearing value out of a settings file into the
-  report — extract only the injected text, under the same no-secrets handling for both kinds.
+  Never carry a command line, token, or other secret-bearing value out of a settings file or a
+  component's frontmatter into the report — extract only the injected text, under the same
+  no-secrets handling for both kinds and both locations.
 
 **The tree does not decide what is live.** Before the inventory is handed to any lane, resolve the
 session's effective liveness controls — the launch directory, the merged `claudeMdExcludes`,
@@ -195,7 +204,9 @@ involving one still carries the no-change representation and its routing recomme
   plugin's `hooks/hooks.json` (a plugin is a supported hook location, so that text is as live as a
   settings-configured hook — and a plugin `SessionStart` handler injecting a standing behavioral
   block is the case that motivated the two-kind split), hooks declared in the frontmatter of an
-  active skill or agent (a supported location, live "while the component is active"), **the active
+  active skill or agent **from that cache** (a supported location, live "while the component is
+  active"; the user- and project-scope counterparts are locally owned and are inventoried in the
+  editable set above, not here), **the active
   output style when a plugin supplies it**, and any managed materialization. The output-style case
   is easy to miss because the user- and project-scope scans cannot reach the plugin cache: plugins
   ship styles in an

@@ -18,7 +18,7 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   surface at all.
 
   **The discriminator is now whether the handler's output reaches this session's context, not
-  whether the handler is `type: "command"`** (criteria 1.1.0 → 1.2.0). Handler stdout on
+  whether the handler is `type: "command"`** (criteria 1.1.0 → 1.3.0). Handler stdout on
   `SessionStart`, `UserPromptSubmit`, and `UserPromptExpansion`, and
   `hookSpecificOutput.additionalContext` on a main-session event that accepts it, enter the
   comparison set **as text**; stdout on any other event still does not. `mcp_tool` shares the stdout
@@ -37,8 +37,9 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   `MEMORY.md` or output style. Injected text is ordinary message history rather than a re-injected
   surface (a `SessionStart` hook re-injects after compaction only on the `compact` matcher, so a
   `startup`-only hook's pair is conditional there). Exit-2 stderr reaches Claude but is turn-scoped
-  error feedback about one blocked act, not a standing directive. And a hook's own configuration —
-  command line, arguments, `matcher` — remains the gate rather than instruction text.
+  error feedback, not a standing directive, and it carries a gate only on the events that can
+  actually block. And a hook's own configuration — command line, arguments, `matcher` — remains the
+  gate rather than instruction text.
 
   Phase A's hook inventory splits into the two kinds accordingly, across settings scopes, managed
   settings, and plugin `hooks/hooks.json`, under unchanged no-secrets handling; where the injected
@@ -51,12 +52,36 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   partition widen from "prompt-type hooks" to "hook instruction text" — without which the newly
   admitted surface could be read but never produce a finding — as do the two consumer surfaces that
   restate the list, the skill's own `description` and the plugin README. Skill and agent frontmatter,
-  a documented hook location Phase A did not inventory at all, is added alongside.
+  a documented hook location Phase A did not inventory at all, is added alongside — **split by
+  ownership rather than filed under one tier.** A frontmatter hook in a user- or project-scope
+  `.claude/skills/**/SKILL.md` or `.claude/agents/*.md` is as editable as the body it rides on, so it
+  joins the **editable** inventory and produces a proposal of its own; only an enabled plugin's
+  *cached* components stay in the read-only tier, whose contract yields no proposal and routes to
+  another owner. Filing every frontmatter hook read-only would have mishandled the locally owned
+  ones — and reading the item as plugin-cache-only would have left them inventoried nowhere. A
+  frontmatter hook anchors at its own component file and frontmatter line, and a subagent's `Stop`
+  hook is registered as `SubagentStop`, so the effective event is resolved before pairing.
+
+  **The exit-2 gate is applied only where exit 2 can actually block.** Treating every exit-2 stderr
+  message as the act it blocks manufactured an unsatisfiable conflict on events that block nothing:
+  a `PostToolUse` linter exiting 2 would have read as a prohibition on the very tool a `CLAUDE.md`
+  requires, though the tool already ran and the hook can neither block nor undo it — as this
+  repository's own `PostToolUse` linter records at `plugins/actionlint/hooks/actionlint-check.sh`.
+  The hooks page's per-event exit-2 table now partitions the treatment: exit 2 blocks on
+  `PreToolUse`, `UserPromptSubmit`, `Stop`, `SubagentStop`, `PreCompact`, and `UserPromptExpansion`,
+  where the stderr enters as the act it blocks; on `PostToolUse`, `Notification`, `SubagentStart`,
+  `SessionStart`, and `SessionEnd` nothing is prevented, so the message stays transient feedback and
+  pairs as nothing. `SubagentStop` blocks but is subagent-scoped, so its act pairs inside the
+  subagent rather than against a main-session surface.
 
   The hooks page is added to Sources and to the recheck triggers in both criteria files (catalog
-  1.3.0 → 1.4.0, for the widened surface partition and I13 surface set). Eval 14 pins the admission
-  on the case that exposed the gap: a `SessionStart` `type: "command"` handler injecting a standing
-  behavioral block, against an active output style's format contract.
+  1.3.0 → 1.4.0, for the widened surface partition and I13 surface set); the per-event exit-2 table
+  and the set of supported hook locations join the recheck triggers as newly load-bearing. Eval 14
+  pins the admission on the case that exposed the gap: a `SessionStart` `type: "command"` handler
+  injecting a standing behavioral block, against an active output style's format contract. Eval 15
+  pins a project-scope frontmatter hook landing in the editable inventory rather than the read-only
+  tier, and eval 16 pins a `PostToolUse` exit-2 handler producing no conflict against a `CLAUDE.md`
+  that requires the tool it ran after.
 
 ## [0.16.0]
 
