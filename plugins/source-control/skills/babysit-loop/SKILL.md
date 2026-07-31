@@ -365,8 +365,7 @@ config; default: the open issue titled `Lane telemetry: babysit-loop` (exact mat
 contract; one writer identity owns a marker). The upsert itself — lane-instance resolution and
 validation, the singleton lookup, the POST/PATCH, the creation-race reconcile, and the
 instance-collision check — is owned by
-[reference/telemetry-upsert.md](reference/telemetry-upsert.md), inlined in this plugin because an
-installed plugin cannot invoke a sibling's scripts.
+[reference/telemetry-upsert.md](reference/telemetry-upsert.md).
 
 The comment carries the human-readable cycle report plus a machine-readable **durable loop state**
 block, re-read at every cycle start:

@@ -304,11 +304,11 @@ cat >"$CONFIG_PIN" <<'JSON'
 JSON
 TEL_PIN="$TMP/tel-pin.json"
 jq -n \
-  --arg wq "$(state_comment 'work-items:work-loop@laptop-a' 'true')" \
-  --arg wa "$(state_comment 'work-items:work-loop@laptop-b' 'true')" \
-  --arg bq "$(state_comment 'source-control:babysit-loop@laptop-a' 'true')" \
-  --arg ba "$(state_comment 'source-control:babysit-loop@laptop-b' 'null')" \
-  '{work: [{body: $wq}, {body: $wa}], babysit: [{body: $bq}, {body: $ba}]}' >"$TEL_PIN"
+  --arg work_a "$(state_comment 'work-items:work-loop@laptop-a' 'true')" \
+  --arg work_b "$(state_comment 'work-items:work-loop@laptop-b' 'true')" \
+  --arg babysit_a "$(state_comment 'source-control:babysit-loop@laptop-a' 'true')" \
+  --arg babysit_b "$(state_comment 'source-control:babysit-loop@laptop-b' 'null')" \
+  '{work: [{body: $work_a}, {body: $work_b}], babysit: [{body: $babysit_a}, {body: $babysit_b}]}' >"$TEL_PIN"
 OUT="$(bash "$SCRIPT" check --config "$CONFIG_PIN" --repo "$REPO" --data-dir "$DATA" \
   --target-repo "owner/name" --launcher "$LAUNCHER" --no-telemetry --now 1800000000 \
   --telemetry-json "$TEL_PIN" --agents-json "$AGENTS_NONE" 2>&1)"
