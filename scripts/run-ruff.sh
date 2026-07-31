@@ -38,17 +38,15 @@ if [[ -z "$pin" ]]; then
   exit 2
 fi
 
-ruff_reported_version() {
-  local out
-  out="$("$1" --version 2>/dev/null)" || return 1
-  # `ruff --version` prints "ruff X.Y.Z"
-  printf '%s\n' "${out##* }"
-}
-
 if command -v ruff >/dev/null 2>&1; then
+  # Probe PATH ruff outside conditionals so SC2310 does not fire on set -e.
+  set +e
+  out="$(ruff --version 2>/dev/null)"
+  rc=$?
+  set -e
   got=""
-  if version="$(ruff_reported_version ruff)"; then
-    got="$version"
+  if [[ $rc -eq 0 ]]; then
+    got="${out##* }"
   fi
   if [[ "$got" == "$pin" ]]; then
     exec ruff "$@"
@@ -60,9 +58,13 @@ if command -v uvx >/dev/null 2>&1; then
 fi
 
 if command -v ruff >/dev/null 2>&1; then
+  set +e
+  out="$(ruff --version 2>/dev/null)"
+  rc=$?
+  set -e
   got="unknown"
-  if version="$(ruff_reported_version ruff)"; then
-    got="$version"
+  if [[ $rc -eq 0 ]]; then
+    got="${out##* }"
   fi
   echo "error: ruff on PATH is ${got}, but CI pins ruff==${pin} (.github/requirements-ci.txt)." >&2
   echo "error: install the pin, or install uv and re-run (uvx ruff==${pin} ...)." >&2
