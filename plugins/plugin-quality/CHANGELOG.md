@@ -18,7 +18,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   sends every unattended run to rung 4 and makes that file the sole copy of the audit's entire
   output. Age is graded from the nonce directory NAME, not mtime, so retention does not depend on
   the same in-place mutation the packet exists to resist; an ungradable name is reported and kept.
-  The root must be named `evidence`, so a mis-passed path is refused before anything is walked.
+  The root must be named `evidence`, so a mis-passed path is refused before anything is walked. A
+  delete that fails is its own `FAILED` verdict and exits 1, so an incomplete retention pass is not
+  indistinguishable from a clean one.
 - **`scripts/packet-seal.sh` — tamper-evidence for packet files (#1808).** `record` writes a
   `packet.sha256` manifest; `verify` reports `MATCH`/`CHANGED`/`MISSING`/`UNSEALED` per file and
   fails closed on a packet it cannot grade. The resume rule and the `auditor` both verify before

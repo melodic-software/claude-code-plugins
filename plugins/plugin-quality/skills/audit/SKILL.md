@@ -140,7 +140,9 @@ Path: `<plugin-data-dir>/evidence/<session_id>/<target-slug>/<run-nonce>/`
   session gets its own directory instead of clobbering the first.
 - **Retention (script, not prose):** run
   `bash "${CLAUDE_PLUGIN_ROOT}/scripts/packet-prune.sh" --root <plugin-data-dir>/evidence --apply`
-  once at the start of a run, after step 1's directory is created. A recursive delete over the tree
+  **once per audit run** — not once per target — after step 1 has created the first target's
+  directory (the root must exist). `--apply` is correct here: routine retention is the whole point,
+  and this run's own packets carry today's nonce, so they are never in range. A recursive delete over the tree
   holding the only durable copy of the findings is the last thing to leave to model obedience, so
   the two safety properties live in the script and hold whether or not this paragraph is read: it
   is **dry-run by default**, and it **never deletes a packet containing `item.md`** at any age —
