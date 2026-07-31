@@ -789,21 +789,28 @@ check_segment() {
   exit 2
 }
 
-# Reduce a PowerShell command to a Bash-tokenizer-faithful form, or fail closed.
+# Reduce a PowerShell command to a Bash-tokenizer-faithful form, or defer.
 # For the Bash tool this is a no-op (COMMAND unchanged). The canonical PowerShell
 # commit form (a here-string piped to `git commit -F -`) reduces to
 # `<placeholder> | git commit -F -`, which the parser below recognizes as the
 # stdin form and allows.
+#
+# Any nonzero rc defers: rc 1 is provably git-free, and rc 2 (git-shaped
+# unparsable) is a form this guard cannot read at all, so its message would name
+# a commit shape it never saw. `block-dangerous-git` and `block-no-verify` call
+# the classifier with the same arguments and still block that rc-2 set —
+# `block-dangerous-git` with a message describing what was actually observed.
+# RESIDUAL: those two carry their own kill switches, so a config disabling both
+# while leaving this guard on no longer blocks a git-shaped unparsable PowerShell
+# commit — the exposure that came with this deferral (#1858). The deferral emits
+# its own `form` so it stays distinguishable from an evaluated allow in telemetry.
 ps::classify_git_command "$TOOL_NAME" "$COMMAND"
-case $? in
-2)
-  ps::print_unparsable_block_message
-  emit_tel "blocked" "powershell-unparsable"
-  exit 2
-  ;;
-1) exit 0 ;; # non-commit PowerShell with an A2b-deferred construct
-*) COMMAND="$PS_SAFE_COMMAND" ;;
-esac
+ps_rc=$?
+((ps_rc == 0)) || {
+  emit_tel "ok" "powershell-deferred"
+  exit 0
+}
+COMMAND="$PS_SAFE_COMMAND"
 
 # Resolved-subcommand names already expanded in the CURRENT alias chain — git's
 # own alias-loop guard. Initialized here (not in check_segment, which recurses
