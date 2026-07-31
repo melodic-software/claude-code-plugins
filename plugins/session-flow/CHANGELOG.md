@@ -1,5 +1,23 @@
 # Changelog — session-flow plugin
 
+## [0.17.21]
+
+### Fixed
+
+- **The observer's poll interval was documented and read but never declared, so the plugin's own
+  config surface could not set it.** `observer-arm.sh` lists
+  `CLAUDE_PLUGIN_OPTION_OBSERVER_POLL_SECONDS` among its supported knobs and reads it into the
+  `--poll-seconds` the observer loop sleeps on, but the manifest declared no
+  `observer_poll_seconds` entry. Only a declared `userConfig` option is prompted for, stored under
+  `pluginConfigs[<id>].options`, and exported to hook processes, so nothing the consumer could set
+  through `/plugin` ever reached the hook — it always took the hardcoded 5-second fallback, and
+  silently, since a `:-5` read cannot distinguish an undeliverable value from an unset one. (A
+  hand-written repo `env` block could still populate the variable, per
+  `docs/conventions/hook-config-delivery/`; that is the workaround, not the interface.) Its five
+  siblings on the same hook — `observer_enabled`, `observer_analysis_*`, `observer_idle_seconds`,
+  `observer_max_seconds` — were all declared; this one was missed. The manifest now declares it,
+  alongside the idle and lifetime knobs it is read with.
+
 ## [0.17.20]
 
 ### Fixed
