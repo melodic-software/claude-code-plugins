@@ -9,7 +9,7 @@
   "properties": {
     "tool": {
       "type": "string",
-      "description": "Always \"Bash\" — this guard matches only Bash tool calls."
+      "description": "The invoking tool — \"Bash\" or \"PowerShell\"; this guard matches both."
     },
     "subject": {
       "type": "string",
