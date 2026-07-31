@@ -250,6 +250,48 @@ assert_contains "prefix-collision marker does not adopt the longer lane — crea
 assert_not_contains "never PATCHes the longer lane's comment" "$log" "method=PATCH url=repos/$REPO/issues/comments/555"
 
 # ============================================================================
+# writer-identity suffix (#1295) — `@` is a marker-charset char on BOTH lookaround
+# boundaries, so a lane-type marker must not adopt an INSTANCE's comment. Without
+# `@` in the classes, `lane:triage` matches inside `lane:triage@laptop-a` and this
+# run would PATCH that instance's durable state.
+# ============================================================================
+cat >"$TMP/instance-suffix.json" <<'JSON'
+[
+  { "id": 666, "created_at": "2026-07-19T00:00:00Z", "user": {"login": "octocat"},
+    "body": "<!-- claude-ops:lane-telemetry marker=lane:triage@laptop-a -->\nlane: triage" }
+]
+JSON
+: >"$LOG"
+out="$(STUB_ME="octocat" run "$TMP/instance-suffix.json" 2>&1)"
+log="$(cat "$LOG")"
+assert_contains "lane-type marker does not adopt an instance's comment — creates" "$out" "created comment 999"
+assert_not_contains "never PATCHes an instance-suffixed comment" "$log" "method=PATCH url=repos/$REPO/issues/comments/666"
+
+# ============================================================================
+# an instance marker must not adopt a LONGER instance marker either — the same
+# boundary rule one level down (`lane:triage@a` vs `lane:triage@a@b`).
+# ============================================================================
+INST_SENT='<!-- claude-ops:lane-telemetry marker=lane:triage@a -->'
+cat >"$TMP/instance-superstring.json" <<'JSON'
+[
+  { "id": 888, "created_at": "2026-07-19T00:00:00Z", "user": {"login": "octocat"},
+    "body": "<!-- claude-ops:lane-telemetry marker=lane:triage@a@b -->\nlane: triage" }
+]
+JSON
+: >"$LOG"
+out="$(STUB_ME="octocat" STUB_SENTINEL="$INST_SENT" STUB_COMMENTS_FILE="$TMP/instance-superstring.json" \
+  bash "$SCRIPT" --repo "$REPO" --issue 502 --marker "lane:triage@a" --body-file "$BODY" --body-dir "$SAFE_DIR" 2>&1)"
+log="$(cat "$LOG")"
+assert_contains "instance marker does not adopt a longer instance marker — creates" "$out" "created comment 999"
+assert_not_contains "never PATCHes the longer instance's comment" "$log" "method=PATCH url=repos/$REPO/issues/comments/888"
+
+# An instance-suffixed marker is accepted by argument validation at all.
+: >"$LOG"
+out="$(STUB_SENTINEL="$INST_SENT" run "$TMP/empty.json" --marker "lane:triage@a" --dry-run 2>&1)"
+rc=$?
+assert_eq "instance-suffixed marker is a valid --marker" 0 "$rc"
+
+# ============================================================================
 # pagination — sentinel comment on a SECOND page is still found (no duplicate)
 # --paginate concatenates one array per page; the script slurps them.
 # ============================================================================
