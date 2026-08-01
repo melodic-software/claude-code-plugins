@@ -89,11 +89,6 @@ Supplementary references:
 
 - <https://platform.claude.com/docs/en/release-notes/system-prompts>
 
-Blog posts:
-
-- <https://claude.com/blog/building-verification-loops-in-claude-code-with-skills>
-  — pairs with any verification-loop or loop-engineering work the consuming setup already tracks
-
 ## Artifact targets
 
 Interview-handoff dispositions for this publisher typically route to: per-model doctrine
