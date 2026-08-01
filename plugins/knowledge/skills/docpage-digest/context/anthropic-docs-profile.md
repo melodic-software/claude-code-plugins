@@ -87,7 +87,6 @@ Deferred with trigger (not queued):
 
 Supplementary references:
 
-- <https://platform.claude.com/docs/en/resources/overview>
 - <https://platform.claude.com/docs/en/release-notes/system-prompts>
 
 Blog posts:
