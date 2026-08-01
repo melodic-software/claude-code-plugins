@@ -4,6 +4,20 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.10.13]
+
+### Changed
+
+- **`docpage-digest` Anthropic profile: verification-loops blog entry removed, and the "Blog posts"
+  heading with it.** The `claude.com/blog/building-verification-loops-in-claude-code-with-skills`
+  slice completed — raw-md fetch through interview handoff, with dual verification reached on
+  identical SHA-256-pinned bytes (both arms PASS, no MAJOR findings) — so its entry leaves the doc
+  queue per the queue's remove-on-completion rule, and the heading is removed because it emptied.
+  The slice exercised the vendor-blog attestation rule (profile 0.10.9) at scale: all 44
+  `vendor-claimed` rows carry a targeted row-local `platform.claude.com` check, because the rule's
+  predicate — "no harness **or platform** doc states the same assertion" — names both properties and
+  a harness-only search never establishes it.
+
 ## [0.10.12]
 
 ### Changed
