@@ -4,6 +4,24 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.10.14]
+
+### Changed
+
+- **`docpage-digest` Anthropic profile: system-prompts release-notes entry removed, and the doc
+  queue is now empty.** The `platform.claude.com/docs/en/release-notes/system-prompts` slice
+  completed — 18 digests over a 2,548-line source, 659 claim rows, 561 `api-only`. It is the
+  largest slice the pipeline has run and the last entry in the queue; only the deferred
+  task-budgets trigger entry remains, which was never queued.
+- **The "Supplementary references" heading is removed with it**, since the entry was the last one
+  under it.
+
+Verification reached `VERDICT: PASS` on both arms across the run's rounds, on SHA-256-pinned bytes,
+with a final confirming round after the last corrections. Residual MINOR findings are disclosed in
+the slice's `interview-handoff.md` as Open questions for the batched dispositions interview, per the
+run's stopping rule; one contested tag-ordering question is escalated there as a candidate profile
+amendment rather than decided in-run.
+
 ## [0.10.13]
 
 ### Changed

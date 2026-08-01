@@ -85,10 +85,6 @@ Deferred with trigger (not queued):
   states task budgets are not supported on Claude Code or Cowork; verified 2026-07-27); enqueue
   when harness support lands
 
-Supplementary references:
-
-- <https://platform.claude.com/docs/en/release-notes/system-prompts>
-
 ## Artifact targets
 
 Interview-handoff dispositions for this publisher typically route to: per-model doctrine
