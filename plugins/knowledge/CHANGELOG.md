@@ -4,6 +4,17 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.10.12]
+
+### Changed
+
+- **`docpage-digest` Anthropic profile: resources-overview queue entry removed.** The
+  `platform.claude.com/docs/en/resources/overview` slice completed — raw-md fetch through interview
+  handoff, with dual verification reached on identical SHA-256-pinned bytes (both arms PASS, no
+  MAJOR findings) — so its entry leaves the doc queue per the queue's remove-on-completion rule. The
+  "Supplementary references" heading remains: the system-prompts release-notes page is a separate
+  concurrent run under the same heading, and its own queue PR removes the heading when it empties.
+
 ## [0.10.11]
 
 ### Changed
