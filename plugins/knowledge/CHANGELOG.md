@@ -4,6 +4,46 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.10.16]
+
+### Changed
+
+- **`docpage-digest` — the second and final batch of the campaign's evidence-forced amendments.**
+  Same standard as 0.10.15: every rule below was demonstrated as a defect by the pipeline's own
+  runs, and each states its evidence inline.
+- **Anthropic profile — what falsifies `api-only`, stated once as a graded rule.** Only the corpus
+  documenting the claim's *own specific assertion* falsifies the tag. A harness page covering the
+  row's subject without stating its rule is a **near-miss**: the tag survives and the row must name
+  it by page and line. Weaker still and not even a near-miss: a counterpart artifact on the other
+  property, and a workload named only as an example beside a guide that teaches it. Undisclosed
+  near-misses were the largest MINOR class in the slice that measured them — one unit disclosed 24
+  on its own — and the rule had been re-derived per unit rather than written down.
+- **Anthropic profile — a positive tag's row answers two questions as two bullets.** *Is the
+  assertion documented?* and *does the harness have the surface the guidance operates on?* are
+  separate questions; merging them is what leaves a positive tag unauditable.
+- **Anthropic profile — vendor-voice attestation follows the voice, not the page.** A blog passage
+  embedded in a non-blog page (a system prompt quoting an announcement) carries the marker on the
+  same terms.
+- **Anthropic profile — absence checks select their pages from the publisher's own `llms.txt`
+  index, never a guessed slug**, and any non-zero hit is READ at its match site rather than
+  counted: a corpus-snapshot page can be rendered HTML, in which case its hits are markup and the
+  count is noise.
+- **Anthropic profile — the two reproducible `claude.com/blog` extraction artifacts are recorded**
+  (H1 word-spacing collapse; reading-time value and unit split across lines) with reconstruction
+  from the canonical URL slug. Both reproduced exactly across two blog runs, which is what the
+  earlier deferral was waiting for.
+- **`SKILL.md` Phase 2 — site-injected matter is flagged, not stripped.** Page chrome that reached
+  `source.md` stays there (Phase 1 snapshots the original unaltered) and INDEX.md flags it as
+  non-prose with its source lines, so the Phase 3 agent does not digest it as doc content.
+
+Three further evidence-forced items are deliberately **not** applied here, for one shared reason:
+they change instruments that live in the campaign's untracked work root, not in the shipped plugin
+— making the quote checker a required artifact (whose own precondition, unrecognized-row detection
+erroring loudly, cannot be demonstrated as shipped), the command-replay gate reading only the first
+number of a `→ N lines, M files` pair, and the absence-measurement script skipping positive rows.
+Whether any of those graduates into the skill is a scope decision, not a forced one. The contested
+tag-vocabulary questions remain where 0.10.15 left them: with the dispositions interview.
+
 ## [0.10.15]
 
 ### Changed
