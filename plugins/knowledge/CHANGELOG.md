@@ -8,9 +8,9 @@ only after that version increases.
 
 ### Changed
 
-- **`docpage-digest` — the second and final batch of the campaign's evidence-forced amendments.**
-  Same standard as 0.10.15: every rule below was demonstrated as a defect by the pipeline's own
-  runs, and each states its evidence inline.
+- **`docpage-digest` — a second batch of the campaign's evidence-forced amendments.** Same standard
+  as 0.10.15: each rule below was forced by a defect the pipeline's own runs produced, and each
+  states its evidence inline. Not the last batch — the two classes held below say why.
 - **Anthropic profile — what falsifies `api-only`, written down once.** Only the corpus documenting
   the claim's *own specific assertion* falsifies the tag; topical overlap never does. Below that
   line sits the **near-miss** — a harness page covering the row's subject without stating its
