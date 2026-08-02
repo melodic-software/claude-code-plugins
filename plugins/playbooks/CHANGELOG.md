@@ -33,7 +33,14 @@ only after that version increases.
   releases they announced. Benchmark names, suite versions, and scores churn independently of the
   models they rank. A file-level four-part record now classifies the figures as historical and
   fires on a decision that would turn on any of them, a new frontier-model release, or a suite
-  version bump; both carrier lines are prefixed "Launch-day benchmarks". The figures themselves are
+  version bump. Both carrier lines are prefixed "Launch-day benchmarks" and now cite the basis the
+  record claims for them — the vendor's own launch announcement, [Opus 4.8, May 28
+  2026](https://www.anthropic.com/news/claude-opus-4-8#opus-48s-capabilities) and [Fable 5 /
+  Mythos 5, Jun 9
+  2026](https://www.anthropic.com/news/claude-fable-5-mythos-5#evaluating-claude-fable-5-and-claude-mythos-5).
+  Both pages publish their figures in a capabilities-table **image**, never in page text, so the
+  record says so: a re-checker who greps the fetched HTML finds nothing and would read a correct
+  citation as broken. The figures themselves are
   unchanged — they are accurate for their releases, and refreshing them here would restate a fresh
   snapshot the record exists to avoid. `skills/boris/vendor/SKILL.md` carries the same figures at
   14 lines and is deliberately not changed, for the drift-detection reason above.
