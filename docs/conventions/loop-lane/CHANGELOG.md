@@ -15,9 +15,10 @@ same launch surface with the label the official docs use for it.
   "a bundled skill"; the skills page adds that bundled skills are "prompt-based … Most built-in
   commands instead execute fixed logic directly", and that `/doctor` was "a built-in command rather
   than a bundled skill" before v2.1.205 — the two labels name different things. The sentence now
-  reads "a [bundled skill](https://code.claude.com/docs/en/skills#bundled-skills) needing no
-  install", preserving the point the old wording was making: `/loop` needs no plugin, so it is the
-  dependency-free launch surface against which the `claude-ops` `lanes` launcher is optional.
+  reads "a bundled skill needing no install", carrying the four-part record §Versioning's second
+  recheck trigger obliges — basis, as-of date, and this file's existing `(<url>, verified <date>)`
+  shape — and preserving the point the old wording was making: `/loop` needs no plugin, so it is
+  the dependency-free launch surface against which the `claude-ops` `lanes` launcher is optional.
 
 ## 7.0.0 — 2026-07-30
 
