@@ -4,6 +4,54 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.6.2]
+
+### Fixed
+
+- **`boris` no longer contradicts this repo on `max` effort durability.**
+  `skills/boris/SKILL.md`'s Quick Reference row read "max is session-only" flat, and
+  `skills/boris/reference/autonomy.md` §72 read "Max applies only to current session. All other
+  effort levels (including xhigh) are sticky" — while `docs/PLUGIN-PHILOSOPHY.md` carried the
+  exception. Two statements of one actionable fact, disagreeing. `PLUGIN-PHILOSOPHY.md` is right,
+  verified 2026-08-02 against
+  [model config — adjust effort level](https://code.claude.com/docs/en/model-config#adjust-effort-level):
+  "`max` provides the deepest reasoning and applies to the current session only, except when set
+  through the `CLAUDE_CODE_EFFORT_LEVEL` environment variable", and for the persisted `effortLevel`
+  setting, `max` and `ultracode` "are not accepted here". Both files now carry the exception. §72
+  additionally records the two further limits on "sticky" that the same page states — a level set
+  with `/effort` in non-interactive `-p` mode is session-only, and first-running Fable 5, Opus 4.8,
+  or Opus 4.7 holds that model's default across sessions until an explicit choice (Opus 5 has no
+  such hold) — as a conforming `docs/conventions/upstream-drift` record: claim, cited page, as-of
+  date, and a divergence-at-fetch recheck trigger. `skills/boris/vendor/SKILL.md` carries the same
+  claim at 3 lines and is deliberately **not** changed — it is the verbatim upstream baseline used
+  for drift detection, so editing it would manufacture false drift.
+
+- **`boris` benchmark figures now declare themselves launch-day snapshots and carry a recheck
+  trigger.** `skills/boris/reference/orchestration.md` restated volatile scores — SWE-Bench Pro,
+  Terminal-Bench 2.1, GDPval-AA, FrontierCode/Diamond, OSWorld-Verified — at §78 and §94 with no
+  as-of date and no stated re-derivation event, so nothing told a reader they had aged past the
+  releases they announced. Benchmark names, suite versions, and scores churn independently of the
+  models they rank. A file-level four-part record now classifies the figures as historical and
+  fires on a decision that would turn on any of them, a new frontier-model release, or a suite
+  version bump; both carrier lines are prefixed "Launch-day benchmarks". The figures themselves are
+  unchanged — they are accurate for their releases, and refreshing them here would restate a fresh
+  snapshot the record exists to avoid. `skills/boris/vendor/SKILL.md` carries the same figures at
+  14 lines and is deliberately not changed, for the drift-detection reason above.
+
+### Changed
+
+- **`fable-5` states the thinking-off × effort hazard as one checkable rule instead of two loose
+  halves.** `context/model-adaptation/opus-5.md`'s thinking-controls section documented the
+  effort-conditional 400 in one bullet and the harness thinking-disable surfaces — including the
+  `MAX_THINKING_TOKENS=0` Fable 5 exception — in another, and never joined them. A third bullet now
+  states the rule they imply: a configuration pairing a thinking-disable surface with `xhigh` or
+  `max` effort on Opus 5 and later is a per-request 400 assembled from configuration alone, with
+  both operands literals in settings files, so it is findable by reading them. Stated at the
+  strength the evidence supports — it records the *config-time* question as untested rather than
+  claiming Claude Code guards the combination (the section's existing probe covers only an
+  already-sent request), keeps upstream's own unexpanded "and later models" scope, and repeats that
+  `MAX_THINKING_TOKENS=0` is not a universal kill switch.
+
 ## [0.6.1]
 
 ### Fixed
