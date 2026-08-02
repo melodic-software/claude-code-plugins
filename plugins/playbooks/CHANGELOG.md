@@ -23,8 +23,8 @@ only after that version increases.
   or Opus 4.7 holds that model's default across sessions until an explicit choice (Opus 5 has no
   such hold) — as a conforming `docs/conventions/upstream-drift` record: claim, cited page, as-of
   date, and a divergence-at-fetch recheck trigger. `skills/boris/vendor/SKILL.md` carries the same
-  claim at 3 lines and is deliberately **not** changed — it is the verbatim upstream baseline used
-  for drift detection, so editing it would manufacture false drift.
+  claim and is deliberately **not** changed — it is the verbatim upstream baseline used for drift
+  detection, so editing it would manufacture false drift.
 
 - **`boris` benchmark figures now declare themselves launch-day snapshots and carry a recheck
   trigger.** `skills/boris/reference/orchestration.md` restated volatile scores — SWE-Bench Pro,
@@ -42,8 +42,8 @@ only after that version increases.
   record says so: a re-checker who greps the fetched HTML finds nothing and would read a correct
   citation as broken. The figures themselves are
   unchanged — they are accurate for their releases, and refreshing them here would restate a fresh
-  snapshot the record exists to avoid. `skills/boris/vendor/SKILL.md` carries the same figures at
-  14 lines and is deliberately not changed, for the drift-detection reason above.
+  snapshot the record exists to avoid. `skills/boris/vendor/SKILL.md` carries the same figures and
+  is deliberately not changed, for the drift-detection reason above.
 
 ### Changed
 
