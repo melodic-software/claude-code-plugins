@@ -17,6 +17,15 @@ A second publisher joins as a sibling profile file; engine extraction waits for 
 - **PDFs (model/system cards):** download the original binary as `source.pdf` plus a text
   extraction as `source.txt`; both are originals, the extraction tooling is named in the
   checklist.
+- **Absence-establishing fetches must be complete.** Any fetch that will support a negative claim —
+  an `api-only` basis, a "no harness surface states this" finding — goes through the raw `.md`
+  channel with `curl` and records the retrieved length; a rendered `WebFetch` of a long page returns
+  a silent prefix with no truncation signal. The asymmetry is what makes this binding: a truncated
+  fetch cannot fabricate a PRESENCE, only an ABSENCE. (Two runs asserted a false absence exactly
+  this way. In the steering-thinking slice the orchestrator's *resolution* re-fetched the same page
+  through the same channel and reproduced the blind spot instead of testing it —
+  `CLAUDE_CODE_MAX_OUTPUT_TOKENS` sits at line 277 of a 451-line, 316-row page whose rendered fetch
+  surfaced only roughly its first fifth.)
 
 ## Claude-Code-applicability filter (with teeth)
 
@@ -32,7 +41,20 @@ the tag asserts:
 - **`api-only` (a negative claim — "no harness surface exists"):** absence cannot be proven from
   one page. Record the basis (the harness doc section(s) checked, or `unverified-inference` when
   none was); a contested or load-bearing `api-only` tag escalates to the interview rather than
-  standing on an absence citation.
+  standing on an absence citation. **The basis records the exact command run and its raw result
+  count**, not a prose summary of what was checked — an attested zero is not a reproducible zero,
+  and a row that both performs an absence search and certifies its own result leaves a verifier
+  nothing to replay. (One run produced eight fabricated absence bases before this rule was imposed;
+  every one was caught against the corpus rather than by the producing agent — `llms.txt` asserted
+  absent while present in 174 files, `thumbs` while `data-usage.md:28` states it, `knowledge cutoff`
+  while `changelog.md:4820` states it.)
+- **Every non-zero result names its match site(s).** A recorded count plus a filename histogram is
+  still unfalsifiable: a reader who replays the command gets the same number and still cannot tell
+  whether anyone read the matching lines. A row whose hit set was **sampled** rather than read in
+  full states that scope at the row. (Adopted slice-wide as a ruling in the system-prompts run and
+  still the most-violated rule in that slice; the cost is documented, not hypothetical — an
+  undisclosed `settings.md:727` near-miss was exactly what the unread portion of a 199-line hit set
+  contained.)
 - **`cc-applicable`/`mixed` boundary:** a claim that names an API surface (parameter, endpoint,
   SDK call) tags `mixed` even when its guidance transfers to the harness; `cc-applicable` is
   reserved for claims naming no API surface.
@@ -42,6 +64,16 @@ the tag asserts:
   uncertainty marker, never a substitute for the tag. (Both rulings from the sonnet-5 guide
   slice's cross-vendor verification, where citation-by-reference and marker-as-tag were the
   dominant correction class.)
+- **Row-local reachability — a cited site no recorded command produces has been asserted, not
+  disclosed.** A `file.md:NN` in a row's evidence counts as disclosed only when some command
+  recorded in that same row produces it; otherwise the row says so explicitly, and an explicit
+  read-not-grepped note is the sanctioned form. Two corollaries the evidence forces: a `| wc -l`
+  count produces no sites and cannot support a citation, and a site named from a sampled set records
+  the narrower command that reaches it. (Three independent auditors raised this class separately — a
+  corrector and both verification arms, each with its own instrument; arm A measured 57 citations
+  across ~35 rows in one slice produced by no command in their own rows. Every cited line was read
+  and found true, so the claims survived and the defect was the audit trail — which is precisely why
+  no verifier's spot-check substitutes for the rule.)
 - **Harness docs are their own live basis:** when the digested page is itself a live
   code.claude.com harness doc, intrinsic harness-guidance claims cite the canonical page URL +
   section as their row-local basis; the boundary rule still routes claims naming an API surface

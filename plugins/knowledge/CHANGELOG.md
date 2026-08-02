@@ -4,6 +4,34 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.10.15]
+
+### Changed
+
+- **`docpage-digest` now carries the evidence-forced rules the eleven-run digest campaign proved on
+  itself.** Every rule below was demonstrated as a defect by the pipeline's own runs, not proposed
+  abstractly, and each states its evidence inline so a later maintainer can see why it exists.
+- **Anthropic profile — absence and citation evidence.** An `api-only` basis now records the exact
+  command and its raw result count rather than a prose summary of what was checked; every non-zero
+  result names its match site(s), with a sampled hit set stating that scope at the row; and a cited
+  `file.md:NN` counts as disclosed only when a command recorded in that same row produces it.
+  Absence-establishing fetches must use the raw `.md` channel with `curl` and record the retrieved
+  length — a rendered fetch of a long page returns a silent prefix, and truncation can fabricate an
+  absence but never a presence.
+- **`SKILL.md` Phase 4 — verification-record discipline.** No tree moves until every dispatched arm
+  has reported; every correction round leaves a dated applied record whose "New findings" section is
+  a required input to the next round's brief; verdicts land in `verification/` or they did not
+  happen; a mechanical gate errors loudly on input it cannot parse and is fixed *before* it is made
+  required; commands are replayable in every pipeline artifact, not just digest rows, and each is
+  replayed where it is authored — the Phase 5 handoff included, which no Phase 4 pass can reach; and
+  the digest set is reconciled against itself before Phase 5, since every other check is scoped
+  within a row.
+
+Contested amendments the campaign also surfaced are deliberately **not** applied here — the tag
+vocabulary questions (metadata and consumer-surface classes, pointer/navigation claims, archive-page
+representation, the form `api-only` corroboration should take) have two defensible readings each and
+belong to the dispositions interview, alongside the already-escalated Decision-A ordering question.
+
 ## [0.10.14]
 
 ### Changed
