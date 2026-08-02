@@ -58,7 +58,7 @@ The workflow steps themselves live in [context/e2e.md](context/e2e.md).
 
 ## Handoff
 
-- Surface verification available → when the bundled `/verify` command is present (Claude Code ≥2.1.145), delegate surface verification to it first and consume its findings; when absent, the orchestrator path in this skill runs unchanged as the fallback
+- Surface verification available → the bundled `/verify` skill (Claude Code ≥2.1.145) covers the same surface, but is [user-invoked only](https://code.claude.com/docs/en/skills#bundled-skills), so suggest the user run it and consume its findings rather than delegating to it; the orchestrator path in this skill runs unchanged either way
 - All scenarios pass → `/verification:confirm outcome` when the `verification` plugin is installed (composes intent + evidence; chains back here when needed); otherwise report the captured evidence for outcome sign-off directly
 - Visual bugs or API errors found → `/testing:diagnose`
 - Scenario planning needed first → `/testing:plan`

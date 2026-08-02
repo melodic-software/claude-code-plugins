@@ -93,7 +93,7 @@ Stage 1 delegates to the `toolchain` plugin's `/toolchain:check` and `/toolchain
 
 Read the criterion context file for the dispatched mode, then run the flow below. The shared spine (intent → inventory → match → evidence → report) is in [context/outcome.md](context/outcome.md); `fix` / `refactor` adapt it.
 
-1. **Auto-trigger `/testing:run-e2e` (when runtime-affecting)** — inspect changed files. If any match an `e2e-*` category from the Runtime-affecting paths above, or touch observability code paths verifiable end-to-end, or the user said "test the app", invoke `/testing:run-e2e` via the Skill tool when the `testing` plugin is installed — otherwise drive the live app directly (Claude Code's bundled `/verify` + `/run`, or a manual orchestrator launch) and capture the same evidence. When present, it validates prerequisites, starts the app, exercises the changed flow, and captures evidence (screenshots, console, network, traces). Carry that into the evidence table. If not runtime-affecting (pure refactor, internal lib, doc-only): note "E2E not applicable" and skip.
+1. **Auto-trigger `/testing:run-e2e` (when runtime-affecting)** — inspect changed files. If any match an `e2e-*` category from the Runtime-affecting paths above, or touch observability code paths verifiable end-to-end, or the user said "test the app", invoke `/testing:run-e2e` via the Skill tool when the `testing` plugin is installed — otherwise drive the live app directly (Claude Code's bundled `/run`, or a manual orchestrator launch) and capture the same evidence. When present, it validates prerequisites, starts the app, exercises the changed flow, and captures evidence (screenshots, console, network, traces). Carry that into the evidence table. If not runtime-affecting (pure refactor, internal lib, doc-only): note "E2E not applicable" and skip.
 2. **Intent retrieval** — scan the conversation for the original request, the approved plan, refinements, and acceptance criteria. If none is clear, ask the user what the goal was.
 3. **Implementation inventory** — changed files, new capabilities, behavior changes, config/infra changes.
 4. **Intent match** — every requirement has implementation; every implementation traces to a requirement; flag scope additions and gaps (including implicit requirements — error handling, edge cases, tests).
@@ -109,8 +109,8 @@ When `/testing:run-e2e` ran, persist an assertion-only evidence manifest (what w
 For "run the live app and watch it behave" — beyond automated `/testing:run-e2e` — `/verification:confirm` delegates rather than reimplementing app-launch:
 
 - **Primary: `/testing:run-e2e`** (when the `testing` plugin is installed) — the reliable path for orchestrated apps (Aspire, docker-compose, tilt) via the project's orchestrator tooling + Playwright CLI. It can isolate the drive loop in a subagent so the orchestrator consumes only evidence paths, emit an optional recording / session-artifact evidence tier (config-driven, defaults off — screenshots stay the evidence floor), and on a failed prerequisite return a structured verification-environment gap report rather than a bare stop. Carry any recording and session-artifact pointers it produces into the evidence table.
-- **Supplementary: Claude Code's bundled `/verify` + `/run`** — when a quick interactive run is enough and the orchestrated harness is overkill (requires Claude Code ≥2.1.145 — verified 2026-07-18 against [bundled skills](https://code.claude.com/docs/en/skills#bundled-skills)).
-- **Graceful fallback** — if the bundled skills cannot infer the project's launch (or the CC version lacks them), fall back to `/testing:run-e2e` when the `testing` plugin is installed, or a manual orchestrator launch otherwise. Never silently downgrade live-app verification to a static check — surface the gap.
+- **Supplementary: Claude Code's bundled `/run`** — when a quick interactive run is enough and the orchestrated harness is overkill (requires Claude Code ≥2.1.145). Its sibling `/verify` covers the same ground but is user-invoked only, so suggest the user run it rather than delegating to it — this skill cannot invoke it. Both the `≥2.1.145` floor and the user-invoked-only restriction were verified 2026-08-02 against [bundled skills](https://code.claude.com/docs/en/skills#bundled-skills).
+- **Graceful fallback** — if `/run` cannot infer the project's launch (or the CC version lacks it), fall back to `/testing:run-e2e` when the `testing` plugin is installed, or a manual orchestrator launch otherwise. Never silently downgrade live-app verification to a static check — surface the gap.
 
 ## Edge cases
 
@@ -125,7 +125,7 @@ For "run the live app and watch it behave" — beyond automated `/testing:run-e2
 |-----------|--------|
 | Review gate passes (no blocking findings — e.g. `/review:quality-gate` when installed) | Suggest `/verification:confirm` |
 | Stage 1 fails | Fix build/test/lint/cross-cutting, then re-run `/verification:confirm` |
-| Runtime-affecting change | Stage 2 auto-triggers `/testing:run-e2e` (bundled `/verify` / `/run` supplementary) |
+| Runtime-affecting change | Stage 2 auto-triggers `/testing:run-e2e` (bundled `/run` supplementary) |
 | `/verification:confirm` finds CONFIRMED | Suggest a retro (`/session-flow:retro` when installed), then the project's PR flow (`/source-control:pull-request` when installed) |
 | `/verification:confirm` finds gaps | Fix, then re-run `/verification:confirm` |
 | Improvement claimed without data | Redirect to `/verification:measure` (`performance` or `metrics`; baseline captured at planning time) |
@@ -145,4 +145,4 @@ For "run the live app and watch it behave" — beyond automated `/testing:run-e2
 - **Don't skip outcome confirmation for "obvious" changes.** Small changes drift from intent unnoticed; the intent check catches scope creep and missed requirements tests don't cover.
 - **Don't quantify improvement claims here.** "Faster" / "simpler" claims route to `/verification:measure` and its baseline discipline — never assert an improvement from this skill's evidence alone.
 - **Don't re-run Stage 1 if it already passed this conversation** and nothing changed since — reuse the results.
-- **Live-app fallback is fidelity-preserving.** If the bundled `/verify` / `/run` can't launch the app, fall back to `/testing:run-e2e` and SAY SO — never silently swap live observation for a static check.
+- **Live-app fallback is fidelity-preserving.** If the bundled `/run` can't launch the app, fall back to `/testing:run-e2e` and SAY SO — never silently swap live observation for a static check.

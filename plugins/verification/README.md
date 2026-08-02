@@ -18,8 +18,8 @@ green build into confirmed outcomes.
   `/toolchain:check` and `/toolchain:lint` when installed, and runs the project's own
   ecosystem-native commands otherwise — the STOP-on-fail gate is unchanged, only the
   executor differs. Live-app verification prefers the `testing` plugin's
-  `/testing:run-e2e` when installed and falls back to Claude Code's bundled `/verify` +
-  `/run` or a manual orchestrator launch, never silently downgrading to a static check.
+  `/testing:run-e2e` when installed and falls back to Claude Code's bundled `/run` or a
+  manual orchestrator launch, never silently downgrading to a static check.
 - **Never fabricates a measurement.** `/verification:measure` requires a baseline
   captured before the change; with none, it reports an honest "cannot quantify" plus a
   current-state measurement, never an invented delta.
