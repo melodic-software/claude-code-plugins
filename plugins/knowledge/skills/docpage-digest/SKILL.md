@@ -202,7 +202,7 @@ reported clean on a class it was structurally blind to.)
 records, verdicts, rulings and handoffs carry commands too, in the same command-plus-raw-count form,
 and the replay sweep covers them. (One slice yielded five record-level command defects: two greps
 quoted without a path operand, an unrunnable command invisible to the replay regex, and two records
-mis-stating their own pair counts — and one correction record propagated the wrong line number it
+misstating their own pair counts — and one correction record propagated the wrong line number it
 had been written to fix.)
 
 **Reconcile the digest set against itself before Phase 5.** Every other check is scoped within a row
