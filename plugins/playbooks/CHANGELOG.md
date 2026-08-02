@@ -56,8 +56,8 @@ only after that version increases.
   both operands literals in settings files, so it is findable by reading them. Stated at the
   strength the evidence supports — it records the *config-time* question as untested rather than
   claiming Claude Code guards the combination (the section's existing probe covers only an
-  already-sent request), keeps upstream's own unexpanded "and later models" scope, and repeats that
-  `MAX_THINKING_TOKENS=0` is not a universal kill switch.
+  already-sent request), leaves upstream's "Claude Opus 5 onward" scope unexpanded, and repeats
+  that `MAX_THINKING_TOKENS=0` is not a universal kill switch.
 
 ## [0.6.1]
 

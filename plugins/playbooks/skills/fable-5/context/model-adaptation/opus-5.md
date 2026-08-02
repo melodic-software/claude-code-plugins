@@ -127,9 +127,9 @@ enumeration); any effort claim beyond the three above defers to the verified eff
   and later, a per-request 400 assembled from configuration alone: both operands are literals in
   settings files, so the defect is findable by reading them, with nothing run. Two limits on the
   rule — it bites only where the disable surface actually takes effect (per the bullet above,
-  `MAX_THINKING_TOKENS=0` is no universal kill switch and does nothing on Fable 5), and "and later
-  models" is upstream's own scope wording, left unexpanded here because which models it names
-  today is unresolved. Whether Claude Code refuses the pairing at *config* time is untested: the
+  `MAX_THINKING_TOKENS=0` is no universal kill switch and does nothing on Fable 5), and upstream
+  scopes this "Claude Opus 5 onward", left unexpanded here because which models that names today
+  is unresolved. Whether Claude Code refuses the pairing at *config* time is untested: the
   first bullet's probe covers only what a request that was already sent does. So treat the pairing
   as an authoring defect to fix wherever a settings file is audited, never as a guarded case.
   `[CC: direct]`
