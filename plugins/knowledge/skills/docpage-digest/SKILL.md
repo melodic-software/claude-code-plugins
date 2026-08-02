@@ -186,8 +186,8 @@ floor exactly as silently as no record at all. A verdict likewise lands in
 by every later round. (One slice's round-3 record was written faithfully, "New findings" section and
 all, and the next round never read it — three findings it named were still unfixed a round later, and
 only a verifier's cross-check noticed; an 18-unit fan-out in the same slice edited seven units with
-no record, leaving them unattested; two of its verdicts were written outside `verification/` and no
-later round could read them.)
+no record, leaving them unattested; two of the slice's verdicts were written outside `verification/`
+and no later round could read them.)
 
 **A mechanical gate reports only what it parsed, and only the fields it checks.** Any script used as
 a verification gate errors loudly on input it cannot recognize, and a clean result is read as
