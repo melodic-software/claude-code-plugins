@@ -200,10 +200,11 @@ reported clean on a class it was structurally blind to.)
 
 **Commands are replayable in every pipeline artifact, not just digest rows.** INDEX rows, applied
 records, verdicts, rulings and handoffs carry commands too, in the same command-plus-raw-count form,
-and the replay sweep covers them. (One slice yielded five record-level command defects: two greps
-quoted without a path operand, an unrunnable command invisible to the replay regex, and two records
-misstating their own pair counts — and one correction record propagated the wrong line number it
-had been written to fix.)
+and each is replayed where it is authored — no sweep reaches an artifact that did not yet exist
+when it ran, so the phase that writes one replays it before that phase ends. (One slice yielded
+five record-level command defects: two greps quoted without a path operand, an unrunnable command
+invisible to the replay regex, and two records misstating their own pair counts — and one
+correction record propagated the wrong line number it had been written to fix.)
 
 **Reconcile the digest set against itself before Phase 5.** Every other check is scoped within a row
 or between a row and `source.md`, so parallel digest agents can affirm, deny, and abstain on the same
@@ -223,10 +224,12 @@ verification record that hides its degraded provenance is worse than a missing o
 
 Author `<work-root>/interview-handoff.md`: a validation-answer-set-shaped artifact — one entry
 per open question or candidate artifact surfaced by the digests, each carrying the digest
-citation, the verifiers' verdict state, and a recommended disposition. Then hand off: run
-`/planning:interview` over it when that plugin is installed, otherwise present the artifact and
-stop. The pipeline ends at the handoff — deciding what to BUILD from a verified slice is the
-interview's job, and building it belongs to the consuming repo's planning/implementation flow.
+citation, the verifiers' verdict state, and a recommended disposition. **Replay the handoff's own
+commands before handing off** — every Phase 4 check precedes it, so this pass is the only one that
+can reach them. Then hand off: run `/planning:interview` over it when that plugin is installed,
+otherwise present the artifact and stop. The pipeline ends at the handoff — deciding what to BUILD
+from a verified slice is the interview's job, and building it belongs to the consuming repo's
+planning/implementation flow.
 
 Emit a continuation prompt (sibling convention) when the run pauses mid-pipeline: a short
 self-contained prompt naming the slug, the first unticked checklist phase, and the work root.

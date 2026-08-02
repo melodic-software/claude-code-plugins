@@ -22,8 +22,10 @@ only after that version increases.
   has reported; every correction round leaves a dated applied record whose "New findings" section is
   a required input to the next round's brief; verdicts land in `verification/` or they did not
   happen; a mechanical gate errors loudly on input it cannot parse and is fixed *before* it is made
-  required; commands are replayable in every pipeline artifact, not just digest rows; and the digest
-  set is reconciled against itself before Phase 5, since every other check is scoped within a row.
+  required; commands are replayable in every pipeline artifact, not just digest rows, and each is
+  replayed where it is authored — the Phase 5 handoff included, which no Phase 4 pass can reach; and
+  the digest set is reconciled against itself before Phase 5, since every other check is scoped
+  within a row.
 
 Contested amendments the campaign also surfaced are deliberately **not** applied here — the tag
 vocabulary questions (metadata and consumer-surface classes, pointer/navigation claims, archive-page
