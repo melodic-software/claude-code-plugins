@@ -606,9 +606,10 @@ conventions). The reference is presence-gated with this inline fallback per the
 All three adopters have shipped. This owner doc landed ahead of them, per the convention-registry
 rule; the table above is a live consumer list, not a forward reference.
 
-**Launch surfaces.** A lane launches interactively via `/loop` — the primary surface, built-in and
-dependency-free — or headless via the `claude-ops` `lanes` launcher, which stores the one-line lane
-prompt through its `prompt_dir` seam (#480). `lanes` is a **supporting, strictly one-directional**
+**Launch surfaces.** A lane launches interactively via `/loop` — the primary surface, a
+[bundled skill](https://code.claude.com/docs/en/skills#bundled-skills) needing no install — or
+headless via the `claude-ops` `lanes` launcher, which stores the one-line lane prompt through its
+`prompt_dir` seam (#480). `lanes` is a **supporting, strictly one-directional**
 launcher: it launches the lane; no lane body ever requires, imports, or degrades without
 `claude-ops`. Every mention of `lanes` in a lane body is presence-gated with the `/loop` fallback
 documented at the site, per the [seam-phrasing convention](../seam-phrasing/README.md).

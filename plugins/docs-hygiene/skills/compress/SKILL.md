@@ -114,7 +114,7 @@ Observed failure points — each traces to a real incident; grown iteratively.
 - **Not an orchestrator surface.** `/compress` prints a human-readable summary; no structured/`--json` output
 - **Not a lint front-end.** `markdownlint-cli2` is the post-edit verifier, not the primary purpose
 - **Not a code-comment compressor.** Out of scope
-- **Not a `/code-review` / `/simplify` shadow.** The built-in `/code-review` and `/simplify` review code changes; `/compress` rewrites markdown prose. Different concerns
+- **Not a `/code-review` / `/simplify` shadow.** The bundled `/code-review` and `/simplify` skills review code changes; `/compress` rewrites markdown prose. Different concerns
 - **Not `/audit-noise`.** `/compress` owns FLAVOR (filler, hedging, articles, redundant restatement). `/audit-noise` owns NOISE classification (historical citations, ghost refs, "Why this file exists" preambles, hard-coupled enumerated consumer lists) per its own taxonomy. Different concerns; both may apply to the same target iteratively
 - **Not a content-relocation / cite-don't-recap tool.** When an inline passage recaps detail that already lives in a cited single source of truth (another doc or rule), condensing it is content RELOCATION, not flavor removal — the mandatory semantic-diff net sees the words gone from THIS file and reverts them as SEMANTIC LOSS, blind to the SSOT. Apply "reference, don't duplicate" as a MANUAL editorial pass (verify the cited SSOT actually holds the detail first — an unread pointer is an unverified claim); use `/extract-ssot` when the duplicated cluster spans 3+ files
 

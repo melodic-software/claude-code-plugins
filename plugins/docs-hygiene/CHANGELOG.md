@@ -1,5 +1,20 @@
 # Changelog — docs-hygiene plugin
 
+## [0.9.4]
+
+### Fixed
+
+- **`compress`'s scope-boundary list no longer calls `/code-review` and `/simplify`
+  "built-in".** The "Not a `/code-review` / `/simplify` shadow" bullet read "The built-in
+  `/code-review` and `/simplify` review code changes", mixing two categories the official
+  docs keep apart: the commands reference states "Most are built-in commands whose behavior
+  is coded into the CLI" and marks both `/code-review` and `/simplify` **[Skill]**, "a
+  bundled skill", while the skills page adds that bundled skills are "prompt-based" and
+  that `/doctor` was "a built-in command rather than a bundled skill" before v2.1.205 — the
+  labels are mutually exclusive. Both surfaces are bundled skills; the bullet now says so
+  (<https://code.claude.com/docs/en/skills#bundled-skills>). Scope is unchanged — the bullet
+  still excludes code review from `/compress`'s markdown-prose remit.
+
 ## [0.9.3]
 
 ### Fixed
