@@ -8,10 +8,13 @@ All notable changes to the `testing` plugin are documented here. Format follows
 ### Changed
 
 - **`/testing:run-e2e`'s handoff no longer delegates surface verification to the bundled `/verify`.**
-  Claude Code v2.1.215 made `/verify` user-invoked only, so "delegate surface verification to it
-  first" named a surface the skill cannot invoke. The handoff now suggests the user run it and
-  consume its findings; the orchestrator path was already the fallback and is unchanged. The
-  `≥ 2.1.145` availability floor is unchanged and re-verified 2026-08-02.
+  Claude Code v2.1.215 made `/verify` user-invoked only, so **from v2.1.215** "delegate surface
+  verification to it first" named a surface the skill cannot invoke. The handoff now suggests the
+  user run it and consume its findings, and carries the v2.1.215 scope rather than stating the
+  restriction flatly — on 2.1.145–2.1.214 `/verify` is still model-invocable. The instruction itself
+  is uniform across the window, because suggesting is correct on every version `/verify` exists on.
+  The orchestrator path was already the fallback and is unchanged. The `≥ 2.1.145` availability floor
+  is a separate axis, unchanged and re-verified 2026-08-02.
 
 ## [0.3.2]
 
