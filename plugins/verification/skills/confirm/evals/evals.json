@@ -77,12 +77,12 @@
       "id": 9,
       "name": "live-app-delegates-to-bundled-with-fallback",
       "prompt": "/verification:confirm outcome — run the live app and show me the change working",
-      "expected_output": "For live-app run/observe, delegates to /testing:run-e2e (primary for orchestrated apps) or bundled /verify + bundled /run, with a fidelity-preserving graceful fallback: if bundled /verify or /run cannot infer the project's launch, falls back to /testing:run-e2e and surfaces the gap rather than silently downgrading to a static check.",
+      "expected_output": "For live-app run/observe, delegates to /testing:run-e2e (primary for orchestrated apps) or the bundled /run (supplementary, agent-invocable). Because the bundled /verify is user-invoked only, it is offered as a suggestion for the user to run — never delegated to. Fidelity-preserving graceful fallback: if bundled /run cannot infer the project's launch, falls back to /testing:run-e2e and surfaces the gap rather than silently downgrading to a static check.",
       "files": [],
       "expectations": [
         "Delegates live-app observation rather than reimplementing app launch",
-        "Treats /testing:run-e2e as primary for orchestrated apps; bundled /verify + /run as supplementary",
-        "On bundled-tool failure, falls back to /testing:run-e2e and SAYS SO — never silently swaps live observation for a static check"
+        "Treats /testing:run-e2e as primary for orchestrated apps and the bundled /run as supplementary; surfaces the bundled /verify as a suggestion for the user to run rather than invoking it",
+        "On bundled /run failure, falls back to /testing:run-e2e and SAYS SO — never silently swaps live observation for a static check"
       ]
     },
     {

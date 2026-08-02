@@ -16,6 +16,9 @@ All notable changes to the `verification` plugin are documented here. Format fol
   `≥ 2.1.145` availability floor is **unchanged and re-verified 2026-08-02** against the bundled
   skills reference, which still states it for all three of `/run`, `/verify`, and
   `/run-skill-generator` — that note was never stale; what changed is who may invoke one of them.
+  The `confirm` skill's graded rubric moved with the behavior: eval 9
+  (`live-app-delegates-to-bundled-with-fallback`) had encoded the removed `/verify` delegation as a
+  pass condition, and would otherwise have graded the corrected skill as failing.
 
 ## [0.3.5]
 
