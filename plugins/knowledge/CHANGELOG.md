@@ -11,38 +11,38 @@ only after that version increases.
 - **`docpage-digest` — the second and final batch of the campaign's evidence-forced amendments.**
   Same standard as 0.10.15: every rule below was demonstrated as a defect by the pipeline's own
   runs, and each states its evidence inline.
-- **Anthropic profile — what falsifies `api-only`, stated once as a graded rule.** Only the corpus
-  documenting the claim's *own specific assertion* falsifies the tag. A harness page covering the
-  row's subject without stating its rule is a **near-miss**: the tag survives and the row must name
-  it by page and line. Weaker still and not even a near-miss: a counterpart artifact on the other
-  property, and a workload named only as an example beside a guide that teaches it. Undisclosed
+- **Anthropic profile — what falsifies `api-only`, written down once.** Only the corpus documenting
+  the claim's *own specific assertion* falsifies the tag; topical overlap never does. Below that
+  line sits the **near-miss** — a harness page covering the row's subject without stating its
+  specific rule: the tag survives, and the row must name the near-miss by page and line, so an
+  affirmative "no surface" or "undisclosed" phrasing in such a row is simply false. Undisclosed
   near-misses were the largest MINOR class in the slice that measured them — one unit disclosed 24
   on its own — and the rule had been re-derived per unit rather than written down.
-- **Anthropic profile — a positive tag's row answers two questions as two bullets.** *Is the
-  assertion documented?* and *does the harness have the surface the guidance operates on?* are
-  separate questions; merging them is what leaves a positive tag unauditable.
-- **Anthropic profile — vendor-voice attestation follows the voice, not the page.** A blog passage
-  embedded in a non-blog page (a system prompt quoting an announcement) carries the marker on the
-  same terms.
-- **Anthropic profile — absence checks select their pages from the publisher's own `llms.txt`
-  index, never a guessed slug**, and any non-zero hit is READ at its match site rather than
-  counted: a corpus-snapshot page can be rendered HTML, in which case its hits are markup and the
-  count is noise.
 - **Anthropic profile — the two reproducible `claude.com/blog` extraction artifacts are recorded**
   (H1 word-spacing collapse; reading-time value and unit split across lines) with reconstruction
-  from the canonical URL slug. Both reproduced exactly across two blog runs, which is what the
-  earlier deferral was waiting for.
-- **`SKILL.md` Phase 2 — site-injected matter is flagged, not stripped.** Page chrome that reached
-  `source.md` stays there (Phase 1 snapshots the original unaltered) and INDEX.md flags it as
-  non-prose with its source lines, so the Phase 3 agent does not digest it as doc content.
+  from the canonical URL slug, labelled reconstructed because a slug recovers word boundaries only.
+  Both reproduced exactly across two blog runs, which is what the earlier deferral was waiting for.
 
-Three further evidence-forced items are deliberately **not** applied here, for one shared reason:
-they change instruments that live in the campaign's untracked work root, not in the shipped plugin
+Two classes of item are deliberately **not** applied here, for two different reasons.
+
+Three change instruments that live in the campaign's untracked work root, not in the shipped plugin
 — making the quote checker a required artifact (whose own precondition, unrecognized-row detection
 erroring loudly, cannot be demonstrated as shipped), the command-replay gate reading only the first
 number of a `→ N lines, M files` pair, and the absence-measurement script skipping positive rows.
-Whether any of those graduates into the skill is a scope decision, not a forced one. The contested
-tag-vocabulary questions remain where 0.10.15 left them: with the dispositions interview.
+Whether any of those graduates into the skill is a scope decision, not a forced one.
+
+Five more are held for the dispositions interview, having been reclassified out of this batch. The
+campaign's triage marks each `evidence-forced`, but the judgment-amendments file writes all five up
+as judgment calls with two named readings apiece — vendor-voice attestation for blog material
+embedded in a non-blog page (J-6), splitting the two questions a positive tag's row collapses (J-7),
+naming the publisher's `llms.txt` index as the page-selection instrument (J-8), the scope of
+"harness surface" for counterpart artifacts and same-workload mentions (J-12), and the standing
+convention for site-injected matter in a snapshot (J-14). That file's own reasoning governs: J-14
+says outright it is held "only because no defect was demonstrated, so the bar for the applied subset
+is not met", and J-7 says it should be decided *after* the Decision-A ordering question already
+escalated to the maintainer. All five now carry recommendations in the interview's decision block.
+The contested tag-vocabulary questions therefore remain where 0.10.15 left them, and these five join
+them: with the dispositions interview.
 
 ## [0.10.15]
 

@@ -135,15 +135,6 @@ pre-H2 introduction plus each H2 section is one unit; sub-bullets stay as sub-di
 their unit's file. INDEX.md is the representation layer every later phase (and the interview)
 walks — keep its rows in parity with the digest files.
 
-**Site-injected matter is flagged here, not stripped at fetch.** Text the site wraps around the
-doc's own prose — a "Documentation Index" pointer blockquote, a beta or cookie banner — is in
-`source.md` because Phase 1 snapshots the original unaltered, and it stays there. INDEX.md flags it
-as non-prose in the unit that contains it, naming its source lines, so the Phase 3 agent for that
-unit treats it as page chrome rather than doc content. (One run met such a blockquote, declared it
-in INDEX.md and digested its unit correctly — and then asked for a standing convention, because
-without one the treatment is decided per run. The alternative, stripping at fetch, would edit an
-immutable artifact.)
-
 ## Phase 3 — Digest fan-out
 
 One subagent per digest unit, each writing `<work-root>/digests/NN-slug.md` with this fixed
