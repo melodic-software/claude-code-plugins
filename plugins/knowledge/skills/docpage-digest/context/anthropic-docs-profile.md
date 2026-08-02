@@ -13,7 +13,20 @@ A second publisher joins as a sibling profile file; engine extraction waits for 
   (2026-07); **re-verify per doc** — precedent, not a guarantee. Fallback: fetch the rendered
   page and record the degradation.
 - **Blog posts (`claude.com/blog/...`):** no raw-markdown channel known; fetch rendered and
-  extract. Record the channel used.
+  extract. Record the channel used. **Two extraction artifacts reproduce on this channel; record
+  them, never repair them** — `source.*` is immutable, so the fix belongs in whatever reads the
+  snapshot, not in the snapshot. (a) The animated hero heading collapses every space in the H1.
+  Reconstruct the title from the canonical URL slug, which the checklist already records — but the
+  slug recovers word boundaries only, never punctuation or casing
+  (`claude-models-explained-choosing-the-best-model-for-your-use-case` cannot yield the colon in
+  "Claude models explained: choosing the best model for your use case"), so a title recovered that
+  way is labelled reconstructed. When the run also retained the rendered HTML, that file's
+  `<title>`/`<h1>` carries the exact form — but nothing in the pipeline contracts such a file, so
+  it is a bonus, not the method. (b) The reading-time widget splits its value and its unit onto
+  separate physical lines, so neither line reads as a duration on its own. (Both observed
+  identically in two runs, at each slice's `source.md:7`:
+  `# Claudemodelsexplained:choosingthebestmodelforyourusecase` with the reading time at lines
+  83/87, and `# BuildingverificationloopsinClaudeCodewithskills` with it at lines 45/49.)
 - **PDFs (model/system cards):** download the original binary as `source.pdf` plus a text
   extraction as `source.txt`; both are originals, the extraction tooling is named in the
   checklist.
@@ -38,8 +51,9 @@ the tag asserts:
   without a live-doc check, is additionally recorded as `unverified-inference` and becomes an
   interview question, never a silent fact. (This rule exists because inference has already produced a
   wrong tag once — the failure mode is real.)
-- **`api-only` (a negative claim — "no harness surface exists"):** absence cannot be proven from
-  one page. Record the basis (the harness doc section(s) checked, or `unverified-inference` when
+- **`api-only` (a negative claim — "no harness surface exists" for the claim's own specific
+  assertion; see the near-miss rule below):** absence cannot be proven from one page. Record the
+  basis (the harness doc section(s) checked, or `unverified-inference` when
   none was); a contested or load-bearing `api-only` tag escalates to the interview rather than
   standing on an absence citation. **The basis records the exact command run and its raw result
   count**, not a prose summary of what was checked — an attested zero is not a reproducible zero,
@@ -55,6 +69,17 @@ the tag asserts:
   still the most-violated rule in that slice; the cost is documented, not hypothetical — an
   undisclosed `settings.md:727` near-miss was exactly what the unread portion of a 199-line hit set
   contained.)
+- **What falsifies `api-only`, and what only comes close — written down once, because the whole
+  class of defects here is the boundary being re-derived per row.** `api-only` asserts no harness
+  surface for **the claim's own specific assertion**, so only the corpus documenting *that
+  assertion* falsifies it; topical overlap never does. Below that falsifying line sits the
+  **near-miss** — a harness page covers the row's subject without stating the row's specific rule.
+  The tag survives, the row MUST name the near-miss by page and line (the term this profile already
+  uses of `settings.md:727` above), and an affirmative "no surface" or "undisclosed" phrasing in
+  such a row is simply false and goes. Silence here was the largest MINOR class in the slice that
+  measured it: one release-notes unit disclosed 24 near-miss rows on its own, and two sibling units
+  in that slice raised the same boundary independently, one of them asking outright for a standing
+  notation so a reader can tell "no surface at all" from "adjacent surface exists".
 - **`cc-applicable`/`mixed` boundary:** a claim that names an API surface (parameter, endpoint,
   SDK call) tags `mixed` even when its guidance transfers to the harness; `cc-applicable` is
   reserved for claims naming no API surface.

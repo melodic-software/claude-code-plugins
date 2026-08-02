@@ -4,6 +4,46 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.10.16]
+
+### Changed
+
+- **`docpage-digest` — a second batch of the campaign's evidence-forced amendments.** Same standard
+  as 0.10.15: each rule below was forced by a defect the pipeline's own runs produced, and each
+  states its evidence inline. Not the last batch — the two classes held below say why.
+- **Anthropic profile — what falsifies `api-only`, written down once.** Only the corpus documenting
+  the claim's *own specific assertion* falsifies the tag; topical overlap never does. Below that
+  line sits the **near-miss** — a harness page covering the row's subject without stating its
+  specific rule: the tag survives, and the row must name the near-miss by page and line, so an
+  affirmative "no surface" or "undisclosed" phrasing in such a row is simply false. Undisclosed
+  near-misses were the largest MINOR class in the slice that measured them — one unit disclosed 24
+  on its own — and the rule had been re-derived per unit rather than written down.
+- **Anthropic profile — the two reproducible `claude.com/blog` extraction artifacts are recorded**
+  (H1 word-spacing collapse; reading-time value and unit split across lines) with reconstruction
+  from the canonical URL slug, labelled reconstructed because a slug recovers word boundaries only.
+  Both reproduced exactly across two blog runs, which is what the earlier deferral was waiting for.
+
+Two classes of item are deliberately **not** applied here, for two different reasons.
+
+Three change instruments that live in the campaign's untracked work root, not in the shipped plugin
+— making the quote checker a required artifact (whose own precondition, unrecognized-row detection
+erroring loudly, cannot be demonstrated as shipped), the command-replay gate reading only the first
+number of a `→ N lines, M files` pair, and the absence-measurement script skipping positive rows.
+Whether any of those graduates into the skill is a scope decision, not a forced one.
+
+Five more are held for the dispositions interview, having been reclassified out of this batch. The
+campaign's triage marks each `evidence-forced`, but the judgment-amendments file writes all five up
+as judgment calls with two named readings apiece — vendor-voice attestation for blog material
+embedded in a non-blog page (J-6), splitting the two questions a positive tag's row collapses (J-7),
+naming the publisher's `llms.txt` index as the page-selection instrument (J-8), the scope of
+"harness surface" for counterpart artifacts and same-workload mentions (J-12), and the standing
+convention for site-injected matter in a snapshot (J-14). That file's own reasoning governs: J-14
+says outright it is held "only because no defect was demonstrated, so the bar for the applied subset
+is not met", and J-7 says it should be decided *after* the Decision-A ordering question already
+escalated to the maintainer. All five now carry recommendations in the interview's decision block.
+The contested tag-vocabulary questions therefore remain where 0.10.15 left them, and these five join
+them: with the dispositions interview.
+
 ## [0.10.15]
 
 ### Changed
