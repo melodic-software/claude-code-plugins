@@ -119,6 +119,21 @@ enumeration); any effort claim beyond the three above defers to the verified eff
   `alwaysThinkingEnabled`, and `MAX_THINKING_TOKENS=0` all have no effect there). Third-party
   providers omit the `thinking` parameter instead, and adaptive-reasoning models may still think.
   `[CC: direct]`
+- **The two bullets above compose into one statically checkable config rule** — neither states it
+  alone, so state it here. A configuration pairing a thinking-disable surface
+  (`MAX_THINKING_TOKENS=0`, the `/config` thinking toggle, `alwaysThinkingEnabled: false`, or API
+  `thinking: {"type": "disabled"}`) with `xhigh` or `max` effort (`effortLevel`, which takes
+  `xhigh` but not `max`; `CLAUDE_CODE_EFFORT_LEVEL`; `--effort`; or skill/subagent `effort`
+  frontmatter) is, on Opus 5 and later, a per-request 400 assembled from configuration alone: both
+  operands are configuration literals, so the defect is findable by reading them, with nothing run.
+  Two limits on the rule — it bites only where the disable surface actually takes effect (per the
+  bullet above, `MAX_THINKING_TOKENS=0` is no universal kill switch and does nothing on Fable 5),
+  and upstream scopes this "Claude Opus 5 onward", left unexpanded here because which models that
+  names today is unresolved. Whether Claude Code refuses the pairing at *config* time is untested:
+  the first bullet's probe covers only what a request that was already sent does. So treat the
+  pairing as an authoring defect to fix wherever such configuration is audited, never as a guarded
+  case.
+  `[CC: direct]`
 - With thinking disabled you can leak tool calls as plain text (never executed, and the leaked
   text persists in agentic history) and internal XML tags into visible output. Primary mitigation
   is avoidance: keep thinking ON and lower effort instead — "for most tasks, thinking enabled at

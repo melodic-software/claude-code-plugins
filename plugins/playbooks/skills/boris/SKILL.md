@@ -116,7 +116,7 @@ Read the reference file matching the user's question. Multi-topic question = rea
 | /fewer-permission-prompts | Scan history, tune your permission allowlist |
 | Recaps | Short summary of what happened and what's next |
 | Focus Mode | `/focus` — hide intermediate work, show only final result |
-| Effort Mastery | xhigh for most, max for hardest (max is session-only) |
+| Effort Mastery | xhigh for most, max for hardest — `max` is session-only except through `CLAUDE_CODE_EFFORT_LEVEL`, its one durable route; the persisted `effortLevel` setting does not accept it (Section 72) |
 | /go | Verify end-to-end + /simplify + put up a PR |
 | 4.6→4.7 Shifts | Calibrated length, less auto-tool-use, judicious subagents |
 | Task Notifications | Hooks and alerts for autonomous runs |

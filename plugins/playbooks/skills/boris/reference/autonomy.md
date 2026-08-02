@@ -202,6 +202,23 @@ The effort scale: low → medium → high → xhigh → max (Speed ← → Intel
 
 **Key detail:** Max applies only to current session. All other effort levels (including xhigh) are sticky and persist for next session too.
 
+> **Amended (verified 2026-08-02 against
+> [model config — adjust effort level](https://code.claude.com/docs/en/model-config#adjust-effort-level)):**
+> the session-only claim holds for the interactive surfaces Boris is describing, but it is not
+> exhaustive — there is one durable route to `max`. Upstream, verbatim: "`low`, `medium`, `high`,
+> and `xhigh` persist across sessions when you set them in an interactive session. `max` provides
+> the deepest reasoning and applies to the current session only, except when set through the
+> `CLAUDE_CODE_EFFORT_LEVEL` environment variable." The persisted `effortLevel` setting takes
+> `low`, `medium`, `high`, or `xhigh` — `max` and `ultracode` "are not accepted here" — and the
+> environment variable "takes precedence over all other methods". Two further limits on "sticky":
+> stickiness comes from setting the level *interactively* (a level set with `/effort` in
+> non-interactive `-p` mode "applies to the current session only and isn't saved as your
+> default"), and first-running Fable 5, Opus 4.8, or Opus 4.7 applies that model's default effort
+> and "holds it across sessions until you make an explicit effort choice" — Opus 5 has no such
+> hold. That page owns the current level names, persistence rules, and per-model availability;
+> read it rather than trusting this snapshot. **Recheck trigger:** a read-time re-fetch of that
+> page finds it no longer matching this record.
+
 To steer thinking without changing effort level:
 
 - Harder problems: "Think carefully and step-by-step before responding; this problem is harder than it looks."
