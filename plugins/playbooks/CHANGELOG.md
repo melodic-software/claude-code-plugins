@@ -53,11 +53,19 @@ only after that version increases.
   `MAX_THINKING_TOKENS=0` Fable 5 exception — in another, and never joined them. A third bullet now
   states the rule they imply: a configuration pairing a thinking-disable surface with `xhigh` or
   `max` effort on Opus 5 and later is a per-request 400 assembled from configuration alone, with
-  both operands literals in settings files, so it is findable by reading them. Stated at the
+  both operands configuration literals, so it is findable by reading them. Stated at the
   strength the evidence supports — it records the *config-time* question as untested rather than
   claiming Claude Code guards the combination (the section's existing probe covers only an
   already-sent request), leaves upstream's "Claude Opus 5 onward" scope unexpanded, and repeats
-  that `MAX_THINKING_TOKENS=0` is not a universal kill switch.
+  that `MAX_THINKING_TOKENS=0` is not a universal kill switch. Each enumerated surface is stated
+  at the value it can actually carry — the persisted `effortLevel` setting takes `xhigh` but not
+  `max` ([model config — set the effort level](https://code.claude.com/docs/en/model-config#set-the-effort-level):
+  `max` and `ultracode` "are not accepted here"), matching what §72 of `boris` records above — and
+  the API disable literal is written the way upstream writes it, `thinking: {"type": "disabled"}`
+  ([what's new in Opus 5 — disabling thinking requires effort `high` or
+  below](https://platform.claude.com/docs/en/about-claude/models/whats-new-opus-5#disabling-thinking-requires-effort-high-or-below)),
+  since a rule whose whole claim is that the hazard is readable off configuration literals cannot
+  ship an invalid one as its example. Both re-verified 2026-08-02.
 
 ## [0.6.1]
 
