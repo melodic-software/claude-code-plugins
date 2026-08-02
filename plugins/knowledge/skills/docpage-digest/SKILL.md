@@ -173,8 +173,9 @@ apply to the digests; re-verify what changed.
 
 **No tree moves until every dispatched arm has reported.** Editing a slice mid-audit voids that
 audit: the verifier's findings stop describing bytes that exist. (A prior run edited three digests
-minutes after one arm reported while the other was still auditing; that verdict came back BLOCKED
-and its subject had to be reconstructed by diffing frozen pins.)
+minutes after one arm reported while the other was still auditing; that arm re-hashed its pinned
+files at the end of its audit, found three no longer matched, and returned BLOCKED — the slice had
+to be re-pinned and the arm re-run.)
 
 **Every correction round leaves an applied record, and the next round reads it.** The record is
 dated, lands beside the verdicts, and names what changed and why; any finding the round surfaced but
@@ -182,9 +183,11 @@ was not scoped to fix goes in its "New findings" section, which is a **required 
 round's brief**. Both halves bind — a faithfully written record nobody reads drops findings on the
 floor exactly as silently as no record at all. A verdict likewise lands in
 `<work-root>/verification/` or it did not happen: one written to a session scratchpad is unreachable
-by every later round. (One run's rounds 2-3 left no record and only a verifier's cross-check noticed;
-an 18-unit fan-out elsewhere edited seven units with no record, leaving them unattested; two verdicts
-in that same slice were written outside `verification/` and no later round could read them.)
+by every later round. (One slice's round-3 record was written faithfully, "New findings" section and
+all, and the next round never read it — three findings it named were still unfixed a round later, and
+only a verifier's cross-check noticed; an 18-unit fan-out in the same slice edited seven units with
+no record, leaving them unattested; two of its verdicts were written outside `verification/` and no
+later round could read them.)
 
 **A mechanical gate reports only what it parsed, and only the fields it checks.** Any script used as
 a verification gate errors loudly on input it cannot recognize, and a clean result is read as
@@ -192,15 +195,15 @@ covering just the rows and fields it actually exercised. **The ordering is not n
 that silently skips what it cannot parse is fixed *before* it is made a required artifact, or the
 mandate converts a visible gap into an invisible pass. (Both arms independently caught the campaign's
 quote checker printing "all checks clean" over a digest whose 14 claims it could not parse at all;
-the same checker's command replay read only the first number in each `→ N lines, M files` pair, so
-it reported clean on a class it was structurally blind to.)
+a separate command-replay gate read only the first number in each `→ N lines, M files` pair, so it
+reported clean on a class it was structurally blind to.)
 
 **Commands are replayable in every pipeline artifact, not just digest rows.** INDEX rows, applied
 records, verdicts, rulings and handoffs carry commands too, in the same command-plus-raw-count form,
-and the replay sweep covers them. (One slice yielded five record-level command defects in a single
-round: two greps quoted without a path operand, an unrunnable command invisible to the replay regex,
-and two records mis-stating their own pair counts — and one correction record propagated the wrong
-line number it had been written to fix.)
+and the replay sweep covers them. (One slice yielded five record-level command defects: two greps
+quoted without a path operand, an unrunnable command invisible to the replay regex, and two records
+mis-stating their own pair counts — and one correction record propagated the wrong line number it
+had been written to fix.)
 
 **Reconcile the digest set against itself before Phase 5.** Every other check is scoped within a row
 or between a row and `source.md`, so parallel digest agents can affirm, deny, and abstain on the same

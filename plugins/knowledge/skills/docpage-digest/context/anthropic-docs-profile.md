@@ -24,8 +24,8 @@ A second publisher joins as a sibling profile file; engine extraction waits for 
   fetch cannot fabricate a PRESENCE, only an ABSENCE. (Two runs asserted a false absence exactly
   this way. In the steering-thinking slice the orchestrator's *resolution* re-fetched the same page
   through the same channel and reproduced the blind spot instead of testing it —
-  `CLAUDE_CODE_MAX_OUTPUT_TOKENS` sits at line 277 of a 451-line page whose fetch stopped around
-  row 49.)
+  `CLAUDE_CODE_MAX_OUTPUT_TOKENS` sits at line 277 of a 451-line page whose rendered fetch surfaced
+  roughly the first fifth of its 316 table rows.)
 
 ## Claude-Code-applicability filter (with teeth)
 
