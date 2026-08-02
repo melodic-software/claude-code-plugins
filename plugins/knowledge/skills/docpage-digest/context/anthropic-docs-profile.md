@@ -16,11 +16,14 @@ A second publisher joins as a sibling profile file; engine extraction waits for 
   extract. Record the channel used. **Two extraction artifacts reproduce on this channel; record
   them, never repair them** — `source.*` is immutable, so the fix belongs in whatever reads the
   snapshot, not in the snapshot. (a) The animated hero heading collapses every space in the H1.
-  Reconstruct the title from the canonical URL slug; when the run also retained the rendered HTML,
-  that file's `<title>`/`<h1>` carries the spaced form, but nothing in the pipeline contracts such
-  a file — the slug is the reconstruction that is always available. (b) The reading-time widget
-  splits its value and its unit onto separate physical lines, so neither line reads as a duration
-  on its own. (Both observed identically in two runs, at each slice's `source.md:7`:
+  Reconstruct the title from the canonical URL slug, which the checklist already records — but the
+  slug recovers word boundaries only, never punctuation or casing
+  (`claude-models-explained-choosing-the-best-model-for-your-use-case` cannot yield the colon in
+  "Claude models explained: choosing the best model for your use case"), so a title recovered that
+  way is labelled reconstructed. When the run also retained the rendered HTML, that file's
+  `<title>`/`<h1>` carries the exact form — but nothing in the pipeline contracts such a file, so
+  it is a bonus, not the method. (b) The reading-time widget splits its value and its unit onto
+  separate physical lines, so neither line reads as a duration on its own. (Both observed identically in two runs, at each slice's `source.md:7`:
   `# Claudemodelsexplained:choosingthebestmodelforyourusecase` with the reading time at lines
   83/87, and `# BuildingverificationloopsinClaudeCodewithskills` with it at lines 45/49.)
 - **PDFs (model/system cards):** download the original binary as `source.pdf` plus a text
@@ -39,9 +42,11 @@ A second publisher joins as a sibling profile file; engine extraction waits for 
   <https://platform.claude.com/llms.txt> enumerates the platform property's pages and
   <https://code.claude.com/docs/llms.txt> the harness property's; fetch the index raw with `curl`,
   record the retrieved length as for any other absence-establishing fetch, and let it select the
-  pages. **A non-zero hit — in the index or in any corpus snapshot — is READ at its match site,
-  never counted.** A snapshot page can be rendered HTML rather than doc prose, in which case its
-  hits are page chrome and the count is noise no reader of the number can detect. (Both indexes
+  pages. **A non-zero hit in the index, or in a snapshot page that turns out to be rendered HTML
+  rather than doc prose, is READ at its match site and never treated as a count** — such a page's
+  hits are its markup, and no reader of the number can detect that. The sampled-scope disclosure in
+  the applicability filter's non-zero-result rule below stays the one sanctioned way to fall short
+  of reading a hit set in full. (Both indexes
   verified live 2026-08-02: 616 lines / 56,941 bytes and 180 lines / 38,847 bytes. The
   page-chrome counter-fact is measured, not hypothetical — one campaign snapshot of nine platform
   pages held two that begin `<!DOCTYPE html>`, and two of the three terms a slice probed that
@@ -60,8 +65,8 @@ the tag asserts:
   without a live-doc check, is additionally recorded as `unverified-inference` and becomes an
   interview question, never a silent fact. (This rule exists because inference has already produced a
   wrong tag once — the failure mode is real.)
-- **`api-only` (a negative claim — "no harness surface exists"):** absence cannot be proven from
-  one page. Record the basis (the harness doc section(s) checked, or `unverified-inference` when
+- **`api-only` (a negative claim — "no harness surface exists" for the claim's own specific
+  assertion; see the graded rule below):** absence cannot be proven from one page. Record the basis (the harness doc section(s) checked, or `unverified-inference` when
   none was); a contested or load-bearing `api-only` tag escalates to the interview rather than
   standing on an absence citation. **The basis records the exact command run and its raw result
   count**, not a prose summary of what was checked — an attested zero is not a reproducible zero,
