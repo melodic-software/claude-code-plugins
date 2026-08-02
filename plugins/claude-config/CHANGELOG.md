@@ -3,6 +3,29 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.18.0]
+
+### Added
+
+- **`audit-instructions`: I10 gains a second corroborating source and a concretized remediation**
+  (criteria 1.4.0 → 1.5.0). The Thinking page states the same `reasoning_extraction` refusal I10
+  already cited from the Fable 5 guide, from a second, independent page — a feature page rather than
+  a model guide. The row records why that citation does **not** move the promotion gate: the page's
+  own section names both Claude Fable 5 and Claude Mythos 5 for the adjacent raw-chain-of-thought
+  property, then names Fable 5 alone for the refusal, so the narrower scope is deliberate rather
+  than an omission. **`Model scope: fable-5` is unchanged, and `mythos-5` is deliberately not
+  added** — no source states the refusal for Mythos 5, and inheriting it from a claim about a
+  different property is exactly the near-miss scope inheritance the catalog's model-scoping block
+  forbids.
+
+  **The Remediate line now names the surfaces instead of gesturing at them.** It said "read
+  structured `thinking` blocks or use a send-to-user tool"; the sanctioned reading surfaces are
+  `Ctrl+O` verbose mode and the `showThinkingSummaries: true` setting in Claude Code, and
+  `display: "summarized"` on the API. The two Claude Code surfaces are stated on the model
+  configuration page, **not** on the Thinking page, so both pages join the catalog's `## Sources`
+  list — the Recheck-triggers block makes the trigger set the source set, and a cited page nothing
+  watches would leave the row depending on an unwatched source.
+
 ## [0.17.0]
 
 ### Fixed

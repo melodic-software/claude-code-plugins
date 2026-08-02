@@ -1,6 +1,6 @@
 ---
-version: 1.4.0
-last-updated: 2026-07-30
+version: 1.5.0
+last-updated: 2026-08-02
 ---
 
 # Instruction-Audit Criteria
@@ -83,6 +83,10 @@ I15–I16 apply to all surfaces; I13 and I14 name narrower surface sets in their
   <https://code.claude.com/docs/en/hooks>
 - Refusals and fallback (`reasoning_extraction`) —
   <https://platform.claude.com/docs/en/build-with-claude/refusals-and-fallback>
+- Thinking (the sanctioned reasoning-visibility path, and the `display` field) —
+  <https://platform.claude.com/docs/en/build-with-claude/thinking>
+- Model configuration (the harness-side thinking-display surfaces) —
+  <https://code.claude.com/docs/en/model-config>
 - CLI reference (`claude doctor` and the other terminal forms) —
   <https://code.claude.com/docs/en/cli-reference>
 - Subagents (what loads into a subagent at startup) — <https://code.claude.com/docs/en/sub-agents>
@@ -299,10 +303,19 @@ Tier `mechanical` · Authority `ANTHROPIC-DOCS` · Severity `error` · Surfaces:
 
 - **Detect:** instructions telling the model to show, echo, transcribe, or explain its internal
   reasoning as response text. The deterministic pre-scan marks show-your-thinking phrasing.
-- **Remediate:** remove them; read structured `thinking` blocks or use a send-to-user tool if
-  reasoning visibility is needed.
+- **Remediate:** remove them; where reasoning visibility is genuinely needed, read structured
+  `thinking` blocks through the surface that already exposes them — in Claude Code, `Ctrl+O` verbose
+  mode and the `showThinkingSummaries: true` setting (model configuration); on the API,
+  `display: "summarized"` (Thinking). A send-to-user tool remains the path when the reasoning has to
+  reach the user as ordinary response text.
 - **Source:** Fable 5 guide — such instructions "can trigger the `reasoning_extraction` refusal
-  category on Claude Fable 5, causing elevated fallbacks."
+  category on Claude Fable 5, causing elevated fallbacks." Corroborated by the Thinking page, which
+  states the same refusal for the same model: "On Claude Fable 5, a request that attempts to elicit
+  the model's internal reasoning as part of the response text can be refused with
+  `stop_details.category: "reasoning_extraction"`." That second citation does **not** move the
+  promotion gate: its own section names both Claude Fable 5 and Claude Mythos 5 for the adjacent
+  raw-chain-of-thought property, then names Fable 5 alone for the refusal — a sentence-adjacent
+  chance to widen, declined, so the narrower scope is deliberate.
 
 ### I11: CLI over MCP where equivalent
 
