@@ -3,6 +3,36 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.15.5]
+
+### Fixed
+
+- **`quality-gate`'s code-mode boundary no longer calls `/code-review` "built-in"**
+  (doc-accuracy fix). `context/code.md` headed its boundary "the built-in `/code-review`
+  skill" and opened "Claude Code ships a built-in `/code-review` bundled skill" — a
+  compound of two categories the official docs keep apart. The commands reference
+  states "Most are built-in commands whose behavior is coded into the CLI" and marks
+  `/code-review` **[Skill]**, "a bundled skill"; the skills page lists `/code-review`
+  among the bundled skills and says bundled skills are "prompt-based … Most built-in
+  commands instead execute fixed logic directly", with `/doctor` cited as having been
+  "a built-in command rather than a bundled skill" before v2.1.205 — the two labels are
+  mutually exclusive. `/code-review` **is** a bundled skill; only the "built-in"
+  modifier was wrong, so the fix drops it rather than re-labelling the surface. The
+  heading and opening sentence now read "bundled skill" and link
+  <https://code.claude.com/docs/en/skills#bundled-skills>. The plugin's other
+  `/code-review` references (`README.md`, `fanout/SKILL.md`,
+  `fanout/context/findings-normalization.md`, `quality-gate/context/pr.md`) already
+  carry the correct "bundled" modifier and are untouched. Behavior is unchanged — the
+  boundary's routing advice, the report-only contract, and the `--fix` / `--comment`
+  opt-in gate all stand.
+
+  Three released entries below carry the same smear — `0.15.1` ("a bundled built-in
+  command"), `0.14.7` (the entry that added this boundary section: "always-available
+  built-in `/code-review`"), and `0.14.2` ("`/simplify` is an external/built-in
+  skill"). They are left as written: a released entry records what that version
+  shipped, and this file's own `0.15.3` entry sets the precedent of correcting a past
+  rationale in a new entry rather than editing the old one.
+
 ## [0.15.4]
 
 ### Fixed
