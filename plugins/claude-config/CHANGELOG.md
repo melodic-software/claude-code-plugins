@@ -94,6 +94,45 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   enablement policy already lives, and the run's tier-transparency line reports the count it found —
   removing the drift class rather than correcting one instance of it.
 
+## [0.20.1]
+
+### Fixed
+
+- **`audit-pass`: age alone no longer reclaims an applying run's lock where the platform exposes no
+  process start identity (#1786).** The reclamation rule's second conjunct was a start-identity
+  match, and the "where none exists, **age alone reclaims**" fallback had no liveness conjunct at
+  all — the lease's heartbeat was mentioned one sentence later as prose no reclamation test
+  consulted. A live `--fix` exceeding 30 minutes on such a platform lost its lock to a second
+  applying run, contradicting assertion 3.1's *"exactly one proceeds"* on exactly the platform least
+  able to detect the collision. The lock now records the holder's **run id** (and its start identity
+  where one exists) so reclamation can find the holder's lease, and where no start identity is
+  available the lease is the second conjunct: past 30 minutes a **stale** or `released` lease
+  reclaims and says so, a **live** lease refuses exactly as it would inside the window, naming the
+  run id and `heartbeat_at`. The classification reuses §3's existing two-sided liveness test rather
+  than introducing a second one. This does not reintroduce the unreclaimable lock the age bound
+  guards against: a crashed holder stops refreshing, so its lease goes stale within the liveness
+  threshold, and a missing or unreadable lease is treated as stale — the absence of a heartbeat is
+  not evidence of life. Same defect class and same remedy shape as `claude-ops`' restart-consumer
+  (#1759/#1760), where a live PID without a boot identity may only defer a reclaim — that deferral
+  needs a hard ceiling only because its holder publishes no lease. A lock written *before* this rule
+  carries no run id and is covered too: reclamation establishes the conjunct the other way round, by
+  enumerating every lease under `runs/<state-key>/`, so upgrading mid-run never hands a live holder's
+  lock away. The order of the two writes is now normative for the same reason — an applying run
+  writes its lease **before** it takes the lock, since a lock whose lease does not yet exist would
+  read as stale and be reclaimed on age alone through the window between them. New assertions 3.12,
+  3.13, and 3.14; new evals 27 and 29.
+- **`audit-pass`: a suppression no longer re-applies silently across an anchor collision (#1786).**
+  §1 guarantees that two identical normalized excerpts under one heading path collide and that *"no
+  suppression carries forward across it"* (assertion 1.10a), but §4's matching table had no
+  collision exception — and a collided site's anchor is by construction **unchanged**, since the
+  occurrence discriminator digests the heading path. A previously-suppressed excerpt that later
+  gained an identical duplicate therefore satisfied the `SAME, UNCHANGED` row exactly and
+  re-suppressed itself with no report. Collision is now tested ahead of the anchor comparison in
+  every row and routes to the existing `OLD CLOSED, NEW OPENED` disposition — entry stale per 4.2,
+  finding unsuppressed, collision named with its occurrence count — reusing the section's
+  established fail-closed answer to an ambiguous match rather than adding a fifth disposition. New
+  assertion 4.7; new eval 28.
+
 ## [0.20.0]
 
 ### Added

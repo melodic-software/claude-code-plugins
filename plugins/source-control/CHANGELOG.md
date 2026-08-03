@@ -3,6 +3,55 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.45.1]
+
+### Fixed
+
+- **`babysit-loop`: the pre-escalation resolution dispatch now honors the resolved thread-resolution
+  dimension (#1786).** The dispatch fired on the widening pair alone, while the *"Dimension
+  overrides bind by tier flooring"* rule was scoped only to *"Before invoking"* the babysit-prs
+  tier — and `reference/pre-escalation-dispatch.md` contained no occurrence of `dimension` at all.
+  So `autopilot --merge c3-this-run --thread-resolution safe` still dispatched a fresh subagent to
+  mutate bot threads the operator's own argument had just denied, against
+  `reference/config-resolution.md`'s *"invocation arguments win"* rule for every dimension but
+  merge. Resolving review threads **is** an exercise of dimension 3, so the flooring rule now
+  explicitly binds every capability the cycle exercises for a PR rather than only the tier keyword
+  it passes on: a floored thread-resolution dimension withholds the dispatch outright and the PR
+  escalates, reported as override-constrained — never a dispatch made and then narratively told not
+  to resolve. New eval 6.
+- **`babysit-loop`: the pre-escalation dispatch names its resolver mode, and it is the one that can
+  actually clear the blocker (#1786).** Neither `SKILL.md` nor `reference/pre-escalation-dispatch.md`
+  stated which `babysit_resolve_thread.py` mode the dispatch runs; as written, *"the full per-PR
+  worker lifecycle"* implied `--autonomous`, which hard-refuses any thread not already `isOutdated`
+  before its own push — precisely the current, non-outdated bot thread D7.5 routes to this dispatch,
+  so it could never clear the blocker class it exists for. The mode is now stated as
+  `--independent-resolver` (landed in 0.42.0, #1782), with the D7.5 ledger mapped onto its validated
+  evidence flags (`fixed`/`--fix-commit`, `deferred`/`--tracker-item`,
+  `incorrect`/`--counter-evidence`, `UNCERTAIN` → escalate), and the worker-lifecycle sentence scoped
+  to how a **code change** is made rather than to mode selection. Two shapes the mode refuses are
+  named where the dispatch will meet them, because the ledger's per-finding phrasing does not imply
+  either: a thread carrying more than one source finding (`skipped-multi-finding-thread` — one
+  disposition cannot clear a thread whose other findings would drop out of the readiness
+  denominator) and a severity-flagged thread. Both escalate rather than resolve. New eval 7.
+- **`babysit-prs`: the security/P1 bright line is no longer documented as having an exception
+  (#1786).** `reference/safety.md` titled a section *"Security/P1 escalation: the one named
+  exception"* and presented the pre-escalation resolver as that exception, citing the loop-lane
+  convention's §1 — but that convention exception widens the **merge rung** for a single run and
+  never touches the severity line, and the same file's `--independent-resolver` rules (with the
+  wrapper itself) refuse a severity-flagged thread in every unattended mode. The documented
+  exception was therefore unreachable, and it now contradicted `babysit-loop`'s newly explicit
+  refusal. The section is retitled and reframed: the bright line has no exception, the paired
+  argument unlocks the *dispatch path* rather than the severity widening, and the four scoping
+  bullets stay with the dispatch they actually describe. Both inbound citations are corrected with
+  it: `SKILL.md`'s one-line restatement, and `babysit-loop/reference/pre-escalation-dispatch.md`,
+  which cited the old heading and repeated the refuted claim that the exception is *"scoped to
+  security/P1 escalation"*.
+- **`babysit-loop`: the subagent discipline preamble no longer hand-copies the discipline plugin's
+  membership (#1786).** `SKILL.md`'s Subagents section enumerated `(sweep-all, use-your-skills,
+  do-your-research)` inline, which the loop-lane convention's own no-enumeration rule forbids and
+  which drifts from the plugin that owns the list. It now points at the sweep skill, which resolves
+  its own membership.
+
 ## [0.45.0]
 
 ### Changed
