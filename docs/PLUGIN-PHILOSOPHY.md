@@ -698,12 +698,22 @@ whether Claude reasons in thinking blocks; `effort` decides how hard the whole r
 "which in adaptive mode includes how often and how deeply it thinks". Upstream states the resulting
 trap outright — "Don't pass `adaptive` as an `effort` value: `adaptive` is a thinking mode, not an
 effort level" — and a frontmatter `effort` field is exactly where that trap is reachable, because the
-two dials share vocabulary. The second consequence bounds what any pin can promise: "Effort is soft
-guidance; `max_tokens` is a strict limit", so a lane needing a hard ceiling on spend sets the output
-cap rather than pinning effort lower
+two dials share vocabulary. The second consequence bounds what any pin can promise, in upstream's own
+words: "**You need a hard ceiling on spend:** use `max_tokens`. Effort is soft guidance; `max_tokens`
+is a strict limit." Read what that limit bounds before reaching for it. `max_tokens` is a request
+parameter capping one response's output — it "includes all thinking Claude generates in the current
+turn" — so it binds per response and constrains neither input and cache reads nor the further
+requests an agentic lane makes. **And no plugin surface reaches it.** The documented frontmatter
+fields set the model and the effort level, and a subagent adds `maxTurns`, which bounds agentic turns
+rather than tokens and has no skill-frontmatter counterpart; neither field list carries a token cap,
+because the parameter belongs to the API request a plugin does not assemble. So the rule this section
+can actually state is narrower than the quote: a lane wanting to spend less lowers `effort` knowing
+it is guidance, and a hard cap has to be imposed by whoever builds the request
 ([thinking and effort](https://platform.claude.com/docs/en/build-with-claude/thinking#thinking-and-effort),
-verified 2026-08-03; recheck trigger: the accepted `effort` value set changes on the model-config or
-effort page). Checking the value set mechanically stays deferred: a lint rule's source of truth is
+[subagent frontmatter](https://code.claude.com/docs/en/sub-agents#supported-frontmatter-fields), and
+[skill frontmatter](https://code.claude.com/docs/en/skills#frontmatter-reference), all verified
+2026-08-03; recheck trigger: the accepted `effort` value set changes on the model-config or effort
+page, or either documented frontmatter field list gains a token cap). Checking the value set mechanically stays deferred: a lint rule's source of truth is
 the harness's own accepted-value list, which this section deliberately does not restate.
 
 Session-level effort is the consumer's own knob, out of plugin scope: `low` through `xhigh`

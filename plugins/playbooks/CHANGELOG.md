@@ -31,7 +31,14 @@ only after that version increases.
   window](https://platform.claude.com/docs/en/build-with-claude/thinking#thinking-and-the-context-window))
   applied to that forced retention, not a second observation — the wire evidence proves retention,
   not billing. `skills/fable-5/SKILL.md` carries the distilled line under core doctrine, "Managing
-  your window — context-economy".
+  your window — context-economy". Both surfaces **bound the accumulation to the current uncompacted
+  window**: `keep:"all"` preserves only blocks a request still carries, and compaction "replaces
+  your message history with a summary" ([Compacting the
+  conversation](https://code.claude.com/docs/en/prompt-caching#compacting-the-conversation),
+  verified 2026-08-03), so thinking summarized away — or dropped by `/clear` or a rewind — is
+  neither re-sent nor re-billed, and the count restarts at the last history reset rather than at the
+  first turn. The four-part record is unaffected: `keep:"all"` is still what the harness sends, and
+  only the billing scope downstream of it narrows.
 
 ### Changed
 
