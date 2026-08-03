@@ -3,6 +3,46 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.19.0]
+
+### Changed
+
+- **`audit-instructions`: I8-b (conservative-reporting detection) is promoted to unscoped**
+  (criteria 1.5.0 → 1.6.0). The row carried `Model scope: opus-5` and fired only when the resolved
+  target model was Opus 5. The **Sonnet 5** prompting guide, "Code review harnesses", states the
+  same claim about the same behavior — a review prompt saying "only report high-severity issues",
+  "be conservative", or "don't nitpick" is followed literally, so the model investigates just as
+  thoroughly and then withholds findings below the stated bar. Two first-party model guides of the
+  same class converging is the promotion gate's **second arm**, so the row is now annotated the way
+  I7 is and fires for every target model. The Sonnet 5 guide joins `## Sources`, as the
+  Recheck-triggers block requires of every cited page. The Detect line's "which **this** model
+  follows literally" is now "which **current models** follow literally" — the demonstrative
+  referred to the row's scoped model, and an unscoped row has none.
+
+  **The Recheck-triggers block no longer enumerates the model-specific pages.** It read
+  "Model-specific pages (the Fable 5 and Opus 5 guides) are superseded on each model generation" —
+  a closed list the Sonnet 5 addition immediately falsified. It now reads "the per-model prompting
+  guides under Sources", which stays true as guides join. The enumeration also contradicted its own
+  paragraph three lines above, which argues that "naming a subset would leave the harness-behavior
+  rows depending on pages nothing watches."
+
+- **I8-b's Source line now cites the phrase it could not.** The row's Detect names three trigger
+  phrases; **"don't nitpick" appears nowhere in the Opus 5 guide**, which states only the other
+  two. The Sonnet 5 guide names all three verbatim, so it is that phrase's only cited home, and the
+  Source line says so rather than leaving a trigger phrase attributed to a page that does not
+  contain it.
+
+- **I8-b's Remediate line gains the constructive half.** It said only "rephrase to
+  report-everything + a separate filter/rank pass", which does not answer the case where a
+  single-pass self-filter is genuinely wanted. The Sonnet 5 guide covers that case — "be concrete
+  about where the bar is rather than using qualitative terms like `important`" — so the line now
+  keeps the filter and asks for an enumerable test in place of a qualitative label.
+
+  **Promoting this row flags nothing new in this repository.** The scanner's I8-b population here
+  is 23 candidate rows across 6 files, every one of them already fenced by the row's own two
+  fences — the restraint-clause shape (`code-tidying`'s tidyings catalog) and the quoted/meta
+  surface (this criteria file, the scanner and its tests, two model-adaptation delta chapters).
+
 ## [0.18.0]
 
 ### Added
