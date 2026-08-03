@@ -17,13 +17,15 @@ Stay-inline conditions override all three shapes — if any holds, stay inline e
 - The whole job is under ~5 tool calls — the spec would cost more than the work.
 - You will need the full detail later in the session — a worker returns a lossy summary, and re-deriving lost detail cancels the savings.
 
-Exception: the fresh-context verifier required by "Fresh-context verification" below is never displaced by these conditions — isolation is its product, so the ~5-call bar and the file-overlap condition do not apply to it.
+Exception: the fresh-context verifier required by "Fresh-context verification" below is never displaced by these conditions — isolation is its product, so the ~5-call bar and the file-overlap condition do not apply to it. A consistency-carried spawn (the fourth condition below) is likewise not displaced by the ~5-call bar: the piece being small is the premise of that condition, not a strike against it.
 
 Delegation pays only when at least one of these holds; when none does, it spends both context windows:
 
 - The raw work output is much larger than spec plus return — isolation protects your window.
 - The pieces genuinely run concurrently — a wave of four costs roughly one worker's wall-clock.
 - The isolation itself is the product — verification.
+- Consistency across a large set is at stake — the second rationale under "Decompose by context,
+  not by headcount" below; it can carry a spawn that context economy alone would not justify.
 
 ## Decompose by context, not by headcount
 
@@ -31,6 +33,9 @@ Partition by touch-set per the planning chapter, section "Independent tracks ver
 
 - **Derive worker count from the partition, never the reverse** — deciding "four workers" first and dividing the work four ways manufactures boundaries the code does not have, so workers re-read the same material and return overlapping or conflicting conclusions you must reconcile by hand.
 - **Cap a concurrent wave at 3-5 workers** regardless of how many pieces exist, because beyond that you cannot meaningfully review the returns — and an unreviewed return is worthless (next two sections). Run remaining pieces as successive waves.
+- **Two rationales ride on one partition, and the second is the one that gets forgotten.** Context economy is why decomposition is usually reached for; output consistency is the other half — a worker holding one focused subtask makes fewer inconsistency errors across scaled workflows than one holding the whole job ([Increase output consistency](https://platform.claude.com/docs/en/test-and-evaluate/strengthen-guardrails/increase-consistency), verified 2026-08-03). The consequence is a tiebreak: when a piece is small enough that context economy alone would not justify the spawn, consistency across a large set still can — the fourth condition in the delegation gate above. Both rationales are recorded here and nowhere else in this playbook — the planning and context-economy chapters route delegation to this chapter rather than restating either.
+
+This rationale is deliberately mechanism-agnostic. Subagent delegation, a dynamic workflow, and a `claude -p` fan-out all realize the same partition, and which one fits is situational — the choice belongs to the delegation decision above, not to the reason for decomposing.
 
 > Weak: "Four workers: split the files alphabetically."
 > Strong: "The touch-set partition yields three disjoint slices — auth, billing, notifications — so three workers, one slice each."

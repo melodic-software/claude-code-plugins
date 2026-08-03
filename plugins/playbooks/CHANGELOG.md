@@ -4,6 +4,69 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.6.6]
+
+### Added
+
+- **`fable-5` verification gains the provided verification surfaces table.**
+  `skills/fable-5/context/verification.md` adds "Know what already verifies before you build a
+  check", triggered when a project is about to get a custom check rather than a one-off probe. Six
+  surfaces are mapped to their own reference pages, pointer-not-copy, and presented as **spanning
+  three products** rather than one feature list — the harness (`/verify`, toolchain signals,
+  project build and test commands in CLAUDE.md), a managed review service (Code Review), CI
+  (a GitHub Actions job invoking Claude with a verification skill), and a separate platform API
+  product (rubrics in Claude Managed Agents, whose grader runs in its own context window and hands
+  failures back for rework). The two items with no harness artifact stay **rows** rather than being
+  dropped to prose, because an item the source lists and nothing implements is the most useful
+  thing the table records: spec validation — verifying each change against a markdown spec — is **a
+  pattern, not a shipped artifact**, its Canonical-page cell says so and routes to the repo-local
+  skill mechanism, and its absence ships as an as-of claim (checked 2026-08-03 against the
+  bundled-skill rosters in [Skills](https://code.claude.com/docs/en/skills) and [Slash
+  commands](https://code.claude.com/docs/en/commands)) with a recheck trigger on a release note
+  adding one; and Managed Agents rubrics belong to **a different product**, so the in-session
+  equivalent is a construction you assemble (a fresh-context subagent as grader) reached through
+  the bundled `/claude-api managed-agents-onboard` skill. The section closes on **provided never
+  means automatic** (the surfaces span bundled prompt-based skills and a hosted service — the
+  official docs reserve "built-in" for CLI-coded commands): since v2.1.215 `/verify` and `/code-review` run only when invoked, and Code
+  Review is research preview, limited to Team and Enterprise, unavailable under Zero Data
+  Retention, and enabled per repository by an Owner
+  ([Skills](https://code.claude.com/docs/en/skills#bundled-skills), [Code
+  Review](https://code.claude.com/docs/en/code-review)). Every page in the table was re-fetched
+  2026-08-03, HTTP 200.
+
+- **`fable-5` calibration gains the channel-authority rule.**
+  `skills/fable-5/context/calibration.md` adds "The reference page defines; a vendor post
+  corroborates" — a **channel** axis distinct from the surface axis the neighbouring section owns:
+  a vendor's own blog or launch post is first-party and still not the authority on what a term
+  means, because it is written once and never revised while the page owning the term is maintained
+  against the behavior it describes. The rule is cite-the-owning-page, pointer-never-copy, and
+  read the page even when the post's definition looks complete, since omission is invisible from
+  inside a summary. The worked instance ships with it: "verification loop" and "agentic loop" are
+  owned by the [glossary](https://code.claude.com/docs/en/glossary), [How Claude Code
+  works](https://code.claude.com/docs/en/how-claude-code-works), and [Best
+  practices](https://code.claude.com/docs/en/best-practices), and the glossary entry carries what a
+  post-length definition drops — a verification loop is the **prerequisite** for `/goal`,
+  unattended runs, and dynamic workflows, so the short definition leaves a reader right about the
+  concept and unaware that three capabilities depend on it (verified 2026-08-03).
+  `skills/fable-5/SKILL.md` carries the distilled line under core doctrine, "Ground truth and
+  checking — calibration".
+
+### Changed
+
+- **`fable-5` orchestration records the second rationale for decomposing.**
+  `skills/fable-5/context/orchestration.md`, section "Decompose by context, not by headcount",
+  previously justified decomposition on context economy alone. It now records **output
+  consistency** beside it — a worker holding one focused subtask makes fewer inconsistency errors
+  across scaled workflows than one holding the whole job ([Increase output
+  consistency](https://platform.claude.com/docs/en/test-and-evaluate/strengthen-guardrails/increase-consistency),
+  verified 2026-08-03) — with the operational consequence stated as a tiebreak: a piece too small
+  for context economy to justify the spawn can still be worth spawning for consistency across a
+  large set. The rationale is deliberately **mechanism-agnostic** — subagent delegation, a dynamic
+  workflow, and a `claude -p` fan-out all realize the same partition, and the choice belongs to the
+  delegation decision, not to the reason for decomposing. Recorded in exactly one place: the
+  planning and context-economy chapters already route delegation to that chapter rather than
+  restating it, and no distilled line is added, so the rationale has one home rather than two.
+
 ## [0.6.5]
 
 ### Changed

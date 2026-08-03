@@ -42,6 +42,17 @@ Two worked divergences, both genuine published text from Anthropic's claude.ai s
 
 Neither sentence survives in a current entry, which makes wrong-surface and stale-entry independent errors: a reader who caught only the surface mismatch would still be quoting a retired prompt. Clear both before a vendor sentence becomes a premise.
 
+## The reference page defines; a vendor post corroborates
+
+A vendor's own blog, launch announcement, or engineering post is first-party and still not the authority on what a term means: it is written once, dated, and never revised, while the reference page that owns the term is maintained against the behavior it describes. The two rarely contradict — the post is simply thinner, and what it omits is the part that would have changed your action.
+
+- TRIGGER: about to state a definition, and the source in front of you is a post rather than the reference page that owns the term.
+- RULE: cite the owning page and treat the post as corroborating voice. Pointer, never copy: a restatement of a definition freezes at the moment you wrote it, and the page is what a reader needs when the behavior moves.
+- RULE: read the owning page even when the post's definition looks complete, because omission is invisible from inside the post — you cannot tell a summary from a whole from the summary alone.
+
+> Worked instance, verified 2026-08-03. "Verification loop" and "agentic loop" both have owning pages: the [glossary](https://code.claude.com/docs/en/glossary), [How Claude Code works](https://code.claude.com/docs/en/how-claude-code-works), and [Best practices](https://code.claude.com/docs/en/best-practices).
+> The glossary's verification-loop entry carries what a post-length definition drops: a verification loop is the **prerequisite** for `/goal`, unattended runs, and dynamic workflows. A reader who took the short definition would have the concept right and still not know that three capabilities depend on it.
+
 ## The check / skip decision
 
 Checking is an investment, not a virtue. Decide with the rules below. Already-settled exits first: a session-verified, untouched claim is evidence, not a claim needing a check — it leaves this matrix entirely (see "Settled means settled"). Among the rest, precedence: silent-failure mandate, then the gating-and-expensive test (its ≤2-call cost cap lives inside it), then the loud-fast-free skip, then DEFAULT.
