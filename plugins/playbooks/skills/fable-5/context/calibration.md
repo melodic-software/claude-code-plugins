@@ -53,6 +53,18 @@ A vendor's own blog, launch announcement, or engineering post is first-party and
 > Worked instance, verified 2026-08-03. "Verification loop" and "agentic loop" both have owning pages: the [glossary](https://code.claude.com/docs/en/glossary), [How Claude Code works](https://code.claude.com/docs/en/how-claude-code-works), and [Best practices](https://code.claude.com/docs/en/best-practices).
 > The glossary's verification-loop entry carries what a post-length definition drops: a verification loop is the **prerequisite** for `/goal`, unattended runs, and dynamic workflows. A reader who took the short definition would have the concept right and still not know that three capabilities depend on it.
 
+## Point at a per-model matrix; never copy one
+
+Per-model tables — which configurations a model accepts, what it defaults to, which values it rejects, what its limits are — are the fastest-moving content a vendor publishes and the most tempting to paste, because a table reads as a fact rather than as a snapshot. A copied matrix is a fact about the day you copied it, and nothing in your artifact tells a later reader which day that was; a row is added or a default flips with each model release, and the copy stays confidently wrong.
+
+- TRIGGER: about to write a per-model matrix — supported values, defaults, capabilities, limits — into a chapter, rule, brief, or answer.
+- RULE: point at the vendor page that owns the table and let the reader read it there. For thinking configuration that page is [Troubleshooting thinking](https://platform.claude.com/docs/en/build-with-claude/thinking-troubleshooting), whose per-model table is the authority on what each model accepts, defaults to, and rejects (verified 2026-08-03). Nothing you restate from it is more current than it is.
+- RULE: if you state a matrix anyway — because the reader cannot act without the values in front of them — attach a re-check trigger naming the next model release, so a stale row is found by a scheduled read rather than by a reader acting on it.
+- RULE: a vendor matrix is an API-surface fact, so "A claim's product surface travels with it" above applies to it row by row. Presence in the table is not reachability where you are running.
+
+> Worked instance, verified 2026-08-03. Claude Mythos 5 has its own row in that per-model table. In Claude Code it is a known model in the registry with full gating machinery and is still not selectable: no alias resolves to it, it is absent from `latest_per_family`, it declares no capabilities, and it exposes no picker row. Its registry entry carries exactly one non-null provider id — `first_party` — beside seven null siblings.
+> Reading its row as an available option would be the copy error and the surface error at once, and the table itself gives no signal that the two answers differ.
+
 ## The check / skip decision
 
 Checking is an investment, not a virtue. Decide with the rules below. Already-settled exits first: a session-verified, untouched claim is evidence, not a claim needing a check — it leaves this matrix entirely (see "Settled means settled"). Among the rest, precedence: silent-failure mandate, then the gating-and-expensive test (its ≤2-call cost cap lives inside it), then the loud-fast-free skip, then DEFAULT.

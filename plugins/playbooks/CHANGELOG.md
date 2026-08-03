@@ -4,6 +4,38 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.6.7]
+
+### Added
+
+- **`fable-5` calibration gains the per-model-matrix rule.**
+  `skills/fable-5/context/calibration.md` adds "Point at a per-model matrix; never copy one",
+  triggered when a per-model table — supported values, defaults, capabilities, limits — is about to
+  be written into a chapter, rule, brief, or answer. It is a **volatility** axis, distinct from the
+  surface axis and the channel axis the neighbouring sections own: a table reads as a fact and is
+  actually a snapshot, so a copy is a fact about the day it was copied with nothing in it saying
+  which day that was. The rule is point-at-the-owning-table, and for thinking configuration that
+  table is the per-model table on [Troubleshooting
+  thinking](https://platform.claude.com/docs/en/build-with-claude/thinking-troubleshooting) — the
+  authority on what each model accepts, defaults to, and rejects (re-fetched 2026-08-03, HTTP 200).
+  A matrix stated anyway — because the reader cannot act without the values in front of them —
+  carries a **re-check trigger naming the next model release**, so a stale row is found by a
+  scheduled read rather than by a reader acting on it. The fourth rule connects the section to its
+  neighbour: a vendor matrix is an API-surface fact, so presence in the table is not reachability
+  where the reader is running.
+
+  The worked instance ships with it, verified 2026-08-03 on both sides. **Claude Mythos 5 has its
+  own row in that per-model table**, and in Claude Code it is a known model in the registry with
+  full gating machinery and still not selectable — no alias resolves to it, it is absent from
+  `latest_per_family`, it declares no capabilities, and it exposes no picker row; its registry entry
+  carries **exactly one non-null provider id (`first_party`) beside seven null siblings**. Reading
+  that row as an available option would be the copy error and the surface error at once, and the
+  table gives no signal that the two answers differ. The seven-null figure is stated at the
+  corrected count: an earlier reading of the same registry entry put every provider id null and
+  counted eight, which the schema disproves — `first_party` is non-nullable and exactly seven
+  siblings are nullish. `skills/fable-5/SKILL.md` carries the distilled line under core doctrine,
+  "Ground truth and checking — calibration".
+
 ## [0.6.6]
 
 ### Added
