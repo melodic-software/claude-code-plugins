@@ -4,6 +4,29 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.10.18]
+
+### Changed
+
+- **Anthropic profile — `anthropic.com/engineering` is now an in-scope property.** The profile
+  scoped this publisher to `platform.claude.com`, `code.claude.com`, and `claude.com/blog`, which
+  put Anthropic's own engineering posts outside the pipeline even though they are first-party and
+  are the stated best-practices channel for several topics the corpus already wants. Engineering
+  pages are in scope by default now, rather than admitted one at a time by exception — the same
+  coverage either way, with an honest boundary instead of a growing list of one-off exemptions.
+  Two standing costs come with it and are not yet written into any rule: the vendor-blog
+  attestation bullet below still names `claude.com/blog` literally and does not reach the new
+  property, and unlike the two docs properties, `anthropic.com/engineering` publishes no
+  machine-readable page index, so page selection and absence checks against it have no instrument.
+- **Anthropic profile — a fourth artifact target: cross-slice synthesis.** The taxonomy named three
+  targets, all of which describe a shape a cross-model synthesis artifact is not — it is not
+  per-model, not an audit rule row, and not graduation of one slice. Content deferred to such a pass
+  therefore had nowhere to route: the digest fan-out is barred from reaching across units by design,
+  and no later pipeline stage exists to pick it up. Four units in one slice deferred content into
+  that gap. The target is named without a host — which repository or seam it lands in is a separate
+  decision no run has taken — so the taxonomy stops silently converting cross-unit findings into
+  out-of-scope ones.
+
 ## [0.10.17]
 
 ### Changed

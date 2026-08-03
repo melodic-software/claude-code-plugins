@@ -1,10 +1,11 @@
 # Publisher profile — Anthropic docs
 
 Publisher-specific configuration for `/knowledge:docpage-digest` runs against Anthropic
-documentation properties (`platform.claude.com`, `code.claude.com`, `claude.com/blog`). The
-pipeline engine in `SKILL.md` stays generic; everything here is this publisher's own contract.
-A second publisher joins as a sibling profile file; engine extraction waits for the third
-(Rule of Three).
+documentation properties (`platform.claude.com`, `code.claude.com`, `claude.com/blog`,
+`anthropic.com/engineering` — hosts match with or without a leading `www.`; live engineering
+links use `www.anthropic.com`). The pipeline engine in `SKILL.md` stays generic; everything here
+is this publisher's own contract. A second publisher joins as a sibling profile file; engine
+extraction waits for the third (Rule of Three).
 
 ## Fetch channel
 
@@ -166,5 +167,7 @@ Deferred with trigger (not queued):
 
 Interview-handoff dispositions for this publisher typically route to: per-model doctrine
 chapters (a playbooks-style model-adaptation seam), instruction-audit rule rows (a
-model-delta audit class), or corpus graduation (a knowledge-corpus repository). The handoff
-records the candidate target per finding; the interview decides.
+model-delta audit class), corpus graduation (a knowledge-corpus repository), or cross-slice
+synthesis (a cross-model artifact spanning units and slices the per-unit digest fan-out cannot
+reach — not per-model, not an audit rule row, not graduation of one slice; its host is
+undecided). The handoff records the candidate target per finding; the interview decides.
