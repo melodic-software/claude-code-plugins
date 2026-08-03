@@ -3,6 +3,97 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.21.0]
+
+### Added
+
+- **`audit-instructions`: the two agnostic-mechanism rows from the IA-6 / IA-10-A2 ownership split —
+  I21 and I22** (criteria 1.7.0 → 1.8.0). Both source rules were **compounds**: an agnostic
+  mechanism fused to a consumer-state instance naming this fleet's own machines, files, and dates.
+  Routing either wholesale was wrong in both directions — outward it would ship our private state to
+  every consumer, inward it would strand a reusable staleness control. Each was split at the
+  mechanism/instance line; only the mechanism halves are here. The instance halves (a dated vet, a
+  chezmoi-managed fleet pin) are drafted for the consumer repository and deliberately ship nowhere
+  in this plugin.
+
+  - **I21 — effort level pinned across a model change with no re-sweep** (`mechanical`,
+    `ANTHROPIC-DOCS`, `warning`, unscoped). The effort scale is calibrated per model, so the same
+    level name does not carry the same underlying value across models, and a level measured against
+    one model then carried to the next is a pin nobody re-measured. The promotion gate is met on the
+    strong form: model configuration states the calibration property **with no model qualifier**, so
+    that page alone carries the row; the effort page's Opus 5 subsection is cited only for the
+    remediation's wording, and its per-model placement does not narrow a property stated generally.
+
+    **The model range is a Detect condition, not a `Model scope` annotation**, on I17's reasoning.
+    It is in Detect because the *consequence* varies: Claude Code applies a model's default effort
+    on first run of Fable 5, Opus 4.8, or Opus 4.7 and holds it, so a carried level there is
+    overridden harmlessly — while **Opus 5 has no such hold** and a stale pin actually reaches the
+    request. One thing is recorded as **unresolved rather than inferred**: the page names `/effort`
+    and `--effort` as *examples* ("such as") of the explicit choice that releases the hold, so
+    whether a settings-file `effortLevel` pin releases it is not stated anywhere read for this row.
+    The row therefore fires on the missing re-derivation regardless of model, and the hold is
+    severity context, never a fence.
+
+    Four fences keep it honest. A prescription of **`high` is exempt only where `high` is the
+    resolved target's default** — it is "Equivalent to not setting the parameter", so on such a model
+    it carries no measured calibration. **The exemption keys to the resolved target, never to the
+    wording**, which is what makes it correct: `high` is the default everywhere **except Opus 4.7,
+    which defaults to `xhigh`**, so when the target is 4.7 the exemption lifts and a broad
+    model-agnostic "always use `high`" naming no model is a finding — indeed the sharper case, since
+    a pin written where `high` was the no-op default becomes a silent step-down the moment it reaches
+    a model whose default sits above it. A resolved target always exists, because the skill body
+    aborts rather than run against an unresolved one, so the fence never guesses. A **per-task**
+    choice
+    (`ultrathink`, "reach for `xhigh` on hard problems") is not a durable pin. **`effort:`
+    frontmatter and `effortLevel` keys route to `claude-config:audit`** on I17's
+    instruction-text-versus-config discriminator. And **schema documentation and its illustrative
+    samples** are fenced **separately** rather than folded into the config fence, because a worked
+    example quoted inside documentation prose is not a key living in a config file and the config
+    fence would not have reached it — the level in a sample demonstrates syntax, not a measured
+    choice. That fence ends where the demonstration does: documenting the field *and then telling the
+    reader which level to put there* is prescribing, and stays in scope.
+
+  - **I22 — model-routing doctrine with no baseline named** (`mechanical`, `OPINION`, `info`,
+    default **off**, enabled by `--opinion`). First-party lane assignments derived from a reading of
+    vendor selection pages, written down with neither the baseline they came from nor an event that
+    re-opens them, become a claim about a model generation that has since passed, told in the
+    present tense. Its own contribution beyond "attach a trigger" is the **delta-not-re-run**
+    discipline: the action on a trigger is a targeted delta check against the named baseline, never
+    a re-derivation from scratch — a trigger nobody can afford to run is not a control.
+
+    **The row carries no baseline of its own, by design.** Naming a date or a vet here would hand
+    every consumer a foreign snapshot as their baseline, reproducing in their repos the exact drift
+    the check exists to catch.
+
+    Its third-party fence is stated **narrowly on purpose**: transcribed practice is out of scope
+    only because there is no vet to point at, **not** because a sync stamp makes it fresh. A stamp
+    tracks whether the transcription is current, never whether the transcribed advice still names a
+    live model — so a stale lane recommendation inside a faithfully synced pack stays stale. That
+    residual is the transcribing surface's to carry, and the fence says so rather than implying the
+    sync path has it covered.
+
+    Its non-duplication is stated in the row rather than assumed. **I19** covers a restated
+    *benchmark figure* and asks for the four-part record; it says nothing about lane assignments and
+    nothing about how to act when a trigger fires. **The catalog-wide recheck trigger** does not
+    reach it either — that trigger governs *this catalog's* staleness against its Sources, not an
+    audited surface's staleness against the pages its doctrine was read from. It ships
+    `Source: none` on I19's footing and adds no Sources entry for the same reason.
+
+### Changed
+
+- **`audit-instructions`: the model-configuration and effort Sources entries name what I21 depends
+  on** — the per-model calibration of the effort scale and the first-run default hold, and `high`'s
+  equivalence to omitting the parameter plus the carry-over sweep advice. The catalog's "the trigger
+  set is the source set" invariant makes these parentheticals load-bearing: a dependency the entry
+  does not name is a dependency nothing watches.
+
+- **`audit-instructions`: `--opinion` no longer restates which rows it enables.** The flag's
+  description in the skill body carried its own copy of the `OPINION` row set, which is a second
+  place to update on every new `OPINION` row and, when stale, silently narrows the flag below what
+  the catalog actually defines. The set is now read from the catalog at run time, where the
+  enablement policy already lives, and the run's tier-transparency line reports the count it found —
+  removing the drift class rather than correcting one instance of it.
+
 ## [0.20.1]
 
 ### Fixed
