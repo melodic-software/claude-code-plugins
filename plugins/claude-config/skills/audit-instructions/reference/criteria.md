@@ -767,10 +767,17 @@ not a `Model scope` annotation**, for the reason I17 states.
   and state that a model change re-opens it — or run the sweep. Upstream's own wording for the
   action: "If you carried effort settings over from an earlier model, run a fresh effort sweep on
   your evals rather than reusing them."
-- **Must NOT flag: a prescription of `high`.** It is "Equivalent to not setting the parameter" and is
-  the default on every model that supports effort **except Opus 4.7, which defaults to `xhigh`** — so
-  a bare `high` carries no measured calibration that could go stale. A surface prescribing `high`
-  **for Opus 4.7 specifically** is a deliberate step-down and stays in scope.
+- **Must NOT flag: a prescription of `high` where `high` is the resolved target's default.** It is
+  "Equivalent to not setting the parameter", so on a model that defaults to `high` such a pin
+  carries no measured calibration that could go stale. **The exemption keys to the resolved target,
+  never to the wording.** `high` is the default on every model that supports effort **except Opus
+  4.7, which defaults to `xhigh`** — so when the run's resolved target is Opus 4.7 the exemption
+  lifts and a `high` pin is a finding, **including a broad model-agnostic "always use `high`" that
+  names no model at all**. That broad pin is the sharper case rather than the excluded one: written
+  where `high` was the no-op default and then carried to a model whose default sits above it, it
+  silently becomes a step-down nobody measured — this row's subject exactly. A resolved target
+  always exists, because the skill body aborts rather than run against an unresolved one, so this
+  fence never has to guess which side of it a surface falls on.
 - **Must NOT flag: a per-task or single-turn effort choice** — "reach for `xhigh` on hard problems",
   `ultrathink`, `ultracode` — which selects a level for one piece of work rather than pinning one.
   This row is about durable pins.

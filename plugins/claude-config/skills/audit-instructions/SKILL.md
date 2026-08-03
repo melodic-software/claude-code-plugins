@@ -105,8 +105,12 @@ scope; non-matching ones are inert and the report lists them as `skipped-for-tar
 
 Two flags govern the `OPINION` tier, whose enablement policy the catalog defines:
 
-- `--opinion` — also run the `OPINION`-tier checks that emit findings (I16 and I19 today). Off by
-  default; their findings are capped at `info` and are never applied.
+- `--opinion` — also run the `OPINION`-tier checks that emit findings. Off by default; their
+  findings are capped at `info` and are never applied. **Which rows those are is read from the
+  catalog at run time and deliberately not restated here**: the catalog owns the enablement policy,
+  so a second copy of the set in this file is one more thing to keep in sync on every new
+  `OPINION` row, and a stale copy silently narrows the flag. The run's tier-transparency line
+  reports how many it found.
 - `--no-stopping-condition` — disable the `OPINION`-tier stopping condition that bounds I6 and I8.
   It is on by default because it withholds findings rather than emitting them, so turning it off
   makes both trimming checks more aggressive, not the audit more conservative.

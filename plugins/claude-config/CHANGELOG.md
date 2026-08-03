@@ -34,10 +34,16 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
     The row therefore fires on the missing re-derivation regardless of model, and the hold is
     severity context, never a fence.
 
-    Four fences keep it honest. A prescription of **`high` is not flagged** — it is "Equivalent to
-    not setting the parameter" and is the default on every model that supports effort **except Opus
-    4.7, which defaults to `xhigh`**; the carve-out is stated rather than rounded off, because a
-    catalog that exists to catch false literals must not ship one. A **per-task** choice
+    Four fences keep it honest. A prescription of **`high` is exempt only where `high` is the
+    resolved target's default** — it is "Equivalent to not setting the parameter", so on such a model
+    it carries no measured calibration. **The exemption keys to the resolved target, never to the
+    wording**, which is what makes it correct: `high` is the default everywhere **except Opus 4.7,
+    which defaults to `xhigh`**, so when the target is 4.7 the exemption lifts and a broad
+    model-agnostic "always use `high`" naming no model is a finding — indeed the sharper case, since
+    a pin written where `high` was the no-op default becomes a silent step-down the moment it reaches
+    a model whose default sits above it. A resolved target always exists, because the skill body
+    aborts rather than run against an unresolved one, so the fence never guesses. A **per-task**
+    choice
     (`ultrathink`, "reach for `xhigh` on hard problems") is not a durable pin. **`effort:`
     frontmatter and `effortLevel` keys route to `claude-config:audit`** on I17's
     instruction-text-versus-config discriminator. And **schema documentation and its illustrative
@@ -80,6 +86,13 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   equivalence to omitting the parameter plus the carry-over sweep advice. The catalog's "the trigger
   set is the source set" invariant makes these parentheticals load-bearing: a dependency the entry
   does not name is a dependency nothing watches.
+
+- **`audit-instructions`: `--opinion` no longer restates which rows it enables.** The flag's
+  description in the skill body carried its own copy of the `OPINION` row set, which is a second
+  place to update on every new `OPINION` row and, when stale, silently narrows the flag below what
+  the catalog actually defines. The set is now read from the catalog at run time, where the
+  enablement policy already lives, and the run's tier-transparency line reports the count it found —
+  removing the drift class rather than correcting one instance of it.
 
 ## [0.20.0]
 
