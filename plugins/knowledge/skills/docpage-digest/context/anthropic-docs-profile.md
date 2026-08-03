@@ -160,16 +160,17 @@ their slices complete.
 Thinking (completes the set's custody map — troubleshooting first):
 
 - <https://platform.claude.com/docs/en/build-with-claude/thinking-troubleshooting>
-  — the harness carries a parallel troubleshooting surface (`errors.md`, `prompt-caching.md`), so
-  this page's transfer to the harness is demonstrated rather than conjectured; digesting it is what
-  lets the corpus state the mapping instead of guessing at it
+  — the harness documents this page's specific assertions on its own pages (`errors.md` documents
+  thinking-configuration 400s; `prompt-caching.md` documents cache-miss causes), which is
+  claim-level transfer under the falsifying rule above, not topical overlap; the digest still tags
+  each claim against those pages individually — this entry pre-classifies none of them
 - <https://platform.claude.com/docs/en/build-with-claude/thinking-tool-workflows>
   — the last uncovered page of the thinking doc set; two already-digested slices defer to it by
   anchor, so the marginal cost of the last page is the lowest it will ever be
 
-Retention and ZDR (one slice, two lanes — retention is org-level policy and the one topic queued
-here carrying compliance weight; both properties are already in scope, so the slice costs one
-fetch):
+Retention and ZDR (one topic slice, two lanes, drained as three page runs — one page per run, per
+the engine; retention is org-level policy and the one topic queued here carrying compliance
+weight, and both properties are already in scope):
 
 - <https://platform.claude.com/docs/en/manage-claude/api-and-data-retention>
   — the API lane

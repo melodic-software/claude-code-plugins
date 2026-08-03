@@ -42,8 +42,8 @@ only after that version increases.
 - **Retention and ZDR are queued as one slice, and the slice remains owner-vetoable.** A corpus that
   will be pointed at repositories we do not control is precisely the one that should not be silent
   on retention: it is the one queued topic carrying compliance weight, and both properties are
-  already in scope, so the slice costs a single fetch — the API lane is the only page not already
-  held. The org-policy posture is the argument for it rather than against, but the posture is real
+  already in scope. The slice drains as three page runs per the engine's one-page-per-run rule;
+  the API lane is the only page not already held in the harness snapshot. The org-policy posture is the argument for it rather than against, but the posture is real
   and cuts against the standing self-alignment-before-packaging ordering, so the enqueue is recorded
   as still open to an owner veto. A queue entry is trivially reversible if that veto fires.
 - **The engineering-post entry's contingency is discharged.** Its enqueue was sequenced behind the
