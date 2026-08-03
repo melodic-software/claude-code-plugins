@@ -248,7 +248,7 @@ on its second arm: a second model guide, the Sonnet 5 one, states the same claim
 three trigger phrases (see Source), so this fires for every target model.
 
 - **Detect:** review/report instructions that gate severity at the FINDING stage — "be
-  conservative," "only report high-severity issues," "don't nitpick" — which this model follows
+  conservative," "only report high-severity issues," "don't nitpick" — which current models follow
   literally, withholding real findings. The gate is about WITHHOLDING findings from the audit or
   report output: severity-based routing where everything is still reported somewhere ("only page
   on-call for high-severity; log the rest") and non-reporting uses of "conservative"

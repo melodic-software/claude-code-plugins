@@ -15,7 +15,9 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   thoroughly and then withholds findings below the stated bar. Two first-party model guides of the
   same class converging is the promotion gate's **second arm**, so the row is now annotated the way
   I7 is and fires for every target model. The Sonnet 5 guide joins `## Sources`, as the
-  Recheck-triggers block requires of every cited page.
+  Recheck-triggers block requires of every cited page. The Detect line's "which **this** model
+  follows literally" is now "which **current models** follow literally" — the demonstrative
+  referred to the row's scoped model, and an unscoped row has none.
 
 - **I8-b's Source line now cites the phrase it could not.** The row's Detect names three trigger
   phrases; **"don't nitpick" appears nowhere in the Opus 5 guide**, which states only the other
