@@ -1,10 +1,10 @@
 # Publisher profile — Anthropic docs
 
 Publisher-specific configuration for `/knowledge:docpage-digest` runs against Anthropic
-documentation properties (`platform.claude.com`, `code.claude.com`, `claude.com/blog`). The
-pipeline engine in `SKILL.md` stays generic; everything here is this publisher's own contract.
-A second publisher joins as a sibling profile file; engine extraction waits for the third
-(Rule of Three).
+documentation properties (`platform.claude.com`, `code.claude.com`, `claude.com/blog`,
+`anthropic.com/engineering`). The pipeline engine in `SKILL.md` stays generic; everything here
+is this publisher's own contract. A second publisher joins as a sibling profile file; engine
+extraction waits for the third (Rule of Three).
 
 ## Fetch channel
 

@@ -4,6 +4,21 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.10.18]
+
+### Changed
+
+- **Anthropic profile — `anthropic.com/engineering` is now an in-scope property.** The profile
+  scoped this publisher to `platform.claude.com`, `code.claude.com`, and `claude.com/blog`, which
+  put Anthropic's own engineering posts outside the pipeline even though they are first-party and
+  are the stated best-practices channel for several topics the corpus already wants. Engineering
+  pages are in scope by default now, rather than admitted one at a time by exception — the same
+  coverage either way, with an honest boundary instead of a growing list of one-off exemptions.
+  Two standing costs come with it and are not yet written into any rule: the vendor-blog
+  attestation bullet below still names `claude.com/blog` literally and does not reach the new
+  property, and unlike the two docs properties, `anthropic.com/engineering` publishes no
+  machine-readable page index, so page selection and absence checks against it have no instrument.
+
 ## [0.10.17]
 
 ### Changed
