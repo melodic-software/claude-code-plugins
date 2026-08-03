@@ -106,6 +106,56 @@ standards-reviewed policy entry), and standards-sync PRs materialize byte-exact 
 reviewed upstream. Bounded scope: the exception covers exactly the listed actors; adding an
 actor to `skip-actors` widens the exception and warrants the same deliberation.
 
+**Compensating controls on a skipped PR.** The skip removes the LLM pass, not all security
+coverage: `secret-scan / gitleaks` and GitGuardian both run and must pass, the `ci-status`
+aggregate gates the rest, and merge still requires human review. Those are what the exception
+above is accepted against.
+
+## Addendum (2026-08-03): mechanism correction — the exception moved to a reusable default
+
+The addendum above describes a **caller-side** `skip-actors` list. That list stopped existing
+on 2026-07-30: #1766 re-pinned the lane callers to v0.9.1 and dropped the caller's explicit
+`skip-actors` line, so the effective value silently became the reusable's own default — which
+had widened from one actor to four three days earlier. The consequence: `claude[bot]` and
+`melodic-ai[bot]` joined a required-check exception without the deliberation the revisit
+trigger below demands. Neither has exercised it (`claude[bot]` has authored no PRs in this
+org; `melodic-ai[bot]` none here since the lane went live), so this is a record defect, not
+an exploited one.
+
+Two corrections land with this amendment:
+
+1. The caller states `skip-actors` explicitly again, so the exception is readable in the repo
+   it governs and cannot be rewritten by an upstream default change. **This is the mechanism,
+   not just the record** — an inherited default is what failed.
+2. The list as restored encodes the FOUR actors currently in force, so the change is
+   behavior-preserving on its own. Whether four is the right set is the open question below.
+
+Note also that `skip-actors` and the action's `allowed_bots` are different levers with
+different outcomes. Removing an actor from `skip-actors` alone does NOT restore review of its
+PRs: the reusable passes `allowed_bots: dependabot[bot]`, and the action throws on any other
+bot actor, which this lane's fail-closed mapping turns into a required check that is red for
+a cause no push can fix. Reviewing an agent's PRs instead of skipping them requires widening
+`allowed_bots` in ci-workflows — a separate change, tracked below.
+
+### OPERATOR DECISION POINT — ratify four actors, or revert to two
+
+This amendment deliberately does NOT decide the actor set. Both branches are live options;
+pick one before this PR merges.
+
+- **Branch A — ratify the widened exception (keep four).** Accept `claude[bot]` and
+  `melodic-ai[bot]` alongside the two ratified actors, on the same rationale: agent-authored
+  changes here are either byte-exact upstream content or pass through human review at merge.
+  Costs nothing to implement — the restored line already encodes it.
+- **Branch B — revert to the ratified two.** Drop `claude[bot]` and `melodic-ai[bot]` from
+  the caller's `skip-actors`, restoring exactly the 2026-07-21 scope. Their PRs would then
+  hit the actor gate described above and fail closed, so Branch B is only coherent alongside
+  the `allowed_bots` change — otherwise it converts a dormant record defect into a live
+  merge block the moment either actor opens a PR.
+
+Evidence either way: both added actors are dormant, so the choice is cheap now and gets more
+expensive once agent authorship picks up. Branch A is a one-word confirmation; Branch B is an
+edit to the restored line plus an upstream dependency.
+
 Two structural bounds on what the required check proves: it evidences that the workflow-side
 gate ran (or judged not-applicable) — and because `pull_request` workflows execute the PR
 branch's caller file, a PR can alter its own `paths` input or `skip-actors` on its head; the
@@ -126,3 +176,8 @@ not a defect introduced here.
   runs blocks the merge).
 - An actor is added to the caller's `skip-actors` list → the step-3 skip-actor exception
   widens; re-deliberate before landing, and record the rationale beside the addendum above.
+  This trigger also fires when the caller STOPS stating the list: an inherited default is an
+  undeclared exception, and it is what the 2026-08-03 amendment repairs.
+- Agent actors begin authoring substantive changes under security-sensitive paths → the skip
+  stops being cheap; widen `allowed_bots` in the ci-workflows reusable so those PRs are
+  reviewed rather than skipped, instead of narrowing `skip-actors` alone (which fails closed).
