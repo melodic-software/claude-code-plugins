@@ -691,8 +691,9 @@ name is not the same underlying value across models):
   no-op corollary above — a change resolving to the level already in effect "skips the dialog and
   keeps the cache" ([prompt caching: changing effort level](https://code.claude.com/docs/en/prompt-caching#changing-effort-level),
   verified 2026-08-03; recheck trigger: a Claude Code release changes the effort-change
-  confirmation flow, or that section is reworded again — it already reworded between this corpus's
-  2026-07-29 capture and this check, same substance, different words).
+  confirmation flow, or that section is reworded). That page states the mechanic twice, in the
+  cache-key list and again in the section body, so a quote matching only one of them is not
+  evidence the other drifted — check both before recording a divergence.
 
 **Effort is one dial of two, and the other is not an effort value.** The `thinking` parameter decides
 whether Claude reasons in thinking blocks; `effort` decides how hard the whole response works,
