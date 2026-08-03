@@ -58,7 +58,7 @@ user opts in with `/plugin enable`; an existing install is never flipped by cata
 - `plugins/` — one directory per plugin.
 - `lib/` — single source of truth for the shared shell helpers; the self-contained copies vendored
   under `plugins/`, into hook and skill-script directories alike, are synced from here by
-  `scripts/sync-*.sh` and CI rejects drift, so never edit a copy.
+  each helper's own `scripts/sync-<helper>.sh` and CI rejects drift, so never edit a copy.
 - `scripts/` — repo-level CI checks, sync scripts, and catalog generators, with their tests
   alongside.
 - `prompts/` — launch-prompt templates meant to be filled in and pasted into a session; unlike
