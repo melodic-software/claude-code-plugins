@@ -1,6 +1,6 @@
 ---
-version: 1.7.0
-last-updated: 2026-08-02
+version: 1.8.0
+last-updated: 2026-08-03
 ---
 
 # Instruction-Audit Criteria
@@ -78,7 +78,7 @@ non-memory surfaces (skill bodies, agent definitions, hook instruction text, out
 memory-layer surfaces (CLAUDE.md, CLAUDE.local.md, `.claude/rules/`, `~/.claude/rules/`) their
 findings route to the `claude-memory` plugin's `audit` skill when it is installed, and fall back
 to the official include/exclude guidance (I1–I5 source below) when it is not. Checks I6–I12 and
-I15–I20 apply to all surfaces; I13 and I14 name narrower surface sets in their own rows.
+I15–I22 apply to all surfaces; I13 and I14 name narrower surface sets in their own rows.
 
 ## Sources
 
@@ -106,10 +106,12 @@ I15–I20 apply to all surfaces; I13 and I14 name narrower surface sets in their
   round-trip protocol) — <https://platform.claude.com/docs/en/build-with-claude/thinking>
 - Troubleshooting thinking (the per-request 400s, and the models the effort restriction covers) —
   <https://platform.claude.com/docs/en/build-with-claude/thinking-troubleshooting>
-- Effort (the levels, and where thinking may not be disabled) —
+- Effort (the levels, `high`'s equivalence to omitting the parameter, the carry-over sweep advice,
+  and where thinking may not be disabled) —
   <https://platform.claude.com/docs/en/build-with-claude/effort>
-- Model configuration (the harness-side thinking-display and thinking-disable surfaces, and which
-  effort levels each surface accepts) — <https://code.claude.com/docs/en/model-config>
+- Model configuration (the harness-side thinking-display and thinking-disable surfaces, which effort
+  levels each surface accepts, the per-model calibration of the effort scale, and the first-run
+  default hold) — <https://code.claude.com/docs/en/model-config>
 - Settings (the `effortLevel` value set) — <https://code.claude.com/docs/en/settings>
 - Environment variables (`CLAUDE_CODE_EFFORT_LEVEL`, `MAX_THINKING_TOKENS`) —
   <https://code.claude.com/docs/en/env-vars>
@@ -737,6 +739,102 @@ condition, not a `Model scope` annotation**, for the reason I17 states.
 - **Verified 2026-08-02** against that page, fetched as raw markdown; the standalone prefill
   technique page now redirects to the prompt-engineering overview. **Recheck trigger:** any change to
   that page, or the unsupported-model range moving.
+
+### I21: Effort level pinned across a model change with no re-sweep
+
+Tier `mechanical` · Authority `ANTHROPIC-DOCS` · Severity `warning` · Surfaces: all. Unscoped —
+promotion gate MET: the calibration property is stated **unqualified** on a model-agnostic feature
+page, not in a model guide. That sentence alone clears the gate; the effort page's Opus 5 subsection
+is cited below only for the remediation's wording, and its placement inside a per-model section does
+not narrow a property its own page states generally. **The model range below is a Detect condition,
+not a `Model scope` annotation**, for the reason I17 states.
+
+- **Detect:** a surface prescribing a **durable** effort level — a fleet-wide or project-wide pin, a
+  "set effort to X and leave it" instruction, a level tied to a named model lane — that states no
+  re-derivation when the pinned model changes. The effort scale is calibrated per model, so the same
+  level name does not carry the same underlying value across models; a level measured against one
+  model and carried to the next is a pin nobody re-measured.
+- **The consequence varies by model, which is why the range sits in Detect.** Claude Code applies a
+  model's default effort on first run of Fable 5, Opus 4.8, or Opus 4.7 "even if you previously set
+  a different level for another model", holding it until an explicit effort choice — so a carried
+  level there is overridden rather than silently obeyed. **Opus 5 has no such hold: "a level you
+  previously set carries over"**, which is where a stale pin actually reaches the request.
+  **Unresolved, and stated as such:** the page names `/effort` and `--effort` as *examples* of an
+  explicit choice ("such as"), so whether a settings-file `effortLevel` pin releases the hold is not
+  stated on any page read for this row. The row fires on the missing re-derivation regardless of
+  model; the hold is severity context, never a fence.
+- **Remediate:** attach the re-derivation to the pin — name the model the level was measured against
+  and state that a model change re-opens it — or run the sweep. Upstream's own wording for the
+  action: "If you carried effort settings over from an earlier model, run a fresh effort sweep on
+  your evals rather than reusing them."
+- **Must NOT flag: a prescription of `high`.** It is "Equivalent to not setting the parameter" and is
+  the default on every model that supports effort **except Opus 4.7, which defaults to `xhigh`** — so
+  a bare `high` carries no measured calibration that could go stale. A surface prescribing `high`
+  **for Opus 4.7 specifically** is a deliberate step-down and stays in scope.
+- **Must NOT flag: a per-task or single-turn effort choice** — "reach for `xhigh` on hard problems",
+  `ultrathink`, `ultracode` — which selects a level for one piece of work rather than pinning one.
+  This row is about durable pins.
+- **Must NOT flag: `effort:` frontmatter and `effortLevel` settings keys as such.** Those are
+  configuration values, and I17's discriminator applies unchanged: this row audits **instruction
+  text**; the pin expressed as a config key is a config-mechanics finding belonging to
+  `claude-config:audit`. Instruction text that merely *lives* in a config file stays here.
+- **Must NOT flag: a document *about* the calibration property** — this row, a model-delta chapter, a
+  verification record — on the audience test I8-b applies. Nor a level **reported as a named third
+  party's practice** rather than prescribed to the reader: a practitioner's stated setup is
+  `OPINION`-tier testimony, not a pin the surface owns.
+- **Source:** model configuration — "The effort scale is calibrated per model, so the same level name
+  does not represent the same underlying value across models" — stated with no model qualifier, and
+  the whole basis for the check. The same page supplies the first-run hold with its Opus 5 exception,
+  and the default carve-out: "The default effort is `high` on every model that supports effort,
+  except Opus 4.7, which defaults to `xhigh`." Effort supplies the remediation's wording and `high`'s
+  equivalence to omitting the parameter.
+- **Verified 2026-08-03** against both pages, fetched as raw markdown (model configuration 83,644
+  bytes; effort 21,744 bytes). **Recheck trigger:** the calibration property being restated as
+  cross-model-stable, the set of models carrying a first-run default hold changing, or `high` ceasing
+  to be the general default.
+
+### I22: Model-routing doctrine with no baseline named
+
+Tier `mechanical` · Authority `OPINION` · Severity `info` · Surfaces: all · Default **off**, enabled
+by `--opinion`.
+
+- **Detect:** a surface stating **first-party model-selection or routing doctrine** — a lane table
+  ("wide reads to this model, mechanical fan-out to that one"), a "use model M for work of kind K"
+  rule, a selection matrix restated from vendor pages — that names neither a baseline for the reading
+  it was derived from nor an event that re-opens it. Model lineups, per-model guidance, and selection
+  matrices are revised on every release, so lanes derived from one reading and written down without
+  their provenance become a claim about a model generation that has since passed, told in the present
+  tense.
+- **Remediate:** name the baseline and the triggers. State which vet or reading the lanes came from
+  and when, then list the events that re-open it — the pinned model changes, per-model guidance or
+  its notes change, the selection-matrix rows change, a volatile figure a lane turns on drifts.
+  **The action on a trigger is a targeted delta check against the named baseline, never a
+  re-derivation from scratch** — that is what makes the trigger cheap enough to honor, and a trigger
+  nobody can afford to run is not a control.
+- **The consumer supplies its own baseline; this row carries none.** A catalog row naming a date or a
+  vet would hand every consumer a foreign snapshot as their baseline, which is the precise drift this
+  check exists to catch.
+- **Must NOT flag: doctrine that ran no vet of its own.** A surface transcribing a named third
+  party's stated practice, with author, source, and sync provenance recorded, has no baseline reading
+  to name because it performed none — its staleness is upstream-sync staleness, which its sync path
+  owns. Flag first-party doctrine: lanes this surface's own authors chose.
+- **Must NOT flag: `model:` frontmatter and other configuration values**, on the same discriminator
+  as I21 and I17 — those implement doctrine rather than stating it, and a config-mechanics finding
+  belongs to `claude-config:audit`.
+- **Must NOT flag: a pointer.** A surface routing the reader to the vendor's own selection page
+  instead of restating lanes has nothing to go stale. Nor doctrine already carrying a baseline and
+  triggers, whatever heading they sit under.
+- **Why this is not I19, and not the catalog trigger.** I19 covers a restated *benchmark figure* and
+  asks for the four-part record; it says nothing about lane assignments and nothing about how to
+  *act* when a trigger fires — the delta-not-re-run discipline is this row's own contribution. The
+  catalog-wide recheck trigger does not reach it either: that trigger governs **this catalog's**
+  staleness against its Sources, not an audited surface's staleness against the pages its doctrine
+  was read from.
+- **Source:** none. No official page states that model-routing doctrine must name a baseline and
+  delta triggers, which is why this check is `OPINION`-tier and off by default — the same footing as
+  I19, and it adds no Sources entry for the same reason. The four-part shape it asks for is this
+  monorepo's `docs/conventions/upstream-drift/README.md`; in a standalone install the four parts, not
+  the path, are the requirement.
 
 ---
 
