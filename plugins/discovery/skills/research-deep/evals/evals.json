@@ -5,59 +5,66 @@
       "id": 1,
       "name": "multi-topic-parallel-agents",
       "prompt": "Research three separate things for me: (1) best practices for EF Core compiled queries, (2) whether we should adopt OpenTelemetry metrics, and (3) the current state of .NET native AOT for ASP.NET APIs.",
-      "expected_output": "Runs the multi-topic check first, recognizes three separable topics, and dispatches N parallel topic agents (one per topic, each running the full /research discipline) rather than feeding the combined blob to a single engine. Each agent writes its own sibling research-<topic>.md and the main session synthesizes RESEARCH.md.",
+      "expected_output": "Runs the multi-topic check first, recognizes three separable topics, and dispatches N parallel topic agents (one per topic, each running the full /research discipline) rather than feeding the combined blob to a single engine. Each agent is assigned its own sub-slice (<memory_dir>/<slug>/<topic-slug>/) by the dispatching session and writes the normal RESEARCH.md, sidecars, and research-checklist.md inside it. The main session then dispatches the sibling verifier per topic, applies project fit, writes both back into each topic index, and only then synthesizes the slice-root RESEARCH.md.",
       "files": [],
       "expectations": [
         "Output identifies that the ask contains multiple separable topics",
         "Output dispatches one research agent per topic in parallel rather than running one engine over the combined blob",
-        "Each topic agent runs the full research discipline and writes its own sibling research-<topic>.md artifact",
-        "The main session synthesizes a combined RESEARCH.md from the per-topic artifacts"
+        "Each topic agent runs the full research discipline and writes a normal RESEARCH.md plus its sidecars and checklist inside its OWN sub-slice directory, not a sibling research-<topic>.md at the slice root",
+        "The sub-slice path for each topic is assigned by the dispatching session rather than chosen by the worker",
+        "The main session dispatches the sibling verifier and applies project fit per topic, writing both results back into that topic's index before synthesizing",
+        "The main session synthesizes a combined slice-root RESEARCH.md from the per-topic indexes"
       ]
     },
     {
       "id": 2,
       "name": "single-heavy-topic-dispatches-engine",
       "prompt": "Do a deep, thorough research pass comparing Dapper vs EF Core vs raw ADO.NET for our data-access layer, covering performance, maintainability, and migration cost.",
-      "expected_output": "For a single heavy/broad topic, prefers the heaviest available execution tier: dispatches a deep-research workflow engine when one is available, surfaces the returned summary and artifact path, and does NOT re-run the research inline in the main session.",
+      "expected_output": "For a single heavy/broad topic, prefers the heaviest available execution tier: dispatches a deep-research workflow engine when one is available and does NOT re-run the research inline in the main session. The engine's return is not surfaced as-is — the main session closes the post-dispatch boundary first (sibling verifier against the artifact, project fit, both written back into the index), because an engine is a producing context like any other.",
       "files": [],
       "expectations": [
         "Output treats this single broad comparison as one heavy topic (not split into parallel agents)",
         "Output dispatches the heaviest available tier (a deep-research workflow engine when available)",
-        "Output does NOT re-run the deep research inline in the main session after dispatching"
+        "Output does NOT re-run the deep research inline in the main session after dispatching",
+        "Output does NOT surface the engine's summary and artifact path directly — it dispatches the sibling verifier and applies project fit, writing both back into the index first"
       ]
     },
     {
       "id": 3,
       "name": "forked-agent-fallback-no-engine",
       "prompt": "Deep-research the tradeoffs between gRPC and REST for our internal service-to-service calls. Note: no Workflow tool / deep-research workflow is available this session.",
-      "expected_output": "With no workflow-engine path and a heavy task, falls back to spawning an isolated general-purpose subagent that runs the full /research discipline (not a read-only Explore agent, since Phase 3 needs tool access and the artifact must be written).",
+      "expected_output": "With no workflow-engine path and a heavy task, falls back to spawning an isolated general-purpose subagent that runs the full /research discipline (not a read-only Explore agent, since Phase 3 needs tool access and the artifact must be written). The main session then dispatches the sibling verifier against the written artifact and applies project fit, writing both back into the index before surfacing the result — the same post-dispatch boundary the multi-topic path owns.",
       "files": [],
       "expectations": [
         "Output falls back to a forked/isolated subagent when no workflow engine is available",
         "The subagent is a general-purpose agent (able to use tools and write the artifact), not a read-only Explore agent",
-        "The subagent is instructed to run the full /research discipline"
+        "The subagent is instructed to run the full /research discipline",
+        "The main session dispatches the sibling verifier against the returned artifact and applies project fit rather than presenting the worker's summary and artifact path directly",
+        "The verifier and project-fit results are written back into the artifact index before the result is surfaced"
       ]
     },
     {
       "id": 4,
       "name": "small-task-still-full-discipline",
       "prompt": "Deep-research just one small thing: the current stable version number of Node.js LTS.",
-      "expected_output": "Recognizes a clearly-small single-fact task and runs inline (Tier 3) rather than dispatching an engine, but still applies the full /research discipline — task size never reduces depth.",
+      "expected_output": "Recognizes a clearly-small single-fact task and runs the research inline (Tier 3) rather than dispatching an engine, but still applies the full /research discipline — task size never reduces depth. Running inline does not make the run its own grader: the verifier-owned rows still go to a fresh context, per the parent skill's own rule.",
       "files": [],
       "expectations": [
         "Output routes a clearly-small single-fact task to inline execution rather than an engine or parallel agents",
-        "Output still applies the full /research discipline (phases, source tiers) despite the small task size"
+        "Output still applies the full /research discipline (phases, source tiers) despite the small task size",
+        "Output does NOT self-grade the verifier-owned outcome-gate rows — they go to a fresh context even though the research itself ran inline"
       ]
     },
     {
       "id": 5,
       "name": "dispatcher-not-inline-deep-pass",
       "prompt": "Deep-research the security implications of enabling CORS wildcard origins across our API gateway — this is a big one.",
-      "expected_output": "Acts as a dispatcher: selects an execution tier that provides context isolation (engine or forked subagent) and does NOT run the heavy deep pass itself in the main context. The main session stays clean; the isolation comes from the chosen tier.",
+      "expected_output": "Acts as a dispatcher: selects an execution tier that provides context isolation (engine or forked subagent) and does NOT run the heavy deep pass itself in the main context. The main session stays clean of the research transcript — but it still owns the post-dispatch boundary (sibling verifier, project fit, write-back), which is orchestration rather than research and does not belong to the isolated tier.",
       "files": [],
       "expectations": [
         "Output dispatches the heavy pass to an isolated tier rather than running it in the main context",
-        "The main-session output stays a dispatch/summary, not a full inline deep-research transcript"
+        "The main-session output stays a dispatch/summary, not a full inline deep-research transcript",
+        "The main session still closes the post-dispatch boundary itself rather than treating dispatch as the end of its work"
       ]
     },
     {

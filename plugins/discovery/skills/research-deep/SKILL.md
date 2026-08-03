@@ -28,7 +28,7 @@ If no topic was provided, infer it from the current conversation — identify th
 
 ## Dispatch decision (multi-topic check, then three tiers)
 
-**Multi-topic check — run FIRST, before any tier.** Count the independent sub-topics in the ask (numbered list, enumerated questions, separable subjects that share no claims). **N ≥ 2 separable topics → do NOT dispatch an engine on the combined blob.** An engine decomposes ONE question into generic research *angles*; fed a multi-topic blob, every broad agent researches all N topics shallowly — N× the wall-clock and tokens for worse depth. Instead: spawn **N parallel topic agents** (Agent tool, `general-purpose`, one per topic, each running the full `/research` discipline; instruct each to cite primary sources by URL — a subagent return without citations is ungrounded synthesis). **Give each agent its own sub-slice** — `<memory_dir>/<slug>/<topic-slug>/`, assigned by this session in the dispatch envelope, never chosen by the worker (two workers choosing independently can choose the same one). Each writes the normal `RESEARCH.md` index, its sidecars, and its own `research-checklist.md` inside that sub-slice; those filenames are fixed, so N agents pointed at one slice root would overwrite one another's index and ledger rather than producing separable artifacts. **This session owns each topic's post-dispatch boundary — synthesis is the last step, not the only one.** The `/research` gate assigns its independent-corroboration and HIGH-confidence rows to a fresh verifier precisely because a producing context may not grade its own choices, and a topic worker cannot be relied on to dispatch that verifier: whether a non-fork subagent holds `Agent` depends on the harness's current nesting depth allowance (`CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH`), a default that has moved three times and is not worth designing against. So for **each** topic, this session dispatches the sibling verifier, applies project fit, and writes both results back into that topic's index — before synthesizing. Skipping it produces the worst available artifact: a root `RESEARCH.md` presenting claims as gate-passed when the rows that matter were never graded by anyone. Then synthesize the slice-root `RESEARCH.md` from the per-topic indexes. An engine is for a SINGLE contested or deep question that needs falsification rounds and adversarial claim-checking.
+**Multi-topic check — run FIRST, before any tier.** Count the independent sub-topics in the ask (numbered list, enumerated questions, separable subjects that share no claims). **N ≥ 2 separable topics → do NOT dispatch an engine on the combined blob.** An engine decomposes ONE question into generic research *angles*; fed a multi-topic blob, every broad agent researches all N topics shallowly — N× the wall-clock and tokens for worse depth. Instead: spawn **N parallel topic agents** (Agent tool, `general-purpose`, one per topic, each running the full `/research` discipline; instruct each to cite primary sources by URL — a subagent return without citations is ungrounded synthesis). **Give each agent its own sub-slice** — `<memory_dir>/<slug>/<topic-slug>/`, assigned by this session in the dispatch envelope, never chosen by the worker (two workers choosing independently can choose the same one). Each writes the normal `RESEARCH.md` index, its sidecars, and its own `research-checklist.md` inside that sub-slice; those filenames are fixed, so N agents pointed at one slice root would overwrite one another's index and ledger rather than producing separable artifacts. **This session owns each topic's post-dispatch boundary — synthesis is the last step, not the only one.** Close "The post-dispatch boundary" below for **each** topic, then synthesize the slice-root `RESEARCH.md` from the per-topic indexes. Skipping it produces the worst available artifact: a root `RESEARCH.md` presenting claims as gate-passed when the rows that matter were never graded by anyone. An engine is for a SINGLE contested or deep question that needs falsification rounds and adversarial claim-checking.
 
 For a single-topic ask, detection is **engine-biased**: prefer the heaviest available tier UNLESS the task is clearly small/targeted. Unknown scope or any doubt → heavier tier.
 
@@ -44,7 +44,7 @@ For a single-topic ask, detection is **engine-biased**: prefer the heaviest avai
 
 ### Tier 1 — workflow engine (preferred)
 
-If your tool list includes the Workflow tool and a deep-research workflow is available (check the consuming project's workflow registry first — a project-provided engine may superset the built-in one), dispatch it with the topic and, if it accepts one, the artifact destination — `<memory_dir>/<slug>/RESEARCH.md`, resolved per the plugin's topic-docs binding ([`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md)). The engine runs in the background; its completion notification carries the summary + artifact path. Surface those to the user. Do **NOT** re-run the research inline.
+If your tool list includes the Workflow tool and a deep-research workflow is available (check the consuming project's workflow registry first — a project-provided engine may superset the built-in one), dispatch it with the topic and, if it accepts one, the artifact destination — `<memory_dir>/<slug>/RESEARCH.md`, resolved per the plugin's topic-docs binding ([`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md)). The engine runs in the background; its completion notification carries the summary + artifact path. Do **NOT** re-run the research inline, and do **not** surface the return as-is — an engine is a producing context like any other, so close the post-dispatch boundary below first.
 
 If no workflow engine resolves, fall through to Tier 2.
 
@@ -64,7 +64,8 @@ Agent({
            assume a fixed set. Every accepted claim needs a primary source cited by URL
            captured this run; uncited claims are ungrounded synthesis. RUN THE OUTCOME GATE
            before returning. Write the RESEARCH.md artifact per the skill's Final step.
-           Return ONLY a one-paragraph summary + the artifact path + any unresolved questions."
+           Return ONLY a one-paragraph summary + the artifact path + any unresolved questions +
+           the gate result, leaving the verifier-owned and parent-owned rows `pending`."
 })
 ```
 
@@ -72,7 +73,13 @@ Agent({
 
 ### Tier 3 — inline (clearly small task)
 
-Run `/research` inline in this session. No subagent, no workflow. The full `/research` discipline still applies.
+Run `/research` inline in this session — no dispatched *research* tier, no workflow. The full `/research` discipline still applies, including its own rule that an inline run hands the verifier-owned rows to a fresh context rather than self-grading them. That fresh context is a subagent; what Tier 3 declines to dispatch is the research, not the verification, and the boundary below arrives here through the parent skill rather than being restated.
+
+### The post-dispatch boundary — every dispatching tier owns it
+
+**A dispatched run is not finished when it returns.** No producing context — engine, forked subagent, or topic worker — can complete the `/research` outcome gate's verifier-owned rows (independent corroboration, HIGH confidence) or its parent-owned row (project fit). The first two are assigned to a fresh context precisely because a producer may not grade its own choices; the third needs the consuming project's conventions, which only this session holds. Nor can the producer be relied on to dispatch that verifier itself — whether a non-fork subagent holds `Agent` depends on the harness's current nesting allowance (`CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH`), a default that has moved three times and is not worth designing against.
+
+So for **every** dispatched run — one per topic on the N-topic path, once on Tier 1 and Tier 2 — this session dispatches the sibling verifier against the artifact on disk, applies project fit, and writes both results back into that artifact's index **before** surfacing anything. Surfacing a producer's summary and artifact path directly presents claims as gate-passed when the rows that matter were never graded by anyone. A single-topic ask earns no weaker boundary than a multi-topic one, and an engine earns no weaker boundary than a subagent.
 
 ## Relationship to `/research` (parent skill)
 

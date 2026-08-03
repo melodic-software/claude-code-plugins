@@ -1,5 +1,33 @@
 # Changelog — discovery plugin
 
+## [0.9.2]
+
+### Fixed
+
+- **`/research-deep`'s single-topic tiers returned an artifact nobody had graded.** The
+  post-dispatch verification boundary — dispatch the sibling verifier, apply project fit, write both
+  back into the index — was stated only inside the `N >= 2` multi-topic branch. Tier 2 returned the
+  worker's summary and artifact path directly and Tier 1 said to surface the engine's return, yet no
+  producing context can complete the `/research` outcome gate's verifier-owned rows (independent
+  corroboration, HIGH confidence) or its parent-owned row (project fit): the first two belong to a
+  fresh context by design, the third needs the consuming project's conventions, and nested `Agent`
+  availability is not something a producer can be relied on to have. The main session could
+  therefore present claims as gate-passed that were never graded.
+
+  The boundary is now **one section that every dispatching tier cites** rather than prose inside the
+  multi-topic branch, so Tier 1, Tier 2, and each topic worker are covered by construction and the
+  multi-topic paragraph points at it instead of restating it. Tier 2's dispatch envelope asks the
+  worker to leave those rows `pending`.
+
+- **The evals encoded the retired artifact layout and rewarded the defect above.** `evals/evals.json`
+  required each topic worker to write a sibling `research-<topic>.md` at the slice root — the
+  collision-prone contract replaced by per-topic sub-slices (`<memory_dir>/<slug>/<topic-slug>/`)
+  each holding a normal `RESEARCH.md` — so running it penalized the compliant layout and could not
+  protect the fix from regression. Eval 1 now requires per-topic sub-slices, session-assigned paths,
+  and the per-topic verification boundary. Evals 2 and 3 gain that boundary for Tier 1 and Tier 2;
+  eval 2 previously expected the engine's summary and artifact path to be surfaced directly, which
+  is exactly the behavior the fix removes.
+
 ## [0.9.1]
 
 ### Fixed
