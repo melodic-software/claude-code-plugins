@@ -4,6 +4,56 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.6.4]
+
+### Added
+
+- **`fable-5` context economy gains the thinking-cost section.**
+  `skills/fable-5/context/context-economy.md` adds "Your own thinking is context you pay for
+  twice": thinking is billed as output when generated and again as input on every later request,
+  and neither half is visible in what the session displays. Billing is invariant across the
+  `display` setting — summarized and omitted bill identically and summary generation is free — so
+  hiding thinking is never a cost lever ([Steering thinking:
+  Pricing](https://platform.claude.com/docs/en/build-with-claude/thinking-steering-and-cost#pricing),
+  verified 2026-08-03). The retention half is stated as a **harness override with its boundary
+  conditions**, not as a flat truth: the per-model preservation split upstream documents (all turns
+  on keep-all models, only the last turn elsewhere) is what a raw API caller gets, while Claude
+  Code overrides it in the keep-all direction on every thinking-enabled request, so retained blocks
+  accumulate and bill as input on every model. The section carries the four-part verification
+  record that override requires — claim, basis (request bodies emitted by `claude.exe`,
+  265,720,480 bytes, read for both a documented keep-all and a documented last-turn-only model,
+  with `context-management-2025-06-27` present in each request's `betas`), as-of date, and a
+  recheck trigger on any Claude Code upgrade, since `keep:"all"` is a build-time constant rather
+  than a documented contract. The three gating conditions and the two escapes that resume the
+  per-model default (`CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS=1`, or a gateway dropping the field)
+  are stated with it. The input-billing half is explicitly upstream's own rule for retained blocks
+  ([Thinking and the context
+  window](https://platform.claude.com/docs/en/build-with-claude/thinking#thinking-and-the-context-window))
+  applied to that forced retention, not a second observation — the wire evidence proves retention,
+  not billing. `skills/fable-5/SKILL.md` carries the distilled line under core doctrine, "Managing
+  your window — context-economy". Both surfaces **bound the accumulation to the current uncompacted
+  window**: `keep:"all"` preserves only blocks a request still carries, and compaction "replaces
+  your message history with a summary" ([Compacting the
+  conversation](https://code.claude.com/docs/en/prompt-caching#compacting-the-conversation),
+  verified 2026-08-03), so thinking summarized away — or dropped by `/clear` or a rewind — is
+  neither re-sent nor re-billed, and the count restarts at the last history reset rather than at the
+  first turn. The four-part record is unaffected: `keep:"all"` is still what the harness sends, and
+  only the billing scope downstream of it narrows.
+
+### Changed
+
+- **`fable-5` Opus 5 adaptation no longer defers effort claims to an unreachable target.**
+  `skills/fable-5/context/model-adaptation/opus-5.md` routed every effort claim beyond its three
+  quoted bullets to "the verified effort-doc slice (see this workstream's Phase 6 cross-check)" —
+  both referents campaign-internal and resolvable by no consumer of this plugin, the same defect
+  class refused in 0.6.3 for a routing note between `.work/` slice directories. The deferral now
+  points at the live [Effort](https://platform.claude.com/docs/en/build-with-claude/effort) and
+  [model config: adjust effort
+  level](https://code.claude.com/docs/en/model-config#adjust-effort-level) pages (both fetched raw
+  2026-08-03, HTTP 200), and names per-model starting level alongside the ladder items already
+  listed as upstream-owned. The file's TRUNCATED finding about the guide's own ladder statement is
+  preserved as the reason those three bullets are its whole effort content.
+
 ## [0.6.3]
 
 ### Added
