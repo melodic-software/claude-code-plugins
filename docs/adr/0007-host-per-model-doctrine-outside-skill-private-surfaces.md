@@ -69,7 +69,7 @@ Per-version model-adaptation chapters live at
 `plugins/playbooks/reference/model-adaptation/<model-version>.md`, at plugin level and outside every
 skill's private surface. `fable-5`'s `SKILL.md` cites them as
 `${CLAUDE_PLUGIN_ROOT}/reference/model-adaptation/<model-version>.md`, in meta-rule 3, in the
-chapter-routing table, and in the scope fence.
+`full` argument's selected-chapter clause, in the chapter-routing table, and in the scope fence.
 
 **ADR-0006's decision is preserved verbatim.** Doctrine sourced from a single model's guide or card
 remains model-scoped by default; promotion to fleet-wide happens only through the gate — an

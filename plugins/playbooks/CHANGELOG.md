@@ -28,8 +28,9 @@ only after that version increases.
   by default, fleet-wide only through the promotion gate, routing by version and never by family) is
   preserved verbatim. ADR-0007 cures **one of ADR-0006's three** live private-surface cites; the two
   reaching `audit-instructions` and `docpage-digest` survive untouched and belong to other skills.
-- **`fable-5`'s `SKILL.md` re-points five references at the new host**, four of them addresses and
-  one a semantic rewrite. Meta-rule 3 (the arm-time mandatory read), the chapter-routing table's last
+- **`fable-5`'s `SKILL.md` re-points five references at the new host** — four carrying the new
+  address (one of those, the `full` argument's clause, also rewritten semantically) and one, the
+  routing table's preamble, carrying no address at all. Meta-rule 3 (the arm-time mandatory read), the chapter-routing table's last
   row, and the "not model-version documentation" scope fence now name
   `${CLAUDE_PLUGIN_ROOT}/reference/model-adaptation/`. The `full` argument's clause is **rewritten
   rather than re-addressed**: it previously read every file under `context/` *except*
