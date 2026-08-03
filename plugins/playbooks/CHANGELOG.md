@@ -4,6 +4,60 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.6.5]
+
+### Changed
+
+- **`fable-5`'s per-model adaptation chapters move out of the skill to plugin level.**
+  `skills/fable-5/context/model-adaptation/{opus-4-8,opus-5}.md` become
+  `reference/model-adaptation/{opus-4-8,opus-5}.md`; chapter contents are unchanged. Two forces
+  drove it. The old host was named after a model with **zero** chapters in it — the directory's
+  entire contents are deltas for *other* models, because Fable-5 doctrine is the skill's twelve
+  `context/` chapters and the adaptation directory exists for models that are not Fable 5. And the
+  old address sat inside a skill's private surface as `docs-hygiene:audit-encapsulation` defines it
+  (any path into a subdirectory under a skill other than `scripts/`), so every consumer citing a
+  chapter committed a **fresh** violation, one per consumer, with duplication — forbidden by this
+  repository's documentation doctrine — as the only alternative. A plugin-root directory is not
+  inside any skill, so the private-surface rule does not engage at the new address; the derivation
+  is that the rule does not reach plugin-level directories, **not** that the contract declares them
+  public. The shape is precedented in-repo by `plugins/autonomy/reference/` and
+  `plugins/architecture/reference/`, and mints no new skill, so the shared skill-listing budget is
+  unaffected. Recorded as
+  [ADR-0007](../../docs/adr/0007-host-per-model-doctrine-outside-skill-private-surfaces.md),
+  superseding ADR-0006 **on the seam's address and nothing else** — ADR-0006's decision (model-scoped
+  by default, fleet-wide only through the promotion gate, routing by version and never by family) is
+  preserved verbatim. ADR-0007 cures **one of ADR-0006's three** live private-surface cites; the two
+  reaching `audit-instructions` and `docpage-digest` survive untouched and belong to other skills.
+- **`fable-5`'s `SKILL.md` re-points five references at the new host** — four carrying the new
+  address (one of those, the `full` argument's clause, also rewritten semantically) and one, the
+  routing table's preamble, carrying no address at all. Meta-rule 3 (the arm-time mandatory read), the chapter-routing table's last
+  row, and the "not model-version documentation" scope fence now name
+  `${CLAUDE_PLUGIN_ROOT}/reference/model-adaptation/`. The `full` argument's clause is **rewritten
+  rather than re-addressed**: it previously read every file under `context/` *except*
+  `context/model-adaptation/`, an exclusion with nothing left to exclude once the chapters leave
+  `context/`. It now reads all of `context/` and takes from the new directory only the chapter
+  meta-rule 3 selects, **never the directory as a whole** — preserving the fence that matters, since
+  the sibling versions' chapters carry deliberately reversed counter-steers and loading two at once
+  puts conflicting doctrine in one session. The routing table's preamble no longer claims all
+  chapters live under `context/`.
+- **`${CLAUDE_PLUGIN_ROOT}` interpolation inside a skill body is verified rather than assumed.**
+  Upstream documents the substitution for hook commands, MCP and LSP server configuration, monitor
+  commands, and `allowed-tools` frontmatter — **not** for prose body text, and meta-rule 3 is the one
+  instruction firing unconditionally for every non-Fable model, so a silent non-resolution would be a
+  no-read for the entire population the chapters serve. The claim therefore carries the four-part
+  record. **Claim:** the harness substitutes `${CLAUDE_PLUGIN_ROOT}` in a `SKILL.md` body before the
+  model receives it. **Basis:** two headless `claude -p` probes on Claude Code 2.1.220 — a disposable
+  plugin loaded via `--plugin-dir` returned the token expanded to its plugin root and read the file at
+  the expanded path successfully, and an already-installed user-scope plugin (`discipline` 0.10.1)
+  returned a body line carrying both forms, with the token expanded and a relative path on the same
+  line left literal, which distinguishes harness substitution from a model normalizing paths on its
+  own. **As of:** 2026-08-03. **Recheck trigger:** any Claude Code upgrade, since body-text
+  substitution is not a documented contract. The relative-path form used at
+  `plugins/autonomy/skills/setup/templates/isolation-probe.md:6` remains the attested fallback.
+
+Earlier entries in this file name the chapters at their former `context/model-adaptation/` address.
+They record what shipped at the time and are correct as written.
+
 ## [0.6.4]
 
 ### Added
