@@ -2,7 +2,8 @@
 
 Publisher-specific configuration for `/knowledge:docpage-digest` runs against Anthropic
 documentation properties (`platform.claude.com`, `code.claude.com`, `claude.com/blog`,
-`anthropic.com/engineering`). The pipeline engine in `SKILL.md` stays generic; everything here
+`anthropic.com/engineering` — hosts match with or without a leading `www.`; live engineering
+links use `www.anthropic.com`). The pipeline engine in `SKILL.md` stays generic; everything here
 is this publisher's own contract. A second publisher joins as a sibling profile file; engine
 extraction waits for the third (Rule of Three).
 
