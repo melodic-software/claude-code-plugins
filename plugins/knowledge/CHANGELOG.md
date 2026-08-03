@@ -4,6 +4,54 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.10.19]
+
+### Changed
+
+- **Anthropic profile — the doc queue is repopulated from the Sitting-5 doc-queue dispositions.**
+  The queue had been emptied as its slices completed, so twelve adopted rows had nowhere to land and
+  the pipeline had no stated next page. Counted at the bytes, one bullet per page: **14 pages
+  queued** across seven groups, and **5 pages deferred with triggers** — the deferred section now
+  holds six bullets, the sixth being `task-budgets`, which predates this batch. Each entry carries
+  the reason it is where it is rather than a bare URL.
+- **`thinking-troubleshooting` is queued first, on a corrected rationale.** DQ-2's original ground —
+  that the page backs the thinking doc set's *weakest* absence check — is not what the corpus says.
+  The check is **falsified, not weak**: the harness carries a parallel troubleshooting surface
+  (`errors.md`, `prompt-caching.md`), which is why the page's transfer is demonstrated rather than
+  conjectured and why digesting it lets the corpus state the mapping instead of guessing at it.
+  Carrying the old wording forward would have re-inherited a premise the evidence disproves. Rider
+  R1 — the `api-only` → `mixed` retag the falsification compels on the affected claim — was
+  discharged separately on 2026-08-03 and does not close silently with this enqueue.
+- **Companion-doc order amended: `memory` moves to second.** DQ-9's source ranked
+  `how-claude-code-works` ahead of it and held `memory` entirely. Two things have moved since:
+  `memory.md` carries four to five times the corpus citation load of either page ranked ahead of it
+  (47 line-anchored citations across 22 distinct sites in 18 files, against 11/6/9 and 9/5/6), and
+  `claude-memory:audit` became a live adopted routing destination for memory-layer findings.
+  `features-overview` keeps first place on its own reasoning; `common-workflows` stays held as
+  recipe-level content whose citations are concentrated rather than distributed.
+- **The Agent SDK entry queues one page, not the SDK doc set.** All thirty snapshotted `agent-sdk_*`
+  pages sit inside the harness boundary, so a loosely phrased entry would take a scope decision
+  nobody has made. The heading states the boundary instead of leaving it to inference.
+- **Two pages fold into existing entries rather than gaining their own (DQ-15).**
+  `whats-new-sonnet-5` is already a subject of the models deferral with a trigger, and a second
+  differently-triggered standalone entry is how one page acquires two custody records that drift
+  apart; `prompting-best-practices` is API-side content this corpus points at rather than digests.
+  The source's premise that best-practices was "already in the profile doc queue" is false at the
+  bytes — it never has been — but the disposition is unaffected, because folding resolves to no
+  standalone entry either way.
+- **Retention and ZDR are queued as one slice, and the slice remains owner-vetoable.** A corpus that
+  will be pointed at repositories we do not control is precisely the one that should not be silent
+  on retention: it is the one queued topic carrying compliance weight, and both properties are
+  already in scope. The slice drains as three page runs per the engine's one-page-per-run rule;
+  the API lane is the only page not already held in the harness snapshot. The org-policy posture
+  is the argument for it rather than against, but the posture is real
+  and cuts against the standing self-alignment-before-packaging ordering, so the enqueue is recorded
+  as still open to an owner veto. A queue entry is trivially reversible if that veto fires.
+- **The engineering-post entry's contingency is discharged.** Its enqueue was sequenced behind the
+  engineering-property profile edit, which landed in 0.10.18 — the same merge that closed that
+  property decision's veto window — so the entry ships unconditionally; the deferred-with-trigger
+  fallback written for a fired veto never engaged.
+
 ## [0.10.18]
 
 ### Changed
