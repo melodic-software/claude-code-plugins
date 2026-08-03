@@ -4,6 +4,36 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.10.20]
+
+### Added
+
+- **Anthropic profile gains archive-reading conventions.** Some pages this publisher maintains are
+  archives — dated entries accumulated over time rather than a current statement, the [published
+  system prompts](https://platform.claude.com/docs/en/release-notes/system-prompts) being the
+  standing case — and three of their properties are invisible from inside any single entry, so a
+  digest that does not know them reads the archive wrong in a way its own verification cannot catch.
+  Each was found independently by multiple digest units before it became a convention. **(1) A dated
+  entry is not a content-change signal:** two entries five days apart are byte-identical, differing
+  on zero lines across 100-line bodies, with no annotation explaining why the second exists — so a
+  new dated heading licenses no inference of revision, intent, or policy movement. The rule is
+  stated in the **content-change** form, which is the narrower of the two the record carries and the
+  one the underlying finding actually supports; it bars inferring change from sameness, and leaves a
+  reader free to read an actual textual narrowing between two entries as the change it is. **(2)
+  Absence of bold does not prove absence of change:** the page states that updates between versions
+  are bolded and the convention does not hold — one span carries zero bold markup across three dated
+  entries differing in three sentences plus a twelve-paragraph addition, another marks one
+  transition of three, and silent unbolded typo fixes and a silent removal were found the same way,
+  so deltas come from diffing entries and never from reading the markup. **(3) Note a source
+  artifact at the row; never silently repair it:** typos, escaped markup and malformed auto-links
+  are reproduced byte-exact so a verifier can tell faithful reproduction from digest transcription
+  error, with the blog channel's two known extraction artifacts named as the standing instance
+  rather than restated. Its one exception runs the other way — a downstream artifact reproducing a
+  known-corrupt entry *for a reader* rather than for verification repairs the corruption and says
+  that it did. The fourth property these three refine — that dated content is scoped to its entry
+  date — is not restated here; it already ships as reader-side doctrine in the `playbooks` fable-5
+  calibration chapter, and the section carries it as the premise the three rules qualify.
+
 ## [0.10.19]
 
 ### Changed

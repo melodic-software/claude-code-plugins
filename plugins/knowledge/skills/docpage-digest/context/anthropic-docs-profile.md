@@ -41,6 +41,33 @@ extraction waits for the third (Rule of Three).
   `CLAUDE_CODE_MAX_OUTPUT_TOKENS` sits at line 277 of a 451-line, 316-row page whose rendered fetch
   surfaced only roughly its first fifth.)
 
+## Archive-reading conventions
+
+Some pages this publisher maintains are archives — dated entries accumulated over time rather than a
+current statement, the [published system
+prompts](https://platform.claude.com/docs/en/release-notes/system-prompts) being the standing case.
+Everything inside a dated entry is scoped to that entry's date. Three further properties of such a
+page are invisible from inside any single entry, and a digest that does not know them reads the
+archive wrong in a way its own verification cannot catch:
+
+- **A dated entry is not a content-change signal.** Two entries can be byte-identical and here two
+  are: entries five days apart differ on zero lines across 100-line bodies, and the page carries no
+  annotation explaining why the second one exists. Record the re-publication as what it is; never
+  infer a revision, an intent, or a policy movement from the appearance of a new dated heading.
+- **Absence of bold does not prove absence of change.** The page states that updates between
+  versions are bolded, and that convention does not hold: one span of the archive carries zero bold
+  markup across three dated entries that differ in three sentences plus a twelve-paragraph addition,
+  and another entry marks one transition of three. Silent unbolded typo fixes and a silent removal
+  were found the same way. Treat an unbolded inter-entry difference as an authoritative delta of
+  equal standing to a bolded one, which means the deltas come from diffing entries, never from
+  reading the markup.
+- **Note a source artifact at the row; never silently repair it.** Typos, escaped markup and
+  malformed auto-links are reproduced byte-exact so a verifier can tell faithful reproduction from
+  digest transcription error. The two blog-channel extraction artifacts under **Fetch channel**
+  above are this rule's standing instance. One exception, and it runs the other way: a downstream
+  artifact reproducing a known-corrupt entry *for a reader* rather than for verification repairs the
+  corruption and says that it did.
+
 ## Claude-Code-applicability filter (with teeth)
 
 Anthropic docs mix API-surface guidance with harness-relevant guidance. Every digest tags each
