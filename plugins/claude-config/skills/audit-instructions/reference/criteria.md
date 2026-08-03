@@ -661,7 +661,7 @@ model guide.
   "Thinking encryption" — "Full thinking content is encrypted and returned in the `signature` field
   on each thinking block" — and "Redacted thinking blocks" — "Filtering on
   `block.type == "thinking"` alone silently drops `redacted_thinking` blocks and breaks the
-  multi-turn protocol".
+  multi-turn protocol…".
 - **Local coverage, measured 2026-08-02: zero instances of all three shapes in the repository that
   authored this row**, which ships it consumer-facing and unexercised by its own corpus. Stated so
   the absence reads as an as-of measurement rather than as a passed check. **Re-measure when** a
