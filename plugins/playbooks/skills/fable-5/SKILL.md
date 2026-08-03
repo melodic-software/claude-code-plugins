@@ -116,6 +116,7 @@ The distillation of every chapter, grouped in operating-loop order. Each line is
 - Write every expensive conclusion (eliminated hypothesis, verified invariant, mapped dead end) to a durable note with its evidence pointer the moment it stabilizes — never at session end.
 - Read fully only what you will edit or reason deeply about; skim for structure; never load what a targeted search can answer.
 - At every turn end, each open obligation is progressed, parked visibly, or closed — never silently dropped.
+- Your own thinking is billed twice — as output when generated, then as input on every later request, because this harness retains prior-turn thinking on every model regardless of the per-model split upstream documents for raw API callers. Count accumulated reasoning as conversation history when judging a long session's cost.
 
 ### Boundaries — trust-and-authority
 

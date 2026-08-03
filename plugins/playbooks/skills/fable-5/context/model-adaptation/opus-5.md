@@ -98,11 +98,13 @@ are verbatim quotes, the second quotes its core clause and paraphrases the step-
   wherever quality holds"; step up only for demanding coding and agentic work (paraphrase).
 - "If you carried effort defaults over from a prior model, re-run an effort sweep on your own evals."
 
-The effort ladder, level names, and per-model support are upstream-owned — resolve them through
-the `claude-api` skill (local routing policy) or live model-config docs, never from this file. The
-guide's own ladder statement is TRUNCATED (verified against the live `whats-new-opus-5`
-enumeration); any effort claim beyond the three above defers to the verified effort-doc slice
-(see this workstream's Phase 6 cross-check). `[CC: direct]`
+The effort ladder, level names, per-model support, and per-model starting level are upstream-owned —
+resolve them at read time through the `claude-api` skill (local routing policy) or the live
+[Effort](https://platform.claude.com/docs/en/build-with-claude/effort) and
+[model config: adjust effort level](https://code.claude.com/docs/en/model-config#adjust-effort-level)
+pages, never from this file. The guide's own ladder statement is TRUNCATED (verified against the
+live `whats-new-opus-5` enumeration), which is why the three bullets above are this file's whole
+effort content and every other effort claim resolves at those pages. `[CC: direct]`
 
 ## Thinking controls (harness facts, live-verified 2026-07-26)
 

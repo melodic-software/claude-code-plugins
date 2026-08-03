@@ -682,7 +682,30 @@ name is not the same underlying value across models):
   pin is a design-time choice rather than a per-task one: pick the level once and keep it, steer
   per message when one turn needs more or less, and move the configuration only at natural breaks
   between tasks ([steering thinking: prompt caching](https://platform.claude.com/docs/en/build-with-claude/thinking-steering-and-cost#prompt-caching),
-  verified 2026-08-03).
+  verified 2026-08-03). The harness page states the same convention in its own words — "Pick your
+  model and effort level at the top of a session, then save `/compact` for natural breaks between
+  tasks" — and adds the interactive consequence a plugin author cannot see from the platform page
+  alone: once a conversation has started, Claude Code "shows a confirmation dialog before applying
+  an effort change that would invalidate the cache", so a mid-session change is a prompt the
+  consumer must clear rather than a silent cost. The same section independently corroborates the
+  no-op corollary above — a change resolving to the level already in effect "skips the dialog and
+  keeps the cache" ([prompt caching: changing effort level](https://code.claude.com/docs/en/prompt-caching#changing-effort-level),
+  verified 2026-08-03; recheck trigger: a Claude Code release changes the effort-change
+  confirmation flow, or that section is reworded again — it already reworded between this corpus's
+  2026-07-29 capture and this check, same substance, different words).
+
+**Effort is one dial of two, and the other is not an effort value.** The `thinking` parameter decides
+whether Claude reasons in thinking blocks; `effort` decides how hard the whole response works,
+"which in adaptive mode includes how often and how deeply it thinks". Upstream states the resulting
+trap outright — "Don't pass `adaptive` as an `effort` value: `adaptive` is a thinking mode, not an
+effort level" — and a frontmatter `effort` field is exactly where that trap is reachable, because the
+two dials share vocabulary. The second consequence bounds what any pin can promise: "Effort is soft
+guidance; `max_tokens` is a strict limit", so a lane needing a hard ceiling on spend sets the output
+cap rather than pinning effort lower
+([thinking and effort](https://platform.claude.com/docs/en/build-with-claude/thinking#thinking-and-effort),
+verified 2026-08-03; recheck trigger: the accepted `effort` value set changes on the model-config or
+effort page). Checking the value set mechanically stays deferred: a lint rule's source of truth is
+the harness's own accepted-value list, which this section deliberately does not restate.
 
 Session-level effort is the consumer's own knob, out of plugin scope: `low` through `xhigh`
 persist via the `effortLevel` setting, while `max` and `ultracode` are session-only — `max` is
