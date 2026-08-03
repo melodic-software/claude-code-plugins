@@ -703,12 +703,12 @@ words: "**You need a hard ceiling on spend:** use `max_tokens`. Effort is soft g
 is a strict limit." Read what that limit bounds before reaching for it. `max_tokens` is a request
 parameter capping one response's output — it "includes all thinking Claude generates in the current
 turn" — so it binds per response and constrains neither input and cache reads nor the further
-requests an agentic lane makes. **And no plugin surface reaches it.** The documented frontmatter
-fields set the model and the effort level, and a subagent adds `maxTurns`, which bounds agentic turns
-rather than tokens and has no skill-frontmatter counterpart; neither field list carries a token cap,
-because the parameter belongs to the API request a plugin does not assemble. So the rule this section
-can actually state is narrower than the quote: a lane wanting to spend less lowers `effort` knowing
-it is guidance, and a hard cap has to be imposed by whoever builds the request
+requests an agentic lane makes. **And no documented frontmatter field reaches it.** Those fields set
+the model and the effort level, and a subagent adds `maxTurns`, which bounds agentic turns rather
+than tokens and has no skill-frontmatter counterpart; neither field list carries a token cap, because
+the parameter belongs to the API request that the lane-pin surface does not assemble. So the rule
+this section can actually state is narrower than the quote: a lane wanting to spend less lowers
+`effort` knowing it is guidance, and a hard cap has to be imposed by whoever builds the request
 ([thinking and effort](https://platform.claude.com/docs/en/build-with-claude/thinking#thinking-and-effort),
 [subagent frontmatter](https://code.claude.com/docs/en/sub-agents#supported-frontmatter-fields), and
 [skill frontmatter](https://code.claude.com/docs/en/skills#frontmatter-reference), all verified
