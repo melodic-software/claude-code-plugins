@@ -199,10 +199,12 @@ Deferred with trigger (not queued):
 - <https://platform.claude.com/docs/en/build-with-claude/fallback-credit> — the two API-side claims
   it would settle carry a weak, openly disclosed absence basis that nothing is built on; enqueue
   when an artifact actually depends on fallback-credit behavior
-- <https://platform.claude.com/docs/en/about-claude/models/whats-new-opus-5> and
-  <https://platform.claude.com/docs/en/about-claude/models/whats-new-sonnet-5> — release notes for
-  models the models `overview` page already covers canonically; enqueue either when its model
-  enters or materially changes a fleet lane
+- <https://platform.claude.com/docs/en/about-claude/models/whats-new-opus-5> — release notes for a
+  model the models `overview` page already covers canonically; enqueue when Opus 5 enters or
+  materially changes a fleet lane
+- <https://platform.claude.com/docs/en/about-claude/models/whats-new-sonnet-5> — release notes for a
+  model the models `overview` page already covers canonically; enqueue when Sonnet 5 enters or
+  materially changes a fleet lane
 - <https://claude.com/blog/complete-guide-to-building-skills-for-claude> — a vendor-voice
   restatement of a schema whose first-party canons are already reachable, so digesting it adds
   attestation cost and no authority; enqueue for the first artifact that needs schema detail no

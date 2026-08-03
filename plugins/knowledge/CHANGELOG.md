@@ -10,8 +10,10 @@ only after that version increases.
 
 - **Anthropic profile — the doc queue is repopulated from the Sitting-5 doc-queue dispositions.**
   The queue had been emptied as its slices completed, so twelve adopted rows had nowhere to land and
-  the pipeline had no stated next page. Ten pages are queued and five deferred-with-trigger records
-  added, each carrying the reason it is where it is rather than a bare URL.
+  the pipeline had no stated next page. Counted at the bytes, one bullet per page: **11 pages
+  queued** across six groups, and **5 pages deferred with triggers** — the deferred section now
+  holds six bullets, the sixth being `task-budgets`, which predates this batch. Each entry carries
+  the reason it is where it is rather than a bare URL.
 - **`thinking-troubleshooting` is queued first, on a corrected rationale.** DQ-2's original ground —
   that the page backs the thinking doc set's *weakest* absence check — is not what the corpus says.
   The check is **falsified, not weak**: the harness carries a parallel troubleshooting surface
