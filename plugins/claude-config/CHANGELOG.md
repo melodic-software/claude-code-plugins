@@ -3,6 +3,63 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.19.0]
+
+### Added
+
+- **`audit-instructions`: four consumer-facing rows — I17, I18, I19, I20** (criteria 1.5.0 →
+  1.6.0). All four carry knowledge outward rather than inward: they detect defects in repos this
+  fleet does not control, and each is agnostic to user, machine, company and repo.
+
+  - **I17 — thinking disabled at an effort level that forbids it.** Pairing a thinking-disable
+    surface with `xhigh` or `max` effort returns a per-request 400 on Opus 5, and the pairing is
+    assemblable from configuration literals alone. **No harness documentation describes a
+    pre-request guard**, and model configuration's `MAX_THINKING_TOKENS=0` row is headed "Disable
+    regardless of effort" — so a surface repeating that heading unqualified inherits a claim the
+    effort page contradicts. The row states the hazard as real and unguarded, and deliberately does
+    **not** claim the harness prevents it. Two mechanical details keep an auditor honest: the row
+    tells them **not** to hunt `effortLevel: max`, because the settings schema stops at `"xhigh"`
+    and that literal is unreachable there, and it names the surfaces `max` does reach
+    (`CLAUDE_CODE_EFFORT_LEVEL`, `--effort`, skill and subagent `effort` frontmatter). The
+    settings-file scan is explicitly **not** taken: it belongs to `claude-config:audit`, and an
+    instruction-content catalog that also scanned settings files would claim authority a sibling
+    already holds.
+  - **I18 — thinking blocks altered on the way back to the model.** Signature preservation, the
+    `block.type == "thinking"` type-filter smell, and within-turn echo integrity. Its reach is
+    wider than API and Agent SDK client code: signature-bearing `thinking` blocks are the normal
+    on-disk shape of a local transcript, so transcript parsing, excerpting and upload or share
+    paths are in scope, and the row treats the signature as sensitive in the share case. The row
+    ships **no `redacted_thinking` handling clause premised on those blocks being present in local
+    transcripts** — that premise is unevidenced. The term survives only inside the upstream
+    sentence that is the type filter's entire stated failure mode, which is where the harm lives.
+    The row records that this repository has zero instances of any of the three shapes, so it ships
+    unexercised by its own repo rather than passing a check it never ran.
+  - **I19 — restated external benchmark figure with no recheck trigger.** `OPINION`-tier and off by
+    default, because no official page states that a restated benchmark figure needs a
+    re-derivation event; the four-part shape it asks for is this monorepo's upstream-drift
+    convention, and in a standalone install the four parts rather than the path are the
+    requirement. Carries one fence the fleet needed: **a verbatim upstream baseline held for drift
+    detection is never flagged**, since stamping it would corrupt the byte comparison it exists to
+    serve — a third case alongside the standing plugin-cache and managed-materialization
+    exclusions.
+  - **I20 — prefilled assistant response.** A standing model-delta row with an expected hit rate
+    near zero, confirmed at zero here. Cheap to carry, and it fires in consumer repos that still
+    prefill.
+
+- **`audit-instructions`: per-row verification stamps** (criteria 1.5.0 → 1.6.0). A row restating a
+  volatile upstream *literal* now carries the four-part record — claim, basis, as-of date, and a
+  recheck trigger naming an observable event. The catalog block states explicitly that these
+  **narrow** the catalog-wide Recheck-triggers block rather than replacing it; without that
+  sentence the catalog would carry two authorities over one behavior, which is precisely the
+  cross-surface conflict I15 exists to find. Shipping a check that silently encodes a snapshot as
+  permanent truth would reproduce, in consumers' repos, the drift this catalog exists to detect.
+
+- **`audit-instructions`: five pages join `## Sources`** — effort, thinking troubleshooting,
+  settings, environment variables, and prompt caching. As at 0.18.0 this is a second-order change,
+  and it is intended: the Recheck-triggers block makes the trigger set the source set, so adding a
+  page widens the staleness trigger for the **entire** catalog, not only for the rows that cite it.
+  A cited page nothing watches would leave those rows depending on an unwatched source.
+
 ## [0.18.0]
 
 ### Added

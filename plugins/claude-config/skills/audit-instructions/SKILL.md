@@ -19,7 +19,7 @@ locally-owned instruction surfaces, cites each finding to current official promp
 it by how confident the evidence can be, and packages proposed removals or rewrites as a human-gated
 diff — so instruction surfaces shrink as models get better instead of only ever growing.
 
-The check catalog — the checks I1–I16, their evidence tier, authority tag, severity, per-surface
+The check catalog — the checks I1–I20, their evidence tier, authority tag, severity, per-surface
 applicability, and the `OPINION`-tier enablement policy — lives in
 [reference/criteria.md](reference/criteria.md); the deterministic pre-scan is
 `${CLAUDE_PLUGIN_ROOT}/skills/audit-instructions/scripts/instruction-scan.sh`.
@@ -43,7 +43,7 @@ concerns its siblings already cover — route rather than re-answer:
   portability is `claude-config:audit-permission-grants`.
 
 On **memory-layer surfaces** (CLAUDE.md, CLAUDE.local.md, `.claude/rules/`, `~/.claude/rules/`),
-this skill runs only the model-era checks I6–I16. It never runs or reports the hygiene checks
+this skill runs only the model-era checks I6–I20. It never runs or reports the hygiene checks
 I1–I5 (line-necessity, length, placement, inferable content, rule-to-hook) on these surfaces —
 that instruction-memory hygiene layer belongs to the `claude-memory` plugin. When that plugin is
 installed, route memory-layer hygiene to its `audit` skill; when it is not installed, emit a single
@@ -105,8 +105,8 @@ scope; non-matching ones are inert and the report lists them as `skipped-for-tar
 
 Two flags govern the `OPINION` tier, whose enablement policy the catalog defines:
 
-- `--opinion` — also run the `OPINION`-tier checks that emit findings (I16 today). Off by default;
-  their findings are capped at `info` and are never applied.
+- `--opinion` — also run the `OPINION`-tier checks that emit findings (I16 and I19 today). Off by
+  default; their findings are capped at `info` and are never applied.
 - `--no-stopping-condition` — disable the `OPINION`-tier stopping condition that bounds I6 and I8.
   It is on by default because it withholds findings rather than emitting them, so turning it off
   makes both trimming checks more aggressive, not the audit more conservative.
