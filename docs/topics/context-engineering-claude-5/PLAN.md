@@ -976,13 +976,14 @@ Neither list is wrong; they are two documents that moved at different times. The
 recorded here rather than performed in passing, because changing either predicate changes what the
 shipped pass reports.
 
-**Widening the cross-run input left the within-run one behind, and that asymmetry is owed the same
-pass.** The design's Assertion 3.4 still records a *working-tree* content digest, scoped to the
-repository, while comparability now spans every inventoried scope. So an edit to `~/.claude/CLAUDE.md`
-**between** runs correctly renders the pair non-comparable, and the same edit **during** a run is
-invisible to the mid-run integrity check. The shipped contract unified the two deliberately — its
-assertion 6.1b yields `indeterminate` for exactly that mid-run case — so this is a gap on the design
-side only, and closing it is part of the same Phase 8 reconciliation rather than a separate question.
+**Widening the cross-run input briefly left the within-run one behind, and that asymmetry is now
+closed.** Assertion 3.4 recorded a *working-tree* content digest scoped to the repository while
+comparability spanned every inventoried scope, so an edit to `~/.claude/CLAUDE.md` **between** runs
+correctly rendered the pair non-comparable while the same edit **during** a run stayed invisible to
+the mid-run integrity check. 3.4's endpoint capture is now the same all-scope state digest, matching
+the shipped contract's assertion 6.1b. Within-run and cross-run integrity have to read the same
+surfaces or neither is worth asserting — a rule worth carrying forward the next time either side
+widens.
 
 None of these is a gate criterion; each would have made the shipped contract fail its own idempotence
 claim, which is why they are recorded with the gate rather than after it.

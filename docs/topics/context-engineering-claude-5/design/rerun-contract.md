@@ -409,6 +409,18 @@ inequality could mean a defect or could mean the tree moved, and the run cannot 
   So the run records a **working-tree content digest** beside each revision, over the same
   enumeration the scan set uses, and `indeterminate` follows when *either* pair differs. The revision
   is what makes a mismatch legible to an operator; the digest is what makes it detectable at all.
+
+  **The endpoint capture is the full scan-baseline state digest, not the working tree alone.**
+  Raised by review after §6 widened comparability's first input past the repository. A
+  repository-scoped endpoint check leaves the mid-run door open in exactly the place the cross-run
+  door was just closed: a user-scope or managed-policy surface edited after the baseline is frozen
+  but before its lane reads it produces a report mixing two external states, while both recorded
+  revisions and both working-tree digests match. The manifest then describes the baseline rather than
+  what the lanes audited, and a later run compared against that manifest reports a P1 or P4 defect
+  that never happened. So the endpoint capture is the same **all-scope** digest as the baseline —
+  every inventoried scope plus the dirty set — and `indeterminate` follows when it moved, on the same
+  posture the revision pair already takes. Within-run and cross-run integrity read the same surfaces
+  or neither is worth asserting; `audit-pass`'s shipped contract unified them for this reason.
 - **Assertion 3.5** — a read-only run overlapping an applying run against one target never reports a
   finding set mixing pre-apply and post-apply content. Test: an apply that rewrites a fixture surface
   while a reader is mid-run; the reader's report matches exactly one of the two tree states.
