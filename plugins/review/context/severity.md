@@ -4,11 +4,15 @@ Shared vocabulary for every finding this plugin's agents and skills emit. **Cons
 
 ## Severity tiers
 
-| Tier | Definition | Action |
-|---|---|---|
-| **CRITICAL** | Must fix before merge: correctness bugs, security vulnerabilities, broken contracts, architecture violations that will cascade | Block until fixed |
-| **IMPORTANT** | Should fix: convention drift, missing tests for new behavior, code duplication, error-handling gaps that degrade but do not break | Fix before or shortly after merge |
-| **SUGGESTION** | Consider: naming improvements, minor refactoring opportunities, hardening with no current exploitability | Optional; author's judgment |
+Apply the tests in order; the first tier whose test the finding satisfies is its tier. **The test decides the tier — the examples illustrate the test rather than enumerating the tier.** Argue a finding's tier from its test; resemblance to a listed example is not that argument.
+
+| Tier | Test | Illustrative findings | Action |
+|---|---|---|---|
+| **CRITICAL** | You can name a concrete input, caller, or subsequent change that the defect makes produce a wrong result, an unsafe one, or none at all | correctness bugs, security vulnerabilities, broken contracts, architecture violations that will cascade | Block until fixed |
+| **IMPORTANT** | Nothing produces a wrong result today, but the finding names a stated rule the change violates, behavior it adds that no test covers, or a degradation or maintenance cost with a named trigger | convention drift, missing tests for new behavior, code duplication, error-handling gaps that degrade but do not break | Fix before or shortly after merge |
+| **SUGGESTION** | Neither test holds — the finding is a preference among alternatives that all work, or hardening with no path reachable today | naming improvements, minor refactoring opportunities, hardening with no current exploitability | Optional; author's judgment |
+
+Stating the bar as a decidable test rather than a qualitative label follows the Sonnet 5 prompting guide, "Code review harnesses" — "be concrete about where the bar is rather than using qualitative terms like `important`" (<https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-sonnet-5>). The tests restate the existing bars rather than moving any finding between tiers.
 
 ## Confidence axis
 
@@ -24,3 +28,5 @@ Independent of severity — how sure the reviewer is that the finding is real:
 ## Security severity mapping
 
 The `security-reviewer` agent emits P1–P5 (CVSS-anchored). Fold into tiers as: P1/P2 → CRITICAL, P3 → IMPORTANT, P4/P5 → SUGGESTION.
+
+**This fold decides the tier for a P-scored finding and takes precedence over the tier tests above.** The P-level already encodes exploitability and impact, so a P3 folds to IMPORTANT rather than being re-tested against CRITICAL's "unsafe result" clause and promoted.

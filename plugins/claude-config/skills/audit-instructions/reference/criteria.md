@@ -1,5 +1,5 @@
 ---
-version: 1.5.0
+version: 1.6.0
 last-updated: 2026-08-02
 ---
 
@@ -72,6 +72,8 @@ I15–I16 apply to all surfaces; I13 and I14 name narrower surface sets in their
   <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5>
 - Prompting Claude Opus 5 —
   <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5>
+- Prompting Claude Sonnet 5 —
+  <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-sonnet-5>
 - Memory (CLAUDE.md, rules, auto memory) — <https://code.claude.com/docs/en/memory>
 - The `.claude` directory — <https://code.claude.com/docs/en/claude-directory>
 - Skills (what loads when, how supporting files are referenced, the listing budget,
@@ -211,8 +213,8 @@ so this fires for every target model.
 
 Tier `behavioral` · Authority `ANTHROPIC-DOCS` · Severity `warning` · Surfaces: all.
 
-The base row and each model row carry their own `Model scope` (single-model guide sources;
-promotion gate unmet for all of them).
+The base row and rows I8-a and I8-c carry their own `Model scope` (single-model guide sources;
+promotion gate unmet). Row I8-b is unscoped — two model guides converge on it (see the row).
 
 **Base row** · Model scope: `fable-5`.
 
@@ -241,7 +243,9 @@ promotion gate unmet for all of them).
   tokens with no loss in quality"; "Self-correction" — avoid instructing re-checks it already
   performs.
 
-**Row I8-b: conservative-reporting detection** · Tier `behavioral` · Model scope: `opus-5`.
+**Row I8-b: conservative-reporting detection** · Tier `behavioral`. Unscoped — promotion gate MET
+on its second arm: a second model guide, the Sonnet 5 one, states the same claim about the same
+three trigger phrases (see Source), so this fires for every target model.
 
 - **Detect:** review/report instructions that gate severity at the FINDING stage — "be
   conservative," "only report high-severity issues," "don't nitpick" — which this model follows
@@ -261,11 +265,20 @@ promotion gate unmet for all of them).
      an operative directive ("follow the maxim: 'only report high-severity issues'") is still
      operative and IS a finding; the exemption is for documents about the pattern, never for
      quotation as packaging.
-- **Remediate:** rephrase to report-everything + a separate filter/rank pass.
+- **Remediate:** rephrase to report-everything + a separate filter/rank pass. Where a single-pass
+  self-filter is genuinely wanted, keep it but **state the bar concretely** — an enumerable test the
+  reader can decide a novel finding against — rather than a qualitative term.
 - **Bounded by:** the **Stopping condition** below, which is enabled by default.
-- **Source:** Opus 5 guide, "Code review and bug-finding" — the model "may follow that
-  instruction literally and report less; ask it to report everything and filter in a separate
-  pass instead."
+- **Source:** Opus 5 guide, "Code review and bug-finding" — if the prompt says "only report
+  high-severity issues" or "be conservative," the model "may follow that instruction literally and
+  report less; ask it to report everything and filter in a separate pass instead." Convergent
+  second model guide (the gate-meeting one): Sonnet 5 guide, "Code review harnesses" — on the same
+  three phrases, "Claude Sonnet 5 may follow that instruction more faithfully than earlier models
+  did: it may investigate the code just as thoroughly, identify the bugs, and then not report
+  findings it judges to be below your stated bar." That guide is also the only cited home of the
+  third trigger phrase — **"don't nitpick" appears nowhere in the Opus 5 guide** — and it states
+  the Remediate line's concrete-bar half: "be concrete about where the bar is rather than using
+  qualitative terms like `important`."
 
 **Row I8-c: don't-think / don't-reason directive** · Tier `behavioral` · Model scope: `opus-5`.
 

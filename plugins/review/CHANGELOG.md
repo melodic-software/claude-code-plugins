@@ -3,6 +3,31 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.16.0]
+
+### Changed
+
+- **`context/severity.md`: each severity tier is now stated as a decidable test, not a qualitative
+  label.** The tiers read "Must fix" / "Should fix" / "Consider" plus a list of examples, which lets
+  a reviewer place a finding that resembles a listed example but leaves a novel finding undecidable.
+  The Sonnet 5 prompting guide, "Code review harnesses", names this shape directly — "be concrete
+  about where the bar is rather than using qualitative terms like `important`", the qualitative term
+  being one of this file's own tier names. Each tier now carries a test the reviewer can argue a
+  finding against: CRITICAL, whether you can name a concrete input, caller, or subsequent change the
+  defect makes produce a wrong, unsafe, or absent result; IMPORTANT, whether the finding names a
+  stated rule violated, behavior added that no test covers, or a degradation or maintenance cost
+  with a named trigger; SUGGESTION, neither, so a preference among alternatives that all work. The
+  example lists are retained as illustrations of the tests.
+
+  **No finding changes tier.** The tests were written to restate the existing bars, and the example
+  lists are unchanged — this states the criterion, it does not re-tier.
+
+- **The P1–P5 security fold now states its precedence over the tier tests.** `security-reviewer`
+  emits CVSS-anchored P-levels folded as P1/P2 → CRITICAL, P3 → IMPORTANT, P4/P5 → SUGGESTION.
+  CRITICAL's new test names an unsafe result, which a P3 finding also satisfies read literally, so
+  the fold is now marked as deciding the tier for a P-scored finding. Without that precedence the
+  criterion-stating change would have silently promoted every P3 to CRITICAL.
+
 ## [0.15.5]
 
 ### Fixed
