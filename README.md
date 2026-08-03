@@ -56,6 +56,16 @@ user opts in with `/plugin enable`; an existing install is never flipped by cata
 
 - `.claude-plugin/marketplace.json` — the marketplace catalog.
 - `plugins/` — one directory per plugin.
+- `lib/` — single source of truth for the shared shell helpers; the self-contained copies at
+  `plugins/*/hooks/` are synced from here by `scripts/sync-*.sh`, never edited directly.
+- `scripts/` — repo-level CI checks, sync scripts, and catalog generators, with their tests
+  alongside.
+- `prompts/` — launch-prompt templates meant to be filled in and pasted into a session; unlike
+  `lib/`, nothing copies them, and plugin skills cite them by path.
+- `.claude/` — this checkout's own Claude Code configuration (session and PR-linkage hooks, the
+  source-control convention). It governs work done here and ships to no one.
+- `.github/` — workflows plus the policy files they read (runner policy, security paths, recurring
+  schedule, PR template).
 - `docs/MIGRATION-PLAYBOOK.md` — design charter, extensibility model, the per-plugin migration
   gate, and the local development loop.
 - `docs/` — further design records and audits (CI runner routing, extensibility-contract smoke
