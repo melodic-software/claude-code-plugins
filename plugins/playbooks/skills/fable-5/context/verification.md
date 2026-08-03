@@ -40,6 +40,28 @@ Mechanical gates prove you did not break the machine; outcome verification prove
 
 **Decision rule:** no existing test exercises the changed path → the path is unverified regardless of the green suite; write a minimal probe (scratch script, direct invocation, one-off test) and run it. The environment genuinely cannot exercise the path → apply the downgrade formula below; never substitute reasoning for the missing run.
 
+## Know what already verifies before you build a check
+
+**Trigger:** you are about to build a check, gate, or verification skill for a project, rather than run a one-off probe.
+
+Verification support exists before anyone writes anything custom, and it spans three products rather than one feature list — the harness, a managed review service, and a separate platform API. Route to each surface's own reference page rather than to any summary of it, this table included: the page tracks behavior changes and a summary freezes at the moment it was written.
+
+| Surface | What it is | Canonical page |
+|---|---|---|
+| `/verify` | Bundled harness skill that builds and runs the app to confirm a change does what it should, without falling back to tests or type checks | [Skills — Run and verify your app](https://code.claude.com/docs/en/skills#run-and-verify-your-app) |
+| Toolchain signals | Any tool returning a readable pass/fail — test suite, build exit code, linter, a script diffing output against a fixture — read and acted on inside the loop | [Best practices — Give Claude a way to verify its work](https://code.claude.com/docs/en/best-practices#give-claude-a-way-to-verify-its-work) |
+| Project build and test commands | Listing the exact commands in the project CLAUDE.md so they are read rather than inferred | [Memory — Set up a project CLAUDE.md](https://code.claude.com/docs/en/memory#set-up-a-project-claude-md) |
+| Code Review | Managed multi-agent service reviewing PRs in enabled repositories — a hosted product, not a harness feature | [Code Review](https://code.claude.com/docs/en/code-review) |
+| GitHub Actions | A workflow job invoking Claude with a verification skill, so the same skill files a local session uses run in CI | [GitHub Actions — Using skills](https://code.claude.com/docs/en/github-actions#using-skills) |
+| Rubrics in Claude Managed Agents | Separate platform API product: a grader in its own context window scores an artifact against a rubric and hands failures back for rework | [Managed Agents — define outcomes](https://platform.claude.com/docs/en/managed-agents/define-outcomes) |
+
+Two annotations the list itself does not carry:
+
+- **Verifying each change against a markdown spec is a pattern, not a shipped artifact.** No bundled skill answers to it; the harness mechanism for it is a repo-local skill you write. Verified 2026-08-03 against the bundled-skill rosters in [Skills](https://code.claude.com/docs/en/skills) and [Slash commands](https://code.claude.com/docs/en/commands); recheck if a release note adds one.
+- **Managed Agents rubrics belong to a different product.** The automatic grader-and-rework loop exists in that service, not in this harness; inside a session the equivalent is a construction you assemble (a fresh-context subagent as grader). The documented route in is the bundled `/claude-api managed-agents-onboard` skill.
+
+**Built-in never means automatic.** Since v2.1.215 `/verify` and `/code-review` run only when you invoke them; Code Review is research preview, limited to Team and Enterprise, unavailable under Zero Data Retention, and enabled per repository by an Owner. Check plan, version, and invocation expectations against those pages before a project's verification story depends on any of them. Pages verified 2026-08-03.
+
 ## The check is the spec until proven wrong
 
 **Trigger:** a test or gate fails and the tempting fix edits the check rather than the code.
