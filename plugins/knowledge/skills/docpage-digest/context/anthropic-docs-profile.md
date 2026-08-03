@@ -199,6 +199,23 @@ Claude Code companion docs (digest in this order):
 - <https://code.claude.com/docs/en/memory>
 - <https://code.claude.com/docs/en/how-claude-code-works>
 
+Blog posts:
+
+- <https://claude.com/blog/the-advisor-strategy>
+  — the harness advisor doc cites this post as its own "why"; digest it alongside
+  <https://code.claude.com/docs/en/advisor> and
+  <https://platform.claude.com/docs/en/agents-and-tools/tool-use/advisor-tool> so one slice covers
+  the concept's three surfaces
+- <https://claude.com/blog/a-field-guide-to-claude-fable-finding-your-unknowns>
+  — the designated deep-dive for prompting the Claude 5 generation, already being read by local
+  work without a custody record, applicability tags, or an attestation pass
+
+Engineering posts:
+
+- <https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents>
+  — the cited best-practices source for custom agent evaluations, and methodology input to the
+  deferred re-pin checklist and the eval-set gap
+
 Deferred with trigger (not queued):
 
 - <https://platform.claude.com/docs/en/build-with-claude/task-budgets> — api-only (the page
@@ -221,23 +238,6 @@ Deferred with trigger (not queued):
   restatement of a schema whose first-party canons are already reachable, so digesting it adds
   attestation cost and no authority; enqueue for the first artifact that needs schema detail no
   first-party canon states
-
-Blog posts:
-
-- <https://claude.com/blog/the-advisor-strategy>
-  — the harness advisor doc cites this post as its own "why"; digest it alongside
-  <https://code.claude.com/docs/en/advisor> and
-  <https://platform.claude.com/docs/en/agents-and-tools/tool-use/advisor-tool> so one slice covers
-  the concept's three surfaces
-- <https://claude.com/blog/a-field-guide-to-claude-fable-finding-your-unknowns>
-  — the designated deep-dive for prompting the Claude 5 generation, already being read by local
-  work without a custody record, applicability tags, or an attestation pass
-
-Engineering posts:
-
-- <https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents>
-  — the cited best-practices source for custom agent evaluations, and methodology input to the
-  deferred re-pin checklist and the eval-set gap
 
 ## Artifact targets
 

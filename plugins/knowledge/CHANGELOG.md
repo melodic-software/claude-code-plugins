@@ -46,6 +46,10 @@ only after that version increases.
   held. The org-policy posture is the argument for it rather than against, but the posture is real
   and cuts against the standing self-alignment-before-packaging ordering, so the enqueue is recorded
   as still open to an owner veto. A queue entry is trivially reversible if that veto fires.
+- **The engineering-post entry's contingency is discharged.** Its enqueue was sequenced behind the
+  engineering-property profile edit, which landed in 0.10.18 — the same merge that closed that
+  property decision's veto window — so the entry ships unconditionally; the deferred-with-trigger
+  fallback written for a fired veto never engaged.
 
 ## [0.10.18]
 
