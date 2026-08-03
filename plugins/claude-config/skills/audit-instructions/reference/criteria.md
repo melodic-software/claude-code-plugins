@@ -548,10 +548,12 @@ Each row below carries its own decisive source; they share a subject, not a cita
 - **Effort literals do not all reach every surface, and the literal set is not the whole set.**
   `max` reaches a session through `CLAUDE_CODE_EFFORT_LEVEL`, `--effort`, `/effort`, or skill and
   subagent `effort` frontmatter — the frontmatter case being a surface this skill already
-  inventories. **`ultracode` also trips this** without matching either literal: it is a Claude Code
-  setting rather than an effort level and "sends `xhigh` to the model", so a surface pairing it with
-  a thinking-disable surface produces the identical rejection. Match on the effort that reaches the
-  request, not on the spelling.
+  inventories. **The `ultracode` *setting* also trips this** without matching either literal: it is
+  a Claude Code setting rather than an effort level and "sends `xhigh` to the model", so a surface
+  pairing it with a thinking-disable surface produces the identical rejection. Only the
+  effort-setting forms count — instruction text prescribing `/effort ultracode`, `--effort
+  ultracode`, or `--settings` / Agent SDK `"ultracode": true` or `effortLevel: "ultracode"`. Match
+  on the effort that reaches the request, not on the spelling.
 - **Remediate:** lower the effort to `high` or below, or leave thinking on — and state which, since
   the pairing has no third resolution.
 - **Scope, and where the config check lives:** this row audits **instruction text**. The same
@@ -565,17 +567,24 @@ Each row below carries its own decisive source; they share a subject, not a cita
   after it finds nothing and learns nothing. **A document that states the pairing in order to
   describe or forbid it** — this row, a model-adaptation delta chapter, a verification record
   quoting it — on the same audience test I8-b applies: the pairing prescribed inside an operative
-  directive is a finding; a document *about* the pairing is not. A thinking-disable surface named
-  with no effort level in reach of it.
+  directive is a finding; a document *about* the pairing is not. **The bare `ultracode` prompt
+  keyword** — instruction text telling a reader to include it in a typed prompt runs one task as a
+  workflow "without changing the session's effort level", so no effort reaches the request and the
+  rejected pairing never assembles. A thinking-disable surface named with no effort level in reach
+  of it.
 - **Source:** effort — "On Claude Opus 5, thinking cannot be disabled at `xhigh` or `max` effort:
   requests that set `thinking: {"type": "disabled"}` at those levels return a 400 error."
   Corroborated at thinking-troubleshooting, which supplies the model range and adds that the
   restriction "is enforced on each request". The per-surface value sets are read from the surfaces'
   own pages: settings for `effortLevel`, environment variables for `CLAUDE_CODE_EFFORT_LEVEL`,
   skills and subagents for `effort` frontmatter, and model configuration for `/effort`, the session
-  and global thinking toggles, and ultracode.
-- **Verified 2026-08-02** against those pages, fetched as raw markdown. **Recheck trigger:** the
-  effort level set gaining or losing a name, or the restriction's model range moving.
+  and global thinking toggles, and ultracode — the last enumerating the three routes that turn the
+  *setting* on (`/effort`, `--effort`, `--settings` / Agent SDK). The keyword's separation from the
+  setting is read from workflows, "Ask for a workflow in your prompt": including `ultracode` in a
+  prompt runs "a single task as a workflow without changing the session's effort level".
+- **Verified 2026-08-03** against those pages, fetched as raw markdown. **Recheck trigger:** the
+  effort level set gaining or losing a name, the set of `ultracode` forms that reach `xhigh`
+  changing, or the restriction's model range moving.
 
 **Row I17-a: `MAX_THINKING_TOKENS=0` presented as a universal off switch** · Tier `mechanical` ·
 Severity `warning`.
@@ -701,11 +710,13 @@ by `--opinion`.
 
 Tier `mechanical` · Authority `ANTHROPIC-DOCS` · Severity `error` · Surfaces: all — `error` because
 following the instruction produces a rejected request, the same consequence class as I17 and I18,
-not because instances are expected to be common.
+not because instances are expected to be common. **The unsupported model range is a Detect
+condition, not a `Model scope` annotation**, for the reason I17 states.
 
 - **Detect:** instruction text that tells a caller to prefill Claude's response — to supply a
-  partial assistant message on the last turn so the model continues from it. The classic uses are
-  the tells: forcing a JSON or YAML shape, opening with `Here is the requested summary:` to skip
+  partial assistant message on the last turn so the model continues from it — where the run's
+  resolved target model is a Claude 4.6 or later model, or Claude Mythos Preview. The classic uses
+  are the tells: forcing a JSON or YAML shape, opening with `Here is the requested summary:` to skip
   preamble, steering around a refusal, resuming an interrupted generation, and re-injecting context
   as a pseudo-assistant reminder.
 - **Remediate:** the technique is not deprecated advice but a rejected request — on current models a

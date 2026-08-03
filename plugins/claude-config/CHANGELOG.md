@@ -17,9 +17,11 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
     Base row (`error`): pairing a thinking-disable surface with `xhigh` or `max` effort returns a
     per-request 400, and the pairing is assemblable from configuration literals alone. **No harness
     documentation describes a pre-request guard**, so the row states the hazard as real and
-    unguarded and deliberately does **not** claim the harness prevents it. It also catches
-    `ultracode`, which matches neither literal but "sends `xhigh` to the model" and so produces the
-    identical rejection — match the effort that reaches the request, not the spelling. And it tells
+    unguarded and deliberately does **not** claim the harness prevents it. It also catches the
+    `ultracode` **setting**, which matches neither literal but "sends `xhigh` to the model" and so
+    produces the identical rejection — match the effort that reaches the request, not the spelling.
+    The same spelling as a **prompt keyword** is fenced out: it runs one task as a workflow
+    "without changing the session's effort level", so no effort reaches the request. And it tells
     an auditor **not** to hunt `effortLevel: max`: the settings schema stops at `"xhigh"`, so that
     literal is unreachable there. I17-a (`warning`) is `MAX_THINKING_TOKENS=0` sold as a universal
     off switch, which it is not — no effect on Fable 5, parameter merely omitted on third-party
