@@ -569,6 +569,27 @@ the session default model changes):
 | Mechanical prep, one tier down | Sonnet 5 |
 | Bulk mechanical sweeps | Haiku 4.5 |
 
+That ladder is a cost ordering, and one capability does not travel down it: **interleaved thinking —
+reasoning between tool calls rather than only before the first and after the last.** Claude Code
+models it per model, as the `interleaved_thinking` capability value
+([model config: customize pinned model display and capabilities](https://code.claude.com/docs/en/model-config#customize-pinned-model-display-and-capabilities),
+verified 2026-08-03; a pinned model's unlisted capabilities are disabled). The per-model roster is
+upstream-owned — resolve it at
+[thinking: interleaved thinking](https://platform.claude.com/docs/en/build-with-claude/thinking#interleaved-thinking),
+which today states that interleaving is automatic on every model supporting adaptive thinking with
+no beta header, and that Claude Haiku 4.5 does not support it (verified 2026-08-03; recheck trigger:
+a new Haiku generation reaches GA, or that page's per-model sentence changes).
+
+The dispatch consequence, phrased as capability rather than family name so it survives an alias
+moving under it: **a delegated task whose value is reasoning about intermediate tool results needs a
+model that interleaves; a task that merely chains tool calls does not.** The boundary is narrower
+than it sounds — the same page states that "Consecutive tool calls do not require interleaved
+thinking", and that interleaving changes "where thinking blocks appear between tool calls, not
+whether tool calls can chain". A non-interleaving model still chains tools and still runs a sweep to
+completion; what it lacks is reasoning about each result before choosing the next call. So the
+bottom tier row stands for bulk mechanical sweeps and does not stretch to a triage or research
+fan-out whose worth is the judgement between calls.
+
 The **dispatch-seam** tier enforcement is structural at two binding sites:
 `plugins/implementation/agents/implementer.md` and
 `plugins/implementation/agents/phase-verifier.md` (both bind the loop-lane convention's strong-tier
@@ -588,6 +609,15 @@ support falls back to the highest supported level at or below it
 [model config: adjust effort level](https://code.claude.com/docs/en/model-config#adjust-effort-level),
 verified 2026-07-29). The ladder itself — level names, per-model availability, per-model defaults —
 is upstream-owned: resolve it from the model-config page at decision time, never from this document.
+
+What a pin actually buys is bounded by how allocation works: thinking is adaptive, so the model
+"evaluates each request and decides for itself whether to think and how much", and the caller sets
+an intent and optionally the effort while the model "allocates reasoning where it judges reasoning
+will help" ([steering thinking](https://platform.claude.com/docs/en/build-with-claude/thinking-steering-and-cost),
+verified 2026-08-03). A lane pin is therefore a posture, never a switch — a lane pinned `low` still
+thinks where the model judges thinking earns its cost, and a turn carrying no thinking is that
+mechanism working rather than a pin misfiring. Authoring conformance follows the posture: pin the
+lane, then let allocation vary per request instead of writing prose that tries to force it uniform.
 
 Lane rules, dated 2026-07-29 (recheck trigger: a model change on any pinned lane, or the
 model-config effort table changes — the effort scale is calibrated per model, so the same level
@@ -619,13 +649,37 @@ name is not the same underlying value across models):
   relatively small quality gains and can lead to overthinking. A pin above `high` (e.g. `xhigh`)
   is a deliberate per-lane choice grounded in the target model's own recommended-levels guidance,
   never a reflex.
-- **Shallow output from a pinned-`low` lane raises the lane's effort** rather than prompting
-  around it; only a lane that must stay `low` for latency gets upstream's targeted steering
-  guidance instead.
+- **Effort is the first lever in either direction; steering prose is the second.** Upstream states
+  the order plainly — set the effort level matching the lane's workload, then "add prompt guidance
+  only if Claude's triggering still doesn't match your needs at that level" — and gives the
+  rationale that lowering effort "is usually the better first lever, since it is a calibrated
+  control rather than a wording-sensitive instruction"
+  ([steering thinking: steering how often Claude thinks](https://platform.claude.com/docs/en/build-with-claude/thinking-steering-and-cost#steering-how-often-claude-thinks),
+  verified 2026-08-03). Both directions: shallow output from a pinned-`low` lane raises the lane's
+  effort rather than prompting around it, and a lane thinking more than the work needs lowers the
+  pin before any prose telling the model to think less — upstream states that reduce direction
+  outright and warns it "may reduce quality on tasks that benefit from reasoning". A lane that must
+  hold its level for latency is the one case that reaches for steering prose first; it then owes
+  the measurement upstream asks for — a representative sample run with and without the guidance,
+  compared on trigger rate, output tokens, latency, and quality — because steering effectiveness is
+  wording-sensitive in a way a level is not. Authoring a lane's prose against its own pin, in
+  either direction, is the inversion this rule exists to catch.
 - **Cache caveat**: changing effort between requests invalidates cached prompt prefixes, so a
   skill pin firing mid-session is expected to cost the main conversation's cache (harness-side
   request assembly unconfirmed), while a subagent pin is scoped to the subagent's own requests —
-  treat skill-lane pins as cache-costly in cost-sensitive loops.
+  treat skill-lane pins as cache-costly in cost-sensitive loops. State the outcome and not the
+  mechanism: the platform page and the harness page agree that an effort change forces a full
+  re-read but describe *why* differently, so an explanation that picks one is asserting more than
+  either source supports. Two corollaries follow. Setting a lane's effort explicitly to the model's
+  own default is a no-op that "does not break the cache", so a pin that merely documents the
+  default costs nothing. And **per-message steering is the cache-safe escape hatch** — guidance
+  appended to the newest user message "leaves earlier cache breakpoints intact, where a
+  configuration or effort change does not", which is what makes a skill's invocation-time
+  instructions cheaper than a mid-session pin. The convention that falls out, and the reason a lane
+  pin is a design-time choice rather than a per-task one: pick the level once and keep it, steer
+  per message when one turn needs more or less, and move the configuration only at natural breaks
+  between tasks ([steering thinking: prompt caching](https://platform.claude.com/docs/en/build-with-claude/thinking-steering-and-cost#prompt-caching),
+  verified 2026-08-03).
 
 Session-level effort is the consumer's own knob, out of plugin scope: `low` through `xhigh`
 persist via the `effortLevel` setting, while `max` and `ultracode` are session-only — `max` is
