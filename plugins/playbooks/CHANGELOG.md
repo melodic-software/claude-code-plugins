@@ -16,11 +16,12 @@ only after that version increases.
   project build and test commands in CLAUDE.md), a managed review service (Code Review), CI
   (a GitHub Actions job invoking Claude with a verification skill), and a separate platform API
   product (rubrics in Claude Managed Agents, whose grader runs in its own context window and hands
-  failures back for rework). Two annotations the list does not carry ship with it: verifying each
-  change against a markdown spec is **a pattern, not a shipped artifact** — no bundled skill
-  answers to it and the harness mechanism is a repo-local skill you write, stated as an as-of
-  claim (checked 2026-08-03 against the bundled-skill rosters in
-  [Skills](https://code.claude.com/docs/en/skills) and [Slash
+  failures back for rework). The two items with no harness artifact stay **rows** rather than being
+  dropped to prose, because an item the source lists and nothing implements is the most useful
+  thing the table records: spec validation — verifying each change against a markdown spec — is **a
+  pattern, not a shipped artifact**, its Canonical-page cell says so and routes to the repo-local
+  skill mechanism, and its absence ships as an as-of claim (checked 2026-08-03 against the
+  bundled-skill rosters in [Skills](https://code.claude.com/docs/en/skills) and [Slash
   commands](https://code.claude.com/docs/en/commands)) with a recheck trigger on a release note
   adding one; and Managed Agents rubrics belong to **a different product**, so the in-session
   equivalent is a construction you assemble (a fresh-context subagent as grader) reached through
