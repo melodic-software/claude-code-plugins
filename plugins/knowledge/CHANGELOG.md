@@ -17,9 +17,9 @@ only after that version increases.
   entry is not a content-change signal:** two entries five days apart are byte-identical, differing
   on zero lines across 100-line bodies, with no annotation explaining why the second exists — so a
   new dated heading licenses no inference of revision, intent, or policy movement. The rule is
-  stated in the **content-change** form, which is the narrower of the two the record carries and the
-  one the underlying finding actually supports; it bars inferring change from sameness, and leaves a
-  reader free to read an actual textual narrowing between two entries as the change it is. **(2)
+  stated in the narrower **content-change** form, which is what the finding supports: it bars
+  inferring change from sameness, and leaves a reader free to read an actual textual narrowing
+  between two entries as the change it is. **(2)
   Absence of bold does not prove absence of change:** the page states that updates between versions
   are bolded and the convention does not hold — one span carries zero bold markup across three dated
   entries differing in three sentences plus a twelve-paragraph addition, another marks one
@@ -30,9 +30,8 @@ only after that version increases.
   error, with the blog channel's two known extraction artifacts named as the standing instance
   rather than restated. Its one exception runs the other way — a downstream artifact reproducing a
   known-corrupt entry *for a reader* rather than for verification repairs the corruption and says
-  that it did. The fourth property these three refine — that dated content is scoped to its entry
-  date — is not restated here; it already ships as reader-side doctrine in the `playbooks` fable-5
-  calibration chapter, and the section carries it as the premise the three rules qualify.
+  that it did. The property all three refine — that everything inside a dated entry is scoped to that
+  entry's date — opens the section as its premise rather than as a fourth rule.
 
 - **Anthropic profile gains hedge preservation and the residual-risk footer.** A source's own hedge
   now travels with the content it qualifies: an artifact graduated from this publisher preserves the
