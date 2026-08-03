@@ -3,6 +3,86 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.20.0]
+
+### Added
+
+- **`audit-instructions`: four consumer-facing rows — I17, I18, I19, I20** (criteria 1.6.0 →
+  1.7.0). All four carry knowledge outward rather than inward: they detect defects in repos this
+  fleet does not control, and each is agnostic to user, machine, company and repo.
+
+  - **I17 — thinking disabled at an effort level that forbids it**, as a base row plus **I17-a**
+    and **I17-b**, on I8's pattern: three shapes with three different decisive sources are three
+    rows, not one row with three citations, and splitting them lets each carry its own severity.
+    Base row (`error`): pairing a thinking-disable surface with `xhigh` or `max` effort returns a
+    per-request 400, and the pairing is assemblable from configuration literals alone. **No harness
+    documentation describes a pre-request guard**, so the row states the hazard as real and
+    unguarded and deliberately does **not** claim the harness prevents it. It also catches the
+    `ultracode` **setting**, which matches neither literal but "sends `xhigh` to the model" and so
+    produces the identical rejection — match the effort that reaches the request, not the spelling.
+    The same spelling as a **prompt keyword** is fenced out: it runs one task as a workflow
+    "without changing the session's effort level", so no effort reaches the request. And it tells
+    an auditor **not** to hunt `effortLevel: max`: the settings schema stops at `"xhigh"`, so that
+    literal is unreachable there. I17-a (`warning`) is `MAX_THINKING_TOKENS=0` sold as a universal
+    off switch, which it is not — no effect on Fable 5, parameter merely omitted on third-party
+    providers. I17-b (`info`) is a mid-session effort change prescribed without its cache cost, and
+    it explicitly does **not** fire on Claude Code surfaces, where the harness already asks for
+    confirmation; it is for surfaces instructing an API or Agent SDK caller, where no dialog exists.
+
+    **The model range is carried as a Detect condition, not a `Model scope` annotation** — the
+    catalog's annotation is for rows sourced from a single model's *guide*, matches by exact string
+    equality, and has no range form, so annotating `opus-5` would make the row inert on the next
+    generation while the restriction ("Claude Opus 5 and later models") still holds. The source is
+    a model-agnostic feature page, so the promotion gate is met and the row is unscoped. I20 handles
+    its own model range the same way.
+
+    The settings-file scan is explicitly **not** taken: it belongs to `claude-config:audit`, and an
+    instruction-content catalog that also scanned settings files would claim authority a sibling
+    already holds. The discriminator is whether the content instructs, not which file holds it, so
+    a prompt-type hook's injected text stays in scope even though it lives in a settings file.
+  - **I18 — thinking blocks altered on the way back to the model.** Signature preservation, the
+    `block.type == "thinking"` type-filter smell, and within-turn echo integrity. Reach is wider
+    than Messages API client code — Agent SDK callers, harness integrations, and tooling that
+    rewrites a stored transcript later replayed or resumed — but the criterion is **a path back to
+    the model**, not the file format read, so read-only transcript analysis stays out. The row
+    ships **no `redacted_thinking` handling clause premised on those blocks being present in local
+    transcripts** — that premise is unevidenced. The term survives only inside the upstream
+    sentence that is the type filter's entire stated failure mode, which is where the harm lives.
+    Zero instances of all three shapes here, recorded as a dated measurement with its own trigger
+    rather than left to read as a clean audit.
+  - **I19 — restated external benchmark figure with no recheck trigger.** `OPINION`-tier and off by
+    default, because no official page states that a restated benchmark figure needs a
+    re-derivation event; the four-part shape it asks for is this monorepo's upstream-drift
+    convention, and in a standalone install the four parts rather than the path are the
+    requirement. Carries one fence the fleet needed: **a verbatim upstream baseline held for drift
+    detection is never flagged**, since stamping it would corrupt the byte comparison it exists to
+    serve. That is a genuine suppression, which is what separates it from plugin-cache content and
+    managed materializations — those are still flagged, and the finding becomes a routing
+    recommendation to the owning repository.
+  - **I20 — prefilled assistant response**, at `error`: following the instruction produces a
+    rejected request, the same consequence class as I17 and I18. Severity tracks consequence, not
+    expected frequency — this is a standing model-delta row whose hit rate here is zero, and it
+    fires in consumer repos that still prefill.
+
+- **`audit-instructions`: per-row verification stamps** (criteria 1.6.0 → 1.7.0). A row restating a
+  volatile upstream *literal* now carries the four-part record — claim, basis, as-of date, and a
+  recheck trigger naming an observable event. A row that only points at its page carries none,
+  because a pointer cannot go stale. The block resolves its own relationship to the catalog-wide
+  Recheck-triggers rule rather than leaving two authorities over one behavior, which is precisely
+  the conflict I15 exists to find: a per-row stamp **supplements** the catalog trigger and never
+  narrows it, a row's own trigger names only what the Sources set would miss, and **the catalog
+  trigger wins** where they disagree. The requirement **binds on touch**, per the upstream-drift
+  convention, so rows predating it are not retroactively non-compliant. Shipping a check that
+  silently encoded a snapshot as permanent truth would reproduce, in consumers' repos, the drift
+  this catalog exists to detect.
+
+- **`audit-instructions`: five pages join `## Sources`** — effort, thinking troubleshooting,
+  settings, environment variables, and prompt caching. As at 0.18.0 and 0.19.0 this is a
+  second-order change, and it is intended: the Recheck-triggers block makes the trigger set the
+  source set, so adding a page widens the staleness trigger for the **entire** catalog, not only
+  for the rows that cite it. A cited page nothing watches would leave those rows depending on an
+  unwatched source.
+
 ## [0.19.0]
 
 ### Changed
