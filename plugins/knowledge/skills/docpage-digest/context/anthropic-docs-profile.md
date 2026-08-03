@@ -166,5 +166,12 @@ Deferred with trigger (not queued):
 
 Interview-handoff dispositions for this publisher typically route to: per-model doctrine
 chapters (a playbooks-style model-adaptation seam), instruction-audit rule rows (a
-model-delta audit class), or corpus graduation (a knowledge-corpus repository). The handoff
-records the candidate target per finding; the interview decides.
+model-delta audit class), corpus graduation (a knowledge-corpus repository), or cross-slice
+synthesis (a cross-model artifact spanning units and slices the per-unit digest fan-out cannot
+reach — not per-model, not an audit rule row, not graduation of one slice; its host is
+undecided). The handoff records the candidate target per finding; the interview decides.
+
+The fourth target exists because content deferred *to* a synthesis pass had nowhere to land:
+the fan-out is barred from reaching across units by design, no later pipeline stage exists, and
+the first three targets each describe a shape it is not. A disposition with no target in this
+list is a corpus hole, not a scoping success.

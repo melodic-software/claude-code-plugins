@@ -18,6 +18,14 @@ only after that version increases.
   attestation bullet below still names `claude.com/blog` literally and does not reach the new
   property, and unlike the two docs properties, `anthropic.com/engineering` publishes no
   machine-readable page index, so page selection and absence checks against it have no instrument.
+- **Anthropic profile — a fourth artifact target: cross-slice synthesis.** The taxonomy named three
+  targets, all of which describe a shape a cross-model synthesis artifact is not — it is not
+  per-model, not an audit rule row, and not graduation of one slice. Content deferred to such a pass
+  therefore had nowhere to route: the digest fan-out is barred from reaching across units by design,
+  and no later pipeline stage exists to pick it up. Four units in one slice deferred content into
+  that gap. The target is named without a host — which repository or seam it lands in is a separate
+  decision no run has taken — so the taxonomy stops silently converting cross-unit findings into
+  out-of-scope ones.
 
 ## [0.10.17]
 
