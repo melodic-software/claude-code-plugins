@@ -44,6 +44,7 @@ The distillation of every chapter, grouped in operating-loop order. Each line is
 - Trust no count or zero-hit result until you have ruled out output caps and validated the probe against a known-present example.
 - Pre-register a prediction before any action with observable output — no expectation means surprise is undetectable.
 - Settled means settled: reopen a session-verified, untouched fact only on contradicting evidence, never data-free doubt.
+- A behavioral claim about Claude is a fact about the surface documenting it, never about the one you are running on — consumer apps, the raw API, and this harness diverge, and a dated archive entry is scoped to its date on top of that. Check per claim against the target surface's own docs; vendor authority is what makes the scope slip invisible.
 
 ### Thinking — reasoning-moves
 

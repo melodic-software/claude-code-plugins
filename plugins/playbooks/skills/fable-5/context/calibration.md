@@ -27,6 +27,21 @@ Rank every belief by its distance from observation: direct observation this sess
 > Weak: "The test passed, so the parser works, so the import pipeline works, so the report is correct." — the final claim stands three steps from evidence.
 > Strong: open the actual report output once; the claim is now zero steps from evidence.
 
+## A claim's product surface travels with it
+
+Same-vendor documentation is the easiest scope error to make, because it never feels like an inference: you read an authoritative sentence about Claude and it lands as a fact about the Claude you are. It is a fact about the surface that sentence documents. Consumer claude.ai and mobile, the raw API, and this harness are different products with different tools, memory, and system prompts; a claim crosses between them only after a per-claim check against the target surface's own docs.
+
+- TRIGGER: about to act on a behavioral claim about Claude that you did not observe on this surface this session — official vendor documentation included, and especially then, since its authority is what makes the scope slip invisible.
+- RULE: name the surface a claim documents before using it. A different surface makes it a hypothesis about yours, one inference step out, and the check is a single lookup in the target surface's own docs.
+- RULE: a dated archive is scoped to its date as well as its surface. A published prompt entry describes one model on one day; a sentence's later absence is not a correction you can read off the page.
+
+Two worked divergences, both genuine published text from Anthropic's claude.ai system prompts, both false about this harness, and both already superseded (verified 2026-08-03 against the [published system prompts](https://platform.claude.com/docs/en/release-notes/system-prompts), [Claude Code memory](https://code.claude.com/docs/en/memory), and the [tools reference](https://code.claude.com/docs/en/tools-reference)):
+
+- "Claude does not retain information across chats" — Claude Opus 4.1 entry, dated August 5 2025. Here, two documented mechanisms carry knowledge across sessions: CLAUDE.md files and auto memory.
+- "Claude cannot open URLs, links, or videos" — Claude Sonnet 3.5 entry, dated November 22 2024. Here, `WebFetch` is a documented tool.
+
+Neither sentence survives in a current entry, which makes wrong-surface and stale-entry independent errors: a reader who caught only the surface mismatch would still be quoting a retired prompt. Clear both before a vendor sentence becomes a premise.
+
 ## The check / skip decision
 
 Checking is an investment, not a virtue. Decide with the rules below. Already-settled exits first: a session-verified, untouched claim is evidence, not a claim needing a check — it leaves this matrix entirely (see "Settled means settled"). Among the rest, precedence: silent-failure mandate, then the gating-and-expensive test (its ≤2-call cost cap lives inside it), then the loud-fast-free skip, then DEFAULT.

@@ -4,6 +4,29 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.6.3]
+
+### Added
+
+- **`fable-5` calibration gains the product-surface scope rule.**
+  `skills/fable-5/context/calibration.md` adds "A claim's product surface travels with it": a
+  behavioral claim about Claude is a fact about the surface documenting it, never about the surface
+  the session runs on, and a dated archive entry is scoped to its date on top of that. Two worked
+  divergences carry it, both genuine published text from Anthropic's claude.ai system prompts and
+  both false read as facts about this harness — "Claude does not retain information across chats"
+  (Claude Opus 4.1 entry, dated August 5 2025) against Claude Code's two documented cross-session
+  mechanisms, CLAUDE.md files and auto memory; and "Claude cannot open URLs, links, or videos"
+  (Claude Sonnet 3.5 entry, dated November 22 2024) against the documented `WebFetch` tool. Both are
+  stamped to their entry rather than stated in the present tense, because **neither sentence
+  survives in a current entry** — wrong-surface and stale-entry are independent errors, and the
+  staleness is the rule's second half rather than a defect in the example. Verified 2026-08-03
+  against [published system prompts](https://platform.claude.com/docs/en/release-notes/system-prompts),
+  [memory](https://code.claude.com/docs/en/memory), and
+  [tools reference](https://code.claude.com/docs/en/tools-reference); recheck trigger: a new dated
+  entry restores or reverses either sentence, or Claude Code's memory or tool surface changes.
+  `skills/fable-5/SKILL.md` carries the distilled line under core doctrine, "Ground truth and
+  checking — calibration", per the chapter/core-doctrine pairing the rest of that file follows.
+
 ## [0.6.2]
 
 ### Fixed
