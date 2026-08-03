@@ -10,8 +10,11 @@ only after that version increases.
 
 - **`fable-5` calibration gains the product-surface scope rule.**
   `skills/fable-5/context/calibration.md` adds "A claim's product surface travels with it": a
-  behavioral claim about Claude is a fact about the surface documenting it, never about the surface
-  the session runs on, and a dated archive entry is scoped to its date on top of that. Two worked
+  behavioral claim about Claude is a fact about the surface documenting it, and it transfers to the
+  surface the session runs on only after a per-claim check — never on vendor authority alone. The
+  rule is scoped to CROSS-surface transfer, which is the row's actual thesis: docs for the running
+  surface clear the check where they stand, so Claude Code's own docs read inside Claude Code are
+  not downgraded. A dated archive entry is scoped to its date on top of that. Two worked
   divergences carry it, both genuine published text from Anthropic's claude.ai system prompts and
   both false read as facts about this harness — "Claude does not retain information across chats"
   (Claude Opus 4.1 entry, dated August 5 2025) against Claude Code's two documented cross-session

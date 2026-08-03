@@ -570,7 +570,7 @@ the session default model changes):
 | Bulk mechanical sweeps | Haiku 4.5 |
 
 That ladder is a cost ordering, and one capability does not travel down it: **interleaved thinking —
-reasoning between tool calls rather than only before the first and after the last.** Claude Code
+a thinking block between tool calls rather than only before the first and after the last.** Claude Code
 models it per model, as the `interleaved_thinking` capability value
 ([model config: customize pinned model display and capabilities](https://code.claude.com/docs/en/model-config#customize-pinned-model-display-and-capabilities),
 verified 2026-08-03; a pinned model's unlisted capabilities are disabled). The per-model roster is
@@ -581,14 +581,17 @@ no beta header, and that Claude Haiku 4.5 does not support it (verified 2026-08-
 a new Haiku generation reaches GA, or that page's per-model sentence changes).
 
 The dispatch consequence, phrased as capability rather than family name so it survives an alias
-moving under it: **a delegated task whose value is reasoning about intermediate tool results needs a
-model that interleaves; a task that merely chains tool calls does not.** The boundary is narrower
-than it sounds — the same page states that "Consecutive tool calls do not require interleaved
-thinking", and that interleaving changes "where thinking blocks appear between tool calls, not
-whether tool calls can chain". A non-interleaving model still chains tools and still runs a sweep to
-completion; what it lacks is reasoning about each result before choosing the next call. So the
-bottom tier row stands for bulk mechanical sweeps and does not stretch to a triage or research
-fan-out whose worth is the judgement between calls.
+moving under it: **require interleaving only where extended reasoning between tool results is
+load-bearing — a mid-sweep judgement that has to change what gets called next. A task that chains
+calls, or that reasons over its results at the end, does not need it.** The boundary is much
+narrower than the capability's name suggests, and the same page draws it: "Consecutive tool calls do
+not require interleaved thinking. Claude can chain tool calls with or without interleaved thinking;
+interleaving changes where thinking blocks appear between tool calls, not whether tool calls can
+chain." What the capability adds is a thinking block at that seam, so what its absence removes is
+deliberation *at that point* — not the tool result from context, and not the ability to act on it.
+So the bottom tier row stands for bulk mechanical sweeps and for straightforward triage or research
+passes that decide at the end; the case it does not cover is a fan-out whose worth is deliberating
+partway through, where the next call must change because of what the last one returned.
 
 The **dispatch-seam** tier enforcement is structural at two binding sites:
 `plugins/implementation/agents/implementer.md` and
