@@ -157,11 +157,73 @@ Every model-pinned spawn brief uses the conditional framing contract from `SKILL
 Pending Anthropic docs for this pipeline. Verify each URL live at fetch time; remove entries as
 their slices complete.
 
+Thinking (completes the set's custody map — troubleshooting first):
+
+- <https://platform.claude.com/docs/en/build-with-claude/thinking-troubleshooting>
+  — the harness carries a parallel troubleshooting surface (`errors.md`, `prompt-caching.md`), so
+  this page's transfer to the harness is demonstrated rather than conjectured; digesting it is what
+  lets the corpus state the mapping instead of guessing at it
+- <https://platform.claude.com/docs/en/build-with-claude/thinking-tool-workflows>
+  — the last uncovered page of the thinking doc set; two already-digested slices defer to it by
+  anchor, so the marginal cost of the last page is the lowest it will ever be
+
+Agent SDK (one page — SDK docs are canonically harness docs, but queueing the rest of that doc set
+is a separate scope decision nobody has taken):
+
+- <https://code.claude.com/docs/en/agent-sdk/agent-loop>
+
+Models:
+
+- <https://platform.claude.com/docs/en/about-claude/models/overview>
+  — the canonical model-fact freshness source; re-fetching this one page *is* the freshness check,
+  where a release-notes corpus would grow monotonically and age entry by entry
+- <https://platform.claude.com/docs/en/about-claude/models/introducing-claude-fable-5-and-claude-mythos-5>
+  — the launch source the corpus's own Fable 5 / Mythos 5 positioning claims rest on, and linked
+  from the harness model-config doc's "Work with Fable 5"
+
+Claude Code companion docs (digest in this order):
+
+- <https://code.claude.com/docs/en/features-overview>
+- <https://code.claude.com/docs/en/memory>
+- <https://code.claude.com/docs/en/how-claude-code-works>
+
 Deferred with trigger (not queued):
 
 - <https://platform.claude.com/docs/en/build-with-claude/task-budgets> — api-only (the page
   states task budgets are not supported on Claude Code or Cowork; verified 2026-07-27); enqueue
   when harness support lands
+- <https://code.claude.com/docs/en/context-window> — read against the 2026-07-31 harness snapshot
+  rather than left untested: it documents behavior as the limit approaches (Claude Code compacts
+  automatically) but never the `model_context_window_exceeded` stop reason, so it does not move the
+  claim it was checked for; enqueue if the page starts documenting that stop reason's handling
+- <https://platform.claude.com/docs/en/build-with-claude/fallback-credit> — the two API-side claims
+  it would settle carry a weak, openly disclosed absence basis that nothing is built on; enqueue
+  when an artifact actually depends on fallback-credit behavior
+- <https://platform.claude.com/docs/en/about-claude/models/whats-new-opus-5> and
+  <https://platform.claude.com/docs/en/about-claude/models/whats-new-sonnet-5> — release notes for
+  models the models `overview` page already covers canonically; enqueue either when its model
+  enters or materially changes a fleet lane
+- <https://claude.com/blog/complete-guide-to-building-skills-for-claude> — a vendor-voice
+  restatement of a schema whose first-party canons are already reachable, so digesting it adds
+  attestation cost and no authority; enqueue for the first artifact that needs schema detail no
+  first-party canon states
+
+Blog posts:
+
+- <https://claude.com/blog/the-advisor-strategy>
+  — the harness advisor doc cites this post as its own "why"; digest it alongside
+  <https://code.claude.com/docs/en/advisor> and
+  <https://platform.claude.com/docs/en/agents-and-tools/tool-use/advisor-tool> so one slice covers
+  the concept's three surfaces
+- <https://claude.com/blog/a-field-guide-to-claude-fable-finding-your-unknowns>
+  — the designated deep-dive for prompting the Claude 5 generation, already being read by local
+  work without a custody record, applicability tags, or an attestation pass
+
+Engineering posts:
+
+- <https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents>
+  — the cited best-practices source for custom agent evaluations, and methodology input to the
+  deferred re-pin checklist and the eval-set gap
 
 ## Artifact targets
 
