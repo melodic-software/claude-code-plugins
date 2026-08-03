@@ -20,11 +20,19 @@ Opus 5 guides) are superseded on each model generation.
 **Per-row verification stamps.** A row that restates a volatile upstream *literal* — a level name, a
 model range, a type predicate — additionally carries the four-part record that claim needs: the
 claim, its basis, an as-of date, and a recheck trigger naming an observable event (the shape is
-`docs/conventions/upstream-drift/README.md` in this monorepo; in a standalone install the four parts,
-not the path, are the requirement). Per-row stamps **narrow** the catalog-wide trigger above rather
-than replacing it — the catalog trigger still fires every row on any Sources change, and a row's own
-trigger adds the events that move only that row's literal. A row that restates nothing and only
-points at its page carries no stamp, because a pointer cannot go stale.
+`docs/conventions/upstream-drift/README.md` in this monorepo; in a standalone install the four
+parts, not the path, are the requirement). A row that restates nothing and only points at its page
+carries no stamp, because a pointer cannot go stale.
+
+A per-row stamp **supplements** the catalog-wide trigger above; it never replaces or narrows it.
+The catalog trigger still fires every row on any Sources change — that is why a row's own trigger
+names only the events the Sources set would *miss*, such as a value set changing while its page
+keeps the same URL. **Where the two disagree, the catalog trigger wins**, because it is the wider
+one and a staleness signal is not something to resolve by picking the narrower authority.
+
+The requirement **binds on touch**, per the convention above: rows predating this rule keep their
+citations as they are and adopt the four parts the next time they change. A missing stamp on an
+older row is therefore not itself a defect in this catalog.
 
 **Axes.** Three orthogonal axes, never conflated:
 
@@ -508,56 +516,94 @@ by `--opinion`.
 
 ### I17: Thinking disabled at an effort level that forbids it
 
-Tier `mechanical` · Authority `ANTHROPIC-DOCS` · Severity `error` · Surfaces: all · Model scope:
-`opus-5`.
+Tier `mechanical` · Authority `ANTHROPIC-DOCS` · Severity `error` · Surfaces: all. Unscoped —
+promotion gate MET: the claim is stated on a model-agnostic feature page, not in a model guide.
+**The model range is a Detect condition, not a `Model scope` annotation.** The source says the
+restriction "applies to Claude Opus 5 and later models", and the annotation's exact-string matching
+has no range form — annotating `opus-5` would make the row inert on the next generation while the
+restriction still holds. I20 handles a model range the same way.
 
-- **Detect:** three shapes, each in instruction text this skill's surfaces carry.
-  1. **The rejected pairing.** A surface that recommends, documents, or sets a **thinking-disable
-     surface** — `MAX_THINKING_TOKENS=0`, `alwaysThinkingEnabled: false`, the `/config` thinking
-     toggle and its `Alt+T` / `Option+T` session form, or API `thinking: {"type": "disabled"}` —
-     together with `xhigh` or `max` effort. Both operands are configuration literals, so a surface
-     prescribing both publishes a per-request 400 that nothing recovers. **Effort literals do not
-     all reach every surface**: `max` arrives only through `CLAUDE_CODE_EFFORT_LEVEL`, `--effort`,
-     or skill / subagent `effort` frontmatter, and the frontmatter case is a surface this skill
-     already inventories.
-  2. **`MAX_THINKING_TOKENS=0` presented as a universal off switch.** It is not one. On Fable 5 it
-     has no effect at all, and on third-party providers it omits the `thinking` parameter instead,
-     so an adaptive-reasoning model may still think. The adjacent `CLAUDE_CODE_DISABLE_THINKING`
-     omits the parameter on every provider and therefore disables nothing by itself — a surface
-     that treats the two as interchangeable states a behavior neither has.
-  3. **A mid-session effort change prescribed without its cost.** Effort is part of the cache key,
-     so changing it re-reads the whole conversation uncached.
-- **Remediate:** for (1) lower the effort to `high` or below, or leave thinking on — and state
-  which, since the pairing has no third resolution. For (2) carry the exceptions with the claim.
-  For (3) name the re-read cost, and prefer choosing effort at session start.
+Each row below carries its own decisive source; they share a subject, not a citation.
+
+**Base row: the rejected pairing.**
+
+- **Detect:** a surface that recommends, documents, or sets a **thinking-disable surface** —
+  `MAX_THINKING_TOKENS=0`, `alwaysThinkingEnabled: false`, the `/config` global toggle, the
+  `Alt+T` / `Option+T` session toggle, or API `thinking: {"type": "disabled"}` — together with
+  `xhigh` or `max` effort, on Claude Opus 5 or a later model. Both operands are configuration
+  literals, so a surface prescribing both publishes a per-request 400 that nothing recovers.
+- **Effort literals do not all reach every surface, and the literal set is not the whole set.**
+  `max` reaches a session through `CLAUDE_CODE_EFFORT_LEVEL`, `--effort`, `/effort`, or skill and
+  subagent `effort` frontmatter — the frontmatter case being a surface this skill already
+  inventories. **`ultracode` also trips this** without matching either literal: it is a Claude Code
+  setting rather than an effort level and "sends `xhigh` to the model", so a surface pairing it with
+  a thinking-disable surface produces the identical rejection. Match on the effort that reaches the
+  request, not on the spelling.
+- **Remediate:** lower the effort to `high` or below, or leave thinking on — and state which, since
+  the pairing has no third resolution.
 - **Scope, and where the config check lives:** this row audits **instruction text**. The same
-  pairing sitting in a settings file is a config-mechanics finding and belongs to
+  pairing expressed as *settings keys* is a config-mechanics finding and belongs to
   `claude-config:audit`, per this skill's own routing — an instruction-content catalog that also
-  scanned settings files would claim authority a sibling already holds.
-- **Adjacent axis:** shape (2) is also a harness-capability claim, so **I12 can fire on the same
-  line**. I12 asks whether the claim matches its page; this row asks whether following the
-  instruction produces a rejected request. Report both when both hold.
-- **Must NOT flag:** `effortLevel: max` as a literal to hunt — the settings schema accepts
-  `"low"`, `"medium"`, `"high"`, `"xhigh"` only, so that string is unreachable there and an auditor
-  sent after it finds nothing and learns nothing. Text that states the pairing **in order to warn
-  against it**, which is this row's own remediation. A thinking-disable surface named with no
-  effort level in reach of it.
+  scanned settings files would claim authority a sibling already holds. Instruction text that
+  happens to *live* in a settings file, such as a prompt-type hook's injected text, stays here: the
+  discriminator is whether the content instructs, not which file holds it.
+- **Must NOT flag:** `effortLevel: max` as a literal to hunt — the settings schema accepts `"low"`,
+  `"medium"`, `"high"`, `"xhigh"` only, so that string is unreachable there and an auditor sent
+  after it finds nothing and learns nothing. **A document that states the pairing in order to
+  describe or forbid it** — this row, a model-adaptation delta chapter, a verification record
+  quoting it — on the same audience test I8-b applies: the pairing prescribed inside an operative
+  directive is a finding; a document *about* the pairing is not. A thinking-disable surface named
+  with no effort level in reach of it.
 - **Source:** effort — "On Claude Opus 5, thinking cannot be disabled at `xhigh` or `max` effort:
   requests that set `thinking: {"type": "disabled"}` at those levels return a 400 error."
-  Corroborated at thinking-troubleshooting, which adds that the restriction "is enforced on each
-  request". Model configuration heads its `MAX_THINKING_TOKENS=0` row "Disable regardless of
-  effort" and names Fable 5 as the sole exception, so a surface repeating that heading unqualified
-  inherits a claim the effort page contradicts. Prompt caching — "each effort level has its own
-  cache for the same model. Changing it mid-session recomputes the entire request." The per-surface
-  value sets shape (1)'s reach and are read from the surfaces' own pages: settings, for
-  `effortLevel` accepting `"low"`, `"medium"`, `"high"`, `"xhigh"` and no `max`; environment
-  variables, for `CLAUDE_CODE_EFFORT_LEVEL` accepting `max`, for `MAX_THINKING_TOKENS=0` being
-  ineffective on Fable 5 and omitting the parameter on third-party providers, and for
-  `CLAUDE_CODE_DISABLE_THINKING` omitting the parameter rather than disabling; skills and subagents,
-  for `effort` frontmatter accepting `max`.
-- **Verified 2026-08-02** against the four pages above, fetched as raw markdown. **Recheck
-  trigger:** any change to those pages (the catalog trigger already covers this), a new model
-  generation, or the effort level set gaining or losing a name.
+  Corroborated at thinking-troubleshooting, which supplies the model range and adds that the
+  restriction "is enforced on each request". The per-surface value sets are read from the surfaces'
+  own pages: settings for `effortLevel`, environment variables for `CLAUDE_CODE_EFFORT_LEVEL`,
+  skills and subagents for `effort` frontmatter, and model configuration for `/effort`, the session
+  and global thinking toggles, and ultracode.
+- **Verified 2026-08-02** against those pages, fetched as raw markdown. **Recheck trigger:** the
+  effort level set gaining or losing a name, or the restriction's model range moving.
+
+**Row I17-a: `MAX_THINKING_TOKENS=0` presented as a universal off switch** · Tier `mechanical` ·
+Severity `warning`.
+
+- **Detect:** text stating or implying that `MAX_THINKING_TOKENS=0` turns thinking off generally.
+  It does not. On Fable 5 it has no effect at all — nor do the session toggle or
+  `alwaysThinkingEnabled` — and on third-party providers it omits the `thinking` parameter instead,
+  so an adaptive-reasoning model may still think. Also flag text treating
+  `CLAUDE_CODE_DISABLE_THINKING` as equivalent: that variable omits the parameter on every
+  provider, which on a model that thinks by default leaves it still thinking.
+- **Remediate:** carry the exceptions with the claim, or point at the page instead of restating it.
+- **Adjacent axis:** this is also a harness-capability claim, so **I12 can fire on the same line**.
+  I12 asks whether the claim matches its page; this row asks whether a reader following it gets the
+  behavior they were promised. Report both when both hold.
+- **Must NOT flag:** a mention that already carries the Fable 5 or third-party exception. A bare
+  reference to the variable making no claim about its reach.
+- **Source:** environment variables — `MAX_THINKING_TOKENS` "Set to `0` to disable thinking on the
+  Anthropic API, except on Fable 5, which cannot have thinking turned off; on third-party providers,
+  `0` omits the `thinking` parameter instead". Model configuration heads the same control "Disable
+  regardless of effort", so a surface repeating that heading unqualified inherits a claim the
+  variable's own page contradicts.
+- **Verified 2026-08-02** against those two pages, fetched as raw markdown. **Recheck trigger:** the
+  set of models that cannot disable thinking changing.
+
+**Row I17-b: mid-session effort change prescribed without its cost** · Tier `mechanical` ·
+Severity `info`.
+
+- **Detect:** an instruction directing a reader to change effort part-way through a session without
+  naming what it costs. Effort is part of the cache key, so the next request re-reads the whole
+  conversation uncached.
+- **Must NOT flag: a Claude Code surface**, where the harness already surfaces the cost — it "asks
+  you to confirm before applying the change", and a change resolving to the level already in effect
+  skips the dialog and keeps the cache. This row is for surfaces instructing an API or Agent SDK
+  caller, where no dialog exists. Nor flag a change prescribed *with* its cost stated, which is the
+  remediation.
+- **Remediate:** name the re-read cost, and prefer choosing effort at session start.
+- **Source:** prompt caching — "**Effort level**: each effort level has its own cache for the same
+  model. Changing it mid-session recomputes the entire request, and Claude Code asks you to confirm
+  before applying the change."
+- **Verified 2026-08-02** against that page, fetched as raw markdown. **Recheck trigger:** effort
+  leaving the cache key, or the confirmation behavior changing.
 
 ### I18: Thinking blocks altered on the way back to the model
 
@@ -578,11 +624,10 @@ model guide.
      the consecutive `thinking` blocks of the latest assistant message — including "keep only the
      last one" and "strip thinking before resending" advice. Modified blocks are rejected with a
      400.
-- **Reach — this is wider than API client code.** Signature-bearing `thinking` blocks are the
-  normal on-disk shape of a local transcript, so instructions governing **transcript parsing,
-  excerpting, transformation, and any upload or share path** are in scope alongside instructions
-  governing Messages API and Agent SDK clients. Treat the signature as sensitive material in the
-  share case: it is an encrypted copy of the full reasoning, and it sits unencrypted at rest.
+- **Reach — this is wider than Messages API client code.** Any instruction whose output eventually
+  becomes a request body is in scope: Agent SDK callers, harness integrations, and **tooling that
+  parses, excerpts or rewrites a stored transcript that will later be replayed or resumed**. What
+  puts a surface in scope is a path back to the model, not the file format it reads.
 - **Remediate:** echo the assistant `content` array back unchanged rather than rebuilding it; where
   blocks must be selected, select by what is being *excluded* rather than by an equality test on one
   type name; where a transcript is being read for analysis only, say so, since a read that never
@@ -600,14 +645,16 @@ model guide.
   complete and unmodified, alongside the `tool_use` block it accompanied", and "Within the latest
   assistant message, the sequence of consecutive `thinking` blocks must match what the model
   generated in the original request: you can't rearrange, edit, or partially drop them." Same page,
-  "Thinking encryption" — "Filtering on `block.type == "thinking"` alone silently drops
-  `redacted_thinking` blocks and breaks the multi-turn protocol", and "Full thinking content is
-  encrypted and returned in the `signature` field on each thinking block."
-- **No local instance exists to validate against.** This repository carries zero occurrences of the
-  type-filter predicate and no transcript round-trip path, so the row ships consumer-facing and
-  unexercised by its own repo — a fact stated here rather than mistaken for a clean audit.
-- **Verified 2026-08-02** against the Thinking page, fetched as raw markdown. **Recheck trigger:**
-  any change to that page, or a content-block type joining the set the protocol requires echoed.
+  "Thinking encryption" — "Full thinking content is encrypted and returned in the `signature` field
+  on each thinking block" — and "Redacted thinking blocks" — "Filtering on
+  `block.type == "thinking"` alone silently drops `redacted_thinking` blocks and breaks the
+  multi-turn protocol".
+- **Verified 2026-08-02: zero instances of any of the three shapes in this repository**, so the row
+  ships consumer-facing and unexercised by the repo that wrote it — recorded as an as-of measurement
+  rather than left to read as a clean audit. **Recheck trigger:** a round-trip or transcript-replay
+  path landing here.
+- **Verified 2026-08-02** against the Thinking page, fetched as raw markdown. **Recheck trigger:** a
+  content-block type joining or leaving the set the protocol requires echoed back.
 
 ### I19: Restated external benchmark figure with no recheck trigger
 
@@ -626,10 +673,10 @@ by `--opinion`.
   are; leaving them as history is a valid outcome and usually the right one.
 - **Must NOT flag: a verbatim upstream baseline held for drift detection.** A vendored copy exists
   to be compared byte-for-byte against its source, so stamping it would corrupt the comparison it
-  exists to serve. This sits alongside the skill's standing exclusion of plugin-cache content and
-  managed materializations: all three are surfaces whose content is not the consuming repo's to
-  edit. Flag the locally-owned surface that *restates* the figure, never the baseline it was
-  restated from.
+  exists to serve — this is a genuine suppression, not a routing case, which is what distinguishes
+  it from plugin-cache content and managed materializations: those are still flagged, and the
+  finding becomes a routing recommendation to the owning repository. Flag the locally-owned surface
+  that *restates* the figure, never the baseline it was restated from.
 - **Must NOT flag:** a benchmark named as a pointer with no figure attached. A figure already
   carrying a trigger, whatever heading that trigger sits under.
 - **Source:** none. No official page states that a restated benchmark figure needs a re-derivation
@@ -639,7 +686,9 @@ by `--opinion`.
 
 ### I20: Prefilled assistant response
 
-Tier `mechanical` · Authority `ANTHROPIC-DOCS` · Severity `warning` · Surfaces: all.
+Tier `mechanical` · Authority `ANTHROPIC-DOCS` · Severity `error` · Surfaces: all — `error` because
+following the instruction produces a rejected request, the same consequence class as I17 and I18,
+not because instances are expected to be common.
 
 - **Detect:** instruction text that tells a caller to prefill Claude's response — to supply a
   partial assistant message on the last turn so the model continues from it. The classic uses are
@@ -652,8 +701,10 @@ Tier `mechanical` · Authority `ANTHROPIC-DOCS` · Severity `warning` · Surface
   prompt clearly rather than prefill past a refusal, and move context reinjection into the user turn
   or a tool.
 - **Must NOT flag:** an assistant message anywhere other than the last turn, which is unaffected.
-  Text describing prefill as retired, which is this row's own remediation. Instructions targeting an
-  explicitly pinned earlier model, which still supports it.
+  **A document that names the technique or its tells in order to describe it as retired** — this
+  row, a migration guide, a model-delta chapter — on the same audience test I8-b applies: a prefill
+  prescribed inside an operative directive is a finding; a document *about* prefill is not.
+  Instructions targeting an explicitly pinned earlier model, which still supports it.
 - **Source:** prompting best practices, "Migrating away from prefilled responses" — "Starting with
   Claude 4.6 models and Claude Mythos Preview, prefilled responses (providing a partial assistant
   message for Claude to continue from) on the last assistant turn are no longer supported. Requests
