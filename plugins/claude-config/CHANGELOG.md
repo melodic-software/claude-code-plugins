@@ -19,6 +19,13 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   follows literally" is now "which **current models** follow literally" — the demonstrative
   referred to the row's scoped model, and an unscoped row has none.
 
+  **The Recheck-triggers block no longer enumerates the model-specific pages.** It read
+  "Model-specific pages (the Fable 5 and Opus 5 guides) are superseded on each model generation" —
+  a closed list the Sonnet 5 addition immediately falsified. It now reads "the per-model prompting
+  guides under Sources", which stays true as guides join. The enumeration also contradicted its own
+  paragraph three lines above, which argues that "naming a subset would leave the harness-behavior
+  rows depending on pages nothing watches."
+
 - **I8-b's Source line now cites the phrase it could not.** The row's Detect names three trigger
   phrases; **"don't nitpick" appears nowhere in the Opus 5 guide**, which states only the other
   two. The Sonnet 5 guide names all three verbatim, so it is that phrase's only cited home, and the

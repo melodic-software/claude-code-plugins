@@ -14,8 +14,8 @@ cited URL, not restated here).
 docs when any fires: a new frontier model release; **a change to any page listed under Sources
 below**. Every check cites one of those pages, so the trigger set is the source set — naming a
 subset would leave the harness-behavior rows depending on pages nothing watches. One staleness event
-fires the whole catalog, not the check that noticed it. Model-specific pages (the Fable 5 and
-Opus 5 guides) are superseded on each model generation.
+fires the whole catalog, not the check that noticed it. Model-specific pages — the per-model
+prompting guides under Sources — are superseded on each model generation.
 
 **Axes.** Three orthogonal axes, never conflated:
 

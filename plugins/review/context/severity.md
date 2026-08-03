@@ -8,7 +8,7 @@ Apply the tests in order; the first tier whose test the finding satisfies is its
 
 | Tier | Test | Illustrative findings | Action |
 |---|---|---|---|
-| **CRITICAL** | You can name a concrete input, caller, or subsequent change that the defect makes produce a wrong result, an unsafe one, or none at all | correctness bugs, security vulnerabilities, broken contracts, architecture violations that will cascade | Block until fixed |
+| **CRITICAL** | You can name a concrete input, caller, or subsequent **otherwise-correct** change that the defect makes produce a wrong result, an unsafe one, or none at all | correctness bugs, security vulnerabilities, broken contracts, architecture violations that will cascade | Block until fixed |
 | **IMPORTANT** | Nothing produces a wrong result today, but the finding names a stated rule the change violates, behavior it adds that no test covers, or a degradation or maintenance cost with a named trigger | convention drift, missing tests for new behavior, code duplication, error-handling gaps that degrade but do not break | Fix before or shortly after merge |
 | **SUGGESTION** | Neither test holds — the finding is a preference among alternatives that all work, or hardening with no path reachable today | naming improvements, minor refactoring opportunities, hardening with no current exploitability | Optional; author's judgment |
 
