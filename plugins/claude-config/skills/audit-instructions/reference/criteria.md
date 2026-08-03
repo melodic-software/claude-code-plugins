@@ -778,6 +778,14 @@ not a `Model scope` annotation**, for the reason I17 states.
   configuration values, and I17's discriminator applies unchanged: this row audits **instruction
   text**; the pin expressed as a config key is a config-mechanics finding belonging to
   `claude-config:audit`. Instruction text that merely *lives* in a config file stays here.
+- **Must NOT flag: schema documentation and its illustrative samples.** A field table enumerating a
+  config key's accepted levels, and the worked example beside it, exist to show the **shape** a
+  consumer must fill in — the level in the sample is a placeholder demonstrating syntax, not a level
+  this surface measured and prescribes. This is a separate fence from the one above and does not
+  depend on it: the sample is quoted inside documentation prose rather than living in a config file,
+  so the previous fence would not reach it. The fence ends where the demonstration does — a surface
+  that documents the field **and then tells the reader which level to put there** is prescribing, and
+  the prescription is in scope.
 - **Must NOT flag: a document *about* the calibration property** — this row, a model-delta chapter, a
   verification record — on the audience test I8-b applies. Nor a level **reported as a named third
   party's practice** rather than prescribed to the reader: a practitioner's stated setup is
@@ -816,8 +824,12 @@ by `--opinion`.
   check exists to catch.
 - **Must NOT flag: doctrine that ran no vet of its own.** A surface transcribing a named third
   party's stated practice, with author, source, and sync provenance recorded, has no baseline reading
-  to name because it performed none — its staleness is upstream-sync staleness, which its sync path
-  owns. Flag first-party doctrine: lanes this surface's own authors chose.
+  to name because it performed none. Flag first-party doctrine: lanes this surface's own authors
+  chose. **This fence is narrower than it looks, and deliberately so** — a sync stamp tracks whether
+  the *transcription* is current, not whether the transcribed advice still names a live model, so it
+  does not make a stale lane recommendation fresh. The fence rests only on there being no vet to
+  point at; the residual staleness is real and is the transcribing surface's to carry, not this
+  row's to detect.
 - **Must NOT flag: `model:` frontmatter and other configuration values**, on the same discriminator
   as I21 and I17 — those implement doctrine rather than stating it, and a config-mechanics finding
   belongs to `claude-config:audit`.

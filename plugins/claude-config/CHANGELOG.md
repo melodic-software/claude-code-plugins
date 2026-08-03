@@ -34,13 +34,18 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
     The row therefore fires on the missing re-derivation regardless of model, and the hold is
     severity context, never a fence.
 
-    Three fences keep it honest. A prescription of **`high` is not flagged** — it is "Equivalent to
+    Four fences keep it honest. A prescription of **`high` is not flagged** — it is "Equivalent to
     not setting the parameter" and is the default on every model that supports effort **except Opus
     4.7, which defaults to `xhigh`**; the carve-out is stated rather than rounded off, because a
     catalog that exists to catch false literals must not ship one. A **per-task** choice
-    (`ultrathink`, "reach for `xhigh` on hard problems") is not a durable pin. And **`effort:`
+    (`ultrathink`, "reach for `xhigh` on hard problems") is not a durable pin. **`effort:`
     frontmatter and `effortLevel` keys route to `claude-config:audit`** on I17's
-    instruction-text-versus-config discriminator.
+    instruction-text-versus-config discriminator. And **schema documentation and its illustrative
+    samples** are fenced **separately** rather than folded into the config fence, because a worked
+    example quoted inside documentation prose is not a key living in a config file and the config
+    fence would not have reached it — the level in a sample demonstrates syntax, not a measured
+    choice. That fence ends where the demonstration does: documenting the field *and then telling the
+    reader which level to put there* is prescribing, and stays in scope.
 
   - **I22 — model-routing doctrine with no baseline named** (`mechanical`, `OPINION`, `info`,
     default **off**, enabled by `--opinion`). First-party lane assignments derived from a reading of
@@ -53,6 +58,13 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
     **The row carries no baseline of its own, by design.** Naming a date or a vet here would hand
     every consumer a foreign snapshot as their baseline, reproducing in their repos the exact drift
     the check exists to catch.
+
+    Its third-party fence is stated **narrowly on purpose**: transcribed practice is out of scope
+    only because there is no vet to point at, **not** because a sync stamp makes it fresh. A stamp
+    tracks whether the transcription is current, never whether the transcribed advice still names a
+    live model — so a stale lane recommendation inside a faithfully synced pack stays stale. That
+    residual is the transcribing surface's to carry, and the fence says so rather than implying the
+    sync path has it covered.
 
     Its non-duplication is stated in the row rather than assumed. **I19** covers a restated
     *benchmark figure* and asks for the four-part record; it says nothing about lane assignments and
