@@ -4,6 +4,24 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.10.17]
+
+### Changed
+
+- **Anthropic profile — "harness surface" now has a written definition, and three shapes that come
+  close without falsifying `api-only`.** J-12 was one of the five items 0.10.16 deliberately held
+  for the dispositions interview; it is answered here. A harness surface is a surface a user can
+  reach. Two of the three non-falsifying shapes — a **counterpart artifact** and a
+  **same-workload mention** — carry an identical adjudication from two independent verification
+  arms. The third, **harness-internal recognition or support** (a harness doc naming the subject in
+  describing the harness's own behavior toward it, with no user-reachable path), is new: it rests on
+  one attested instance, and the amendment is labelled as the campaign's own choice rather than an
+  inherited adjudication, because nothing in the corpus ever defined the term. Every such hit is
+  still disclosed as a near-miss under 0.10.16's rule, which this appends to rather than replaces.
+  Without the definition, an `api-only` tag turned on whether the reader read "harness surface" as
+  user-reachable selection or as any harness mention at all — and the two readings disagree on real
+  rows.
+
 ## [0.10.16]
 
 ### Changed

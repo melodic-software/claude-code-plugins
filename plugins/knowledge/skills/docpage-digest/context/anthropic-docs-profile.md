@@ -80,6 +80,21 @@ the tag asserts:
   measured it: one release-notes unit disclosed 24 near-miss rows on its own, and two sibling units
   in that slice raised the same boundary independently, one of them asking outright for a standing
   notation so a reader can tell "no surface at all" from "adjacent surface exists".
+- **What a harness surface *is*, and three shapes that come close without falsifying it.**
+  **[campaign-owned amendment]** A harness surface is a surface a user can reach. The following do
+  **not** falsify `api-only`: (1) a **counterpart artifact** — the harness has a thing playing the
+  same role, without referencing the claimed artifact; (2) a **same-workload mention** — a doc names
+  a workload another guide teaches, with no shared guidance or cross-reference;
+  (3) **[campaign-owned amendment] harness-internal recognition or support** — a harness doc names
+  the subject in describing the harness's own internal behavior toward it, without exposing a
+  user-reachable path to it (sole attested instance: retry/fallback, `env-vars.md:394`). Each such
+  hit is disclosed as a near-miss per the rule above. Both labels are load-bearing, not decoration:
+  shapes (1) and (2) carry an identical adjudication from two independent verification arms, but
+  nothing in the corpus ever *defined* "harness surface", so an unlabelled definition would read as
+  inherited when it is this choice — selection over support — being made. Sub-shape (3) stands on
+  **one** attested instance against that two-instance base, and is enumerated no wider than that: a
+  doc line describing some *other* model's tier is not harness-internal behavior toward the subject,
+  fails (3)'s own test, and is disclosed as a near-miss without entering this list.
 - **`cc-applicable`/`mixed` boundary:** a claim that names an API surface (parameter, endpoint,
   SDK call) tags `mixed` even when its guidance transfers to the harness; `cc-applicable` is
   reserved for claims naming no API surface.
