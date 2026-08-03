@@ -35,6 +35,14 @@ jobs:
     uses: melodic-software/ci-workflows/.github/workflows/claude-review.yml@c136b27f404dd32ce3873f39a6f3443891d1c16e # v0.9.1
     with:
       runner: ubuntu-24.04
+      # Stated explicitly rather than inherited — #1766 dropped this line from
+      # BOTH lane callers while re-pinning, silently adopting whatever the
+      # reusable's default happened to be. Value matches the v0.9.1 default, so
+      # this restores the declaration without changing who is skipped. This lane
+      # is advisory (no required check), so the list is not ADR 0002's ratified
+      # exception; it is kept identical to the security caller's so the two
+      # lanes cannot drift apart unnoticed.
+      skip-actors: dependabot[bot],claude[bot],melodic-ai[bot],melodic-standards-sync[bot]
     # Pass only the one named secret (least privilege) rather than `secrets:
     # inherit`, which would forward every parent secret to the called workflow.
     secrets:
