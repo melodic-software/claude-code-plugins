@@ -284,9 +284,11 @@ target.
   slow, not dead, and assertion 3.1 must hold for it — age-only reclamation there hands the lock to a
   second applying run and breaks "exactly one proceeds" on precisely the platform that can least
   detect it.
-- **A lock carrying no run id is a lock written before this rule, and it is not reclaimed on age
-  either.** The run id is what points reclamation at one lease; without it the second conjunct has
-  to be established the other way round, by enumerating `runs/<state-key>/*/lease` — every lease
+- **On that same no-start-identity platform, a lock carrying no run id — one written before this
+  rule — is not reclaimed on age either.** Where a start identity *is* available the bullet above
+  already decides such a lock: pid and start identity together answer liveness definitively, and no
+  lease is consulted. Only where neither identity is available does the second conjunct have to be
+  established the other way round, by enumerating `runs/<state-key>/*/lease` — every lease
   under this state key, which is a bounded read of the run tree the state key already scopes. Any
   one of them live by the same two-sided test defers the reclaim exactly as a named holder's live
   lease would; only when none is live does the age bound reclaim. An upgrade mid-run is otherwise
@@ -312,6 +314,13 @@ target.
 Every run writes a lease; only an applying run also takes the lock above. The two are separate
 mechanisms and the lease grants no exclusivity: it exists solely so `--resume` can classify an
 incomplete run, which the no-lock read-only policy otherwise makes undecidable.
+
+**An applying run writes its lease before it takes the lock**, and the order is normative rather
+than incidental: reclamation reads the holder's lease as its second conjunct, so a lock whose lease
+does not yet exist would be classified stale and reclaimed on age alone — the failure this section
+removes, reappearing through a window between the two writes. Writing the lease first closes the
+window in the safe direction: a lease with no lock is simply a run that has not acquired yet, which
+no reclamation test consults.
 
 - **Path** — `runs/<state-key>/<run-id>/lease`, beside that run's own partial artifact, so one lease
   describes exactly one run and concurrent read-only runs never contend for it.
@@ -391,7 +400,7 @@ classification two implementations must reach identically or `--resume` is nonde
 | 3.3 | A run launched from a subdirectory produces the same state key as one launched from the root. Working directory is never an input. |
 | 3.12 | On a platform supplying no process start identity, a second applying run against a lock older than 30 minutes whose holder's lease is still live refuses non-zero, naming the holder's run id and `heartbeat_at`, and does not reclaim. The holder's `--fix` completes and 3.1 holds across the whole run, not only its first 30 minutes. |
 | 3.13 | The same lock, once the holder's lease has gone stale by the two-sided test — or is `released`, missing, or unreadable — is reclaimed by the next applying run, with the reclamation reported. A crashed holder therefore blocks for at most the liveness threshold past the age bound, never permanently. |
-| 3.14 | A lock written before this rule, carrying no run id, is not reclaimed on age while any lease under `runs/<state-key>/` is live by the same two-sided test: the second applying run refuses, naming the live lease. With no live lease under the state key, the age bound reclaims as it did before. Upgrading mid-run therefore never hands a live holder's lock away. |
+| 3.14 | On a platform supplying no process start identity, a lock written before this rule, carrying no run id, is not reclaimed on age while any lease under `runs/<state-key>/` is live by the same two-sided test: the second applying run refuses, naming the live lease. With no live lease under the state key, the age bound reclaims as it did before. Where a start identity is available, the same lock is decided by the pid-and-start-identity test instead, and an unrelated live lease does not defer it. Upgrading mid-run therefore never hands a live holder's lock away. |
 
 ## 4. Suppression, per target class
 
@@ -470,7 +479,7 @@ verified 2026-07-25).
 | Condition | Disposition | Effect on the suppression |
 |---|---|---|
 | **Every** site's anchor matches, `(check, claim)` match, **and no matched site is in §1's anchor-collision state** | **SAME, UNCHANGED** | Applies silently, as an exact match always has. Phrased over the whole `sites` set rather than "both anchors", because the set holds one entry for an ordinary single-site finding and two for a pairwise one — the two-site phrasing left an unchanged single-site entry matching **no** row, so the commonest case in the table had no disposition at all. |
-| Exactly one anchor changed; the other anchor and `(check, claim, both surfaces)` all match | **SAME, CHANGED** | **Carries forward, marked `needs-reconfirmation`**, surfaced in `suppressed` with the changed side named. Never silent: the edit may have *been* the fix attempt, and silently re-suppressing hides precisely the case the operator most needs to see. |
+| Exactly one anchor changed; the other anchor and `(check, claim, both surfaces)` all match, **and no matched site is in §1's anchor-collision state** | **SAME, CHANGED** | **Carries forward, marked `needs-reconfirmation`**, surfaced in `suppressed` with the changed side named. Never silent: the edit may have *been* the fix attempt, and silently re-suppressing hides precisely the case the operator most needs to see. |
 | Both anchors changed, **or** `claim` changed, **or** a surface changed, **or** any matched site is in §1's anchor-collision state | **OLD CLOSED, NEW OPENED** | The old entry goes **stale** per 4.2, never silently dropped. The new finding is unsuppressed. |
 | The finding is absent from the new run entirely | **CLOSED** | Must be **accounted for** as exactly one of: matched to an applied fix; matched to a successor by partial match; **retired with its check**, when the check that raised it is absent or renamed in the new run's detection configuration; or reported as an **UNEXPLAINED DISAPPEARANCE**, which fails the run's self-check exactly as a P4a tolerance breach does. |
 

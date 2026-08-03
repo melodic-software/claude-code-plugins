@@ -26,7 +26,10 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   needs a hard ceiling only because its holder publishes no lease. A lock written *before* this rule
   carries no run id and is covered too: reclamation establishes the conjunct the other way round, by
   enumerating every lease under `runs/<state-key>/`, so upgrading mid-run never hands a live holder's
-  lock away. New assertions 3.12, 3.13, and 3.14; new evals 27 and 29.
+  lock away. The order of the two writes is now normative for the same reason — an applying run
+  writes its lease **before** it takes the lock, since a lock whose lease does not yet exist would
+  read as stale and be reclaimed on age alone through the window between them. New assertions 3.12,
+  3.13, and 3.14; new evals 27 and 29.
 - **`audit-pass`: a suppression no longer re-applies silently across an anchor collision (#1786).**
   §1 guarantees that two identical normalized excerpts under one heading path collide and that *"no
   suppression carries forward across it"* (assertion 1.10a), but §4's matching table had no

@@ -341,14 +341,14 @@ invocation's own argument line typed both the literal `autopilot` tier argument 
 `--merge c3-this-run` (the widening pair above), a merge-eligible (C1-C3) PR blocked on a
 **machine-escalated** `needs-human` item, an open machine-authored finding, or a
 contradictory/unresolved **bot** review thread draws one fresh **frontier-tier** subagent dispatch —
-context-independent, and run under the PR's worker lease — before it escalates. **Four blocker
-classes it never touches**: operator-*parked* items, human blocking feedback (both already withheld
-at step 3), merge conflicts (the dedicated merge-only conflict worker), and C4/C5 PRs (excluded at
-the rung partition). An unresolved *or uncertain* blocker escalates exactly as it would without the
-exception; this widens *who tries first*, never what the gate requires. The full contract — each
-blocker class's rationale, the lease and independence requirements, the code-change worker
-lifecycle, and the re-partition a landed resolution forces before any merge-capable invocation — is
-owned by [reference/pre-escalation-dispatch.md](reference/pre-escalation-dispatch.md).
+context-independent, and run under the PR's worker lease — before it escalates. A floored dimension
+**withholds that dispatch outright** (flooring rule above); the PR escalates override-constrained.
+**Four blocker classes it never touches**: operator-*parked* items, human blocking feedback (both
+already withheld at step 3), merge conflicts (the dedicated merge-only conflict worker), and C4/C5
+PRs (excluded at the rung partition). An unresolved *or uncertain* blocker escalates exactly as it
+would without the exception; this widens *who tries first*, never what the gate requires. The full
+contract — blocker-class rationales, lease and independence requirements, the code-change worker
+lifecycle, the dimension-override gate, and the re-partition a landed resolution forces before any merge-capable invocation — is owned by [reference/pre-escalation-dispatch.md](reference/pre-escalation-dispatch.md).
 
 ## No-progress detector
 
