@@ -649,10 +649,10 @@ model guide.
   on each thinking block" — and "Redacted thinking blocks" — "Filtering on
   `block.type == "thinking"` alone silently drops `redacted_thinking` blocks and breaks the
   multi-turn protocol".
-- **Verified 2026-08-02: zero instances of any of the three shapes in this repository**, so the row
-  ships consumer-facing and unexercised by the repo that wrote it — recorded as an as-of measurement
-  rather than left to read as a clean audit. **Recheck trigger:** a round-trip or transcript-replay
-  path landing here.
+- **Local coverage, measured 2026-08-02: zero instances of all three shapes in the repository that
+  authored this row**, which ships it consumer-facing and unexercised by its own corpus. Stated so
+  the absence reads as an as-of measurement rather than as a passed check. **Re-measure when** a
+  round-trip or transcript-replay path lands here.
 - **Verified 2026-08-02** against the Thinking page, fetched as raw markdown. **Recheck trigger:** a
   content-block type joining or leaving the set the protocol requires echoed back.
 
