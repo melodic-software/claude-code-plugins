@@ -96,8 +96,13 @@ the tag asserts:
   doc line describing some *other* model's tier is not harness-internal behavior toward the subject,
   fails (3)'s own test, and is disclosed as a near-miss without entering this list.
 - **`cc-applicable`/`mixed` boundary:** a claim that names an API surface (parameter, endpoint,
-  SDK call) tags `mixed` even when its guidance transfers to the harness; `cc-applicable` is
-  reserved for claims naming no API surface.
+  SDK call, model ID) tags `mixed` even when its guidance transfers to the harness;
+  `cc-applicable` is reserved for claims naming no API surface. **Bare names are not API
+  surfaces:** a product name, display name, or docs-path slug never by itself triggers `mixed` —
+  only the four surfaces above do. (Ratified from the de facto standard 15+ rows already stood
+  on, applied in-slice by a cross-vendor retag; a tier-name line such as `changelog.md:961` is
+  therefore a bare-name near-miss — disclosed per the near-miss rule — not an API surface and
+  not a harness surface.)
 - **Row-local, tag always present:** the evidence (a positive tag's live-doc URL, an `api-only`
   basis) appears in the claim's own row — "same basis as claim N" does not satisfy the contract —
   and every claim carries exactly one vocabulary tag: `unverified-inference` is an additional

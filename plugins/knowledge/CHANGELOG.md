@@ -21,6 +21,15 @@ only after that version increases.
   Without the definition, an `api-only` tag turned on whether the reader read "harness surface" as
   user-reachable selection or as any harness mention at all — and the two readings disagree on real
   rows.
+- **Anthropic profile — bare names are not API surfaces.** The `cc-applicable`/`mixed` boundary now
+  says what an API surface is not: a product name, display name, or docs-path slug never by itself
+  triggers `mixed`, and the enumeration gains the fourth surface it had been missing (model ID)
+  alongside parameter, endpoint, and SDK call. This ratifies a standard 15+ rows in the
+  models-explained slice already stood on and a cross-vendor retag already applied in-slice — it is
+  written down, not invented. It also gives the tier-name line `changelog.md:961` a destination: the
+  harness-surface definition above excludes it from sub-shape (3), and this rule is what it routes
+  to instead — a bare-name near-miss, disclosed under 0.10.16's rule, neither an API surface nor a
+  harness surface.
 
 ## [0.10.16]
 
