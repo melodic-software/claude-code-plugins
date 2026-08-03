@@ -56,15 +56,15 @@ only after that version increases.
   `skills/fable-5/context/orchestration.md`, section "Decompose by context, not by headcount",
   previously justified decomposition on context economy alone. It now records **output
   consistency** beside it — a worker holding one focused subtask makes fewer inconsistency errors
-  than one holding the whole job, and the gap widens with scale ([Increase output
+  across scaled workflows than one holding the whole job ([Increase output
   consistency](https://platform.claude.com/docs/en/test-and-evaluate/strengthen-guardrails/increase-consistency),
   verified 2026-08-03) — with the operational consequence stated as a tiebreak: a piece too small
   for context economy to justify the spawn can still be worth spawning for consistency across a
   large set. The rationale is deliberately **mechanism-agnostic** — subagent delegation, a dynamic
   workflow, and a `claude -p` fan-out all realize the same partition, and the choice belongs to the
   delegation decision, not to the reason for decomposing. Recorded in exactly one place: the
-  planning and context-economy chapters already point at this section rather than restating it, and
-  no distilled line is added, so the rationale has one home rather than two.
+  planning and context-economy chapters already route delegation to that chapter rather than
+  restating it, and no distilled line is added, so the rationale has one home rather than two.
 
 ## [0.6.5]
 
