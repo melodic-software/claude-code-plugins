@@ -31,6 +31,9 @@ Partition by touch-set per the planning chapter, section "Independent tracks ver
 
 - **Derive worker count from the partition, never the reverse** — deciding "four workers" first and dividing the work four ways manufactures boundaries the code does not have, so workers re-read the same material and return overlapping or conflicting conclusions you must reconcile by hand.
 - **Cap a concurrent wave at 3-5 workers** regardless of how many pieces exist, because beyond that you cannot meaningfully review the returns — and an unreviewed return is worthless (next two sections). Run remaining pieces as successive waves.
+- **Two rationales ride on one partition, and the second is the one that gets forgotten.** Context economy is why decomposition is usually reached for; output consistency is the other half — a worker holding one focused subtask makes fewer inconsistency errors than one holding the whole job, and that gap widens with scale ([Increase output consistency](https://platform.claude.com/docs/en/test-and-evaluate/strengthen-guardrails/increase-consistency), verified 2026-08-03). The consequence is a tiebreak: when a piece is small enough that context economy alone would not justify the spawn, consistency across a large set still can. Both rationales are recorded here and nowhere else in this playbook — other chapters point at this section rather than restating either.
+
+This rationale is deliberately mechanism-agnostic. Subagent delegation, a dynamic workflow, and a `claude -p` fan-out all realize the same partition, and which one fits is situational — the choice belongs to the delegation decision above, not to the reason for decomposing.
 
 > Weak: "Four workers: split the files alphabetically."
 > Strong: "The touch-set partition yields three disjoint slices — auth, billing, notifications — so three workers, one slice each."
