@@ -8,7 +8,7 @@ only after that version increases.
 
 ### Added
 
-- **`fable-5` verification gains the built-in verification surfaces table.**
+- **`fable-5` verification gains the provided verification surfaces table.**
   `skills/fable-5/context/verification.md` adds "Know what already verifies before you build a
   check", triggered when a project is about to get a custom check rather than a one-off probe. Six
   surfaces are mapped to their own reference pages, pointer-not-copy, and presented as **spanning
@@ -25,8 +25,9 @@ only after that version increases.
   commands](https://code.claude.com/docs/en/commands)) with a recheck trigger on a release note
   adding one; and Managed Agents rubrics belong to **a different product**, so the in-session
   equivalent is a construction you assemble (a fresh-context subagent as grader) reached through
-  the bundled `/claude-api managed-agents-onboard` skill. The section closes on **built-in never
-  means automatic**: since v2.1.215 `/verify` and `/code-review` run only when invoked, and Code
+  the bundled `/claude-api managed-agents-onboard` skill. The section closes on **provided never
+  means automatic** (the surfaces span bundled prompt-based skills and a hosted service — the
+  official docs reserve "built-in" for CLI-coded commands): since v2.1.215 `/verify` and `/code-review` run only when invoked, and Code
   Review is research preview, limited to Team and Enterprise, unavailable under Zero Data
   Retention, and enabled per repository by an Owner
   ([Skills](https://code.claude.com/docs/en/skills#bundled-skills), [Code
