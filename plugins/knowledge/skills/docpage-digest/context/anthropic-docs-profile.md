@@ -275,3 +275,28 @@ model-delta audit class), corpus graduation (a knowledge-corpus repository), or 
 synthesis (a cross-model artifact spanning units and slices the per-unit digest fan-out cannot
 reach — not per-model, not an audit rule row, not graduation of one slice; its host is
 undecided). The handoff records the candidate target per finding; the interview decides.
+
+## Hedge preservation, and the residual-risk footer
+
+A source's own hedge travels with the content it qualifies. An artifact graduated from this
+publisher preserves the hedge as the source states it — neither dropped as throat-clearing nor
+widened past what the source claims. The footer below is the standing instance; the harness
+best-practices material's "starting points, not set in stone" relativization is the second, and both
+graduate under this one convention rather than each inventing its own.
+
+**Residual-risk footer.** Every artifact derived from a guardrail page of this publisher carries the
+source's residual-risk sentence, quoted rather than paraphrased ([Reduce
+hallucinations](https://platform.claude.com/docs/en/test-and-evaluate/strengthen-guardrails/reduce-hallucinations),
+verified 2026-08-03):
+
+> Remember, while these techniques significantly reduce hallucinations, they don't eliminate them
+> entirely. Always validate critical information, especially for high-stakes decisions.
+
+Its scope is the source's own and stays unbroadened. It is about **hallucinations**, not errors,
+regressions, or guardrail failures in general; and it names **no validator** — who or what validates
+critical information is unstated in the source and stays unstated here. Widening the failure mode or
+supplying a mechanism states something the source does not.
+
+The footer attaches at this profile, not per artifact, because the profile is the seam every
+guardrail slice of this publisher flows through. A graduated chapter or template **cites this
+footer**; it never restates it.

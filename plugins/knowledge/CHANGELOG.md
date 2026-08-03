@@ -34,6 +34,24 @@ only after that version increases.
   date — is not restated here; it already ships as reader-side doctrine in the `playbooks` fable-5
   calibration chapter, and the section carries it as the premise the three rules qualify.
 
+- **Anthropic profile gains hedge preservation and the residual-risk footer.** A source's own hedge
+  now travels with the content it qualifies: an artifact graduated from this publisher preserves the
+  hedge as the source states it, neither dropped as throat-clearing nor widened past what the source
+  claims. Two instances graduate under the one convention rather than each inventing its own — the
+  residual-risk footer below, and the harness best-practices material's "starting points, not set in
+  stone" relativization. The **footer** is quoted rather than paraphrased from [Reduce
+  hallucinations](https://platform.claude.com/docs/en/test-and-evaluate/strengthen-guardrails/reduce-hallucinations)
+  (re-fetched 2026-08-03, HTTP 200; the sentence is byte-identical to the snapshot the corpus
+  froze): *"Remember, while these techniques significantly reduce hallucinations, they don't
+  eliminate them entirely. Always validate critical information, especially for high-stakes
+  decisions."* **Its scope is the source's own and is deliberately not broadened** — it is about
+  hallucinations, not errors or guardrail failures in general, and it names **no validator**, since
+  who or what validates critical information is unstated in the source. That exact scoping is the
+  part most likely to be lost in transit: it survived two correction rounds during the slice's
+  verification, both of which caught a widening. It attaches **at the profile rather than per
+  artifact**, because the profile is the seam every guardrail slice of this publisher flows through,
+  so a graduated chapter or template cites the footer and never restates it.
+
 ## [0.10.19]
 
 ### Changed
