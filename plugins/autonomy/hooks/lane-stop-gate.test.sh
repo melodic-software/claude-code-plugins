@@ -634,6 +634,63 @@ else
   fail "managed-settings path selection is influenced by \$OSTYPE or can be relative (#1784 finding 1)"
 fi
 
+# --- Case 39: an UNANCHORED install still reads managed settings ------------
+# A --plugin-dir checkout has no plugins/cache anchor, so no marketplace
+# qualifier to match — but managed settings are its ONLY enable path, and the
+# arm helper refuses to arm there precisely on that premise (case 37). Keying
+# the read on the anchor alone would make an org's managed mandate silently
+# not apply to that whole install class. The reader falls back to the manifest
+# name; anchored installs keep their exact-id match so another marketplace's
+# entry cannot mask this install's.
+UNANCHORED_ROOT="$(mktemp -d "$WORK/plugindir.XXXXXX")"
+mkdir -p "$UNANCHORED_ROOT/hooks" "$UNANCHORED_ROOT/.claude-plugin"
+cp "$HOOK_DIR"/*.sh "$UNANCHORED_ROOT/hooks/"
+printf '{"name":"autonomy"}\n' >"$UNANCHORED_ROOT/.claude-plugin/plugin.json"
+MANAGED_STUB="$WORK/managed-stub.json"
+if (
+  # shellcheck source=lane-stop-gate-lib.sh
+  source "$UNANCHORED_ROOT/hooks/lane-stop-gate-lib.sh"
+  gate_resolve_install "$UNANCHORED_ROOT" || exit 1
+  [[ -z "$GATE_PLUGIN_ID" && "$GATE_PLUGIN_NAME" == "autonomy" ]] || exit 1
+  # A bare key and a marketplace-qualified key both reach an unanchored install.
+  printf '{"pluginConfigs":{"autonomy":{"options":{"lane_stop_gate_enabled":true}}}}\n' >"$MANAGED_STUB"
+  [[ "$(gate_settings_option "$MANAGED_STUB" lane_stop_gate_enabled)" == "true" ]] || exit 1
+  printf '{"pluginConfigs":{"autonomy@melodic":{"options":{"lane_stop_gate_enabled":true}}}}\n' >"$MANAGED_STUB"
+  [[ "$(gate_settings_option "$MANAGED_STUB" lane_stop_gate_enabled)" == "true" ]] || exit 1
+  # A different plugin's entry must NOT be picked up.
+  printf '{"pluginConfigs":{"other@melodic":{"options":{"lane_stop_gate_enabled":true}}}}\n' >"$MANAGED_STUB"
+  gate_settings_option "$MANAGED_STUB" lane_stop_gate_enabled >/dev/null 2>&1 && exit 1
+  exit 0
+); then
+  ok "an unanchored install resolves managed settings by manifest name"
+else
+  fail "an unanchored (--plugin-dir) install cannot read managed settings — its only enable path"
+fi
+# The anchored install must still match ONLY its exact marketplace-qualified id.
+if (
+  # shellcheck source=lane-stop-gate-lib.sh
+  source "$STAGED_DIR/lane-stop-gate-lib.sh"
+  gate_resolve_install "$STAGED_DIR/.." || exit 1
+  [[ "$GATE_PLUGIN_ID" == "autonomy@melodic" ]] || exit 1
+  printf '{"pluginConfigs":{"autonomy@other":{"options":{"lane_stop_gate_enabled":true}}}}\n' >"$MANAGED_STUB"
+  gate_settings_option "$MANAGED_STUB" lane_stop_gate_enabled >/dev/null 2>&1 && exit 1
+  exit 0
+); then
+  ok "an anchored install still matches only its exact marketplace-qualified id"
+else
+  fail "an anchored install accepted another marketplace's entry"
+fi
+
+# --- Case 40: an empty configured sentinel falls back to the default --------
+# Emptiness is not a documented way to disable the token channel, and honoring
+# it would leave the block reason instructing the agent to emit an empty token.
+OUT="$(run "$(build_input Stop "LANE-STOP-OK" false)" \
+  CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_SENTINEL="")"
+if is_block "$OUT"; then fail "an empty configured sentinel silenced the token channel: $OUT"; else ok "an empty configured sentinel falls back to the default token"; fi
+OUT="$(run "$(build_input Stop "no token here" false)" \
+  CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_SENTINEL="")"
+if [[ "$OUT" == *'LANE-STOP-OK'* ]]; then ok "the nudge names the default token, never an empty one"; else fail "the nudge did not name a usable token: $OUT"; fi
+
 echo
 echo "PASS=$PASS FAIL=$FAIL"
 [[ $FAIL -eq 0 ]]

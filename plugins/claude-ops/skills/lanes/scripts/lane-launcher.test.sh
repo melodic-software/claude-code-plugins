@@ -765,6 +765,41 @@ assert_eq "arm: restart with an unarmable gate lane exits non-zero" 1 "$rc"
 assert_contains "arm: restart preflights the missing helper" "$out" "no autonomy gate-arm helper was found"
 assert_not_contains "arm: restart does not stop the healthy lane over a missing helper" "$log" "stop sid-work-1"
 
+# EVERY discovered helper must arm. Each autonomy install writes into its own
+# install-derived store and the launcher cannot tell which one the session will
+# load, so accepting a partial arm would launch a lane carrying an id its own
+# gate resolves to nothing — ungated, with only a stale-arm notice. Exercised
+# through REAL discovery (no --gate-arm-script): the launcher is staged inside a
+# synthetic plugins/cache tree carrying two marketplaces' autonomy installs.
+STAGE="$TMP/stage"
+LAUNCHER_STAGED="$STAGE/plugins/cache/mkt-a/claude-ops/1.0.0/skills/lanes/scripts/lane-launcher.sh"
+mkdir -p "$(dirname "$LAUNCHER_STAGED")"
+cp "$SCRIPT" "$LAUNCHER_STAGED"
+MULTI_ARM_LOG="$TMP/arm-multi.log"
+for mkt in mkt-a mkt-b; do
+  helper="$STAGE/plugins/cache/$mkt/autonomy/1.0.0/hooks/lane-stop-gate-arm.sh"
+  mkdir -p "$(dirname "$helper")"
+  # mkt-b's helper fails; mkt-a's succeeds. Under the old any-success rule the
+  # lane would launch.
+  cat >"$helper" <<STUB
+#!/usr/bin/env bash
+printf '%s\n' "$mkt" >>"$MULTI_ARM_LOG"
+[[ "$mkt" == mkt-b ]] && exit 4
+exit 0
+STUB
+  chmod +x "$helper"
+done
+: >"$MULTI_ARM_LOG"
+: >"$CLAUDE_LOG"
+out="$(bash "$LAUNCHER_STAGED" start --repo "$REPO" --config "$TMP/gate-work.json" --agents-json "$AGENTS_EMPTY" --no-pull --no-update 2>&1)"
+rc=$?
+log="$(cat "$CLAUDE_LOG")"
+armed_count="$(grep -c . "$MULTI_ARM_LOG" 2>/dev/null || true)"
+assert_eq "arm: discovery finds every installed marketplace's helper" 2 "$armed_count"
+assert_eq "arm: one helper failing fails the whole arming" 1 "$rc"
+assert_contains "arm: a partial arm names the lane and skips it" "$out" "lane-stop gate arming failed"
+assert_not_contains "arm: a partially-armed lane is NOT launched" "$log" "--bg -n work"
+
 # ============================================================================
 echo
 if ((FAILED)); then

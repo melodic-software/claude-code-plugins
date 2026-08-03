@@ -72,7 +72,7 @@ source "$(dirname "${BASH_SOURCE[0]}")/lane-notify.sh"
 # shellcheck source=lane-stop-gate-lib.sh
 source "$(dirname "${BASH_SOURCE[0]}")/lane-stop-gate-lib.sh"
 
-gate_resolve_anchor "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." 2>/dev/null && pwd)" || true
+gate_resolve_install "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." 2>/dev/null && pwd)" || true
 
 # High-res start stamp for the telemetry envelope. EPOCHREALTIME is Bash 5.0+;
 # on an older host it is empty and hook::emit_telemetry skips fail-open.
@@ -247,7 +247,11 @@ SIGNAL="none"
 # reason gives. Requiring a dedicated line — not merely a standalone word — means
 # a message that only mentions or negates the token inline (e.g. "I should not
 # emit LANE-STOP-OK yet") does not authorize the stop.
-SENTINEL=$(gate_option lane_stop_gate_sentinel) || SENTINEL="LANE-STOP-OK"
+# An empty configured sentinel falls back to the default rather than silencing
+# the token channel: emptiness is not a documented way to disable it, and the
+# block reason below would otherwise instruct the agent to emit an empty token.
+SENTINEL=$(gate_option lane_stop_gate_sentinel) || SENTINEL=""
+[[ -n "$SENTINEL" ]] || SENTINEL="LANE-STOP-OK"
 if [[ -n "$SENTINEL" ]]; then
   LAST=$(printf '%s' "$INPUT" | jq -r '.last_assistant_message // ""' 2>/dev/null)
   # Escape any regex metacharacters in the (configurable) sentinel before use.

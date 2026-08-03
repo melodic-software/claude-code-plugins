@@ -52,6 +52,20 @@ merged work-package PRs (#333, #343, #356, #372, #377, #600, #676).
   one (harness injection wins for configured keys). Shared derivation helpers live in
   `hooks/lane-stop-gate-lib.sh`, sourced by both scripts.
 
+### Fixed
+
+- **Managed settings reach a `--plugin-dir` install (#1784).** Keying every settings read on the
+  marketplace-qualified id meant the managed scope contributed no verdict without a
+  `plugins/cache` anchor — silently disabling the org-mandate path on the one install class for
+  which it is the *only* enable path, and on whose availability the arm helper's refusal to arm
+  there is premised. An unanchored install now matches on the plugin name from the manifest beside
+  the hook (the same `BASH_SOURCE`-derived trust anchor everything else uses), accepting a bare or
+  any marketplace-qualified key; anchored installs keep their exact-id match, so another
+  marketplace's entry still cannot mask this install's.
+- **An empty configured sentinel falls back to `LANE-STOP-OK`.** Emptiness is not a documented way
+  to disable the token channel, and honoring it silenced that channel while the block reason still
+  instructed the agent to emit an empty token on its own line.
+
 ## [0.11.8]
 
 ### Fixed

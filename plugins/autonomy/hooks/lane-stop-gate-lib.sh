@@ -50,6 +50,7 @@ readonly GATE_ARM_ID_RE='^[A-Za-z0-9_-]{8,64}$'
 GATE_CONFIG_ROOT=""
 GATE_PLUGIN_ID=""
 GATE_PLUGIN_ID_SAFE=""
+GATE_PLUGIN_NAME=""
 
 gate_resolve_anchor() {
   local root="$1" rest marketplace name
@@ -62,6 +63,29 @@ gate_resolve_anchor() {
   GATE_CONFIG_ROOT="${root%%/plugins/cache/*}"
   GATE_PLUGIN_ID="${name}@${marketplace}"
   GATE_PLUGIN_ID_SAFE="${GATE_PLUGIN_ID//[^A-Za-z0-9_-]/-}"
+}
+
+# This plugin's name, from the manifest beside the caller. The manifest sits at
+# a path derived from the caller's own location — the same trust anchor
+# everything else here uses — so a repo cannot redirect it.
+gate_resolve_plugin_name() {
+  local manifest="$1/.claude-plugin/plugin.json" name
+  [[ -f "$manifest" ]] || return 1
+  name=$(jq -r '.name | select(type == "string")' <"$manifest" 2>/dev/null) || return 1
+  [[ -n "$name" ]] || return 1
+  GATE_PLUGIN_NAME="$name"
+}
+
+# Resolve this install's identity from the caller-supplied plugin root: the
+# marketplace-qualified id when the plugins/cache anchor is present, else the
+# manifest name. The name path exists for the --plugin-dir install, where
+# managed settings are the only enable path and there is no marketplace
+# qualifier to match — without it an org's managed mandate would silently not
+# apply to that install class.
+gate_resolve_install() {
+  local root="$1"
+  gate_resolve_anchor "$root" && return 0
+  gate_resolve_plugin_name "$root"
 }
 
 # This plugin's persistent data directory: install-derived when anchored, else
@@ -139,22 +163,30 @@ gate_managed_settings_files() {
 }
 
 # --- Option reads -------------------------------------------------------------
-# Print the configured value of pluginConfigs[<this plugin id>].options[<key>]
+# Print the configured value of pluginConfigs[<this plugin>].options[<key>]
 # from one settings file: a boolean as true/false, a string as-is (including
 # the empty string). Returns 1 when the file contributes no verdict for the key
 # — absent file, unparsable JSON, no entry, JSON null, or a non-boolean/string
-# type. The exact marketplace-qualified id is matched, as the channel-F
-# exemplar does, so another marketplace's entry cannot mask this install's.
+# type. An anchored install matches the EXACT marketplace-qualified id, as the
+# channel-F exemplar does, so another marketplace's entry cannot mask this
+# install's; an unanchored one has no qualifier to match and falls back to the
+# manifest name, accepting a bare or any qualified key (last wins). Only
+# managed settings ever reach the name path — gate_user_settings_file has no
+# location to offer without the anchor.
 # The file is opened by bash (`< file`), not by jq: a native jq on Windows
 # cannot open an MSYS-style path, while a shell redirection always can.
 gate_settings_option() {
   local file="$1" key="$2" out
-  [[ -n "$GATE_PLUGIN_ID" && -f "$file" ]] || return 1
-  out=$(jq -r --arg id "$GATE_PLUGIN_ID" --arg k "$key" '
-    .pluginConfigs[$id].options[$k]
-    | if type == "boolean" then (if . then "v:true" else "v:false" end)
-      elif type == "string" then "v:" + .
-      else empty end' <"$file" 2>/dev/null) || return 1
+  [[ -f "$file" ]] || return 1
+  [[ -n "$GATE_PLUGIN_ID" || -n "$GATE_PLUGIN_NAME" ]] || return 1
+  out=$(jq -r --arg id "$GATE_PLUGIN_ID" --arg n "$GATE_PLUGIN_NAME" --arg k "$key" '
+    [ (.pluginConfigs // {}) | to_entries[]
+      | select(if $id != "" then .key == $id
+               else .key == $n or (.key | startswith($n + "@")) end)
+      | .value.options[$k]
+      | if type == "boolean" then (if . then "v:true" else "v:false" end)
+        elif type == "string" then "v:" + .
+        else empty end ] | last // empty' <"$file" 2>/dev/null) || return 1
   [[ "$out" == v:* ]] || return 1
   printf '%s' "${out#v:}"
 }

@@ -582,10 +582,16 @@ generate_arm_id() {
 
 # Arm the gate for one lane and print the settings JSON with the arm id
 # injected. Returns 1 (lane must be skipped — fail closed) when no helper is
-# found or every found helper fails; helper stdout/stderr goes to stderr so it
+# found or ANY found helper fails; helper stdout/stderr goes to stderr so it
 # can never leak into the settings this function prints.
+#
+# EVERY discovered helper must arm. Each install writes into its OWN
+# install-derived store, and the launcher cannot tell which install the session
+# will load — so one helper succeeding does not prove the ACTIVE one is armed.
+# Accepting a partial arm would launch a lane carrying an id its own gate
+# resolves to nothing: ungated, with only a stale-arm notice to show for it.
 arm_stop_gate() {
-  local name="$1" settings="$2" arm_id sentinel marker script found=0 armed=0
+  local name="$1" settings="$2" arm_id sentinel marker script found=0 failed=0
   arm_id="$(generate_arm_id)"
   sentinel="$(gate_option_from_settings "$settings" lane_stop_gate_sentinel)"
   marker="$(gate_option_from_settings "$settings" lane_stop_gate_marker)"
@@ -595,14 +601,14 @@ arm_stop_gate() {
   while IFS= read -r script; do
     [[ -n "$script" ]] || continue
     found=1
-    if bash "$script" "${args[@]}" >&2; then armed=1; fi
+    bash "$script" "${args[@]}" >&2 || failed=1
   done < <(find_gate_arm_scripts)
   if ((found == 0)); then
     # Normally unreachable: validate_launch_inputs preflights helper presence.
     err "lane '$name': lane-stop gate requested but no autonomy gate-arm helper was found (install/update the autonomy plugin, or pass --gate-arm-script) — skipped"
     return 1
   fi
-  if ((armed == 0)); then
+  if ((failed)); then
     err "lane '$name': lane-stop gate arming failed — skipped (launching ungated would defeat the request)"
     return 1
   fi
@@ -654,8 +660,12 @@ validate_launch_inputs() {
   # and it belongs HERE so restart's preflight catches it BEFORE stopping a
   # healthy running lane (same doctrine as the prompt/effort checks above). A
   # helper that exists but fails at arm time still surfaces in launch_lane.
+  # Command substitution, NOT `find_gate_arm_scripts | grep -q .`: under
+  # pipefail, grep -q exits on the first line and the producer takes SIGPIPE on
+  # its next write, so a machine carrying TWO autonomy installs would read as
+  # "no helper found" and refuse to launch a gate-requesting lane.
   if [[ -n "$settings" ]] && lane_requests_stop_gate "$settings" &&
-    ! find_gate_arm_scripts | grep -q .; then
+    [[ -z "$(find_gate_arm_scripts)" ]]; then
     err "lane '$name': lane-stop gate requested but no autonomy gate-arm helper was found (install/update the autonomy plugin, or pass --gate-arm-script) — skipped"
     return 1
   fi
