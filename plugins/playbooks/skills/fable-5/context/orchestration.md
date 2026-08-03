@@ -17,7 +17,7 @@ Stay-inline conditions override all three shapes — if any holds, stay inline e
 - The whole job is under ~5 tool calls — the spec would cost more than the work.
 - You will need the full detail later in the session — a worker returns a lossy summary, and re-deriving lost detail cancels the savings.
 
-Exception: the fresh-context verifier required by "Fresh-context verification" below is never displaced by these conditions — isolation is its product, so the ~5-call bar and the file-overlap condition do not apply to it.
+Exception: the fresh-context verifier required by "Fresh-context verification" below is never displaced by these conditions — isolation is its product, so the ~5-call bar and the file-overlap condition do not apply to it. A consistency-carried spawn (the fourth condition below) is likewise not displaced by the ~5-call bar: the piece being small is the premise of that condition, not a strike against it.
 
 Delegation pays only when at least one of these holds; when none does, it spends both context windows:
 
