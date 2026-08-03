@@ -142,7 +142,7 @@ gate_managed_settings_files() {
 # Print the configured value of pluginConfigs[<this plugin id>].options[<key>]
 # from one settings file: a boolean as true/false, a string as-is (including
 # the empty string). Returns 1 when the file contributes no verdict for the key
-# — absent file, unparseable JSON, no entry, JSON null, or a non-boolean/string
+# — absent file, unparsable JSON, no entry, JSON null, or a non-boolean/string
 # type. The exact marketplace-qualified id is matched, as the channel-F
 # exemplar does, so another marketplace's entry cannot mask this install's.
 # The file is opened by bash (`< file`), not by jq: a native jq on Windows

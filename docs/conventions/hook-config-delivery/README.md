@@ -75,8 +75,8 @@ list and the matrix; it does not fork a private convention.
   treats the env-delivered id as a capability pointer, never authority — shape-validated, looked up
   only in the anchored store, claimed by the first presenting session (a replayed id is refused),
   TTL-bounded, and scoped to the claiming session's life rather than any single event. A repo `env`
-  block can neither mint a valid id nor
-  clobber a configured one (fact 4: injection wins for configured keys). Shipped exemplar: the
+  block can neither mint a valid id nor clobber a configured one (fact 4: injection wins for
+  configured keys). Shipped exemplar: the
   autonomy lane-stop gate's arm helper, `plugins/autonomy/hooks/lane-stop-gate-arm.sh`, armed by the
   claude-ops lane launcher (see autonomy's `[0.12.0]`
   [CHANGELOG entry](../../../plugins/autonomy/CHANGELOG.md) for the trust analysis and residuals).
