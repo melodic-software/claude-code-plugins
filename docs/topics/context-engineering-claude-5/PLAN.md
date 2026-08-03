@@ -169,9 +169,12 @@ source with explicit staleness triggers — not restated across the skills that 
   judgement, so two runs over an identical tree may legitimately differ; a finding-identity function
   normalizes how a finding is *reported* and cannot make the *detection* deterministic. Judged
   findings are reported separately, excluded from the diff-clean gate, and held instead to: none
-  contradicts an accepted suppression, and the set does not grow on an unchanged tree beyond a stated
-  tolerance — **whose violation fails the run's self-check** rather than being absorbed by
-  recalibrating the tolerance.
+  contradicts an accepted suppression, and the **symmetric difference** between the two judged sets
+  stays within a stated tolerance over a comparable pair **whose judging configuration is also
+  equal** — **whose violation fails the run's self-check** rather than being absorbed by
+  recalibrating the tolerance. The metric counts removals as well as additions, because a check that
+  silently stops firing is the more damaging direction; and the judging configuration is a
+  precondition rather than an obligation, since a model swap moves the judged set legitimately.
 - **A surface that silently leaves the inventory fails the gate.** The inventory and exclusion set are
   *in* the derived tier, not scaffolding beneath it, so a scope regression is caught. This is the
   property the original two-tier split could not express, and it matters more than a changed finding:
@@ -972,6 +975,14 @@ prompt-digest triple unestablishable from outside a delegate plugin — that the
 Neither list is wrong; they are two documents that moved at different times. The reconciliation is
 recorded here rather than performed in passing, because changing either predicate changes what the
 shipped pass reports.
+
+**Widening the cross-run input left the within-run one behind, and that asymmetry is owed the same
+pass.** The design's Assertion 3.4 still records a *working-tree* content digest, scoped to the
+repository, while comparability now spans every inventoried scope. So an edit to `~/.claude/CLAUDE.md`
+**between** runs correctly renders the pair non-comparable, and the same edit **during** a run is
+invisible to the mid-run integrity check. The shipped contract unified the two deliberately — its
+assertion 6.1b yields `indeterminate` for exactly that mid-run case — so this is a gap on the design
+side only, and closing it is part of the same Phase 8 reconciliation rather than a separate question.
 
 None of these is a gate criterion; each would have made the shipped contract fail its own idempotence
 claim, which is why they are recorded with the gate rather than after it.

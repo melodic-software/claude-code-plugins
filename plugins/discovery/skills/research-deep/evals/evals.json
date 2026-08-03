@@ -26,7 +26,7 @@
         "Output treats this single broad comparison as one heavy topic (not split into parallel agents)",
         "Output dispatches the heaviest available tier (a deep-research workflow engine when available)",
         "Output does NOT re-run the deep research inline in the main session after dispatching",
-        "Output does NOT surface the engine's summary and artifact path directly — it dispatches the sibling verifier and applies project fit, writing both back into the index first"
+        "Output does NOT treat dispatch as the end of its work — it states that the engine's return will go through the post-dispatch boundary (sibling verifier, project fit, write-back) before being surfaced, rather than promising to surface the summary and artifact path directly"
       ]
     },
     {

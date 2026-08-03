@@ -393,7 +393,7 @@ repository the operator owns, committed to it.
 **The tree can move under a run, and the self-check must be able to say so.** Found by running the
 pass (Phase 10): the target's `HEAD` and branch both moved mid-measurement, with a plugin rename
 landing in between. The state key is computed once at the start and nothing re-validates it, so
-*"any inequality over an unchanged tree is a defect"* is **unfalsifiable on a shared checkout** — an
+*"any inequality over a comparable pair is a defect"* is **unfalsifiable on a shared checkout** — an
 inequality could mean a defect or could mean the tree moved, and the run cannot tell which.
 
 - **Assertion 3.4** — a run records the target's revision **at start and at end**. When they differ,
@@ -510,10 +510,11 @@ Restarting from zero wastes the whole run and, worse, tempts an operator to narr
 - Findings persist **incrementally, per lane**, as each lane completes — not buffered to the end.
 - A run manifest records, per lane: the lane id, its **input digest**, and its completion state.
 - **Input digest** = `sha256` over the lane's ordered file list paired with each file's content hash,
-  **and over the run basis** — the state-digest entries **for that lane's own surfaces**, the
-  liveness basis (launch directory, effective merged `claudeMdExcludes`, external-import approval
-  state, setting sources), the harness version, the sweep version, the lane's detection version
-  triple, and, for a judged lane, the judging configuration.
+  **and over the run basis** — the state-digest entries **for the surfaces in that lane's scan set**
+  (which for a cross-class lane is its whole comparison set, per §1), the liveness basis (launch
+  directory, the additional-directory set, effective merged `claudeMdExcludes`, external-import
+  approval state, setting sources), the harness version, the sweep version, the lane's detection
+  version triple, and, for a judged lane, the judging configuration.
 - **Every content-bearing term is scoped to the lane, and taking a whole-run digest here would
   falsify Assertion 5.2.** §6 compares whole runs, so it takes the state digest entire and the
   detection triple of *every* check consulted. A lane digest cannot: fold the whole-run state digest
@@ -802,15 +803,23 @@ claim is not a weaker claim, it is not a claim.
   > differences **attributable to the edits accepted in `R1`** — no more.
 
   **Attribution is what makes this a constraint rather than a hole, and it is why the exemption is
-  not scoped to the state digest alone.** Exempting only the digest would re-break P2 on the
-  remediation these checks most often recommend: moving always-loaded material into a skill changes
-  what loads at startup, so the accepted fix moves the **liveness basis** as a consequence and P2
-  would abstain on exactly the fix it is meant to verify. A surface entering or leaving because an
-  accepted edit created, deleted, or moved it is attributable; one that moved because the launch
-  directory, `claudeMdExcludes`, the harness version, or a catalog bump changed is not, and P2
-  abstains exactly as P1 would. `audit-pass`'s shipped run contract already carries this relation
-  under this name; adopting it rather than minting a second, narrower one is what keeps the two from
-  disagreeing.
+  not scoped to the state digest alone.** A surface entering or leaving because an accepted edit
+  created, deleted, or moved it is attributable; one that moved because the launch directory,
+  `claudeMdExcludes`, the harness version, or a catalog bump changed is not, and P2 abstains exactly
+  as P1 would. `audit-pass`'s shipped run contract already carries this relation under this name;
+  adopting it rather than minting a second, narrower one is what keeps the two from disagreeing.
+
+  **Under this document's *current* input list an accepted edit can only move the state digest, and
+  the relation is still stated over every input.** The liveness basis is defined above as inputs
+  *outside* the tree, and an accepted fix is a tree edit, so no fix moves it — the wider form buys
+  nothing today. It is stated wide anyway for two reasons. The list has already grown twice, and a
+  relation scoped to whichever inputs a fix happens to move today is a restatement that goes stale
+  the next time one is added — the exact drift this section was rewritten to stop. And the shipped
+  contract's second input is the **live surface set**, an *output* that a tree edit genuinely does
+  move: moving always-loaded material into a skill changes what loads at startup, so there the
+  exemption has to reach past the digest or P2 abstains on the remediation these checks most often
+  recommend. This document owes that input (recorded in `PLAN.md` as Phase 8 reconciliation work),
+  and the relation is written so that adopting it is not also a re-derivation of P2.
 
   **The sweep version is never attributable, even when an accepted edit is what moved it.** Phase 10
   runs this pass against this repository, so a finding whose fix edits `audit-pass`'s own anchor
@@ -829,8 +838,11 @@ claim is not a weaker claim, it is not a claim.
   Phase 6 owes one** — until it exists, `fix-comparable` is a definition without a decision
   procedure. The gap bites hardest where the pass never performs the edit itself: a user-scope
   finding is routed as a recommendation and applied by the operator outside the repository, so
-  nothing the run captures establishes that the applied edit matches what was recommended. Until the
-  capture covers that case, P2 abstains on routed findings rather than claiming them.
+  nothing the run captures establishes that the applied edit matches what was recommended. That
+  difference is therefore **not attributable**, which makes the pair not fix-comparable at all —
+  abstention is over the *pair*, as every relation here is, never over a finding within an otherwise
+  admitted pair. A round mixing routed and applied fixes consequently yields no P2 verdict rather
+  than a partial one, and closing that is the capture's job, not a per-finding exception.
 
   **The tier clause replaces a strict subset over `D`, and the strict subset was wrong.** Raised by
   the cross-vendor review. D1 — the deliverable's only new check — is a judged finding and
@@ -838,8 +850,9 @@ claim is not a weaker claim, it is not a claim.
   shadowed definitions, and the raw script candidate rows all legitimately identical. `D(R2) ⊊ D(R1)`
   then *fails* the successful remediation of the primary detector, making the headline convergence
   gate unsatisfiable for the normal case. Strictness belongs in "every accepted finding is gone",
-  which is the claim convergence is actually making; the containment half over `D` is P3's job and
-  P3 already states it.
+  which is the claim convergence is actually making. Containment over `D` splits by relation: for a
+  **comparable** pair it is P3's job and P3 states it, and for a **fix-comparable** pair — where P3's
+  antecedent does not hold — it is the attributable-addition clause above.
 - **P3 — no spontaneous growth.** `R1` and `R2` **comparable** ⇒ `D(R2) ⊆ D(R1)`. The set may grow
   only when a comparability input moved — and a skill authored between runs is a change to the tree.
   **The licensing condition is the negation of comparability, and P3 no longer restates it.** P3
@@ -946,10 +959,13 @@ claim is not a weaker claim, it is not a claim.
   lanes, since a lane completed under one judge has stale findings under another.
 - **P4a — a violation has a consequence, or the property is decoration.** Exceeding the tolerance
   **fails the run's self-check and is reported as an instability finding against the sweep itself**,
-  naming the checks whose output moved. A pair failing P4's precondition — non-comparable, or run
-  under a different judging configuration — is **not** an exceedance: it is reported as
-  non-comparable naming the input that moved, exactly as P1 does, and never routed here. It is not
-  silently absorbed by recalibrating the constant.
+  naming the checks whose output moved. A pair failing P4's precondition is **not** an exceedance and
+  is never routed here: it is reported as **outside the tolerance's scope, naming the input that
+  moved**, on the same posture P1 takes toward a non-comparable pair. The two halves of that
+  precondition are named separately in the report, because only one of them is comparability — a pair
+  that is comparable but ran under a different judging configuration is reported as such, not
+  relabelled non-comparable, since comparability deliberately excludes the judging configuration. It
+  is not silently absorbed by recalibrating the constant.
   The tolerance may be revised only by an explicit, recorded decision citing the observed
   distribution — never as an implicit response to a failure. Without that clause the metric absorbs
   its own counterevidence, which is what a placeholder does.
