@@ -10,8 +10,8 @@ only after that version increases.
 
 - **Anthropic profile — the doc queue is repopulated from the Sitting-5 doc-queue dispositions.**
   The queue had been emptied as its slices completed, so twelve adopted rows had nowhere to land and
-  the pipeline had no stated next page. Counted at the bytes, one bullet per page: **11 pages
-  queued** across six groups, and **5 pages deferred with triggers** — the deferred section now
+  the pipeline had no stated next page. Counted at the bytes, one bullet per page: **14 pages
+  queued** across seven groups, and **5 pages deferred with triggers** — the deferred section now
   holds six bullets, the sixth being `task-budgets`, which predates this batch. Each entry carries
   the reason it is where it is rather than a bare URL.
 - **`thinking-troubleshooting` is queued first, on a corrected rationale.** DQ-2's original ground —
@@ -39,9 +39,13 @@ only after that version increases.
   The source's premise that best-practices was "already in the profile doc queue" is false at the
   bytes — it never has been — but the disposition is unaffected, because folding resolves to no
   standalone entry either way.
-- **The retention/ZDR slice is deliberately not queued here.** It is an org-policy posture with
-  enterprise-facing weight that cuts against the standing self-alignment-before-packaging ordering,
-  and no owner decision has closed that question. Recorded rather than dropped.
+- **Retention and ZDR are queued as one slice, and the slice remains owner-vetoable.** A corpus that
+  will be pointed at repositories we do not control is precisely the one that should not be silent
+  on retention: it is the one queued topic carrying compliance weight, and both properties are
+  already in scope, so the slice costs a single fetch — the API lane is the only page not already
+  held. The org-policy posture is the argument for it rather than against, but the posture is real
+  and cuts against the standing self-alignment-before-packaging ordering, so the enqueue is recorded
+  as still open to an owner veto. A queue entry is trivially reversible if that veto fires.
 
 ## [0.10.18]
 

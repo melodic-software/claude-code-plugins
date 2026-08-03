@@ -167,6 +167,18 @@ Thinking (completes the set's custody map — troubleshooting first):
   — the last uncovered page of the thinking doc set; two already-digested slices defer to it by
   anchor, so the marginal cost of the last page is the lowest it will ever be
 
+Retention and ZDR (one slice, two lanes — retention is org-level policy and the one topic queued
+here carrying compliance weight; both properties are already in scope, so the slice costs one
+fetch):
+
+- <https://platform.claude.com/docs/en/manage-claude/api-and-data-retention>
+  — the API lane
+- <https://code.claude.com/docs/en/data-usage>
+  — the harness lane
+- <https://code.claude.com/docs/en/zero-data-retention>
+  — the harness lane's enterprise posture: ZDR is scoped to qualified accounts on Claude for
+  Enterprise, which is the commitment a consuming setup needs stated rather than inferred
+
 Agent SDK (one page — SDK docs are canonically harness docs, but queueing the rest of that doc set
 is a separate scope decision nobody has taken):
 
