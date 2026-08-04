@@ -4,6 +4,34 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.6.14]
+
+### Changed
+
+- **`fable-5` calibration: the per-model matrix rule's authority now carries a custody record**
+  (playbooks 0.6.13 → 0.6.14). The "Point at a per-model matrix; never copy one" rule names
+  [Troubleshooting thinking](https://platform.claude.com/docs/en/build-with-claude/thinking-troubleshooting)
+  as the authority on what each model accepts, defaults to, and rejects, and the rule directly below
+  it mandates a re-check trigger for any matrix a reader acts on. The worked instance carried such a
+  trigger with nothing to re-check *against*: the citation was dated but never captured, so a later
+  reader could re-read the page and still not know whether it had moved.
+
+  The rule's citation now carries the capture — 12,544 B, MD5 `dc994aa9…`, fetched 2026-08-04 — and
+  says plainly that it dates continuity **forward and claims none backward**, because this is the
+  first byte-level capture of the page here and no earlier hash exists to compare with. The Mythos 5
+  worked instance keeps its 2026-08-03 verification; what changed is that its re-check trigger now
+  states which half is current as of when. The matrix page was re-read 2026-08-04 and the Mythos 5
+  row still reads as described; the introducing-page quote and the local registry reading are still
+  2026-08-03 snapshots, and the trigger says so rather than dating the whole instance to one day.
+
+- **The instance's verified negative names its own scope.** It rested on the matrix page carrying
+  "no access-availability signal", parenthetically supported by "its only availability language, a
+  zero-data-retention note". The page does carry a second availability sentence — a pointer to the
+  Claude 4 model deprecations — which does not weaken the negative (it concerns different models)
+  but did leave an absolute claim standing next to a literal counterexample. The parenthetical now
+  scopes itself to the two models under discussion and names the other pointer, so the negative is
+  falsifiable on its own terms.
+
 ## [0.6.13]
 
 ### Added

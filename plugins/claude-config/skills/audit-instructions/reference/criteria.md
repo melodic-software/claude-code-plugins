@@ -1,5 +1,5 @@
 ---
-version: 1.13.0
+version: 1.14.0
 last-updated: 2026-08-04
 ---
 
@@ -111,7 +111,8 @@ I15–I22 apply to all surfaces; I13 and I14 name narrower surface sets in their
 - Steering thinking (the turn-validation relaxation, and the models that still enforce a leading
   thinking block) —
   <https://platform.claude.com/docs/en/build-with-claude/thinking-steering-and-cost>
-- Troubleshooting thinking (the per-request 400s, and the models the effort restriction covers) —
+- Troubleshooting thinking (the per-request 400s, the models the effort restriction covers, and the
+  internal-tag leakage a don't-think directive worsens) —
   <https://platform.claude.com/docs/en/build-with-claude/thinking-troubleshooting>
 - Model migration guide (the model ranges over which manual extended thinking is rejected) —
   <https://platform.claude.com/docs/en/about-claude/models/migration-guide>
@@ -331,16 +332,35 @@ three trigger phrases (see Source), so this fires for every target model.
   qualitative terms like `important`."
 
 **Row I8-c: don't-think / don't-reason directive** · Tier `behavioral` · Model scope: `opus-5`.
+**The scope is positively confirmed narrow rather than merely unsourced.** A second page states the
+claim (see Source), and it is a model-agnostic feature page — the surface where a wider claim would
+appear — yet it names Claude Opus 5 anyway. The promotion gate stays unmet by upstream's own
+choice, on the same reasoning I10 applies to a declined widening.
 
 - **Detect:** instructions telling the model not to think or not to reason — with thinking
   disabled these increase internal-tag leakage. Also flag tag-hygiene rules that name thinking
   tags specifically (less effective than the general form).
+- **Where it shows, and why it outlives the turn.** The leakage is "most commonly on tool-heavy
+  workloads such as search" — so a surface governing a tool-driven lane is where to look — and the
+  damage is not confined to the response that leaks: "A leaked tool call never runs, and in agentic
+  loops the leaked text stays in the conversation history, so later turns are affected as well."
+  Read here — the page states the history effect, not this consequence — that means an autonomous
+  lane carries the poisoned turn forward as context.
 - **Remediate:** remove the directive; where output-tag hygiene is genuinely needed, use the
   general "internal or system XML tags" phrasing.
 - **Bounded by:** the **Stopping condition** below, which is enabled by default.
 - **Source:** Opus 5 guide, "Running with thinking disabled" — "If your system prompt contains a
   rule instructing the model not to think or not to reason, remove it; that kind of instruction
   increases tag leakage"; naming thinking tags is "less effective than the general form."
+  Corroborated at troubleshooting thinking, "Tool calls or XML tags appear in the text output",
+  which reaches the same claim from the symptom side — "System-prompt rules instructing the model
+  not to think or not to reason increase the tag leakage" — and is the source of the condition and
+  consequence above. **Verified 2026-08-04** against that page, fetched as raw markdown.
+  **Recheck trigger:** a second model name appearing beside Claude Opus 5 in either section that
+  states the claim — the Opus 5 guide's "Running with thinking disabled", or this page's "Tool
+  calls or XML tags appear in the text output" — which is what would move the promotion gate.
+  Neither page enumerates the models that do *not* leak, so those two sections are the whole of
+  what there is to re-read.
 
 **Row I8-d: short-turn assumptions** · Tier `behavioral` · Model scope: `fable-5`.
 
