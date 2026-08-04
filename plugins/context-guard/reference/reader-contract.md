@@ -125,11 +125,11 @@ questions — never equate them without normalizing:
   *distance to compaction*, because compaction thresholds key off the same accounting.
 - **Token shape** — **occupancy**, defined as `total_input_tokens + total_output_tokens`, against
   the window-class token bands. Occupancy counts both directions because both occupy the window,
-  and the degradation evidence (Chroma context-rot report; Anthropic system-card fixed-point
-  evals) tracks **absolute tokens in context, not window fraction**. It answers *distance to
-  quality loss*. That is also why the token bands are absolute numbers selected by window class
-  rather than percentages: 50% of a 1M window is a materially different cognitive state than 50%
-  of a 200k window.
+  and the degradation evidence (Chroma context-rot report) tracks **absolute tokens in context,
+  not window fraction**. It answers *distance to quality loss*. That is also why the token bands
+  are absolute numbers selected by window class rather than percentages: 50% of a 1M window is a
+  materially different cognitive state than 50% of a 200k window. Cite a system card here only by
+  name and section — an unnamed one was withdrawn from this clause as unresolvable (0.4.5).
 
 **Window-class selection:** use the band row whose class key is the **largest one ≤
 `context_window_size`**. A window smaller than every configured class has no row — the token
