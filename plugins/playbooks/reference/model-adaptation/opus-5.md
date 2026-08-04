@@ -316,9 +316,10 @@ The Opus 5 system card was re-fetched 2026-08-04 by following the model-card URL
 redirects to, and is byte-identical to the captured snapshot — 15,994,568 bytes, SHA-256
 `897768f0f6f1724f3109279ab3f6458c9fbf496b56d5d2be14cab3a4f91ca472`. The card is not listed in
 either docs `llms.txt` index, so that redirect is its only discovery path. Every section of this
-file citing the card by page was written or re-checked against that re-read; the deferred
-routing-lane trigger above is confirmed still unfired, because a byte-identical card means neither
-the bug-bounty update nor a Haiku measurement has landed.
+file citing the card by page was written or re-checked against that re-read. On the deferred
+routing-lane trigger above, byte-identity proves only that the card itself still records neither
+the bug-bounty update nor a Haiku measurement — both could publish in a separate channel without
+this PDF changing, so a trigger check reads those channels, not this hash.
 
 Those two dates cover the guide and the card and nothing else on this list: the three live-fetch
 pages immediately above still stand at their 2026-07-26 reading.
