@@ -34,10 +34,13 @@ convention/config files the plugin reads.
 - **Silent-skip LSP entries (`.lsp.json`)** — an entry with an invalid configuration is skipped
   (only `claude --debug` says why); a server that fails to start surfaces in the `/plugin` Errors
   tab. The server binary is a user-machine prerequisite — check it is documented for installers.
-- **Monitor noise & portability (`monitors/monitors.json`)** — monitors auto-start while the plugin
-  is active and every stdout line from `command` reaches Claude as a notification; check volume and
-  that the command runs on the consumer's platform. (All three per
-  <https://code.claude.com/docs/en/plugins>, fetched 2026-08-04.)
+- **Monitor noise & portability (`monitors/monitors.json`)** — inspect each monitor's `when`
+  trigger before assessing runtime volume: the default `"always"` starts it at session start and on
+  plugin reload, while `"on-skill-invoke:<skill-name>"` keeps it dormant until that skill is first
+  dispatched. Every stdout line from `command` reaches Claude as a notification; check volume for
+  the trigger's actual lifetime and that the command runs on the consumer's platform. (All three
+  surfaces per <https://code.claude.com/docs/en/plugins> and
+  <https://code.claude.com/docs/en/plugins-reference#monitors>, fetched 2026-08-04.)
 
 ## Reproduce
 

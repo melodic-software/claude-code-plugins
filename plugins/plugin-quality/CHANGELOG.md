@@ -15,7 +15,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `settings.json` (only `agent` and `subagentStatusLine` supported; unknown keys silently ignored;
   wins over `settings` in `plugin.json`), `.lsp.json` (an invalid entry is skipped — only
   `claude --debug` says why; a failed start surfaces in the `/plugin` Errors tab), and
-  `monitors/monitors.json` (auto-start; every stdout line reaches Claude as a notification).
+  `monitors/monitors.json` (start governed by the `when` trigger — `"always"` default vs
+  `"on-skill-invoke:<skill-name>"`; every stdout line reaches Claude as a notification).
   `config.md` now names the surfaces and their checks, and the hub's index row routes them there.
 
 ## [0.4.0] - 2026-07-31
