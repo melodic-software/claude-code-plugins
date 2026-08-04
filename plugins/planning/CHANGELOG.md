@@ -3,6 +3,49 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.27.3]
+
+### Added
+
+- **`session-config.md`: the step the source post puts *ahead* of both knobs, and the
+  ambiguity signal it attaches to the model dial.** The "Two orthogonal knobs" section is a
+  faithful digest of
+  [Choosing a Claude model and effort level in Claude Code](https://claude.com/blog/claude-model-and-effort-level-in-claude-code)
+  — "confidently wrong despite full context" tracks the post's "confidently wrong no matter
+  how much context you give it" — but it carried the two branches without the post's prior
+  step and without its own citation, so a reader could not tell the doctrine from the live
+  values listed two sections below. Three gaps closed. **The prior step**: the post's first
+  instruction on a wrong answer is not to turn a dial at all — "your first instinct shouldn't
+  be to adjust a knob, but to examine the context you have provided" — and it names the
+  surfaces where the real fix usually lives (context, `CLAUDE.md`, task scoping). That step is
+  this skill's own product, which is why its absence mattered here specifically: the Brief
+  **is** the context fix, so a knob recommendation is now scoped to what a sharper Brief would
+  not have caught. **The fence**: the post's figure caption calls the try-versus-know
+  discriminator "a starting point, not a hard rule" — provenance disclosed in the section,
+  since a caption is authorial text but not body prose — and it scopes raising effort to "most
+  relevant if you selected an
+  effort level below the model's default" — neither qualifier was present, leaving the section
+  reading as a hard rule at every level. **The ambiguity signal**: the post pairs the larger
+  model with handling ambiguity and the smaller model with "specific instructions directing
+  execution", which is directly actionable for a skill whose rounds exist to retire ambiguity
+  — ambiguity that survived them argues up, a Brief precise enough to execute from argues
+  down.
+- **Why a vendor post is cited here for doctrine.** `playbooks`' calibration rule is that the
+  reference page defines and a post corroborates. It does not fire here, on two grounds the
+  section now records rather than leaving a later reader to re-derive. First, the harness docs
+  delegate this guidance to the post outright:
+  [model configuration](https://code.claude.com/docs/en/model-config) says "For guidance on
+  which model and effort level fit different kinds of work, see [the post] on the blog"
+  (verified 2026-08-04) — a reference page pointing AT the post is the strongest possible
+  ground for citing it. Second, no reference page states the try-versus-know **diagnostic**
+  itself. The claim is deliberately narrow, because two pages discriminate something adjacent:
+  [choosing a model](https://platform.claude.com/docs/en/about-claude/models/choosing-a-model)
+  orders the levers — "Tuning effort is often a better lever than switching models" — and the
+  [effort page](https://platform.claude.com/docs/en/build-with-claude/effort) pairs effort
+  against *prompting* ("raise effort rather than prompting around it"). Ordering a lever is not
+  diagnosing which failure you have, so the post owns the diagnostic while those pages own the
+  ordering.
+
 ## [0.27.2]
 
 ### Fixed
