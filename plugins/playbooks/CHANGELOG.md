@@ -32,7 +32,9 @@ only after that version increases.
   notification and the Messages API response-object field; the third is "A session event is emitted
   whenever fallback occurs," recipient unstated. Nothing in the card says the re-served model can
   observe the switch, so the rule says the signals are addressed to the surface rather than to the
-  model, and triggers on one reaching the session.
+  model, triggers on any in-context evidence of fallback (a relayed notice, the user saying so, a
+  surfaced session event), and names the residual case — a fallback no signal ever surfaces into
+  context — as undetectable from inside the session and the surface's to close.
 
   **Scope held to what the card states.** The card does not name which interfaces have
   non-configurable fallback, so the rule names none — in particular it does not claim Claude Code is
