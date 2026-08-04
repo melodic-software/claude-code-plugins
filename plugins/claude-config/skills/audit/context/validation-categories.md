@@ -122,8 +122,10 @@ Row-by-row criteria are in [audit-checklist.md](../reference/audit-checklist.md)
 effort settings". What governs the category:
 
 - **Scope** — `effortLevel`, `fallbackModel`, `availableModels`, `enforceAvailableModels` in the
-  settings files this skill already opens. `modelOverrides` values are deliberately not validated;
-  the checklist says why
+  settings files this skill already opens, `settings.local.json` included: `check-structure.sh`
+  reports those four by value while keeping env and permission entries as counts, so a local-only
+  misconfiguration is checkable without dumping the secrets beside it. `modelOverrides` values are
+  deliberately not validated; the checklist says why
 - **Fetch before reporting** — every row rests on upstream-owned behavior, so a finding requires the
   Phase 3.3 model-config fetch, not this file's wording
 - **Two authorities, and they can disagree** — the declared settings schema constrains `effortLevel`

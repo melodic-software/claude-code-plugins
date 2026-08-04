@@ -123,16 +123,20 @@ present, not what the values are. Where the schema and the harness disagree, the
 which.
 
 Apply `jq` recipes to `settings.json` and `~/.claude/settings.json`. For `settings.local.json`,
-follow this skill's safe-read rule and go through `check-structure.sh` rather than dumping values.
-Resolve current behavior from <https://code.claude.com/docs/en/model-config> when the audit runs,
-the way section F resolves environment variables against their own page.
+follow this skill's safe-read rule and go through `check-structure.sh`, which reports these keys by
+value — `Effort level`, `Fallback chain` (raw and post-dedup counts), `Fallback entries` in order,
+`Available models`, and `Enforce available models` — distinguishing `unset` from `(empty list)`
+because those are different findings. Env and permission entries stay counts there, so a key that
+lives only in the local file is still checkable without dumping the secrets beside it. Resolve
+current behavior from <https://code.claude.com/docs/en/model-config> when the audit runs, the way
+section F resolves environment variables against their own page.
 
 | Check | Severity | How to verify |
 | --- | --- | --- |
 | `effortLevel` is not `max` or `ultracode` | warning | `jq '.effortLevel'`. Model configuration states both are session-only and "are not accepted here"; the declared schema's `enum` omits them too, so a schema-aware editor already flags this. Report what the author loses — the level they asked for is not the one that persists — without asserting which level runs instead, which the page does not state. `CLAUDE_CODE_EFFORT_LEVEL` is the durable route to `max` |
 | `fallbackModel` satisfies both the declared `maxItems: 3` and the documented post-dedup cap | warning | These are two different tests and can disagree: the schema caps RAW array length at 3, while the page caps the chain "after duplicate removal", so `["sonnet","haiku","sonnet","opus"]` fails the schema at 4 entries but leaves exactly 3 after dedup. Report raw length over 3 as a schema violation, then dedupe in place with `jq '.fallbackModel \| reduce .[] as $m ([]; if index($m) then . else . + [$m] end)'` — `unique` would sort away the order the chain is tried in — and name any entry past the third as at risk of being ignored. Not "dead": allowlist-excluded entries are also dropped when the chain is read, and the page does not state whether that dropping happens before or after the cap |
 | `availableModels` does not mix a family wildcard with a specific entry of that family | warning | An entry naming a specific model "disables that family's wildcard entry": `["sonnet", "claude-sonnet-4-5"]` permits only Sonnet 4.5, not every Sonnet. Reached the same way by a Mantle ID and by an `ANTHROPIC_CUSTOM_MODEL_OPTION` value embedding a family name. This one is not silent — an alias narrowed to an older permitted version shows "a notice naming both the requested and substituted models" — so the finding is that the allowlist is narrower than its author meant, not that nothing surfaces. Report the models they most likely still expect to be selectable |
-| `enforceAvailableModels` is paired with a non-empty `availableModels` | error | `jq '.enforceAvailableModels, .availableModels'`. The key "has no effect when `availableModels` is unset or empty", so an administrator who set it believes the Default option is constrained when it is not — an enforcement bypass, which this skill's severity guide rates `error`. Both keys belong in the highest-precedence managed source, and managed sources do not merge; that placement is not decidable from the files this skill reads, so report the pairing, not the placement |
+| `enforceAvailableModels: true` is paired with a non-empty `availableModels` | error | `jq 'select(.enforceAvailableModels == true) \| .availableModels'` — the finding requires the flag to be `true` AND the list unset or empty. An explicit `false` is someone turning enforcement off on purpose and is never a finding, so gate on the value rather than the key's presence. When it does fire: the key "has no effect when `availableModels` is unset or empty", so an administrator who set it believes the Default option is constrained when it is not — an enforcement bypass, which this skill's severity guide rates `error`. Both keys belong in the highest-precedence managed source, and managed sources do not merge; that placement is not decidable from the files this skill reads, so report the pairing, not the placement |
 
 Model IDs in `modelOverrides` are not validated here: unknown keys are ignored rather than
 rejected, and deciding whether a key is a real Anthropic model ID means resolving it against

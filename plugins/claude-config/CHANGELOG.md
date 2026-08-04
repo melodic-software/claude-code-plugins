@@ -24,7 +24,22 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
 
   Three rows are `warning`. The `enforceAvailableModels` pairing is `error`, because this skill's own
   severity guide rates an enforcement bypass that way and that is what the finding is: an
-  administrator who set the key believes the Default option is constrained when it is not.
+  administrator who set the key believes the Default option is constrained when it is not. That row
+  fires only on `enforceAvailableModels: true` with the list unset or empty — an explicit `false` is
+  someone disabling enforcement deliberately, so the check gates on the value rather than the key's
+  presence.
+
+  **`check-structure.sh` now reports the four keys by value for `settings.local.json`.** Category H
+  can read `settings.json` and `~/.claude/settings.json` directly, but the safe-read rule routes the
+  local file through this helper, and the helper emitted only environment, permission, and plugin
+  counts — so a key living only in `settings.local.json` was invisible and its defect silently
+  missed. Counts could not have closed that: the allowlist wildcard rule turns on which family each
+  entry names, and the fallback cap turns on entry order. The four values are configuration
+  identifiers — level names, model names, a boolean — not credentials, so emitting them leaves the
+  secret guard untouched, and a test asserts env values and env key names still never appear.
+  `unset` and `(empty list)` are reported distinctly because they are different findings. Existing
+  output lines are unchanged; the new lines are appended, and the script's own suite covers the
+  addition (10 checks before, 24 after).
 
   **How loudly each surfaces differs, and the rows say so individually.** An earlier draft claimed a
   blanket runtime silence; that is false for the allowlist row, where a narrowed alias shows a
