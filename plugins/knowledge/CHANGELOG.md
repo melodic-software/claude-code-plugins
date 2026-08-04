@@ -4,6 +4,22 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.10.23]
+
+### Added
+
+- **Anthropic profile's applicability filter gains the `tag-exempt (<sub-shape>)` class.** The
+  vocabulary (`cc-applicable` / `mixed` / `api-only`) adjudicates API-vs-harness guidance, but some
+  rows carry no guidance for any surface it adjudicates — consumer-surface material, an archive's
+  own apparatus, metadata, or a navigation pointer — and the closest negative tag misdescribes what
+  such material is. The new class is one disposition with those four documented sub-shapes, the
+  sub-shape named at the row. It describes the material's genre and asserts nothing about harness
+  applicability — not a positive tag, not a negative claim — so it owes no live-doc citation and no
+  absence basis, and the near-miss disclosure burden never attaches; `api-only` remains reserved
+  for rows that DO assert a harness absence for their own specific assertion. Consistent with the
+  co-decided positive-tag rule (a positive tag asserts harness applicability and requires a
+  live-doc citation): the class carries neither assertion, so neither evidence obligation.
+
 ## [0.10.22]
 
 ### Changed

@@ -71,8 +71,9 @@ archive wrong in a way its own verification cannot catch:
 ## Claude-Code-applicability filter (with teeth)
 
 Anthropic docs mix API-surface guidance with harness-relevant guidance. Every digest tags each
-claim's applicability (`cc-applicable` / `api-only` / `mixed`), with evidence scaled to what
-the tag asserts:
+claim's applicability (`cc-applicable` / `api-only` / `mixed`, or the tag-exempt disposition
+below for material the vocabulary does not adjudicate), with evidence scaled to what the tag
+asserts:
 
 - **`cc-applicable` / `mixed` (positive claims):** verified against live code.claude.com docs at
   tag time — cite the URL consulted in the digest row. A positive tag assigned by inference,
@@ -123,6 +124,16 @@ the tag asserts:
   **one** attested instance against that two-instance base, and is enumerated no wider than that: a
   doc line describing some *other* model's tier is not harness-internal behavior toward the subject,
   fails (3)'s own test, and is disclosed as a near-miss without entering this list.
+- **`tag-exempt (<sub-shape>)` — material the vocabulary does not adjudicate.** One disposition
+  for rows carrying no guidance for ANY surface the applicability vocabulary adjudicates, with the
+  sub-shape named at the row. Four sub-shapes: `consumer-surface` (a different product surface,
+  e.g. claude.ai web/mobile), `archive-descriptive` (an archive's own apparatus and entry
+  structure), `metadata` (dates, titles, version labels), `navigation-pointer` (links and
+  cross-references). The disposition describes the material's genre and asserts nothing about
+  harness applicability — it is not a positive tag and not a negative claim — so it owes no
+  live-doc citation and no absence basis, and the near-miss disclosure burden never attaches.
+  `api-only` remains reserved for rows that DO assert a harness absence for their own specific
+  assertion.
 - **`cc-applicable`/`mixed` boundary:** a claim that names an API surface (parameter, endpoint,
   SDK call, model ID) tags `mixed` even when its guidance transfers to the harness;
   `cc-applicable` is reserved for claims naming no API surface. **Bare names are not API
