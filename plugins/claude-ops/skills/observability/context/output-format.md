@@ -35,6 +35,18 @@ Repo: <slug> · Branch: <name>
 
 5-hour blocks (current + prior 3): <inline summary>
 
+## Cache health (last <window>)
+
+| Model | Cache read | Cache creation | Read : create |
+|---|---:|---:|---:|
+| <model> | 8.4M | 0.9M | 9.3:1 |
+| <model> | 0.5M | 2.6M | 0.2:1 |
+| **Total** | **8.9M** | **3.5M** | **2.5:1** |
+
+A high read-to-creation ratio means caching is working. Creation staying high turn after turn means
+something keeps changing the request prefix — causes:
+<https://code.claude.com/docs/en/prompt-caching#actions-that-invalidate-the-cache>
+
 ## Rate-limit velocity
 
 - five_hour: avg <V%>/hr, current used <U%>, projected 100% in <T hr> (resets in <R hr>) — <severity>
@@ -99,6 +111,10 @@ Top recurring (same `<bin>:<sha16>` ≥ 3×):
 - **Currencies** always 2-decimal, prefixed `$`
 - **Durations** ms when < 1000, otherwise `Xs` with one decimal
 - **Empty sections** render with `_no data — <reason>_` not omitted (presence-of-section is itself signal)
+- **Cache health is reported, never graded** — upstream documents the read-to-creation direction but
+  publishes no threshold, so any HIGH/MEDIUM cutoff would be invented here rather than sourced. It
+  is also the one section sourced from the OTEL store rather than ccusage, which is why it sits
+  apart from Token / cost instead of adding columns to it
 
 ## Severity coloring (terminal)
 

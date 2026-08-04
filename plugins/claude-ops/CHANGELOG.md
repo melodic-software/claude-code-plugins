@@ -3,6 +3,40 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.27.0]
+
+### Added
+
+- **`observability` reports cache health, the one cost signal its store already carried and its
+  report never rendered.** `cc_metrics` has always split `claude_code.token.usage` by `attr_type`
+  into `input` / `output` / `cacheRead` / `cacheCreation`, and `read-routing.md` has always pointed
+  historical token metrics at the query file — but no report section rendered the cache half, so it
+  reached an operator only if they went looking for it by hand. The skeleton now carries a **Cache
+  health** section and the routing table a question keyed to it, with the reading upstream supplies:
+  a high read-to-creation ratio is healthy, and creation staying high turn after turn means
+  something keeps changing the request prefix ([actions that invalidate the
+  cache](https://code.claude.com/docs/en/prompt-caching#actions-that-invalidate-the-cache),
+  verified 2026-08-04).
+
+  **Its own section rather than columns on Token / cost**, because the two differ in both source and
+  grain. Token / cost is ccusage-sourced per-model over a window; the cache split lives in the OTEL
+  store, and the pre-existing token-usage query is latest-session-scoped with no model dimension.
+  Widening that table would have mixed two sources silently and rendered a per-model row from
+  session-grain data. So this ships a **new per-model windowed query** rather than reusing the
+  existing one — verified by execution against a live OTEL store, not composed from the schema.
+
+  **Hot tier only, for a reason worth recording:** `cc_metrics_cold()` raises `IO Error: No files
+  found that match the pattern …` when the cold tier holds no parquet yet, so a hot+cold union
+  would break on any store that has not aged. The query file now says so where the union pattern
+  is documented.
+
+  **Reported at `INFO`, deliberately ungraded.** Every other numeric signal in this skill carries a
+  severity band, and this one does not: upstream states the direction without a threshold, so a
+  `HIGH`/`MEDIUM` cutoff would be a number this repo invented and then cited as if sourced. That
+  rule sits in Rendering rules, outside the skeleton's fence — a directive placed inside it would
+  be emitted verbatim into the operator's report. The invalidation causes stay behind the pointer
+  rather than being enumerated into a list that drifts as the harness adds actions.
+
 ## [0.26.0]
 
 ### Changed
