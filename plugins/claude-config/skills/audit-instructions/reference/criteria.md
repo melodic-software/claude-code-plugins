@@ -1,5 +1,5 @@
 ---
-version: 1.11.0
+version: 1.12.0
 last-updated: 2026-08-04
 ---
 
@@ -104,8 +104,10 @@ I15–I22 apply to all surfaces; I13 and I14 name narrower surface sets in their
   <https://platform.claude.com/docs/en/build-with-claude/refusals-and-fallback>
 - Introducing Claude Fable 5 and Claude Mythos 5 (which models carry the safety classifiers) —
   <https://platform.claude.com/docs/en/about-claude/models/introducing-claude-fable-5-and-claude-mythos-5>
-- Thinking (the sanctioned reasoning-visibility path, the `display` field, and the thinking-block
-  round-trip protocol) — <https://platform.claude.com/docs/en/build-with-claude/thinking>
+- Thinking (the sanctioned reasoning-visibility path, the `display` field, the thinking-block
+  round-trip protocol, the models that reject a thinking-disable outright, and what a thinking or
+  effort change does to the cache prefix) —
+  <https://platform.claude.com/docs/en/build-with-claude/thinking>
 - Troubleshooting thinking (the per-request 400s, and the models the effort restriction covers) —
   <https://platform.claude.com/docs/en/build-with-claude/thinking-troubleshooting>
 - Model migration guide (the model ranges over which manual extended thinking is rejected) —
@@ -653,18 +655,21 @@ by `--opinion`.
   `OPINION`-tier. The *routing* half — which surface a class of content belongs in — is documented
   at features-overview, "Compare similar features", and is I3's concern, not this check's.
 
-### I17: Thinking disabled at an effort level that forbids it
+### I17: Thinking disabled where the model forbids it
 
 Tier `mechanical` · Authority `ANTHROPIC-DOCS` · Severity `error` · Surfaces: all. Unscoped —
 promotion gate MET: the claim is stated on a model-agnostic feature page, not in a model guide.
-**The model range is a Detect condition, not a `Model scope` annotation.** The source says the
-restriction "applies to Claude Opus 5 and later models", and the annotation's exact-string matching
-has no range form — annotating `opus-5` would make the row inert on the next generation while the
-restriction still holds. I20 handles a model range the same way.
+**The model ranges are Detect conditions, not a `Model scope` annotation.** One source says the
+restriction "applies to Claude Opus 5 and later models"; the other names Fable 5, Mythos 5 and
+Mythos Preview. The annotation's exact-string matching has no range form — annotating `opus-5` would
+make the row inert on the next generation while the restriction still holds, and no single
+annotation spans two disjoint families at once. I20 handles a model range the same way.
 
 Each row below carries its own decisive source; they share a subject, not a citation.
 
-**Base row: the rejected pairing.**
+**Base row: the configurations the model rejects.** Two arms with different shapes — a pairing that
+fails only at the top of the effort ladder, and a disable that fails at every level. Both are
+`error`, since both are a rejected request.
 
 - **Detect:** a surface that recommends, documents, or sets a **thinking-disable surface** —
   `MAX_THINKING_TOKENS=0`, `alwaysThinkingEnabled: false`, the `/config` global toggle, the
@@ -680,24 +685,39 @@ Each row below carries its own decisive source; they share a subject, not a cita
   effort-setting forms count — instruction text prescribing `/effort ultracode`, `--effort
   ultracode`, or `--settings` / Agent SDK `"ultracode": true` or `effortLevel: "ultracode"`. Match
   on the effort that reaches the request, not on the spelling.
-- **Remediate:** lower the effort to `high` or below, or leave thinking on — and state which, since
-  the pairing has no third resolution.
-- **Scope, and where the config check lives:** this row audits **instruction text**. The same
-  pairing expressed as *settings keys* is a config-mechanics finding and belongs to
+- **Second arm — the models that reject the disable outright, at every effort level.** Claude
+  Fable 5, Claude Mythos 5, and Claude Mythos Preview reject `thinking: {type: "disabled"}`
+  whatever effort is in force, so on that family the disable surface alone is the finding and no
+  effort operand has to be present for the request to fail. Read the effort operand as a condition
+  that *narrows* the Opus 5 arm, never as a precondition the whole row inherits — carried across, it
+  would pass a surface prescribing thinking-off at `high` on Fable 5 as compliant. **Only the API
+  form belongs to this arm.** On **Fable 5** the harness thinking-disable surfaces fail differently
+  — model configuration states thinking cannot be turned off there and that the session toggle,
+  `alwaysThinkingEnabled` and `MAX_THINKING_TOKENS=0` "have no effect there", so they are silent
+  no-ops rather than errors — and that failure is I17-a's, not this row's. **For Mythos 5 and Mythos
+  Preview the harness pages state nothing**, so this row makes no claim about their harness surfaces
+  in either direction; the API reject is the whole of what is stated for them.
+- **Remediate:** on the Opus 5 arm, lower the effort to `high` or below, or leave thinking on — and
+  state which, since the pairing has no third resolution. **On the second arm there is only one
+  resolution: leave thinking on.** No effort level permits the disable on that family, so a
+  remediation that offers the reader the choice sends them to a request that still fails.
+- **Scope, and where the config check lives:** this row audits **instruction text**. Either arm
+  expressed as *settings keys* is a config-mechanics finding and belongs to
   `claude-config:audit`, per this skill's own routing — an instruction-content catalog that also
   scanned settings files would claim authority a sibling already holds. Instruction text that
   happens to *live* in a settings file, such as a prompt-type hook's injected text, stays here: the
   discriminator is whether the content instructs, not which file holds it.
 - **Must NOT flag:** `effortLevel: max` as a literal to hunt — the settings schema accepts `"low"`,
   `"medium"`, `"high"`, `"xhigh"` only, so that string is unreachable there and an auditor sent
-  after it finds nothing and learns nothing. **A document that states the pairing in order to
+  after it finds nothing and learns nothing. **A document that states either arm in order to
   describe or forbid it** — this row, a model-adaptation delta chapter, a verification record
-  quoting it — on the same audience test I8-b applies: the pairing prescribed inside an operative
-  directive is a finding; a document *about* the pairing is not. **The bare `ultracode` prompt
+  quoting it — on the same audience test I8-b applies: either arm prescribed inside an operative
+  directive is a finding; a document *about* it is not. **The bare `ultracode` prompt
   keyword** — instruction text telling a reader to include it in a typed prompt runs one task as a
   workflow "without changing the session's effort level", so no effort reaches the request and the
-  rejected pairing never assembles. A thinking-disable surface named with no effort level in reach
-  of it.
+  rejected pairing never assembles. **A thinking-disable surface named with no effort level in reach
+  of it — on the Opus 5 arm only**, where the pairing is what fails. On the second arm that is the
+  finding itself, so this fence is scoped to the arm that earns it rather than to the row.
 - **Source:** effort — "On Claude Opus 5, thinking cannot be disabled at `xhigh` or `max` effort:
   requests that set `thinking: {"type": "disabled"}` at those levels return a 400 error."
   Corroborated at thinking-troubleshooting, which supplies the model range and adds that the
@@ -707,10 +727,22 @@ Each row below carries its own decisive source; they share a subject, not a cita
   and global thinking toggles, and ultracode — the last enumerating the three routes that turn the
   *setting* on (`/effort`, `--effort`, `--settings` / Agent SDK). The keyword's separation from the
   setting is read from workflows, "Ask for a workflow in your prompt": including `ultracode` in a
-  prompt runs "a single task as a workflow without changing the session's effort level".
-- **Verified 2026-08-03** against those pages, fetched as raw markdown. **Recheck trigger:** the
+  prompt runs "a single task as a workflow without changing the session's effort level". The second
+  arm is thinking's, stated in the paragraph directly after that page's own statement of the Opus 5
+  arm: "Claude Fable 5, Claude Mythos 5, and Claude Mythos Preview reject `thinking: {type:
+  "disabled"}`: thinking cannot be turned off on these models." That sentence carries no effort
+  qualifier, which is what makes the arm unconditional rather than a wider pairing — and the
+  adjacency is why the two must be read as separate arms rather than one range.
+- **Local coverage of the second arm, measured 2026-08-04: zero operative instances in the
+  repository that authored it.** The disable literal occurs six times across four files — three in
+  this catalog, once in the Opus 5 model-adaptation delta chapter, twice in changelog entries — and
+  every one is a document *about* the restriction, which is the audience-test fence above rather
+  than a passed check. **Re-measure when** a surface here begins prescribing a thinking-disable
+  instead of describing one.
+- **Verified 2026-08-04** against those pages, fetched as raw markdown. **Recheck trigger:** the
   effort level set gaining or losing a name, the set of `ultracode` forms that reach `xhigh`
-  changing, or the restriction's model range moving.
+  changing, the restriction's model range moving, or the set of models that reject the disable
+  outright changing.
 
 **Row I17-a: `MAX_THINKING_TOKENS=0` presented as a universal off switch** · Tier `mechanical` ·
 Severity `warning`.
@@ -720,7 +752,10 @@ Severity `warning`.
   `alwaysThinkingEnabled` — and on third-party providers it omits the `thinking` parameter instead,
   so an adaptive-reasoning model may still think. Also flag text treating
   `CLAUDE_CODE_DISABLE_THINKING` as equivalent: that variable omits the parameter on every
-  provider, which on a model that thinks by default leaves it still thinking.
+  provider, which on a model that thinks by default leaves it still thinking. Also flag text
+  presenting the session thinking toggle or `alwaysThinkingEnabled` as turning thinking off on
+  Fable 5 — model configuration states they "have no effect there", so the reader is promised a
+  control that is a silent no-op on that model.
 - **Remediate:** carry the exceptions with the claim, or point at the page instead of restating it.
 - **Adjacent axis:** this is also a harness-capability claim, so **I12 can fire on the same line**.
   I12 asks whether the claim matches its page; this row asks whether a reader following it gets the
@@ -732,26 +767,61 @@ Severity `warning`.
   `0` omits the `thinking` parameter instead". Model configuration heads the same control "Disable
   regardless of effort", so a surface repeating that heading unqualified inherits a claim the
   variable's own page contradicts.
-- **Verified 2026-08-02** against those two pages, fetched as raw markdown. **Recheck trigger:** the
-  set of models that cannot disable thinking changing.
+- **Verified 2026-08-02** against those two pages, fetched as raw markdown; the session-toggle and
+  `alwaysThinkingEnabled` arm re-verified 2026-08-04 against model configuration. **Recheck
+  trigger:** the set of models that cannot disable thinking changing.
 
-**Row I17-b: mid-session effort change prescribed without its cost** · Tier `mechanical` ·
-Severity `info`.
+**Row I17-b: mid-session thinking or effort change prescribed without its cost** · Tier
+`mechanical` · Severity `info`.
 
-- **Detect:** an instruction directing a reader to change effort part-way through a session without
-  naming what it costs. Effort is part of the cache key, so the next request re-reads the whole
-  conversation uncached.
-- **Must NOT flag: a Claude Code surface**, where the harness already surfaces the cost — it "asks
-  you to confirm before applying the change", and a change resolving to the level already in effect
-  skips the dialog and keeps the cache. This row is for surfaces instructing an API or Agent SDK
-  caller, where no dialog exists. Nor flag a change prescribed *with* its cost stated, which is the
-  remediation.
-- **Remediate:** name the re-read cost, and prefer choosing effort at session start.
+- **Detect:** an instruction directing a reader to change **effort**, or the **thinking
+  configuration**, part-way through a session without naming what it costs. Both are rendered into
+  the request, so either change starts a new cache prefix and the next request re-reads the whole
+  conversation uncached. The thinking half covers switching among `adaptive`, `enabled` and
+  `disabled`, and changing `budget_tokens`.
+- **Must NOT flag: a Claude Code surface prescribing an *effort* change**, where the harness already
+  surfaces the cost — it "asks you to confirm before applying the change", and a change resolving to
+  the level already in effect skips the dialog and keeps the cache. Nor flag a change prescribed
+  *with* its cost stated, which is the remediation.
+- **Reach differs by half, and this is the whole of it.** The effort half reaches every surface, with
+  Claude Code surfaces carved out above. **The thinking half reaches API and Agent SDK surfaces
+  only** — that is where the page's claim is anchored and where no dialog exists. A Claude Code
+  surface prescribing a mid-session thinking toggle is **out of reach of this row**, neither excused
+  by the effort carve-out nor flagged by the thinking half.
+- **Why the carve-out does not simply extend to thinking, and why the row stops short instead.**
+  Claude Code's prompt-caching page names exactly two settings that sit outside the prompt text and
+  are still part of the cache key — model and effort level — and documents the confirmation dialog
+  for effort alone. So the dialog's protection cannot be assumed for a thinking toggle; but the
+  harness-side *consequence* of one is equally undocumented, and this catalog does not flag what its
+  sources do not state. Hence out of reach rather than covered. **Re-scope when** the harness
+  documents what a mid-session thinking change costs.
+- **Why the thinking half is not I17-c, and why both can fire — on accepted changes only.** This
+  row asks what a change *costs* — a switch among the modes, or a change to `budget_tokens`,
+  restarts the cache when the new configuration is accepted and a turn runs under it. I17-c asks
+  whether a fixed budget is a valid control on the target model at all, and where it applies the
+  cost claim may never materialize: an API request the model rejects with a validation error
+  completes no turn, and a harness value the model silently ignores changes no configuration — in
+  both cases the reader's actual outcome is I17-c's finding alone, and adding this row's cache-cost
+  remediation would be a second, misleading instruction. So: a mid-session change between
+  configurations the model accepts gets this row; a prescription I17-c already condemns as not a
+  valid control gets I17-c alone. Report both only where a surface prescribes both an invalid
+  control and, separately, an accepted mid-session change.
+- **Local coverage of the thinking half, measured 2026-08-04: zero operative instances here.** The
+  session-toggle and `budget_tokens` literals appear only in this catalog, in two model-adaptation
+  delta chapters, and in changelog entries — descriptions, not prescriptions.
+- **Remediate:** name the re-read cost, and prefer choosing both dials at session start.
 - **Source:** prompt caching — "**Effort level**: each effort level has its own cache for the same
   model. Changing it mid-session recomputes the entire request, and Claude Code asks you to confirm
-  before applying the change."
-- **Verified 2026-08-02** against that page, fetched as raw markdown. **Recheck trigger:** effort
-  leaving the cache key, or the confirmation behavior changing.
+  before applying the change." The thinking half is thinking's, which puts the thinking
+  configuration and the resolved effort level in the same position — both "are rendered into the
+  prompt itself, so changing any of them starts a new cache prefix" — and then enumerates the
+  changes: "Switching between `adaptive`, `enabled`, and `disabled`, changing `budget_tokens`,
+  and changing the effort value all invalidate cache breakpoints: message-level breakpoints always
+  miss, and tool and system-prompt breakpoints can miss too, depending on where the model renders
+  the configuration."
+- **Verified 2026-08-04** against those two pages, fetched as raw markdown. **Recheck trigger:**
+  effort or the thinking configuration leaving the cache key, the confirmation behavior changing, or
+  the harness gaining a documented dialog for thinking changes.
 
 **Row I17-c: fixed thinking budget prescribed where adaptive reasoning ignores or rejects it** ·
 Tier `mechanical` · Severity `warning`. Unscoped — promotion gate MET: the claim is stated on

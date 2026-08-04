@@ -3,6 +3,70 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.21.4]
+
+### Changed
+
+- **`audit-instructions`: `I17` gains a second arm — the models that reject a thinking-disable
+  outright, at every effort level** (criteria 1.11.0 → 1.12.0). The base row detected a *pairing*: a
+  thinking-disable surface together with `xhigh` or `max` effort, on Opus 5 and later. The Thinking
+  page states a second restriction in the paragraph directly after that one — "Claude Fable 5,
+  Claude Mythos 5, and Claude Mythos Preview reject `thinking: {type: "disabled"}`: thinking cannot
+  be turned off on these models" — with no effort qualifier at all.
+
+  **The gap was a wrong remediation, not only a missed case, which is why this amends the base row
+  rather than adding a sibling.** Either reading of the old row's range was a defect. Read as
+  covering Fable 5, the row fired and handed out `Remediate`'s "lower the effort to `high` or below,
+  or leave thinking on" — advice whose first branch still returns a 400 on that family. Read as
+  excluding it, the unconditional reject went undetected and the row's own `Must NOT flag` fence
+  ("a thinking-disable surface named with no effort level in reach of it") actively excused it. Both
+  are now scoped to the arm that earns them: the fence applies to the Opus 5 arm, and the second
+  arm's remediation has one branch, not two.
+
+  **Only the API form joins the second arm.** On **Fable 5** the harness disable surfaces —
+  `MAX_THINKING_TOKENS=0`, the session toggle, `alwaysThinkingEnabled` — are silent no-ops rather
+  than errors, which is `I17-a`'s failure and stays there; for **Mythos 5 and Mythos Preview the
+  harness pages state nothing**, so the row claims nothing about their harness surfaces. The
+  scoping matters because model configuration names Fable 5 alone and never discusses Mythos
+  — asserting the family would be the catalog breaking its own does-not-state standard. The row
+  heading changes from "at an
+  effort level that forbids it" to "where the model forbids it", since an arm with no effort operand
+  no longer fits the old wording. **Local coverage measured, not asserted:** zero operative
+  instances, with all six occurrences of the disable literal being documents *about* the
+  restriction — the audience-test fence, not a passed check.
+
+- **`audit-instructions`: `I17-b` extends from effort churn to thinking churn, and its harness
+  carve-out is re-scoped to the half that earns it.** The row detected a mid-session *effort* change
+  prescribed without its cache cost. The Thinking page puts the thinking configuration in the same
+  position as effort — both "are rendered into the prompt itself, so changing any of them starts a
+  new cache prefix" — naming switches among `adaptive`, `enabled` and `disabled` and changes to
+  `budget_tokens`.
+
+  **The carve-out is the load-bearing part.** The old row excused "a Claude Code surface" wholesale,
+  because the harness "asks you to confirm before applying the change". That dialog is documented
+  for effort alone: `code.claude.com/docs/en/prompt-caching` names exactly two settings outside the
+  prompt text that are still part of the cache key — model and effort level. Left unscoped, the
+  extended row would have silently asserted that the harness warns before a thinking toggle, which
+  nothing upstream says. The carve-out now names effort explicitly, and the thinking half is stated
+  for the API and Agent SDK callers the page's claim actually covers rather than reaching for a
+  harness consequence the docs do not carry.
+
+- **`audit-instructions`: the Thinking page's Sources entry names the two properties these arms rest
+  on** — the models that reject a thinking-disable outright, and what a thinking or effort change
+  does to the cache prefix. `I17` base and `I17-b` were re-verified live against their full source
+  sets on 2026-08-04 and carry that stamp; `I17-a` carries a split stamp — only its new
+  session-toggle/`alwaysThinkingEnabled` clause was re-verified 2026-08-04, its original claims
+  keep their 2026-08-02 check; `I17-c` is untouched and keeps its own. `I17-a`'s Detect gains the harness controls its explanation already
+  named: the session thinking toggle or `alwaysThinkingEnabled` presented as turning thinking off on
+  Fable 5 is now flagged (model configuration states they "have no effect there") — previously the
+  base row routed that failure to `I17-a` while no arm of it actually detected it. `I17-b` also
+  gains a reach clause — its thinking half covers API and Agent SDK surfaces only, since the harness
+  documents neither a dialog nor a cost for a mid-session thinking toggle — and a co-firing note
+  against `I17-c` scoped to accepted changes: a rejected request completes no turn and an ignored
+  value changes no configuration, so where `I17-c` condemns the control the cache-cost claim never
+  materializes and `I17-c` fires alone; both fire only when a surface prescribes both an invalid
+  control and, separately, an accepted mid-session change.
+
 ## [0.21.3]
 
 ### Added
