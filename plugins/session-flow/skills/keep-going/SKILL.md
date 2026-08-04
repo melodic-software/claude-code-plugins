@@ -39,7 +39,7 @@ or not.
    against real output *before* acting; it may be alive and progressing.
 
 Either way the flow is identical: inventory → inspect the real state →
-act on evidence → continue.
+align on the recorded goal → act on evidence → continue.
 
 ## Intent comes from the conversation, not the arguments
 
