@@ -358,9 +358,12 @@ choice, on the same reasoning I10 applies to a declined widening.
   consequence above. **Verified 2026-08-04** against that page, fetched as raw markdown.
   **Recheck trigger:** a second model name appearing beside Claude Opus 5 in either section that
   states the claim — the Opus 5 guide's "Running with thinking disabled", or this page's "Tool
-  calls or XML tags appear in the text output" — which is what would move the promotion gate.
-  Neither page enumerates the models that do *not* leak, so those two sections are the whole of
-  what there is to re-read.
+  calls or XML tags appear in the text output". A new name re-opens the scoping question, not the
+  gate itself: the added model joins as a named Detect condition, and unscoping still requires
+  what the gate has always required — an unqualified model-agnostic statement, or convergent model
+  guides — since a claim qualified to two models licenses nothing about the rest. Neither page
+  enumerates the models that do *not* leak, so those two sections are the whole of what there is
+  to re-read.
 
 **Row I8-d: short-turn assumptions** · Tier `behavioral` · Model scope: `fable-5`.
 
