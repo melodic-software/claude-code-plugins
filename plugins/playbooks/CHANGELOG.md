@@ -4,6 +4,28 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.6.15]
+
+### Fixed
+
+- **`fable-5` orchestration: continuing an oriented worker is no longer sold as a cache read**
+  (playbooks 0.6.14 → 0.6.15). The "keep working while workers run" chapter told readers to
+  continue a worker that already holds a subject rather than spawn a replacement, and grounded it
+  in cost: "accumulated context is a cache read rather than a re-derivation". The mechanism fails
+  in the chapter's own modal case. Claude Code's prompt-caching page states that a subagent
+  "builds its own cache" and that "Subagents use the five-minute TTL even on a subscription, since
+  the automatic one-hour TTL applies to the main conversation" — so a worker resumed after a wave
+  that ran longer than five minutes re-writes its whole accumulated context at the five-minute
+  cache-write rate ("1.25 times the base input tokens price"), not the cache-read rate, and
+  fan-out waves routinely run longer than five minutes.
+
+  The recommendation survives unchanged; its reason is corrected. The saving is the re-derivation,
+  not the tokens: a continued worker re-sends its accumulated context either way, and it still
+  beats a replacement, which pays those same tokens *plus* the tool turns to rediscover the
+  material. The bullet now says that, names the five-minute subagent TTL as the reason a resumed
+  worker often pays the higher rate, and cites
+  <https://code.claude.com/docs/en/prompt-caching#subagents-and-the-cache> (verified 2026-08-04).
+
 ## [0.6.14]
 
 ### Changed
