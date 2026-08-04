@@ -95,10 +95,11 @@ only after that version increases.
   `https://www.anthropic.com/claude-opus-5-system-card` to the `www-cdn.anthropic.com` PDF it
   redirects to (the card is in neither docs `llms.txt`, so that redirect is its only discovery
   path), and is byte-identical to the captured snapshot — 15,994,568 bytes, SHA-256
-  `897768f0…f91ca472`. Byte-identity also confirms the deferred routing-lane trigger is still
-  unfired: neither the bug-bounty update nor a Haiku measurement has landed. The quotation note now
-  covers the card fragments too, with the reason they stay verbatim — "slightly more", "similarly to
-  Opus 4.8", and "within noise" are exactly the qualifiers a loose paraphrase drops.
+  `897768f0…f91ca472`. On the deferred routing-lane trigger, byte-identity proves only that the
+  card itself still records neither the bug-bounty update nor a Haiku measurement — both could
+  publish in a separate channel, so a trigger check reads those channels, not the hash. The
+  quotation note now covers the card fragments too, with the reason they stay verbatim —
+  "slightly more" and "similarly to Opus 4.8" are exactly the qualifiers a loose paraphrase drops.
 
 ## [0.6.11]
 
