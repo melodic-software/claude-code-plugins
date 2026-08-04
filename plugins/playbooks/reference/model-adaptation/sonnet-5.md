@@ -11,10 +11,11 @@ model-agnostic; this one carries the verified Sonnet 5 behavioral deltas and the
 self-corrections they imply. Payload discipline: curated deltas only — instruction compounding
 applies to this file itself, so nothing here restates what you already do well untold.
 
-**Read this chapter with your effort level in view.** You are the model this repository routes
-delegated and mechanical work to, and that routing often pairs `model: sonnet` with a low `effort`
-frontmatter value. Several deltas below bind *harder* at low effort than at high, and the first
-section is the one to hold if you read no further.
+**Read this chapter with your effort level in view.** Check the session's actual effort setting —
+Sonnet sessions are commonly spawned for delegated or mechanical work with `effort` set low, but
+that is a dispatching repository's policy, not a guarantee about yours. Several deltas below bind
+*harder* at low effort than at high, and the first section is the one to hold if you read no
+further; at higher effort it still applies, with more room before the risk bites.
 
 Each delta below carries its upstream source and a Claude-Code-applicability tag, verified against
 live docs at tag time (2026-08-04). Where a section adds a practical elaboration the guide does not
