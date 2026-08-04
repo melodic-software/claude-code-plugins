@@ -3,6 +3,28 @@
 All notable changes to the `claude-memory` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.4]
+
+### Changed
+
+- **`audit`'s C2 deletion test now runs per line, as the official docs state it** (claude-memory
+  0.5.3 → 0.5.4; criteria 1.4.0 → 1.5.0). The check evaluated whole H1/H2 sections — "Would Claude
+  make mistakes without this section?" — but the source it quotes tests each line: "For each line,
+  ask: 'Would removing this cause Claude to make mistakes?' If not, cut it." A section-level pass
+  let keep-worthy lines shield surplus neighbors in the same section. Sections remain as the
+  report's grouping unit only: findings are per line, and a section whose every line flags
+  collapses into one section-level finding. `context/fix.md`'s C2 fix pattern follows.
+
+### Added
+
+- **`audit`'s C1 carries the official symptom-first diagnostic for over-long files.** C1's
+  rationale already stated the causal claim (long files reduce adherence); it now also codifies the
+  reverse tell as detect guidance — "If Claude keeps doing something you don't want despite having
+  a rule against it, the file is probably too long and the rule is getting lost" — so an audit
+  prompted by a rule being ignored cites the tell and reports the length finding even below the
+  WARN threshold. The sourced quote lands in `reference/official-guidance.md` per the determinism
+  contract.
+
 ## [0.5.3]
 
 ### Added

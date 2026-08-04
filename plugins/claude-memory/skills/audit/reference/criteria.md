@@ -1,6 +1,6 @@
 # Memory Health Criteria
 
-Version: 1.4.0
+Version: 1.5.0
 Last updated: 2026-08-04
 Source: Official Claude Code docs (code.claude.com/docs/en/memory, code.claude.com/docs/en/best-practices, code.claude.com/docs/en/sub-agents, code.claude.com/docs/en/skills)
 
@@ -29,26 +29,31 @@ To refresh this file against current official guidance, run the skill's `update`
 **Why**: Official docs: "Target under 200 lines per CLAUDE.md file. Longer files consume more context
 and reduce adherence." Files over 200 lines cause Claude to ignore instructions.
 
+**Diagnostic**: The symptom-first tell for this check: "If Claude keeps doing something you don't
+want despite having a rule against it, the file is probably too long and the rule is getting lost"
+(code.claude.com/docs/en/best-practices). When the audit was prompted by a rule being ignored, cite
+this tell and report the length finding even below the WARN threshold.
+
 **Allowances**: Complex monorepos using `.claude/rules/` extensively may justify overages, and a repo
 may document a deliberate exemption in its own rules (see SKILL.md "Consumer-convention extension
 seam"). Report overage and justification together.
 
-### C2: Deletion Test [WARN per section]
+### C2: Deletion Test [WARN per line]
 
-**What**: For each top-level section (H1/H2), ask: "Would Claude make mistakes without this section?"
+**What**: For each line, ask: "Would removing this cause Claude to make mistakes?" If not, cut it.
 
 **How to check**:
 
-1. Parse the file into sections by H1/H2 headers
-2. For each section, evaluate:
-   - Does this contain commands Claude can't guess? → KEEP
-   - Does this contain gotchas or non-obvious patterns? → KEEP
-   - Does this contain project-specific conventions? → KEEP
+1. For each line, evaluate:
+   - A command Claude can't guess? → KEEP
+   - A gotcha or non-obvious pattern? → KEEP
+   - A project-specific convention? → KEEP
    - Could Claude figure this out by reading the code? → FLAG
-   - Is this a standard convention any senior engineer knows? → FLAG
-   - Is this detailed reference material better suited to a skill? → FLAG
-3. WARN for each section that fails the deletion test
-4. Include the reason ("could infer from code", "standard practice", "move to skill")
+   - A standard convention any senior engineer knows? → FLAG
+   - Detailed reference material better suited to a skill? → FLAG
+2. WARN per flagged line, with the reason ("could infer from code", "standard practice", "move to
+   skill"); group findings by H1/H2 section, and collapse a section whose every line flags into one
+   section-level finding
 
 **Why**: Official docs: "For each line, ask: 'Would removing this cause Claude to make mistakes?' If
 not, cut it. Bloated CLAUDE.md files cause Claude to ignore your actual instructions!"
