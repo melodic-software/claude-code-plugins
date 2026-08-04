@@ -4,6 +4,21 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.10.22]
+
+### Changed
+
+- **Anthropic profile's model-matching table catches up with the dateless model-ID scheme.** The
+  table's model-pin cell warned "never a bare family alias, which resolves to the current family
+  model" and demanded "a full model ID" — vocabulary from the dated-snapshot era. The live
+  model-IDs-and-versioning page now states that since the 4.6 generation the canonical model ID is
+  dateless (`claude-{name}-{major}[-{minor}]`) and "is not an alias. It is the snapshot", so the
+  old wording would misclassify exactly the correct pin for a current-generation model guide as a
+  forbidden alias and fall through to the session default. The cell now pins "its pinned model ID
+  — never an alias that can move to a newer snapshot", and a sentence under the table routes the
+  generation-dependent pinned-vs-alias resolution to the live page at spawn time
+  (pointer-not-copy; verified against the live page 2026-08-04, raw `.md` channel, 3836 bytes).
+
 ## [0.10.21]
 
 ### Changed

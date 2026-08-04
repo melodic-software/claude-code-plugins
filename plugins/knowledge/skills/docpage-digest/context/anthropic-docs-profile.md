@@ -172,9 +172,14 @@ behavioral descriptions:
 
 | Doc subject | Digest-agent model |
 |---|---|
-| Guide/card about a specific Claude model | The exact model version the doc describes, resolved to a full model ID — never a bare family alias, which resolves to the current family model and would digest a historical guide on the wrong version. When no exact-version ID is resolvable, omit the override (session default) |
+| Guide/card about a specific Claude model | The exact model version the doc describes, resolved to its pinned model ID — never an alias that can move to a newer snapshot, which would digest a historical guide on the wrong version. When no pinned ID is resolvable, omit the override (session default) |
 | Cross-model or harness doc (best practices, effort, guardrails) | Session default (no override) |
 | Non-Claude subject | Session default (no override) |
+
+Pinned-vs-alias semantics are generation-dependent — since the 4.6 generation the dateless ID is
+itself the pinned snapshot, while earlier models pin a dated snapshot and their dateless aliases
+move — resolve them at spawn time against the live
+[model IDs and versioning page](https://platform.claude.com/docs/en/about-claude/models/model-ids-and-versions).
 
 Every model-pinned spawn brief uses the conditional framing contract from `SKILL.md` Phase 3
 ("this brief assumes model X; if you are not X, note the mismatch and continue").
