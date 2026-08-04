@@ -31,8 +31,10 @@ and reduce adherence." Files over 200 lines cause Claude to ignore instructions.
 
 **Diagnostic**: The symptom-first tell for this check: "If Claude keeps doing something you don't
 want despite having a rule against it, the file is probably too long and the rule is getting lost"
-(code.claude.com/docs/en/best-practices). When the audit was prompted by a rule being ignored, cite
-this tell and report the length finding even below the WARN threshold.
+(code.claude.com/docs/en/best-practices). When the audit was prompted by a rule being ignored, add a
+C1 WARN citing this tell even when steps 4-6 pass. The branch is prompt-conditioned, so it belongs
+to the judgment tier — label it "judgment candidate" in the report; steps 1-6 remain the
+deterministic spine, unaffected.
 
 **Allowances**: Complex monorepos using `.claude/rules/` extensively may justify overages, and a repo
 may document a deliberate exemption in its own rules (see SKILL.md "Consumer-convention extension
@@ -44,14 +46,17 @@ seam"). Report overage and justification together.
 
 **How to check**:
 
-1. For each line, evaluate:
+1. Strip HTML comment blocks (human-only reference, as in C1) and skip blank and purely structural
+   lines (headers, separators, table/list scaffolding) — only substantive instruction lines enter
+   the loop
+2. For each remaining line, evaluate:
    - A command Claude can't guess? → KEEP
    - A gotcha or non-obvious pattern? → KEEP
    - A project-specific convention? → KEEP
    - Could Claude figure this out by reading the code? → FLAG
    - A standard convention any senior engineer knows? → FLAG
    - Detailed reference material better suited to a skill? → FLAG
-2. WARN per flagged line, with the reason ("could infer from code", "standard practice", "move to
+3. WARN per flagged line, with the reason ("could infer from code", "standard practice", "move to
    skill"); group findings by H1/H2 section, and collapse a section whose every line flags into one
    section-level finding
 
