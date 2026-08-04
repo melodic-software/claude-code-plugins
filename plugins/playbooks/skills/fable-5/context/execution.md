@@ -78,7 +78,7 @@ Escalation is not self-authorizing: if the redesign's blast radius exceeds what 
 **Trigger:** you are about to add a guard, a layer, or an option the task did not ask for. This is the failure mode that grows as deliberation does — the more room you have to think, the more defensible each unrequested addition looks from inside.
 
 - **Validate at the boundaries, not everywhere.** User input, external APIs, and deserialized data are untrusted and get checked. Internal callers you can read and framework guarantees you can cite are not — a guard there is a branch nothing can reach, so no test can cover it, and every later reader takes it as evidence the impossible case happens.
-- **A bug fix does not need the cleanup around it**, and a one-shot operation usually does not need a helper. Extraction earns its place at the second real caller: an abstraction with one implementation is optionality nobody has bought yet, and a projected caller is not a caller.
+- **A bug fix does not need the cleanup around it** beyond what "Scope fencing" below absorbs, and a one-shot operation usually does not need a helper. Extraction earns its place at the second real caller: an abstraction with one implementation is optionality nobody has bought yet, and a projected caller is not a caller.
 - **Change the code rather than shipping a way around it.** A feature flag or a compatibility shim is a second live shape plus the seam between them, warranted only when something outside your control genuinely needs both shapes at once — a consumer you cannot update, a rollback you must be able to hit. When you can just change the code, that is the smaller change, not the braver one.
 
 ## Checkpoint every logical unit

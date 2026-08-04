@@ -66,7 +66,10 @@ only after that version increases.
   guarantees, cleanup around a bug fix, an abstraction ahead of its second caller, a flag or
   compatibility shim where changing the code is available. The guide files this under higher
   effort specifically, so the section says so — the more room there is to deliberate, the more
-  defensible each unrequested addition looks from inside.
+  defensible each unrequested addition looks from inside. The cleanup clause defers explicitly to
+  §"Scope fencing"'s absorb bar — in the section and in its core-doctrine line — so the two never
+  issue contradictory instructions for a qualifying in-file, under-two-minute, behavior-preserving
+  cleanup.
 
 - **Core-doctrine lines for all four**, in `skills/fable-5/SKILL.md`. Chapters load at their
   triggers; the core doctrine is what a bare-armed session carries. Three of these four fire

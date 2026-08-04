@@ -352,6 +352,11 @@ three trigger phrases (see Source), so this fires for every target model.
 - **Must NOT flag: a document *about* the pattern** — this row, a model-adaptation delta chapter
   counter-steering it for a different model, a verification record quoting it — on the same audience
   test I8-b applies.
+- **Must NOT flag: a cadence carrying its own explicit observability or interruptibility
+  rationale** — a rhythm the surface states exists so a long autonomous run stays visible or
+  interruptible names the very guarantee the Remediate line protects, and that design is the
+  surface's to make — unless evidence shows the cadence was calibrated to an obsolete turn length
+  rather than to the work.
 - **Scope, and what is deliberately outside it:** the guide pairs this behavior with advice to adjust
   **client timeouts, streaming, and progress indicators** before migrating. That half is harness
   client configuration rather than instruction content, so it is not audited here and no row claims

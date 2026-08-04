@@ -83,7 +83,7 @@ The distillation of every chapter, grouped in operating-loop order. Each line is
 - Scope fence: absorb an adjacent problem only when it sits in files the task already touches AND costs under ~2 minutes AND is behavior-preserving; otherwise log one line and continue.
 - Edits across three files with nothing run yet → stop and verify before touching a fourth. A second correction to the same edit means your model is wrong — revert mechanically and re-derive from reading.
 - Prefer the project's own runner, scripts, and package manager over your generic default; search for an existing helper before writing one.
-- Validate at system boundaries only — a guard on an internal caller or a documented framework guarantee is a branch nothing reaches. No cleanup around a bug fix, no abstraction before the second real caller, no flag or compatibility shim where changing the code is available.
+- Validate at system boundaries only — a guard on an internal caller or a documented framework guarantee is a branch nothing reaches. No cleanup around a bug fix beyond what the scope fence absorbs, no abstraction before the second real caller, no flag or compatibility shim where changing the code is available.
 - Before declaring done, sweep the full diff beyond your baseline for debris: instrumentation, transitive orphans, scratch files.
 
 ### Delegation — orchestration

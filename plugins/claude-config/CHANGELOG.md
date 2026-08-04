@@ -17,11 +17,14 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   progress rhythm pinned to a turn rather than to the work. Individual requests now run for
   minutes at higher effort and autonomous runs for hours, so such a rhythm fires on work that has
   not reached a reportable boundary and interrupts exactly the long runs the model is used for.
-  Three fences keep it off legitimate text: an output-length instruction is I8 base's subject, not
+  Four fences keep it off legitimate text: an output-length instruction is I8 base's subject, not
   this one's (the axis here is the turn's duration, never the reply's size); a latency or duration
   requirement the surface genuinely owns — an SLA, a downstream timeout, a human review rhythm — is
-  a constraint it is entitled to state; and a document *about* the pattern is exempt on the same
-  audience test I8-b, I17, I18 and I20 already use.
+  a constraint it is entitled to state; a document *about* the pattern is exempt on the same
+  audience test I8-b, I17, I18 and I20 already use; and a cadence carrying its own explicit
+  observability or interruptibility rationale is a design the surface is entitled to make — that is
+  the very guarantee the row's Remediate line protects — exempt unless evidence shows it was
+  calibrated to an obsolete turn length rather than to the work.
 
   The row is **lane-only, not seeded** by `instruction-scan.sh`, and `SKILL.md` now says so
   alongside the existing I8-c disclosure. A pattern family was considered and declined: the
