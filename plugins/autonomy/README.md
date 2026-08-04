@@ -109,7 +109,8 @@ merge:
    deliberately excluded — their only on-disk artifact is the user-writable cache
    `~/.claude/remote-settings.json`, which fails the root-owned trust test (the page itself calls
    the channel "a client-side control, not a security boundary") — so an org vetoing via the server
-   channel must also deliver an endpoint `managed-settings.json` to veto lanes.
+   channel must also deliver an endpoint `managed-settings.json` to veto lanes (the gate reads that
+   file directly; Claude Code itself ignores endpoint sources when server keys arrive).
 2. **The per-session arm record** — the `claude-ops` lane launcher arms a lane at launch: give the
    lane a `settings` object requesting the gate in its lanes-config entry (see that skill's
    `context/config.md`), and the launcher runs this plugin's `hooks/lane-stop-gate-arm.sh` (writing
