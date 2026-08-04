@@ -4,6 +4,31 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.6.8]
+
+### Fixed
+
+- **`fable-5`'s fresh-context verification trigger had no scope, so it fired on the
+  bookkeeping about the work as readily as on the work.**
+  `skills/fable-5/context/orchestration.md` §"Fresh-context verification" triggers on "any
+  multi-file edit batch" and "before declaring any multi-part task complete" — conditions a
+  batch of ledger, checklist, and status-row edits satisfies as fully as a batch of source
+  files. Observed in a real campaign: verifiers were spawned to verify process records, and
+  then to verify the records those verifications produced, so the process fed itself and the
+  ceremony outgrew the work. The section now carries a scope qualifier on the trigger, where
+  the misfire happens: the trigger ranges over what a consumer receives — code, docs someone
+  reads, config — and memory-tier bookkeeping and process records take the in-context floor
+  and stop there, however many files a batch of them touched, because a record's blast radius
+  is the session that reads it. The recursion stop is stated explicitly rather than left to
+  follow: **never spawn a verifier to verify a record OF a verification** — the record is
+  downstream of an already-verified artifact, so verifying it re-verifies nothing and each
+  pass produces another record to verify.
+
+  `context/verification.md` is deliberately untouched: its "Adversarial self-review" section
+  already scales depth with blast radius and already points at this section as the owner of
+  the gate and its exception, so the pointer is the wiring and prose there would be a second
+  copy of one rule.
+
 ## [0.6.7]
 
 ### Added
