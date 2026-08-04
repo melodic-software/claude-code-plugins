@@ -49,13 +49,16 @@ SELECT attr_type, sum(value)::BIGINT AS tokens
 FROM cc_metrics JOIN latest USING (session_id)
 WHERE metric_name = 'claude_code.token.usage' GROUP BY 1;
 
--- cache health by model over a window — the grain the report's Cache health section renders
+-- cache health by model over the requested scope — the grain the report's Cache health section
+-- renders. Consume the scope workflow's cutoff (data-sources.md derives SINCE_ISO per scope;
+-- `all` maps to epoch so the predicate still holds). For `session` scope, replace the cutoff
+-- line with:  AND session_id = '<session_id>'  (the workflow requires the session filter there).
 SELECT model,
        sum(value) FILTER (WHERE attr_type = 'cacheRead')::BIGINT     AS cache_read,
        sum(value) FILTER (WHERE attr_type = 'cacheCreation')::BIGINT AS cache_creation
 FROM cc_metrics
 WHERE metric_name = 'claude_code.token.usage'
-  AND event_time >= now()::TIMESTAMP - INTERVAL 7 DAY
+  AND event_time >= TIMESTAMP '<SINCE_ISO>'
 GROUP BY 1 ORDER BY cache_creation DESC;
 ```
 
