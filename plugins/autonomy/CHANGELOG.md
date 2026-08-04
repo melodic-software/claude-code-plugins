@@ -6,6 +6,19 @@ All notable changes to the `autonomy` plugin are documented here. Format follows
 Versions 0.1.0–0.7.0 predate this file (introduced with 0.7.1); their history lives in the
 merged work-package PRs (#333, #343, #356, #372, #377, #600, #676).
 
+## [0.12.1]
+
+### Changed
+
+- **`lane-stop-gate-lib.sh`: the server-managed settings channel's exclusion from the org-veto
+  source list is documented as deliberate.** The gate reads only endpoint managed-settings paths
+  plus `managed-settings.d/` drop-ins; [server-managed
+  settings](https://code.claude.com/docs/en/server-managed-settings) surface on disk only as the
+  user-writable cache `~/.claude/remote-settings.json`, which fails the root-owned trust test the
+  veto relies on — the page itself calls the channel "a client-side control, not a security
+  boundary". Comment at the exclusion site plus a README precedence-list note directing orgs on the
+  server channel to also deliver an endpoint `managed-settings.json`; no behavior change.
+
 ## [0.12.0]
 
 ### Changed

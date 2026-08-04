@@ -105,6 +105,11 @@ merge:
 
 1. **Managed settings** (fixed root-owned paths + `managed-settings.d/` drop-ins) — an org can veto
    with `lane_stop_gate_enabled: false`.
+   [Server-managed settings](https://code.claude.com/docs/en/server-managed-settings) are
+   deliberately excluded — their only on-disk artifact is the user-writable cache
+   `~/.claude/remote-settings.json`, which fails the root-owned trust test (the page itself calls
+   the channel "a client-side control, not a security boundary") — so an org vetoing via the server
+   channel must also deliver an endpoint `managed-settings.json` to veto lanes.
 2. **The per-session arm record** — the `claude-ops` lane launcher arms a lane at launch: give the
    lane a `settings` object requesting the gate in its lanes-config entry (see that skill's
    `context/config.md`), and the launcher runs this plugin's `hooks/lane-stop-gate-arm.sh` (writing
