@@ -3,6 +3,41 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.21.2]
+
+### Changed
+
+- **`audit-instructions`: I10's `Model scope: fable-5` is now positively sourced instead of resting
+  on a declined widening** (criteria 1.9.0 → 1.10.0). The row's conclusion does not move — Mythos 5
+  is still not in scope, and still should not be. What moves is the ground under it. Since 0.18.0
+  the row held its narrow scope by reading an omission: the Thinking page names both Claude Fable 5
+  and Claude Mythos 5 for the adjacent raw-chain-of-thought property, then names Fable 5 alone for
+  the refusal, and the row inferred deliberateness from that declined chance to widen. That is an
+  argument from authorial choice, and it is the weakest link in an otherwise well-cited row —
+  silence is evidence only until someone finds the sentence.
+
+  The sentence exists, on the page that owns Mythos 5: "Claude Fable 5 includes safety classifiers
+  that can decline certain requests. Claude Mythos 5 does not include these classifiers, so this
+  section applies to Claude Fable 5 only" ([Introducing Claude Fable 5 and Claude Mythos
+  5](https://platform.claude.com/docs/en/about-claude/models/introducing-claude-fable-5-and-claude-mythos-5),
+  fetched 2026-08-03, HTTP 200).
+
+  **The row states it as two steps, each from the page that owns its half**, rather than letting
+  either page settle it alone. The introducing page excludes the whole classifier *set* for
+  Mythos 5 — "these classifiers," referring to the set that can decline requests — and Refusals and
+  fallback puts this row's category inside that set, listing `reasoning_extraction` among the
+  categories a refusal reports. Collapsing the two into one citation would rebuild the near-miss
+  scope inheritance the catalog's model-scoping block forbids, only pointing the other way; keeping
+  them separate is what makes it a citation rather than an inference wearing one. Note that Refusals
+  and fallback attributes the classifiers to Claude Fable 5 **and Claude Opus 5** and never mentions
+  Mythos 5 — the exclusion is the introducing page's alone to state, which is why both are cited.
+
+  The introducing page joins `## Sources`, so the catalog-wide recheck trigger fires this row if the
+  page changes; which models carry the classifier set is a per-model fact and will move. No narrower
+  per-row trigger is owed, per the stamp rule's own carve-out for claims the Sources set already
+  covers. The 0.18.0 entry below is left as written — it records what shipped then, and the
+  reasoning it describes was correct for the sources available at the time.
+
 ## [0.21.1]
 
 ### Added
