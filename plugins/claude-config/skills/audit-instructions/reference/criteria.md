@@ -1,5 +1,5 @@
 ---
-version: 1.8.0
+version: 1.9.0
 last-updated: 2026-08-03
 ---
 
@@ -240,18 +240,30 @@ so this fires for every target model.
 
 Tier `behavioral` · Authority `ANTHROPIC-DOCS` · Severity `warning` · Surfaces: all.
 
-The base row and rows I8-a and I8-c carry their own `Model scope` (single-model guide sources;
+The base row and rows I8-a, I8-c and I8-d carry their own `Model scope` (single-model guide sources;
 promotion gate unmet). Row I8-b is unscoped — two model guides converge on it (see the row).
 
 **Base row** · Model scope: `fable-5`.
 
 - **Detect:** prior-model workarounds and over-prescriptive step lists — instructions enumerating
   behaviors a current model handles from a brief instruction, or scaffolding that pins an approach.
+  **One named worked instance, offered for recognition rather than as a separate rule: a delegation
+  throttle** — a cap on concurrent workers, a one-at-a-time rule, or an instruction to block until
+  each subagent returns before dispatching the next — where the surface's own ground for it is that
+  subagent handling is unreliable. Current guidance runs the other way, asking for readier
+  dispatch and asynchronous orchestrator-to-worker communication, so a throttle resting on that
+  premise is the generic case with a name on it. **A cap carrying its own non-model rationale is
+  not this instance** — reviewability of returns, rate limits, cost, or shared mutable state each
+  justify a bound on their own terms, and that justification is the surface's to make, not this
+  row's to override.
 - **Remediate:** propose removal or a briefer instruction; verify via the delete-and-watch loop
   that default performance holds or improves.
 - **Bounded by:** the **Stopping condition** below, which is enabled by default.
 - **Source:** Fable 5 guide — "Skills developed for prior models are often too prescriptive for
-  Claude Fable 5 and can degrade output quality."
+  Claude Fable 5 and can degrade output quality." The worked instance's basis is the same guide,
+  "Parallel subagents" — "Claude Fable 5 dispatches parallel subagents more readily than prior
+  models. Use subagents frequently … and prefer asynchronous communication between orchestrator and
+  subagents over blocking until each subagent returns."
 
 **Row I8-a: instructed self-check removal** · Tier `behavioral` · Model scope: `opus-5`.
 
@@ -318,6 +330,41 @@ three trigger phrases (see Source), so this fires for every target model.
 - **Source:** Opus 5 guide, "Running with thinking disabled" — "If your system prompt contains a
   rule instructing the model not to think or not to reason, remove it; that kind of instruction
   increases tag leakage"; naming thinking tags is "less effective than the general form."
+
+**Row I8-d: short-turn assumptions** · Tier `behavioral` · Model scope: `fable-5`.
+
+- **Detect:** instruction text resting on the premise that a turn is short — a forced interim-status
+  cadence ("summarize every N tool calls", "check in after each file"), a directive to answer
+  quickly or keep turns brief, or any required progress rhythm pinned to a turn rather than to the
+  work. Individual requests now run for many minutes at higher effort and autonomous runs for hours,
+  so a rhythm calibrated to the old turn length fires as noise on work that has not reached a
+  reportable boundary, and it interrupts precisely the long uninterrupted runs the model is being
+  used for.
+- **Remediate:** name the guarantee the cadence was protecting — that the user can see progress,
+  that a long run stays interruptible — and either state that outcome and let the model meet it, or
+  move it to a mechanism rather than an instructed rhythm. Verify via the delete-and-watch loop.
+- **Bounded by:** the **Stopping condition** below, which is enabled by default.
+- **Must NOT flag: an output-length instruction.** Brevity of the *reply* is a different subject and
+  belongs to I8 base; this row's subject is the cadence and duration of the *turn*.
+- **Must NOT flag: a latency or duration requirement the surface genuinely owns** — a product SLA, a
+  timeout a downstream contract imposes, a rhythm a human review process depends on. Those are
+  constraints the surface is entitled to state, not assumptions about how long a model takes.
+- **Must NOT flag: a document *about* the pattern** — this row, a model-adaptation delta chapter
+  counter-steering it for a different model, a verification record quoting it — on the same audience
+  test I8-b applies.
+- **Must NOT flag: a cadence carrying its own explicit observability or interruptibility
+  rationale** — a rhythm the surface states exists so a long autonomous run stays visible or
+  interruptible names the very guarantee the Remediate line protects, and that design is the
+  surface's to make — unless evidence shows the cadence was calibrated to an obsolete turn length
+  rather than to the work.
+- **Scope, and what is deliberately outside it:** the guide pairs this behavior with advice to adjust
+  **client timeouts, streaming, and progress indicators** before migrating. That half is harness
+  client configuration rather than instruction content, so it is not audited here and no row claims
+  it; a surface whose *instruction text* prescribes a short client timeout is the shape that would
+  reach this catalog, and none is attested.
+- **Source:** Fable 5 guide, "Longer turns by default" — "Individual requests on hard tasks can run
+  for many minutes at higher effort settings … and autonomous runs can extend for hours. This is one
+  of the largest shifts teams encounter when adjusting to Claude Fable 5."
 
 ### I9: Example hygiene
 

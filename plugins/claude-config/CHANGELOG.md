@@ -3,6 +3,55 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.21.1]
+
+### Added
+
+- **`audit-instructions`: row I8-d, short-turn assumptions** (criteria 1.8.0 → 1.9.0). Tier
+  `behavioral`, `Model scope: fable-5` — the promotion gate is unmet and stays unmet: the claim
+  appears in one model guide and on no model-agnostic page, so the row is inert on other targets
+  and reports `skipped-for-target`.
+
+  **Detect** is instruction text resting on the premise that a turn is short — a forced
+  interim-status cadence ("summarize every N tool calls"), a directive to answer quickly, any
+  progress rhythm pinned to a turn rather than to the work. Individual requests now run for
+  minutes at higher effort and autonomous runs for hours, so such a rhythm fires on work that has
+  not reached a reportable boundary and interrupts exactly the long runs the model is used for.
+  Four fences keep it off legitimate text: an output-length instruction is I8 base's subject, not
+  this one's (the axis here is the turn's duration, never the reply's size); a latency or duration
+  requirement the surface genuinely owns — an SLA, a downstream timeout, a human review rhythm — is
+  a constraint it is entitled to state; a document *about* the pattern is exempt on the same
+  audience test I8-b, I17, I18 and I20 already use; and a cadence carrying its own explicit
+  observability or interruptibility rationale is a design the surface is entitled to make — that is
+  the very guarantee the row's Remediate line protects — exempt unless evidence shows it was
+  calibrated to an obsolete turn length rather than to the work.
+
+  The row is **lane-only, not seeded** by `instruction-scan.sh`, and `SKILL.md` now says so
+  alongside the existing I8-c disclosure. A pattern family was considered and declined: the
+  phrasings are too varied for a rule that would earn its false-positive rate, and the one
+  candidate string in this repository resolves to the exempt meta case, so the family would have
+  shipped with a known false positive and no true one.
+
+  The guide pairs this behavior with advice to adjust **client timeouts, streaming, and progress
+  indicators**. That half is harness client configuration rather than instruction content, so the
+  row states plainly that it is out of scope and that no row claims it — the shape that *would*
+  reach this catalog is instruction text prescribing a short client timeout, and none is attested.
+
+### Changed
+
+- **`audit-instructions`: I8's base row gains one named worked instance — the delegation
+  throttle.** A cap on concurrent workers, a one-at-a-time rule, or an instruction to block until
+  each subagent returns, *where the surface's own ground is that subagent handling is unreliable*.
+  Current guidance runs the other way (readier dispatch, asynchronous orchestrator-to-worker
+  communication), so such a throttle is the base row's generic case with a name on it — which is
+  why it lands as recognition material inside I8 rather than as a fourth rule competing with it.
+  The qualifier is the whole fence: **a cap carrying its own non-model rationale is not this
+  instance.** Reviewability of returns, rate limits, cost, and shared mutable state each justify a
+  bound on their own terms, and that justification belongs to the surface making it. The base row's
+  Source gains the guide's "Parallel subagents" sentence as the instance's basis; the row restates
+  no volatile literal and so owes no per-row verification stamp under the catalog's own
+  binds-on-touch rule.
+
 ## [0.21.0]
 
 ### Added
