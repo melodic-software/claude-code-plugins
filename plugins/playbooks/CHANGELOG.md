@@ -4,6 +4,81 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.6.9]
+
+### Fixed
+
+- **`fable-5`'s late-session decay response could be triggered by a number, which is the
+  behavior the guide it is built from tells you to suppress.**
+  `skills/fable-5/context/context-economy.md` §"Detecting late-session quality decay" lists three
+  behavioral tripwires and then escalates to "hand off — write the resume note and tell the user a
+  fresh session will outperform continuing". Nothing said a remaining-context count is not one of
+  those tripwires, so the cheapest signal to notice — a countdown, a percentage — could enter the
+  ladder in place of the three that actually measure decay. The section now carries a fourth
+  bullet naming the number as a **non**-signal and bounding what it governs: only the ladder that
+  follows it, never the success-path reset earlier in the chapter, a stop the user asked for, or
+  an operator mechanism that gates on the window — each of those keeps its own trigger untouched.
+
+  Sourced from the guide's "Rare cases of context-budget concern", re-fetched and byte-identical
+  on 2026-08-03: the failure it describes is a session wound down early because a count looked
+  low, and the remedy it offers is a reassurance, not a new stopping rule. The chapter's
+  thinking-cost material is deliberately untouched — it concerns what a long session *costs*, not
+  when to end one, and the two were never in tension.
+
+  **The bullet governs your own initiative and nothing else**, and that scope is load-bearing rather
+  than decorative. Sibling plugins in this marketplace deliberately gate on the window — a
+  context-zone hook, a retro that shortens past a threshold, a workflow step that hands off when
+  context grows heavy — and an absolute rule here would contradict every one of them for any
+  consumer who installs both, which is exactly the cross-surface conflict `audit-instructions` I15
+  reports. So the bullet defers to an instructed stop under meta-rule 1: the user, operator
+  configuration, and the project's own conventions already outrank this playbook, and a mechanism
+  built to gate on the window is doing what it was built to do. What remains is the failure the
+  guide actually describes — winding down unprompted because a number looked low.
+
+### Added
+
+- **`fable-5`: the assessment-versus-change gate the model-adaptation chapter already pointed at
+  but no chapter held.** `reference/model-adaptation/opus-4-8.md` names "Assessment vs change" as
+  a Fable behavior to emulate and routes the reader to "(Communication chapter.)" — which had no
+  such section. `skills/fable-5/context/communication.md` now opens with
+  §"Assessment is a deliverable; a fix is a different one", stating what the pointer promised: when
+  the user describes a problem, asks a question, or thinks out loud, the deliverable is the
+  assessment; offer the fix rather than apply it. It covers the artifacts left behind unasked
+  (branches, backups, drafts) and the evidence bar before a state-changing command, and states its
+  own precedence — it runs *before* §"Decide, or ask", which allocates a choice once a change is
+  already in scope rather than deciding whether one was requested.
+
+- **`fable-5`: non-blocking orchestration.** `skills/fable-5/context/orchestration.md` gains
+  §"Keep working while workers run". The chapter specced workers well and adjudicated their
+  returns, but every path through it read dispatch-then-wait: the closest existing line
+  ("a wave of four costs roughly one worker's wall-clock") is about workers running concurrently
+  with *each other*, never about the orchestrator continuing. The new section takes the guide's
+  "Parallel subagents" posture directly — dispatch is not a blocking call, check a running wave
+  against the drift signals rather than waiting it out, and continue an already-oriented worker on
+  a shared subject instead of respawning one to re-read the same material, with the fresh-context
+  verifier carved out because holding no context is its entire value.
+
+- **`fable-5`: a bound on defensive over-building.**
+  `skills/fable-5/context/execution.md` gains §"Build for what can happen, not what cannot".
+  §"Smallest correct change vs. right design" governs escalating *to* a redesign and
+  §"Scope fencing" governs absorbing adjacent problems, but neither reaches the guard, layer, or
+  option added inside the requested change: validation on internal callers and framework
+  guarantees, cleanup around a bug fix, an abstraction ahead of its second caller, a flag or
+  compatibility shim where changing the code is available. The guide files this under higher
+  effort specifically, so the section says so — the more room there is to deliberate, the more
+  defensible each unrequested addition looks from inside.
+
+- **Core-doctrine lines for all four**, in `skills/fable-5/SKILL.md`. Chapters load at their
+  triggers; the core doctrine is what a bare-armed session carries. Three of these four fire
+  before their chapter's trigger plausibly would — an unrequested fix lands before any
+  turn-ending message is composed, and a context count is noticed before a long-session read — so
+  chapter-only placement would have shipped them where they cannot act.
+
+- **A re-verification line on `reference/model-adaptation/opus-4-8.md`'s Sources block**, scoped to
+  the Fable 5 guide only: re-fetched 2026-08-03, byte-identical to a 2026-07-29 capture. It states
+  its own limits rather than letting one date cover both guides — no comparison against the
+  2026-07-06 reading exists, and the Opus 4.8 guide has not been re-read at all.
+
 ## [0.6.8]
 
 ### Fixed

@@ -87,6 +87,14 @@ Research parallelizes well: read-only, results merge by union. Code parallelizes
 - **Mechanical-transform test:** fan out a many-file code change only when the recipe is exact enough that a careful stranger could follow it with zero judgment calls — a recipe requiring per-file judgment gives each worker different judgment and you inherit N inconsistent styles; do it yourself.
 - **Seams only:** parallelize code along boundaries that already exist — independent modules, independent packages, per-file transforms with an exact recipe — never along boundaries you invented for the dispatch.
 
+## Keep working while workers run
+
+**TRIGGER:** a wave is dispatched and the next thing you would do is wait for it.
+
+- **Dispatch is not a blocking call.** Move to the next piece of your own work that no pending return feeds. Waiting the wave out makes your throughput the slowest worker's — and the slowest worker is usually the one that drifted, so the wait buys a late return you then discard.
+- **Check in rather than wait out.** Read a running wave against the drift signals below and intervene on what you find: a worker missing context you already hold gets it while its run can still use it, not in the post-mortem after its return is unusable.
+- **A worker already oriented on a subject is cheaper than a fresh one.** Where successive subtasks share a subject, continue the worker that holds its orientation instead of spawning a replacement to re-read the same material — accumulated context is a cache read rather than a re-derivation, and it keeps the wave off the slowest-spawn path. Start fresh when the subject changes, and always for the fresh-context verifier above, whose entire value is holding none of it.
+
 ## Monitor, intervene, plan for partial failure
 
 Workers drift; the output contract is what makes drift detectable. Watch a running wave for three signals:
