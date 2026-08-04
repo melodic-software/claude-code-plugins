@@ -145,13 +145,20 @@ there fails `runner-target-contract` and reds the required `ci-status` check. `r
 upstream-managed for this repo, so the entry cannot be edited here. The trigger to finish the
 repair: a re-pin of the review lane to a SHA whose contract lists `skip-actors`, or a
 standards-reviewed amendment to the `c136b27f` entry. Until then the review lane's skip set is
-an inherited default — recorded as a known, bounded gap rather than an unnoticed one. It is the
-advisory lane, so it carries no required check and is not the lane this ADR's ratified exception
-governs.
+an inherited default — recorded as a known, bounded gap rather than an unnoticed one.
+
+Scope, stated precisely rather than conveniently: before #1766 BOTH callers carried the ratified
+`dependabot[bot],melodic-standards-sync[bot]` list, so the review lane's inherited default is an
+unrepaired half of the same ratified declaration, not an adjacent unrelated gap. What differs is
+consequence, not provenance. The review lane is advisory and has no required check, so its
+inherited default cannot let a PR satisfy a required gate with no review — which is the harm the
+2026-07-21 exception was ratified against. That bounds the deferral; it does not make the review
+lane out of scope.
 
 That contract entry is itself part of the record defect, and worth stating because it sharpens
-the finding. Six other pinned `claude-review.yml` entries in `policy.json` list `skip-actors`;
-`c136b27f` is the only entry that permits `runner` while omitting it. The reviewed contract
+the finding. `policy.json` holds eight pinned `claude-review.yml` entries; six list
+`skip-actors`, one (`1d3762c2`) permits no inputs at all, and `c136b27f` is the only
+`claude-review.yml` entry that permits `runner` while omitting it. The reviewed contract
 memorialized #1766's dropped line a second time, independently of the caller — the same accident
 recorded twice, in two places, by two mechanisms. And the mechanism that blocked the repair is
 precisely the compensating control the 2026-07-21 addendum names ("the reviewed runner-policy
@@ -227,8 +234,9 @@ choice, not a default reached by inattention.
   dormant record defect into a live merge block the moment either actor opens a PR.
 
 On effort, stated so the branch that silence ratifies is not made to look cheaper than it is.
-The decision touches ONE file: the security-review caller. The review lane is deferred out of
-both branches by the runner-policy contract, so it differentiates neither.
+Only ONE workflow file is in play — the security-review caller; the review lane is deferred out
+of both branches by the runner-policy contract, so it differentiates neither. That does not make
+the branches equal in reach: Branch B additionally touches this ADR and a second repository.
 
 - **Branch A: no further edit.** The amendment already restored four there to stay
   behavior-preserving.
@@ -237,10 +245,11 @@ both branches by the runner-policy contract, so it differentiates neither.
   which is a hard dependency and not optional sequencing — without it Branch B converts a
   dormant record defect into a live merge block the moment either actor opens a PR.
 
-Half of that gap is a drafting artifact: had this amendment restored two, Branch B would be the
-no-edit branch and Branch A would carry the one-line change. The `allowed_bots` dependency is
-not an artifact — it is a real cost that attaches to Branch B whichever way this was drafted.
-Weigh Branch B on its affirmative case against that cost.
+The first two rows are a drafting artifact: had this amendment restored two, Branch B would be
+the no-edit branch and Branch A would carry the one-line change and the ADR touch. The
+`allowed_bots` dependency is NOT an artifact — it is a real cost that attaches to Branch B
+whichever way this was drafted, and it is the row that makes Branch B a cross-repo change rather
+than a one-line edit. Weigh Branch B on its affirmative case against that cost.
 
 ## Revisit triggers
 
@@ -257,15 +266,15 @@ Weigh Branch B on its affirmative case against that cost.
   widens; re-deliberate before landing, and record the rationale beside the addendum above.
   This trigger also fires when a caller STOPS stating the list: an inherited default is an
   undeclared exception. The 2026-08-03 amendment repairs that on the security-review caller —
-  the lane this exception actually governs. It does NOT repair the review caller, which the
-  runner-policy contract blocks; that lane's inherited default is recorded in the amendment as
-  deferred with its own trigger, so it is a declared gap rather than the undeclared drift this
-  bullet exists to catch.
+  the lane where an undeclared exception can satisfy a required gate with no review. It does
+  NOT repair the review caller, which the runner-policy contract blocks; that lane's inherited
+  default is recorded in the amendment as deferred with its own trigger, so it is a declared
+  gap rather than the undeclared drift this bullet exists to catch.
 - Agent actors begin authoring substantive changes under security-sensitive paths → the skip
   stops being cheap; widen `allowed_bots` in the ci-workflows reusable so those PRs are
   reviewed rather than skipped, instead of narrowing `skip-actors` alone (which fails closed).
 - ci-workflows maps an action-side workflow-validation skip to a non-run (ci-workflows#345) →
-  the caller-tamper
-  gap recorded in the 2026-08-03 addendum closes, and the required check begins certifying
+  the caller-tamper gap recorded in the 2026-08-03 addendum closes, and the required check
+  begins certifying
   execution on caller-editing PRs. Until then, treat a green `security-review` on any PR that
   touches `.github/workflows/claude-security-review.yml` as unproven and review it by hand.
