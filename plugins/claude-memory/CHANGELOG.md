@@ -3,6 +3,39 @@
 All notable changes to the `claude-memory` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.3]
+
+### Added
+
+- **`audit` gains C9, a check that a project CLAUDE.md states the repo's exact build and test
+  commands** (claude-memory 0.5.2 → 0.5.3; criteria 1.3.0 → 1.4.0). It is the only CLAUDE.md check
+  that looks for *missing* content — C4 asks whether an instruction that exists is concrete enough
+  to verify, C5 whether it should have been cut, and neither asks whether the commands are there at
+  all. Official memory guidance lists build and test commands first among what project memory is
+  for, and `/init` populates them by analyzing the codebase, so without the statement they are
+  inferred every session rather than read. Two severities, following C6 and C7's pattern of heading
+  a check at its higher branch: FAIL for a stated command the repo's own manifest does not have,
+  which is C7's wrong-reference class and worse than an absent one (Claude runs it and the check
+  fails for the wrong reason); WARN for a command that is absent or given only as prose naming the
+  tool ("we use pytest" is not a command). Never flags a repo that genuinely has no build or test
+  step. Scoped to project CLAUDE.md — skipped for CLAUDE.local.md and personal files, which are not
+  repo-scoped.
+
+  **A step 0 keeps the check honest against its own source.** The memory page states both halves of
+  a tension: project memory is for "build and test commands", while the same page's
+  CLAUDE.md-vs-auto-memory table puts "Build commands" in the *auto memory* column. So the check
+  asks first whether the commands are stated on any loaded surface — nested CLAUDE.md, path-scoped
+  rule, or auto memory — and treats a yes as a C3 placement question rather than a C9 finding. The
+  requirement is that the commands be reachable, not that they sit in one file. Without this, C9
+  would flag a repo for following the other half of the page it cites.
+
+  Boundary with C7 stated explicitly so a run does not double-report: C7 owns file paths, version
+  pins, and counts; C9 owns whether the command itself runs. Backed by a new "Build and test
+  commands" section in `reference/official-guidance.md` carrying the sourced quotes the skill's own
+  determinism contract requires, and by a new eval covering the wrong-command FAIL, the step-0
+  carve-out, and the no-double-report rule.
+  The applicability ranges in `SKILL.md` and `context/audit.md` move to C9 accordingly.
+
 ## [0.5.2]
 
 ### Fixed

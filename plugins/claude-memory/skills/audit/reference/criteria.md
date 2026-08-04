@@ -1,7 +1,7 @@
 # Memory Health Criteria
 
-Version: 1.3.0
-Last updated: 2026-07-25
+Version: 1.4.0
+Last updated: 2026-08-04
 Source: Official Claude Code docs (code.claude.com/docs/en/memory, code.claude.com/docs/en/best-practices, code.claude.com/docs/en/sub-agents, code.claude.com/docs/en/skills)
 
 This file defines every check the audit runs. Each check has a severity, description, and instructions
@@ -203,6 +203,47 @@ instead)."
 
 **Why**: Prefer deterministic enforcement over documentation — when a guideline can become a
 compile-time or runtime check, that is the stronger default.
+
+### C9: Build and Test Commands Present [FAIL]
+
+**What**: Does a project CLAUDE.md state the repo's exact build and test commands, and are the
+commands it states correct?
+
+The only CLAUDE.md check that looks for missing or wrong content rather than surplus — C4 asks
+whether an instruction that exists is concrete, C5 whether it should have been cut. Applies to
+project CLAUDE.md only; skip for CLAUDE.local.md and for personal (`~/.claude/CLAUDE.md`) files,
+which are not repo-scoped.
+
+**How to check**:
+
+0. First ask whether the commands are stated on another loaded surface — a nested CLAUDE.md, a
+   path-scoped rule, or auto memory. If they are, this is a C3 placement question, not a C9
+   finding: the commands are present, and where they belong is C3's call. Do not WARN for absence,
+   and go no further in this check
+1. Look for the repo's build and test invocations stated as runnable commands
+2. Verify each stated command against the repo's own manifest or task runner (`package.json`
+   scripts, `Makefile`, `*.csproj`, `pyproject.toml`, or ecosystem equivalent)
+3. FAIL for a stated command that does not exist there — worse than an absent one: Claude runs it
+   and the check fails for the wrong reason
+4. WARN if either command is absent, or if present only as prose naming the tool without the
+   invocation ("we use pytest" is not a command)
+5. Do not flag a repo that has no build or test step; flag only a missing statement of one that exists
+
+**Boundary with C7.** C7 owns *references* — file paths, version pins, counts. C9 owns *commands*.
+A wrong build command is not a C7 finding today, because a command is none of the three things C7
+checks. Report a wrong command under C9 only, and do not double-report it.
+
+**Why**: Official docs list "build and test commands" first among what project memory is for
+(code.claude.com/docs/en/memory), and `/init` populates them by analyzing the codebase — so without
+the statement, they are inferred every session rather than read. This check fires on a CLAUDE.md
+that exists but omits them. Absent commands make every verification loop start by guessing how to
+run the check.
+
+**Counter-evidence, and why step 0 exists**: the same page's CLAUDE.md-vs-auto-memory table puts
+"Build commands" in the *auto memory* column's "Use for" cell, against CLAUDE.md's "Coding
+standards, workflows, project architecture". The page states both, so the honest reading is that
+the commands must be *reachable*, not that they must sit in CLAUDE.md specifically. Step 0 is what
+keeps this check from flagging a repo that followed the other half of the same page.
 
 ---
 
