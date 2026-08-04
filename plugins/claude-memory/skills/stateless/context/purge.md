@@ -61,6 +61,11 @@ Present to the user:
   can set — confirm the user intends to delete from that absolute path before proceeding, since
   it could point at an unrelated directory.
 - That this deletes auto-memory notes only — **not** CLAUDE.md, rules, transcripts, or history.
+  If the intent is the full per-project wipe (transcripts and auto memory under `projects/`,
+  per-session `tasks/` / `debug/` / `file-history/` entries, matching `history.jsonl` lines, and
+  the project's `~/.claude.json` entry), point to
+  `claude project purge` (Claude Code v2.1.124+;
+  <https://code.claude.com/docs/en/claude-directory>) instead.
 - If `$manifest` is empty, report that there is nothing to purge and stop (no-op).
 
 ## Step 3: Confirmation gate (with backup offer)
@@ -156,6 +161,9 @@ otherwise leaving the empty directory is harmless.
 - Purge removes existing notes but does **not** stop new ones. If the user wants to stay
   stateless, point to `disable` (or run it now if they ask) so Claude doesn't immediately
   re-accumulate memory.
+- If the intent was wiping everything Claude holds for this repo, point to
+  `claude project purge` (Step 2's pointer) — it covers the full per-project scope enumerated
+  there, not auto memory alone.
 - If the user wants to be stateless everywhere, summarize the Claude Desktop / claude.ai
   account store steps in [desktop.md](desktop.md) — that store is server-side and cannot be
   deleted from here.

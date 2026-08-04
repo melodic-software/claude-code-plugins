@@ -3,6 +3,21 @@
 All notable changes to the `claude-memory` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.6]
+
+### Changed
+
+- **`stateless`'s purge scope boundary now points at the official full wipe** (claude-memory
+  0.5.5 → 0.5.6). Wherever the skill states that purge is auto-memory-only — the SKILL.md scope
+  statement and table, `context/purge.md`'s pre-gate presentation and follow-through, and
+  `reference/official-guidance.md`'s out-of-scope section — it now names `claude project purge`
+  (Claude Code v2.1.124+), the official per-project wipe covering transcripts and auto memory
+  under `projects/`, per-session `tasks/`, `debug/`, and `file-history/` entries, matching
+  `history.jsonl` lines, and the project's `~/.claude.json` entry, linking
+  code.claude.com/docs/en/claude-directory as the single source for the deletion plan and
+  flags. Also retires the reference file's now-false "there is no built-in purge command"
+  claim.
+
 ## [0.5.5]
 
 ### Fixed

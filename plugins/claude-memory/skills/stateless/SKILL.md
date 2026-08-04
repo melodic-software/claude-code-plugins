@@ -21,7 +21,11 @@ bash "${CLAUDE_PLUGIN_ROOT}/skills/stateless/scripts/scope-report.sh" || echo "(
 Inspect and disable Claude Code **auto memory** — the store Claude writes for itself, one
 directory per repo (`~/.claude/projects/<project>/memory/`, relocatable via
 `autoMemoryDirectory`). Governs auto-memory only. Not in scope: CLAUDE.md / CLAUDE.local.md /
-`.claude/rules/` (use `/claude-memory:audit`), transcripts, history, or shell snapshots.
+`.claude/rules/` (use `/claude-memory:audit`), transcripts, history, or shell snapshots — for
+the official full per-project wipe (transcripts and auto memory under `projects/`, per-session
+`tasks/` / `debug/` / `file-history/` entries, matching `history.jsonl` lines, and the project's
+`~/.claude.json` entry), use `claude project purge` (Claude Code v2.1.124+;
+[claude-directory doc](https://code.claude.com/docs/en/claude-directory)).
 
 Criteria and exact doc quotes live in [reference/official-guidance.md](reference/official-guidance.md);
 re-fetch the two source pages if a fact is load-bearing before you act.
@@ -34,7 +38,7 @@ re-fetch the two source pages if a fact is load-bearing before you act.
 | `autoMemoryEnabled` setting | any settings scope | Yes — reads & writes |
 | `CLAUDE_CODE_DISABLE_AUTO_MEMORY` | OS env or settings `env` block | Yes — reads & writes |
 | CLAUDE.md / CLAUDE.local.md / `.claude/rules/` | repo + user | No — use `/claude-memory:audit` |
-| Transcripts / history / sessions / snapshots | `~/.claude/...` | No — auto-cleaned by `cleanupPeriodDays` |
+| Transcripts / history / sessions / snapshots | `~/.claude/...` | No — auto-cleaned by `cleanupPeriodDays`; immediate full wipe: `claude project purge` (v2.1.124+) |
 | Claude Desktop / claude.ai memory | server-side account | Direction only — [context/desktop.md](context/desktop.md) |
 
 ## Argument parsing
