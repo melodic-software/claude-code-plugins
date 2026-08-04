@@ -565,14 +565,17 @@ the session default model changes):
 
 | Tier | Model (2026-08-04) |
 |---|---|
-| Consequential verdict (session tier or above) | Opus 5 at the session tier; Fable 5 above it |
+| Consequential verdict (session tier or above) | The active session model; under the fleet's current `opus[1m]` pin that is Opus 5, with Fable 5 the rung above |
 | Mechanical prep, one tier down | Sonnet 5 |
 | Bulk mechanical sweeps | Haiku 4.5 |
 
-Row 1 names two models because the session tier and the rung above it have diverged: `opus` resolves
-to Opus 5 on the Anthropic API — "for complex agentic coding and enterprise work" — while Fable 5 is
-"the most capable model in Claude Code", positioned for tasks larger than a single sitting rather
-than for harder verdicts at ordinary length. Opus 4.8, the previous row-1 entry, is now a legacy
+Row 1 is relative by construction — the invariant above makes the ladder relative to the active
+session, so a session already running Fable 5 has no rung above and dispatches consequential
+verdicts at its own tier. The named models are the resolution under the fleet's pinned session
+default (`opus[1m]`, an alias): `opus` resolves to Opus 5 on the Anthropic API — "for complex
+agentic coding and enterprise work" — while Fable 5 is "the most capable model in Claude Code",
+positioned for tasks larger than a single sitting rather than for harder verdicts at ordinary
+length. Opus 4.8, the previous row-1 entry, is now a legacy
 model. Rows 2 and 3 re-verify unchanged: Sonnet 5 and Haiku 4.5 remain the current Sonnet and Haiku.
 The figures behind the cost ordering below are upstream-owned
 ([pricing](https://platform.claude.com/docs/en/about-claude/pricing)) and are not restated here.
