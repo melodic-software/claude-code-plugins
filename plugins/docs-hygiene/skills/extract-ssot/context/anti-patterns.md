@@ -129,7 +129,7 @@ Patterns are framed for markdown extraction (the dominant case) but apply to cod
 **Mitigation.**
 
 1. Decision-framework test #3 (Stable — content changes <1×/quarter) is the up-front gate
-2. If the SSOT must be edited frequently, split it: stable categorical bits stay in the always-loaded SSOT, volatile narrative goes back inline or into a skill body, which injects at invocation and so takes effect on the next invocation
+2. If the SSOT must be edited frequently, split it: stable categorical bits stay in the always-loaded SSOT, volatile narrative moves to a surface that loads late enough to see corrections — a skill body (injects at invocation), a `paths:`-scoped rule (loads on first matching read), or a file consulted on demand. Going back inline helps only when the original home was itself lazy-loaded; inline in `CLAUDE.md` or an unscoped rule is the same always-loaded surface with the same lag, and buys nothing
 3. A Recheck-triggers section in the SSOT documents anticipated edit frequency; if it drifts >1×/month, raise it as a side observation
 4. After a correction live sessions must honor, say so — the fix reaches them only on `/clear`, `/compact`, or restart
 
