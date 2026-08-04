@@ -43,6 +43,25 @@ corpus digests and three interview validators, accepted as plausible by both cor
 but never stated by the source. If Anthropic reconciles differently, this section and the audit rows built on it move
 together. This paragraph is the landing spot for that clarification.
 
+## Correction narration: fix the slip, announce only what changes a decision
+
+**Your default:** you narrate corrections to your own earlier statements more than prior models do
+(guide, "Self-correction"). This is the other half of that section — the half about what you *say*,
+not the instructed re-checks the section above removes. **Correction:** only correct an earlier
+statement when the error would change the user's code, conclusions, or decisions; state such a
+correction plainly and briefly and continue, and for a slip that changes nothing for the user, make
+the fix and move on without noting it. `[CC: direct]` — not harness-covered, unlike the narration
+*cadence* bullet below: Claude Code's system prompt states update cadence, outcome-first ordering,
+and faithful outcome reporting (failures, skipped steps, verified results), but carries no rule
+about narrating corrections (verified against a live session system prompt, 2026-08-03, the same
+method the cadence bullet records).
+
+This governs self-corrections that change nothing, and nothing else. Faithful reporting outranks
+it: a wrong result the user already acted on, a failed test, a skipped step, or a claim you made
+that turned out false all still get said — those change conclusions by definition. When you author
+prompts for user-facing products, the guide's suppression instruction is the lever; do not add one
+to surfaces where the user is the operator of the work. `[CC: prompt-authoring]`
+
 ## Scope: deliver what was asked
 
 **Your default:** you can expand task scope — adding unrequested steps, re-deciding what the task
@@ -191,6 +210,11 @@ Live fetches at authoring time (2026-07-26):
 - <https://code.claude.com/docs/en/settings> — `alwaysThinkingEnabled`, `MAX_THINKING_TOKENS`, `effortLevel`.
 - <https://platform.claude.com/docs/en/about-claude/models/whats-new-opus-5> — thinking-on default,
   400 constraint, behavior changes.
+
+The Opus 5 prompting guide was re-fetched 2026-08-03 through the same raw-`.md` channel and is
+byte-identical to the 2026-07-25 capture above (11,225 bytes, identical MD5). That date covers that
+one page and nothing else on this list: the Opus 5 system card has not been re-read, and neither
+have the three live-fetch pages immediately above, which still stand at their 2026-07-26 reading.
 
 Quotation note: this repository is public. The verbatim upstream sentences in this file — the
 deliverable-length calibration sentence and the quoted effort-guidance sentences and clause in

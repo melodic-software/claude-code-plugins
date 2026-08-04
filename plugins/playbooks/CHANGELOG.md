@@ -4,6 +4,40 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.6.11]
+
+### Added
+
+- **`opus-5.md`: the half of the guide's "Self-correction" section the chapter never carried.**
+  `reference/model-adaptation/opus-5.md` took that section's first paragraph — you already
+  self-correct, so instructed re-checks are cost with no gain — into §"Verification", and stopped
+  there. The section's second half describes a distinct behavior: Opus 5 *narrates* corrections to
+  its earlier statements more than prior models do. That is the same shape as the chapter's other
+  deltas (a behavior that runs hotter than prior models and needs a counter-steer), so its absence
+  was a gap by the chapter's own inclusion standard, not payload discipline. New §"Correction
+  narration: fix the slip, announce only what changes a decision" states the counter-steer: correct
+  an earlier statement when the error would change the user's code, conclusions, or decisions; for a
+  slip that changes nothing, make the fix and move on.
+
+  Tagged `[CC: direct]` on a verification rather than an assumption. The chapter's neighbouring
+  narration-*cadence* bullet is `[CC: harness-covered]`, so the same check ran here against a live
+  session system prompt: Claude Code states update cadence, outcome-first ordering, and faithful
+  outcome reporting, but carries no rule about narrating corrections — so this one is not covered
+  and does not restate the harness.
+
+  **The section is fenced against the reading that would make it harmful.** Suppressing a
+  correction is licensed only where the correction changes nothing for the user; faithful reporting
+  explicitly outranks it, and a failed test, a skipped step, a wrong result already acted on, or a
+  false claim all still get said. The authoring half is split out as `[CC: prompt-authoring]` and
+  scoped to user-facing products, keeping the guide's suppression instruction off surfaces where
+  the user is the operator of the work.
+
+- **A re-verification line on `opus-5.md`'s Sources block**, scoped to the Opus 5 prompting guide
+  only: re-fetched 2026-08-03 through the raw-`.md` channel, byte-identical to the 2026-07-25
+  capture (11,225 bytes, identical MD5). It states its own limits rather than letting one date
+  cover five sources — the system card and the three live-fetched harness/model pages have not been
+  re-read and still stand at 2026-07-26.
+
 ## [0.6.10]
 
 ### Changed
