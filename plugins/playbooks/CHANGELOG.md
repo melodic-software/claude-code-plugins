@@ -24,7 +24,8 @@ only after that version increases.
   registry reading into three sources agreeing: the matrix shows the row, the availability page
   states the gate, the local registry shows the gate closed here. Both halves of the gap were
   verified the same day rather than assumed — the matrix page carries the Mythos 5 row and no
-  availability signal of any kind, which is the negative the instance's whole point rests on. The section's own rules are
+  access-availability signal (its only availability language, a zero-data-retention note, covers
+  both models identically), which is the negative the instance's whole point rests on. The section's own rules are
   honored in the edit — one pointer, one quoted sentence, one date, and none of the page's models
   table, specs, or pricing copied across, because a chapter that forbids pasting a per-model matrix
   cannot paste one to prove the point.
