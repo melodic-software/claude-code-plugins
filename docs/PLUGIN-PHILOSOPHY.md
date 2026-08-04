@@ -616,6 +616,21 @@ recheck list: the trigger above re-audits **every** agent-frontmatter `model` va
 repository, which `git grep -n '^model:' -- 'plugins/*/agents/*.md'` enumerates rather than any
 list restated here.
 
+That floor is the consumer's to lose. An enterprise `availableModels` allowlist applies "everywhere
+a user can specify a model" — frontmatter pins included — and a pin naming a family it excludes
+"falls back to the inherited or default model rather than failing the request". Which of those two
+branches applies is **unresolved upstream, and stated here as such**; what is documented is that
+`enforceAvailableModels` resolves a Default falling outside the list to the *first* allowed,
+available allowlist entry, and that this reaches
+"the fallback used when an excluded selection is dropped" — an ordering nothing ties to this
+ladder. So a blocked pin can land **below** the session, and the tier invariant above is not
+self-enforcing: under an allowlist a lane may not depend on its pin in either direction, neither
+that it is at least its tier nor that it is cheap, and no error is raised either way. A design
+whose correctness needs a tier needs a mechanism that is not a frontmatter pin
+([model config: restrict model selection](https://code.claude.com/docs/en/model-config#restrict-model-selection),
+verified 2026-08-04; recheck trigger: that section's fallback sentence for a blocked subagent,
+skill, or command override changing, or `enforceAvailableModels`' enforced-Default scope changing).
+
 ### Effort tiers
 
 Effort routes per lane the way model does. Skill and subagent frontmatter `effort` overrides the
