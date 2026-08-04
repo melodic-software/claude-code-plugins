@@ -63,8 +63,9 @@ back up.
    step neither re-does settled work nor chases a closed thread.
 5. **The recorded goal, and whether the planned work still serves it.** A
    handoff's `Original goal` is a premise like any other — a documented claim
-   about what the work is FOR — except nothing else on any resume path ever
-   tests it. Confirm it is present; confirm a document that chains from another
+   about what the work is FOR — and the cross-link comparison below is the one
+   test only reanchor performs (the other resume-path checks read a single
+   document). Confirm it is present; confirm a document that chains from another
    carries the prior link's quote **unchanged**, read from that file rather than
    from the current document's own wording; then confirm the planned next
    actions still connect to it, stated in one sentence. A quote that was
