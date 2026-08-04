@@ -23,7 +23,8 @@
 #
 # Usage:
 #   memory-dir-stats.sh --md-count      # count of *.md files in the memory dir
-#   memory-dir-stats.sh --memory-lines  # line count of MEMORY.md (0 when absent)
+#   memory-dir-stats.sh --memory-lines  # loaded-content line count of MEMORY.md (0 when absent)
+#   memory-dir-stats.sh --memory-bytes  # loaded-content byte count of MEMORY.md (0 when absent)
 #   memory-dir-stats.sh --help
 
 set -uo pipefail
@@ -32,14 +33,18 @@ usage() {
   cat <<'EOF'
 memory-dir-stats.sh — emit one auto-memory statistic as a single integer.
 
-Usage: memory-dir-stats.sh (--md-count|--memory-lines|--help)
+Usage: memory-dir-stats.sh (--md-count|--memory-lines|--memory-bytes|--help)
 
   --md-count       print the number of *.md files in the current project's memory dir
-  --memory-lines   print the line count of that dir's MEMORY.md (0 when absent)
+  --memory-lines   print the loaded-content line count of that dir's MEMORY.md (0 when absent)
+  --memory-bytes   print the loaded-content byte count of that dir's MEMORY.md (0 when absent)
   --help           this message
 
-Resolves the memory dir via the sibling resolve-memory-dir.sh. Both stat modes print
-exactly one integer and always exit 0; a bad or missing mode exits 2.
+The MEMORY.md stats measure the content that loads: YAML frontmatter and block-level
+HTML comments are stripped before the index is loaded, so they don't count toward the
+200-line/25KB limits. Resolves the memory dir via the sibling resolve-memory-dir.sh.
+Every stat mode prints exactly one integer and always exits 0; a bad or missing mode
+exits 2.
 EOF
 }
 
@@ -49,7 +54,7 @@ if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
 fi
 
 mode="${1:-}"
-if [[ "$mode" != "--md-count" && "$mode" != "--memory-lines" ]]; then
+if [[ "$mode" != "--md-count" && "$mode" != "--memory-lines" && "$mode" != "--memory-bytes" ]]; then
   usage >&2
   exit 2
 fi
@@ -83,8 +88,27 @@ if [[ ! -f "$index" ]]; then
   exit 0
 fi
 
-# `wc -l` (newline count) is kept deliberately — the semantics the audit checklist's
-# line budget has always been measured against. tr guards Git Bash CRLF; the
-# arithmetic expansion strips the leading padding BSD `wc` emits on macOS.
-lines=$(wc -l <"$index" | tr -d '\r')
-printf '%s\n' "$((lines))"
+# The 200-line/25KB limits measure only the content that loads: YAML frontmatter and
+# block-level HTML comments are stripped before the index is loaded (memory doc), so
+# both MEMORY.md stats measure that stripped content — matching criteria.md M1. HTML
+# comments inside fenced code blocks are preserved, per the documented comment
+# behavior. tr guards Git Bash CRLF; the arithmetic expansion strips the leading
+# padding BSD `wc` emits on macOS.
+strip_unloaded() {
+  tr -d '\r' <"$index" | awk '
+    NR == 1 && $0 == "---" { fm = 1; next }
+    fm == 1 { if ($0 == "---") fm = 2; next }
+    /^[[:space:]]*```/ { fence = !fence; print; next }
+    fence { print; next }
+    incomment { if (/-->/) incomment = 0; next }
+    /^[[:space:]]*<!--/ { if (!/-->/) incomment = 1; next }
+    { print }
+  '
+}
+
+if [[ "$mode" == "--memory-lines" ]]; then
+  n=$(strip_unloaded | wc -l)
+else
+  n=$(strip_unloaded | wc -c)
+fi
+printf '%s\n' "$((n))"

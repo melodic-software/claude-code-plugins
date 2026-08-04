@@ -309,8 +309,10 @@ matching-file Read, so being unreferenced costs nothing per session. WARN per or
 
 **How to check**: Count lines and file size on the content that loads — strip YAML frontmatter and
 block-level HTML comments first, since they are removed before the index is loaded and don't count
-toward the limits. Only the first 200 loaded lines (or 25KB) load at session start — anything beyond
-is silently dropped.
+toward the limits. The SKILL.md pre-computed context already reports both post-strip figures
+(`memory-dir-stats.sh --memory-lines` / `--memory-bytes`); use them rather than re-measuring the raw
+file. Only the first 200 loaded lines (or 25KB) load at session start — anything beyond is silently
+dropped.
 
 ### M2: Stale Entries [WARN]
 

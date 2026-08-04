@@ -98,6 +98,13 @@ OUT=$(run "$H3" --memory-lines) || rc=$?
 assert_exit "--memory-lines exits 0" 0 "$rc"
 assert_eq "--memory-lines counts MEMORY.md lines" "3" "$OUT"
 
+# --- Case 4b: MEMORY.md stats measure loaded content only — frontmatter and
+# block-level HTML comments are stripped (they don't count toward the limits),
+# while a comment inside a fenced code block is preserved ---
+printf -- '---\ntype: index\n---\n# Index\n<!-- hidden\nstill hidden -->\nreal\n```\n<!-- kept -->\n```\n' >"$M3/MEMORY.md"
+assert_eq "--memory-lines counts post-strip lines" "5" "$(run "$H3" --memory-lines)"
+assert_eq "--memory-bytes counts post-strip bytes" "35" "$(run "$H3" --memory-bytes)"
+
 # --- Case 5: fresh project — no memory dir at all: both modes report 0, exit 0 ---
 H5="$TEST_TMPDIR/h5"
 mkdir -p "$H5"
@@ -115,9 +122,10 @@ H6="$TEST_TMPDIR/h6"
 mem_dir_for "$H6" >/dev/null
 assert_eq "empty memory dir --md-count == 0" "0" "$(run "$H6" --md-count)"
 assert_eq "empty memory dir --memory-lines == 0" "0" "$(run "$H6" --memory-lines)"
+assert_eq "empty memory dir --memory-bytes == 0" "0" "$(run "$H6" --memory-bytes)"
 
 # --- Case 7: output contract — a single bare integer, nothing else, for every stat mode ---
-for m in --md-count --memory-lines; do
+for m in --md-count --memory-lines --memory-bytes; do
   OUT=$(run "$H3" "$m")
   if [[ "$OUT" =~ ^[0-9]+$ ]]; then
     pass "$m emits exactly one bare integer"
