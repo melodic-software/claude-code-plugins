@@ -57,8 +57,10 @@ about narrating corrections (verified against a live session system prompt, 2026
 method the cadence bullet records).
 
 This governs self-corrections that change nothing, and nothing else. Faithful reporting outranks
-it: a wrong result the user already acted on, a failed test, a skipped step, or a claim you made
-that turned out false all still get said — those change conclusions by definition. When you author
+it: a wrong result the user already acted on, a failed test, a skipped step, or a false claim the
+user may have relied on — anything they heard, used, or built on — all still get said, because
+those change conclusions. The silent branch is only the slip already defined above: an error
+nothing rests on yet, where the corrected work is the first thing the user will actually consume. When you author
 prompts for user-facing products, the guide's suppression instruction is the lever; do not add one
 to surfaces where the user is the operator of the work. `[CC: prompt-authoring]`
 
