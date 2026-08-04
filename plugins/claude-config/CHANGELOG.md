@@ -53,9 +53,10 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
 
 - **`audit-instructions`: the Thinking page's Sources entry names the two properties these arms rest
   on** — the models that reject a thinking-disable outright, and what a thinking or effort change
-  does to the cache prefix. The rows this entry changes, `I17` base, `I17-a` and `I17-b`, were
-  re-verified live against their full source sets on 2026-08-04 and carry that stamp; `I17-c` is
-  untouched and keeps its own. `I17-a`'s Detect gains the harness controls its explanation already
+  does to the cache prefix. `I17` base and `I17-b` were re-verified live against their full source
+  sets on 2026-08-04 and carry that stamp; `I17-a` carries a split stamp — only its new
+  session-toggle/`alwaysThinkingEnabled` clause was re-verified 2026-08-04, its original claims
+  keep their 2026-08-02 check; `I17-c` is untouched and keeps its own. `I17-a`'s Detect gains the harness controls its explanation already
   named: the session thinking toggle or `alwaysThinkingEnabled` presented as turning thinking off on
   Fable 5 is now flagged (model configuration states they "have no effect there") — previously the
   base row routed that failure to `I17-a` while no arm of it actually detected it. `I17-b` also
