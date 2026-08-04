@@ -354,7 +354,7 @@ recommended model for the provider and update over time; a dated model name is a
 is never written into a lane body. Aliases are the only handle guaranteed under subscription OAuth,
 so they are the runtime path; the Models API list endpoint is the **build/audit-time** verification
 path, since it may require an API key a loop session lacks. No lane hard-codes a model ID. (Alias
-semantics verified against <https://code.claude.com/docs/en/model-config> on 2026-07-23.)
+semantics verified against <https://code.claude.com/docs/en/model-config> on 2026-08-04.)
 
 Tier tables are built from a live official-docs fetch at authoring time, never from recall. Any new
 model release re-audits the tier table — the trigger is recorded in this convention's
