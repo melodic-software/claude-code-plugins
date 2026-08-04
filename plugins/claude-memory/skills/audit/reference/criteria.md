@@ -218,8 +218,9 @@ which are not repo-scoped.
 
 0. First ask whether the commands are stated on another loaded surface — a nested CLAUDE.md, a
    path-scoped rule, or auto memory. If they are, this is a C3 placement question, not a C9
-   finding: the commands are present, and where they belong is C3's call. Do not WARN for absence,
-   and go no further in this check
+   finding for ABSENCE: do not WARN that CLAUDE.md omits them. The carve-out suppresses only the
+   absence branch — any command CLAUDE.md itself still states goes through steps 2-3 regardless,
+   because a stale stated command misleads whether or not a correct one exists elsewhere
 1. Look for the repo's build and test invocations stated as runnable commands
 2. Verify each stated command against the repo's own manifest or task runner (`package.json`
    scripts, `Makefile`, `*.csproj`, `pyproject.toml`, or ecosystem equivalent)
