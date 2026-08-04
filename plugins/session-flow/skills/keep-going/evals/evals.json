@@ -81,10 +81,10 @@
       "id": 7,
       "name": "goal-alignment-is-the-first-check-on-resume",
       "prompt": "keep going — resume from the handoff at .work/handoffs/20260803T101500Z-handoff-doc-alignment.md, nothing was running in the background.",
-      "expected_output": "Before restating position or continuing, the skill reads the handoff's Original goal section and tests the planned next actions against it, stating in one sentence how the next action serves that goal. If it cannot state that, it treats the gap as drift — stopping to re-derive an action that serves the goal, or asking whether the goal changed — rather than continuing on the process the file describes.",
+      "expected_output": "Before any recovery action, and before restating position or continuing, the skill reads the handoff's Original goal section and tests the planned next actions against it, stating in one sentence how the next action serves that goal. If it cannot state that, it treats the gap as drift — stopping to re-derive an action that serves the goal, or asking whether the goal changed — rather than continuing on the process the file describes.",
       "files": [],
       "expectations": [
-        "Reads the handoff's Original goal section BEFORE reconciling position or continuing the work",
+        "Reads the handoff's Original goal section BEFORE resuming, restarting, or killing any work and BEFORE reconciling position — the check gates recovery actions, not just the position restatement",
         "States in one sentence how the planned next action serves that goal",
         "Treats an unstatable connection as drift — stops and re-derives or asks, rather than proceeding",
         "Still reconciles the main thread from a fresh read of the backing artifact afterwards and continues"

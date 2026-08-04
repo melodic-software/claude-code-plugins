@@ -108,9 +108,19 @@ drops in silence, and no amount of detail elsewhere replaces it.
 
 On the full path this is body section 1, `Original goal` ([`structure.md`](structure.md)) — which
 also owns the immutability rule and the disk-read copy step a successor handoff runs.
-**Prompt-only writes no body sections, so it carries the verbatim goal line inline between the
-rails**, above its remaining-work bullets. It has no file to point at, and a prompt-only save-point
-listing only the follow-ups is the exact shape that loses the goal.
+**Prompt-only writes no body sections, so it carries the verbatim goal inline between the rails**,
+above its remaining-work bullets — and below an active `/goal` re-arm when one holds the first
+line: the re-arm keeps that line ("Combining both", below), the goal quote comes next, the bullets
+after. It has no file to point at, and a prompt-only save-point listing only the follow-ups is the
+exact shape that loses the goal.
+
+**Amendments travel too.** A bare single goal line is valid only while the goal has no recorded
+amendment (`Amended: None.` on the full path). Once an amendment exists, the prompt-only form
+carries the original dated quote plus EVERY dated amendment — compact, one line each,
+`amended <date>: "<verbatim quote>"` under the original — still verbatim, still copied unchanged on
+later hops. The full path preserves that history in §1's `Amended:` field; a prompt-only hop that
+collapses it back to a single line discards the record of what the goal was and when it stopped
+being that, which no later full-path handoff can reconstruct.
 
 ## Writing the handoff file (full path)
 
@@ -223,7 +233,11 @@ copy, which goes stale the moment disk moved on without this conversation seeing
   invocation, and would silently fail to arm. Each is therefore its own message. `/goal` keeps its
   place as the first line between the rails (it is session-scoped and evaluated after every
   subsequent turn regardless of what invoked it, so arming it there covers the loop's later
-  iterations too); the `/loop` re-arm follows as the separate message described above.
+  iterations too); the `/loop` re-arm follows as the separate message described above. On
+  prompt-only, the verbatim goal quote — with its dated amendment lines, per "Original goal —
+  mandatory on BOTH paths" — sits directly BELOW the `/goal` line and above the remaining-work
+  bullets: an active `/goal` keeps the first line, the quote never displaces it, and with no active
+  `/goal` the quote itself opens the block.
 
 Full-path shape (minimum form — live: bare `─` rails, no fence; shown inside a fence here for
 display):
@@ -314,8 +328,8 @@ bullets inline between the rails instead, and needs no origin line: it reference
 path passes through.** The dominant resume is a paste into a fresh session that invokes no skill at
 all, so a check living only in a skill fires only when someone happens to call it — which is how a
 chain of save-points can run for many sessions with nothing ever testing the work against its goal.
-`/session-flow:keep-going` owns the same check on the skill-mediated path (its "Reconcile the main
-thread" step); this covers the bare paste, the background agent
+`/session-flow:keep-going` owns the same check on the skill-mediated path (its goal-alignment
+step, which gates its recovery actions); this covers the bare paste, the background agent
 `/session-flow:continue-in-background` launches, and a `find-handoff` recovery alike. It is not a
 detection-contract change: signal 1 below is matched on the `…handoffs/<TS>-handoff-…` shape the
 directive names, which the added clause leaves untouched.

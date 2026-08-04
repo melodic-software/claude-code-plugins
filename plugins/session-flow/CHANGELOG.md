@@ -38,8 +38,10 @@
 - **Nothing re-anchored a resumed session to its goal, so the drift ran unnoticed across many
   sessions.** The check now sits on all three surfaces a resume can cross.
   `reference/save-point.md` gains an `Original goal — mandatory on BOTH paths` rule (prompt-only
-  writes no body sections, so it carries the verbatim goal line inline between the rails, above its
-  remaining-work bullets — it points at no file, and a prompt-only save-point listing just the
+  writes no body sections, so it carries the verbatim goal inline between the rails — below an
+  active `/goal` re-arm when one holds the first line, above its remaining-work bullets, and with
+  every dated amendment travelling under the original quote rather than collapsing to a single
+  line — it points at no file, and a prompt-only save-point listing just the
   follow-ups is the precise shape that loses the goal), and the rails directive becomes `Read @…,
   confirm its Original goal still governs the remaining next steps, then continue them.` — the
   directive because it is the one artifact every resume passes through, including the dominant bare
@@ -49,8 +51,10 @@
   consequence, recorded where `structure.md` describes how that doc is cited elsewhere: the
   directive now names `Original goal` by name (never by number), so renaming that one section
   ripples out to it, where before no rename ripple existed. `skills/keep-going` owns the
-  skill-mediated path — its "Reconcile the main thread" step now runs goal alignment FIRST, before
-  restating position: read the handoff's `Original goal`, say in one sentence how the next action
+  skill-mediated path — goal alignment is now its own step, sitting after the read-only
+  inventory/inspection and BEFORE any recovery action, because resuming or restarting work that
+  serves a drifted goal re-arms the drift before anything has tested it: read the handoff's
+  `Original goal`, say in one sentence how the next action
   serves it, and treat an unstatable connection as drift rather than a wording problem. A handoff
   carrying no `Original goal` is itself a flagged defect — the goal is never inferred from the
   process the file describes, since that process is the thing that drifted; the user is asked for it

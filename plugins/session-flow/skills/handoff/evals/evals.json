@@ -99,14 +99,14 @@
     {
       "id": 8,
       "name": "prompt-only-still-carries-the-goal",
-      "prompt": "/handoff prompt — just two lint fixes left on the docs branch.",
-      "expected_output": "Prompt-only writes no body sections, so the verbatim goal line travels inline between the rails, above the remaining-work bullets. A prompt-only save-point listing only the follow-ups is the exact shape that loses the goal.",
+      "prompt": "My goal, as I told you this morning: 'make every page of the user docs read consistently before the 1.0 release.' We armed a /goal for it at the start of this session and it's still running. /handoff prompt — just two lint fixes left on the docs branch.",
+      "expected_output": "Prompt-only writes no body sections, so the goal travels inline between the rails: the active /goal re-arm keeps the FIRST line, the verbatim goal quote comes directly below it, and the remaining-work bullets follow. A prompt-only save-point listing only the follow-ups is the exact shape that loses the goal.",
       "files": [],
       "expectations": [
-        "The verbatim goal line appears between the rails, above the inline remaining-work bullets",
-        "The goal is quoted in the user's own words rather than described as the remaining lint work",
-        "The reasoning recognizes that prompt-only points at no file, so the goal travels in the prompt or not at all",
-        "An active /goal still occupies the FIRST line between the rails — the goal line does not displace it"
+        "An active /goal is detected from the conversation, so a /goal re-arm occupies the FIRST line between the rails",
+        "The verbatim goal quote — 'make every page of the user docs read consistently before the 1.0 release', in the user's own words rather than a description of the remaining lint work — sits directly below the /goal line and above the inline remaining-work bullets",
+        "The goal quote does not displace the /goal re-arm from the first line, and the bullets do not come between them",
+        "The reasoning recognizes that prompt-only points at no file, so the goal travels in the prompt or not at all"
       ]
     }
   ]

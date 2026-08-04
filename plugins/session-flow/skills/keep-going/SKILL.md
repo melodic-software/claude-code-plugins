@@ -60,7 +60,27 @@ itself the thing this skill removes.
    from the source of truth, per that doc's inspect-real-state invariant:
    do not infer "it probably finished" or "it probably died" — only the
    artifact tells you which.
-3. **Recover per item — act on evidence.** Classify against the real
+3. **Goal alignment — before any recovery ACTION.** When the resume
+   follows a `/session-flow:handoff`, read that file rather than trusting
+   memory — and when the handoff's path was lost (a `/clear` without
+   copying the resume prompt), recover it first with
+   `/session-flow:find-handoff`. Read its `Original goal` section, then
+   test the planned next actions against it: **say in one sentence how
+   the next action serves that goal.** If you cannot, that is drift, not
+   a wording problem — stop, and either re-derive an action that does
+   serve the goal or ask the user whether the goal changed. **A handoff
+   carrying no `Original goal` is itself a defect:** do not infer the goal
+   from the process the file describes, which is the thing that drifted —
+   ask the user for it in their own words before continuing, and carry
+   their answer into the next save-point.
+
+   This check sits between inspection and action deliberately: steps 1-2
+   only read, but step 4 resumes and restarts work, and restarting work
+   that serves a drifted goal re-arms the drift before anything has
+   tested it. One sentence, not a new stage. Its cost is nothing and its
+   absence is the only signal that many sessions of faithful execution
+   were aimed at the wrong thing.
+4. **Recover per item — act on evidence.** Classify against the real
    output and act:
    - **Progressing** (even if slow) → leave it; report it is alive and
      moving. Do not kill work that is making progress.
@@ -70,26 +90,10 @@ itself the thing this skill removes.
    - **Dead but safe to redo** → restart it (subject to the autonomy
      policy below).
    - **Unrecoverable** → surface it plainly; do not fake a recovery.
-4. **Reconcile the main thread — goal alignment is the FIRST check.**
-   When the interruption followed a `/session-flow:handoff`, read that
-   file rather than trusting memory — and when the handoff's path was
-   lost (a `/clear` without copying the resume prompt), recover it first
-   with `/session-flow:find-handoff`. Read its `Original goal` section,
-   then test the planned next actions against it: **say in one sentence
-   how the next action serves that goal.** If you cannot, that is drift,
-   not a wording problem — stop, and either re-derive an action that does
-   serve the goal or ask the user whether the goal changed. **A handoff
-   carrying no `Original goal` is itself a defect:** do not infer the goal
-   from the process the file describes, which is the thing that drifted —
-   ask the user for it in their own words before continuing, and carry
-   their answer into the next save-point. Then restate where the primary
-   task actually stood — grounded in a fresh read of any plan / checklist
-   / task artifact backing it, not a prior turn's claim — and continue it.
-
-   One sentence, not a new stage. Its cost is nothing and its absence is
-   the only signal that many sessions of faithful execution were aimed at
-   the wrong thing.
-5. **Report.** One list: recovered, restarted, still-running, and lost /
+5. **Reconcile the main thread.** Restate where the primary task
+   actually stood — grounded in a fresh read of any plan / checklist /
+   task artifact backing it, not a prior turn's claim — and continue it.
+6. **Report.** One list: recovered, restarted, still-running, and lost /
    unrecoverable.
 
 ## Active-verification protocol — evidence before action
@@ -145,8 +149,9 @@ back cleanly and stops.
 
 ## Nothing-off-thread case
 
-If the inventory finds no off-thread work, say so and go straight to
-step 4: reconcile the main thread from its real state and continue. The
+If the inventory finds no off-thread work, say so, run step 3's
+goal-alignment check when a handoff backs the resume, then go straight to
+step 5: reconcile the main thread from its real state and continue. The
 interruption may have hit mid-turn on the main thread alone — recovering
 that is still the job.
 

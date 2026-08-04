@@ -158,9 +158,11 @@ ambiguous.
 **Prompt-only path:**
 
 - [ ] Prompt-only justified (all auto-detect criteria hold, OR `prompt` explicitly passed)
-- [ ] The verbatim goal line sits between the rails above the remaining-work bullets — prompt-only
-  writes no file, so the goal travels in the prompt or not at all (engine doc, "Original goal —
-  mandatory on BOTH paths")
+- [ ] The verbatim goal sits between the rails above the remaining-work bullets — below an active
+  `/goal` first line, which it never displaces — and when the goal has recorded amendments, the
+  original dated quote travels with EVERY dated amendment line, never collapsed to a single line;
+  prompt-only writes no file, so the goal travels in the prompt or not at all (engine doc,
+  "Original goal — mandatory on BOTH paths")
 - [ ] Claim provenance applied to every inline remaining-work bullet — inherited status marked
   `UNVERIFIED (<source>)`, not stated as plain fact (engine doc, "Claim provenance")
 - [ ] Redaction pass swept the prompt (secrets/tokens/credentials/PII replaced with shape markers)
