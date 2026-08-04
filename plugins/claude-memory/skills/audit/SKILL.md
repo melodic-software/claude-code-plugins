@@ -33,7 +33,7 @@ the `audit` and `automation-gaps` skills in the `claude-config` plugin).
 | Project instructions | `CLAUDE.md` | Every session, full | Yes |
 | Local overrides | `CLAUDE.local.md` | Every session, full | Yes |
 | Rules | `.claude/rules/**/*.md` | Every session (unconditional) or on-demand (path-scoped) | Yes |
-| Auto-memory | `~/.claude/projects/<project>/memory/` | First 200 lines of MEMORY.md | Yes |
+| Auto-memory | `~/.claude/projects/<project>/memory/` | First 200 lines / 25KB of MEMORY.md | Yes |
 | Settings, hooks, MCP, agents, skills | Various | Various | No — use `claude-config`'s `audit` / `automation-gaps` |
 
 ## Scope boundary (route out)

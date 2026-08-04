@@ -1,6 +1,6 @@
 # Memory Health Criteria
 
-Version: 1.5.0
+Version: 1.5.1
 Last updated: 2026-08-04
 Source: Official Claude Code docs (code.claude.com/docs/en/memory, code.claude.com/docs/en/best-practices, code.claude.com/docs/en/sub-agents, code.claude.com/docs/en/skills)
 
@@ -307,8 +307,10 @@ matching-file Read, so being unreferenced costs nothing per session. WARN per or
 
 **What**: Is MEMORY.md under 200 lines / 25KB?
 
-**How to check**: Count lines and file size. Only the first 200 lines (or 25KB) load at session start
-— anything beyond is silently dropped.
+**How to check**: Count lines and file size on the content that loads — strip YAML frontmatter and
+block-level HTML comments first, since they are removed before the index is loaded and don't count
+toward the limits. Only the first 200 loaded lines (or 25KB) load at session start — anything beyond
+is silently dropped.
 
 ### M2: Stale Entries [WARN]
 
