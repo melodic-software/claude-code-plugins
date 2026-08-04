@@ -130,7 +130,13 @@ ambiguous.
   frontmatter per the engine's structure doc (`${CLAUDE_PLUGIN_ROOT}/reference/structure.md`)
 - [ ] `previous_handoff` present IF this session continued a prior handoff's task (chain continuity
   per the same structure doc); omitted otherwise — including when the directory holds only
-  unrelated-task handoffs
+  unrelated-task handoffs. When present, that file was opened from disk THIS turn and its
+  `Original goal` quote and amendments copied over unchanged — never rebuilt from the conversation
+- [ ] `Original goal` carries the user's goal in their own words, quoted with its date — not a
+  paraphrase and not the process serving it — and the drift-check sentence tying the next action
+  back to it is answered (structure doc, "Original goal")
+- [ ] Completion criteria read as goal-states, each keeping the command or diff that settles it;
+  process milestones sit under the subordinate sub-heading, never as criteria
 - [ ] Every body section the structure doc defines is present — walked from that doc this turn, not
   written from memory; a section with nothing to report says so explicitly rather than being omitted
 - [ ] Claim provenance applied — inherited status marked `UNVERIFIED (<source>)`, not stated as
@@ -152,6 +158,9 @@ ambiguous.
 **Prompt-only path:**
 
 - [ ] Prompt-only justified (all auto-detect criteria hold, OR `prompt` explicitly passed)
+- [ ] The verbatim goal line sits between the rails above the remaining-work bullets — prompt-only
+  writes no file, so the goal travels in the prompt or not at all (engine doc, "Original goal —
+  mandatory on BOTH paths")
 - [ ] Claim provenance applied to every inline remaining-work bullet — inherited status marked
   `UNVERIFIED (<source>)`, not stated as plain fact (engine doc, "Claim provenance")
 - [ ] Redaction pass swept the prompt (secrets/tokens/credentials/PII replaced with shape markers)

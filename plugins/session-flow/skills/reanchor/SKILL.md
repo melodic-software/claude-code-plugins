@@ -61,12 +61,28 @@ back up.
 4. **Stale memory-tier files.** For the session's handoff / todo / working-memory
    files, flag entries whose subjects have since merged or landed, so the next
    step neither re-does settled work nor chases a closed thread.
+5. **The recorded goal, and whether the planned work still serves it.** A
+   handoff's `Original goal` is a premise like any other — a documented claim
+   about what the work is FOR — except nothing else on any resume path ever
+   tests it. Confirm it is present; confirm a document that chains from another
+   carries the prior link's quote **unchanged**, read from that file rather than
+   from the current document's own wording; then confirm the planned next
+   actions still connect to it, stated in one sentence. A quote that was
+   re-derived instead of copied is reported as drift between the links — the
+   paraphrase IS the drift, and it is invisible at any single hop because each
+   rewording is individually plausible. An absent `Original goal` is itself a
+   defect: never infer the goal from the process the document describes, because
+   that process is the thing that drifted — ask for it in the user's own words.
+   Where the next actions cannot be tied to the goal in a sentence, that is the
+   finding, not a wording problem.
 
 ## Flow
 
-1. Gather the session's inputs — the handoff / plan / memory files and any PRs,
-   issues, branches, skills, or plugin versions they name.
-2. Run the four checks above against live reality — fetch/read the live source
+1. Gather the session's inputs — the handoff / plan / memory files, the
+   `Original goal` they record, and any PRs, issues, branches, skills, or plugin
+   versions they name. When an input chains from a prior handoff, open that file
+   too: the goal check below compares links, which a single document cannot do.
+2. Run the five checks above against live reality — fetch/read the live source
    (`git fetch` the base, query `gh`, read installed vs repo-source manifests).
    When a check cannot reach what it needs (no network, no `gh`, no fetch),
    report that premise as **unverifiable** rather than assuming it is unchanged;
@@ -92,7 +108,16 @@ back up.
 - **Does not re-anchor a standing rule or discipline.** Correcting behavioral
   doctrine mid-session (a standing-rule re-anchor) is a separate concern; this
   skill re-anchors factual assumptions against live reality, not rules.
-- **Does not auto-fix drift.** It reports; the session decides.
+- **Does not solely own the goal check.** Reanchor is opt-in, so a check living
+  only here fires only once staleness is already suspected — which is exactly
+  when a drifted chain looks healthiest. The resume-prompt directive carries it
+  on every resume and `/session-flow:keep-going` carries it on the interrupted
+  one; this copy serves the deliberate "is this still current" pass over an old
+  plan, where the other two never run.
+- **Does not auto-fix drift.** It reports; the session decides. On a goal
+  misalignment that means naming it and handing to `/session-flow:keep-going` —
+  reanchor never re-derives the next action or amends a recorded goal, which
+  changes only on an explicit statement from whoever set it.
 
 ## Gotchas
 

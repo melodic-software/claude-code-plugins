@@ -1,5 +1,71 @@
 # Changelog — session-flow plugin
 
+## [0.17.23]
+
+### Fixed
+
+- **A handoff chain preserved state perfectly and intent not at all: nothing made the user's own
+  goal a mandatory, immutable field, so each save-point serialized the process machinery as the
+  mission.** The goal appeared in exactly one place — a line inside the six-line `Resumption brief`,
+  a section whose own contract is to restate facts owned below. So every hop re-derived the goal
+  from a conversation that had already lost it, each paraphrase individually plausible, and what
+  survived was the phase, the bundle, and the checklist in front of the writer. `Completion
+  criteria` compounded it: the section demanded observability and said nothing about framing, so
+  criteria stated as process steps passed — and a process criterion is satisfiable while the goal is
+  no closer, reporting done when the process finished rather than when the work landed. Each resumed
+  session then optimized the wrong objective faithfully, with nothing on any resume path testing the
+  work against what it was for.
+
+  `reference/structure.md` now opens with body section 1, **`Original goal`** — the user's statement
+  quoted verbatim with its date, never paraphrased; `Amended:` defaulting to `None.` and changeable
+  only on an explicit dated statement from whoever set the goal, prior goal retained above it; and a
+  drift-check line, `Next action serves it by:`, that ties the first remaining action back to the
+  goal and, when it cannot be written, says so as drift rather than staying silent. Immutability is
+  enforced as a step, not an adjective: whenever `previous_handoff` is emitted, the write procedure
+  opens that file from disk THIS turn and reproduces its quote and amendments unchanged — the same
+  did-the-read check the live `TaskList` call already carries. The `Resumption brief` stops
+  restating the goal and points at §1. `Completion criteria` now requires both halves — the
+  goal-state a criterion establishes AND the command or diff that settles it — with process
+  milestones demoted to a subordinate `Process milestones` sub-heading, since goal-framed
+  criteria are the harder ones to settle mechanically, which is exactly why writers drifted to
+  process framing. Sections renumbered 1-14; the doc's internal cross-references moved with them.
+  `skills/handoff`'s post-write checklist gains the matching assertions on both paths — the quote
+  copied off disk rather than rebuilt, the drift-check answered, criteria goal-framed, and the
+  verbatim goal line present on prompt-only — because a rule the writer is never checked against is
+  the rule it drifts from; `context/gotchas.md` carries the failure pattern, and the skill's eval
+  set covers both paths.
+
+- **Nothing re-anchored a resumed session to its goal, so the drift ran unnoticed across many
+  sessions.** The check now sits on all three surfaces a resume can cross.
+  `reference/save-point.md` gains an `Original goal — mandatory on BOTH paths` rule (prompt-only
+  writes no body sections, so it carries the verbatim goal line inline between the rails, above its
+  remaining-work bullets — it points at no file, and a prompt-only save-point listing just the
+  follow-ups is the precise shape that loses the goal), and the rails directive becomes `Read @…,
+  confirm its Original goal still governs the remaining next steps, then continue them.` — the
+  directive because it is the one artifact every resume passes through, including the dominant bare
+  paste that invokes no skill at all, the agent `continue-in-background` launches, and a
+  `find-handoff` recovery. Not a detection-contract change: signal 1 is matched on the
+  `…handoffs/<TS>-handoff-…` shape, which the clause leaves untouched. It does carry one structural
+  consequence, recorded where `structure.md` describes how that doc is cited elsewhere: the
+  directive now names `Original goal` by name (never by number), so renaming that one section
+  ripples out to it, where before no rename ripple existed. `skills/keep-going` owns the
+  skill-mediated path — its "Reconcile the main thread" step now runs goal alignment FIRST, before
+  restating position: read the handoff's `Original goal`, say in one sentence how the next action
+  serves it, and treat an unstatable connection as drift rather than a wording problem. A handoff
+  carrying no `Original goal` is itself a flagged defect — the goal is never inferred from the
+  process the file describes, since that process is the thing that drifted; the user is asked for it
+  in their own words first. `skills/reanchor` covers the third path — the deliberate "is this still
+  current" pass over an old plan, where neither of the other two ever runs — as a fifth premise
+  check beside its PR, base-drift, surface-rename, and stale-memory ones. That framing is the point:
+  a recorded goal is a documented claim about what the work is FOR, and it goes stale exactly the
+  way a PR's state does, so it sits inside reanchor's existing boundary rather than stretching it
+  toward intent. Because reanchor reads a chain, it can do what no single-document check can — open
+  the prior handoff and compare the quotes across links, reporting a re-derived goal as drift
+  between them. It reports and hands to `keep-going`; it never re-derives the next action or amends
+  a goal. None of the three is sufficient alone: reanchor is opt-in and fires only once staleness is
+  already suspected, which is precisely when a drifted chain looks healthiest. Both skills carry
+  eval cases for the new check, including the absent-goal case each must refuse to infer past.
+
 ## [0.17.22]
 
 ### Fixed

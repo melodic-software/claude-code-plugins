@@ -70,13 +70,25 @@ itself the thing this skill removes.
    - **Dead but safe to redo** → restart it (subject to the autonomy
      policy below).
    - **Unrecoverable** → surface it plainly; do not fake a recovery.
-4. **Reconcile the main thread.** Restate where the primary task actually
-   stood — grounded in a fresh read of any plan / checklist / task
-   artifact backing it, not a prior turn's claim — then continue it. When
-   the interruption followed a `/session-flow:handoff`, read that file
-   rather than trusting memory — and when the handoff's path was lost (a
-   `/clear` without copying the resume prompt), recover it first with
-   `/session-flow:find-handoff`.
+4. **Reconcile the main thread — goal alignment is the FIRST check.**
+   When the interruption followed a `/session-flow:handoff`, read that
+   file rather than trusting memory — and when the handoff's path was
+   lost (a `/clear` without copying the resume prompt), recover it first
+   with `/session-flow:find-handoff`. Read its `Original goal` section,
+   then test the planned next actions against it: **say in one sentence
+   how the next action serves that goal.** If you cannot, that is drift,
+   not a wording problem — stop, and either re-derive an action that does
+   serve the goal or ask the user whether the goal changed. **A handoff
+   carrying no `Original goal` is itself a defect:** do not infer the goal
+   from the process the file describes, which is the thing that drifted —
+   ask the user for it in their own words before continuing, and carry
+   their answer into the next save-point. Then restate where the primary
+   task actually stood — grounded in a fresh read of any plan / checklist
+   / task artifact backing it, not a prior turn's claim — and continue it.
+
+   One sentence, not a new stage. Its cost is nothing and its absence is
+   the only signal that many sessions of faithful execution were aimed at
+   the wrong thing.
 5. **Report.** One list: recovered, restarted, still-running, and lost /
    unrecoverable.
 
