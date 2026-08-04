@@ -339,8 +339,17 @@ IDs — the alias tracks the current recommended model and a pinned ID rots.
 - **Conflict and security subagents — `fable`.** Frontier tier, which
   babysit-loop requires for conflict workers unconditionally.
 - **Mechanical greps and log pulls — `haiku`.** Per-dispatch override
-  only: 200k context and an old cutoff, never for a question about
-  current harness behavior.
+  only: the smallest context window and the oldest cutoff of the four,
+  never for a question about current harness behavior.
+
+The per-model figures behind those two rationales — context window and
+knowledge cutoff — are upstream-owned
+([models overview](https://platform.claude.com/docs/en/about-claude/models/overview))
+and are not restated here. Both orderings resolved as written against that
+page on 2026-08-04. Both are *derived* comparisons rather than quoted
+figures, so either can flip while every underlying number still reads
+correctly: re-resolve them when a new Claude model family reaches GA, or
+when one of the aliases above starts resolving to a different model.
 
 **The implementer tier is enforced structurally at the dispatch seam
 (#1649).** `/implementation:implement-dispatch` dispatches workers and
