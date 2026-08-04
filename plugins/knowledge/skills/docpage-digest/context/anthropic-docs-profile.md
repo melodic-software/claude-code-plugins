@@ -220,6 +220,15 @@ Models:
 - <https://platform.claude.com/docs/en/about-claude/models/introducing-claude-fable-5-and-claude-mythos-5>
   — the launch source the corpus's own Fable 5 / Mythos 5 positioning claims rest on, and linked
   from the harness model-config doc's "Work with Fable 5"
+- <https://platform.claude.com/docs/en/about-claude/models/whats-new-opus-5>
+  — enqueued on custody grounds, not on a fleet-lane trigger that has not fired: the `playbooks`
+  Opus 5 model-adaptation chapter cites this page as sole authority for three shipped claims —
+  thinking on by default, the 400 returned when thinking is disabled above effort `high`, and the
+  live effort-level enumeration that establishes the upstream Opus 5 prompting guide's own ladder
+  statement as truncated — none of which the models `overview` page carries, so "the overview covers
+  it canonically" is false for exactly the facts already cited. A custody fact about this one page,
+  not a decision to start a release-notes corpus; `whats-new-sonnet-5` carries no such citations and
+  stays deferred
 
 Claude Code companion docs (digest in this order):
 
@@ -256,9 +265,6 @@ Deferred with trigger (not queued):
 - <https://platform.claude.com/docs/en/build-with-claude/fallback-credit> — the two API-side claims
   it would settle carry a weak, openly disclosed absence basis that nothing is built on; enqueue
   when an artifact actually depends on fallback-credit behavior
-- <https://platform.claude.com/docs/en/about-claude/models/whats-new-opus-5> — release notes for a
-  model the models `overview` page already covers canonically; enqueue when Opus 5 enters or
-  materially changes a fleet lane
 - <https://platform.claude.com/docs/en/about-claude/models/whats-new-sonnet-5> — release notes for a
   model the models `overview` page already covers canonically; enqueue when Sonnet 5 enters or
   materially changes a fleet lane
