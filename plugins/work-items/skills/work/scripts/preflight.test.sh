@@ -279,10 +279,11 @@ assert_contains "deny-only verb is a gap" "$OUT" "'git add'"
 assert_contains "deny-only gap has the DENIED message" "$OUT" "is DENIED"
 assert_eq "deny-only verb → exactly one gap" "1" "$(run "$REPO" "$CFG15" --count)"
 
-# --- Case 16: --worktree-root excludes settings.local.json from coverage -----
-# A grant present ONLY in this checkout's gitignored settings.local.json is not
-# carried by a fresh worktree. The interactive path reads local (gap closed); the
-# autonomous path (--worktree-root) drops local, so the worker-side gap surfaces.
+# --- Case 16: the main checkout's settings.local.json follows the worker -----
+# Since Claude Code v2.1.211, "don't ask again" approvals save to the MAIN
+# checkout's settings.local.json and apply in every worktree of the repository —
+# so a grant there is real coverage for a fresh worker, and the autonomous path
+# reads it instead of dropping it.
 REPO3="$TEST_TMPDIR/local-mask"
 git init -q "$REPO3"
 PROJ3="$(git -C "$REPO3" rev-parse --show-toplevel)"
@@ -295,9 +296,28 @@ write_settings "$CFG16" \
 jq -n '{permissions:{allow:["Bash(gh pr create *)"]}}' >"$PROJ3/.claude/settings.local.json"
 assert_eq "interactive path reads local grant → no gap" "0" "$(run "$REPO3" "$CFG16" --count)"
 OUT=$(run "$REPO3" "$CFG16" --worktree-root "$POSIX_CHILD")
-assert_contains "autonomous path drops local → gh pr create gap surfaces" "$OUT" "'gh pr create'"
-assert_contains "report header notes the local exclusion" "$OUT" "settings.local.json"
-assert_eq "autonomous path drops local grant → one gap" "1" "$(run "$REPO3" "$CFG16" --count --worktree-root "$POSIX_CHILD")"
+assert_contains "header states the main-local inclusion basis" "$OUT" "v2.1.211"
+assert_eq "autonomous path reads the main checkout's local grant → no gap" "0" "$(run "$REPO3" "$CFG16" --count --worktree-root "$POSIX_CHILD")"
+
+# --- Case 16b: a linked worktree's OWN local file is still excluded ----------
+# A rule saved inside a worktree (pre-2.1.211 harness, or hand-placed) applies
+# only to sessions started there, so a fresh worker would not inherit it. From a
+# worktree cwd the autonomous path keeps the main checkout's local file but
+# drops the worktree's own.
+git -C "$REPO3" -c user.name=t -c user.email=t@t commit -q --allow-empty -m init
+WT16="$TEST_TMPDIR/local-mask-wt"
+git -C "$REPO3" worktree add -q --detach "$WT16"
+# Main-local grant (case 16's file) reaches a worktree cwd's autonomous run.
+assert_eq "main checkout's local grant covers from a worktree cwd → no gap" "0" "$(run "$WT16" "$CFG16" --count --worktree-root "$POSIX_CHILD")"
+# Move the grant into the worktree's own local file only.
+rm "$PROJ3/.claude/settings.local.json"
+mkdir -p "$WT16/.claude"
+jq -n '{permissions:{allow:["Bash(gh pr create *)"]}}' >"$WT16/.claude/settings.local.json"
+assert_eq "interactive path in the worktree reads its own local → no gap" "0" "$(run "$WT16" "$CFG16" --count)"
+OUT=$(run "$WT16" "$CFG16" --worktree-root "$POSIX_CHILD")
+assert_contains "autonomous path drops the worktree's own local → gap surfaces" "$OUT" "'gh pr create'"
+assert_contains "header notes the worktree-local exclusion" "$OUT" "excludes this worktree's own local file"
+assert_eq "worktree-local-only grant → one gap" "1" "$(run "$WT16" "$CFG16" --count --worktree-root "$POSIX_CHILD")"
 
 # --- Case 17: a distinct --project-root reads the worker's OWN local settings -
 # When --project-root names a real worker worktree (toplevel differs from cwd),
