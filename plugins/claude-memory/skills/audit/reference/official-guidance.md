@@ -24,6 +24,11 @@ Refresh this file from current official docs via the skill's `update` action.
 
 <!-- -->
 
+> "If Claude keeps doing something you don't want despite having a rule against it, the file is probably too long and the rule is getting lost."
+> — code.claude.com/docs/en/best-practices
+
+<!-- -->
+
 > "Less than 300 lines is best, and shorter is even better."
 > — humanlayer.dev/blog/writing-a-good-claude-md
 
