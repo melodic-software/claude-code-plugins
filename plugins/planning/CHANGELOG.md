@@ -18,11 +18,13 @@ All notable changes to the `planning` plugin are documented here. Format follows
   numerous. `skills/interview/SKILL.md` now states the boundary as a sibling to that
   paragraph, where the discrimination between the two signals is visible: for a corpus
   application the interview's output is the small set of genuinely contested decisions
-  **plus an execution contract** — one Brief `### Acceptance criteria` line naming the
-  per-unit close-out loop (one source unit at a time: apply, verify, close) and what
-  *closed* means for a unit — and never one decision row per source unit. Naming the
-  destination section is load-bearing: the loop had nowhere to live, which is why the
-  decision ledger absorbed it. The tripwire is a count the reader can actually run —
+  **plus an execution contract** — one line in the session's output artifact, routed by
+  domain like every other output (the Brief's `### Acceptance criteria` in an engineering
+  session, the shared-understanding summary in a general one) naming the per-unit
+  close-out loop (one source unit at a time: apply, verify, close) and what *closed*
+  means for a unit — and never one decision row per source unit. Naming the destination
+  is load-bearing: the loop had nowhere to live, which is why the decision ledger
+  absorbed it. An eval exercises the collapse. The tripwire is a count the reader can actually run —
   candidate question count scaling with the number of source units rather than with the
   number of genuine forks is execution masquerading as decisions, and it collapses into
   the contract rather than routing to wayfind. `skills/interview/context/gotchas.md`

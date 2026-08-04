@@ -11,7 +11,8 @@
   records, and on the records those verifications produce. Imperative 3 in
   `skills/orchestrate/SKILL.md` now scopes itself to what ships: a process record about the
   work (ledger, checklist, status log) is not the work and stays at self-check however many
-  of them a batch touched, and a record OF a verification is never itself verified.
+  of them a batch touched, and a record OF a verification is never itself verified. An eval
+  exercises the discrimination.
 
   The clause is terse and self-contained on purpose, and it is the one place this rule is
   restated. The `playbooks` plugin's `fable-5` orchestration chapter owns the rule with its

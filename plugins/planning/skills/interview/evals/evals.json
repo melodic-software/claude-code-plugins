@@ -131,6 +131,20 @@
         "On a doc-fetch failure the skill degrades to the durable distinction with a visible note and does not halt the interview or guess a model name",
         "The recommendation is framed as advisory (applied via /model, /advisor, effort setting), not as a read of the user's current config"
       ]
+    },
+    {
+      "id": 11,
+      "name": "bulk-application-collapses-to-execution-contract",
+      "prompt": "/planning:interview me — we've settled on the new frontmatter shape for our docs site. Now I want to apply it across the 40 markdown pages under docs/. Interview me so we lock this down properly.",
+      "expected_output": "The interview recognizes a corpus application of an already-settled shape: its output is TWO things only — the small set of genuinely contested decisions (e.g. how to treat pages that deviate from the template, whether to batch the PRs), plus an execution contract, one line in the session's output artifact (the Brief's `### Acceptance criteria` here, since this is an engineering session) naming the per-unit close-out loop (one page at a time: apply, verify, close) and what closed means for a page. It NEVER enumerates the 40 pages as decision rows. If candidate questions start scaling with the page count rather than with genuine forks, the tripwire fires: the per-unit rows collapse into the loop, only the forks remain, and the collapse is stated. The signal is distinguished from a ballooning frontier — this does not route to /planning:wayfind, because the decisions are settled and merely numerous.",
+      "files": [],
+      "expectations": [
+        "Output is exactly two things for the corpus work: a small contested-decision set plus an execution contract naming the per-unit close-out loop — never one decision row per page",
+        "The execution contract lands as one line in the session's output artifact routed by domain (the Brief's `### Acceptance criteria` for this engineering task)",
+        "The contract names the per-unit loop (apply, verify, close, one unit at a time) and what closed means for a unit",
+        "Candidate question count scaling with the number of pages rather than genuine forks is treated as the tripwire: per-unit rows collapse into the loop and the collapse is stated",
+        "Does not route to /planning:wayfind for this signal — the unit-scaling remedy is the collapse into the execution contract, distinct from the ballooning-frontier remedy"
+      ]
     }
   ]
 }
