@@ -4,6 +4,23 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.10.21]
+
+### Changed
+
+- **`whats-new-opus-5` moves from deferred to the Anthropic profile's Models queue, on grounds its
+  own trigger never supplied.** The deferral read "release notes for a model the models `overview`
+  page already covers canonically; enqueue when Opus 5 enters or materially changes a fleet lane",
+  and that trigger has not fired. What moved the entry is custody: the `playbooks` Opus 5
+  model-adaptation chapter already cites this page as **sole authority** for three shipped claims —
+  thinking on by default, the 400 the API returns when thinking is disabled above effort `high`, and
+  the live effort-level enumeration that establishes the upstream Opus 5 prompting guide's own ladder
+  statement as truncated (all three re-verified live 2026-08-03) — and the `overview` page carries
+  none of them. The deferral's premise is therefore
+  false for exactly the facts already in use: doctrine ships on a page with no digest slice and no
+  custody record. Scope is this one page, not a reopened release-notes lane — `whats-new-sonnet-5`
+  carries no such citations and keeps its identical trigger.
+
 ## [0.10.20]
 
 ### Added
