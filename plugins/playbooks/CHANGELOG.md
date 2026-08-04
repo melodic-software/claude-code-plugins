@@ -4,6 +4,44 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.6.17]
+
+### Changed
+
+- **`fable-5`: meta-rule 3 no longer treats the arm-time model resolution as permanent** (playbooks
+  0.6.16 → 0.6.17). The rule resolved the running model once, at arm time, and routed it to its
+  `reference/model-adaptation/` file. The Claude Fable 5 & Claude Mythos 5 system card documents a
+  case that assumption misses: Fable 5's safeguard classifiers — cybersecurity, biology and
+  chemistry, distillation, and frontier LLM development — do not merely refuse. They re-serve the
+  request with the latest Claude Opus model, and the card states the behavior is "not configurable"
+  on some Claude interfaces (§1.5). It is not per-request either: on Terminal-Bench, 20.9% of Fable
+  5 trials fell back to Claude Opus 4.8 "for the rest of the trajectory" (§8.3), and in the
+  safeguards-on behavioral investigations fallback occurred in over half of conversation transcripts
+  (§6.2.3.2).
+
+  So a session that armed as Fable 5 can be answered by Opus 4.8 from a classifier hit onward while
+  still running Fable-calibrated deltas — and the plugin already ships the right chapter for that
+  model, `opus-4-8.md`, with nothing routing anyone to it. Meta-rule 3's own warning that deltas are
+  calibrated per model version is what makes the gap bite.
+
+  **The line is phrased on the signal reaching the session, not on the model noticing.** The card
+  describes three fallback signals and names a recipient for only two — the client-app user
+  notification and the Messages API response-object field; the third is "A session event is emitted
+  whenever fallback occurs," recipient unstated. Nothing in the card says the re-served model can
+  observe the switch, so the rule says the signals are addressed to the surface rather than to the
+  model, and triggers on one reaching the session.
+
+  **Scope held to what the card states.** The card does not name which interfaces have
+  non-configurable fallback, so the rule names none — in particular it does not claim Claude Code is
+  one of them. The classifier list, the non-configurability, and the trajectory-scoped behavior are
+  the card's own statements about Fable 5's deployment, not Mythos 5 measurements restated as Fable
+  5 properties.
+
+  No other chapter changed. The card's per-model behavioral results — MASK, missing-context
+  hallucination, GUI overeagerness, overconfidence — are model-version facts, and `SKILL.md` already
+  confines those to `reference/model-adaptation/`, which carries no `fable-5.md` by design because
+  Fable 5 is the model the playbook was authored by and for.
+
 ## [0.6.16]
 
 ### Added
