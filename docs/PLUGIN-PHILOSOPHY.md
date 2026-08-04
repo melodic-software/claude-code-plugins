@@ -560,14 +560,28 @@ model seam — plugin `userConfig` declares only generic typed options with no m
 verified 2026-07-22) — so doctrine travels by authoring-time conformance in each skill, not runtime
 configuration.
 
-Tier-to-model mapping, dated 2026-07-22 (recheck trigger: a new Claude model family reaches GA, or
+Tier-to-model mapping, dated 2026-08-04 (recheck trigger: a new Claude model family reaches GA, or
 the session default model changes):
 
-| Tier | Model (2026-07-22) |
+| Tier | Model (2026-08-04) |
 |---|---|
-| Consequential verdict (session tier or above) | Fable 5 / Opus 4.8 |
+| Consequential verdict (session tier or above) | The active session model; under the fleet's current `opus[1m]` pin that is Opus 5, with Fable 5 the rung above |
 | Mechanical prep, one tier down | Sonnet 5 |
 | Bulk mechanical sweeps | Haiku 4.5 |
+
+Row 1 is relative by construction — the invariant above makes the ladder relative to the active
+session, so a session already running Fable 5 has no rung above and dispatches consequential
+verdicts at its own tier. The named models are the resolution under the fleet's pinned session
+default (`opus[1m]`, an alias): `opus` resolves to Opus 5 on the Anthropic API — "for complex
+agentic coding and enterprise work" — while Fable 5 is "the most capable model in Claude Code",
+positioned for tasks larger than a single sitting rather than for harder verdicts at ordinary
+length. Opus 4.8, the previous row-1 entry, is now a legacy
+model. Rows 2 and 3 re-verify unchanged: Sonnet 5 and Haiku 4.5 remain the current Sonnet and Haiku.
+The figures behind the cost ordering below are upstream-owned
+([pricing](https://platform.claude.com/docs/en/about-claude/pricing)) and are not restated here.
+([model config](https://code.claude.com/docs/en/model-config),
+[models overview](https://platform.claude.com/docs/en/about-claude/models/overview), both verified
+2026-08-04.)
 
 That ladder is a cost ordering, and one capability does not travel down it: **interleaved thinking —
 a thinking block between tool calls rather than only before the first and after the last.** Claude Code
