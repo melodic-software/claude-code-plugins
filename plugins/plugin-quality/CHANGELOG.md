@@ -5,6 +5,19 @@ All notable changes to the `plugin-quality` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] - 2026-08-04
+
+### Added
+
+- **Config lens covers plugin-shipped harness config files.** The plugins guide
+  (<https://code.claude.com/docs/en/plugins>, fetched 2026-08-04) specifies three plugin-root
+  config surfaces the lens predated, each with a silent failure mode worth auditing:
+  `settings.json` (only `agent` and `subagentStatusLine` supported; unknown keys silently ignored;
+  wins over `settings` in `plugin.json`), `.lsp.json` (an invalid entry is skipped — only
+  `claude --debug` says why; a failed start surfaces in the `/plugin` Errors tab), and
+  `monitors/monitors.json` (auto-start; every stdout line reaches Claude as a notification).
+  `config.md` now names the surfaces and their checks, and the hub's index row routes them there.
+
 ## [0.4.0] - 2026-07-31
 
 ### Added
