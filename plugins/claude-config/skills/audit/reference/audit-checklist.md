@@ -2,6 +2,10 @@
 
 Validation rules organized by category. Each check has a severity, what to look for, and how to verify.
 
+Category G (skill-listing budget) has no table here — its checks are procedural and live in
+[context/validation-categories.md](../context/validation-categories.md), which carries every
+category's criteria.
+
 ## A. Schema & Structure
 
 | Check | Severity | How to verify |
@@ -104,3 +108,32 @@ additional ask-gates) get those checked at the same severities.
 | No secrets in settings.json (tokens, keys, passwords) | error | Scan for patterns: `ghp_`, `eyJ`, `sk-`, `AKIA`, common token prefixes |
 | Secrets are in settings.local.json only | error | settings.local.json is gitignored |
 | Path-based env vars use forward slashes | info | Windows compatibility |
+
+## H. Model and effort settings
+
+Each check reads a settings file this skill already opens, and each detects a value the harness
+accepts into the file and then does not apply the way its author expects. How loudly that surfaces
+differs per row, so each row says so rather than the section claiming a blanket silence.
+
+Two of these rows also have an authoring-time path: the declared schema section A checks for
+constrains `effortLevel` by `enum` and `fallbackModel` by `maxItems`, so an editor validating
+against it flags them before the file is ever loaded. The rows stay, because the schema is advisory
+— the harness still reads a file that violates it — and because section A checks that `$schema` is
+present, not what the values are. Where the schema and the harness disagree, the row says which is
+which.
+
+Apply `jq` recipes to `settings.json` and `~/.claude/settings.json`. For `settings.local.json`,
+follow this skill's safe-read rule and go through `check-structure.sh` rather than dumping values.
+Resolve current behavior from <https://code.claude.com/docs/en/model-config> when the audit runs,
+the way section F resolves environment variables against their own page.
+
+| Check | Severity | How to verify |
+| --- | --- | --- |
+| `effortLevel` is not `max` or `ultracode` | warning | `jq '.effortLevel'`. Model configuration states both are session-only and "are not accepted here"; the declared schema's `enum` omits them too, so a schema-aware editor already flags this. Report what the author loses — the level they asked for is not the one that persists — without asserting which level runs instead, which the page does not state. `CLAUDE_CODE_EFFORT_LEVEL` is the durable route to `max` |
+| `fallbackModel` satisfies both the declared `maxItems: 3` and the documented post-dedup cap | warning | These are two different tests and can disagree: the schema caps RAW array length at 3, while the page caps the chain "after duplicate removal", so `["sonnet","haiku","sonnet","opus"]` fails the schema at 4 entries but leaves exactly 3 after dedup. Report raw length over 3 as a schema violation, then dedupe in place with `jq '.fallbackModel \| reduce .[] as $m ([]; if index($m) then . else . + [$m] end)'` — `unique` would sort away the order the chain is tried in — and name any entry past the third as at risk of being ignored. Not "dead": allowlist-excluded entries are also dropped when the chain is read, and the page does not state whether that dropping happens before or after the cap |
+| `availableModels` does not mix a family wildcard with a specific entry of that family | warning | An entry naming a specific model "disables that family's wildcard entry": `["sonnet", "claude-sonnet-4-5"]` permits only Sonnet 4.5, not every Sonnet. Reached the same way by a Mantle ID and by an `ANTHROPIC_CUSTOM_MODEL_OPTION` value embedding a family name. This one is not silent — an alias narrowed to an older permitted version shows "a notice naming both the requested and substituted models" — so the finding is that the allowlist is narrower than its author meant, not that nothing surfaces. Report the models they most likely still expect to be selectable |
+| `enforceAvailableModels` is paired with a non-empty `availableModels` | error | `jq '.enforceAvailableModels, .availableModels'`. The key "has no effect when `availableModels` is unset or empty", so an administrator who set it believes the Default option is constrained when it is not — an enforcement bypass, which this skill's severity guide rates `error`. Both keys belong in the highest-precedence managed source, and managed sources do not merge; that placement is not decidable from the files this skill reads, so report the pairing, not the placement |
+
+Model IDs in `modelOverrides` are not validated here: unknown keys are ignored rather than
+rejected, and deciding whether a key is a real Anthropic model ID means resolving it against
+[Models overview](https://platform.claude.com/docs/en/about-claude/models/overview).

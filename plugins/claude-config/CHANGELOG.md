@@ -3,6 +3,78 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.21.7]
+
+### Added
+
+- **`audit`: category H, the model and effort settings no category reached.** The skill advertises
+  settings-file and environment-variable correctness "against current official docs", and categories
+  A–G reach schema, permissions, MCP servers, hooks, plugins, environment variables, and the
+  skill-listing budget. None reached the model-configuration keys, so `effortLevel`,
+  `fallbackModel`, `availableModels`, and `enforceAvailableModels` went unaudited in a skill whose
+  stated scope includes them. Phase 2's enumeration, `validation-categories.md`, and a mandatory
+  Phase 3 model-config fetch all move with it, so the category is reachable by the skill's own flow
+  rather than stranded in the checklist.
+
+  The four rows share one shape: each names a value the harness accepts into the file and then does
+  not apply as its author expects. `effortLevel: max` is not the level that persists; a fourth
+  `fallbackModel` entry risks being ignored; a specific model listed beside its own family wildcard
+  narrows the allowlist to that one version; `enforceAvailableModels` without a non-empty
+  `availableModels` does nothing at all.
+
+  Three rows are `warning`. The `enforceAvailableModels` pairing is `error`, because this skill's own
+  severity guide rates an enforcement bypass that way and that is what the finding is: an
+  administrator who set the key believes the Default option is constrained when it is not.
+
+  **How loudly each surfaces differs, and the rows say so individually.** An earlier draft claimed a
+  blanket runtime silence; that is false for the allowlist row, where a narrowed alias shows a
+  substitution notice naming both models. Two rows also have an authoring-time path — the declared
+  schema constrains `effortLevel` by `enum` and `fallbackModel` by `maxItems` — so a schema-aware
+  editor catches them first. They stay because the schema is advisory and the harness reads a file
+  that violates it. Where the two authorities disagree they are reported separately: `maxItems` caps
+  RAW array length while the page caps the chain after deduplication, so a four-entry chain holding
+  one duplicate fails the schema and satisfies the harness.
+
+  Rows were admitted on one test: the key must appear in a file this skill actually opens. That
+  excluded the managed-source placement rule for the `availableModels` pair, which no local file can
+  decide, and it is carried as guidance in the verify column instead of a verdict. `modelOverrides`
+  key validation is excluded for a different reason and stated as a closing note: deciding whether a
+  key is a real model ID means resolving it against Models overview, and that page's own restatement
+  deferral governs new consumers of the facts it owns.
+
+  **The frontmatter-`effort` lint stays deferred and untouched.** That separate item would lint the
+  `effort` frontmatter field in this repository's own agents and skills; it has no host, and the
+  value list it would need is deliberately not restated in this repo. Category H is a different item
+  on three counts — a different key (`effortLevel`, not `effort`), a different file (a consumer's
+  settings, not this repo's component frontmatter), and a host that already exists. Its deferral
+  permits exactly this: a new item with a chosen host, rather than the deferral being lifted.
+
+  The rows do restate the session-only effort semantics rather than citing this repo's philosophy
+  doc, deliberately: this checklist ships into consumer repositories where that doc is not present,
+  so a citation would resolve to nothing and the row would lose its detection. Note the rows also
+  quote the upstream page verbatim where categories A–F restate their sources inline instead. That
+  is a deliberate departure — these findings turn on exact wording a reader will want to check
+  against the page — and the Phase 3.3 fetch is what keeps the quotes honest as the page moves.
+
+  Verified 2026-08-04 against <https://code.claude.com/docs/en/model-config>, fetched as raw
+  markdown (82,975 B), and against the declared settings schema at
+  <https://json.schemastore.org/claude-code-settings.json>. Recheck trigger: the `effortLevel`
+  accepted-value set changing, the three-model fallback-chain cap changing, the wildcard-disabling
+  rule for a specific family entry changing, or the schema's `enum`/`maxItems` constraints diverging
+  further from the page.
+
+### Fixed
+
+- **`audit-instructions`: `I17`'s `effortLevel: max` carve-out justified itself with a false claim**
+  (criteria 1.15.0). It read that the settings schema "accepts `low`, `medium`, `high`, `xhigh`
+  only, so that string is unreachable there". The schema is advisory JSON Schema: the value is
+  writable, the file merely fails validation, and the harness reads it anyway — which is precisely
+  why the new `audit` category H checks for it. Left as written, one plugin asserted both that the
+  value cannot appear in a settings file and that a sibling category hunts it there. The carve-out
+  itself is unchanged and still correct — an instruction-text catalog should not hunt the literal —
+  but it now rests on the editor-catches-it-at-authoring-time reason rather than an impossibility
+  that does not hold, and points at the category that does own the file-level check.
+
 ## [0.21.6]
 
 ### Changed

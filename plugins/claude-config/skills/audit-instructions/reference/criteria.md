@@ -1,5 +1,5 @@
 ---
-version: 1.14.0
+version: 1.15.0
 last-updated: 2026-08-04
 ---
 
@@ -733,9 +733,12 @@ fails only at the top of the effort ladder, and a disable that fails at every le
   scanned settings files would claim authority a sibling already holds. Instruction text that
   happens to *live* in a settings file, such as a prompt-type hook's injected text, stays here: the
   discriminator is whether the content instructs, not which file holds it.
-- **Must NOT flag:** `effortLevel: max` as a literal to hunt — the settings schema accepts `"low"`,
-  `"medium"`, `"high"`, `"xhigh"` only, so that string is unreachable there and an auditor sent
-  after it finds nothing and learns nothing. **A document that states either arm in order to
+- **Must NOT flag:** `effortLevel: max` as a literal to hunt **in instruction text** — the settings
+  schema's `enum` accepts `"low"`, `"medium"`, `"high"`, `"xhigh"` only, so a schema-aware editor
+  flags the value where it is actually written, and an instruction-text auditor sent after the
+  literal finds nothing and learns nothing. The value is writable, not unreachable: the schema is
+  advisory and the harness reads a file that violates it, which is why the settings-file check is
+  `claude-config:audit` category H rather than absent. **A document that states either arm in order to
   describe or forbid it** — this row, a model-adaptation delta chapter, a verification record
   quoting it — on the same audience test I8-b applies: either arm prescribed inside an operative
   directive is a finding; a document *about* it is not. **The bare `ultracode` prompt
