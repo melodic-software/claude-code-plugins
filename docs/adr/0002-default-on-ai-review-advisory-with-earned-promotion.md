@@ -219,6 +219,11 @@ This amendment deliberately does NOT decide the actor set. **If the amendment la
 explicit pick, Branch A is what merges** — silence ratifies four. Stating that so it is a
 choice, not a default reached by inattention.
 
+> **Superseded 2026-08-04:** the operator made an explicit pick, so the silence default was
+> never exercised and "this amendment deliberately does NOT decide the actor set" no longer
+> describes the record. The two branches below stand as what was weighed; the decision is in
+> the 2026-08-04 addendum.
+
 - **Branch A — ratify the widened exception (keep four).** The affirmative case: both added
   actors are dormant, so the exception costs nothing observable today; and the lane's value on
   agent-authored chore PRs (dependency re-pins, sync materializations, doc-queue churn) is low
@@ -250,6 +255,36 @@ the no-edit branch and Branch A would carry the one-line change and the ADR touc
 `allowed_bots` dependency is NOT an artifact — it is a real cost that attaches to Branch B
 whichever way this was drafted, and it is the row that makes Branch B a cross-repo change rather
 than a one-line edit. Weigh Branch B on its affirmative case against that cost.
+
+## Addendum (2026-08-04): operator decision — Branch A ratified, four actors
+
+Supersedes the 2026-08-03 amendment's OPERATOR DECISION POINT insofar as it left the actor set
+open and named silence as the ratifying default. The operator made an explicit pick on
+2026-08-04: **Branch A — the widened four-actor exception is ratified.** The silence default was
+not exercised.
+
+The ratified set, as `.github/workflows/claude-security-review.yml` now states explicitly:
+
+```yaml
+skip-actors: dependabot[bot],claude[bot],melodic-ai[bot],melodic-standards-sync[bot]
+```
+
+`claude[bot]` and `melodic-ai[bot]` are thereby covered by the step-3 skip-actor exception through
+the deliberation the revisit trigger demands, rather than through the silent inheritance that put
+them there. No workflow edit accompanies the decision — the 2026-08-03 amendment already restored
+those four to stay behavior-preserving, so the effective skip set is unchanged on both lanes.
+
+What the ratification rests on, stated so a later reader can test it rather than take it: the two
+added actors are dormant, and the lane's value on agent-authored chore PRs is low relative to its
+spend. Branch B's affirmative case is not refuted — it is outweighed while those premises hold,
+and its `allowed_bots` cross-repo dependency is the cost that decided the margin. The trigger
+below for agent actors beginning to author substantive changes under security-sensitive paths is
+the condition that reopens this.
+
+Four is now the ratified baseline the `skip-actors` trigger measures additions against: a fifth
+actor widens a deliberated exception and warrants the same deliberation. Unchanged by this
+decision — the review lane's inherited default stays deferred with its own trigger, and the
+caller-tamper gap recorded above stays open pending ci-workflows#345.
 
 ## Revisit triggers
 
