@@ -14,10 +14,12 @@ only after that version increases.
   case that assumption misses: Fable 5's safeguard classifiers — cybersecurity, biology and
   chemistry, distillation, and frontier LLM development — do not merely refuse. They re-serve the
   request with the latest Claude Opus model, and the card states the behavior is "not configurable"
-  on some Claude interfaces (§1.5). It is not per-request either: on Terminal-Bench, 20.9% of Fable
-  5 trials fell back to Claude Opus 4.8 "for the rest of the trajectory" (§8.3), and in the
-  safeguards-on behavioral investigations fallback occurred in over half of conversation transcripts
-  (§6.2.3.2).
+  on some Claude interfaces (§1.5). Nor is it reliably per-request: in the one agentic run the card
+  reports refusal rates for, 20.9% of Fable 5 Terminal-Bench trials fell back to Claude Opus 4.8
+  "for the rest of the trajectory" (§8.3). That is the card's only statement about how long a
+  fallback lasts, and it does not say whether the persistence comes from the fallback mechanism or
+  from how that harness continues after a refusal — so the rule claims only that a fallback can
+  outlive the request that tripped it, which is enough to make a one-time model resolution unsafe.
 
   So a session that armed as Fable 5 can be answered by Opus 4.8 from a classifier hit onward while
   still running Fable-calibrated deltas — and the plugin already ships the right chapter for that
