@@ -963,10 +963,14 @@ Tier `mechanical` · Severity `warning`.
   thinking blocks at all is unestablished; the harm there would in any case be the consumer's own
   logic rather than a rejected request, which is a code-correctness matter this catalog does not
   audit. **Re-scope when** the stored transcript's content-block shape is documented.
-- **Must NOT flag: text scoped to a legacy manual thinking budget**, where the requirement is real.
-  The page carves it out itself — those models "enforce that the final assistant turn of a
-  thinking-enabled request begins with one". The gate is the model's thinking mode, not the
-  sentence's confidence, and as in I17-c **the finding is the missing gate, never the mention.**
+- **Must NOT flag: text scoped to a legacy manual thinking budget AND to the final assistant
+  turn**, where the requirement is real. The page carves it out itself — those models "enforce that
+  the final assistant turn of a thinking-enabled request begins with one" — and the enforcement is
+  exactly that wide: the final assistant turn of a thinking-enabled request, no other turn. A
+  legacy-scoped instruction demanding a leading block on *every* assistant turn over-requires past
+  its own source and still flags. The gate is the model's thinking mode plus the turn it names, not
+  the sentence's confidence, and as in I17-c **the finding is the missing gate, never the
+  mention.**
   **The base row's own advice**, which is not this row's inverse: the relaxation "is about
   validation, not about what you should send", so an instruction to pass blocks you *have* back
   unmodified — particularly during tool use — is correct and stays correct. Reading this row as

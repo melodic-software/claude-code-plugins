@@ -34,9 +34,11 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   documented. Severity is `warning` against I18's `error` on its own footing: wasted work plus a
   fabrication risk, not a guaranteed rejected request.
 
-  **The carve-out is upstream's own.** Models using a legacy manual thinking budget do enforce that
-  the final assistant turn of a thinking-enabled request begins with one, so text scoped to that
-  mode is correct — the finding is the missing gate, never the mention, as in `I17-c`. The row also
+  **The carve-out is upstream's own, and exactly as wide as its source.** Models using a legacy
+  manual thinking budget do enforce that the final assistant turn of a thinking-enabled request
+  begins with one, so text scoped to that mode AND that turn is correct; a legacy-scoped
+  instruction demanding the block on every assistant turn over-requires past its own source and
+  still flags — the finding is the missing gate, never the mention, as in `I17-c`. The row also
   fences itself against being read as license to drop blocks: the relaxation "is about validation,
   not about what you should send".
 
