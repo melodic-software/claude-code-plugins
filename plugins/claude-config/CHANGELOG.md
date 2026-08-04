@@ -3,6 +3,59 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.21.5]
+
+### Added
+
+- **`audit-instructions`: `I18-a`, a leading thinking block treated as required where the model does
+  not require one** (criteria 1.13.0, taking the next minor over PR #1917). I18 covered only what a
+  surface does to thinking blocks it *has* — dropping the `signature`, the `type == "thinking"`
+  filter, editing the latest turn's blocks. The opposite error had no row: believing a block must
+  be there. The Steering
+  thinking page states the relaxation outright — "Assistant turns don't need to start with a
+  thinking block" — with three consequences that become the row's three detect shapes: reinsertion
+  when assembling history from mixed sources, rewriting history on resume under a different
+  thinking configuration, and logic that reads an assistant turn's first block as though it were a
+  thinking block.
+
+  **It is a sub-row of I18 rather than a new criterion because the two are one mechanism seen from
+  both ends.** The remediation a reader reaches for once they believe a block is required is to
+  fabricate one, and a hand-built block carries no valid `signature` — which is I18's own shape 1
+  and a rejected request. So this row is the upstream *cause* of an I18 violation; both are reported
+  when a surface states the premise and acts on it. I18 gains a two-sentence lead-in naming the
+  pairing and a `Base row:` label; its detect, fences, source and stamp are unchanged.
+
+  **Reach is I18's, unchanged, for all three shapes** — a path back to the model, whatever the file
+  format. Presence-assuming logic that only ever *reads* is recorded as out of reach rather than
+  excused: the page's caution sits in the request/response frame and says nothing about stored
+  transcripts, whether a harness transcript carries thinking blocks at all is unestablished, and the
+  harm there would be the consumer's own logic rather than a 400 — a code-correctness matter this
+  catalog does not audit. The row carries a `Re-scope when` clause for the day that shape is
+  documented. Severity is `warning` against I18's `error` on its own footing: wasted work plus a
+  fabrication risk, not a guaranteed rejected request.
+
+  **The carve-out is upstream's own, and exactly as wide as its source.** Models using a legacy
+  manual thinking budget do enforce that the final assistant turn of a thinking-enabled request
+  begins with one, so text scoped to that mode AND that turn is correct; a legacy-scoped
+  instruction demanding the block on every assistant turn over-requires past its own source and
+  still flags — the finding is the missing gate, never the mention, as in `I17-c`. The row also
+  fences itself against being read as license to drop blocks: the relaxation "is about validation,
+  not about what you should send".
+
+  **Decisive source, with the sibling as corroboration.** The Thinking page carries the same pair
+  compressed into one sentence inside "Thinking with tool use" — extended (manual) mode "additionally
+  enforces that the final assistant turn of a thinking-enabled request begins with a thinking block",
+  and "Adaptive mode relaxes this: no assistant turn needs to start with one." Steering thinking is
+  where the relaxation is stated operatively, with the three history-shape consequences the detect
+  shapes are drawn from and the presence caution, so it is cited as decisive and the sibling as
+  corroboration. Separate from both is that page's strip claim — the API "may strip thinking blocks
+  that would create an invalid turn structure" — server-side degradation of a request rather than a
+  rule about what history a caller may send. The Steering thinking page joins Sources. Local
+  coverage measured 2026-08-04: zero
+  operative instances, on the same footing as I18, with a re-measure clause. The one transcript
+  consumer here, `session-flow`'s retro parser, selects blocks by each item's own `type` rather than
+  by position, so it is correct by construction rather than by this rule.
+
 ## [0.21.4]
 
 ### Changed

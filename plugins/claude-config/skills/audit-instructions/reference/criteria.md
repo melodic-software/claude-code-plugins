@@ -1,5 +1,5 @@
 ---
-version: 1.12.0
+version: 1.13.0
 last-updated: 2026-08-04
 ---
 
@@ -108,6 +108,9 @@ I15–I22 apply to all surfaces; I13 and I14 name narrower surface sets in their
   round-trip protocol, the models that reject a thinking-disable outright, and what a thinking or
   effort change does to the cache prefix) —
   <https://platform.claude.com/docs/en/build-with-claude/thinking>
+- Steering thinking (the turn-validation relaxation, and the models that still enforce a leading
+  thinking block) —
+  <https://platform.claude.com/docs/en/build-with-claude/thinking-steering-and-cost>
 - Troubleshooting thinking (the per-request 400s, and the models the effort restriction covers) —
   <https://platform.claude.com/docs/en/build-with-claude/thinking-troubleshooting>
 - Model migration guide (the model ranges over which manual extended thinking is rejected) —
@@ -883,6 +886,11 @@ Tier `mechanical` · Authority `ANTHROPIC-DOCS` · Severity `error` · Surfaces:
 promotion gate MET: the round-trip protocol is stated on a model-agnostic feature page, not in a
 model guide.
 
+Two rows, in opposite directions: the base row is what a surface does to blocks it *has*, and I18-a
+is what a surface believes about blocks that are *not there*. They share a subject, not a citation.
+
+**Base row: blocks altered on the way back.**
+
 - **Detect:** instruction text directing an agent, a script, or a reader to handle assistant content
   blocks in a way that breaks the round-trip protocol. Three shapes:
   1. **Dropping the `signature`.** An instruction to reconstruct, summarize, re-serialize, or
@@ -927,6 +935,75 @@ model guide.
   round-trip or transcript-replay path lands here.
 - **Verified 2026-08-02** against the Thinking page, fetched as raw markdown. **Recheck trigger:** a
   content-block type joining or leaving the set the protocol requires echoed back.
+
+**Row I18-a: a leading thinking block treated as required where the model does not require one** ·
+Tier `mechanical` · Severity `warning`.
+
+- **Detect:** instruction text asserting, or directing work premised on, a validation rule that
+  assistant turns must begin with a thinking block. Three shapes:
+  1. **Reinsertion.** An instruction to insert, synthesize, or restore a leading `thinking` block
+     when assembling history from mixed sources, so that each assistant turn "starts with one".
+  2. **History rewriting on resume.** An instruction to rewrite, normalize, or discard a
+     conversation because it began without thinking or ran under a different thinking
+     configuration.
+  3. **Presence-assuming logic.** An instruction to read, index, or branch on an assistant turn's
+     first content block as though it were a `thinking` block. A turn where Claude chose not to
+     think carries none, and the same conversation can hold turns of both kinds.
+- **Why the belief is a finding and not a harmless one.** The remediation a reader reaches for is
+  fabrication, and a hand-built block carries no valid `signature` — the base row's shape 1, and a
+  rejected request. This row is therefore the upstream cause of the base row's violation, not a
+  restatement of it; report both when a surface states the premise *and* acts on it.
+- **Remediate:** pass history back in whatever shape you have it, and treat a thinking block as
+  optional per assistant turn — in tests too, where a no-thinking turn is the case the assumption
+  hides.
+- **Reach: the base row's, unchanged, and for all three shapes** — a path back to the model is what
+  puts a surface in scope, not the file format it reads. **Presence-assuming logic that only ever
+  reads is out of reach rather than excused.** The page's caution sits in the request/response
+  frame and says nothing about stored transcripts, and whether a harness transcript carries
+  thinking blocks at all is unestablished; the harm there would in any case be the consumer's own
+  logic rather than a rejected request, which is a code-correctness matter this catalog does not
+  audit. **Re-scope when** the stored transcript's content-block shape is documented.
+- **Must NOT flag: text scoped to a legacy manual thinking budget AND to the final assistant
+  turn**, where the requirement is real. The page carves it out itself — those models "enforce that
+  the final assistant turn of a thinking-enabled request begins with one" — and the enforcement is
+  exactly that wide: the final assistant turn of a thinking-enabled request, no other turn. A
+  legacy-scoped instruction demanding a leading block on *every* assistant turn over-requires past
+  its own source and still flags. The gate is the model's thinking mode plus the turn it names, not
+  the sentence's confidence, and as in I17-c **the finding is the missing gate, never the
+  mention.**
+  **The base row's own advice**, which is not this row's inverse: the relaxation "is about
+  validation, not about what you should send", so an instruction to pass blocks you *have* back
+  unmodified — particularly during tool use — is correct and stays correct. Reading this row as
+  license to drop blocks inverts both rows at once. A document *about* the assumption, on the
+  audience test I8-b applies.
+- **Source:** Steering thinking, "Turn validation" — "Assistant turns don't need to start with a
+  thinking block" — with the three consequences stated there, one per shape above: turns where
+  Claude chose not to think "are valid history as-is"; a conversation begun without thinking, or
+  under a different thinking configuration, resumes "without rewriting its history"; and history
+  assembled from mixed sources "doesn't need thinking blocks reinserted at the start of each
+  assistant turn to pass validation". The legacy carve-out is that same "Turn validation" section's
+  own parenthetical, quoted in the fence above. The presence half is the same page, "How Claude
+  decides when to think" — "a turn where Claude chose not to think contains no thinking block. Don't
+  build application logic that assumes every assistant turn starts with one."
+- **Why this page is cited and not the sibling.** The Thinking page carries the same pair, but
+  compressed into a single sentence inside "Thinking with tool use": in extended (manual) mode the
+  API "additionally enforces that the final assistant turn of a thinking-enabled request begins with
+  a thinking block", and "Adaptive mode relaxes this: no assistant turn needs to start with one."
+  That corroborates this row; it does not carry it. Steering thinking is where the relaxation is
+  stated operatively — the three history-shape consequences the detect shapes are drawn from, plus
+  the presence caution — so it is cited as decisive and the sibling as corroboration. Separate from
+  both is that page's *strip* claim, that the API "may strip thinking blocks that would create an
+  invalid turn structure": server-side degradation of a request, not a rule about what history a
+  caller may send, and it licenses nothing here.
+- **Local coverage, measured 2026-08-04: zero operative instances here**, on the same footing as the
+  base row — nothing in this repository assembles, rewrites, or replays history back to the model.
+  The one transcript consumer, `session-flow`'s retro parser, selects blocks by testing each item's
+  own `type` rather than by position, so it is correct by construction rather than by this rule.
+  Stated as an as-of measurement, not a passed check. **Re-measure when** a history-assembly or
+  replay path lands here.
+- **Verified 2026-08-04** against the Steering thinking page, fetched as raw markdown. **Recheck
+  trigger:** the turn-validation relaxation narrowing, or the set of models that enforce a leading
+  thinking block changing.
 
 ### I19: Restated external benchmark figure with no recheck trigger
 
