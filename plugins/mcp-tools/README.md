@@ -3,22 +3,24 @@
 A Claude Code plugin that audits your MCP server's tool definitions against design-quality criteria and
 returns a per-tool PASS/WARN/FAIL scorecard. It **reports**; it never edits your tool source.
 
-The criteria come from two upstream authorities, cited so the current text always governs:
+The criteria come from three upstream authorities, cited so the current text always governs:
 
 - [MCP specification 2025-11-25 — Tools](https://modelcontextprotocol.io/specification/2025-11-25/server/tools)
 - [Anthropic — Writing effective tools for AI agents](https://www.anthropic.com/engineering/writing-tools-for-agents)
+- [Claude Code — Connect Claude Code to tools via MCP](https://code.claude.com/docs/en/mcp)
 
 ## What it checks
 
-16 criteria (C1-C16) across six categories, each tagged by authority (SPEC-MUST / SPEC-SHOULD /
+19 criteria (C1-C19) across seven categories, each tagged by authority (SPEC-MUST / SPEC-SHOULD /
 SPEC-OPTIONAL / ANTHROPIC / OPINION) so you can tell a protocol requirement from a style preference:
 
-- **Description** — states what / when / returns, fits the client size budget, leaks no implementation detail.
+- **Description** — states what / when / returns, fits the client size budget (2KB in Claude Code, for tool descriptions and server instructions alike), leaks no implementation detail.
 - **Parameters** — every parameter described, guidance and format examples, documented optional defaults.
 - **Naming** — valid name charset/length (spec), outcome-driven, service-namespaced.
 - **Annotations** — `readOnlyHint`, `destructiveHint`, `idempotentHint`. These are OPTIONAL in the spec, so a missing annotation is WARN, never FAIL.
 - **Granularity** — workflow-shaped consolidation, not one tool per raw API call.
 - **Schema** — callable from the schema alone, with a valid `inputSchema`.
+- **Claude Code `_meta` annotations** — `anthropic/maxResultSizeChars`, `anthropic/requiresUserInteraction`, `anthropic/alwaysLoad`. Missing is at most an info advisory; a declared value Claude Code ignores or caps is the defect.
 
 Language-agnostic: it discovers tools in Python (FastMCP), TypeScript (`@modelcontextprotocol/sdk`), and
 .NET (`ModelContextProtocol`) by the SDKs' own tool markers.

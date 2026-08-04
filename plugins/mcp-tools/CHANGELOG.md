@@ -3,6 +3,23 @@
 All notable changes to the `mcp-tools` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.2.3]
+
+### Added
+
+- Checklist section 7 (C17-C19): the Claude-Code-specific `_meta` annotations
+  documented on the Claude Code MCP page — `anthropic/maxResultSizeChars`
+  (per-tool result-size ceiling, hard-capped at 500,000 characters),
+  `anthropic/requiresUserInteraction` (per-call consent prompt; JSON boolean
+  `true` only; Claude Code v2.1.199+), and `anthropic/alwaysLoad` (per-tool
+  tool-search deferral exemption). Missing is at most an info advisory; a
+  declared value Claude Code ignores or caps is the defect case.
+
+### Changed
+
+- C4's size budget now also covers the server `instructions` field — Claude
+  Code truncates tool descriptions and server instructions at 2KB each.
+
 ## [0.2.2]
 
 ### Changed

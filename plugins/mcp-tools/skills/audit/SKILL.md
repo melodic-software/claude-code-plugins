@@ -11,11 +11,12 @@ metadata:
 
 ## Purpose
 
-Evaluate MCP server tool definitions against design quality criteria drawn from two upstream
+Evaluate MCP server tool definitions against design quality criteria drawn from three upstream
 authorities, cited (not recapped) so the current text always governs:
 
 - [MCP specification 2025-11-25 — Tools](https://modelcontextprotocol.io/specification/2025-11-25/server/tools) — the normative protocol (MUST / SHOULD / OPTIONAL requirements for names, schemas, annotations).
 - [Anthropic — Writing effective tools for AI agents](https://www.anthropic.com/engineering/writing-tools-for-agents) — engineering guidance for descriptions, parameters, namespacing, and workflow-shaped granularity.
+- [Claude Code — Connect Claude Code to tools via MCP](https://code.claude.com/docs/en/mcp) — Claude-Code-specific client behavior: `_meta` annotations and truncation limits.
 
 Produces a per-tool scorecard with actionable findings. Catches description gaps, missing annotations,
 and naming issues before they degrade LLM tool selection accuracy.
@@ -93,7 +94,8 @@ Output a markdown report with this structure:
 ```
 
 **Prioritize FAIL items** — highest-value improvements. WARN items are suggestions. A missing
-annotation is always WARN, never FAIL — annotations are OPTIONAL in the spec.
+annotation is never FAIL — annotations are OPTIONAL in the spec (C12-C14) or Claude-Code-specific
+advisories (C17-C19); only a declared value Claude Code silently ignores can FAIL (C18).
 
 ## What this skill does NOT do
 
