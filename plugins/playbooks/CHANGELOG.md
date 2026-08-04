@@ -4,6 +4,46 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.6.16]
+
+### Added
+
+- **`skill-authoring`: a spoke on verification loops in skills** (playbooks 0.6.15 → 0.6.16), at
+  `reference/verification-loops-in-skills.md`, reached from one new SKILL.md section. It answers
+  three questions the upstream playbook leaves open once a skill's job is checking work rather than
+  producing it.
+
+  **Three creation routes, not two.** Anthropic's verification-loops blog post offers hand-writing
+  and the `skill-creator` plugin. The platform's skill-authoring best-practices page documents a
+  third — ask Claude directly — and explicitly disclaims needing a dedicated skill-writing skill.
+  The spoke ranks it ahead of the plugin the post reaches for first, on the narrow ground that it
+  needs no install — not on any claim that the plugin is undocumented. Creation via `skill-creator`,
+  including the interview flow, is documented first-party by that plugin's own README and
+  `SKILL.md`, which carries an "Interview and Research" step; the harness *skills page* is what
+  covers only the eval loop.
+
+  **The plugin invocation is written namespaced, for a narrower reason than it appears.** The post
+  shows a bare `/skill-creator`. Both the plugin-namespaced and directory-scoped forms bare-resolve;
+  the difference is that the plugin one is **conditional** — the bare name also invokes the skill
+  unless another command already uses that name, and a plugin copy and a same-named original both
+  stay reachable rather than one overriding the other. So the qualified form is preferred because it
+  is unconditional, not because the bare one fails. Recorded as current behavior: before v2.1.216 a
+  frontmatter `name` replaced the whole command name.
+
+  **Shadowing is a documented third route the post omits.** The post rules bundled and
+  plugin-managed skills off-limits for embedding a check, leaving chaining as the only alternative.
+  A same-name skill at project or personal level *replaces* a bundled one. The spoke presents it
+  with its actual semantics — replace, not extend, so you inherit the whole behavior and stop
+  receiving upstream improvements — which is the trade against chaining.
+
+  **Embed-failure diagnosis leads with the documented cause.** When an appended check silently does
+  not run, the platform's answer is insufficient prominence or wording, and a linked step may need a
+  more explicit reference. The post instead attributes it to the skill's description or earlier
+  instructions; no reference page states that, so it is carried as a second hypothesis. Leading with
+  it sends readers to the frontmatter when the documented cause is usually the body. The spoke also
+  separates this failure from a skill that never surfaced at all, which is a different failure with
+  a different remedy (`/discipline:use-your-skills`).
+
 ## [0.6.15]
 
 ### Fixed
