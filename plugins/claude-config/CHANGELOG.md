@@ -3,6 +3,36 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.21.6]
+
+### Changed
+
+- **`audit-instructions`: `I8-c`'s scope is now positively confirmed narrow, and the row states what
+  the leakage costs beyond the turn it appears in** (criteria 1.14.0). The row flags a
+  don't-think / don't-reason directive, and rested on a single source — the Opus 5 guide's "Running
+  with thinking disabled" — with `Model scope: opus-5` held only by the fact that no wider statement
+  had been found.
+
+  Troubleshooting thinking states the same claim from the symptom side, "System-prompt rules
+  instructing the model not to think or not to reason increase the tag leakage", and it does so on a
+  **model-agnostic feature page** — the surface where a wider claim would surface if there were one.
+  It names Claude Opus 5 anyway. So the scope stays where it is, but for a better reason: upstream
+  had the chance to widen and declined, which is the reasoning `I10` already applies to a declined
+  widening. The promotion gate remains unmet, deliberately.
+
+- **The consequence clause the row was missing.** The same section states that "A leaked tool call
+  never runs, and in agentic loops the leaked text stays in the conversation history, so later turns
+  are affected as well", and that leakage is "most commonly on tool-heavy workloads such as search".
+  Both now travel with the row: the first because it makes the finding a history-poisoning failure
+  in an autonomous lane rather than one malformed response, and the second because it tells an
+  auditor which surfaces to read first. The `Source` line carries its own verification date and a
+  recheck trigger keyed to the claim gaining a model beyond Opus 5, which is the event that would
+  move the promotion gate.
+
+- **The `Sources` block's parenthetical for that page** covered the per-request 400s and the effort
+  restriction's model range only, so it understated what the catalog now cites the page for; it
+  names the leakage claim as well.
+
 ## [0.21.5]
 
 ### Added
