@@ -82,6 +82,33 @@
         "Standing-rule/discipline correction routes to the discipline plugin when installed, else is treated as outside reanchor's scope",
         "Distinguishes factual-premise freshness (reanchor) from rule discipline"
       ]
+    },
+    {
+      "id": 8,
+      "name": "recorded-goal-is-a-premise-and-is-compared-across-links",
+      "prompt": "Re-anchor before I keep going on this — the handoff is the fifth in a chain and I want to know whether anything it assumes has gone stale.",
+      "expected_output": "reanchor treats the recorded Original goal as a premise alongside the PR/branch/version checks: it opens the prior handoff the document chains from and compares the goal quote across links, reporting any re-derivation as drift, then states in one sentence how the planned next actions serve that goal. It reports the misalignment and hands to /session-flow:keep-going rather than re-deriving the next action or amending the goal itself.",
+      "files": [],
+      "expectations": [
+        "Checks the recorded Original goal as a premise, not only the PRs, branches, and plugin versions",
+        "Opens the prior handoff in the chain and compares the goal quote across links rather than reading only the current document",
+        "Reports a paraphrased or re-derived goal as drift between links, with claimed-vs-actual framing",
+        "Ties the planned next actions to the goal in one sentence, and treats an unstatable connection as the finding",
+        "Does not amend the recorded goal or re-derive the next action itself — reports and hands to /session-flow:keep-going"
+      ]
+    },
+    {
+      "id": 9,
+      "name": "absent-goal-is-a-defect-not-something-to-infer",
+      "prompt": "Reanchor this session against the plan file — heads up, it never recorded a goal section, it just lists the phases and what's left.",
+      "expected_output": "The absent Original goal is reported as a defect in the document rather than reconstructed. reanchor does not infer the goal from the phases and process the file describes — that process is precisely what may have drifted — and asks for the goal in the user's own words before the session builds on the plan.",
+      "files": [],
+      "expectations": [
+        "Reports the missing Original goal as a defect in the input, not as an absent-therefore-fine premise",
+        "Does NOT reconstruct the goal from the phases, remaining work, or process the document describes",
+        "Asks for the goal in the user's own words",
+        "Still reports the other premise checks rather than stopping the re-anchor entirely"
+      ]
     }
   ]
 }

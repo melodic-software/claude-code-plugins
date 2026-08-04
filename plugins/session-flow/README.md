@@ -91,7 +91,7 @@ running again); while a limit still holds it hands back via `handoff` rather tha
 scheduler. Intent is inferred from the conversation; arguments are optional.
 
 ```shell
-/session-flow:keep-going              # inventory → inspect → recover → reconcile → report
+/session-flow:keep-going              # inventory → inspect → goal-align → recover → reconcile → report
 ```
 
 ### find-handoff
