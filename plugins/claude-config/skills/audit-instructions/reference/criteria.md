@@ -752,7 +752,10 @@ Severity `warning`.
   `alwaysThinkingEnabled` — and on third-party providers it omits the `thinking` parameter instead,
   so an adaptive-reasoning model may still think. Also flag text treating
   `CLAUDE_CODE_DISABLE_THINKING` as equivalent: that variable omits the parameter on every
-  provider, which on a model that thinks by default leaves it still thinking.
+  provider, which on a model that thinks by default leaves it still thinking. Also flag text
+  presenting the session thinking toggle or `alwaysThinkingEnabled` as turning thinking off on
+  Fable 5 — model configuration states they "have no effect there", so the reader is promised a
+  control that is a silent no-op on that model.
 - **Remediate:** carry the exceptions with the claim, or point at the page instead of restating it.
 - **Adjacent axis:** this is also a harness-capability claim, so **I12 can fire on the same line**.
   I12 asks whether the claim matches its page; this row asks whether a reader following it gets the
@@ -764,8 +767,9 @@ Severity `warning`.
   `0` omits the `thinking` parameter instead". Model configuration heads the same control "Disable
   regardless of effort", so a surface repeating that heading unqualified inherits a claim the
   variable's own page contradicts.
-- **Verified 2026-08-02** against those two pages, fetched as raw markdown. **Recheck trigger:** the
-  set of models that cannot disable thinking changing.
+- **Verified 2026-08-02** against those two pages, fetched as raw markdown; the session-toggle and
+  `alwaysThinkingEnabled` arm re-verified 2026-08-04 against model configuration. **Recheck
+  trigger:** the set of models that cannot disable thinking changing.
 
 **Row I17-b: mid-session thinking or effort change prescribed without its cost** · Tier
 `mechanical` · Severity `info`.
@@ -791,13 +795,17 @@ Severity `warning`.
   harness-side *consequence* of one is equally undocumented, and this catalog does not flag what its
   sources do not state. Hence out of reach rather than covered. **Re-scope when** the harness
   documents what a mid-session thinking change costs.
-- **Why the thinking half is not I17-c, and why both can fire.** This row asks what a change *costs*
-  — any switch among the modes, or any change to `budget_tokens`, restarts the cache, whatever the
-  values are and whether or not the model accepts them. I17-c asks whether a fixed budget is a valid
-  control on the target model at all. A surface prescribing a mid-session `budget_tokens` change on
-  an adaptive-reasoning model gets both: I17-c because the budget is ignored or rejected there, this
-  row because the change still moves the cache prefix. Report both when both hold, on the same
-  reasoning I17-c states for its own overlap with I17-a.
+- **Why the thinking half is not I17-c, and why both can fire — on accepted changes only.** This
+  row asks what a change *costs* — a switch among the modes, or a change to `budget_tokens`,
+  restarts the cache when the new configuration is accepted and a turn runs under it. I17-c asks
+  whether a fixed budget is a valid control on the target model at all, and where it applies the
+  cost claim may never materialize: an API request the model rejects with a validation error
+  completes no turn, and a harness value the model silently ignores changes no configuration — in
+  both cases the reader's actual outcome is I17-c's finding alone, and adding this row's cache-cost
+  remediation would be a second, misleading instruction. So: a mid-session change between
+  configurations the model accepts gets this row; a prescription I17-c already condemns as not a
+  valid control gets I17-c alone. Report both only where a surface prescribes both an invalid
+  control and, separately, an accepted mid-session change.
 - **Local coverage of the thinking half, measured 2026-08-04: zero operative instances here.** The
   session-toggle and `budget_tokens` literals appear only in this catalog, in two model-adaptation
   delta chapters, and in changelog entries — descriptions, not prescriptions.
