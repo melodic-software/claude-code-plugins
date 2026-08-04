@@ -63,6 +63,12 @@ from a model normalizing paths on its own. **As of:** 2026-08-03. **Recheck trig
 upgrade, since body-text substitution is not a documented contract. A relative-path form remains the
 attested fallback if the behavior ever regresses.
 
+*Update (2026-08-04, live fetch):* the current
+[plugins reference](https://code.claude.com/docs/en/plugins-reference#environment-variables) lists
+skill and agent content as substituting the placeholder anywhere it appears, so body-text
+substitution is a documented contract and the recheck trigger's "not documented" premise no longer
+holds; the probes above stand as corroboration.
+
 ## Decision
 
 Per-version model-adaptation chapters live at
