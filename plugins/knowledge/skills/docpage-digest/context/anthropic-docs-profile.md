@@ -41,6 +41,33 @@ extraction waits for the third (Rule of Three).
   `CLAUDE_CODE_MAX_OUTPUT_TOKENS` sits at line 277 of a 451-line, 316-row page whose rendered fetch
   surfaced only roughly its first fifth.)
 
+## Archive-reading conventions
+
+Some pages this publisher maintains are archives — dated entries accumulated over time rather than a
+current statement, the [published system
+prompts](https://platform.claude.com/docs/en/release-notes/system-prompts) being the standing case.
+Everything inside a dated entry is scoped to that entry's date. Three further properties of such a
+page are invisible from inside any single entry, and a digest that does not know them reads the
+archive wrong in a way its own verification cannot catch:
+
+- **A dated entry is not a content-change signal.** Two entries can be byte-identical and here two
+  are: entries five days apart differ on zero lines across 100-line bodies, and the page carries no
+  annotation explaining why the second one exists. Record the re-publication as what it is; never
+  infer a revision, an intent, or a policy movement from the appearance of a new dated heading.
+- **Absence of bold does not prove absence of change.** The page states that updates between
+  versions are bolded, and that convention does not hold: one span of the archive carries zero bold
+  markup across three dated entries that differ in three sentences plus a twelve-paragraph addition,
+  and another entry marks one transition of three. Silent unbolded typo fixes and a silent removal
+  were found the same way. Treat an unbolded inter-entry difference as an authoritative delta of
+  equal standing to a bolded one, which means the deltas come from diffing entries, never from
+  reading the markup.
+- **Note a source artifact at the row; never silently repair it.** Typos, escaped markup and
+  malformed auto-links are reproduced byte-exact so a verifier can tell faithful reproduction from
+  digest transcription error. The two blog-channel extraction artifacts under **Fetch channel**
+  above are this rule's standing instance. One exception, and it runs the other way: a downstream
+  artifact reproducing a known-corrupt entry *for a reader* rather than for verification repairs the
+  corruption and says that it did.
+
 ## Claude-Code-applicability filter (with teeth)
 
 Anthropic docs mix API-surface guidance with harness-relevant guidance. Every digest tags each
@@ -248,3 +275,30 @@ model-delta audit class), corpus graduation (a knowledge-corpus repository), or 
 synthesis (a cross-model artifact spanning units and slices the per-unit digest fan-out cannot
 reach — not per-model, not an audit rule row, not graduation of one slice; its host is
 undecided). The handoff records the candidate target per finding; the interview decides.
+
+## Hedge preservation, and the residual-risk footer
+
+A source's own hedge travels with the content it qualifies. An artifact graduated from this
+publisher preserves the hedge as the source states it — neither dropped as throat-clearing nor
+widened past what the source claims. The footer below is the standing instance; the harness
+best-practices material's "starting points, not set in stone" relativization is the second, and both
+graduate under this one convention rather than each inventing its own.
+
+**Residual-risk footer.** Every artifact derived from a guardrail page of this publisher carries
+that page's OWN residual-risk sentence when the page states one, quoted rather than paraphrased —
+a hedge scoped to one page's techniques never transfers to an artifact derived from a different
+page. The standing instance, for artifacts derived from [Reduce
+hallucinations](https://platform.claude.com/docs/en/test-and-evaluate/strengthen-guardrails/reduce-hallucinations)
+(verified 2026-08-03):
+
+> Remember, while these techniques significantly reduce hallucinations, they don't eliminate them
+> entirely. Always validate critical information, especially for high-stakes decisions.
+
+Its scope is the source's own and stays unbroadened. It is about **hallucinations**, not errors,
+regressions, or guardrail failures in general; and it names **no validator** — who or what validates
+critical information is unstated in the source and stays unstated here. Widening the failure mode or
+supplying a mechanism states something the source does not.
+
+The footer attaches at this profile, not per artifact, because the profile is the seam every
+guardrail slice of this publisher flows through. A graduated chapter or template **cites this
+footer**; it never restates it.

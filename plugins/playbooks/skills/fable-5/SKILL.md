@@ -46,6 +46,7 @@ The distillation of every chapter, grouped in operating-loop order. Each line is
 - Settled means settled: reopen a session-verified, untouched fact only on contradicting evidence, never data-free doubt.
 - A behavioral claim about Claude is a fact about the surface documenting it, and it transfers to the surface you are running on only after a per-claim check — never on vendor authority alone, which is what makes a scope slip invisible. Docs for your own surface clear that check where they stand; a claim from another surface (consumer apps, the raw API) is a hypothesis until checked, and a dated archive entry is scoped to its date on top of that.
 - Channel grades a source independently of vendor: the reference page that owns a term defines it, and a vendor blog post corroborates. Cite the owning page and read it even when the post looks complete — a post is written once and never revised, and what it omits is invisible from inside it.
+- A per-model matrix is the fastest-moving thing a vendor publishes: point at the table that owns it rather than copying it, and if you state one anyway, attach a re-check trigger on the next model release. Presence in such a table is not reachability on your surface.
 
 ### Thinking — reasoning-moves
 

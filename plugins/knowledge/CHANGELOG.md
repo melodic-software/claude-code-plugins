@@ -4,6 +4,53 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.10.20]
+
+### Added
+
+- **Anthropic profile gains archive-reading conventions.** Some pages this publisher maintains are
+  archives — dated entries accumulated over time rather than a current statement, the [published
+  system prompts](https://platform.claude.com/docs/en/release-notes/system-prompts) being the
+  standing case — and three of their properties are invisible from inside any single entry, so a
+  digest that does not know them reads the archive wrong in a way its own verification cannot catch.
+  Each was found independently by multiple digest units before it became a convention. **(1) A dated
+  entry is not a content-change signal:** two entries five days apart are byte-identical, differing
+  on zero lines across 100-line bodies, with no annotation explaining why the second exists — so a
+  new dated heading licenses no inference of revision, intent, or policy movement. The rule is
+  stated in the narrower **content-change** form, which is what the finding supports: it bars
+  inferring change from sameness, and leaves a reader free to read an actual textual narrowing
+  between two entries as the change it is. **(2)
+  Absence of bold does not prove absence of change:** the page states that updates between versions
+  are bolded and the convention does not hold — one span carries zero bold markup across three dated
+  entries differing in three sentences plus a twelve-paragraph addition, another marks one
+  transition of three, and silent unbolded typo fixes and a silent removal were found the same way,
+  so deltas come from diffing entries and never from reading the markup. **(3) Note a source
+  artifact at the row; never silently repair it:** typos, escaped markup and malformed auto-links
+  are reproduced byte-exact so a verifier can tell faithful reproduction from digest transcription
+  error, with the blog channel's two known extraction artifacts named as the standing instance
+  rather than restated. Its one exception runs the other way — a downstream artifact reproducing a
+  known-corrupt entry *for a reader* rather than for verification repairs the corruption and says
+  that it did. The property all three refine — that everything inside a dated entry is scoped to that
+  entry's date — opens the section as its premise rather than as a fourth rule.
+
+- **Anthropic profile gains hedge preservation and the residual-risk footer.** A source's own hedge
+  now travels with the content it qualifies: an artifact graduated from this publisher preserves the
+  hedge as the source states it, neither dropped as throat-clearing nor widened past what the source
+  claims. Two instances graduate under the one convention rather than each inventing its own — the
+  residual-risk footer below, and the harness best-practices material's "starting points, not set in
+  stone" relativization. The **footer** is quoted rather than paraphrased from [Reduce
+  hallucinations](https://platform.claude.com/docs/en/test-and-evaluate/strengthen-guardrails/reduce-hallucinations)
+  (re-fetched 2026-08-03, HTTP 200; the sentence is byte-identical to the snapshot the corpus
+  froze): *"Remember, while these techniques significantly reduce hallucinations, they don't
+  eliminate them entirely. Always validate critical information, especially for high-stakes
+  decisions."* **Its scope is the source's own and is deliberately not broadened** — it is about
+  hallucinations, not errors or guardrail failures in general, and it names **no validator**, since
+  who or what validates critical information is unstated in the source. That exact scoping is the
+  part most likely to be lost in transit: it survived two correction rounds during the slice's
+  verification, both of which caught a widening. It attaches **at the profile rather than per
+  artifact**, because the profile is the seam every guardrail slice of this publisher flows through,
+  so a graduated chapter or template cites the footer and never restates it.
+
 ## [0.10.19]
 
 ### Changed
