@@ -41,9 +41,10 @@ only after that version increases.
   alone. Both halves of that sentence had to move together — leaving the parenthetical would have
   told a Sonnet 5 session to read no adaptation chapter while the enumeration two clauses earlier
   named its file.
-- **`opus-4-8.md`'s preamble names the new sibling**, so its routing note stays a complete list of
-  the models whose guides reverse its counter-steers. `opus-5.md`'s preamble routes generically and
-  needed no change.
+- **`opus-4-8.md`'s preamble now routes generically instead of naming siblings by filename**,
+  matching `opus-5.md`, which already did and needed no change. Naming them was the coupling that
+  made each new chapter edit its predecessors; the note now says to route to your own file under
+  `model-adaptation/` without enumerating which files exist.
 
 ## [0.6.12]
 
@@ -141,7 +142,6 @@ only after that version increases.
   publish in a separate channel, so a trigger check reads those channels, not the hash. The
   quotation note now covers the card fragments too, with the reason they stay verbatim —
   "slightly more" and "similarly to Opus 4.8" are exactly the qualifiers a loose paraphrase drops.
-
 
 ## [0.6.11]
 

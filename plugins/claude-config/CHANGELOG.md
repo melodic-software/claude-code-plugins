@@ -47,6 +47,11 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
 
 ### Changed
 
+- **`audit-instructions`: `SKILL.md` records why `I8-e` is not seeded** into the deterministic
+  pre-scan. It sits with `I8`'s base row and `I8-d` in the lane-only list, but on a narrower ground:
+  its skeleton is patternable, and it waits only on an attested instance to calibrate the interval
+  forms against — not on the "phrasings too varied" reason its neighbours carry.
+
 - **`audit-instructions`: the model migration guide joins the catalog's Sources.** `I17-c`'s API arm
   cites it for the model range over which manual extended thinking is rejected. Per the catalog's own
   rule that the trigger set is the source set, this **widens the catalog-wide recheck trigger** —

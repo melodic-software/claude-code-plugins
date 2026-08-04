@@ -385,7 +385,10 @@ well, so the scaffolding is redundant. I8-d reaches the same shape on a Fable 5 
 section prescribes adjusting client timeouts and progress indicators and says nothing about removing
 instructed status cadence, and elsewhere that guide recommends *adding* a send-to-user progress
 mechanism. An inference is a legitimate ground for a scoped row and is not a second statement, so
-the gate is unmet and this row stays scoped rather than firing fleet-wide.
+the gate is unmet and this row stays scoped rather than firing fleet-wide. **The two rows never
+co-fire** — exact-match scoping leaves at most one live in a run — so the overlap with I8-d is
+deliberate coverage of one instruction shape from the two guides that reach it, not a row to
+deduplicate.
 
 - **Detect:** an instruction requiring interim status output on a fixed mechanical interval. The
   guide's own example is "After every 3 tool calls, summarize progress"; equivalents this row also
@@ -417,10 +420,15 @@ the gate is unmet and this row stays scoped rather than firing fleet-wide.
   force interim status messages ("After every 3 tool calls, summarize progress"), try removing it."
   That guide also supplies the Remediate line's second half: where updates are miscalibrated,
   "explicitly describe what these updates should look like in the prompt and provide examples."
-- **Verified 2026-08-04** against the Sonnet 5 guide, fetched as raw markdown (15,864 bytes, MD5
-  `6d23959f0ed226feb06bf20c314029e3`, byte-identical to a 2026-07-29 capture). **Recheck trigger:**
-  that guide ceasing to prescribe removal of forced status scaffolding, or a second model guide
-  stating the claim — which would meet the promotion gate and unscope this row.
+- **Verified 2026-08-04** against two pages, both fetched as raw markdown. Positive: the Sonnet 5
+  guide (15,864 bytes, MD5 `6d23959f0ed226feb06bf20c314029e3`, byte-identical to a 2026-07-29
+  capture) for the quoted claim. **Verified negative:** the Fable 5 guide, read in full for this
+  row — "Longer turns by default" prescribes only client-side adjustments, no section prescribes
+  removing instructed status cadence, and "Create a send-to-user tool" runs the other way. That
+  negative is what holds the scope annotation on, so it carries its own stamp rather than resting on
+  a reading recorded elsewhere. **Recheck trigger:** the Sonnet 5 guide ceasing to prescribe removal
+  of forced status scaffolding, or any second model guide stating the claim — the Fable 5 guide
+  included — which would meet the promotion gate and unscope this row.
 
 ### I9: Example hygiene
 
@@ -779,9 +787,9 @@ ranges below are Detect conditions, not a `Model scope` annotation**, for the re
   source-code finding on the same discriminator I17 base, I21 and I22 apply, and this catalog audits
   instruction text.
 - **Remediate:** point at the effort parameter as the depth control on adaptive-reasoning models —
-  upstream's own framing is that `budget_tokens` "has no direct replacement: thinking is adaptive,
-  and the effort parameter is a separate output-level control, not a thinking budget" — or carry the
-  model gate with the claim.
+  upstream's own framing is "It has no direct replacement: thinking is adaptive, and the `effort`
+  parameter is a separate output-level control, not a thinking budget" — or carry the model gate with
+  the claim.
 - **Source:** environment variables — `MAX_THINKING_TOKENS` "Nonzero values are ignored on adaptive
   reasoning models unless `CLAUDE_CODE_DISABLE_ADAPTIVE_THINKING` is set", and that variable, "From
   v2.1.111, has no effect on Fable 5, Sonnet 5, or Opus 4.7 and later, which always use adaptive

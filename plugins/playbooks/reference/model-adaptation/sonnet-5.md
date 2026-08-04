@@ -68,8 +68,8 @@ an implied set and stop. `[CC: direct]`
 
 **The converse, when you author:** state scope explicitly rather than relying on the reader to
 generalize. The guide's own remediation — "If you need Claude to apply an instruction broadly, state
-the scope explicitly (for example, 'Apply this formatting to every section, not just the first
-one')" — is the discipline to apply to the briefs and skills you write, whichever model runs them.
+the scope explicitly (for example, "Apply this formatting to every section, not just the first
+one")" — is the discipline to apply to the briefs and skills you write, whichever model runs them.
 `[CC: prompt-authoring]`
 
 ## Thinking: adaptive, on by default, and steerable by prompt
