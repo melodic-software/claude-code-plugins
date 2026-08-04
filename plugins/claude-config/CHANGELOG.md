@@ -7,25 +7,25 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
 
 ### Added
 
-- **`audit-instructions`: `I8-e`, forced interim-status cadence, unscoped** (criteria 1.10.0 →
-  1.11.0). The Sonnet 5 prompting guide prescribes removing exactly the scaffolding `I8-d` was
-  written against — "If you've added scaffolding to force interim status messages ('After every 3
-  tool calls, summarize progress'), try removing it" — which is a second model guide converging on
-  the same finding and the same remediation, so the promotion gate is met and the row fires on every
-  target model instead of only on `fable-5`.
+- **`audit-instructions`: `I8-e`, forced interim-status cadence, scoped `sonnet-5`** (criteria 1.10.0
+  → 1.11.0). The Sonnet 5 guide prescribes removing exactly the scaffolding `I8-d` reaches on a
+  Fable 5 target — "If you've added scaffolding to force interim status messages ("After every 3
+  tool calls, summarize progress"), try removing it" — on its own ground, that the model already
+  reports well without it.
 
-  It ships as a **split rather than a promotion of `I8-d`**, because the two guides converge on the
-  claim while differing on the ground: Fable 5's is that turns now run for minutes or hours, Sonnet
-  5's is that the model already reports well on its own. `I8-d`'s detect predicate is the short-turn
-  *premise*, and the Sonnet 5 guide attests nothing about turn duration anywhere on the page —
-  promoting the row whole would have carried a premise only one guide states onto every target.
-  Worse, the row's sibling clause ("a directive to answer quickly or keep turns brief") runs against
-  what that guide actually says: Sonnet 5 calibrates response length to task complexity and the
-  guide expects products to *tune* verbosity prompts, not delete them. So `I8-d` keeps the
-  turn-duration arm at `fable-5` scope, `I8-e` takes the cadence arm unscoped, and the cadence-only
-  fence (a rhythm carrying its own observability or interruptibility rationale) moves with it. This
-  mirrors how `I8-b` recorded its own partial convergence rather than flattening two guides into one
-  claim.
+  **It is scoped, not unscoped, and that was the contested call.** The obvious reading is that a
+  second model guide now converges on `I8-d`'s cadence arm, which would meet the promotion gate and
+  let one row fire fleet-wide. It does not. The gate wants two guides *stating* the claim, and the
+  Fable 5 guide never states it: its "Longer turns by default" section prescribes adjusting client
+  timeouts, streaming, and progress indicators, says nothing about removing instructed status
+  cadence, and elsewhere that guide recommends *adding* a send-to-user progress mechanism. `I8-d`
+  reaches the cadence by inference from a turn-duration premise — a legitimate ground for a scoped
+  row, but not a second statement. Two scoped rows therefore cover one instruction shape from the two
+  guides that reach it; exact-match scoping means they never co-fire, and both rows now say so, so a
+  later reader does not "deduplicate" them.
+
+  `I8-d`'s detect and fences are unchanged; it gains one cross-reference bullet naming the
+  relationship.
 
 - **`audit-instructions`: `I17-c`, a fixed thinking budget prescribed where adaptive reasoning
   ignores or rejects it.** `I17-a` already covers `MAX_THINKING_TOKENS=0` sold as a universal off
@@ -37,11 +37,13 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   Unscoped, with the model ranges as Detect conditions rather than a `Model scope` annotation, for
   the reason `I17` base states.
 
-  **The row's central fence is that the finding is the missing model gate, never the mention.**
+  **The row's central fence is that the finding is the missing gate, never the mention.**
   `CLAUDE_CODE_DISABLE_ADAPTIVE_THINKING` is *not* a retired variable: it is live on Opus 4.6 and
-  Sonnet 4.6, where it does exactly what it says. The obvious implementation — grep for the variable
+  Sonnet 4.6, where it does exactly what it says, and it lost its reach over the adaptive-reasoning
+  models only at Claude Code v2.1.111 — so the gate is a release as well as a model set, and text
+  scoped to an earlier release is also correct. The obvious implementation — grep for the variable
   name and call every hit stale — would flag every accurate piece of documentation about it, so the
-  row carries I12's version-gated fence applied to these literals explicitly.
+  row carries I12's precondition rule applied to these literals explicitly.
 
 ### Changed
 

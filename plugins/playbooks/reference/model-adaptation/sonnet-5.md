@@ -16,13 +16,14 @@ delegated and mechanical work to, and that routing often pairs `model: sonnet` w
 frontmatter value. Several deltas below bind *harder* at low effort than at high, and the first
 section is the one to hold if you read no further.
 
-Each claim carries a source and a Claude-Code-applicability tag, verified against live docs at tag
-time (2026-08-04):
+Each delta below carries its upstream source and a Claude-Code-applicability tag, verified against
+live docs at tag time (2026-08-04). Where a section adds a practical elaboration the guide does not
+state — the under-thinking signs, the authoring notes in the closing section — that text is this
+chapter's own and carries neither, by design:
 
 - `[CC: direct]` — applies to Claude Code sessions as-is.
 - `[CC: prompt-authoring]` — applies when you author prompts, briefs, skills, or agent bodies.
 - `[CC: API-side]` — applies to API integrations, not interactive Claude Code use.
-- `[CC: harness-covered]` — Claude Code's own system prompt already carries it; do not restate.
 
 ## Effort: you obey it strictly, and `low` is where that bites
 
@@ -97,11 +98,12 @@ the budget or drop to `medium` (guide, "Calibrating effort and thinking depth" N
 API-side]`
 
 **Harness-side, the thinking controls behave differently from Fable 5.** `MAX_THINKING_TOKENS=0`
-turns thinking off outright on Sonnet 5 — unlike on Fable 5, which cannot have thinking turned off —
-and a *nonzero* value is ignored on adaptive-reasoning models, which Sonnet 5 always is.
-`CLAUDE_CODE_DISABLE_ADAPTIVE_THINKING` has no effect on you at all; it reverts Opus 4.6 and Sonnet
-4.6 to the fixed-budget mode and stops there. Read the current values at
-<https://code.claude.com/docs/en/env-vars> and
+disables thinking on Sonnet 5 **on the Anthropic API** — unlike on Fable 5, which cannot have
+thinking turned off — but on third-party providers it omits the `thinking` parameter instead, and an
+adaptive-reasoning model may still think. A *nonzero* value is ignored on adaptive-reasoning models,
+which Sonnet 5 always is. `CLAUDE_CODE_DISABLE_ADAPTIVE_THINKING` has no effect on you: from Claude
+Code v2.1.111 it reverts only Opus 4.6 and Sonnet 4.6 to the fixed-budget mode. Read the current
+values at <https://code.claude.com/docs/en/env-vars> and
 <https://code.claude.com/docs/en/model-config#adaptive-reasoning-and-fixed-thinking-budgets> rather
 than from any restatement, including this one. `[CC: direct]`
 
@@ -122,8 +124,8 @@ relying on the model's disposition. `[CC: prompt-authoring]`
 **Your default:** you provide regular, higher-quality user-facing updates throughout long agentic
 traces (guide, "User-facing progress updates").
 
-**Correction:** forced interim-status scaffolding — "after every 3 tool calls, summarize progress",
-"check in after each file" — is noise you do not need, and the guide's advice on finding it is to
+**Correction:** forced interim-status scaffolding — the guide's example is "After every 3 tool
+calls, summarize progress" — is noise you do not need, and the guide's advice on finding it is to
 try removing it. Do not add such a rhythm to prompts you author, and when the *content* of your
 updates is miscalibrated, the fix is describing what a good update looks like with examples, not
 pinning a cadence. `[CC: prompt-authoring]`
@@ -132,9 +134,10 @@ pinning a cadence. `[CC: prompt-authoring]`
 
 **Your default:** you follow a stated severity bar faithfully. Under instructions like "only report
 high-severity issues", "be conservative", or "don't nitpick", you may investigate the code just as
-thoroughly, find the bugs, and then withhold findings you judge below the bar — precision rises
-while measured recall falls, with no underlying loss of bug-finding ability (guide, "Code review
-harnesses").
+thoroughly, find the bugs, and then withhold findings you judge below the bar. Keep the guide's
+hedges — they are load-bearing: "Precision typically rises, but measured recall can fall even though
+the model's underlying bug-finding ability has improved" (guide, "Code review harnesses"). The
+capability did not regress; the reporting did.
 
 **Correction:** separate finding from filtering. At the finding stage surface everything, each with
 a confidence level and an estimated severity, and let a distinct pass rank or drop them — that
@@ -158,15 +161,16 @@ to any style directive you write. `[CC: prompt-authoring]`
 
 **Your default:** on open-ended frontend and design work you may settle into a consistent house
 visual style, which reads well for some briefs and wrong for dashboards, dev tools, fintech,
-healthcare, or enterprise apps. Generic redirection ("don't use that color", "make it clean") tends
-to move you to a *different* fixed palette rather than to variety (guide, "Design and frontend
-defaults").
+healthcare, or enterprise apps. Generic redirection ("don't use that color," "make it clean and
+minimal") tends to move you to a *different* fixed palette rather than to variety (guide, "Design
+and frontend defaults").
 
 **Correction:** two approaches work — take a concrete specification when one is offered and follow
 it precisely, or, on an open brief, propose several distinct visual directions (background, accent,
 typeface, one-line rationale each), have the user pick, and build only that one. Since `temperature`
-is not accepted on Sonnet 5, proposing options *is* the mechanism for meaningfully different
-directions across runs; there is no sampling knob standing behind it. `[CC: direct]`
+is not accepted on Sonnet 5, the guide calls proposing options "the recommended way to produce
+meaningfully different design directions across runs"; there is no sampling knob standing behind
+it. `[CC: direct]`
 
 ## Interactive coding products: front-load the specification
 
@@ -193,14 +197,15 @@ prompt-authoring]`
   condition; a weaker one needs enumerated steps and tight scope fences.
 - **Do not scaffold your own progress reporting.** You produce well-calibrated user-facing updates
   natively; a forced cadence adds noise (see the progress-updates section above).
-- **Do not read a sibling family's chapter.** `opus-5.md` and `opus-4-8.md` carry counter-steers
-  calibrated for models whose defaults differ from yours, and successive guides have reversed each
-  other. Meta-rule 3 in the skill body owns this routing.
+- **Do not read another version's chapter.** The other files under `model-adaptation/` carry
+  counter-steers calibrated for models whose defaults differ from yours, and successive guides have
+  reversed each other. Meta-rule 3 in the skill body owns this routing.
 
 ## Sources
 
-Corpus: the Sonnet 5 prompting-guide slice produced by `docpage-digest` (11 digests + verification
-records), whose INDEX records the exact canonical URL and capture provenance.
+Corpus: a `docpage-digest` slice of this guide (11 digests + verification records) exists in the
+authoring working set and has **not** graduated to `knowledge-corpus`, so this file carries no
+in-repo path to it — the URL and capture stamp below are the citable provenance.
 
 - Sonnet 5 prompting guide — raw-`.md` snapshot fetched 2026-07-29 from the "Prompting Claude
   Sonnet 5" page under `platform.claude.com/docs/en/build-with-claude/prompt-engineering/`; every
@@ -216,10 +221,13 @@ Live fetches at authoring time (2026-08-04), for the harness-side thinking facts
 - <https://platform.claude.com/docs/en/about-claude/models/migration-guide> — the Sonnet 4.6 → Sonnet
   5 breaking API changes, corroborating the guide's 400-error claims.
 
-Quotation note: this repository is public. The verbatim upstream sentences and clauses above are
-de-minimis quotations from Anthropic's published documentation, reproduced with attribution — the
-concrete-severity-bar sentence and the low-effort steer because they are tested phrasing whose
-effectiveness may not survive rewording; everything else is paraphrase with citation.
+Quotation note: this repository is public. Roughly a dozen short verbatim spans above — among them
+the low-effort under-thinking clause, the literalism sentence, the cross-model effort mapping, the
+raise-effort steer, the tokenizer clause, the recall/precision sentence, and the concrete-severity
+bar — are de-minimis quotations from Anthropic's published documentation, reproduced with
+attribution and marked with quotation marks at each site. The severity bar and the effort steers are
+quoted rather than paraphrased because they are tested phrasing whose effectiveness may not survive
+rewording; every unquoted claim is paraphrase with citation.
 
 Behavioral claims decay with model and doc revisions — re-verify against the URLs above before
 propagating them elsewhere.
