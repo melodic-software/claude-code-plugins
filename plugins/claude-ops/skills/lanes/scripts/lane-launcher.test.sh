@@ -371,7 +371,8 @@ cat >"$TMP/badprompt.json" <<'JSON'
   "lanes": [
     { "name": "gone",  "prompt": "missing.md" },
     { "name": "blank", "prompt": "blank.md" },
-    { "name": "baddy", "prompt": "work.md", "effort": "turbo" }
+    { "name": "baddy", "prompt": "work.md", "effort": "turbo" },
+    { "name": "ultra", "prompt": "work.md", "effort": "ultracode" }
   ] }
 JSON
 : >"$REPO/.work/blank.md"
@@ -380,6 +381,8 @@ assert_contains "missing prompt file skipped" "$out" "prompt file not found"
 assert_contains "empty prompt file skipped" "$out" "prompt file is empty"
 assert_contains "invalid effort skipped" "$out" "invalid effort 'turbo'"
 assert_not_contains "no launch for bad lanes" "$out" "claude --bg -n baddy"
+assert_contains "ultracode effort accepted" "$out" "claude --bg -n ultra"
+assert_contains "ultracode passed through as --effort" "$out" "--effort ultracode"
 
 # ============================================================================
 # Medium 1 — an option must not swallow the next flag as its value

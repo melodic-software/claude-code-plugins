@@ -3,6 +3,34 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.27.1]
+
+### Changed
+
+- **`observability` marks the Token / cost dollar column as a list-rate estimate.** ccusage prices
+  tokens at public per-token list rates while subscription usage is plan-priced, so the USD figures
+  are an estimate, not a bill; [costs](https://code.claude.com/docs/en/costs.md) (verified
+  2026-08-04) documents the same list-rate caveat for Claude Code's own locally computed figures.
+
+### Fixed
+
+- **`changelog` `status` no longer goes silent on the first release outside the CC 2.1 series.**
+  The applied-versions scan grepped git log with patterns pinned to `v2\.1\.`, so a 2.2.x/3.x
+  release would return nothing without erroring. The scan now matches any
+  `CC v<major>.<minor>.<patch>` (`-E --grep="CC v[0-9]+\.[0-9]+\.[0-9]+"`), semantics otherwise
+  unchanged; a skill-wide sweep confirmed no other file carries the series pin — remaining
+  `v2.1.x` literals are illustrative examples.
+- **`changelog` fetch steps target the raw-markdown channel (`docs/en/changelog.md`), not the
+  rendered HTML page.** The rendered page is ~2.7MB of HTML and WebFetch silently truncates it,
+  losing deep versions; the ~511KB `.md` sibling serves the same content byte-stable (sizes
+  measured 2026-08-04).
+  Every fetch-source reference in the skill now points at the `.md` URL.
+- **`lanes` no longer skips a lane whose effort is `ultracode`.** The launcher validated
+  `lanes[].effort` against `low|medium|high|xhigh|max`, so `ultracode` — a documented
+  `claude --effort` value since CC 2.1.203 (verified 2026-08-04 against the CLI reference) — made
+  the lane silently unlaunchable. The valid set now includes it; the config docs note that an older
+  CLI rejects the value and starts the session at default effort.
+
 ## [0.27.0]
 
 ### Added

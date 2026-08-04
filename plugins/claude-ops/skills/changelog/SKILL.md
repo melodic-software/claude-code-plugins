@@ -28,7 +28,7 @@ Distinct from:
 Three ways to provide changelog content (priority order):
 
 1. **User pastes text** — skill parses inline changelog from conversation context
-2. **Specific version** — `/changelog apply v2.1.152` fetches that version from `code.claude.com/docs/en/changelog`
+2. **Specific version** — `/changelog apply v2.1.152` fetches that version from `code.claude.com/docs/en/changelog.md`
 3. **Auto-detect latest** — `/changelog apply` (no version) automatically fetches changelog, identifies latest version, and proceeds
 
 ## Version awareness
@@ -165,7 +165,7 @@ If user approves:
 
 The three read-only actions stop short of any edit — **full steps in [context/read-actions.md](context/read-actions.md)**:
 
-- **`fetch`** — WebFetch + display a version (or latest, or a `v.X..v.Y` range) of `code.claude.com/docs/en/changelog`. No edits
+- **`fetch`** — WebFetch + display a version (or latest, or a `v.X..v.Y` range) of `code.claude.com/docs/en/changelog.md` (raw markdown — the rendered HTML page truncates deep versions). No edits
 - **`diff`** — dry run of `apply`: Phase 0 (ingest) + Phase 1 (explore) + Phase 2 (research), stops before interview. Emits the triage table only. Answers "is this release worth an `apply`?"
 - **`status`** — applied versions (`git log --grep`), open routine-pipeline issues (`gh issue list`), current `claude --version`, and the gap if installed > last-applied
 

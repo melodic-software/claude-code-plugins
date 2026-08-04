@@ -90,7 +90,7 @@
 #   prompt      required; path to the canonical prompt file (absolute, or
 #               relative to prompt_dir).
 #   model       optional; passed as --model.
-#   effort      optional; passed as --effort (low|medium|high|xhigh|max).
+#   effort      optional; passed as --effort (low|medium|high|xhigh|max|ultracode).
 #   settings    optional; a JSON OBJECT passed inline as --settings for that
 #               session only (e.g. a pluginConfigs override opting the lane into
 #               the autonomy plugin's lane-stop gate). Non-object values are
@@ -119,7 +119,7 @@
 
 set -uo pipefail
 
-VALID_EFFORTS="low medium high xhigh max"
+VALID_EFFORTS="low medium high xhigh max ultracode"
 
 ACTION="start"
 CONFIG=""
