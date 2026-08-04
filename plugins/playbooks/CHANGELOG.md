@@ -4,6 +4,32 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.6.10]
+
+### Changed
+
+- **`fable-5`'s Mythos 5 worked instance gains its custody record.**
+  `skills/fable-5/context/calibration.md` §"Point at a per-model matrix; never copy one" carried the
+  instance as two observations: Claude Mythos 5 has a row in the thinking per-model table, and in
+  Claude Code it is a known registry entry that is nonetheless unselectable. Both are true and
+  neither says *why*, so the instance read as a local curiosity — and a reader with no way to
+  account for the gap has no reason to trust it next time. The vendor states the reason, one page
+  away from the matrix and never on it: "Claude Mythos 5 is not generally available: it is offered
+  in limited availability to approved customers in Project Glasswing" ([Introducing Claude Fable 5
+  and Claude Mythos
+  5](https://platform.claude.com/docs/en/about-claude/models/introducing-claude-fable-5-and-claude-mythos-5),
+  fetched 2026-08-03, HTTP 200).
+
+  That sentence is added as the instance's third leg, which is what turns it from one session's
+  registry reading into three sources agreeing: the matrix shows the row, the availability page
+  states the gate, the local registry shows the gate closed here. Both halves of the gap were
+  verified the same day rather than assumed — the matrix page carries the Mythos 5 row and no
+  access-availability signal (its only availability language, a zero-data-retention note, covers
+  both models identically), which is the negative the instance's whole point rests on. The section's own rules are
+  honored in the edit — one pointer, one quoted sentence, one date, and none of the page's models
+  table, specs, or pricing copied across, because a chapter that forbids pasting a per-model matrix
+  cannot paste one to prove the point.
+
 ## [0.6.9]
 
 ### Fixed

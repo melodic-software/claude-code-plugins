@@ -1,5 +1,5 @@
 ---
-version: 1.9.0
+version: 1.10.0
 last-updated: 2026-08-03
 ---
 
@@ -100,8 +100,10 @@ I15–I22 apply to all surfaces; I13 and I14 name narrower surface sets in their
 - Context window (what survives compaction) — <https://code.claude.com/docs/en/context-window>
 - Hooks (handler types, and which events inject handler output into context) —
   <https://code.claude.com/docs/en/hooks>
-- Refusals and fallback (`reasoning_extraction`) —
+- Refusals and fallback (`reasoning_extraction`, and the classifier-category set it belongs to) —
   <https://platform.claude.com/docs/en/build-with-claude/refusals-and-fallback>
+- Introducing Claude Fable 5 and Claude Mythos 5 (which models carry the safety classifiers) —
+  <https://platform.claude.com/docs/en/about-claude/models/introducing-claude-fable-5-and-claude-mythos-5>
 - Thinking (the sanctioned reasoning-visibility path, the `display` field, and the thinking-block
   round-trip protocol) — <https://platform.claude.com/docs/en/build-with-claude/thinking>
 - Troubleshooting thinking (the per-request 400s, and the models the effort restriction covers) —
@@ -403,6 +405,19 @@ Tier `mechanical` · Authority `ANTHROPIC-DOCS` · Severity `error` · Surfaces:
   promotion gate: its own section names both Claude Fable 5 and Claude Mythos 5 for the adjacent
   raw-chain-of-thought property, then names Fable 5 alone for the refusal — a sentence-adjacent
   chance to widen, declined, so the narrower scope is deliberate.
+
+  **`Model scope: fable-5` is now positively sourced rather than held by that declined widening**,
+  in two statements each taken from the page that owns its half. The page that owns Mythos 5 states
+  the exclusion at the level of the whole classifier set: "Claude Fable 5 includes safety
+  classifiers that can decline certain requests. Claude Mythos 5 does not include these classifiers,
+  so this section applies to Claude Fable 5 only" ([Introducing Claude Fable 5 and Claude Mythos
+  5](https://platform.claude.com/docs/en/about-claude/models/introducing-claude-fable-5-and-claude-mythos-5),
+  fetched 2026-08-03). Refusals and fallback places this row's category inside that set, listing
+  `reasoning_extraction` among the classifier categories a refusal reports. The scope conclusion is
+  unchanged — what changed is that a reader no longer has to reconstruct it from an omission. Which
+  models carry the classifier set is a per-model fact and moves, so the introducing page joins
+  `## Sources`: the catalog-wide trigger then fires this row whenever that page changes, and no
+  narrower per-row trigger is owed.
 
 ### I11: CLI over MCP where equivalent
 
