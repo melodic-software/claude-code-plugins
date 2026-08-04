@@ -348,8 +348,12 @@ knowledge cutoff — are upstream-owned
 and are not restated here. Both orderings resolved as written against that
 page on 2026-08-04. Both are *derived* comparisons rather than quoted
 figures, so either can flip while every underlying number still reads
-correctly: re-resolve them when a new Claude model family reaches GA, or
-when one of the aliases above starts resolving to a different model.
+correctly: re-resolve them when a new Claude model family reaches GA,
+when one of the aliases above starts resolving to a different model, or
+when a model one of them resolves to is announced deprecated or retired
+([model deprecations](https://platform.claude.com/docs/en/about-claude/model-deprecations)
+— the announcement leads the alias move, and upstream warns deprecated
+models are likely to be less reliable than active ones).
 
 **The implementer tier is enforced structurally at the dispatch seam
 (#1649).** `/implementation:implement-dispatch` dispatches workers and
