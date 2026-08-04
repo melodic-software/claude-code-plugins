@@ -54,7 +54,9 @@ told:
    and judge the final STATE, not the process — an uncriteriaed verifier just rubber-stamps. When
    the verdict is high-stakes, prefer a different-vendor advisor when one is set up and able to
    judge this artifact — its blind spots are uncorrelated with yours — with the fresh-context
-   same-vendor verifier as the fallback.
+   same-vendor verifier as the fallback. Scope it to what ships: a process record about the work
+   (ledger, checklist, status log) is not the work and stays at self-check, however many of them a
+   batch touched, and a record OF a verification is never itself verified — that loop feeds itself.
 4. RUN WORKERS WELL — prefer non-blocking dispatch: keep working while independent workers run.
    Reuse a long-lived worker across subtasks when your runtime supports it (saves cost via cache).
    Watch running workers and intervene the moment one drifts or is missing context.

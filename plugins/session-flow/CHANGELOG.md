@@ -1,5 +1,25 @@
 # Changelog — session-flow plugin
 
+## [0.17.22]
+
+### Fixed
+
+- **`/session-flow:orchestrate`'s FRESH-CONTEXT VERIFY imperative told a session to hand
+  every edit batch to a separate verifier without saying which edits count, so it licensed
+  verifying the bookkeeping about the work.** A campaign's ledgers, checklists, and status
+  rows are edit batches too; applied to them the imperative spawns verifiers on process
+  records, and on the records those verifications produce. Imperative 3 in
+  `skills/orchestrate/SKILL.md` now scopes itself to what ships: a process record about the
+  work (ledger, checklist, status log) is not the work and stays at self-check however many
+  of them a batch touched, and a record OF a verification is never itself verified.
+
+  The clause is terse and self-contained on purpose, and it is the one place this rule is
+  restated. The `playbooks` plugin's `fable-5` orchestration chapter owns the rule with its
+  rationale; this skill's imperatives also **export** as a paste-ready brief for a target
+  that leaves the session, and that brief is model- and tool-agnostic by construction —
+  nothing in it may depend on a repo file — so a pointer is not an expressible form here.
+  It sits in the sub-clause body, leaving the `compact` headline-only export unchanged.
+
 ## [0.17.21]
 
 ### Fixed
