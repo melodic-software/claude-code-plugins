@@ -284,10 +284,12 @@ widened past what the source claims. The footer below is the standing instance; 
 best-practices material's "starting points, not set in stone" relativization is the second, and both
 graduate under this one convention rather than each inventing its own.
 
-**Residual-risk footer.** Every artifact derived from a guardrail page of this publisher carries the
-source's residual-risk sentence, quoted rather than paraphrased ([Reduce
-hallucinations](https://platform.claude.com/docs/en/test-and-evaluate/strengthen-guardrails/reduce-hallucinations),
-verified 2026-08-03):
+**Residual-risk footer.** Every artifact derived from a guardrail page of this publisher carries
+that page's OWN residual-risk sentence when the page states one, quoted rather than paraphrased —
+a hedge scoped to one page's techniques never transfers to an artifact derived from a different
+page. The standing instance, for artifacts derived from [Reduce
+hallucinations](https://platform.claude.com/docs/en/test-and-evaluate/strengthen-guardrails/reduce-hallucinations)
+(verified 2026-08-03):
 
 > Remember, while these techniques significantly reduce hallucinations, they don't eliminate them
 > entirely. Always validate critical information, especially for high-stakes decisions.
