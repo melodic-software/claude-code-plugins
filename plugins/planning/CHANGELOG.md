@@ -3,6 +3,32 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.27.2]
+
+### Fixed
+
+- **`/planning:interview` could be used as the execution container for bulk application
+  work, and nothing in the skill said not to.** Observed in a real multi-week effort: a
+  doc-alignment task ("apply the docs across the corpus, one agent per document") entered
+  the interview and came out as a 90-row decision ledger, because every per-document
+  application step was admissible as a decision row and each row then earned its own
+  adoption ceremony. The skill had no boundary to hit — its only anti-marathon signal was
+  the ballooning frontier, whose remedy is routing to `/planning:wayfind`, which is the
+  wrong remedy here: the decisions were not foggy, they were already settled and merely
+  numerous. `skills/interview/SKILL.md` now states the boundary as a sibling to that
+  paragraph, where the discrimination between the two signals is visible: for a corpus
+  application the interview's output is the small set of genuinely contested decisions
+  **plus an execution contract** — one Brief `### Acceptance criteria` line naming the
+  per-unit close-out loop (one source unit at a time: apply, verify, close) and what
+  *closed* means for a unit — and never one decision row per source unit. Naming the
+  destination section is load-bearing: the loop had nowhere to live, which is why the
+  decision ledger absorbed it. The tripwire is a count the reader can actually run —
+  candidate question count scaling with the number of source units rather than with the
+  number of genuine forks is execution masquerading as decisions, and it collapses into
+  the contract rather than routing to wayfind. `skills/interview/context/gotchas.md`
+  records the pattern under Scope and points at the SKILL.md section rather than
+  restating the rule.
+
 ## [0.27.1]
 
 ### Changed
