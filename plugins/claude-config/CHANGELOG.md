@@ -3,6 +3,54 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.21.3]
+
+### Added
+
+- **`audit-instructions`: `I8-e`, forced interim-status cadence, unscoped** (criteria 1.10.0 →
+  1.11.0). The Sonnet 5 prompting guide prescribes removing exactly the scaffolding `I8-d` was
+  written against — "If you've added scaffolding to force interim status messages ('After every 3
+  tool calls, summarize progress'), try removing it" — which is a second model guide converging on
+  the same finding and the same remediation, so the promotion gate is met and the row fires on every
+  target model instead of only on `fable-5`.
+
+  It ships as a **split rather than a promotion of `I8-d`**, because the two guides converge on the
+  claim while differing on the ground: Fable 5's is that turns now run for minutes or hours, Sonnet
+  5's is that the model already reports well on its own. `I8-d`'s detect predicate is the short-turn
+  *premise*, and the Sonnet 5 guide attests nothing about turn duration anywhere on the page —
+  promoting the row whole would have carried a premise only one guide states onto every target.
+  Worse, the row's sibling clause ("a directive to answer quickly or keep turns brief") runs against
+  what that guide actually says: Sonnet 5 calibrates response length to task complexity and the
+  guide expects products to *tune* verbosity prompts, not delete them. So `I8-d` keeps the
+  turn-duration arm at `fable-5` scope, `I8-e` takes the cadence arm unscoped, and the cadence-only
+  fence (a rhythm carrying its own observability or interruptibility rationale) moves with it. This
+  mirrors how `I8-b` recorded its own partial convergence rather than flattening two guides into one
+  claim.
+
+- **`audit-instructions`: `I17-c`, a fixed thinking budget prescribed where adaptive reasoning
+  ignores or rejects it.** `I17-a` already covers `MAX_THINKING_TOKENS=0` sold as a universal off
+  switch — the claim that thinking can be turned *off*. Nothing covered the adjacent claim that
+  thinking depth can be *set to a number*, whose two arms fail in opposite ways: a nonzero
+  `MAX_THINKING_TOKENS` is silently ignored on adaptive-reasoning models and
+  `CLAUDE_CODE_DISABLE_ADAPTIVE_THINKING` cannot rescue it, while API `thinking: {type: "enabled",
+  budget_tokens: N}` returns a hard 400 across Opus 4.7 and later, Sonnet 5, Fable 5, and Mythos 5.
+  Unscoped, with the model ranges as Detect conditions rather than a `Model scope` annotation, for
+  the reason `I17` base states.
+
+  **The row's central fence is that the finding is the missing model gate, never the mention.**
+  `CLAUDE_CODE_DISABLE_ADAPTIVE_THINKING` is *not* a retired variable: it is live on Opus 4.6 and
+  Sonnet 4.6, where it does exactly what it says. The obvious implementation — grep for the variable
+  name and call every hit stale — would flag every accurate piece of documentation about it, so the
+  row carries I12's version-gated fence applied to these literals explicitly.
+
+### Changed
+
+- **`audit-instructions`: the model migration guide joins the catalog's Sources.** `I17-c`'s API arm
+  cites it for the model range over which manual extended thinking is rejected. Per the catalog's own
+  rule that the trigger set is the source set, this **widens the catalog-wide recheck trigger** —
+  every row now re-verifies when that page changes. That is the intended consequence of citing it,
+  recorded here rather than left as a side effect of adding a bullet.
+
 ## [0.21.2]
 
 ### Changed

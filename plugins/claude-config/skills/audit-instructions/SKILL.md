@@ -256,8 +256,9 @@ bash "${CLAUDE_PLUGIN_ROOT}/skills/audit-instructions/scripts/instruction-scan.s
 It emits `file:line:check-id` candidate rows for I6 (bare prohibitions lacking a rationale
 marker), I10 (reasoning-echo directives), and the I8 families under per-family ids — `I8-a`
 instructed self-check, `I8-b` conservative-reporting, `I8-c` don't-think / don't-reason (I8-c's
-tag-naming sub-detect is lane-only, not seeded, as are I8's base row and `I8-d` short-turn
-assumptions, whose phrasings are too varied for a pattern that would earn its false-positive rate);
+tag-naming sub-detect is lane-only, not seeded, as are I8's base row, `I8-d` short-turn
+assumptions, and `I8-e` forced interim-status cadence, whose phrasings are too varied for a pattern
+that would earn its false-positive rate);
 `--count` prints the row count. Advisory — a
 grep cannot judge whether a rationale is genuinely present, whether a restraint clause is a
 reporting gate, or which model a row targets, so the lane refines every candidate against the

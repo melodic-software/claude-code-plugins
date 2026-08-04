@@ -1,6 +1,6 @@
 ---
-version: 1.10.0
-last-updated: 2026-08-03
+version: 1.11.0
+last-updated: 2026-08-04
 ---
 
 # Instruction-Audit Criteria
@@ -108,6 +108,8 @@ I15–I22 apply to all surfaces; I13 and I14 name narrower surface sets in their
   round-trip protocol) — <https://platform.claude.com/docs/en/build-with-claude/thinking>
 - Troubleshooting thinking (the per-request 400s, and the models the effort restriction covers) —
   <https://platform.claude.com/docs/en/build-with-claude/thinking-troubleshooting>
+- Model migration guide (the model ranges over which manual extended thinking is rejected) —
+  <https://platform.claude.com/docs/en/about-claude/models/migration-guide>
 - Effort (the levels, `high`'s equivalence to omitting the parameter, the carry-over sweep advice,
   and where thinking may not be disabled) —
   <https://platform.claude.com/docs/en/build-with-claude/effort>
@@ -243,7 +245,8 @@ so this fires for every target model.
 Tier `behavioral` · Authority `ANTHROPIC-DOCS` · Severity `warning` · Surfaces: all.
 
 The base row and rows I8-a, I8-c and I8-d carry their own `Model scope` (single-model guide sources;
-promotion gate unmet). Row I8-b is unscoped — two model guides converge on it (see the row).
+promotion gate unmet). Rows I8-b and I8-e are unscoped — two model guides converge on each (see the
+rows).
 
 **Base row** · Model scope: `fable-5`.
 
@@ -335,30 +338,29 @@ three trigger phrases (see Source), so this fires for every target model.
 
 **Row I8-d: short-turn assumptions** · Tier `behavioral` · Model scope: `fable-5`.
 
-- **Detect:** instruction text resting on the premise that a turn is short — a forced interim-status
-  cadence ("summarize every N tool calls", "check in after each file"), a directive to answer
-  quickly or keep turns brief, or any required progress rhythm pinned to a turn rather than to the
-  work. Individual requests now run for many minutes at higher effort and autonomous runs for hours,
-  so a rhythm calibrated to the old turn length fires as noise on work that has not reached a
-  reportable boundary, and it interrupts precisely the long uninterrupted runs the model is being
-  used for.
-- **Remediate:** name the guarantee the cadence was protecting — that the user can see progress,
+- **Detect:** instruction text resting on the premise that a turn is short — a directive to answer
+  quickly or keep turns brief, or any requirement whose stated ground is that a single turn will not
+  run long. Individual requests now run for many minutes at higher effort and autonomous runs for
+  hours, so an instruction calibrated to the old turn length fires as noise on work that has not
+  reached a reportable boundary, and it interrupts precisely the long uninterrupted runs the model is
+  being used for.
+- **The forced interim-status cadence is NOT this row's subject** — "summarize every N tool calls",
+  "check in after each file" and their kin belong to **I8-e**, which is unscoped because a second
+  model guide converges on them. This row keeps only what rests on turn *duration*, which that
+  second guide does not attest. Splitting them is what lets the converged arm fire on every target
+  without carrying a premise only one guide states.
+- **Remediate:** name the guarantee the instruction was protecting — that the user can see progress,
   that a long run stays interruptible — and either state that outcome and let the model meet it, or
   move it to a mechanism rather than an instructed rhythm. Verify via the delete-and-watch loop.
 - **Bounded by:** the **Stopping condition** below, which is enabled by default.
 - **Must NOT flag: an output-length instruction.** Brevity of the *reply* is a different subject and
-  belongs to I8 base; this row's subject is the cadence and duration of the *turn*.
+  belongs to I8 base; this row's subject is the duration of the *turn*.
 - **Must NOT flag: a latency or duration requirement the surface genuinely owns** — a product SLA, a
   timeout a downstream contract imposes, a rhythm a human review process depends on. Those are
   constraints the surface is entitled to state, not assumptions about how long a model takes.
 - **Must NOT flag: a document *about* the pattern** — this row, a model-adaptation delta chapter
   counter-steering it for a different model, a verification record quoting it — on the same audience
   test I8-b applies.
-- **Must NOT flag: a cadence carrying its own explicit observability or interruptibility
-  rationale** — a rhythm the surface states exists so a long autonomous run stays visible or
-  interruptible names the very guarantee the Remediate line protects, and that design is the
-  surface's to make — unless evidence shows the cadence was calibrated to an obsolete turn length
-  rather than to the work.
 - **Scope, and what is deliberately outside it:** the guide pairs this behavior with advice to adjust
   **client timeouts, streaming, and progress indicators** before migrating. That half is harness
   client configuration rather than instruction content, so it is not audited here and no row claims
@@ -367,6 +369,47 @@ three trigger phrases (see Source), so this fires for every target model.
 - **Source:** Fable 5 guide, "Longer turns by default" — "Individual requests on hard tasks can run
   for many minutes at higher effort settings … and autonomous runs can extend for hours. This is one
   of the largest shifts teams encounter when adjusting to Claude Fable 5."
+
+**Row I8-e: forced interim-status cadence** · Tier `behavioral`. Unscoped — promotion gate MET on
+its second arm: a second model guide, the Sonnet 5 one, prescribes removing the same instruction
+shape (see Source), so this fires for every target model. **The two guides converge on the finding
+and the remediation while differing on the ground** — Fable 5's is that turns now run long, Sonnet
+5's is that the model already reports well — and the gate asks whether the *claim* converges, not
+whether one rationale covers both. This row therefore states no rationale as a detect condition;
+each guide's ground is severity context, the way I17 and I21 hold a model range.
+
+- **Detect:** an instruction requiring interim status output on a fixed mechanical interval —
+  "summarize every N tool calls", "check in after each file", "post an update every N minutes". The
+  subject is the *forced rhythm*, not the reporting: an instruction to report at a genuine work
+  boundary (a phase completing, a gate failing) pins to the work and is not a finding.
+- **Remediate:** name the guarantee the cadence was protecting — that the user can see progress,
+  that a long run stays interruptible — and either state that outcome and let the model meet it, or
+  move it to a mechanism rather than an instructed rhythm. Where the *content* of native updates is
+  miscalibrated rather than absent, describe what a good update contains and give examples; that is
+  the upstream remediation and it does not reintroduce a cadence. Verify via the delete-and-watch
+  loop.
+- **Bounded by:** the **Stopping condition** below, which is enabled by default.
+- **Must NOT flag: a cadence carrying its own explicit observability or interruptibility
+  rationale** — a rhythm the surface states exists so a long autonomous run stays visible or
+  interruptible names the very guarantee the Remediate line protects, and that design is the
+  surface's to make — unless evidence shows the cadence was calibrated to an obsolete turn length
+  rather than to the work.
+- **Must NOT flag: a latency or duration requirement the surface genuinely owns** — a rhythm a human
+  review process depends on, a heartbeat an external contract requires. Those are constraints the
+  surface is entitled to state, on the same reasoning I8-d applies to its own.
+- **Must NOT flag: a document *about* the pattern** — this row, a model-adaptation delta chapter
+  counter-steering it, a verification record quoting it — on the same audience test I8-b applies.
+  This catalog's own detect text and the scanner's test fixtures are the canonical instances.
+- **Source:** Sonnet 5 guide, "User-facing progress updates" — "Claude Sonnet 5 provides regular,
+  higher-quality updates to the user throughout long agentic traces. If you've added scaffolding to
+  force interim status messages ('After every 3 tool calls, summarize progress'), try removing it."
+  That guide also supplies the Remediate line's second half: where updates are miscalibrated,
+  "explicitly describe what these updates should look like in the prompt and provide examples."
+  Convergent first arm: Fable 5 guide, "Longer turns by default", as quoted at I8-d.
+- **Verified 2026-08-04** against the Sonnet 5 guide, fetched as raw markdown (15,864 bytes, MD5
+  `6d23959f0ed226feb06bf20c314029e3`, byte-identical to a 2026-07-29 capture). **Recheck trigger:**
+  either guide ceasing to prescribe removal of forced status scaffolding, which would drop this row
+  back to a single arm and re-scope it.
 
 ### I9: Example hygiene
 
@@ -690,6 +733,56 @@ Severity `info`.
   before applying the change."
 - **Verified 2026-08-02** against that page, fetched as raw markdown. **Recheck trigger:** effort
   leaving the cache key, or the confirmation behavior changing.
+
+**Row I17-c: fixed thinking budget prescribed where adaptive reasoning ignores or rejects it** ·
+Tier `mechanical` · Severity `warning`. Unscoped — promotion gate MET: the claim is stated on
+model-agnostic surface pages and a cross-model migration guide, not in a model guide. **The model
+ranges below are Detect conditions, not a `Model scope` annotation**, for the reason I17 base states.
+
+- **Detect:** instruction text directing a reader to control thinking *depth* with a fixed token
+  budget on a model that always uses adaptive reasoning. Two arms, with opposite failure modes:
+  - **Harness arm — silent no-op.** A nonzero `MAX_THINKING_TOKENS`, or
+    `CLAUDE_CODE_DISABLE_ADAPTIVE_THINKING=1` offered as the way to make one take effect. Nonzero
+    values are ignored on adaptive-reasoning models, and that variable reaches none of the models
+    that always use adaptive reasoning — so a reader who follows the instruction sees no error and no
+    effect, which is the worst of the two failures.
+  - **API arm — hard 400.** `thinking: {type: "enabled", budget_tokens: N}`, or prose presenting a
+    thinking budget as a tunable number, on Opus 4.7 and later, Sonnet 5, Fable 5, or Mythos 5.
+- **Why this is not I17-a.** That row is about `MAX_THINKING_TOKENS=0` — the claim that thinking can
+  be turned *off*, and whether the exceptions travel with it. This row is the claim that thinking
+  depth can be *set to a number*. Different literal, different promise, different failure; both can
+  fire on one surface that gets the whole variable wrong, and both should be reported when they do.
+- **Must NOT flag: a claim carrying its own model gate.** Text naming Opus 4.6 or Sonnet 4.6 — where
+  the fixed-budget mode is live and `CLAUDE_CODE_DISABLE_ADAPTIVE_THINKING=1` does exactly what it
+  says — is correct, not stale. This is I12's version-gated fence applied to the same literals, and
+  it matters more here than usual: the tempting shape of this check is a bare grep for the variable
+  name, which would flag every accurate piece of documentation about it. **The finding is the missing
+  gate, never the mention.**
+- **Must NOT flag:** a bare reference to either variable making no claim about its reach. A document
+  *about* the pattern — this row, a model-adaptation delta chapter, a verification record — on the
+  audience test I8-b applies. **The budget expressed as a settings key, an environment assignment, or
+  an SDK request field** rather than prescribed in instruction text: that is a config-mechanics or
+  source-code finding on the same discriminator I17 base, I21 and I22 apply, and this catalog audits
+  instruction text.
+- **Remediate:** point at the effort parameter as the depth control on adaptive-reasoning models —
+  upstream's own framing is that `budget_tokens` "has no direct replacement: thinking is adaptive,
+  and the effort parameter is a separate output-level control, not a thinking budget" — or carry the
+  model gate with the claim.
+- **Source:** environment variables — `MAX_THINKING_TOKENS` "Nonzero values are ignored on adaptive
+  reasoning models unless `CLAUDE_CODE_DISABLE_ADAPTIVE_THINKING` is set", and that variable "has no
+  effect on Fable 5, Sonnet 5, or Opus 4.7 and later, which always use adaptive reasoning". Model
+  configuration states the same partition from the other side: "Fable 5, Sonnet 5, and Opus 4.7 and
+  later always use adaptive reasoning. The fixed thinking budget mode and
+  `CLAUDE_CODE_DISABLE_ADAPTIVE_THINKING` do not apply to them", while "On Opus 4.6 and Sonnet 4.6,
+  you can set `CLAUDE_CODE_DISABLE_ADAPTIVE_THINKING=1` to revert" — which is the fence above,
+  stated upstream. The API arm: migration guide — `thinking: {type: "enabled", budget_tokens: N}`
+  "is no longer supported on Claude Opus 4.7 or later models and returns a 400 error", with the same
+  stated for Fable 5 and Mythos 5; corroborated for this model generation by the Sonnet 5 guide,
+  "Calibrating effort and thinking depth" — manual extended thinking "is not supported on Claude
+  Sonnet 5 and returns a 400 error. It was deprecated on Claude Sonnet 4.6 and is now removed."
+- **Verified 2026-08-04** against those four pages, fetched as raw markdown. **Recheck trigger:** the
+  set of models that always use adaptive reasoning changing, `CLAUDE_CODE_DISABLE_ADAPTIVE_THINKING`
+  regaining or losing reach, or manual extended thinking being reinstated on any model in the range.
 
 ### I18: Thinking blocks altered on the way back to the model
 

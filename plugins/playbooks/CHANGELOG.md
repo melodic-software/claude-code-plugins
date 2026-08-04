@@ -4,6 +4,47 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.6.13]
+
+### Added
+
+- **`sonnet-5.md`: a model-adaptation chapter for the tier this repo delegates to most.**
+  `reference/model-adaptation/` carried `opus-5.md` and `opus-4-8.md`, and meta-rule 3's fallback for
+  a family with no chapter is to read none at all — which it named Sonnet by name. That left the
+  model this repository routes mechanical fan-out and wide reads to running the playbook with no
+  counter-steers, and the routing that sends work there commonly pairs `model: sonnet` with a low
+  `effort` value, which is precisely where the Sonnet 5 guide says the risk sits: at `low` and
+  `medium` the model scopes work to what was asked, and "on moderately complex tasks running at
+  `low` effort there is some risk of under-thinking". A worker in that configuration was the one
+  reader guaranteed to get no adaptation chapter.
+
+  The chapter follows the sibling pattern — conditional preamble, `[CC: …]` applicability tags,
+  your-default/correction sections, a Sources block with capture provenance. Its deltas: effort
+  strictness and the raise-effort-don't-prompt-harder correction; literal scope interpretation, in
+  both the reading and the authoring direction; adaptive thinking with no budget dial, plus the
+  harness-side thinking facts and the `max_tokens`/new-tokenizer interaction; tool reach and its
+  coupling to thinking being disabled; native progress updates; coverage-before-filtering on review
+  work; response-length calibration; the design-brief default and the propose-options break for it;
+  and front-loading the specification on interactive coding work.
+
+  **Why a chapter rather than the deferral previously recorded.** The earlier recommendation was not
+  to mint a standalone Sonnet-5 *skill*, and it deferred to a then-open question about where
+  per-model doctrine should live. ADR-0007 has since settled that: chapters live at plugin level
+  under `reference/model-adaptation/<model-version>.md`, and two ship there. A chapter is the
+  settled seam, not a new surface, so the deferral's blocking premise is closed and the decision is
+  re-derived rather than inherited.
+
+### Changed
+
+- **Meta-rule 3 routes Sonnet 5 to its chapter.** `skills/fable-5/SKILL.md` gains `sonnet-5.md` in
+  the version enumeration, and its no-chapter-family example narrows from "Sonnet or Haiku" to Haiku
+  alone. Both halves of that sentence had to move together — leaving the parenthetical would have
+  told a Sonnet 5 session to read no adaptation chapter while the enumeration two clauses earlier
+  named its file.
+- **`opus-4-8.md`'s preamble names the new sibling**, so its routing note stays a complete list of
+  the models whose guides reverse its counter-steers. `opus-5.md`'s preamble routes generically and
+  needed no change.
+
 ## [0.6.12]
 
 ### Added
@@ -100,6 +141,7 @@ only after that version increases.
   publish in a separate channel, so a trigger check reads those channels, not the hash. The
   quotation note now covers the card fragments too, with the reason they stay verbatim —
   "slightly more" and "similarly to Opus 4.8" are exactly the qualifiers a loose paraphrase drops.
+
 
 ## [0.6.11]
 
