@@ -19,8 +19,10 @@ All notable changes to the `claude-memory` plugin are documented here. Format fo
   The cost is that a real YAML comment inside frontmatter ends the block, and ending it strips
   nothing at all — the opening `---`, every entry held so far, and the rest of the block through
   its close all count. That is an over-count, the direction M1's readings already guess toward,
-  and a rare one: Claude Code writes only the `modified` scalar and never authors comments, so it
-  takes a hand-edited index to reach. criteria.md M1 reading 1 records both halves.
+  and it takes a hand-edited index to reach, since Claude Code only stamps a `modified` scalar
+  into frontmatter a file already has. Comments join an existing class rather than opening a new
+  one: frontmatter this grammar cannot parse already ended the block before this change, and a
+  block sequence under `tags:` still does. criteria.md M1 reading 1 records both halves.
 
 ## [0.5.6]
 
