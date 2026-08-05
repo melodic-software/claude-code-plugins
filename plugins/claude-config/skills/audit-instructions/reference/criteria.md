@@ -92,9 +92,10 @@ I15–I22 apply to all surfaces; I13 and I14 name narrower surface sets in their
 - Prompting Claude Sonnet 5 —
   <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-sonnet-5>
 - The new rules of context engineering for Claude 5 generation models (vendor blog, published
-  2026-07-24 — corroborates I6 and I15 from the model-delta side; a corroborating citation, so both
-  rows keep the `ANTHROPIC-DOCS` Authority their primary documentation sources carry, and the closed
-  three-value Authority set above is unchanged) —
+  2026-07-24 — corroborates I6 from the model-delta side and I15 from the reasoning-cost side; a
+  dated post, static once published, so a recheck is expected to find it unchanged; it corroborates
+  rather than defines, so the rows citing it keep the `ANTHROPIC-DOCS` Authority of their primary
+  documentation sources and the closed three-value Authority set above is unchanged) —
   <https://claude.com/blog/the-new-rules-of-context-engineering-for-claude-5-generation-models>
 - Memory (CLAUDE.md, rules, auto memory) — <https://code.claude.com/docs/en/memory>
 - The `.claude` directory — <https://code.claude.com/docs/en/claude-directory>

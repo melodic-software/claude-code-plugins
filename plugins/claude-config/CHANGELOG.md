@@ -7,9 +7,9 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
 
 ### Changed
 
-- **`audit-instructions`: `I6` and `I15` gain their model-delta corroboration from Anthropic's
-  context-engineering blog** (criteria 1.16.0). Both rows rested on live-doc sources alone;
-  [The new rules of context engineering for Claude 5 generation
+- **`audit-instructions`: `I6` gains model-delta corroboration and `I15` reasoning-cost
+  corroboration from Anthropic's context-engineering blog** (criteria 1.16.0). Both rows rested on
+  live-doc sources alone; [The new rules of context engineering for Claude 5 generation
   models](https://claude.com/blog/the-new-rules-of-context-engineering-for-claude-5-generation-models)
   (2026-07-24) states each from the vendor's own system prompts and shipped guidance, so the
   citation is added rather than a new row minted — the digest's conflicting-directive question
@@ -21,7 +21,8 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   instance of the row's Detect shape, its stated obsolescence ("newer models have better judgement
   and can handle these decisions well without explicit rules") is the model-delta ground, and its
   replacement — "Write code that reads like the surrounding code: match its comment density,
-  naming, and idiom" — is the row's own positive-reframing remediation, shipped by upstream.
+  naming, and idiom" — is an instance of the row's positive-reframing remediation, shipped by
+  upstream.
 
   `I15`: the blog's "Unhobbling Claude" adds the cost the memory doc's arbitrary-pick sentence does
   not state — even a correctly resolved conflict taxes reasoning ("Claude must think more carefully
@@ -30,11 +31,13 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   user requests clash with each other.
 
   The page joins `## Sources` and is therefore inside the catalog-wide recheck trigger like every
-  other entry, keeping the trigger-set-equals-source-set invariant. Neither citation carries a
-  per-row verification stamp: the catalog owes one where a row restates a volatile upstream
-  literal — a level name, a model range, a type predicate — and both rows quote prose rather than
-  restate such a literal. Both rows keep the `ANTHROPIC-DOCS` Authority their primary documentation
-  sources carry; primary sources are unchanged — the blog corroborates, it does not define.
+  other entry, keeping the trigger-set-equals-source-set invariant; it is noted there as a dated
+  post, static once published, so that recheck is expected to find it unchanged. Neither citation
+  carries a per-row verification stamp: the catalog owes one where a row restates a volatile
+  upstream literal — a level name, a model range, a type predicate — and both rows quote prose
+  rather than restate such a literal. Both rows keep the `ANTHROPIC-DOCS` Authority their primary
+  documentation sources carry; primary sources are unchanged — the blog corroborates, it does not
+  define.
 
 ## [0.21.7]
 
