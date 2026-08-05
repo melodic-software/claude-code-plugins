@@ -88,10 +88,10 @@ parallelism, not convenience). Treat every worker's return as unverified synthes
 load-bearing claims against a primary source before acting. Cite sources you actually fetched;
 never label a claim "known" / "from memory" / "obvious".
 
-**Priming addendum (current session only).** As the main session — not a spawned worker — you may
-also reach orchestration surfaces a worker cannot: agent teams (driven from the lead session; the
-docs do not state whether a fork of the lead can drive one) and dynamic workflows (withheld from
-non-fork workers). This session's reasoning effort is `${CLAUDE_EFFORT}` — feed it
+**Priming addendum (current session only).** As the main session — not a spawned non-fork worker —
+you may also reach orchestration surfaces a non-fork worker cannot: agent teams (driven from the
+lead session; the docs do not state whether a fork of the lead can drive one) and dynamic workflows
+(withheld from non-fork workers). This session's reasoning effort is `${CLAUDE_EFFORT}` — feed it
 into imperative 7's tier calibration: it is the level a spawn inherits when neither the call nor
 the agent definition sets one (a definition's own `effort` overrides the session), so its gap from
 what a subtask needs IS the over-provisioning imperative 7 exists to stop. (`ultracode` reports as
