@@ -114,11 +114,12 @@ applies only to sessions started in that worktree. Two cases:
   yet created). The **coverage** reads (allow + `additionalDirectories`) span user-global + tracked
   project settings + the main checkout's local file; only a linked-worktree cwd's *own* local file
   is dropped, since the fresh worker would not inherit it and reading it would mask a worker-side
-  gap. Run from the main checkout, nothing is dropped. The report header says which.
+  gap. Run from the main checkout, nothing is dropped. The report header says which — naming
+  whatever `main_root` resolved to, right or wrong (see the second residual).
 - **A named worker** — `--project-root <worker-worktree>` resolves to a checkout whose toplevel
   differs from the cwd. That is a real, existing checkout, so the preflight reads **its own**
   `settings.local.json` (legacy rules saved there still apply to sessions started there) plus the
-  main checkout's shared local file; the header names the sources.
+  main checkout's shared local file; the header names the sources, under the same caveat.
 
 **Two residual limits apply to BOTH modes above.**
 
@@ -136,8 +137,14 @@ applies only to sessions started in that worktree. Two cases:
   main-local deny is live. The err-wide deny posture cannot widen a layer never read.
   **Wrongly resolved**: `main_root` names a directory that is not this repository's working tree, and
   that foreign `.claude/settings.local.json` is unioned into every read — a foreign allow masks a
-  real gap, a foreign deny yields a false DENIED. The autonomous header distinguishes neither shape
-  from a repository that simply has no main-local file. Three ways in:
+  real gap, a foreign deny yields a false DENIED. The header treats the two shapes differently, and
+  neither treatment is safe. **Unresolved** is indistinguishable from a repository that simply has no
+  main-local file. **Wrongly resolved** is worse than indistinguishable: the header **names the
+  foreign directory as the main checkout** — `coverage read includes the main checkout's
+  settings.local.json ('<foreign path>', applies in every worktree since Claude Code v2.1.211)` —
+  in wording identical to a correct resolution, so the output asserts something false about which
+  file was read rather than merely omitting it. Both header lines that print a resolved path (the
+  pre-dispatch one and the named-worker one) carry it. Three ways in:
   - A linked worktree of a repo created with `--separate-git-dir <path>/.git`: the common dir is
     `<path>/.git`, so the `*/.git` recovery yields `main_root=<path>` — **wrongly resolved**, with
     foreign rules flowing in both directions (`--separate-git-dir "$HOME/.git"` unions the

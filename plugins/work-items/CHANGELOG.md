@@ -19,7 +19,8 @@ All notable changes to the `work-items` plugin are documented here. Format follo
   script now reads the main checkout's local file in every mode; only a linked-worktree cwd's *own*
   local file is still dropped pre-dispatch, since a pre-v2.1.211 save (or a hand-placed file)
   applies solely to sessions started in that worktree. The exclusion is a no-op when the run starts
-  from the main checkout, and the report header now names which files the coverage read spanned.
+  from the main checkout, and the report header now names which files the coverage read spanned —
+  whichever path the main-checkout resolution produced, including a wrong one (below).
   Deny rules keep reading every local layer they resolve — erring wide on deny cannot mask a gap
   *within the layers actually read*, though it cannot widen a layer that never resolves (below).
 - **That main checkout is identified by comparing the checkout's own git dir against the common
@@ -38,7 +39,9 @@ All notable changes to the `work-items` plugin are documented here. Format follo
   repository's working tree at all, and a foreign `.claude/settings.local.json` is unioned into every
   read: a foreign allow **masks** a real gap, and a foreign deny yields a false DENIED (point the
   separate git dir at `$HOME/.git` and the foreign layer is the operator's own `~/.claude` local
-  file). Correcting the resolution itself is deferred; this release states the behaviour truthfully.
+  file). The header then names that foreign directory **as** the main checkout, in wording identical
+  to a correct resolution, so it asserts something false rather than merely omitting it. Correcting
+  the resolution itself is deferred; this release states the behaviour truthfully.
   `reference/permission-preflight.md` carries the residual cases rather than leaving them implied,
   scoped to both the pre-dispatch and named-worker modes. A pre-v2.1.211 harness, where a worktree
   session loads its own local file rather than the main checkout's, **masks** a gap the worker really
