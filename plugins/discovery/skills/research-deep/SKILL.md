@@ -1,6 +1,6 @@
 ---
 name: research-deep
-description: "Dispatch deep external research to the heaviest isolated execution tier available — a workflow engine, a forked subagent, or inline as last resort — keeping the main conversation clean while the full research discipline runs. Itself runs in main context, because a non-fork subagent cannot reach the Workflow tool. Use when: 'deep research', 'research these N topics', 'broad multi-source research', 'compare these tools thoroughly', 'migration research', 'exhaustive research on X'; for a single small lookup use the research skill directly, which already dispatches its own subagent."
+description: "Dispatch deep external research to the heaviest isolated execution tier available — a workflow engine, an isolated subagent, or inline as last resort — keeping the main conversation clean while the full research discipline runs. Itself runs in main context, the only place both the Workflow tool (absent from every non-fork subagent) and a dependable Agent spawn are guaranteed. Use when: 'deep research', 'research these N topics', 'broad multi-source research', 'compare these tools thoroughly', 'migration research', 'exhaustive research on X'; for a single small lookup use the research skill directly, which already dispatches its own subagent."
 argument-hint: "[topic] (e.g., /discovery:research-deep <library> <version> best practices, /discovery:research-deep <framework> <feature> migration guide)"
 user-invocable: true
 disable-model-invocation: false
@@ -18,7 +18,7 @@ Current branch: !`git branch --show-current 2>/dev/null || echo "unknown"`
 
 `/research-deep` is the **dispatcher** for deep external research — a depth/execution variant of the sibling `/research` skill. Same research contract (3-phase discipline, source-tier ratio, recency gate, mandatory falsification, cited `RESEARCH.md` artifact); heavier execution that keeps the main session's context clean. It selects ONE execution tier from tool availability + task heaviness, then surfaces the same summary contract regardless of tier.
 
-This skill runs **inline (main context)** — it dispatches; the chosen tier provides the context isolation. It must run in main context to reach the Workflow tool when one is available (a non-fork subagent cannot dispatch workflows).
+This skill runs **inline (main context)** — it dispatches; the chosen tier provides the context isolation. It must run in main context because that is the only place both of its requirements hold — the `Workflow` tool, absent from every non-fork subagent, and a dependable `Agent` spawn, which no subagent is guaranteed to hold: see the *Dispatching this skill itself* gotcha.
 
 ## Topic
 
@@ -35,7 +35,7 @@ For a single-topic ask, detection is **engine-biased**: prefer the heaviest avai
 | Tier | Condition | Execution |
 |---|---|---|
 | 1 — workflow engine (preferred) | The Workflow tool is available AND a deep-research workflow exists (a built-in deep-research workflow, or one the consuming project ships) AND the task is heavy/broad (or unknown scope) | Dispatch that workflow with the topic |
-| 2 — forked subagent | No workflow path AND the task is heavy | Spawn an isolated `general-purpose` agent running the full `/research` discipline |
+| 2 — isolated subagent | No workflow path AND the task is heavy | Spawn an isolated `general-purpose` agent running the full `/research` discipline |
 | 3 — inline | Task clearly small/targeted (single fact, one obvious source, narrow lookup) | Run `/research` inline in this session |
 
 - **Heavy/broad** = multi-source, multi-vendor, comparison/migration, unfamiliar domain, or research that would flood main context with 9+ external queries.
@@ -48,7 +48,7 @@ If your tool list includes the Workflow tool and a deep-research workflow is ava
 
 If no workflow engine resolves, fall through to Tier 2.
 
-### Tier 2 — forked subagent fallback
+### Tier 2 — isolated subagent fallback
 
 Spawn a subagent that runs the canonical `/research` workflow in an isolated context:
 
@@ -77,7 +77,7 @@ Run `/research` inline in this session — no dispatched *research* tier, no wor
 
 ### The post-dispatch boundary — every dispatching tier owns it
 
-**A dispatched run is not finished when it returns.** No producing context — engine, forked subagent, or topic worker — can complete the `/research` outcome gate's verifier-owned rows (independent corroboration, HIGH confidence) or its parent-owned row (project fit). The first two are assigned to a fresh context precisely because a producer may not grade its own choices; the third needs the consuming project's conventions, which only this session holds. Nor can the producer be relied on to dispatch that verifier itself — whether a non-fork subagent holds `Agent` depends on the harness's current nesting allowance (`CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH`), a default that has moved three times and is not worth designing against.
+**A dispatched run is not finished when it returns.** No producing context — engine, isolated subagent, or topic worker — can complete the `/research` outcome gate's verifier-owned rows (independent corroboration, HIGH confidence) or its parent-owned row (project fit). The first two are assigned to a fresh context precisely because a producer may not grade its own choices; the third needs the consuming project's conventions, which only this session holds. Nor can the producer be relied on to dispatch that verifier itself — whether a non-fork subagent holds `Agent` depends on the harness's current nesting allowance (`CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH`), a default that has moved three times and is not worth designing against.
 
 So for **every** dispatched run — one per topic on the N-topic path, once on Tier 1 and Tier 2 — this session dispatches the sibling verifier against the artifact on disk, applies project fit, and writes both results back into that artifact's index **before** surfacing anything. Surfacing a producer's summary and artifact path directly presents claims as gate-passed when the rows that matter were never graded by anyone. A single-topic ask earns no weaker boundary than a multi-topic one, and an engine earns no weaker boundary than a subagent.
 
