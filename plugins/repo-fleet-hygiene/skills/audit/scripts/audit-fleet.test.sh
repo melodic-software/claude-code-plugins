@@ -318,7 +318,7 @@ pr)
   github.com/acme/sub-mod | github.com/acme/sep-mod) ;;
   github.com/acme/wt-canon)
     i=1
-    while [[ "$i" -le 200 ]]; do
+    while [[ "$i" -le 1000 ]]; do
       printf '%s\tarchived/branch-%s\toid-%s\t2026-07-01T00:00:00Z\thttps://github.com/acme/wt-canon/pull/%s\n' "$i" "$i" "$i" "$i"
       i=$((i + 1))
     done
@@ -820,7 +820,7 @@ fi
 # A full merged-PR window silently drops older history, which reads in the report exactly like a
 # branch that was never merged. The truncation must be disclosed, never inferred by the reader.
 if grep -Fq "Finding: merged-pr-window-truncated" "$ladder_out" &&
-  grep -Fq "equal to its 200-PR window" "$ladder_out"; then
+  grep -Fq "equal to its 1000-PR window" "$ladder_out"; then
   printf 'PASS: a full merged-PR window is disclosed as truncated\n'
 else
   printf 'FAIL: a full merged-PR window is disclosed as truncated\n' >&2
