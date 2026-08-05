@@ -6,6 +6,12 @@ The three read-only actions (`fetch`, `diff`, `status`). SKILL.md keeps the acti
 
 Read-only. Fetch and display changelog content.
 
+WebFetch truncates this document — the raw-markdown and rendered-HTML channels alike — to roughly
+the 32 most recent releases, emitting a `[Content truncated due to length...]` marker. A version
+older than that window will not be in the response no matter which channel is used, so fetch it
+with a range- or anchor-scoped request, or `curl` the `.md` and slice locally. Never report a
+version "absent from the changelog" on a truncated fetch.
+
 **With version arg** (`/changelog fetch v2.1.152`):
 
 1. WebFetch `https://code.claude.com/docs/en/changelog.md`

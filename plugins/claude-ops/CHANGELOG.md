@@ -21,19 +21,26 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   unchanged; a skill-wide sweep confirmed no other file carries the series pin — remaining
   `v2.1.x` literals are illustrative examples.
 - **`changelog` fetch steps target the raw-markdown channel (`docs/en/changelog.md`), not the
-  rendered HTML page.** The rendered page is ~2.7MB of HTML and WebFetch silently truncates it,
-  losing deep versions; the ~511KB `.md` sibling serves the same content byte-stable (sizes
-  measured 2026-08-04).
-  Every fetch-source reference in the skill now points at the `.md` URL.
+  rendered HTML page.** The `.md` sibling is the smaller, chrome-free channel — 514,578 B against
+  the rendered page's 2,696,671 B (~5x), measured 2026-08-04 — and both carry the same 355
+  releases. It buys no extra version depth: WebFetch truncates **both** channels identically, to
+  the same 32 most-recent versions with a `[Content truncated due to length...]` marker, because
+  its budget applies after HTML-to-markdown conversion. Reaching a deep version needs a
+  range-scoped fetch or a direct `curl`, on either channel. Every fetch-source reference in the
+  skill now points at the `.md` URL.
 - **`lanes` no longer skips a lane whose effort is `ultracode`.** The launcher validated
   `lanes[].effort` against `low|medium|high|xhigh|max`, so `ultracode` — a documented
-  `claude --effort` value since CC 2.1.203 (verified 2026-08-04 against the CLI reference) — made
-  the lane silently unlaunchable. The valid set now includes it, gated on the installed
-  `claude --version` meeting that floor: `ultracode` is the one effort upstream version-gates, and
-  the CLI reference does not document what an older binary does with the value, so the launcher
-  refuses the lane instead of guessing. The check runs in the shared launch-input preflight, which
-  `restart` already performs BEFORE stopping — so a lane the gate refuses keeps running rather than
-  being taken down and left down.
+  `claude --effort` value since CC 2.1.203 (verified 2026-08-04 against
+  [model-config](https://code.claude.com/docs/en/model-config#adjust-effort-level)) — made the
+  lane silently unlaunchable. The valid set now includes it, gated on the installed
+  `claude --version` meeting that floor: below it the CLI rejects the value outright (`Unknown
+  --effort value 'ultracode'`) and starts the session at the default effort, so the launcher skips
+  the lane rather than launching it at an unintended effort. That check runs in the shared
+  launch-input preflight, which `restart` already performs BEFORE stopping — so a lane the gate
+  refuses keeps running rather than being taken down and left down. The whole run shares one
+  `claude --version` probe, and `--dry-run` keeps working with no CLI installed (the exemption
+  `require_claude` documents): with no binary to probe, the preview reports the gate unevaluated
+  instead of refusing a lane a real run may well launch.
 
 ## [0.27.0]
 

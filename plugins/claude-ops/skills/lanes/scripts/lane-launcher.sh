@@ -124,9 +124,11 @@ set -uo pipefail
 VALID_EFFORTS="low medium high xhigh max ultracode"
 
 # `ultracode` is the one effort upstream gates on a CLI version, so it is the one
-# the static allowlist cannot settle on its own. Upstream documents the floor but
-# not what an older CLI does with the value, so the launcher refuses rather than
-# guessing — restart preflights this BEFORE stopping, keeping a healthy lane up.
+# the static allowlist cannot settle on its own. Below the floor the CLI rejects the
+# value outright (`Unknown --effort value 'ultracode'`) and starts the session at the
+# default effort, so the launcher skips the lane rather than launching it at an
+# unintended effort — restart preflights this BEFORE stopping, keeping a healthy lane
+# up. https://code.claude.com/docs/en/model-config#adjust-effort-level
 ULTRACODE_MIN_VERSION="2.1.203"
 
 # Compared component by component in awk — deliberately NOT `sort -V`, which is a
@@ -146,15 +148,16 @@ version_at_least() { # <candidate> <minimum>
   }' 2>/dev/null
 }
 
-# Memoized: every lane in a run shares one `claude --version` probe.
+# Memoized: every lane in a run shares one `claude --version` probe. Callers read
+# CLI_VERSION_CACHE directly — a `$(cli_version)` substitution would populate the
+# cache inside a subshell and throw it away, re-probing once per lane.
 CLI_VERSION_CACHE=""
 cli_version() {
-  if [[ -z "$CLI_VERSION_CACHE" ]]; then
-    CLI_VERSION_CACHE="$(claude --version 2>/dev/null | tr -d '\r' |
-      grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)"
-    [[ -z "$CLI_VERSION_CACHE" ]] && CLI_VERSION_CACHE="unknown"
-  fi
-  printf '%s' "$CLI_VERSION_CACHE"
+  [[ -n "$CLI_VERSION_CACHE" ]] && return 0
+  CLI_VERSION_CACHE="$(claude --version 2>/dev/null | tr -d '\r' |
+    grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)"
+  [[ -n "$CLI_VERSION_CACHE" ]] || CLI_VERSION_CACHE="unknown"
+  return 0
 }
 
 ACTION="start"
@@ -686,11 +689,19 @@ validate_launch_inputs() {
     return 1
   fi
   if [[ "$effort" == "ultracode" ]]; then
-    local v
-    v="$(cli_version)"
-    if ! version_at_least "$v" "$ULTRACODE_MIN_VERSION"; then
-      err "lane '$name': effort 'ultracode' needs Claude Code >= $ULTRACODE_MIN_VERSION (installed: $v) — skipped"
-      return 1
+    # The same exemption require_claude documents: a dry run must preview with no
+    # CLI installed. With no binary to probe the gate cannot be evaluated, so the
+    # preview says so rather than refusing a lane a real run may well launch. Keyed
+    # on the binary's absence, not on an "unknown" version — a CLI whose --version
+    # is unparseable is installed, and stays refused.
+    if ((DRY_RUN)) && ! command -v claude >/dev/null 2>&1; then
+      info "  lane '$name': effort 'ultracode' version gate not evaluated (no claude CLI to probe)"
+    else
+      cli_version
+      if ! version_at_least "$CLI_VERSION_CACHE" "$ULTRACODE_MIN_VERSION"; then
+        err "lane '$name': effort 'ultracode' needs Claude Code >= $ULTRACODE_MIN_VERSION (installed: $CLI_VERSION_CACHE) — skipped"
+        return 1
+      fi
     fi
   fi
   # `settings` must be a JSON object — the launcher passes it verbatim to

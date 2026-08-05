@@ -387,7 +387,7 @@ assert_contains "empty prompt file skipped" "$out" "prompt file is empty"
 assert_contains "invalid effort skipped" "$out" "invalid effort 'turbo'"
 assert_not_contains "no launch for bad lanes" "$out" "claude --bg -n baddy"
 assert_contains "ultracode effort accepted" "$out" "claude --bg -n ultra"
-assert_contains "ultracode passed through as --effort" "$out" "--effort ultracode"
+assert_contains "ultracode passed through as --effort" "$out" "claude --bg -n ultra --effort ultracode"
 
 # ============================================================================
 # ultracode version gate — below the floor the lane is skipped, and a restart
@@ -405,11 +405,42 @@ assert_not_contains "no launch below the floor" "$out" "claude --bg -n work"
 out="$(STUB_CLAUDE_VERSION=2.1.203 run_launcher start --repo "$REPO" --config "$TMP/ultra.json" --agents-json "$AGENTS_EMPTY" --dry-run 2>&1)"
 assert_contains "ultracode at the floor launches" "$out" "claude --bg -n work"
 
-# The running lane must survive a restart the version gate refuses.
+# The running lane must survive a restart the version gate refuses. NOT --dry-run:
+# `run` short-circuits under it, so the stop could never reach the stub and the
+# assertion below would hold no matter when the launcher stopped the lane.
 : >"$CLAUDE_LOG"
-out="$(STUB_CLAUDE_VERSION=2.1.202 run_launcher restart --repo "$REPO" --config "$TMP/ultra.json" --agents-json "$AGENTS_RUNNING" --dry-run 2>&1)"
+out="$(STUB_CLAUDE_VERSION=2.1.202 run_launcher restart --repo "$REPO" --config "$TMP/ultra.json" --agents-json "$AGENTS_RUNNING" 2>&1)"
 assert_contains "restart refused below the floor" "$out" "needs Claude Code >= 2.1.203"
-assert_not_contains "healthy lane not stopped by a refused restart" "$(cat "$CLAUDE_LOG")" "stop"
+assert_not_contains "healthy lane not stopped by a refused restart" "$(cat "$CLAUDE_LOG")" "stop sid-work-1"
+
+# Every lane in a run shares ONE `claude --version` probe. Callers read the cache
+# global directly; a `$(cli_version)` substitution would fill it in a subshell and
+# re-probe once per lane, so this counts the probes rather than trusting the shape.
+cat >"$TMP/ultra3.json" <<'JSON'
+{ "prompt_dir": ".work",
+  "lanes": [ { "name": "u1", "prompt": "work.md", "effort": "ultracode" },
+             { "name": "u2", "prompt": "work.md", "effort": "ultracode" },
+             { "name": "u3", "prompt": "work.md", "effort": "ultracode" } ] }
+JSON
+: >"$CLAUDE_LOG"
+out="$(run_launcher start --repo "$REPO" --config "$TMP/ultra3.json" --agents-json "$AGENTS_EMPTY" --dry-run 2>&1)"
+assert_contains "every ultracode lane launches" "$out" "claude --bg -n u3 --effort ultracode"
+assert_eq "version probe memoized across lanes" 1 "$(grep -c -- '--version' "$CLAUDE_LOG")"
+
+# A dry run must preview with no `claude` installed — the exemption require_claude
+# documents. The ultracode gate has no binary to probe there, so it reports the gate
+# unevaluated and still previews the lane instead of refusing it.
+NOCLAUDE_BIN="$TMP/bin-noclaude"
+mkdir -p "$NOCLAUDE_BIN"
+cp "$STUB_BIN/git" "$NOCLAUDE_BIN/git"
+NOCLAUDE_PATH="$NOCLAUDE_BIN:$(dirname "$(command -v jq)"):/usr/bin:/bin"
+assert_eq "no-claude PATH really carries no claude" "" "$(PATH="$NOCLAUDE_PATH" bash -c 'command -v claude' || true)"
+out="$(
+  export PATH="$NOCLAUDE_PATH"
+  run_launcher start --repo "$REPO" --config "$TMP/ultra.json" --agents-json "$AGENTS_EMPTY" --dry-run 2>&1
+)"
+assert_contains "no-CLI dry run reports the gate unevaluated" "$out" "version gate not evaluated"
+assert_contains "no-CLI dry run still previews the lane" "$out" "claude --bg -n work --effort ultracode"
 
 # ============================================================================
 # Medium 1 — an option must not swallow the next flag as its value
