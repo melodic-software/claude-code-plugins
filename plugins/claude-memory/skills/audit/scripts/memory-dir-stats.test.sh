@@ -105,6 +105,28 @@ printf -- "---\ntype: index\n---\n# Index\n<!-- hidden\nstill hidden -->\nreal\n
 assert_eq "--memory-lines counts post-strip lines" "5" "$(run "$H3" --memory-lines)"
 assert_eq "--memory-bytes counts post-strip bytes" "35" "$(run "$H3" --memory-bytes)"
 
+# --- Case 4c: an unterminated block is content, not a block. M1 is a [FAIL]-severity
+# size gate and 0 always passes it, so a block that swallows the file to EOF would
+# disarm the gate outright. Each input below must report its whole line count. ---
+printf -- "---\ntype: index\n# Title\nreal\n" >"$M3/MEMORY.md"
+assert_eq "unclosed frontmatter counts the whole file" "4" "$(run "$H3" --memory-lines)"
+printf -- "---\n# Title\nreal one\nreal two\n" >"$M3/MEMORY.md"
+assert_eq "leading thematic break is not frontmatter" "4" "$(run "$H3" --memory-lines)"
+printf -- "<!-- note\na\nb\nc\n" >"$M3/MEMORY.md"
+assert_eq "unclosed comment counts the whole file" "4" "$(run "$H3" --memory-lines)"
+
+# --- Case 4d: a fence inside a comment must not toggle fence state — otherwise the
+# commented-out fence body leaks back into the count ---
+printf -- "<!-- note\n\`\`\`bash\nLEAKED\n\`\`\`\n-->\nreal\n" >"$M3/MEMORY.md"
+assert_eq "fence inside a comment stays stripped" "1" "$(run "$H3" --memory-lines)"
+
+# --- Case 4e: a block-level comment occupies whole lines; real text sharing a line
+# with the comment's open or close still loads ---
+printf -- "<!-- x --> KEPT\n" >"$M3/MEMORY.md"
+assert_eq "content after a single-line comment survives" "1" "$(run "$H3" --memory-lines)"
+printf -- "<!-- a\nb --> TAIL\nreal\n" >"$M3/MEMORY.md"
+assert_eq "content after a multi-line comment's close survives" "2" "$(run "$H3" --memory-lines)"
+
 # --- Case 5: fresh project — no memory dir at all: both modes report 0, exit 0 ---
 H5="$TEST_TMPDIR/h5"
 mkdir -p "$H5"

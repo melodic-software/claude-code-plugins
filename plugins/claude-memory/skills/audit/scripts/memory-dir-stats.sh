@@ -42,7 +42,9 @@ Usage: memory-dir-stats.sh (--md-count|--memory-lines|--memory-bytes|--help)
 
 The MEMORY.md stats measure the content that loads: YAML frontmatter and block-level
 HTML comments are stripped before the index is loaded, so they don't count toward the
-200-line/25KB limits. Resolves the memory dir via the sibling resolve-memory-dir.sh.
+200-line/25KB limits. A block that never closes is counted as content, comments inside
+fenced code blocks are kept, and byte counts are of LF-normalized content — criteria.md
+M1 records these readings. Resolves the memory dir via the sibling resolve-memory-dir.sh.
 Every stat mode prints exactly one integer and always exits 0; a bad or missing mode
 exits 2.
 EOF
@@ -90,19 +92,50 @@ fi
 
 # The 200-line/25KB limits measure only the content that loads: YAML frontmatter and
 # block-level HTML comments are stripped before the index is loaded (memory doc), so
-# both MEMORY.md stats measure that stripped content — matching criteria.md M1. HTML
-# comments inside fenced code blocks are preserved, per the documented comment
-# behavior. tr guards Git Bash CRLF; the arithmetic expansion strips the leading
+# both MEMORY.md stats measure that stripped content — matching criteria.md M1.
+#
+# A block only counts as one once it closes. An opening `---` or `<!--` that never
+# closes is ordinary content, so those lines are held and flushed at EOF instead of
+# swallowed: a leading thematic break or a clipped frontmatter block would otherwise
+# report 0, and M1 is a [FAIL]-severity size gate that 0 always passes — it could
+# never fire. MEMORY.md carries frontmatter by design (Claude Code stamps a `modified`
+# field into any memory file that has it), so this is a live shape, not a corner case.
+#
+# A block-level comment occupies whole lines; text sharing a line with the comment's
+# open or close is loaded content and survives. Comments inside fenced code blocks are
+# preserved — a comment inside a fence is code, not block-level markdown. The memory
+# doc states that explicitly for CLAUDE.md and says nothing either way for MEMORY.md;
+# criteria.md M1 records the reading rather than claiming it as documented.
+#
+# tr guards Git Bash CRLF, so both counts measure LF-normalized content (see the
+# assumption recorded in criteria.md M1); the arithmetic expansion strips the leading
 # padding BSD `wc` emits on macOS.
 strip_unloaded() {
   tr -d '\r' <"$index" | awk '
-    NR == 1 && $0 == "---" { fm = 1; next }
-    fm == 1 { if ($0 == "---") fm = 2; next }
+    NR == 1 && $0 == "---" { pending = $0 "\n"; fm = 1; next }
+    fm == 1 {
+      pending = pending $0 "\n"
+      if ($0 == "---") { fm = 2; pending = "" }
+      next
+    }
+    incomment {
+      pending = pending $0 "\n"
+      if (!sub(/^.*-->/, "")) next
+      incomment = 0; pending = ""
+      if ($0 ~ /[^[:space:]]/) print
+      next
+    }
     /^[[:space:]]*```/ { fence = !fence; print; next }
     fence { print; next }
-    incomment { if (/-->/) incomment = 0; next }
-    /^[[:space:]]*<!--/ { if (!/-->/) incomment = 1; next }
+    /^[[:space:]]*<!--/ {
+      pending = $0 "\n"
+      if (!sub(/^[[:space:]]*<!--.*-->/, "")) { incomment = 1; next }
+      pending = ""
+      if ($0 ~ /[^[:space:]]/) print
+      next
+    }
     { print }
+    END { printf "%s", pending }
   '
 }
 

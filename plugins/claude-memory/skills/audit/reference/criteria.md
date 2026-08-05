@@ -314,6 +314,24 @@ toward the limits. The SKILL.md pre-computed context already reports both post-s
 file. Only the first 200 loaded lines (or 25KB) load at session start — anything beyond is silently
 dropped.
 
+Four readings the strip applies, so a hand count matches the reported figures:
+
+1. A block counts only once it closes. An opening `---` or `<!--` with no closing delimiter is
+   ordinary content and is counted — a leading thematic break, or frontmatter clipped mid-file,
+   must not blank the count.
+2. A block-level comment occupies whole lines. Text sharing a line with the comment's open or
+   close loads, and is counted.
+3. Comments inside fenced code blocks are preserved: a comment inside a fence is code, not
+   block-level markdown.
+4. Byte counts measure LF-normalized content, so a CRLF index reports about one byte per line
+   under its on-disk size — well under 1% of the 25KB cap.
+
+**Provenance**: the strip rule itself is doc-derived (code.claude.com/docs/en/memory, "How it
+works"). The four readings are not. The doc states the fenced-code carve-out for CLAUDE.md only and
+is silent on it for MEMORY.md, and says nothing about unterminated blocks, partial lines, or line
+endings. They are this plugin's reading, chosen so that no input silently reports 0 and leaves this
+`[FAIL]` gate unable to fire — the `update` action must not overwrite them.
+
 ### M2: Stale Entries [WARN]
 
 **What**: Do any memory entries reference files, features, or decisions that no longer exist?

@@ -22,7 +22,14 @@ All notable changes to the `claude-memory` plugin are documented here. Format fo
   both figures so M1 never disagrees with its own injected stats. Also: the `audit` SKILL.md scope
   table states the 25KB limb of the MEMORY.md load limit alongside the 200-line one, and a quote
   attribution names the page's current "Set up a project CLAUDE.md" section (formerly
-  "Project memory").
+  "Project memory"). The strip counts an unterminated block as content rather than swallowing the
+  rest of the file: a leading thematic break or frontmatter clipped mid-file previously reported
+  zero, and since M1 is a `[FAIL]`-severity size gate that zero always passes, the gate could not
+  fire. A fenced block inside a comment no longer toggles fence state, and text sharing a line with
+  a comment's open or close is counted as the loaded content it is. `criteria.md` M1 now records
+  the four readings the strip applies and marks them as this plugin's reading, not doc-derived —
+  the memory doc states the fenced-code carve-out for CLAUDE.md only and is silent on it for
+  MEMORY.md.
 
 ## [0.5.4]
 
