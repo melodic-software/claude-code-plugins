@@ -141,6 +141,26 @@ reliability degradation with depth, by the caps above, and — most of all — b
 default moved three times in seven weeks (fixed 5 → off → configurable 3). That volatility is the
 argument, not any one of the values. The surfaces agreeing again does not weaken it.
 
+## Priming addendum — surface reachability
+
+Backs the addendum's parenthetical on dynamic workflows. Two halves are needed: `Workflow` is on the
+filter that strips tools from every subagent, AND forks are exempt from that filter — either alone
+proves nothing.
+
+- **`Workflow` is removed from subagents by the first filter** *(verbatim, verified 2026-08-05 —
+  sub-agents page)*: "Subagents inherit the built-in tools and MCP tools available in the main
+  conversation, narrowed by two filters: the first removes a short list of tools from every
+  subagent, and the second reduces the built-in tool set for subagents that run in the background,
+  which is the default." That first filter "removes these tools, even when listed in the `tools`
+  field:" — a list whose members include `Workflow`. —
+  <https://code.claude.com/docs/en/sub-agents>
+- **Forks are exempt, so a fork keeps `Workflow`** *(verbatim, verified 2026-08-05 — sub-agents
+  page)*: "Forks skip both filters and receive the main conversation's exact tool pool." — same URL
+- Teammates do not get it back: the agent-teams carve-out is additive to the background filter only
+  *(verbatim, verified 2026-08-05 — sub-agents page)*: "Teammates in agent teams additionally keep
+  the task tools and cron tools: `TaskCreate`, `TaskGet`, `TaskList`, `TaskUpdate`, `CronCreate`,
+  `CronDelete`, and `CronList`." — same URL
+
 ## Imperative 6 — SURFACE DRIFT
 
 Authoring convention, NOT canonical Anthropic orchestration guidance (it appears in none of the
