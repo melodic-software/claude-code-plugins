@@ -3,6 +3,18 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.21.9]
+
+### Fixed
+
+- **`audit-permission-grants`: the `:*` suffix is not deprecated.** Both route-out passages called it
+  "deprecated `:*` syntax"; [Configure
+  permissions](https://code.claude.com/docs/en/permissions) states the opposite — "The `:*` suffix is
+  an equivalent way to write a trailing wildcard, so `Bash(ls:*)` matches the same commands as
+  `Bash(ls *)`". The label is dropped and the routing left intact. Generic "deprecated syntax"
+  wording elsewhere is unaffected: real deprecations exist in the settings doc, so only the claim
+  attached to `:*` was wrong.
+
 ## [0.21.7]
 
 ### Added
