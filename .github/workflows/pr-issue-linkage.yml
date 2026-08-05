@@ -29,7 +29,7 @@ concurrency:
 jobs:
   pr-issue-linkage:
     permissions: {}
-    uses: melodic-software/ci-workflows/.github/workflows/pr-issue-linkage.yml@d7734df8c557084edc2df7cf578cf62ad2f261e4 # d7734df 2026-07-20
+    uses: melodic-software/ci-workflows/.github/workflows/pr-issue-linkage.yml@e94438746c300b02385a7f8a2a2dcd19a7f4ad4a # v0.10.2
     with:
       runner: ubuntu-24.04
       # dependabot PR bodies cannot carry the closing-keyword + `## Related`

@@ -1,6 +1,7 @@
 # Official Claude Code Guidance on CLAUDE.md
 
-Last researched: 2026-06-20
+Last researched: 2026-06-20; code.claude.com/docs/en/memory re-verified 2026-08-04 (the other
+sources below were not re-checked on that date)
 Sources: [Steering Claude Code (June 18, 2026)](https://claude.com/blog/steering-claude-code-skills-hooks-rules-subagents-and-more), code.claude.com/docs/en/memory, code.claude.com/docs/en/hooks, code.claude.com/docs/en/best-practices, code.claude.com/docs/en/sub-agents, howborisusesclaudecode.com
 
 Refresh this file from current official docs via the skill's `update` action.
@@ -69,7 +70,7 @@ Official include/exclude table (code.claude.com/docs/en/best-practices):
 ## Build and test commands
 
 > "Create this file and add instructions that apply to anyone working on the project: build and test commands, coding standards, architectural decisions, naming conventions, and common workflows."
-> — code.claude.com/docs/en/memory, "Project memory"
+> — code.claude.com/docs/en/memory, "Set up a project CLAUDE.md"
 
 Build and test commands lead the list of what project memory is for. The inference cost of omitting
 them is stated on the same page, in what `/init` does instead:
@@ -88,7 +89,7 @@ than read. Backs C9.
 Key details:
 
 - Both relative and absolute paths allowed. Relative paths resolve relative to the file containing the import
-- Imported files can recursively import other files, max depth 5 hops
+- Imported files can recursively import other files, max depth 4 hops
 - First-time approval dialog for external imports; if declined, stays disabled
 - Use for README, package.json, personal preferences (`@~/.claude/my-project-instructions.md`)
 
@@ -178,12 +179,17 @@ Caveats that do survive, each verified:
 > "This limit applies only to `MEMORY.md`. CLAUDE.md files are loaded in full regardless of length, though shorter files produce better adherence."
 > — code.claude.com/docs/en/memory
 
+<!-- -->
+
+> "The check measures only the content that loads: YAML frontmatter and block-level HTML comments are stripped before the index is loaded, so they don't count toward the limits."
+> — code.claude.com/docs/en/memory (limit check on writes to MEMORY.md; before v2.1.211, the raw file was measured)
+
 ## Auto-memory storage
 
 > "Each project gets its own memory directory at `~/.claude/projects/<project>/memory/`. The `<project>` path is derived from the git repository, so all worktrees and subdirectories within the same repo share one auto memory directory."
 > — code.claude.com/docs/en/memory
 
-**`autoMemoryDirectory` setting:** Override default location in user or local settings. Not accepted from project settings (security — prevents shared projects redirecting memory writes).
+**`autoMemoryDirectory` setting:** Override default location; read from any settings scope — user, project, local, policy, or `--settings`. From a project's `.claude/settings.json` or `.claude/settings.local.json`, the value is honored only after you accept the workspace trust dialog for that folder (the same gate that governs hooks).
 
 ## Subagent persistent memory
 

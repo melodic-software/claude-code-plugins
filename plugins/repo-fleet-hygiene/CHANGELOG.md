@@ -3,6 +3,16 @@
 All notable changes to `repo-fleet-hygiene` are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.1]
+
+### Fixed
+
+- **The merged-PR evidence window now covers busy fleet repositories (#1795).** The
+  repository-scoped `gh pr list --state merged` query now covers the most recent 1000 PRs instead
+  of 200 while preserving the existing `UNKNOWN merged-pr-window-truncated` disclosure when that
+  finite cap binds. The batch and exact-head limits are shared with the probe allowlist so their
+  admitted arguments cannot drift from the call sites.
+
 ## [0.8.0]
 
 ### Fixed

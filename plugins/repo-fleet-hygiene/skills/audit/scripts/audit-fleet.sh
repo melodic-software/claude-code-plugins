@@ -185,7 +185,8 @@ run_git_probe() {
 # it, the truncation disclosure, and the evidence text cannot drift apart. It is a script constant
 # set before any argument or config is read, so the allowlist below stays as fixed a pin as the
 # literal it replaced -- nothing reachable by a caller can change it.
-MERGED_PR_WINDOW=200
+MERGED_PR_WINDOW=1000
+MERGED_PR_HEAD_LIMIT=100
 
 gh_probe_allowed() {
   case "${1:-}" in
@@ -213,7 +214,7 @@ gh_probe_allowed() {
       return
     fi
     [[ $# -eq 14 && "$7" == "--head" && -n "$8" && "$8" != -* &&
-      ! "$8" =~ [[:cntrl:]] && "$9" == "--limit" && "${10}" == "100" &&
+      ! "$8" =~ [[:cntrl:]] && "$9" == "--limit" && "${10}" == "$MERGED_PR_HEAD_LIMIT" &&
       "${11}" == "--json" && "${12}" == "number,headRefName,headRefOid,mergedAt,url" &&
       "${13}" == "--template" &&
       "${14}" == '{{range .}}{{printf "%v\t%s\t%s\t%s\t%s\n" .number .headRefName .headRefOid .mergedAt .url}}{{end}}' ]]
@@ -1261,7 +1262,7 @@ analyze_repo() {
           }
         done
         if [[ "$remote_branch_known" == "true" ]]; then
-          if exact_pr_rows="$(run_bounded_gh pr list --repo "github.com/$github_repo" --state merged --head "$branch" --limit 100 \
+          if exact_pr_rows="$(run_bounded_gh pr list --repo "github.com/$github_repo" --state merged --head "$branch" --limit "$MERGED_PR_HEAD_LIMIT" \
             --json number,headRefName,headRefOid,mergedAt,url \
             --template '{{range .}}{{printf "%v\t%s\t%s\t%s\t%s\n" .number .headRefName .headRefOid .mergedAt .url}}{{end}}' 2>/dev/null)"; then
             while IFS=$'\t' read -r pr_num pr_branch pr_oid pr_merged pr_url; do

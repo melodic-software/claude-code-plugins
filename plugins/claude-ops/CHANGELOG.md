@@ -3,7 +3,7 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.27.1]
+## [0.27.2]
 
 ### Fixed
 
@@ -18,6 +18,45 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   `hook::git_effective_dir` carries the git guards' single path-composition rule. This plugin
   does not consume the resolver; the sync keeps its copy byte-identical with the source. Synced
   from `lib/hook-utils.sh`.
+
+## [0.27.1]
+
+### Changed
+
+- **`observability` marks the Token / cost dollar column as a list-rate estimate.** ccusage prices
+  tokens at public per-token list rates while subscription usage is plan-priced, so the USD figures
+  are an estimate, not a bill; [costs](https://code.claude.com/docs/en/costs.md) (verified
+  2026-08-04) documents the same list-rate caveat for Claude Code's own locally computed figures.
+
+### Fixed
+
+- **`changelog` `status` no longer goes silent on the first release outside the CC 2.1 series.**
+  The applied-versions scan grepped git log with patterns pinned to `v2\.1\.`, so a 2.2.x/3.x
+  release would return nothing without erroring. The scan now matches any
+  `CC v<major>.<minor>.<patch>` (`-E --grep="CC v[0-9]+\.[0-9]+\.[0-9]+"`), semantics otherwise
+  unchanged; a skill-wide sweep confirmed no other file carries the series pin — remaining
+  `v2.1.x` literals are illustrative examples.
+- **`changelog` fetch steps target the raw-markdown channel (`docs/en/changelog.md`), not the
+  rendered HTML page.** The `.md` sibling is the smaller, chrome-free channel — 514,578 B against
+  the rendered page's 2,696,671 B (~5x), measured 2026-08-04 — and both carry the same 355
+  releases. It buys no extra version depth: WebFetch truncates **both** channels identically, to
+  the same 32 most-recent versions with a `[Content truncated due to length...]` marker, because
+  its budget applies after HTML-to-markdown conversion. Reaching a deep version needs a
+  range-scoped fetch or a direct `curl`, on either channel. Every fetch-source reference in the
+  skill now points at the `.md` URL.
+- **`lanes` no longer skips a lane whose effort is `ultracode`.** The launcher validated
+  `lanes[].effort` against `low|medium|high|xhigh|max`, so `ultracode` — a documented
+  `claude --effort` value since CC 2.1.203 (verified 2026-08-04 against
+  [model-config](https://code.claude.com/docs/en/model-config#adjust-effort-level)) — made the
+  lane silently unlaunchable. The valid set now includes it, gated on the installed
+  `claude --version` meeting that floor: below it the CLI rejects the value outright (`Unknown
+  --effort value 'ultracode'`) and starts the session at the default effort, so the launcher skips
+  the lane rather than launching it at an unintended effort. That check runs in the shared
+  launch-input preflight, which `restart` already performs BEFORE stopping — so a lane the gate
+  refuses keeps running rather than being taken down and left down. The whole run shares one
+  `claude --version` probe, and `--dry-run` keeps working with no CLI installed (the exemption
+  `require_claude` documents): with no binary to probe, the preview reports the gate unevaluated
+  instead of refusing a lane a real run may well launch.
 
 ## [0.27.0]
 

@@ -6,9 +6,15 @@ The three read-only actions (`fetch`, `diff`, `status`). SKILL.md keeps the acti
 
 Read-only. Fetch and display changelog content.
 
+WebFetch truncates this document — the raw-markdown and rendered-HTML channels alike — to roughly
+the 32 most recent releases, emitting a `[Content truncated due to length...]` marker. A version
+older than that window will not be in the response no matter which channel is used, so fetch it
+with a range- or anchor-scoped request, or `curl` the `.md` and slice locally. Never report a
+version "absent from the changelog" on a truncated fetch.
+
 **With version arg** (`/changelog fetch v2.1.152`):
 
-1. WebFetch `https://code.claude.com/docs/en/changelog`
+1. WebFetch `https://code.claude.com/docs/en/changelog.md`
 2. Extract section matching version
 3. Display formatted
 
@@ -34,10 +40,10 @@ Useful for: "should I bother running apply for this release?"
 
 Show changelog integration status:
 
-1. **Applied versions** — scan git log for commits mentioning "CC v2.1." or "Claude Code v2.1." or "changelog":
+1. **Applied versions** — scan git log for commits mentioning "CC v<x.y.z>" or "Claude Code v<x.y.z>" or "changelog":
 
    ```bash
-   git log --oneline --all --grep="CC v2\.1\." --grep="Claude Code v2\.1\." -20
+   git log --oneline --all -E --grep="CC v[0-9]+\.[0-9]+\.[0-9]+" --grep="Claude Code v[0-9]+\.[0-9]+\.[0-9]+" -20
    ```
 
 2. **Open issues** — if the consumer repo files CC-release tracking issues, count the pending
