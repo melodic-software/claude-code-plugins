@@ -28,8 +28,12 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
 - **`lanes` no longer skips a lane whose effort is `ultracode`.** The launcher validated
   `lanes[].effort` against `low|medium|high|xhigh|max`, so `ultracode` — a documented
   `claude --effort` value since CC 2.1.203 (verified 2026-08-04 against the CLI reference) — made
-  the lane silently unlaunchable. The valid set now includes it; the config docs note that an older
-  CLI rejects the value and starts the session at default effort.
+  the lane silently unlaunchable. The valid set now includes it, gated on the installed
+  `claude --version` meeting that floor: `ultracode` is the one effort upstream version-gates, and
+  the CLI reference does not document what an older binary does with the value, so the launcher
+  refuses the lane instead of guessing. The check runs in the shared launch-input preflight, which
+  `restart` already performs BEFORE stopping — so a lane the gate refuses keeps running rather than
+  being taken down and left down.
 
 ## [0.27.0]
 

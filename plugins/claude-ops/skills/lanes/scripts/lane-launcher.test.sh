@@ -102,6 +102,11 @@ if [[ "\$1" == "stop" ]]; then exit "\${STUB_CLAUDE_STOP_RC:-0}"; fi
 # A test can force a failed \`claude plugin marketplace update\` via
 # STUB_CLAUDE_UPDATE_RC to exercise the refresh-failure abort path.
 if [[ "\$1" == "plugin" ]]; then exit "\${STUB_CLAUDE_UPDATE_RC:-0}"; fi
+# STUB_CLAUDE_VERSION drives the ultracode version gate; the default clears it.
+if [[ "\$1" == "--version" ]]; then
+  printf '%s (Claude Code)\n' "\${STUB_CLAUDE_VERSION:-2.1.220}"
+  exit 0
+fi
 STUB
 REAL_GIT="$(command -v git)"
 cat >"$STUB_BIN/git" <<STUB
@@ -383,6 +388,28 @@ assert_contains "invalid effort skipped" "$out" "invalid effort 'turbo'"
 assert_not_contains "no launch for bad lanes" "$out" "claude --bg -n baddy"
 assert_contains "ultracode effort accepted" "$out" "claude --bg -n ultra"
 assert_contains "ultracode passed through as --effort" "$out" "--effort ultracode"
+
+# ============================================================================
+# ultracode version gate — below the floor the lane is skipped, and a restart
+# preflights it BEFORE stopping so a healthy running lane stays up
+# ============================================================================
+cat >"$TMP/ultra.json" <<'JSON'
+{ "prompt_dir": ".work",
+  "lanes": [ { "name": "work", "prompt": "work.md", "effort": "ultracode" } ] }
+JSON
+out="$(STUB_CLAUDE_VERSION=2.1.202 run_launcher start --repo "$REPO" --config "$TMP/ultra.json" --agents-json "$AGENTS_EMPTY" --dry-run 2>&1)"
+assert_contains "ultracode below floor skipped" "$out" "needs Claude Code >= 2.1.203"
+assert_contains "skip message reports installed version" "$out" "(installed: 2.1.202)"
+assert_not_contains "no launch below the floor" "$out" "claude --bg -n work"
+
+out="$(STUB_CLAUDE_VERSION=2.1.203 run_launcher start --repo "$REPO" --config "$TMP/ultra.json" --agents-json "$AGENTS_EMPTY" --dry-run 2>&1)"
+assert_contains "ultracode at the floor launches" "$out" "claude --bg -n work"
+
+# The running lane must survive a restart the version gate refuses.
+: >"$CLAUDE_LOG"
+out="$(STUB_CLAUDE_VERSION=2.1.202 run_launcher restart --repo "$REPO" --config "$TMP/ultra.json" --agents-json "$AGENTS_RUNNING" --dry-run 2>&1)"
+assert_contains "restart refused below the floor" "$out" "needs Claude Code >= 2.1.203"
+assert_not_contains "healthy lane not stopped by a refused restart" "$(cat "$CLAUDE_LOG")" "stop"
 
 # ============================================================================
 # Medium 1 — an option must not swallow the next flag as its value

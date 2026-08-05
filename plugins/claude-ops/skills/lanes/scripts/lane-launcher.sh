@@ -91,6 +91,8 @@
 #               relative to prompt_dir).
 #   model       optional; passed as --model.
 #   effort      optional; passed as --effort (low|medium|high|xhigh|max|ultracode).
+#               ultracode additionally requires the installed CLI to meet
+#               ULTRACODE_MIN_VERSION; a lane below it is skipped, not launched.
 #   settings    optional; a JSON OBJECT passed inline as --settings for that
 #               session only (e.g. a pluginConfigs override opting the lane into
 #               the autonomy plugin's lane-stop gate). Non-object values are
@@ -120,6 +122,40 @@
 set -uo pipefail
 
 VALID_EFFORTS="low medium high xhigh max ultracode"
+
+# `ultracode` is the one effort upstream gates on a CLI version, so it is the one
+# the static allowlist cannot settle on its own. Upstream documents the floor but
+# not what an older CLI does with the value, so the launcher refuses rather than
+# guessing — restart preflights this BEFORE stopping, keeping a healthy lane up.
+ULTRACODE_MIN_VERSION="2.1.203"
+
+# Compared component by component in awk — deliberately NOT `sort -V`, which is a
+# GNU-only construct this repo's portability lane rejects. Missing components
+# compare as 0, so "2.2" reads as 2.2.0.
+version_at_least() { # <candidate> <minimum>
+  [[ "$1" =~ ^[0-9]+(\.[0-9]+)*$ ]] || return 1
+  awk -F. -v a="$1" -v b="$2" 'BEGIN {
+    na = split(a, x, "."); nb = split(b, y, ".")
+    n = (na > nb ? na : nb)
+    for (i = 1; i <= n; i++) {
+      av = (i <= na ? x[i] + 0 : 0); bv = (i <= nb ? y[i] + 0 : 0)
+      if (av > bv) exit 0
+      if (av < bv) exit 1
+    }
+    exit 0
+  }' 2>/dev/null
+}
+
+# Memoized: every lane in a run shares one `claude --version` probe.
+CLI_VERSION_CACHE=""
+cli_version() {
+  if [[ -z "$CLI_VERSION_CACHE" ]]; then
+    CLI_VERSION_CACHE="$(claude --version 2>/dev/null | tr -d '\r' |
+      grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)"
+    [[ -z "$CLI_VERSION_CACHE" ]] && CLI_VERSION_CACHE="unknown"
+  fi
+  printf '%s' "$CLI_VERSION_CACHE"
+}
 
 ACTION="start"
 CONFIG=""
@@ -648,6 +684,14 @@ validate_launch_inputs() {
   if [[ -n "$effort" ]] && [[ " $VALID_EFFORTS " != *" $effort "* ]]; then
     err "lane '$name': invalid effort '$effort' (want: $VALID_EFFORTS) — skipped"
     return 1
+  fi
+  if [[ "$effort" == "ultracode" ]]; then
+    local v
+    v="$(cli_version)"
+    if ! version_at_least "$v" "$ULTRACODE_MIN_VERSION"; then
+      err "lane '$name': effort 'ultracode' needs Claude Code >= $ULTRACODE_MIN_VERSION (installed: $v) — skipped"
+      return 1
+    fi
   fi
   # `settings` must be a JSON object — the launcher passes it verbatim to
   # `claude --settings`, and a string/array/scalar would make the whole session
