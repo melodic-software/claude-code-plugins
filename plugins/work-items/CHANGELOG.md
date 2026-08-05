@@ -27,8 +27,12 @@ All notable changes to the `work-items` plugin are documented here. Format follo
   the working tree entirely — resolve to the right root instead of resolving to nothing and
   re-reporting the very gap this release removes. Only from a linked worktree is the main checkout
   recovered from the common dir's path. `reference/permission-preflight.md` states the two residual
-  over-reporting cases rather than leaving them implied: a pre-v2.1.211 harness, and a linked
-  worktree whose common dir is not spelled `<root>/.git`. Both are noisy, never masking.
+  cases rather than leaving them implied, and they run in opposite directions: a linked worktree
+  whose common dir is not spelled `<root>/.git` leaves the main checkout's file unread, which is
+  merely noisy; a pre-v2.1.211 harness, where a worktree session loads its own local file rather
+  than the main checkout's, instead **masks** a gap the worker really hits. That masking case is the
+  one direction this report cannot self-detect, since it never probes the running Claude Code
+  version.
 
 ## [0.31.2]
 

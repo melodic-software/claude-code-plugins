@@ -99,8 +99,9 @@ that repository — every linked worktree included, however the worktree was cre
 ([permissions](https://code.claude.com/docs/en/permissions#permission-system),
 [worktrees](https://code.claude.com/docs/en/worktrees); both fetched 2026-08-04). The main
 checkout's local file is therefore part of a fresh worker worktree's effective settings, and the
-preflight reads it in **every** mode. It identifies that checkout by comparing the cwd's own git
-dir against the common one: equal means this checkout *is* the main one — whatever its git dir is
+preflight reads it in **every** mode. It identifies that checkout by comparing the probed
+checkout's own git dir against the common one — the probed checkout being `--project-root` when
+given, else the cwd: equal means that checkout *is* the main one — whatever its git dir is
 named, so `--separate-git-dir` and submodule layouts resolve correctly — and only from a linked
 worktree is the main checkout recovered from the common dir's path. What a fresh worker does
 **not** inherit is a local file living inside some *other* linked worktree — a pre-2.1.211 save, or
@@ -111,15 +112,21 @@ a hand-placed file — which applies only to sessions started in that worktree. 
   project settings + the main checkout's local file; only a linked-worktree cwd's *own* local file
   is dropped, since the fresh worker would not inherit it and reading it would mask a worker-side
   gap. Run from the main checkout, nothing is dropped. The report header says which. Two residual
-  cases still over-report — both noisy rather than masking: on a pre-2.1.211 harness the main
-  checkout's local rules do not reach a worktree either, so there a main-local-only grant is a real
-  worker-side gap this report would miss; and from a linked worktree whose common dir is not spelled
-  `<root>/.git`, the main checkout cannot be recovered from that path, so its local file goes
-  unread.
+  cases remain, and they run in **opposite** directions:
+  - **Pre-2.1.211 harness — MASKING, the dangerous direction.** There a worktree session loads its
+    own local file, not the main checkout's, so crediting a main-local-only grant suppresses a gap
+    the worker really hits. This is the one place the report can under-report; it is a floor on the
+    harness, not on the repository layout, and nothing in the preflight can detect it (it never
+    probes the running Claude Code version).
+  - **Common dir not spelled `<root>/.git`, seen from a linked worktree — noisy only.** The main
+    checkout cannot be recovered from that path, so its local file goes unread and a covered verb
+    is reported as a gap.
 - **A named worker** — `--project-root <worker-worktree>` resolves to a checkout whose toplevel
   differs from the cwd. That is a real, existing checkout, so the preflight reads **its own**
   `settings.local.json` (legacy rules saved there still apply to sessions started there) plus the
-  main checkout's shared local file; nothing is masked, and the header names the sources.
+  main checkout's shared local file; on a v2.1.211-or-later harness nothing is masked, and the
+  header names the sources. The pre-2.1.211 masking case above applies here too, for the same
+  reason: on that harness the shared file's rules never reach the worker's worktree.
 
 The interactive/default path (no `--worktree-root`) keeps the cwd checkout's local settings in
 scope. Deny always reads every local layer regardless — the same err-wide rationale.
