@@ -77,7 +77,7 @@ Run `/research` inline in this session — no dispatched *research* tier, no wor
 
 ### The post-dispatch boundary — every dispatching tier owns it
 
-**A dispatched run is not finished when it returns.** No producing context — engine, isolated subagent, or topic worker — can complete the `/research` outcome gate's verifier-owned rows (independent corroboration, HIGH confidence) or its parent-owned row (project fit). The first two are assigned to a fresh context precisely because a producer may not grade its own choices; the third needs the consuming project's conventions, which only this session holds. Nor can the producer be relied on to dispatch that verifier itself — whether a non-fork subagent holds `Agent` depends on the harness's current nesting allowance (`CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH`), a default that has moved twice in recent releases and is not worth designing against.
+**A dispatched run is not finished when it returns.** No producing context — engine, isolated subagent, or topic worker — can complete the `/research` outcome gate's verifier-owned rows (independent corroboration, HIGH confidence) or its parent-owned row (project fit). The first two are assigned to a fresh context precisely because a producer may not grade its own choices; the third needs the consuming project's conventions, which only this session holds. Nor can the producer be relied on to dispatch that verifier itself — whether a non-fork subagent holds `Agent` depends on the harness's current nesting allowance (`CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH`), a default that has moved three times and is not worth designing against.
 
 So for **every** dispatched run — one per topic on the N-topic path, once on Tier 1 and Tier 2 — this session dispatches the sibling verifier against the artifact on disk, applies project fit, and writes both results back into that artifact's index **before** surfacing anything. Surfacing a producer's summary and artifact path directly presents claims as gate-passed when the rows that matter were never graded by anyone. A single-topic ask earns no weaker boundary than a multi-topic one, and an engine earns no weaker boundary than a subagent.
 
@@ -93,7 +93,7 @@ This variant tracks `/research`'s conventions — same discipline file, same art
 - **Dispatching this skill itself.** It must run in main context: `Workflow` is unavailable in every
   non-fork subagent, and **every** tier needs the `Agent` tool — the N-topic fan-out to spawn topic
   workers, and all four paths to close the post-dispatch boundary — whose availability inside a
-  subagent depends on a nesting default that has moved twice in recent releases, and which, inside a fork, cannot
+  subagent depends on a nesting default that has moved three times, and which, inside a fork, cannot
   spawn a further fork at all. A dispatched `/research-deep` therefore risks silently losing Tier 1,
   the N-topic fan-out, and the verification boundary that makes any tier's artifact trustworthy. The
   sibling `/research` is the one that dispatches.
