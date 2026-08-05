@@ -92,8 +92,9 @@ I15–I22 apply to all surfaces; I13 and I14 name narrower surface sets in their
 - Prompting Claude Sonnet 5 —
   <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-sonnet-5>
 - The new rules of context engineering for Claude 5 generation models (vendor blog, published
-  2026-07-24 — corroborates I6 and I15 from the model-delta side; a dated post, static once
-  published, so it never fires the recheck trigger above) —
+  2026-07-24 — corroborates I6 and I15 from the model-delta side; a corroborating citation, so both
+  rows keep the `ANTHROPIC-DOCS` Authority their primary documentation sources carry, and the closed
+  three-value Authority set above is unchanged) —
   <https://claude.com/blog/the-new-rules-of-context-engineering-for-claude-5-generation-models>
 - Memory (CLAUDE.md, rules, auto memory) — <https://code.claude.com/docs/en/memory>
 - The `.claude` directory — <https://code.claude.com/docs/en/claude-directory>
@@ -237,11 +238,11 @@ Tier `mechanical` · Authority `ANTHROPIC-DOCS` · Severity `warning` · Surface
 - **Source:** prompting best-practices — "Tell Claude what to do instead of what not to do."
   Corroborated from the model-delta side at the context-engineering blog, under "Then and now" in
   the paired "Then: Give Claude rules" / "Now: Let Claude use judgement" headings: the bare
-  prohibition "default to writing no comments. Never write multi-paragraph docstrings or
+  prohibition "In code: default to writing no comments. Never write multi-paragraph docstrings or
   multi-line comment blocks — one short line max." was a guardrail for older models — "newer models
   have better judgement and can handle these decisions well without explicit rules" — and
-  its shipped replacement is exactly this row's remediation shape: "Write code that reads like the
-  surrounding code: match its comment density, naming, and idiom."
+  its shipped replacement is an instance of this row's remediation shape: "Write code that reads
+  like the surrounding code: match its comment density, naming, and idiom."
 
 ### I7: Reason with the request
 

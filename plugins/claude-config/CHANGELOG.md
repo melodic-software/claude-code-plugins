@@ -16,7 +16,7 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   resolved to existing `I15` coverage plus this rationale, and its bare-prohibition candidate to
   `I6` as already-covered doctrine.
 
-  `I6`: the blog's retired system-prompt line "default to writing no comments. Never write
+  `I6`: the blog's retired system-prompt line "In code: default to writing no comments. Never write
   multi-paragraph docstrings or multi-line comment blocks — one short line max." is a worked
   instance of the row's Detect shape, its stated obsolescence ("newer models have better judgement
   and can handle these decisions well without explicit rules") is the model-delta ground, and its
@@ -29,11 +29,12 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   "several conflicting messages in a single request" as Anthropic's own system prompt, skills, and
   user requests clash with each other.
 
-  The page joins `## Sources`, keeping the trigger-set-equals-source-set invariant, and is noted
-  there as a static dated post that never fires the recheck trigger. Neither citation carries a
+  The page joins `## Sources` and is therefore inside the catalog-wide recheck trigger like every
+  other entry, keeping the trigger-set-equals-source-set invariant. Neither citation carries a
   per-row verification stamp: the catalog owes one where a row restates a volatile upstream
-  literal, and a dated post at a stable URL cannot go stale. Primary sources are unchanged — the
-  blog corroborates, it does not define.
+  literal — a level name, a model range, a type predicate — and both rows quote prose rather than
+  restate such a literal. Both rows keep the `ANTHROPIC-DOCS` Authority their primary documentation
+  sources carry; primary sources are unchanged — the blog corroborates, it does not define.
 
 ## [0.21.7]
 
