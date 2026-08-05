@@ -20,16 +20,27 @@ All notable changes to the `claude-memory` plugin are documented here. Format fo
 ### Fixed
 
 - **The `stateless` scope table answered for four entities with one verdict, and was wrong for
-  three of them.** A single `Transcripts / history / sessions / snapshots` row claimed
-  `cleanupPeriodDays` auto-cleans all of them, and an immediate full wipe via
-  `claude project purge`. Per code.claude.com/docs/en/claude-directory (verified 2026-08-04),
-  only transcripts match that verdict: `history.jsonl` sits among the paths "not covered by
-  automatic cleanup" that "persist indefinitely"; `sessions/` "isn't part of the age-based
-  sweep" and the command's deletion list never names it; and the command "leaves
-  `shell-snapshots/` and `backups/` alone because those are not project-scoped". Split so every
-  verdict is true of every subject in its row. Also retires two counted re-fetch pointers ("the
-  two source pages", "both pages") that the file family had grown past — they now point at the
-  source list rather than counting it.
+  two of them.** A single `Transcripts / history / sessions / snapshots` row claimed
+  `cleanupPeriodDays` auto-cleans all four. Per code.claude.com/docs/en/claude-directory
+  (verified 2026-08-04) it auto-cleans transcripts and shell snapshots, but not the other two:
+  `history.jsonl` sits among the paths "not covered by automatic cleanup" that "persist
+  indefinitely", and `sessions/` "isn't part of the age-based sweep", being cleared when each
+  session exits. The row also gave one location for all four and said nothing about
+  `claude project purge`, whose scope cuts across it — the command deletes this project's
+  transcripts, filters its `history.jsonl` lines, never names `sessions/`, and "leaves
+  `shell-snapshots/` and `backups/` alone because those are not project-scoped". Now four rows,
+  each carrying its own path, sweep behavior, and purge behavior, so every verdict is true of
+  every subject in its row. The same correction applies to `reference/official-guidance.md`'s
+  out-of-scope section, which stated the sweep for all four as one fact. Also retires two
+  counted re-fetch pointers ("the two source pages", "both pages") that the file family had
+  grown past — they now point at the source list rather than counting it.
+
+- **The instruction-layer row claimed a user scope `CLAUDE.local.md` does not have.** One
+  `CLAUDE.md / CLAUDE.local.md / .claude/rules/` row gave the location as `repo + user`, true
+  of `CLAUDE.md` (`~/.claude/CLAUDE.md`) and of `.claude/rules/` (`~/.claude/rules/`, which
+  code.claude.com/docs/en/memory calls "Personal rules ... apply to every project on your
+  machine") but not of `CLAUDE.local.md`, which that page scopes to "Just you (current
+  project)" with no user-scope equivalent. Split so the location is true of its own subject.
 
 ## [0.5.5]
 

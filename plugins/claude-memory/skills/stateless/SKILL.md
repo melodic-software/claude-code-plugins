@@ -37,7 +37,8 @@ re-fetch the source pages listed there if a fact is load-bearing before you act.
 | Auto-memory store | `~/.claude/projects/<project>/memory/` (or `autoMemoryDirectory`) | Yes — status / disable / purge |
 | `autoMemoryEnabled` setting | any settings scope | Yes — reads & writes |
 | `CLAUDE_CODE_DISABLE_AUTO_MEMORY` | OS env or settings `env` block | Yes — reads & writes |
-| CLAUDE.md / CLAUDE.local.md / `.claude/rules/` | repo + user | No — use `/claude-memory:audit` |
+| CLAUDE.md / `.claude/rules/` | repo + user | No — use `/claude-memory:audit` |
+| CLAUDE.local.md | repo only — no user-scope equivalent | No — use `/claude-memory:audit` |
 | Transcripts | `~/.claude/projects/<project>/` | No — auto-cleaned by `cleanupPeriodDays`; `claude project purge` (v2.1.124+) deletes this project's now |
 | Prompt history | `~/.claude/history.jsonl` | No — persists indefinitely, not swept by `cleanupPeriodDays`; `claude project purge` filters this project's lines |
 | Session files | `~/.claude/sessions/` | No — one file per running session, cleared when the session exits rather than age-swept; not in `claude project purge`'s deletion list |

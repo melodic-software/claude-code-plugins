@@ -122,13 +122,24 @@ inside a settings file's `env` block; the docs bless the `env`-block form explic
 
 ## Out of scope for this skill (verified, deliberate)
 
-- **Transcripts / history / shell snapshots / sessions.** Session files are auto-cleaned at
-  startup by `cleanupPeriodDays` (default 30, minimum 1). Purging those is a different
-  concern — the official per-project wipe is `claude project purge`, quoted in full below
-  (confirm-gated; the deletion plan and flags live in the doc, not here).
+- **Transcripts / history / shell snapshots / sessions.** Transcripts and shell snapshots are
+  auto-cleaned at startup by `cleanupPeriodDays` (default 30, minimum 1). The other two are
+  not: `history.jsonl` persists until deleted, and `sessions/` is cleared per session rather
+  than by age. Purging any of them is a different concern — the official per-project wipe is
+  `claude project purge`, quoted in full below (confirm-gated; the deletion plan and flags live
+  in the doc, not here).
   > "cleanupPeriodDays ... Default: 30 days (minimum: 1) ... Age threshold for deleting
   > session files and application data at startup"
   > — code.claude.com/docs/en/settings
+
+  > "The following paths are not covered by automatic cleanup and persist indefinitely."
+  > — code.claude.com/docs/en/claude-directory, heading the table whose first row is
+  > `history.jsonl` (verified 2026-08-04)
+
+  > "`sessions/` holds one small file per running session, used to detect concurrent sessions
+  > and crashes. It isn't part of the age-based sweep: Claude Code removes each file when its
+  > session exits and clears crash leftovers on the next launch."
+  > — code.claude.com/docs/en/claude-directory (verified 2026-08-04)
 
   > "Run `claude project purge` to delete the state Claude Code holds for one project. The
   > command requires Claude Code v2.1.124 or later. It deletes:
@@ -139,8 +150,10 @@ inside a settings file's `env` block; the docs bless the `env`-block form explic
   > - The project's entry in `~/.claude.json`"
   > — code.claude.com/docs/en/claude-directory (verified 2026-08-04)
 
-  `CLAUDE_CODE_SKIP_PROMPT_HISTORY` disables transcript writes entirely — the true
-  "no session persistence" lever, recorded here for that future skill, not acted on by this one.
+  `CLAUDE_CODE_SKIP_PROMPT_HISTORY` skips "writing transcripts and prompt history in any mode"
+  (code.claude.com/docs/en/claude-directory) — the true "no session persistence" lever, and the
+  complement to deleting the files after the fact. Recorded for that contrast; this skill acts
+  on neither.
 
 - **Claude Desktop / claude.ai account memory.** That is a server-side account store, not
   local files — this skill cannot delete it and only gives direction (see
