@@ -108,13 +108,22 @@ fi
 # span between them stripped — a 253-line index reporting one loaded line, disarming
 # the very gate the flush-at-EOF rule above exists to arm. Frontmatter mode is
 # therefore bounded twice, and abandoning it re-emits the held lines as content:
-#   * grammar — the block ends at the first line that is not blank, a comment, or a
-#     `key:` mapping entry, which is all YAML a memory index's frontmatter holds;
+#   * grammar — the block ends at the first line that is not blank and not a `key:`
+#     mapping entry, which is all YAML a memory index's frontmatter holds. A `#` line
+#     is deliberately NOT frontmatter here: it is a comment to YAML but a heading to
+#     markdown, and a heading is loaded content, so admitting it would let a pseudo-
+#     frontmatter block of headings swallow them. The cost is that a real YAML comment
+#     inside frontmatter ends the block, and ending it strips nothing — the opening
+#     `---`, every entry held so far, and the rest of the block through its close all
+#     count. An over-count, and a rare one: Claude Code writes only the `modified`
+#     scalar and never authors comments, so this needs a hand-edited index;
 #   * length — `fmcap` lines, because grammar alone still swallows a runaway whose
-#     every line happens to be a `#` heading or a `Label: value` pair, a plausible
-#     shape for a hand-written index.
-# Both bounds fail toward counting: an over-count can only make this gate fire early,
-# while the under-count they replace stopped it firing at all.
+#     every line happens to be a `Label: value` pair, a plausible shape for a
+#     hand-written index.
+# Both bounds fail toward counting when they fire: an over-count can only make this gate
+# fire early, while the under-count they replace stopped it firing at all. They bound the
+# block by shape and by line count, never by bytes — a short `key:`-shaped block is
+# frontmatter under YAML grammar and is stripped whatever those entries weigh.
 #
 # A block-level comment occupies whole lines; text sharing a line with the comment's
 # open or close is loaded content and survives. Each comment ends at the FIRST `-->`
@@ -154,7 +163,6 @@ strip_unloaded() {
     fm == 1 {
       if ($0 == "---") { fm = 2; pending = ""; next }
       if (++fmlines <= fmcap && ($0 ~ /^[[:space:]]*$/ ||
-                                 $0 ~ /^[[:space:]]*#/ ||
                                  $0 ~ /^[[:space:]]*[A-Za-z_][A-Za-z0-9_-]*:/)) {
         pending = pending $0 "\n"
         next

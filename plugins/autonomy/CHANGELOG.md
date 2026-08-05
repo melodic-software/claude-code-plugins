@@ -22,6 +22,20 @@ merged work-package PRs (#333, #343, #356, #372, #377, #600, #676).
   does not consume the resolver; the sync keeps its copy byte-identical with the source. Synced
   from `lib/hook-utils.sh`.
 
+## [0.12.2]
+
+### Fixed
+
+- **`reference/routines.md`: the `goal` glossary row no longer claims a budget cap ends the
+  session.** The row read "until a separate grader judges the condition met or a budget cap trips";
+  the official page documents a closed two-item set — "A goal keeps running until the condition is
+  met or you run `/goal clear`" — and its own section on bounding a goal's duration offers a turn or
+  time clause inside the condition, not a spend cap. The only dollar cap Claude Code's CLI documents
+  is the `--max-budget-usd` flag, which is print-mode-only and invocation-scoped, whereas this row
+  is `session-scoped`; a cap-stopped invocation also leaves the goal neither achieved nor cleared,
+  so it is restored on `--resume`/`--continue` — the cap ends the process while the goal outlives
+  it. The replacement clause names the second of the two events that actually change goal state.
+
 ## [0.12.1]
 
 ### Changed

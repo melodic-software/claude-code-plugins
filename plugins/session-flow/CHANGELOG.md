@@ -1,5 +1,31 @@
 # Changelog — session-flow plugin
 
+## [0.17.24]
+
+### Fixed
+
+- **`orchestrate`'s priming addendum called dynamic workflows "(main-session-only)", which a fork
+  disproves.** The `Workflow` tool is stripped by the first of the two filters that narrow a
+  subagent's inherited tool pool — but forks skip both filters and receive the main conversation's
+  exact tool pool, so a fork reaches the surface the parenthetical said only the main session could.
+  A session priming itself off that line would rule out a fork as a workflow-capable delegate on a
+  false premise, which matters precisely where the addendum is read: choosing what to delegate. The
+  parenthetical now reads **(withheld from non-fork workers)**, which scopes the sentence's
+  "surfaces a worker cannot" to the workers it is actually true of; the rest of the addendum is
+  unchanged. `context/sources.md` gains a **Priming addendum — surface reachability** section
+  carrying both halves the claim needs as verified verbatim quotes — `Workflow`'s membership in the
+  first filter and the forks-skip-both-filters exemption — since either alone proves nothing. The
+  file's existing fork quotes covered only the `Agent` tool at the depth limit, a different
+  mechanism.
+
+- **The same claim appeared unqualified twice more, both times about the export brief.** "What this
+  skill does NOT do" and the `worker-export-inherit-line` eval each justified omitting agent teams
+  and dynamic workflows from the export because "a spawned worker cannot reach either" — true of a
+  named subagent, false of a fork. Both now say **a pasted target**, matching the formulation the
+  addendum itself already used twelve lines above; a pasted brief only ever reaches a target that
+  inherited none of the session's context, which is never a fork. The graded export behavior is
+  unchanged.
+
 ## [0.17.23]
 
 ### Fixed

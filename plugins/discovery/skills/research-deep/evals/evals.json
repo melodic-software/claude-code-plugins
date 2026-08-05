@@ -31,12 +31,12 @@
     },
     {
       "id": 3,
-      "name": "forked-agent-fallback-no-engine",
+      "name": "isolated-agent-fallback-no-engine",
       "prompt": "Deep-research the tradeoffs between gRPC and REST for our internal service-to-service calls. Note: no Workflow tool / deep-research workflow is available this session.",
       "expected_output": "With no workflow-engine path and a heavy task, falls back to spawning an isolated general-purpose subagent that runs the full /research discipline (not a read-only Explore agent, since Phase 3 needs tool access and the artifact must be written). The main session then dispatches the sibling verifier against the written artifact and applies project fit, writing both back into the index before surfacing the result — the same post-dispatch boundary the multi-topic path owns.",
       "files": [],
       "expectations": [
-        "Output falls back to a forked/isolated subagent when no workflow engine is available",
+        "Output falls back to an isolated subagent when no workflow engine is available",
         "The subagent is a general-purpose agent (able to use tools and write the artifact), not a read-only Explore agent",
         "The subagent is instructed to run the full /research discipline",
         "The main session dispatches the sibling verifier against the returned artifact and applies project fit rather than presenting the worker's summary and artifact path directly",
@@ -59,7 +59,7 @@
       "id": 5,
       "name": "dispatcher-not-inline-deep-pass",
       "prompt": "Deep-research the security implications of enabling CORS wildcard origins across our API gateway — this is a big one.",
-      "expected_output": "Acts as a dispatcher: selects an execution tier that provides context isolation (engine or forked subagent) and does NOT run the heavy deep pass itself in the main context. The main session stays clean of the research transcript — but it still owns the post-dispatch boundary (sibling verifier, project fit, write-back), which is orchestration rather than research and does not belong to the isolated tier.",
+      "expected_output": "Acts as a dispatcher: selects an execution tier that provides context isolation (engine or isolated subagent) and does NOT run the heavy deep pass itself in the main context. The main session stays clean of the research transcript — but it still owns the post-dispatch boundary (sibling verifier, project fit, write-back), which is orchestration rather than research and does not belong to the isolated tier.",
       "files": [],
       "expectations": [
         "Output dispatches the heavy pass to an isolated tier rather than running it in the main context",

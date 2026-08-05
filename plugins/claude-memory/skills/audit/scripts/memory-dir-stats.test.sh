@@ -169,6 +169,19 @@ assert_eq "a key:-shaped runaway is bounded by length" "$(raw_lines)" "$(run "$H
 printf -- "---\ntype: index\nmodified: 2026-01-01\n---\n# A\none\n---\ntwo\n" >"$M3/MEMORY.md"
 assert_eq "real frontmatter still strips despite a later ---" "4" "$(run "$H3" --memory-lines)"
 
+# --- Case 4c4: a `#` line is a comment to YAML but a HEADING to markdown, and headings
+# are loaded content. Admitting them to the grammar let a pseudo-frontmatter block of
+# headings swallow them — the under-count this gate cannot tolerate. The cost is that a
+# real YAML comment inside frontmatter now ends the block early and counts: an
+# over-count, and a rare shape, since Claude Code writes only the `modified` scalar. ---
+printf -- "---\n# heading one\n# heading two\n---\nbody\n" >"$M3/MEMORY.md"
+assert_eq "a heading-only pseudo block counts every line" "$(raw_lines)" "$(run "$H3" --memory-lines)"
+assert_eq "a heading-only pseudo block counts every byte" "$(raw_bytes)" "$(run "$H3" --memory-bytes)"
+printf -- "---\ntype: index\n# note\nmodified: x\n---\nbody\n" >"$M3/MEMORY.md"
+assert_eq "a comment in frontmatter ends the block and counts" "$(raw_lines)" "$(run "$H3" --memory-lines)"
+printf -- "---\ntype: index\nmodified: 2026-01-01\n---\nbody\n" >"$M3/MEMORY.md"
+assert_eq "key-only frontmatter still strips" "1" "$(run "$H3" --memory-lines)"
+
 # --- Case 4d: a fence inside a comment must not toggle fence state — otherwise the
 # commented-out fence body leaks back into the count ---
 printf -- "<!-- note\n\`\`\`bash\nLEAKED\n\`\`\`\n-->\nreal\n" >"$M3/MEMORY.md"
