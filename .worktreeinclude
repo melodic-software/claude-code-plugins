@@ -8,3 +8,11 @@
 .work/*/RESEARCH.md
 .work/*/RESEARCH-*.md
 .work/*/*-checklist.md
+# Sub-slices (<memory_dir>/<slug>/<sub-slug>/) — a parallel fan-out assigns one
+# per topic. Globs do not descend, so without these a worktree carries the
+# top-level index and silently drops every nested index, sidecar, and ledger.
+.work/*/*/EXPLORE.md
+.work/*/*/EXPLORE-*.md
+.work/*/*/RESEARCH.md
+.work/*/*/RESEARCH-*.md
+.work/*/*/*-checklist.md

@@ -3,6 +3,688 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.21.8]
+
+### Changed
+
+- **`audit-instructions`: `I6` gains model-delta corroboration and `I15` reasoning-cost
+  corroboration from Anthropic's context-engineering blog** (criteria 1.16.0). Both rows rested on
+  live-doc sources alone; [The new rules of context engineering for Claude 5 generation
+  models](https://claude.com/blog/the-new-rules-of-context-engineering-for-claude-5-generation-models)
+  (2026-07-24) states each from the vendor's own system prompts and shipped guidance, so the
+  citation is added rather than a new row minted — the digest's conflicting-directive question
+  resolved to existing `I15` coverage plus this rationale, and its bare-prohibition candidate to
+  `I6` as already-covered doctrine.
+
+  `I6`: the blog's retired system-prompt line "In code: default to writing no comments. Never write
+  multi-paragraph docstrings or multi-line comment blocks — one short line max." is a worked
+  instance of the row's Detect shape, its stated obsolescence ("newer models have better judgement
+  and can handle these decisions well without explicit rules") is the model-delta ground, and its
+  replacement — "Write code that reads like the surrounding code: match its comment density,
+  naming, and idiom" — is an instance of the row's positive-reframing remediation, shipped by
+  upstream.
+
+  `I15`: the blog's "Unhobbling Claude" adds the cost the memory doc's arbitrary-pick sentence does
+  not state — even a correctly resolved conflict taxes reasoning ("Claude must think more carefully
+  about these overlapping and conflicting messages before deciding what to do"), evidenced by
+  "several conflicting messages in a single request" as Anthropic's own system prompt, skills, and
+  user requests clash with each other.
+
+  The page joins `## Sources` and is therefore inside the catalog-wide recheck trigger like every
+  other entry, keeping the trigger-set-equals-source-set invariant; it is noted there as a dated
+  post, static once published, so that recheck is expected to find it unchanged. Neither citation
+  carries a per-row verification stamp: the catalog owes one where a row restates a volatile
+  upstream literal — a level name, a model range, a type predicate — and both rows quote prose
+  rather than restate such a literal. Both rows keep the `ANTHROPIC-DOCS` Authority their primary
+  documentation sources carry; primary sources are unchanged — the blog corroborates, it does not
+  define.
+
+## [0.21.7]
+
+### Added
+
+- **`audit`: category H, the model and effort settings no category reached.** The skill advertises
+  settings-file and environment-variable correctness "against current official docs", and categories
+  A–G reach schema, permissions, MCP servers, hooks, plugins, environment variables, and the
+  skill-listing budget. None reached the model-configuration keys, so `effortLevel`,
+  `fallbackModel`, `availableModels`, and `enforceAvailableModels` went unaudited in a skill whose
+  stated scope includes them. Phase 2's enumeration, `validation-categories.md`, and a mandatory
+  Phase 3 model-config fetch all move with it, so the category is reachable by the skill's own flow
+  rather than stranded in the checklist.
+
+  The four rows share one shape: each names a value the harness accepts into the file and then does
+  not apply as its author expects. `effortLevel: max` is not the level that persists; a fourth
+  `fallbackModel` entry risks being ignored; a specific model listed beside its own family wildcard
+  narrows the allowlist to that one version; `enforceAvailableModels` without a non-empty
+  `availableModels` does nothing at all.
+
+  Three rows are `warning`. The `enforceAvailableModels` pairing is `error`, because this skill's own
+  severity guide rates an enforcement bypass that way and that is what the finding is: an
+  administrator who set the key believes the Default option is constrained when it is not. That row
+  fires only on `enforceAvailableModels: true` with the list unset or empty — an explicit `false` is
+  someone disabling enforcement deliberately, so the check gates on the value rather than the key's
+  presence.
+
+  **`check-structure.sh` now reports the four keys by value for `settings.local.json`.** Category H
+  can read `settings.json` and `~/.claude/settings.json` directly, but the safe-read rule routes the
+  local file through this helper, and the helper emitted only environment, permission, and plugin
+  counts — so a key living only in `settings.local.json` was invisible and its defect silently
+  missed. Counts could not have closed that: the allowlist wildcard rule turns on which family each
+  entry names, and the fallback cap turns on entry order. The four values are configuration
+  identifiers — level names, model names, a boolean — not credentials, so emitting them leaves the
+  secret guard untouched, and a test asserts env values and env key names still never appear.
+  `unset` and `(empty list)` are reported distinctly because they are different findings. Existing
+  output lines are unchanged; the new lines are appended, and the script's own suite covers the
+  addition (10 checks before, 24 after).
+
+  **How loudly each surfaces differs, and the rows say so individually.** An earlier draft claimed a
+  blanket runtime silence; that is false for the allowlist row, where a narrowed alias shows a
+  substitution notice naming both models. Two rows also have an authoring-time path — the declared
+  schema constrains `effortLevel` by `enum` and `fallbackModel` by `maxItems` — so a schema-aware
+  editor catches them first. They stay because the schema is advisory and the harness reads a file
+  that violates it. Where the two authorities disagree they are reported separately: `maxItems` caps
+  RAW array length while the page caps the chain after deduplication, so a four-entry chain holding
+  one duplicate fails the schema and satisfies the harness.
+
+  Rows were admitted on one test: the key must appear in a file this skill actually opens. That
+  excluded the managed-source placement rule for the `availableModels` pair, which no local file can
+  decide, and it is carried as guidance in the verify column instead of a verdict. `modelOverrides`
+  key validation is excluded for a different reason and stated as a closing note: deciding whether a
+  key is a real model ID means resolving it against Models overview, and that page's own restatement
+  deferral governs new consumers of the facts it owns.
+
+  **The frontmatter-`effort` lint stays deferred and untouched.** That separate item would lint the
+  `effort` frontmatter field in this repository's own agents and skills; it has no host, and the
+  value list it would need is deliberately not restated in this repo. Category H is a different item
+  on three counts — a different key (`effortLevel`, not `effort`), a different file (a consumer's
+  settings, not this repo's component frontmatter), and a host that already exists. Its deferral
+  permits exactly this: a new item with a chosen host, rather than the deferral being lifted.
+
+  The rows do restate the session-only effort semantics rather than citing this repo's philosophy
+  doc, deliberately: this checklist ships into consumer repositories where that doc is not present,
+  so a citation would resolve to nothing and the row would lose its detection. Note the rows also
+  quote the upstream page verbatim where categories A–F restate their sources inline instead. That
+  is a deliberate departure — these findings turn on exact wording a reader will want to check
+  against the page — and the Phase 3.3 fetch is what keeps the quotes honest as the page moves.
+
+  Verified 2026-08-04 against <https://code.claude.com/docs/en/model-config>, fetched as raw
+  markdown (82,975 B), and against the declared settings schema at
+  <https://json.schemastore.org/claude-code-settings.json>. Recheck trigger: the `effortLevel`
+  accepted-value set changing, the three-model fallback-chain cap changing, the wildcard-disabling
+  rule for a specific family entry changing, or the schema's `enum`/`maxItems` constraints diverging
+  further from the page.
+
+### Fixed
+
+- **`audit-instructions`: `I17`'s `effortLevel: max` carve-out justified itself with a false claim**
+  (criteria 1.15.0). It read that the settings schema "accepts `low`, `medium`, `high`, `xhigh`
+  only, so that string is unreachable there". The schema is advisory JSON Schema: the value is
+  writable, the file merely fails validation, and the harness reads it anyway — which is precisely
+  why the new `audit` category H checks for it. Left as written, one plugin asserted both that the
+  value cannot appear in a settings file and that a sibling category hunts it there. The carve-out
+  itself is unchanged and still correct — an instruction-text catalog should not hunt the literal —
+  but it now rests on the editor-catches-it-at-authoring-time reason rather than an impossibility
+  that does not hold, and points at the category that does own the file-level check.
+
+## [0.21.6]
+
+### Changed
+
+- **`audit-instructions`: `I8-c`'s scope is now positively confirmed narrow, and the row states what
+  the leakage costs beyond the turn it appears in** (criteria 1.14.0). The row flags a
+  don't-think / don't-reason directive, and rested on a single source — the Opus 5 guide's "Running
+  with thinking disabled" — with `Model scope: opus-5` held only by the fact that no wider statement
+  had been found.
+
+  Troubleshooting thinking states the same claim from the symptom side, "System-prompt rules
+  instructing the model not to think or not to reason increase the tag leakage", and it does so on a
+  **model-agnostic feature page** — the surface where a wider claim would surface if there were one.
+  It names Claude Opus 5 anyway. So the scope stays where it is, but for a better reason: upstream
+  had the chance to widen and declined, which is the reasoning `I10` already applies to a declined
+  widening. The promotion gate remains unmet, deliberately.
+
+- **The consequence clause the row was missing.** The same section states that "A leaked tool call
+  never runs, and in agentic loops the leaked text stays in the conversation history, so later turns
+  are affected as well", and that leakage is "most commonly on tool-heavy workloads such as search".
+  Both now travel with the row: the first because it makes the finding a history-poisoning failure
+  in an autonomous lane rather than one malformed response, and the second because it tells an
+  auditor which surfaces to read first. The `Source` line carries its own verification date and a
+  recheck trigger keyed to the claim gaining a model beyond Opus 5, which is the event that would
+  move the promotion gate.
+
+- **The `Sources` block's parenthetical for that page** covered the per-request 400s and the effort
+  restriction's model range only, so it understated what the catalog now cites the page for; it
+  names the leakage claim as well.
+
+## [0.21.5]
+
+### Added
+
+- **`audit-instructions`: `I18-a`, a leading thinking block treated as required where the model does
+  not require one** (criteria 1.13.0, taking the next minor over PR #1917). I18 covered only what a
+  surface does to thinking blocks it *has* — dropping the `signature`, the `type == "thinking"`
+  filter, editing the latest turn's blocks. The opposite error had no row: believing a block must
+  be there. The Steering
+  thinking page states the relaxation outright — "Assistant turns don't need to start with a
+  thinking block" — with three consequences that become the row's three detect shapes: reinsertion
+  when assembling history from mixed sources, rewriting history on resume under a different
+  thinking configuration, and logic that reads an assistant turn's first block as though it were a
+  thinking block.
+
+  **It is a sub-row of I18 rather than a new criterion because the two are one mechanism seen from
+  both ends.** The remediation a reader reaches for once they believe a block is required is to
+  fabricate one, and a hand-built block carries no valid `signature` — which is I18's own shape 1
+  and a rejected request. So this row is the upstream *cause* of an I18 violation; both are reported
+  when a surface states the premise and acts on it. I18 gains a two-sentence lead-in naming the
+  pairing and a `Base row:` label; its detect, fences, source and stamp are unchanged.
+
+  **Reach is I18's, unchanged, for all three shapes** — a path back to the model, whatever the file
+  format. Presence-assuming logic that only ever *reads* is recorded as out of reach rather than
+  excused: the page's caution sits in the request/response frame and says nothing about stored
+  transcripts, whether a harness transcript carries thinking blocks at all is unestablished, and the
+  harm there would be the consumer's own logic rather than a 400 — a code-correctness matter this
+  catalog does not audit. The row carries a `Re-scope when` clause for the day that shape is
+  documented. Severity is `warning` against I18's `error` on its own footing: wasted work plus a
+  fabrication risk, not a guaranteed rejected request.
+
+  **The carve-out is upstream's own, and exactly as wide as its source.** Models using a legacy
+  manual thinking budget do enforce that the final assistant turn of a thinking-enabled request
+  begins with one, so text scoped to that mode AND that turn is correct; a legacy-scoped
+  instruction demanding the block on every assistant turn over-requires past its own source and
+  still flags — the finding is the missing gate, never the mention, as in `I17-c`. The row also
+  fences itself against being read as license to drop blocks: the relaxation "is about validation,
+  not about what you should send".
+
+  **Decisive source, with the sibling as corroboration.** The Thinking page carries the same pair
+  compressed into one sentence inside "Thinking with tool use" — extended (manual) mode "additionally
+  enforces that the final assistant turn of a thinking-enabled request begins with a thinking block",
+  and "Adaptive mode relaxes this: no assistant turn needs to start with one." Steering thinking is
+  where the relaxation is stated operatively, with the three history-shape consequences the detect
+  shapes are drawn from and the presence caution, so it is cited as decisive and the sibling as
+  corroboration. Separate from both is that page's strip claim — the API "may strip thinking blocks
+  that would create an invalid turn structure" — server-side degradation of a request rather than a
+  rule about what history a caller may send. The Steering thinking page joins Sources. Local
+  coverage measured 2026-08-04: zero
+  operative instances, on the same footing as I18, with a re-measure clause. The one transcript
+  consumer here, `session-flow`'s retro parser, selects blocks by each item's own `type` rather than
+  by position, so it is correct by construction rather than by this rule.
+
+## [0.21.4]
+
+### Changed
+
+- **`audit-instructions`: `I17` gains a second arm — the models that reject a thinking-disable
+  outright, at every effort level** (criteria 1.11.0 → 1.12.0). The base row detected a *pairing*: a
+  thinking-disable surface together with `xhigh` or `max` effort, on Opus 5 and later. The Thinking
+  page states a second restriction in the paragraph directly after that one — "Claude Fable 5,
+  Claude Mythos 5, and Claude Mythos Preview reject `thinking: {type: "disabled"}`: thinking cannot
+  be turned off on these models" — with no effort qualifier at all.
+
+  **The gap was a wrong remediation, not only a missed case, which is why this amends the base row
+  rather than adding a sibling.** Either reading of the old row's range was a defect. Read as
+  covering Fable 5, the row fired and handed out `Remediate`'s "lower the effort to `high` or below,
+  or leave thinking on" — advice whose first branch still returns a 400 on that family. Read as
+  excluding it, the unconditional reject went undetected and the row's own `Must NOT flag` fence
+  ("a thinking-disable surface named with no effort level in reach of it") actively excused it. Both
+  are now scoped to the arm that earns them: the fence applies to the Opus 5 arm, and the second
+  arm's remediation has one branch, not two.
+
+  **Only the API form joins the second arm.** On **Fable 5** the harness disable surfaces —
+  `MAX_THINKING_TOKENS=0`, the session toggle, `alwaysThinkingEnabled` — are silent no-ops rather
+  than errors, which is `I17-a`'s failure and stays there; for **Mythos 5 and Mythos Preview the
+  harness pages state nothing**, so the row claims nothing about their harness surfaces. The
+  scoping matters because model configuration names Fable 5 alone and never discusses Mythos
+  — asserting the family would be the catalog breaking its own does-not-state standard. The row
+  heading changes from "at an
+  effort level that forbids it" to "where the model forbids it", since an arm with no effort operand
+  no longer fits the old wording. **Local coverage measured, not asserted:** zero operative
+  instances, with all six occurrences of the disable literal being documents *about* the
+  restriction — the audience-test fence, not a passed check.
+
+- **`audit-instructions`: `I17-b` extends from effort churn to thinking churn, and its harness
+  carve-out is re-scoped to the half that earns it.** The row detected a mid-session *effort* change
+  prescribed without its cache cost. The Thinking page puts the thinking configuration in the same
+  position as effort — both "are rendered into the prompt itself, so changing any of them starts a
+  new cache prefix" — naming switches among `adaptive`, `enabled` and `disabled` and changes to
+  `budget_tokens`.
+
+  **The carve-out is the load-bearing part.** The old row excused "a Claude Code surface" wholesale,
+  because the harness "asks you to confirm before applying the change". That dialog is documented
+  for effort alone: `code.claude.com/docs/en/prompt-caching` names exactly two settings outside the
+  prompt text that are still part of the cache key — model and effort level. Left unscoped, the
+  extended row would have silently asserted that the harness warns before a thinking toggle, which
+  nothing upstream says. The carve-out now names effort explicitly, and the thinking half is stated
+  for the API and Agent SDK callers the page's claim actually covers rather than reaching for a
+  harness consequence the docs do not carry.
+
+- **`audit-instructions`: the Thinking page's Sources entry names the two properties these arms rest
+  on** — the models that reject a thinking-disable outright, and what a thinking or effort change
+  does to the cache prefix. `I17` base and `I17-b` were re-verified live against their full source
+  sets on 2026-08-04 and carry that stamp; `I17-a` carries a split stamp — only its new
+  session-toggle/`alwaysThinkingEnabled` clause was re-verified 2026-08-04, its original claims
+  keep their 2026-08-02 check; `I17-c` is untouched and keeps its own. `I17-a`'s Detect gains the harness controls its explanation already
+  named: the session thinking toggle or `alwaysThinkingEnabled` presented as turning thinking off on
+  Fable 5 is now flagged (model configuration states they "have no effect there") — previously the
+  base row routed that failure to `I17-a` while no arm of it actually detected it. `I17-b` also
+  gains a reach clause — its thinking half covers API and Agent SDK surfaces only, since the harness
+  documents neither a dialog nor a cost for a mid-session thinking toggle — and a co-firing note
+  against `I17-c` scoped to accepted changes: a rejected request completes no turn and an ignored
+  value changes no configuration, so where `I17-c` condemns the control the cache-cost claim never
+  materializes and `I17-c` fires alone; both fire only when a surface prescribes both an invalid
+  control and, separately, an accepted mid-session change.
+
+## [0.21.3]
+
+### Added
+
+- **`audit-instructions`: `I8-e`, forced interim-status cadence, scoped `sonnet-5`** (criteria 1.10.0
+  → 1.11.0). The Sonnet 5 guide prescribes removing exactly the scaffolding `I8-d` reaches on a
+  Fable 5 target — "If you've added scaffolding to force interim status messages ("After every 3
+  tool calls, summarize progress"), try removing it" — on its own ground, that the model already
+  reports well without it.
+
+  **It is scoped, not unscoped, and that was the contested call.** The obvious reading is that a
+  second model guide now converges on `I8-d`'s cadence arm, which would meet the promotion gate and
+  let one row fire fleet-wide. It does not. The gate wants two guides *stating* the claim, and the
+  Fable 5 guide never states it: its "Longer turns by default" section prescribes adjusting client
+  timeouts, streaming, and progress indicators, says nothing about removing instructed status
+  cadence, and elsewhere that guide recommends *adding* a send-to-user progress mechanism. `I8-d`
+  reaches the cadence by inference from a turn-duration premise — a legitimate ground for a scoped
+  row, but not a second statement. Two scoped rows therefore cover one instruction shape from the two
+  guides that reach it; exact-match scoping means they never co-fire, and both rows now say so, so a
+  later reader does not "deduplicate" them.
+
+  `I8-d`'s detect and fences are unchanged; it gains one cross-reference bullet naming the
+  relationship.
+
+- **`audit-instructions`: `I17-c`, a fixed thinking budget prescribed where adaptive reasoning
+  ignores or rejects it.** `I17-a` already covers `MAX_THINKING_TOKENS=0` sold as a universal off
+  switch — the claim that thinking can be turned *off*. Nothing covered the adjacent claim that
+  thinking depth can be *set to a number*, whose two arms fail in opposite ways: a nonzero
+  `MAX_THINKING_TOKENS` is silently ignored on adaptive-reasoning models and
+  `CLAUDE_CODE_DISABLE_ADAPTIVE_THINKING` cannot rescue it, while API `thinking: {type: "enabled",
+  budget_tokens: N}` returns a hard 400 across Opus 4.7 and later, Sonnet 5, Fable 5, and Mythos 5.
+  Unscoped, with the model ranges as Detect conditions rather than a `Model scope` annotation, for
+  the reason `I17` base states.
+
+  **The row's central fence is that the finding is the missing gate, never the mention.**
+  `CLAUDE_CODE_DISABLE_ADAPTIVE_THINKING` is *not* a retired variable: it is live on Opus 4.6 and
+  Sonnet 4.6, where it does exactly what it says, and it lost its reach over the adaptive-reasoning
+  models only at Claude Code v2.1.111 — so the gate is a release as well as a model set, and text
+  scoped to an earlier release is also correct. The obvious implementation — grep for the variable
+  name and call every hit stale — would flag every accurate piece of documentation about it, so the
+  row carries I12's precondition rule applied to these literals explicitly.
+
+### Changed
+
+- **`audit-instructions`: `SKILL.md` records why `I8-e` is not seeded** into the deterministic
+  pre-scan. It sits with `I8`'s base row and `I8-d` in the lane-only list, but on a narrower ground:
+  its skeleton is patternable, and it waits only on an attested instance to calibrate the interval
+  forms against — not on the "phrasings too varied" reason its neighbours carry.
+
+- **`audit-instructions`: the model migration guide joins the catalog's Sources.** `I17-c`'s API arm
+  cites it for the model range over which manual extended thinking is rejected. Per the catalog's own
+  rule that the trigger set is the source set, this **widens the catalog-wide recheck trigger** —
+  every row now re-verifies when that page changes. That is the intended consequence of citing it,
+  recorded here rather than left as a side effect of adding a bullet.
+
+## [0.21.2]
+
+### Changed
+
+- **`audit-instructions`: I10's `Model scope: fable-5` is now positively sourced instead of resting
+  on a declined widening** (criteria 1.9.0 → 1.10.0). The row's conclusion does not move — Mythos 5
+  is still not in scope, and still should not be. What moves is the ground under it. Since 0.18.0
+  the row held its narrow scope by reading an omission: the Thinking page names both Claude Fable 5
+  and Claude Mythos 5 for the adjacent raw-chain-of-thought property, then names Fable 5 alone for
+  the refusal, and the row inferred deliberateness from that declined chance to widen. That is an
+  argument from authorial choice, and it is the weakest link in an otherwise well-cited row —
+  silence is evidence only until someone finds the sentence.
+
+  The sentence exists, on the page that owns Mythos 5: "Claude Fable 5 includes safety classifiers
+  that can decline certain requests. Claude Mythos 5 does not include these classifiers, so this
+  section applies to Claude Fable 5 only" ([Introducing Claude Fable 5 and Claude Mythos
+  5](https://platform.claude.com/docs/en/about-claude/models/introducing-claude-fable-5-and-claude-mythos-5),
+  fetched 2026-08-03, HTTP 200).
+
+  **The row states it as two steps, each from the page that owns its half**, rather than letting
+  either page settle it alone. The introducing page excludes the whole classifier *set* for
+  Mythos 5 — "these classifiers," referring to the set that can decline requests — and Refusals and
+  fallback puts this row's category inside that set, listing `reasoning_extraction` among the
+  categories a refusal reports. Collapsing the two into one citation would rebuild the near-miss
+  scope inheritance the catalog's model-scoping block forbids, only pointing the other way; keeping
+  them separate is what makes it a citation rather than an inference wearing one. Note that Refusals
+  and fallback attributes the classifiers to Claude Fable 5 **and Claude Opus 5** and never mentions
+  Mythos 5 — the exclusion is the introducing page's alone to state, which is why both are cited.
+
+  The introducing page joins `## Sources`, so the catalog-wide recheck trigger fires this row if the
+  page changes; which models carry the classifier set is a per-model fact and will move. No narrower
+  per-row trigger is owed, per the stamp rule's own carve-out for claims the Sources set already
+  covers. The 0.18.0 entry below is left as written — it records what shipped then, and the
+  reasoning it describes was correct for the sources available at the time.
+
+## [0.21.1]
+
+### Added
+
+- **`audit-instructions`: row I8-d, short-turn assumptions** (criteria 1.8.0 → 1.9.0). Tier
+  `behavioral`, `Model scope: fable-5` — the promotion gate is unmet and stays unmet: the claim
+  appears in one model guide and on no model-agnostic page, so the row is inert on other targets
+  and reports `skipped-for-target`.
+
+  **Detect** is instruction text resting on the premise that a turn is short — a forced
+  interim-status cadence ("summarize every N tool calls"), a directive to answer quickly, any
+  progress rhythm pinned to a turn rather than to the work. Individual requests now run for
+  minutes at higher effort and autonomous runs for hours, so such a rhythm fires on work that has
+  not reached a reportable boundary and interrupts exactly the long runs the model is used for.
+  Four fences keep it off legitimate text: an output-length instruction is I8 base's subject, not
+  this one's (the axis here is the turn's duration, never the reply's size); a latency or duration
+  requirement the surface genuinely owns — an SLA, a downstream timeout, a human review rhythm — is
+  a constraint it is entitled to state; a document *about* the pattern is exempt on the same
+  audience test I8-b, I17, I18 and I20 already use; and a cadence carrying its own explicit
+  observability or interruptibility rationale is a design the surface is entitled to make — that is
+  the very guarantee the row's Remediate line protects — exempt unless evidence shows it was
+  calibrated to an obsolete turn length rather than to the work.
+
+  The row is **lane-only, not seeded** by `instruction-scan.sh`, and `SKILL.md` now says so
+  alongside the existing I8-c disclosure. A pattern family was considered and declined: the
+  phrasings are too varied for a rule that would earn its false-positive rate, and the one
+  candidate string in this repository resolves to the exempt meta case, so the family would have
+  shipped with a known false positive and no true one.
+
+  The guide pairs this behavior with advice to adjust **client timeouts, streaming, and progress
+  indicators**. That half is harness client configuration rather than instruction content, so the
+  row states plainly that it is out of scope and that no row claims it — the shape that *would*
+  reach this catalog is instruction text prescribing a short client timeout, and none is attested.
+
+### Changed
+
+- **`audit-instructions`: I8's base row gains one named worked instance — the delegation
+  throttle.** A cap on concurrent workers, a one-at-a-time rule, or an instruction to block until
+  each subagent returns, *where the surface's own ground is that subagent handling is unreliable*.
+  Current guidance runs the other way (readier dispatch, asynchronous orchestrator-to-worker
+  communication), so such a throttle is the base row's generic case with a name on it — which is
+  why it lands as recognition material inside I8 rather than as a fourth rule competing with it.
+  The qualifier is the whole fence: **a cap carrying its own non-model rationale is not this
+  instance.** Reviewability of returns, rate limits, cost, and shared mutable state each justify a
+  bound on their own terms, and that justification belongs to the surface making it. The base row's
+  Source gains the guide's "Parallel subagents" sentence as the instance's basis; the row restates
+  no volatile literal and so owes no per-row verification stamp under the catalog's own
+  binds-on-touch rule.
+
+## [0.21.0]
+
+### Added
+
+- **`audit-instructions`: the two agnostic-mechanism rows from the IA-6 / IA-10-A2 ownership split —
+  I21 and I22** (criteria 1.7.0 → 1.8.0). Both source rules were **compounds**: an agnostic
+  mechanism fused to a consumer-state instance naming this fleet's own machines, files, and dates.
+  Routing either wholesale was wrong in both directions — outward it would ship our private state to
+  every consumer, inward it would strand a reusable staleness control. Each was split at the
+  mechanism/instance line; only the mechanism halves are here. The instance halves (a dated vet, a
+  chezmoi-managed fleet pin) are drafted for the consumer repository and deliberately ship nowhere
+  in this plugin.
+
+  - **I21 — effort level pinned across a model change with no re-sweep** (`mechanical`,
+    `ANTHROPIC-DOCS`, `warning`, unscoped). The effort scale is calibrated per model, so the same
+    level name does not carry the same underlying value across models, and a level measured against
+    one model then carried to the next is a pin nobody re-measured. The promotion gate is met on the
+    strong form: model configuration states the calibration property **with no model qualifier**, so
+    that page alone carries the row; the effort page's Opus 5 subsection is cited only for the
+    remediation's wording, and its per-model placement does not narrow a property stated generally.
+
+    **The model range is a Detect condition, not a `Model scope` annotation**, on I17's reasoning.
+    It is in Detect because the *consequence* varies: Claude Code applies a model's default effort
+    on first run of Fable 5, Opus 4.8, or Opus 4.7 and holds it, so a carried level there is
+    overridden harmlessly — while **Opus 5 has no such hold** and a stale pin actually reaches the
+    request. One thing is recorded as **unresolved rather than inferred**: the page names `/effort`
+    and `--effort` as *examples* ("such as") of the explicit choice that releases the hold, so
+    whether a settings-file `effortLevel` pin releases it is not stated anywhere read for this row.
+    The row therefore fires on the missing re-derivation regardless of model, and the hold is
+    severity context, never a fence.
+
+    Four fences keep it honest. A prescription of **`high` is exempt only where `high` is the
+    resolved target's default** — it is "Equivalent to not setting the parameter", so on such a model
+    it carries no measured calibration. **The exemption keys to the resolved target, never to the
+    wording**, which is what makes it correct: `high` is the default everywhere **except Opus 4.7,
+    which defaults to `xhigh`**, so when the target is 4.7 the exemption lifts and a broad
+    model-agnostic "always use `high`" naming no model is a finding — indeed the sharper case, since
+    a pin written where `high` was the no-op default becomes a silent step-down the moment it reaches
+    a model whose default sits above it. A resolved target always exists, because the skill body
+    aborts rather than run against an unresolved one, so the fence never guesses. A **per-task**
+    choice
+    (`ultrathink`, "reach for `xhigh` on hard problems") is not a durable pin. **`effort:`
+    frontmatter and `effortLevel` keys route to `claude-config:audit`** on I17's
+    instruction-text-versus-config discriminator. And **schema documentation and its illustrative
+    samples** are fenced **separately** rather than folded into the config fence, because a worked
+    example quoted inside documentation prose is not a key living in a config file and the config
+    fence would not have reached it — the level in a sample demonstrates syntax, not a measured
+    choice. That fence ends where the demonstration does: documenting the field *and then telling the
+    reader which level to put there* is prescribing, and stays in scope.
+
+  - **I22 — model-routing doctrine with no baseline named** (`mechanical`, `OPINION`, `info`,
+    default **off**, enabled by `--opinion`). First-party lane assignments derived from a reading of
+    vendor selection pages, written down with neither the baseline they came from nor an event that
+    re-opens them, become a claim about a model generation that has since passed, told in the
+    present tense. Its own contribution beyond "attach a trigger" is the **delta-not-re-run**
+    discipline: the action on a trigger is a targeted delta check against the named baseline, never
+    a re-derivation from scratch — a trigger nobody can afford to run is not a control.
+
+    **The row carries no baseline of its own, by design.** Naming a date or a vet here would hand
+    every consumer a foreign snapshot as their baseline, reproducing in their repos the exact drift
+    the check exists to catch.
+
+    Its third-party fence is stated **narrowly on purpose**: transcribed practice is out of scope
+    only because there is no vet to point at, **not** because a sync stamp makes it fresh. A stamp
+    tracks whether the transcription is current, never whether the transcribed advice still names a
+    live model — so a stale lane recommendation inside a faithfully synced pack stays stale. That
+    residual is the transcribing surface's to carry, and the fence says so rather than implying the
+    sync path has it covered.
+
+    Its non-duplication is stated in the row rather than assumed. **I19** covers a restated
+    *benchmark figure* and asks for the four-part record; it says nothing about lane assignments and
+    nothing about how to act when a trigger fires. **The catalog-wide recheck trigger** does not
+    reach it either — that trigger governs *this catalog's* staleness against its Sources, not an
+    audited surface's staleness against the pages its doctrine was read from. It ships
+    `Source: none` on I19's footing and adds no Sources entry for the same reason.
+
+### Changed
+
+- **`audit-instructions`: the model-configuration and effort Sources entries name what I21 depends
+  on** — the per-model calibration of the effort scale and the first-run default hold, and `high`'s
+  equivalence to omitting the parameter plus the carry-over sweep advice. The catalog's "the trigger
+  set is the source set" invariant makes these parentheticals load-bearing: a dependency the entry
+  does not name is a dependency nothing watches.
+
+- **`audit-instructions`: `--opinion` no longer restates which rows it enables.** The flag's
+  description in the skill body carried its own copy of the `OPINION` row set, which is a second
+  place to update on every new `OPINION` row and, when stale, silently narrows the flag below what
+  the catalog actually defines. The set is now read from the catalog at run time, where the
+  enablement policy already lives, and the run's tier-transparency line reports the count it found —
+  removing the drift class rather than correcting one instance of it.
+
+## [0.20.1]
+
+### Fixed
+
+- **`audit-pass`: age alone no longer reclaims an applying run's lock where the platform exposes no
+  process start identity (#1786).** The reclamation rule's second conjunct was a start-identity
+  match, and the "where none exists, **age alone reclaims**" fallback had no liveness conjunct at
+  all — the lease's heartbeat was mentioned one sentence later as prose no reclamation test
+  consulted. A live `--fix` exceeding 30 minutes on such a platform lost its lock to a second
+  applying run, contradicting assertion 3.1's *"exactly one proceeds"* on exactly the platform least
+  able to detect the collision. The lock now records the holder's **run id** (and its start identity
+  where one exists) so reclamation can find the holder's lease, and where no start identity is
+  available the lease is the second conjunct: past 30 minutes a **stale** or `released` lease
+  reclaims and says so, a **live** lease refuses exactly as it would inside the window, naming the
+  run id and `heartbeat_at`. The classification reuses §3's existing two-sided liveness test rather
+  than introducing a second one. This does not reintroduce the unreclaimable lock the age bound
+  guards against: a crashed holder stops refreshing, so its lease goes stale within the liveness
+  threshold, and a missing or unreadable lease is treated as stale — the absence of a heartbeat is
+  not evidence of life. Same defect class and same remedy shape as `claude-ops`' restart-consumer
+  (#1759/#1760), where a live PID without a boot identity may only defer a reclaim — that deferral
+  needs a hard ceiling only because its holder publishes no lease. A lock written *before* this rule
+  carries no run id and is covered too: reclamation establishes the conjunct the other way round, by
+  enumerating every lease under `runs/<state-key>/`, so upgrading mid-run never hands a live holder's
+  lock away. The order of the two writes is now normative for the same reason — an applying run
+  writes its lease **before** it takes the lock, since a lock whose lease does not yet exist would
+  read as stale and be reclaimed on age alone through the window between them. New assertions 3.12,
+  3.13, and 3.14; new evals 27 and 29.
+- **`audit-pass`: a suppression no longer re-applies silently across an anchor collision (#1786).**
+  §1 guarantees that two identical normalized excerpts under one heading path collide and that *"no
+  suppression carries forward across it"* (assertion 1.10a), but §4's matching table had no
+  collision exception — and a collided site's anchor is by construction **unchanged**, since the
+  occurrence discriminator digests the heading path. A previously-suppressed excerpt that later
+  gained an identical duplicate therefore satisfied the `SAME, UNCHANGED` row exactly and
+  re-suppressed itself with no report. Collision is now tested ahead of the anchor comparison in
+  every row and routes to the existing `OLD CLOSED, NEW OPENED` disposition — entry stale per 4.2,
+  finding unsuppressed, collision named with its occurrence count — reusing the section's
+  established fail-closed answer to an ambiguous match rather than adding a fifth disposition. New
+  assertion 4.7; new eval 28.
+
+## [0.20.0]
+
+### Added
+
+- **`audit-instructions`: four consumer-facing rows — I17, I18, I19, I20** (criteria 1.6.0 →
+  1.7.0). All four carry knowledge outward rather than inward: they detect defects in repos this
+  fleet does not control, and each is agnostic to user, machine, company and repo.
+
+  - **I17 — thinking disabled at an effort level that forbids it**, as a base row plus **I17-a**
+    and **I17-b**, on I8's pattern: three shapes with three different decisive sources are three
+    rows, not one row with three citations, and splitting them lets each carry its own severity.
+    Base row (`error`): pairing a thinking-disable surface with `xhigh` or `max` effort returns a
+    per-request 400, and the pairing is assemblable from configuration literals alone. **No harness
+    documentation describes a pre-request guard**, so the row states the hazard as real and
+    unguarded and deliberately does **not** claim the harness prevents it. It also catches the
+    `ultracode` **setting**, which matches neither literal but "sends `xhigh` to the model" and so
+    produces the identical rejection — match the effort that reaches the request, not the spelling.
+    The same spelling as a **prompt keyword** is fenced out: it runs one task as a workflow
+    "without changing the session's effort level", so no effort reaches the request. And it tells
+    an auditor **not** to hunt `effortLevel: max`: the settings schema stops at `"xhigh"`, so that
+    literal is unreachable there. I17-a (`warning`) is `MAX_THINKING_TOKENS=0` sold as a universal
+    off switch, which it is not — no effect on Fable 5, parameter merely omitted on third-party
+    providers. I17-b (`info`) is a mid-session effort change prescribed without its cache cost, and
+    it explicitly does **not** fire on Claude Code surfaces, where the harness already asks for
+    confirmation; it is for surfaces instructing an API or Agent SDK caller, where no dialog exists.
+
+    **The model range is carried as a Detect condition, not a `Model scope` annotation** — the
+    catalog's annotation is for rows sourced from a single model's *guide*, matches by exact string
+    equality, and has no range form, so annotating `opus-5` would make the row inert on the next
+    generation while the restriction ("Claude Opus 5 and later models") still holds. The source is
+    a model-agnostic feature page, so the promotion gate is met and the row is unscoped. I20 handles
+    its own model range the same way.
+
+    The settings-file scan is explicitly **not** taken: it belongs to `claude-config:audit`, and an
+    instruction-content catalog that also scanned settings files would claim authority a sibling
+    already holds. The discriminator is whether the content instructs, not which file holds it, so
+    a prompt-type hook's injected text stays in scope even though it lives in a settings file.
+  - **I18 — thinking blocks altered on the way back to the model.** Signature preservation, the
+    `block.type == "thinking"` type-filter smell, and within-turn echo integrity. Reach is wider
+    than Messages API client code — Agent SDK callers, harness integrations, and tooling that
+    rewrites a stored transcript later replayed or resumed — but the criterion is **a path back to
+    the model**, not the file format read, so read-only transcript analysis stays out. The row
+    ships **no `redacted_thinking` handling clause premised on those blocks being present in local
+    transcripts** — that premise is unevidenced. The term survives only inside the upstream
+    sentence that is the type filter's entire stated failure mode, which is where the harm lives.
+    Zero instances of all three shapes here, recorded as a dated measurement with its own trigger
+    rather than left to read as a clean audit.
+  - **I19 — restated external benchmark figure with no recheck trigger.** `OPINION`-tier and off by
+    default, because no official page states that a restated benchmark figure needs a
+    re-derivation event; the four-part shape it asks for is this monorepo's upstream-drift
+    convention, and in a standalone install the four parts rather than the path are the
+    requirement. Carries one fence the fleet needed: **a verbatim upstream baseline held for drift
+    detection is never flagged**, since stamping it would corrupt the byte comparison it exists to
+    serve. That is a genuine suppression, which is what separates it from plugin-cache content and
+    managed materializations — those are still flagged, and the finding becomes a routing
+    recommendation to the owning repository.
+  - **I20 — prefilled assistant response**, at `error`: following the instruction produces a
+    rejected request, the same consequence class as I17 and I18. Severity tracks consequence, not
+    expected frequency — this is a standing model-delta row whose hit rate here is zero, and it
+    fires in consumer repos that still prefill.
+
+- **`audit-instructions`: per-row verification stamps** (criteria 1.6.0 → 1.7.0). A row restating a
+  volatile upstream *literal* now carries the four-part record — claim, basis, as-of date, and a
+  recheck trigger naming an observable event. A row that only points at its page carries none,
+  because a pointer cannot go stale. The block resolves its own relationship to the catalog-wide
+  Recheck-triggers rule rather than leaving two authorities over one behavior, which is precisely
+  the conflict I15 exists to find: a per-row stamp **supplements** the catalog trigger and never
+  narrows it, a row's own trigger names only what the Sources set would miss, and **the catalog
+  trigger wins** where they disagree. The requirement **binds on touch**, per the upstream-drift
+  convention, so rows predating it are not retroactively non-compliant. Shipping a check that
+  silently encoded a snapshot as permanent truth would reproduce, in consumers' repos, the drift
+  this catalog exists to detect.
+
+- **`audit-instructions`: five pages join `## Sources`** — effort, thinking troubleshooting,
+  settings, environment variables, and prompt caching. As at 0.18.0 and 0.19.0 this is a
+  second-order change, and it is intended: the Recheck-triggers block makes the trigger set the
+  source set, so adding a page widens the staleness trigger for the **entire** catalog, not only
+  for the rows that cite it. A cited page nothing watches would leave those rows depending on an
+  unwatched source.
+
+## [0.19.0]
+
+### Changed
+
+- **`audit-instructions`: I8-b (conservative-reporting detection) is promoted to unscoped**
+  (criteria 1.5.0 → 1.6.0). The row carried `Model scope: opus-5` and fired only when the resolved
+  target model was Opus 5. The **Sonnet 5** prompting guide, "Code review harnesses", states the
+  same claim about the same behavior — a review prompt saying "only report high-severity issues",
+  "be conservative", or "don't nitpick" is followed literally, so the model investigates just as
+  thoroughly and then withholds findings below the stated bar. Two first-party model guides of the
+  same class converging is the promotion gate's **second arm**, so the row is now annotated the way
+  I7 is and fires for every target model. The Sonnet 5 guide joins `## Sources`, as the
+  Recheck-triggers block requires of every cited page. The Detect line's "which **this** model
+  follows literally" is now "which **current models** follow literally" — the demonstrative
+  referred to the row's scoped model, and an unscoped row has none.
+
+  **The Recheck-triggers block no longer enumerates the model-specific pages.** It read
+  "Model-specific pages (the Fable 5 and Opus 5 guides) are superseded on each model generation" —
+  a closed list the Sonnet 5 addition immediately falsified. It now reads "the per-model prompting
+  guides under Sources", which stays true as guides join. The enumeration also contradicted its own
+  paragraph three lines above, which argues that "naming a subset would leave the harness-behavior
+  rows depending on pages nothing watches."
+
+- **I8-b's Source line now cites the phrase it could not.** The row's Detect names three trigger
+  phrases; **"don't nitpick" appears nowhere in the Opus 5 guide**, which states only the other
+  two. The Sonnet 5 guide names all three verbatim, so it is that phrase's only cited home, and the
+  Source line says so rather than leaving a trigger phrase attributed to a page that does not
+  contain it.
+
+- **I8-b's Remediate line gains the constructive half.** It said only "rephrase to
+  report-everything + a separate filter/rank pass", which does not answer the case where a
+  single-pass self-filter is genuinely wanted. The Sonnet 5 guide covers that case — "be concrete
+  about where the bar is rather than using qualitative terms like `important`" — so the line now
+  keeps the filter and asks for an enumerable test in place of a qualitative label.
+
+  **Promoting this row flags nothing new in this repository.** The scanner's I8-b population here
+  is 23 candidate rows across 6 files, every one of them already fenced by the row's own two
+  fences — the restraint-clause shape (`code-tidying`'s tidyings catalog) and the quoted/meta
+  surface (this criteria file, the scanner and its tests, two model-adaptation delta chapters).
+
+## [0.18.0]
+
+### Added
+
+- **`audit-instructions`: I10 gains a second corroborating source and a concretized remediation**
+  (criteria 1.4.0 → 1.5.0). The Thinking page states the same `reasoning_extraction` refusal I10
+  already cited from the Fable 5 guide, from a second, independent page — a feature page rather than
+  a model guide. The row records why that citation does **not** move the promotion gate: the page's
+  own section names both Claude Fable 5 and Claude Mythos 5 for the adjacent raw-chain-of-thought
+  property, then names Fable 5 alone for the refusal, so the narrower scope is deliberate rather
+  than an omission. **`Model scope: fable-5` is unchanged, and `mythos-5` is deliberately not
+  added** — no source states the refusal for Mythos 5, and inheriting it from a claim about a
+  different property is exactly the near-miss scope inheritance the catalog's model-scoping block
+  forbids.
+
+  **The Remediate line now names the surfaces instead of gesturing at them.** It said "read
+  structured `thinking` blocks or use a send-to-user tool"; the sanctioned reading surfaces are
+  `Ctrl+O` verbose mode and the `showThinkingSummaries: true` setting in Claude Code, and
+  `display: "summarized"` on the API. The two Claude Code surfaces are stated on the model
+  configuration page, **not** on the Thinking page, so both pages join the catalog's `## Sources`
+  list — the Recheck-triggers block makes the trigger set the source set, and a cited page nothing
+  watches would leave the row depending on an unwatched source.
+
 ## [0.17.0]
 
 ### Fixed

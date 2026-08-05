@@ -86,6 +86,19 @@
         "Tier is stated as an explicit per-stage spawn decision rather than left unspecified",
         "The scan is sized as large / wide fan-out rather than kept single-agent"
       ]
+    },
+    {
+      "id": 8,
+      "name": "verification-scoped-to-shipped-artifacts-not-process-records",
+      "prompt": "We're already primed with the orchestration imperatives. This session just finished two batches: (a) edits to three skill files that ship to plugin consumers, and (b) updates to our campaign ledger, status checklist, and adoption log in the working notes. I also have the verifier's verdict written up as a verification record. What verification does each get?",
+      "expected_output": "This is a follow-up to an ALREADY-primed session, so a substantive answer is in contract. Imperative 3's scope clause governs: the shipped skill-file batch is what a consumer receives, so it gets the fresh-context verifier with binary criteria (different-vendor advisor when set up and able, fresh same-vendor verifier as fallback). The ledger/checklist/adoption-log batch is process records about the work — it stays at self-check regardless of touching three files, and no independent verifier is spawned for it. The verification record itself is never verified: a record OF a verification is downstream of an already-verified artifact, and verifying it starts the self-feeding loop the clause exists to prevent — re-verify the artifact or verify nothing.",
+      "files": [],
+      "expectations": [
+        "The shipped skill-file batch gets the independent fresh-context verifier with explicit binary criteria",
+        "The process-record batch (ledger, checklist, adoption log) stays at self-check — no independent verifier — regardless of file count",
+        "The verification record is NOT itself verified, with the self-feeding-loop rationale stated (re-verify the artifact or verify nothing)",
+        "The scope discrimination is what-a-consumer-receives versus process records about the work, not file count or effort spent"
+      ]
     }
   ]
 }

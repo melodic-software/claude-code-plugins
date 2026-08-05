@@ -1,6 +1,6 @@
 # audit — Phase 2 validation categories
 
-Detailed checks for each Phase 2 category (A–G). SKILL.md Phase 2 names the categories + points here;
+Detailed checks for each Phase 2 category (A–H). SKILL.md Phase 2 names the categories + points here;
 this file carries the per-check criteria. Run each category's checks and record findings with severity
 ratings.
 
@@ -115,3 +115,27 @@ bash "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/fix-plugin-drift.sh" --yes
   `SLASH_COMMAND_TOOL_CHAR_BUDGET` in project settings as a last resort (costs context every turn)
 - **Recommend, don't apply the list** — `skillOverrides` is contributor-scoped; surface the candidate
   least-invoked skills, leave the actual name-only list to the developer
+
+## Category H: Model and effort settings
+
+Row-by-row criteria are in [audit-checklist.md](../reference/audit-checklist.md) "H. Model and
+effort settings". What governs the category:
+
+- **Scope** — `effortLevel`, `fallbackModel`, `availableModels`, `enforceAvailableModels` in the
+  settings files this skill already opens, `settings.local.json` included: `check-structure.sh`
+  reports those four by value while keeping env and permission entries as counts, so a local-only
+  misconfiguration is checkable without dumping the secrets beside it. `modelOverrides` values are
+  deliberately not validated; the checklist says why
+- **Fetch before reporting** — every row rests on upstream-owned behavior, so a finding requires the
+  Phase 3.3 model-config fetch, not this file's wording
+- **Two authorities, and they can disagree** — the declared settings schema constrains `effortLevel`
+  by `enum` and `fallbackModel` by `maxItems` (raw array length), while the harness caps the
+  fallback chain after deduplication. Report a schema violation and a harness-behavior finding as
+  the separate things they are
+- **Per-row visibility, not a blanket claim** — some of these are silent and some announce
+  themselves (a narrowed alias shows a substitution notice). Each row states which, because it
+  changes what the finding is worth to the reader
+- **Placement is out of reach** — `availableModels` and `enforceAvailableModels` belong in the
+  highest-precedence managed source, and admin-deployed managed sources do not merge. Nothing in the
+  files this skill reads decides whether that holds, so report the value-level finding and leave
+  placement to the administrator

@@ -8,6 +8,8 @@ convention/config files the plugin reads.
 - The plugin's `plugin.json` `userConfig` schema (keys, defaults, `sensitive` flags).
 - Any config files the plugin resolves (paths, layer/merge order).
 - How defaults are inferred when unset.
+- Plugin-shipped harness config at the plugin root: `settings.json`, `.lsp.json`,
+  `monitors/monitors.json`.
 
 ## Check
 
@@ -26,6 +28,19 @@ convention/config files the plugin reads.
   settings value.
 - **Machine-readable format** — for data other tools must read, prefer flat-scalar YAML (shell-grep
   friendly) over frontmatter-in-markdown or a value trapped in a tool-specific language.
+- **Silent no-op keys (`settings.json`)** — a plugin-root `settings.json` supports only the `agent`
+  and `subagentStatusLine` keys, silently ignores unknown keys, and takes priority over `settings`
+  in `plugin.json`. An unsupported key reads as configuration but does nothing — flag it.
+- **Silent-skip LSP entries (`.lsp.json`)** — an entry with an invalid configuration is skipped
+  (only `claude --debug` says why); a server that fails to start surfaces in the `/plugin` Errors
+  tab. The server binary is a user-machine prerequisite — check it is documented for installers.
+- **Monitor noise & portability (`monitors/monitors.json`)** — inspect each monitor's `when`
+  trigger before assessing runtime volume: the default `"always"` starts it at session start and on
+  plugin reload, while `"on-skill-invoke:<skill-name>"` keeps it dormant until that skill is first
+  dispatched. Every stdout line from `command` reaches Claude as a notification; check volume for
+  the trigger's actual lifetime and that the command runs on the consumer's platform. (All three
+  surfaces per <https://code.claude.com/docs/en/plugins> and
+  <https://code.claude.com/docs/en/plugins-reference#monitors>, fetched 2026-08-04.)
 
 ## Reproduce
 

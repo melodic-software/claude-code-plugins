@@ -124,7 +124,7 @@ Encapsulation enforcement (detection grep, public/private surface matrix, remedi
 
 ## Anti-patterns guarded
 
-13-pattern taxonomy with mitigations: citation rot, over-indirection, leaky abstraction, loss of locality, reference resolution failure, wrong abstraction, premature extraction, self-generated SSOT, cache invalidation cascade, encapsulation violation, source-of-truth bifurcation, primary-source citation gate, Shape C dedup-by-deletion (positive). Each pattern + symptom + mitigation procedure: `context/anti-patterns.md`.
+13-pattern taxonomy with mitigations: citation rot, over-indirection, leaky abstraction, loss of locality, reference resolution failure, wrong abstraction, premature extraction, self-generated SSOT, always-loaded SSOT propagation lag, encapsulation violation, source-of-truth bifurcation, primary-source citation gate, Shape C dedup-by-deletion (positive). Each pattern + symptom + mitigation procedure: `context/anti-patterns.md`.
 
 Patterns #11/#12/#13 derive from the empirical lessons in `context/lessons.md` and are surfaced as REFUSE triggers in the `verify` action.
 

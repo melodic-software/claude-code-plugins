@@ -3,6 +3,72 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.27.0]
+
+### Added
+
+- **`observability` reports cache health, the one cost signal its store already carried and its
+  report never rendered.** `cc_metrics` has always split `claude_code.token.usage` by `attr_type`
+  into `input` / `output` / `cacheRead` / `cacheCreation`, and `read-routing.md` has always pointed
+  historical token metrics at the query file — but no report section rendered the cache half, so it
+  reached an operator only if they went looking for it by hand. The skeleton now carries a **Cache
+  health** section and the routing table a question keyed to it, with the reading upstream supplies:
+  a high read-to-creation ratio is healthy, and creation staying high turn after turn means
+  something keeps changing the request prefix ([actions that invalidate the
+  cache](https://code.claude.com/docs/en/prompt-caching#actions-that-invalidate-the-cache),
+  verified 2026-08-04).
+
+  **Its own section rather than columns on Token / cost**, because the two differ in both source and
+  grain. Token / cost is ccusage-sourced per-model over a window; the cache split lives in the OTEL
+  store, and the pre-existing token-usage query is latest-session-scoped with no model dimension.
+  Widening that table would have mixed two sources silently and rendered a per-model row from
+  session-grain data. So this ships a **new per-model windowed query** rather than reusing the
+  existing one — verified by execution against a live OTEL store, not composed from the schema.
+
+  **Hot tier only, for a reason worth recording:** `cc_metrics_cold()` raises `IO Error: No files
+  found that match the pattern …` when the cold tier holds no parquet yet, so a hot+cold union
+  would break on any store that has not aged. The query file now says so where the union pattern
+  is documented.
+
+  **Reported at `INFO`, deliberately ungraded.** Every other numeric signal in this skill carries a
+  severity band, and this one does not: upstream states the direction without a threshold, so a
+  `HIGH`/`MEDIUM` cutoff would be a number this repo invented and then cited as if sourced. That
+  rule sits in Rendering rules, outside the skeleton's fence — a directive placed inside it would
+  be emitted verbatim into the operator's report. The invalidation causes stay behind the pointer
+  rather than being enumerated into a list that drifts as the harness adds actions.
+
+## [0.26.0]
+
+### Changed
+
+- **`lane-launcher.sh` arms the autonomy lane-stop gate at launch — fail closed (#1784).** The
+  gate (autonomy 0.12.0+) no longer honors the bare `CLAUDE_PLUGIN_OPTION_*` environment, which is
+  the only form a `--settings`-delivered option ever reaches a hook in — so passing
+  `lane_stop_gate_enabled` through the lane's `settings` object alone would leave the lane silently
+  ungated. A lane whose settings request the gate
+  (`pluginConfigs["autonomy[@…]"].options.lane_stop_gate_enabled == true`) is now ARMED before
+  launch: the launcher generates a random arm id, runs the autonomy plugin's
+  `hooks/lane-stop-gate-arm.sh` (which records the lane's sentinel/marker config under autonomy's
+  own install-derived data directory), and injects the id into the launched `--settings` as
+  `lane_stop_gate_arm_id`. A gate-requesting lane that cannot be armed — helper missing (autonomy
+  not installed or pre-0.12.0), arming error, managed-settings veto — is **skipped with an error**
+  rather than launched ungated: the operator is present at launch, so failing closed there is
+  cheap, while the hook itself stays fail-open at stop time. Helper discovery anchors on the
+  launcher's own `plugins/cache` install path (never `CLAUDE_CONFIG_DIR`/`HOME`, which a watched
+  repo's `env` block reaches — exactly the redirect this design closes); the new
+  `--gate-arm-script FILE` flag overrides discovery for tests and dev checkouts. `--dry-run`
+  previews the arming without writing anything. Lanes without a gate request launch exactly as
+  before.
+
+  On a machine carrying more than one autonomy install, **every** discovered helper must arm or
+  the lane is skipped. Each install writes into its own install-derived store and the launcher
+  cannot tell which one the session will load, so accepting a partial arm would launch a lane
+  carrying an id its own gate resolves to nothing — ungated, with only a stale-arm notice to show
+  for it. The preflight that checks helper presence reads discovery through a command substitution
+  rather than `… | grep -q .`: under `pipefail` the `grep` exits on the first line and the producer
+  takes SIGPIPE on its next write, so exactly those multi-install machines would read as "no helper
+  found" and be refused a gate-requesting launch outright.
+
 ## [0.25.1]
 
 ### Changed

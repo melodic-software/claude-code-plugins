@@ -3,6 +3,72 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.16.0]
+
+### Changed
+
+- **`context/severity.md`: each severity tier is now stated as a decidable test, not a qualitative
+  label.** The tiers read "Must fix" / "Should fix" / "Consider" plus a list of examples, which lets
+  a reviewer place a finding that resembles a listed example but leaves a novel finding undecidable.
+  The Sonnet 5 prompting guide, "Code review harnesses", names this shape directly — "be concrete
+  about where the bar is rather than using qualitative terms like `important`", the qualitative term
+  being one of this file's own tier names. Each tier now carries a test the reviewer can argue a
+  finding against: CRITICAL, whether you can name a concrete input, caller, or subsequent
+  otherwise-correct change the defect makes produce a wrong, unsafe, or absent result; IMPORTANT,
+  whether the finding names a
+  stated rule violated, behavior added that no test covers, or a degradation or maintenance cost
+  with a named trigger; SUGGESTION, neither, so a preference among alternatives that all work. The
+  example lists are retained as illustrations of the tests.
+
+  **No finding changes tier.** The tests were written to restate the existing bars, and the example
+  lists are unchanged — this states the criterion, it does not re-tier.
+
+  **CRITICAL's subsequent-change limb is qualified `otherwise-correct`, which is what holds that
+  guarantee.** Unqualified, "a subsequent change that the defect makes produce a wrong result" is
+  satisfied by **code duplication** read literally — the subsequent change is an edit to one copy,
+  after which the copies diverge. Because the tests are applied in order and resemblance to a listed
+  example is explicitly not a rebuttal, that CRITICAL match would win and silently promote
+  duplication out of IMPORTANT, where the previous text pinned it. The qualifier draws the line the
+  example lists already assumed: a **cascading architecture violation** breaks a future change whose
+  author did everything right, so it stays CRITICAL, while **duplication** bites only through a
+  future edit that is itself incomplete, so it stays IMPORTANT.
+
+- **The P1–P5 security fold now states its precedence over the tier tests.** `security-reviewer`
+  emits CVSS-anchored P-levels folded as P1/P2 → CRITICAL, P3 → IMPORTANT, P4/P5 → SUGGESTION.
+  CRITICAL's new test names an unsafe result, which a P3 finding also satisfies read literally, so
+  the fold is now marked as deciding the tier for a P-scored finding. Without that precedence the
+  criterion-stating change would have silently promoted every P3 to CRITICAL.
+
+## [0.15.5]
+
+### Fixed
+
+- **`quality-gate`'s code-mode boundary no longer calls `/code-review` "built-in"**
+  (doc-accuracy fix). `context/code.md` headed its boundary "the built-in `/code-review`
+  skill" and opened "Claude Code ships a built-in `/code-review` bundled skill" — a
+  compound of two categories the official docs keep apart. The commands reference
+  states "Most are built-in commands whose behavior is coded into the CLI" and marks
+  `/code-review` **[Skill]**, "a bundled skill"; the skills page lists `/code-review`
+  among the bundled skills and says bundled skills are "prompt-based … Most built-in
+  commands instead execute fixed logic directly", with `/doctor` cited as having been
+  "a built-in command rather than a bundled skill" before v2.1.205 — the two labels are
+  mutually exclusive. `/code-review` **is** a bundled skill; only the "built-in"
+  modifier was wrong, so the fix drops it rather than re-labelling the surface. The
+  heading and opening sentence now read "bundled skill" and link
+  <https://code.claude.com/docs/en/skills#bundled-skills>. The plugin's other
+  `/code-review` references (`README.md`, `fanout/SKILL.md`,
+  `fanout/context/findings-normalization.md`, `quality-gate/context/pr.md`) already
+  carry the correct "bundled" modifier and are untouched. Behavior is unchanged — the
+  boundary's routing advice, the report-only contract, and the `--fix` / `--comment`
+  opt-in gate all stand.
+
+  Three released entries below carry the same smear — `0.15.1` ("a bundled built-in
+  command"), `0.14.7` (the entry that added this boundary section: "always-available
+  built-in `/code-review`"), and `0.14.2` ("`/simplify` is an external/built-in
+  skill"). They are left as written: a released entry records what that version
+  shipped, and this file's own `0.15.3` entry sets the precedent of correcting a past
+  rationale in a new entry rather than editing the old one.
+
 ## [0.15.4]
 
 ### Fixed

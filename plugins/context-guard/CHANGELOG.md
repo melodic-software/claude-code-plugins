@@ -5,6 +5,39 @@ All notable changes to the `context-guard` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.5]
+
+### Fixed
+
+- **The reader contract withdraws an unresolvable citation behind the token shape.** The token-shape
+  rationale co-cited "Anthropic system-card fixed-point evals" as evidence that degradation tracks
+  absolute tokens rather than window fraction — a claim carried at "Primary research + official /
+  High confidence" on #1475's provenance table. The citation names no card, and the only Anthropic
+  system card in this workstream's corpus (Claude Opus 5, re-fetched 2026-08-04 and byte-identical
+  to its capture) contains no evaluation of any name measuring degradation as a function of context
+  length. An exhaustive sweep of that card found zero occurrences of "fixed point", zero of every
+  standard long-context benchmark name, and no length axis on the two near-misses ("character
+  drift" is an LLM-judge score averaged over ~3,200 investigations with no length variable; "context
+  drift" is prose in a cyber benchmark's design rationale). The card's sole long-context section
+  (§8.9, ProgramBench) reports pass rate across five episodes, each starting from a *fresh* context
+  budget, and the score **rises** 83%→93% — a reset-and-continue improvement curve, not a
+  within-context degradation curve.
+
+  The clause now cites the Chroma context-rot report alone, plus a one-line standing rule that a
+  system card is cited here by name and section or not at all — the full reasoning lives in this
+  entry rather than in the contract, which is a live document and not a place for dated
+  withdrawal narration. Deliberately **not** substituted: the
+  card's 200k compaction trigger in the BrowseComp harness — the tempting replacement, being the one
+  absolute-token threshold inside a 1M window, but it is a harness choice about *when to compact*
+  with no stated rationale, not evidence about quality. Other Anthropic cards do publish
+  long-context retrieval evals at absolute context lengths, so the underlying proposition may be
+  supportable; it is not supportable from an unnamed card, and no replacement is asserted until one
+  is read and cited by name.
+
+  **No behavior changes.** The token shape's other two rationales — output tokens occupy the window;
+  50% of a 1M window is not 50% of a 200k window — are independent of this citation, and the band
+  values themselves were always declared judgment defaults rather than derived from it.
+
 ## [0.4.4]
 
 ### Fixed

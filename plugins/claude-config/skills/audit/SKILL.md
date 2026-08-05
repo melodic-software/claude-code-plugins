@@ -115,7 +115,7 @@ Load the audit checklist: [audit-checklist.md](reference/audit-checklist.md)
 
 Run each category's checks. Record findings with severity ratings.
 
-Seven categories — names + the question each answers below; **full per-check criteria in
+Eight categories — names + the question each answers below; **full per-check criteria in
 [context/validation-categories.md](context/validation-categories.md)** (read it when running Phase 2).
 
 - **A — Schema & Structure**: `$schema` present, no unknown keys, `mcpServers` not in `settings.local.json`
@@ -125,6 +125,7 @@ Seven categories — names + the question each answers below; **full per-check c
 - **E — Plugins**: static checks (marketplace membership) + live upstream drift detection (`scripts/check-plugin-drift.sh` — ORPHAN/NEW/RENAME modes, auto-fix policy table in the context file)
 - **F — Environment Variables**: documented/justified vars, secrets in `settings.local.json` only, forward-slash paths
 - **G — Skill-listing budget**: `/doctor` overflow check and trim levers (description trimming, `skillOverrides`, budget settings)
+- **H — Model and effort settings**: `effortLevel`, `fallbackModel`, `availableModels`, `enforceAvailableModels` — values the harness accepts into the file but does not apply as written
 
 ---
 
@@ -148,7 +149,15 @@ Claude Code issue-tracking skill if it has one). For any issue whose upstream fi
 below the installed Claude Code version, confirm the settings-specific workaround is still needed and
 recommend retiring it if not.
 
-### 3.3 Permission syntax verification
+### 3.3 Model configuration verification
+
+**MANDATORY** for any category H finding: fetch
+[code.claude.com/docs/en/model-config](https://code.claude.com/docs/en/model-config) and confirm the
+behavior the finding rests on. Do NOT report a category H finding from this checklist's wording
+alone — the accepted `effortLevel` values, the fallback-chain cap, and the allowlist wildcard rule
+are all upstream-owned and move with the harness.
+
+### 3.4 Permission syntax verification
 
 Fetch [code.claude.com/docs/en/permissions](https://code.claude.com/docs/en/permissions) and verify:
 

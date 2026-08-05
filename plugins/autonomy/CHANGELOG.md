@@ -6,6 +6,79 @@ All notable changes to the `autonomy` plugin are documented here. Format follows
 Versions 0.1.0–0.7.0 predate this file (introduced with 0.7.1); their history lives in the
 merged work-package PRs (#333, #343, #356, #372, #377, #600, #676).
 
+## [0.12.1]
+
+### Changed
+
+- **`lane-stop-gate-lib.sh`: the server-managed settings channel's exclusion from the org-veto
+  source list is documented as deliberate.** The gate reads only endpoint managed-settings paths
+  plus `managed-settings.d/` drop-ins; [server-managed
+  settings](https://code.claude.com/docs/en/server-managed-settings) surface on disk only as the
+  user-writable cache `~/.claude/remote-settings.json`, which fails the root-owned trust test the
+  veto relies on — the page itself calls the channel "a client-side control, not a security
+  boundary". Comment at the exclusion site plus a README precedence-list note directing orgs on the
+  server channel to also deliver an endpoint `managed-settings.json`; no behavior change.
+
+## [0.12.0]
+
+### Changed
+
+- **`lane-stop-gate.sh`: gate config is honored from trusted sources only — the bare
+  `CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_*` environment is never authority (#1784).** The enable
+  flag (and the sentinel and marker path with it) was read straight off the environment — channel B
+  of `docs/conventions/hook-config-delivery`, whose rule 3 requires channel F for a safety-critical
+  optional-with-default toggle: for an unconfigured key, a watched repository's own
+  `.claude/settings.json` `env` block populates the variable freely (fact 4), so the watched repo
+  could decide whether the gate runs, weaken the sentinel to an incidentally-occurring line, or
+  point the marker at a file of its choosing. Per-key resolution is now managed settings (fixed
+  root-owned paths plus `managed-settings.d/` drop-ins) ▷ the per-session arm record (below) ▷ the
+  user `settings.json` located only from the hook's own `plugins/cache` install anchor ▷ the
+  in-script defaults. No file path any of these reads is env-derived — and the managed-settings
+  platform is read from `uname -s`, not the repo-settable `$OSTYPE`, with the resolved primary
+  asserted absolute so it can never become a cwd-relative (repo-plantable) path. An unreadable or
+  malformed trusted source contributes no verdict and the default (off) applies — the gate keeps its
+  fail-open, never-wedge posture. When the env channel *claims* enablement that no trusted source
+  corroborates — a stale launcher still delivering over `--settings`/env, or a repo attempting the
+  old attack — the gate emits a visible once-per-session notice instead of disengaging silently.
+  **Behavior change:** a `--settings`-only `lane_stop_gate_enabled=true` no longer engages the gate;
+  lanes are armed by the claude-ops lane launcher (0.26.0+) instead, and a `--plugin-dir` checkout
+  install (no install anchor, hence no trusted user-settings or record location) can be enabled only
+  via managed settings.
+
+### Added
+
+- **`hooks/lane-stop-gate-arm.sh` — operator-side per-session arming, and the
+  `lane_stop_gate_arm_id` userConfig key that points at it (#1784).** A hook cannot observe
+  `--settings` (the channel-F residual), so the per-session opt-in the launcher shipped over
+  `--settings` needed a trusted replacement, not deletion. The launcher now generates a random arm
+  id, runs this helper — which writes a record (sentinel/marker config, armed-at stamp) under the
+  plugin's **own install-derived** data directory, refusing when unanchored or when managed settings
+  veto with `lane_stop_gate_enabled: false` — and passes the id to the session through the new
+  string option. The env-delivered id is a capability pointer, never authority: the gate
+  shape-validates it (`^[A-Za-z0-9_-]{8,64}$` before any path use), looks it up only in the
+  install-anchored store (the `CLAUDE_PLUGIN_DATA` fallback is used for the marker-consumption
+  ledger only, never for records or enablement), and claims it for the first presenting session so a
+  replayed id is refused, expires it after 7 days. The record is **not** consumed on a stop: a lane
+  is one session across many `/loop` cycles, each ending in a Stop the gate must still guard, so the
+  record lives for the claiming session (bound to it by the claim) and is retired by its TTL plus the
+  launcher's relaunch sweep. A repo env block can neither mint a valid id nor clobber a configured
+  one (harness injection wins for configured keys). Shared derivation helpers live in
+  `hooks/lane-stop-gate-lib.sh`, sourced by both scripts.
+
+### Fixed
+
+- **Managed settings reach a `--plugin-dir` install (#1784).** Keying every settings read on the
+  marketplace-qualified id meant the managed scope contributed no verdict without a
+  `plugins/cache` anchor — silently disabling the org-mandate path on the one install class for
+  which it is the *only* enable path, and on whose availability the arm helper's refusal to arm
+  there is premised. An unanchored install now matches on the plugin name from the manifest beside
+  the hook (the same `BASH_SOURCE`-derived trust anchor everything else uses), accepting a bare or
+  any marketplace-qualified key; anchored installs keep their exact-id match, so another
+  marketplace's entry still cannot mask this install's.
+- **An empty configured sentinel falls back to `LANE-STOP-OK`.** Emptiness is not a documented way
+  to disable the token channel, and honoring it silenced that channel while the block reason still
+  instructed the agent to emit an empty token on its own line.
+
 ## [0.11.8]
 
 ### Fixed

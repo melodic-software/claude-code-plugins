@@ -24,6 +24,11 @@ Refresh this file from current official docs via the skill's `update` action.
 
 <!-- -->
 
+> "If Claude keeps doing something you don't want despite having a rule against it, the file is probably too long and the rule is getting lost."
+> — code.claude.com/docs/en/best-practices
+
+<!-- -->
+
 > "Less than 300 lines is best, and shorter is even better."
 > — humanlayer.dev/blog/writing-a-good-claude-md
 
@@ -60,6 +65,20 @@ Official include/exclude table (code.claude.com/docs/en/best-practices):
 | Architectural decisions specific to your project | Long explanations or tutorials |
 | Developer environment quirks (required env vars) | File-by-file descriptions of the codebase |
 | Common gotchas or non-obvious behaviors | Self-evident practices like "write clean code" |
+
+## Build and test commands
+
+> "Create this file and add instructions that apply to anyone working on the project: build and test commands, coding standards, architectural decisions, naming conventions, and common workflows."
+> — code.claude.com/docs/en/memory, "Project memory"
+
+Build and test commands lead the list of what project memory is for. The inference cost of omitting
+them is stated on the same page, in what `/init` does instead:
+
+> "Claude analyzes your codebase and creates a file with build commands, test instructions, and project conventions it discovers."
+> — code.claude.com/docs/en/memory
+
+So a project CLAUDE.md that omits them leaves those commands to be discovered per session rather
+than read. Backs C9.
 
 ## @import syntax
 
