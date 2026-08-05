@@ -23,7 +23,7 @@ Usage:
   discover.sh --help
 
 Scans the project (git root, or --path) for MCP tool markers across
-Python (FastMCP), TypeScript (@modelcontextprotocol/sdk), and .NET.
+Python (mcp), TypeScript (@modelcontextprotocol/sdk), and .NET.
 --path is bounded to the project directory (${CLAUDE_PROJECT_DIR}, or the
 git root when unset); a path outside it is refused. The scan is depth-capped.
 
@@ -167,7 +167,7 @@ done < <(find . -maxdepth "$MAX_SCAN_DEPTH" -type f -name '*.ts' \
   ! -path '*/node_modules/*' ! -path '*/build/*' ! -path '*/dist/*' \
   ! -name '*.test.ts' ! -name '*.spec.ts' 2>/dev/null | LC_ALL=C sort)
 
-# Python — FastMCP
+# Python — mcp
 while IFS= read -r file; do
   [[ -z "$file" ]] && continue
   rel="$(to_project_rel "$file")"
