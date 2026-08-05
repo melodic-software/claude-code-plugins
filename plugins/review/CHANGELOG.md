@@ -16,8 +16,8 @@ All notable changes to the `review` plugin are documented here. Format follows
   both sentences asserted a limitation that does not exist. The rationale is now the narrower true
   one: that depth budget is settings-configurable through `CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH`
   (`1` turns nesting off) and so sits outside the skill's control, and at the limit Claude Code
-  withholds the `Agent` tool — in a fork, keeps it but errors — whereas the main thread's own
-  `Agent` tool that limit never disables.
+  withholds the `Agent` tool — in a fork, keeps it but errors — whereas that limit never disables
+  the main thread's own `Agent` tool.
 
   **The claim is deliberately scoped to the depth limit.** The session and concurrent subagent
   limits bind the main thread too, so no surface can claim an unconditional spawn guarantee.
