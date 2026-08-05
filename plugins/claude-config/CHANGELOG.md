@@ -5,15 +5,53 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
 
 ## [0.21.9]
 
+### Removed
+
+- **`audit`: the Category B `:*` check, which rested on a false premise and could never report
+  clean.** [Configure permissions](https://code.claude.com/docs/en/permissions) states that "The
+  `:*` suffix is an equivalent way to write a trailing wildcard, so `Bash(ls:*)` matches the same
+  commands as `Bash(ls *)`" — it is not deprecated. Across the 127 pages listed in `llms.txt`, no
+  line carries both `deprecat` and `:*`, and the changelog maintains `:*` in its current voice,
+  hardening `Bash(find:*)` and `Bash(rm:*)` and fixing `Bash(cmd:*)` and `Bash(git log:*)` matching.
+  The label traces to issue
+  [#23869](https://github.com/anthropics/claude-code/issues/23869), whose reporter used the word; it
+  was closed as not planned.
+
+  The check was also inoperable: its verification shipped `grep ':*'`, which in basic regex means
+  zero or more colons and so matches every line. Removed rather than reworded, because the only
+  accurate replacement — flagging a `:*` that is not at pattern end, which the page shows never
+  matches — has no instance in this repo. The known-issues row keeps its citation and drops its
+  tracked action. Generic "deprecated syntax" wording elsewhere stands: the settings doc documents
+  real deprecations.
+
 ### Fixed
 
-- **`audit-permission-grants`: the `:*` suffix is not deprecated.** Both route-out passages called it
-  "deprecated `:*` syntax"; [Configure
-  permissions](https://code.claude.com/docs/en/permissions) states the opposite — "The `:*` suffix is
-  an equivalent way to write a trailing wildcard, so `Bash(ls:*)` matches the same commands as
-  `Bash(ls *)`". The label is dropped and the routing left intact. Generic "deprecated syntax"
-  wording elsewhere is unaffected: real deprecations exist in the settings doc, so only the claim
-  attached to `:*` was wrong.
+- **`audit`: settings, hooks, MCP and permission syntax do not all live on the settings page.** The
+  skill attributed four upstream invariants to that one page and one audit phase. The page defers
+  hook format and complete permission-rule syntax to their own pages, and the skill's own checklist
+  already routes hook events elsewhere. Each is now resolved against its own official page when a
+  check needs it.
+
+- **`audit`, `audit-automation-gaps`: hook matchers are not simply "valid regex".** [Hooks
+  reference](https://code.claude.com/docs/en/hooks) makes the evaluation path depend on the matcher's
+  characters — letters, digits, `_`, `-`, spaces, `,` and `|` give an exact-string list; anything
+  else gives an unanchored JavaScript regex, so `Edit.*` also matches `NotebookEdit`. Both surfaces
+  now check the intended path and anchoring rather than syntactic validity.
+
+- **`audit-automation-gaps`: hook inventory reached one of five hook locations.** It now covers user,
+  project and local settings, managed policy settings, each enabled plugin's `hooks/hooks.json`, and
+  skill or agent frontmatter — an inventory missing four locations can report a gap that is already
+  filled.
+
+- **`audit-automation-gaps`: slowness alone no longer disqualifies a hook.** `async: true` runs a
+  command hook in the background for exactly the long-running case the gate rejected, so the gate now
+  turns on whether the hook must block. Async hooks cannot block tool calls or return decisions, and
+  only `command` hooks support it.
+
+- **`audit-automation-gaps`: the "Not scriptable" gate no longer claims to cover reasoning-only
+  concerns.** `prompt` hooks send a prompt to a model for single-turn evaluation and `agent` hooks
+  spawn a subagent that can use tools to verify conditions — those mechanize the concerns the gloss
+  assigned to the gate. Agent hooks are experimental and may change.
 
 ## [0.21.7]
 

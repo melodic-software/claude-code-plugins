@@ -40,7 +40,7 @@ Parse `$ARGUMENTS` for:
 
 - **`--fix`**: Apply corrections automatically (with user confirmation per fix). Without this flag, report-only mode
 - **Scope filter**: Limit audit to a single category. If omitted, run all categories
-  - `permissions` — deny/ask/allow rules, deprecated syntax, security gaps
+  - `permissions` — deny/ask/allow rules, security gaps
   - `mcp` — MCP server definitions, commands, env vars, connectivity
   - `hooks` — hook scripts exist, timeouts, matchers
   - `plugins` — enabled/disabled status, marketplace availability
@@ -119,7 +119,7 @@ Eight categories — names + the question each answers below; **full per-check c
 [context/validation-categories.md](context/validation-categories.md)** (read it when running Phase 2).
 
 - **A — Schema & Structure**: `$schema` present, no unknown keys, `mcpServers` not in `settings.local.json`
-- **B — Permissions**: baseline deny/ask patterns present (list in [reference/required-permissions.md](reference/required-permissions.md), plus any additional patterns the consuming repo's own rules declare as required), no deprecated `:*`, deny-rules-in-`settings.json`-only (bug #8961)
+- **B — Permissions**: baseline deny/ask patterns present (list in [reference/required-permissions.md](reference/required-permissions.md), plus any additional patterns the consuming repo's own rules declare as required), deny-rules-in-`settings.json`-only (bug #8961)
 - **C — MCP Servers**: commands resolve, `${VAR}` syntax, `disabledMcpjsonServers` match, documented disable reasons
 - **D — Hooks**: paths resolve + readable, sane timeouts, valid matchers, quoted `$CLAUDE_PROJECT_DIR`, no duplicates, valid events
 - **E — Plugins**: static checks (marketplace membership) + live upstream drift detection (`scripts/check-plugin-drift.sh` — ORPHAN/NEW/RENAME modes, auto-fix policy table in the context file)
@@ -207,7 +207,7 @@ After all fixes:
 
 ### Fixes the skill can apply
 
-Auto-fixable (add `$schema`, fix `:*` syntax, add/move deny rules, plugin orphan-removal +
+Auto-fixable (add `$schema`, add/move deny rules, plugin orphan-removal +
 new-as-`false` via `scripts/fix-plugin-drift.sh --yes`) vs judgment-required (new settings from docs,
 permission restructure, MCP config, orphan-`true` removal, heuristic rename) — full matrix in
 [context/procedures.md](context/procedures.md) "Phase 5 — fixes the skill can apply".
@@ -230,8 +230,8 @@ not-covered split, the ranked remedies, and the platform limit — carry it into
 implying the file is unreachable.
 
 CC settings schema, MCP server shape, hook event names, and permission glob syntax are upstream
-invariants documented at [code.claude.com/docs/en/settings](https://code.claude.com/docs/en/settings)
-and audited via the Phase 3 live doc fetch rather than asserted as fixed patterns here.
+invariants resolved against their own official pages when a check needs them, rather than asserted
+as fixed patterns here.
 
 ## Post-Audit
 

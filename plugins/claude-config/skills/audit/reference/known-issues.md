@@ -12,7 +12,7 @@ workaround inventories belong in the consuming repo's own rules files.
 | --- | --- | --- |
 | [#8961](https://github.com/anthropics/claude-code/issues/8961) | Deny rules in `settings.local.json` silently ignored | Place all deny rules in `settings.json` (project-level) |
 | [#36808](https://github.com/anthropics/claude-code/issues/36808) | npx is a `.cmd` on Windows; spawn without shell fails | Wrap npx-based MCP servers in a Node.js launcher script |
-| [#23869](https://github.com/anthropics/claude-code/issues/23869) | Permission auto-save writes deprecated `:*` colon syntax | Periodically check for `:*` in permissions |
+| [#23869](https://github.com/anthropics/claude-code/issues/23869) | Permission auto-save wrote `:*` prefix rules; closed as not planned | None — `:*` and the space form are equivalent |
 | [#15562](https://github.com/anthropics/claude-code/issues/15562) | No `"shell": true` support in `.mcp.json` | Node.js launcher script |
 | [#11731](https://github.com/anthropics/claude-code/issues/11731) | npx MCP servers fail on Windows | Node.js launcher script |
 | [#1254](https://github.com/anthropics/claude-code/issues/1254) | MCP `env` block may strip `process.env` | A launcher that merges rather than replaces the environment |

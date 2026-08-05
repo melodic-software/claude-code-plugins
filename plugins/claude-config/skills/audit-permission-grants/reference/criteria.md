@@ -83,7 +83,7 @@ self-granted permission rule is inert; the operative rule must be added by the o
 ## Related but out of scope (route elsewhere)
 
 The sibling `audit` skill owns config-**file correctness**: baseline deny/ask presence,
-`:*` syntax, overly broad patterns like `Bash(git *)`, and live plugin drift. This skill
+overly broad patterns like `Bash(git *)`, and live plugin drift. This skill
 owns a different question — grant **portability and auto-mode durability**, and who adds the operative
 rule. When a request is about baseline security patterns, deprecated syntax, or drift, route it to
 `audit` rather than answering here.
