@@ -51,11 +51,12 @@ Official contracts:
 4. When the plugin is enabled but no `dometrain`-scoped tool resolves, report **failed or
    unverified**:
    - If `ToolSearch` returned a connection error for the `dometrain` server, quote it verbatim.
-   - If this environment has tool search disabled (custom `ANTHROPIC_BASE_URL`,
-     `ENABLE_TOOL_SEARCH=false`, Bedrock, GCP Agent Platform, or a non-tool-search model), say so
-     explicitly and direct the user to run `/mcp` themselves — Claude Code does not report failed
-     connections to Claude in that configuration, and this skill must not claim knowledge it
-     doesn't have.
+   - Otherwise do not assert why: Claude Code does not report failed connections to Claude in a
+     configuration without tool search (custom `ANTHROPIC_BASE_URL`, `ENABLE_TOOL_SEARCH=false`, or
+     a model that doesn't support tool search), and on Amazon Bedrock, Google Cloud's Agent
+     Platform, and Microsoft Foundry — and this skill cannot inspect the environment to tell which
+     is in effect. Direct the user to run `/mcp` themselves rather than claim knowledge it doesn't
+     have.
    - After the user reconfigures the key, require `/reload-plugins` or a new session before
      rechecking tool availability.
 
