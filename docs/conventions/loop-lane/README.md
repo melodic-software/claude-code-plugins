@@ -266,13 +266,12 @@ alongside, never instead: the built-in `PushNotification` tool, and model-driven
 a chat plugin (UNVERIFIED here — confirm the plugin and its send capability against its own docs
 before relying on it). `PushNotification` "sends a desktop notification, and a phone push when
 Remote Control is connected"; it prompts for no permission, but the model decides when to call it.
-Its phone leg therefore inherits Remote Control's documented requirements — a claude.ai Pro, Max,
-Team, or Enterprise plan (API keys unsupported), a claude.ai login, a session talking directly to
-the Anthropic API, and accepted workspace trust — and additionally needs the separately documented
-mobile setup: the app installed and signed in on the same account, OS notifications allowed, and
-push enabled in `/config` (verified 2026-07-27:
-<https://code.claude.com/docs/en/tools-reference>, <https://code.claude.com/docs/en/remote-control>).
-Only the http hook is the deterministic leg.
+Its phone leg therefore inherits every condition the Remote Control page enumerates under
+Requirements, plus its mobile-push setup steps. One condition matters here in particular:
+`DISABLE_TELEMETRY`, `DO_NOT_TRACK`, `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC`, and
+`DISABLE_GROWTHBOOK` each disable the feature-flag evaluation Remote Control depends on (verified
+2026-08-04: <https://code.claude.com/docs/en/tools-reference>,
+<https://code.claude.com/docs/en/remote-control>). Only the http hook is the deterministic leg.
 
 **The seam binds to the session's project, never to the repository a lane targets.** The record
 path is relative to the session's checkout, and the hook that fires is the one in that session's

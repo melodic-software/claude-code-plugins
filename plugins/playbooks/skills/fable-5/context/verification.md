@@ -57,7 +57,7 @@ Verification support exists before anyone writes anything custom, and it spans t
 
 The two rows carrying no harness artifact are the ones to read twice:
 
-- **Spec validation's absence is dated, not permanent.** Verified 2026-08-03 against the bundled-skill rosters in [Skills](https://code.claude.com/docs/en/skills) and [Slash commands](https://code.claude.com/docs/en/commands); recheck if a release note adds one.
+- **Spec validation's absence is dated, not permanent.** Verified 2026-08-03 against the bundled-skill rosters in [Skills](https://code.claude.com/docs/en/skills) and [Commands](https://code.claude.com/docs/en/commands); recheck if a release note adds one.
 - **Managed Agents rubrics belong to a different product.** The automatic grader-and-rework loop exists in that service, not in this harness; inside a session the equivalent is a construction you assemble (a fresh-context subagent as grader). The documented route into that product is the bundled `/claude-api managed-agents-onboard` skill.
 
 **Provided never means automatic.** These surfaces span categories the official docs keep apart — `/verify` and `/code-review` are bundled prompt-based skills, not built-in CLI commands, and Code Review is a hosted service. Since v2.1.215 `/verify` and `/code-review` run only when you invoke them; Code Review is research preview, limited to Team and Enterprise, unavailable under Zero Data Retention, and enabled per repository by an Owner. Check plan, version, and invocation expectations against those pages before a project's verification story depends on any of them. Pages verified 2026-08-03.

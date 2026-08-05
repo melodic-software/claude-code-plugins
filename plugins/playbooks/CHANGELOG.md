@@ -4,6 +4,44 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.6.19]
+
+### Fixed
+
+- **`boris`: the Remote Control tip's plan list is amended against the live page** (playbooks
+  0.6.16 → 0.6.19), at `skills/boris/reference/advanced.md` section 35. The tip, sourced from a
+  March 2026 tweet, said Remote Control is "Available on Max, Team, and Enterprise (v2.1.74+)".
+  The live page now says the feature "is in research preview and available on all plans", and its
+  Requirements section reads "available on Pro, Max, Team, and Enterprise plans. API keys are not
+  supported. On Team and Enterprise, an Owner must first enable the Remote Control toggle".
+
+  The tweet's wording is preserved and a dated amendment blockquote carries the correction,
+  following the precedent already set at `reference/autonomy.md` section 72 for a tweet-sourced
+  claim that upstream has moved past — the tip stays a faithful record of what was said, and the
+  amendment owns what is true now. The blockquote points at the Requirements section rather than
+  restating it, naming the condition families it carries (authentication, API endpoint,
+  feature-flag evaluation, workspace trust) so a reader knows what they are being sent to read,
+  and carries a recheck trigger. `reference/*.md` files are hand-integrated distillations, not
+  generated output — `scripts/update.sh` states that integration is manual — so the amendment
+  survives the next upstream sync.
+
+- **`fable-5`: the verification chapter's link text matches the page it points at** (playbooks
+  0.6.16 → 0.6.19), at `skills/fable-5/context/verification.md`. The bundled-skill roster citation
+  read "[Slash commands]"; that page's H1 is now "Commands". The URL was already correct, so only
+  the link text changed.
+
+### Changed
+
+- **`fable-5` model adaptation: the Opus 4.8 guide's dating record now reflects a re-read**
+  (playbooks 0.6.16 → 0.6.19), at `reference/model-adaptation/opus-4-8.md`. The Sources note said
+  the Opus 4.8 prompting guide "has not been re-read at all" since the 2026-07-06 fetch. It was
+  re-read 2026-08-04 and every assertion the file draws from it still holds: literal instruction
+  following at lower effort, strict effort adherence with `xhigh` for coding and `high` as the
+  intelligence-sensitive floor, reasoning favored over tool calls, fewer subagents by default,
+  regular native progress updates, response-length calibration, and the code-review-harness recall
+  effect with coverage-before-filtering as the remedy. The note now records the re-read date and
+  the no-material-drift finding instead of an absence.
+
 ## [0.6.16]
 
 ### Added
