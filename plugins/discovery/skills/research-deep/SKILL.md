@@ -93,7 +93,7 @@ This variant tracks `/research`'s conventions — same discipline file, same art
 - **Dispatching this skill itself.** It must run in main context: `Workflow` is unavailable in every
   non-fork subagent, and **every** tier needs the `Agent` tool — the N-topic fan-out to spawn topic
   workers, and all four paths to close the post-dispatch boundary — whose availability inside a
-  subagent depends on a nesting default that has moved three times, and which, inside a fork, cannot
+  subagent depends on a nesting default that has moved twice in recent releases, and which, inside a fork, cannot
   spawn a further fork at all. A dispatched `/research-deep` therefore risks silently losing Tier 1,
   the N-topic fan-out, and the verification boundary that makes any tier's artifact trustworthy. The
   sibling `/research` is the one that dispatches.
