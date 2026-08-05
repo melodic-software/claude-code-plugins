@@ -3,6 +3,34 @@
 All notable changes to the `claude-memory` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.5]
+
+### Fixed
+
+- **Re-align auto-memory and CLAUDE.md reference facts with the live memory doc**
+  (claude-memory 0.5.4 → 0.5.5; criteria 1.5.0 → 1.5.1), verified against
+  code.claude.com/docs/en/memory on 2026-08-04. Two drifted facts in
+  `audit`'s `reference/official-guidance.md` corrected: `@import` recursion depth is 4 hops, not 5;
+  and `autoMemoryDirectory` is read from any settings scope (user, project, local, policy,
+  `--settings`) with project/local values gated behind the workspace trust dialog — the prior claim
+  that project settings are not accepted no longer matches the docs. M1's measurement now mirrors
+  the documented limit check: YAML frontmatter and block-level HTML comments are stripped before
+  the MEMORY.md index loads, so they don't count toward the 200-line/25KB limits (backing quote
+  added to `official-guidance.md`). The deterministic spine follows the same rule:
+  `memory-dir-stats.sh --memory-lines` now measures post-strip content instead of raw `wc -l`, a
+  new `--memory-bytes` mode covers the 25KB limb, and the SKILL.md pre-computed context reports
+  both figures so M1 never disagrees with its own injected stats. Also: the `audit` SKILL.md scope
+  table states the 25KB limb of the MEMORY.md load limit alongside the 200-line one, and a quote
+  attribution names the page's current "Set up a project CLAUDE.md" section (formerly
+  "Project memory"). The strip counts an unterminated block as content rather than swallowing the
+  rest of the file: a leading thematic break or frontmatter clipped mid-file previously reported
+  zero, and since M1 is a `[FAIL]`-severity size gate that zero always passes, the gate could not
+  fire. A fenced block inside a comment no longer toggles fence state, and text sharing a line with
+  a comment's open or close is counted as the loaded content it is. `criteria.md` M1 now records
+  the four readings the strip applies and marks them as this plugin's reading, not doc-derived —
+  the memory doc states the fenced-code carve-out for CLAUDE.md only and is silent on it for
+  MEMORY.md.
+
 ## [0.5.4]
 
 ### Changed
