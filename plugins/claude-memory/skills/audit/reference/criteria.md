@@ -1,7 +1,7 @@
 # Memory Health Criteria
 
-Version: 1.5.1
-Last updated: 2026-08-04
+Version: 1.5.2
+Last updated: 2026-08-05
 Source: Official Claude Code docs (code.claude.com/docs/en/memory, code.claude.com/docs/en/best-practices, code.claude.com/docs/en/sub-agents, code.claude.com/docs/en/skills)
 
 This file defines every check the audit runs. Each check has a severity, description, and instructions
@@ -319,10 +319,13 @@ Four readings the strip applies, so a hand count matches the reported figures:
 1. A block counts only once it closes, and a leading `---` opens frontmatter only for as long as
    what follows is shaped like frontmatter. An opening `---` or `<!--` with no closing delimiter is
    ordinary content and is counted. So is a leading `---` whose block reaches a line that is
-   neither blank, a comment, nor a `key:` mapping entry, or that runs past 20 lines — markdown
-   carries thematic breaks freely, so the next `---` in a file is usually another break rather
-   than a frontmatter close, and without both bounds the entire span between the two would be
-   stripped. A leading thematic break, or frontmatter clipped mid-file, must not blank the count.
+   neither blank nor a `key:` mapping entry, or that runs past 20 lines. Markdown carries
+   thematic breaks freely, so the next `---` in a file is usually another break rather than a
+   frontmatter close, and without both bounds the entire span between the two would be stripped.
+   A leading thematic break, or frontmatter clipped mid-file, must not blank the count. A `#`
+   line ends the block: it is a comment to YAML but a heading to markdown, and headings are
+   loaded content. When the block ends this way nothing in it is stripped — the opening `---`,
+   every entry held so far, and the rest of the block through its closing `---` all count.
 2. A block-level comment occupies whole lines. Text sharing a line with the comment's open or
    close loads, and is counted — including text between two comments on one line, since each
    comment ends at the first `-->` after its own opener.
