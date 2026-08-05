@@ -18,7 +18,7 @@ naming how much a violation hurts. They are independent — a low-authority crit
 | **SPEC-SHOULD** | The MCP spec recommends it (**SHOULD**) | MCP spec |
 | **SPEC-OPTIONAL** | The spec defines it as OPTIONAL — a missing value is never a spec violation | MCP spec |
 | **ANTHROPIC** | Anthropic tool-design engineering guidance | Anthropic article |
-| **OPINION** | A design judgment with no upstream mandate (e.g. a client-specific limit or heuristic) | this skill |
+| **OPINION** | A design judgment with no upstream mandate (e.g. a client-specific limit or heuristic) | this skill — for C4 and C17-C19 the client-behavior facts are cited from the Claude Code page, which documents that behavior rather than mandating the criterion |
 
 Severity levels:
 
@@ -83,10 +83,22 @@ When auditing SOURCE, accept each SDK's native spelling of these hints as satisf
 Claude-Code-specific per-tool annotations set in the tool's `tools/list` response `_meta` object,
 documented in the Claude Code MCP page cited above — client behavior, not MCP-spec requirements, so
 every one is authority OPINION. A missing annotation here is at most info (an advisory that the server
-could benefit). The defect case is a declared-but-ineffective value that Claude Code ignores or caps:
-WARN generally, FAIL for `anthropic/requiresUserInteraction`, where a silently ignored value ships a
-consent gate that never fires. When auditing SOURCE, accept each SDK's native way of attaching `_meta`
-to a tool's `tools/list` entry.
+could benefit), and for C19 not a finding at all. Two defect shapes:
+
+- **Declared but ineffective** — Claude Code caps or ignores the value (C17 above the 500,000-character
+  ceiling or on an image-returning tool; C18 set to anything but the JSON boolean `true`). WARN
+  generally, FAIL for `anthropic/requiresUserInteraction`, where a silently ignored value ships a
+  consent gate that never fires.
+- **Declared, honored, and unwarranted** — Claude Code applies the value exactly as asked, and that is
+  the cost (C19 declared where no turn needs the tool, or across many of a server's tools, spending
+  session-start context deferral would have saved). WARN.
+
+When auditing SOURCE, accept each SDK's native way of attaching `_meta` to a tool's `tools/list` entry
+— the `meta=` dict argument on Python's `@mcp.tool`, the `_meta` field of the config object passed to
+TypeScript's `server.registerTool`, .NET's repeatable `[McpMeta("<key>", <value>)]` attribute on the
+`[McpServerTool]` method — not only a literal `_meta` key in source; the SDK maps them to the wire-level
+field. C18 turns on the value's JSON type, so read it in that language's own syntax — see
+**meta-extraction** in [server-discovery.md](server-discovery.md).
 
 | # | Criterion | Authority | Severity | How to evaluate |
 |---|-----------|-----------|----------|-----------------|

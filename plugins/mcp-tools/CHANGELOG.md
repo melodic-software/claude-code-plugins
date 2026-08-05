@@ -12,8 +12,17 @@ All notable changes to the `mcp-tools` plugin are documented here. Format follow
   (per-tool result-size ceiling, hard-capped at 500,000 characters),
   `anthropic/requiresUserInteraction` (per-call consent prompt; JSON boolean
   `true` only; Claude Code v2.1.199+), and `anthropic/alwaysLoad` (per-tool
-  tool-search deferral exemption). Missing is at most an info advisory; a
-  declared value Claude Code ignores or caps is the defect case.
+  tool-search deferral exemption). Missing is at most an info advisory. The
+  defect splits two ways: declared-but-ineffective (C17 over the ceiling or on
+  an image-returning tool, C18 set to anything but JSON `true`) and
+  declared-honored-but-unwarranted (C19 over-declared, spending session-start
+  context deferral would have saved).
+- A `meta-extraction` rule per SDK in `reference/server-discovery.md`, so
+  C17-C19 have the extraction contract every other criterion already had:
+  Python's `meta=` argument on `@mcp.tool`, the `_meta` field of the config
+  object passed to TypeScript's `server.registerTool`, and .NET's repeatable
+  `[McpMeta]` attribute. Each entry names how that language spells the JSON
+  boolean `true` versus a string or a number, which is what C18's FAIL turns on.
 
 ### Changed
 
@@ -21,8 +30,17 @@ All notable changes to the `mcp-tools` plugin are documented here. Format follow
   Code truncates tool descriptions and server instructions at 2KB each.
   `discover.sh` emits per-tool records only, so Phase 2 gains a once-per-server
   step that resolves `instructions` from the server's construction site; without
-  it the new clause would have had no input to audit. A server declaring no
-  `instructions` is recorded not applicable rather than passing.
+  it the new clause would have had no input to audit. That construction site is
+  usually not one of the discovered tool files, so the step searches the
+  server's subtree and names the per-language spelling (`instructions=`,
+  `ServerOptions.instructions`, `McpServerOptions.ServerInstructions`). A server
+  declaring no `instructions` is recorded not applicable rather than passing;
+  one whose construction site is out of scan scope is recorded undetermined.
+- The OPINION authority row now states that C4 and C17-C19 draw their
+  client-behavior facts from the Claude Code page — the tag stays OPINION
+  because that page documents Claude Code's behavior rather than mandating the
+  criterion, but the Source column no longer reads as if the facts were
+  ungrounded.
 
 ## [0.2.2]
 

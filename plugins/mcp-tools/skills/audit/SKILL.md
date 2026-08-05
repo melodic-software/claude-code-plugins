@@ -24,9 +24,10 @@ and naming issues before they degrade LLM tool selection accuracy.
 ## Server discovery configuration
 
 Phase 1 enumerates MCP servers and their tool source files by scanning the project for the per-language
-tool markers. The `tool-marker`, `name-extraction`, and `description-extraction` rules are upstream
-MCP-SDK conventions, stable across repos. See [reference/server-discovery.md](reference/server-discovery.md)
-for the per-language discovery rules and how servers are grouped.
+tool markers. The `tool-marker`, `name-extraction`, `description-extraction`, and `meta-extraction`
+rules are upstream MCP-SDK conventions, stable across repos. See
+[reference/server-discovery.md](reference/server-discovery.md) for the per-language discovery rules and
+how servers are grouped.
 
 ## Arguments
 
@@ -49,9 +50,11 @@ phases and tick each as it completes. Phase 2 may run subagent fan-out for ≥5 
 
 ### Phase 2: Evaluate against checklist
 
-Read each `Tool file:` from Phase 1. Extract descriptions, parameters, and annotations per
-[reference/server-discovery.md](reference/server-discovery.md) language rules. Load the detailed
-checklist from [reference/checklist.md](reference/checklist.md).
+Read each `Tool file:` from Phase 1. Per the language rules in
+[reference/server-discovery.md](reference/server-discovery.md), extract descriptions, parameters,
+wire-level annotations (C12-C14), and the tool's `_meta` object (C17-C19) — the last via
+**meta-extraction**, recording each key's JSON type and not merely its presence, because C18 turns on
+it. Load the detailed checklist from [reference/checklist.md](reference/checklist.md).
 
 Once per server, also resolve its `instructions` field — see **Server instructions** in
 [reference/server-discovery.md](reference/server-discovery.md) — and evaluate C4's per-server clause

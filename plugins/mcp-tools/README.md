@@ -12,7 +12,9 @@ The criteria come from three upstream authorities, cited so the current text alw
 ## What it checks
 
 19 criteria (C1-C19) across seven categories, each tagged by authority (SPEC-MUST / SPEC-SHOULD /
-SPEC-OPTIONAL / ANTHROPIC / OPINION) so you can tell a protocol requirement from a style preference:
+SPEC-OPTIONAL / ANTHROPIC / OPINION) so you can tell a protocol requirement from a style preference.
+OPINION is the skill's own judgment — including the criteria built on Claude-Code-specific client
+behavior, which the Claude Code page documents rather than mandates:
 
 - **Description** — states what / when / returns, fits the client size budget (2KB in Claude Code, for tool descriptions and server instructions alike), leaks no implementation detail.
 - **Parameters** — every parameter described, guidance and format examples, documented optional defaults.
