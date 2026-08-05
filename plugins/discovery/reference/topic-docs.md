@@ -35,5 +35,5 @@ worktrees (one-way, at creation time) where the consuming repo materializes it. 
 by-value boundary is the checkout, not the process: the `-deep` dispatch resolves to `research-deep`,
 whose isolated subagent runs in the parent's checkout and writes `RESEARCH.md` there directly
 (already visible to the parent), returning a summary by value; a worker dispatched into its **own**
-checkout (worktree or background session)
-returns findings by value instead, and the parent writes the memory slice.
+checkout (worktree or background session) returns findings by value instead, and the parent writes
+the memory slice.

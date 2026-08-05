@@ -40,9 +40,9 @@ relaxes no discipline.
   own project's `CLAUDE.md` and rules; where none exist, the skills self-discover
   (llms.txt / sitemap probing, canonical-home identification).
 - **Graceful degrade.** Adjacent capabilities — a workflow engine, subagents,
-  synthesis MCP servers, documentation agents — are used when present
-  and substituted when absent; no phase blocks on a missing tool, and substitutions
-  are documented as gaps rather than silently lowering the bar.
+  synthesis MCP servers, documentation agents — are used when present and substituted when absent;
+  no phase blocks on a missing tool, and substitutions are documented as gaps rather than silently
+  lowering the bar.
 
 ## Install
 

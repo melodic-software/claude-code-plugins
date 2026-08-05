@@ -40,8 +40,8 @@
   `/research-deep` must run inline cited the `Workflow` tool alone — which, once that claim is
   correctly scoped to non-fork subagents, licenses a fork to dispatch the skill. The rationale now
   also carries the `Agent`-spawn leg that `skills/research-deep/SKILL.md`'s *Dispatching this skill
-  itself* gotcha already stated, and which holds for forks too: every tier needs `Agent`, and a fork
-  cannot spawn a further fork at all.
+  itself* gotcha already stated, and which holds for forks too: at the configurable depth limit a
+  fork keeps `Agent` listed but the spawn errors, so no dispatched context guarantees it.
   - `README.md` — the `/discovery:research-deep` row.
   - `skills/research-deep/SKILL.md` — the frontmatter `description` and the Purpose paragraph.
 
