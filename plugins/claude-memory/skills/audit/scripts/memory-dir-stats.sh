@@ -98,8 +98,9 @@ fi
 # closes is ordinary content, so those lines are held and flushed at EOF instead of
 # swallowed: a leading thematic break or a clipped frontmatter block would otherwise
 # report 0, and M1 is a [FAIL]-severity size gate that 0 always passes — it could
-# never fire. MEMORY.md carries frontmatter by design (Claude Code stamps a `modified`
-# field into any memory file that has it), so this is a live shape, not a corner case.
+# never fire. A MEMORY.md that has frontmatter keeps it stamped (Claude Code writes a
+# `modified` field into any memory file that already has frontmatter, and never adds
+# frontmatter to one that has none), so this is a live shape, not a corner case.
 #
 # Closing is necessary but not sufficient: a leading `---` only opens frontmatter if
 # what follows is shaped like frontmatter. Markdown carries thematic breaks freely, so
@@ -116,12 +117,14 @@ fi
 # while the under-count they replace stopped it firing at all.
 #
 # A block-level comment occupies whole lines; text sharing a line with the comment's
-# open or close is loaded content and survives. Both close matches stop at the FIRST
-# `-->` on the line rather than the last: awk's ERE has no lazy quantifier, and a
-# `.*-->` would run to the last one, blanking the text between two comments on one
-# line — `([^-]|-[^-]|--+[^->])*` is that bound spelled as a body that cannot itself
-# contain `-->`. Only the first comment on a line is stripped, so a second one counts
-# as content: an over-count, the direction every other bound here also fails toward.
+# open or close is loaded content and survives. Each comment ends at the FIRST `-->`
+# after its opener and the line is then re-scanned, because one line can carry several:
+# matching to the last `-->` swallows the text between two of them, and stopping after
+# the first leaves the rest counted as content. `index`/`substr` walk the line instead
+# of a regex — awk's ERE has no lazy quantifier, and spelling "up to the first close"
+# as a bounded complement reads far worse than the scan. Only whole `<!-- ... -->`
+# spans are removed, so a residue still holding text always survives; only a line that
+# is entirely comment disappears.
 #
 # Comments inside fenced code blocks are preserved — a comment inside a fence is code,
 # not block-level markdown. The memory doc states that explicitly for CLAUDE.md and says
@@ -134,6 +137,19 @@ fi
 strip_unloaded() {
   tr -d '\r' <"$index" | awk '
     BEGIN { fmcap = 20 }
+    function emit(s) { if (s ~ /[^[:space:]]/) print s }
+    # Remove every complete comment from s, each ending at the first `-->` after its
+    # own opener. An opener with no close takes the rest of s and arms `incomment`,
+    # holding the raw remainder so an unterminated block still counts at EOF.
+    function uncomment(s,   p, q, out) {
+      while ((p = index(s, "<!--")) > 0) {
+        out = out substr(s, 1, p - 1)
+        q = index(substr(s, p + 4), "-->")
+        if (q == 0) { incomment = 1; pending = substr(s, p) "\n"; return out }
+        s = substr(s, p + q + 6)
+      }
+      return out s
+    }
     NR == 1 && $0 == "---" { pending = $0 "\n"; fm = 1; next }
     fm == 1 {
       if ($0 == "---") { fm = 2; pending = ""; next }
@@ -151,18 +167,22 @@ strip_unloaded() {
     }
     incomment {
       pending = pending $0 "\n"
-      if (!sub(/^([^-]|-[^-]|--+[^->])*--+>/, "")) next
+      close_at = index($0, "-->")
+      if (close_at == 0) next
       incomment = 0; pending = ""
-      if ($0 ~ /[^[:space:]]/) print
+      emit(uncomment(substr($0, close_at + 3)))
       next
     }
     /^[[:space:]]*```/ { fence = !fence; print; next }
     fence { print; next }
     /^[[:space:]]*<!--/ {
-      pending = $0 "\n"
-      if (!sub(/^[[:space:]]*<!--([^-]|-[^-]|--+[^->])*--+>/, "")) { incomment = 1; next }
-      pending = ""
-      if ($0 ~ /[^[:space:]]/) print
+      residue = uncomment($0)
+      # An unterminated opener holds its own raw text. Whitespace that loaded ahead of
+      # it belongs to that held block too, so an indented opener keeps its indent.
+      # Real text is emitted instead of held: folding it into pending would lose it
+      # outright once the comment closes and the held block is dropped.
+      if (incomment && residue !~ /[^[:space:]]/) pending = residue pending
+      emit(residue)
       next
     }
     { print }

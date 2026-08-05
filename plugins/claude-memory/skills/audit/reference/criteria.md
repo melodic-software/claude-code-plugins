@@ -324,9 +324,8 @@ Four readings the strip applies, so a hand count matches the reported figures:
    than a frontmatter close, and without both bounds the entire span between the two would be
    stripped. A leading thematic break, or frontmatter clipped mid-file, must not blank the count.
 2. A block-level comment occupies whole lines. Text sharing a line with the comment's open or
-   close loads, and is counted. Only the first comment on a line is stripped — a close match ends
-   at the first `-->`, not the last — so a second complete comment on that same line counts as
-   content rather than blanking the text between the two.
+   close loads, and is counted — including text between two comments on one line, since each
+   comment ends at the first `-->` after its own opener.
 3. Comments inside fenced code blocks are preserved: a comment inside a fence is code, not
    block-level markdown.
 4. Byte counts measure LF-normalized content, so a CRLF index reports about one byte per line

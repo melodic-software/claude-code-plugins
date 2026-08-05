@@ -181,34 +181,70 @@ assert_eq "content after a single-line comment survives" "1" "$(run "$H3" --memo
 printf -- "<!-- a\nb --> TAIL\nreal\n" >"$M3/MEMORY.md"
 assert_eq "content after a multi-line comment's close survives" "2" "$(run "$H3" --memory-lines)"
 
-# --- Case 4f: a `-->` match must stop at the FIRST close on the line. awk's ERE has no
-# lazy quantifier, so a `.*-->` runs to the LAST `-->` and blanks everything between two
-# comments on one line — an UNDER-count on this [FAIL]-severity gate, the one direction
-# the strip must never take. Only the first comment on a line is stripped, so a second
-# one counts as content. Byte expectations below are the measured post-strip size. ---
+# --- Case 4f: one line can carry several comments. Each ends at the FIRST `-->` after
+# its own opener, and the line is re-scanned for the next: matching to the LAST `-->`
+# blanks the text between two comments, an UNDER-count on this [FAIL]-severity gate and
+# the one direction the strip must never take. Only whole comment spans are removed, so
+# text always survives. Byte expectations below are the measured post-strip size. ---
 printf -- "<!-- a --> KEPT TEXT <!-- b -->\n" >"$M3/MEMORY.md"
 assert_eq "text between two comments on one line survives" "1" "$(run "$H3" --memory-lines)"
-assert_eq "text between two comments keeps its bytes" "22" "$(run "$H3" --memory-bytes)"
+assert_eq "text between two comments keeps its bytes" "12" "$(run "$H3" --memory-bytes)"
 
-# The close path shows the same rule in bytes rather than lines: the line prints either
-# way, so only its byte count reveals whether the text before a reopened comment survived.
+# The close path re-scans too: a line closing one comment may open and close another.
 printf -- "<!-- open\nmid\n--> KEPT ONE <!-- again --> KEPT TWO\nplain\n" >"$M3/MEMORY.md"
 assert_eq "a close followed by a reopen counts both texts" "2" "$(run "$H3" --memory-lines)"
-assert_eq "a close followed by a reopen keeps its bytes" "40" "$(run "$H3" --memory-bytes)"
+assert_eq "a close followed by a reopen keeps its bytes" "26" "$(run "$H3" --memory-bytes)"
 
-# The bound must not cost an ordinary block comment its strip, on either limb.
+# Both texts on an open line, with and without a tail after the second comment.
+printf -- "<!-- a --> mid <!-- b --> tail\n" >"$M3/MEMORY.md"
+assert_eq "two comments plus a tail keep every fragment" "11" "$(run "$H3" --memory-bytes)"
+printf -- "<!-- a --> mid <!-- b -->\n" >"$M3/MEMORY.md"
+assert_eq "two comments with no tail keep the middle" "6" "$(run "$H3" --memory-bytes)"
+
+# A close line that reopens and re-closes, and one whose text is followed by a stray
+# close: the second must keep its whole line rather than reporting nothing.
+printf -- "<!-- a\nb --> mid <!-- c -->\nreal\n" >"$M3/MEMORY.md"
+assert_eq "a close line that reopens and recloses counts both" "2" "$(run "$H3" --memory-lines)"
+assert_eq "a close line that reopens and recloses keeps bytes" "11" "$(run "$H3" --memory-bytes)"
+printf -- "<!-- a\nb --> real content -->\n" >"$M3/MEMORY.md"
+assert_eq "text before a stray close is not dropped" "1" "$(run "$H3" --memory-lines)"
+assert_eq "text before a stray close keeps its bytes" "18" "$(run "$H3" --memory-bytes)"
+
+# The re-scan must not cost an ordinary block comment its strip, on either limb.
 printf -- "# H\n<!--\nsecret\n-->\nvisible\n" >"$M3/MEMORY.md"
 assert_eq "a plain block comment still strips" "2" "$(run "$H3" --memory-lines)"
 assert_eq "a plain block comment still strips its bytes" "12" "$(run "$H3" --memory-bytes)"
 
-# Idiom guards: the bounded-complement body must still close on an empty comment, on a
-# body holding a lone dash, and on a closer padded with extra dashes.
+# Scan guards: the walk must still close on an empty comment, on a body holding a lone
+# dash, and on a closer padded with extra dashes.
 printf -- "<!---->\nreal\n" >"$M3/MEMORY.md"
 assert_eq "an empty comment strips" "1" "$(run "$H3" --memory-lines)"
 printf -- "<!-- a - b --> tail\n" >"$M3/MEMORY.md"
 assert_eq "a lone dash in a comment body does not close it" "6" "$(run "$H3" --memory-bytes)"
 printf -- "<!-- a ---->\ntail\n" >"$M3/MEMORY.md"
 assert_eq "a multi-dash closer still closes" "1" "$(run "$H3" --memory-lines)"
+
+# A line can close one comment and open an unterminated one. What loaded before the
+# opener is emitted at once and only the unterminated fragment is held, so that text is
+# neither counted twice when the flush lands nor lost if the comment closes later.
+printf -- "<!-- a --> KEEP <!-- open\nnext\n" >"$M3/MEMORY.md"
+assert_eq "text before an unterminated opener counts once" "3" "$(run "$H3" --memory-lines)"
+assert_eq "text before an unterminated opener keeps its bytes" "22" "$(run "$H3" --memory-bytes)"
+
+# The same shape with the comment closing further down. The held block is dropped on
+# close, and the text that loaded before the opener must survive that drop — folding it
+# into the held block instead of emitting it would lose it outright here.
+printf -- "<!-- a --> KEEP <!-- open\nstill\n--> tail\n" >"$M3/MEMORY.md"
+assert_eq "text before an opener survives a later close" "2" "$(run "$H3" --memory-lines)"
+assert_eq "text before an opener keeps bytes past a close" "13" "$(run "$H3" --memory-bytes)"
+
+# Only whitespace ahead of the opener joins the held block: an indented opener keeps its
+# indent, while a comment already stripped off the line is not counted a second time.
+printf -- "  <!-- note\na\n" >"$M3/MEMORY.md"
+assert_eq "an indented unterminated opener keeps its indent" "2" "$(run "$H3" --memory-lines)"
+assert_eq "an indented unterminated opener counts its bytes" "14" "$(run "$H3" --memory-bytes)"
+printf -- "<!-- a --><!-- open\nnext\n" >"$M3/MEMORY.md"
+assert_eq "a stripped comment is not re-counted by the hold" "15" "$(run "$H3" --memory-bytes)"
 
 # --- Case 5: fresh project — no memory dir at all: both modes report 0, exit 0 ---
 H5="$TEST_TMPDIR/h5"
