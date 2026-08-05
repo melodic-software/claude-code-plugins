@@ -113,6 +113,10 @@ bodies. The verification record above carries the recheck trigger, and the relat
 attested, so a regression is recoverable rather than silent — but the dependency is real and is the
 price of the model-neutral host.
 
+*Update (2026-08-04, live fetch):* superseded by the update under Context — the substitution is a
+documented contract for skill and agent content, so the dependency is on documented behavior and the
+per-upgrade recheck it prescribed is retired. The relative-path fallback stays attested.
+
 Chapter paths in `fable-5`'s `SKILL.md` are no longer uniform: twelve chapters resolve under
 `context/` by bare filename while the adaptation chapters carry a full interpolated path. The routing
 table's preamble states the exception rather than leaving a reader to infer it.
