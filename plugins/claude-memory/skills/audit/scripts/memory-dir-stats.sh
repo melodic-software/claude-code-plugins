@@ -116,10 +116,17 @@ fi
 # while the under-count they replace stopped it firing at all.
 #
 # A block-level comment occupies whole lines; text sharing a line with the comment's
-# open or close is loaded content and survives. Comments inside fenced code blocks are
-# preserved — a comment inside a fence is code, not block-level markdown. The memory
-# doc states that explicitly for CLAUDE.md and says nothing either way for MEMORY.md;
-# criteria.md M1 records the reading rather than claiming it as documented.
+# open or close is loaded content and survives. Both close matches stop at the FIRST
+# `-->` on the line rather than the last: awk's ERE has no lazy quantifier, and a
+# `.*-->` would run to the last one, blanking the text between two comments on one
+# line — `([^-]|-[^-]|--+[^->])*` is that bound spelled as a body that cannot itself
+# contain `-->`. Only the first comment on a line is stripped, so a second one counts
+# as content: an over-count, the direction every other bound here also fails toward.
+#
+# Comments inside fenced code blocks are preserved — a comment inside a fence is code,
+# not block-level markdown. The memory doc states that explicitly for CLAUDE.md and says
+# nothing either way for MEMORY.md; criteria.md M1 records the reading rather than
+# claiming it as documented.
 #
 # tr guards Git Bash CRLF, so both counts measure LF-normalized content (see the
 # assumption recorded in criteria.md M1); the arithmetic expansion strips the leading
@@ -144,7 +151,7 @@ strip_unloaded() {
     }
     incomment {
       pending = pending $0 "\n"
-      if (!sub(/^.*-->/, "")) next
+      if (!sub(/^([^-]|-[^-]|--+[^->])*--+>/, "")) next
       incomment = 0; pending = ""
       if ($0 ~ /[^[:space:]]/) print
       next
@@ -153,7 +160,7 @@ strip_unloaded() {
     fence { print; next }
     /^[[:space:]]*<!--/ {
       pending = $0 "\n"
-      if (!sub(/^[[:space:]]*<!--.*-->/, "")) { incomment = 1; next }
+      if (!sub(/^[[:space:]]*<!--([^-]|-[^-]|--+[^->])*--+>/, "")) { incomment = 1; next }
       pending = ""
       if ($0 ~ /[^[:space:]]/) print
       next

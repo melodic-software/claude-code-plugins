@@ -181,6 +181,35 @@ assert_eq "content after a single-line comment survives" "1" "$(run "$H3" --memo
 printf -- "<!-- a\nb --> TAIL\nreal\n" >"$M3/MEMORY.md"
 assert_eq "content after a multi-line comment's close survives" "2" "$(run "$H3" --memory-lines)"
 
+# --- Case 4f: a `-->` match must stop at the FIRST close on the line. awk's ERE has no
+# lazy quantifier, so a `.*-->` runs to the LAST `-->` and blanks everything between two
+# comments on one line — an UNDER-count on this [FAIL]-severity gate, the one direction
+# the strip must never take. Only the first comment on a line is stripped, so a second
+# one counts as content. Byte expectations below are the measured post-strip size. ---
+printf -- "<!-- a --> KEPT TEXT <!-- b -->\n" >"$M3/MEMORY.md"
+assert_eq "text between two comments on one line survives" "1" "$(run "$H3" --memory-lines)"
+assert_eq "text between two comments keeps its bytes" "22" "$(run "$H3" --memory-bytes)"
+
+# The close path shows the same rule in bytes rather than lines: the line prints either
+# way, so only its byte count reveals whether the text before a reopened comment survived.
+printf -- "<!-- open\nmid\n--> KEPT ONE <!-- again --> KEPT TWO\nplain\n" >"$M3/MEMORY.md"
+assert_eq "a close followed by a reopen counts both texts" "2" "$(run "$H3" --memory-lines)"
+assert_eq "a close followed by a reopen keeps its bytes" "40" "$(run "$H3" --memory-bytes)"
+
+# The bound must not cost an ordinary block comment its strip, on either limb.
+printf -- "# H\n<!--\nsecret\n-->\nvisible\n" >"$M3/MEMORY.md"
+assert_eq "a plain block comment still strips" "2" "$(run "$H3" --memory-lines)"
+assert_eq "a plain block comment still strips its bytes" "12" "$(run "$H3" --memory-bytes)"
+
+# Idiom guards: the bounded-complement body must still close on an empty comment, on a
+# body holding a lone dash, and on a closer padded with extra dashes.
+printf -- "<!---->\nreal\n" >"$M3/MEMORY.md"
+assert_eq "an empty comment strips" "1" "$(run "$H3" --memory-lines)"
+printf -- "<!-- a - b --> tail\n" >"$M3/MEMORY.md"
+assert_eq "a lone dash in a comment body does not close it" "6" "$(run "$H3" --memory-bytes)"
+printf -- "<!-- a ---->\ntail\n" >"$M3/MEMORY.md"
+assert_eq "a multi-dash closer still closes" "1" "$(run "$H3" --memory-lines)"
+
 # --- Case 5: fresh project — no memory dir at all: both modes report 0, exit 0 ---
 H5="$TEST_TMPDIR/h5"
 mkdir -p "$H5"
