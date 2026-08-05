@@ -1,6 +1,6 @@
 # Changelog — session-flow plugin
 
-## [VERSION-PENDING]
+## [0.17.24]
 
 ### Fixed
 
