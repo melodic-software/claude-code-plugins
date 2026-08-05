@@ -142,9 +142,16 @@ user_settings="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/settings.json"
 # its toplevel is the answer whatever the git dir is named (--separate-git-dir, a
 # submodule). Only from a linked worktree must the main checkout be recovered from
 # the common dir's path, which assumes the conventional "<root>/.git" spelling.
-# main_root stays empty when proj_src is not a repo, or when a linked worktree's
-# common dir is spelled otherwise; the coverage reads then fall back to the
-# project layer alone — over-reporting a gap, never hiding one.
+# That recovery misfires two ways, both of which can MASK a gap rather than
+# merely over-report one, and neither of which this script yet corrects:
+#   - main_root stays EMPTY when proj_src is not a repo, or when the common dir
+#     is spelled otherwise (a submodule's <super>/.git/modules/<name>, a
+#     separate git dir under another name). Every read then falls back to the
+#     project layer alone, so a main-local deny goes unreported entirely.
+#   - main_root resolves WRONGLY when the common dir is <path>/.git for a <path>
+#     that is not this working tree (--separate-git-dir <path>/.git): the arm
+#     below yields <path>, and that foreign settings.local.json is unioned into
+#     every read — a foreign allow masks a real gap, a foreign deny false-DENIES.
 main_gitdir="$(git -C "$proj_src" rev-parse --path-format=absolute --git-common-dir 2>/dev/null | tr -d '\r')"
 own_gitdir="$(git -C "$proj_src" rev-parse --path-format=absolute --git-dir 2>/dev/null | tr -d '\r')"
 main_root=""
@@ -175,7 +182,9 @@ collect() {
   # (or hand-placed there) applies only to sessions started in that worktree, so
   # in the pre-dispatch autonomous (--worktree-root) path a worktree cwd's local
   # grants would mask a worker-side gap; the coverage reads drop that file there.
-  # Deny always keeps it (erring wide on deny never masks a gap).
+  # Deny always keeps it: erring wide on deny cannot mask a gap among the layers
+  # actually read — but see main_root above, which can leave a layer unread or
+  # substitute a foreign one.
   local path="$1" local_mode="$2"
   read_array "$user_settings" "$path"
   read_array "$proj_base/.claude/settings.json" "$path"
@@ -188,7 +197,8 @@ collect() {
 }
 
 # Checkout-own local-settings scope for the COVERAGE reads (allow +
-# additionalDirectories); the main checkout's local file is in scope regardless:
+# additionalDirectories); the main checkout's local file is in scope regardless
+# — whichever file main_root resolved to, including the wrong one (see above):
 #   - A DISTINCT --project-root (a worker worktree whose toplevel differs from this
 #     checkout) names a real, existing checkout — read ITS OWN settings.local.json
 #     (legacy rules saved there still apply to sessions started there).
@@ -198,7 +208,9 @@ collect() {
 #     worktree-local-only grant mask a gap. When the cwd checkout IS the main
 #     checkout this exclusion is a no-op — its local file follows the worker.
 #   - The interactive/default path keeps local.
-# Deny always reads every local layer (erring wide on deny never masks a gap).
+# Deny always reads every local layer that resolves; erring wide on deny cannot
+# mask a gap among those layers, but it cannot widen a layer main_root left
+# unresolved, nor unwind one it resolved to a foreign directory.
 distinct_project_root=""
 if [[ -n "$project_root" && "$proj_base" != "$repo_root" ]]; then
   distinct_project_root="yes"

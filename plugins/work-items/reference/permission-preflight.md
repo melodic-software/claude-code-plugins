@@ -104,7 +104,9 @@ checkout's own git dir against the common one — the probed checkout being `--p
 given, else the cwd: equal means that checkout *is* the main one — whatever its git dir is
 named, so the **main checkout of** a `--separate-git-dir` or submodule layout resolves correctly —
 and only from a linked worktree is the main checkout recovered from the common dir's path, which
-assumes the conventional `<root>/.git` spelling. What a fresh worker does **not** inherit is a local
+assumes the conventional `<root>/.git` spelling and misfires when that assumption does not hold —
+leaving the main checkout unresolved, or resolving it to a foreign directory (second residual
+below). What a fresh worker does **not** inherit is a local
 file living inside some *other* linked worktree — a pre-2.1.211 save, or a hand-placed file — which
 applies only to sessions started in that worktree. Two cases:
 
@@ -126,14 +128,27 @@ applies only to sessions started in that worktree. Two cases:
   the *harness*, not on the repository layout — so wherever the installed Claude Code is v2.1.211 or
   later it is a documentation-completeness matter rather than a live defect (v2.1.222 on the machine
   this was verified against).
-- **Main checkout unresolvable — noisy on the allow reads, MASKING on the deny read.** When
-  `main_root` does not resolve, that checkout's local file goes unread in **every** read, deny
-  included: a covered verb is over-reported as a gap (noisy), and a deny living only in that file is
-  not reported at all (masking). The err-wide deny posture cannot widen a layer never read, and the
-  autonomous header does not distinguish this from a repository that simply has no main-local file.
-  Two ways in: a linked worktree whose common dir is not spelled `<root>/.git` — a
-  `--separate-git-dir` or submodule repo — and a `--project-root` naming a path that is not a
-  checkout.
+- **Main checkout unresolved or wrongly resolved — MASKING is reachable in both shapes.** From a linked
+  worktree the main checkout is recovered from the common dir's path, and that recovery fails two
+  ways. **Unresolved** (`main_root` empty): that checkout's local file goes unread in **every** read,
+  deny included — a covered verb is over-reported as a gap (noisy), *and* a deny living only in that
+  file is not reported at all, so the run can print `PREFLIGHT: OK` (exit 0, zero gaps) while a
+  main-local deny is live. The err-wide deny posture cannot widen a layer never read.
+  **Wrongly resolved**: `main_root` names a directory that is not this repository's working tree, and
+  that foreign `.claude/settings.local.json` is unioned into every read — a foreign allow masks a
+  real gap, a foreign deny yields a false DENIED. The autonomous header distinguishes neither shape
+  from a repository that simply has no main-local file. Three ways in:
+  - A linked worktree of a repo created with `--separate-git-dir <path>/.git`: the common dir is
+    `<path>/.git`, so the `*/.git` recovery yields `main_root=<path>` — **wrongly resolved**, with
+    foreign rules flowing in both directions (`--separate-git-dir "$HOME/.git"` unions the
+    operator's own `~/.claude` local file into the run).
+  - A linked worktree whose common dir is spelled otherwise — a separate git dir under any other
+    name, or a submodule's `<super>/.git/modules/<name>` — **unresolved**.
+  - A `--project-root` naming a path that is not a checkout — **unresolved**.
+
+  The **main checkout of** either layout resolves correctly, by the own-git-dir comparison above; the
+  defect is confined to the linked-worktree recovery. Correcting that recovery is a deferred
+  follow-up, so this reference states the behaviour rather than claiming it fixed.
 
 The interactive/default path (no `--worktree-root`) keeps the cwd checkout's local settings in
 scope. Deny always reads every local layer it resolves, in every mode — the same err-wide rationale,

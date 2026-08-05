@@ -20,21 +20,30 @@ All notable changes to the `work-items` plugin are documented here. Format follo
   local file is still dropped pre-dispatch, since a pre-v2.1.211 save (or a hand-placed file)
   applies solely to sessions started in that worktree. The exclusion is a no-op when the run starts
   from the main checkout, and the report header now names which files the coverage read spanned.
-  Deny rules keep reading every local layer they resolve — erring wide on deny never masks a gap.
+  Deny rules keep reading every local layer they resolve — erring wide on deny cannot mask a gap
+  *within the layers actually read*, though it cannot widen a layer that never resolves (below).
 - **That main checkout is identified by comparing the checkout's own git dir against the common
   one, not by assuming the git dir is spelled `<root>/.git`.** Equal dirs mean the checkout *is*
   the main one, so the **main checkout of** a `--separate-git-dir` or submodule layout — where the
   common dir lives outside the working tree entirely — resolves to the right root instead of
   resolving to nothing and re-reporting the very gap this release removes. From a linked worktree the
   main checkout is still recovered from the common dir's path, so a linked worktree *of* such a repo
-  resolves to nothing and keeps over-reporting. `reference/permission-preflight.md` states the two
-  residual cases rather than leaving them implied, scoped to both the pre-dispatch and named-worker
-  modes. A pre-v2.1.211 harness, where a worktree session loads its own local file rather than the
-  main checkout's, **masks** a gap the worker really hits, and this report cannot self-detect it
-  since it never probes the running Claude Code version — a documentation-completeness matter rather
-  than a live defect on any v2.1.211-or-later install. An unresolvable main checkout runs in **both**
-  directions: its local file goes unread in every read, so a covered verb is over-reported as a gap
-  (noisy) while a deny living only in that file is not reported at all (masking).
+  lands in one of two wrong states, neither of them merely noisy. When the common dir is not spelled
+  `<root>/.git` — a submodule's `<super>/.git/modules/<name>`, or a separate git dir named anything
+  else — the main checkout stays unresolved and its local file goes unread in **every** read: a
+  covered verb is over-reported as a gap (noisy), *and* a deny living only in that file is not
+  reported at all, so the run can print a clean `PREFLIGHT: OK` (exit 0, zero gaps) while a
+  main-local deny is live. When the common dir *is* spelled that way — `--separate-git-dir
+  <path>/.git` — the main checkout resolves **wrongly**, to `<path>`, a directory that is not this
+  repository's working tree at all, and a foreign `.claude/settings.local.json` is unioned into every
+  read: a foreign allow **masks** a real gap, and a foreign deny yields a false DENIED (point the
+  separate git dir at `$HOME/.git` and the foreign layer is the operator's own `~/.claude` local
+  file). Correcting the resolution itself is deferred; this release states the behaviour truthfully.
+  `reference/permission-preflight.md` carries the residual cases rather than leaving them implied,
+  scoped to both the pre-dispatch and named-worker modes. A pre-v2.1.211 harness, where a worktree
+  session loads its own local file rather than the main checkout's, **masks** a gap the worker really
+  hits, and this report cannot self-detect it since it never probes the running Claude Code version —
+  a documentation-completeness matter rather than a live defect on any v2.1.211-or-later install.
 
 ## [0.31.2]
 
