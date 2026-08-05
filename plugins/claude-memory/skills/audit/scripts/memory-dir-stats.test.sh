@@ -101,7 +101,7 @@ assert_eq "--memory-lines counts MEMORY.md lines" "3" "$OUT"
 # --- Case 4b: MEMORY.md stats measure loaded content only — frontmatter and
 # block-level HTML comments are stripped (they don't count toward the limits),
 # while a comment inside a fenced code block is preserved ---
-printf -- '---\ntype: index\n---\n# Index\n<!-- hidden\nstill hidden -->\nreal\n```\n<!-- kept -->\n```\n' >"$M3/MEMORY.md"
+printf -- "---\ntype: index\n---\n# Index\n<!-- hidden\nstill hidden -->\nreal\n\`\`\`\n<!-- kept -->\n\`\`\`\n" >"$M3/MEMORY.md"
 assert_eq "--memory-lines counts post-strip lines" "5" "$(run "$H3" --memory-lines)"
 assert_eq "--memory-bytes counts post-strip bytes" "35" "$(run "$H3" --memory-bytes)"
 
