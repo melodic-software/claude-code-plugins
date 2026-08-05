@@ -693,7 +693,7 @@ validate_launch_inputs() {
     # CLI installed. With no binary to probe the gate cannot be evaluated, so the
     # preview says so rather than refusing a lane a real run may well launch. Keyed
     # on the binary's absence, not on an "unknown" version — a CLI whose --version
-    # is unparseable is installed, and stays refused.
+    # is unparsable is installed, and stays refused.
     if ((DRY_RUN)) && ! command -v claude >/dev/null 2>&1; then
       info "  lane '$name': effort 'ultracode' version gate not evaluated (no claude CLI to probe)"
     else
