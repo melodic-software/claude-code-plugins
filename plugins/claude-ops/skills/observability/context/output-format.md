@@ -35,6 +35,9 @@ Repo: <slug> · Branch: <name>
 
 5-hour blocks (current + prior 3): <inline summary>
 
+Cost USD is a list-rate estimate, not a bill: ccusage prices tokens at public per-token list
+rates, while subscription usage is plan-priced.
+
 ## Cache health (last <window>)
 
 | Model | Cache read | Cache creation | Read : create |
@@ -115,6 +118,9 @@ Top recurring (same `<bin>:<sha16>` ≥ 3×):
   publishes no threshold, so any HIGH/MEDIUM cutoff would be invented here rather than sourced. It
   is also the one section sourced from the OTEL store rather than ccusage, which is why it sits
   apart from Token / cost instead of adding columns to it
+- **The Token / cost caveat line is fixed copy** — Claude Code documents the same list-rate
+  limitation for its own locally computed dollar figures
+  (<https://code.claude.com/docs/en/costs.md>, verified 2026-08-04)
 
 ## Severity coloring (terminal)
 
