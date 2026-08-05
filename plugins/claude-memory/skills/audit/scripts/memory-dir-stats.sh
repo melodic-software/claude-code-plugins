@@ -101,6 +101,20 @@ fi
 # never fire. MEMORY.md carries frontmatter by design (Claude Code stamps a `modified`
 # field into any memory file that has it), so this is a live shape, not a corner case.
 #
+# Closing is necessary but not sufficient: a leading `---` only opens frontmatter if
+# what follows is shaped like frontmatter. Markdown carries thematic breaks freely, so
+# a file opening with `---` and carrying any later `---` would otherwise have the whole
+# span between them stripped — a 253-line index reporting one loaded line, disarming
+# the very gate the flush-at-EOF rule above exists to arm. Frontmatter mode is
+# therefore bounded twice, and abandoning it re-emits the held lines as content:
+#   * grammar — the block ends at the first line that is not blank, a comment, or a
+#     `key:` mapping entry, which is all YAML a memory index's frontmatter holds;
+#   * length — `fmcap` lines, because grammar alone still swallows a runaway whose
+#     every line happens to be a `#` heading or a `Label: value` pair, a plausible
+#     shape for a hand-written index.
+# Both bounds fail toward counting: an over-count can only make this gate fire early,
+# while the under-count they replace stopped it firing at all.
+#
 # A block-level comment occupies whole lines; text sharing a line with the comment's
 # open or close is loaded content and survives. Comments inside fenced code blocks are
 # preserved — a comment inside a fence is code, not block-level markdown. The memory
@@ -112,11 +126,21 @@ fi
 # padding BSD `wc` emits on macOS.
 strip_unloaded() {
   tr -d '\r' <"$index" | awk '
+    BEGIN { fmcap = 20 }
     NR == 1 && $0 == "---" { pending = $0 "\n"; fm = 1; next }
     fm == 1 {
-      pending = pending $0 "\n"
-      if ($0 == "---") { fm = 2; pending = "" }
-      next
+      if ($0 == "---") { fm = 2; pending = ""; next }
+      if (++fmlines <= fmcap && ($0 ~ /^[[:space:]]*$/ ||
+                                 $0 ~ /^[[:space:]]*#/ ||
+                                 $0 ~ /^[[:space:]]*[A-Za-z_][A-Za-z0-9_-]*:/)) {
+        pending = pending $0 "\n"
+        next
+      }
+      # Not frontmatter after all: re-emit the held lines as content and let this one
+      # fall through to the rules below, which still owe it fence and comment handling.
+      fm = 0
+      printf "%s", pending
+      pending = ""
     }
     incomment {
       pending = pending $0 "\n"

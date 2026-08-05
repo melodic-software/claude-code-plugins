@@ -115,6 +115,60 @@ assert_eq "leading thematic break is not frontmatter" "4" "$(run "$H3" --memory-
 printf -- "<!-- note\na\nb\nc\n" >"$M3/MEMORY.md"
 assert_eq "unclosed comment counts the whole file" "4" "$(run "$H3" --memory-lines)"
 
+# --- Case 4c2: closing is not enough — a leading thematic break must not open a
+# frontmatter block that runs to whatever `---` appears next. Markdown carries thematic
+# breaks freely, so the whole span between them would be stripped and an index that is
+# over the limit would report a single loaded line, leaving this [FAIL] gate unable to
+# fire. Both limbs of M1 are covered: the line limit and the 25KB byte limit.
+#
+# The expectation is the file's own raw size: none of these fixtures holds frontmatter,
+# so nothing may be stripped from any of them. ---
+raw_lines() { printf '%s' "$(($(wc -l <"$M3/MEMORY.md")))"; }
+raw_bytes() { printf '%s' "$(($(wc -c <"$M3/MEMORY.md")))"; }
+# repeat_lines <count> <prefix> <suffix> — <count> distinct lines of "<prefix><n><suffix>".
+repeat_lines() {
+  local i=0
+  while [[ "$i" -lt "$1" ]]; do
+    printf '%s%d%s\n' "$2" "$i" "$3"
+    i=$((i + 1))
+  done
+}
+
+{
+  printf -- '---\n# Title\n'
+  repeat_lines 249 'content line ' ''
+  printf -- '---\ntail\n'
+} >"$M3/MEMORY.md"
+assert_eq "leading break + later --- counts every line" "$(raw_lines)" "$(run "$H3" --memory-lines)"
+
+# Byte limb: content long enough to blow the 25KB limit on its own.
+PAD=$(printf '%200s' '' | tr ' ' 'x')
+{
+  printf -- '---\n# Title\n'
+  repeat_lines 150 'content ' " $PAD"
+  printf -- '---\ntail\n'
+} >"$M3/MEMORY.md"
+if [[ "$(raw_bytes)" -gt 25600 ]]; then
+  pass "byte-limb fixture is genuinely over the 25KB limit"
+else
+  fail "byte-limb fixture is genuinely over the 25KB limit" "only $(raw_bytes) bytes"
+fi
+assert_eq "leading break + later --- counts every byte" "$(raw_bytes)" "$(run "$H3" --memory-bytes)"
+
+# Grammar alone cannot bound the block: every line here is a well-formed `key: value`
+# mapping entry, a plausible hand-written index shape. Only the length cap ends it.
+{
+  printf -- '---\n'
+  repeat_lines 250 'Label' ': value'
+  printf -- '---\ntail\n'
+} >"$M3/MEMORY.md"
+assert_eq "a key:-shaped runaway is bounded by length" "$(raw_lines)" "$(run "$H3" --memory-lines)"
+
+# --- Case 4c3: the bound must not cost real frontmatter its strip. A well-formed block
+# is still stripped even when a thematic break appears later in the file. ---
+printf -- "---\ntype: index\nmodified: 2026-01-01\n---\n# A\none\n---\ntwo\n" >"$M3/MEMORY.md"
+assert_eq "real frontmatter still strips despite a later ---" "4" "$(run "$H3" --memory-lines)"
+
 # --- Case 4d: a fence inside a comment must not toggle fence state — otherwise the
 # commented-out fence body leaks back into the count ---
 printf -- "<!-- note\n\`\`\`bash\nLEAKED\n\`\`\`\n-->\nreal\n" >"$M3/MEMORY.md"

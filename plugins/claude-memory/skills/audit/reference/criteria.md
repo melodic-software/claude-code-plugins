@@ -316,9 +316,13 @@ dropped.
 
 Four readings the strip applies, so a hand count matches the reported figures:
 
-1. A block counts only once it closes. An opening `---` or `<!--` with no closing delimiter is
-   ordinary content and is counted — a leading thematic break, or frontmatter clipped mid-file,
-   must not blank the count.
+1. A block counts only once it closes, and a leading `---` opens frontmatter only for as long as
+   what follows is shaped like frontmatter. An opening `---` or `<!--` with no closing delimiter is
+   ordinary content and is counted. So is a leading `---` whose block reaches a line that is
+   neither blank, a comment, nor a `key:` mapping entry, or that runs past 20 lines — markdown
+   carries thematic breaks freely, so the next `---` in a file is usually another break rather
+   than a frontmatter close, and without both bounds the entire span between the two would be
+   stripped. A leading thematic break, or frontmatter clipped mid-file, must not blank the count.
 2. A block-level comment occupies whole lines. Text sharing a line with the comment's open or
    close loads, and is counted.
 3. Comments inside fenced code blocks are preserved: a comment inside a fence is code, not
@@ -328,9 +332,11 @@ Four readings the strip applies, so a hand count matches the reported figures:
 
 **Provenance**: the strip rule itself is doc-derived (code.claude.com/docs/en/memory, "How it
 works"). The four readings are not. The doc states the fenced-code carve-out for CLAUDE.md only and
-is silent on it for MEMORY.md, and says nothing about unterminated blocks, partial lines, or line
-endings. They are this plugin's reading, chosen so that no input silently reports 0 and leaves this
-`[FAIL]` gate unable to fire — the `update` action must not overwrite them.
+is silent on it for MEMORY.md, and says nothing about unterminated blocks, unbounded blocks,
+partial lines, or line endings. They are this plugin's reading, chosen so that no input silently
+under-reports and leaves this `[FAIL]` gate unable to fire. Where a reading has to guess, it guesses
+toward counting: an over-count can only make the gate fire early on a file near its limit, while an
+under-count stops it firing at all. The `update` action must not overwrite them.
 
 ### M2: Stale Entries [WARN]
 
