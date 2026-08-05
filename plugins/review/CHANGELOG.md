@@ -7,16 +7,23 @@ All notable changes to the `review` plugin are documented here. Format follows
 
 ### Changed
 
-- **`skills/fanout`: the reason the orchestrator plugins run on the main thread is now the
-  guarantee, not an impossibility.** `SKILL.md` said "a subagent cannot dependably do that" and
-  `context/run-everything-mode.md` said a Workflow `agent()` "cannot dependably spawn them". The
-  live [sub-agents documentation](https://code.claude.com/docs/en/sub-agents#let-subagents-spawn-their-own-subagents)
-  states without caveat that a subagent spawns subagents of its own by default, so both sentences
-  asserted a limitation that does not exist. The honest rationale is narrower: a subagent CAN nest,
-  but the depth budget is settings-configurable through `CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH` and
-  is not knowable from inside a dispatched context, and at the limit the `Agent` tool is withheld
-  (in a fork, kept but erroring). Only the main thread guarantees the spawn. `run-everything-mode.md`
-  now points at `SKILL.md` for that rationale rather than restating it.
+- **`skills/fanout`: the reason the orchestrator plugins run on the main thread is now a
+  configuration bound, not an impossibility.** `SKILL.md` said "a subagent cannot dependably do
+  that" and `context/run-everything-mode.md` said a Workflow `agent()` "cannot dependably spawn
+  them". The live
+  [sub-agents documentation](https://code.claude.com/docs/en/sub-agents#let-subagents-spawn-their-own-subagents)
+  states that by default a subagent CAN spawn subagents of its own, within a nesting-depth limit, so
+  both sentences asserted a limitation that does not exist. The rationale is now the narrower true
+  one: that depth budget is settings-configurable through `CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH`
+  (`1` turns nesting off) and so sits outside the skill's control, and at the limit Claude Code
+  withholds the `Agent` tool — in a fork, keeps it but errors — whereas the main thread is never the
+  context that limit withholds from.
+
+  **The claim is deliberately scoped to the depth limit.** The session and concurrent subagent
+  limits bind the main thread too, so no surface can claim an unconditional spawn guarantee.
+  `run-everything-mode.md` now states only the placement it enforces — orchestrators on the main
+  thread, never inside the Workflow — and points at `SKILL.md` for the rationale, because the
+  sub-agents page holds workflow-spawned agents to their own limits rather than this one.
 
   **No behavior changes.** Both surfaces still run the orchestrators on the main thread and still
   keep them out of the Workflow; only the justification prose changed.
