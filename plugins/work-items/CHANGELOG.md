@@ -20,19 +20,21 @@ All notable changes to the `work-items` plugin are documented here. Format follo
   local file is still dropped pre-dispatch, since a pre-v2.1.211 save (or a hand-placed file)
   applies solely to sessions started in that worktree. The exclusion is a no-op when the run starts
   from the main checkout, and the report header now names which files the coverage read spanned.
-  Deny rules keep reading every local layer — erring wide on deny never masks a gap.
+  Deny rules keep reading every local layer they resolve — erring wide on deny never masks a gap.
 - **That main checkout is identified by comparing the checkout's own git dir against the common
   one, not by assuming the git dir is spelled `<root>/.git`.** Equal dirs mean the checkout *is*
-  the main one, so `--separate-git-dir` and submodule layouts — where the common dir lives outside
-  the working tree entirely — resolve to the right root instead of resolving to nothing and
-  re-reporting the very gap this release removes. Only from a linked worktree is the main checkout
-  recovered from the common dir's path. `reference/permission-preflight.md` states the two residual
-  cases rather than leaving them implied, and they run in opposite directions: a linked worktree
-  whose common dir is not spelled `<root>/.git` leaves the main checkout's file unread, which is
-  merely noisy; a pre-v2.1.211 harness, where a worktree session loads its own local file rather
-  than the main checkout's, instead **masks** a gap the worker really hits. That masking case is the
-  one direction this report cannot self-detect, since it never probes the running Claude Code
-  version.
+  the main one, so the **main checkout of** a `--separate-git-dir` or submodule layout — where the
+  common dir lives outside the working tree entirely — resolves to the right root instead of
+  resolving to nothing and re-reporting the very gap this release removes. From a linked worktree the
+  main checkout is still recovered from the common dir's path, so a linked worktree *of* such a repo
+  resolves to nothing and keeps over-reporting. `reference/permission-preflight.md` states the two
+  residual cases rather than leaving them implied, scoped to both the pre-dispatch and named-worker
+  modes. A pre-v2.1.211 harness, where a worktree session loads its own local file rather than the
+  main checkout's, **masks** a gap the worker really hits, and this report cannot self-detect it
+  since it never probes the running Claude Code version — a documentation-completeness matter rather
+  than a live defect on any v2.1.211-or-later install. An unresolvable main checkout runs in **both**
+  directions: its local file goes unread in every read, so a covered verb is over-reported as a gap
+  (noisy) while a deny living only in that file is not reported at all (masking).
 
 ## [0.31.2]
 

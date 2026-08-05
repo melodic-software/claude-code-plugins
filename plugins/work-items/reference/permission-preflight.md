@@ -102,34 +102,42 @@ checkout's local file is therefore part of a fresh worker worktree's effective s
 preflight reads it in **every** mode. It identifies that checkout by comparing the probed
 checkout's own git dir against the common one — the probed checkout being `--project-root` when
 given, else the cwd: equal means that checkout *is* the main one — whatever its git dir is
-named, so `--separate-git-dir` and submodule layouts resolve correctly — and only from a linked
-worktree is the main checkout recovered from the common dir's path. What a fresh worker does
-**not** inherit is a local file living inside some *other* linked worktree — a pre-2.1.211 save, or
-a hand-placed file — which applies only to sessions started in that worktree. Two cases:
+named, so the **main checkout of** a `--separate-git-dir` or submodule layout resolves correctly —
+and only from a linked worktree is the main checkout recovered from the common dir's path, which
+assumes the conventional `<root>/.git` spelling. What a fresh worker does **not** inherit is a local
+file living inside some *other* linked worktree — a pre-2.1.211 save, or a hand-placed file — which
+applies only to sessions started in that worktree. Two cases:
 
 - **Pre-dispatch** — `--worktree-root` is passed but no distinct `--project-root` (the worker is not
   yet created). The **coverage** reads (allow + `additionalDirectories`) span user-global + tracked
   project settings + the main checkout's local file; only a linked-worktree cwd's *own* local file
   is dropped, since the fresh worker would not inherit it and reading it would mask a worker-side
-  gap. Run from the main checkout, nothing is dropped. The report header says which. Two residual
-  cases remain, and they run in **opposite** directions:
-  - **Pre-2.1.211 harness — MASKING, the dangerous direction.** There a worktree session loads its
-    own local file, not the main checkout's, so crediting a main-local-only grant suppresses a gap
-    the worker really hits. This is the one place the report can under-report; it is a floor on the
-    harness, not on the repository layout, and nothing in the preflight can detect it (it never
-    probes the running Claude Code version).
-  - **Common dir not spelled `<root>/.git`, seen from a linked worktree — noisy only.** The main
-    checkout cannot be recovered from that path, so its local file goes unread and a covered verb
-    is reported as a gap.
+  gap. Run from the main checkout, nothing is dropped. The report header says which.
 - **A named worker** — `--project-root <worker-worktree>` resolves to a checkout whose toplevel
   differs from the cwd. That is a real, existing checkout, so the preflight reads **its own**
   `settings.local.json` (legacy rules saved there still apply to sessions started there) plus the
-  main checkout's shared local file; on a v2.1.211-or-later harness nothing is masked, and the
-  header names the sources. The pre-2.1.211 masking case above applies here too, for the same
-  reason: on that harness the shared file's rules never reach the worker's worktree.
+  main checkout's shared local file; the header names the sources.
+
+**Two residual limits apply to BOTH modes above.**
+
+- **Pre-2.1.211 harness — MASKING.** There a worktree session loads its own local file, not the main
+  checkout's, so crediting a main-local-only grant suppresses a gap the worker really hits. Nothing
+  in the preflight detects it: it never probes the running Claude Code version. This is a floor on
+  the *harness*, not on the repository layout — so wherever the installed Claude Code is v2.1.211 or
+  later it is a documentation-completeness matter rather than a live defect (v2.1.222 on the machine
+  this was verified against).
+- **Main checkout unresolvable — noisy on the allow reads, MASKING on the deny read.** When
+  `main_root` does not resolve, that checkout's local file goes unread in **every** read, deny
+  included: a covered verb is over-reported as a gap (noisy), and a deny living only in that file is
+  not reported at all (masking). The err-wide deny posture cannot widen a layer never read, and the
+  autonomous header does not distinguish this from a repository that simply has no main-local file.
+  Two ways in: a linked worktree whose common dir is not spelled `<root>/.git` — a
+  `--separate-git-dir` or submodule repo — and a `--project-root` naming a path that is not a
+  checkout.
 
 The interactive/default path (no `--worktree-root`) keeps the cwd checkout's local settings in
-scope. Deny always reads every local layer regardless — the same err-wide rationale.
+scope. Deny always reads every local layer it resolves, in every mode — the same err-wide rationale,
+bounded by the second residual above.
 
 ## The trusted worktree root — `additionalDirectories`
 

@@ -331,6 +331,20 @@ mkdir -p "$SEPTOP/.claude"
 jq -n '{permissions:{allow:["Bash(gh pr create *)"]}}' >"$SEPTOP/.claude/settings.local.json"
 assert_eq "separate-git-dir main checkout's local grant counts → no gap" "0" "$(run "$SEPCO" "$CFG16" --count --worktree-root "$POSIX_CHILD")"
 
+# --- Case 16d: the main checkout's local DENY reaches a worktree run ---------
+# Deny reads the main checkout's local file too. Every other deny case writes to
+# user-global only, so without this, dropping main-local from the deny path would
+# narrow deny silently and leave the suite green.
+CFG16D="$TEST_TMPDIR/cfg16d"
+write_settings "$CFG16D" \
+  '["Bash(git add *)","Bash(git commit *)","Bash(git push *)","Bash(gh pr create *)","Bash(gh issue comment *)"]' \
+  "$WIN_ROOT"
+jq -n '{permissions:{deny:["Bash(git push *)"]}}' >"$PROJ3/.claude/settings.local.json"
+OUT=$(run "$WT16" "$CFG16D" --worktree-root "$POSIX_CHILD")
+assert_contains "main-local deny reaches a worktree run" "$OUT" "'git push'"
+assert_contains "main-local deny carries the DENIED message" "$OUT" "is DENIED"
+assert_eq "main-local deny → exactly one gap" "1" "$(run "$WT16" "$CFG16D" --count --worktree-root "$POSIX_CHILD")"
+
 # --- Case 17: a distinct --project-root reads the worker's OWN local settings -
 # When --project-root names a real worker worktree (toplevel differs from cwd),
 # read ITS OWN settings.local.json — the worker's file, present in that checkout —
