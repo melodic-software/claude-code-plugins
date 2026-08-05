@@ -11,10 +11,11 @@ All notable changes to the `claude-memory` plugin are documented here. Format fo
   0.5.5 → 0.5.6). Wherever the skill states that purge is auto-memory-only — the SKILL.md scope
   statement and table, `context/purge.md`'s pre-gate presentation and follow-through, and
   `reference/official-guidance.md`'s out-of-scope section — it now names `claude project purge`
-  (Claude Code v2.1.124+). The command's deletion scope is quoted verbatim in
-  `reference/official-guidance.md` and nowhere else, so the skill holds one copy of an upstream
-  list instead of one per call site; every other mention points there, and
-  code.claude.com/docs/en/claude-directory stays the source for the deletion plan and flags.
+  (Claude Code v2.1.124+). The command's scope — what it deletes, what it leaves alone, and that
+  it confirms first — is quoted verbatim in `reference/official-guidance.md` and nowhere else, so
+  the skill holds one copy of an upstream list instead of one per call site; every other mention
+  points there, and code.claude.com/docs/en/claude-directory stays the source for the deletion
+  plan and flags.
   Also retires the reference file's now-false "there is no built-in purge command" claim.
 
 ### Fixed
@@ -26,14 +27,26 @@ All notable changes to the `claude-memory` plugin are documented here. Format fo
   `history.jsonl` sits among the paths "not covered by automatic cleanup" that "persist
   indefinitely", and `sessions/` "isn't part of the age-based sweep", being cleared when each
   session exits. The row also gave one location for all four and said nothing about
-  `claude project purge`, whose scope cuts across it — the command deletes this project's
-  transcripts, filters its `history.jsonl` lines, never names `sessions/`, and "leaves
-  `shell-snapshots/` and `backups/` alone because those are not project-scoped". Now four rows,
+  `claude project purge`, whose scope cuts across it and lands differently on each of the four
+  (quoted in `reference/official-guidance.md`). Now four rows,
   each carrying its own path, sweep behavior, and purge behavior, so every verdict is true of
   every subject in its row. The same correction applies to `reference/official-guidance.md`'s
   out-of-scope section, which stated the sweep for all four as one fact. Also retires two
   counted re-fetch pointers ("the two source pages", "both pages") that the file family had
   grown past — they now point at the source list rather than counting it.
+
+- **Three `stateless` reference quotes attributed to the settings doc were paraphrase, not
+  quotation.** `reference/official-guidance.md` presents block quotes as verbatim, but its
+  settings-precedence list, `env` description, and `cleanupPeriodDays` description used wording
+  absent from code.claude.com/docs/en/settings — the precedence list invented every item label
+  ("Local" for "Local project settings", "Project" for "Shared project settings") and the
+  bracketing "(highest priority)" / "lowest priority", the `env` description was a rewrite, and
+  the `cleanupPeriodDays` one stitched invented wording around real fragments with ellipses. The
+  substance was right in all three cases; only the fidelity was wrong, which is
+  the defect that matters in a file whose contract is verbatim quotation. All three now carry the
+  page's own words, verified 2026-08-05, with the precedence list quoted as the structured list it
+  is and its omissions marked. Managed settings' "cannot be overridden" property, previously
+  stitched into the precedence quote, is now quoted from the nested bullet that states it.
 
 - **The instruction-layer row claimed a user scope `CLAUDE.local.md` does not have.** One
   `CLAUDE.md / CLAUDE.local.md / .claude/rules/` row gave the location as `repo + user`, true

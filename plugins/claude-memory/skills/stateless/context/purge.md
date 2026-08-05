@@ -62,7 +62,8 @@ Present to the user:
   it could point at an unrelated directory.
 - That this deletes auto-memory notes only — **not** CLAUDE.md, rules, transcripts, or history.
   If the intent is the full per-project wipe, point to `claude project purge` (Claude Code
-  v2.1.124+) instead, and state its scope to the user from the verbatim quote in
+  v2.1.124+) instead, and state its scope to the user (what it deletes and what it leaves alone)
+  from the verbatim quotes in
   [reference/official-guidance.md](../reference/official-guidance.md) rather than from memory —
   <https://code.claude.com/docs/en/claude-directory> owns the deletion plan and flags.
 - If `$manifest` is empty, report that there is nothing to purge and stop (no-op).
