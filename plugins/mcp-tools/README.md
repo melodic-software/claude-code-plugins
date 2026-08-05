@@ -24,7 +24,7 @@ behavior, which the Claude Code page documents rather than mandates:
 - **Schema** — callable from the schema alone, with a valid `inputSchema`.
 - **Claude Code `_meta` annotations** — `anthropic/maxResultSizeChars`, `anthropic/requiresUserInteraction`, `anthropic/alwaysLoad`. Missing is at most an info advisory; a declared value Claude Code ignores or caps is the defect.
 
-Language-agnostic: it discovers tools in Python (FastMCP), TypeScript (`@modelcontextprotocol/sdk`), and
+Language-agnostic: it discovers tools in Python (`mcp`), TypeScript (`@modelcontextprotocol/sdk`), and
 .NET (`ModelContextProtocol`) by the SDKs' own tool markers.
 
 ## Usage

@@ -5,8 +5,8 @@ Keep this as an in-response tracker for a multi-server run; tick each phase as i
 ## Phases
 
 - [ ] Phase 1: Discover servers and tools — run `bash "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/discover.sh"` (or `--path <dir>` to scope to one server)
-- [ ] Phase 2: Evaluate against checklist — per-tool criteria C1-C19 per `reference/checklist.md` (description, parameters, naming, annotations, granularity, schema, Claude Code `_meta`)
-- [ ] Phase 3: Report — per-tool verdict (PASS / WARN / FAIL) with concrete improvement suggestions
+- [ ] Phase 2: Evaluate against checklist — criteria C1-C19 per `reference/checklist.md` (description, parameters, naming, annotations, granularity, schema, Claude Code `_meta`), per tool, plus C4's per-server `instructions` clause once per server
+- [ ] Phase 3: Report — server-level and per-tool verdicts (PASS / WARN / FAIL / info / n/a / undetermined) with concrete improvement suggestions
 
 ## Skip criteria
 

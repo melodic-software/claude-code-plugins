@@ -1,6 +1,6 @@
 ---
 name: audit
-description: "Audit MCP server tool definitions against design quality criteria. Use when: 'audit MCP tools', 'check MCP tool descriptions', 'review MCP server quality', 'tool annotations', 'readOnlyHint missing', 'parameter descriptions missing', 'mcp audit', or before shipping MCP server changes. Optional path argument targets a single server directory; omit to audit the whole project. Produces per-tool PASS/WARN/FAIL scorecard covering description completeness, parameters, naming, and annotations. Language-agnostic — Python (FastMCP), TypeScript, .NET. Not for: MCP server configuration or connection issues."
+description: "Audit MCP server tool definitions against design quality criteria. Use when: 'audit MCP tools', 'check MCP tool descriptions', 'review MCP server quality', 'tool annotations', 'readOnlyHint missing', 'parameter descriptions missing', 'check the _meta annotations', 'maxResultSizeChars', 'requiresUserInteraction', 'alwaysLoad', 'are my server instructions too long', 'mcp audit', or before shipping MCP server changes. Optional path argument targets a single server directory; omit to audit the whole project. Produces per-tool PASS/WARN/FAIL scorecard covering description completeness, parameters, naming, annotations, and the Claude Code `_meta` annotations, plus a server-level result for the server `instructions` size budget. Language-agnostic — Python (`mcp`), TypeScript, .NET. Not for: MCP server configuration or connection issues."
 argument-hint: "[path] — a directory to scope the audit to (e.g. a single server dir), or omit for the whole project"
 user-invocable: true
 disable-model-invocation: false
@@ -58,13 +58,21 @@ it. Load the detailed checklist from [reference/checklist.md](reference/checklis
 
 Once per server, also resolve its `instructions` field — see **Server instructions** in
 [reference/server-discovery.md](reference/server-discovery.md) — and evaluate C4's per-server clause
-against it. Phase 1's records are per-tool, so this is the only step that reaches it.
+against it. Phase 1's records are per-tool, so this is the only step that reaches it; its result lands
+in the server-level row of the Phase 3 report, not in any tool's table.
 
-For each tool, evaluate every criterion in the checklist. Record result as:
+Evaluate every criterion in the checklist against each tool, and C4's per-server clause once per
+server. Record each result as:
 
 - **PASS** — criterion met
 - **WARN** — criterion partially met or could be improved
 - **FAIL** — criterion not met
+- **info** — an optimization opportunity rather than a defect; the severity `reference/checklist.md`
+  assigns to C8, C11, C14, and by default to C17-C19
+- **n/a** — the criterion has no subject here, so it cannot pass: a server whose construction site
+  declares no `instructions` gives C4's per-server clause nothing to size
+- **undetermined** — the subject was not reachable in the scanned scope (no server construction site
+  found), which is not the same as its being absent
 
 ### Phase 3: Report
 
@@ -88,6 +96,12 @@ Output a markdown report with this structure:
 
 ### Server: <server-name> (<language>)
 
+Server-level criteria — the outcomes that belong to the server, not to any one tool:
+
+| Criterion | Authority | Result | Details |
+|-----------|-----------|--------|---------|
+| C4 Server `instructions` within size budget | OPINION | n/a | Construction site declares no `instructions` |
+
 #### Tool: <tool_name>
 
 | Criterion | Authority | Result | Details |
@@ -95,14 +109,17 @@ Output a markdown report with this structure:
 | C1 Description has "what" | ANTHROPIC | WARN | Missing "when to use" context |
 | C9 Name charset/length valid | SPEC-SHOULD | PASS | |
 | C12 readOnlyHint set | SPEC-OPTIONAL | WARN | Read-only tool lacks the hint |
+| C18 requiresUserInteraction is JSON `true` | OPINION | FAIL | Declared as the string `"true"` — silently ignored |
 | ... | ... | ... | ... |
 
 (repeat for each tool)
 ```
 
-**Prioritize FAIL items** — highest-value improvements. WARN items are suggestions. A missing
-annotation is never FAIL — annotations are OPTIONAL in the spec (C12-C14) or Claude-Code-specific
-advisories (C17-C19); only a declared value Claude Code silently ignores can FAIL (C18).
+**Prioritize FAIL items** — highest-value improvements. WARN items are suggestions and info items are
+optimizations; `n/a` and `undetermined` record that a criterion had no subject, or none reachable, and
+neither counts as a pass in the summary table. A missing annotation is never FAIL — annotations are
+OPTIONAL in the spec (C12-C14) or Claude-Code-specific advisories (C17-C19); only a declared value
+Claude Code silently ignores can FAIL (C18).
 
 ## What this skill does NOT do
 
