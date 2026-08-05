@@ -13,10 +13,10 @@ metadata:
 
 ## Pre-computed context
 
-claude CLI: !`command -v claude >/dev/null 2>&1 && echo "present ($(claude --version 2>/dev/null))" || echo "MISSING (required)"`
+claude CLI: !`claude --version 2>/dev/null || echo "MISSING (required)"`
 jq: !`command -v jq >/dev/null 2>&1 && echo "present" || echo "MISSING (required)"`
 Repo root: !`git rev-parse --show-toplevel 2>/dev/null || echo "unknown (pass --repo)"`
-Lane config: !`c="${CLAUDE_OPS_LANES_CONFIG:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)/.work/lanes.json}"; [[ -f "$c" ]] && echo "$c ($(jq -r '(.lanes//[])|length' "$c" 2>/dev/null) lanes)" || echo "absent ($c) — author one (see context/config.md)"`
+Lane config: !`bash "${CLAUDE_PLUGIN_ROOT}/skills/lanes/scripts/probe-lane-config.sh" 2>/dev/null || echo "unknown"`
 
 ## Variables
 
@@ -256,8 +256,13 @@ each — the summary below is a pointer, not a copy.
   that sentinel across ALL comments (paginated — a match on any page prevents a
   duplicate) and PATCHes it; failing that (first migration off a hand-authored
   comment) it adopts the most recent comment BY THE AUTHENTICATED USER carrying the
-  raw marker text; else it creates one. `STR` is `[A-Za-z0-9:._-]+` (so it can
-  never close the HTML comment early), and one writer identity owns a given marker.
+  raw marker text; else it creates one. `STR` is `[A-Za-z0-9:@._-]+` (so it can
+  never close the HTML comment early), and one writer identity owns a given marker
+  — which is what the loop-lane convention's `<lane>@<instance>` suffix makes true
+  rather than aspirational (#1295): a marker naming only a lane type is shared by
+  every concurrent instance of that lane, so they clobber one another's durable
+  state. Both fallback boundaries treat `@` as a marker char, so `lane:x` never
+  adopts `lane:x@laptop-a`'s comment, nor `lane:x@a` adopt `lane:x@a@b`'s.
   Body input: prefer `--body-file -` (stdin) for a body generated in memory (e.g.
   piped from `machine-behavior.sh`); a real `--body-file PATH` must resolve under
   `--body-dir` (default `$CLAUDE_PLUGIN_DATA`), may not be a symlink, and is capped
@@ -286,10 +291,25 @@ takes `gh issue comment --body-file`, or `gh api -F`/`--field key=@path` — per
 command's own `--help` (gh 2.95.0); `gh api` has no `--body-file` flag at all.
 
 The failure is invisible from the outside (#943): the comment's timestamp still
-moves, so the telemetry surface looks **fresh** while carrying no data, and a
-freshness check passes over a blind lane. `telemetry-upsert.sh` refuses such a
-body before it writes anything; an inlined upsert has no such gate, so this rule
-is the only thing standing between it and a silent observability fail-open.
+moves, so any check keying on `updatedAt` reads the lane as **fresh** while it
+carries no data. (This skill's sibling reader `morning-brief` is not that check —
+it parses `lane:` and `last-cycle:` out of the body, so a degraded comment makes
+the lane vanish from its report rather than look healthy. What a degraded body
+deceives is any consumer that keys on the comment's timestamp instead of reading
+its body.)
+
+`telemetry-upsert.sh` refuses such a body before it writes anything and re-reads
+what landed afterward. An inlined upsert now encodes three checks itself: a
+pre-write gate (empty, leading `@`, not sentinel-prefixed, or under a 16-byte
+payload floor measured below the sentinel line → skip the cycle, no API call), a
+check of the write's own exit status (a failed write leaves the previous cycle's
+body in place, which a read-back running regardless would accept), and a
+post-write read-back of what the write stored. What an inline block does NOT
+replicate: the 64 KiB cap, the body-file containment checks, retries, and this
+script's distinct non-zero exit codes — an inline branch always exits 0 and
+reports through stderr. It also inherits this script's own limits: a PATCH that
+succeeds while storing the previous body still verifies, and the read-back proves
+*some* well-formed telemetry is present, not *this* cycle's.
 
 ## Cross-references
 

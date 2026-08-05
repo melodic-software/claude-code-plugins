@@ -952,7 +952,8 @@ fi
 # --- PowerShell tool coverage ------------------------------------------------
 # The canonical PowerShell commit form (a here-string piped to `git commit -F -`)
 # must be allowed exactly as the Bash `-F -` form is; a `-m` PowerShell commit
-# must be blocked; commit-shaped PowerShell the guard cannot parse fails closed.
+# must be blocked; commit-shaped PowerShell the classifier cannot parse is
+# DEFERRED here (#1858) and blocked by `block-dangerous-git`, asserted below.
 run_pwsh() {
   local label="$1" command="$2" expected="$3" rc
   bash "$HOOK" <<<"$(pwsh_command_json "$command")" >/dev/null 2>&1
@@ -966,10 +967,45 @@ run_pwsh "PS: git commit -m here-string (blocked — not the stdin form)" \
 run_pwsh "PS: git commit -m literal (blocked)" "git commit -m 'feat: x'" 2
 run_pwsh "PS: git commit --amend (allowed — exempt)" "git commit --amend" 0
 run_pwsh "PS: git status (allowed — not a commit)" "git status" 0
-run_pwsh "PS: backtick-continued commit (fail-closed block)" \
-  "$(printf 'git commit -m x `\n --cleanup=verbatim')" 2
-run_pwsh "PS: unbalanced here-string hiding a -m commit (fail-closed block)" \
-  "$(printf '%s\n%s\n%s' "@'" "body" "'X ; git commit -m sneaky")" 2
+
+# Classifier rc 2 (git-shaped unparsable): deferred here, and the deferral is
+# only sound while a sibling guard still fail-closes on the SAME input — so each
+# case is asserted against both hooks, not just this one.
+PS_UNPARSABLE_BACKTICK="$(printf 'git commit -m x `\n --cleanup=verbatim')"
+PS_UNPARSABLE_HERESTRING="$(printf '%s\n%s\n%s' "@'" "body" "'X ; git commit -m sneaky")"
+run_pwsh "PS: backtick-continued commit (deferred — classifier rc 2)" \
+  "$PS_UNPARSABLE_BACKTICK" 0
+run_pwsh "PS: unbalanced here-string hiding a -m commit (deferred — classifier rc 2)" \
+  "$PS_UNPARSABLE_HERESTRING" 0
+
+# Asserting the exit code alone would stay green if a sibling started blocking
+# these for an UNRELATED reason, silently breaking the coupling the deferral
+# rests on — so the block reason is asserted from stderr too.
+run_sibling() {
+  local label="$1" sibling="$2" command="$3" out rc
+  out=$(bash "$HOOK_DIR/$sibling.sh" <<<"$(pwsh_command_json "$command")" 2>&1)
+  rc=$?
+  assert_exit "$label" 2 "$rc"
+  assert_contains "$label: for the unparsable reason" "$out" "cannot be parsed with confidence"
+}
+for sibling in block-dangerous-git block-no-verify; do
+  run_sibling "PS: backtick-continued commit still blocked by $sibling" \
+    "$sibling" "$PS_UNPARSABLE_BACKTICK"
+  run_sibling "PS: unbalanced here-string commit still blocked by $sibling" \
+    "$sibling" "$PS_UNPARSABLE_HERESTRING"
+done
+
+# The residual this deferral accepts, pinned at exactly its documented width: with
+# BOTH sibling kill switches off, the rc-2 commit reaches git unblocked. If a
+# future change widens or narrows the exposure, this fails loudly.
+for command in "$PS_UNPARSABLE_BACKTICK" "$PS_UNPARSABLE_HERESTRING"; do
+  for hook in block-noncanonical-commit block-dangerous-git block-no-verify; do
+    env CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ENABLED=false \
+      CLAUDE_PLUGIN_OPTION_BLOCK_NO_VERIFY_ENABLED=false \
+      bash "$HOOK_DIR/$hook.sh" <<<"$(pwsh_command_json "$command")" >/dev/null 2>&1
+    assert_exit "residual: $hook allows the rc-2 commit with both siblings disabled" 0 "$?"
+  done
+done
 
 # The PowerShell block message shows the here-string form, not a Bash heredoc.
 psout=$(bash "$HOOK" <<<"$(pwsh_command_json "git commit -m 'x'")" 2>&1)

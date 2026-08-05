@@ -207,6 +207,7 @@ repo's owner.
 
 | Key | Type | Default / absent behavior |
 |---|---|---|
+| `lane_instance` | string | sanitized lowercased hostname (writer identity suffixing `babysit-loop`'s telemetry marker; must be distinct across concurrent lane instances) |
 | `pr_body_linkage_gate_enabled` | boolean | `true` (the PR-body hook above; inert in a repo with no `pr-issue-linkage` workflow) |
 | `pr_linkage_mcp_gate_enabled` | boolean | `true` (the MCP-surface sibling; inert in a repo with no `pr-issue-linkage` workflow) |
 | `babysit_watched_owners` | string (multiple) | infer the current repo's owner |
@@ -227,6 +228,7 @@ repo's owner.
 | `babysit_advisory_fix_round_cap` | number | 100 |
 | `babysit_worker_concurrency_cap` | number | 10 |
 | `babysit_worktree_root` | directory | `worktrees/` under the plugin data dir |
+| `worktree_root` | directory | `worktrees/` under the plugin data dir (external root for `/worktree create`; never inside a repository or a repository-discovery root) |
 | `worktree_stale_days` | number | 14 (staleness threshold for `/worktree status`) |
 | `fetch_logs_max_bytes` | number | 52428800 (CI-log ZIP size cap for `fetch-logs`) |
 | `branch_issue_pattern` | string | built-in `<type>/<N>-<slug>` (and `routine-issue-<N>`) branch-to-issue grammar; set an ERE (last capture group = the numeric GitHub issue number) for a scheme that places the number differently, e.g. `^[^/]+/([0-9]+)-` (`alice/1234-slug`) or `-([0-9]+)$` (`feat/add-widget-1234`) |

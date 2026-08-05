@@ -7,10 +7,20 @@ the file's repository root, applying every auto-fixable rule and surfacing the
 residual (unfixable) findings back to Claude as advisory context.
 
 It uses **your repository's own markdownlint configuration** — it ships none and
-imposes no rules of its own.
+imposes no rules of its own. A repository with no discoverable markdownlint
+config has chosen no Markdown style, so the hook does not run there at all
+(#1809): carrying a config **is** the opt-in.
 
 ## Behavior
 
+- **Config opt-in.** The hook runs only when a markdownlint config file that
+  `markdownlint-cli2` would discover automatically (`.markdownlint-cli2.jsonc`,
+  `.markdownlint.json`, … — any of the ten documented names) exists between the
+  edited file's directory and the repository root. Without one, neither `--fix`
+  rewrites nor default-rule findings are imposed — the same doctrine as
+  `bash-format`'s shfmt gate. A `package.json` `markdownlint-cli2` property
+  does not open the gate: markdownlint-cli2 honors it only under an explicit
+  `--config` flag, not by discovery.
 - **Auto-fix on edit.** Fixable violations (final newline, list-marker style,
   trailing spaces, …) are corrected in place, and the count of fixes written is
   reported to Claude and to you — a run that changed your file never passes
@@ -32,6 +42,15 @@ imposes no rules of its own.
   discovery caps at the root regardless of the session's working directory.
   A configuration that can execute code is gated on explicit approval — see
   [Configuration trust boundary](#configuration-trust-boundary).
+
+## Known limitation
+
+Claude Code runs every matching `PostToolUse` hook in parallel, with no
+locking/ordering primitive. In an opted-in repo this hook is the single
+in-place rewriter for `.md`/`.mdc` by default; a consumer who ALSO opts
+`typos-format`'s write mode on accepts **last-writer-wins** ordering between
+the two on every Markdown edit. The residual overlap class across scoped
+writer hooks is tracked fleet-wide in #875.
 
 ## Requirements
 

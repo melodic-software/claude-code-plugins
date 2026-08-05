@@ -354,7 +354,7 @@ recommended model for the provider and update over time; a dated model name is a
 is never written into a lane body. Aliases are the only handle guaranteed under subscription OAuth,
 so they are the runtime path; the Models API list endpoint is the **build/audit-time** verification
 path, since it may require an API key a loop session lacks. No lane hard-codes a model ID. (Alias
-semantics verified against <https://code.claude.com/docs/en/model-config> on 2026-07-23.)
+semantics verified against <https://code.claude.com/docs/en/model-config> on 2026-08-04.)
 
 Tier tables are built from a live official-docs fetch at authoring time, never from recall. Any new
 model release re-audits the tier table — the trigger is recorded in this convention's
@@ -418,19 +418,100 @@ lane telemetry, and the operator owns the restart (`lanes` `restart` is the oper
 path). The restart-request in the #502 block is written so that the operator today, and an
 automatic trigger when one exists, can act on the same surface.
 
-**Telemetry comment (#502).** Each lane maintains exactly **one** status comment on a tracking item,
-identified by a machine sentinel marker and **edited in place** every cycle — never a second comment.
+**Telemetry comment (#502).** Each lane **instance** maintains exactly **one** status comment on a
+tracking item, identified by a machine sentinel marker and **edited in place** every cycle — never a
+second comment for that instance. The unit is the writer identity, not the lane type: N concurrent
+instances of one lane legitimately hold N sentinel-identified comments on that lane's telemetry
+item, one each, and no instance ever edits another's.
 `claude-ops`'s `telemetry-upsert.sh` is the interim home of this contract and a compatible reader
 (`morning-brief` reads the same surface); an installed plugin cannot invoke a sibling plugin's
 script, so each lane **inlines** the small `gh api` upsert and the coupling to `claude-ops` stays
-one-directional. An inlined upsert carries none of the wrapper's body checks, so it is bound by the
-`@path`-as-body rule in [`claude-ops` lanes](../../../plugins/claude-ops/skills/lanes/SKILL.md),
-section "Never pass a body as an `@path` string".
+one-directional. An inlined upsert is bound by the `@path`-as-body rule in
+[`claude-ops` lanes](../../../plugins/claude-ops/skills/lanes/SKILL.md), section "Never pass a body as
+an `@path` string", and encodes that rule mechanically in its own block (#943) as three checks. A
+**pre-write gate** refuses a body that is empty, a literal `@path`, not sentinel-prefixed, or under a
+16-byte payload floor measured below the sentinel line, before any API call. The **write's own exit
+status** is then checked, because a failed write leaves the previous cycle's body in place — which a
+read-back running regardless would accept. A **post-write read-back** re-reads what the write stored,
+the only check that sees a write which reported success and stored something else. Every branch that
+ends without a verified body reports UNREPORTED and skips the duplicate-supersede pass, so a cycle
+whose own write is unproven never tombstones a racing session's comment; carry that forward, since
+stderr does not survive the session. Known limits inherited from the wrapper: a PATCH that succeeds
+while storing the previous body still verifies, and the read-back proves *some* well-formed telemetry
+is present, not *this* cycle's. Not replicated inline: the 64 KiB cap, the body-file containment
+checks, retries, and the wrapper's distinct non-zero exits — every inline branch exits 0.
+
+**Lane-instance identity (#1295).** The marker names the **writer**, not the lane type. A marker
+that names only the lane makes two concurrent instances resolve one comment and clobber each other's
+durable state under last-writer-wins — including `first_drain_complete`, whose loss silently ends
+one instance's earn-trust ratification period because a different machine finished a drain. The
+marker therefore carries a lane-instance suffix, the lane-type marker becoming its prefix:
+
+```text
+MARKER="<lane-marker>@<lane_instance>"
+```
+
+`<lane_instance>` is resolved from launch config, defaulting to the sanitized lowercased machine
+hostname when unset (headless-config floor: never block on an interview, log the assumption). It
+must be **stable across restarts** — durable state is precisely what survives a `/loop` expiry or a
+cycle-budget relaunch — and **distinct across concurrently running instances**, so two lanes on one
+machine must each be given an explicit id. It is operator-supplied text interpolated into a shell
+string and a `jq` program, so every lane **validates it before use** — `^[a-z0-9][a-z0-9-]{0,31}$`,
+rejected outright, never sanitized-and-continued — and the validation lives in the lane's own
+executable block, not only in this prose. The value appears verbatim in tracker comments; an
+operator who does not want a machine name published in a public tracker sets an opaque id.
+
+The instance is reported on its **own `instance:` line** in the cycle report, never appended to the
+`lane:` line: `morning-brief`'s lane capture is `[a-z0-9_-]+`, which would silently truncate a
+suffix at the `@` and report the lane as if nothing were partitioned. Rendering one row per instance
+is that reader's own follow-up; emitting the field is this contract's obligation.
+
+Only the *instance* is new. The other two components of the (repo, lane, instance) identity already
+hold by construction: the comment lives on one issue in one repository, and the telemetry item is
+per-lane. The **issue title is not touched** — the `Lane telemetry: <lane>` title contract that the
+drain-exit snapshot, the intake sweep, and the attention view all match on is the reason the marker
+was chosen as the seam rather than the title.
+
+**Instance-collision detection.** Partitioning is correct only while ids are distinct, so a
+collision is detected rather than assumed away. This binds every lane that carries a durable-state
+block; the attended queue, which carries none, is bound by the marker partition alone — its operator
+is present by definition, so an id collision there surfaces to a human in the same pass. The durable
+state block carries `lane_instance`, a
+per-session random `writer_nonce`, an ISO-8601 UTC `heartbeat_at` rewritten every cycle, and
+`paused_until`. At cycle start, after reading its own block:
+
+- `writer_nonce` matches mine → ordinary continuation.
+- `writer_nonce` differs **and** the block is stale (`heartbeat_at` older than **2 hours**, and past
+  `paused_until` when set) → a previous session of this same instance restarted or died. Adopt the
+  block, write my nonce, continue. This is the ordinary restart path. Two hours is twice the
+  one-hour `ScheduleWakeup` ceiling above, so a healthy lane at maximum idle backoff can never look
+  stale.
+- `writer_nonce` differs **and** the block is fresh → **another live lane is using my instance id.**
+  Write nothing to the block, escalate per §2 (role label + machine-marked comment), and stop the
+  loop cleanly.
+
+`paused_until` is not the rate-limit latch and does not replace it: the latch says *do not claim
+work*, `paused_until` says *do not read my silence as death*. A lane entering a rate-limit pause
+writes it before pausing, so a paused lane is never adopted as a dead one. Detection runs before any
+write, so an id collision degrades to a stopped lane rather than a silently clobbered
+`first_drain_complete`.
+
+**Adopting the partition (one-time).** No pre-existing comment matches an instance's new sentinel,
+so the first cycle after adoption posts a fresh block from defaults — including
+`first_drain_complete:false` for every lane. That is intended and fails closed; it produces one
+burst of ratification queue comments on the next drain and is not a regression. The legacy
+un-suffixed comment is left in place and **never adopted, edited, or tombstoned by a lane**: its
+marker names no writer, so no instance can prove it owns it, and a lane that adopted it would
+reintroduce exactly the shared-comment clobber this rule removes. Retiring it is an operator action.
+Until then it remains readable, and stale: `morning-brief` will show it aging past the staleness
+threshold, which is the honest reading — nothing is writing it.
 
 **Durable loop state.** Conversation context is lossy across compaction, so a lane persists its
-adaptive-cap streak counter, its rate-limit-warning latch, its consecutive-no-progress counter, and
-its cycle count in a machine-readable block of that same #502 telemetry comment, and re-reads them
-at each cycle start.
+adaptive-cap streak counter, its rate-limit-warning latch, its consecutive-no-progress counter, its
+cycle count, and its instance-identity fields in a machine-readable block of that same #502
+telemetry comment, and re-reads them at each cycle start. Every counter in the block is
+**per-instance** — each measures the experience of one lane instance, which averaging two instances'
+experience into one block never did.
 
 **No-progress detector.** Every stall mechanism below the loop layer is per-PR or per-item, so a
 lane cycling repeatedly while accomplishing nothing in aggregate is invisible to itself: each gate
@@ -507,11 +588,18 @@ start; new automated intake arriving mid-cycle is **reported, never chased**, so
 bot cannot hold a drain open indefinitely.
 
 **Subagent discipline preamble.** Every subagent a lane dispatches carries a standing discipline
-preamble. When the `discipline` plugin is installed, the dispatch prompt invokes its sweep —
-sweep-all, use-your-skills, do-your-research; when it is absent, the dispatch prompt
-inlines the equivalent standing instructions (verify claims against authoritative sources before
-acting, prefer installed skills over ad-hoc approaches, and re-check work against the active
-conventions). The reference is presence-gated with this inline fallback per the
+preamble, because a dispatched subagent runs in a fresh, non-inherited context: it inherits no
+posture from the cycle root's own sweep and has to set its own. When the `discipline` plugin is
+installed, the dispatch prompt invokes its sweep skill, which resolves its own membership — the
+preamble never enumerates the individual disciplines, per this doc's own **Pointer-not-copy** rule:
+a hand-copied list drifts from the plugin that owns it. Invoked at the subagent's conversation
+start, that skill reports its cheap posture digest rather than running its audit fan-out, so the
+preamble costs one skill read per dispatch and does not
+recurse; the fan-out belongs to the cycle root's once-per-cycle pass, and the skill's own audit forks
+never re-invoke it. When the plugin is absent, the dispatch prompt inlines the equivalent standing
+instructions (verify claims against authoritative sources before acting, prefer installed skills
+over ad-hoc approaches, and re-check work against the active conventions). The reference is
+presence-gated with this inline fallback per the
 [seam-phrasing convention](../seam-phrasing/README.md) — `discipline` is never a hard dependency.
 
 ## 5. Consumers and launch surfaces
@@ -525,8 +613,9 @@ conventions). The reference is presence-gated with this inline fallback per the
 All three adopters have shipped. This owner doc landed ahead of them, per the convention-registry
 rule; the table above is a live consumer list, not a forward reference.
 
-**Launch surfaces.** A lane launches interactively via `/loop` — the primary surface, built-in and
-dependency-free — or headless via the `claude-ops` `lanes` launcher, which stores the one-line lane
+**Launch surfaces.** A lane launches interactively via `/loop` — the primary surface, a bundled
+skill needing no install (<https://code.claude.com/docs/en/skills#bundled-skills>, verified
+2026-08-02) — or headless via the `claude-ops` `lanes` launcher, which stores the one-line lane
 prompt through its `prompt_dir` seam (#480). `lanes` is a **supporting, strictly one-directional**
 launcher: it launches the lane; no lane body ever requires, imports, or degrades without
 `claude-ops`. Every mention of `lanes` in a lane body is presence-gated with the `/loop` fallback

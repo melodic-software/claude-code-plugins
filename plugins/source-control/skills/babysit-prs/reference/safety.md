@@ -162,36 +162,42 @@ loop's own escalation contract is not outside it.
   fix that should have addressed it, real evidence of non-convergence; (b) a new, distinct,
   code/line-cited finding — expected depth on complex or security-sensitive logic, not churn; or
   (c) a self-inflicted finding — new and distinct, but against text this lane's own prior fix on
-  this PR introduced. Provenance decides (c), never severity.
+  this PR introduced. Provenance decides (c), never severity. <!-- contract-restatement-begin: D4.6-deferral-provenance -->
 - Fix (c) like any other in-scope defect — it is never deferrable, because it is a defect this
   change is shipping (`${CLAUDE_PLUGIN_ROOT}/reference/review-discipline.md`, D4.6) — but count
-  it. A second consecutive round whose findings are *all* (c) means incremental patching is
-  injecting defects about as fast as it removes them; that is the non-convergence signal a round
-  count only approximates. **The "second consecutive" test must survive context rollover, and the
-  durable ledger records only that a round happened, not what it contained**
-  (`manage_feedback_ledger.py::record_advisory_round` stores timestamps per head). Two duties
-  follow, and the second only works because of the first:
-  - **Classify and stamp on EVERY advisory round, not only when an escalation is already being
-    prepared.** This section's heading scopes when to *escalate*; the classification itself is a
-    per-round duty, because a round that runs it only at escalation time has already lost the
+  it. <!-- contract-restatement-end: D4.6-deferral-provenance --> A second consecutive **advisory** round whose findings are *all* (c) means incremental
+  patching is injecting defects about as fast as it removes them; that is the non-convergence
+  signal a round count only approximates. The test is scoped to advisory rounds because those are
+  the rounds the ledger records — a blocking-defect round in between neither counts nor resets it.
+  It survives context rollover because the classification itself is durable, and two duties follow:
+  - **Classify at record time on EVERY advisory round, not only when an escalation is already
+    being prepared.** This section's heading scopes when to *escalate*; the classification itself
+    is a per-round duty, because a round that runs it only at escalation time has already lost the
     history the tripwire consumes. Run the (a)/(b)/(c) taxonomy over the round's findings before
-    dispatching its fix (`orchestration.md`'s advisory-round step), and record the literal marker
-    `(class (a))`, `(class (b))`, or `(class (c))` beside the disposition in the D5 reply row for
-    every finding classified — the canonical D5 vocabulary (VALID/INCORRECT/UNCERTAIN) does not
-    carry this taxonomy, so it must be written alongside. An unstamped round is invisible to the
-    next worker, which is the same as never having classified it.
-  - **Reconstruct at round start.** Derive the previous round's composition from the PR itself:
-    read the prior round's threads (resolved ones included; resolution hides nothing from a
-    direct thread query) and count the recorded `(class (c))` markers. A fresh worker that skips
-    this reconstruction and sees only the current round cannot fire the tripwire, which is
-    exactly when it is needed. A prior round with no markers found is UNKNOWN, not (a)/(b) —
-    treat a current all-(c) round following an UNKNOWN round as tripwire-eligible and say so in
-    the escalation rather than silently resetting the count. Change METHOD rather than stopping: rewrite the contested section
-  whole in one commit, or report it for a human decision. It is never a licence to ship a known
-  defect.
+    recording it, and pass one `--finding-class` per finding to `manage_feedback_ledger.py
+    record-advisory-round` (`feedback.md`); the helper refuses an unclassified round, so no silent
+    path leaves the tripwire nothing to read. Also stamp the literal marker `(class (a))`, `(class
+    (b))`, or `(class (c))` beside the disposition in the D5 reply row for every finding
+    classified — the canonical D5 vocabulary (VALID/INCORRECT/UNCERTAIN) does not carry this
+    taxonomy, and the markers are what let a human reading the PR check the ledger's arithmetic
+    against the threads themselves.
+  - **Read the verdict; never re-derive it.** One computation, two reads, and they answer
+    different questions. The snapshot's `advisory_fix_rounds.non_convergence_tripwire` — `armed`
+    plus the `basis` it was decided on — covers the rounds already recorded, so at round start it
+    reports whether the lane arrived here already non-converging. The **decisive** read for the
+    round about to be dispatched is the verdict `record-advisory-round` returns once this round's
+    own classes are recorded: that is what answers "is THIS round all-(c) after an all-(c)
+    predecessor", and it is why the classification is recorded before the fix is dispatched rather
+    than after it. Either read is a field a fresh worker with no prior context can just read,
+    instead of reconstructing the previous round's composition from GitHub threads. A round
+    recorded before per-finding classes were persisted reads as UNKNOWN, not (a)/(b), and the
+    tripwire **fails closed** on it: a current all-(c) round following an UNKNOWN round arms, and
+    the escalation says so rather than silently resetting the count. Armed means change METHOD
+    rather than stopping: rewrite the contested section whole in one commit, or report it for a
+    human decision. It is never a licence to ship a known defect.
 - Escalate a bounding/cap-policy question only when verification shows (a), a second consecutive
-  all-(c) round, or a finding that is structurally impossible to resolve (the check itself is
-  external or non-deterministic). If every unresolved thread is (b) or (c) and each is
+  all-(c) advisory round, or a finding that is structurally impossible to resolve (the check
+  itself is external or non-deterministic). If every unresolved thread is (b) or (c) and each is
   individually fixable — a mechanical fix or a clearly-scoped judgment call — fix directly
   instead. A high round count alone is not evidence of non-convergence.
 - This verification is required even when a sub-agent, advisor, or other second opinion reads
@@ -548,16 +554,23 @@ re-invocation (`babysit-loop/SKILL.md`, Cycle shape step 3, "The verdict authori
 the PR"). Every other invocation of this skill re-pins to the vetted post-push head exactly as
 Autopilot step 3 describes.
 
-### Security/P1 escalation: the one named exception
+### Security/P1 escalation has no exception; the pre-escalation resolver is bound by it too
 
-Escalating a security/P1 thread instead of resolving it holds in every tier, autopilot included.
-The loop-lane convention carries exactly one named exception (§1, "one named, explicit
-paired-argument exception"), and it is this narrow:
+Escalating a security/P1 thread instead of resolving it holds in every tier and every mode,
+autopilot and `--independent-resolver` included — the wrappers refuse a severity-flagged thread
+whoever asks, so no dispatch path can reach past it (`--independent-resolver` above, "the security/P1
+bright line, because this is still an unattended path"). The loop-lane convention's one named
+paired-argument exception (§1) widens the **merge rung** for a single run; it never widens the
+severity bright line, and reading it as an exception to this rule would describe an unreachable
+path.
+
+What the paired-argument invocation *does* unlock is the pre-escalation resolution dispatch, and
+that path is this narrow:
 
 - **Only one dispatch path.** The `source-control:babysit-loop` explicit-`autopilot` pre-escalation
   resolver — the subagent that lane dispatches when a caller typed both the literal `autopilot`
   tier argument and the dedicated raise argument `--merge c3-this-run` on that invocation's own
-  line. No other invocation of this skill, at any tier, ever reaches this exception.
+  line. No other invocation of this skill, at any tier, ever reaches it.
 - **Only a fresh, independent context.** The dispatch must share no conversation history with
   whatever produced the PR or previously replied on the blocking thread (the convention's §3
   independence requirement). A continuation of the authoring session, or a re-invocation of the
@@ -565,8 +578,9 @@ paired-argument exception"), and it is this narrow:
   about itself. This is a contract on how the lane dispatches, not a credential the dispatch
   presents: a run that cannot establish it is fresh escalates.
 - **Only through these wrappers.** The resolution runs through the guarded-mutation path above,
-  with every pin, refusal, and JSON-parse rule intact. The exception changes who may attempt the
-  resolution, never what the wrappers permit.
+  with every pin, refusal, and JSON-parse rule intact. The dispatch changes who may attempt the
+  resolution, never what the wrappers permit — which is exactly why the severity refusal above
+  still lands on it.
 - **Never anything else.** It does not widen what counts as genuinely "addressed", never applies
   to a PR whose work item classifies C4 (structural) or C5 (untrusted-provenance), and never
   substitutes for escalation when the resolution is unresolved or the resolver is uncertain.

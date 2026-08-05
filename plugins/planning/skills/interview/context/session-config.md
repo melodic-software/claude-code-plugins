@@ -20,7 +20,10 @@ are not interchangeable:
   **confidently wrong despite full context** — the failure is a reasoning ceiling,
   not missing information. Signals from the interview: the task turned on subtle
   correctness, dense cross-module invariants, or tradeoffs the user themselves found
-  hard to adjudicate.
+  hard to adjudicate. Residual ambiguity is its own signal in this direction —
+  upstream pairs the larger model with handling ambiguity and the smaller model with
+  "specific instructions directing execution", so ambiguity the rounds could not
+  retire argues up, and a Brief precise enough to execute from argues down.
 - **Effort level (thoroughness).** Raise effort when the assistant would
   **under-explore or under-verify** — it can reach the right answer but tends to stop
   short. Signals: broad surface area, many files, a verification-heavy acceptance
@@ -28,6 +31,33 @@ are not interchangeable:
 
 A task can want both, one, or neither. State which knob each recommendation turns and
 why, in the interview's own evidence terms.
+
+**Neither knob is the first move.** Upstream puts a prior step ahead of both: when
+Claude gets something wrong, "your first instinct shouldn't be to adjust a knob, but
+to examine the context you have provided" — vague prompt, wrong tools, missing
+skills. The corollary names the surfaces: "If you're increasing effort on a task that
+*shouldn't* need it, the fix is often upstream, in your context, your CLAUDE.md, or
+how the task is scoped." That prior step is this skill's own product: the Brief **is**
+the context fix, so recommend a knob only for what a sharper Brief would not have
+caught. The discriminator between the two — "did it not *try* hard enough, or did it
+not *know* enough?" — is upstream's, and its own figure caption fences it: "a starting
+point, not a hard rule". Raising effort is sharpest below the default, where upstream
+scopes it: "most relevant if you selected an effort level below the model's default"
+([choosing a Claude model and effort level in Claude Code](https://claude.com/blog/claude-model-and-effort-level-in-claude-code),
+verified 2026-08-04).
+
+A post is cited here for doctrine, not only for the live values below, and the harness
+docs authorize it outright: `model-config` delegates this guidance to the post — "For
+guidance on which model and effort level fit different kinds of work, see [the post]
+on the blog"
+([model configuration](https://code.claude.com/docs/en/model-config), verified
+2026-08-04). What no reference page states is the try-versus-know **diagnostic**
+itself. The nearest sentences discriminate something else: [choosing a
+model](https://platform.claude.com/docs/en/about-claude/models/choosing-a-model) orders
+the levers — "Tuning effort is often a better lever than switching models" — and the
+effort page's "raise effort rather than prompting around it" pairs effort against
+*prompting*. Ordering a lever is not diagnosing which failure you have, so the post
+owns the diagnostic rather than corroborating a page that states it.
 
 ## Advisor pairing
 

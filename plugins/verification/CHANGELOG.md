@@ -3,6 +3,28 @@
 All notable changes to the `verification` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.6]
+
+### Changed
+
+- **The live-app delegation path no longer tells the skill to invoke the bundled `/verify`.**
+  Claude Code v2.1.215 made `/verify` and `/code-review` user-invoked only — Claude does not run
+  them on its own — so **from v2.1.215** every instruction routing this skill's live-app run through
+  `/verify` named a surface it cannot reach, silently costing the fallback its primary leg. The
+  shipped wording carries that version rather than stating the restriction flatly: on 2.1.145–2.1.214
+  `/verify` is still model-invocable, and this repository declares no Claude Code support floor that
+  would make an unscoped statement true. The *instruction* stays uniform across the window even so —
+  suggesting `/verify` is correct on every version it exists on, so the skill never probes the
+  client's version. `/run` is unaffected
+  (the change names neither it nor the `run-skill-generator` sibling) and stays the supplementary
+  agent-invocable path; `/verify` is now surfaced as a suggestion for the user to run. The
+  `≥ 2.1.145` availability floor is **unchanged and re-verified 2026-08-02** against the bundled
+  skills reference, which still states it for all three of `/run`, `/verify`, and
+  `/run-skill-generator` — that note was never stale; what changed is who may invoke one of them.
+  The `confirm` skill's graded rubric moved with the behavior: eval 9
+  (`live-app-delegates-to-bundled-with-fallback`) had encoded the removed `/verify` delegation as a
+  pass condition, and would otherwise have graded the corrected skill as failing.
+
 ## [0.3.5]
 
 ### Changed

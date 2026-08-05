@@ -3,7 +3,7 @@
 All notable changes to the `markdown-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.8.6]
+## [0.9.1]
 
 ### Fixed
 
@@ -18,6 +18,41 @@ All notable changes to the `markdown-format` plugin are documented here. Format 
   `hook::git_effective_dir` carries the git guards' single path-composition rule. This plugin
   does not consume the resolver; the sync keeps its copy byte-identical with the source. Synced
   from `lib/hook-utils.sh`.
+
+## [0.9.0]
+
+### Changed
+
+- **The hook now runs only in repositories that carry a discoverable markdownlint config
+  (#1809).** `markdownlint-cli2` ships a built-in default rule set, so an ungated run imposed a
+  style the repository never chose — both `--fix` rewrites (observed falsifying a quoted changelog
+  line via MD004 and destroying a line-leading issue reference via MD018) and default-rule findings
+  (~115 unactionable MD013 findings per audit session on repos with no chosen line length). The run
+  is now gated on one of the ten config file names markdownlint-cli2 documents as automatically
+  discovered, anywhere between the edited file's directory and the repository root — the same
+  opt-in doctrine as `bash-format`'s shfmt gate. No config → no run, no notice, no
+  install-markdownlint nag. A `package.json` `markdownlint-cli2` property does not open the gate
+  (markdownlint-cli2 reads it only under an explicit `--config` flag; its README "Configuration"
+  section, fetched 2026-07-31). Part of #1809's single-writer decision: by default at most one
+  in-place rewriter matches any file class, which dissolves the undefined-precedence race with
+  `typos-format` this marketplace shipped for every Markdown edit.
+
+## [0.8.6]
+
+### Fixed
+
+- **Shared `hook-utils.sh`: the OS temp tree is no longer treated as project content (#1769).**
+  `hook::read_file_path` scoped a file to the project by prefix-matching `CLAUDE_PROJECT_DIR`, so a
+  session whose project directory is the user's home admitted everything under the OS temp root —
+  including Claude Code's own per-session scratchpad, which lives there. Hooks that lint, rewrite, or
+  autocorrect then ran on throwaway files that are not project content and carry no project config to
+  opt out with; the reported case was `typos-format` autocorrecting a shell variable in a scratch
+  script and silently breaking it. The guard now rejects a file inside the OS temp tree when the
+  project root is outside it. The exemption is deliberate and load-bearing: when the project root
+  itself lives under temp — a `mktemp -d` fixture checkout, which is how this repository's own hook
+  suites run — its files are still accepted. Temp roots come from `TMPDIR` / `TMP` / `TEMP` plus the
+  POSIX defaults, canonicalized through the same pipeline the membership comparison already uses.
+  Synced from `lib/hook-utils.sh`.
 
 ## [0.8.5]
 

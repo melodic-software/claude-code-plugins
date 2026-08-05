@@ -130,6 +130,100 @@ class HygieneTests(unittest.TestCase):
             )
             self.assertIn("NTUSER.DAT", policy["protected_exact_names"])
 
+    def test_hints_match_a_name_whatever_its_case(self) -> None:
+        # Protection casefolds and discovery did not, so on Windows and macOS —
+        # where both spellings name the SAME file — an entry could be protected
+        # case-robustly while being invisible to triage.
+        policy = hygiene.load_policy(None)
+        for name, expected in (
+            ("tmp-build", "common-temp-directory"),
+            ("TMP-build", "common-temp-directory"),
+            ("scratch.md", "scratch-artifact"),
+            ("Scratch.md", "scratch-artifact"),
+            ("failed-write.tmp", "common-temp-file"),
+            ("FAILED-WRITE.TMP", "common-temp-file"),
+        ):
+            matched = {hint["id"] for hint in hygiene.matching_hints(name, name, policy)}
+            self.assertIn(expected, matched, name)
+
+    def test_platform_scoped_hints_are_also_case_insensitive(self) -> None:
+        # Separated from the OS-agnostic rows and run under a pinned os_key:
+        # `matching_hints` filters by the current OS BEFORE matching, so asserting
+        # a windows-only hint on a Linux runner tests the OS filter, not the case
+        # discipline this is about.
+        policy = hygiene.load_policy(None)
+        with mock.patch.object(hygiene, "os_key", return_value="windows"):
+            for name in ("Thumbs.db", "thumbs.db", "THUMBS.DB"):
+                matched = {
+                    hint["id"] for hint in hygiene.matching_hints(name, name, policy)
+                }
+                self.assertIn("windows-explorer-metadata", matched, name)
+        with mock.patch.object(hygiene, "os_key", return_value="macos"):
+            for name in (".DS_Store", ".ds_store"):
+                matched = {
+                    hint["id"] for hint in hygiene.matching_hints(name, name, policy)
+                }
+                self.assertIn("macos-finder-metadata", matched, name)
+
+    def test_atomic_write_staging_remnants_are_hinted_as_a_class(self) -> None:
+        # The producer-specific hint encodes one filename while its own reason
+        # claims the class. `.tmp` as an INFIX before a pid/random suffix is the
+        # standard write-temp-then-rename shape, and a scan of one plugin's
+        # state directory returned zero hinted entries across 63, of which 61
+        # were remnants of exactly this shape.
+        policy = hygiene.load_policy(None)
+        for name in (
+            ".rate-limits.json.tmp.1363789.17391",
+            "settings.json.tmp.4",
+            ".claude.json.tmp.9552.9bfba4e83eaa",
+        ):
+            matched = {hint["id"] for hint in hygiene.matching_hints(name, name, policy)}
+            self.assertIn("atomic-write-staging-remnant", matched, name)
+        # The producer-specific hint still fires alongside it: it carries a
+        # narrower reason, and a class hint does not replace that.
+        matched = {
+            hint["id"]
+            for hint in hygiene.matching_hints(
+                ".claude.json.tmp.9552.9bfba4e83eaa",
+                ".claude.json.tmp.9552.9bfba4e83eaa",
+                policy,
+            )
+        }
+        self.assertIn("claude-json-failed-atomic-write", matched)
+
+    def test_consumer_protection_globs_match_whatever_the_case(self) -> None:
+        # The same matcher serves hints and protection, so this moves with the
+        # hint change deliberately rather than by accident. Casefolding a
+        # protection glob can only ever keep more.
+        with tempfile.TemporaryDirectory() as temporary:
+            policy_path = Path(temporary) / "policy.json"
+            policy_path.write_text(
+                json.dumps(
+                    {
+                        "version": 1,
+                        "disabled_hint_ids": [],
+                        "additional_hints": [],
+                        "additional_protected_path_globs": ["Deliverables/**"],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            root = Path(temporary) / "target"
+            (root / "deliverables").mkdir(parents=True)
+            (root / "deliverables" / "report.tmp").write_text("x", encoding="utf-8")
+            snapshot = hygiene.scan_tree(
+                root.resolve(), hygiene.load_policy(policy_path)
+            )
+            entries = hygiene.entry_map(snapshot)
+            # `Deliverables/**` matches the descendants, not the directory
+            # entry itself — the pattern's own semantics, unchanged here. What
+            # changes is that a `Deliverables` pattern now reaches a
+            # `deliverables` path.
+            self.assertIn(
+                "consumer-protected-path",
+                entries["deliverables/report.tmp"]["protected_reasons"],
+            )
+
     def test_policy_rejects_non_array_boundary_input(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             policy_path = Path(temporary) / "policy.json"
@@ -2978,6 +3072,127 @@ class GuardTests(unittest.TestCase):
             self.assertIsNone(
                 self.run_guard_engine_gate(f'python3 "{consumer}" --help')
             )
+
+    @staticmethod
+    def _install_cached_versions(base: Path, versions: tuple[str, ...]) -> dict:
+        """Lay out a marketplace cache holding several versions of this plugin.
+
+        Mirrors Claude Code's documented layout,
+        `<plugins>/cache/<marketplace>/<name>/<version>`, because the guard
+        derives the family prefix from its own path — a fake that does not carry
+        the real `plugins/cache` marker would exercise nothing.
+        """
+        family = base / "plugins" / "cache" / "market" / "disk-hygiene"
+        engines = {}
+        for version in versions:
+            root = family / version
+            scripts = root / "skills" / "clean" / "scripts"
+            scripts.mkdir(parents=True)
+            shutil.copy2(
+                SCRIPT_DIR / "destructive_guard.py", scripts / "destructive_guard.py"
+            )
+            (scripts / "hygiene.py").write_text("# engine copy\n", encoding="utf-8")
+            lib = root / "lib"
+            lib.mkdir()
+            shutil.copy2(
+                SCRIPT_DIR.parents[2] / "lib" / "killswitch_config.py",
+                lib / "killswitch_config.py",
+            )
+            engines[version] = scripts
+        return engines
+
+    def test_engine_gate_no_longer_defers_this_plugins_own_stale_engines(self) -> None:
+        """A replaced version's engine is a different FILE, not a different ENGINE.
+
+        The "provably a DIFFERENT file" escape (#1640, #1611) exists so a
+        consumer's own `tools/hygiene.py` is not mistaken for this engine. A
+        previous version of this plugin sitting in the cache is not a consumer's
+        tool, and Claude Code keeps a replaced version's directory on disk after
+        an update — so the escape left the kill switch unenforced against every
+        cached sibling whenever the clean skill was not the active work (#1805).
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(os.path.realpath(tmp))
+            engines = self._install_cached_versions(base, ("0.9.0", "0.10.2"))
+            current = load_module(
+                "guard_cache_install",
+                engines["0.10.2"] / "destructive_guard.py",
+            )
+            stale = (engines["0.9.0"] / "hygiene.py").as_posix()
+            bundled = (engines["0.10.2"] / "hygiene.py").as_posix()
+
+            for command in (
+                f'python3 "{stale}" apply --execute',
+                f'cd /elsewhere && python3 "{stale}" apply --execute',
+            ):
+                self.assertTrue(
+                    current._engine_gate_relevant(command, "Bash"), command
+                )
+            # The install's own engine still gates, so the narrowing did not
+            # merely move which copy is unguarded.
+            self.assertTrue(
+                current._engine_gate_relevant(
+                    f'python3 "{bundled}" apply --execute', "Bash"
+                )
+            )
+
+    def test_engine_gate_still_defers_a_consumer_tool_outside_the_cache(self) -> None:
+        """The narrowing must not undo what #1640 and #1611 fixed."""
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(os.path.realpath(tmp))
+            engines = self._install_cached_versions(base, ("0.10.2",))
+            current = load_module(
+                "guard_cache_install_consumer",
+                engines["0.10.2"] / "destructive_guard.py",
+            )
+            consumer_dir = base / "consumer+tools"
+            consumer_dir.mkdir()
+            consumer = consumer_dir / "hygiene.py"
+            consumer.write_text("print('consumer tool')\n", encoding="utf-8")
+            for command in (
+                f'python3 "{consumer.as_posix()}" --help',
+                f'cd /elsewhere && python3 "{consumer.as_posix()}" --help',
+            ):
+                self.assertFalse(
+                    current._engine_gate_relevant(command, "Bash"), command
+                )
+
+    def test_cache_family_narrowing_is_inert_for_a_checkout_install(self) -> None:
+        """A --plugin-dir checkout has no cached siblings, so nothing narrows.
+
+        Pinned because the alternative — treating an unrecognized layout as
+        in-family — would gate a contributor's every command naming their own
+        working tree's engine.
+        """
+        self.assertIsNone(guard._plugin_cache_family_root())
+        self.assertFalse(guard._within_plugin_cache_family(str(SCRIPT_DIR)))
+
+    def test_bash_denial_names_every_shape_the_classifier_accepts(self) -> None:
+        # The documented bootstrap path is to submit a wrong shape so the denial
+        # teaches the grammar. It enumerated four engine subcommands and omitted
+        # the read-only kill-switch probe, which `_decide` allows before it ever
+        # reaches the classifier — so a consumer learning the allow-list from
+        # the denial never learned the probe is permitted, and the probe is the
+        # step that lets the model state the kill-switch value honestly instead
+        # of assuming the default.
+        guidance = guard._bash_denial_guidance("/data/root")
+        for subcommand in guard._ALLOWED_ENGINE_SUBCOMMANDS:
+            self.assertIn(subcommand, guidance, subcommand)
+        self.assertIn("kill_switch_probe.py", guidance)
+        # The engine's own path: without it, a body whose ${CLAUDE_PLUGIN_ROOT}
+        # arrived unexpanded leaves no disclosed route to the engine, and the
+        # exact-path identity check denies every guess.
+        self.assertIn(guard._display_path(guard._engine_script_path()), guidance)
+
+    def test_classifier_rejects_a_subcommand_outside_the_shared_list(self) -> None:
+        """The denial text and the grammar are one list, so they cannot drift."""
+        python = guard._display_python()
+        engine = guard._display_path(guard._engine_script_path())
+        self.assertIsNone(
+            guard.classify_exact_engine_command(
+                f'"{python}" "{engine}" summarize --snapshot s', None
+            )
+        )
 
     def test_engine_gate_defers_files_whose_name_merely_ends_in_the_marker(
         self,

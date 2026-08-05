@@ -5,6 +5,166 @@ All notable changes to the `plugin-quality` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] - 2026-08-04
+
+### Added
+
+- **Config lens covers plugin-shipped harness config files.** The plugins guide
+  (<https://code.claude.com/docs/en/plugins>, fetched 2026-08-04) specifies three plugin-root
+  config surfaces the lens predated, each with a silent failure mode worth auditing:
+  `settings.json` (only `agent` and `subagentStatusLine` supported; unknown keys silently ignored;
+  wins over `settings` in `plugin.json`), `.lsp.json` (an invalid entry is skipped — only
+  `claude --debug` says why; a failed start surfaces in the `/plugin` Errors tab), and
+  `monitors/monitors.json` (start governed by the `when` trigger — `"always"` default vs
+  `"on-skill-invoke:<skill-name>"`; every stdout line reaches Claude as a notification).
+  `config.md` now names the surfaces and their checks, and the hub's index row routes them there.
+
+## [0.4.0] - 2026-07-31
+
+### Added
+
+- **`scripts/packet-prune.sh` — retention as a mechanism instead of prose (#1808).** The rule was
+  a sentence telling the model to "delete packet directories older than 30 days": an unbounded
+  recursive delete, over the one tree that also holds the only durable copy of an unattended run's
+  emitted work item, left entirely to model obedience. The two safety properties now live in the
+  script and hold whether or not the paragraph is read — it is **dry-run by default**, and it
+  **never deletes a packet containing `item.md`** at any age, because step 6's unattended clause
+  sends every unattended run to rung 4 and makes that file the sole copy of the audit's entire
+  output. Age is graded from the nonce directory NAME, not mtime, so retention does not depend on
+  the same in-place mutation the packet exists to resist; an ungradable name is reported and kept.
+  "Ungradable" is decided by round-tripping the calendar value through `date`, not by the name's
+  character shape: `00000000T000000Z` matches the nonce pattern exactly, names no instant that
+  exists, and sorts below every cutoff, so a shape-only test classified it `DELETE` and `--apply`
+  destroyed it — the precise fail-closed violation the rule exists to prevent. A value the
+  implementation rejects (GNU) or silently normalizes to another day (BSD turns Feb 31 into Mar 3)
+  cannot round-trip identically, and any uncertainty routes to `UNPARSABLE`, never to `DELETE`.
+  Because failing closed silently would be its own defect — a `date` that exists but cannot
+  round-trip would grade every packet ungradable, stopping retention forever while still reporting
+  success — the already-validated cutoff is run through the same path at startup, and a userland
+  that cannot reproduce a known-good nonce is refused with exit 2 like a missing `date`. That
+  self-check is also the only thing that can catch a broken BSD branch, which no GNU-only CI reaches.
+  The root must be named `evidence`, so a mistyped path is refused before anything is walked, and
+  containment is re-established **per candidate** by canonicalizing it — checking only the root let
+  a symlinked session directory yield a path whose real location is outside the tree, which an
+  independent review reproduced as an `rm -rf` outside the evidence root. Such candidates report
+  `ESCAPED` and are skipped; deletion targets the canonical path. The `item.md` search is recursive
+  and case-insensitive, because a deliverable one directory down is exactly as unrecoverable. A
+  delete that fails is its own `FAILED` verdict and exits 1, so an incomplete retention pass is not
+  indistinguishable from a clean one; a dry run reports `would-delete=` rather than `deleted=`.
+- **`scripts/packet-seal.sh` — tamper-evidence for packet files (#1808).** `record` writes a
+  `packet.sha256` manifest; `verify` reports `MATCH`/`CHANGED`/`MISSING`/`UNSEALED` per file and
+  fails closed on a packet it cannot grade. The resume rule and the `auditor` both verify before
+  trusting packet content. Altered and merely-unsealed are **separate exit codes** (1 vs 3): a
+  packet legitimately gains files after its last seal — `contract.md` at step 4, `item.md` at step
+  6, both of which now re-seal — so collapsing them would have made the ordinary interrupted-run
+  packet, the exact case resume exists for, report as tampered. `record` refuses to reseal over an
+  already-divergent file rather than laundering the rewrite into a fresh digest, enumeration covers
+  everything that is not a directory (a `-type f` walk could not see symlinks, so an all-symlink
+  packet sealed zero files and then verified "intact"), and a symlink packet entry is refused
+  outright rather than digested — the whole class, not just escaping links, because resolving a
+  target portably would need GNU-only `readlink -f` and a packet never legitimately holds a link.
+  Exit 0 states its own limit: nothing changed *since the seal*, which is not a claim the content
+  is pristine.
+
+### Fixed
+
+- **The resume rule no longer breaks on a multi-target audit (#1808).** It re-derived the packet
+  path by re-sanitizing the raw argument into a single expected slug, while the packet model, slug
+  rule, and `argument-hint` were all singular. A request like "audit the plugins we used" resolves
+  to several components, the run reasonably allocates one conforming packet per component, and the
+  re-derived slug then matches **no directory at all** — so a post-compaction resume concludes the
+  findings are missing from a run that produced six packets. Fan-out is now documented behaviour
+  rather than an undocumented improvisation: the argument resolves to a LIST of targets, each gets
+  its own packet under a slug derived from the **resolved component identity** (capped at 64
+  characters, which also retires the Windows 260-character path hazard), and resume
+  **enumerates** the session directory instead of deriving one slug. Enumeration reads no pointer,
+  so unlike a name taken from packet content it cannot be *steered* by audited content — but it is
+  not unconditionally trustworthy: the `auditor` holds Write, so an auditor subverted by an
+  injection could plant a sibling slug that enumeration would pick up. Resume therefore reports the
+  enumerated slug set rather than silently consuming it. Enumeration is also **grouped by run**: a
+  session directory accumulates every audit that session ran, so taking every slug and
+  independently picking each one's latest nonce mixed runs — audit A, later audit only B, and
+  resuming B also loaded A's packet and carried its stale findings into the union contract and the
+  emit. The run nonce is the discriminator, now pinned as one value computed once at run start and
+  reused for every target packet, and advanced when the name is already taken so two runs in the
+  same second cannot share one (re-deriving it per target would straddle a second boundary and
+  split one run into several; sharing it would merge two). Resume groups the enumerated pairs by
+  nonce — one nonce, one run — and never unions across groups. Selection is deliberately *not* a
+  bare greatest-nonce rule: a later run that died in step 1 leaves a findings-less packet whose
+  nonce outsorts everything, and picking on that alone would report an earlier run's complete
+  sealed packets as missing. Every group is reported with its slug set and whether it holds
+  grounded findings, the selected group is named along with the reason, and an unselected group is
+  set aside visibly rather than reduced to a count — which is also what keeps a planted slug under
+  an attacker-chosen high nonce from silently becoming the whole selection.
+- **Packet files are declared write-once, and their mutation by sibling hooks is now detectable
+  (#1808).** The guardrail section anticipated a write being *rejected*; the likelier event is the
+  write succeeding and the content being rewritten underneath it. `PostToolUse` runs after a tool
+  call succeeds, may rewrite content, and matches on **tool name**
+  (<https://code.claude.com/docs/en/hooks>, fetched 2026-07-31) — so every sibling plugin
+  registering `Write|Edit` post-processes every packet write, and two such formatters ship in this
+  fleet. Observed damage hit verbatim quotations and code-span identifiers, the two content
+  classes a packet exists to preserve, and it is silent with respect to the artifact: the notice
+  goes to the *session*, the very context the packet outlives. Three rules now apply — write once
+  (a correction is a new file, since the autocorrect has no memory and reverts hand-repairs),
+  read back immediately after each write, and seal. The scope is stated honestly: the digest
+  cannot detect the FIRST in-place rewrite (any later tool call necessarily hashes the
+  already-rewritten bytes) — the read-back is that detector — but it turns every divergence after
+  the seal from silent into reported. Three tempting escapes are recorded as disproved rather than
+  left to be re-proposed: a non-`.md` extension, a `typos`/`markdownlint` opt-out, and a shell
+  redirect that dodges the matcher (a hook bypass the fleet's own guardrails block by design).
+- **The `${CLAUDE_PLUGIN_DATA}` harness claim was false (#1808).** The packet section asserted the
+  token "does NOT substitute in skill markdown"; the plugins reference puts skill and agent content
+  in the "anywhere the placeholder appears" row alongside hook and monitor commands
+  (<https://code.claude.com/docs/en/plugins-reference>, fetched 2026-07-31). Corrected in place —
+  the prescribed manual derivation was itself doc-correct and is kept as the fallback. Fixed here
+  rather than deferred because this release's script invocations use `${CLAUDE_PLUGIN_ROOT}` in the
+  same files, which the false claim would have told a reader could not work.
+- **The backstop persist seals last, after the provenance write (#1808).** Step 3's
+  both-writes-refused path sealed immediately after writing the recovered findings and only then
+  created `evidence-<n>.md`, so following it literally left the provenance file written past the
+  last seal — and the resume rule's mandatory verify then reported `UNSEALED` (exit 3) on *every*
+  backstop-recovered packet. The packet class whose provenance most needs to be trustworthy was the
+  one class that always arrived partly unsealed. The step now writes the findings, reads them back,
+  records the provenance, and seals **once, after every write the step makes**, matching write-once
+  rule 3's "when a step's packet writes are complete".
+- **The `auditor` enumerates `evidence*.md` instead of assuming `evidence.md` (#1808).** Real
+  packets carry supplementary `evidence-<n>.md` files — and the write-once rule above makes more of
+  them — so a read of one assumed name that fails is not evidence the packet is empty.
+
+## [0.3.1] - 2026-07-30
+
+### Fixed
+
+- **The dispatching session now verifies the packet's grounded findings landed, and persists them
+  when the `auditor` could not (#1674).** 0.2.0 moved the packet filename out of the report-name
+  class and 0.2.1 taught the resume rule the fallback name, but neither closed the case where
+  *every* packet write is refused inside the subagent. The `auditor` was told to return its
+  findings as text; nothing told the main session to catch them, so the compaction-surviving
+  guarantee held only when the operator happened to re-persist the returned text by hand — an
+  undocumented step. Step 3 now opens with a persist-check: probe the Resume rule's closed set of
+  grounded-findings basenames, and on the `auditor`'s documented both-names-refused return, write
+  the returned findings verbatim into the packet (`audit-notes.md`, falling back to
+  `audit-data.md`) before presenting or advancing. This is a backstop, not a relocation — the
+  dispatching session is itself a subagent under a loop lane, so the filename rule remains the
+  primary defense.
+- **A refused main-thread write is now a named blocker, not a shrug.** When the dispatching
+  session's own writes are refused too, step 3 reproduces the findings inline and stops before the
+  contract lock, rather than locking a contract over findings that exist nowhere durable — the
+  same ungrounded contract the resume rule already refuses to carry.
+- **The both-names-refused return got a machine-visible marker.** `agents/auditor.md` now requires
+  that return to open with the literal ASCII line `PACKET WRITE REFUSED: full findings inline` and to
+  carry the COMPLETE findings in place of the summary form, since a refusal mentioned in passing
+  reads as a successful run with a caveat and a one-line-per-finding summary is not a ledger the
+  main session can persist on the agent's behalf. Step 3 correspondingly refuses to write a
+  summary into the packet under a closed-set name: presence of one of those names is precisely
+  what tells a resumed session the grounded findings exist, so doing so would forge the ledger
+  instead of recovering it.
+- **Backstop-persisted findings carry their provenance.** The backstop write keys on a
+  marker-string match with no independent confirmation a write was attempted and refused, so step
+  3 records the backstop path in `evidence.md`, and step 4's unattended contract lock marks each
+  such finding `backstop-persisted: unverified` rather than extending the severities-stand-as-is
+  rule to the least-verified route into the packet.
+
 ## [0.3.0] - 2026-07-26
 
 ### Changed

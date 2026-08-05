@@ -36,7 +36,7 @@ A missing config exits `4`; malformed JSON or a config with no lanes exits `3`.
 | `lanes[].prompt` | yes | Path to the lane's canonical prompt file. Relative → resolved against `prompt_dir`; absolute → used as-is. The file's full contents seed the session (positional prompt). A missing or empty file skips that lane with an error. |
 | `lanes[].model` | no | Passed as `claude --model`. An alias (`opus`, `sonnet`, `fable`) or a full model id. Omit to inherit the machine default. |
 | `lanes[].effort` | no | Passed as `claude --effort`. One of `low`, `medium`, `high`, `xhigh`, `max` (validated; a bad value skips the lane). Omit to inherit the default. |
-| `lanes[].settings` | no | A JSON **object** passed inline as `claude --settings` — a session-only override that never persists. The motivating use is opting a lane into the `autonomy` plugin's lane-stop gate via a `pluginConfigs` override (example above; the plugin id is marketplace-qualified, `<plugin>@<marketplace>`, for however the plugin was installed). A non-object value skips the lane with an error. |
+| `lanes[].settings` | no | A JSON **object** passed inline as `claude --settings` — a session-only override that never persists. The motivating use is opting a lane into the `autonomy` plugin's lane-stop gate via a `pluginConfigs` override (example above; the plugin id is marketplace-qualified, `<plugin>@<marketplace>`, for however the plugin was installed). A non-object value skips the lane with an error. A gate request (`lane_stop_gate_enabled: true` under an `autonomy` key) additionally triggers launch-time ARMING (#1784): the launcher runs autonomy's `hooks/lane-stop-gate-arm.sh` and injects a random `lane_stop_gate_arm_id` into the launched settings — the trusted per-session channel the gate actually honors (it ignores the bare env mirror a repo `env` block could forge). A gate-requesting lane that cannot be armed (autonomy missing/pre-0.12.0, arming error, managed-settings veto) is skipped with an error rather than launched silently ungated. |
 
 Lane names are free-form (`work`, `work-2`, `babysit`, `decide`, …); nothing is
 hardcoded. The set above mirrors the lanes this repo's telemetry conventions use,
@@ -50,6 +50,13 @@ without that check, `work` and `group/../work` would share one marker file and a
 targeted restart of either would corrupt the other's staleness probe. The
 `<repo-key>` component keeps same-named lanes in different repos apart, since the
 data directory is plugin-wide rather than per-repo.
+
+Types are checked, and a wrong type is never read as an absent field. `name`, `prompt`, `model` and
+`effort` must be JSON strings; a non-string value exits `3` at preflight alongside the checks above.
+`settings` is checked per lane instead, so only that lane is skipped. An explicit `null` is the JSON
+spelling of "no value" and is equivalent to omitting the field. The distinction is load-bearing: a
+`false` is falsy, and a reader that treats falsy as absent silently launches the lane without the
+setting rather than reporting the mistake (#1784).
 
 ## Prompt-storage seam (#480)
 

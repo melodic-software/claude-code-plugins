@@ -1,6 +1,6 @@
 # Scope model-derived doctrine to its source model version behind a promotion gate
 
-- Status: accepted
+- Status: superseded by [ADR-0007](0007-host-per-model-doctrine-outside-skill-private-surfaces.md)
 - Date: 2026-07-27
 
 ## Context

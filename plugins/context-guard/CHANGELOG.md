@@ -2,8 +2,10 @@
 
 All notable changes to the `context-guard` plugin.
 
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
+adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.4.3]
+## [0.4.6]
 
 ### Fixed
 
@@ -18,8 +20,82 @@ All notable changes to the `context-guard` plugin.
   `hook::git_effective_dir` carries the git guards' single path-composition rule. This plugin
   does not consume the resolver; the sync keeps its copy byte-identical with the source. Synced
   from `lib/hook-utils.sh`.
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
-adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [0.4.5]
+
+### Fixed
+
+- **The reader contract withdraws an unresolvable citation behind the token shape.** The token-shape
+  rationale co-cited "Anthropic system-card fixed-point evals" as evidence that degradation tracks
+  absolute tokens rather than window fraction — a claim carried at "Primary research + official /
+  High confidence" on #1475's provenance table. The citation names no card, and the only Anthropic
+  system card in this workstream's corpus (Claude Opus 5, re-fetched 2026-08-04 and byte-identical
+  to its capture) contains no evaluation of any name measuring degradation as a function of context
+  length. An exhaustive sweep of that card found zero occurrences of "fixed point", zero of every
+  standard long-context benchmark name, and no length axis on the two near-misses ("character
+  drift" is an LLM-judge score averaged over ~3,200 investigations with no length variable; "context
+  drift" is prose in a cyber benchmark's design rationale). The card's sole long-context section
+  (§8.9, ProgramBench) reports pass rate across five episodes, each starting from a *fresh* context
+  budget, and the score **rises** 83%→93% — a reset-and-continue improvement curve, not a
+  within-context degradation curve.
+
+  The clause now cites the Chroma context-rot report alone, plus a one-line standing rule that a
+  system card is cited here by name and section or not at all — the full reasoning lives in this
+  entry rather than in the contract, which is a live document and not a place for dated
+  withdrawal narration. Deliberately **not** substituted: the
+  card's 200k compaction trigger in the BrowseComp harness — the tempting replacement, being the one
+  absolute-token threshold inside a 1M window, but it is a harness choice about *when to compact*
+  with no stated rationale, not evidence about quality. Other Anthropic cards do publish
+  long-context retrieval evals at absolute context lengths, so the underlying proposition may be
+  supportable; it is not supportable from an unnamed card, and no replacement is asserted until one
+  is read and cited by name.
+
+  **No behavior changes.** The token shape's other two rationales — output tokens occupy the window;
+  50% of a 1M window is not 50% of a 200k window — are independent of this citation, and the band
+  values themselves were always declared judgment defaults rather than derived from it.
+
+## [0.4.4]
+
+### Fixed
+
+- **The shim no longer runs an uninstalled plugin's tee (#1787).** `claude plugin uninstall` does
+  not delete the version directory: the plugins reference documents that updating or uninstalling
+  marks the previous version directory orphaned and removes it automatically 14 days later, so the
+  files — `scripts/statusline-tee.sh` included — stay on disk for that whole window. `resolve_tee()`
+  matched on the glob and mtime alone, so a removed plugin kept teeing and kept writing snapshots
+  with no signal to the operator. A candidate whose version directory carries the orphan marker is
+  now skipped, so uninstalling stops the tee at the next statusline refresh. The marking is
+  documented; the marker's on-disk spelling was measured (Claude Code 2.1.220, against a relocated
+  `CLAUDE_CONFIG_DIR`) and the shim's header records both, along with the fallback: should upstream
+  rename or drop the marker, resolution degrades to exactly what it does today — a stale tee, never
+  a broken statusline. The undocumented `installed_plugins.json` the header previously rejected
+  stays rejected.
+- **`setup` no longer adds an `sh -c` layer per run (#1787).** "Unwrap before you compose" stripped
+  guard-shim prefixes but not the `sh -c '<escaped …>'` adapter the skill's own shell-syntax guard
+  prints, so a rerun read that adapter as the renderer, found shell syntax in it, and wrapped it
+  again — one layer per run. Unwrapping is now two rules applied until a pass strips nothing, so
+  several layers from earlier reruns collapse rather than only the outermost, and a rerun over
+  already-correct wiring prints byte-identical wiring. The adapter rule establishes provenance
+  before it peels: because the skill emits an adapter only for a renderer carrying shell syntax, an
+  `sh -c` over a string carrying none is the operator's own and is preserved — peeling
+  `sh -c 'ulimit -n'` would leave the shim `exec`-ing a shell builtin with no shell, exiting 127.
+
+## [0.4.3]
+
+### Fixed
+
+- **Shared `hook-utils.sh`: the OS temp tree is no longer treated as project content (#1769).**
+  `hook::read_file_path` scoped a file to the project by prefix-matching `CLAUDE_PROJECT_DIR`, so a
+  session whose project directory is the user's home admitted everything under the OS temp root —
+  including Claude Code's own per-session scratchpad, which lives there. Hooks that lint, rewrite, or
+  autocorrect then ran on throwaway files that are not project content and carry no project config to
+  opt out with; the reported case was `typos-format` autocorrecting a shell variable in a scratch
+  script and silently breaking it. The guard now rejects a file inside the OS temp tree when the
+  project root is outside it. The exemption is deliberate and load-bearing: when the project root
+  itself lives under temp — a `mktemp -d` fixture checkout, which is how this repository's own hook
+  suites run — its files are still accepted. Temp roots come from `TMPDIR` / `TMP` / `TEMP` plus the
+  POSIX defaults, canonicalized through the same pipeline the membership comparison already uses.
+  Synced from `lib/hook-utils.sh`.
 
 ## [0.4.2]
 

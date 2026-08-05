@@ -137,6 +137,21 @@ esac
 STUB
 chmod +x "$STUB_BIN/claude" "$STUB_BIN/git"
 
+# --- Gate-arm stub (#1784) ----------------------------------------------------
+# Stands in for the autonomy plugin's hooks/lane-stop-gate-arm.sh: logs its argv
+# and succeeds (or fails via STUB_ARM_RC) so the suite can pin the launcher's
+# fail-closed arming without a staged autonomy install. run_launcher passes it
+# via --gate-arm-script; a case that wants the no-helper path calls the script
+# directly.
+ARM_LOG="$TMP/arm.log"
+ARM_STUB="$TMP/arm-stub.sh"
+cat >"$ARM_STUB" <<STUB
+#!/usr/bin/env bash
+printf '%s\n' "\$*" >>"$ARM_LOG"
+exit "\${STUB_ARM_RC:-0}"
+STUB
+chmod +x "$ARM_STUB"
+
 # Hermetic: the suite must not depend on an ambient `claude` (CI runners have
 # none). Every case resolves `claude`/`git` to the logging stubs; cases that
 # inspect the log reset it first. Real git is never needed — repos are passed
@@ -151,7 +166,7 @@ export PATH="$STUB_BIN:$PATH"
 marker_repo_key() { printf '%s' "$1" | git hash-object --stdin; }
 REPO_KEY="$(marker_repo_key "$REPO")"
 
-run_launcher() { bash "$SCRIPT" "$@"; }
+run_launcher() { bash "$SCRIPT" --gate-arm-script "$ARM_STUB" "$@"; }
 
 # ============================================================================
 # Config resolution + validation
@@ -185,6 +200,8 @@ assert_contains "duplicate lane names named in message" "$out" "duplicate lane n
 # The lane name is also the launch-commit marker's filename (#792), so a name
 # that is not a single path component would let two distinct lanes share one
 # marker (`work` vs `group/../work`) or escape the data dir entirely.
+# portability-ok: 'back\slash' is a literal single-quoted test input naming a
+# Windows path separator, not a GNU `\s` regex class
 for bad_name in 'group/../work' 'back\slash' '.' '..'; do
   jq -n --arg n "$bad_name" \
     '{lanes: [{name: $n, prompt: "work.md"}, {name: "other", prompt: "babysit.md"}]}' \
@@ -202,6 +219,26 @@ JSON
 out="$(run_launcher start --repo "$REPO" --config "$TMP/ok-name.json" --agents-json "$AGENTS_EMPTY" --dry-run 2>&1)"
 rc=$?
 assert_eq "a free-form lane name without path separators is accepted" 0 "$rc"
+
+# A non-string scalar is a config error, not an absent field. `lane_field` reads
+# these with jq's `//` alternative, which fires on every FALSY value, so a
+# mistyped `"effort": false` collapsed to the same "" an unset field produces
+# and the lane launched with no effort at all — silently (#1784).
+for mistyped_field in name model effort prompt; do
+  jq -n --arg k "$mistyped_field" \
+    '{lanes: [({name: "work", prompt: "work.md"} | .[$k] = false)]}' >"$TMP/mistyped.json"
+  out="$(run_launcher start --repo "$REPO" --config "$TMP/mistyped.json" --agents-json "$AGENTS_EMPTY" --dry-run 2>&1)"
+  rc=$?
+  assert_eq "a boolean .$mistyped_field is rejected with exit 3" 3 "$rc"
+  assert_contains "a boolean .$mistyped_field is named in the message" "$out" ".$mistyped_field is boolean"
+done
+
+# `null` remains the JSON spelling of "no value" and stays equivalent to absent.
+jq -n '{lanes: [{name: "work", prompt: "work.md", model: null}]}' >"$TMP/nullmodel.json"
+out="$(run_launcher start --repo "$REPO" --config "$TMP/nullmodel.json" --agents-json "$AGENTS_EMPTY" --dry-run 2>&1)"
+rc=$?
+assert_eq "a null scalar field is treated as absent" 0 "$rc"
+assert_not_contains "a null model passes no --model flag" "$out" "--model"
 
 # ============================================================================
 # status
@@ -246,6 +283,37 @@ assert_contains "non-object settings skips the lane with an error" "$outbad" "se
 assert_not_contains "non-object settings lane not launched" "$outbad" "claude --bg -n work"
 assert_contains "other lanes still launch past a bad-settings lane" "$outbad" "claude --bg -n decide"
 assert_eq "bad settings surfaces a non-zero exit" 1 "$rcbad"
+
+# …and a JSON `false` is a VALUE, not an absent field. `//` is jq's alternative
+# operator, so `false` yielded `empty` and reached bash as "" — the type check
+# above is guarded on a non-empty value, so it never ran and the lane launched
+# with `--settings` silently omitted (#1784).
+cat >"$TMP/falsesettings.json" <<'JSON'
+{
+  "prompt_dir": ".work",
+  "lanes": [
+    { "name": "work",   "prompt": "work.md", "settings": false },
+    { "name": "decide", "prompt": "decide.md" }
+  ]
+}
+JSON
+outfalse="$(run_launcher start --repo "$REPO" --config "$TMP/falsesettings.json" --agents-json "$AGENTS_EMPTY" --dry-run --no-pull --no-update 2>&1)"
+rcfalse=$?
+assert_contains "settings:false reaches the type check" "$outfalse" "settings must be a JSON object"
+assert_not_contains "settings:false lane not launched" "$outfalse" "claude --bg -n work"
+assert_contains "other lanes still launch past a false-settings lane" "$outfalse" "claude --bg -n decide"
+assert_eq "settings:false surfaces a non-zero exit" 1 "$rcfalse"
+
+# `null` stays the JSON spelling of "no value": the lane launches, without
+# --settings, rather than being skipped as mistyped.
+cat >"$TMP/nullsettings.json" <<'JSON'
+{ "prompt_dir": ".work", "lanes": [ { "name": "work", "prompt": "work.md", "settings": null } ] }
+JSON
+outnull="$(run_launcher start --repo "$REPO" --config "$TMP/nullsettings.json" --agents-json "$AGENTS_EMPTY" --dry-run --no-pull --no-update 2>&1)"
+rcnull=$?
+assert_eq "settings:null launches the lane" 0 "$rcnull"
+assert_contains "settings:null still launches work" "$outnull" "claude --bg -n work"
+assert_not_contains "settings:null passes no --settings flag" "$outnull" "--settings"
 
 # refresh step present by default; suppressible
 assert_contains "start pulls by default" "$out" "git -C $REPO pull --ff-only"
@@ -607,6 +675,130 @@ marker="$(cat "$DATA_DIR8/lanes/$(marker_repo_key "$CANONICAL")/work-launch-comm
 assert_eq "marker: keys on git's canonical toplevel, not the --repo argument" "deadbeefcafefeedfacefeeddeadbeefcafefeed" "$marker"
 if [[ -e "$DATA_DIR8/lanes/$REPO_KEY/work-launch-commit" ]]; then usedarg=1; else usedarg=0; fi
 assert_eq "marker: nothing is written under the un-canonicalized --repo key" 0 "$usedarg"
+
+# ============================================================================
+# #1784 — lane-stop gate arming: a lane whose settings request the gate is
+# armed at launch (arm id injected into --settings), and one that cannot be
+# armed is skipped — fail closed, never silently ungated.
+# ============================================================================
+# Real dispatch: the babysit lane requests the gate → the arm stub runs with
+# --id/--cwd, and the launched --settings carry the SAME id under
+# lane_stop_gate_arm_id.
+: >"$CLAUDE_LOG"
+: >"$ARM_LOG"
+out="$(run_launcher start --repo "$REPO" --config "$CONFIG" --agents-json "$AGENTS_EMPTY" 2>&1)"
+rc=$?
+log="$(cat "$CLAUDE_LOG")"
+armlog="$(cat "$ARM_LOG")"
+assert_eq "arm: gate-requesting start exits 0" 0 "$rc"
+assert_contains "arm: helper invoked with an arm id" "$armlog" "--id "
+assert_contains "arm: helper receives the lane cwd" "$armlog" "--cwd $REPO"
+assert_contains "arm: launched settings carry lane_stop_gate_arm_id" "$log" "lane_stop_gate_arm_id"
+armed_id="$(printf '%s' "$armlog" | sed -n 's/.*--id \([A-Za-z0-9_-]*\).*/\1/p' | head -n 1)"
+settings_id="$(printf '%s\n' "$log" | grep -o 'lane_stop_gate_arm_id[^,}]*' | sed 's/.*://; s/"//g' | head -n 1)"
+assert_eq "arm: the id the helper armed is the id the session receives" "$armed_id" "$settings_id"
+assert_not_eq "arm: the id is non-empty" "" "$armed_id"
+
+# The non-gate lanes (work, decide: no gate request in settings) never arm.
+gate_calls="$(grep -c -- '--id' "$ARM_LOG" 2>/dev/null || true)"
+assert_eq "arm: only the gate-requesting lane arms (one helper call)" 1 "$gate_calls"
+
+# The lane's sentinel/marker settings ride into the arm call.
+cat >"$TMP/gateopts.json" <<'JSON'
+{ "prompt_dir": ".work",
+  "lanes": [ { "name": "work", "prompt": "work.md",
+    "settings": { "pluginConfigs": { "autonomy@test-marketplace": { "options": {
+      "lane_stop_gate_enabled": true,
+      "lane_stop_gate_sentinel": "DONE-X",
+      "lane_stop_gate_marker": ".lane-complete" } } } } } ] }
+JSON
+: >"$ARM_LOG"
+out="$(run_launcher start --repo "$REPO" --config "$TMP/gateopts.json" --agents-json "$AGENTS_EMPTY" --no-pull --no-update 2>&1)"
+armlog="$(cat "$ARM_LOG")"
+assert_contains "arm: the lane's sentinel reaches the helper" "$armlog" "--sentinel DONE-X"
+assert_contains "arm: the lane's marker reaches the helper" "$armlog" "--marker .lane-complete"
+
+# Arming failure → that lane is skipped with an error (fail closed), the other
+# lanes still launch, and the sweep exits non-zero.
+: >"$CLAUDE_LOG"
+out="$(STUB_ARM_RC=1 run_launcher start --repo "$REPO" --config "$CONFIG" --agents-json "$AGENTS_EMPTY" 2>&1)"
+rc=$?
+log="$(cat "$CLAUDE_LOG")"
+assert_eq "arm: arming failure surfaces a non-zero exit" 1 "$rc"
+assert_contains "arm: arming failure names the lane and skips it" "$out" "lane-stop gate arming failed"
+assert_not_contains "arm: a lane that could not be armed is NOT launched" "$log" "--bg -n babysit"
+assert_contains "arm: other lanes still launch past an arm failure" "$log" "--bg -n work"
+
+# No helper found (no override, unanchored checkout) → same fail-closed skip
+# with an actionable message. Invoked directly, without run_launcher's
+# --gate-arm-script.
+: >"$CLAUDE_LOG"
+out="$(bash "$SCRIPT" start --repo "$REPO" --config "$CONFIG" --agents-json "$AGENTS_EMPTY" 2>&1)"
+rc=$?
+log="$(cat "$CLAUDE_LOG")"
+assert_eq "arm: missing helper surfaces a non-zero exit" 1 "$rc"
+assert_contains "arm: missing helper message is actionable" "$out" "no autonomy gate-arm helper was found"
+assert_not_contains "arm: no launch without a helper for a gate-requesting lane" "$log" "--bg -n babysit"
+
+# --dry-run mutates nothing: the arming is previewed, the helper is not run.
+: >"$ARM_LOG"
+out="$(run_launcher start --repo "$REPO" --config "$CONFIG" --agents-json "$AGENTS_EMPTY" --dry-run 2>&1)"
+assert_contains "arm: dry-run previews the arming" "$out" "DRY-RUN: arm lane-stop gate for babysit"
+if [[ -s "$ARM_LOG" ]]; then armran=1; else armran=0; fi
+assert_eq "arm: dry-run does not run the helper" 0 "$armran"
+
+# A missing helper is caught in validate_launch_inputs, so restart preflights it
+# BEFORE stopping a healthy running lane (same doctrine as the prompt/effort
+# checks). `work` is running; a gate-requesting config with no helper must not
+# take the session down. No --gate-arm-script → no helper discoverable.
+cat >"$TMP/gate-work.json" <<'JSON'
+{ "prompt_dir": ".work",
+  "lanes": [ { "name": "work", "prompt": "work.md",
+    "settings": { "pluginConfigs": { "autonomy@test-marketplace": { "options": {
+      "lane_stop_gate_enabled": true } } } } } ] }
+JSON
+: >"$CLAUDE_LOG"
+out="$(bash "$SCRIPT" restart work --repo "$REPO" --config "$TMP/gate-work.json" --agents-json "$AGENTS_RUNNING" 2>&1)"
+rc=$?
+log="$(cat "$CLAUDE_LOG")"
+assert_eq "arm: restart with an unarmable gate lane exits non-zero" 1 "$rc"
+assert_contains "arm: restart preflights the missing helper" "$out" "no autonomy gate-arm helper was found"
+assert_not_contains "arm: restart does not stop the healthy lane over a missing helper" "$log" "stop sid-work-1"
+
+# EVERY discovered helper must arm. Each autonomy install writes into its own
+# install-derived store and the launcher cannot tell which one the session will
+# load, so accepting a partial arm would launch a lane carrying an id its own
+# gate resolves to nothing — ungated, with only a stale-arm notice. Exercised
+# through REAL discovery (no --gate-arm-script): the launcher is staged inside a
+# synthetic plugins/cache tree carrying two marketplaces' autonomy installs.
+STAGE="$TMP/stage"
+LAUNCHER_STAGED="$STAGE/plugins/cache/mkt-a/claude-ops/1.0.0/skills/lanes/scripts/lane-launcher.sh"
+mkdir -p "$(dirname "$LAUNCHER_STAGED")"
+cp "$SCRIPT" "$LAUNCHER_STAGED"
+MULTI_ARM_LOG="$TMP/arm-multi.log"
+for mkt in mkt-a mkt-b; do
+  helper="$STAGE/plugins/cache/$mkt/autonomy/1.0.0/hooks/lane-stop-gate-arm.sh"
+  mkdir -p "$(dirname "$helper")"
+  # mkt-b's helper fails; mkt-a's succeeds. Under the old any-success rule the
+  # lane would launch.
+  cat >"$helper" <<STUB
+#!/usr/bin/env bash
+printf '%s\n' "$mkt" >>"$MULTI_ARM_LOG"
+[[ "$mkt" == mkt-b ]] && exit 4
+exit 0
+STUB
+  chmod +x "$helper"
+done
+: >"$MULTI_ARM_LOG"
+: >"$CLAUDE_LOG"
+out="$(bash "$LAUNCHER_STAGED" start --repo "$REPO" --config "$TMP/gate-work.json" --agents-json "$AGENTS_EMPTY" --no-pull --no-update 2>&1)"
+rc=$?
+log="$(cat "$CLAUDE_LOG")"
+armed_count="$(grep -c . "$MULTI_ARM_LOG" 2>/dev/null || true)"
+assert_eq "arm: discovery finds every installed marketplace's helper" 2 "$armed_count"
+assert_eq "arm: one helper failing fails the whole arming" 1 "$rc"
+assert_contains "arm: a partial arm names the lane and skips it" "$out" "lane-stop gate arming failed"
+assert_not_contains "arm: a partially-armed lane is NOT launched" "$log" "--bg -n work"
 
 # ============================================================================
 echo

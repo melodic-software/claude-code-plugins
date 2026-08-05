@@ -527,7 +527,7 @@
     "melodic-software/ci-workflows/.github/workflows/claude-security-review.yml@c136b27f404dd32ce3873f39a6f3443891d1c16e": {
       "routing": "runner-input",
       "runnerInput": "runner",
-      "allowedInputs": ["runner", "paths-file"],
+      "allowedInputs": ["runner", "paths-file", "skip-actors"],
       "allowedSecrets": {
         "CLAUDE_CODE_OAUTH_TOKEN": "${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}"
       },

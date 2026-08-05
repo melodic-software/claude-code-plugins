@@ -1,0 +1,123 @@
+{
+  "$comment": [
+    "Clause registry for scripts/check-contract-clause-coverage.py (#1659).",
+    "",
+    "The gate's DATA, kept out of the gate's logic — the same shape as",
+    "scripts/shell-portability-tokens.txt and scripts/skill-portability-tokens.txt —",
+    "so adding a clause a reviewer re-caught is a data change, never a gate edit.",
+    "",
+    "Per clause:",
+    "  canonical   the one surface that OWNS the clause. Held to every qualifier",
+    "              itself, because a canonical that loses one silently redefines",
+    "              the rule every restatement is measured against.",
+    "  detect      vocabulary that puts a file in scope. Deliberately broad: being",
+    "              in scope only means the file is READ, never that it must restate.",
+    "  restates    the signal that a passage ENUMERATES the rule rather than citing",
+    "              it. Tuned tight — a pointer must stay a pointer without ceremony,",
+    "              because pointer-not-copy is the outcome this gate is steering",
+    "              toward. Widening this is how a new restatement gets caught.",
+    "  qualifiers  what a restatement must carry to be complete. Each one is a",
+    "              defect #1633 actually shipped, not a stylistic preference.",
+    "",
+    "Patterns are Python regexes matched case-insensitively against the SPAN's own",
+    "text (or, for `restates`, against a contiguous run of untagged lines)."
+  ],
+  "clauses": [
+    {
+      "id": "D4.6-deferral-provenance",
+      "title": "A finding this change introduced is never deferrable",
+      "canonical": "plugins/source-control/reference/review-discipline.md",
+      "detect": "D4\\.6|VALID \\(defer\\)|never deferrable",
+      "restates": "never defer(rable| a finding)|not deferrable|this change (introduced|is shipping)|introduced it",
+      "qualifiers": [
+        {
+          "name": "provenance-discriminator",
+          "pattern": "base branch|on the base\\b|this change (introduced|is shipping)|prior fix on this PR|did not reproduce",
+          "hint": "name what decides provenance — whether the defect reproduced on the base branch — not merely that the finding is undeferrable"
+        },
+        {
+          "name": "provenance-not-severity-or-file",
+          "pattern": "never severity|not severity|regardless of severity|whichever file|at any size|never a qualifier",
+          "hint": "state that provenance decides, never severity or the file the finding surfaced in — round 2 shipped a copy scoped by file rather than by base behavior"
+        }
+      ]
+    },
+    {
+      "id": "D4.6-deferral-grounding",
+      "title": "A deferral counts only when it is durable and findable",
+      "canonical": "plugins/source-control/reference/review-discipline.md",
+      "detect": "D4\\.6|VALID \\(defer\\)",
+      "restates": "file (a|the|it in)[^.]{0,60}(tracker|work[- ]item)|tracker item (exists|is filed)",
+      "qualifiers": [
+        {
+          "name": "carries-the-findings-evidence",
+          "pattern": "carr(y|ies|ying).{0,40}evidence|evidence.{0,60}(item|PR link)|item.{0,60}evidence",
+          "hint": "say the tracker item carries the finding's own evidence — a bare title is a dropped finding wearing an id"
+        },
+        {
+          "name": "id-cited-in-the-reply",
+          "pattern": "cite[sd]?[^.]{0,40}\\bid\\b|\\bid\\b[^.]{0,30}cited|cited id",
+          "hint": "say the item's id is cited in the D5 reply — an item nobody can find from the thread is not a disposition"
+        }
+      ]
+    },
+    {
+      "id": "D7.5-thread-eligibility",
+      "title": "Resolution eligibility is a property of the whole thread",
+      "canonical": "plugins/source-control/reference/review-discipline.md",
+      "detect": "D7\\.5|resolve (that|the) thread|thread eligib",
+      "restates": "(carr(y|ies)|hold|must carry|needs)[^.]{0,30}(eligible|recorded)[^.]{0,10}disposition|one of three recorded dispositions",
+      "qualifiers": [
+        {
+          "name": "every-finding-scope",
+          "pattern": "\\bevery\\b\\W{0,4}finding|\\beach\\b\\W{0,4}finding|\\ball\\b\\W{0,4}findings",
+          "hint": "scope eligibility to EVERY finding extracted from the thread — resolution is thread-level while dispositions are per-finding"
+        },
+        {
+          "name": "disposition-fixed",
+          "pattern": "fix now|pushed fix|fix pushed|pushed and cited",
+          "hint": "enumerate the fixed disposition — a pushed fix cited by the D7 follow-up"
+        },
+        {
+          "name": "disposition-deferred",
+          "pattern": "VALID \\(defer\\)|grounded deferral|grounded defer",
+          "hint": "enumerate the deferred disposition — a `VALID (defer)` grounded per D4.6 with the item id cited"
+        },
+        {
+          "name": "disposition-incorrect",
+          "pattern": "INCORRECT.{0,80}counter[- ]evidence|counter[- ]evidence.{0,80}INCORRECT",
+          "hint": "enumerate the incorrect disposition — `INCORRECT` with the counter-evidence posted; the bare classification token is not the disposition"
+        },
+        {
+          "name": "uncertain-holds-the-thread-open",
+          "pattern": "UNCERTAIN.{0,160}(hold|escalat|never resolved)|(hold|escalat).{0,160}UNCERTAIN",
+          "hint": "state that a single UNCERTAIN escalates and holds its whole thread open — resolving over one drops it from the readiness denominator"
+        }
+      ]
+    },
+    {
+      "id": "D7.5-merge-authorization",
+      "title": "The context adjudicating a deferral is not the context merging on it",
+      "canonical": "plugins/source-control/reference/review-discipline.md",
+      "detect": "D7\\.5|never clears the gate|adjudicating context|authorizes a resolution|independent resolution dispatch",
+      "restates": "never clears the gate|adjudicating context|authorizes a resolution|independent resolution dispatch",
+      "qualifiers": [
+        {
+          "name": "independent-adjudicating-context",
+          "pattern": "independent (adjudicating|resolution)|adjudicating context must not|must not be the context",
+          "hint": "name the requirement as a property — the context adjudicating the deferral must not be the context trying to merge"
+        },
+        {
+          "name": "same-session-scope",
+          "pattern": "same session|this same session|same[- ]session",
+          "hint": "say the rule binds a merge THIS session performs — round 4 lost the authorization from all three merge-capable paths at once"
+        },
+        {
+          "name": "fail-closed-fallback",
+          "pattern": "leave the thread unresolved|do not merge|fail closed|neither resolves",
+          "hint": "state the fallback where no independent dispatch is reachable — leave the thread unresolved and do not merge"
+        }
+      ]
+    }
+  ]
+}

@@ -3,6 +3,130 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.31.2]
+
+### Fixed
+
+- **`triage` excludes lane infrastructure from raw intake, so the telemetry surface a lane reads to
+  operate can no longer be triaged as backlog (#1739).** Lane-infrastructure exclusion was
+  implemented in the two lane skills that select work — the worker loop's drain snapshot and the
+  attended queue's merged view — but not in `triage` itself, which defines the intake population
+  both of them compose. A bare `/work-items:triage` therefore listed an open `Lane telemetry:
+  <lane>` issue as untriaged intake whenever that issue carried the raw marker, and the skill's
+  closing invariant ("no outcome leaves a re-selectable raw item") pushes toward acting on what it
+  lists — relabelling or closing a surface the lane reads to operate. `triage` now carries the
+  exclusion as a third rule bounding what enters the flow, applied to the listing **before**
+  bucketing so the raw marker cannot bucket an excluded item. The exclusion is deliberately
+  label-blind: the marker arrives as a creation-time filing default and a lane can re-add it, so a
+  label-keyed rule would keep re-acquiring the defect. An explicitly named telemetry issue now
+  stops the same way a named already-triaged item stops, instead of walking the state machine
+  toward a close.
+- **That exclusion identifies a telemetry issue the way the lane does, never by title alone
+  (#1739).** `Lane telemetry: <lane>` is only the DEFAULT home. A lane's launch config may pin
+  `lanes[].telemetry.issue` to an existing issue with an operator-chosen title (the `claude-ops`
+  lane config), and `work-loop` resolves its telemetry home from that config before falling back to
+  the title. A title-only test therefore admitted the one issue whose loss costs the most — a real,
+  configured telemetry home — to raw intake, where relabelling or closing it destroys durable lane
+  state. Identity is now the pinned config issue where the config is visible, else the default
+  title, and — independent of both — any issue carrying the convention's sentinel status comment
+  (`<!-- claude-ops:lane-telemetry marker=… -->`). The two signals cover each other's gap: a pin
+  defeats the title test, and an issue pinned but not yet written to carries no sentinel yet.
+  `work-loop`'s drain-snapshot exclusion, which stated the title contract itself, now points at
+  this definition instead of restating a narrower one.
+- **`attend-queue` stops re-deriving that exclusion (#1739).** Its `[intake]` rows already compose
+  `triage`'s attention view and are documented as not re-deriving its buckets; the lane-infrastructure
+  paragraph restated the title contract anyway. It now points at the composed view, leaving one
+  statement of the contract on the intake path instead of two.
+
+## [0.31.1]
+
+### Fixed
+
+- **`work-loop` and `attend-queue`'s inlined telemetry upserts now gate their body and verify what
+  landed (#943).** Both lanes inline the same `gh api` upsert the babysit lane does — an installed
+  plugin cannot invoke `claude-ops`'s `telemetry-upsert.sh` — and so inherited none of that wrapper's
+  body checks. The defect that surfaced on the babysit lane is a property of the shared upsert shape,
+  not of one lane: an `@path` passed as a body VALUE is transmitted as literal text (`gh` expands a
+  leading `@` only for `--body-file` / `-F field=@file`). Both blocks now carry three checks. A
+  **pre-write gate** rejects a `$BODY_FILE` that is empty, opens with a literal `@`, is not
+  sentinel-prefixed, or holds under 16 bytes of payload — no POST, no PATCH. The **write's own exit
+  status** is then checked, because a failed PATCH leaves the previous cycle's body in place and a
+  read-back running regardless would accept it. A **post-write read-back** re-reads what the write
+  stored and reports the cycle UNREPORTED unless that body still opens with the sentinel and clears
+  the same floor; this is the check that would have caught the actual #943 shape, where the composed
+  file is fine and the defect is the invocation (`-f body=@FILE` instead of `-F body=@FILE`) — a
+  file-only check cannot see it. Every branch that ends without a verified body — including a
+  degraded create, which leaves no sentinel-prefixed comment to re-read — reports UNREPORTED and
+  skips the duplicate-supersede pass, so a cycle whose own write is unproven never tombstones a
+  racing session's comment. The 16-byte floor is measured on everything below the sentinel LINE, so
+  it matches the wrapper's `MIN_BODY_BYTES` byte-for-byte on LF and CRLF alike; prefix comparison is
+  byte-wise, so a CRLF body is not false-rejected. `work-loop` additionally records a refusal or
+  failed verification in durable loop state; `attend-queue` has none, so it carries the same fact in
+  the cycle's own summary — either way stderr does not survive the session and a cycle that did not
+  report must stay visible to the next one. The `$BODY_FILE` sentinel-first-line contract is now
+  stated in prose. Two wrapper limits are inherited rather than fixed: a PATCH that succeeds while
+  storing the previous body still verifies, and the read-back proves *some* well-formed telemetry is
+  present, not *this* cycle's. Not replicated at all: the 64 KiB cap, the containment checks,
+  retries, and the wrapper's distinct non-zero exits — every inline branch exits 0.
+- **`work-loop`'s telemetry upsert moves to `reference/telemetry-upsert.md`.** SKILL.md sat at 499 of
+  its 500-line hard cap, so the checks above did not fit. The upsert — lane-instance resolution and
+  validation, the singleton lookup, the body gate, the write-status check and read-back, the
+  POST/PATCH, and the creation-race reconcile — moves verbatim into a spoke, the same shape the
+  sibling `source-control:babysit-loop` lane already uses for the identical block. SKILL.md keeps the
+  telemetry home and the durable-state contract and points at the spoke for the mechanism; the
+  rationale for inlining rather than calling `claude-ops`'s wrapper is now stated once instead of
+  twice.
+
+## [0.31.0]
+
+### Fixed
+
+- **Two lanes on one repository no longer clobber each other's durable state, including
+  `first_drain_complete` (#1295).** `work-loop` and `attend-queue` each built their telemetry
+  sentinel from a fixed marker naming the lane *type*, so every concurrent instance of a lane
+  resolved the same comment on the same telemetry issue and overwrote it last-writer-wins. The
+  reconcile already in the upsert did not help: it converges duplicate *comments* from a creation
+  race, not conflicting *state* written by two live lanes. `item_cap`, `clean_streak`, and
+  `rate_limit_latch` silently stopped reflecting either lane's experience, and
+  `first_drain_complete` — the flag that ends the first-drain C3 ratification gate — was set for
+  every machine by whichever one finished a drain first, widening autonomy with no human
+  ratification. The marker now carries the convention's lane-instance suffix
+  (`work-items:work-loop@<instance>`, `work-items:attend-queue@<instance>`), so each instance
+  creates, reads, and edits exactly one comment no sibling can match, and every counter in the
+  block is per-instance. Earn-trust is re-earned per instance; item-level ratifications still
+  travel with the item, so only the blanket period-end flag resets.
+
+### Added
+
+- **`lane_instance` config key, and an instance-collision check in `work-loop`'s durable state.**
+  The id defaults to the sanitized lowercased hostname and is validated `^[a-z0-9][a-z0-9-]{0,31}$`
+  inside the lane's own executable block — it is operator-supplied text interpolated into a shell
+  string and a `jq` program, so it is rejected rather than sanitized-and-continued. Partitioning is
+  only correct while ids are distinct, so the state block (now `work-items/loop-state@2`) carries
+  `lane_instance`, a per-session `writer_nonce`, a per-cycle `heartbeat_at`, and `paused_until`: a
+  differing nonce over a stale block is the ordinary restart adoption, and a differing nonce over a
+  *fresh* block means another live lane holds this id — the lane writes nothing, escalates, and
+  stops. The check runs before any write, so a duplicate id degrades to a stopped lane rather than
+  a clobbered `first_drain_complete`. Two shapes the freshness test alone misreads are carved out:
+  a fresh block carrying a non-null `restart_request` is a stopped predecessor's clean handoff
+  (recording the ask is its last write), so the replacement adopts immediately — clearing the
+  request — instead of waiting out the staleness window; and an unclaimed marker is claimed with a
+  cycle-0 block plus a re-read through the creation-race reconcile *before any work*, so two
+  same-id sessions starting together stop before either overwrites the other's first durable
+  state.
+
+### Changed
+
+- **The `Lane telemetry: <lane>` issue title is deliberately untouched.** The drain-exit snapshot,
+  the intake sweep, and the attention view all match lane infrastructure by that title contract, so
+  partitioning by marker rather than by title leaves every one of those consumers unmoved. Migration
+  is a deliberate reset: no pre-existing comment matches an instance's new sentinel — neither the
+  legacy un-suffixed markers nor the improvised `work-items:telemetry lane=… instance=…` comments
+  some lanes began posting in practice — so the first cycle posts a fresh block from defaults,
+  including `first_drain_complete:false`. That fails closed and is intended. A lane never adopts,
+  edits, or tombstones the legacy comment: its marker names no writer, so no instance can prove it
+  owns it, and adopting it would reintroduce the clobber. Retiring it is an operator action.
+
 ## [0.30.3]
 
 ### Added

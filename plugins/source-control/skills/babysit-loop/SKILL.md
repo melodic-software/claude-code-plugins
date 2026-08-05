@@ -269,23 +269,24 @@ intake arriving mid-cycle is reported, never chased.
      `--expected-head` (the lane pin; `babysit-prs/reference/safety.md`, "Lane-pinned merge
      authorization"); every other non-report-only PR is invoked at `safe` (fixes and reports;
      never resolves threads or merges). An empty eligible set means only `safe` per-PR invocations this cycle.
-     Under the explicit-`autopilot` widening, a merge-eligible PR still blocked on a
-     machine-escalated `needs-human` item, an open finding, or a contradictory thread gets the
-     leased fresh-subagent resolution dispatch ("Explicit-`autopilot` widening" above, Escalation
-     below) ahead of its `/source-control:babysit-prs autopilot <owner/repo>#<N>` invocation, not
-     instead of it.
-   - **Dimension overrides bind by tier flooring, never narrative.** Before invoking, lower the
-     tier for a PR to the highest babysit-prs tier whose behavior exceeds NO resolved dimension
-     override (babysit-prs's tier keyword is its only enforcement surface — a natural-language
-     narrowing handed to a higher tier is not enforcement). Capabilities the floor forgoes are
-     reported as override-constrained this cycle; the deliberate cost, here and in the rung
-     partition, is that coupled higher-tier actions (e.g. worker-tier bot-thread auto-resolution)
-     are foregone on floored PRs — failing closed gives up only actions the overrides or rung
-     already denied. The same limit cuts the other way: an UPWARD override on a single dimension
-     is unenforceable when honoring it would exceed another — ignored and reported as
-     override-unenforceable, never smuggled in as narrative to a higher tier. Raising one
-     dimension means raising the preset (every dimension consents), until the invoked mechanic
-     exposes per-dimension enforcement (follow-up candidate).
+     Under the explicit-`autopilot` widening, a merge-eligible PR blocked on a machine-escalated
+     `needs-human` item, an open finding, or a contradictory thread gets the leased fresh-subagent
+     resolution dispatch ("Explicit-`autopilot` widening" above, Escalation below) ahead of its `autopilot` per-PR invocation, not instead of it — and only where the next bullet permits it.
+   - **Dimension overrides bind by tier flooring, never narrative, and bind every capability this
+     step exercises — not only the tier keyword it passes on.** Before invoking, lower the tier for
+     a PR to the highest babysit-prs tier whose behavior exceeds NO resolved dimension override
+     (babysit-prs's tier keyword is its only enforcement surface — a natural-language narrowing
+     handed to a higher tier is not enforcement). **The pre-escalation resolution dispatch is inside
+     that boundary** — the lane fires it directly rather than through that keyword, and it resolves
+     threads, so a thread-resolution override withholds it outright
+     ([reference/pre-escalation-dispatch.md](reference/pre-escalation-dispatch.md)). Capabilities the floor forgoes are reported as
+     override-constrained; the deliberate cost, here and in the rung partition, is that coupled
+     higher-tier actions (e.g. worker-tier bot-thread auto-resolution) are foregone on floored PRs —
+     failing closed gives up only actions the overrides or rung already denied. The same limit cuts
+     the other way: an UPWARD override on a single dimension is unenforceable when honoring it would
+     exceed another — ignored and reported as override-unenforceable, never smuggled in as narrative
+     to a higher tier. Raising one dimension means raising the preset (every dimension consents),
+     until the invoked mechanic exposes per-dimension enforcement (follow-up candidate).
    All per-PR mechanics — checkout, fixes, threads, gates, fan-out — run under that skill's own
    contract, and the do-not-merge stance rides every invocation.
 5. **Escalate.** Anything needing an operator decision follows the convention's escalation
@@ -340,14 +341,14 @@ invocation's own argument line typed both the literal `autopilot` tier argument 
 `--merge c3-this-run` (the widening pair above), a merge-eligible (C1-C3) PR blocked on a
 **machine-escalated** `needs-human` item, an open machine-authored finding, or a
 contradictory/unresolved **bot** review thread draws one fresh **frontier-tier** subagent dispatch —
-context-independent, and run under the PR's worker lease — before it escalates. **Four blocker
-classes it never touches**: operator-*parked* items, human blocking feedback (both already withheld
-at step 3), merge conflicts (the dedicated merge-only conflict worker), and C4/C5 PRs (excluded at
-the rung partition). An unresolved *or uncertain* blocker escalates exactly as it would without the
-exception; this widens *who tries first*, never what the gate requires. The full contract — each
-blocker class's rationale, the lease and independence requirements, the code-change worker
-lifecycle, and the re-partition a landed resolution forces before any merge-capable invocation — is
-owned by [reference/pre-escalation-dispatch.md](reference/pre-escalation-dispatch.md).
+context-independent, and run under the PR's worker lease — before it escalates. A floored dimension
+**withholds that dispatch outright** (flooring rule above); the PR escalates override-constrained.
+**Four blocker classes it never touches**: operator-*parked* items, human blocking feedback (both
+already withheld at step 3), merge conflicts (the dedicated merge-only conflict worker), and C4/C5
+PRs (excluded at the rung partition). An unresolved *or uncertain* blocker escalates exactly as it
+would without the exception; this widens *who tries first*, never what the gate requires. The full
+contract — blocker-class rationales, lease and independence requirements, the code-change worker
+lifecycle, the dimension-override gate, and the re-partition a landed resolution forces before any merge-capable invocation — is owned by [reference/pre-escalation-dispatch.md](reference/pre-escalation-dispatch.md).
 
 ## No-progress detector
 
@@ -360,20 +361,21 @@ stalled, the threshold key, and the stall-escalation shape are owned in full by
 
 The telemetry home is a **per-lane tracking issue in the target repository**, resolved from launch
 config; default: the open issue titled `Lane telemetry: babysit-loop` (exact match), created with
-`gh issue create` when absent (announce the creation). Maintain exactly ONE status comment on it,
-sentinel-identified and edited in place (the `claude-ops` lane-telemetry contract; one writer
-identity owns a marker). The upsert itself — the singleton lookup, the POST/PATCH, and the creation-race reconcile that
-converges two sessions racing the first-ever comment — is owned by
-[reference/telemetry-upsert.md](reference/telemetry-upsert.md). It is inlined in this plugin (never
-invoked from `claude-ops`) because an installed plugin cannot invoke a sibling plugin's scripts.
+`gh issue create` when absent (announce the creation). Maintain exactly ONE status comment on it
+**per lane instance**, sentinel-identified and edited in place (the `claude-ops` lane-telemetry
+contract; one writer identity owns a marker). The upsert itself — lane-instance resolution and
+validation, the singleton lookup, the POST/PATCH, the creation-race reconcile, and the
+instance-collision check — is owned by
+[reference/telemetry-upsert.md](reference/telemetry-upsert.md).
 
 The comment carries the human-readable cycle report plus a machine-readable **durable loop state**
 block, re-read at every cycle start:
 
 ```json
-{"schema":"source-control/babysit-loop-state@1","cycle":12,"backoff_level":2,
+{"schema":"source-control/babysit-loop-state@2","cycle":12,"backoff_level":2,
  "no_progress_streak":0,"stop_mode":"standing","tier":"worker","merge_rung":"c2-mechanical",
- "rate_limit_latch":false,"guard_mode":"proactive",
+ "rate_limit_latch":false,"guard_mode":"proactive","lane_instance":"melo-lap-001",
+ "writer_nonce":"9f3c1a7e","heartbeat_at":"2026-07-23T15:04:05Z","paused_until":null,
  "loop_started_at":"2026-07-23T15:00:00Z","restart_request":null,
  "usage_sample":{"at":"2026-07-23T15:04:05Z","five_hour_pct":23.5,"seven_day_pct":41.2,
  "five_hour_delta_pct":1.8}}
@@ -381,7 +383,10 @@ block, re-read at every cycle start:
 
 `cycle`, `backoff_level`, and `no_progress_streak` are the loop's durable counters;
 `loop_started_at` makes the approaching seven-day expiry visible; `restart_request` is where a
-budget or expiry hit records the relaunch ask; `guard_mode` is recorded every cycle.
+budget or expiry hit records the relaunch ask; `guard_mode` is recorded every cycle. Every counter
+is **per-instance** — the marker partitions the block, so each measures *this* instance's experience
+rather than an average of two lanes'. The four instance fields carry the collision check that
+partition depends on; it and the `instance:` cycle-report line are the reference's.
 
 `usage_sample` copies the **same** two window percentages the rate-limit guard step below already
 read at this cycle's **start** — never a second reading, so `at` is when the lane read the tee, not
@@ -443,8 +448,7 @@ the dispatching context does; every other blocker worker, the pre-escalation res
 runs the regular per-PR worker lifecycle and lands its own commit and refspec push (Escalation
 above). This loop adds two lane rules, per the convention: the subagent runs at the **frontier
 capability tier** (order-defined, resolved at runtime by model alias only, never a hard-coded
-model ID), and every dispatch prompt carries the subagent discipline preamble — when the
-`discipline` plugin is installed, invoke its sweep (sweep-all, use-your-skills, do-your-research); when absent, inline the equivalent standing instructions (verify claims against authoritative sources, prefer installed skills, re-check against active conventions), per the convention.
+model ID), and every dispatch prompt carries the subagent discipline preamble — when the `discipline` plugin is installed, invoke its sweep skill, which resolves its own membership (never a hand-copied list, which drifts from the plugin owning it); when absent, inline the equivalent standing instructions (verify claims against authoritative sources, prefer installed skills, re-check against active conventions), per the convention.
 
 The explicit-`autopilot` pre-escalation dispatch (Escalation, above) adds one further requirement:
 **context independence**, per the convention's §3 — the dispatched subagent must share no

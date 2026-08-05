@@ -67,6 +67,19 @@ list and the matrix; it does not fork a private convention.
   disk-hygiene's shared kill-switch reader, `plugins/disk-hygiene/lib/killswitch_config.py`
   (see its `[0.9.0]` [CHANGELOG entry](../../../plugins/disk-hygiene/CHANGELOG.md) for the full
   trust analysis and residuals).
+- **G. Operator-side arm record** — for a **per-session** value that would otherwise ride
+  `--settings` (F's residual: honored by the harness, invisible to a hook-side read). An
+  operator-side helper shipped by the plugin writes a per-session record under the plugin's
+  install-anchored data directory (`<plugins>/data/<id>`, derived exactly as F derives its anchor);
+  the session carries only a **random record id** through a `userConfig` string option, and the hook
+  treats the env-delivered id as a capability pointer, never authority — shape-validated, looked up
+  only in the anchored store, claimed by the first presenting session (a replayed id is refused),
+  TTL-bounded, and scoped to the claiming session's life rather than any single event. A repo `env`
+  block can neither mint a valid id nor clobber a configured one (fact 4: injection wins for
+  configured keys). Shipped exemplar: the
+  autonomy lane-stop gate's arm helper, `plugins/autonomy/hooks/lane-stop-gate-arm.sh`, armed by the
+  claude-ops lane launcher (see autonomy's `[0.12.0]`
+  [CHANGELOG entry](../../../plugins/autonomy/CHANGELOG.md) for the trust analysis and residuals).
 
 ## The matrix
 
@@ -78,9 +91,11 @@ list and the matrix; it does not fork a private convention.
 | D. `required:true` + argv | no | n/a — no unset case | yes | safe | on argv | none (premise unproven) |
 | E. Body substitution | (model, not a hook) | n/a | yes | advisory only | **no** | none |
 | F. Direct settings read | **yes** | in-script default required (declared `default` inert everywhere) | yes (fact 5 + no env-derived paths) | safe — explicit fail direction per plugin | **no — sensitive values are not in `settings.json` (fact 8)** | +settings-file coupling, +managed-path table |
+| G. Operator-side arm record | **yes** (any surface that can derive the anchor) | in-script default required | yes (id carries no authority; store is install-anchored) | safe — explicit fail direction per plugin (exemplar: launcher fails closed, hook fails open) | no (plaintext record in the data dir) | +arm helper, +record lifecycle (claim, TTL, consume), +launcher coupling |
 
 Residual on F (documented, accepted): a value supplied only via a session `--settings` file is honored
-by the harness but invisible to a hook-side read — a runtime CLI flag no hook can observe.
+by the harness but invisible to a hook-side read — a runtime CLI flag no hook can observe. Channel G
+exists to close exactly that residual for per-session values a plugin cannot do without.
 
 ## The decision rule
 
@@ -89,8 +104,9 @@ by the harness but invisible to a hook-side read — a runtime CLI flag no hook 
 2. **Plugin hook, mandatory value (no sensible default)** → **D** once its premise is proven (see
    Open gaps); until then treat the key as optional-with-default and use the rows below.
 3. **Plugin hook, optional-with-default, safety- or security-critical** → **F** (or **C** with an
-   F-grade resolver). Never **B**: the unset-default case is exactly where a protect-by-default
-   switch lives, and there a repo `env` block owns the value (fact 4). Never bare argv (fact 3).
+   F-grade resolver); a per-session value that would otherwise ride `--settings` pairs F with **G**.
+   Never **B**: the unset-default case is exactly where a protect-by-default switch lives, and there
+   a repo `env` block owns the value (fact 4). Never bare argv (fact 3).
 4. **Plugin hook, optional-with-default, non-safety** → **B** with an in-script default — acceptable
    only where a repo supplying its own value for an unset key is tolerable or intended.
 5. **Sensitive value** → **B** or **C**; never argv (visible in process listings), never **E**
@@ -130,6 +146,7 @@ Conformance is tracked as it exists on `main`, per the
 | Surface | Channel | Status |
 |---|---|---|
 | disk-hygiene kill switch (`disk_hygiene_enabled`), both guard surfaces | F (shared reader `lib/killswitch_config.py`) | conforms (0.9.0, #1242; closed #1019) |
+| autonomy lane-stop gate (`lane_stop_gate_*`), Stop hook | F (bash reader in `hooks/lane-stop-gate-lib.sh`) + G (arm helper `hooks/lane-stop-gate-arm.sh`, armed by the claude-ops lane launcher) | conforms (0.12.0, #1784) |
 | claude-ops + format-hook plugins (`CLAUDE_PLUGIN_OPTION_*` reads via `hook-utils.sh`) | B | non-safety concerns; conformance audit tracked by #1182 |
 
 Issue #1182 is the adoption/tracking pointer for the remaining fleet audit; this doc is the

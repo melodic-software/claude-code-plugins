@@ -3,7 +3,7 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.42.2]
+## [0.45.2]
 
 ### Fixed
 
@@ -18,6 +18,232 @@ All notable changes to the `source-control` plugin are documented here. Format f
   `hook::git_effective_dir` carries the git guards' single path-composition rule. This plugin
   does not consume the resolver; the sync keeps its copy byte-identical with the source. Synced
   from `lib/hook-utils.sh`.
+
+## [0.45.1]
+
+### Fixed
+
+- **`babysit-loop`: the pre-escalation resolution dispatch now honors the resolved thread-resolution
+  dimension (#1786).** The dispatch fired on the widening pair alone, while the *"Dimension
+  overrides bind by tier flooring"* rule was scoped only to *"Before invoking"* the babysit-prs
+  tier — and `reference/pre-escalation-dispatch.md` contained no occurrence of `dimension` at all.
+  So `autopilot --merge c3-this-run --thread-resolution safe` still dispatched a fresh subagent to
+  mutate bot threads the operator's own argument had just denied, against
+  `reference/config-resolution.md`'s *"invocation arguments win"* rule for every dimension but
+  merge. Resolving review threads **is** an exercise of dimension 3, so the flooring rule now
+  explicitly binds every capability the cycle exercises for a PR rather than only the tier keyword
+  it passes on: a floored thread-resolution dimension withholds the dispatch outright and the PR
+  escalates, reported as override-constrained — never a dispatch made and then narratively told not
+  to resolve. New eval 6.
+- **`babysit-loop`: the pre-escalation dispatch names its resolver mode, and it is the one that can
+  actually clear the blocker (#1786).** Neither `SKILL.md` nor `reference/pre-escalation-dispatch.md`
+  stated which `babysit_resolve_thread.py` mode the dispatch runs; as written, *"the full per-PR
+  worker lifecycle"* implied `--autonomous`, which hard-refuses any thread not already `isOutdated`
+  before its own push — precisely the current, non-outdated bot thread D7.5 routes to this dispatch,
+  so it could never clear the blocker class it exists for. The mode is now stated as
+  `--independent-resolver` (landed in 0.42.0, #1782), with the D7.5 ledger mapped onto its validated
+  evidence flags (`fixed`/`--fix-commit`, `deferred`/`--tracker-item`,
+  `incorrect`/`--counter-evidence`, `UNCERTAIN` → escalate), and the worker-lifecycle sentence scoped
+  to how a **code change** is made rather than to mode selection. Two shapes the mode refuses are
+  named where the dispatch will meet them, because the ledger's per-finding phrasing does not imply
+  either: a thread carrying more than one source finding (`skipped-multi-finding-thread` — one
+  disposition cannot clear a thread whose other findings would drop out of the readiness
+  denominator) and a severity-flagged thread. Both escalate rather than resolve. New eval 7.
+- **`babysit-prs`: the security/P1 bright line is no longer documented as having an exception
+  (#1786).** `reference/safety.md` titled a section *"Security/P1 escalation: the one named
+  exception"* and presented the pre-escalation resolver as that exception, citing the loop-lane
+  convention's §1 — but that convention exception widens the **merge rung** for a single run and
+  never touches the severity line, and the same file's `--independent-resolver` rules (with the
+  wrapper itself) refuse a severity-flagged thread in every unattended mode. The documented
+  exception was therefore unreachable, and it now contradicted `babysit-loop`'s newly explicit
+  refusal. The section is retitled and reframed: the bright line has no exception, the paired
+  argument unlocks the *dispatch path* rather than the severity widening, and the four scoping
+  bullets stay with the dispatch they actually describe. Both inbound citations are corrected with
+  it: `SKILL.md`'s one-line restatement, and `babysit-loop/reference/pre-escalation-dispatch.md`,
+  which cited the old heading and repeated the refuted claim that the exception is *"scoped to
+  security/P1 escalation"*.
+- **`babysit-loop`: the subagent discipline preamble no longer hand-copies the discipline plugin's
+  membership (#1786).** `SKILL.md`'s Subagents section enumerated `(sweep-all, use-your-skills,
+  do-your-research)` inline, which the loop-lane convention's own no-enumeration rule forbids and
+  which drifts from the plugin that owns the list. It now points at the sweep skill, which resolves
+  its own membership.
+
+## [0.45.0]
+
+### Changed
+
+- **An unset `worktree_root` now defaults to `<plugin-data-dir>/worktrees` instead of refusing every
+  `/worktree create`.** The key ships unset, so the refusal fired on a fresh install and the command
+  was unusable until the user configured a root by hand — a hard failure standing in for a missing
+  default. The containment guard is untouched — a root that resolves inside a repository is still
+  rejected, and that check, not the unset check, is what enforces the nesting invariant.
+
+  **The data directory is supplied, not read from the environment.** In a general Bash-tool
+  subprocess — which is what every caller of the helper runs in — `CLAUDE_PLUGIN_DATA` is not scoped
+  to the invoking plugin; this repository's own probe recorded it naming an unrelated installed
+  plugin's data directory. The skill instead substitutes `${CLAUDE_PLUGIN_DATA}` into its own
+  SKILL.md body, where it does render per-plugin, and hands the resolved path to the new
+  `--data-root-file` flag through the same byte-verbatim file channel `--root-file` already uses.
+  A configured root always wins; the data dir is only the fallback. If substitution ever regresses,
+  the file carries the literal token, which the helper detects and refuses — never a wrong
+  directory.
+
+  A repository-derived default (`<parent>/worktrees`) was considered and rejected: under a
+  discovery layout such as ghq's `<root>/github.com/<owner>/<repo>` it lands INSIDE the tree the
+  discovery tool walks, and `ghq list` then reports each worktree as a repository of its own — a
+  leading dot does not hide it.
+
+### Fixed
+
+- **The refusal rationale cited a defect that no longer reproduces.** Four surfaces — the helper,
+  its `--help` text, the `worktree_root` config description, and both skill surfaces — attributed
+  the nesting ban to Claude Code's CLAUDE.md/rules double-load bug, fixed upstream in v2.1.69. The
+  ban is still correct, for a narrower reason measured on 2.1.220: from a worktree nested inside a
+  checkout, a read matching a path-scoped rule's glob also loads the PARENT checkout's copy of that
+  rule. Every surface now states the live constraint, so the next reader auditing the guard against
+  a fixed bug does not conclude the guard is obsolete.
+- **`worktree_root` was missing from the README's configuration table** while every sibling key was
+  listed.
+
+## [0.44.1]
+
+### Fixed
+
+- **`babysit-loop`'s inlined telemetry upsert now gates its body and verifies what landed (#943).**
+  The lane's telemetry comment was observed carrying a literal `@C:/…/telemetry_combined.txt` as its
+  entire body across three sessions: `gh` expands a leading `@` only for `--body-file` / `-F
+  field=@file`, so an `@path` passed as a body VALUE is transmitted as text. `claude-ops`'s
+  `telemetry-upsert.sh` refuses such a body and re-reads what it wrote, but an installed plugin cannot
+  invoke a sibling plugin's script, so this lane inlines its own upsert and inherited neither
+  protection. The block now carries three checks, which catch different failures. A **pre-write gate**
+  rejects a `$BODY_FILE` that is empty, opens with a literal `@`, is not sentinel-prefixed, or holds
+  under 16 bytes of payload — no POST, no PATCH. The **write's own exit status** is then checked, because a
+  failed PATCH leaves the previous cycle's body in place and a read-back running regardless would
+  accept it. A **post-write read-back** then re-reads what the write stored and reports the cycle
+  UNREPORTED unless that body still opens with the sentinel and clears the same floor; this is the
+  check that would have caught the actual #943 shape, where the composed file is perfectly fine and
+  the defect is the invocation (`-f body=@FILE` instead of `-F body=@FILE`) — a file-only check is
+  structurally blind to it. The create path is covered by the same cycle's
+  PATCH, and a degraded POST leaves no sentinel-prefixed comment to re-read, so that branch now
+  reports UNREPORTED too instead of falling through silently. The 16-byte floor is measured on everything below the
+  sentinel LINE, so it matches the wrapper's `MIN_BODY_BYTES` byte-for-byte on LF and CRLF alike;
+  prefix comparison is byte-wise, so a CRLF body is not false-rejected. Every branch that ends without
+  a verified body reports UNREPORTED and skips the duplicate-supersede pass, so a cycle whose own
+  write is unproven never tombstones a racing session's comment. The `$BODY_FILE` sentinel-first-line contract is now stated in
+  prose rather than left implicit in a comment. Two wrapper limits are inherited rather than fixed: a
+  PATCH that succeeds while storing the previous body still verifies, and the read-back proves *some*
+  well-formed telemetry is present, not *this* cycle's. Not replicated at all: the 64 KiB cap, the
+  body-file containment checks, retries, and the wrapper's distinct non-zero exits — every inline
+  branch exits 0 and reports through stderr.
+
+## [0.44.0]
+
+### Fixed
+
+- **`babysit-loop`'s telemetry marker named the lane type, not the writer (#1295).** Every
+  concurrent instance of the lane built the same fixed sentinel, so two merge lanes on one
+  repository resolved one comment and overwrote each other's durable state last-writer-wins — the
+  same defect `work-items`' lanes carried, and identical in shape, so fixing it in one lane would
+  have left it latent in this one. The marker now carries the loop-lane convention's lane-instance
+  suffix (`source-control:babysit-loop@<instance>`) and each instance owns exactly one comment no
+  sibling can match. The creation-race reconcile is unchanged and now converges duplicates within an
+  instance's own sentinel set. The `Lane telemetry: <lane>` issue title is untouched, so the
+  lane-infrastructure exclusion every consumer matches on does not move.
+
+### Added
+
+- **`lane_instance` config key, and an instance-collision check in the durable state block.** The id
+  defaults to the sanitized lowercased hostname and is validated `^[a-z0-9][a-z0-9-]{0,31}$` inside
+  the lane's own executable block, since it is operator-supplied text interpolated into a shell
+  string and a `jq` program. The block (now `source-control/babysit-loop-state@2`) carries
+  `lane_instance`, a per-session `writer_nonce`, a per-cycle `heartbeat_at`, and `paused_until`: a
+  differing nonce over a stale block is the ordinary restart adoption; over a *fresh* block it means
+  another live lane holds this id, and the lane writes nothing, escalates, and stops cleanly.
+  `paused_until` is not the rate-limit latch — the latch says do not claim work, `paused_until` says
+  do not read this lane's silence as death. Two shapes the freshness test alone misreads are carved
+  out: a fresh block carrying a non-null `restart_request` is a stopped predecessor's clean handoff
+  (recording the ask is its last write), so the replacement adopts immediately — clearing the
+  request — instead of waiting out the staleness window; and an unclaimed marker is claimed with a
+  cycle-0 block plus a re-read through the creation-race reconcile *before any work*, so two
+  same-id sessions starting together stop before either overwrites the other's first durable
+  state.
+
+## [0.43.0]
+
+### Added
+
+- **babysit-prs: the (c) non-convergence tripwire is now decided from durable state instead of
+  session memory (#1660).** `safety.md` shipped a rule that a **second consecutive advisory round
+  whose findings are all (c)** — self-inflicted, against text this lane's own prior fix introduced
+  — means incremental patching is injecting defects as fast as it removes them, and the lane must
+  change METHOD. That test needs to know what the PREVIOUS round contained, and nothing durable
+  recorded it: `manage_feedback_ledger.py record-advisory-round` stored `{"recorded_at": ...}` per
+  head and no more. The rule was therefore satisfiable only inside one uninterrupted session,
+  while the babysit loop crosses a context boundary on every cycle — a rule that reads as binding
+  and, for the case it was written for, silently never fires.
+
+  `record-advisory-round` now takes **`--finding-class` once per finding in the round** (`a`
+  genuine duplicate, `b` new and distinct, `c` self-inflicted) and persists the per-finding
+  provenance counts alongside the timestamp. The flag is **required**, refused at exit 2 — an
+  optional flag would have reproduced the same defect one layer down, because an unclassified
+  CURRENT round leaves the tripwire just as unevaluable as an unclassified predecessor, and a
+  silently unrecorded classification is exactly what #1660 is about. The refusal is a
+  `guard-contract.md` row (`ledger.advisory-round-requires-finding-class`), so it is asserted by
+  the guard suite rather than asserted in prose.
+
+  The verdict is computed once, in `babysit_delta`, and read in two places that answer different
+  questions. `record-advisory-round` returns the recorded round's `composition` and the resulting
+  `non_convergence_tripwire` immediately — that is the read that arms the round being dispatched,
+  and why the classification is recorded before the fix rather than after it. The snapshot carries
+  `advisory_fix_rounds.non_convergence_tripwire` (`armed` plus the `basis` it was decided on) over
+  the rounds recorded so far, adding a material finding when armed, so a worker picking the PR up
+  cold sees where it already stood. **Neither read reconstructs the previous round's composition
+  from GitHub threads** — the expensive, resolution-fragile duty `safety.md` used to impose.
+
+  **Rounds recorded before this release read as UNKNOWN, and the tripwire fails closed on them**:
+  a current all-(c) round following an UNKNOWN round arms and says so, rather than silently
+  resetting the count. That preserves the disposition the previous prose already chose for an
+  unmarked predecessor. Two scoping facts are now stated where the rule lives, because the ledger
+  can only answer what it records: the test is over consecutive **advisory** rounds (blocking-defect
+  rounds are never capped and never recorded, so one in between neither counts nor resets), and
+  UNKNOWN is not a synonym for "no (c) findings".
+
+## [0.42.3]
+
+### Added
+
+- **Every surface that restates a review-disposition clause now declares itself (#1659).** The
+  D4.6 grounding and provenance rules, D7.5 thread eligibility, and the authorization rule for a
+  resolution that ships no fix are canonical in `reference/review-discipline.md` and restated
+  across five other surfaces. Each restatement now carries a `contract-restatement` marker naming
+  the clause it copies, and `scripts/check-contract-clause-coverage.py` holds it to the canonical's
+  qualifiers within its own span. Untagged text that restates a clause is reported too, so a new
+  copy has to be argued for rather than appearing silently.
+
+### Fixed
+
+- **`pull-request/reference/monitor.md` restated D4.6 grounding without the id-citation
+  requirement.** It instructed filing the deferral in the work-item tracker with evidence and the
+  PR link, but not citing that item's id in the D5 reply — so a deferral could be filed and still
+  leave the thread with no route back to it, which is the dropped finding D4.6 exists to prevent.
+  Found by the new gate, not by review.
+
+## [0.42.2]
+
+### Fixed
+
+- **Shared `hook-utils.sh`: the OS temp tree is no longer treated as project content (#1769).**
+  `hook::read_file_path` scoped a file to the project by prefix-matching `CLAUDE_PROJECT_DIR`, so a
+  session whose project directory is the user's home admitted everything under the OS temp root —
+  including Claude Code's own per-session scratchpad, which lives there. Hooks that lint, rewrite, or
+  autocorrect then ran on throwaway files that are not project content and carry no project config to
+  opt out with; the reported case was `typos-format` autocorrecting a shell variable in a scratch
+  script and silently breaking it. The guard now rejects a file inside the OS temp tree when the
+  project root is outside it. The exemption is deliberate and load-bearing: when the project root
+  itself lives under temp — a `mktemp -d` fixture checkout, which is how this repository's own hook
+  suites run — its files are still accepted. Temp roots come from `TMPDIR` / `TMP` / `TEMP` plus the
+  POSIX defaults, canonicalized through the same pipeline the membership comparison already uses.
+  Synced from `lib/hook-utils.sh`.
 
 ## [0.42.1]
 
