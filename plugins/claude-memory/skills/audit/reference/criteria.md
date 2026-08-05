@@ -1,6 +1,6 @@
 # Memory Health Criteria
 
-Version: 1.5.0
+Version: 1.5.1
 Last updated: 2026-08-04
 Source: Official Claude Code docs (code.claude.com/docs/en/memory, code.claude.com/docs/en/best-practices, code.claude.com/docs/en/sub-agents, code.claude.com/docs/en/skills)
 
@@ -307,8 +307,37 @@ matching-file Read, so being unreferenced costs nothing per session. WARN per or
 
 **What**: Is MEMORY.md under 200 lines / 25KB?
 
-**How to check**: Count lines and file size. Only the first 200 lines (or 25KB) load at session start
-— anything beyond is silently dropped.
+**How to check**: Count lines and file size on the content that loads — strip YAML frontmatter and
+block-level HTML comments first, since they are removed before the index is loaded and don't count
+toward the limits. The SKILL.md pre-computed context already reports both post-strip figures
+(`memory-dir-stats.sh --memory-lines` / `--memory-bytes`); use them rather than re-measuring the raw
+file. Only the first 200 loaded lines (or 25KB) load at session start — anything beyond is silently
+dropped.
+
+Four readings the strip applies, so a hand count matches the reported figures:
+
+1. A block counts only once it closes, and a leading `---` opens frontmatter only for as long as
+   what follows is shaped like frontmatter. An opening `---` or `<!--` with no closing delimiter is
+   ordinary content and is counted. So is a leading `---` whose block reaches a line that is
+   neither blank, a comment, nor a `key:` mapping entry, or that runs past 20 lines — markdown
+   carries thematic breaks freely, so the next `---` in a file is usually another break rather
+   than a frontmatter close, and without both bounds the entire span between the two would be
+   stripped. A leading thematic break, or frontmatter clipped mid-file, must not blank the count.
+2. A block-level comment occupies whole lines. Text sharing a line with the comment's open or
+   close loads, and is counted — including text between two comments on one line, since each
+   comment ends at the first `-->` after its own opener.
+3. Comments inside fenced code blocks are preserved: a comment inside a fence is code, not
+   block-level markdown.
+4. Byte counts measure LF-normalized content, so a CRLF index reports about one byte per line
+   under its on-disk size — well under 1% of the 25KB cap.
+
+**Provenance**: the strip rule itself is doc-derived (code.claude.com/docs/en/memory, "How it
+works"). The four readings are not. The doc states the fenced-code carve-out for CLAUDE.md only and
+is silent on it for MEMORY.md, and says nothing about unterminated blocks, unbounded blocks,
+partial lines, or line endings. They are this plugin's reading, chosen so that no input silently
+under-reports and leaves this `[FAIL]` gate unable to fire. Where a reading has to guess, it guesses
+toward counting: an over-count can only make the gate fire early on a file near its limit, while an
+under-count stops it firing at all. The `update` action must not overwrite them.
 
 ### M2: Stale Entries [WARN]
 

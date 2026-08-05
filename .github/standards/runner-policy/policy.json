@@ -424,6 +424,27 @@
       "allowedInputs": ["runner", "prerequisite-result", "exempt-authors"],
       "allowedSecrets": {}
     },
+    "melodic-software/ci-workflows/.github/workflows/pr-issue-linkage.yml@2b14f0c06e497e4bfbe14f2792b222822b789a65": {
+      "routing": "runner-input",
+      "runnerInput": "runner",
+      "selectorResultInput": "prerequisite-result",
+      "allowedInputs": ["runner", "prerequisite-result", "exempt-authors"],
+      "allowedSecrets": {}
+    },
+    "melodic-software/ci-workflows/.github/workflows/pr-issue-linkage.yml@d25b689c1b8509c63d6516bcbe72cedb8511cc2f": {
+      "routing": "runner-input",
+      "runnerInput": "runner",
+      "selectorResultInput": "prerequisite-result",
+      "allowedInputs": ["runner", "prerequisite-result", "exempt-authors"],
+      "allowedSecrets": {}
+    },
+    "melodic-software/ci-workflows/.github/workflows/pr-issue-linkage.yml@e94438746c300b02385a7f8a2a2dcd19a7f4ad4a": {
+      "routing": "runner-input",
+      "runnerInput": "runner",
+      "selectorResultInput": "prerequisite-result",
+      "allowedInputs": ["runner", "prerequisite-result", "exempt-authors"],
+      "allowedSecrets": {}
+    },
     "melodic-software/ci-workflows/.github/workflows/issue-triage-label.yml@c5e729c0af0e55ffed4675ec85c1b57356fef79e": {
       "routing": "runner-input",
       "runnerInput": "runner",
@@ -467,6 +488,21 @@
       "routing": "runner-input",
       "runnerInput": "runner",
       "allowedInputs": ["runner", "manifest", "standards-ref", "threshold-hours"],
+      "allowedSecrets": {
+        "app-client-id": "${{ secrets.STANDARDS_SYNC_APP_CLIENT_ID }}",
+        "app-private-key": "${{ secrets.STANDARDS_SYNC_APP_PRIVATE_KEY }}"
+      }
+    },
+    "melodic-software/ci-workflows/.github/workflows/standards-sync-stuck-automerge-alert.yml@ed6d410c1fe10d9deb40241bbe46428b31fafd57": {
+      "routing": "runner-input",
+      "runnerInput": "runner",
+      "allowedInputs": [
+        "runner",
+        "manifest",
+        "standards-ref",
+        "threshold-hours",
+        "tracking-issue-repository"
+      ],
       "allowedSecrets": {
         "app-client-id": "${{ secrets.STANDARDS_SYNC_APP_CLIENT_ID }}",
         "app-private-key": "${{ secrets.STANDARDS_SYNC_APP_PRIVATE_KEY }}"

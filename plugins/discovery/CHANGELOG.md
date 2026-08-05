@@ -1,5 +1,50 @@
 # Changelog — discovery plugin
 
+## [0.9.3]
+
+### Fixed
+
+- **The `Workflow`-tool availability claim omitted the fork exception.** Three places stated flatly
+  that a subagent cannot reach `Workflow`, contradicting `skills/research-deep/SKILL.md`'s own
+  gotcha, which already scoped the filter to *non-fork* subagents. Verified 2026-08-05 against the
+  official subagent docs: "Subagents inherit the built-in tools and MCP tools available in the main
+  conversation, narrowed by two filters ... Forks skip both filters and receive the main
+  conversation's exact tool pool" — and `Workflow` is one of the tools that first filter removes.
+  A fork therefore *does* hold `Workflow`; the unqualified wording told it Tier 1 was categorically
+  out of reach and silently degraded it to Tier 2.
+  - `README.md` — the `/discovery:research-deep` row.
+  - `skills/research-deep/SKILL.md` — the frontmatter `description` and the Purpose paragraph.
+
+- **Tier 2 was labelled a fork, which it is not.** `/research-deep`'s fallback tier spawns an
+  ordinary isolated `general-purpose` subagent; nothing about it forks the conversation. Calling it
+  "forked" collided with the genuine fork distinction the fix above turns on — that a *fork* holds
+  `Workflow` and a non-fork subagent does not — so the same word carried two meanings, one of them
+  wrong. Tier 2 is no longer called a fork anywhere; its explicit label is now "isolated subagent".
+  The true-fork references (the `Workflow` filter and the `CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH`
+  nesting allowance) are unchanged.
+  - `skills/research-deep/SKILL.md` — the frontmatter `description`, the tier table, the Tier 2
+    heading, and the post-dispatch boundary paragraph.
+  - `skills/research-deep/evals/evals.json` — eval 3's name and first expectation, and eval 5's
+    expected output. Eval 3's expectation previously accepted "forked/isolated" and now requires
+    "isolated", tightening it in the direction of the corrected label.
+  - `reference/topic-docs.md` — the visibility section called the `-deep` executions "forks" and
+    named `EXPLORE.md` as one of their artifacts. `-deep` resolves solely to `research-deep`, whose
+    isolated subagent writes `RESEARCH.md`; `explore-deep`, whose frontmatter did declare
+    `context: fork`, was retired in 0.9.0. The checkout-locality claim the sentence exists to make
+    is unchanged. This document is loaded at runtime by the skills, so the stale label reached them.
+  - `README.md` — the graceful-degrade roster advertised "forked subagents" as an adjacent
+    capability; no skill in the plugin declares `context: fork`, so the roster now names subagents
+    plainly.
+
+- **The main-context rationale carried only half its reason.** All three statements of why
+  `/research-deep` must run inline cited the `Workflow` tool alone — which, once that claim is
+  correctly scoped to non-fork subagents, licenses a fork to dispatch the skill. The rationale now
+  also carries the `Agent`-spawn leg that `skills/research-deep/SKILL.md`'s *Dispatching this skill
+  itself* gotcha already stated, and which holds for forks too: at the configurable depth limit a
+  fork keeps `Agent` listed but the spawn errors, so no dispatched context guarantees it.
+  - `README.md` — the `/discovery:research-deep` row.
+  - `skills/research-deep/SKILL.md` — the frontmatter `description` and the Purpose paragraph.
+
 ## [0.9.2]
 
 ### Fixed
