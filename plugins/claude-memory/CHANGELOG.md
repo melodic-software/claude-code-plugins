@@ -3,6 +3,25 @@
 All notable changes to the `claude-memory` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.7]
+
+### Fixed
+
+- **A pseudo-frontmatter block of markdown headings silently blanked the `audit` skill's M1
+  index-size count** (claude-memory 0.5.6 → 0.5.7, criteria 1.5.1 → 1.5.2). `memory-dir-stats.sh`
+  admitted `#` lines to its frontmatter grammar, so a `MEMORY.md` opening with a `---` thematic
+  break, carrying up to twenty heading lines, and reaching any later `---` had the whole span
+  stripped as frontmatter: a five-line index reported one loaded line. M1 is a `[FAIL]`-severity
+  size gate that a low count always passes, so the shape disarmed the gate outright. A `#` line is
+  a comment to YAML but a heading to markdown, and headings are loaded content, so the grammar now
+  accepts only blank lines and `key:` mapping entries and that shape counts every line.
+
+  The cost is that a real YAML comment inside frontmatter ends the block, and ending it strips
+  nothing at all — the opening `---`, every entry held so far, and the rest of the block through
+  its close all count. That is an over-count, the direction M1's readings already guess toward,
+  and a rare one: Claude Code writes only the `modified` scalar and never authors comments, so it
+  takes a hand-edited index to reach. criteria.md M1 reading 1 records both halves.
+
 ## [0.5.6]
 
 ### Changed
