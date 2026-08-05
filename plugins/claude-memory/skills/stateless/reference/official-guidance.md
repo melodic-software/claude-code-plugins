@@ -1,12 +1,14 @@
 # Official Claude Code Guidance on Auto Memory State
 
-Last researched: 2026-07-22
+Last researched: 2026-07-22; code.claude.com/docs/en/claude-directory verified 2026-08-04 (the
+other sources below were not re-checked on that date)
 Sources: [code.claude.com/docs/en/memory](https://code.claude.com/docs/en/memory),
 [code.claude.com/docs/en/settings](https://code.claude.com/docs/en/settings),
 [code.claude.com/docs/en/env-vars](https://code.claude.com/docs/en/env-vars),
 [code.claude.com/docs/en/claude-directory](https://code.claude.com/docs/en/claude-directory)
 
-Refresh this file from current official docs before relying on it (re-fetch both pages).
+Refresh this file from current official docs before relying on it (re-fetch every source listed
+above).
 
 ---
 

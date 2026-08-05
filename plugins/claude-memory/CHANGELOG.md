@@ -11,12 +11,25 @@ All notable changes to the `claude-memory` plugin are documented here. Format fo
   0.5.5 → 0.5.6). Wherever the skill states that purge is auto-memory-only — the SKILL.md scope
   statement and table, `context/purge.md`'s pre-gate presentation and follow-through, and
   `reference/official-guidance.md`'s out-of-scope section — it now names `claude project purge`
-  (Claude Code v2.1.124+), the official per-project wipe covering transcripts and auto memory
-  under `projects/`, per-session `tasks/`, `debug/`, and `file-history/` entries, matching
-  `history.jsonl` lines, and the project's `~/.claude.json` entry, linking
-  code.claude.com/docs/en/claude-directory as the single source for the deletion plan and
-  flags. Also retires the reference file's now-false "there is no built-in purge command"
-  claim.
+  (Claude Code v2.1.124+). The command's deletion scope is quoted verbatim in
+  `reference/official-guidance.md` and nowhere else, so the skill holds one copy of an upstream
+  list instead of one per call site; every other mention points there, and
+  code.claude.com/docs/en/claude-directory stays the source for the deletion plan and flags.
+  Also retires the reference file's now-false "there is no built-in purge command" claim.
+
+### Fixed
+
+- **The `stateless` scope table answered for four entities with one verdict, and was wrong for
+  three of them.** A single `Transcripts / history / sessions / snapshots` row claimed
+  `cleanupPeriodDays` auto-cleans all of them, and an immediate full wipe via
+  `claude project purge`. Per code.claude.com/docs/en/claude-directory (verified 2026-08-04),
+  only transcripts match that verdict: `history.jsonl` sits among the paths "not covered by
+  automatic cleanup" that "persist indefinitely"; `sessions/` "isn't part of the age-based
+  sweep" and the command's deletion list never names it; and the command "leaves
+  `shell-snapshots/` and `backups/` alone because those are not project-scoped". Split so every
+  verdict is true of every subject in its row. Also retires two counted re-fetch pointers ("the
+  two source pages", "both pages") that the file family had grown past — they now point at the
+  source list rather than counting it.
 
 ## [0.5.5]
 
