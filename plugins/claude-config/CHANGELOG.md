@@ -11,27 +11,29 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   context-engineering blog** (criteria 1.16.0). Both rows rested on live-doc sources alone;
   [The new rules of context engineering for Claude 5 generation
   models](https://claude.com/blog/the-new-rules-of-context-engineering-for-claude-5-generation-models)
-  (2026-07-24) states each from the vendor's own transcripts and shipped prompts, so the citation is
-  added rather than a new row minted — the digest's conflicting-directive question resolved to
-  existing `I15` coverage plus this rationale, and its bare-prohibition candidate to `I6` as
-  already-covered doctrine.
+  (2026-07-24) states each from the vendor's own system prompts and shipped guidance, so the
+  citation is added rather than a new row minted — the digest's conflicting-directive question
+  resolved to existing `I15` coverage plus this rationale, and its bare-prohibition candidate to
+  `I6` as already-covered doctrine.
 
   `I6`: the blog's retired system-prompt line "default to writing no comments. Never write
-  multi-paragraph docstrings" is a worked instance of the row's Detect shape, its stated
-  obsolescence ("newer models have better judgement and can handle these decisions well without
-  explicit rules") is the model-delta ground, and its replacement — "Write code that reads like the
-  surrounding code: match its comment density, naming, and idiom" — is the row's own
-  positive-reframing remediation, shipped by upstream.
+  multi-paragraph docstrings or multi-line comment blocks — one short line max." is a worked
+  instance of the row's Detect shape, its stated obsolescence ("newer models have better judgement
+  and can handle these decisions well without explicit rules") is the model-delta ground, and its
+  replacement — "Write code that reads like the surrounding code: match its comment density,
+  naming, and idiom" — is the row's own positive-reframing remediation, shipped by upstream.
 
   `I15`: the blog's "Unhobbling Claude" adds the cost the memory doc's arbitrary-pick sentence does
   not state — even a correctly resolved conflict taxes reasoning ("Claude must think more carefully
   about these overlapping and conflicting messages before deciding what to do"), evidenced by
-  Anthropic's own transcript pair "leave documentation as appropriate" / "DO NOT add comments".
+  "several conflicting messages in a single request" as Anthropic's own system prompt, skills, and
+  user requests clash with each other.
 
-  The page joins `## Sources`, keeping the trigger-set-equals-source-set invariant. It is a vendor
-  blog, not reference documentation, so per the applied vendor-blog attestation rule both row
-  citations carry a read date (2026-08-04; all quoted lines verified verbatim against the live
-  page). Primary sources are unchanged — the blog corroborates, it does not define.
+  The page joins `## Sources`, keeping the trigger-set-equals-source-set invariant, and is noted
+  there as a static dated post that never fires the recheck trigger. Neither citation carries a
+  per-row verification stamp: the catalog owes one where a row restates a volatile upstream
+  literal, and a dated post at a stable URL cannot go stale. Primary sources are unchanged — the
+  blog corroborates, it does not define.
 
 ## [0.21.7]
 
