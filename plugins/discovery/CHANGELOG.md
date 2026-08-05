@@ -1,5 +1,20 @@
 # Changelog — discovery plugin
 
+## [VERSION-PENDING]
+
+### Fixed
+
+- **The `Workflow`-tool availability claim omitted the fork exception.** Three places stated flatly
+  that a subagent cannot reach `Workflow`, contradicting `skills/research-deep/SKILL.md`'s own
+  gotcha, which already scoped the filter to *non-fork* subagents. Verified 2026-08-05 against the
+  official subagent docs: "Subagents inherit the built-in tools and MCP tools available in the main
+  conversation, narrowed by two filters ... Forks skip both filters and receive the main
+  conversation's exact tool pool" — and `Workflow` is one of the tools that first filter removes.
+  A fork therefore *does* hold `Workflow`; the unqualified wording told it Tier 1 was categorically
+  out of reach and silently degraded it to Tier 2.
+  - `README.md` — the `/discovery:research-deep` row.
+  - `skills/research-deep/SKILL.md` — the frontmatter `description` and the Purpose paragraph.
+
 ## [0.9.2]
 
 ### Fixed

@@ -1,6 +1,6 @@
 ---
 name: research-deep
-description: "Dispatch deep external research to the heaviest isolated execution tier available — a workflow engine, a forked subagent, or inline as last resort — keeping the main conversation clean while the full research discipline runs. Itself runs in main context, because a subagent cannot reach the Workflow tool. Use when: 'deep research', 'research these N topics', 'broad multi-source research', 'compare these tools thoroughly', 'migration research', 'exhaustive research on X'; for a single small lookup use the research skill directly, which already dispatches its own subagent."
+description: "Dispatch deep external research to the heaviest isolated execution tier available — a workflow engine, a forked subagent, or inline as last resort — keeping the main conversation clean while the full research discipline runs. Itself runs in main context, because a non-fork subagent cannot reach the Workflow tool. Use when: 'deep research', 'research these N topics', 'broad multi-source research', 'compare these tools thoroughly', 'migration research', 'exhaustive research on X'; for a single small lookup use the research skill directly, which already dispatches its own subagent."
 argument-hint: "[topic] (e.g., /discovery:research-deep <library> <version> best practices, /discovery:research-deep <framework> <feature> migration guide)"
 user-invocable: true
 disable-model-invocation: false
@@ -18,7 +18,7 @@ Current branch: !`git branch --show-current 2>/dev/null || echo "unknown"`
 
 `/research-deep` is the **dispatcher** for deep external research — a depth/execution variant of the sibling `/research` skill. Same research contract (3-phase discipline, source-tier ratio, recency gate, mandatory falsification, cited `RESEARCH.md` artifact); heavier execution that keeps the main session's context clean. It selects ONE execution tier from tool availability + task heaviness, then surfaces the same summary contract regardless of tier.
 
-This skill runs **inline (main context)** — it dispatches; the chosen tier provides the context isolation. It must run in main context to reach the Workflow tool when one is available (a subagent cannot dispatch workflows).
+This skill runs **inline (main context)** — it dispatches; the chosen tier provides the context isolation. It must run in main context to reach the Workflow tool when one is available (a non-fork subagent cannot dispatch workflows).
 
 ## Topic
 
