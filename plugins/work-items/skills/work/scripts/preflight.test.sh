@@ -320,6 +320,17 @@ assert_contains "autonomous path drops the worktree's own local → gap surfaces
 assert_contains "header notes the worktree-local exclusion" "$OUT" "excludes this worktree's own local file"
 assert_eq "worktree-local-only grant → one gap" "1" "$(run "$WT16" "$CFG16" --count --worktree-root "$POSIX_CHILD")"
 
+# --- Case 16c: a main checkout whose git dir is not spelled "<root>/.git" -----
+# --separate-git-dir (and a submodule checkout) put the common dir elsewhere. The
+# checkout is still the MAIN one, so its local file still reaches a fresh worker
+# and must not be dropped on the autonomous path.
+SEPCO="$TEST_TMPDIR/sep-main"
+git init -q --separate-git-dir "$TEST_TMPDIR/sep-gitdir" "$SEPCO"
+SEPTOP="$(git -C "$SEPCO" rev-parse --show-toplevel)"
+mkdir -p "$SEPTOP/.claude"
+jq -n '{permissions:{allow:["Bash(gh pr create *)"]}}' >"$SEPTOP/.claude/settings.local.json"
+assert_eq "separate-git-dir main checkout's local grant counts → no gap" "0" "$(run "$SEPCO" "$CFG16" --count --worktree-root "$POSIX_CHILD")"
+
 # --- Case 17: a distinct --project-root reads the worker's OWN local settings -
 # When --project-root names a real worker worktree (toplevel differs from cwd),
 # read ITS OWN settings.local.json — the worker's file, present in that checkout —

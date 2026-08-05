@@ -16,14 +16,19 @@ All notable changes to the `work-items` plugin are documented here. Format follo
   wholesale on the `--worktree-root` path, on the reasoning that a gitignored file cannot follow a
   fresh worktree. That reasoning now holds only for a local file living inside some *other* linked
   worktree, so a grant the worker would genuinely inherit was reported as a missing-allow gap. The
-  script resolves the main checkout through the git common dir and reads its local file in every
-  mode; only a linked-worktree cwd's *own* local file is still dropped pre-dispatch, since a
-  pre-v2.1.211 save (or a hand-placed file) applies solely to sessions started in that worktree.
-  The exclusion is a no-op when the run starts from the main checkout, and the report header now
-  names which files the coverage read spanned. Deny rules keep reading every local layer — erring
-  wide on deny never masks a gap. On a pre-v2.1.211 harness a main-local-only grant is still a real
-  worker-side gap this report would miss; `reference/permission-preflight.md` states that residual
-  limit rather than leaving it implied.
+  script now reads the main checkout's local file in every mode; only a linked-worktree cwd's *own*
+  local file is still dropped pre-dispatch, since a pre-v2.1.211 save (or a hand-placed file)
+  applies solely to sessions started in that worktree. The exclusion is a no-op when the run starts
+  from the main checkout, and the report header now names which files the coverage read spanned.
+  Deny rules keep reading every local layer — erring wide on deny never masks a gap.
+- **That main checkout is identified by comparing the checkout's own git dir against the common
+  one, not by assuming the git dir is spelled `<root>/.git`.** Equal dirs mean the checkout *is*
+  the main one, so `--separate-git-dir` and submodule layouts — where the common dir lives outside
+  the working tree entirely — resolve to the right root instead of resolving to nothing and
+  re-reporting the very gap this release removes. Only from a linked worktree is the main checkout
+  recovered from the common dir's path. `reference/permission-preflight.md` states the two residual
+  over-reporting cases rather than leaving them implied: a pre-v2.1.211 harness, and a linked
+  worktree whose common dir is not spelled `<root>/.git`. Both are noisy, never masking.
 
 ## [0.31.2]
 

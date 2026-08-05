@@ -138,15 +138,24 @@ user_settings="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/settings.json"
 # .claude/settings.local.json at the repository root, resolved through worktrees
 # to the MAIN checkout, and the rule applies to sessions anywhere in the
 # repository — every linked worktree included (docs/en/permissions#permission-system).
-# Resolve that checkout through the git common dir; empty when proj_src is not a
-# repo (or the common dir is not a ".git" directory), which degrades to the
-# project-layer reads alone.
+# A checkout whose OWN git dir is the common one is itself the main checkout, so
+# its toplevel is the answer whatever the git dir is named (--separate-git-dir, a
+# submodule). Only from a linked worktree must the main checkout be recovered from
+# the common dir's path, which assumes the conventional "<root>/.git" spelling.
+# main_root stays empty when proj_src is not a repo, or when a linked worktree's
+# common dir is spelled otherwise; the coverage reads then fall back to the
+# project layer alone — over-reporting a gap, never hiding one.
 main_gitdir="$(git -C "$proj_src" rev-parse --path-format=absolute --git-common-dir 2>/dev/null | tr -d '\r')"
+own_gitdir="$(git -C "$proj_src" rev-parse --path-format=absolute --git-dir 2>/dev/null | tr -d '\r')"
 main_root=""
-case "$main_gitdir" in
-  */.git) main_root="${main_gitdir%/.git}" ;;
-  *) ;;
-esac
+if [[ -n "$main_gitdir" && "$main_gitdir" == "$own_gitdir" ]]; then
+  main_root="$proj_base"
+else
+  case "$main_gitdir" in
+    */.git) main_root="${main_gitdir%/.git}" ;;
+    *) ;;
+  esac
+fi
 
 read_array() {
   # read_array <file> <jq-path> — one element per line; silent on a missing or

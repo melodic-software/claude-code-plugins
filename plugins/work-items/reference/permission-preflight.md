@@ -99,7 +99,10 @@ that repository — every linked worktree included, however the worktree was cre
 ([permissions](https://code.claude.com/docs/en/permissions#permission-system),
 [worktrees](https://code.claude.com/docs/en/worktrees); both fetched 2026-08-04). The main
 checkout's local file is therefore part of a fresh worker worktree's effective settings, and the
-preflight reads it in **every** mode, resolved through the git common dir. What a fresh worker does
+preflight reads it in **every** mode. It identifies that checkout by comparing the cwd's own git
+dir against the common one: equal means this checkout *is* the main one — whatever its git dir is
+named, so `--separate-git-dir` and submodule layouts resolve correctly — and only from a linked
+worktree is the main checkout recovered from the common dir's path. What a fresh worker does
 **not** inherit is a local file living inside some *other* linked worktree — a pre-2.1.211 save, or
 a hand-placed file — which applies only to sessions started in that worktree. Two cases:
 
@@ -107,9 +110,12 @@ a hand-placed file — which applies only to sessions started in that worktree. 
   yet created). The **coverage** reads (allow + `additionalDirectories`) span user-global + tracked
   project settings + the main checkout's local file; only a linked-worktree cwd's *own* local file
   is dropped, since the fresh worker would not inherit it and reading it would mask a worker-side
-  gap. Run from the main checkout, nothing is dropped. The report header says which. (On a
-  pre-2.1.211 harness the main checkout's local rules do not reach a worktree either, so there a
-  main-local-only grant is still a real worker-side gap the report would miss.)
+  gap. Run from the main checkout, nothing is dropped. The report header says which. Two residual
+  cases still over-report — both noisy rather than masking: on a pre-2.1.211 harness the main
+  checkout's local rules do not reach a worktree either, so there a main-local-only grant is a real
+  worker-side gap this report would miss; and from a linked worktree whose common dir is not spelled
+  `<root>/.git`, the main checkout cannot be recovered from that path, so its local file goes
+  unread.
 - **A named worker** — `--project-root <worker-worktree>` resolves to a checkout whose toplevel
   differs from the cwd. That is a real, existing checkout, so the preflight reads **its own**
   `settings.local.json` (legacy rules saved there still apply to sessions started there) plus the
