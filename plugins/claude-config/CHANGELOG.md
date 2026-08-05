@@ -18,11 +18,18 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   was closed as not planned.
 
   The check was also inoperable: its verification shipped `grep ':*'`, which in basic regex means
-  zero or more colons and so matches every line. Removed rather than reworded, because the only
-  accurate replacement — flagging a `:*` that is not at pattern end, which the page shows never
-  matches — has no instance in this repo. The known-issues row keeps its citation and drops its
-  tracked action. Generic "deprecated syntax" wording elsewhere stands: the settings doc documents
-  real deprecations.
+  zero or more colons and so matches every line. Escaping does not rescue it — `grep -F ':*'` matches
+  `WebFetch(domain:*)`, and the permissions doc documents `Agent(isolation:*)`, `WebFetch(domain:*)`
+  and `WebFetch(domain:*.example.com)` as legitimate syntax, so a correctly escaped check would trade
+  a never-clean result for false positives on documented rules. The only accurate replacement —
+  flagging a `:*` that is not at pattern end, which the page shows never matches — has no instance in
+  this repo. The known-issues row keeps its citation and drops its tracked action. Generic
+  "deprecated syntax" wording elsewhere stands: the settings doc documents real deprecations.
+
+- **`audit-permission-grants`: the routing eval that asserted the removed check.** Its scope-boundary
+  eval routed a `:*` check to the sibling skill, so after the removal prose and eval disagreed and
+  the grader could reward a response repeating the false label. It now exercises the same routing
+  boundary through a check that still exists.
 
 ### Fixed
 
@@ -52,6 +59,14 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   concerns.** `prompt` hooks send a prompt to a model for single-turn evaluation and `agent` hooks
   spawn a subagent that can use tools to verify conditions — those mechanize the concerns the gloss
   assigned to the gate. Agent hooks are experimental and may change.
+
+- **`audit-pass`: built-in output styles do not drop the coding instructions.** The claim was
+  unscoped, but [Output styles](https://code.claude.com/docs/en/output-styles) says "Custom output
+  styles leave out Claude Code's built-in software engineering instructions … unless
+  `keep-coding-instructions` is set to `true`", and the built-in **Default** style "is the existing
+  system prompt" — a direct counterexample. `keep-coding-instructions` is frontmatter in an
+  output-style file, and built-in styles have no file, so the exception could not apply to them. The
+  attestation date moves with the re-fetch; the operative `force-for-plugin` claim is unchanged.
 
 ## [0.21.7]
 
