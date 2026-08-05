@@ -19,6 +19,10 @@ All notable changes to the `mcp-tools` plugin are documented here. Format follow
 
 - C4's size budget now also covers the server `instructions` field — Claude
   Code truncates tool descriptions and server instructions at 2KB each.
+  `discover.sh` emits per-tool records only, so Phase 2 gains a once-per-server
+  step that resolves `instructions` from the server's construction site; without
+  it the new clause would have had no input to audit. A server declaring no
+  `instructions` is recorded not applicable rather than passing.
 
 ## [0.2.2]
 

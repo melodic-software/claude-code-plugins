@@ -53,6 +53,10 @@ Read each `Tool file:` from Phase 1. Extract descriptions, parameters, and annot
 [reference/server-discovery.md](reference/server-discovery.md) language rules. Load the detailed
 checklist from [reference/checklist.md](reference/checklist.md).
 
+Once per server, also resolve its `instructions` field — see **Server instructions** in
+[reference/server-discovery.md](reference/server-discovery.md) — and evaluate C4's per-server clause
+against it. Phase 1's records are per-tool, so this is the only step that reaches it.
+
 For each tool, evaluate every criterion in the checklist. Record result as:
 
 - **PASS** — criterion met
