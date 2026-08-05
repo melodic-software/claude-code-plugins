@@ -145,6 +145,7 @@ main_gitdir="$(git -C "$proj_src" rev-parse --path-format=absolute --git-common-
 main_root=""
 case "$main_gitdir" in
   */.git) main_root="${main_gitdir%/.git}" ;;
+  *) ;;
 esac
 
 read_array() {

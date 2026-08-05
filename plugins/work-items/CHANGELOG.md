@@ -3,6 +3,28 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.31.3]
+
+### Fixed
+
+- **The permission preflight counts the main checkout's `settings.local.json` as worktree
+  coverage, so the autonomous path stops over-reporting gaps a fresh worker would not have.**
+  Since Claude Code v2.1.211, choosing "Yes, don't ask again" saves the rule to
+  `.claude/settings.local.json` at the repository root, resolved through worktrees to the MAIN
+  checkout, and the rule applies to sessions anywhere in that repository — every linked worktree
+  included. The preflight modelled the pre-v2.1.211 behaviour instead: it dropped the local file
+  wholesale on the `--worktree-root` path, on the reasoning that a gitignored file cannot follow a
+  fresh worktree. That reasoning now holds only for a local file living inside some *other* linked
+  worktree, so a grant the worker would genuinely inherit was reported as a missing-allow gap. The
+  script resolves the main checkout through the git common dir and reads its local file in every
+  mode; only a linked-worktree cwd's *own* local file is still dropped pre-dispatch, since a
+  pre-v2.1.211 save (or a hand-placed file) applies solely to sessions started in that worktree.
+  The exclusion is a no-op when the run starts from the main checkout, and the report header now
+  names which files the coverage read spanned. Deny rules keep reading every local layer — erring
+  wide on deny never masks a gap. On a pre-v2.1.211 harness a main-local-only grant is still a real
+  worker-side gap this report would miss; `reference/permission-preflight.md` states that residual
+  limit rather than leaving it implied.
+
 ## [0.31.2]
 
 ### Fixed
