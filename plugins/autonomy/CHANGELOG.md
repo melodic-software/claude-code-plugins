@@ -6,7 +6,7 @@ All notable changes to the `autonomy` plugin are documented here. Format follows
 Versions 0.1.0–0.7.0 predate this file (introduced with 0.7.1); their history lives in the
 merged work-package PRs (#333, #343, #356, #372, #377, #600, #676).
 
-## [VERSION-PENDING]
+## [0.12.2]
 
 ### Fixed
 
