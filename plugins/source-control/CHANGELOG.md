@@ -3,6 +3,23 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.46.2]
+
+### Fixed
+
+- **`babysit-prs` `reference/safety.md`: the permission-mode enumeration behind the wrapper-path
+  invocation now matches the official page (#1941).** The list named "Manual and accept-edits" as
+  the prompting modes and then covered only auto mode, so it mixed the CLI display label with
+  config values and accounted for three of the six modes. `dontAsk` was the load-bearing omission:
+  it auto-denies every call that would otherwise prompt, so an uncovered wrapper invocation is
+  refused with no classifier and no prompt — the exact silent-failure hazard the section exists to
+  warn about — and `bypassPermissions` was missing too. The enumeration now names all six config
+  values (`default`, `acceptEdits`, `plan`, `auto`, `dontAsk`, `bypassPermissions`), states once
+  that `default` is the value behind the **Manual** display label with `manual` as a v2.1.200 CLI
+  alias, adds plan mode's third branch (bypass-permissions sessions do not enforce its blocks), and
+  splits the outcomes into prompt / no-prompt / auto-deny with the `permissions.ask` exception
+  stated per mode.
+
 ## [0.46.0]
 
 ### Added
