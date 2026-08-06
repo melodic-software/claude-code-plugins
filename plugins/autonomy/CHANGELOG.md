@@ -6,6 +6,33 @@ All notable changes to the `autonomy` plugin are documented here. Format follows
 Versions 0.1.0–0.7.0 predate this file (introduced with 0.7.1); their history lives in the
 merged work-package PRs (#333, #343, #356, #372, #377, #600, #676).
 
+## [0.12.2]
+
+### Fixed
+
+- **`reference/routines.md`: the `goal` glossary row no longer claims a budget cap ends the
+  session.** The row read "until a separate grader judges the condition met or a budget cap trips";
+  the official page documents a closed two-item set — "A goal keeps running until the condition is
+  met or you run `/goal clear`" — and its own section on bounding a goal's duration offers a turn or
+  time clause inside the condition, not a spend cap. The only dollar cap Claude Code's CLI documents
+  is the `--max-budget-usd` flag, which is print-mode-only and invocation-scoped, whereas this row
+  is `session-scoped`; a cap-stopped invocation also leaves the goal neither achieved nor cleared,
+  so it is restored on `--resume`/`--continue` — the cap ends the process while the goal outlives
+  it. The replacement clause names the second of the two events that actually change goal state.
+
+## [0.12.1]
+
+### Changed
+
+- **`lane-stop-gate-lib.sh`: the server-managed settings channel's exclusion from the org-veto
+  source list is documented as deliberate.** The gate reads only endpoint managed-settings paths
+  plus `managed-settings.d/` drop-ins; [server-managed
+  settings](https://code.claude.com/docs/en/server-managed-settings) surface on disk only as the
+  user-writable cache `~/.claude/remote-settings.json`, which fails the root-owned trust test the
+  veto relies on — the page itself calls the channel "a client-side control, not a security
+  boundary". Comment at the exclusion site plus a README precedence-list note directing orgs on the
+  server channel to also deliver an endpoint `managed-settings.json`; no behavior change.
+
 ## [0.12.0]
 
 ### Changed

@@ -3,6 +3,42 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.21.8]
+
+### Changed
+
+- **`audit-instructions`: `I6` gains model-delta corroboration and `I15` reasoning-cost
+  corroboration from Anthropic's context-engineering blog** (criteria 1.16.0). Both rows rested on
+  live-doc sources alone; [The new rules of context engineering for Claude 5 generation
+  models](https://claude.com/blog/the-new-rules-of-context-engineering-for-claude-5-generation-models)
+  (2026-07-24) states each from the vendor's own system prompts and shipped guidance, so the
+  citation is added rather than a new row minted — the digest's conflicting-directive question
+  resolved to existing `I15` coverage plus this rationale, and its bare-prohibition candidate to
+  `I6` as already-covered doctrine.
+
+  `I6`: the blog's retired system-prompt line "In code: default to writing no comments. Never write
+  multi-paragraph docstrings or multi-line comment blocks — one short line max." is a worked
+  instance of the row's Detect shape, its stated obsolescence ("newer models have better judgement
+  and can handle these decisions well without explicit rules") is the model-delta ground, and its
+  replacement — "Write code that reads like the surrounding code: match its comment density,
+  naming, and idiom" — is an instance of the row's positive-reframing remediation, shipped by
+  upstream.
+
+  `I15`: the blog's "Unhobbling Claude" adds the cost the memory doc's arbitrary-pick sentence does
+  not state — even a correctly resolved conflict taxes reasoning ("Claude must think more carefully
+  about these overlapping and conflicting messages before deciding what to do"), evidenced by
+  "several conflicting messages in a single request" as Anthropic's own system prompt, skills, and
+  user requests clash with each other.
+
+  The page joins `## Sources` and is therefore inside the catalog-wide recheck trigger like every
+  other entry, keeping the trigger-set-equals-source-set invariant; it is noted there as a dated
+  post, static once published, so that recheck is expected to find it unchanged. Neither citation
+  carries a per-row verification stamp: the catalog owes one where a row restates a volatile
+  upstream literal — a level name, a model range, a type predicate — and both rows quote prose
+  rather than restate such a literal. Both rows keep the `ANTHROPIC-DOCS` Authority their primary
+  documentation sources carry; primary sources are unchanged — the blog corroborates, it does not
+  define.
+
 ## [0.21.7]
 
 ### Added

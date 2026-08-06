@@ -64,6 +64,21 @@
         "Audits the list_snippets tool against the checklist",
         "Produces no checklist findings for the MCP resource and states that resources are out of scope (tools only)"
       ]
+    },
+    {
+      "id": 6,
+      "name": "meta-requires-user-interaction-json-type",
+      "prompt": "Audit the MCP tool definitions in evals/fixtures/meta-annotations.md relative to the skill directory against the design-quality checklist. Give me the per-tool scorecard and tell me what to fix first.",
+      "expected_output": "A per-tool scorecard rating C18 FAIL on grant_repo_access and ApprovePayout — each declares anthropic/requiresUserInteraction as a JSON string rather than the JSON boolean true, so Claude Code ignores it and the consent gate never fires — while rating C18 PASS on revoke_repo_access and CancelPayout, whose declarations are the JSON boolean true. The FAIL items are prioritized ahead of everything else.",
+      "files": ["evals/fixtures/meta-annotations.md"],
+      "expectations": [
+        "Rates C18 FAIL on grant_repo_access — `_meta` declares `anthropic/requiresUserInteraction` as the JSON string `\"true\"`, not the JSON boolean",
+        "Rates C18 FAIL on ApprovePayout — the `[McpMeta(\"...\", \"true\")]` string constructor overload serializes to a JSON string",
+        "Rates C18 PASS on revoke_repo_access — the `_meta` value is the JSON boolean `true`",
+        "Rates C18 PASS on CancelPayout — the `[McpMeta(\"...\", true)]` bool overload yields the JSON boolean",
+        "States that Claude Code ignores any value other than JSON `true`, so the intended consent gate silently never applies",
+        "Prioritizes the C18 FAIL items ahead of WARN and info items"
+      ]
     }
   ]
 }

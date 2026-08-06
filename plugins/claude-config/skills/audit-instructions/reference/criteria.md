@@ -1,5 +1,5 @@
 ---
-version: 1.15.0
+version: 1.16.0
 last-updated: 2026-08-04
 ---
 
@@ -91,6 +91,12 @@ I15–I22 apply to all surfaces; I13 and I14 name narrower surface sets in their
   <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5>
 - Prompting Claude Sonnet 5 —
   <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-sonnet-5>
+- The new rules of context engineering for Claude 5 generation models (vendor blog, published
+  2026-07-24 — corroborates I6 from the model-delta side and I15 from the reasoning-cost side; a
+  dated post, static once published, so a recheck is expected to find it unchanged; it corroborates
+  rather than defines, so the rows citing it keep the `ANTHROPIC-DOCS` Authority of their primary
+  documentation sources and the closed three-value Authority set above is unchanged) —
+  <https://claude.com/blog/the-new-rules-of-context-engineering-for-claude-5-generation-models>
 - Memory (CLAUDE.md, rules, auto memory) — <https://code.claude.com/docs/en/memory>
 - The `.claude` directory — <https://code.claude.com/docs/en/claude-directory>
 - Skills (what loads when, how supporting files are referenced, the listing budget,
@@ -231,6 +237,13 @@ Tier `mechanical` · Authority `ANTHROPIC-DOCS` · Severity `warning` · Surface
   genuine hard "never" survives, keep it but add its rationale (see I7) as the fallback.
 - **Bounded by:** the **Stopping condition** below, which is enabled by default.
 - **Source:** prompting best-practices — "Tell Claude what to do instead of what not to do."
+  Corroborated from the model-delta side at the context-engineering blog, under "Then and now" in
+  the paired "Then: Give Claude rules" / "Now: Let Claude use judgement" headings: the bare
+  prohibition "In code: default to writing no comments. Never write multi-paragraph docstrings or
+  multi-line comment blocks — one short line max." was a guardrail for older models — "newer models
+  have better judgement and can handle these decisions well without explicit rules" — and
+  its shipped replacement is an instance of this row's remediation shape: "Write code that reads
+  like the surrounding code: match its comment density, naming, and idiom."
 
 ### I7: Reason with the request
 
@@ -654,7 +667,12 @@ a **pair**, so this row is answered by Phase B2 rather than by a per-surface lan
   pair one of whose sides already states which wins. The full set with worked instances is in
   [conflict-criteria.md](conflict-criteria.md).
 - **Source:** memory — "If two rules contradict each other, Claude may pick one arbitrarily", which
-  is why an unarbitrated pair is a finding rather than a stylistic note.
+  is why an unarbitrated pair is a finding rather than a stylistic note. Corroborated at the
+  context-engineering blog, "Unhobbling Claude", where Anthropic's own system prompt, skills, and
+  user requests clash — "several conflicting messages in a single request like 'leave documentation
+  as appropriate,' or 'DO NOT add comments'" — with the cost stated even for the resolved case:
+  "Claude must think more carefully about these overlapping and conflicting messages before
+  deciding what to do." So a conflict taxes reasoning even when no arbitrary pick occurs.
 
 ### I16: Definition-site locality
 

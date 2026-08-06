@@ -30,6 +30,13 @@ against those sources before relying on a time-sensitive detail; the platform mo
 - **Theme-aware** (light/dark), **responsive**, and **favicon required** — this is
   the Artifact tool's own contract; an artifact-design capability, when installed,
   owns the craft on top of it.
+- **Connector-backed live data** (Claude Code v2.1.209+): a published page can
+  call declared MCP connectors at view time, showing current data rather than a
+  build-time snapshot. The CSP above still holds — the page itself makes no
+  network call; it hands each call to claude.ai. Calls run through each viewer's
+  own connector account after that viewer approves; a connector-backed page can
+  never be shared to a public link; and on Team/Enterprise an org Owner toggle
+  ("Enable artifact connectors") gates the capability.
 
 ### Availability gating (why the surface is often absent)
 
@@ -141,7 +148,8 @@ before relying on a time-sensitive detail.
 - Mermaid emitted as source, not terminal-rendered —
   `https://code.claude.com/docs/en/output-styles.md`.
 - Artifact CSP (no external requests, inline CSS/JS, `data:` images, ~16 MiB,
-  self-contained), HTML+Markdown types, and availability gating —
+  self-contained), HTML+Markdown types, availability gating, and connector-backed
+  live data (verified 2026-08-04) —
   `https://code.claude.com/docs/en/artifacts`.
 - Artifact native mermaid, favicon requirement, theme-awareness
   (`prefers-color-scheme` / `data-theme`), and responsive rules — the Artifact

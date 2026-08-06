@@ -137,6 +137,11 @@ gate_user_settings_file() {
 # nothing on an unrecognized platform. Platform comes from `uname -s`, never
 # `$OSTYPE` (see the header): the exemplar killswitch_config.py keys on
 # sys.platform, and this is the bash equivalent.
+# Server-managed settings (code.claude.com/docs/en/server-managed-settings) are
+# deliberately excluded: their only on-disk artifact is the user-writable cache
+# `~/.claude/remote-settings.json`, which fails this list's trust test —
+# root-owned paths a repo cannot forge — and the page itself calls the channel
+# "a client-side control, not a security boundary".
 gate_managed_settings_files() {
   local primary
   case "$(uname -s 2>/dev/null)" in
