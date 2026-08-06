@@ -221,8 +221,8 @@ EOF
   fi
 
   # Opt-in precision: an .editorconfig with NO shell-applicable section (only
-  # [*.md], no [*]) must NOT trigger formatting — otherwise shfmt would impose
-  # its built-in defaults on shell files the repo never opted in for.
+  # [*.md], or a bare [*]) must NOT trigger formatting — otherwise shfmt would
+  # impose its built-in defaults on shell files the repo never opted in for.
   REPO_NONSHELL="$WORK/nonshell-config"
   new_repo "$REPO_NONSHELL"
   printf '[*.md]\nindent_style = space\n' >"$REPO_NONSHELL/.editorconfig"
@@ -234,16 +234,32 @@ EOF
     fail "non-shell .editorconfig -> shell file was reformatted: $(cat "$REPO_NONSHELL/x.sh")"
   fi
 
-  # A [*] catch-all governs shell files, so formatting opts in.
+  # A bare [*] catch-all is NOT a shell opt-in (#1817): most repos set only
+  # line-ending / charset properties there, and treating [*] as opt-in rewrote
+  # shell files to shfmt defaults. Even when [*] carries indent_* properties,
+  # opt-in requires an explicit shell glob (`[*.sh]`, etc.).
   REPO_STAR="$WORK/star-config"
   new_repo "$REPO_STAR"
   printf 'root = true\n[*]\nindent_style = space\nindent_size = 2\n' >"$REPO_STAR/.editorconfig"
   printf '#!/usr/bin/env bash\nif true; then\necho hi\nfi\n' >"$REPO_STAR/x.sh"
   run_hook "$REPO_STAR/x.sh" >/dev/null
-  if grep -q '^  echo hi$' "$REPO_STAR/x.sh"; then
-    ok "[*] catch-all .editorconfig -> shell file formatted"
+  if grep -q '^echo hi$' "$REPO_STAR/x.sh"; then
+    ok "bare [*] .editorconfig -> shell file left untouched"
   else
-    fail "[*] catch-all -> shell file not formatted: $(cat "$REPO_STAR/x.sh")"
+    fail "bare [*] treated as shell opt-in: $(cat "$REPO_STAR/x.sh")"
+  fi
+
+  # Control: a generic [*] with only line-ending properties (the common case
+  # that #1817 observed) must also leave the file untouched.
+  REPO_STAR_EOL="$WORK/star-eol-config"
+  new_repo "$REPO_STAR_EOL"
+  printf 'root = true\n[*]\nend_of_line = lf\ninsert_final_newline = true\n' >"$REPO_STAR_EOL/.editorconfig"
+  printf '#!/usr/bin/env bash\nif true; then\necho hi\nfi\n' >"$REPO_STAR_EOL/x.sh"
+  run_hook "$REPO_STAR_EOL/x.sh" >/dev/null
+  if grep -q '^echo hi$' "$REPO_STAR_EOL/x.sh"; then
+    ok "bare [*] with only eol props -> shell file left untouched"
+  else
+    fail "bare [*] eol-only treated as shell opt-in: $(cat "$REPO_STAR_EOL/x.sh")"
   fi
 
   # A brace-list section naming sh (`[*.{sh,bash}]`) governs shell files:
@@ -279,11 +295,11 @@ else
   echo "  (shfmt absent -- gate cases skipped)"
 fi
 
-# --- shfmt < 3.8 --apply-ignore fallback (`|| shfmt -w`) --------------------
-# The format pass calls `shfmt --apply-ignore -w FILE || shfmt -w FILE`: shfmt
-# 3.8+ honors --apply-ignore, older shfmt does not know the flag and fails, so
-# the plain-`-w` fallback must still format. A stub shfmt that REJECTS
-# --apply-ignore (simulating < 3.8) but formats on plain -w proves the fallback
+# --- shfmt < 3.8 --apply-ignore fallback (capability probe) -----------------
+# The format pass probes `shfmt --apply-ignore --version`, then formats with
+# the flag on success. Older shfmt rejects the flag on the probe, so the
+# plain-`-w` compatibility path must still format. A stub shfmt that REJECTS
+# --apply-ignore (simulating < 3.8) but formats on plain -w proves that path
 # runs. Independent of the host's real shfmt: the stub is prepended to PATH.
 STUBDIR="$(mktemp -d "$WORK/shfmtstub.XXXXXX")"
 cat >"$STUBDIR/shfmt" <<'STUB'
@@ -403,6 +419,61 @@ if [[ "$FLAKE_OUT" == *"capability probe failed unexpectedly"* ]]; then
   ok "unclassified probe failure is said out loud, not a silent skip"
 else
   fail "unclassified probe failure skipped silently: $FLAKE_OUT"
+fi
+
+# --- openBinaryFile / missing-file race (#1817) ------------------------------
+# ShellCheck's GHC runtime reports `openBinaryFile: does not exist` when the
+# path is gone by the time it opens the file. That must never become a
+# findings line. Drive the hook with a stub shellcheck that always emits the
+# error text; the hook must exit 0 with empty findings/context for it.
+STUBSC="$(mktemp -d "$WORK/scstub.XXXXXX")"
+cat >"$STUBSC/shellcheck" <<'STUBSC'
+#!/usr/bin/env bash
+f="${*: -1}"
+echo "$f: $f: openBinaryFile: does not exist (No such file or directory)" >&2
+exit 1
+STUBSC
+chmod +x "$STUBSC/shellcheck"
+# Keep real shfmt off the path so only the lint pass runs.
+REPO_OBF="$WORK/openbinary"
+new_repo "$REPO_OBF"
+printf '#!/usr/bin/env bash\necho hi\n' >"$REPO_OBF/x.sh"
+OBF_OUT="$(
+  cd "$UNRELATED" || exit 1
+  printf '{"tool_input":{"file_path":"%s"},"tool_name":"Write"}' "$REPO_OBF/x.sh" |
+    env -u CLAUDE_PROJECT_DIR PATH="$STUBSC:/usr/bin:/bin" \
+      CLAUDE_PLUGIN_OPTION_BASH_FORMAT_ENABLED=true bash "$HOOK"
+)"
+RC_OBF=$?
+if [[ $RC_OBF -eq 0 && "$OBF_OUT" != *openBinaryFile* ]]; then
+  ok "openBinaryFile from shellcheck is not surfaced as a finding"
+else
+  fail "openBinaryFile leaked (rc=$RC_OBF out=$OBF_OUT)"
+fi
+
+# Windows/MSYS path form: when cygpath can produce a mixed long path for an
+# existing file, the hook must still lint cleanly (no openBinaryFile) — the
+# TOOL_FILE normalization path under test.
+if command -v cygpath >/dev/null 2>&1 && command -v shellcheck >/dev/null 2>&1; then
+  REPO_WIN="$WORK/winpath"
+  new_repo "$REPO_WIN"
+  printf '#!/usr/bin/env bash\necho hi\n' >"$REPO_WIN/x.sh"
+  WIN_PATH="$(cygpath -w "$REPO_WIN/x.sh")"
+  # JSON needs escaped backslashes.
+  WIN_JSON="${WIN_PATH//\\/\\\\}"
+  WIN_OUT="$(
+    cd "$UNRELATED" || exit 1
+    printf '{"tool_input":{"file_path":"%s"},"tool_name":"Write"}' "$WIN_JSON" |
+      env -u CLAUDE_PROJECT_DIR CLAUDE_PLUGIN_OPTION_BASH_FORMAT_ENABLED=true bash "$HOOK"
+  )"
+  RC_WIN=$?
+  if [[ $RC_WIN -eq 0 && "$WIN_OUT" != *openBinaryFile* ]]; then
+    ok "Windows Win32 path form -> hook runs without openBinaryFile"
+  else
+    fail "Windows path form failed (rc=$RC_WIN out=$WIN_OUT)"
+  fi
+else
+  echo "  (cygpath/shellcheck absent -- Windows path form case skipped)"
 fi
 
 # ============================================================================
