@@ -4,6 +4,23 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.6.20]
+
+### Fixed
+
+- **`fable-5`: the channel-authority worked instance assigned two terms three owning pages**
+  (playbooks 0.6.17 → 0.6.20). The section "The reference page defines; a vendor post corroborates"
+  says "the reference page that owns the term" and "the owning page" four times, all
+  singular-definite — and then its worked instance listed one plural set of three pages for two
+  terms, which no reading of the surrounding rule supports. Verified against the live pages
+  2026-08-05: the glossary carries the only heading-plus-definition of "verification loop"
+  (`### Verification loop`), which "How Claude Code works" does not mention at all; "How Claude Code
+  works" carries `## The agentic loop` and its three-phase definition, and the glossary's own
+  `Agentic loop` entry defers to it rather than restating it in full. "Best practices" owns neither
+  term — it has no loop heading, uses "verification loop" once descriptively, and points at "How
+  Claude Code works" twice — so it is dropped from the instance rather than rewritten. The worked
+  instance now assigns each term to the page that actually defines it.
+
 ## [0.6.18]
 
 ### Changed

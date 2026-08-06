@@ -50,7 +50,7 @@ A vendor's own blog, launch announcement, or engineering post is first-party and
 - RULE: cite the owning page and treat the post as corroborating voice. Pointer, never copy: a restatement of a definition freezes at the moment you wrote it, and the page is what a reader needs when the behavior moves.
 - RULE: read the owning page even when the post's definition looks complete, because omission is invisible from inside the post — you cannot tell a summary from a whole from the summary alone.
 
-> Worked instance, verified 2026-08-03. "Verification loop" and "agentic loop" both have owning pages: the [glossary](https://code.claude.com/docs/en/glossary), [How Claude Code works](https://code.claude.com/docs/en/how-claude-code-works), and [Best practices](https://code.claude.com/docs/en/best-practices).
+> Worked instance, verified 2026-08-05. "Verification loop" is owned by the [glossary](https://code.claude.com/docs/en/glossary), "agentic loop" by [How Claude Code works](https://code.claude.com/docs/en/how-claude-code-works) — which the glossary's own entry points to rather than restating in full.
 > The glossary's verification-loop entry carries what a post-length definition drops: a verification loop is the **prerequisite** for `/goal`, unattended runs, and dynamic workflows. A reader who took the short definition would have the concept right and still not know that three capabilities depend on it.
 
 ## Point at a per-model matrix; never copy one
