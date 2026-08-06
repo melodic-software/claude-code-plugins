@@ -3,6 +3,55 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.15.0]
+
+> Version note: `0.14.0` is claimed by PR #1870, open against this manifest. This entry takes the
+> next number so the two do not collide.
+
+### Fixed
+
+- **A confirmation question is unanswerable when its acceptance bar names something the question
+  never showed.** The gate applied one bar — "an affirmative answer naming exactly the tier and path
+  list just shown" — to every question the skill asks, including the no-target prompt and §1's
+  large-scan confirmation. Neither has presented a tier or a path list, so no reply a human could
+  give satisfied the stated bar, and the two questions the gate exists to protect were the only ones
+  it could actually be cleared for. The question surface rule and the answer floor (the user's own
+  answer, this session, never inferred, stop on rejection) stay common to all four questions; what an
+  answer must *name* is now stated per question — a directory for target selection, the target plus a
+  deliberate unbounded walk for scan scope, the exact tier and path list for removal and the manual
+  handoff. §1's and §6's cross-references now name their row instead of asserting the deletion bar
+  applies unchanged.
+
+- **The confirmation gate fell back to an inline question only when `AskUserQuestion` was
+  *absent*.** Permission mode `dontAsk` "auto-denies tools unless pre-approved … `AskUserQuestion` …
+  denied even if you've allowed them"
+  ([permissions](https://code.claude.com/docs/en/permissions), fetched 2026-08-06), which leaves the
+  tool visible in the pool while every call fails; only a bare-name deny rule "removes the tool from
+  Claude's context entirely". Absence and denial are therefore distinct states, and keying the
+  fallback on absence let a `dontAsk` session pick a tool it cannot use and leave the destructive
+  confirmation gate unsatisfied rather than asking inline. The fallback now triggers on absent **or**
+  denied, and says so as two named cases.
+
+- **`_discard_stream` re-closed the descriptor it had just repaired.** `os.open` returns the lowest
+  free descriptor, so when the guard's stderr fd is closed outright rather than merely broken, the
+  null device lands on that same number, `dup2` becomes a no-op, and the unconditional
+  `os.close(null_fd)` in the `finally` undid the repair — leaving the stream exactly as broken as
+  before. Verified against the pre-fix tree: a subprocess that closes fd 2 and calls
+  `_discard_stream(sys.stderr)` still has an invalid fd 2 afterwards. The module's `os._exit` tail
+  means no live exit-status regression rode on this, so the correction is defense in depth: the
+  fallback now closes the opened descriptor only when it is not the destination, and a new test
+  asserts fd 2 is *writable* after the repair rather than asserting the exit code that survives
+  regardless.
+
+- **The `python3` alias probe could not be reached on a machine whose only alternate interpreter
+  cannot run it.** `setup` step 1(b) classifies the `python3` resolution with a bundled inspect-only
+  probe launched through some other interpreter, and routed to the PowerShell equivalent only when no
+  such interpreter existed at all. A real-but-incompatible launcher — Python 3.6, which the same
+  section already names as an interpreter that rejects `from __future__ import annotations`, or a
+  legacy `python` 2.x — is not absent, so the check had no path to a verdict and could classify
+  neither the Store stub nor its own remediation. The PowerShell fallback now also covers a chosen
+  interpreter that emits no verdict.
+
 ## [0.13.0]
 
 > Version note: `0.11.0` is claimed by #1804 (PR #1818) and `0.12.0` by #1805 (PR #1819), both open

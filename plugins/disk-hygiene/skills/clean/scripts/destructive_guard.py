@@ -1146,13 +1146,21 @@ def _discard_stream(stream: object) -> None:
     code stays the one this module chose. Best-effort throughout: ``fileno``
     itself raises for a stream with no fd (a redirected in-process test
     stream), and there is nowhere left to report a failure to report.
+
+    ``os.open`` returns the lowest free descriptor, so when the target fd is
+    closed outright rather than merely broken it hands back that same number:
+    the ``dup2`` is then a no-op, and closing the opened descriptor would
+    re-close the one just repaired, leaving the stream exactly as broken as
+    before. Closing is therefore conditional on the two being distinct.
     """
     with contextlib.suppress(BaseException):
+        target_fd = stream.fileno()
         null_fd = os.open(os.devnull, os.O_WRONLY)
         try:
-            os.dup2(null_fd, stream.fileno())
+            os.dup2(null_fd, target_fd)
         finally:
-            os.close(null_fd)
+            if null_fd != target_fd:
+                os.close(null_fd)
 
 
 def _watchdog_fire(deadline: float) -> None:
