@@ -224,6 +224,8 @@ is_main_worktree() {
   # worktree, not a linked one). One rev-parse answers all three; paths are
   # normalized because git answers in native "C:/…" spelling while shell paths
   # arrive as "/c/…", and an unnormalized compare would silently never match.
+  # On success MAIN_TOP carries git's own spelling of the verified toplevel, so
+  # every arm below reports one consistent form whatever the candidate's origin.
   local cand="$1" facts top cdir gdir want
   [[ -n "$cand" && -d "$cand" ]] || return 1
   facts="$(git -C "$cand" rev-parse --path-format=absolute \
@@ -238,6 +240,7 @@ is_main_worktree() {
   [[ "$NORM_OUT" == "$main_gitdir_n" ]] || return 1
   norm_path "$gdir"
   [[ "$NORM_OUT" == "$main_gitdir_n" ]] || return 1
+  MAIN_TOP="$top"
   return 0
 }
 
@@ -263,7 +266,7 @@ resolve_main_root() {
   norm_path "$own_gitdir"
   own_n="$NORM_OUT"
   if [[ "$own_n" == "$main_gitdir_n" ]] && is_main_worktree "$proj_base"; then
-    main_root="$proj_base"
+    main_root="$MAIN_TOP"
     main_state="verified"
     return
   fi
@@ -286,9 +289,12 @@ resolve_main_root() {
       /* | [A-Za-z]:[/\\]*) ;;
       *) cand="$main_gitdir/$cand" ;;
     esac
+    # core.worktree is spelled with ".." segments ("../../../sub"), which the
+    # is-this-a-toplevel leg compares as a literal string — canonicalize first
+    # or that leg rejects the true working tree.
     cand="$(cd "$cand" 2>/dev/null && pwd)"
     if is_main_worktree "$cand"; then
-      main_root="$cand"
+      main_root="$MAIN_TOP"
       main_state="verified"
       return
     fi
@@ -299,7 +305,7 @@ resolve_main_root() {
     */.git)
       cand="${main_gitdir%/.git}"
       if is_main_worktree "$cand"; then
-        main_root="$cand"
+        main_root="$MAIN_TOP"
         main_state="verified"
         return
       fi

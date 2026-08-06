@@ -345,6 +345,118 @@ assert_contains "main-local deny reaches a worktree run" "$OUT" "'git push'"
 assert_contains "main-local deny carries the DENIED message" "$OUT" "is DENIED"
 assert_eq "main-local deny → exactly one gap" "1" "$(run "$WT16" "$CFG16D" --count --worktree-root "$POSIX_CHILD")"
 
+# --- Main-checkout resolution across git-dir spellings (cases 16e–16j) --------
+# The recovery used to be path arithmetic on the common dir, so any spelling but
+# "<root>/.git" left the main checkout unresolved and its local file dropped from
+# EVERY read, deny included — silently, under a "PREFLIGHT: OK". Each case below
+# plants a real main-local DENY and asserts it is either reported (the layer was
+# read) or that the run says loudly that the layer was NOT read. Deny is the
+# probe because it is the masking direction: a dropped deny under-reports.
+#
+# commit_empty <repo> — a commit so `worktree add` has a HEAD to detach from.
+commit_empty() {
+  git -C "$1" -c user.name=t -c user.email=t@t commit -q --allow-empty -F - --cleanup=verbatim <<'MSG'
+init
+MSG
+}
+# plant_main_deny <checkout> — the main checkout's local file carries a deny and
+# nothing else, so any report of 'git push' proves that file was read.
+plant_main_deny() {
+  mkdir -p "$1/.claude"
+  jq -n '{permissions:{deny:["Bash(git push *)"]}}' >"$1/.claude/settings.local.json"
+}
+# CFGRES allows all five verbs and trusts the filesystem root, so ONLY a deny can
+# produce a gap — a nonzero count means the main-local layer reached the read.
+CFGRES="$TEST_TMPDIR/cfg-res"
+mkdir -p "$CFGRES"
+MSYS_NO_PATHCONV=1 jq -n '{permissions:{allow:["Bash(git add *)","Bash(git commit *)","Bash(git push *)","Bash(gh pr create *)","Bash(gh issue comment *)"],additionalDirectories:["/"]}}' >"$CFGRES/settings.json"
+RESROOT="$TEST_TMPDIR/res-wtroot"
+
+# --- Case 16e: conventional linked worktree still resolves (no regression) ----
+CONV="$TEST_TMPDIR/res-conv"
+git init -q "$CONV"
+commit_empty "$CONV"
+plant_main_deny "$CONV"
+git -C "$CONV" worktree add -q --detach "$TEST_TMPDIR/res-conv-wt"
+OUT=$(run "$TEST_TMPDIR/res-conv-wt" "$CFGRES" --worktree-root "$RESROOT")
+assert_contains "conventional worktree reports the main-local deny" "$OUT" "is DENIED"
+assert_not_contains "conventional worktree is not INCOMPLETE" "$OUT" "PREFLIGHT: INCOMPLETE"
+assert_eq "conventional worktree → one gap" "1" "$(run "$TEST_TMPDIR/res-conv-wt" "$CFGRES" --count --worktree-root "$RESROOT")"
+
+# --- Case 16f: a submodule's linked worktree resolves via core.worktree -------
+# A submodule's common dir is <super>/.git/modules/<name>, which no parent-of-.git
+# arithmetic can invert. Git records the working tree in that dir's core.worktree,
+# which is what makes the shape resolvable at all.
+SUPER="$TEST_TMPDIR/res-super"
+SUBSRC="$TEST_TMPDIR/res-subsrc"
+git init -q "$SUPER"
+commit_empty "$SUPER"
+git init -q "$SUBSRC"
+commit_empty "$SUBSRC"
+git -C "$SUPER" -c protocol.file.allow=always -c user.name=t -c user.email=t@t \
+  submodule add -q "$SUBSRC" sub 2>/dev/null
+git -C "$SUPER" -c user.name=t -c user.email=t@t commit -q -F - --cleanup=verbatim <<'MSG'
+add submodule
+MSG
+plant_main_deny "$SUPER/sub"
+git -C "$SUPER/sub" worktree add -q --detach "$TEST_TMPDIR/res-sub-wt"
+OUT=$(run "$TEST_TMPDIR/res-sub-wt" "$CFGRES" --worktree-root "$RESROOT")
+assert_contains "submodule worktree reports the main-local deny" "$OUT" "is DENIED"
+# The header prints git's own spelling of the toplevel, which on Windows is the
+# native "C:/…" form rather than the shell's "/tmp/…" — compare against git.
+assert_contains "submodule worktree names the submodule checkout" "$OUT" \
+  "$(git -C "$SUPER/sub" rev-parse --show-toplevel | tr -d '\r')"
+assert_not_contains "submodule worktree is not INCOMPLETE" "$OUT" "PREFLIGHT: INCOMPLETE"
+assert_eq "submodule worktree → one gap" "1" "$(run "$TEST_TMPDIR/res-sub-wt" "$CFGRES" --count --worktree-root "$RESROOT")"
+
+# --- Case 16g: an unresolvable spelling is LOUD, never "PREFLIGHT: OK" --------
+# --separate-git-dir under a name that is not "<something>/.git" leaves the main
+# working tree genuinely unrecoverable (git records no back-pointer to it). The
+# planted deny therefore cannot be read — so the run must say the layer is unread
+# instead of reporting a clean bill of health.
+SEP2="$TEST_TMPDIR/res-sep2"
+git init -q --separate-git-dir "$TEST_TMPDIR/res-sep2-gitdir" "$SEP2"
+commit_empty "$SEP2"
+plant_main_deny "$SEP2"
+git -C "$SEP2" worktree add -q --detach "$TEST_TMPDIR/res-sep2-wt"
+OUT=$(run "$TEST_TMPDIR/res-sep2-wt" "$CFGRES" --worktree-root "$RESROOT")
+assert_contains "unresolvable spelling reports the layer as unread" "$OUT" "UNREAD LAYER"
+assert_contains "unresolvable spelling summary is INCOMPLETE" "$OUT" "PREFLIGHT: INCOMPLETE"
+assert_not_contains "unresolvable spelling never claims OK" "$OUT" "PREFLIGHT: OK"
+assert_not_contains "unresolvable spelling names no main checkout" "$OUT" "includes the main checkout's settings.local.json ('"
+assert_exit "unresolvable spelling still exits 0 (report-only)" 0 "$(
+  run "$TEST_TMPDIR/res-sep2-wt" "$CFGRES" --worktree-root "$RESROOT" >/dev/null
+  echo $?
+)"
+assert_eq "unresolvable spelling leaves the gap count untouched" "0" "$(run "$TEST_TMPDIR/res-sep2-wt" "$CFGRES" --count --worktree-root "$RESROOT")"
+
+# --- Case 16h: the INTERACTIVE path is loud too -------------------------------
+# Both headers that name a main checkout print only under --worktree-root or a
+# distinct --project-root, so a plain run from an unresolvable linked worktree
+# used to drop a main-local deny with no output whatsoever.
+OUT=$(run "$TEST_TMPDIR/res-sep2-wt" "$CFGRES")
+assert_contains "interactive path reports the unread layer" "$OUT" "UNREAD LAYER"
+assert_contains "interactive path summary is INCOMPLETE" "$OUT" "PREFLIGHT: INCOMPLETE"
+assert_not_contains "interactive path never claims OK" "$OUT" "PREFLIGHT: OK"
+
+# --- Case 16i: a bare repository has no main checkout — not an unread layer ---
+# Nothing is missing (a bare repo holds no working tree, so no main-local file can
+# exist), so INCOMPLETE here would be the same false alarm this change removes.
+git clone -q --bare "$CONV" "$TEST_TMPDIR/res-bare.git" 2>/dev/null
+git -C "$TEST_TMPDIR/res-bare.git" worktree add -q --detach "$TEST_TMPDIR/res-bare-wt"
+OUT=$(run "$TEST_TMPDIR/res-bare-wt" "$CFGRES" --worktree-root "$RESROOT")
+assert_contains "bare repo's worktree reports OK" "$OUT" "PREFLIGHT: OK"
+assert_not_contains "bare repo's worktree is not INCOMPLETE" "$OUT" "PREFLIGHT: INCOMPLETE"
+
+# --- Case 16j: --project-root naming a non-checkout is unresolved, not named --
+# The old arithmetic would happily name a directory it never verified.
+NOTAREPO="$TEST_TMPDIR/res-notarepo"
+mkdir -p "$NOTAREPO"
+OUT=$(run "$TEST_TMPDIR/res-conv-wt" "$CFGRES" --project-root "$NOTAREPO" --worktree-root "$RESROOT")
+assert_contains "non-checkout project-root reports the unread layer" "$OUT" "UNREAD LAYER"
+assert_contains "non-checkout project-root summary is INCOMPLETE" "$OUT" "PREFLIGHT: INCOMPLETE"
+assert_not_contains "non-checkout project-root claims no shared main checkout" "$OUT" "plus the main checkout's shared settings.local.json"
+
 # --- Case 17: a distinct --project-root reads the worker's OWN local settings -
 # When --project-root names a real worker worktree (toplevel differs from cwd),
 # read ITS OWN settings.local.json — the worker's file, present in that checkout —
