@@ -13,7 +13,10 @@ Tips from Boris Cherny's Parts 13–15 threads + the Thariq/Sid workflows deep-d
 > bump (e.g. Terminal-Bench 2.1 → 2.2). On a firing, resolve current figures from the vendor's own
 > announcement for that release plus
 > [models overview](https://platform.claude.com/docs/en/about-claude/models/overview), and leave
-> these lines as history rather than restating a fresh snapshot here.
+> these lines as history rather than restating a fresh snapshot here. **Pricing figures (Sections
+> 78, 94–95) are the same kind of snapshot** — launch-day rates, verified still current 2026-08-04.
+> Current rates are upstream-owned: resolve them from
+> [pricing](https://platform.claude.com/docs/en/about-claude/pricing), never from these lines.
 
 ## 78. Opus 4.8 — Strongest Coding Model Yet
 
