@@ -11,7 +11,8 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   clean.** [Configure permissions](https://code.claude.com/docs/en/permissions) states that "The
   `:*` suffix is an equivalent way to write a trailing wildcard, so `Bash(ls:*)` matches the same
   commands as `Bash(ls *)`" — it is not deprecated. Across the 127 pages listed in `llms.txt`, no
-  line carries both `deprecat` and `:*`, and the changelog maintains `:*` in its current voice,
+  line carries both the deprecation word-stem and `:*`, and the changelog maintains `:*` in its
+  current voice,
   hardening `Bash(find:*)` and `Bash(rm:*)` and fixing `Bash(cmd:*)` and `Bash(git log:*)` matching.
   The label traces to issue
   [#23869](https://github.com/anthropics/claude-code/issues/23869), whose reporter used the word; it
