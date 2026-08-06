@@ -25,7 +25,11 @@
 #   main-local  : <main-checkout>/.claude/settings.local.json — since Claude Code
 #                 v2.1.211 "don't ask again" approvals save here (resolved through
 #                 worktrees to the main checkout) and apply in every worktree of
-#                 the repository, so this file is read in every mode.
+#                 the repository, so this file is read in every mode — but only
+#                 when the main checkout is VERIFIED. When it cannot be
+#                 determined the layer goes unread and the run reports
+#                 PREFLIGHT: INCOMPLETE rather than an unqualified OK; no path is
+#                 ever named as the main checkout unverified.
 # The cwd probed for (a) is $PREFLIGHT_FIXTURE_DIR (tests) else $PWD. Project
 # settings are read from --project-root (default: the cwd checkout) resolved to
 # its git toplevel; pass the worker worktree the lane dispatches into so its own
@@ -58,15 +62,17 @@ Usage: preflight.sh [--worktree-root <path>] [--project-root <path>] [--count] [
   --project-root P  read project settings from P's checkout instead of the cwd's
                     (also read from PREFLIGHT_PROJECT_ROOT) — pass the dispatched
                     worker worktree so ITS OWN grants (incl. its settings.local.json)
-                    are checked rather than the cwd checkout's; the main checkout's
-                    settings.local.json is read in every mode
+                    are checked rather than the cwd checkout's; a VERIFIED main
+                    checkout's settings.local.json is read in every mode
   --count           print the integer GAP count only (NOTEs excluded); exit 0
   --help            this message
 
 Reports three conditions from the effective settings — (a) cwd not a git repo,
 (b) a probed git/gh verb denied or missing from permissions.allow, (c) the
-worktree root not covered by additionalDirectories. Report-only: never edits
-settings, always exits 0. Remediation is operator-side (see reference/permission-preflight.md).
+worktree root not covered by additionalDirectories. When the main checkout
+cannot be verified its settings.local.json goes unread and the summary is
+PREFLIGHT: INCOMPLETE, never a bare OK. Report-only: never edits settings,
+always exits 0. Remediation is operator-side (see reference/permission-preflight.md).
 Requires jq (exit 2 when absent).
 EOF
 }
@@ -138,30 +144,182 @@ user_settings="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/settings.json"
 # .claude/settings.local.json at the repository root, resolved through worktrees
 # to the MAIN checkout, and the rule applies to sessions anywhere in the
 # repository — every linked worktree included (docs/en/permissions#permission-system).
-# A checkout whose OWN git dir is the common one is itself the main checkout, so
-# its toplevel is the answer whatever the git dir is named (--separate-git-dir, a
-# submodule). Only from a linked worktree must the main checkout be recovered from
-# the common dir's path, which assumes the conventional "<root>/.git" spelling.
-# That recovery misfires two ways, both of which can MASK a gap rather than
-# merely over-report one, and neither of which this script yet corrects:
-#   - main_root stays EMPTY when proj_src is not a repo, or when the common dir
-#     is spelled otherwise (a submodule's <super>/.git/modules/<name>, a
-#     separate git dir under another name). Every read then falls back to the
-#     project layer alone, so a main-local deny goes unreported entirely.
-#   - main_root resolves WRONGLY when the common dir is <path>/.git for a <path>
-#     that is not this working tree (--separate-git-dir <path>/.git): the arm
-#     below yields <path>, and that foreign settings.local.json is unioned into
-#     every read — a foreign allow masks a real gap, a foreign deny false-DENIES.
+# Resolving that checkout has three outcomes, and the report distinguishes them:
+#   verified  — main_root names a directory PROVEN to be this repository's main
+#               working tree (main_state=verified).
+#   bare      — the repository has no main working tree at all, so no main-local
+#               layer can exist and nothing is missing (main_state=bare).
+#   unresolved— the main working tree cannot be determined; the layer is UNREAD
+#               and the report says so loudly (main_state=unresolved + reason).
+# Only "verified" may be named as the main checkout, and only it is read.
 main_gitdir="$(git -C "$proj_src" rev-parse --path-format=absolute --git-common-dir 2>/dev/null | tr -d '\r')"
 own_gitdir="$(git -C "$proj_src" rev-parse --path-format=absolute --git-dir 2>/dev/null | tr -d '\r')"
-main_root=""
-if [[ -n "$main_gitdir" && "$main_gitdir" == "$own_gitdir" ]]; then
-  main_root="$proj_base"
-else
-  case "$main_gitdir" in
-    */.git) main_root="${main_gitdir%/.git}" ;;
+
+norm_path() {
+  # Fold a path to one comparable form: expand a leading ~, backslashes →
+  # slashes, lower-case and de-colon a leading Windows drive (D:\repos →
+  # /d/repos, matching the git-bash /d/repos spelling), strip a trailing slash.
+  # Literal only — no symlink resolution, since permission rules match the
+  # command string literally. Also folds git's native "C:/…" answers against the
+  # shell's "/c/…" spelling, so the resolution predicates below compare equal.
+  #
+  # Answers in $NORM_OUT rather than on stdout, and uses only builtins: this runs
+  # on every path comparison, and on Windows a fork per call (the command
+  # substitution, plus a printf|tr pipeline inside it) dominates the runtime.
+  # normalize_path wraps it for the call sites that want a value.
+  local p="$1" home="${HOME:-${USERPROFILE:-}}"
+  # A leading ~ (~ alone, or ~/… / ~\… — both separators, since a Windows entry
+  # may be written ~\…) expands to the user home so a tilde-form
+  # additionalDirectories entry compares equal to the absolute probed root the
+  # harness derives from that same home. HOME first, then USERPROFILE (its
+  # backslashes, and any in the stripped remainder, are folded by the tr below);
+  # neither set leaves ~ literal.
+  if [[ -n "$home" ]]; then
+    # Strip one trailing separator (either form — HOME=/, USERPROFILE=…\) so the
+    # join below cannot double it; normalize_path does not collapse an internal
+    # //, so //.worktrees would never match an absolute /.worktrees/… root.
+    home="${home%/}"
+    home="${home%\\}"
+    # shellcheck disable=SC2088  # the literal ~ arms are patterns being matched, not paths to expand
+    case "$p" in
+      "~") p="$home" ;;
+      "~/"* | "~\\"*) p="$home/${p:2}" ;;
+      *) ;;
+    esac
+  fi
+  p="${p//\\//}"
+  case "$p" in
+    [A-Za-z]:/*)
+      # Windows filesystems are case-insensitive: fold the WHOLE path, not just
+      # the drive letter, so D:/Repos/.Worktrees and /d/repos/.worktrees compare
+      # equal. Non-drive (POSIX) paths stay case-sensitive.
+      p="${p,,}"
+      p="/${p%%:*}${p#*:}"
+      ;;
+    /[A-Za-z]/*)
+      # Git-bash drive spelling (/d/Repos/…) is the same case-insensitive
+      # Windows filesystem — fold it too. A true POSIX single-letter root
+      # directory is the accepted (rare, documented) collision.
+      p="${p,,}"
+      ;;
     *) ;;
   esac
+  case "$p" in
+    ?*/) p="${p%/}" ;;
+    *) ;;
+  esac
+  NORM_OUT="$p"
+}
+
+normalize_path() {
+  norm_path "$1"
+  printf '%s' "$NORM_OUT"
+}
+
+is_main_worktree() {
+  # is_main_worktree <candidate> — true when <candidate> is THE main working
+  # tree of the repository whose common dir is $main_gitdir. All three legs are
+  # required: the candidate is a toplevel (not a subdirectory of one), it belongs
+  # to THIS repository, and its own git dir is the common dir (so it is the main
+  # worktree, not a linked one). One rev-parse answers all three; paths are
+  # normalized because git answers in native "C:/…" spelling while shell paths
+  # arrive as "/c/…", and an unnormalized compare would silently never match.
+  local cand="$1" facts top cdir gdir want
+  [[ -n "$cand" && -d "$cand" ]] || return 1
+  facts="$(git -C "$cand" rev-parse --path-format=absolute \
+    --show-toplevel --git-common-dir --git-dir 2>/dev/null | tr -d '\r')"
+  [[ -n "$facts" ]] || return 1
+  { read -r top && read -r cdir && read -r gdir; } <<<"$facts" || return 1
+  norm_path "$cand"
+  want="$NORM_OUT"
+  norm_path "$top"
+  [[ "$NORM_OUT" == "$want" ]] || return 1
+  norm_path "$cdir"
+  [[ "$NORM_OUT" == "$main_gitdir_n" ]] || return 1
+  norm_path "$gdir"
+  [[ "$NORM_OUT" == "$main_gitdir_n" ]] || return 1
+  return 0
+}
+
+resolve_main_root() {
+  # Sets main_root / main_state / main_reason. Candidates are proposed cheapest
+  # first and each is put through is_main_worktree before being trusted; a
+  # candidate that fails verification is discarded, never named.
+  local cand own_n
+  main_root=""
+  main_state="unresolved"
+  main_reason=""
+
+  if [[ -z "$main_gitdir" ]]; then
+    main_reason="'$proj_src' is not a git repository"
+    return
+  fi
+  norm_path "$main_gitdir"
+  main_gitdir_n="$NORM_OUT"
+
+  # 1. The probed checkout is itself the main checkout (own git dir IS the common
+  #    one) — true whatever the git dir is named, so a --separate-git-dir or
+  #    submodule MAIN checkout resolves here.
+  norm_path "$own_gitdir"
+  own_n="$NORM_OUT"
+  if [[ "$own_n" == "$main_gitdir_n" ]] && is_main_worktree "$proj_base"; then
+    main_root="$proj_base"
+    main_state="verified"
+    return
+  fi
+
+  # 2. A bare repository has no main working tree, so there is no main-local
+  #    layer to read and nothing is being missed.
+  if [[ "$(git --git-dir="$main_gitdir" rev-parse --is-bare-repository 2>/dev/null | tr -d '\r')" == "true" ]]; then
+    main_state="bare"
+    return
+  fi
+
+  # 3. core.worktree in the common dir's config points at the working tree,
+  #    relative to the common dir. Git sets it for submodules, which is what
+  #    makes a submodule's <super>/.git/modules/<name> shape resolvable at all.
+  #    Read the file directly: `git --git-dir=<dir> rev-parse --show-toplevel`
+  #    silently falls back to the PROCESS cwd when core.worktree is unset.
+  cand="$(git config -f "$main_gitdir/config" --get core.worktree 2>/dev/null | tr -d '\r')"
+  if [[ -n "$cand" ]]; then
+    case "$cand" in
+      /* | [A-Za-z]:[/\\]*) ;;
+      *) cand="$main_gitdir/$cand" ;;
+    esac
+    cand="$(cd "$cand" 2>/dev/null && pwd)"
+    if is_main_worktree "$cand"; then
+      main_root="$cand"
+      main_state="verified"
+      return
+    fi
+  fi
+
+  # 4. The conventional "<root>/.git" spelling: the parent of the common dir.
+  case "$main_gitdir" in
+    */.git)
+      cand="${main_gitdir%/.git}"
+      if is_main_worktree "$cand"; then
+        main_root="$cand"
+        main_state="verified"
+        return
+      fi
+      ;;
+    *) ;;
+  esac
+
+  main_reason="the common git dir '$main_gitdir' names no verifiable working tree"
+}
+
+resolve_main_root
+# main_root and proj_base come from different producers (git's native "C:/…"
+# answers, a config-relative path, the shell's own spelling), so the identity
+# test between them goes through the normalized forms.
+main_is_proj_base=""
+if [[ "$main_state" == "verified" ]]; then
+  norm_path "$main_root"
+  main_root_n="$NORM_OUT"
+  norm_path "$proj_base"
+  [[ "$main_root_n" == "$NORM_OUT" ]] && main_is_proj_base="yes"
 fi
 
 read_array() {
@@ -183,22 +341,23 @@ collect() {
   # in the pre-dispatch autonomous (--worktree-root) path a worktree cwd's local
   # grants would mask a worker-side gap; the coverage reads drop that file there.
   # Deny always keeps it: erring wide on deny cannot mask a gap among the layers
-  # actually read — but see main_root above, which can leave a layer unread or
-  # substitute a foreign one.
+  # actually read. Only a VERIFIED main checkout is read — an unresolved one
+  # contributes nothing and is reported as an unread layer instead of being
+  # guessed at.
   local path="$1" local_mode="$2"
   read_array "$user_settings" "$path"
   read_array "$proj_base/.claude/settings.json" "$path"
-  if [[ -n "$main_root" && "$main_root" != "$proj_base" ]]; then
+  if [[ "$main_state" == "verified" && -z "$main_is_proj_base" ]]; then
     read_array "$main_root/.claude/settings.local.json" "$path"
   fi
-  if [[ "$local_mode" == "with-local" || "$proj_base" == "$main_root" ]]; then
+  if [[ "$local_mode" == "with-local" || -n "$main_is_proj_base" ]]; then
     read_array "$proj_base/.claude/settings.local.json" "$path"
   fi
 }
 
 # Checkout-own local-settings scope for the COVERAGE reads (allow +
-# additionalDirectories); the main checkout's local file is in scope regardless
-# — whichever file main_root resolved to, including the wrong one (see above):
+# additionalDirectories); a VERIFIED main checkout's local file is in scope
+# regardless:
 #   - A DISTINCT --project-root (a worker worktree whose toplevel differs from this
 #     checkout) names a real, existing checkout — read ITS OWN settings.local.json
 #     (legacy rules saved there still apply to sessions started there).
@@ -209,8 +368,8 @@ collect() {
 #     checkout this exclusion is a no-op — its local file follows the worker.
 #   - The interactive/default path keeps local.
 # Deny always reads every local layer that resolves; erring wide on deny cannot
-# mask a gap among those layers, but it cannot widen a layer main_root left
-# unresolved, nor unwind one it resolved to a foreign directory.
+# mask a gap among those layers, but it cannot widen a main checkout that never
+# resolved — which is why an unresolved one is reported rather than passed over.
 distinct_project_root=""
 if [[ -n "$project_root" && "$proj_base" != "$repo_root" ]]; then
   distinct_project_root="yes"
@@ -277,59 +436,6 @@ RULES
 verb_covered() { verb_in_rules "$1" "$ALL_ALLOW" "open-glob-only"; }
 verb_denied() { verb_in_rules "$1" "$ALL_DENY" "bare"; }
 verb_bare_exact() { verb_in_rules "$1" "$ALL_ALLOW" "bare-exact-only"; }
-
-normalize_path() {
-  # Fold a path to one comparable form: expand a leading ~, backslashes →
-  # slashes, lower-case and de-colon a leading Windows drive (D:\repos →
-  # /d/repos, matching the git-bash /d/repos spelling), strip a trailing slash.
-  # Literal only — no symlink resolution, since permission rules match the
-  # command string literally.
-  local p="$1" drive rest home="${HOME:-${USERPROFILE:-}}"
-  # A leading ~ (~ alone, or ~/… / ~\… — both separators, since a Windows entry
-  # may be written ~\…) expands to the user home so a tilde-form
-  # additionalDirectories entry compares equal to the absolute probed root the
-  # harness derives from that same home. HOME first, then USERPROFILE (its
-  # backslashes, and any in the stripped remainder, are folded by the tr below);
-  # neither set leaves ~ literal.
-  if [[ -n "$home" ]]; then
-    # Strip one trailing separator (either form — HOME=/, USERPROFILE=…\) so the
-    # join below cannot double it; normalize_path does not collapse an internal
-    # //, so //.worktrees would never match an absolute /.worktrees/… root.
-    home="${home%/}"
-    home="${home%\\}"
-    # shellcheck disable=SC2088  # the literal ~ arms are patterns being matched, not paths to expand
-    case "$p" in
-      "~") p="$home" ;;
-      "~/"* | "~\\"*) p="$home/${p:2}" ;;
-      *) ;;
-    esac
-  fi
-  # shellcheck disable=SC1003  # '\\' is tr's escaped backslash (one char), not a quote escape
-  p="$(printf '%s' "$p" | tr '\\' '/')"
-  case "$p" in
-    [A-Za-z]:/*)
-      # Windows filesystems are case-insensitive: fold the WHOLE path, not just
-      # the drive letter, so D:/Repos/.Worktrees and /d/repos/.worktrees compare
-      # equal. Non-drive (POSIX) paths stay case-sensitive.
-      p="$(printf '%s' "$p" | tr '[:upper:]' '[:lower:]')"
-      drive="${p%%:*}"
-      rest="${p#*:}"
-      p="/$drive$rest"
-      ;;
-    /[A-Za-z]/*)
-      # Git-bash drive spelling (/d/Repos/…) is the same case-insensitive
-      # Windows filesystem — fold it too. A true POSIX single-letter root
-      # directory is the accepted (rare, documented) collision.
-      p="$(printf '%s' "$p" | tr '[:upper:]' '[:lower:]')"
-      ;;
-    *) ;;
-  esac
-  case "$p" in
-    ?*/) p="${p%/}" ;;
-    *) ;;
-  esac
-  printf '%s' "$p"
-}
 
 dir_covered() {
   # dir_covered <path> — true when some additionalDirectories entry equals the
@@ -405,29 +511,46 @@ if [[ "$mode" == "count" ]]; then
   exit 0
 fi
 
+# A path is named as "the main checkout" only when resolution VERIFIED it. When
+# it did not, the layer is UNREAD and every mode says so — including the
+# interactive one, which prints no header otherwise and would otherwise drop a
+# main-local deny in silence.
+main_unread=""
+if [[ "$main_state" == "unresolved" ]]; then
+  main_unread="yes"
+fi
+
 if [[ -n "$local_excluded" ]]; then
-  if [[ "$proj_base" == "$main_root" ]]; then
+  if [[ -n "$main_is_proj_base" ]]; then
     echo "PREFLIGHT: autonomous mode (--worktree-root, no distinct --project-root) — coverage read includes this main checkout's settings.local.json: since Claude Code v2.1.211 its rules apply in every worktree, the fresh worker included."
-  elif [[ -n "$main_root" ]]; then
+  elif [[ "$main_state" == "verified" ]]; then
     echo "PREFLIGHT: autonomous mode (--worktree-root, no distinct --project-root) — coverage read includes the main checkout's settings.local.json ('$main_root', applies in every worktree since Claude Code v2.1.211) but excludes this worktree's own local file, which a fresh worker would not inherit; deny rules still include it."
   else
     echo "PREFLIGHT: autonomous mode (--worktree-root, no distinct --project-root) — coverage read excludes this checkout's gitignored settings.local.json, which a fresh worktree would not carry; deny rules still include it."
   fi
 elif [[ -n "$distinct_project_root" ]]; then
-  if [[ -n "$main_root" && "$main_root" != "$proj_base" ]]; then
+  if [[ "$main_state" == "verified" && -z "$main_is_proj_base" ]]; then
     echo "PREFLIGHT: reading project settings (incl. settings.local.json) from --project-root '$proj_base', plus the main checkout's shared settings.local.json ('$main_root')."
   else
     echo "PREFLIGHT: reading project settings (incl. settings.local.json) from --project-root '$proj_base'."
   fi
 fi
 
-if [[ "${#findings[@]}" -eq 0 ]]; then
-  echo "PREFLIGHT: OK — cwd is a git repo, probed grants present, worktree root covered."
-  exit 0
+if [[ -n "$main_unread" ]]; then
+  echo "PREFLIGHT: UNREAD LAYER — the main checkout's settings.local.json was NOT read: $main_reason. Its rules apply in every worktree since Claude Code v2.1.211, so a grant there is not credited (a verb may be over-reported as a gap) and, worse, a DENY there is not reported at all. Findings below are incomplete. Run the preflight from the main checkout, or pass --project-root naming it, to read that layer."
 fi
 
-printf '%s\n' "${findings[@]}"
-if [[ "$gapcount" -eq 0 ]]; then
+if [[ "${#findings[@]}" -gt 0 ]]; then
+  printf '%s\n' "${findings[@]}"
+fi
+
+# INCOMPLETE outranks BOTH OK branches: an unread main-checkout layer means the
+# probe never saw every rule, so "OK" would assert more than the run checked.
+if [[ -n "$main_unread" ]]; then
+  echo "PREFLIGHT: INCOMPLETE — main-checkout layer unread ($main_reason); $gapcount gap(s) found among the layers that were read. Report-only: exit 0 regardless (see reference/permission-preflight.md)."
+elif [[ "${#findings[@]}" -eq 0 ]]; then
+  echo "PREFLIGHT: OK — cwd is a git repo, probed grants present, worktree root covered."
+elif [[ "$gapcount" -eq 0 ]]; then
   echo "PREFLIGHT: OK — ${#findings[@]} note(s), 0 gap(s)."
 else
   echo "PREFLIGHT: $gapcount gap(s) — remediate operator-side before the unattended loop; the assistant cannot self-apply (see reference/permission-preflight.md)."
