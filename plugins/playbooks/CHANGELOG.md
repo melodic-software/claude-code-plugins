@@ -21,6 +21,20 @@ only after that version increases.
   Claude Code works" twice — so it is dropped from the instance rather than rewritten. The worked
   instance now assigns each term to the page that actually defines it.
 
+## [0.6.18]
+
+### Changed
+
+- **`boris`: the orchestration reference's snapshot note now covers its pricing figures** (playbooks
+  0.6.17 → 0.6.18). The
+  header note classified only benchmark figures (Sections 78 and 94) as launch-day snapshots,
+  leaving Section 94's Fable 5 price literals and Sections 78/95's relative price claims readable
+  as current rates. The note now classifies pricing figures (Sections 78, 94–95) the same way —
+  launch-day rates, verified still current against the live pricing page 2026-08-04 — and routes
+  current-rate resolution to the upstream
+  [pricing](https://platform.claude.com/docs/en/about-claude/pricing) page. No figures added or
+  removed; the vendored upstream mirror is untouched.
+
 ## [0.6.17]
 
 ### Changed

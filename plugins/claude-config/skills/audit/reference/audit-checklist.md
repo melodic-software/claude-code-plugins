@@ -39,7 +39,6 @@ additional ask-gates) get those checked at the same severities.
 
 | Check | Severity | How to verify |
 | --- | --- | --- |
-| No deprecated `:*` syntax in any permission rule | warning | `jq -r '.permissions \| to_entries[] \| .value[]' \| grep ':*'` |
 | Deny rules are in settings.json, NOT settings.local.json | error | Bug [#8961](https://github.com/anthropics/claude-code/issues/8961) — deny rules in local are silently ignored |
 | No blanket `Bash(git *)` in allow (too broad) | warning | Should be split into specific git operations |
 
@@ -87,7 +86,7 @@ additional ask-gates) get those checked at the same severities.
 | All hook scripts exist on disk | error | Resolve `$CLAUDE_PROJECT_DIR` to the project root, check file exists |
 | Hook scripts are readable | error | `[[ -r <path> ]]` |
 | Timeouts are reasonable (5-30s for formatters, up to 60s for heavy tools) | warning | Compare against known good values |
-| Matchers are valid regex | warning | `echo "" \| grep -P '<matcher>' 2>/dev/null` or check syntax |
+| Matcher takes its intended evaluation path | warning | Classify the matcher by its characters, confirm exact-match vs regex matches intent, anchor regex-path matchers with `^…$` |
 | Command hooks use quoted shell form | warning | Pattern: `"command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/..."`, **no `args`**; the `"command":"bash"`+`args` (exec-form) variant backslash-mangles `${CLAUDE_PROJECT_DIR}` on native Windows |
 | No duplicate hooks (same script registered twice for same event) | info | Compare commands within each event |
 | Hook events are valid per official docs | error | Cross-reference against the [hooks reference](https://code.claude.com/docs/en/hooks) — fetch it live rather than trusting a recalled event list |
