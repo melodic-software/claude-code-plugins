@@ -3,6 +3,43 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.33.0]
+
+### Fixed
+
+- **`work-loop` evaluates its drain exit against the cycle-start snapshot instead of a bare live
+  frontier reading.** Criterion 1 called `list-frontier --autonomous` at cycle end and accepted any
+  non-empty answer, so an item that became autonomous-eligible *after* the snapshot — a bot filing
+  agent-ready intake, an operator flipping a role label, a ratification landing mid-cycle — kept the
+  criterion false forever and repeating intake could hold a drain open indefinitely. That is the
+  failure the loop-lane convention's snapshot drain exit exists to prevent, and the skill's own
+  step 1 and "Do not chase intake" gotcha already promised the snapshot semantics criterion 1 did
+  not implement. The reading is now scoped to candidates the snapshot already held — as a frontier
+  candidate, an open item, or an untriaged intake item. Scoping is not freezing: intake the snapshot
+  held and this cycle's sweep promoted to autonomous-eligible still holds the drain open and still
+  gets worked; only post-snapshot arrivals are excluded, and they are named in the final report
+  rather than chased, because a completed drain has no next cycle to sweep them.
+
+- **`setup` proves the checkout is a GitHub repository before auto-binding the `github` provider.**
+  The unattended first bind required only that `gh` was installed and `gh auth status` succeeded —
+  both account facts, neither of which says this repository is hosted on GitHub. A local-only or
+  non-GitHub checkout with an authenticated `gh` was silently bound to `github`, and every
+  repo-scoped seam verb then failed, because the adapter derives its `owner/repo` scope from the
+  checkout with `gh repo view --json owner,name`. That probe is now a third precondition on the
+  unattended bind, its resolved `owner/repo` is reported with the other defaults taken, and a probe
+  that does not resolve stops with the existing named-blocker report rather than persisting an
+  unusable binding. The interactive provider choice confirms the same thing.
+
+- **`track start` verifies the fully qualified remote-tracking ref when resolving the base branch.**
+  The guard checked `git rev-parse --verify "origin/<name>^{commit}"`, an abbreviated ref git
+  resolves through `refs/`, `refs/tags/` and `refs/heads/` *before* `refs/remotes/`. A local tag
+  literally named `origin/<name>` therefore satisfied the check, the corrective fetch was skipped,
+  and the emitted `git checkout -b` branched the user's work off that unrelated tag instead of the
+  remote default. Both the check and the emitted start-point now use `refs/remotes/origin/<name>`,
+  which only the intended remote-tracking ref can satisfy and which sets the new branch's upstream
+  exactly as the abbreviation did. The default-branch name is normalized once, so the offline
+  `refs/remotes/origin/HEAD` fallback and the charset guard both operate on the branch name alone.
+
 ## [0.32.0]
 
 ### Changed
