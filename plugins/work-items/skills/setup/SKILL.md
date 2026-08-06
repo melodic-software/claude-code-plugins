@@ -67,7 +67,11 @@ when this pass must stop instead of guessing.
 2. **Choose the provider**, recommendation first:
    - **`github`** (RECOMMENDED) — coordination over GitHub Issues via the ambient `gh` CLI; needs no
      provider config beyond the lease TTL. Confirm `gh` is installed and authenticated (`gh auth
-     status`); the seam hard-errors at call time when `gh` ≥ 2.94 is absent.
+     status`); the seam hard-errors at call time when `gh` ≥ 2.94 is absent. Then confirm the
+     checkout itself resolves — `gh repo view --json owner,name`, the same derivation the adapter's
+     repo-scope resolution makes for every repo-scoped verb — and report the `owner/repo` it
+     returns. Authentication is an account fact, not a repository one: a local-only or non-GitHub
+     checkout can pass `gh auth status` and still have no repository for the seam to address.
    - **`local-markdown`** — the offline reference provider (one markdown file per item); never a
      coordination surface. Requires `config.storage_dir` (no baked default) — a tracked directory the
      items live in (e.g. `.work-items`).
@@ -221,7 +225,7 @@ Applied to the three passes:
 
 | pass | unattended resolution |
 | --- | --- |
-| Provider binding (`apply` step 1, which runs the "Provider binding" procedure) | **Binding already present and valid — keep it, and re-bind nothing.** That is the procedure's own read-first RECOMMENDED answer, so this rule resolves to it silently: a repo bound to `local-markdown`, `jira`, or a consumer-local provider stays on it, and a working `gh` never switches it to `github`. Re-binding is a switch-providers decision, which no default can stand in for. (A present binding that is malformed or resolves to no adapter never reaches here — `apply` runs `check` first, and its binding probe already FAILs it.) **Binding absent** — bind `github` with `config.lease_ttl_hours: 24`, both RECOMMENDED, **only when `gh` is installed and `gh auth status` succeeds**. Otherwise stop: `local-markdown` and `jira` need `storage_dir` / `config.jira` values that have no defaults and cannot be inferred, so there is no provider left to choose safely. Report "tracker binding needs a provider decision; run `/work-items:setup apply` with a user present". |
+| Provider binding (`apply` step 1, which runs the "Provider binding" procedure) | **Binding already present and valid — keep it, and re-bind nothing.** That is the procedure's own read-first RECOMMENDED answer, so this rule resolves to it silently: a repo bound to `local-markdown`, `jira`, or a consumer-local provider stays on it, and a working `gh` never switches it to `github`. Re-binding is a switch-providers decision, which no default can stand in for. (A present binding that is malformed or resolves to no adapter never reaches here — `apply` runs `check` first, and its binding probe already FAILs it.) **Binding absent** — bind `github` with `config.lease_ttl_hours: 24`, both RECOMMENDED, **only when `gh` is installed, `gh auth status` succeeds, AND `gh repo view --json owner,name` resolves in this checkout**. All three, because the first two prove only that an account is authenticated — never that this repository is hosted on GitHub, so a local-only or non-GitHub checkout would otherwise be bound to a provider whose every repo-scoped verb then fails. Report the resolved `owner/repo` in the summary alongside the other defaults taken. Otherwise stop: `local-markdown` and `jira` need `storage_dir` / `config.jira` values that have no defaults and cannot be inferred, so there is no provider left to choose safely. Report "tracker binding needs a provider decision; run `/work-items:setup apply` with a user present". |
 | Role labels (step 2) | Keep the defaults — the RECOMMENDED answer, and the one that writes nothing. The pass runs and completes as a no-op: `config.role_labels` is left absent, so every role resolves to its documented fallback. A remap is a repo-vocabulary decision no default can stand in for. |
 | Schedule seeding (before step 4) | Skip — the RECOMMENDED answer. Write the empty `{"items": []}` skeleton and go to step 6. |
 
