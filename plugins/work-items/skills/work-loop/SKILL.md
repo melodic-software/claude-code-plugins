@@ -407,10 +407,22 @@ citation. This lane's specifics:
 
 Evaluate at cycle end, against the cycle-start snapshot:
 
-1. The seam frontier is empty — `list-frontier --autonomous` returns no candidates, **and**
+1. The `list-frontier --autonomous` reading at cycle end holds no candidate **the cycle-start
+   snapshot already held** — as a frontier candidate, an open item, or an untriaged intake item —
+   **and**
 2. Every open issue in the snapshot is closed or has an **open, non-draft** PR the bound
    adapter's "Open linked PRs" operation reports as close-linked — the provider's own computed
    close-linkage, whose query mechanics (and the draft exclusion) the adapter owns.
+
+**Criterion 1 scopes the frontier reading to the snapshot — it never accepts a bare "is the frontier
+empty?" answer.** An item can become autonomous-eligible *after* the snapshot: a bot files
+agent-ready intake, an operator flips a role label, a ratification lands mid-cycle. An unscoped
+reading counts those, so criterion 1 would never be true and repeating intake would hold the drain
+open forever — the failure the snapshot rule exists to prevent. Scoping is not freezing: an item the
+snapshot held as untriaged intake and step 2's sweep promoted to autonomous-eligible this cycle is
+*in* the snapshot, so it still holds the drain open and gets worked. Post-snapshot arrivals are
+**reported, never chased** — name them in the final report, since a completed drain has no next
+cycle to sweep them.
 
 Lane-infrastructure items never gate the drain: the per-lane telemetry tracking issues — this
 lane's and any sibling lane's, identified as `/work-items:triage` ("Scope: raw intake only")
