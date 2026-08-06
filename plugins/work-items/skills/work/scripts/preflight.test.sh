@@ -457,6 +457,36 @@ assert_contains "non-checkout project-root reports the unread layer" "$OUT" "UNR
 assert_contains "non-checkout project-root summary is INCOMPLETE" "$OUT" "PREFLIGHT: INCOMPLETE"
 assert_not_contains "non-checkout project-root claims no shared main checkout" "$OUT" "plus the main checkout's shared settings.local.json"
 
+# --- Case 16k: a candidate that no longer exists is rejected, not named -------
+# Removing a submodule's working tree leaves core.worktree pointing at a dead
+# path. Without the verification predicate that path would be named as the main
+# checkout and read straight through — a directory that is not there.
+git -C "$SUPER/sub" worktree add -q --detach "$TEST_TMPDIR/res-dead-wt"
+DEADPATH="$(git -C "$SUPER/sub" rev-parse --show-toplevel | tr -d '\r')"
+rm -rf "$SUPER/sub"
+OUT=$(run "$TEST_TMPDIR/res-dead-wt" "$CFGRES" --worktree-root "$RESROOT")
+assert_contains "a vanished main checkout is reported unread" "$OUT" "UNREAD LAYER"
+assert_contains "a vanished main checkout makes the run INCOMPLETE" "$OUT" "PREFLIGHT: INCOMPLETE"
+assert_not_contains "a vanished main checkout is never named" "$OUT" "$DEADPATH"
+
+# --- Case 16l: the conventional parent is rejected when it is not the tree ----
+# "<X>/.git is the common dir" does not by itself make <X> the working tree. Here
+# the common dir's core.worktree names somewhere else, so <X>'s own toplevel
+# disagrees and the candidate must be discarded — the old arithmetic returned <X>
+# unconditionally, which is what let a non-checkout be named as the main one.
+CONV2="$TEST_TMPDIR/res-conv2"
+git init -q "$CONV2"
+commit_empty "$CONV2"
+plant_main_deny "$CONV2"
+git -C "$CONV2" worktree add -q --detach "$TEST_TMPDIR/res-conv2-wt"
+mkdir -p "$TEST_TMPDIR/res-elsewhere"
+git config -f "$CONV2/.git/config" core.worktree "$TEST_TMPDIR/res-elsewhere"
+OUT=$(run "$TEST_TMPDIR/res-conv2-wt" "$CFGRES" --worktree-root "$RESROOT")
+assert_contains "a parent that is not the tree is reported unread" "$OUT" "UNREAD LAYER"
+assert_contains "a parent that is not the tree makes the run INCOMPLETE" "$OUT" "PREFLIGHT: INCOMPLETE"
+assert_not_contains "a parent that is not the tree is never named as the main checkout" "$OUT" \
+  "includes the main checkout's settings.local.json ('"
+
 # --- Case 17: a distinct --project-root reads the worker's OWN local settings -
 # When --project-root names a real worker worktree (toplevel differs from cwd),
 # read ITS OWN settings.local.json — the worker's file, present in that checkout —
