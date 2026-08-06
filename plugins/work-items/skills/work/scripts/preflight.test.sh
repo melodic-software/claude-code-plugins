@@ -409,6 +409,18 @@ assert_contains "submodule worktree names the submodule checkout" "$OUT" \
 assert_not_contains "submodule worktree is not INCOMPLETE" "$OUT" "PREFLIGHT: INCOMPLETE"
 assert_eq "submodule worktree → one gap" "1" "$(run "$TEST_TMPDIR/res-sub-wt" "$CFGRES" --count --worktree-root "$RESROOT")"
 
+# --- Case 16f2: core.worktree defined through [include] is honored ------------
+# A config may hold core.worktree only via an include directive; `git config -f`
+# never processes includes, so the resolution must read with GIT_DIR context.
+SUBGITDIR="$(git -C "$SUPER/sub" rev-parse --git-common-dir | tr -d '\r')"
+INCWT="$(git config -f "$SUBGITDIR/config" --get core.worktree | tr -d '\r')"
+git config -f "$SUBGITDIR/config" --unset core.worktree
+printf '[core]\n\tworktree = %s\n' "$INCWT" > "$SUBGITDIR/worktree.inc"
+printf '[include]\n\tpath = worktree.inc\n' >> "$SUBGITDIR/config"
+OUT=$(run "$TEST_TMPDIR/res-sub-wt" "$CFGRES" --worktree-root "$RESROOT")
+assert_contains "include-defined core.worktree still reports the deny" "$OUT" "is DENIED"
+assert_not_contains "include-defined core.worktree is not INCOMPLETE" "$OUT" "PREFLIGHT: INCOMPLETE"
+
 # --- Case 16g: an unresolvable spelling is LOUD, never "PREFLIGHT: OK" --------
 # --separate-git-dir under a name that is not "<something>/.git" leaves the main
 # working tree genuinely unrecoverable (git records no back-pointer to it). The

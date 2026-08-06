@@ -281,9 +281,12 @@ resolve_main_root() {
   # 3. core.worktree in the common dir's config points at the working tree,
   #    relative to the common dir. Git sets it for submodules, which is what
   #    makes a submodule's <super>/.git/modules/<name> shape resolvable at all.
-  #    Read the file directly: `git --git-dir=<dir> rev-parse --show-toplevel`
-  #    silently falls back to the PROCESS cwd when core.worktree is unset.
-  cand="$(git config -f "$main_gitdir/config" --get core.worktree 2>/dev/null | tr -d '\r')"
+  #    Read it with GIT_DIR context rather than `git config -f`, so a value
+  #    defined through [include]/[includeIf] is honored — includeIf's gitdir
+  #    conditions need a git dir to evaluate against, which -f never supplies.
+  #    (`git --git-dir=<dir> rev-parse --show-toplevel` stays unusable here: it
+  #    silently falls back to the PROCESS cwd when core.worktree is unset.)
+  cand="$(GIT_DIR="$main_gitdir" git config --get core.worktree 2>/dev/null | tr -d '\r')"
   if [[ -n "$cand" ]]; then
     case "$cand" in
       /* | [A-Za-z]:[/\\]*) ;;
