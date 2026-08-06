@@ -27,6 +27,16 @@ $ claude remote-control
 
 Walk away from desk, think of something, kick off task from mobile — Claude runs on your machine.
 
+> **Amended (verified 2026-08-04 against
+> [Remote Control](https://code.claude.com/docs/en/remote-control)):** the plan list has widened and
+> the feature is still a research preview. Upstream, verbatim: "Remote Control is in research
+> preview and available on all plans"; Requirements reads "available on Pro, Max, Team, and
+> Enterprise plans. API keys are not supported. On Team and Enterprise, an Owner must first enable
+> the Remote Control toggle". That section also carries conditions this tip predates —
+> authentication, API endpoint, feature-flag evaluation, and workspace trust — and owns the current
+> list; read it rather than this snapshot. **Recheck trigger:** a read-time re-fetch finds it no
+> longer matching this record.
+
 Source: https://x.com/trq212/status/2032632597843779861
 
 ## 36. Voice Mode

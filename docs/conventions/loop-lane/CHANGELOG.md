@@ -5,6 +5,28 @@ topology, the escalation contract, the capability-tier vocabulary, or any loop-l
 major bump, and additive guidance is a minor bump. A new model release re-audits the capability-tier
 table (§3); drift found by that audit is recorded here.
 
+## 8.0.1 — 2026-08-05
+
+Corrective, no topology, escalation, tier, or invariant change — §"Out-of-band notification seam"
+replaces an enumeration of Remote Control's requirements with a pointer at the section that owns
+them.
+
+- **The `PushNotification` phone leg's inherited requirements were enumerated, and the enumeration
+  under-covered its source.** The paragraph listed four conditions — a Pro, Max, Team, or Enterprise
+  plan, a claude.ai login, a session talking directly to the Anthropic API, and accepted workspace
+  trust — against a `## Requirements` section carrying five bullets. **Feature-flag evaluation** had
+  no counterpart at all: `DISABLE_TELEMETRY`, `DO_NOT_TRACK`,
+  `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC`, and `DISABLE_GROWTHBOOK` "each disable the
+  feature-flag evaluation that Remote Control availability depends on". Two more under-covered:
+  **API endpoint** also disables Remote Control when `ANTHROPIC_BASE_URL` "points at a host other
+  than `api.anthropic.com`", a clause that bullet dates "As of v2.1.196"; and **Subscription** adds
+  a Team/Enterprise precondition the bare plan list did not carry, an Owner enabling the Remote
+  Control toggle. The enumeration is now a pointer at Requirements plus the page's mobile-push setup
+  steps, keeping the flag family inline because this repo ships OTEL and hook-telemetry conventions
+  and its readers are the population that sets those variables; a restated five-bullet list would
+  re-drift, and the paragraph already cites the page. Stamp refreshed 2026-07-27 → 2026-08-04
+  (<https://code.claude.com/docs/en/remote-control>, verified 2026-08-04).
+
 ## 8.0.0 — 2026-08-05
 
 Adds the reviewed internal-bot trust signal to §1's C4/C5 floor trust test, designed and decided in
