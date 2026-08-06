@@ -3,6 +3,72 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.21.9]
+
+### Removed
+
+- **`audit`: the Category B `:*` check, which rested on a false premise and could never report
+  clean.** [Configure permissions](https://code.claude.com/docs/en/permissions) states that "The
+  `:*` suffix is an equivalent way to write a trailing wildcard, so `Bash(ls:*)` matches the same
+  commands as `Bash(ls *)`" — it is not deprecated. Across the 127 pages listed in `llms.txt`, no
+  line carries both the deprecation word-stem and `:*`, and the changelog maintains `:*` in its
+  current voice,
+  hardening `Bash(find:*)` and `Bash(rm:*)` and fixing `Bash(cmd:*)` and `Bash(git log:*)` matching.
+  The label traces to issue
+  [#23869](https://github.com/anthropics/claude-code/issues/23869), whose reporter used the word; it
+  was closed as not planned.
+
+  The check was also inoperable: its verification shipped `grep ':*'`, which in basic regex means
+  zero or more colons and so matches every line. Escaping does not rescue it — `grep -F ':*'` matches
+  `WebFetch(domain:*)`, and the permissions doc documents `Agent(isolation:*)`, `WebFetch(domain:*)`
+  and `WebFetch(domain:*.example.com)` as legitimate syntax, so a correctly escaped check would trade
+  a never-clean result for false positives on documented rules. The only accurate replacement —
+  flagging a `:*` that is not at pattern end, which the page shows never matches — has no instance in
+  this repo. The known-issues row keeps its citation and drops its tracked action. Generic
+  "deprecated syntax" wording elsewhere stands: the settings doc documents real deprecations.
+
+- **`audit-permission-grants`: the routing eval that asserted the removed check.** Its scope-boundary
+  eval routed a `:*` check to the sibling skill, so after the removal prose and eval disagreed and
+  the grader could reward a response repeating the false label. It now exercises the same routing
+  boundary through a check that still exists.
+
+### Fixed
+
+- **`audit`: settings, hooks, MCP and permission syntax do not all live on the settings page.** The
+  skill attributed four upstream invariants to that one page and one audit phase. The page defers
+  hook format and complete permission-rule syntax to their own pages, and the skill's own checklist
+  already routes hook events elsewhere. Each is now resolved against its own official page when a
+  check needs it.
+
+- **`audit`: hook matchers are not simply "valid regex".** [Hooks
+  reference](https://code.claude.com/docs/en/hooks) makes the evaluation path depend on the matcher's
+  characters — letters, digits, `_`, `-`, spaces, `,` and `|` give an exact-string list; anything
+  else gives an unanchored JavaScript regex, so `Edit.*` also matches `NotebookEdit`. The check
+  now examines the intended path and anchoring rather than syntactic validity.
+
+- **`audit-automation-gaps`: hook inventory reached one of six hook locations.** It now covers user,
+  project and local settings, managed policy settings, each enabled plugin's `hooks/hooks.json`, and
+  skill or agent frontmatter — an inventory missing five locations can report a gap that is already
+  filled.
+
+- **`audit-automation-gaps`: slowness alone no longer disqualifies a hook.** `async: true` runs a
+  command hook in the background for exactly the long-running case the gate rejected, so the gate now
+  turns on whether the hook must block. Async hooks cannot block tool calls or return decisions, and
+  only `command` hooks support it.
+
+- **`audit-automation-gaps`: the "Not scriptable" gate no longer claims to cover reasoning-only
+  concerns.** `prompt` hooks send a prompt to a model for single-turn evaluation and `agent` hooks
+  spawn a subagent that can use tools to verify conditions — those mechanize the concerns the gloss
+  assigned to the gate. Agent hooks are experimental and may change.
+
+- **`audit-pass`: built-in output styles do not drop the coding instructions.** The claim was
+  unscoped, but [Output styles](https://code.claude.com/docs/en/output-styles) says "Custom output
+  styles leave out Claude Code's built-in software engineering instructions … unless
+  `keep-coding-instructions` is set to `true`", and the built-in **Default** style "is the existing
+  system prompt" — a direct counterexample. `keep-coding-instructions` is frontmatter in an
+  output-style file, and built-in styles have no file, so the exception could not apply to them. The
+  attestation date moves with the re-fetch; the operative `force-for-plugin` claim is unchanged.
+
 ## [0.21.8]
 
 ### Changed

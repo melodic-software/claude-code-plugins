@@ -62,7 +62,7 @@ Run `bash "${CLAUDE_PLUGIN_ROOT}/skills/audit-automation-gaps/scripts/inventory.
 
 | What | Source |
 |------|--------|
-| Hooks | `settings.json` → `hooks` section + hook script paths |
+| Hooks | Every hook location: user + project + local `settings.json` → `hooks`, managed policy settings when readable, each enabled plugin's `hooks/hooks.json`, and skill or agent frontmatter `hooks:` |
 | MCP servers | `.mcp.json` + `settings.json` → `disabledMcpjsonServers` |
 | Permissions | `settings.json` → `permissions` (deny/ask/allow) |
 | Enforcement | Ecosystem-specific build config (`<root-build-config>` — e.g. `Directory.Build.props` for .NET, `pyproject.toml` for Python, `package.json` for TS/JS), `.editorconfig` (top 20 lines), any enforcement-hierarchy section in the repo's own instruction files |
@@ -102,7 +102,8 @@ For each candidate:
 time <tool-command> 2>&1 | tail -5
 ```
 
-PostToolUse hooks must complete in <15-30s. Tools exceeding this are unsuitable for per-edit hooks.
+PostToolUse hooks must complete in <15-30s. A slower tool fits a per-edit hook only as a
+non-blocking command hook with `async: true`.
 
 ### 2.2 Research (Targeted, Parallel)
 
@@ -132,7 +133,7 @@ A candidate **fails** if ANY gate triggers:
 | Gate | Condition | Evidence Required |
 |------|-----------|-------------------|
 | **Already enforced** | A higher enforcement hierarchy level covers it | Name the level and mechanism |
-| **Too slow** | Tool exceeds 30s for a PostToolUse hook | Timing measurement |
+| **Too slow** | Tool exceeds 30s AND the hook must block — a non-blocking command hook can set `async: true` instead | Timing measurement + whether a decision is returned |
 | **Not scriptable** | The mechanism can't be automated with available tools | Specific limitation cited |
 | **Zero incidents** | Git history shows the problem has never occurred | Incident count + total commit count |
 | **Already exists** | A skill, behavioral rule, or convention already handles it | File path and line |
@@ -141,8 +142,9 @@ A candidate **fails** if ANY gate triggers:
 | **Premature** | Depends on unfinished work (planned database, future CI) | What's missing cited |
 
 These gates answer *should* we mechanize. Whether a candidate *can* be — and how far up the hierarchy
-it climbs — is a separate enforceability question: the **Not scriptable** gate maps to reasoning-only
-concerns, **Already enforced** to a deterministic finding already escalated.
+it climbs — is a separate enforceability question: the **Not scriptable** gate maps to concerns no
+hook type reaches, **Already enforced** to a deterministic finding already escalated. `prompt` and
+`agent` hooks do evaluate reasoning-only concerns, `agent` experimentally.
 
 Produce a verdict per candidate:
 

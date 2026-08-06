@@ -16,12 +16,12 @@
     {
       "id": 2,
       "name": "scope-boundary-routes-out",
-      "prompt": "While auditing my permission grants, also check my baseline deny rules are present, flag any deprecated :* syntax, and check my plugins for upstream drift.",
-      "expected_output": "Audits only grant portability + auto-mode durability (P1/P2/P3) and routes baseline deny/ask presence, deprecated :* syntax, overly broad patterns, and plugin drift to the sibling audit skill rather than handling them here.",
+      "prompt": "While auditing my permission grants, also check my baseline deny rules are present, flag any overly broad allow patterns, and check my plugins for upstream drift.",
+      "expected_output": "Audits only grant portability + auto-mode durability (P1/P2/P3) and routes baseline deny/ask presence, overly broad patterns, and plugin drift to the sibling audit skill rather than handling them here.",
       "files": [],
       "expectations": [
         "Output audits only the grant-hygiene question it owns (P1/P2/P3)",
-        "Output does NOT itself check baseline deny presence, deprecated :* syntax, or plugin drift",
+        "Output does NOT itself check baseline deny presence, overly broad patterns, or plugin drift",
         "Output routes those to the audit skill"
       ]
     },
