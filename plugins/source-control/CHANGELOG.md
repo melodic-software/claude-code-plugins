@@ -3,6 +3,31 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.46.0]
+
+### Added
+
+- **`babysit_loop_trusted_internal_bot_logins` — a reviewed internal-bot trust signal for the
+  babysit-loop C5 trust test (#1525, fixing #1520).** The rung partition's trust test classified
+  every non-`OWNER`/`MEMBER` author as C5 untrusted-provenance, but GitHub App bot identities are
+  never org member accounts, so repository-owned automation — which the autonomy guardrails' work
+  classes explicitly place in C2 — was categorically ineligible at every merge rung. The new
+  loop-lane key names the exact bot logins a repository attests as its own internal automation: a
+  flat bullet list on the tracked `.claude/source-control.md` surface, honored from the TARGET
+  repository's team-tracked layer only — always read from its default branch, never any working
+  tree, so a checkout sitting on a bot-authored branch cannot self-grant — making every trust
+  grant a recorded, reviewable config change; unset, unreadable, or malformed fails closed to
+  the empty set, leaving the trust test exactly `OWNER`/`MEMBER`. The match arm requires a
+  structural bot (the `[bot]` login suffix or provider `Bot` type), the fork test stays
+  independent (a listed bot authoring from a cross-repository head is still C5), the
+  dependency-manager hold-merge invariant wins on intersection with
+  `babysit_extra_dependency_manager_logins` and the built-in set, and a trust match never
+  establishes a work class — it only removes the categorical C5 bar. `babysit_watched_owners`
+  remains never a trusted-author list. Documented in `config-resolution.md` ("the C5 trust test's
+  one reviewed widening"); loop-lane convention bumped to 8.0.0 in lockstep; eval added for the
+  bot-author cases. Design decision, rejected alternatives, and cross-vendor review recorded on
+  #1525.
+
 ## [0.45.1]
 
 ### Fixed

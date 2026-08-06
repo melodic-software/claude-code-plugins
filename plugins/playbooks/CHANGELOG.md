@@ -4,6 +4,23 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.6.20]
+
+### Fixed
+
+- **`fable-5`: the channel-authority worked instance assigned two terms three owning pages**
+  (playbooks 0.6.17 → 0.6.20). The section "The reference page defines; a vendor post corroborates"
+  says "the reference page that owns the term" and "the owning page" four times, all
+  singular-definite — and then its worked instance listed one plural set of three pages for two
+  terms, which no reading of the surrounding rule supports. Verified against the live pages
+  2026-08-05: the glossary carries the only heading-plus-definition of "verification loop"
+  (`### Verification loop`), which "How Claude Code works" does not mention at all; "How Claude Code
+  works" carries `## The agentic loop` and its three-phase definition, and the glossary's own
+  `Agentic loop` entry defers to it rather than restating it in full. "Best practices" owns neither
+  term — it has no loop heading, uses "verification loop" once descriptively, and points at "How
+  Claude Code works" twice — so it is dropped from the instance rather than rewritten. The worked
+  instance now assigns each term to the page that actually defines it.
+
 ## [0.6.19]
 
 ### Fixed
@@ -41,6 +58,63 @@ only after that version increases.
   regular native progress updates, response-length calibration, and the code-review-harness recall
   effect with coverage-before-filtering as the remedy. The note now records the re-read date and
   the no-material-drift finding instead of an absence.
+
+## [0.6.18]
+
+### Changed
+
+- **`boris`: the orchestration reference's snapshot note now covers its pricing figures** (playbooks
+  0.6.17 → 0.6.18). The
+  header note classified only benchmark figures (Sections 78 and 94) as launch-day snapshots,
+  leaving Section 94's Fable 5 price literals and Sections 78/95's relative price claims readable
+  as current rates. The note now classifies pricing figures (Sections 78, 94–95) the same way —
+  launch-day rates, verified still current against the live pricing page 2026-08-04 — and routes
+  current-rate resolution to the upstream
+  [pricing](https://platform.claude.com/docs/en/about-claude/pricing) page. No figures added or
+  removed; the vendored upstream mirror is untouched.
+
+## [0.6.17]
+
+### Changed
+
+- **`fable-5`: meta-rule 3 no longer treats the arm-time model resolution as permanent** (playbooks
+  0.6.16 → 0.6.17). The rule resolved the running model once, at arm time, and routed it to its
+  `reference/model-adaptation/` file. The Claude Fable 5 & Claude Mythos 5 system card documents a
+  case that assumption misses: Fable 5's safeguard classifiers — cybersecurity, biology and
+  chemistry, distillation, and frontier LLM development — do not merely refuse. They re-serve the
+  request with the latest Claude Opus model, and the card states the behavior is "not configurable"
+  on some Claude interfaces (§1.5). Nor is it reliably per-request: 20.9% of Fable 5 Terminal-Bench
+  trials fell back to Claude Opus 4.8 "for the rest of the trajectory" (§8.3). Fallback is common
+  across the capability suite — §8.1 attributes Fable's lower scores to it generally — but §8.3 is
+  the card's only statement about how long a fallback lasts, and it does not say whether the
+  persistence comes from the fallback mechanism or from how that harness continues after a refusal.
+  So the rule claims only that a fallback can outlive the request that tripped it, which is enough
+  to make a one-time model resolution unsafe.
+
+  So a session that armed as Fable 5 can be answered by Opus 4.8 from a classifier hit onward while
+  still running Fable-calibrated deltas — and the plugin already ships the right chapter for that
+  model, `opus-4-8.md`, with nothing routing anyone to it. Meta-rule 3's own warning that deltas are
+  calibrated per model version is what makes the gap bite.
+
+  **The line is phrased on the signal reaching the session, not on the model noticing.** The card
+  describes three fallback signals and names a recipient for only two — the client-app user
+  notification and the Messages API response-object field; the third is "A session event is emitted
+  whenever fallback occurs," recipient unstated. Nothing in the card says the re-served model can
+  observe the switch, so the rule says the signals are addressed to the surface rather than to the
+  model, triggers on any in-context evidence of fallback (a relayed notice, the user saying so, a
+  surfaced session event), and names the residual case — a fallback no signal ever surfaces into
+  context — as undetectable from inside the session and the surface's to close.
+
+  **Scope held to what the card states.** The card does not name which interfaces have
+  non-configurable fallback, so the rule names none — in particular it does not claim Claude Code is
+  one of them. The classifier list, the non-configurability, and the trajectory-scoped behavior are
+  the card's own statements about Fable 5's deployment, not Mythos 5 measurements restated as Fable
+  5 properties.
+
+  No other chapter changed. The card's per-model behavioral results — MASK, missing-context
+  hallucination, GUI overeagerness, overconfidence — are model-version facts, and `SKILL.md` already
+  confines those to `reference/model-adaptation/`, which carries no `fable-5.md` by design because
+  Fable 5 is the model the playbook was authored by and for.
 
 ## [0.6.16]
 

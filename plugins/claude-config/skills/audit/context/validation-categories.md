@@ -20,7 +20,6 @@ Load the audit checklist alongside these: [audit-checklist.md](../reference/audi
   each pattern in `ask-rules` must appear in `settings.json` `permissions.ask`. When the consuming
   repo's own rules declare additional required patterns, check those too
 - **Deny rules in settings.json ONLY** — not in settings.local.json (bug [#8961](https://github.com/anthropics/claude-code/issues/8961))
-- **No deprecated `:*` syntax** in any permission rule (check all three arrays)
 - **No overly broad patterns** — `Bash(git *)` should be split into specific operations
 - **Evaluation order** makes sense — deny overrides ask overrides allow
 
@@ -41,7 +40,9 @@ Load the audit checklist alongside these: [audit-checklist.md](../reference/audi
 - All hook script paths resolve to existing files on disk
 - Scripts are readable (not permission-denied)
 - Timeouts are reasonable: 5-15s for simple formatters, 30s for slow-startup tools (pwsh)
-- Matchers use valid regex syntax
+- Matchers take their intended evaluation path — only letters, digits, `_`, `-`, spaces, `,`, `|`
+  makes it an exact-string list; any other character makes it an unanchored JavaScript regex, which
+  needs `^…$` to match a whole string (`Edit.*` also matches `NotebookEdit`)
 - `$CLAUDE_PROJECT_DIR` references are properly quoted in commands
 - No duplicate hooks (same script registered twice for same event)
 - Hook events are valid (cross-reference against official docs)

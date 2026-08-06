@@ -88,12 +88,13 @@ parallelism, not convenience). Treat every worker's return as unverified synthes
 load-bearing claims against a primary source before acting. Cite sources you actually fetched;
 never label a claim "known" / "from memory" / "obvious".
 
-**Priming addendum (current session only).** As the main session — not a spawned worker — you may
-also reach orchestration surfaces a worker cannot: agent teams (lead-only) and dynamic workflows
-(main-session-only). This session's reasoning effort is `${CLAUDE_EFFORT}` — feed it into imperative
-7's tier calibration: it is the level a spawn inherits when neither the call nor the agent
-definition sets one (a definition's own `effort` overrides the session), so its gap from what a
-subtask needs IS the over-provisioning imperative 7 exists to stop. (`ultracode` reports as
+**Priming addendum (current session only).** As the main session — not a spawned non-fork worker —
+you may also reach orchestration surfaces a non-fork worker cannot: agent teams (driven from the
+lead session; the docs do not state whether a fork of the lead can drive one) and dynamic workflows
+(withheld from non-fork workers). This session's reasoning effort is `${CLAUDE_EFFORT}` — feed it
+into imperative 7's tier calibration: it is the level a spawn inherits when neither the call nor
+the agent definition sets one (a definition's own `effort` overrides the session), so its gap from
+what a subtask needs IS the over-provisioning imperative 7 exists to stop. (`ultracode` reports as
 `xhigh`, so it cannot reveal script-held orchestration.) Export modes omit this addendum — a
 pasted target reaches none of those surfaces, and the substitution would travel as dead text.
 
@@ -199,7 +200,7 @@ Discipline: [the Discipline line above, verbatim]
   Use `handoff` / `worker` only when the target LEAVES the session.
 - **Not a surface-selection guide.** Which parallel-execution surface to pick (subagents vs nested
   vs teams vs workflows) is a judgment the main session makes against current official docs; the
-  export brief deliberately omits agent teams + dynamic workflows because a spawned worker cannot
+  export brief deliberately omits agent teams + dynamic workflows because a pasted target cannot
   reach either.
 - **Does not delegate, verify, nest, or spawn anything itself** — it arms the session or emits
   instruction text.

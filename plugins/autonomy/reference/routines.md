@@ -45,7 +45,7 @@ fire fresh ones.
 | Term | Family | Meaning |
 |---|---|---|
 | `loop` | session-scoped | repetition on an interval inside one session; dies with the session |
-| `goal` | session-scoped | completion condition — the session keeps going until a separate grader judges the condition met or a budget cap trips |
+| `goal` | session-scoped | completion condition — the session keeps going until a separate grader judges the condition met or the goal is cleared |
 | `batch` | session-scoped | parallel fan-out over decomposed units of one brief; NOT bulk-inference batch APIs (a corrected research conflation) |
 | `dynamic workflow` | session-scoped | orchestration whose decomposition and sub-steps the session composes at run time; ends with the session |
 | `schedule` | standing | the standing time trigger |

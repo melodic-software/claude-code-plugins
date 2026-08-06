@@ -1,7 +1,10 @@
 # Plugin-acceptance security review
 
 Reviewed 2026-07-16 against the repository migration playbook and current official Claude Code plugin,
-skills, Git, GitHub CLI, and GitHub REST documentation.
+skills, Git, GitHub CLI, and GitHub REST documentation. Re-checked 2026-07-31 for #1795 (merged-PR
+batch limit raised to the shared `MERGED_PR_BATCH_LIMIT` / `MERGED_PR_HEAD_LIMIT` constants; probe
+allowlist still admits only the fixed `pr list` argv shapes, now keyed to those constants rather than
+hardcoded 200/100 literals; truncation at the cap emits `UNKNOWN` and does not widen network egress).
 
 ## Decision
 
