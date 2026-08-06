@@ -5,6 +5,34 @@ topology, the escalation contract, the capability-tier vocabulary, or any loop-l
 major bump, and additive guidance is a minor bump. A new model release re-audits the capability-tier
 table (§3); drift found by that audit is recorded here.
 
+## 8.0.0 — 2026-08-05
+
+Adds the reviewed internal-bot trust signal to §1's C4/C5 floor trust test, designed and decided in
+[melodic-software/claude-code-plugins#1525](https://github.com/melodic-software/claude-code-plugins/issues/1525)
+(fixing
+[#1520](https://github.com/melodic-software/claude-code-plugins/issues/1520)'s misclassification of
+repository-owned automation identities). **Bump ambiguity:** a repository that never sets the key
+sees byte-identical behavior — unset fails closed to the empty set — which reads as additive
+guidance and a **minor**; but the floor's trust test is part of §1's autonomy-ladder contract, and
+this changes what the test accepts for every lane implementing the floor, which reads as a
+**major**. Ratified major on 2.0.0's discriminator: a changed floor test is a changed obligation,
+whatever its default resolves to.
+
+- **The trust test gains a second positive arm (§1).** C5's provenance test classified every
+  non-`OWNER`/`MEMBER` author as untrusted — but GitHub App bot identities are never org member
+  accounts, so the org's own automation (which `work-classes.md` explicitly places in C2) was
+  categorically C5 and ineligible at every rung. The floor now also accepts an author the target
+  repository's own team-tracked seam config attests as a trusted internal bot: a recorded, reviewed
+  trust grant naming exact bot identities, honored from the team-tracked layer only, fail-closed to
+  the empty set when unset. The key, its grammar, and its composition rules are owned by the babysit
+  lane's config reference (`babysit_loop_trusted_internal_bot_logins`), not restated here.
+- **Nothing else widens.** The fork test is independent — a listed bot authoring from a
+  cross-repository head is still C5; the dependency-manager merge hold wins on intersection; a trust
+  match never establishes a work class, and the C4 diff veto, rung comparison, and every other
+  withholding stand unchanged. The rejected alternatives — ambient attestation via app installation
+  (not a recorded seam change, and wider than the identities the org vouches for) and reuse of a
+  personal-scalar or repository-owner key — are recorded in #1525's decision comment.
+
 ## 7.0.1 — 2026-08-02
 
 Corrective, no topology, escalation, tier, or invariant change — §"Launch surfaces" describes the
