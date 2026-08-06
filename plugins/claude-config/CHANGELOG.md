@@ -39,15 +39,15 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   already routes hook events elsewhere. Each is now resolved against its own official page when a
   check needs it.
 
-- **`audit`, `audit-automation-gaps`: hook matchers are not simply "valid regex".** [Hooks
+- **`audit`: hook matchers are not simply "valid regex".** [Hooks
   reference](https://code.claude.com/docs/en/hooks) makes the evaluation path depend on the matcher's
   characters — letters, digits, `_`, `-`, spaces, `,` and `|` give an exact-string list; anything
-  else gives an unanchored JavaScript regex, so `Edit.*` also matches `NotebookEdit`. Both surfaces
-  now check the intended path and anchoring rather than syntactic validity.
+  else gives an unanchored JavaScript regex, so `Edit.*` also matches `NotebookEdit`. The check
+  now examines the intended path and anchoring rather than syntactic validity.
 
-- **`audit-automation-gaps`: hook inventory reached one of five hook locations.** It now covers user,
+- **`audit-automation-gaps`: hook inventory reached one of six hook locations.** It now covers user,
   project and local settings, managed policy settings, each enabled plugin's `hooks/hooks.json`, and
-  skill or agent frontmatter — an inventory missing four locations can report a gap that is already
+  skill or agent frontmatter — an inventory missing five locations can report a gap that is already
   filled.
 
 - **`audit-automation-gaps`: slowness alone no longer disqualifies a hook.** `async: true` runs a
@@ -67,6 +67,42 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   system prompt" — a direct counterexample. `keep-coding-instructions` is frontmatter in an
   output-style file, and built-in styles have no file, so the exception could not apply to them. The
   attestation date moves with the re-fetch; the operative `force-for-plugin` claim is unchanged.
+
+## [0.21.8]
+
+### Changed
+
+- **`audit-instructions`: `I6` gains model-delta corroboration and `I15` reasoning-cost
+  corroboration from Anthropic's context-engineering blog** (criteria 1.16.0). Both rows rested on
+  live-doc sources alone; [The new rules of context engineering for Claude 5 generation
+  models](https://claude.com/blog/the-new-rules-of-context-engineering-for-claude-5-generation-models)
+  (2026-07-24) states each from the vendor's own system prompts and shipped guidance, so the
+  citation is added rather than a new row minted — the digest's conflicting-directive question
+  resolved to existing `I15` coverage plus this rationale, and its bare-prohibition candidate to
+  `I6` as already-covered doctrine.
+
+  `I6`: the blog's retired system-prompt line "In code: default to writing no comments. Never write
+  multi-paragraph docstrings or multi-line comment blocks — one short line max." is a worked
+  instance of the row's Detect shape, its stated obsolescence ("newer models have better judgement
+  and can handle these decisions well without explicit rules") is the model-delta ground, and its
+  replacement — "Write code that reads like the surrounding code: match its comment density,
+  naming, and idiom" — is an instance of the row's positive-reframing remediation, shipped by
+  upstream.
+
+  `I15`: the blog's "Unhobbling Claude" adds the cost the memory doc's arbitrary-pick sentence does
+  not state — even a correctly resolved conflict taxes reasoning ("Claude must think more carefully
+  about these overlapping and conflicting messages before deciding what to do"), evidenced by
+  "several conflicting messages in a single request" as Anthropic's own system prompt, skills, and
+  user requests clash with each other.
+
+  The page joins `## Sources` and is therefore inside the catalog-wide recheck trigger like every
+  other entry, keeping the trigger-set-equals-source-set invariant; it is noted there as a dated
+  post, static once published, so that recheck is expected to find it unchanged. Neither citation
+  carries a per-row verification stamp: the catalog owes one where a row restates a volatile
+  upstream literal — a level name, a model range, a type predicate — and both rows quote prose
+  rather than restate such a literal. Both rows keep the `ANTHROPIC-DOCS` Authority their primary
+  documentation sources carry; primary sources are unchanged — the blog corroborates, it does not
+  define.
 
 ## [0.21.7]
 

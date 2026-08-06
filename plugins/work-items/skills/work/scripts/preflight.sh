@@ -22,10 +22,14 @@
 # Effective settings (union of permissions.allow / additionalDirectories):
 #   user-global : ${CLAUDE_CONFIG_DIR:-$HOME/.claude}/settings.json (applies everywhere)
 #   project     : <project-root>/.claude/settings.json, .../settings.local.json
+#   main-local  : <main-checkout>/.claude/settings.local.json — since Claude Code
+#                 v2.1.211 "don't ask again" approvals save here (resolved through
+#                 worktrees to the main checkout) and apply in every worktree of
+#                 the repository, so this file is read in every mode.
 # The cwd probed for (a) is $PREFLIGHT_FIXTURE_DIR (tests) else $PWD. Project
 # settings are read from --project-root (default: the cwd checkout) resolved to
 # its git toplevel; pass the worker worktree the lane dispatches into so its own
-# project settings are checked rather than the main checkout's, which could
+# project settings are checked rather than the cwd checkout's, which could
 # otherwise mask a worker-side gap. $PREFLIGHT_PROJECT_ROOT is the env fallback.
 #
 # Requires jq (exits 2 when absent).
@@ -47,12 +51,15 @@ Usage: preflight.sh [--worktree-root <path>] [--project-root <path>] [--count] [
   --worktree-root P check that some permissions.additionalDirectories entry covers P
                     (also read from PREFLIGHT_WORKTREE_ROOT); omitted → NOTE, not checked.
                     The autonomous signal: unless a distinct --project-root is given,
-                    coverage reads exclude this checkout's gitignored settings.local.json
-                    (a not-yet-created worktree lacks it)
+                    coverage reads keep the MAIN checkout's settings.local.json (its
+                    rules apply in every worktree since Claude Code v2.1.211) and
+                    exclude only a linked-worktree cwd's own local file, which a
+                    fresh worker would not inherit
   --project-root P  read project settings from P's checkout instead of the cwd's
                     (also read from PREFLIGHT_PROJECT_ROOT) — pass the dispatched
                     worker worktree so ITS OWN grants (incl. its settings.local.json)
-                    are checked, not the main checkout's
+                    are checked rather than the cwd checkout's; the main checkout's
+                    settings.local.json is read in every mode
   --count           print the integer GAP count only (NOTEs excluded); exit 0
   --help            this message
 
@@ -127,6 +134,35 @@ proj_src="${project_root:-$CHECK_DIR}"
 proj_toplevel="$(git -C "$proj_src" rev-parse --show-toplevel 2>/dev/null | tr -d '\r')"
 proj_base="${proj_toplevel:-$proj_src}"
 user_settings="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/settings.json"
+# Since Claude Code v2.1.211, "Yes, don't ask again" saves the rule to
+# .claude/settings.local.json at the repository root, resolved through worktrees
+# to the MAIN checkout, and the rule applies to sessions anywhere in the
+# repository — every linked worktree included (docs/en/permissions#permission-system).
+# A checkout whose OWN git dir is the common one is itself the main checkout, so
+# its toplevel is the answer whatever the git dir is named (--separate-git-dir, a
+# submodule). Only from a linked worktree must the main checkout be recovered from
+# the common dir's path, which assumes the conventional "<root>/.git" spelling.
+# That recovery misfires two ways, both of which can MASK a gap rather than
+# merely over-report one, and neither of which this script yet corrects:
+#   - main_root stays EMPTY when proj_src is not a repo, or when the common dir
+#     is spelled otherwise (a submodule's <super>/.git/modules/<name>, a
+#     separate git dir under another name). Every read then falls back to the
+#     project layer alone, so a main-local deny goes unreported entirely.
+#   - main_root resolves WRONGLY when the common dir is <path>/.git for a <path>
+#     that is not this working tree (--separate-git-dir <path>/.git): the arm
+#     below yields <path>, and that foreign settings.local.json is unioned into
+#     every read — a foreign allow masks a real gap, a foreign deny false-DENIES.
+main_gitdir="$(git -C "$proj_src" rev-parse --path-format=absolute --git-common-dir 2>/dev/null | tr -d '\r')"
+own_gitdir="$(git -C "$proj_src" rev-parse --path-format=absolute --git-dir 2>/dev/null | tr -d '\r')"
+main_root=""
+if [[ -n "$main_gitdir" && "$main_gitdir" == "$own_gitdir" ]]; then
+  main_root="$proj_base"
+else
+  case "$main_gitdir" in
+    */.git) main_root="${main_gitdir%/.git}" ;;
+    *) ;;
+  esac
+fi
 
 read_array() {
   # read_array <file> <jq-path> — one element per line; silent on a missing or
@@ -139,27 +175,42 @@ read_array() {
 
 collect() {
   # collect <jq-path> <local-mode> — union the path across user-global + tracked
-  # project settings, plus the gitignored project settings.local.json only when
-  # <local-mode> is "with-local". A fresh linked worktree carries the tracked
-  # .claude/settings.json but NOT the gitignored settings.local.json, so in the
-  # autonomous (--worktree-root) path this checkout's local grants would mask a
-  # worker-side gap; the coverage reads drop local there. Deny always keeps local
-  # (erring wide on deny never masks a gap).
+  # project settings + the MAIN checkout's settings.local.json (always: its rules
+  # apply in every worktree since v2.1.211, a fresh worker included), plus the
+  # project checkout's OWN settings.local.json only when <local-mode> is
+  # "with-local". A rule saved inside a linked worktree by a pre-2.1.211 harness
+  # (or hand-placed there) applies only to sessions started in that worktree, so
+  # in the pre-dispatch autonomous (--worktree-root) path a worktree cwd's local
+  # grants would mask a worker-side gap; the coverage reads drop that file there.
+  # Deny always keeps it: erring wide on deny cannot mask a gap among the layers
+  # actually read — but see main_root above, which can leave a layer unread or
+  # substitute a foreign one.
   local path="$1" local_mode="$2"
   read_array "$user_settings" "$path"
   read_array "$proj_base/.claude/settings.json" "$path"
-  [[ "$local_mode" == "with-local" ]] && read_array "$proj_base/.claude/settings.local.json" "$path"
+  if [[ -n "$main_root" && "$main_root" != "$proj_base" ]]; then
+    read_array "$main_root/.claude/settings.local.json" "$path"
+  fi
+  if [[ "$local_mode" == "with-local" || "$proj_base" == "$main_root" ]]; then
+    read_array "$proj_base/.claude/settings.local.json" "$path"
+  fi
 }
 
-# Local-settings scope for the COVERAGE reads (allow + additionalDirectories):
+# Checkout-own local-settings scope for the COVERAGE reads (allow +
+# additionalDirectories); the main checkout's local file is in scope regardless
+# — whichever file main_root resolved to, including the wrong one (see above):
 #   - A DISTINCT --project-root (a worker worktree whose toplevel differs from this
 #     checkout) names a real, existing checkout — read ITS OWN settings.local.json
-#     (the worker's file, not this parent's); nothing is masked.
+#     (legacy rules saved there still apply to sessions started there).
 #   - Otherwise, --worktree-root (the autonomous signal) is pre-dispatch: the worker
-#     is not yet created, so exclude this checkout's gitignored settings.local.json,
-#     which a fresh worktree would not carry, lest a local-only grant mask a gap.
+#     is not yet created, so exclude a worktree cwd's own gitignored
+#     settings.local.json, which a fresh worker would not inherit, lest a
+#     worktree-local-only grant mask a gap. When the cwd checkout IS the main
+#     checkout this exclusion is a no-op — its local file follows the worker.
 #   - The interactive/default path keeps local.
-# Deny always reads local (erring wide on deny never masks a gap).
+# Deny always reads every local layer that resolves; erring wide on deny cannot
+# mask a gap among those layers, but it cannot widen a layer main_root left
+# unresolved, nor unwind one it resolved to a foreign directory.
 distinct_project_root=""
 if [[ -n "$project_root" && "$proj_base" != "$repo_root" ]]; then
   distinct_project_root="yes"
@@ -355,9 +406,19 @@ if [[ "$mode" == "count" ]]; then
 fi
 
 if [[ -n "$local_excluded" ]]; then
-  echo "PREFLIGHT: autonomous mode (--worktree-root, no distinct --project-root) — coverage read excludes this checkout's gitignored settings.local.json, which a fresh worktree would not carry; deny rules still include it."
+  if [[ "$proj_base" == "$main_root" ]]; then
+    echo "PREFLIGHT: autonomous mode (--worktree-root, no distinct --project-root) — coverage read includes this main checkout's settings.local.json: since Claude Code v2.1.211 its rules apply in every worktree, the fresh worker included."
+  elif [[ -n "$main_root" ]]; then
+    echo "PREFLIGHT: autonomous mode (--worktree-root, no distinct --project-root) — coverage read includes the main checkout's settings.local.json ('$main_root', applies in every worktree since Claude Code v2.1.211) but excludes this worktree's own local file, which a fresh worker would not inherit; deny rules still include it."
+  else
+    echo "PREFLIGHT: autonomous mode (--worktree-root, no distinct --project-root) — coverage read excludes this checkout's gitignored settings.local.json, which a fresh worktree would not carry; deny rules still include it."
+  fi
 elif [[ -n "$distinct_project_root" ]]; then
-  echo "PREFLIGHT: reading project settings (incl. settings.local.json) from --project-root '$proj_base'."
+  if [[ -n "$main_root" && "$main_root" != "$proj_base" ]]; then
+    echo "PREFLIGHT: reading project settings (incl. settings.local.json) from --project-root '$proj_base', plus the main checkout's shared settings.local.json ('$main_root')."
+  else
+    echo "PREFLIGHT: reading project settings (incl. settings.local.json) from --project-root '$proj_base'."
+  fi
 fi
 
 if [[ "${#findings[@]}" -eq 0 ]]; then
