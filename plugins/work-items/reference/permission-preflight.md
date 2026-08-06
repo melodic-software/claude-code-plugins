@@ -158,8 +158,10 @@ that worktree. Two cases:
   of the whole common dir turns up only `worktrees/<name>/gitdir` entries, which point at *linked*
   worktrees; `core.worktree` is unset by every creation path (`git init --separate-git-dir` on a
   fresh directory, `git clone --separate-git-dir`, and `git init --separate-git-dir` over an existing
-  repository). Git's own `git worktree list` therefore reports `<path>` — the `.git` file's parent —
-  as the main worktree, and reports it identically when run *from* the true working tree. `<path>`
+  repository). Git's own `git worktree list` therefore reports `<path>` — the parent of the separate
+  git *directory*, not of the `.git` file, which lives in the true working tree and is the very link
+  git does not record in reverse — as the main worktree, and reports it identically when run *from*
+  that true working tree. `<path>`
   also satisfies all three legs of the verification predicate, byte for byte, exactly as a
   conventional `<root>` does; any test strong enough to reject it also rejects the conventional
   layout. So the preflight resolves to `<path>`: **git's own answer**, arrived at by verification
