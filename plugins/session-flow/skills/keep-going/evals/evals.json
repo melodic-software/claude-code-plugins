@@ -76,6 +76,32 @@
         "If the work is progressing, leaves it alive rather than killing it",
         "Gates the kill/restart — does not kill live-but-slow work it cannot prove is dead"
       ]
+    },
+    {
+      "id": 7,
+      "name": "goal-alignment-is-the-first-check-on-resume",
+      "prompt": "keep going — resume from the handoff at .work/handoffs/20260803T101500Z-handoff-doc-alignment.md, nothing was running in the background.",
+      "expected_output": "Before any recovery action, and before restating position or continuing, the skill reads the handoff's Original goal section and tests the planned next actions against it, stating in one sentence how the next action serves that goal. If it cannot state that, it treats the gap as drift — stopping to re-derive an action that serves the goal, or asking whether the goal changed — rather than continuing on the process the file describes.",
+      "files": [],
+      "expectations": [
+        "Reads the handoff's Original goal section BEFORE resuming, restarting, or killing any work and BEFORE reconciling position — the check gates recovery actions, not just the position restatement",
+        "States in one sentence how the planned next action serves that goal",
+        "Treats an unstatable connection as drift — stops and re-derives or asks, rather than proceeding",
+        "Still reconciles the main thread from a fresh read of the backing artifact afterwards and continues"
+      ]
+    },
+    {
+      "id": 8,
+      "name": "handoff-missing-the-goal-is-a-defect-not-a-gap-to-infer",
+      "prompt": "keep going — here's the handoff from the last session. It lists the remaining phases and the completion criteria but has no Original goal section.",
+      "expected_output": "The absent Original goal is flagged as a defect in the handoff itself. The skill does NOT infer the goal from the phases and process the file describes — that process is exactly what may have drifted — and instead asks the user for the goal in their own words before continuing, carrying their answer into the next save-point.",
+      "files": [],
+      "expectations": [
+        "Flags the missing Original goal as a defect rather than proceeding as though the file were complete",
+        "Does NOT reconstruct the goal from the phases, criteria, or process the handoff describes",
+        "Asks the user for the goal in their own words before continuing the work",
+        "Carries the user's answer forward so the next save-point records it"
+      ]
     }
   ]
 }

@@ -554,16 +554,23 @@ re-invocation (`babysit-loop/SKILL.md`, Cycle shape step 3, "The verdict authori
 the PR"). Every other invocation of this skill re-pins to the vetted post-push head exactly as
 Autopilot step 3 describes.
 
-### Security/P1 escalation: the one named exception
+### Security/P1 escalation has no exception; the pre-escalation resolver is bound by it too
 
-Escalating a security/P1 thread instead of resolving it holds in every tier, autopilot included.
-The loop-lane convention carries exactly one named exception (§1, "one named, explicit
-paired-argument exception"), and it is this narrow:
+Escalating a security/P1 thread instead of resolving it holds in every tier and every mode,
+autopilot and `--independent-resolver` included — the wrappers refuse a severity-flagged thread
+whoever asks, so no dispatch path can reach past it (`--independent-resolver` above, "the security/P1
+bright line, because this is still an unattended path"). The loop-lane convention's one named
+paired-argument exception (§1) widens the **merge rung** for a single run; it never widens the
+severity bright line, and reading it as an exception to this rule would describe an unreachable
+path.
+
+What the paired-argument invocation *does* unlock is the pre-escalation resolution dispatch, and
+that path is this narrow:
 
 - **Only one dispatch path.** The `source-control:babysit-loop` explicit-`autopilot` pre-escalation
   resolver — the subagent that lane dispatches when a caller typed both the literal `autopilot`
   tier argument and the dedicated raise argument `--merge c3-this-run` on that invocation's own
-  line. No other invocation of this skill, at any tier, ever reaches this exception.
+  line. No other invocation of this skill, at any tier, ever reaches it.
 - **Only a fresh, independent context.** The dispatch must share no conversation history with
   whatever produced the PR or previously replied on the blocking thread (the convention's §3
   independence requirement). A continuation of the authoring session, or a re-invocation of the
@@ -571,8 +578,9 @@ paired-argument exception"), and it is this narrow:
   about itself. This is a contract on how the lane dispatches, not a credential the dispatch
   presents: a run that cannot establish it is fresh escalates.
 - **Only through these wrappers.** The resolution runs through the guarded-mutation path above,
-  with every pin, refusal, and JSON-parse rule intact. The exception changes who may attempt the
-  resolution, never what the wrappers permit.
+  with every pin, refusal, and JSON-parse rule intact. The dispatch changes who may attempt the
+  resolution, never what the wrappers permit — which is exactly why the severity refusal above
+  still lands on it.
 - **Never anything else.** It does not widen what counts as genuinely "addressed", never applies
   to a PR whose work item classifies C4 (structural) or C5 (untrusted-provenance), and never
   substitutes for escalation when the resolution is unresolved or the resolver is uncertain.

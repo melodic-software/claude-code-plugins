@@ -5,7 +5,7 @@ topology, the escalation contract, the capability-tier vocabulary, or any loop-l
 major bump, and additive guidance is a minor bump. A new model release re-audits the capability-tier
 table (§3); drift found by that audit is recorded here.
 
-## 8.0.0 — 2026-07-31
+## 8.0.0 — 2026-08-05
 
 Adds the reviewed internal-bot trust signal to §1's C4/C5 floor trust test, designed and decided in
 [melodic-software/claude-code-plugins#1525](https://github.com/melodic-software/claude-code-plugins/issues/1525)
@@ -32,6 +32,21 @@ whatever its default resolves to.
   withholding stand unchanged. The rejected alternatives — ambient attestation via app installation
   (not a recorded seam change, and wider than the identities the org vouches for) and reuse of a
   personal-scalar or repository-owner key — are recorded in #1525's decision comment.
+
+## 7.0.1 — 2026-08-02
+
+Corrective, no topology, escalation, tier, or invariant change — §"Launch surfaces" describes the
+same launch surface with the label the official docs use for it.
+
+- **`/loop` was called "built-in"; it is a bundled skill.** The official commands reference states
+  "Most are built-in commands whose behavior is coded into the CLI" and marks `/loop` **[Skill]**,
+  "a bundled skill"; the skills page adds that bundled skills are "prompt-based … Most built-in
+  commands instead execute fixed logic directly", and that `/doctor` was "a built-in command rather
+  than a bundled skill" before v2.1.205 — the two labels name different things. The sentence now
+  reads "a bundled skill needing no install", carrying the four-part record §Versioning's second
+  recheck trigger obliges — basis, as-of date, and this file's existing `(<url>, verified <date>)`
+  shape — and preserving the point the old wording was making: `/loop` needs no plugin, so it is
+  the dependency-free launch surface against which the `claude-ops` `lanes` launcher is optional.
 
 ## 7.0.0 — 2026-07-30
 

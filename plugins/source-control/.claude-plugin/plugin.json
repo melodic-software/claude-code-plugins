@@ -174,7 +174,7 @@
     "worktree_root": {
       "type": "directory",
       "title": "Worktree root",
-      "description": "External root under which /worktree create places worktrees, as <root>/<owner>-<repo>-<slug> — a path OUTSIDE every repository (on Windows, the same drive as the repo). Absent: /worktree create refuses with guidance and does NOT fall back to the in-repo .claude/worktrees/ default, whose nested placement triggers Claude Code's CLAUDE.md/rules double-load bug (#400)."
+      "description": "External root under which /worktree create places worktrees, as <root>/<owner>-<repo>-<slug> — a path OUTSIDE every repository (on Windows, the same drive as the repo). Absent: the worktrees/ subdirectory of the plugin data dir, which the skill supplies explicitly rather than reading from the environment (not per-plugin in a Bash-tool subprocess). Deliberately outside the repository tree AND outside repository-discovery roots such as a ghq root, which a checkout-relative default would land inside. Never the in-repo .claude/worktrees/ default: from a worktree nested inside a checkout, a read matching a path-scoped rule's glob also loads the parent checkout's copy of that rule."
     },
     "worktree_stale_days": {
       "type": "number",

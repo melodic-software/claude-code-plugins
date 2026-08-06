@@ -28,6 +28,92 @@ All notable changes to the `source-control` plugin are documented here. Format f
   bot-author cases. Design decision, rejected alternatives, and cross-vendor review recorded on
   #1525.
 
+## [0.45.1]
+
+### Fixed
+
+- **`babysit-loop`: the pre-escalation resolution dispatch now honors the resolved thread-resolution
+  dimension (#1786).** The dispatch fired on the widening pair alone, while the *"Dimension
+  overrides bind by tier flooring"* rule was scoped only to *"Before invoking"* the babysit-prs
+  tier — and `reference/pre-escalation-dispatch.md` contained no occurrence of `dimension` at all.
+  So `autopilot --merge c3-this-run --thread-resolution safe` still dispatched a fresh subagent to
+  mutate bot threads the operator's own argument had just denied, against
+  `reference/config-resolution.md`'s *"invocation arguments win"* rule for every dimension but
+  merge. Resolving review threads **is** an exercise of dimension 3, so the flooring rule now
+  explicitly binds every capability the cycle exercises for a PR rather than only the tier keyword
+  it passes on: a floored thread-resolution dimension withholds the dispatch outright and the PR
+  escalates, reported as override-constrained — never a dispatch made and then narratively told not
+  to resolve. New eval 6.
+- **`babysit-loop`: the pre-escalation dispatch names its resolver mode, and it is the one that can
+  actually clear the blocker (#1786).** Neither `SKILL.md` nor `reference/pre-escalation-dispatch.md`
+  stated which `babysit_resolve_thread.py` mode the dispatch runs; as written, *"the full per-PR
+  worker lifecycle"* implied `--autonomous`, which hard-refuses any thread not already `isOutdated`
+  before its own push — precisely the current, non-outdated bot thread D7.5 routes to this dispatch,
+  so it could never clear the blocker class it exists for. The mode is now stated as
+  `--independent-resolver` (landed in 0.42.0, #1782), with the D7.5 ledger mapped onto its validated
+  evidence flags (`fixed`/`--fix-commit`, `deferred`/`--tracker-item`,
+  `incorrect`/`--counter-evidence`, `UNCERTAIN` → escalate), and the worker-lifecycle sentence scoped
+  to how a **code change** is made rather than to mode selection. Two shapes the mode refuses are
+  named where the dispatch will meet them, because the ledger's per-finding phrasing does not imply
+  either: a thread carrying more than one source finding (`skipped-multi-finding-thread` — one
+  disposition cannot clear a thread whose other findings would drop out of the readiness
+  denominator) and a severity-flagged thread. Both escalate rather than resolve. New eval 7.
+- **`babysit-prs`: the security/P1 bright line is no longer documented as having an exception
+  (#1786).** `reference/safety.md` titled a section *"Security/P1 escalation: the one named
+  exception"* and presented the pre-escalation resolver as that exception, citing the loop-lane
+  convention's §1 — but that convention exception widens the **merge rung** for a single run and
+  never touches the severity line, and the same file's `--independent-resolver` rules (with the
+  wrapper itself) refuse a severity-flagged thread in every unattended mode. The documented
+  exception was therefore unreachable, and it now contradicted `babysit-loop`'s newly explicit
+  refusal. The section is retitled and reframed: the bright line has no exception, the paired
+  argument unlocks the *dispatch path* rather than the severity widening, and the four scoping
+  bullets stay with the dispatch they actually describe. Both inbound citations are corrected with
+  it: `SKILL.md`'s one-line restatement, and `babysit-loop/reference/pre-escalation-dispatch.md`,
+  which cited the old heading and repeated the refuted claim that the exception is *"scoped to
+  security/P1 escalation"*.
+- **`babysit-loop`: the subagent discipline preamble no longer hand-copies the discipline plugin's
+  membership (#1786).** `SKILL.md`'s Subagents section enumerated `(sweep-all, use-your-skills,
+  do-your-research)` inline, which the loop-lane convention's own no-enumeration rule forbids and
+  which drifts from the plugin that owns the list. It now points at the sweep skill, which resolves
+  its own membership.
+
+## [0.45.0]
+
+### Changed
+
+- **An unset `worktree_root` now defaults to `<plugin-data-dir>/worktrees` instead of refusing every
+  `/worktree create`.** The key ships unset, so the refusal fired on a fresh install and the command
+  was unusable until the user configured a root by hand — a hard failure standing in for a missing
+  default. The containment guard is untouched — a root that resolves inside a repository is still
+  rejected, and that check, not the unset check, is what enforces the nesting invariant.
+
+  **The data directory is supplied, not read from the environment.** In a general Bash-tool
+  subprocess — which is what every caller of the helper runs in — `CLAUDE_PLUGIN_DATA` is not scoped
+  to the invoking plugin; this repository's own probe recorded it naming an unrelated installed
+  plugin's data directory. The skill instead substitutes `${CLAUDE_PLUGIN_DATA}` into its own
+  SKILL.md body, where it does render per-plugin, and hands the resolved path to the new
+  `--data-root-file` flag through the same byte-verbatim file channel `--root-file` already uses.
+  A configured root always wins; the data dir is only the fallback. If substitution ever regresses,
+  the file carries the literal token, which the helper detects and refuses — never a wrong
+  directory.
+
+  A repository-derived default (`<parent>/worktrees`) was considered and rejected: under a
+  discovery layout such as ghq's `<root>/github.com/<owner>/<repo>` it lands INSIDE the tree the
+  discovery tool walks, and `ghq list` then reports each worktree as a repository of its own — a
+  leading dot does not hide it.
+
+### Fixed
+
+- **The refusal rationale cited a defect that no longer reproduces.** Four surfaces — the helper,
+  its `--help` text, the `worktree_root` config description, and both skill surfaces — attributed
+  the nesting ban to Claude Code's CLAUDE.md/rules double-load bug, fixed upstream in v2.1.69. The
+  ban is still correct, for a narrower reason measured on 2.1.220: from a worktree nested inside a
+  checkout, a read matching a path-scoped rule's glob also loads the PARENT checkout's copy of that
+  rule. Every surface now states the live constraint, so the next reader auditing the guard against
+  a fixed bug does not conclude the guard is obsolete.
+- **`worktree_root` was missing from the README's configuration table** while every sibling key was
+  listed.
+
 ## [0.44.1]
 
 ### Fixed

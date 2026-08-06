@@ -140,9 +140,15 @@ source with explicit staleness triggers — not restated across the skills that 
 - Every source section maps to either a check that runs, an incumbent that already covers it, or an
   explicit recorded exclusion — traceable back to
   [design/article-sections.md](design/article-sections.md).
-- A rerun over an unchanged tree produces the same **derived-tier** result, never a different one. A
-  rerun after accepted fixes produces a strictly smaller one. Absent a change to the tree, it grows
-  again only on a **detection-version** bump — the catalog version, the host plugin's semver, and a
+- A rerun over a **comparable** pair produces the same **derived-tier** result, never a different
+  one. Comparability is the design's own list and is cited rather than restated here, because it has
+  already grown twice; an unchanged tree is only its first and weakest input. A rerun after accepted
+  fixes drops every accepted finding **from whichever tier reported it** — not
+  necessarily a smaller derived set, because fixing a judged-only finding such as D1 legitimately
+  leaves the inventory, the exclusion set, shadowed definitions, and the raw candidate rows
+  identical, so a strict-shrink gate would fail the ordinary success case. The derived set grows
+  again only when a comparability input moved — a **detection-version** bump among them, which is
+  the catalog version, the host plugin's semver, and a
   digest over the prompt text and scripts that actually decide detection, because the catalog version
   alone does not cover `SKILL.md`'s Phase B and Phase C prompts. A skill authored between runs
   legitimately grows it, and the tree is moving under a parallel session. That is the acceptance test
@@ -163,9 +169,12 @@ source with explicit staleness triggers — not restated across the skills that 
   judgement, so two runs over an identical tree may legitimately differ; a finding-identity function
   normalizes how a finding is *reported* and cannot make the *detection* deterministic. Judged
   findings are reported separately, excluded from the diff-clean gate, and held instead to: none
-  contradicts an accepted suppression, and the set does not grow on an unchanged tree beyond a stated
-  tolerance — **whose violation fails the run's self-check** rather than being absorbed by
-  recalibrating the tolerance.
+  contradicts an accepted suppression, and the **symmetric difference** between the two judged sets
+  stays within a stated tolerance over a comparable pair **whose judging configuration is also
+  equal** — **whose violation fails the run's self-check** rather than being absorbed by
+  recalibrating the tolerance. The metric counts removals as well as additions, because a check that
+  silently stops firing is the more damaging direction; and the judging configuration is a
+  precondition rather than an obligation, since a model swap moves the judged set legitimately.
 - **A surface that silently leaves the inventory fails the gate.** The inventory and exclusion set are
   *in* the derived tier, not scaffolding beneath it, so a scope regression is caught. This is the
   property the original two-tier split could not express, and it matters more than a changed finding:
@@ -502,9 +511,11 @@ definition before any detector is designed against it.
   a rate limit, or a crash. Findings persist incrementally as collected, and an interrupted run
   resumes from the last completed lane rather than restarting.
 
-Then the properties themselves: unchanged tree yields an identical finding set; accepted fixes yield a
-strictly smaller one; judged-tier findings carry the delete-and-watch follow-through where their host check defines one, or the check's own stated loop where it does not (D1); the set grows
-again only on a detection-version bump or a change to the tree.
+Then the properties themselves: a comparable pair yields an identical finding set; accepted fixes
+remove each accepted finding from the tier that reported it, which leaves the derived set unchanged
+when the fix landed a judged-only finding; judged-tier findings carry the delete-and-watch
+follow-through where their host check defines one, or the check's own stated loop where it does not
+(D1); the set grows again only when a comparability input moved.
 
 - **Sanity Check:** `design/rerun-contract.md` states the identity tuple, the report location rule, the
   state key, the concurrency posture, the per-class suppression surface, the checkpoint property, and
@@ -952,8 +963,27 @@ surface is the same defect this deliverable exists to detect.
 input.** #1318's P1 was conditioned on tree and live surface set alone, so a harness or
 detection-version change — which legitimately moves the derived tier, since it reads a versioned
 registry of harness behavior — read as a determinism failure. Closed by giving the shipped contract
-the same single **comparability** precondition the design carries: tree, live surface set, detection
-version, and harness version, defined once and cited by every property.
+a single **comparability** precondition, defined once and cited by every property, matching the
+design's at the time: tree, live surface set, detection version, and harness version.
+
+**That parity has since lapsed in both directions, and reconciling it is Phase 8 work rather than a
+design edit.** The design doc has since widened its first input to a **scan-baseline state digest**
+(the shipped contract's own term, adopted from it) and added a **sweep version** the shipped
+contract has no concept of; the shipped contract carries **behavior-affecting arguments** and an
+**observable detection version** — a form it adopted after finding the design's catalog-version-plus-
+prompt-digest triple unestablishable from outside a delegate plugin — that the design still lacks.
+Neither list is wrong; they are two documents that moved at different times. The reconciliation is
+recorded here rather than performed in passing, because changing either predicate changes what the
+shipped pass reports.
+
+**Widening the cross-run input briefly left the within-run one behind, and that asymmetry is now
+closed.** Assertion 3.4 recorded a *working-tree* content digest scoped to the repository while
+comparability spanned every inventoried scope, so an edit to `~/.claude/CLAUDE.md` **between** runs
+correctly rendered the pair non-comparable while the same edit **during** a run stayed invisible to
+the mid-run integrity check. 3.4's endpoint capture is now the same all-scope state digest, matching
+the shipped contract's assertion 6.1b. Within-run and cross-run integrity have to read the same
+surfaces or neither is worth asserting — a rule worth carrying forward the next time either side
+widens.
 
 None of these is a gate criterion; each would have made the shipped contract fail its own idempotence
 claim, which is why they are recorded with the gate rather than after it.

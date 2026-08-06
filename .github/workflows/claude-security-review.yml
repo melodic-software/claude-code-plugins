@@ -35,6 +35,13 @@ jobs:
     with:
       runner: ubuntu-24.04
       paths-file: .github/claude-security-paths
+      # Stated explicitly, never left to the reusable's default: this list IS
+      # ADR 0002's skip-actor exception, and the exception must be readable and
+      # reviewable in the repo it applies to. An inherited default silently
+      # rewrites the exception whenever ci-workflows changes it — which is how
+      # `claude[bot]` and `melodic-ai[bot]` entered it (#1766 dropped this line
+      # while re-pinning to a version whose default had widened).
+      skip-actors: dependabot[bot],claude[bot],melodic-ai[bot],melodic-standards-sync[bot]
     # One named secret (least privilege), never `secrets: inherit`.
     secrets:
       CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}

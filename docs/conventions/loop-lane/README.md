@@ -362,7 +362,7 @@ recommended model for the provider and update over time; a dated model name is a
 is never written into a lane body. Aliases are the only handle guaranteed under subscription OAuth,
 so they are the runtime path; the Models API list endpoint is the **build/audit-time** verification
 path, since it may require an API key a loop session lacks. No lane hard-codes a model ID. (Alias
-semantics verified against <https://code.claude.com/docs/en/model-config> on 2026-07-23.)
+semantics verified against <https://code.claude.com/docs/en/model-config> on 2026-08-04.)
 
 Tier tables are built from a live official-docs fetch at authoring time, never from recall. Any new
 model release re-audits the tier table — the trigger is recorded in this convention's
@@ -596,11 +596,18 @@ start; new automated intake arriving mid-cycle is **reported, never chased**, so
 bot cannot hold a drain open indefinitely.
 
 **Subagent discipline preamble.** Every subagent a lane dispatches carries a standing discipline
-preamble. When the `discipline` plugin is installed, the dispatch prompt invokes its sweep —
-sweep-all, use-your-skills, do-your-research; when it is absent, the dispatch prompt
-inlines the equivalent standing instructions (verify claims against authoritative sources before
-acting, prefer installed skills over ad-hoc approaches, and re-check work against the active
-conventions). The reference is presence-gated with this inline fallback per the
+preamble, because a dispatched subagent runs in a fresh, non-inherited context: it inherits no
+posture from the cycle root's own sweep and has to set its own. When the `discipline` plugin is
+installed, the dispatch prompt invokes its sweep skill, which resolves its own membership — the
+preamble never enumerates the individual disciplines, per this doc's own **Pointer-not-copy** rule:
+a hand-copied list drifts from the plugin that owns it. Invoked at the subagent's conversation
+start, that skill reports its cheap posture digest rather than running its audit fan-out, so the
+preamble costs one skill read per dispatch and does not
+recurse; the fan-out belongs to the cycle root's once-per-cycle pass, and the skill's own audit forks
+never re-invoke it. When the plugin is absent, the dispatch prompt inlines the equivalent standing
+instructions (verify claims against authoritative sources before acting, prefer installed skills
+over ad-hoc approaches, and re-check work against the active conventions). The reference is
+presence-gated with this inline fallback per the
 [seam-phrasing convention](../seam-phrasing/README.md) — `discipline` is never a hard dependency.
 
 ## 5. Consumers and launch surfaces
@@ -614,8 +621,9 @@ conventions). The reference is presence-gated with this inline fallback per the
 All three adopters have shipped. This owner doc landed ahead of them, per the convention-registry
 rule; the table above is a live consumer list, not a forward reference.
 
-**Launch surfaces.** A lane launches interactively via `/loop` — the primary surface, built-in and
-dependency-free — or headless via the `claude-ops` `lanes` launcher, which stores the one-line lane
+**Launch surfaces.** A lane launches interactively via `/loop` — the primary surface, a bundled
+skill needing no install (<https://code.claude.com/docs/en/skills#bundled-skills>, verified
+2026-08-02) — or headless via the `claude-ops` `lanes` launcher, which stores the one-line lane
 prompt through its `prompt_dir` seam (#480). `lanes` is a **supporting, strictly one-directional**
 launcher: it launches the lane; no lane body ever requires, imports, or degrades without
 `claude-ops`. Every mention of `lanes` in a lane body is presence-gated with the `/loop` fallback

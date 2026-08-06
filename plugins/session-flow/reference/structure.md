@@ -9,34 +9,39 @@ handoffs cost the next session a re-investigation, which is the cost this docume
 
 ## Body sections
 
-Ordered so the cheapest useful layer comes first. A reader can stop after **Resumption brief** and
-still take the correct next action; everything below it is there for the reader who needs more.
+Ordered so the cheapest useful layer comes first. A reader can stop after **Original goal** plus
+**Resumption brief** and still take the correct next action; everything below is there for the
+reader who needs more.
 
 | Order | Section | Owns |
 |---|---|---|
-| 1 | Resumption brief | the resumption decision |
-| 2 | Completion criteria | what "done" means, observably |
-| 3 | Constraints that must hold | invariants whose violation breaks the work |
-| 4 | Environment to re-establish | machine and session state `/clear` destroyed |
-| 5 | Side effects already applied | persistent effects that must NOT be repeated |
-| 6 | File roles in this work | which file plays which role, and how far its change got |
-| 7 | Decisions already settled | closed choices, with the reasoning that closed them |
-| 8 | Approaches tried and abandoned | directions walked and rejected |
-| 9 | Findings that cost effort to discover | non-obvious system facts, expensive to re-derive |
-| 10 | Remaining actions, in order | every action still to take, sequenced |
-| 11 | Open questions to investigate | unknowns the resuming session can resolve itself |
-| 12 | Blockers needing an outside decision | work that cannot proceed without someone else |
-| 13 | Suggested skills | which skills to invoke for the remaining work |
+| 1 | Original goal | what the work is FOR, in the user's own words |
+| 2 | Resumption brief | the resumption decision |
+| 3 | Completion criteria | what "done" means, observably |
+| 4 | Constraints that must hold | invariants whose violation breaks the work |
+| 5 | Environment to re-establish | machine and session state `/clear` destroyed |
+| 6 | Side effects already applied | persistent effects that must NOT be repeated |
+| 7 | File roles in this work | which file plays which role, and how far its change got |
+| 8 | Decisions already settled | closed choices, with the reasoning that closed them |
+| 9 | Approaches tried and abandoned | directions walked and rejected |
+| 10 | Findings that cost effort to discover | non-obvious system facts, expensive to re-derive |
+| 11 | Remaining actions, in order | every action still to take, sequenced |
+| 12 | Open questions to investigate | unknowns the resuming session can resolve itself |
+| 13 | Blockers needing an outside decision | work that cannot proceed without someone else |
+| 14 | Suggested skills | which skills to invoke for the remaining work |
 
 **Every section is always present.** A section with nothing to report reads `None.` plus a half-line
 of reason. A cold reader cannot otherwise tell "nothing to report" from "the author forgot", and the
 absence is itself load-bearing — "no approaches abandoned" tells the resumer the ground is untrodden.
+**`Original goal` is the one section `None.` never satisfies:** work with no statable goal is the
+condition this document exists to surface, so an empty §1 is a defect to raise with the user, not a
+box to tick. (Its `Amended:` line is the field that legitimately reads `None.`)
 
 **Emit body sections at `##`.** This document nests them under its own heading, so they appear here
 one level deeper than they are written.
 
 **Layering is not truncation.** No section carries a length budget except the brief. Progressive
-disclosure governs the ORDER facts are met in, never whether they survive. Sections 7, 8, and 9
+disclosure governs the ORDER facts are met in, never whether they survive. Sections 8, 9, and 10
 exist specifically for what a summarizer discards first — rationale, negative knowledge, and
 hard-won facts — because those read as "old" while being the most expensive to rediscover.
 
@@ -46,13 +51,45 @@ too): plain statement only for what this session itself verified, an explicit
 `UNVERIFIED (<source>)` marker on anything inherited. The met/unmet marks in Completion criteria
 carry the same rule.
 
+### Original goal
+
+**The user's own words, quoted, and immutable across the chain.** This section owns the goal; every
+other section is subordinate to it. It is the one thing a chain of save-points loses first, because
+each writer serializes the machinery in front of them — the phase, the bundle, the checklist — and
+machinery reads as mission to the session that inherits it.
+
+- **Goal (verbatim):** the user's goal statement quoted as they wrote it, with the date they stated
+  it. Quote it; never paraphrase, condense, or "clarify" — a paraphrase is a re-derivation, and this
+  section exists because re-derivation is what fails. Where the goal was never put in one sentence,
+  quote the closest thing the user actually wrote and mark it `RECONSTRUCTED`: a reconstruction is a
+  defect to settle with them, not a substitute for their words.
+- **Amended:** `None.` until the goal changes. It changes ONLY on an explicit statement from whoever
+  set it — never because the work went somewhere else. Record an amendment as a new dated verbatim
+  quote with the prior goal kept above it, so the chain shows what the goal was and when it stopped
+  being that. A writer never amends the goal on its own authority.
+- **Next action serves it by:** one sentence tying the first item of `Remaining actions, in order`
+  back to the goal. This couples to §11 deliberately — a reader who stops here has to be able to
+  tell whether the work is still pointed at the goal, and a pointer to another section cannot
+  answer that.
+
+**Cannot state that sentence? That is drift, and this is where it gets said.** Write what the next
+action actually serves, then route it: re-derive an action that serves the goal, or ask whether the
+goal has changed. Staying silent is what lets drift run — nothing else in this document would have
+caught it, because every other section describes the work faithfully.
+
+**A successor handoff COPIES the goal and its amendments; it never restates them.** The write
+procedure below makes that a disk read, not a recollection. The drift-check line is the one part
+re-answered each hop — it is about the next action, which moved.
+
 ### Resumption brief
 
-Six lines maximum. The one section a reader may stop at.
+Six lines maximum. The one section a reader may stop at *after* the goal above it.
 
-Carries: when it was written and against which branch or commit, the goal in one line, where the
-work stands in one line, and the single next concrete action. Name the section that governs that
-action so a reader wanting more is routed rather than left searching.
+Carries: when it was written and against which branch or commit, where the work stands in one line,
+and the single next concrete action. Name the section that governs that action so a reader wanting
+more is routed rather than left searching. It does NOT restate the goal — §1 owns that, verbatim,
+and a six-line onboarding surface is exactly where a goal gets compressed into the process that was
+serving it.
 
 The brief names the FIRST action only. It always points at `Remaining actions, in order`, which owns
 the full sequence — otherwise a session that completes the one named action has nothing to go on.
@@ -69,17 +106,31 @@ One line of why the work exists, then each criterion as an observable test with 
 
 A criterion nobody can check is not a criterion — rewrite until a command or a diff settles it.
 
+**Each criterion names the goal-state it establishes, and keeps its observable.** A criterion reads
+as a condition the goal in §1 requires — "the repo's docs follow conventions X, Y, and Z" — never as
+the process step meant to produce it ("phase 3 done", "the bundle merged"). Process framing is what
+turns a resumed session onto the machinery: it is satisfiable while the goal is no closer, and it
+reports done when the process finished rather than when the work landed.
+
+This stacks on the observability rule; it does not relax it. Goal-framed criteria are the harder
+ones to settle mechanically, which is precisely why writers drift to process framing — so each
+criterion carries both halves, the goal-state and the command or diff that settles it.
+
 ```markdown
 - [x] `dotnet test` green on the affected projects
 - [ ] the retry path is exercised by a test that fails without the fix
 ```
+
+**Process milestones are recorded subordinate to the criteria, never as criteria.** They pace the
+work and cannot define done. Put them under a `Process milestones` sub-heading one level below this
+section's own emitted heading, each tied to the criterion it advances.
 
 ### Constraints that must hold
 
 Invariants whose violation breaks the work. One testable assertion per line, each followed by the
 consequence of violating it.
 
-Only things that would actually break something. A preference is a decision — section 7.
+Only things that would actually break something. A preference is a decision — section 8.
 
 Before closing the section, re-scan for *but*, *except*, *unless*, "the exception is", "the corner
 case" — those words mark constraints that emerged mid-discussion and never rose to a top-line
@@ -203,7 +254,7 @@ and why it cannot be salvaged.
 
 Without this the next session repeats the dead end. Budget detail generously.
 
-A fact about how the system behaves belongs in section 9; a path you walked belongs here.
+A fact about how the system behaves belongs in section 10; a path you walked belongs here.
 
 ```markdown
 - Wrapping the call in `Polly` retry → the transport already retries, so failures multiplied to
@@ -229,9 +280,9 @@ This is the section that beats compaction. Write it long.
 Every action still to take, sequenced. Not just the next one — the whole remainder, so finishing
 the first action does not leave the resuming session guessing at the second.
 
-An action is something to *do*. An unknown to resolve is section 11; something you cannot proceed
-on is section 12. Cross-reference those rather than duplicating them: an action that waits on a
-blocker is listed here in its sequence position, marked as waiting, and named once in section 12.
+An action is something to *do*. An unknown to resolve is section 12; something you cannot proceed
+on is section 13. Cross-reference those rather than duplicating them: an action that waits on a
+blocker is listed here in its sequence position, marked as waiting, and named once in section 13.
 
 The `Resumption brief` names only the first of these. This section owns the rest — it is the one
 place the full sequence exists, so it survives when the brief's single action is done.
@@ -239,7 +290,7 @@ place the full sequence exists, so it survives when the brief's single action is
 ```markdown
 1. Wire the retry policy into `OrderReader` (spec: `docs/adr/0012-retry-policy.md`).
 2. Add the cancellation edge-case tests — the happy path is already covered.
-3. Waiting on the staging credential grant: re-run the integration suite against staging (§12).
+3. Waiting on the staging credential grant: re-run the integration suite against staging (§13).
 4. Update the module README once 1-3 land.
 ```
 
@@ -278,8 +329,11 @@ When no skill maps to the remaining work, write `None — remaining work runs in
 
 ## How this document is referenced elsewhere
 
-The emitted resume directive points at the handoff FILE and names no section. Renaming or
-reordering a section here therefore requires no edit to `save-point.md`, and does not orphan
+The emitted resume directive points at the handoff FILE and names exactly one section — `Original
+goal`, by name and never by number — because its alignment clause has to say what the resuming
+session confirms; `/session-flow:keep-going`, `/session-flow:reanchor`, and the handoff enforcement
+checklist name that same section for the same reason. Renaming §1 therefore requires an edit to
+those surfaces. Renaming or reordering any other section requires none, and no change here orphans
 handoffs already written to disk.
 
 Consumers cite this section list rather than restating it. A copy of the list in another file drifts
@@ -370,6 +424,15 @@ the task/topic clearly matches. A shared handoff directory accumulates entries f
 The first handoff of a NEW task omits the field, even when older, unrelated handoffs exist in the
 directory. Older entries lacking `session_id` cause chain-walkers to break cleanly at the first
 absent field.
+
+**Carrying the goal forward — read it off disk, never out of memory.** Whenever `previous_handoff`
+is emitted, open that file THIS turn and reproduce its `Original goal` verbatim quote and every
+recorded amendment into this handoff unchanged. Rebuilding the goal from the conversation is the
+drift vector itself: the conversation is what already lost it, and each rebuild is individually
+plausible, which is why the loss is invisible until many hops later. The prior file is on disk and
+one read away — a writer that did not open it has not carried the goal forward, whatever its text
+ends up saying. Same rule as the live `TaskList` call: the check is that the read happened, not that
+the result looks right.
 
 `CLAUDE_CODE_SESSION_ID` is set in the Bash tool subprocess (Claude Code v2.1.132+). Resolve it via
 Bash — skill markdown does not template-expand env vars.

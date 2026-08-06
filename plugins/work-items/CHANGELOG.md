@@ -3,6 +3,86 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.31.3]
+
+### Fixed
+
+- **The permission preflight counts the main checkout's `settings.local.json` as worktree
+  coverage, so the autonomous path stops over-reporting gaps a fresh worker would not have.**
+  Since Claude Code v2.1.211, choosing "Yes, don't ask again" saves the rule to
+  `.claude/settings.local.json` at the repository root, resolved through worktrees to the MAIN
+  checkout, and the rule applies to sessions anywhere in that repository — every linked worktree
+  included. The preflight modelled the pre-v2.1.211 behaviour instead: it dropped the local file
+  wholesale on the `--worktree-root` path, on the reasoning that a gitignored file cannot follow a
+  fresh worktree. That reasoning now holds only for a local file living inside some *other* linked
+  worktree, so a grant the worker would genuinely inherit was reported as a missing-allow gap. The
+  script now reads the main checkout's local file in every mode; only a linked-worktree cwd's *own*
+  local file is still dropped pre-dispatch, since a pre-v2.1.211 save (or a hand-placed file)
+  applies solely to sessions started in that worktree. The exclusion is a no-op when the run starts
+  from the main checkout, and the report header now names which files the coverage read spanned —
+  whichever path the main-checkout resolution produced, including a wrong one (below).
+  Deny rules keep reading every local layer they resolve — erring wide on deny cannot mask a gap
+  *within the layers actually read*, though it cannot widen a layer that never resolves (below).
+- **That main checkout is identified by comparing the checkout's own git dir against the common
+  one, not by assuming the git dir is spelled `<root>/.git`.** Equal dirs mean the checkout *is*
+  the main one, so the **main checkout of** a `--separate-git-dir` or submodule layout — where the
+  common dir lives outside the working tree entirely — resolves to the right root instead of
+  resolving to nothing and re-reporting the very gap this release removes. From a linked worktree the
+  main checkout is still recovered from the common dir's path, so a linked worktree *of* such a repo
+  lands in one of two wrong states, neither of them merely noisy. When the common dir is not spelled
+  `<root>/.git` — a submodule's `<super>/.git/modules/<name>`, or a separate git dir named anything
+  else — the main checkout stays unresolved and its local file goes unread in **every** read: a
+  covered verb is over-reported as a gap (noisy), *and* a deny living only in that file is not
+  reported at all, so the run can print a clean `PREFLIGHT: OK` (exit 0, zero gaps) while a
+  main-local deny is live. When the common dir *is* spelled that way — `--separate-git-dir
+  <path>/.git` — the main checkout resolves **wrongly**, to `<path>`, a directory that is not this
+  repository's working tree at all, and a foreign `.claude/settings.local.json` is unioned into every
+  read: a foreign allow **masks** a real gap, and a foreign deny yields a false DENIED (point the
+  separate git dir at `$HOME/.git` and the foreign layer is the operator's own `~/.claude` local
+  file). The header then names that foreign directory **as** the main checkout, in wording identical
+  to a correct resolution, so it asserts something false rather than merely omitting it. Correcting
+  the resolution itself is deferred; this release states the behaviour truthfully.
+  `reference/permission-preflight.md` carries the residual cases rather than leaving them implied,
+  scoped to both the pre-dispatch and named-worker modes. A pre-v2.1.211 harness, where a worktree
+  session loads its own local file rather than the main checkout's, **masks** a gap the worker really
+  hits, and this report cannot self-detect it since it never probes the running Claude Code version —
+  a documentation-completeness matter rather than a live defect on any v2.1.211-or-later install.
+
+## [0.31.2]
+
+### Fixed
+
+- **`triage` excludes lane infrastructure from raw intake, so the telemetry surface a lane reads to
+  operate can no longer be triaged as backlog (#1739).** Lane-infrastructure exclusion was
+  implemented in the two lane skills that select work — the worker loop's drain snapshot and the
+  attended queue's merged view — but not in `triage` itself, which defines the intake population
+  both of them compose. A bare `/work-items:triage` therefore listed an open `Lane telemetry:
+  <lane>` issue as untriaged intake whenever that issue carried the raw marker, and the skill's
+  closing invariant ("no outcome leaves a re-selectable raw item") pushes toward acting on what it
+  lists — relabelling or closing a surface the lane reads to operate. `triage` now carries the
+  exclusion as a third rule bounding what enters the flow, applied to the listing **before**
+  bucketing so the raw marker cannot bucket an excluded item. The exclusion is deliberately
+  label-blind: the marker arrives as a creation-time filing default and a lane can re-add it, so a
+  label-keyed rule would keep re-acquiring the defect. An explicitly named telemetry issue now
+  stops the same way a named already-triaged item stops, instead of walking the state machine
+  toward a close.
+- **That exclusion identifies a telemetry issue the way the lane does, never by title alone
+  (#1739).** `Lane telemetry: <lane>` is only the DEFAULT home. A lane's launch config may pin
+  `lanes[].telemetry.issue` to an existing issue with an operator-chosen title (the `claude-ops`
+  lane config), and `work-loop` resolves its telemetry home from that config before falling back to
+  the title. A title-only test therefore admitted the one issue whose loss costs the most — a real,
+  configured telemetry home — to raw intake, where relabelling or closing it destroys durable lane
+  state. Identity is now the pinned config issue where the config is visible, else the default
+  title, and — independent of both — any issue carrying the convention's sentinel status comment
+  (`<!-- claude-ops:lane-telemetry marker=… -->`). The two signals cover each other's gap: a pin
+  defeats the title test, and an issue pinned but not yet written to carries no sentinel yet.
+  `work-loop`'s drain-snapshot exclusion, which stated the title contract itself, now points at
+  this definition instead of restating a narrower one.
+- **`attend-queue` stops re-deriving that exclusion (#1739).** Its `[intake]` rows already compose
+  `triage`'s attention view and are documented as not re-deriving its buckets; the lane-infrastructure
+  paragraph restated the title contract anyway. It now points at the composed view, leaving one
+  statement of the contract on the intake path instead of two.
+
 ## [0.31.1]
 
 ### Fixed
