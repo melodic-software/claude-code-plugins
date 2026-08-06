@@ -9,8 +9,9 @@ All notable changes to the `source-control` plugin are documented here. Format f
 
 - **`babysit-prs` `reference/safety.md`: the permission-mode enumeration behind the wrapper-path
   invocation now matches the official page (#1941).** The list named "Manual and accept-edits" as
-  the prompting modes and then covered only auto mode, so it mixed the CLI display label with
-  config values and accounted for three of the six modes. `dontAsk` was the load-bearing omission:
+  the prompting modes and then covered plan mode's classifier branch and auto mode, so it mixed the
+  CLI display label with config values and accounted for four of the six modes. `dontAsk` was the
+  load-bearing omission:
   it auto-denies every call that would otherwise prompt, so an uncovered wrapper invocation is
   refused with no classifier and no prompt — the exact silent-failure hazard the section exists to
   warn about — and `bypassPermissions` was missing too. The enumeration now names all six config
