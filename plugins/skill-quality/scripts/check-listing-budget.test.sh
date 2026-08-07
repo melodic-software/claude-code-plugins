@@ -276,6 +276,108 @@ else
   fail "the fixed budget should win and announce the ignored reconstruction input (rc=$rc): $out"
 fi
 
+# 14. A zero-padded integer override means what it reads as. `^[0-9]+$` accepts
+#     it, but bash arithmetic and `printf %d` then read it as OCTAL: `08` was a
+#     hard "invalid octal number" that rendered the budget as 0 and still
+#     reported OK, and `0123` silently became 83. Each case asserts the DECIMAL
+#     reading and the absence of the octal diagnostic.
+out="$(cd "$TMP" && CHECK_SKILL_LISTING_BUDGET_CHARS=0123 bash "$SUT" "$ROOT_A" 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q 'budget:.*123 chars (override' <<<"$out" && ! grep -q 'octal' <<<"$out"; then
+  pass "a zero-padded fixed budget is read as decimal 123, not octal 83"
+else
+  fail "CHECK_SKILL_LISTING_BUDGET_CHARS=0123 should report a 123-char budget (rc=$rc): $out"
+fi
+
+# 14b. `08` is not a valid octal literal at all — the case that degraded the
+#      budget to 0 and reported a bogus "OK" while exiting 0.
+out="$(cd "$TMP" && CHECK_SKILL_LISTING_BUDGET_CHARS=08 bash "$SUT" "$ROOT_A" 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q 'budget:.*8 chars (override' <<<"$out" &&
+  ! grep -q 'octal' <<<"$out" && ! grep -q 'budget:.*0 chars' <<<"$out"; then
+  pass "a zero-padded 08 fixed budget is read as decimal 8, not an octal error"
+else
+  fail "CHECK_SKILL_LISTING_BUDGET_CHARS=08 should report an 8-char budget (rc=$rc): $out"
+fi
+
+# 14c. The per-entry cap takes the same normalization — a zero-padded `010` cap
+#      truncated entries at 8 chars instead of the requested 10.
+mkdir -p "$TMP/pad-cap-root"
+make_skill "$TMP/pad-cap-root" pad-cap-skill "123456789012345"
+out="$(cd "$TMP" && CHECK_SKILL_LISTING_MAX_DESC_CHARS=010 bash "$SUT" "$TMP/pad-cap-root" 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q 'aggregate: 10 chars' <<<"$out"; then
+  pass "a zero-padded per-entry cap truncates at decimal 10, not octal 8"
+else
+  fail "CHECK_SKILL_LISTING_MAX_DESC_CHARS=010 should cap the entry at 10 chars (rc=$rc): $out"
+fi
+
+# 14d. The decimal fraction default must keep working — it legitimately starts
+#      with a zero, so the normalization must not reach the ratio overrides.
+out="$(cd "$TMP" && CHECK_SKILL_LISTING_CONTEXT_TOKENS=0200000 CHECK_SKILL_LISTING_BUDGET_FRACTION=0.01 \
+  bash "$SUT" "$ROOT_A" 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q 'reconstructed: 200000 tokens x 4 chars/token x 0.01' <<<"$out"; then
+  pass "a zero-padded token count normalizes while the 0.01 fraction is left intact"
+else
+  fail "a padded token count should reconstruct from decimal 200000 with fraction 0.01 (rc=$rc): $out"
+fi
+
+# 15. A trailing YAML comment on `description` / `when_to_use` is NOT part of
+#     the value a YAML reader delivers, so it must not be measured. It also
+#     hides the surrounding quotes from `strip_quotes`, which used to leave the
+#     quoting in the count too: this fixture measured 52 chars instead of 15.
+#     `make_skill` always emits a quoted scalar, so the raw file is written here.
+mkdir -p "$TMP/yaml-comment-root/commented"
+{
+  printf -- '---\n'
+  printf 'name: commented\n'
+  printf 'description: "12345" # maintainer note\n'
+  printf 'when_to_use: "1234567" # another note\n'
+  printf -- '---\n\n## Purpose\n\nFixture.\n'
+} >"$TMP/yaml-comment-root/commented/SKILL.md"
+out="$(run "$TMP/yaml-comment-root" 2>&1)"
+if grep -q 'aggregate: 15 chars' <<<"$out"; then
+  pass "a trailing YAML comment is excluded from the measured description"
+else
+  fail "the commented fixture should measure 15 chars (5 + 3 joiner + 7): $out"
+fi
+
+# 15b. An unquoted (plain) scalar ends at the first whitespace-preceded `#`,
+#      which is what a YAML reader does — and a `#` with no preceding
+#      whitespace is ordinary content that must survive.
+mkdir -p "$TMP/yaml-plain-root/plain"
+{
+  printf -- '---\n'
+  printf 'name: plain\n'
+  printf 'description: 12345 # trailing note\n'
+  printf 'when_to_use: tag#7 stays\n'
+  printf -- '---\n\n## Purpose\n\nFixture.\n'
+} >"$TMP/yaml-plain-root/plain/SKILL.md"
+out="$(run "$TMP/yaml-plain-root" 2>&1)"
+if grep -q 'aggregate: 19 chars' <<<"$out"; then
+  pass "a plain scalar drops its trailing comment but keeps a non-comment #"
+else
+  fail "the plain fixture should measure 19 chars (5 + 3 joiner + 11): $out"
+fi
+
+# 15c. A `#` inside a BLOCK scalar is content, not a comment — a markdown
+#      heading in a folded description must survive intact.
+mkdir -p "$TMP/yaml-block-root/blocky"
+{
+  printf -- '---\n'
+  printf 'name: blocky\n'
+  printf 'description: >\n'
+  printf '  abc # def\n'
+  printf -- '---\n\n## Purpose\n\nFixture.\n'
+} >"$TMP/yaml-block-root/blocky/SKILL.md"
+out="$(run "$TMP/yaml-block-root" 2>&1)"
+if grep -q 'aggregate: 9 chars' <<<"$out"; then
+  pass "a # inside a block scalar is content and is still measured"
+else
+  fail "the block fixture should measure all 9 chars of 'abc # def': $out"
+fi
+
 if [[ $fails -ne 0 ]]; then
   printf '%d assertion(s) failed\n' "$fails" >&2
   exit 1

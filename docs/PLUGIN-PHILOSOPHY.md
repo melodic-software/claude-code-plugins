@@ -470,9 +470,9 @@ it carries the same bias forward
 ([subagents](https://code.claude.com/docs/en/sub-agents), verified 2026-07-22).
 
 The rule: **a skill step whose output judges work produced in the same context delegates that judgment
-to a fresh-context (non-fork) subagent** — a named subagent that starts with a fresh context window, not
-a fork. Mandatory in the skill's design, not left to the invoker to remember. Three bias classes name
-the trigger:
+to a fresh-context (non-fork) subagent** — generic or named; what the rule requires is the fresh
+context window, not a fork. Mandatory in the skill's design, not left to the invoker to remember.
+Three bias classes name the trigger:
 
 - **author-verifier** — verifying a change the same context authored (a verification skill confirming
   its own session's implementation, a pre-PR self-review);

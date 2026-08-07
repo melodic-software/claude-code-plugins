@@ -3,6 +3,29 @@
 All notable changes to the `skill-quality` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.12.3]
+
+### Fixed
+
+- **A zero-padded integer override was parsed as octal.** `require_positive_number`'s
+  `^[0-9]+$` accepts a padded value, but bash arithmetic and `printf %d` then read it in
+  base 8: `CHECK_SKILL_LISTING_BUDGET_CHARS=0123` silently became 83, and `=08` was not a
+  valid octal literal at all — it emitted invalid-octal diagnostics, rendered the budget as
+  `0`, and still reported `OK` and exited 0. `CHECK_SKILL_LISTING_MAX_DESC_CHARS=010`
+  likewise capped entries at 8 instead of the requested 10. Accepted integer overrides are
+  now forced to base 10 at the one place the digits become a number. The ratio and fraction
+  overrides are deliberately untouched — `0.01` is the documented default fraction and must
+  keep its leading zero, and both reach only `awk`, which has no octal input.
+- **A trailing YAML comment was measured as part of `description` / `when_to_use`.**
+  `skill_frontmatter::field` returned the comment along with the value, which also hid the
+  surrounding quotes from `strip_quotes` so the quoting was counted too — a fixture with
+  commented `description` and `when_to_use` scalars measured 52 characters instead of 15,
+  producing false overflow warnings and wrong contributor sizes. The field extractor now
+  cuts a trailing comment quote-aware, matching the YAML reader the harness actually loads
+  frontmatter with. Confined to the plain/flow branch: inside a block scalar a `#` is
+  content, never a comment. This also corrects the per-skill entry cap (Check 2) and the
+  trigger-preservation diff, which read the same fields.
+
 ## [0.12.2]
 
 ### Fixed
