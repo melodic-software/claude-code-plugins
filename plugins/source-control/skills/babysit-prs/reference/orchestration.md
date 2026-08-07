@@ -597,7 +597,10 @@ On the conflict worker's return, and before pushing anything:
   the **second parent** (`git -C <worktree> rev-parse HEAD^2`) to equal the fetched base SHA the
   worker reported — two parents alone proves a merge happened, not that it merged the intended
   base; a wrong-ref merge passes every other check here. Then re-read the live PR head
-  (`gh pr view <N> --json headRefOid`) and require it to equal that commit's
+  (`GH_REPO=<owner>/<repo> gh pr view <N> --json headRefOid` — the orchestrator's own cwd is
+  whatever the fleet run started from, never reliably the target repository, so every `gh` call in
+  this section carries its explicit remote target exactly as the worker contract below requires;
+  `--repo <owner>/<repo>` is the equivalent spelling) and require it to equal that commit's
   **first parent** (`git -C <worktree> rev-parse HEAD^1`): the assigned-worktree head assertion
   (`safety.md`, Checkout And Push Invariants) is checked one commit back, because `HEAD` is the
   merge commit now. If the live head moved while the conflict worker worked, do not push — the
@@ -640,27 +643,35 @@ On the conflict worker's return, and before pushing anything:
   empty. A verification command that itself modified tracked files (a formatter, a snapshot
   updater) or moved `HEAD` has invalidated the result — the green describes the modified tree, not
   the commit about to be pushed. That state is a no-push escalation, never a quiet re-commit.
-- **Re-check the live head immediately before the push, then push by refspec, never force.**
-  The head comparison above happened before the verification re-run, which can take as long as the
-  repo's test suite; `safety.md` requires the head check immediately before every push, and the gap
-  matters — a writer that reset the PR branch to an ancestor during the re-run would make this push
-  a valid fast-forward that silently restores the commits that writer removed. So repeat
-  `gh pr view <N> --json headRefOid` == `git -C <worktree> rev-parse HEAD^1` just before the push
-  command; a mismatch is the same superseded-tip no-push as above. Revalidate the base side in the
-  same breath: the second-parent check above proved the merge integrated the base SHA the worker
-  fetched, not that this SHA is still the live base tip — the base can advance during resolution
-  and both verification runs, and a cached `baseRefOid` is not evidence
-  (`reference/freshness.md`). Re-fetch the base ref (`git -C <worktree> fetch origin
-  <baseRefName>`) and require its fresh tip to equal `git -C <worktree> rev-parse HEAD^2`; a moved
-  base is a no-push — pushing would land a merge of a superseded base, re-conflicting the PR at
-  the cost of a pointless merge commit and CI round — handled as a stale resolution: unwind per
-  the state-keyed rules below and dispatch a fresh conflict worker against the new base. Then
-  `git -C <worktree> push "$PUSH_REMOTE" HEAD:<headRefName>`,
-  where `PUSH_REMOTE` resolves **fail-closed** per `reference/safety.md` (Checkout And Push
-  Invariants): `origin` for a same-repo head, the validated fork remote for a write-allowed
-  in-owner cross-repo head, and **stop (read-only)** rather than defaulting to `origin` when a fork
-  remote is unresolved (an `origin` fallback writes a same-named branch on the base repo, not the
-  fork head). Given the first-parent assertion this is a fast-forward. Never force, in any tier.
+- **Revalidate the base, then re-check the live head, then push by refspec — in that order, never
+  force.** `safety.md` requires the head check immediately before every push, and *immediately* is
+  the whole content of the rule: any command that runs between the head check and the push
+  re-opens the window the check closes. A writer that resets the PR branch to an ancestor inside
+  that window makes this push a valid fast-forward that silently restores the commits that writer
+  removed. The base re-fetch is a network round trip, so it is exactly such a window and must not
+  sit inside it — which is why it runs FIRST here, ahead of the head check, rather than being
+  revalidated "in the same breath". Run the three steps in this order and put nothing between 2
+  and 3:
+  1. **Base.** The second-parent check above proved the merge integrated the base SHA the worker
+     fetched, not that this SHA is still the live base tip — the base can advance during
+     resolution and both verification runs, and a cached `baseRefOid` is not evidence
+     (`reference/freshness.md`). Re-fetch the base ref (`git -C <worktree> fetch origin
+     <baseRefName>`) and require its fresh tip to equal `git -C <worktree> rev-parse HEAD^2`; a
+     moved base is a no-push — pushing would land a merge of a superseded base, re-conflicting the
+     PR at the cost of a pointless merge commit and CI round — handled as a stale resolution:
+     unwind per the state-keyed rules below and dispatch a fresh conflict worker against the new
+     base.
+  2. **Head.** The head comparison in the bullet above happened before the verification re-run,
+     which can take as long as the repo's test suite, so repeat it now:
+     `GH_REPO=<owner>/<repo> gh pr view <N> --json headRefOid` ==
+     `git -C <worktree> rev-parse HEAD^1`; a mismatch is the same superseded-tip no-push as above.
+  3. **Push.** `git -C <worktree> push "$PUSH_REMOTE" HEAD:<headRefName>`,
+     where `PUSH_REMOTE` resolves **fail-closed** per `reference/safety.md` (Checkout And Push
+     Invariants): `origin` for a same-repo head, the validated fork remote for a write-allowed
+     in-owner cross-repo head, and **stop (read-only)** rather than defaulting to `origin` when a
+     fork remote is unresolved (an `origin` fallback writes a same-named branch on the base repo,
+     not the fork head). Given the first-parent assertion this is a fast-forward. Never force, in
+     any tier.
 - **The orchestrator still never resolves.** It does not touch conflict markers, edit the
   resolution, or fix a conflict inline. A resolution it judges wrong is escalated, or handed to
   another fresh conflict worker — never corrected in place by the orchestrator.

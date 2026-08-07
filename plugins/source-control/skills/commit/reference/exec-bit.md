@@ -12,11 +12,21 @@ first — so the ordered procedure is a command, and the prose here is only the 
 
 ## What it checks
 
-Every path staged as a **new** file (`A`) whose staged blob begins with `#!` while its staged mode
-is `100644`.
+Every path this change stages at a **new** index entry whose staged blob begins with `#!` while its
+staged mode is `100644`.
 
 - **Newly-added only.** An already-tracked file that was already executable needs no action, and a
   full-repo sweep is a different job with a different blast radius.
+- **New means new *entry*, not the letter `A`.** The same staged file reports as `A <path>` with
+  rename/copy detection off and as `R<score> <old> <new>` or `C<score> <src> <dst>` with it on —
+  rename detection is on by default (`diff.renames`) and copy detection turns on with
+  `diff.renames=copies`, so keying on `A` alone would make the check fail open on the consumer's
+  diff configuration. All three destinations are candidates. The `100644`-plus-shebang filter then
+  does the deciding: a destination that carried its source's `100755` through never survives it, so
+  the only renames and copies reported are the ones that **dropped** the bit — which is what a
+  `core.filemode=false` platform produces on `mv`/`cp` plus `git add`. A pathspec that matches only
+  the source side breaks the pairing back into `D`/`M`, so a scoped run can never reach a
+  destination the caller did not name.
 - **Symlinks skipped first.** A symlink stages as mode `120000`. Git tracks the link's own mode,
   not its target's, so exec-bit semantics do not apply; `git update-index --chmod=+x` fails outright
   on a `120000` entry, and following the link to `chmod` its target could reach a file outside the

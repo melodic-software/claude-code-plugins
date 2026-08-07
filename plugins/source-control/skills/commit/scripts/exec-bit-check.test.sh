@@ -408,5 +408,92 @@ pl_head="$(cd "$repo14" && git ls-tree HEAD -- pl.sh | cut -d' ' -f1)"
 assert_eq "a plain index commit PRESERVES the exec bit under core.filemode=false" \
   "100755" "$pl_head"
 
+# --- Case group 14: rename and copy destinations are new entries too ----------
+#
+# Rename/copy detection rewrites the very entries this check exists to catch.
+# The same staged file reads as `A <path>` with detection off and as
+# `R<score> <old> <new>` / `C<score> <src> <dst>` with it on — rename detection
+# is on by DEFAULT — so a candidate list keyed on the letter `A` fails open on
+# the consumer's diff configuration. Both fixtures set core.filemode=false, the
+# platform that actually produces them: git ignores the worktree bit, so the
+# destination lands 100644 while its source is a 100755 shebang file.
+
+repo15="$(mkrepo)"
+(
+  cd "$repo15" || exit 1
+  git config core.filemode false
+  printf '#!/usr/bin/env bash\necho renamed\n' >src.sh
+  git add src.sh
+  git update-index --chmod=+x -- src.sh
+  git commit -qm "seed the executable source"
+  git mv src.sh moved.sh
+  # Re-stage from the worktree so the 100755 entry is rebuilt under
+  # core.filemode=false — the bit-dropping path a plain `mv` + `git add` takes.
+  git rm -q --cached moved.sh
+  git add moved.sh
+) >/dev/null 2>&1
+
+rename_status="$(cd "$repo15" && git diff --cached --name-status | head -n 1 | cut -f1)"
+assert_contains "the fixture really is reported as a rename" "$rename_status" "R"
+assert_eq "the rename destination really did drop the exec bit" \
+  "100644" "$(staged_mode "$repo15" moved.sh)"
+
+rename_out="$(bash "$HELPER" --repo-dir "$repo15" --list 2>/dev/null)"
+assert_contains "a rename destination that dropped the bit is reported" "$rename_out" "moved.sh"
+
+bash "$HELPER" --repo-dir "$repo15" --fix -- moved.sh >/dev/null 2>&1
+assert_eq "--fix corrects a rename destination" "100755" "$(staged_mode "$repo15" moved.sh)"
+
+repo16="$(mkrepo)"
+(
+  cd "$repo16" || exit 1
+  git config core.filemode false
+  git config diff.renames copies
+  # Copy detection only pairs against a source modified in the SAME change, so
+  # the source is edited here; enough identical lines remain for the similarity
+  # score to bind.
+  {
+    printf '#!/usr/bin/env bash\n'
+    for _ in $(seq 1 30); do printf 'echo line\n'; done
+  } >orig.sh
+  git add orig.sh
+  git update-index --chmod=+x -- orig.sh
+  git commit -qm "seed the executable copy source"
+  printf 'echo appended\n' >>orig.sh
+  cp orig.sh dup.sh
+  git add orig.sh dup.sh
+) >/dev/null 2>&1
+
+copy_status="$(cd "$repo16" && git diff --cached --name-status | grep -c '^C' | tr -d ' \r')"
+if [[ "$copy_status" == "1" ]]; then
+  copy_out="$(bash "$HELPER" --repo-dir "$repo16" --list 2>/dev/null)"
+  assert_contains "a copy destination that dropped the bit is reported" "$copy_out" "dup.sh"
+
+  bash "$HELPER" --repo-dir "$repo16" --fix -- dup.sh >/dev/null 2>&1
+  assert_eq "--fix corrects a copy destination" "100755" "$(staged_mode "$repo16" dup.sh)"
+else
+  skip_case "this git did not pair the fixture as a copy"
+fi
+
+# A pathspec that names only the SOURCE side breaks the pairing back into D/M,
+# so a scoped run can never reach a destination the caller did not name — the
+# surgical-staging guarantee --fix's scope requirement exists to hold.
+repo17="$(mkrepo)"
+(
+  cd "$repo17" || exit 1
+  git config core.filemode false
+  printf '#!/usr/bin/env bash\necho scoped\n' >from.sh
+  git add from.sh
+  git update-index --chmod=+x -- from.sh
+  git commit -qm "seed the scoped rename source"
+  git mv from.sh to.sh
+  git rm -q --cached to.sh
+  git add to.sh
+) >/dev/null 2>&1
+
+bash "$HELPER" --repo-dir "$repo17" --fix -- from.sh >/dev/null 2>&1
+assert_eq "a --fix scoped to the rename SOURCE leaves the destination untouched" \
+  "100644" "$(staged_mode "$repo17" to.sh)"
+
 printf '\n%d case(s), %d failure(s)\n' "$CASE_NUM" "$FAILED"
 [[ $FAILED -eq 0 ]] || exit 1

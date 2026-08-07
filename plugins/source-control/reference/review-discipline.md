@@ -189,7 +189,14 @@ D1–D7 cycles. Exploration and validation must run on the PR's head branch.
   counts as a disposition only when it is durable and someone else can find it: file a tracker
   item carrying the finding's own evidence — the reviewer's claim, your D2–D3 validation, and
   the file and line it lands on — and cite that item's id in the D5 reply. A deferral whose only
-  record is prose in a review thread is a dropped finding, and the thread stays open
+  record is prose in a review thread is a dropped finding, and the thread stays open.
+  **No reachable tracker removes the deferral, never the reply.** A consumer with no tracker
+  integration, or a creation attempt that fails, cannot produce that durable record — so
+  `VALID (defer)` is simply not an available disposition there. It does not stall D5 and it does
+  not stall the phase: fix the finding now instead, and when the fix genuinely does not belong in
+  this change, post the D5 reply saying exactly that, leave the thread unresolved, and surface the
+  finding in the run's report for the user to place. An ungrounded deferral is not one of the three
+  records D7.5 accepts, so the thread stays open and nothing merges over it
   <!-- contract-restatement-end: D4.6-deferral-grounding -->
   - [ ] **Never defer a finding this change introduced.** <!-- contract-restatement-begin: D4.6-deferral-provenance --> The discriminator is the behavior on
     the base branch, never the file the finding surfaced in: if the defect did not reproduce

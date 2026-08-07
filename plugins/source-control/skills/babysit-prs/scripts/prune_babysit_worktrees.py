@@ -254,29 +254,39 @@ def remove_empty_orphan_directory(path: Path, root: Path) -> bool:
     resolved = path.resolve()
     if root.resolve() not in resolved.parents:
         return False
+    pointer: Path | None = None
+    saved: bytes | None = None
+    removed = False
     try:
         children = list(path.iterdir())
-        pointer = children[0] if len(children) == 1 else None
-        if pointer is not None and (pointer.name != ".git" or not pointer.is_file()):
-            pointer = None
-        saved = pointer.read_bytes() if pointer is not None else None
-        if pointer is not None:
+        candidate = children[0] if len(children) == 1 else None
+        if candidate is not None and candidate.name == ".git" and candidate.is_file():
+            pointer = candidate
+            saved = pointer.read_bytes()
             pointer.unlink()
             children = list(path.iterdir())
-        try:
-            if not children:
-                path.rmdir()
-        except OSError:
-            # The directory outlived its pointer -- a Windows handle, most
-            # likely. Put the gitfile back: it is the only record of the owning
-            # repository, so discarding it would leave the next run unable to
-            # prune the registration at all, turning a retryable failure into a
-            # permanent `unresolved`.
-            if pointer is not None and saved is not None and not pointer.exists():
-                pointer.write_bytes(saved)
-            raise
+        if not children:
+            path.rmdir()
+            removed = True
     except OSError:
         pass
+    finally:
+        # Every path that leaves the directory standing has to put the gitfile
+        # back, because it is the only record of the owning repository:
+        # discarding it leaves the next run unable to prune the registration at
+        # all, turning a retryable failure into a permanent `unresolved`. Three
+        # such paths exist and only the first is a failed `rmdir` (a Windows
+        # handle, most likely) -- the rescan after the unlink can raise, and a
+        # file appearing between the unlink and the rmdir skips the removal
+        # without raising at all. So restoration is keyed on whether the removal
+        # actually happened, never on which branch got here. `removed` is a flag
+        # rather than a second `exists()` probe: a probe that transiently failed
+        # would skip the restore precisely when the directory survives.
+        if not removed and pointer is not None and saved is not None and not pointer.exists():
+            try:
+                pointer.write_bytes(saved)
+            except OSError:
+                pass
     return not path.exists()
 
 

@@ -186,21 +186,31 @@ if [[ "$mode" == "fix" ]] && [[ "$all" -eq 0 ]] && [[ "${#paths[@]}" -eq 0 ]]; t
   exit 2
 fi
 
-# Collect paths staged as NEW files (status A). -z keeps paths with spaces,
-# quotes, or newlines intact; --name-status emits status and path as separate
-# NUL-terminated fields, and a rename emits THREE fields (Rxxx, old, new), so
-# each status is consumed with its own explicit field reads rather than a
-# positional split.
+# Collect every path this change stages at a NEW index entry. -z keeps paths
+# with spaces, quotes, or newlines intact; --name-status emits status and path
+# as separate NUL-terminated fields, and a rename or copy emits THREE fields
+# (Rxxx/Cxxx, source, destination), so each status is consumed with its own
+# explicit field reads rather than a positional split.
+#
+# `A` alone is NOT the candidate set. Rename and copy detection rewrite the very
+# entries this check exists to catch: the same staged file reports as `A <path>`
+# with detection off and as `R<score> <old> <new>` or `C<score> <src> <dst>` with
+# it on -- `git diff -h` documents `-M`/`-C` as "detect renames"/"detect copies",
+# rename detection is on by default (`diff.renames`), and copy detection turns on
+# with `diff.renames=copies`. Discarding those destinations would make the check
+# fail open on the consumer's diff configuration rather than on the staged
+# content. The destination is a new index entry in all three spellings, so all
+# three feed the same candidate list; the `100644`-plus-shebang filter below then
+# decides. A destination that kept its source's `100755` never survives that
+# filter, so the only renames and copies this reports are the ones that dropped
+# the bit -- the exact case `core.fileMode=false` platforms produce.
 added=()
 while IFS= read -r -d '' status; do
   case "$status" in
-  R*)
-    IFS= read -r -d '' _old || break
-    IFS= read -r -d '' _new || break
-    ;;
-  C*)
-    IFS= read -r -d '' _src || break
-    IFS= read -r -d '' _dst || break
+  R* | C*)
+    IFS= read -r -d '' _source || break
+    IFS= read -r -d '' path || break
+    added+=("$path")
     ;;
   A)
     IFS= read -r -d '' path || break
