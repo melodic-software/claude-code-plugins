@@ -534,7 +534,7 @@ classify_landed() {
   local pth
   while IFS= read -r -d '' pth; do specs+=(":(literal)$pth"); done <"$touched"
   if [[ ${#specs[@]} -eq 0 ]]; then
-    L_REASON="touched-paths-unparseable"
+    L_REASON="touched-paths-unparsable"
     return 0
   fi
 
