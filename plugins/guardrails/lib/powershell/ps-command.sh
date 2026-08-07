@@ -450,7 +450,7 @@ ps::print_sink_trigger_line() {
     echo "Trigger: a construct the guard cannot faithfully tokenize (backtick, '--%', subexpression, or {}/() grouping). Remove it, or run the command via the Bash tool." >&2
     ;;
   dynamic-invocation)
-    echo "Trigger: a dynamic invocation (iex/Invoke-Expression, or a call '&' / dot-source '.' of a computed target) whose program name is not statically decidable. Invoke the target by its literal name — a constant path in quotes ('& \"C:\\path\\script.ps1\"') is decidable and is not blocked." >&2
+    echo "Trigger: a dynamic invocation (iex/Invoke-Expression, or a call '&' / dot-source '.' of a computed target) whose program name is not statically decidable. Invoke the target by its literal name — a constant quoted path is decidable and is not blocked; only an interpolating target (a double-quoted string containing a variable or subexpression) reaches this branch." >&2
     ;;
   launcher)
     echo "Trigger: a process launcher or nested shell (Start-Process/saps/start, pwsh, powershell, cmd), which the guard must see through the way it sees through 'bash -c'. Run the program directly, or run the command via the Bash tool." >&2
@@ -603,6 +603,8 @@ ps::write_bypass() {
     seg="${seg#"${seg%%[![:space:]]*}"}" # ltrim
     [[ "$seg" == *'>'* ]] || continue
     # Exclude the `$null` discard (PowerShell's /dev/null).
+    # portability-ok: `\>` escapes a literal `>` inside a bash [[ =~ ]] ERE, it
+    # is not GNU grep's `\>` word-boundary — no external grep/sed is involved.
     [[ "$seg" =~ \>\>?[[:space:]]*\$null([[:space:]]|$) ]] && continue
     # Unwrap grouping parens AND script-block braces so a grouped producer is
     # judged by what it produces: `('secret') > f` (quote-stripped to `() > f`)
