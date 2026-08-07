@@ -34,7 +34,7 @@ Part of `check-cmd` (no fix mode — `fix-cmd` only runs the two ruff commands):
 cd "$PROJECT_DIR" && uv run pyright
 ```
 
-pyright is a **hard prerequisite** of the python default once ruff config opts the ecosystem in — it shares the single compound `check-cmd` with ruff, and tool presence is evaluated per ecosystem, not per tool. On a ruff-configured project with pyright absent, the whole ecosystem reports a missing-tool `skip` (dropping ruff coverage too) rather than skipping pyright alone. Install pyright alongside ruff (see the ecosystem's `install-hint`).
+pyright is a **hard prerequisite** of the python default once ruff config opts the ecosystem in — it shares the single compound `check-cmd` with ruff, and tool presence is evaluated per ecosystem, not per tool. The preflight probe is satisfied by `uv`, the runner every python command is invoked through; pyright is never probed. So on a ruff-configured project with `uv` installed and pyright absent from both the project environment and `PATH`, nothing skips: the two ruff commands run and pass, then `uv run pyright` exits 2 (`error: Failed to spawn: pyright` / `program not found`) and the ecosystem reports Lint **`FAIL`** — not a missing-tool `skip`. Because `check-cmd` is one opaque string, that FAIL cannot be narrowed to pyright alone. Install pyright alongside ruff (see the ecosystem's `install-hint`), or, if the project genuinely does not want type checking, drop it by overriding `check-cmd` in the consumer's own `.claude/ecosystems/python.yaml` (ladder rung 1).
 
 ## Gotchas
 
