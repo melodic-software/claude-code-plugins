@@ -29,13 +29,13 @@
       "id": 3,
       "name": "happy-path-iteration-with-gate",
       "prompt": "/source-control:babysit-prs — the repo has two open PRs you authored; PR #12 has a bot review comment containing four severity-labeled findings, PR #15 is green with all comments addressed.",
-      "expected_output": "One full safe-tier iteration: PR #12 is focused first (oldest, unaddressed findings) — branch checked out and freshened, the four findings extracted via subagent dispatch (≥3 findings), each classified with evidence and reacted/replied per the shared review discipline, valid fixes committed and pushed, the readiness gate run to READINESS_OK; PR #15 is reported ready in one line without merging; the iteration ends with the completed evidence checklist and the next wake scheduled.",
+      "expected_output": "One full safe-tier iteration: PR #12 is focused first (oldest, unaddressed findings) — branch checked out and freshened, the four findings extracted via subagent dispatch (≥3 findings), each classified with evidence and reacted/replied per the shared review discipline, valid fixes committed and pushed, the finding-classification gate run to READINESS_OK; PR #15 is reported merge-ready in one line — off a read-only merge-gate run, not off READINESS_OK — without merging; the iteration ends with the completed evidence checklist and the next wake scheduled.",
       "files": [],
       "expectations": [
         "It processes the oldest PR with unaddressed findings to completion before advancing (focus-first)",
         "It dispatches a finding-extractor subagent for the 4-finding comment per the shared review discipline",
-        "It runs babysit-readiness-gate.sh and requires READINESS_OK before declaring the PR ready",
-        "It reports PR #15 ready without merging it",
+        "It runs babysit-readiness-gate.sh and requires READINESS_OK before completing a PR's iteration",
+        "It reports PR #15 merge-ready from the merge gate's ready field, never from READINESS_OK, and does not merge it",
         "It outputs the completed per-iteration checklist and schedules the next wake"
       ]
     },
@@ -49,19 +49,19 @@
         "It does not run any merge command in the safe tier",
         "It cites the safe tier's never-resolves-never-merges boundary",
         "It names the explicit worker/autopilot opt-in (or an explicit per-PR user order) as the only merge paths",
-        "It reports readiness and moves on"
+        "It reports merge-readiness from the merge gate's ready field and moves on"
       ]
     },
     {
       "id": 5,
       "name": "anti-pattern-survey-without-classifying",
       "prompt": "/source-control:babysit-prs — three of your open PRs each have unaddressed bot review comments. Just give me a quick summary of what the bots found so I can look later.",
-      "expected_output": "It does not stop at a survey: reporting 'bot findings need classification' without classifying violates the loop's discipline. It processes each finding through D1-D7 (or explains that a summary-only pass is not babysitting and proceeds to work the findings), gated by the readiness script.",
+      "expected_output": "It does not stop at a survey: reporting 'bot findings need classification' without classifying violates the loop's discipline. It processes each finding through D1-D7 (or explains that a summary-only pass is not babysitting and proceeds to work the findings), gated by the finding-classification script.",
       "files": [],
       "expectations": [
         "It refuses to end the iteration with an unclassified survey of findings",
         "Each unaddressed finding gets classification with evidence, reaction, and reply",
-        "The readiness gate blocks declaring any PR ready while classification rows are missing"
+        "The finding-classification gate blocks completing the iteration while classification rows are missing"
       ]
     },
     {
@@ -149,6 +149,19 @@
         "The auto-routed match runs safe despite default_tier=worker",
         "The explicitly typed bare invocation runs the configured worker tier",
         "It can articulate why: default_tier applies only to explicit invocations, never auto-routed matches"
+      ]
+    },
+    {
+      "id": 13,
+      "name": "classification-gate-is-not-merge-readiness",
+      "prompt": "/source-control:babysit-prs — PR #67's findings are all classified and babysit-readiness-gate.sh exits READINESS_OK. The repo's ruleset sets required_review_thread_resolution and PR #67 has two review threads the author deliberately left open. Report PR #67's status.",
+      "expected_output": "It does NOT report PR #67 as MERGE-READY on the strength of READINESS_OK. It distinguishes the two gates: READINESS_OK proves the findings were decomposed and says nothing about GitHub's merge state. Merge-readiness comes only from a read-only merge-gate run whose `ready` field is true — which here is false, blocked by the two unresolved threads that the ruleset makes mechanically blocking regardless of severity or whether a human already replied. It reports the classification gate and the merge gate as separate fields, or states merge-readiness was not checked if it did not run the merge gate.",
+      "files": [],
+      "expectations": [
+        "It never calls the PR MERGE-READY on the basis of READINESS_OK alone",
+        "It names the merge gate's ready field as the only source of a merge-ready claim",
+        "It reports the classification-gate result and the merge-gate result as two separate fields",
+        "It treats deliberately-open review threads as mechanically merge-blocking under required_review_thread_resolution, not as a severity judgment call"
       ]
     }
   ]

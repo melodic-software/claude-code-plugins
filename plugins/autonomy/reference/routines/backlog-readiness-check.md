@@ -43,7 +43,7 @@ The row is derived through the catalog-to-matrix mapping rules in the
 1. **Judgment axis.** Judging whether an item is actionable — whether its acceptance
    criteria, scope, and fields would let work start — is semantic judgment no rule engine
    resolves — agent-judgment (`AGT`), which is what makes the class a routine at all
-   (deterministic work stays plain cron).
+   (deterministic work needs no agent session).
 2. **Output axis.** Work-item annotations plus a report are governed-queue and tracker
    writes with no repository mutation: the `AGT` + report rule and the `AGT` + work-item
    rule both derive `C1`, and the [work-classes leaf](../guardrails/work-classes.md) scopes

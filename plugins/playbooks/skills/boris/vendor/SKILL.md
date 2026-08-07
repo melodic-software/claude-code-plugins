@@ -1,7 +1,7 @@
 ---
 name: boris
 description: |
-  107 Claude Code workflow tips from Boris Cherny (creator of Claude Code) and the Claude Code team.
+  127 Claude Code workflow tips from Boris Cherny (creator of Claude Code) and the Claude Code team.
   PROACTIVE MODE: When the user is working on a task, check the CONTEXT MAP
   below and surface the most relevant tip BEFORE they ask. One tip at a time,
   short and actionable. Don't dump all tips — be a coach, not an encyclopedia.
@@ -23,12 +23,17 @@ description: |
   dynamic workflows deep-dive from Thariq + Sid (the three failure modes workflows fix — agentic laziness, self-preferential bias, goal drift; primitives agent/parallel/pipeline with schema/model/isolation; dynamic vs static harnesses; the six patterns — classify-and-act, fan-out-and-synthesize, adversarial verification, generate-and-filter, tournament, loop-until-done; use cases incl. Bun's Zig→Rust rewrite, deep research/verification, sorting 1000+ items, rule adherence, root-cause, triage; token budgets; pairing with /goal and /loop; saving and sharing workflows via skills; "ultracode" trigger),
   the Boris × Cat Wu one-year-after-GA interview (auto mode retired plan mode on Opus 4.6+; context minimalism — minimal system prompt + tools; write mistakes to CLAUDE.md or a skill instead of re-prompting; why auto mode is trustworthy — red-teamed into evals),
   nested subagents (agents kicking off agents, capped at depth=5, to manage context; monitor with arrow-down), the experimental fork: true skill frontmatter (run a skill in its own context window), and the refined "use a workflow" trigger,
-  Claude Fable 5 (Mythos-class model launched June 9 2026, in Claude Code and Cowork; Boris's best coding model "by a wide margin" — less steering, better self-verification, longer sessions, higher autonomy; now the default coding model, superseding Opus 4.8).
+  Claude Fable 5 (Mythos-class model launched June 9 2026, in Claude Code and Cowork; Boris's best coding model "by a wide margin" — less steering, better self-verification, longer sessions, higher autonomy; now the default coding model, superseding Opus 4.8),
+  finding your unknowns (Thariq's field guide to clarifying what Claude doesn't know — the four unknowns; blindspot passes, brainstorms and prototypes, interviews, references, implementation plans, implementation notes, pitches and explainers, quizzes, before/during/after implementation),
+  getting started with loops (the ClaudeDevs loop taxonomy — an agent repeating cycles until a stop condition; the four loop types turn-based, goal-based /goal, time-based /loop and /schedule, and proactive; verification skills, evaluator models, composing routines with dynamic workflows and auto mode; maintaining code quality and managing token usage with /usage and /workflows),
+  /checkup (Boris's one-command setup tune-up — audits and cleans up unused skills/MCPs/plugins, dedups and slims a bloated CLAUDE.md, turns off slow hooks, updates Claude Code, enables auto mode, pre-approves frequently-denied read-only commands; confirms before changing anything and is fully reversible via one-line toggles and git-diff-reviewable CLAUDE.md edits),
+  automation as infrastructure (Boris's thesis that the highest-leverage work is automating your own work — vim macros, lint rules, e2e tests — and now more so with agents: infra/DevX speeds up your whole fleet; move fixes from prompts into code so a class of issue is automated forever, which is what "loops" really means; and most importantly, encode domain knowledge as infrastructure — code comments, skills, CLAUDE.md, REVIEW.md, docs, memories — so agents and new contributors work with zero extra context; a rejected PR is a failure of automation),
+  the new rules of context engineering for the Claude 5 generation (Thariq's field guide — the team deleted 80%+ of Claude Code's system prompt with no eval loss; six then→now shifts: give judgement not rules, design interfaces not examples, progressive disclosure over front-loading, simple tool descriptions over repetition, auto-memory over manual CLAUDE.md saves, rich references over simple specs; how to structure your own system prompt / CLAUDE.md / skills / references; the /doctor command to rightsize your setup), plus Opus 5 (state-of-the-art on coding + knowledge work, and Anthropic's least prompt-injectable model yet — alignment + PI probes + auto mode drive attack success to ~0).
 author: Boris Cherny (tips)
 source: howborisusesclaudecode.com
 compiled-by: "@CarolinaCherry"
-version: 8.8.1
-date: 2026-06-09
+version: 8.13.0
+date: 2026-07-24
 user-invocable: true
 ---
 
@@ -101,8 +106,28 @@ Use this map to decide which tip is relevant to what the user is doing:
 | Trying to trigger a dynamic workflow | 93 (Workflow Trigger) | "Say 'use a workflow' — bare 'workflow' had too many false positives" |
 | Picking a model / asking what's the best for coding | 2, 94 (Fable 5) | "Fable 5 is the new best coding model — Boris: best he's used, 'by a wide margin'" |
 | Wondering how Fable 5 changes the workflow | 95 (What Fable 5 Changes) | "New default; leans into context minimalism + delegation; pairs with the autonomy stack" |
+| Starting work in an unfamiliar codebase or domain | 96–99 (Finding Your Unknowns) | "Ask Claude for a 'blindspot pass' to surface your unknown unknowns before you prompt" |
+| Struggling to describe what you want | 97 (Before Implementation) | "Prototype it — an HTML artifact you react to beats describing it; or point Claude at reference source code" |
+| Mid-implementation and the agent is deviating | 98 (During Implementation) | "Have Claude keep an implementation-notes.md logging deviations, so the next attempt is smoother" |
+| Needing buy-in or to truly understand a big change | 99 (After Implementation) | "Build a pitch doc (lead with the demo); have Claude quiz you — merge only when you pass" |
+| Asking what a "loop" is / how to run agents in loops | 100 (The Four Loops) | "Four loop types — turn-based, goal-based, time-based, proactive — differ by trigger, stop condition, and how much you hand off" |
+| Running a real-time task that needs iteration | 101 (Loops You Drive) | "Encode verification as a skill for turn-based loops; use /goal to define done so Claude can't stop early" |
+| Wanting work to run on a schedule or without you | 102 (Autonomous Loops) | "/loop and /schedule for recurring work; compose /schedule + /goal + skills + dynamic workflows + auto mode for proactive loops" |
+| Worried about loop quality or token cost | 103 (Making Loops Good) | "Clean codebase + verification + second-agent review; right primitive/model, clear stop criteria, pilot first, check /usage and /workflows" |
+| Setup feels bloated / slow / cluttered with unused stuff | 104 (/checkup) | "Run /checkup — it audits unused skills/MCPs/plugins, a bloated CLAUDE.md, slow hooks, stale version, and cleans up after confirming" |
+| Nervous about letting a command change your config | 105 (/checkup is Safe) | "/checkup confirms before touching anything and is fully reversible — one-line toggles + CLAUDE.md edits you review in git diff" |
+| Wondering if cleanup is actually worth it | 106 (/checkup Findings) | "Boris's run found a broken launcher, 38 skills unused in 2,345 sessions, ~10k-token CLAUDE.md — cleanup saved ~5.5k tokens/session" |
+| Looking for the highest-leverage thing to do | 107 (Automation Is the Meta-Skill) | "Automate your own work — with a fleet of agents, every automation multiplies across all of them" |
+| Fixing the same kind of issue over and over | 108 (Fixes Into Code) | "Don't re-fix it each run — have Claude write a lint rule / CI step / routine so the class is automated forever (that's what loops means)" |
+| Onboarding people / agents to a codebase | 109 (Domain Knowledge as Infra) | "Encode domain knowledge as CLAUDE.md, REVIEW.md, skills, docs — a rejected PR is a failure of automation" |
+| Writing hard DO/DON'T rules into CLAUDE.md or a skill | 110 (Give Judgement, Not Rules) | "For Claude 5, delete the guardrail and let judgement handle it — the team cut 80%+ of the system prompt with no eval loss" |
+| Writing tool descriptions or designing a tool/script | 111 (Design Interfaces, Not Examples) | "Examples fence Claude in — make parameters expressive instead (a status enum + one constraint teaches usage without examples)" |
+| A bloated system prompt / CLAUDE.md / skill; front-loading everything | 112 (Progressive Disclosure) | "Load context when it's needed — skills over baked-in steps, deferred tool loading, a tree of files; and put tool instructions only in the tool description" |
+| Hand-curating CLAUDE.md, or pointing Claude at a plain markdown spec | 113 (Auto-Memory & Rich References) | "Memory is automatic now; and reference HTML artifacts, code, test suites, and rubrics instead of simple specs" |
+| Structuring context for Claude Code or your own agent | 114 (Applying It / /doctor) | "Keep CLAUDE.md to purpose + gotchas, skills as lightweight guides, prefer code references — and run /doctor to rightsize automatically" |
+| Asking what's new in Opus 5 / worried about prompt injection | 115 (Opus 5) | "SOTA on coding + knowledge work, and the least prompt-injectable model yet — alignment + PI probes + auto mode drive attack success to ~0" |
 
-## Topic List (107 tips across 95 sections)
+## Topic List (127 tips across 115 sections)
 
 When the user runs `/boris`, present this list and ask what they want to explore:
 
@@ -151,12 +176,32 @@ When the user runs `/boris`, present this list and ask what they want to explore
 93. The Workflow Trigger Is Now "use a workflow" (bare "workflow" had too many false positives)
 94. Fable 5 (Anthropic's "Mythos-class" model; best coding model "by a wide margin"; in Claude Code + Cowork)
 95. What Fable 5 Changes (new default coding model; leans into minimalism + delegation; pairs with the autonomy stack)
+96. The Four Unknowns (known knowns / known unknowns / unknown knowns / unknown unknowns — the map vs the territory)
+97. Finding Unknowns Before Implementation (blindspot pass, brainstorms & prototypes, interviews, references, implementation plans)
+98. Finding Unknowns During Implementation (implementation-notes.md — log deviations, keep going, learn for next time)
+99. Finding Unknowns After Implementation (pitches & explainers, quizzes — merge only when you pass)
+100. The Four Loops (turn-based, goal-based, time-based, proactive — by trigger, stop condition, and what you hand off)
+101. Loops You Drive (turn-based agentic loop + verification skills; goal-based /goal with an evaluator model)
+102. Autonomous Loops (time-based /loop & /schedule; proactive loops composing schedule + /goal + workflows + auto mode)
+103. Making Loops Good (code quality: clean codebase, verification, second-agent review; token usage: right primitive/model, pilot, /usage, /workflows)
+104. /checkup — The One-Command Tune-Up (audits unused skills/MCPs/plugins, dedups & slims CLAUDE.md, turns off slow hooks, updates Claude Code, enables auto mode, pre-approves read-only commands)
+105. /checkup is Safe by Default (confirms before changing anything; fully reversible — one-line setting toggles and CLAUDE.md edits you review in git diff; scope options from "clean everything" to "report only")
+106. /checkup — The Run (Boris's real result: broken launcher, 38 skills unused in 2,345 sessions, ~10k-token CLAUDE.md; cleanup repairs the install and saves ~5.5k tokens/session)
+107. Automation Is the Meta-Skill (the highest-leverage work is automating your own work — vim/lint/e2e; with an agent fleet every automation multiplies across all agents)
+108. Move Fixes From Prompts Into Code (don't re-fix an issue each run — have Claude write a lint rule / CI step / routine so the class is automated forever; what "loops" really means)
+109. Encode Domain Knowledge as Infrastructure (CLAUDE.md, REVIEW.md, skills, docs, comments, memories so agents & new contributors work with zero extra context; a rejected PR is a failure of automation)
+110. Give Judgement, Not Rules (Claude 5 reads surrounding context and decides — swap rigid guardrails for judgement; the team cut 80%+ of Claude Code's system prompt with no eval loss)
+111. Design Interfaces, Not Examples (examples constrain the exploration space; expressive parameters — a status enum + one constraint, like TodoWrite — teach usage without them)
+112. Progressive Disclosure Over Front-Loading (load context when relevant: verification/review as skills, deferred tool loading via ToolSearch, a tree of files; and put tool instructions in the tool description only)
+113. Auto-Memory & Rich References (Claude auto-saves memories now; references go beyond markdown specs — HTML artifacts, code as spec, test suites, and rubrics checked by verifier agents)
+114. Applying It to Your Own Context (the assembled stack; keep CLAUDE.md to purpose + gotchas, skills as lightweight guides, prefer code references; run /doctor to rightsize skills & CLAUDE.md)
+115. Opus 5 (state-of-the-art on coding + knowledge-work evals, and Anthropic's least prompt-injectable model yet — alignment + PI probes + auto mode drive attack success to ~0)
 
 ---
 
-**107 tips** across 95 topics, sourced from Boris Cherny (creator of Claude Code) and the Claude Code team at Anthropic. All tips are contained in this file — do not fetch from the website.
+**127 tips** across 115 topics, sourced from Boris Cherny (creator of Claude Code) and the Claude Code team at Anthropic. All tips are contained in this file — do not fetch from the website.
 
-**Parts:** The tips were shared across 17 threads:
+**Parts:** The tips were shared across 22 threads:
 - **Part 1** (Jan 2, 2026, 13 tips): Sections 1–14 — parallel execution, web/mobile, Opus, CLAUDE.md, @.claude, plan mode, slash commands, subagents, hooks, permissions, MCP, long-running tasks, verification
 - **Part 2** (Jan 31, 2026, 10 tips): Sections 1, 3, 4, 5, 12, 10, 11, 6, 9, 15 — deeper dives on parallel work, plan mode, CLAUDE.md, skills, bug fixing, prompting, terminal setup, subagents, data/analytics, learning
 - **Part 3** (Feb 11, 2026, 12 tips): Sections 16–27 — terminal config, effort level, plugins, custom agents, permissions management, sandboxing, status line, keybindings, hooks (advanced), spinner verbs, output styles, customize everything
@@ -174,6 +219,11 @@ When the user runs `/boris`, present this list and ask what they want to explore
 - **Part 15** (June 8, 2026, 4 tips): Sections 87–90 — from *"Reflecting on a year of Claude Code,"* a one-year-after-GA conversation between [@bcherny](https://x.com/bcherny/status/2064034799711588805) (Boris Cherny, Head of Claude Code) and [@_catwu](https://x.com/_catwu) (Cat Wu, Head of Product, Claude Code). Section 87 — auto mode retired plan mode (4.6+ don't need a planning step); Section 88 — context minimalism (prompt engineering → context engineering → minimal system prompt + tools, let the model pull what it needs); Section 89 — when Claude errs, write the fix to CLAUDE.md or a skill instead of re-prompting, so it runs forever; Section 90 — why auto mode is trustworthy (thousands of transcripts classified, red-teamed into evals; safer than glazing over every prompt). Sources: [@bcherny's launch tweet](https://x.com/bcherny/status/2064034799711588805) and the [YouTube interview](https://www.youtube.com/watch?v=Hth_tLaC2j8).
 - **Part 16** (June 9, 2026, 3 tips): Sections 91–93 — from [@bcherny's nested-subagents thread](https://x.com/bcherny/status/2064327225504403752). Section 91 — nested subagent support (agents kicking off agents, capped at depth=5, as a way to manage context; monitor with arrow-down in the terminal; model propagates but thinking weights don't yet; works with forked sessions and Chrome); Section 92 — the experimental `fork: true` skill frontmatter (run a skill in its own context window, pair with per-step agents; being added to the built-in `/code-review`); Section 93 — the dynamic-workflows trigger refined to "use a workflow" (bare "workflow" had too many false positives), which updates the Part 13/14 activation guidance.
 - **Part 17** (June 9, 2026, 2 tips): Sections 94–95 — the **Claude Fable 5** launch from [@bcherny](https://x.com/bcherny/status/2064402671898075579) and [@claudeai](https://x.com/claudeai/status/2064394151441863006). Section 94 — Fable 5, a "Mythos-class" model now in Claude Code and Cowork, which Boris calls the best coding model he's used "by a wide margin" (fewer steers, more efficient tokens, better code/tool use, more intelligent self-verification, longer sessions, higher trust & autonomy); benchmarks published (SWE-Bench Pro 80.3% vs Opus 4.8's 69.2%, SOTA on nearly all), priced at $10/M in · $50/M out (2× Opus 4.8), model id `claude-fable-5`, 1M context, 128K output, adaptive thinking. Section 95 — what it changes (new default coding model superseding Opus 4.8, leans into context minimalism + delegation, pairs with the autonomy stack; Fable-specific effort/usage tactics still emerging).
+- **Part 18** (July 3, 2026, 4 tips): Sections 96–99 — *"A Field Guide to Fable: Finding Your Unknowns,"* from [@trq212](https://x.com/trq212/status/2073100352921215386?s=51) (Thariq, Claude Code). The frame: the map (your prompts, skills, context) is not the territory (the codebase and its real constraints); the gap is your *unknowns*, and with Fable the work is bottlenecked by your ability to clarify them. Section 96 — the four unknowns (known knowns, known unknowns, unknown knowns, unknown unknowns); reducing and planning for them is the skill of agentic coding. Section 97 — before implementation: blindspot pass (surface unknown unknowns), brainstorms & prototypes (HTML artifacts for unknown knowns), interviews (one question at a time, architecture-changing first), references (best reference is source code), implementation plans (lead with what's most likely to change). Section 98 — during implementation: an `implementation-notes.md` where the agent logs deviations and keeps going (pairs with Section 89, "write it down"). Section 99 — after implementation: pitches & explainers (package prototype + spec + notes, lead with the demo, for buy-in) and quizzes (have Claude quiz you on the change; merge only when you pass). Capstone: the Fable launch video was edited entirely by Claude Code using this exact loop.
+- **Part 19** (July 6, 2026, 4 tips): Sections 100–103 — *"Getting started with loops,"* from [@ClaudeDevs](https://x.com/ClaudeDevs/status/2074208949205881033?s=51) (written by @delba_oliveira). Defines a loop as an agent repeating cycles of work until a stop condition is met, categorized by trigger, stop, primitive, and task type. Section 100 — the four loop types (turn-based, goal-based, time-based, proactive) and how you hand off progressively more (the check → stop condition → trigger → prompt). Section 101 — loops you drive: the turn-based agentic loop improved by encoding verification as a SKILL.md, and goal-based /goal where an evaluator model checks your condition until the goal is met or a turn cap is hit. Section 102 — autonomous loops: time-based /loop (local) and /schedule (cloud Routine) for recurring or external-system work, and proactive loops that compose /schedule + /goal + skills + dynamic workflows + auto mode to run event-driven with no human. Section 103 — making loops good: code quality (clean codebase, verification skills, reachable docs, second-agent /code-review) and token usage (right primitive/model, clear stop criteria, pilot before a large run, scripts for deterministic work, don't over-schedule, review with /usage and /workflows), plus a "which loop when" decision table.
+- **Part 20** (July 8, 2026, 3 tips): Sections 104–106 — *"New in Claude Code: /checkup,"* from [@bcherny](https://x.com/bcherny/status/2074997571563479143). A single command that audits and cleans up your whole Claude Code setup. Section 104 — what /checkup does: cleans up unused skills/MCPs/plugins to save context, dedups your local CLAUDE.md against the checked-in one, breaks up a big root CLAUDE.md into nested CLAUDE.md's + skills, turns off slow hooks, updates Claude Code to the latest version, enables auto mode by default, and pre-approves frequently-denied read-only commands (plus "a few other goodies"). Section 105 — safe by default: it confirms before making any changes and everything is reversible (settings changes are one-line toggles; CLAUDE.md edits stay in your working tree for `git diff` review), with scope options ranging from "clean up everything" to "let me pick" to "report only." Section 106 — the run: Boris posted his own /checkup output, which found his `claude` command broken (a test run overwrote its launcher), 38 project skills never used across 2,345 sessions, and a CLAUDE.md loading ~10k tokens every session — cleaning it all up repairs the install and saves roughly 5.5k tokens of context per session.
+- **Part 21** (July 15, 2026, 3 tips): Sections 107–109 — *"Automation as infrastructure,"* an essay from [@bcherny](https://x.com/bcherny/status/2077460395279692197) on why automating your own work is the highest-leverage thing an engineer can do, now more than ever. Section 107 — automation is the meta-skill: the best engineers always automated (vim/emacs macros, lint rules, e2e suites) because it multiplied their output; with an army of agents each automation is multiplied across all of them (more automation = more output per unit time). Section 108 — move fixes from prompts into code: an agent fixing an issue every time it appears burns tokens and misses cases, so have Claude write a lint rule, CI step, or routine to automate the whole class forever — "what people are talking about when they talk about loops" (generalizes Section 89, write it down). Section 109 — encode domain knowledge as infrastructure (the most important): automation is what lets others contribute (engineers day-one, non-engineers as effectively as engineers); the blocker is domain knowledge living in people's heads, and what's changed is that nearly all of it can now be encoded as code comments, skills, CLAUDE.md, REVIEW.md, docs, and memories so agents work with zero additional context — "a rejected PR is a failure of automation." Every team should write the CLAUDE.md's, REVIEW.md's, skills, and docs that let agents work in their codebase with no extra prompting.
+- **Part 22** (July 24, 2026, 6 tips): Sections 110–115 — *"The new rules of context engineering for Claude 5 generation models,"* from [@trq212](https://x.com/trq212/status/2080710971228918066?s=51) (Thariq, Claude Code; also on the [Claude blog](https://claude.com/blog/the-new-rules-of-context-engineering-for-claude-5-generation-models)), landing alongside the **Opus 5** launch from [@bcherny](https://x.com/bcherny/status/2080713091688583312). Tuning Claude Code for the Claude 5 generation, the team removed over 80% of the system prompt with no measurable loss on coding evals; the through-line is to stop over-constraining the model and let judgement work. Section 110 — give judgement, not rules (the comment-guidance example: "default to no comments / one short line max" → "write code that reads like the surrounding code: match its comment density, naming, and idiom"; a rule right 90% of the time is wrong the rest, judgement handles both). Section 111 — design interfaces, not examples (examples fence Claude into the demonstrated space; make parameters expressive — TodoWrite's status enum pending/in_progress/completed plus "only one in_progress" teaches usage with no example; an HTML mockup beats a described design). Section 112 — progressive disclosure over front-loading (verification/code-review moved into skills Claude calls selectively; tools use deferred loading via ToolSearch; a tree of files loaded at the right time instead of one mega CLAUDE.md; and stop repeating yourself — tool instructions live in the tool description only). Section 113 — auto-memory (Claude now auto-saves memories relevant to the work and to you, across sessions) and rich references (beyond markdown specs: HTML artifacts, code as spec, detailed test suites, and rubrics that verifier agents in a dynamic workflow check against). Section 114 — applying it to your own context (the assembled stack: prompt → references → system prompt → CLAUDE.md → skills → memory; keep CLAUDE.md to purpose + gotchas, skills as lightweight guides, prefer code references; run `/doctor` / `claude doctor` to rightsize automatically). Section 115 — Opus 5: state-of-the-art on coding + knowledge-work evals, and the least prompt-injectable model yet — layering alignment + prompt-injection probes + auto mode drives attack success to ~0, the trust foundation the new rules depend on.
 
 ---
 
@@ -1639,6 +1689,259 @@ Source: https://x.com/bcherny/status/2064402671898075579
 
 ---
 
+## 96. The Four Unknowns — The Map Is Not the Territory
+
+From Thariq's (@trq212) field guide *"Finding Your Unknowns."* Working with Fable 5 keeps re-teaching an old lesson: **the map is not the territory.** The map — your prompts, skills, and context — is what you give Claude. The territory is where the work actually happens: the codebase, the real world, its actual constraints. The gap between them is what he calls your **unknowns**. When Claude hits an unknown, it makes a decision based on its best guess of what you want. *"Fable is the first model where I find the quality of the work is bottlenecked by my ability to clarify its unknowns."*
+
+Break a problem down four ways (the Rumsfeld matrix, applied to prompting):
+- **Known knowns** — what's in your prompt; what you tell the agent you want.
+- **Known unknowns** — what you haven't figured out yet, but you know to ask.
+- **Unknown knowns** — too obvious to write down, but you'd recognize it ("I'll know it when I see it").
+- **Unknown unknowns** — what you never considered; the pothole you didn't know the road could have.
+
+*"The best agentic coders have relatively few unknowns."* Watching someone like Boris or Jarred prompt, it's obvious they know what they want in detail and are deeply in-sync with the codebase and the model's behaviors — but they also *assume* unknowns. Reducing and planning for them is the skill of agentic coding, and it's learnable. Sections 97–99 are the toolkit, organized before / during / after implementation.
+
+Source: https://x.com/trq212/status/2073100352921215386?s=51
+
+---
+
+## 97. Finding Unknowns Before Implementation
+
+Most unknowns are cheapest to find before you write code. Thariq's pre-implementation techniques, each with a literal prompt:
+- **Blind spot pass** — ask Claude to surface your *unknown unknowns* and explain them (he uses the literal words "blindspot pass"); give it context on who you are and what you know. *"I'm working on adding a new auth provider but I know nothing about the auth modules in this codebase. Can you do a blindspot pass to help me figure out my relevant unknown unknowns and help me prompt you better."*
+- **Brainstorms & prototypes** — for *unknown knowns* (criteria you only recognize on sight, like visual design), have Claude brainstorm and prototype; an HTML artifact you react to beats describing it. *"I want a dashboard for this data but I have no visual taste and don't know what's possible. Make me an HTML page with 4 wildly different design directions so I can react to them."*
+- **Interviews** — after brainstorming, ask Claude to interview you about remaining ambiguities. *"Interview me one question at a time about anything ambiguous, prioritize questions where my answer would change the architecture."*
+- **References** — the best reference is source code. Point Fable at a folder or a module on a website and it reads the underlying code, not just the screenshot (this is also how Claude Design works).
+- **Implementation plans** — ask for a plan that leads with what's most likely to change. *"Write an implementation plan in HTML, but lead with the decisions I'm most likely to tweak: data model changes, new type interfaces, and anything user-facing. Bury the mechanical refactoring at the bottom, I trust you on that part."*
+
+Source: https://x.com/trq212/status/2073100352921215386?s=51
+
+---
+
+## 98. Finding Unknowns During Implementation
+
+No matter how much you plan, there are always unknown unknowns lurking — the agent may hit an edge case mid-work that forces a different tack.
+- **Implementation notes** — ask Claude Code to keep a temporary `implementation-notes.md` (or `.html`) where it logs the decisions it makes, so you can learn from them next time. *"Keep an implementation-notes.md file. If you hit an edge case that forces you to deviate from the plan, pick the conservative option, log it under 'Deviations', and keep going."*
+
+This is the same move as Section 89 (write it down, don't re-prompt): what the agent learns mid-run becomes the map for next time instead of evaporating when the session ends.
+
+Source: https://x.com/trq212/status/2073100352921215386?s=51
+
+---
+
+## 99. Finding Unknowns After Implementation
+
+Once the work lands, the remaining unknowns are other people's — your reviewers' and your own future understanding.
+- **Pitches & explainers** — getting buy-in is one of the most important parts of shipping. Package the prototype, the spec, and the implementation notes into one doc you can drop in Slack; lead with the demo. Reviewers start with the same unknowns you did, so answer them up front. *"Package the prototype, the spec, and the implementation notes into a single doc I can drop in Slack to get buy-in. Lead with the demo GIF."*
+- **Quizzes** — after a long session Claude may have done more than you realized, and diffs give only a light understanding. Have Claude quiz you about the change; merge only when you pass perfectly. *"Give me an HTML report on the changes to read and understand with context, intuition, and what was done — and a quiz at the bottom on the changes that I must pass."*
+
+**How it comes together:** the Fable launch video was edited entirely by Claude Code — a domain Thariq wasn't an expert in — by running this exact loop (start from what you know, ask Claude to explain the parts you don't, prototype with Remotion, and have it *teach* you your unknowns, e.g. color grading, rather than guess). *"The better models get, the more you can achieve with the right approach… start your next project by asking Claude to help you find your unknowns."*
+
+Source: https://x.com/trq212/status/2073100352921215386?s=51
+
+---
+
+## 100. The Four Loops — A Taxonomy
+
+From the ClaudeDevs guide *"Getting started with loops"* (@ClaudeDevs, written by @delba_oliveira). The team defines a **loop** as **an agent repeating cycles of work until a stop condition is met**. Everything from a single prompt to a cloud routine is a loop; they differ by how they're triggered, how they're stopped, which Claude Code primitive runs them, and what task fits. Not every task needs a complex loop — start with the simplest and use these selectively.
+
+The four types, and what you hand off in each:
+- **Turn-based** (the agentic loop) — triggered by a prompt; stops when Claude judges the task done. Short, one-off tasks. You hand off **the check**.
+- **Goal-based** (`/goal`) — triggered by a prompt; stops when the goal is met or a turn cap is hit. Tasks with verifiable exit criteria. You hand off **the stop condition**.
+- **Time-based** (`/loop`, `/schedule`) — triggered by a time interval; stops when you cancel or the work completes. Recurring work or reacting to external systems. You hand off **the trigger**.
+- **Proactive** — triggered by an event or schedule with no human in real time; each task exits at its goal, the routine runs until you turn it off. Recurring streams of well-defined work. You hand off **the prompt**.
+
+The progression matters: from turn-based to proactive you hand off more of the loop each step — the check, then the stop condition, then the trigger, then the prompt.
+
+Source: https://x.com/ClaudeDevs/status/2074208949205881033?s=51
+
+---
+
+## 101. Loops You Drive — Turn-based and Goal-based
+
+The two real-time loops, where you kick things off and stay close.
+- **Turn-based, the agentic loop.** Every prompt is a loop: Claude gathers context, takes action, checks its work, repeats if needed, and responds — exiting when it judges the task complete or the effort budget runs out. The lever is verification: encode your manual check steps as a `SKILL.md` so Claude verifies its own work end-to-end, and give it tools to *see, measure, interact* (the more quantitative the check, the easier it self-verifies). Builds on Section 14 (verification) and Sections 96–99 (verification skills, Part 18). Example: a `verify-frontend-change` skill — never call a UI change done from a successful edit alone; start the dev server, interact with it, confirm zero new console errors, run a Chrome DevTools MCP performance trace, and rerun from the top if any step fails.
+- **Goal-based, `/goal`.** A single turn often isn't enough; agents do better when they iterate. `/goal` defines what "done" looks like so Claude can't decide it's "good enough" and stop early — each time it tries to stop, an *evaluator model* checks your condition and sends it back until the goal is met or your turn cap is reached. Deterministic criteria (tests passing, a score threshold) work best. Extends Section 77. Example: `/goal get the homepage Lighthouse score to 90 or above, stop after 5 tries`.
+
+Source: https://x.com/ClaudeDevs/status/2074208949205881033?s=51
+
+---
+
+## 102. Autonomous Loops — Time-based and Proactive
+
+The two loops that run without you prompting each turn.
+- **Time-based, `/loop` and `/schedule`.** For recurring work (same task, changing inputs — a morning Slack summary) or reacting to an external system (a PR that gets reviews or fails CI). `/loop` re-runs a prompt on an interval on your machine; turn your laptop off and it stops. Move it to the cloud by turning it into a Routine with `/schedule`. Pulls together Sections 31 (`/loop`), 43 (`/schedule`), and 61 (Routines). Example: `/loop 5m check my PR, address review comments, and fix failing CI`.
+- **Proactive.** The most autonomous loop: triggered by an event or schedule with no human in real time, running in the cloud whether your laptop is open or not. You compose the primitives — `/schedule` to watch for new work, `/goal` + verification skills to define and check "done," dynamic workflows (Sections 80–86) to orchestrate triage/fix/review across many items, and auto mode (Sections 42, 68) so it never stops to ask permission. Each task exits at its goal; the routine runs until you turn it off. Example: `/schedule every hour: check the project-feedback channel for bug reports, triage each one, open a PR with a fix, and have a second agent review before notifying me`.
+
+Source: https://x.com/ClaudeDevs/status/2074208949205881033?s=51
+
+---
+
+## 103. Making Loops Good — Quality, Tokens, and Which One When
+
+A loop is only as good as the system around it.
+- **Keep output quality high:** keep the codebase clean (Claude follows existing patterns), give it a way to verify its own work (encode "good" as skills), make docs easy to reach, and use a second agent for review (fresh context is less biased — the built-in `/code-review`, Section 32). When a result misses the bar, encode the fix so every future iteration improves, don't just patch the instance.
+- **Manage token usage:** pick the right primitive and model (small tasks don't need a fleet; cheaper models for routine work), define clear stop criteria, pilot before a large run (dynamic workflows can spawn hundreds of agents), use scripts for deterministic work, don't over-schedule (match the interval to how often the watched thing changes), and review usage — `/usage` breaks down skills/subagents/MCPs, `/goal` with no args shows turns + tokens, `/workflows` shows per-agent usage and lets you stop one.
+
+**Which loop when:** Turn-based → you hand off *the check*, use when exploring or deciding, reach for custom verification skills. Goal-based → *the stop condition*, when you know what done looks like, reach for `/goal`. Time-based → *the trigger*, when work happens on a schedule outside your project, reach for `/loop` / `/schedule`. Proactive → *the prompt*, when work is recurring and well-defined, reach for all of the above plus dynamic workflows. To start: pick one task where you're the bottleneck and hand off one piece — the check, the stop condition, or the trigger — then run it, watch where it stalls or over-reaches, and iterate.
+
+Source: https://x.com/ClaudeDevs/status/2074208949205881033?s=51
+
+---
+
+## 104. /checkup — The One-Command Tune-Up
+
+Setups drift: skills you stopped using, a CLAUDE.md that quietly grew to ~10k tokens, hooks that tax every turn, a version several releases behind. `/checkup` audits your whole Claude Code install and proposes fixes across seven areas — the "keep your setup lean" playbook (context minimalism, Section 88; CLAUDE.md, Section 4; write it down, Section 89) run for you in one pass.
+
+When you run `/checkup` it can:
+- **Clean up unused skills / MCPs / plugins** and save context every session.
+- **Dedup your local CLAUDE.md** against the checked-in CLAUDE.md so rules aren't stated twice.
+- **Break up a big root CLAUDE.md** into nested CLAUDE.md's + skills, so context loads only where relevant.
+- **Turn off slow hooks** that tax every turn (Section 7).
+- **Update Claude Code** to the latest version.
+- **Enable auto mode by default** (Sections 42, 87).
+- **Pre-approve frequently-denied read-only commands** — same idea as `/fewer-permission-prompts` (Section 69).
+- …and a few other goodies.
+
+Source: https://x.com/bcherny/status/2074997571563479143
+
+---
+
+## 105. /checkup is Safe by Default
+
+The reason you can run `/checkup` on a real project without holding your breath: it never changes anything behind your back.
+- **Confirms first.** `/checkup` surfaces a plan — what's broken, what's unused, what it would change — and waits. Nothing is modified until you choose an option.
+- **Fully reversible.** Settings changes are one-line toggles you can flip back; CLAUDE.md edits stay in your working tree, so you review them in `git diff` before committing anything (same discipline as Section 89, write it down).
+- **You control scope.** The menu ranges from *Clean up everything* (recommended one-shot) to *Let me pick* (choose which groups: install repair, unused plugins/MCP, unused skills, CLAUDE.md slimming) to *No, keep everything* (report only) to *Chat about this*.
+
+Source: https://x.com/bcherny/status/2074997571563479143
+
+---
+
+## 106. /checkup — The Run
+
+Boris ran `/checkup` on his own setup and posted the result; it caught things he didn't know were there:
+- His `claude` command was **broken** — a test run had overwritten its launcher.
+- **38 project skills** had never been used across **2,345 sessions**.
+- His CLAUDE.md was loading **~10k tokens every session**.
+
+Cleaning it all up repairs the install and saves **roughly 5.5k tokens of context per session** — a permanent tax lifted off every future turn. The recommended one-keystroke fix: repair the launcher, disable 3 unused plugins + the hex MCP server + 1 stray skill, turn off the 38 never-used project skills, and slim CLAUDE.md by moving ~1.9k tokens to lazy loading (reversible, as always). The lesson under the feature: setups accumulate silent waste you rarely notice until something measures it — `/checkup` is that measurement, the maintenance half of context minimalism (Section 88) automated.
+
+Source: https://x.com/bcherny/status/2074997571563479143
+
+---
+
+## 107. Automation Is the Meta-Skill
+
+Boris's throughline: the best engineers he knew always spent a lot of time automating their own work — better vim/emacs macros, lint rules to catch repeat code issues, e2e suites so they never smoke-test by hand. These were the highest-leverage activities an engineer could do, because they multiplied their own output, which meant they could build more.
+
+With agents this matters even more. Infra and DevX automation speeds *you* up — and if you're running an army of agents, every one of those agents is sped up too. **More automation = more output per unit of time**, multiplied by the number of agents working. Pairs with parallel execution (Section 1) and loops (Sections 100–103).
+
+Source: https://x.com/bcherny/status/2077460395279692197
+
+---
+
+## 108. Move Fixes From Prompts Into Code
+
+There's a difference between fixing an issue and eliminating a *class* of issue. Your agent could fix an issue every time it sees it happen — but that uses tokens and might miss cases. If Claude instead writes a **lint rule, CI step, or routine**, that class of issue is automated forever, for every future run and every contributor.
+
+Boris: this is *"really what people are talking about when they talk about loops — it's about automating entire types of busywork rather than solving them one off."* Not a new idea (engineers have done it for a long time), but agents make it cheap to reach for. It generalizes Section 89 (write it down, don't re-prompt): a chat correction fixes one run; encoded infrastructure fixes every run. See also loops (Sections 100–103).
+
+Source: https://x.com/bcherny/status/2077460395279692197
+
+---
+
+## 109. Encode Domain Knowledge as Infrastructure
+
+The most important reason, and the genuinely new one: automation is what makes it possible for *others* to contribute to a codebase. Engineers now contribute on day one because Claude can navigate the codebase for them, and non-engineers can contribute as effectively as engineers. What blocks both is **domain knowledge that lives in people's heads** — the stuff you used to have to learn while ramping up.
+
+What's changed: the domain knowledge you can encode as infrastructure is no longer limited to what fits in lint rules, types, and tests. It can now capture *nearly all* domain knowledge — as code comments, **skills**, **CLAUDE.md** rules, **REVIEW.md**, docs, and memories — so an agent (or a new human) works productively with *zero additional context from the prompter*.
+
+Boris's reframe: *"If I put up a PR for an iOS codebase I don't know and a reviewer rejects it because it doesn't use the right framework, or if a designer builds a new feature and it gets rejected because it doesn't follow the right architectural patterns, these are failures of automation."* The knowledge should have been encoded, not left in a reviewer's head. Every team should be writing the CLAUDE.md's, REVIEW.md's, skills, and docs that let agents work in their codebase with no extra prompting — a natural extension of what engineers always did: automate, and encode domain knowledge as infrastructure. Builds on CLAUDE.md (Section 4), skills (Section 5), code review (Section 32), and write it down (Section 89).
+
+Source: https://x.com/bcherny/status/2077460395279692197
+
+---
+
+## 110. Give Judgement, Not Rules
+
+The headline shift for the Claude 5 generation. Older models needed rigid guardrails to avoid worst-case behavior — but a rule that's right 90% of the time is wrong the other 10%. Newer models read the surrounding context and decide for themselves, so the team swapped hard rules for judgement. The system prompt's comment guidance is the cleanest example:
+
+- **Then (a rule):** *"In code: default to writing no comments. Never write multi-paragraph docstrings or multi-line comment blocks — one short line max."*
+- **Now (judgement):** *"Write code that reads like the surrounding code: match its comment density, naming, and idiom."*
+
+The rule was wrong everywhere comments *were* wanted (documentation, gnarly code); judgement handles both cases without a special rule for each. This is how they deleted **over 80% of Claude Code's system prompt** for models like Opus 5 and Fable 5 with no measurable loss on coding evals. Worth a mirror: most CLAUDE.md files are still walls of hard rules. Updates Section 88 (context minimalism).
+
+Source: https://x.com/trq212/status/2080710971228918066 · https://claude.com/blog/the-new-rules-of-context-engineering-for-claude-5-generation-models
+
+---
+
+## 111. Design Interfaces, Not Examples
+
+The old number-one rule for tools was to give Claude worked examples. With the newest models, examples *backfire* — they fence Claude into the exploration space you happened to demonstrate. Design the interface instead and let expressive parameters teach usage.
+
+The TodoWrite example: it ships no walkthrough. Its *shape* does the teaching — a `status` parameter that can only be `pending`, `in_progress`, or `completed`, plus one constraint ("only one item `in_progress` at a time"). The enum hints at the lifecycle; the constraint defines the behavior; no example needed. Ask the same of your own tools, scripts, and files: what parameters does Claude have, and how could they be *more expressive*? (Same idea for design — an HTML mockup produces better results than a description or a screenshot; see Section 113.)
+
+Source: https://x.com/trq212/status/2080710971228918066 · https://claude.com/blog/the-new-rules-of-context-engineering-for-claude-5-generation-models
+
+---
+
+## 112. Progressive Disclosure Over Front-Loading
+
+Don't cram everything a request *might* need into the prompt. Load context at the moment it's relevant — the same principle across the built-in system prompt, tools, and your own files:
+
+- **System prompt:** code-review and verification steps moved out of the always-on prompt into **skills** Claude calls selectively.
+- **Tools:** some use **deferred loading** — the agent searches for the full definition via ToolSearch before use, so tools cost no context until needed.
+- **CLAUDE.md / skills:** the myth is one central repository of everything you *might* hit. Instead build a **tree of files** loaded at the right time; split long skills across many files.
+
+And stop repeating yourself: older models leaned on repetition and end-of-context reminders, so instructions got duplicated in both the system prompt and the tool description. Newer models don't need it — put tool instructions in the **tool description only** and delete the echo. Extends Section 88 (context minimalism) and the deferred-loading model behind Section 91 (nested subagents).
+
+Source: https://x.com/trq212/status/2080710971228918066 · https://claude.com/blog/the-new-rules-of-context-engineering-for-claude-5-generation-models
+
+---
+
+## 113. Auto-Memory & Rich References
+
+Two shifts. **Memory:** you used to hand-save context to CLAUDE.md with the `#` hotkey. Now Claude **automatically saves memories** relevant to the work and to you, and loads them across sessions — memory, artifacts, and skills take over the job CLAUDE.md used to do alone. Builds on Section 45 (auto-memory) and Section 89 (write it down).
+
+**References got richer.** A "spec" no longer means a markdown file — Claude handles far more expressive references, and code-shaped ones carry the highest fidelity:
+
+- **HTML artifacts** — a working mockup from the artifacts feature beats a screenshot or a description.
+- **Code as spec** — a function in another codebase to port, in a language Claude already knows cold.
+- **Test suites** — a detailed suite is a spec that verifies itself.
+- **Rubrics** — encode your taste (what good API design looks like); verifier agents in a dynamic workflow (Sections 80–86) check against it.
+
+Source: https://x.com/trq212/status/2080710971228918066 · https://claude.com/blog/the-new-rules-of-context-engineering-for-claude-5-generation-models
+
+---
+
+## 114. Applying It to Your Own Context
+
+The stack Claude assembles for a request, top to bottom, and what belongs in each layer:
+
+- **Your prompt** — the one specific thing you want right now.
+- **References** — @-mentioned files, specs, mockups, codebases, artifacts.
+- **System prompt** — tied to the product; you'll rarely touch it in Claude Code (spend real time here only if you're building your own agent harness).
+- **CLAUDE.md** — lightweight: what the repo is for, and the *gotchas*. Skip the obvious; push detail into skills via progressive disclosure.
+- **Skills** — lightweight guides for your opinions and best practices; avoid over-constraining except in high-stakes areas.
+- **Memory** — now automatic.
+
+If you can't tell what to cut, run the new `claude doctor` command (`/doctor` in Claude Code) — it rightsizes your skills and CLAUDE.md automatically, the context-engineering twin of Section 104 (`/checkup`).
+
+Source: https://x.com/trq212/status/2080710971228918066 · https://claude.com/blog/the-new-rules-of-context-engineering-for-claude-5-generation-models
+
+---
+
+## 115. Opus 5 — And the Model That's Hardest to Inject
+
+These rules ship for a reason: **Opus 5** landed the same day, state-of-the-art on coding and knowledge-work evals (agentic terminal coding, GDPval, ARC-AGI-3, computer use). But the eval scores aren't what Boris led with — it's that Opus 5 is Anthropic's **least prompt-injectable model yet**. Across prompt-injection evals and red-teaming it's very hard to inject, and layering the defenses — strong model alignment, prompt-injection probes, and **Auto Mode** in Claude Code — drives the attack success rate to **~0**.
+
+Boris: *"More than any of these eval scores, what is most exciting to me is something else: Opus 5 is our least prompt injectable model yet."* That's the foundation the new rules stand on: judgement-based context engineering only works if you can trust the model to reconcile conflicting, attacker-adjacent context safely. Pairs with Section 90 (why auto mode is trustworthy).
+
+Source: https://x.com/bcherny/status/2080713091688583312
+
+---
+
 ## Quick Reference
 
 | Tip | Key Action |
@@ -1711,7 +2014,27 @@ Source: https://x.com/bcherny/status/2064402671898075579
 | Workflow Trigger | Say "use a workflow" (not bare "workflow" — too many false positives). Mechanics of Sections 80-86 unchanged |
 | Fable 5 | June 9 2026: Anthropic's "Mythos-class" model, in Claude Code + Cowork. Boris: best coding model "by a wide margin" — less steering, better self-verification, longer sessions, higher autonomy |
 | Fable 5 — What Changes | New default coding model (supersedes Opus 4.8); leans into minimalism + delegation; pairs with the autonomy stack. Best-practices still emerging |
+| The Four Unknowns | Map (prompts/context) vs territory (codebase/reality); the gap is your unknowns. Known knowns / known unknowns / unknown knowns / unknown unknowns. Planning for them is the skill |
+| Unknowns — Before | Blindspot pass (unknown unknowns), brainstorms & prototypes (unknown knowns), interviews (one Q at a time), references (source code beats screenshots), implementation plans (lead with what changes) |
+| Unknowns — During | `implementation-notes.md`: have the agent log deviations and keep going, so next time is smoother |
+| Unknowns — After | Pitches & explainers (package prototype + spec + notes, lead with the demo, for buy-in); quizzes (Claude quizzes you — merge only when you pass) |
+| The Four Loops | Loop = agent repeating cycles until a stop condition. Turn-based (hand off the check), goal-based /goal (the stop condition), time-based /loop /schedule (the trigger), proactive (the prompt) |
+| Loops You Drive | Turn-based: encode verification as a SKILL.md so Claude self-checks. Goal-based: /goal + evaluator model checks your condition until met or turn cap; deterministic criteria work best |
+| Autonomous Loops | /loop (local) + /schedule (cloud Routine) for recurring/external work; proactive = compose /schedule + /goal + skills + dynamic workflows + auto mode, event-driven, no human |
+| Making Loops Good | Quality: clean codebase, verification skills, second-agent /code-review. Tokens: right primitive/model, clear stop criteria, pilot first, scripts, don't over-schedule, /usage + /workflows |
+| /checkup | One-command setup tune-up: cleans unused skills/MCPs/plugins, dedups & slims CLAUDE.md, turns off slow hooks, updates Claude Code, enables auto mode, pre-approves read-only commands |
+| /checkup — Safe | Confirms before changing anything; fully reversible (one-line toggles + CLAUDE.md edits in git diff); scope from "clean everything" to "report only" |
+| /checkup — The Run | Boris's result: broken launcher, 38 skills unused in 2,345 sessions, ~10k-token CLAUDE.md; cleanup saves ~5.5k tokens/session |
+| Automation Is the Meta-Skill | Automating your own work (vim/lint/e2e) is the highest-leverage thing; with a fleet of agents every automation multiplies across all of them |
+| Fixes Into Code | Don't re-fix an issue each run — Claude writes a lint rule / CI step / routine so the class is automated forever (what "loops" means) |
+| Domain Knowledge as Infra | Encode it as CLAUDE.md, REVIEW.md, skills, docs, comments, memories so agents & new contributors need zero extra context; a rejected PR is a failure of automation |
+| Judgement, Not Rules | Claude 5 reads context and decides — delete rigid guardrails; the team cut 80%+ of the system prompt with no eval loss. "Write code that reads like the surrounding code" |
+| Interfaces, Not Examples | Examples fence Claude in; expressive parameters teach usage — a status enum + "only one in_progress" (TodoWrite) with no example |
+| Progressive Disclosure | Load context when needed: skills over baked-in steps, deferred tool loading via ToolSearch, a tree of files; tool instructions in the tool description only |
+| Auto-Memory & Rich References | Claude auto-saves memories now; reference HTML artifacts, code, test suites, and rubrics (checked by verifier agents) instead of plain markdown specs |
+| Apply It / /doctor | Stack: prompt → references → system prompt → CLAUDE.md → skills → memory. Keep CLAUDE.md to purpose + gotchas; run /doctor to rightsize skills & CLAUDE.md |
+| Opus 5 | SOTA on coding + knowledge work, and the least prompt-injectable model yet — alignment + PI probes + auto mode drive attack success to ~0 |
 
 ---
 
-*Source: [howborisusesclaudecode.com](https://howborisusesclaudecode.com) - Tips from Boris Cherny and the Claude Code team's January–June 2026 threads*
+*Source: [howborisusesclaudecode.com](https://howborisusesclaudecode.com) - Tips from Boris Cherny and the Claude Code team's January–July 2026 threads*

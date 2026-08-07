@@ -1,6 +1,6 @@
 ---
 name: draft-goal-condition
-description: "Craft a paste-ready /goal completion condition from a stated intent — the autonomous-goal / keep-working-toward-a-goal field Claude Code evaluates after every turn. Reads the current official /goal docs live for the condition shape and character limit (never hardcodes them), drafts a transcript-demonstrable condition (measurable end state + stated check + constraints + optional turn/time bound), and proves it fits the limit with a deterministic character counter instead of model guesswork. Use for 'craft a /goal', 'write a goal condition', 'set up an autonomous goal', 'make Claude keep working until X', 'my /goal is too long / over the limit', 'turn this into a completion condition'; skip and route elsewhere when the work is interval-shaped (/loop), cloud/sessionless (routines, /schedule), or a one-shot prompt."
+description: "Routes the repetition-lever choice across /goal, /loop, routines and /schedule, a Stop hook, and a one-shot prompt, then crafts a paste-ready /goal completion condition when /goal is the fit — the autonomous-goal / keep-working-toward-a-goal field Claude Code evaluates after every turn. Reads the current official docs live for the condition shape and character limit (never hardcodes either), drafts a transcript-demonstrable condition, and proves it fits the limit with a deterministic character counter instead of model guesswork. Use when: 'which loop should I use', '/goal or /loop', 'should this be a routine', 'pick the right autonomy lever', 'what kind of loop is this', 'craft a /goal', 'write a goal condition', 'set up an autonomous goal', 'make Claude keep working until X', 'my /goal is too long / over the limit', 'turn this into a completion condition'."
 argument-hint: "[intent]"
 user-invocable: true
 disable-model-invocation: false
@@ -42,12 +42,7 @@ Primary source: `https://code.claude.com/docs/en/goal`. Cross-check the scheduli
 
 The evaluator judges the condition against **what Claude has already surfaced in the transcript** — it does not run commands or read files. Draft accordingly: every claim in the condition must be something Claude's own output can demonstrate.
 
-Structure the draft to the doc-sourced shape. As of the contract this skill targets, that is:
-
-- **One measurable end state** — a test result, a build exit code, a file count, an empty queue.
-- **A stated check** — how Claude proves it (e.g. "`npm test` exits 0", "`git status` is clean").
-- **Constraints that must not change** on the way there (e.g. "no other test file is modified").
-- **An optional turn/time bound** — e.g. "or stop after 20 turns" — to cap runaway loops.
+Structure the draft to the shape Step 1 read off the live page — that page is the authority, and this file deliberately does not restate its elements. Keep each prescribed element separately identifiable in the draft, so Step 3's tightening pass can tell a load-bearing element from surrounding prose.
 
 Avoid conditions the transcript cannot show (subjective quality, external state Claude never surfaces).
 
@@ -63,7 +58,7 @@ For a simple condition with no shell-special characters, stdin also works: `prin
 
 Exit `0` = within limit, `1` = over, `2` = usage/env error (including a counter that failed to produce a number); stdout reports `chars=<n> limit=<N> status=<ok|over>`.
 
-**On `status=over`:** tighten and re-run until it passes — shorten prose, fold the stated check into the end state, drop redundant constraints — **without dropping the measurable end state, the stated check, or the load-bearing constraints**. If the intent genuinely cannot compress into one provable condition under the limit, say so rather than silently shedding a constraint; splitting a goal into sequential per-phase goals is not documented doctrine and is out of scope here.
+**On `status=over`:** tighten and re-run until it passes — shorten prose, fold overlapping elements together, drop redundant qualifiers — **without dropping any element the Step 1 shape prescribes**. If the intent genuinely cannot compress into one provable condition under the limit, say so rather than silently shedding a constraint; splitting a goal into sequential per-phase goals is not documented doctrine and is out of scope here.
 
 ## Step 4 — Output
 

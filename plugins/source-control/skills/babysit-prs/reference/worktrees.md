@@ -9,6 +9,12 @@ key's resolved value and its unset fallback; `<worktree-root>` defaults to the `
 subdirectory of the plugin data directory, and `<state-dir>` is its `state/babysit-prs`
 subdirectory.
 
+This file is the canonical, sole source for the babysit ephemeral-worktree convention — the
+plugin owns it, not any external prose doc. Rooting these worktrees outside every repository's
+discoverable tree (the plugin data directory by default) is deliberate: it keeps ephemeral
+scratch out of repository enumeration such as `ghq list`. Repointing `babysit_worktree_root`
+back under a discoverable tree reintroduces that pollution.
+
 ## Policy
 
 - At the start of a queue run holding the queue lease, remove only unleased clean babysit

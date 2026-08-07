@@ -331,12 +331,12 @@
       "id": 26,
       "name": "routine-reconciles-existing-bot-record-not-duplicate",
       "prompt": "/autonomy:setup apply\n\nWire routines; we already run a dependency-update bot on a schedule.",
-      "expected_output": "Detect-diff-reconciles rather than standing up a rival mechanism: first determines which of the dependency-update-wave catalog class's two postures the live bot instantiates (mechanical for pin/lockfile bumps, changelog-informed where it reads external release notes), then records it under that posture-qualified identity (dependency-update-wave/mechanical or dependency-update-wave/changelog-informed) and its surface — never the bare class token, which a multi-posture class forbids binding — reconciles its cadence, and never creates a second mechanism for the same concern. Honors DET-stays-cron — the deterministic detection half stays plain cron filing work items through the trigger adapters, only the judgment half is the routine — and surfaces the diff for a stale or duplicate bot instead of silently overwriting it.",
+      "expected_output": "Detect-diff-reconciles rather than standing up a rival mechanism: first determines which of the dependency-update-wave catalog class's two postures the live bot instantiates (mechanical for pin/lockfile bumps, changelog-informed where it reads external release notes), then records it under that posture-qualified identity (dependency-update-wave/mechanical or dependency-update-wave/changelog-informed) and its surface — never the bare class token, which a multi-posture class forbids binding — reconciles its cadence, and never creates a second mechanism for the same concern. Honors the no-agent-session rule — the deterministic detection half keeps running with no agent session, filing work items through the trigger adapters, only the judgment half is the routine — and surfaces the diff for a stale or duplicate bot instead of silently overwriting it.",
       "files": [],
       "expectations": [
         "Existing agent-judgment bot recorded as a catalog-class instance under its posture-qualified identity plus surface (never the bare multi-posture class token), not duplicated",
         "Never stands up a second mechanism for a concern an existing scheduler already covers",
-        "DET detection half stays plain cron; only the judgment half becomes the routine",
+        "DET detection half runs with no agent session; only the judgment half becomes the routine",
         "Stale or duplicate bot surfaced as a diff and reconciled, never silently overwritten"
       ]
     },

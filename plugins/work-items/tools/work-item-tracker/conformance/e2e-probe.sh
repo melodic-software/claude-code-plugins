@@ -58,8 +58,8 @@ for n in $(gh issue list -R "$REPO" --state open --limit 200 --json number --jq 
   gh issue close "$n" -R "$REPO" --comment "e2e-probe clean-at-start" >/dev/null 2>&1 || true
 done
 gh label create work-map -R "$REPO" --force >/dev/null 2>&1 || true
-gh label create "wayfind:research" -R "$REPO" --force >/dev/null 2>&1 || true
-gh label create "wayfind:task" -R "$REPO" --force >/dev/null 2>&1 || true
+gh label create "wayfind: research" -R "$REPO" --force >/dev/null 2>&1 || true
+gh label create "wayfind: task" -R "$REPO" --force >/dev/null 2>&1 || true
 
 TS="$(date -u +%Y%m%dT%H%M%SZ)"
 
@@ -70,10 +70,10 @@ record "create map" "$MAP"
 assert_contains "map id well-formed" "$MAP_ID" "github:"
 
 # 2. Two typed decision items under the map; item2 blocked by item1.
-ITEM1="$(wit create-item --title "e2e research item $TS" --labels "wayfind:research" --parent "$MAP_ID" --repo "$REPO")"
+ITEM1="$(wit create-item --title "e2e research item $TS" --labels "wayfind: research" --parent "$MAP_ID" --repo "$REPO")"
 ITEM1_ID="$(jq -r '.id' <<<"$ITEM1")"
 record "create item1 (research)" "$ITEM1"
-ITEM2="$(wit create-item --title "e2e task item $TS" --labels "wayfind:task" --parent "$MAP_ID" --blocked-by "$ITEM1_ID" --repo "$REPO")"
+ITEM2="$(wit create-item --title "e2e task item $TS" --labels "wayfind: task" --parent "$MAP_ID" --blocked-by "$ITEM1_ID" --repo "$REPO")"
 ITEM2_ID="$(jq -r '.id' <<<"$ITEM2")"
 record "create item2 (task, blocked by item1)" "$ITEM2"
 assert_eq "item2 parent is map" "$MAP_ID" "$(jq -r '.parent_id' <<<"$ITEM2")"

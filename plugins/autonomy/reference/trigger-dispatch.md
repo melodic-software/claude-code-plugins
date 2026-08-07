@@ -45,7 +45,8 @@ Two attributes are recorded on every queued signal:
 Six class-generic obligations bind every adapter:
 
 1. **Normalize and enqueue only.** An adapter never executes work and never bypasses the
-   queue. No second path from signal to execution exists.
+   queue — the adapter-side face of the [one-entrypoint invariant](#dispatch), which that
+   section states canonically.
 2. **Idempotent dedup**, keyed on `signal.identity`. The identity is the surface-native
    unique event id where the surface issues one. The FALLBACK identity is never a bare
    content hash: it composes source scope (surface class + origin locator) + an
@@ -154,7 +155,28 @@ missed enqueues are the poll-detector backstop's job.
 
 **One-entrypoint invariant.** Every kick funnels into the work-item queue capability's
 existing autonomous drain mode via the invocation-adapter seam. The seam's race-safe lease
-makes concurrent kicks harmless. No second claim or dispatch mechanism exists anywhere.
+makes concurrent kicks harmless. **No second path from signal to execution, no second claim
+path, and no second dispatch mechanism exists anywhere.** This paragraph is the invariant's
+canonical statement; every sibling contract cites it rather than restating it, so its scope
+cannot drift by re-wording.
+
+**Scope.** The invariant governs the governed-queue path: any mechanism that claims a queued
+work item, or that dispatches autonomous execution against one. Three consequences follow.
+
+- A surface that reaches a repository WITHOUT claiming a queued item is outside the
+  invariant, not an exemption from it — an interactive session a human drives, or a lane
+  that advances existing changes without claiming work items, takes no claim and so has no
+  second claim path to be. It remains bound by every other guardrail its work class carries.
+- A surface that DOES claim queued work is inside the invariant no matter how it is invoked
+  — interactively, on a schedule, or from an event — and claims through this entrypoint or
+  not at all.
+- The boundary is a property of the SURFACE's behavior, never of its category: a lane
+  crosses in the moment it starts claiming items, and neither its name, its plugin, nor its
+  prior classification grants it standing outside.
+
+The distinction is not load-bearing while only one claiming surface exists. It becomes
+load-bearing the moment a second one does — which is why it is written before the runner is
+built rather than after two surfaces disagree.
 
 **Execution-surface attestation.** Every kick/drain wiring records its named execution
 surface, but the recorded id is repo-local convenience only: the admission/executor seam
@@ -181,7 +203,8 @@ credential scoping, and the queue contract.
 
 ## Constraints
 
-- No queue bypass, no second dispatch mechanism, no second claim path.
+- The [one-entrypoint invariant](#dispatch) and its scope boundary bind every surface this
+  contract governs.
 - The contract never invents an event bus and never raises domain events; the adopting
   org's own systems own event definition and raising.
 - No new cost by default: paid surfaces are advisory with cost surfaced, explicit opt-in.

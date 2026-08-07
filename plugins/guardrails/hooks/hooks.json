@@ -85,6 +85,12 @@
             "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/cli-flag-verify.sh",
             "timeout": 30,
             "statusMessage": "Verifying CLI flags..."
+          },
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/skill-reference-verify.sh",
+            "timeout": 30,
+            "statusMessage": "Verifying skill references..."
           }
         ]
       }

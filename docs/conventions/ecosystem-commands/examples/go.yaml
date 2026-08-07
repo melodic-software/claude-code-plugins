@@ -12,5 +12,5 @@ gates:
   - name: go-mod-tidy-drift
     cmd: "go mod tidy -diff"
     trigger-globs: ["go.mod", "go.sum", "*.go"]
-    remediation: "Run go mod tidy and commit the updated go.mod/go.sum. (go mod tidy -diff requires Go 1.23+; on an older toolchain the gate errors on the unrecognized flag rather than reporting drift.)"
+    remediation: "Run go mod tidy and commit the updated go.mod/go.sum. (go mod tidy -diff requires Go 1.23+; an older toolchain rejects the flag, so the gate reports skip rather than drift.)"
 notes: "govulncheck is intentionally not a rung-4 default (per the epic brief's \"optional\" framing) — add it as a consumer-local gate via .claude/ecosystems/go.local.yaml if desired."

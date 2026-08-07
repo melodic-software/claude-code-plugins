@@ -156,6 +156,64 @@ escalate on unresolved-thread count or round number alone.
   against actual thread content, never a conclusion to act on or escalate over.
 - See the Fix-Round Cap in `orchestration.md` for the mechanical cap this verification gates.
 
+## Two Gates, One Merge-Ready Authority
+
+Two different scripts produce a verdict this skill's prose has historically called "readiness".
+They answer different questions and are not interchangeable:
+
+| Script | Question it answers | What it never checks |
+| --- | --- | --- |
+| `${CLAUDE_PLUGIN_ROOT}/scripts/babysit-readiness-gate.sh` — the **finding-classification gate** | Did this iteration individually classify every source finding, and is the iteration checklist complete? | Branch rules, review decision, unresolved threads, required checks, head match — nothing about GitHub's merge state |
+| `source-control-babysit-merge` — the **merge gate** | May this PR be merged right now under the plugin's full merge policy — GitHub's own mergeability *and* the plugin's policy holds? | Nothing about finding decomposition |
+
+`ready` is the plugin's **merge-policy** verdict, not a readout of GitHub's mergeability alone.
+`babysit_merge.py` appends its own policy blockers after the GitHub-derived ones: a
+dependency-manager author is held in every tier without `--allow-dependency`, a non-self author's
+PR on an unprotected base is held without `--allow-unprotected`, and an enabled autopilot merge
+tier adds that tier's own criteria. So `ready: false` can mean "GitHub would merge this; the plugin
+will not." Read the `blockers` list to tell the two apart, and never restate a plugin policy hold
+as a GitHub restriction — that mislabel is the same terminology ambiguity this section exists to
+remove.
+
+**Only the merge gate's `ready` field determines merge-readiness.** Any `MERGE-READY` claim —
+a human-facing report, a worker's return, or an autonomous merge decision — must cite a
+merge-gate run whose `ready` is `true`, never `READINESS_OK` from the finding-classification
+gate and never an agent's own reading of the PR. A PR can pass the classification gate and still
+be unmergeable: the classification gate is blind to, for example, a `required_review_thread_resolution`
+ruleset plus deliberately-open review threads, which blocks merge mechanically regardless of
+severity or whether a human already replied. Reporting `MERGE-READY` off the classification gate
+alone has produced a false human-facing report (`#601`).
+
+The classification gate is a **pre-gate**, not a weaker merge gate: it must pass before an
+iteration reports at all, and passing it says only that the findings were decomposed. Both gates
+must be satisfied before a PR is called merge-ready, and only the merge gate can say so.
+
+"Both gates satisfied" binds the decomposition claim, not a mandatory second script run on every
+path. The classification gate blocks on `findings > 0` with `classified < findings` (or an
+unticked `--checklist`), so it constrains any iteration that actually processed findings. The
+orchestrator's direct zero-blocker path — a non-draft PR the engine snapshot reports with zero
+blockers *and* no untriaged material feedback (`SKILL.md`, "Fan out") — goes straight to a
+merge-gate check without a worker, and so without the worker's per-PR iteration
+classification-gate run (`SKILL.md`, Steps A–F). What keeps that path from
+producing a false `MERGE-READY` is the `untriaged_material_feedback` exclusion in
+`pr_clean_ready_for_direct_gate` (`scripts/babysit_delta.py`): the merge gate never inspects finding
+content, so a PR carrying an undisposed material bot finding is held out of the direct gate rather
+than merged over it. That exclusion is *not* a guarantee the classification gate would pass there —
+it counts severity markers across *all* comment bodies with no bot/human split, while
+`collect_feedback` routes a top-level human comment or `COMMENTED` review carrying only a
+`SUGGESTION`/`CRITICAL`/`IMPORTANT` marker into `feedback["human"]` (non-blocking, and not material
+feedback), so such a PR can reach the direct gate while a classification-gate run would report
+`READINESS_BLOCKED`. Nor does the exclusion by itself force a worker: a *new* material item does
+(`unsuppressible_delta`, absent a refresh or foreign-activity hold), but an already-known,
+still-undisposed one re-dispatches a worker only through `quiet_recheck_due`'s periodic fallback,
+so such a PR may get neither a worker nor the direct gate that cycle. That path is gated on the engine's deterministic `needs_worker` delta, never
+on an agent's own reading that a PR has nothing outstanding, and merge-readiness on it still comes
+only from the merge gate's `ready` field.
+
+The merge gate is Python, so the Python-free degrade (`loop.md`) cannot run it at all. That path
+reports merge-readiness as **unchecked** — an unavailable merge gate is never grounds to promote
+`READINESS_OK` into a merge-ready claim.
+
 ## Guarded Mutation Wrappers
 
 The two guarded mutations run **only through their wrapper scripts** —

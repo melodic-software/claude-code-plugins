@@ -42,7 +42,7 @@ The row is derived through the catalog-to-matrix mapping rules in the
 
 1. **Judgment axis.** Deciding which PRs are genuinely stalled, what each one waits on, and
    who to nudge is semantic judgment no rule engine resolves — agent-judgment (`AGT`), which
-   is what makes the class a routine at all (deterministic work stays plain cron; a bare
+   is what makes the class a routine at all (deterministic work needs no agent session; a bare
    age-threshold stale bot is the deterministic neighbor, not this class).
 2. **Output axis.** A report plus work-item nudges are governed-queue and tracker writes
    with no repository mutation: the `AGT` + report rule and the `AGT` + work-item rule both

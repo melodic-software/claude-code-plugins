@@ -143,7 +143,12 @@ scan_file() {
   fi
   awk '
     function is_annotated(l) { return l ~ /portability-ok:/ }
-    function is_comment(l) { return l ~ /^[[:space:]]*#/ || l ~ /<!--/ }
+    # Block-level only: a content line that merely happens to carry an inline
+    # HTML comment marker (e.g. prose with `<!-- note -->` mid-line) must NOT
+    # count as a comment line for pending_annot carry-forward purposes — only a
+    # line whose `<!--` opens at the start (after optional whitespace) is a
+    # genuine dedicated comment line. See #611.
+    function is_comment(l) { return l ~ /^[[:space:]]*#/ || l ~ /^[[:space:]]*<!--/ }
     # Guard markers for the active branch class: branch-detection evidence ONLY
     # — a symbolic-ref / merge-base / origin/HEAD / PR-baseRefName resolution
     # command (or a `-> origin/` symbolic-ref target) co-located on the hit line.

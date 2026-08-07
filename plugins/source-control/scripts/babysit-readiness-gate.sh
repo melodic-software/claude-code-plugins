@@ -34,7 +34,15 @@
 #   unaddressed — R1+R5), OR when a --checklist file has any "- [ ]" (R6).
 #
 # This is a PURE PREDICATE — detection only, no GitHub writes. The skill runs
-# it before declaring readiness / scheduling the next wake.
+# it before completing an iteration / scheduling the next wake.
+#
+# NOT a merge-readiness check. This gate is blind to branch rules, review
+# decision, unresolved threads, required checks, and head match. Only the merge
+# gate (babysit_merge.py, via the source-control-babysit-merge wrapper) reports
+# whether the PR may be merged -- GitHub's own mergeability AND the plugin's own
+# policy holds (dependency-manager author, unprotected base, autopilot tier).
+# READINESS_OK is never evidence of that.
+# See skills/babysit-prs/reference/safety.md "Two Gates, One Merge-Ready Authority".
 #
 # Usage:
 #   babysit-readiness-gate.sh <pr>
@@ -97,8 +105,14 @@ EXTRA_SELF_CSV=""
 # non-comment line) with its comment markers stripped. Derived rather than a
 # hardcoded line range, which silently truncated or over-ran as the header grew.
 usage() {
+<<<<<<< HEAD
   awk 'NR == 1 { next } /^#/ { sub(/^# ?/, ""); print; next } { exit }' \
     "${BASH_SOURCE[0]}"
+||||||| abe914ea
+  sed -n '2,65p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+=======
+  sed -n '2,67p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+>>>>>>> origin/main
   exit 0
 }
 

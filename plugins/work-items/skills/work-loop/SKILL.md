@@ -173,7 +173,7 @@ while the latch is set (clear it on a fresh healthy snapshot after the pause end
      `/work-items:work` and `/implementation:implement-dispatch`; this loop inherits it and restates
      nothing beyond this caution.
    - **Dispatch discipline.** Worker briefs enumerate the required skills per phase and carry the
-     convention's subagent discipline preamble (presence-gated re-anchor sweep with the inline
+     convention's subagent discipline preamble (presence-gated discipline sweep with the inline
      fallback). Subagent escalation authority is an open-ended duty — escalate decisions that are
      the operator's, e.g. contract, security-posture, enforcement-scope, or issue-goal changes —
      never a closed list.

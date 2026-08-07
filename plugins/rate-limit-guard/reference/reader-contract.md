@@ -94,10 +94,13 @@ is part of the seam only in the sense that tooling sweeping the directory should
 
 ## Invariants and boundaries
 
-- **Single-account-per-machine.** The tee file is last-writer-wins with no account id: a mid-drain
-  login to a second account feeds that account's healthy windows to lanes exhausted on the first.
-  The guard cannot detect this; operation assumes one account per machine (owned by the loop-lane
-  convention §6).
+- **Single-account-per-machine is a known gap.** The tee file is last-writer-wins with no account
+  id: a mid-drain login to a second account feeds that account's healthy windows to lanes exhausted
+  on the first, and the guard cannot detect it. The loop-lane convention §6 owns the framing and
+  records it as a gap rather than as a safe assumption; the account-identity design that resolves
+  it — writer-side field, reader-side invalidation of latched state, lane-floor re-audit — is
+  `TODO(#1218)`. Locally relevant today: the writer already forward-passes any top-level key
+  matching `account`, so an identity field costs no plugin change the release one appears.
 - **No shipped Monitor config.** Consumers arm their own session Monitor on the tee file (the
   staleness rule makes this mandatory while paused). The plugin ships no `experimental.monitors`
   entry — the fleet stance on the experimental Monitors component is Wait

@@ -66,10 +66,9 @@ All imported unchanged; each is enforced by its owning contract, cited never res
 - Per-class gates, merge policy, cost tier, and escalation come from the
   [guardrail matrix](guardrails.md#the-matrix).
 - Queue and lease are reused from the work-item capability's race-safe lease and its
-  autonomous/human-gated classes — no second claim mechanism
-  ([dispatch](trigger-dispatch.md#dispatch)).
-- No queue bypass: every dispatch funnels through the one entrypoint, and the audit trail is
-  the trust loop ([trigger-dispatch](trigger-dispatch.md)).
+  autonomous/human-gated classes. The runner is a claiming surface, so the
+  [one-entrypoint invariant](trigger-dispatch.md#dispatch) and its scope boundary bind it
+  directly; the audit trail that funnelling produces is the trust loop.
 
 ## Anti-goals
 

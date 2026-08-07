@@ -15,7 +15,7 @@ into the plugin estate. Interview-locked contracts (this session):
   report); video/session-artifact evidence tier.
 - Recording format (video | gif | off) and browser mode (headed |
   headless) are layered config knobs per
-  `docs/conventions/consumer-config-layering/` — NOT hardcodes.
+  `docs/conventions/config-cascade/` — NOT hardcodes.
 - `plugins/autonomy/reference/routines.md` gains a thin-pointer clause:
   routine/scheduled-task prompts on any surface point to
   version-controlled files; pasted prose non-compliant.
@@ -38,7 +38,7 @@ branch touches target files — verified).
 
 ## Standards grounding
 
-- `docs/conventions/consumer-config-layering/README.md` — three layers
+- `docs/conventions/config-cascade/README.md` — three layers
   (user-global / team / local overlay), additive-preferred merge; new
   config surface must declare keys in the owning plugin's docs and point
   at the convention for layering.
@@ -72,7 +72,7 @@ Files: `plugins/testing/skills/run-e2e/SKILL.md`,
 prerequisite-failure behavior this phase changes — update
 unconditionally), `plugins/testing/CHANGELOG.md` (Keep a Changelog entry;
 **minor** bump — new behaviors),
-`docs/conventions/consumer-config-layering/README.md` (Implementers-table
+`docs/conventions/config-cascade/README.md` (Implementers-table
 row for the new surface — the convention tracks conformance, not
 assumes it).
 
@@ -118,7 +118,7 @@ assumes it).
   `rg -c "layer" plugins/testing/skills/run-e2e/SKILL.md` ≥ 2 AND
   `rg -c "browser_mode" plugins/testing/skills/run-e2e/SKILL.md` ≥ 2
   (resolution + plumbing sites); Implementers-table row:
-  `rg -c "testing/e2e" docs/conventions/consumer-config-layering/README.md`
+  `rg -c "testing/e2e" docs/conventions/config-cascade/README.md`
   ≥ 1; CHANGELOG entry present; eval #1 updated
   (`rg -c "gap" plugins/testing/skills/run-e2e/evals/evals.json` ≥ 1);
   markdownlint exit 0 on changed files; `/skill-quality:check run-e2e`

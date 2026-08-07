@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "playbooks",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Doctrine and knowledge playbooks as on-demand skills, plus a maintainer-facing update skill. boris — Boris Cherny's Claude Code workflow tips (howborisusesclaudecode.com); skill-authoring — Anthropic's internal skill-authoring playbook; fable-5 — Claude Fable 5's operating doctrine (self-authored, no upstream). The boris and skill-authoring packs vendor a verbatim upstream baseline; /playbooks:update drift-checks and syncs those baselines centrally (maintainers).",
   "author": {
     "name": "Melodic Software",

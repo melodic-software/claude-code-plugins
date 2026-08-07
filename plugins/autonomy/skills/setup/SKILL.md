@@ -358,12 +358,12 @@ resolution order.
    class, not a rival mechanism: record it in the binding under its routine identity
    (posture-qualified for a multi-posture class) and its surface, reconcile its cadence, and NEVER
    stand up a second mechanism for the same concern. The
-   DET-stays-cron rule holds through reconciliation — a plain deterministic scheduled check is not
-   a routine and stays plain cron filing work items through the trigger adapters; only its
-   judgment-bearing successor, where one exists, is the routine, and a hybrid class (e.g.
-   `dependency-update-wave`) reconciles as its split: detection half cron, judgment half the
-   routine. A stale or duplicate bot is surfaced as the diff and reconciled, never silently
-   overwritten.
+   no-agent-session rule holds through reconciliation — a wholly deterministic scheduled check is
+   not a routine and keeps running with no agent session, filing work items through the trigger
+   adapters; only its judgment-bearing successor, where one exists, is the routine, and a hybrid
+   class (e.g. `dependency-update-wave`) reconciles as its split: detection half judgment-free,
+   judgment half the routine. A stale or duplicate bot is surfaced as the diff and reconciled,
+   never silently overwritten.
 3. **Wire free defaults as reviewable changes** — for each enabled routine on a free surface the
    wiring is reviewable changes across role homes, never one agent-written file:
    - the CI-cron handler shape from

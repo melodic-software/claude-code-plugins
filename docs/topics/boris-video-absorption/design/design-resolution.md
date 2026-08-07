@@ -7,7 +7,7 @@ surface resolved here:
 
 - Surface: `.claude/testing/e2e.md` (folder-form name; identity = whole
   path relative to `.claude/`, per
-  `docs/conventions/consumer-config-layering/README.md`).
+  `docs/conventions/config-cascade/README.md`).
 - Keys (owned by the testing plugin's bundled reference,
   `run-e2e/context/e2e-config.md`): `recording: video | gif | off`
   (default `off`), `browser_mode: headed | headless` (default

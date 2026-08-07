@@ -162,6 +162,25 @@ assert_eq "sha256 helper matches direct call" "$sha_direct" "$sha_via_helper"
 missing_sha=$(file_sha "$TEST_TMPDIR/does-not-exist.txt")
 assert_eq "file_sha returns empty for missing path" "" "$missing_sha"
 
+# --- 9. Sync map covers every reference bucket ----------------------------------------
+
+# The manual-integration map routes upstream sections to reference files. A bucket
+# added without a map row silently routes its sections to the wrong file on the next
+# sync, so the map is asserted against the directory rather than trusted.
+
+map_text=$(sed -n '/Integrate new tips/,/Update SKILL.md/p' "$SCRIPT")
+for bucket in "$SCRIPT_DIR"/../reference/*.md; do
+  bucket_name="$(basename "$bucket")"
+  assert_contains "sync map routes $bucket_name" "$map_text" "reference/$bucket_name"
+done
+
+# Open-ended ranges re-introduce the same defect: "78+" swallows every later thread.
+if printf '%s' "$map_text" | grep -qE 'sections [0-9]+\+'; then
+  fail "sync map has no open-ended section range" "closed ranges" "found 'sections N+'"
+else
+  pass "sync map has no open-ended section range"
+fi
+
 # --- Final report ---------------------------------------------------------------------
 
 rm -rf "$TEST_TMPDIR" "$SOURCED_TMPDIR"

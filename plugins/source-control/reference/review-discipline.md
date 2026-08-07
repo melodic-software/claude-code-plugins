@@ -150,8 +150,10 @@ under-decomposed in practice. So enforcement is a gate:
 `bash "${CLAUDE_PLUGIN_ROOT}/scripts/babysit-readiness-gate.sh" <pr>` counts source findings
 (severity markers in reviewer comments) vs classification rows (VALID/INCORRECT/UNCERTAIN in
 your replies) and exits non-zero when rows < findings. The subagent-dispatch rule above tells
-you HOW to decompose; the gate enforces THAT you did — readiness cannot be declared while it
-reports `READINESS_BLOCKED`.
+you HOW to decompose; the gate enforces THAT you did — an iteration cannot be completed while it
+reports `READINESS_BLOCKED`. It says nothing about whether the PR can merge; that is the merge
+gate's `ready` field alone (`skills/babysit-prs/reference/safety.md` "Two Gates, One Merge-Ready
+Authority").
 
 ## 3. Per-finding D1–D7 verification gates
 

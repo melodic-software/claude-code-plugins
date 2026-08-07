@@ -73,7 +73,7 @@
     },
     {
       "id": 7,
-      "name": "negative-routing-rule-discipline-is-re-anchor-plugin",
+      "name": "negative-routing-rule-discipline-is-discipline-plugin",
       "prompt": "You've been drifting from the no-assumptions rule mid-task — re-anchor to that standing rule and audit the work in flight against it.",
       "expected_output": "Re-anchoring a standing behavioral rule and auditing in-flight work against it is a separate discipline concern (the discipline plugin's, when installed); session-flow:reanchor does not load — it re-anchors factual session assumptions against live reality, not behavioral doctrine.",
       "files": [],

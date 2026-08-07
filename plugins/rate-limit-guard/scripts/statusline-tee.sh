@@ -26,8 +26,8 @@
 # account-identifier field is adopted automatically the release it appears).
 # The path is deliberately HOME-anchored and outside ${CLAUDE_PLUGIN_DATA}:
 # it is a documented cross-plugin artifact seam that sibling-plugin lane
-# sessions read, machine-scope by design (single-account-per-machine
-# invariant — the file is last-writer-wins and carries no account id today).
+# sessions read, machine-scope by design (the file is last-writer-wins and
+# carries no account id today — loop-lane §6 owns that gap's framing).
 #
 # ATOMICITY: 3+ concurrent sessions write this one path and readers must
 # never see torn JSON, so the snapshot is written to a session-unique temp
