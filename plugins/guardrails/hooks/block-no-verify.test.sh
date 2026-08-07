@@ -269,4 +269,16 @@ run_pwsh "PS: cmd /c git (blocked)" "cmd /c git commit --no-verify" 2
 run_pwsh "PS: Start-Process notepad (no git, allowed)" "Start-Process notepad" 0
 run_pwsh "PS: pwsh -File script (no inline git, allowed)" "pwsh -File build.ps1" 0
 
+# `ps::might_invoke_git` is SHARED with block-dangerous-git, so the constant
+# call-target false positive (#1968) false-blocked the same command twice — once
+# per guard. Covered on both sides so a regression in the shared predicate cannot
+# be caught by only one suite.
+run_pwsh "PS: call-op, double-quoted literal script path (allowed)" \
+  '& "C:\tools\publish.ps1"' 0
+run_pwsh "PS: dot-source, single-quoted literal script path (allowed)" \
+  ". 'C:\\tools\\lib.ps1'" 0
+# shellcheck disable=SC2016
+run_pwsh "PS: call-op, interpolated variable target (fail-closed block)" \
+  '& "$tool" commit --no-verify' 2
+
 report

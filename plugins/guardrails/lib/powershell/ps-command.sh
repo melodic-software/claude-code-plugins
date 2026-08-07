@@ -77,6 +77,13 @@ readonly PS_HERESTRING_PLACEHOLDER="__GUARDRAILS_PS_HERESTRING__"
 # Set by ps::blank_herestrings.
 PS_BLANKED=""
 PS_HERESTRING_UNBALANCED=0
+# Set by ps::classify_git_command when a command routes to the fail-closed sink:
+# which of the four triggers fired (`herestring-unbalanced`, `special-construct`,
+# `dynamic-invocation`, `launcher`), empty otherwise. Read by the block messages
+# (so they name the construct actually present) and by the callers' telemetry (so
+# the four sink shapes are distinguishable in aggregate rather than collapsed into
+# one `powershell-unparsable` token that hides which one over-blocks).
+PS_SINK_TRIGGER=""
 # Set by ps::classify_git_command — the command the caller should parse. Read by
 # the sourcing guard, not within this library.
 # shellcheck disable=SC2034
@@ -172,6 +179,56 @@ ps::has_special_constructs() {
   esac
 }
 
+# --- call-target computedness (shared by the git and python-write lanes) -------
+#
+# Both lanes ask the same question of a call `&` / dot-source `.`: is the target
+# COMPUTED (so it could resolve to anything, including the program the lane
+# guards) or a compile-time CONSTANT (so it is statically decidable)? They used to
+# answer it with two different regexes — the git lane matching any quote character
+# and the python lane only an interpolating double quote — which is how the git
+# lane came to block `& "publish.ps1"`, a provably git-free literal path (#1968).
+# The separator class and the operator shape now live in one place; the two lanes
+# differ only in WHICH of the two computed shapes each admits, stated at the call
+# site rather than duplicated in a regex.
+#
+# A call operator is valid immediately after a statement/block separator
+# (`;& …`, `{& …}`, `|& …`), not only after whitespace — hence the separator class
+# `(^|[[:space:]\;\{\}\(\|\&])` rather than a bare `[[:space:]]`.
+#
+# The operator prefix is spelled out literally in each predicate rather than
+# factored into a shared variable and concatenated into the `[[ =~ ]]` pattern.
+# Mixing an unquoted variable with adjacent literal regex text in a pattern
+# position is the one bash construct whose quote-removal behavior is genuinely
+# version-sensitive, and a predicate that silently stops matching here fails
+# OPEN — the guard would wave through a computed call target. The SSOT that
+# matters is these two named functions being the only place either lane asks the
+# question; a shared string constant would buy nothing and risk that.
+
+# True (0) when the call/dot-source target is a bare variable or subexpression —
+# `& $tool …`, `& ('g'+'it') …`, `. (Get-Path) …`. The target is computed at run
+# time and cannot be resolved statically.
+ps::call_target_is_bare_computed() {
+  local lc="${1//\`/}"
+  lc="${lc,,}"
+  [[ "$lc" =~ (^|[[:space:]\;\{\}\(\|\&])[.\&][[:space:]]*[\$\(] ]]
+}
+
+# True (0) when the call/dot-source target is a DOUBLE-quoted string that
+# INTERPOLATES a variable or subexpression — `& "$tool" …`, `& "$(Get-Tool)" …`,
+# `& "C:\tools\$ver\x.exe" …`. Grounded in PowerShell `about_Quoting_Rules`:
+# a double-quoted string expands `$`-prefixed expressions, so such a target is
+# computed; a `$`-free double-quoted string and ANY single-quoted string are
+# compile-time constants ("& '$x'" is the literal program name `$x`).
+#
+# Deliberately does NOT match a constant literal. That is the whole point: a
+# blanket quote match makes every `& "script.ps1"` — the ordinary PowerShell
+# script-invocation idiom — indistinguishable from `& "$tool"`.
+ps::call_target_is_interpolating_string() {
+  local lc="${1//\`/}"
+  lc="${lc,,}"
+  [[ "$lc" =~ (^|[[:space:]\;\{\}\(\|\&])[.\&][[:space:]]*\"[^\"]*\$ ]]
+}
+
 # True (0) when the text MIGHT invoke git and cannot be proven otherwise. This is
 # the fail-closed sink's positive test: because the constructs that route here can
 # obfuscate the command, we do not trust a negative `commit`/`push` shape match on
@@ -188,17 +245,18 @@ ps::has_special_constructs() {
 # branch, so a false positive costs at most an over-block on a command that also
 # carries an unparsable construct.
 ps::might_invoke_git() {
-  # `q` carries the two quote characters so neither appears literally inside the
-  # [[ =~ ]] test (which would derail shellcheck's parser).
-  local recovered="${1//\`/}" lc q="\"'"
+  local recovered="${1//\`/}" lc
   lc="${recovered,,}"
   [[ "$lc" =~ (^|[^[:alnum:]_.])git([.]exe)?([^[:alnum:]_]|$) ]] && return 0
   [[ "$lc" =~ (^|[^[:alnum:]_-])(iex|invoke-expression)([^[:alnum:]_-]|$) ]] && return 0
-  # Call / dot-source of a variable, subexpression, or string literal:
-  # `& $x …`, `& (…)`, `& 'git …'`, `. $x …` — the target runs as a command.
-  # The call operator is also valid immediately after a statement/block
-  # separator (`;& …`, `{& …}`, `|& …`), not only after whitespace.
-  [[ "$lc" =~ (^|[[:space:]\;\{\}\(\|\&])[.\&][[:space:]]*[\$\($q] ]] && return 0
+  # Call / dot-source of a COMPUTED target — `& $x …`, `& (…)`, `& "$x" …`,
+  # `. $x …` — which could resolve to git. A CONSTANT target (`& 'git' …`,
+  # `& "C:\Git\cmd\git.exe" …`) is not matched here and does not need to be: the
+  # literal-git probe above runs quote-INTACT, so a quoted git command word is
+  # already caught by name. Matching constants here as well is what over-blocked
+  # `& "publish.ps1"` (#1968) — a target statically decidable as non-git.
+  ps::call_target_is_bare_computed "$recovered" && return 0
+  ps::call_target_is_interpolating_string "$recovered" && return 0
   # A launcher whose program is a computed expression or variable —
   # `Start-Process ('g'+'it') …`, `saps $tool …`, optionally behind one named
   # parameter (`-FilePath (…)`) — may evaluate to git; it cannot be proven
@@ -254,8 +312,10 @@ ps::might_write_via_python3() {
   # it here on the quote-INTACT text and fail closed. A SINGLE-quoted target does
   # NOT interpolate in PowerShell (`& '$x'` is the literal name `$x`), so it is not
   # matched. ps::write_bypass catches only an UNQUOTED `& $`/`& (`; this closes the
-  # quoted-interpolated form for the python-write lane.
-  [[ "$lc" =~ (^|[[:space:]\;\{\}\(\|\&])[.\&][[:space:]]*\"[^\"]*\$ ]] && return 0
+  # quoted-interpolated form for the python-write lane — which is why this lane
+  # takes only the interpolating-string half of the shared call-target predicate
+  # and not the bare-computed half.
+  ps::call_target_is_interpolating_string "$recovered" && return 0
   # Must name a python3 interpreter token at all (quote-intact, backtick-recovered).
   [[ "$lc" =~ (^|[^[:alnum:]_.])python3([.]exe)?([^[:alnum:]_]|$) ]] || return 1
   # A literal `-c` inline-code flag settles it (quote-bounded, so an arg-split
@@ -331,14 +391,26 @@ ps::has_launcher() {
 ps::classify_git_command() {
   local tool="$1" cmd="$2" scan
   PS_SAFE_COMMAND="$cmd"
+  PS_SINK_TRIGGER=""
   [[ "$tool" == "PowerShell" ]] || return 0
 
   ps::blank_herestrings "$cmd"
   scan=$(ps::blank_quoted_spans "$PS_BLANKED")
-  if ((PS_HERESTRING_UNBALANCED)) ||
-    ps::has_special_constructs "$scan" ||
-    ps::has_dynamic_invocation "$PS_BLANKED" ||
-    ps::has_launcher "$PS_BLANKED"; then
+  # Record WHICH trigger routed the command here. Four distinct shapes reach this
+  # sink and they need different remediation: an operator told to "remove the
+  # unparsable construct" when the trigger was a launcher or a computed call
+  # target has nothing to remove (#1968). The order matches the test order below,
+  # so the recorded trigger is the one that actually fired first.
+  if ((PS_HERESTRING_UNBALANCED)); then
+    PS_SINK_TRIGGER="herestring-unbalanced"
+  elif ps::has_special_constructs "$scan"; then
+    PS_SINK_TRIGGER="special-construct"
+  elif ps::has_dynamic_invocation "$PS_BLANKED"; then
+    PS_SINK_TRIGGER="dynamic-invocation"
+  elif ps::has_launcher "$PS_BLANKED"; then
+    PS_SINK_TRIGGER="launcher"
+  fi
+  if [[ -n "$PS_SINK_TRIGGER" ]]; then
     # Not faithfully tokenizable. Fail closed unless provably git-free. The git
     # probe runs on PS_BLANKED (quotes INTACT, backticks recovered inside the
     # probe) so a quoted or backtick-obfuscated `git` is still seen; an unbalanced
@@ -365,16 +437,41 @@ ps::classify_git_command() {
   return 0
 }
 
+# One line naming the construct that actually routed this command to the sink,
+# plus what to do about it. Each of the four triggers needs different advice:
+# "remove the unparsable construct" is unactionable for a launcher or a computed
+# call target, because there is no such construct to remove (#1968).
+ps::print_sink_trigger_line() {
+  case "$PS_SINK_TRIGGER" in
+  herestring-unbalanced)
+    echo "Trigger: an unbalanced here-string — its extent cannot be determined, so a trailing pipeline could be hidden inside it. Close the here-string (the '@ terminator must start at column 0)." >&2
+    ;;
+  special-construct)
+    echo "Trigger: a construct the guard cannot faithfully tokenize (backtick, '--%', subexpression, or {}/() grouping). Remove it, or run the command via the Bash tool." >&2
+    ;;
+  dynamic-invocation)
+    echo "Trigger: a dynamic invocation (iex/Invoke-Expression, or a call '&' / dot-source '.' of a computed target) whose program name is not statically decidable. Invoke the target by its literal name — a constant path in quotes ('& \"C:\\path\\script.ps1\"') is decidable and is not blocked." >&2
+    ;;
+  launcher)
+    echo "Trigger: a process launcher or nested shell (Start-Process/saps/start, pwsh, powershell, cmd), which the guard must see through the way it sees through 'bash -c'. Run the program directly, or run the command via the Bash tool." >&2
+    ;;
+  *)
+    echo "Run the command via the Bash tool, or rewrite it without the unparsable construct." >&2
+    ;;
+  esac
+}
+
 # Shell-agnostic block text for a PowerShell git command the guard cannot parse
 # with confidence. Printed to stderr by the caller before it exits 2.
 ps::print_unparsable_block_message() {
   echo "BLOCKED: this PowerShell git command cannot be parsed with confidence — blocked (fail-closed)." >&2
-  echo "Remove the obfuscating construct (backtick, --%, subexpression, or {}/() grouping)." >&2
+  ps::print_sink_trigger_line
   echo "The canonical PowerShell commit form (a here-string piped to 'git commit -F -') is:" >&2
   echo "  @'" >&2
   echo "  <subject>" >&2
   echo "  '@ | git commit -F -" >&2
   echo "or run the commit via the Bash tool (the /commit skill's canonical form)." >&2
+  echo "If this is a false positive, set the guardrails block_no_verify_enabled option to false (/plugin configure) to bypass." >&2
 }
 
 # Shell-agnostic block text for a PowerShell git command block-dangerous-git
@@ -383,8 +480,9 @@ ps::print_unparsable_block_message() {
 # caller before it exits 2.
 ps::print_unparsable_git_block_message() {
   echo "BLOCKED: this PowerShell 'git' command cannot be parsed with confidence — blocked (fail-closed)." >&2
-  echo "A git command carrying a PowerShell construct the guard cannot faithfully tokenize (backtick, '--%', subexpression, script-block grouping, or an unbalanced here-string) could hide a destructive form (reset --hard, clean -fd, checkout/restore), so it is blocked rather than waved through." >&2
-  echo "Run the command via the Bash tool, or rewrite it without the unparsable construct." >&2
+  echo "A git command the guard cannot faithfully tokenize could hide a destructive form (reset --hard, clean -fd, checkout/restore), so it is blocked rather than waved through." >&2
+  ps::print_sink_trigger_line
+  echo "If this is a false positive, set the guardrails block_dangerous_git_enabled option to false (/plugin configure) to bypass." >&2
 }
 
 # True (0) when a PowerShell command authors file content in a way that bypasses
