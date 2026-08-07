@@ -168,7 +168,12 @@ export PATH="$STUB_BIN:$PATH"
 # launcher's own repo_marker_key — a digest of the canonical repo path, not a
 # character fold, so two paths differing only in a folded character keep
 # distinct keys.
-marker_repo_key() { printf '%s' "$1" | git hash-object --stdin; }
+# Mirrors the launcher's `-C` scoping too: `git hash-object` keys on the object
+# format of the repository it resolves, so the digest must be taken in the
+# TARGET repo rather than wherever the suite happens to run. $2 is that anchor
+# (default: the fixture repo) and $1 is the path being hashed — the two differ
+# whenever git canonicalizes a symlinked --repo.
+marker_repo_key() { printf '%s' "$1" | git -C "${2:-$REPO}" hash-object --stdin; }
 REPO_KEY="$(marker_repo_key "$REPO")"
 
 run_launcher() { bash "$SCRIPT" --gate-arm-script "$ARM_STUB" "$@"; }
@@ -237,6 +242,21 @@ for mistyped_field in name model effort prompt; do
   assert_eq "a boolean .$mistyped_field is rejected with exit 3" 3 "$rc"
   assert_contains "a boolean .$mistyped_field is named in the message" "$out" ".$mistyped_field is boolean"
 done
+
+# The containment check reads names with jq's `test()`, which RAISES on a
+# non-string subject — and a raised query prints nothing, which the caller read
+# as "no violations". A non-string name on an EARLIER lane therefore skipped
+# containment for every name after it. The type check now runs first, so the
+# later queries never see a non-string subject and no raw jq error reaches the
+# operator.
+jq -n '{lanes: [{name: 123, prompt: "a.md"}, {name: "../escape", prompt: "b.md"}]}' \
+  >"$TMP/nonstring-then-escape.json"
+out="$(run_launcher start --repo "$REPO" --config "$TMP/nonstring-then-escape.json" --agents-json "$AGENTS_EMPTY" --dry-run 2>&1)"
+rc=$?
+assert_eq "a non-string name ahead of an escaping name exits 3" 3 "$rc"
+assert_contains "the non-string name is the reported reason" "$out" ".name is number"
+assert_not_contains "no raw jq type error reaches the operator" "$out" "cannot be matched"
+assert_not_contains "no lane is launched past the rejected config" "$out" "claude --bg"
 
 # `null` remains the JSON spelling of "no value" and stays equivalent to absent.
 jq -n '{lanes: [{name: "work", prompt: "work.md", model: null}]}' >"$TMP/nullmodel.json"
@@ -737,6 +757,36 @@ assert_eq "marker: keys on git's canonical toplevel, not the --repo argument" "d
 if [[ -e "$DATA_DIR8/lanes/$REPO_KEY/work-launch-commit" ]]; then usedarg=1; else usedarg=0; fi
 assert_eq "marker: nothing is written under the un-canonicalized --repo key" 0 "$usedarg"
 
+# `git hash-object` digests with the object format of the repository it
+# RESOLVES. Unscoped, it resolved the caller's — so a launcher run from a SHA-1
+# cwd against a SHA-256 --repo wrote a 40-hex key, while context/refresh.md's
+# probe, which runs inside that checkout, computed the 64-hex one and read a
+# directory the launcher never wrote: staleness detection silently off. The
+# digest must be taken IN the target repo. Skipped where git cannot create a
+# SHA-256 repository (the format is not universally compiled in).
+SHA256_REPO="$TMP/sha256-repo"
+if git init --object-format=sha256 -q "$SHA256_REPO" 2>/dev/null; then
+  mkdir -p "$SHA256_REPO/.work"
+  cp "$REPO/.work/work.md" "$SHA256_REPO/.work/"
+  cat >"$SHA256_REPO/.work/lanes.json" <<'JSON'
+{ "prompt_dir": ".work", "lanes": [ { "name": "work", "prompt": "work.md" } ] }
+JSON
+  DATA_DIR9="$TMP/data9"
+  out="$(run_launcher start --repo "$SHA256_REPO" --config "$SHA256_REPO/.work/lanes.json" \
+    --agents-json "$AGENTS_EMPTY" --data-dir "$DATA_DIR9" --no-pull --no-update 2>&1)"
+  # The key the target repo's own object format yields — 64 hex for SHA-256.
+  sha256_key="$(marker_repo_key "$SHA256_REPO" "$SHA256_REPO")"
+  assert_eq "marker: a SHA-256 repo yields a 64-character key" 64 "${#sha256_key}"
+  marker="$(cat "$DATA_DIR9/lanes/$sha256_key/work-launch-commit" 2>/dev/null)"
+  assert_eq "marker: written under the TARGET repo's object-format key" "deadbeefcafefeedfacefeeddeadbeefcafefeed" "$marker"
+  # The SHA-1 key the unscoped digest used to produce must hold nothing.
+  sha1_key="$(printf '%s' "$SHA256_REPO" | git -C "$REPO" hash-object --stdin)"
+  if [[ -e "$DATA_DIR9/lanes/$sha1_key/work-launch-commit" ]]; then wrongfmt=1; else wrongfmt=0; fi
+  assert_eq "marker: nothing is written under the caller-format key" 0 "$wrongfmt"
+else
+  printf 'SKIP: git cannot create a SHA-256 repository here — object-format keying unverified\n' >&2
+fi
+
 # ============================================================================
 # #1784 — lane-stop gate arming: a lane whose settings request the gate is
 # armed at launch (arm id injected into --settings), and one that cannot be
@@ -778,6 +828,72 @@ out="$(run_launcher start --repo "$REPO" --config "$TMP/gateopts.json" --agents-
 armlog="$(cat "$ARM_LOG")"
 assert_contains "arm: the lane's sentinel reaches the helper" "$armlog" "--sentinel DONE-X"
 assert_contains "arm: the lane's marker reaches the helper" "$armlog" "--marker .lane-complete"
+
+# An EXPLICIT empty marker disables the marker channel for this session, which
+# is a different verdict from leaving the option unset: an arm record with no
+# marker key at all lets the gate fall through to the user-level marker, where a
+# leftover global marker file can authorize a stop the lane never signaled. The
+# empty value must therefore reach the helper, not be read as absence.
+cat >"$TMP/gate-empty-marker.json" <<'JSON'
+{ "prompt_dir": ".work",
+  "lanes": [ { "name": "work", "prompt": "work.md",
+    "settings": { "pluginConfigs": { "autonomy@test-marketplace": { "options": {
+      "lane_stop_gate_enabled": true,
+      "lane_stop_gate_sentinel": "",
+      "lane_stop_gate_marker": "" } } } } } ] }
+JSON
+: >"$ARM_LOG"
+out="$(run_launcher start --repo "$REPO" --config "$TMP/gate-empty-marker.json" --agents-json "$AGENTS_EMPTY" --no-pull --no-update 2>&1)"
+armlog="$(cat "$ARM_LOG")"
+assert_contains "arm: an explicitly empty marker still reaches the helper" "$armlog" "--marker"
+assert_contains "arm: an explicitly empty sentinel still reaches the helper" "$armlog" "--sentinel"
+
+# …while an option the lane never set stays absent from the arm call, so the
+# gate's own resolution order (managed ▷ arm record ▷ user settings) still
+# reaches user settings for it.
+cat >"$TMP/gate-no-opts.json" <<'JSON'
+{ "prompt_dir": ".work",
+  "lanes": [ { "name": "work", "prompt": "work.md",
+    "settings": { "pluginConfigs": { "autonomy@test-marketplace": { "options": {
+      "lane_stop_gate_enabled": true } } } } } ] }
+JSON
+: >"$ARM_LOG"
+out="$(run_launcher start --repo "$REPO" --config "$TMP/gate-no-opts.json" --agents-json "$AGENTS_EMPTY" --no-pull --no-update 2>&1)"
+armlog="$(cat "$ARM_LOG")"
+assert_not_contains "arm: an unset marker passes no --marker" "$armlog" "--marker"
+assert_not_contains "arm: an unset sentinel passes no --sentinel" "$armlog" "--sentinel"
+
+# Settings may name several autonomy installs. The arm id must reach ONLY the
+# entries that asked: an `autonomy@a` carrying an explicit false would otherwise
+# find a valid arm record and honor it as enablement ahead of the operator's
+# false, gating an installation deliberately opted out. Options likewise come
+# only from the requesting entry — the disabled sibling's marker must not leak
+# into the arm call.
+cat >"$TMP/gate-multi.json" <<'JSON'
+{ "prompt_dir": ".work",
+  "lanes": [ { "name": "work", "prompt": "work.md",
+    "settings": { "pluginConfigs": {
+      "autonomy@a": { "options": {
+        "lane_stop_gate_enabled": false,
+        "lane_stop_gate_marker": "DISABLED-SIBLING-MARKER" } },
+      "autonomy@b": { "options": {
+        "lane_stop_gate_enabled": true,
+        "lane_stop_gate_marker": "REQUESTING-MARKER" } } } } } ] }
+JSON
+: >"$CLAUDE_LOG"
+: >"$ARM_LOG"
+out="$(run_launcher start --repo "$REPO" --config "$TMP/gate-multi.json" --agents-json "$AGENTS_EMPTY" --no-pull --no-update 2>&1)"
+log="$(cat "$CLAUDE_LOG")"
+armlog="$(cat "$ARM_LOG")"
+assert_contains "arm: options come from the requesting entry" "$armlog" "--marker REQUESTING-MARKER"
+assert_not_contains "arm: a disabled sibling's marker never reaches the helper" "$armlog" "DISABLED-SIBLING-MARKER"
+# The launched --settings must carry the arm id under autonomy@b only. Isolate
+# each entry's object from the echoed command rather than matching the whole
+# line, which contains both.
+entry_a="$(printf '%s\n' "$log" | grep -o '"autonomy@a":{[^}]*}[^}]*}' | head -n 1)"
+entry_b="$(printf '%s\n' "$log" | grep -o '"autonomy@b":{[^}]*}[^}]*}' | head -n 1)"
+assert_contains "arm: the requesting entry receives the arm id" "$entry_b" "lane_stop_gate_arm_id"
+assert_not_contains "arm: the explicitly-disabled entry receives no arm id" "$entry_a" "lane_stop_gate_arm_id"
 
 # Arming failure → that lane is skipped with an error (fail closed), the other
 # lanes still launch, and the sweep exits non-zero.

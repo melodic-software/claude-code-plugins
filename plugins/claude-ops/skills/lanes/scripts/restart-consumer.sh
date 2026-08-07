@@ -444,13 +444,18 @@ resolve_data_dir() {
 # The same injective, canonical-path key lane-launcher.sh uses for its
 # launch-commit markers: the data dir is plugin-wide, but a lane name is only
 # unique within one repo, so `work` in two checkouts must not share one ledger.
+# `-C "$REPO"` for the same reason the launcher scopes it — an unscoped
+# `git hash-object` keys on the CALLER's object format, so a SHA-256 target read
+# from a SHA-1 cwd would file its ledger under a key nothing else derives. The
+# anchor is the existing $REPO directory rather than the hashed $top, which may
+# be a path that does not resolve.
 REPO_MARKER_KEY=""
 repo_marker_key() {
   if [[ -z "$REPO_MARKER_KEY" ]]; then
     local top
     top="$(git -C "$REPO" rev-parse --show-toplevel 2>/dev/null)" || top=""
     [[ -n "$top" ]] || top="$REPO"
-    REPO_MARKER_KEY="$(printf '%s' "$top" | git hash-object --stdin 2>/dev/null)"
+    REPO_MARKER_KEY="$(printf '%s' "$top" | git -C "$REPO" hash-object --stdin 2>/dev/null)"
     [[ -n "$REPO_MARKER_KEY" ]] || REPO_MARKER_KEY="unkeyed"
   fi
   printf '%s' "$REPO_MARKER_KEY"
