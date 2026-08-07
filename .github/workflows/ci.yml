@@ -256,6 +256,39 @@ jobs:
       paths: .
       fail-on-severity: low
 
+  # The ONLY job on a Windows runner, and deliberately so. Every other suite in
+  # this repository is platform-agnostic bash string logic that a Linux runner
+  # exercises identically — `lib/powershell/ps-command.sh`, for instance, carries
+  # zero `OSTYPE`/`cygpath`/`uname` branches despite classifying PowerShell
+  # commands, so Linux tests it faithfully.
+  #
+  # `lib/hook-utils.sh` is the exception: it carries OSTYPE-gated branches that a
+  # Linux runner NEVER EXECUTES — case-insensitive path folding for the Windows
+  # filesystem, and `cygpath` short-name (8.3) resolution. Those branches were
+  # previously verified only by whatever a maintainer happened to run on a dev
+  # box. This job is what makes them a gate.
+  #
+  # Free: GitHub Actions is free for public repositories on standard
+  # GitHub-hosted runners, Windows included; only larger runners are charged.
+  # https://docs.github.com/en/billing/managing-billing-for-your-products/managing-billing-for-github-actions/about-billing-for-github-actions
+  #
+  # Keep this job SMALL. Adding a platform-agnostic suite here buys no coverage
+  # and pays Windows' process-creation cost (~140ms/spawn vs ~3ms on Linux),
+  # which is the whole reason the full suite is unusable on a Windows dev box.
+  hook-utils-windows:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Run shared lib tests on Windows
+        run: bash lib/hook-utils.test.sh
+
   hook-utils-sync:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
