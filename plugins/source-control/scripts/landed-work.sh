@@ -542,6 +542,7 @@ R_CONFLICTED=()
 R_UNTRACKED=()
 R_REASON=()
 R_NOTGIT=()
+R_BARE=()
 
 merged_ref() {
   local name="$1"
@@ -555,6 +556,7 @@ while [[ $idx -lt ${#T_PATH[@]} ]]; do
   reason=""
   if [[ ! -d "$p" ]] || ! is_worktree_root "$p"; then
     R_NOTGIT+=("yes")
+    R_BARE+=("no")
     R_UNPUSHED+=("?")
     R_LANDED+=("?")
     R_METHOD+=("none")
@@ -573,6 +575,28 @@ while [[ $idx -lt ${#T_PATH[@]} ]]; do
     continue
   fi
   R_NOTGIT+=("no")
+
+  # A bare-clone hub's own entry is the first row `git worktree list` emits, and
+  # it carries no HEAD. It passes the work-tree-root probe (a bare repository's
+  # --show-prefix is empty), so without this it would reach the landed
+  # computation, fail at merge-base, and report a healthy hub as UNKNOWN.
+  if [[ "$(git -C "$p" rev-parse --is-bare-repository 2>/dev/null)" == "true" ]]; then
+    R_UNPUSHED+=("n/a")
+    R_LANDED+=("n/a")
+    R_METHOD+=("none")
+    R_BASE+=("")
+    R_INPROGRESS+=("none")
+    R_STAGED+=("0")
+    R_UNSTAGED+=("0")
+    R_CONFLICTED+=("0")
+    R_UNTRACKED+=("0")
+    R_BARE+=("yes")
+    R_REASON+=("bare-repository; holds no working tree to strand")
+    T_BRANCH[idx]="(bare)"
+    idx=$((idx + 1))
+    continue
+  fi
+  R_BARE+=("no")
 
   # HEAD, never --branches: on a detached HEAD --branches reports every OTHER
   # branch in the repository and says nothing about the commits this worktree
@@ -672,6 +696,8 @@ while [[ $idx -lt ${#T_PATH[@]} ]]; do
   reason="${R_REASON[$idx]}"
   if [[ "${R_NOTGIT[$idx]}" == "yes" ]]; then
     risk="notgit"
+  elif [[ "${R_BARE[$idx]}" == "yes" ]]; then
+    risk="bare"
   elif [[ "${R_LANDED[$idx]}" == "no" ]] && merged_ref "${T_BRANCH[$idx]}"; then
     # landed=no AND a merged PR on the same head ref: the base holds a later,
     # larger revision of this same work. Reporting it as stranded would read as

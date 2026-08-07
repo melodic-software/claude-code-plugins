@@ -188,6 +188,30 @@ assert_eq "behind-not-stranded: by the direction test" \
   "two-dot-direction" "$(col "$R" $C_METHOD)"
 
 # --------------------------------------------------------------------------
+# EOL renormalization
+# --------------------------------------------------------------------------
+
+# The base carries the same content with CRLF endings; the branch has LF. This is
+# the case that justifies the two-dot fallback existing at all: a whitespace-only
+# divergence is exactly where a naive line comparison would report stranded work.
+# `git patch-id` strips whitespace before hashing, so the verdict is reached by
+# patch-id here; the assertion is on the verdict, not the route.
+W="$(mkfixture)"
+WT_EOL="$TEST_TMPDIR/wt-eol"
+git -C "$W" worktree add -q -b feat-eol "$WT_EOL" main >/dev/null 2>&1
+printf 'alpha\nbeta\n' >"$WT_EOL/eol.txt"
+git -C "$WT_EOL" add eol.txt >/dev/null 2>&1
+git -C "$WT_EOL" commit -qm "branch adds eol.txt with LF" >/dev/null 2>&1
+printf 'alpha\r\nbeta\r\n' >"$W/eol.txt"
+git -C "$W" add eol.txt >/dev/null 2>&1
+git -C "$W" commit -qm "base adds eol.txt with CRLF" >/dev/null 2>&1
+git -C "$W" push -q origin main >/dev/null 2>&1
+
+OUT="$(bash "$ENGINE" --repo-dir "$W" --no-peers)"
+R="$(row "$OUT" "wt-eol")"
+assert_eq "EOL renormalization alone does not read as stranded" "yes" "$(col "$R" $C_LANDED)"
+
+# --------------------------------------------------------------------------
 # Detached HEAD, and peers
 # --------------------------------------------------------------------------
 
@@ -238,6 +262,16 @@ MINGW* | MSYS* | CYGWIN*)
   skip_case "Windows-form path pair — single path spelling on this platform"
   ;;
 esac
+
+# A bare-clone hub's own entry is the first row `git worktree list` emits and it
+# carries no HEAD. It passes the work-tree-root probe, so without its own branch
+# it would reach the landed computation and report a healthy hub as UNKNOWN.
+BARE_HUB="$(mktemp -d "$TEST_TMPDIR/hubXXXXXX")/hub.bare"
+git init -q --bare -b main "$BARE_HUB" >/dev/null 2>&1
+OUT="$(bash "$ENGINE" --repo-dir "$BARE_HUB" --no-peers)"
+R="$(row "$OUT" "hub.bare")"
+assert_eq "a bare hub is reported as bare, not UNKNOWN" "bare" "$(col "$R" $C_RISK)"
+assert_eq "a bare hub has no landed verdict to give" "n/a" "$(col "$R" $C_LANDED)"
 
 OUT="$(bash "$ENGINE" --worktree "$TEST_TMPDIR/does-not-exist" --no-peers)"
 R="$(row "$OUT" "does-not-exist")"
