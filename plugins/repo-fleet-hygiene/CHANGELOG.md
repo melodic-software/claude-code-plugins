@@ -3,6 +3,28 @@
 All notable changes to `repo-fleet-hygiene` are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.0]
+
+### Added
+
+- **Three worktree findings the collector could not previously express.**
+  `worktree-not-a-root` (HIGH) fires when a registered path exists but
+  `git rev-parse --show-prefix` is non-empty: the path is a subdirectory of a work tree rather than
+  its root, so every `git -C` probe of it answers with the CONTAINING repository's state at exit 0
+  — indistinguishable from a healthy clean worktree, and the shape that makes a leftover directory
+  read as safe to remove. `worktree-root-unverifiable` (UNKNOWN) covers the case where that probe
+  itself fails; both stop worktree classification for that registration rather than describing the
+  wrong repository. `worktree-nested-in-repository` (MEDIUM) reports a non-main registration whose
+  root sits inside the canonical checkout's own working tree instead of at an external root — the
+  placement that makes a read matching a path-scoped rule's glob also load the parent checkout's
+  copy of that rule.
+
+  `rev-parse --show-prefix` joins the probe allowlist, matching `--show-toplevel`'s shape:
+  read-only, operand-free, fixed arity. The containment test resolves the canonical checkout
+  through git rather than reusing the discovered path, so both operands come from one source — a
+  filesystem-derived path and a git-emitted one differ by drive spelling on Windows, and the
+  comparison would silently never match.
+
 ## [0.8.1]
 
 ### Fixed

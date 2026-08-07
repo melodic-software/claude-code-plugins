@@ -172,6 +172,8 @@ do not turn "no verified finding" into "fleet is clean".
 | `merged-local-branch` | Run `/repo-hygiene:clean git` in the named canonical repository |
 | `merged-worktree`, `prunable-worktree`, `missing-worktree` | Run `/source-control:worktree cleanup --dry-run` in the canonical repository |
 | `worktree-admin-mismatch` | Manual inspection; `git worktree repair` is an option only after validating which administrative directory is authoritative |
+| `worktree-not-a-root`, `worktree-root-unverifiable` | Manual inspection of the registered path; every `git -C` probe of it describes the containing repository, so no cleanup handoff is safe until the path is resolved |
+| `worktree-nested-in-repository` | Recreate at an external root with `/source-control:worktree create`, then remove the nested one |
 | `github-remote-moved` | Human-reviewed `git remote set-url`; this plugin never changes remotes |
 
 This plugin remains useful if those optional collaborators are absent: the report names the local

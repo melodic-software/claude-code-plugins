@@ -3,6 +3,52 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.47.0]
+
+### Added
+
+- **`worktree` gains a stranded-work axis, and a detection engine to compute it.** The skill could
+  report that a worktree was old, quiet, and clean; it could not report whether removing it would
+  destroy a commit — different questions with the same surface symptoms. `scripts/landed-work.sh`
+  is the new read-only classifier: one TSV row per registered worktree carrying `unpushed`,
+  `landed`, the method and base SHA the verdict was reached with, the in-progress sequencer
+  operation, four independent working-tree counts, peer worktrees, a risk class, and a reason.
+
+  Only affirmative proof yields `landed=yes`. Every failed command, empty result set, unresolvable
+  base, and ambiguity yields `?`, which every consumer treats exactly as `no` — a false `no` costs
+  a confirmation prompt, a false `yes` destroys work.
+
+  The unpushed set is `HEAD --not --remotes`: `--branches` reports every other branch in the
+  repository and says nothing about a detached worktree's own commits, and `@{upstream}..HEAD`
+  returns nothing at all for a locally created branch. Landedness is decided by RANGE patch-id
+  first, because a squash-merge collapses N commits into one patch that no per-commit primitive —
+  `git cherry` included — can ever match, while the branch's range id equals the squash commit's
+  and stays matched as the base advances. The path-scoped two-dot fallback is direction-tested and
+  stamped with the base SHA it was computed against, because on its own it decays to a false `no`
+  once the base moves over the same paths. A registered path is confirmed to be a work-tree ROOT
+  with `rev-parse --show-prefix`, since `--is-inside-work-tree` returns true for a leftover
+  directory inside a repository and reports that repository's clean state as the directory's own.
+
+### Changed
+
+- **`worktree status` classifies Work before Status.** `merged` widens to "PR merged **or** every
+  unpushed commit landed on the base"; `stale` narrows to require Work to be safe, so a worktree
+  holding unpushed unlanded commits is `stranded` rather than merely old. `stranded`,
+  `superseded`, `notgit`, and `unknown` join the table, and the summary names the at-risk commit
+  total. A stranded row whose commits survive in a peer worktree is presented as such — a
+  materially different decision from losing them.
+
+- **`worktree cleanup` guards both places work actually dies.** Removal is recoverable: it leaves
+  the branch ref intact. The `git branch -D` the procedure emits one step later is not, and a
+  detached-HEAD worktree has no branch ref to begin with — so the precondition is stated at the
+  pre-removal site AND carried through to the emitted branch deletion, which now emits nothing
+  destructive for stranded or unproven work. The two pre-removal guards have a stated order
+  (stranded first, because it can abort the removal outright), the override is
+  `--acknowledge-stranded` per worktree rather than a bare `--force` answering a different
+  question, and every path offers `git -C <path> push -u origin HEAD` first as the resolution that
+  needs no judgement about whether the work matters. The escalation guard's unpushed probe moves
+  from `--branches` to `HEAD`.
+
 ## [0.46.2]
 
 ### Fixed

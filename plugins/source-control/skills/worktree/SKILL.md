@@ -98,7 +98,9 @@ Create a new worktree with guided naming and setup verification. Full procedure 
 
 ## Action: `status`
 
-Inventory all worktrees with PR association and staleness detection. Collect Tier-0 facts with plain git + gh (`git worktree list --porcelain` parse, one batched `gh pr list`, last-commit dates), then apply the 6-status classification table (`active` / `stale` / `in-review` / `merged` / `prunable` / `locked`), staleness threshold (14-day default; the configured override is `${user_config.worktree_stale_days}`), and presentation schema per [context/status.md](context/status.md). `audit` Step 1 invokes this logic internally.
+Inventory all worktrees with PR association, staleness detection, and a **stranded-work axis**. Collect Tier-0 facts with plain git + gh (`git worktree list --porcelain` parse, one batched `gh pr list`, last-commit dates) plus one run of `scripts/landed-work.sh` per repository, then apply the two-axis classification, staleness threshold (14-day default; the configured override is `${user_config.worktree_stale_days}`), and presentation schema per [context/status.md](context/status.md). `audit` Step 1 invokes this logic internally.
+
+The **Work** axis answers a question age and PR state cannot: whether removing a worktree would destroy a commit. It is classified first and outranks the rest, so a worktree holding unpushed unlanded commits is `stranded`, never merely `stale`. An unprovable verdict reports `unknown` and is treated exactly as `stranded` — the engine reports `?` rather than `no` so that an ambiguity is never read as safe.
 
 ---
 
@@ -108,6 +110,7 @@ Remove stale worktrees, orphaned metadata, and branches from merged PRs. Full 5-
 
 **Safety invariants cleanup MUST honor** (full detail in context/cleanup.md):
 
+- **Never remove a worktree, and never emit its `git branch -D`, while its work is stranded or unproven** — a worktree whose unpushed commits are not already on the base loses them, and `unknown` is treated exactly as `stranded`. Both sites are guarded because removal itself is recoverable (the branch ref survives) while the branch deletion one step later is not; a detached-HEAD worktree is the exception where removal alone is already terminal. The override is `--acknowledge-stranded`, per worktree — never a bare `--force`, which answers git's dirty-tree check, a different question. Offer `git -C <path> push -u origin HEAD` first: it makes the commits durable without anyone judging whether the work matters.
 - **Release OS file locks BEFORE `git worktree remove --force`** (Step 4a) — on Windows `--force` unregisters the worktree from git but leaves a husk on disk if a process holds a file handle. Stop build servers (`dotnet build-server shutdown`, Gradle `--stop`, or your stack's equivalent) and worktree-rooted daemons/MCP servers first; stop ONLY those (never another live worktree's processes).
 - **Never swallow removal stderr** (`2>/dev/null`) — a failed removal must surface so Step 5 reports husks honestly rather than counting one as removed.
 - **Emit `git branch -D` + self-worktree removal for the USER to run, never inline** (Step 4c) — deleting a branch is destructive (and the consuming project's hooks may block it mid-session); a worktree can't delete itself (the running Claude Code session holds its handle). `-D` (not `-d`) is needed because squash-merge changes the SHA.
