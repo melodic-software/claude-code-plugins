@@ -96,12 +96,22 @@ shopt -u nullglob
 # A plugin's command namespace is its manifest `name`, which need not equal its
 # directory name. Build the name → directory map from the manifests themselves so
 # a renamed directory or a name override resolves correctly.
-declare -A PLUGIN_DIR=()
+#
+# The manifest also decides WHERE that plugin's skills live. Its `skills` key
+# holds a path or an array of paths, each relative to the plugin root, and those
+# ADD to the conventional `skills/` directory rather than replacing it — verified
+# against the Plugins reference (<https://code.claude.com/docs/en/plugins-reference>,
+# "Path behavior rules", fetched 2026-08-06). Collect them per plugin so a skill
+# loaded from a declared location resolves like any other.
+declare -A PLUGIN_DIR=() PLUGIN_SKILL_PATHS=()
 for m in "${manifests[@]}"; do
   pdir="${m%/.claude-plugin/plugin.json}"
   pname=$(jq -r '.name // empty' "$m" 2>/dev/null | tr -d '\r')
   [[ -n "$pname" ]] || pname="${pdir##*/}"
   PLUGIN_DIR["$pname"]="$pdir"
+  PLUGIN_SKILL_PATHS["$pname"]=$(
+    jq -r '.skills // empty | if type == "array" then .[] else . end' "$m" 2>/dev/null | tr -d '\r'
+  )
 done
 
 # Extract a plugin skill's frontmatter `name`, or nothing when it declares none.
@@ -115,6 +125,35 @@ skill_frontmatter_name() {
     head -1
 }
 
+# The directories a plugin's skills are loaded from: the conventional `skills/`,
+# plus every path its manifest declares, plus the plugin root when the manifest
+# declares nothing and the root itself is the skill.
+#
+# All three shapes come from the Plugins reference
+# (<https://code.claude.com/docs/en/plugins-reference>, fetched 2026-08-06):
+# declared paths are relative to the plugin root and start with `./` (the `skills`
+# key also accepts `.`, and both `.` and `./` denote the root); they ADD to the
+# default `skills/` scan; and a plugin with a root SKILL.md, no `skills/`
+# subdirectory and no `skills` key auto-loads as a single-skill plugin. That last
+# condition is honoured as written rather than widened — a root SKILL.md sitting
+# beside a populated `skills/` is not loaded, and accepting it would suppress the
+# advisory for a command Claude Code does not actually offer.
+#
+# Call as: skill_roots <plugin-dir> <declared-paths> -> $roots
+# shellcheck disable=SC2154  # roots is the caller's frame, per the call contract
+skill_roots() {
+  local pdir="$1" declared="$2" rel
+  roots=("$pdir/skills")
+  while IFS= read -r rel; do
+    [[ -n "$rel" ]] || continue
+    rel="${rel#./}"
+    rel="${rel%/}"
+    if [[ -z "$rel" || "$rel" == "." ]]; then roots+=("$pdir"); else roots+=("$pdir/$rel"); fi
+  done <<<"$declared"
+  [[ -z "$declared" && ! -d "$pdir/skills" && -f "$pdir/SKILL.md" ]] && roots+=("$pdir")
+  return 0
+}
+
 # A plugin skill's command segment comes from its frontmatter `name` when set,
 # and from the directory name ONLY when it does not.
 #
@@ -126,18 +165,34 @@ skill_frontmatter_name() {
 # A directory alone is also not a skill: it must carry a SKILL.md, or a leftover
 # empty `skills/<name>/` would suppress the advisory for a command that never
 # existed.
+#
+# A root may BE a skill directory rather than a directory of them — a declared
+# path can point straight at a directory holding SKILL.md — so each root is tried
+# both ways.
 skill_resolves() {
-  local pdir="$1" skill="$2" sd fname
-  local direct="$pdir/skills/$skill/SKILL.md"
-  if [[ -f "$direct" ]]; then
-    fname=$(skill_frontmatter_name "$direct")
-    # No declared name → the directory name IS the command segment.
-    [[ -z "$fname" || "$fname" == "$skill" ]] && return 0
-  fi
-  for sd in "$pdir"/skills/*/SKILL.md; do
-    [[ -f "$sd" ]] || continue
-    fname=$(skill_frontmatter_name "$sd")
-    [[ -n "$fname" && "$fname" == "$skill" ]] && return 0
+  local pdir="$1" skill="$2" declared="$3" root sd sdir fname
+  local -a roots=()
+  skill_roots "$pdir" "$declared"
+  for root in "${roots[@]}"; do
+    if [[ -f "$root/$skill/SKILL.md" ]]; then
+      fname=$(skill_frontmatter_name "$root/$skill/SKILL.md")
+      # No declared name → the directory name IS the command segment.
+      [[ -z "$fname" || "$fname" == "$skill" ]] && return 0
+    fi
+    if [[ -f "$root/SKILL.md" ]]; then
+      fname=$(skill_frontmatter_name "$root/SKILL.md")
+      sdir="${root%/}"
+      if [[ -n "$fname" ]]; then
+        [[ "$fname" == "$skill" ]] && return 0
+      else
+        [[ "${sdir##*/}" == "$skill" ]] && return 0
+      fi
+    fi
+    for sd in "$root"/*/SKILL.md; do
+      [[ -f "$sd" ]] || continue
+      fname=$(skill_frontmatter_name "$sd")
+      [[ -n "$fname" && "$fname" == "$skill" ]] && return 0
+    done
   done
   return 1
 }
@@ -157,113 +212,173 @@ emit_refs() {
     sed -nE 's|^(/[a-z][a-z0-9-]*:[a-z][a-z0-9-]*)([[:space:]].*)?$|\1|p'
 }
 
+# Reconstruction is bounded on three axes, because this hook has a 30s timeout
+# (hooks.json) and a guard that loses its advisory to a timeout has stopped
+# guarding. A file too large to hold in a shell variable is not reconstructed at
+# all; a hunk stops contributing once it has yielded this many code spans, which is
+# far above any real edit given that only spans the anchor reaches are kept; and an
+# anchor stops being counted one occurrence past the cap, which is all the
+# uniqueness gate needs to know.
+RECONSTRUCT_MAX_CHARS=4194304
+RECONSTRUCT_MAX_SPANS=40
+RECONSTRUCT_MAX_OCCURRENCES=40
+
+# Append to the caller's $ctx every inline-code span in <region> whose extent
+# OVERLAPS [<hunk-start>, <hunk-end>), and count them in the caller's $nspan.
+#
+# Span boundaries are exactly the ones emit_refs' own `\`[^\`]+\`` finds, so what
+# is kept here and what is parsed there cannot disagree: leftmost match, at least
+# one character between the backticks (an adjacent pair opens nothing), and never
+# across a newline, since grep matches within a line.
+#
+# Call as: collect_overlapping_spans <region> <hunk-start> <hunk-end>
+# shellcheck disable=SC2154  # ctx and nspan are the caller's frame, per the docblock
+collect_overlapping_spans() {
+  local region="$1" hs="$2" he="$3"
+  local i=0 a b rest pre after inner
+  while :; do
+    rest="${region:i}"
+    pre="${rest%%\`*}"
+    # No backtick left in the region — nothing further can open a span.
+    [[ "$pre" == "$rest" ]] && return 0
+    a=$((i + ${#pre}))
+    after="${region:a+1}"
+    inner="${after%%\`*}"
+    # No closing backtick anywhere after this one: no span can open here or later.
+    [[ "$inner" == "$after" ]] && return 0
+    # An empty inner (an adjacent pair) or one spanning a newline is not a match
+    # for grep either; it retries from the next character, so this walk does too.
+    if [[ -z "$inner" || "$inner" == *$'\n'* ]]; then
+      i=$((a + 1))
+      continue
+    fi
+    b=$((a + 1 + ${#inner}))
+    # The span occupies [a, b] inclusive of both backticks; the hunk [hs, he).
+    if ((a < he && b >= hs)); then
+      ctx+="\`$inner\`"$'\n'
+      ((++nspan >= RECONSTRUCT_MAX_SPANS)) && return 0
+    fi
+    i=$((b + 1))
+  done
+}
+
+# Locate every occurrence of <anchor> in the caller's $content, into the caller's
+# $offs. Stops one past the occurrence cap: the uniqueness gate only needs to know
+# whether there is more than one, and `replace_all` stops contributing context at
+# the cap anyway.
+#
+# Occurrences, not matching lines. Counting lines is not enough: two occurrences
+# on one physical line are a single line, and that is a real shape — inserting
+# `legacy` into a line that already carries an untouched `` `/alpha:ghost-legacy` ``
+# leaves the anchor twice on that line, and reporting the reference would be an
+# advisory about text this call never wrote.
+#
+# Call as: anchor_offsets <anchor> -> $offs
+# shellcheck disable=SC2154  # content and offs are the caller's frame, per the call contract
+anchor_offsets() {
+  local anchor="$1" alen=${#1}
+  local rest="$content" base=0 pre
+  offs=()
+  while [[ "$rest" == *"$anchor"* ]]; do
+    pre="${rest%%"$anchor"*}"
+    offs+=($((base + ${#pre})))
+    ((${#offs[@]} > RECONSTRUCT_MAX_OCCURRENCES)) && return 0
+    base=$((base + ${#pre} + alen))
+    rest="${content:base}"
+  done
+}
+
 # Partial-replacement context reconstruction (Edit only). The same shape lives in
-# stale-path-verify and cli-flag-verify; stale-path-verify was fixed for this
-# defect class by 65b4f67c (#1432) and this one goes one step further with the
-# uniqueness requirement below, so the three are not yet identical.
+# stale-path-verify and cli-flag-verify, which still take the whole located line
+# and filter it by word token (stale-path-verify was fixed for the line-anchoring
+# half of this defect class by 65b4f67c); this one keeps only the part of the line
+# the hunk reaches, so the three are not identical.
 #
 # An Edit may replace an arbitrary substring: swapping `setup` for `ghost` inside
 # an existing `/alpha:setup` leaves `/alpha:ghost` on disk, but the hunk is the
 # bare word `ghost` and carries no command for emit_refs to find, so a
 # newly-broken reference would be silently missed.
 #
-# Recover bounded context: the edit is already applied by PostToolUse time, so
-# pull from disk only the lines the hunk's OWN TEXT UNIQUELY locates, scan those,
-# and keep only references whose plugin or skill segment contains one of the
-# hunk's word tokens. Two gates, and the first is where diff-scope actually lives:
+# Recover bounded context POSITIONALLY. The edit is already applied by PostToolUse
+# time, so every line of new_string is on disk verbatim and its own text locates
+# the exact span of the file this call wrote. Diff-scope is then an overlap test
+# rather than a word-token heuristic. Two gates:
 #
-#   1. LOCATE by the hunk's own lines, and only where a line OCCURS exactly once
-#      in the file. Every line of new_string is on disk verbatim, so a unique
-#      occurrence IS where the edit landed. Anything repeated cannot say which
-#      copy that was, so it is dropped rather than unioned. Occurrences, not
-#      matching lines — two copies on one physical line are a single grep hit and
-#      would otherwise slip through. Exception: under `replace_all` every
-#      occurrence is a place this call edited, so all are kept.
-#   2. FILTER the references found there by the hunk's word tokens.
+#   1. LOCATE by the hunk's own lines, never by its tokens, and only where a line
+#      OCCURS exactly once in the file. A unique occurrence IS where the edit
+#      landed. Anything repeated cannot say which copy that was, so it is dropped
+#      rather than unioned. Exception: under `replace_all` every occurrence is a
+#      place this call edited, so all are kept.
+#   2. KEEP only the inline-code spans whose extent OVERLAPS the located anchor.
 #
-# Gate 2 alone is not sufficient and was never the guarantee: a token short
-# enough to occur in unrelated prose is also short enough to be a substring of an
-# untouched skill segment, so it would pass the reference through. Uniqueness at
-# gate 1 is what keeps the guard inside the diff.
+# Gate 2 is what a word-token filter could never be: exact. Sharing a physical line
+# with the hunk is not evidence the edit wrote a reference, so a span the anchor
+# does not reach is dropped no matter how many words it happens to share with the
+# hunk. And overlap has no minimum length to clear, so an Edit replacing two
+# characters inside a command segment is scoped as precisely as one replacing
+# twenty — where the token filter, needing a token long enough to filter on, simply
+# produced none and gave up.
 #
 # What this does NOT claim: the `replace_all` branch keeps every occurrence,
 # including one that pre-existed the edit and merely happens to read the same —
 # nothing in the payload separates those. Reconstruction is a best effort under an
 # advisory guard, not a proof that every reported line was written by this call.
+#
+# Cost is ONE read of the file, then in-memory scans — no subprocess per hunk line.
+# The per-anchor `grep` this replaced spawned two processes per line of the hunk,
+# which a large multiline Edit turned into the hook's timeout.
 reconstruct_partial_edit() {
   [[ "$TOOL" == "Edit" && -f "$FILE" ]] || return 0
-  # The token filter reads the hunk with any COMPLETE reference removed first. A
-  # complete reference is already handled by the direct scan, and leaving it in
-  # would contribute its own plugin name as a token — `alpha` then passes every
-  # reference to that plugin. What remains is the genuinely bare edited text.
-  local residue
-  residue=$(printf '%s' "$SCAN_CONTENT" | sed -E 's#/[a-z][a-z0-9-]*:[a-z][a-z0-9-]*##g')
-  # Minimum token length. A substring match on a very short token matches almost
-  # any segment — stripping a reference out of `Run `/alpha:x` now.` leaves the
-  # fragment `un`, which substring-matches `untouched-ghost`. 4 characters is the
-  # shortest command segment worth filtering on; below that the token carries no
-  # filtering power.
-  local -a toks=()
-  mapfile -t toks < <(printf '%s' "$residue" | grep -oE '[a-z][a-z0-9-]{3,}' 2>/dev/null | sort -u)
-  ((${#toks[@]})) || return 0
-  # Lines are located by the hunk's own lines, never by its tokens. Every line of
-  # new_string is on disk verbatim, so it matches the line the edit landed in; a
-  # token, being shorter, also matches lines the edit never touched — a bare
-  # `legacy` in unrelated prose pulls in every `/alpha:*-legacy` reference on any
-  # line, and an untouched broken one among them would fire.
+  local content
+  content=$(<"$FILE") || return 0
+  # new_string arrived with CR stripped, so a CRLF file must be searched the same
+  # way or no anchor would ever locate. Offsets are read back off this normalized
+  # text only, never off the bytes on disk.
+  content=${content//$'\r'/}
+  ((${#content} <= RECONSTRUCT_MAX_CHARS)) || return 0
+
   local -a anchors=()
   mapfile -t anchors < <(printf '%s' "$SCAN_CONTENT" | grep -vE '^[[:space:]]*$' 2>/dev/null)
   ((${#anchors[@]})) || return 0
-  # An anchor is used ONLY when it OCCURS exactly once in the file — occurrences,
-  # not matching lines. Counting lines is not enough: two occurrences on one
-  # physical line are one grep hit, and that is a real shape — inserting `legacy`
-  # into a line that already carries an untouched `` `/alpha:ghost-legacy` ``
-  # leaves the anchor twice on that line, and reporting the reference would be an
-  # advisory about text this call never wrote. Occurrence uniqueness subsumes line
-  # uniqueness (one occurrence can only be on one line), so it is the only gate.
-  #
-  # A non-unique anchor cannot say WHICH occurrence the edit landed on, so it is
-  # dropped rather than unioned. Cost: a missed advisory when an edit lands in
-  # text that repeats verbatim elsewhere in the file. For a detect-then-judge
-  # guard that is the right side of the trade — it is degraded far worse by being
-  # wrong when it speaks than by staying quiet.
-  local anchor occ ctx=""
-  local -a hits=()
+
+  # A repeated anchor line resolves identically every time, so scan each once.
+  declare -A seen=()
+  local ctx="" nspan=0 anchor alen off hs he head tail
+  local -a offs=()
   for anchor in "${anchors[@]}"; do
-    mapfile -t hits < <(grep -F -- "$anchor" "$FILE" 2>/dev/null)
-    ((${#hits[@]})) || continue
-    # `replace_all` is the one case where repetition is expected rather than
-    # ambiguous: every occurrence is a place THIS call edited, so all of them are
-    # in scope and uniqueness must not be required. Accepted narrowing — a line
-    # that independently contained `new_string` and was never touched is kept too,
-    # since nothing in the payload distinguishes it from an edited one.
-    if [[ "$REPLACE_ALL" == "true" ]]; then
-      for occ in "${hits[@]}"; do ctx+="$occ"$'\n'; done
-      continue
-    fi
-    occ=$(grep -o -F -- "$anchor" "$FILE" 2>/dev/null | grep -c .)
-    ((occ == 1)) || continue
-    ctx+="${hits[0]}"$'\n'
+    alen=${#anchor}
+    ((alen)) || continue
+    [[ -n "${seen[$anchor]:-}" ]] && continue
+    seen["$anchor"]=1
+    anchor_offsets "$anchor"
+    ((${#offs[@]})) || continue
+    # A non-unique anchor cannot say WHICH occurrence the edit landed on, so it is
+    # dropped rather than unioned. Cost: a missed advisory when an edit lands in
+    # text that repeats verbatim elsewhere in the file. For a detect-then-judge
+    # guard that is the right side of the trade — it is degraded far worse by being
+    # wrong when it speaks than by staying quiet.
+    [[ "$REPLACE_ALL" == "true" ]] || ((${#offs[@]} == 1)) || continue
+    for off in "${offs[@]}"; do
+      # The physical line the anchor sits in: back to the newline before it,
+      # forward to the newline after. A reference the edit landed inside is only
+      # whole when read from the line, not from the anchor alone — which is why
+      # the line is read at all, and why only the part of it the anchor reaches
+      # may be kept.
+      head="${content:0:off}"
+      head="${head##*$'\n'}"
+      hs=${#head}
+      tail="${content:off+alen}"
+      tail="${tail%%$'\n'*}"
+      he=$((hs + alen))
+      collect_overlapping_spans "${content:off-hs:he+${#tail}}" "$hs" "$he"
+      ((nspan >= RECONSTRUCT_MAX_SPANS)) && break 2
+    done
   done
   [[ -n "$ctx" ]] || return 0
+
   local saved="$SCAN_CONTENT"
-  SCAN_CONTENT=$(printf '%s' "$ctx" | grep -vE '^[[:space:]]*$' | head -40)
-  local ref seg plug skl
-  while IFS= read -r ref; do
-    [[ -n "$ref" ]] || continue
-    plug="${ref#/}"
-    plug="${plug%%:*}"
-    skl="${ref##*:}"
-    # SUBSTRING match, not equality: an Edit can replace part of a segment
-    # (`up` -> `host` turns `/alpha:setup` into `/alpha:sethost`), so the hunk
-    # token is a substring of the segment rather than the whole of it.
-    for seg in "${toks[@]}"; do
-      if [[ "$plug" == *"$seg"* || "$skl" == *"$seg"* ]]; then
-        printf '%s\n' "$ref"
-        break
-      fi
-    done
-  done < <(emit_refs)
+  SCAN_CONTENT="$ctx"
+  emit_refs
   SCAN_CONTENT="$saved"
 }
 
@@ -290,7 +405,7 @@ for ref in "${REFS[@]}"; do
   # PLUGIN-SCOPE GATE: only adjudicate a plugin this repo owns.
   pdir="${PLUGIN_DIR[$plugin]:-}"
   [[ -n "$pdir" ]] || continue
-  skill_resolves "$pdir" "$skill" && continue
+  skill_resolves "$pdir" "$skill" "${PLUGIN_SKILL_PATHS[$plugin]:-}" && continue
   UNRESOLVED+=("$ref")
 done
 

@@ -365,6 +365,144 @@ assert_contains "reference reachable both ways → reported" "$OUT" \
 assert_contains "reference reachable both ways → counted once" "$OUT" \
   "1 skill reference(s) do not resolve"
 
+# Sharing a physical LINE with the hunk is not evidence the edit wrote a
+# reference. Here the anchor is unique — so the uniqueness gate is satisfied and
+# cannot help — and it sits on the same line as an untouched broken reference,
+# which a shared word (`legacy`) then readmitted through the token filter. Only
+# keeping the part of the line the anchor OVERLAPS separates them.
+ONELINE="$REPO/oneline.md"
+printf 'Stale `/alpha:ghost-legacy` here. The legacy naming convention was updated today.\n' \
+  >"$ONELINE"
+OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" \
+  <<<"$(edit_json "$ONELINE" 'The legacy naming convention was updated today.')" 2>&1)
+RC=$?
+assert_exit "unique anchor beside an untouched reference → exit 0" 0 "$RC"
+assert_silent "a reference the anchor does not overlap is not reported" "$OUT"
+
+# The same line, edited INSIDE the reference this time: overlap must still admit
+# it, or the fix above would have bought scope by going blind.
+ONELINE2="$REPO/oneline2.md"
+printf 'Stale `/alpha:ghost-legacy` here. The legacy naming convention was updated today.\n' \
+  >"$ONELINE2"
+OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" <<<"$(edit_json "$ONELINE2" 'ghost-legacy')" 2>&1)
+assert_contains "an anchor inside the reference still reports it" "$OUT" \
+  "UNRESOLVED_SKILL: /alpha:ghost-legacy"
+
+# A SHORT substring edit. Replacing `up` with `xx` inside `/alpha:setup` leaves
+# `/alpha:setxx` on disk and a two-character hunk; a minimum token length left
+# every such edit uncovered, while overlap has no length to clear.
+SHORT="$REPO/short.md"
+printf 'Run `/alpha:setxx` to begin.\n' >"$SHORT"
+OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" <<<"$(edit_json "$SHORT" 'xx')" 2>&1)
+RC=$?
+assert_exit "two-character Edit hunk → exit 0" 0 "$RC"
+assert_contains "two-character Edit hunk → containing reference recovered" "$OUT" \
+  "UNRESOLVED_SKILL: /alpha:setxx"
+
+# A short anchor is still subject to the uniqueness gate — it buys no scope.
+SHORT2="$REPO/short2.md"
+printf 'Run `/alpha:setxx` and note the xx convention.\n' >"$SHORT2"
+OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" <<<"$(edit_json "$SHORT2" 'xx')" 2>&1)
+assert_silent "a short anchor occurring twice is still ambiguous" "$OUT"
+
+# A large multiline Edit must not cost a subprocess per hunk line. The hook's own
+# timeout is 30 s (hooks.json) and a per-line full-file grep spent it, losing the
+# advisory entirely; the ceiling here is deliberately loose so the case fails only
+# on the defect, not on a slow host.
+BIGDOC="$REPO/big.md"
+BIGHUNK="$TEST_TMPDIR/bighunk.txt"
+: >"$BIGDOC"
+: >"$BIGHUNK"
+{
+  for ((i = 1; i <= 1000; i++)); do printf 'Line %s of the large replaced passage.\n' "$i"; done
+} >"$BIGHUNK"
+{
+  cat "$BIGHUNK"
+  printf 'Run `/alpha:ghost-big` at the end.\n'
+} >"$BIGDOC"
+big_start=$SECONDS
+OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" \
+  <<<"$(edit_json "$BIGDOC" "$(cat "$BIGHUNK")")" 2>&1)
+RC=$?
+big_elapsed=$((SECONDS - big_start))
+assert_exit "1000-line Edit hunk → exit 0" 0 "$RC"
+if ((big_elapsed < 30)); then
+  ok "1000-line Edit hunk stays inside the hook's 30s timeout (${big_elapsed}s)"
+else
+  bad "1000-line Edit hunk took ${big_elapsed}s, at or past the hook's 30s timeout"
+fi
+
+# ============ MANIFEST-DECLARED SKILL PATHS =================================
+# A manifest may declare `skills` paths, which ADD to the conventional `skills/`
+# directory rather than replacing it. A command loaded from a declared location is
+# real, so reporting it unresolved is a false advisory.
+mk_plugin gamma gamma
+mk_skill gamma conventional
+mkdir -p "$REPO/plugins/gamma/custom/extras/declared"
+printf -- '---\nname: declared\ndescription: x\n---\n' \
+  >"$REPO/plugins/gamma/custom/extras/declared/SKILL.md"
+# A declared path may point straight AT a skill directory, not only at a directory
+# of them.
+mkdir -p "$REPO/plugins/gamma/solo"
+printf -- '---\nname: solo-command\ndescription: x\n---\n' \
+  >"$REPO/plugins/gamma/solo/SKILL.md"
+MSYS_NO_PATHCONV=1 jq -n '{name:"gamma",version:"0.1.0",skills:["./custom/extras/","./solo/"]}' \
+  >"$REPO/plugins/gamma/.claude-plugin/plugin.json"
+
+OUT=$(run 'Run `/gamma:declared`.')
+RC=$?
+assert_exit "manifest-declared skill path → exit 0" 0 "$RC"
+assert_silent "skill under a manifest-declared path resolves" "$OUT"
+
+OUT=$(run 'Run `/gamma:solo-command`.')
+assert_silent "declared path pointing AT a skill directory resolves" "$OUT"
+
+# Declared paths ADD to `skills/`; the conventional directory must still resolve.
+OUT=$(run 'Run `/gamma:conventional`.')
+assert_silent "declared paths add to skills/, they do not replace it" "$OUT"
+
+# The guard must not go blind for a plugin that declares paths — a command in
+# neither location still fires.
+OUT=$(run 'Run `/gamma:nowhere`.')
+assert_contains "declared paths do not suppress a genuinely missing command" "$OUT" \
+  "UNRESOLVED_SKILL: /gamma:nowhere"
+
+# A declared skill's DIRECTORY name is no more an alias than a conventional one's.
+OUT=$(run 'Run `/gamma:solo`.')
+assert_contains "declared skill's directory name is NOT an alias" "$OUT" \
+  "UNRESOLVED_SKILL: /gamma:solo"
+
+# A string `skills` value is as valid as an array.
+mk_plugin delta delta
+mkdir -p "$REPO/plugins/delta/elsewhere/one"
+printf -- '---\nname: one\ndescription: x\n---\n' \
+  >"$REPO/plugins/delta/elsewhere/one/SKILL.md"
+MSYS_NO_PATHCONV=1 jq -n '{name:"delta",version:"0.1.0",skills:"./elsewhere/"}' \
+  >"$REPO/plugins/delta/.claude-plugin/plugin.json"
+OUT=$(run 'Run `/delta:one`.')
+assert_silent "a string skills value resolves like a one-element array" "$OUT"
+
+# The single-skill plugin layout: a SKILL.md at the plugin root, no `skills/`
+# subdirectory and no `skills` key, auto-loads as one skill named by its
+# frontmatter.
+mk_plugin epsilon epsilon
+printf -- '---\nname: eps-command\ndescription: x\n---\n' >"$REPO/plugins/epsilon/SKILL.md"
+OUT=$(run 'Run `/epsilon:eps-command`.')
+assert_silent "root SKILL.md with no skills/ and no manifest key auto-loads" "$OUT"
+OUT=$(run 'Run `/epsilon:missing`.')
+assert_contains "single-skill plugin still fires for a command it does not have" "$OUT" \
+  "UNRESOLVED_SKILL: /epsilon:missing"
+
+# The auto-load applies only under its documented conditions. A root SKILL.md
+# BESIDE a populated `skills/` is not loaded, so it must not resolve — accepting it
+# would suppress the advisory for a command Claude Code does not offer.
+mk_plugin zeta zeta
+mk_skill zeta real
+printf -- '---\nname: zeta-root\ndescription: x\n---\n' >"$REPO/plugins/zeta/SKILL.md"
+OUT=$(run 'Run `/zeta:zeta-root`.')
+assert_contains "root SKILL.md beside a populated skills/ is not auto-loaded" "$OUT" \
+  "UNRESOLVED_SKILL: /zeta:zeta-root"
+
 # ============================ KILL SWITCH ===================================
 
 OUT=$(CLAUDE_PROJECT_DIR="$REPO" CLAUDE_PLUGIN_OPTION_SKILL_REFERENCE_VERIFY_ENABLED=false \

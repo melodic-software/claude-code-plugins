@@ -3,6 +3,49 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.20.0]
+
+### Fixed
+
+- **`block-dangerous-git`'s hash-width probe ignored a wrapper's chdir, so an unsafe
+  `--force-with-lease` passed.** A lease expectation is judged against the hash width of the
+  repository the push will run in, and the probe replays git's own repository-locating globals to
+  find it. It could not replay a WRAPPER's relocation: `collect_git_locating_opts` reads only the
+  slice between the git word and the subcommand — as it must, since that walk cannot know which of
+  `env`'s or `sudo`'s options take a value — so `env -C <sha256-repo> git push
+  --force-with-lease=main:<40-hex>` probed the invoking SHA-1 directory, read the 40-hex expectation
+  as an immutable object id, and allowed the push. Where git actually runs, that same word is an
+  ordinary movable ref name, which is the exact hole `--force-with-lease` exists to close.
+  `hook::git_resolve_index` already records the relocation in `HOOK_GIT_RESOLVED_WRAPPER_DIRS` — it
+  is the only parser that can tell a real `env -C <dir>` from the `-C` in `env -u -C git`, which
+  moves nothing — and the probe now replays it as leading `-C` words, ahead of git's own, so the two
+  compose in execution order under git's rules rather than being modelled. Covered for `env -C`,
+  `env --chdir=`, `sudo -D`, the composition with git's own `-C`, and the `env -u -C` non-chdir.
+
+- **`skill-reference-verify` reported references an Edit never touched, missed short substring
+  edits, and could spend its whole 30-second timeout on one large Edit.** Partial-Edit
+  reconstruction located the hunk by line and then filtered the whole line by word token. All three
+  defects were that filter: an untouched broken reference sharing a physical line with the hunk was
+  readmitted by any word it happened to share (`legacy` in both the edited prose and
+  `` `/alpha:ghost-legacy` ``); an Edit replacing fewer than four lowercase characters produced no
+  token at all, so reconstruction gave up and every such edit went uncovered; and locating spent two
+  full-file `grep` processes per hunk line, which a thousand-line Edit turned into a timeout — an
+  advisory lost entirely, after delaying the tool call to get there. Reconstruction now reads the
+  file once and keeps only the inline-code spans whose extent OVERLAPS the located anchor. Overlap
+  is exact where the token filter was approximate, has no minimum length to clear, and costs no
+  subprocess per hunk line. The occurrence-uniqueness gate is unchanged: an anchor that cannot say
+  which occurrence the edit landed on is still dropped rather than unioned.
+
+- **`skill-reference-verify` reported a valid command as unresolved when its plugin declared custom
+  skill paths.** Resolution hard-coded `plugins/<plugin>/skills/`, but a manifest's `skills` key
+  holds a path or array of paths that ADD to that directory, and a declared path may point straight
+  at a directory holding `SKILL.md` ([Plugins
+  reference](https://code.claude.com/docs/en/plugins-reference), "Path behavior rules"). A skill
+  loaded from a declared location now resolves, as does the documented single-skill layout (a root
+  `SKILL.md` with no `skills/` subdirectory and no `skills` key). That layout is honoured under its
+  stated conditions only — a root `SKILL.md` beside a populated `skills/` is not loaded by Claude
+  Code, so accepting it would suppress the advisory for a command that does not exist.
+
 ## [0.19.0]
 
 ### Changed

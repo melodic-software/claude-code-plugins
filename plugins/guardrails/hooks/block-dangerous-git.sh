@@ -256,13 +256,28 @@ lease_expect_is_immutable() {
 # git word and the subcommand. Two-word options whose value is consumed the same
 # way hook::git_resolve_subcommand consumes it, so the walk cannot desynchronize
 # from the parser's own.
+#
+# The slice starts AT the git word, as it must: this walk cannot know which of a
+# wrapper's own options take a value, so reading `env -u -C git …` as git's `-C`
+# would relocate the probe on an option that belongs to `env`'s `-u`. That
+# scoping is what makes the replay below necessary — a wrapper's chdir is a real
+# relocation the slice deliberately cannot see, and hook::git_resolve_index is
+# the single parser that can tell the two apart.
+#
+# A wrapper's chdir happens before git starts, so git's own locating options
+# compose onto it: it is replayed as LEADING `-C` words, which git applies
+# cumulatively in argv order, and the composition then falls out of git's own
+# rules rather than being modelled here.
 # shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
 collect_git_locating_opts() {
   local gi="$1" sub_idx="$2"
   shift 2
   local -a w=("$@")
-  local j=$((gi + 1))
+  local j=$((gi + 1)) wdir
   git_locating_opts=()
+  for wdir in ${HOOK_GIT_RESOLVED_WRAPPER_DIRS[@]+"${HOOK_GIT_RESOLVED_WRAPPER_DIRS[@]}"}; do
+    git_locating_opts+=(-C "$wdir")
+  done
   while ((j < sub_idx)); do
     case "${w[j]}" in
     -C | --git-dir | --work-tree | --namespace)
