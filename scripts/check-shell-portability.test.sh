@@ -281,11 +281,14 @@ else
 fi
 rm -f "$f" "$tok"
 
-tok="$(one_token_list 'sort[^\n]*[[:space:]]--sort(=|[[:space:]]+)['"'"'"]?version([[:space:]|&;()<>'"'"'"`]|$)')"
+tok="$(one_token_list 'sort[^;&|\n]*[[:space:]]['"'"'"]?--sort['"'"'"]?(=|[[:space:]]+)['"'"'"]?version([[:space:]|&;()'"'"'"`]|[<>]([^(]|$)|$)')"
 
 # --- every spelling of --sort's mandatory WORD: attached after `=` or handed
 # over as the next argv element, bare or shell-quoted, and terminated by a
-# control operator rather than whitespace ---------------------------------
+# control operator rather than whitespace. The quote may also wrap the WHOLE
+# option word rather than just its value -- the shell hands GNU sort the same
+# argument either way, so a pattern demanding whitespace immediately before
+# `--sort` reported these clean. -------------------------------------------
 while IFS= read -r case; do
   f="$(tmpsh "$case")"
   if out="$(scan_paths "$tok" "$f" 2>&1)"; then
@@ -305,6 +308,10 @@ x=$(sort --sort=version)
 sort --sort=version|head -n1
 sort --sort=version; echo done
 sort --sort=version >"$out"
+sort '--sort=version' "$file"
+sort "--sort=version" "$file"
+sort '--sort' version "$file"
+sort "--sort" "version" "$file"
 CASES
 
 # --- ...but `--sort=<key>` belongs to portable commands too: Git's own
@@ -536,10 +543,11 @@ fi
 rm -f "$f"
 
 # =============================================================================
-# sed -i without a backup-suffix argument
+# sed -i without a backup-suffix argument, standalone or ending a short-option
+# cluster (one token covers both), and --in-place (GNU long form) — #1513
 # =============================================================================
 
-tok="$(one_token_list 'sed[^\n]*-i[[:space:]]+[^[:space:]]')"
+tok="$(one_token_list '(^|[^[:alnum:]_])sed([[:space:]][^;&|()`\n]*)?[[:space:]]-[bEnrsuz]*i([[:space:]|&;()<>]|$)')"
 
 f="$(tmpsh "sed -i 's/foo/bar/' \"\$file\"")"
 if out="$(scan_paths "$tok" "$f" 2>&1)"; then
@@ -575,14 +583,84 @@ if out="$(scan_paths "$tok" "$f" 2>&1)"; then
 else
   ok "sed -i \"\" (space-separated empty-suffix, double-quoted) is detected, not excused"
 fi
-rm -f "$f" "$tok"
+rm -f "$f"
 
-# =============================================================================
-# sed -Ei (extended-regex + unsuffixed in-place combined into one flag
-# cluster), and --in-place (GNU long form) — #1513
-# =============================================================================
+# --- an UNSUFFIXED -i ending a cluster whose other letters are not E: the
+# shape a literal '-i' substring search and an E-bearing cluster token both
+# read clean. GNU sed 4.9 --help documents -n/-b/-E/-r/-s/-u/-z as the
+# no-argument short options, so every one of these is the same GNU-only
+# unsuffixed in-place edit. --------------------------------------------------
+while IFS= read -r case; do
+  f="$(tmpsh "$case")"
+  if out="$(scan_paths "$tok" "$f" 2>&1)"; then
+    fail "[$case] should fail -- an unsuffixed in-place cluster, got success: $out"
+  else
+    ok "[$case] (unsuffixed in-place cluster without E) is detected"
+  fi
+  rm -f "$f"
+done <<'CASES'
+sed -ni '/keep/p' "$file"
+sed -si 's/foo/bar/' "$file"
+sed -ri 's/foo/bar/' "$file"
+sed -zi 's/foo/bar/' "$file"
+sed -bi 's/foo/bar/' "$file"
+sed -ui 's/foo/bar/' "$file"
+CASES
 
-tok="$(one_token_list '(^|[^[:alnum:]_])sed([[:space:]][^\n]*)?[[:space:]]-[A-Za-z]*E[A-Za-z]*i([[:space:]|&;()<>]|$)')"
+# --- an ARGUMENT-taking letter does not build an option cluster: GNU accepts
+# -e's script attached, so `sed -ei` passes the script 'i' and edits nothing in
+# place. A letter outside the documented set is an unknown option sed rejects,
+# so neither shape has GNU-only behaviour to report. -------------------------
+while IFS= read -r case; do
+  f="$(tmpsh "$case")"
+  if scan_paths "$tok" "$f" >/dev/null 2>&1; then
+    ok "[$case] is not flagged -- not a no-argument option cluster"
+  else
+    fail "[$case] must not be flagged -- the trailing i is not sed's in-place flag"
+  fi
+  rm -f "$f"
+done <<'CASES'
+sed -ei 's/foo/bar/' "$file"
+sed -fi 's/foo/bar/' "$file"
+sed -ni.bak '/keep/p' "$file"
+CASES
+
+# --- the command gap stops at a shell command separator: a physical line is
+# not a command, so a LATER command's option must not arm this token ---------
+while IFS= read -r case; do
+  f="$(tmpsh "$case")"
+  if scan_paths "$tok" "$f" >/dev/null 2>&1; then
+    ok "[$case] is not flagged -- the -i belongs to a later command"
+  else
+    fail "[$case] must not be flagged -- only the sed command's own options count"
+  fi
+  rm -f "$f"
+done <<'CASES'
+sed -n 'p' "$file"; grep -Ei pattern "$file"
+sed -n 'p' "$file" && grep -i pattern "$file"
+sed -n 'p' "$file" | grep -si pattern
+CASES
+
+# --- a separator INSIDE a quoted run is ordinary data, not a command
+# boundary: the scanner neutralizes quoted separators before this matches, so
+# narrowing the gap must not un-catch a genuine call whose script carries one
+f="$(tmpsh "sed 'a;b' -Ei \"\$file\"")"
+if out="$(scan_paths "$tok" "$f" 2>&1)"; then
+  fail "sed 'a;b' -Ei should fail -- the ';' is inside the script, got success: $out"
+else
+  ok "a ';' inside a quoted sed script does not end the command gap"
+fi
+rm -f "$f"
+
+# --- the anchor is a sed COMMAND token: 'used' contains the three letters
+# 'sed', and an unanchored token reported this ordinary grep call ------------
+f="$(tmpsh "used=\"\$(grep -i pattern \"\$file\")\"")"
+if scan_paths "$tok" "$f" >/dev/null 2>&1; then
+  ok "an identifier containing 'sed' (used=) does not arm the token on a bare -i"
+else
+  fail "used=\"\$(grep -i ...)\" must not fire -- 'sed' inside an identifier is not a sed command"
+fi
+rm -f "$f"
 
 f="$(tmpsh "sed -Ei 's/foo/bar/' \"\$file\"")"
 if out="$(scan_paths "$tok" "$f" 2>&1)"; then
@@ -639,15 +717,6 @@ if scan_paths "$tok" "$f" >/dev/null 2>&1; then
   ok "sed -Ei'' (attached empty suffix) is not flagged -- deferred ambiguous shape"
 else
   fail "sed -Ei'' must not be flagged -- it is the same deferred ambiguous shape as -i''"
-fi
-rm -f "$f"
-
-# --- plain -i (no E) does not double-fire this cluster token ---------------
-f="$(tmpsh "sed -i 's/foo/bar/' \"\$file\"")"
-if scan_paths "$tok" "$f" >/dev/null 2>&1; then
-  ok "plain sed -i (no E in the cluster) does not fire the -Ei token"
-else
-  fail "plain sed -i must not fire the E+i combined-cluster token"
 fi
 rm -f "$f"
 
