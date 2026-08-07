@@ -49,8 +49,11 @@ zone bands, zones.json shape) are owned by
    - **Present and identical** — PASS. Nothing about it needs revisiting on a plugin update; that
      is the whole point of the shim.
    - **Present but differing** — INFO, not FAIL: the installed copy is an older (or hand-edited)
-     revision that still resolves the newest tee. Report the shipped `# shim-revision:` marker
-     against the installed one and offer `apply` as the refresh.
+     revision, and it still resolves a tee, so the statusline keeps rendering. Do NOT report the
+     difference as harmless: a copy predating `# shim-revision: 3` picks the newest tee by mtime
+     alone, so it also resolves one left behind by an UNINSTALLED plugin and keeps teeing for the
+     whole orphan grace window. Report the shipped `# shim-revision:` marker against the installed
+     one, say which of the two behaviors the installed copy has, and offer `apply` as the refresh.
    - **The SHIPPED source is absent** (no `${CLAUDE_PLUGIN_ROOT}/scripts/statusline-shim.sh`) —
      INFO, and skip the comparison entirely: this installed plugin version predates the shim
      (< 0.2.0). Never report the operator's installed copy as drifted on this branch. Remediation:
@@ -201,9 +204,22 @@ zone bands, zones.json shape) are owned by
    replace every `'` in it with `'\''` before substituting (then JSON-escape the whole `command`
    string as usual). Show the final, fully escaped line — never hand the operator a template with
    raw quotes left to fix. Verify your printed edit round-trips: mentally unquote it back and
-   confirm it reproduces the original command byte-for-byte. Print this variant only when the
-   UNWRAPPED renderer still carries shell syntax — an already-adapted command reaching this step
-   with its `sh -c` layer intact is rule 2 above having been skipped, and wrapping it adds a layer.
+   confirm it reproduces the original command byte-for-byte.
+
+   **Never adapt a renderer that is itself already `sh -c '<string>'`.** Rule 2 reached this step
+   having made one of two decisions, and neither one wants a second adapter:
+
+   - It PEELED a generated layer, so what arrives here is the recovered inner renderer. Judge that
+     on its own contents — adapt it if IT carries shell syntax, exactly as for any other renderer.
+   - It PRESERVED the operator's own `sh -c`, so that form arrives intact. It is already a plain
+     `executable arg…` command — `sh` is the executable, `-c` and the carried string are two
+     ordinary ARGV words — so it survives the wrapped form untouched, and its quote characters
+     delimit that one word rather than awaiting a shell. Substitute it VERBATIM into the plain
+     wrapped form above; its own quoting is not a reason to adapt it.
+
+   Adapting a preserved `sh -c` is what turns an operator's `sh -c 'ulimit -n'` into
+   `sh -c 'sh -c '\''ulimit -n'\'''` — one more shell on every refresh, and the same compounding
+   rule 2 exists to prevent.
 
    Sibling tees compose by nesting, each through its OWN shim — the tees are transparent wrappers,
    so the innermost command still owns stdout and the exit code. Print this form only when
