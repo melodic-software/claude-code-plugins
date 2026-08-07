@@ -171,6 +171,12 @@
       "title": "Babysit worktree root",
       "description": "Root directory for babysit-managed ephemeral worktrees. Absent: the worktrees/ subdirectory of the plugin data dir."
     },
+    "worktree_create_gate_enabled": {
+      "type": "boolean",
+      "title": "worktree-create-gate hook",
+      "description": "Place every worktree Claude Code creates at the configured worktree_root instead of the in-repo .claude/worktrees/ default. Covers the three creation paths that bypass /worktree create — `claude --worktree`, a subagent with isolation: \"worktree\", and a background session — by delegating to the same worktree-create.sh helper the skill uses. Disabled: Claude Code uses its own default, where a read matching a path-scoped rule's glob also loads the parent checkout's copy of that rule.",
+      "default": true
+    },
     "worktree_root": {
       "type": "directory",
       "title": "Worktree root",

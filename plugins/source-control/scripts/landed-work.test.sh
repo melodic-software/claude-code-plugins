@@ -35,6 +35,12 @@ mkfixture() {
     git -C "$work" config user.email t@t.t
     git -C "$work" config user.name t
     git -C "$work" config commit.gpgsign false
+    # Line endings are pinned so the EOL case tests what it says. With the
+    # Windows default (core.autocrlf=true) git normalizes CRLF to LF on the way
+    # into the object store, so a fixture "with CRLF endings" would commit the
+    # same blob as its LF twin and the case would pass for a reason that has
+    # nothing to do with the classifier.
+    git -C "$work" config core.autocrlf false
     printf 'seed\n' >"$work/README.md"
     git -C "$work" add README.md
     git -C "$work" commit -qm init
@@ -164,12 +170,36 @@ assert_eq "nothing unpushed skips the landed computation" "n/a" "$(col "$R" $C_L
 assert_eq "nothing unpushed is ok" "ok" "$(col "$R" $C_RISK)"
 
 # --------------------------------------------------------------------------
-# Behind, not stranded — the direction test
+# A branch whose only unique work is a DELETION is not landed
 # --------------------------------------------------------------------------
 
-# The base takes the branch's content AND more of the same file, so no patch-id
-# can match, and the path-scoped two-dot is non-empty. The direction is the tell:
-# HEAD lacks lines the base gained and adds none the base lacks.
+# The case that retired the direction test. `git diff base..HEAD` reports
+# deletions both for a branch that is merely BEHIND the base and for a branch
+# whose own unique work IS a deletion — the numstat rows are identical. So
+# "additions are zero" proved nothing, and this fixture is what it classified as
+# landed while the deletion commit existed nowhere else.
+W="$(mkfixture)"
+WT_DEL="$TEST_TMPDIR/wt-delete-only"
+commit_in "$W" doomed.txt "keep
+remove" "base adds doomed.txt"
+git -C "$W" push -q origin main >/dev/null 2>&1
+git -C "$W" worktree add -q -b feat-delete-only "$WT_DEL" main >/dev/null 2>&1
+commit_in "$WT_DEL" doomed.txt "keep" "branch deletes a line the base still has"
+
+OUT="$(bash "$ENGINE" --repo-dir "$W" --no-peers)"
+R="$(row "$OUT" "wt-delete-only")"
+assert_eq "a delete-only branch is NOT landed" "no" "$(col "$R" $C_LANDED)"
+assert_eq "a delete-only branch is STRANDED" "STRANDED" "$(col "$R" $C_RISK)"
+
+# --------------------------------------------------------------------------
+# Behind the base is no longer proven landed by content alone
+# --------------------------------------------------------------------------
+
+# The base takes the branch's content AND more of the same file, so its commit is
+# a different patch — no patch-id matches, and the two-dot is non-empty. With the
+# direction test retired this reports `no`: over-cautious by exactly one
+# confirmation prompt, and indistinguishable-from-data-loss if it said otherwise.
+# The genuinely landed shapes are caught by the range patch-id above instead.
 W="$(mkfixture)"
 WT_BEHIND="$TEST_TMPDIR/wt-behind"
 git -C "$W" worktree add -q -b feat-behind "$WT_BEHIND" main >/dev/null 2>&1
@@ -183,19 +213,97 @@ git -C "$W" push -q origin main >/dev/null 2>&1
 
 OUT="$(bash "$ENGINE" --repo-dir "$W" --no-peers)"
 R="$(row "$OUT" "wt-behind")"
-assert_eq "behind-not-stranded: landed" "yes" "$(col "$R" $C_LANDED)"
-assert_eq "behind-not-stranded: by the direction test" \
-  "two-dot-direction" "$(col "$R" $C_METHOD)"
+assert_eq "merely-behind is not claimed landed without proof" "no" "$(col "$R" $C_LANDED)"
+assert_eq "and the method names the test that produced it" "two-dot" "$(col "$R" $C_METHOD)"
+
+# --------------------------------------------------------------------------
+# Whitespace-only difference is not sameness
+# --------------------------------------------------------------------------
+
+# `git patch-id` strips whitespace before hashing, so `a b` and `ab` hash
+# identically under the default and `--stable` — measured on git 2.54, both
+# `7ad14294…`. A branch whose unique change differs from the base's only in
+# whitespace would classify as landed. `--verbatim` is what separates them.
+W="$(mkfixture)"
+WT_WS="$TEST_TMPDIR/wt-whitespace"
+commit_in "$W" ws.txt "x" "base seeds ws.txt"
+git -C "$W" push -q origin main >/dev/null 2>&1
+git -C "$W" worktree add -q -b feat-whitespace "$WT_WS" main >/dev/null 2>&1
+commit_in "$WT_WS" ws.txt "a b" "branch writes spaced content"
+commit_in "$W" ws.txt "ab" "base writes unspaced content"
+git -C "$W" push -q origin main >/dev/null 2>&1
+
+OUT="$(bash "$ENGINE" --repo-dir "$W" --no-peers)"
+R="$(row "$OUT" "wt-whitespace")"
+assert_eq "a whitespace-only difference is not landed" "no" "$(col "$R" $C_LANDED)"
+
+# --------------------------------------------------------------------------
+# An incomplete patch-id set yields no verdict
+# --------------------------------------------------------------------------
+
+# An empty commit produces no patch, so it is invisible to patch-id and the id
+# set silently under-represents the branch. Any affirmative verdict over that set
+# would be a statement about the commits that happened to hash, not about the
+# branch.
+W="$(mkfixture)"
+WT_EMPTY="$TEST_TMPDIR/wt-empty-commit"
+git -C "$W" worktree add -q -b feat-empty "$WT_EMPTY" main >/dev/null 2>&1
+commit_in "$WT_EMPTY" e.txt "content" "branch adds content"
+git -C "$WT_EMPTY" commit -q --allow-empty -m "marker" >/dev/null 2>&1
+git -C "$W" merge --squash feat-empty >/dev/null 2>&1
+git -C "$W" commit -qm "squash feat-empty" >/dev/null 2>&1
+git -C "$W" push -q origin main >/dev/null 2>&1
+
+OUT="$(bash "$ENGINE" --repo-dir "$W" --no-peers)"
+R="$(row "$OUT" "wt-empty-commit")"
+assert_eq "an empty commit makes the id set incomplete, so no verdict" "?" "$(col "$R" $C_LANDED)"
+assert_contains "and the reason names the incompleteness" \
+  "$(col "$R" $C_REASON)" "patchid-set-incomplete"
+
+# --------------------------------------------------------------------------
+# An ambiguous merge base yields no verdict
+# --------------------------------------------------------------------------
+
+# A criss-cross history has more than one merge base. Picking one silently means
+# testing against a base the work did not diverge at, which can produce a
+# favourable verdict for content that is not there.
+W="$(mkfixture)"
+git -C "$W" checkout -q -b sideA main >/dev/null 2>&1
+commit_in "$W" a.txt "a" "A"
+git -C "$W" checkout -q -b sideB main >/dev/null 2>&1
+commit_in "$W" b.txt "b" "B"
+git -C "$W" checkout -q -b crossA sideA >/dev/null 2>&1
+git -C "$W" merge -q --no-edit sideB >/dev/null 2>&1
+git -C "$W" checkout -q -b crossB sideB >/dev/null 2>&1
+git -C "$W" merge -q --no-edit sideA >/dev/null 2>&1
+git -C "$W" checkout -q main >/dev/null 2>&1
+git -C "$W" branch -f main crossA >/dev/null 2>&1
+git -C "$W" push -q -f origin main >/dev/null 2>&1
+WT_CROSS="$TEST_TMPDIR/wt-crisscross"
+git -C "$W" worktree add -q "$WT_CROSS" crossB >/dev/null 2>&1
+commit_in "$WT_CROSS" unique.txt "only here" "branch-only work"
+
+OUT="$(bash "$ENGINE" --repo-dir "$W" --no-peers)"
+R="$(row "$OUT" "wt-crisscross")"
+if [[ "$(col "$R" $C_LANDED)" == "yes" ]]; then
+  fail "a criss-cross history never yields an affirmative verdict" "no or ?" "yes"
+else
+  pass "a criss-cross history never yields an affirmative verdict"
+fi
 
 # --------------------------------------------------------------------------
 # EOL renormalization
 # --------------------------------------------------------------------------
 
-# The base carries the same content with CRLF endings; the branch has LF. This is
-# the case that justifies the two-dot fallback existing at all: a whitespace-only
-# divergence is exactly where a naive line comparison would report stranded work.
-# `git patch-id` strips whitespace before hashing, so the verdict is reached by
-# patch-id here; the assertion is on the verdict, not the route.
+# The base carries the same content with CRLF endings; the branch has LF.
+#
+# This is the documented COST of `--verbatim`, asserted rather than left to be
+# discovered. The whitespace-insensitive default would call these identical — and
+# would equally call `a b` and `ab` identical, which is a false `yes` in the
+# direction that destroys work. Trading the EOL tolerance for that separation is
+# the deliberate choice: this branch reports `no`, the operator gets one
+# confirmation prompt, and nothing is lost. Reverse the trade and the prompt is
+# replaced by a silent deletion.
 W="$(mkfixture)"
 WT_EOL="$TEST_TMPDIR/wt-eol"
 git -C "$W" worktree add -q -b feat-eol "$WT_EOL" main >/dev/null 2>&1
@@ -209,7 +317,7 @@ git -C "$W" push -q origin main >/dev/null 2>&1
 
 OUT="$(bash "$ENGINE" --repo-dir "$W" --no-peers)"
 R="$(row "$OUT" "wt-eol")"
-assert_eq "EOL renormalization alone does not read as stranded" "yes" "$(col "$R" $C_LANDED)"
+assert_eq "an EOL-only difference is reported unproven, not landed" "no" "$(col "$R" $C_LANDED)"
 
 # --------------------------------------------------------------------------
 # Detached HEAD, and peers

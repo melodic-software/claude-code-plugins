@@ -23,11 +23,59 @@ All notable changes to the `source-control` plugin are documented here. Format f
   returns nothing at all for a locally created branch. Landedness is decided by RANGE patch-id
   first, because a squash-merge collapses N commits into one patch that no per-commit primitive —
   `git cherry` included — can ever match, while the branch's range id equals the squash commit's
-  and stays matched as the base advances. The path-scoped two-dot fallback is direction-tested and
-  stamped with the base SHA it was computed against, because on its own it decays to a false `no`
-  once the base moves over the same paths. A registered path is confirmed to be a work-tree ROOT
-  with `rev-parse --show-prefix`, since `--is-inside-work-tree` returns true for a leftover
-  directory inside a repository and reports that repository's clean state as the directory's own.
+  and stays matched as the base advances.
+
+  Patch ids are computed `--verbatim`. The default and `--stable` hash the patch AFTER stripping
+  whitespace, so `a b` and `ab` produce one id — measured on git 2.54, both `7ad14294…` — and a
+  branch whose unique change differed from the base's only in whitespace classified as landed.
+  `--verbatim` separates them, still matches a multi-commit squash, and still matches after the
+  base advances; what it gives up is the tolerance that let an EOL-renormalized branch match, which
+  now reports `no`. That is a confirmation prompt in exchange for a silent deletion, and the trade
+  is deliberate.
+
+  No affirmative verdict is drawn from an incomplete patch-id set: a commit that produces no patch
+  — an empty commit among them — is invisible to patch-id, so the id count must equal the non-merge
+  commit count before "every commit's content is on the base" is a statement about the branch
+  rather than about the commits that happened to hash.
+
+  The path-scoped two-dot fallback answers one question, whether the touched paths differ from the
+  base at all, and its verdict is stamped with the base SHA it was computed against. It carries no
+  direction test: `git diff base..HEAD` reports deletions both for a branch that is merely BEHIND
+  the base and for a branch whose own unique work IS a deletion, and the numstat rows are
+  identical, so "additions are zero" classified a delete-only branch as landed. The
+  behind-the-base shapes it was written for are caught by the range patch-id instead.
+
+  A registered path is confirmed to be a work-tree ROOT with `rev-parse --show-prefix`, since
+  `--is-inside-work-tree` returns true for a leftover directory inside a repository and reports
+  that repository's clean state as the directory's own. Enumeration reads
+  `git worktree list --porcelain -z` into a file and checks its exit status before parsing — a
+  process substitution's failure is invisible to the loop, and the row-count assertion can only
+  catch a truncated pass, never a truncated enumeration — and `-z` because a worktree path may
+  contain a newline. An ambiguous base ref and a criss-cross history with several merge bases both
+  yield `?` rather than a silently chosen one. `comm`'s exit status, the numstat reducer's result,
+  and `git status`'s exit status are each checked, because a failure in any of them produces the
+  same output shape as the favourable answer.
+
+- **`worktree-create-gate`: a `WorktreeCreate` hook that places every worktree at the configured
+  root.** `/worktree create` already routed through `worktree-create.sh`, but three creation paths
+  bypass the skill entirely — `claude --worktree`, a subagent with `isolation: "worktree"`, and a
+  background session. Those landed in the in-repo `.claude/worktrees/` default, which is the
+  placement the whole nesting invariant exists to prevent. The hook is a thin stdin adapter over
+  the same helper, so there is one placement implementation rather than two.
+
+  Its contract was measured rather than inferred, which settled the two questions that had blocked
+  it. A **user-scope** hook does fire — verified with a settings.json under a `CLAUDE_CONFIG_DIR`,
+  headless, before login was even resolved — and `${CLAUDE_PROJECT_DIR}` resolves to the project
+  root the session started in, never the worktree being created. And stdout's **last non-empty
+  line** is taken as the path: a hook printing a banner line before the path still succeeds and the
+  session lands in the printed directory, refuting the claim that any output but the path fails the
+  session. The hook still prints the path alone; the tolerance is margin, not interface.
+
+  Fail-closed: a hook failure fails the creation, because falling through would place the worktree
+  at exactly the nested path this prevents. The unconfigured case is not a failure — it resolves to
+  the plugin data directory, also outside every repository. The root is read from
+  `CLAUDE_PLUGIN_OPTION_WORKTREE_ROOT` rather than substituted as `${user_config.worktree_root}`,
+  which Claude Code rejects in shell-running fields. Opt out with `worktree_create_gate_enabled`.
 
 ### Changed
 

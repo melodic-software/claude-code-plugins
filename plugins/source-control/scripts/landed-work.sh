@@ -25,9 +25,15 @@
 #     `@{upstream}..HEAD`;
 #   * `landed` is decided by RANGE patch-id first, because a per-commit primitive
 #     (including `git cherry`) cannot see a multi-commit squash-merge;
-#   * the path-scoped two-dot fallback is direction-tested and stamped with the
-#     base SHA it was computed against, because its verdict decays as the base
-#     advances.
+#   * patch ids are computed `--verbatim`, because the whitespace-stripping
+#     default hashes `a b` and `ab` alike and would call two different contents
+#     the same change;
+#   * no affirmative verdict is drawn from an incomplete patch-id set — a commit
+#     that produces no patch is invisible to patch-id, so the set has to account
+#     for every non-merge commit before it can speak for the branch;
+#   * the path-scoped two-dot fallback answers only whether the touched paths
+#     differ from the base at all, and its verdict is stamped with the base SHA it
+#     was computed against.
 #
 # Output: one TSV row per target, header first, on stdout. Diagnostics on stderr.
 #
@@ -241,12 +247,22 @@ S_UNTRACKED=0
 # it with the merge's own staged result, which is recomputable at any time,
 # while the branch's own commits — the irreplaceable part — are carried by the
 # unpushed/landed columns instead.
+#
+# Returns 1 when the status could not be read at all. A failed `git status` used
+# to leave all four counts at their zero initialisation, which is exactly the
+# shape of a clean worktree — so an unreadable index reported as clean, and a
+# worktree with nothing unpushed then classified `ok`. Unknown must not wear
+# clean's clothes.
 status_counts() {
-  local p="$1" line x y
+  local p="$1" line x y status_out="$WORKDIR/status.$$"
   S_STAGED=0
   S_UNSTAGED=0
   S_CONFLICTED=0
   S_UNTRACKED=0
+  if ! git -C "$p" status --porcelain >"$status_out" 2>/dev/null; then
+    rm -f "$status_out"
+    return 1
+  fi
   while IFS= read -r line; do
     [[ -z "$line" ]] && continue
     x="${line:0:1}"
@@ -265,7 +281,9 @@ status_counts() {
     esac
     [[ "$x" != " " ]] && S_STAGED=$((S_STAGED + 1))
     [[ "$y" != " " ]] && S_UNSTAGED=$((S_UNSTAGED + 1))
-  done < <(git -C "$p" status --porcelain 2>/dev/null)
+  done <"$status_out"
+  rm -f "$status_out"
+  return 0
 }
 
 # resolve_base <path>: the ref landedness is tested against, on stdout.
@@ -301,6 +319,21 @@ resolve_base() {
 # "every branch id is on the base" test vacuously TRUE, which is a false `yes` in
 # the data-loss direction. The caller compares this count against
 # `rev-list --count --no-merges` over the same range for exactly that reason.
+#
+# `--verbatim`, not `--stable`. The default (and `--stable`) computes the id
+# AFTER stripping whitespace, so `a b` and `ab` hash identically — two
+# genuinely different contents, one id, and a branch whose unique change differs
+# from the base's only in whitespace would classify as landed. Measured on git
+# 2.54: both spellings produce `7ad14294…` under `--stable` and different ids
+# under `--verbatim`. The two flags are mutually exclusive.
+#
+# What `--verbatim` costs is the whitespace tolerance that used to let an
+# EOL-renormalized branch match: that case now falls through to the two-dot
+# fallback and, failing there too, reports `no`. That is the fail-closed
+# direction — a prompt rather than a loss — and it is the correct trade for a
+# guard. What it does NOT cost is the squash case: the branch's range id still
+# equals the squash commit's, and still matches after the base advances. Both
+# verified in a fixture rather than assumed.
 patch_ids() {
   local p="$1" range="$2" out="$3" patches="$WORKDIR/patches.$$"
   : >"$out"
@@ -312,7 +345,7 @@ patch_ids() {
     rm -f "$patches"
     return 0
   fi
-  git patch-id --stable <"$patches" | cut -d' ' -f1 | sort >"$out" || {
+  git patch-id --verbatim <"$patches" | cut -d' ' -f1 | sort >"$out" || {
     rm -f "$patches"
     return 1
   }
@@ -328,7 +361,7 @@ L_REASON=""
 # classify_landed <path>: set L_STATE (yes|no|?), L_METHOD, L_BASE, L_REASON.
 classify_landed() {
   local p="$1" base base_sha mb range_id branch_expected branch_count
-  local base_ids branch_ids touched numstat adds matched
+  local base_ids branch_ids touched numstat matched
   L_STATE="?"
   L_METHOD="none"
   L_BASE=""
@@ -338,13 +371,34 @@ classify_landed() {
     L_REASON="no-base-ref"
     return 0
   fi
-  if ! base_sha=$(git -C "$p" rev-parse --verify --quiet "$base^{commit}" 2>/dev/null); then
+  # An AMBIGUOUS base name is not a resolvable base. `refs/tags/release` and
+  # `refs/heads/release` can both exist; rev-parse picks one by precedence and
+  # says so only on stderr, so a silent pick could test against the wrong history
+  # entirely. The warning is the signal, and it is treated as unresolvable.
+  local base_err
+  base_err="$WORKDIR/base-resolve.err"
+  if ! base_sha=$(git -C "$p" rev-parse --verify "$base^{commit}" 2>"$base_err"); then
     L_REASON="base-unresolvable:$base"
     return 0
   fi
+  if [[ -s "$base_err" ]] && grep -qi 'ambiguous' "$base_err"; then
+    L_REASON="base-ref-ambiguous:$base"
+    return 0
+  fi
   L_BASE="$base@${base_sha:0:12}"
-  if ! mb=$(git -C "$p" merge-base "$base_sha" HEAD 2>/dev/null); then
+  # `--all`, and exactly one. A criss-cross history has several merge bases; a
+  # plain `merge-base` silently returns one of them, and testing against a
+  # different base than the one the work actually diverged at can produce a
+  # favourable verdict for content that is not there.
+  local mb_count
+  mb=$(git -C "$p" merge-base --all "$base_sha" HEAD 2>/dev/null) || mb=""
+  if [[ -z "$mb" ]]; then
     L_REASON="no-merge-base"
+    return 0
+  fi
+  mb_count=$(printf '%s\n' "$mb" | grep -c .)
+  if [[ "$mb_count" -ne 1 ]]; then
+    L_REASON="ambiguous-merge-base-$mb_count-candidates"
     return 0
   fi
 
@@ -371,20 +425,13 @@ classify_landed() {
     fi
   fi
 
-  # Branch side, range first: a squash-merge collapses N commits into ONE patch,
-  # so no individual commit's patch-id can match it, while the branch's RANGE id
-  # equals the squash commit's exactly — and stays in the base's per-commit id set
-  # after the base advances. Range-vs-range does NOT work: the base's own range id
-  # moves as the base advances while the branch's does not.
-  if git -C "$p" diff "$mb..HEAD" >"$WORKDIR/rangediff" 2>/dev/null && [[ -s "$WORKDIR/rangediff" ]]; then
-    range_id=$(git patch-id --stable <"$WORKDIR/rangediff" | cut -d' ' -f1)
-    if [[ -n "$range_id" ]] && grep -Fxq "$range_id" "$base_ids"; then
-      L_STATE="yes"
-      L_METHOD="range-patchid"
-      return 0
-    fi
-  fi
-
+  # Branch side. The COMPLETENESS check runs before any verdict, because both
+  # affirmative arms below reason over the branch's commits and neither is sound
+  # over an incomplete set: a commit that produces no patch (an empty commit, or
+  # one whose diff git declined to render) is invisible to patch-id, so the id
+  # set silently under-represents the branch. Requiring the id count to equal the
+  # non-merge commit count is what makes "every id is on the base" a statement
+  # about every commit rather than about the ones that happened to hash.
   branch_ids="$WORKDIR/branch.ids"
   branch_expected=$(git -C "$p" rev-list --count --no-merges "$mb..HEAD" 2>/dev/null) || branch_expected=""
   if [[ -z "$branch_expected" ]]; then
@@ -396,24 +443,67 @@ classify_landed() {
     return 0
   fi
   branch_count=$(wc -l <"$branch_ids" | tr -d '[:space:]')
-  if [[ "$branch_expected" -gt 0 && "$branch_count" -gt 0 ]]; then
-    # Non-vacuous by construction: the id set is non-empty, so "every id is on the
-    # base" is a real universal, not the empty-set trivially-true reading.
-    if [[ -z "$(comm -23 "$branch_ids" "$base_ids")" ]]; then
+  if [[ "$branch_count" -ne "$branch_expected" ]]; then
+    L_REASON="patchid-set-incomplete-$branch_count-of-$branch_expected-commits"
+    return 0
+  fi
+
+  # Range first: a squash-merge collapses N commits into ONE patch, so no
+  # individual commit's patch-id can match it, while the branch's RANGE id equals
+  # the squash commit's exactly — and stays in the base's per-commit id set after
+  # the base advances. Range-vs-range does NOT work: the base's own range id moves
+  # as the base advances while the branch's does not.
+  if git -C "$p" diff "$mb..HEAD" >"$WORKDIR/rangediff" 2>/dev/null && [[ -s "$WORKDIR/rangediff" ]]; then
+    range_id=$(git patch-id --verbatim <"$WORKDIR/rangediff" | cut -d' ' -f1)
+    if [[ -n "$range_id" ]] && grep -Fxq "$range_id" "$base_ids"; then
       L_STATE="yes"
-      L_METHOD="per-commit-patchid"
+      L_METHOD="range-patchid"
       return 0
     fi
   fi
 
-  # Path-scoped two-dot fallback, with the direction test. Patch-id under-reports
-  # across an EOL or whitespace renormalization, which this rescues; on its own it
-  # decays to a false `no` as the base advances over the same paths, which the
-  # direction test rescues in turn. A verdict from here is only valid against the
-  # base tip stamped in L_BASE.
+  if [[ "$branch_expected" -gt 0 ]]; then
+    # `comm`'s own exit status is checked, not just its output: a failed `comm`
+    # produces empty stdout, and empty stdout is exactly the shape that means
+    # "every branch id is on the base". Reading a failure as proof is the one
+    # direction this script must never take.
+    local unmatched="$WORKDIR/branch-not-on-base"
+    if comm -23 "$branch_ids" "$base_ids" >"$unmatched" 2>/dev/null; then
+      if [[ ! -s "$unmatched" ]]; then
+        L_STATE="yes"
+        L_METHOD="per-commit-patchid"
+        return 0
+      fi
+    else
+      L_REASON="patchid-set-comparison-failed"
+      return 0
+    fi
+  fi
+
+  # Path-scoped two-dot fallback. It answers ONE question soundly — whether the
+  # branch's touched paths differ from the base at all — and that is the only
+  # question it is now asked.
+  #
+  # The direction test that used to live here is gone, and its removal is the
+  # point rather than a simplification: `git diff base..HEAD` reports deletions
+  # for a branch that is merely BEHIND the base, and reports deletions for a
+  # branch whose own unique work IS a deletion. Those two are byte-identical in
+  # numstat, so "additions are zero" proved nothing and classified a
+  # delete-only branch as landed — a false `yes` in the direction that destroys
+  # work. The behind-not-stranded case it was written for is already caught by
+  # the range patch-id above, which is why nothing needs to replace it.
+  #
+  # A verdict from here is only valid against the base tip stamped in L_BASE.
   touched="$WORKDIR/touched"
   numstat="$WORKDIR/numstat"
-  if ! git -C "$p" diff --name-only --no-renames "$mb..HEAD" 2>/dev/null | sort -u >"$touched"; then
+  # Both diffs are pinned to core.quotepath=false. They used to disagree — one
+  # default-quoted, one not — so a path with a non-ASCII byte appeared in two
+  # spellings, joined against nothing, and produced `matched=0`, which this
+  # function reads as "identical to the base". Same setting on both sides is what
+  # makes the join mean what it says. `-z` for the same reason a path may contain
+  # a newline.
+  if ! git -C "$p" -c core.quotepath=false diff --name-only --no-renames -z "$mb..HEAD" 2>/dev/null |
+    tr '\0' '\n' | sort -u >"$touched"; then
     L_REASON="touched-paths-unreadable"
     return 0
   fi
@@ -425,28 +515,30 @@ classify_landed() {
     L_REASON="two-dot-unreadable"
     return 0
   fi
-  # A binary row carries `-` for both counts. Counting it as an addition is the
+  # A binary row carries `-` for both counts. Counting it as a difference is the
   # fail-closed reading: unknown content becomes NOT landed.
-  read -r adds matched < <(awk -F'\t' '
+  local counts
+  counts=$(awk -F'\t' '
     NR==FNR { touched[$0]=1; next }
-    ($3 in touched) { matched+=1; if ($1=="-") adds+=1; else adds+=$1 }
-    END { printf "%d %d\n", adds+0, matched+0 }
-  ' "$touched" "$numstat")
+    ($3 in touched) { matched+=1 }
+    END { printf "%d\n", matched+0 }
+  ' "$touched" "$numstat" 2>/dev/null) || counts=""
+  # An empty or non-numeric result means awk failed, and an unset variable in a
+  # numeric comparison reads as zero — which is the "identical to the base"
+  # answer. It has to be rejected explicitly rather than defaulted.
+  if [[ ! "$counts" =~ ^[0-9]+$ ]]; then
+    L_REASON="two-dot-count-unreadable"
+    return 0
+  fi
+  matched="$counts"
   if [[ "$matched" -eq 0 ]]; then
     L_STATE="yes"
     L_METHOD="two-dot-empty"
     return 0
   fi
-  if [[ "$adds" -eq 0 ]]; then
-    # HEAD adds nothing the base lacks on the paths it touched; it only lacks what
-    # the base has since gained. That is BEHIND, not stranded.
-    L_STATE="yes"
-    L_METHOD="two-dot-direction"
-    return 0
-  fi
   L_STATE="no"
-  L_METHOD="two-dot-direction"
-  L_REASON="head-adds-$adds-lines-base-lacks"
+  L_METHOD="two-dot"
+  L_REASON="head-differs-from-base-on-$matched-touched-path(s)"
 }
 
 # ---------------------------------------------------------------------------
@@ -472,13 +564,37 @@ collect_targets() {
   fi
   git -C "$REPO_DIR" rev-parse --git-dir >/dev/null 2>&1 ||
     die "not a git repository: $REPO_DIR" 4
+
+  # Captured to a file and status-checked BEFORE parsing, not streamed through a
+  # process substitution. A process substitution's exit status is invisible to
+  # the loop, so an enumeration that failed halfway produced a short list that
+  # every downstream count — the row-count assertion included — then agreed with.
+  # The assertion can only catch a truncated PASS; a truncated ENUMERATION has to
+  # be caught here or not at all.
+  #
+  # `-z` because a worktree path may contain a newline, which line-oriented
+  # parsing of `--porcelain` splits into a path that does not exist. Git
+  # documents `-z` as the newline-safe form for exactly this.
+  local porcelain="$WORKDIR/worktree-list"
+  if ! git -C "$REPO_DIR" worktree list --porcelain -z >"$porcelain" 2>/dev/null; then
+    die "git worktree list failed in $REPO_DIR — refusing to report a partial inventory" 4
+  fi
   path=""
   head=""
   branch=""
   detached=0
-  while IFS= read -r line; do
+  while IFS= read -r -d '' line; do
     case "$line" in
     "worktree "*)
+      # A new record begins. Flush the previous one here rather than on a blank
+      # separator: under -z the records are NUL-delimited fields, and the final
+      # record has no trailing separator of its own.
+      if [[ -n "$path" ]]; then
+        T_PATH+=("$path")
+        [[ "$detached" -eq 1 ]] && branch="(detached)"
+        T_BRANCH+=("$branch")
+        T_HEAD+=("$head")
+      fi
       path="${line#worktree }"
       head=""
       branch=""
@@ -487,18 +603,9 @@ collect_targets() {
     "HEAD "*) head="${line#HEAD }" ;;
     "branch "*) branch="${line#branch refs/heads/}" ;;
     "detached") detached=1 ;;
-    "")
-      if [[ -n "$path" ]]; then
-        T_PATH+=("$path")
-        [[ "$detached" -eq 1 ]] && branch="(detached)"
-        T_BRANCH+=("$branch")
-        T_HEAD+=("$head")
-        path=""
-      fi
-      ;;
     *) ;;
     esac
-  done < <(git -C "$REPO_DIR" worktree list --porcelain 2>/dev/null)
+  done <"$porcelain"
   if [[ -n "$path" ]]; then
     T_PATH+=("$path")
     [[ "$detached" -eq 1 ]] && branch="(detached)"
@@ -639,11 +746,18 @@ while [[ $idx -lt ${#T_PATH[@]} ]]; do
 
   inprog=$(inprogress_of "$p")
   R_INPROGRESS+=("$inprog")
-  status_counts "$p"
-  R_STAGED+=("$S_STAGED")
-  R_UNSTAGED+=("$S_UNSTAGED")
-  R_CONFLICTED+=("$S_CONFLICTED")
-  R_UNTRACKED+=("$S_UNTRACKED")
+  if status_counts "$p"; then
+    R_STAGED+=("$S_STAGED")
+    R_UNSTAGED+=("$S_UNSTAGED")
+    R_CONFLICTED+=("$S_CONFLICTED")
+    R_UNTRACKED+=("$S_UNTRACKED")
+  else
+    R_STAGED+=("?")
+    R_UNSTAGED+=("?")
+    R_CONFLICTED+=("?")
+    R_UNTRACKED+=("?")
+    reason="${reason:+$reason; }status-unreadable: the working tree was not inspected"
+  fi
   if [[ "$inprog" != "none" ]]; then
     reason="${reason:+$reason; }$inprog-in-progress: staged tree is that operation's own result, recomputable"
   fi
