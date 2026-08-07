@@ -89,7 +89,10 @@ done
 # both so a skill whose directory and command name diverge still resolves.
 skill_resolves() {
   local pdir="$1" skill="$2" sd fname
-  [[ -d "$pdir/skills/$skill" ]] && return 0
+  # A directory without a SKILL.md is not a skill — skill discovery ignores it,
+  # so matching on the directory name alone would silence the guard on a
+  # reference that does not resolve.
+  [[ -f "$pdir/skills/$skill/SKILL.md" ]] && return 0
   for sd in "$pdir"/skills/*/SKILL.md; do
     [[ -f "$sd" ]] || continue
     # Frontmatter `name:`, unquoted or quoted, first occurrence only.

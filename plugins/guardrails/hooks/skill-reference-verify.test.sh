@@ -61,6 +61,8 @@ mk_skill alpha audit
 mk_skill alpha legacy-dir renamed-command
 # Quoted frontmatter name must resolve identically.
 mk_skill alpha quoted-dir '"quoted-name"'
+# A directory under skills/ carrying no SKILL.md is not a skill.
+mkdir -p "$REPO/plugins/alpha/skills/not-a-skill"
 
 mk_plugin beta-dir beta
 mk_skill beta-dir check
@@ -95,6 +97,10 @@ assert_contains "two unresolved → manifest-named plugin resolves to its real d
 
 OUT=$(run_edit 'Now cites `/alpha:vanished`.')
 assert_contains "Edit hunk scanned via new_string" "$OUT" "UNRESOLVED_SKILL: /alpha:vanished"
+
+OUT=$(run 'Run `/alpha:not-a-skill`.')
+assert_contains "skills/ dir without SKILL.md → still unresolved" "$OUT" \
+  "UNRESOLVED_SKILL: /alpha:not-a-skill"
 
 # The advisory must state its tier — the issue this guard ships under requires
 # the third guard never read as deterministic.

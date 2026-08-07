@@ -102,7 +102,10 @@ contract — disable one guard without touching the others.
 | block-dangerous-git | `block_dangerous_git_enabled` |
 | block-hook-bypass | `block_hook_bypass_enabled` |
 | block-noncanonical-commit | `block_noncanonical_commit_enabled` |
+| block-convention-violation | `block_convention_gate_enabled` |
 | cli-flag-verify | `cli_flag_verify_enabled` |
+| asserted-path-verify | `asserted_path_verify_enabled` |
+| skill-reference-verify | `skill_reference_verify_enabled` |
 | workflow-resilience-check | `workflow_resilience_check_enabled` |
 | flag-commit-pr-skill-bypass | `flag_commit_pr_skill_bypass_enabled` |
 
