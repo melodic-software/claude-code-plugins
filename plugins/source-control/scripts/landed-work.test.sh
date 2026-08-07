@@ -473,6 +473,18 @@ assert_eq "the header names every column" \
   "path	branch	head	unpushed	landed	method	base	inprogress	staged	unstaged	conflicted	untracked	peers	risk	reason" \
   "$(printf '%s' "$OUT" | head -n 1)"
 
+# Every field is non-empty, so a `while IFS=$'\t' read` consumer — the shape the
+# skill's own prose tells callers to use — sees the columns it names. Tab is IFS
+# whitespace, so bash collapses a run of them and an empty field would shift every
+# later column left. Asserted by reading a row the natural way and checking that
+# the LAST column is the one it should be.
+R="$(row "$OUT" "$(basename "$W")")"
+unset _p _b _h _u _l _m _base _ip _st _un _cf _ut _pe _risk _reason
+IFS=$'\t' read -r _p _b _h _u _l _m _base _ip _st _un _cf _ut _pe _risk _reason <<<"$R"
+assert_eq "a tab-splitting consumer lands on the risk column" "ok" "$_risk"
+assert_contains "and on the reason column" "$_reason" "nothing-unpushed"
+assert_not_contains "no field is empty" "	$R	" "		"
+
 EXPECTED_ROWS="$(git -C "$W" worktree list --porcelain | grep -c '^worktree ')"
 ACTUAL_ROWS="$(printf '%s\n' "$OUT" | tail -n +2 | grep -c .)"
 assert_eq "one row per registered worktree" "$EXPECTED_ROWS" "$ACTUAL_ROWS"

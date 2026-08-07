@@ -36,6 +36,10 @@
 #     was computed against.
 #
 # Output: one TSV row per target, header first, on stdout. Diagnostics on stderr.
+# Every field is non-empty — an absent value is `-` — so a consumer reading the
+# row with `while IFS=$'\t' read` gets the columns it asked for. Tab is IFS
+# whitespace and bash collapses runs of it, so an empty field would shift every
+# later column left and hand the reader the wrong value under the right name.
 #
 # Exit codes:
 #   0  success — every target classified
@@ -830,11 +834,17 @@ while [[ $idx -lt ${#T_PATH[@]} ]]; do
   else
     risk="ok"
   fi
+  # Empty fields are emitted as `-`, never as nothing. A tab is IFS whitespace,
+  # so bash's `read` COLLAPSES a run of them: a row with an empty `base` or
+  # `peers` silently shifts every later column left, and the consumer reads the
+  # reason string out of the risk column. Found by using this output from a
+  # `while IFS=$'\t' read` loop, which is the most natural way to consume it and
+  # the one this file's own callers are told to use.
   printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
-    "${T_PATH[$idx]}" "${T_BRANCH[$idx]}" "${T_HEAD[$idx]:0:12}" "${R_UNPUSHED[$idx]}" \
-    "${R_LANDED[$idx]}" "${R_METHOD[$idx]}" "${R_BASE[$idx]}" "${R_INPROGRESS[$idx]}" \
-    "${R_STAGED[$idx]}" "${R_UNSTAGED[$idx]}" "${R_CONFLICTED[$idx]}" "${R_UNTRACKED[$idx]}" \
-    "${PEERS[$idx]}" "$risk" "$reason"
+    "${T_PATH[$idx]:--}" "${T_BRANCH[$idx]:--}" "${T_HEAD[$idx]:0:12}" "${R_UNPUSHED[$idx]:--}" \
+    "${R_LANDED[$idx]:--}" "${R_METHOD[$idx]:--}" "${R_BASE[$idx]:--}" "${R_INPROGRESS[$idx]:--}" \
+    "${R_STAGED[$idx]:--}" "${R_UNSTAGED[$idx]:--}" "${R_CONFLICTED[$idx]:--}" "${R_UNTRACKED[$idx]:--}" \
+    "${PEERS[$idx]:--}" "${risk:--}" "${reason:--}"
   emitted=$((emitted + 1))
   idx=$((idx + 1))
 done
