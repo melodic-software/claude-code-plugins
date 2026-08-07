@@ -145,5 +145,10 @@ if ! mv -f -- "$TMP" "$RECORD" 2>/dev/null; then
   exit 4
 fi
 
+# A re-armed id must start UNCLAIMED. The gate's claim sidecar outlives the
+# record it names, so a claim left by the previous lane would bind this fresh
+# record to a session that no longer exists and the new lane would run ungated.
+CLAIM=$(gate_arm_claim_path "$ID") && rm -f -- "$CLAIM" 2>/dev/null
+
 printf 'lane-stop-gate armed: record %s\n' "$RECORD" >&2
 exit 0

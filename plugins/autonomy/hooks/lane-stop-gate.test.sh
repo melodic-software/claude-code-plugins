@@ -547,10 +547,12 @@ ARM_ID_4="aaaabbbbccccdddd"
 bash "$ARM" --id "$ARM_ID_4" --cwd "$WORK" 2>/dev/null
 REC_4="$DATA_DIR/lane-arms/$ARM_ID_4"
 jq -c '.armed_at = 1000' <"$REC_4" >"$REC_4.new" && mv -f "$REC_4.new" "$REC_4"
+printf 'sess-expired\n' >"$REC_4.claim"
 OUT="$(run_bare "$(build_input Stop "no token" false)" \
   CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ARM_ID="$ARM_ID_4")"
 if is_block "$OUT"; then fail "an expired arm record wrongly engaged the gate: $OUT"; else ok "an expired arm record does not engage the gate (TTL)"; fi
 if [[ -f "$REC_4" ]]; then fail "an expired arm record was not dropped"; else ok "an expired arm record is dropped on sight"; fi
+if [[ -e "$REC_4.claim" ]]; then fail "an expired record's claim sidecar outlived it"; else ok "an expired record's claim sidecar is dropped with it"; fi
 
 # --- Case 35: a post-nudge (down-lane) stop is allowed; record still survives
 # The record is not consumed here either — the session may /loop onward.
@@ -690,6 +692,78 @@ if is_block "$OUT"; then fail "an empty configured sentinel silenced the token c
 OUT="$(run "$(build_input Stop "no token here" false)" \
   CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_SENTINEL="")"
 if [[ "$OUT" == *'LANE-STOP-OK'* ]]; then ok "the nudge names the default token, never an empty one"; else fail "the nudge did not name a usable token: $OUT"; fi
+
+# --- Case 41: the PERSISTED owner decides, not the presenting session --------
+# Case 32 proves a sequential replay is refused; that passes whether the claim
+# is atomic or a read-then-write. This pins the verify-the-owner clause with a
+# guaranteed signal: a claim sidecar already naming another session must refuse
+# the presenter outright, and must still honor the session it names.
+ARM_ID_6="beefbeef11223344"
+bash "$ARM" --id "$ARM_ID_6" --cwd "$WORK" 2>/dev/null
+printf 'sess-owner\n' >"$DATA_DIR/lane-arms/$ARM_ID_6.claim"
+OUT="$(run_bare "$(build_input Stop "no token" false "" "sess-intruder")" \
+  CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ARM_ID="$ARM_ID_6")"
+if is_block "$OUT"; then fail "a pre-claimed record was honored for a non-owner: $OUT"; else ok "a pre-claimed record is refused for a non-owner"; fi
+OUT="$(run_bare "$(build_input Stop "no token" false "" "sess-owner")" \
+  CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ARM_ID="$ARM_ID_6")"
+if is_block "$OUT"; then ok "a pre-claimed record is honored for its persisted owner"; else fail "the persisted owner was not honored: $OUT"; fi
+
+# --- Case 42: re-arming the same id clears the claim ------------------------
+# The sidecar outlives the record it names, so an id re-armed for a new lane
+# would otherwise stay bound to the dead session and the new lane run ungated.
+bash "$ARM" --id "$ARM_ID_6" --cwd "$WORK" 2>/dev/null
+if [[ -e "$DATA_DIR/lane-arms/$ARM_ID_6.claim" ]]; then fail "re-arming left the previous lane's claim in place"; else ok "re-arming clears the previous lane's claim"; fi
+OUT="$(run_bare "$(build_input Stop "no token" false "" "sess-relaunched")" \
+  CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ARM_ID="$ARM_ID_6")"
+if is_block "$OUT"; then ok "a re-armed id is claimable by the relaunched lane"; else fail "a re-armed id stayed bound to the previous lane: $OUT"; fi
+
+# --- Case 43: a record claimed before the sidecar existed stays bound -------
+# Compatibility: an in-record session_id is authoritative and has no sidecar, so
+# an upgrade must not let a second session claim a record already bound.
+ARM_ID_7="c0ffee1122334455"
+bash "$ARM" --id "$ARM_ID_7" --cwd "$WORK" 2>/dev/null
+REC_7="$DATA_DIR/lane-arms/$ARM_ID_7"
+jq -c '.session_id = "legacy-owner"' <"$REC_7" >"$REC_7.new" && mv -f "$REC_7.new" "$REC_7"
+OUT="$(run_bare "$(build_input Stop "no token" false "" "sess-intruder")" \
+  CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ARM_ID="$ARM_ID_7")"
+if is_block "$OUT"; then fail "a legacy-claimed record was honored for a non-owner: $OUT"; else ok "a legacy-claimed record is refused for a non-owner"; fi
+OUT="$(run_bare "$(build_input Stop "no token" false "" "legacy-owner")" \
+  CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ARM_ID="$ARM_ID_7")"
+if is_block "$OUT"; then ok "a legacy-claimed record is still honored for its owner"; else fail "a legacy-claimed record stopped gating its own session: $OUT"; fi
+
+# --- Case 44: concurrent presenters of one fresh id — exactly one wins ------
+# The race the atomic claim exists to close: N sessions presenting the same
+# fresh id at once. A read-then-write claim lets every one of them read the
+# record unclaimed and honor the arm, and the last writer binds it — leaving
+# the legitimate lane ungated on every later stop. Settings are removed once up
+# front so the concurrent invocations share no file the harness rewrites.
+ARM_ID_8="99887766aabbccdd"
+bash "$ARM" --id "$ARM_ID_8" --cwd "$WORK" 2>/dev/null
+rm -f "$SETTINGS"
+RACE_DIR="$WORK/race"
+mkdir -p "$RACE_DIR"
+for i in 1 2 3 4 5 6; do
+  (cd "$UNRELATED" && printf '%s' "$(build_input Stop "no token" false "" "race-$i")" |
+    env -u CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ENABLED \
+      -u CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_SENTINEL \
+      -u CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_MARKER \
+      -u CLAUDE_PLUGIN_DATA \
+      CLAUDE_PLUGIN_OPTION_LANE_NOTIFY_ENABLED=false \
+      CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ARM_ID="$ARM_ID_8" \
+      bash "$HOOK" 2>/dev/null >"$RACE_DIR/$i") &
+done
+wait
+RACE_WINNERS=0
+RACE_WINNER=""
+for i in 1 2 3 4 5 6; do
+  if is_block "$(cat "$RACE_DIR/$i" 2>/dev/null)"; then
+    RACE_WINNERS=$((RACE_WINNERS + 1))
+    RACE_WINNER="race-$i"
+  fi
+done
+if [[ $RACE_WINNERS -eq 1 ]]; then ok "exactly one concurrent presenter claims a fresh arm id"; else fail "$RACE_WINNERS of 6 concurrent presenters were honored for one fresh arm id"; fi
+RACE_CLAIMED="$(head -n 1 "$DATA_DIR/lane-arms/$ARM_ID_8.claim" 2>/dev/null)"
+if [[ -n "$RACE_WINNER" && "$RACE_CLAIMED" == "$RACE_WINNER" ]]; then ok "the persisted claim names the session that was honored"; else fail "persisted claim '$RACE_CLAIMED' does not name the honored session '$RACE_WINNER'"; fi
 
 echo
 echo "PASS=$PASS FAIL=$FAIL"
