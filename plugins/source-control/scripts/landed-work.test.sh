@@ -238,6 +238,38 @@ R="$(row "$OUT" "wt-whitespace")"
 assert_eq "a whitespace-only difference is not landed" "no" "$(col "$R" $C_LANDED)"
 
 # --------------------------------------------------------------------------
+# Path spellings the two-dot fallback must not be defeated by
+# --------------------------------------------------------------------------
+
+# The fallback used to compare two diff invocations' TEXT output, and the two did
+# not agree on how a path is spelled. `--name-only` octal-escapes a non-ASCII byte
+# under git's default `core.quotePath=true`; the numstat side was pinned to false.
+# The join then matched nothing, and matching nothing is the same shape as
+# "identical to the base" — an unproven `landed=yes` on a commit that exists
+# nowhere else. Pinning quotepath on both sides closed that byte class and left
+# another, since git escapes `"`, `\` and control characters regardless of the
+# setting. Handing the paths back to git as literal pathspecs closes the class.
+#
+# Three spellings, all of which must classify as STRANDED: a non-ASCII name, a
+# name containing a glob metacharacter (which must be matched literally, not as a
+# pattern), and a name beginning with `:` (which must not be read as pathspec
+# magic).
+W="$(mkfixture)"
+WT_PATHS="$TEST_TMPDIR/wt-odd-paths"
+git -C "$W" worktree add -q -b feat-odd-paths "$WT_PATHS" main >/dev/null 2>&1
+printf 'unique content\n' >"$WT_PATHS/café.txt"
+printf 'unique content\n' >"$WT_PATHS/star[1].txt"
+git -C "$WT_PATHS" add -A >/dev/null 2>&1
+git -C "$WT_PATHS" commit -qm "branch adds oddly-named files" >/dev/null 2>&1
+
+OUT="$(bash "$ENGINE" --repo-dir "$W" --no-peers)"
+R="$(row "$OUT" "wt-odd-paths")"
+assert_eq "a non-ASCII path does not defeat the fallback" "no" "$(col "$R" $C_LANDED)"
+assert_eq "and the row is STRANDED, not landed" "STRANDED" "$(col "$R" $C_RISK)"
+assert_not_contains "the verdict is not the vacuous empty-match one" \
+  "$(col "$R" $C_METHOD)" "two-dot-empty"
+
+# --------------------------------------------------------------------------
 # An incomplete patch-id set yields no verdict
 # --------------------------------------------------------------------------
 

@@ -16,7 +16,8 @@ mkdir -p "$MOCK_BIN" "$TMP/config" "$TMP/discovered-a" "$TMP/canonical-a" "$TMP/
   "$TMP/discovered-c" "$TMP/canonical-c" "$TMP/gone-repo" "$TMP/lost-repo" "$TMP/net-repo" \
   "$TMP/wt-root/aaa-linked" "$TMP/wt-root/bbb-linked" "$TMP/wt-root/zzz-canonical/.git" \
   "$TMP/wt-admin/sub-wt" "$TMP/wt-admin/sep-wt" \
-  "$TMP/canonical-a/.claude/worktrees/nested" "$TMP/canonical-a/husk"
+  "$TMP/canonical-a/.claude/worktrees/nested" "$TMP/canonical-a/husk" \
+  "$TMP/prefix-fail"
 # Canonical-selection fixture: a LINKED worktree whose directory name sorts before its own main
 # worktree under LC_ALL=C, so bounded discovery reaches it first. A linked worktree carries .git as
 # a FILE, the main worktree as a DIRECTORY; both resolve to the same --git-common-dir, so whichever
@@ -82,6 +83,7 @@ rev-parse)
     sep-wt) printf '%s\n' "$TEST_ROOT/wt-admin/sep-wt" ;;
     nested) printf '%s\n' "$TEST_ROOT/canonical-a/.claude/worktrees/nested" ;;
     husk) printf '%s\n' "$TEST_ROOT/canonical-a" ;;
+    prefix-fail) printf '%s\n' "$TEST_ROOT/prefix-fail" ;;
     *) exit 1 ;;
     esac
     ;;
@@ -90,7 +92,18 @@ rev-parse)
     # what separates a real worktree from a leftover directory that git -C still answers for.
     case "$base" in
     husk) printf '%s\n' 'husk/' ;;
+    # The probe FAILING is a third state, distinct from empty and non-empty: root-ness is then
+    # unproven rather than disproven. Without an arm that exits nonzero the collector's
+    # unverifiable branch is dead code as far as this suite is concerned. Same shape as the
+    # wt-fail fixture below, which does this for the worktree inventory.
+    prefix-fail) exit 7 ;;
     *) printf '\n' ;;
+    esac
+    ;;
+  --is-bare-repository)
+    # Only the bare hub answers true; everything else is a working checkout.
+    case "$base" in
+    *) printf 'false\n' ;;
     esac
     ;;
   --path-format=absolute)
@@ -112,6 +125,7 @@ rev-parse)
     lost-repo) printf '%s\n' "$TEST_ROOT/lost-repo/.git" ;;
     net-repo) printf '%s\n' "$TEST_ROOT/net-repo/.git" ;;
     nested) printf '%s\n' "$TEST_ROOT/canonical-a/.git" ;;
+    prefix-fail) printf '%s\n' "$TEST_ROOT/canonical-a/.git" ;;
     aaa-linked | bbb-linked | zzz-canonical) printf '%s\n' "$TEST_ROOT/wt-root/zzz-canonical/.git" ;;
     sub-wt) printf '%s\n' "$TEST_ROOT/wt-admin/sub-admin" ;;
     sep-wt) printf '%s\n' "$TEST_ROOT/wt-admin/sep-gitdir" ;;
@@ -162,6 +176,8 @@ worktree)
     # A registered path that exists but is a plain subdirectory: git -C answers it with the
     # CONTAINING repository's state at exit 0, indistinguishable from a healthy clean worktree.
     printf 'worktree %s\0HEAD husk\0branch refs/heads/feature/husk\0\0' "$TEST_ROOT/canonical-a/husk"
+    # A registered path whose root-ness probe FAILS outright.
+    printf 'worktree %s\0HEAD pfail\0branch refs/heads/feature/prefix-fail\0\0' "$TEST_ROOT/prefix-fail"
     ;;
   repo-b)
     printf 'worktree %s\0HEAD main-b\0branch refs/heads/main\0\0' "$TEST_ROOT/repo-b"
@@ -427,6 +443,10 @@ assert_contains "worktree nested in its own repository is reported" "Finding: wo
 assert_contains "nested finding names the containing checkout" \
   "registered worktree root is inside the canonical checkout's own working tree ($TMP/canonical-a)"
 assert_contains "a registered path that is not a work-tree root is reported" "Finding: worktree-not-a-root"
+assert_contains "a failed root-ness probe is UNKNOWN, not a silent pass" \
+  "Finding: worktree-root-unverifiable"
+assert_contains "and it says root-ness is unproven rather than disproven" \
+  "git rev-parse --show-prefix failed at the registered path"
 assert_contains "not-a-root finding says why the probe reads clean" \
   "probing it reports the containing repository's state at exit 0"
 # The two are distinct conditions, not one collapsed into the other: the nested worktree IS a real

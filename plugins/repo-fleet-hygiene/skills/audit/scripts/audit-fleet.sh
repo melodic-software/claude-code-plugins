@@ -126,7 +126,9 @@ git_probe_allowed() {
       # tells a work-tree ROOT (empty) from a path below one (non-empty) without any path
       # arithmetic, which is what keeps a leftover directory from being read as the worktree it is
       # registered as.
-      [[ $# -eq 4 && ("$4" == "--show-toplevel" || "$4" == "--show-prefix") ]] ||
+      # --is-bare-repository is the same shape again, and it is what separates a
+      # bare hub's legitimately-absent working tree from a probe that failed.
+      [[ $# -eq 4 && ("$4" == "--show-toplevel" || "$4" == "--show-prefix" || "$4" == "--is-bare-repository") ]] ||
         [[ $# -eq 5 && "$4" == "--path-format=absolute" && "$5" == "--git-common-dir" ]]
       ;;
     remote)
@@ -1019,8 +1021,22 @@ analyze_repo() {
   # paths come from ONE source. A filesystem-derived path and a git-emitted one differ by spelling
   # on Windows (/d/repos/x vs D:/repos/x), and path_key normalizes separators and case but not the
   # drive form — a containment test across those two forms silently never matches.
-  local canonical_top
+  # A BARE canonical has no working tree, so `--show-toplevel` fails there by
+  # design and there is nothing for a worktree to be nested inside — a legitimate
+  # skip, not an unknown. Any OTHER failure is an unknown, and it gets a finding
+  # rather than a silent skip: every sibling probe in this function reports when
+  # it cannot answer, and a placement check that quietly did not run reads
+  # identically to one that ran and found nothing.
+  local canonical_top canonical_bare="false"
+  [[ "$(run_git_probe -C "$canonical" rev-parse --is-bare-repository 2>/dev/null | tr -d '\r')" == "true" ]] &&
+    canonical_bare="true"
   canonical_top="$(run_git_probe -C "$canonical" rev-parse --show-toplevel 2>/dev/null | tr -d '\r')"
+  if [[ -z "$canonical_top" && "$canonical_bare" != "true" ]]; then
+    emit_finding UNKNOWN worktree-placement-unverifiable "$canonical" \
+      "git rev-parse --show-toplevel gave no working-tree root for a non-bare canonical checkout" \
+      "Do not infer that this repository's worktrees are correctly placed" \
+      "Inspect the canonical checkout, then rerun"
+  fi
 
   # Parse the stable NUL-delimited porcelain format. Only these registrations are worktree evidence.
   local wt_path="" wt_branch="" wt_prunable="false" wt_locked="false" field worktree_status=1

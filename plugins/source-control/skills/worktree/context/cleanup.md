@@ -77,8 +77,13 @@ Read the candidate's row from the record collected in Step 2:
 
 - `risk=landed`, `ok`, `bare`, or `superseded` → proceed.
 - `risk=STRANDED` or `UNKNOWN` → **stop and do not remove.** Present the count, the `base` stamp, the `reason`, and the commit subjects (`git -C <path> log HEAD --not --remotes --oneline`), then get explicit per-worktree confirmation naming those commits. `UNKNOWN` means the engine could not prove landedness, not that it proved absence — treat it exactly as `STRANDED`.
+- `risk=in-progress` → **stop.** A merge, rebase, cherry-pick, or revert is paused here. Its staged tree is recomputable, but the operator's conflict resolutions are not, and the sequencer state is lost with the directory. Report the operation and let the user finish or abort it first.
+- `risk=dirty` → **stop.** Nothing is unpushed, but the working tree carries uncommitted edits — and the same value is emitted when the working-tree status could not be read at all, which is the `-` or `?` you will see in the count columns. Neither is safe to remove without the user looking.
+- **Any value not listed above → treat it as `STRANDED`.** The list is closed on the safe side only. A risk value this file does not recognize is a value it cannot vouch for, and the whole point of the record is that an unproven verdict never authorizes a removal.
 - When the row's `peers` column names another worktree, say so: those commits survive in the peer, which is a different decision from losing them.
 - The override is `--acknowledge-stranded`, per worktree, never a bare `--force`. `--force` answers git's dirty-tree check, which is a different question, and one flag must not silently answer both.
+
+An absent field prints as the literal `-`, never as nothing (a blank would collapse under tab-splitting and shift every later column). Present `-` as "not resolved" rather than verbatim — a `base` of `-` means no base was resolved, which is exactly why the row is `UNKNOWN`.
 
 Offer the non-destructive resolution first — `git -C <path> push -u origin HEAD` makes the commits durable and reclassifies the row as safe without anyone having to judge whether the work matters.
 

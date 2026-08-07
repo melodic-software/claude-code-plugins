@@ -48,7 +48,13 @@ Two independent axes. **Work** answers whether removal would destroy a commit an
 | `stranded N` | `STRANDED` | N unpushed commits whose content is not on the base. Removal plus the branch deletion that follows it destroys them |
 | `superseded` | `superseded` | Not landed, but its branch is the head ref of a MERGED PR — a draft the base moved past |
 | `unknown` | `UNKNOWN` | No base resolved, or a probe failed. **Treat exactly as `stranded`** — the engine reports `?` rather than `no` precisely so an ambiguity is never read as safe |
+| `in-progress` | `in-progress` | A merge, rebase, cherry-pick, or revert is paused here. Nothing is unpushed, but the conflict resolutions in the working tree are not recorded anywhere and the sequencer state dies with the directory |
+| `dirty` | `dirty` | Uncommitted edits with nothing unpushed — **or** a working tree whose status could not be read at all, which the count columns show as `-`. The two are not distinguished, and neither is removable unattended |
 | `notgit` | `notgit` | Path is not a work-tree root. Probing it with `git -C` reports the *containing* repository's clean state |
+
+**Any risk value not in this table maps to `unknown`.** The mapping is closed on the safe side only: a value this file does not recognize is one it cannot vouch for, and the fail-closed rule that governs the engine governs its consumers too.
+
+Every field the engine emits is non-empty — an absent value is the literal `-`, because a blank field collapses under tab-splitting and shifts every later column. Render `-` as "not resolved", never verbatim.
 
 A `stranded` row whose `peers` column names another worktree is recoverable from that peer — present it as `stranded N (peer: <path>)`, a materially different disposition from stranded with no peer.
 

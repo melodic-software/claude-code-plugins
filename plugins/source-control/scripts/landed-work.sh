@@ -365,7 +365,7 @@ L_REASON=""
 # classify_landed <path>: set L_STATE (yes|no|?), L_METHOD, L_BASE, L_REASON.
 classify_landed() {
   local p="$1" base base_sha mb range_id branch_expected branch_count
-  local base_ids branch_ids touched numstat matched
+  local base_ids branch_ids touched
   L_STATE="?"
   L_METHOD="none"
   L_BASE=""
@@ -422,9 +422,17 @@ classify_landed() {
       L_REASON="base-patchid-failed"
       return 0
     fi
-    if [[ "$base_expected" -gt 0 && ! -s "$base_ids" ]]; then
+    # Count parity, the same check the branch side makes. An under-complete base
+    # set can only make a match LESS likely, so this cannot be the difference
+    # between `yes` and `no` today — it is here so the two sides cannot silently
+    # diverge if either is ever refactored, and so a base range that failed to
+    # render is named rather than quietly narrowing the id set it is compared
+    # against.
+    local base_count
+    base_count=$(wc -l <"$base_ids" | tr -d '[:space:]')
+    if [[ "$base_count" -ne "$base_expected" ]]; then
       rm -f "$base_ids"
-      L_REASON="base-patchid-empty-for-$base_expected-commits"
+      L_REASON="base-patchid-incomplete-$base_count-of-$base_expected-commits"
       return 0
     fi
   fi
@@ -499,15 +507,7 @@ classify_landed() {
   #
   # A verdict from here is only valid against the base tip stamped in L_BASE.
   touched="$WORKDIR/touched"
-  numstat="$WORKDIR/numstat"
-  # Both diffs are pinned to core.quotepath=false. They used to disagree — one
-  # default-quoted, one not — so a path with a non-ASCII byte appeared in two
-  # spellings, joined against nothing, and produced `matched=0`, which this
-  # function reads as "identical to the base". Same setting on both sides is what
-  # makes the join mean what it says. `-z` for the same reason a path may contain
-  # a newline.
-  if ! git -C "$p" -c core.quotepath=false diff --name-only --no-renames -z "$mb..HEAD" 2>/dev/null |
-    tr '\0' '\n' | sort -u >"$touched"; then
+  if ! git -C "$p" diff --name-only --no-renames -z "$mb..HEAD" >"$touched" 2>/dev/null; then
     L_REASON="touched-paths-unreadable"
     return 0
   fi
@@ -515,34 +515,55 @@ classify_landed() {
     L_REASON="branch-adds-no-content"
     return 0
   fi
-  if ! git -C "$p" -c core.quotepath=false diff --numstat --no-renames "$base_sha..HEAD" >"$numstat" 2>/dev/null; then
-    L_REASON="two-dot-unreadable"
+
+  # The touched paths are handed BACK to git as literal pathspecs rather than
+  # matched against a second diff's text output. Two diff invocations only agree
+  # on how a path is spelled when they agree on every escaping rule, and they did
+  # not: `--name-only` quoted non-ASCII bytes while `--numstat` was pinned to
+  # `core.quotepath=false`, so an i18n'd filename joined against nothing and the
+  # empty join read as "identical to the base" — an unproven `yes`. Pinning
+  # quotepath on both sides fixed that byte class and left another, since git
+  # escapes `"`, `\`, and control characters regardless of that setting and only
+  # `-z` suppresses it. Rather than chase escaping rules, git does its own path
+  # matching here and the whole mismatch class goes away.
+  #
+  # `:(literal)` because a path is not a pattern: a file actually named
+  # `star[1].txt`, or any path beginning with `:`, would otherwise be read as
+  # pathspec magic and match something else entirely.
+  local -a specs=()
+  local pth
+  while IFS= read -r -d '' pth; do specs+=(":(literal)$pth"); done <"$touched"
+  if [[ ${#specs[@]} -eq 0 ]]; then
+    L_REASON="touched-paths-unparseable"
     return 0
   fi
-  # A binary row carries `-` for both counts. Counting it as a difference is the
-  # fail-closed reading: unknown content becomes NOT landed.
-  local counts
-  counts=$(awk -F'\t' '
-    NR==FNR { touched[$0]=1; next }
-    ($3 in touched) { matched+=1 }
-    END { printf "%d\n", matched+0 }
-  ' "$touched" "$numstat" 2>/dev/null) || counts=""
-  # An empty or non-numeric result means awk failed, and an unset variable in a
-  # numeric comparison reads as zero — which is the "identical to the base"
-  # answer. It has to be rejected explicitly rather than defaulted.
-  if [[ ! "$counts" =~ ^[0-9]+$ ]]; then
-    L_REASON="two-dot-count-unreadable"
-    return 0
-  fi
-  matched="$counts"
-  if [[ "$matched" -eq 0 ]]; then
+
+  # Chunked: a branch touching thousands of paths would otherwise exceed the
+  # platform's command-line limit, and the failure would arrive as a non-zero
+  # exit that looks like any other probe failure.
+  local i rc differs=0
+  local -a chunk=()
+  for ((i = 0; i < ${#specs[@]}; i += 200)); do
+    chunk=("${specs[@]:i:200}")
+    git -C "$p" diff --quiet --no-renames "$base_sha..HEAD" -- "${chunk[@]}" 2>/dev/null
+    rc=$?
+    if [[ "$rc" -eq 1 ]]; then
+      differs=1
+      break
+    fi
+    if [[ "$rc" -ne 0 ]]; then
+      L_REASON="two-dot-unreadable"
+      return 0
+    fi
+  done
+  if [[ "$differs" -eq 0 ]]; then
     L_STATE="yes"
     L_METHOD="two-dot-empty"
     return 0
   fi
   L_STATE="no"
   L_METHOD="two-dot"
-  L_REASON="head-differs-from-base-on-$matched-touched-path(s)"
+  L_REASON="head-differs-from-base-on-${#specs[@]}-touched-path(s)"
 }
 
 # ---------------------------------------------------------------------------

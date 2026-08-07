@@ -56,6 +56,25 @@ All notable changes to the `source-control` plugin are documented here. Format f
   and `git status`'s exit status are each checked, because a failure in any of them produces the
   same output shape as the favourable answer.
 
+- **The two-dot fallback hands its paths back to git instead of matching two diffs' text.** Two diff
+  invocations only agree on how a path is spelled when they agree on every escaping rule, and they
+  did not: `--name-only` quoted non-ASCII bytes while `--numstat` was pinned to
+  `core.quotepath=false`, so an i18n'd filename joined against nothing — and an empty join is the
+  same shape as "identical to the base", an unproven `landed=yes` on a commit that existed nowhere
+  else. Pinning quotepath on both sides closed that byte class and left another, since git escapes
+  `"`, `\`, and control characters regardless of the setting and only `-z` suppresses it. Rather
+  than chase escaping rules one class at a time, the touched paths are now passed back to git as
+  `:(literal)` pathspecs and git does its own matching, which removes the entire mismatch class.
+  `:(literal)` because a path is not a pattern — a file named `star[1].txt`, or one beginning with
+  `:`, would otherwise be read as pathspec magic. The pathspecs are chunked so a branch touching
+  thousands of files cannot exceed the platform's command-line limit.
+
+- **The base-side patch-id set gets the same completeness check as the branch side.** An
+  under-complete base set can only make a match less likely, so this was never the difference
+  between `yes` and `no` — it is here so the two sides cannot silently diverge under a later
+  refactor, and so a base range that failed to render is named rather than quietly narrowing the id
+  set every branch is compared against.
+
 - **`worktree-create-gate`: a `WorktreeCreate` hook that places every worktree at the configured
   root.** `/worktree create` already routed through `worktree-create.sh`, but three creation paths
   bypass the skill entirely — `claude --worktree`, a subagent with `isolation: "worktree"`, and a
