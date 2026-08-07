@@ -3,6 +3,20 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.16.2]
+
+### Fixed
+
+- **`skills/fanout`: the `code-review` plugin's comment is selected by heading, not by position.**
+  `context/findings-normalization.md` told the pipeline to retrieve that surface's raw text with
+  `.comments[-1].body`, which is whatever landed most recently — the prose named the plugin's
+  `### Code review` heading but the expression applied no heading, author, or timestamp filter. Any
+  bot or reviewer commenting between the dispatch and the fetch was therefore normalized as
+  `code-review` findings and written into the persisted report. The retrieval now filters on the
+  heading and takes the newest match, requires that match to postdate the dispatch so a previous
+  run's comment is not mistaken for this one's, and states that no match is a `## Surfaces` skip —
+  never a fallback to the latest comment.
+
 ## [0.16.1]
 
 ### Changed

@@ -18,7 +18,16 @@ The 5-stage main-thread pipeline that turns heterogeneous free-text findings fro
 
 Line numbers from LLM reviewers drift — treat inferred lines as approximate and keep dedup noise-tolerant.
 
-**One row's raw text is not returned to the session:** the `code-review` plugin ends by posting its surviving findings as a PR comment, so the dispatch itself yields no parsable output. After an opted-in dispatch, fetch that comment (`gh pr view <n> --json comments --jq '.comments[-1].body'`, matching the plugin's `### Code review` heading) and feed the body to Stage 0 as this surface's raw text. Skip the retrieval and the row has no input — then the surface is not normalized and belongs in `## Surfaces` as a skip, not silently absent from the report.
+**One row's raw text is not returned to the session:** the `code-review` plugin ends by posting its surviving findings as a PR comment, so the dispatch itself yields no parsable output. After an opted-in dispatch, fetch that comment and feed the body to Stage 0 as this surface's raw text — selected by the plugin's `### Code review` heading, never by position:
+
+```shell
+gh pr view <n> --json comments \
+  --jq '[.comments[] | select(.body | contains("### Code review"))] | last | .body'
+```
+
+`.comments[-1]` is whatever landed most recently, with no heading, author, or timestamp filter — so any bot or reviewer that comments between the dispatch and this fetch is normalized as `code-review` findings and corrupts the persisted report. Note the newest heading match's `createdAt` BEFORE dispatching and require the selected comment to postdate it, so a leftover comment from an earlier run on the same PR is not read as this run's output.
+
+No heading match, only a match predating the dispatch, or the retrieval skipped — the row has no input: the surface is not normalized and belongs in `## Surfaces` as a skip, never a fallback to the latest comment.
 
 **Not in this table:** the bundled `/code-review` command and the managed Code Review GitHub App service (SKILL.md "Boundary — the bundled command and the managed service"), both distinct from the `code-review` plugin row above. The managed service posts its findings to the PR rather than returning them to normalize; bare `/code-review` is report-only, but is itself a multi-agent review of the same diff whose output has no documented schema to parse. Neither is dispatched as a fan-out leaf here.
 
