@@ -275,8 +275,12 @@ jobs:
   # Keep this job SMALL. Adding a platform-agnostic suite here buys no coverage
   # and pays Windows' process-creation cost (~140ms/spawn vs ~3ms on Linux),
   # which is the whole reason the full suite is unusable on a Windows dev box.
+  # Pinned, not `windows-latest`: the runner policy forbids the floating
+  # `*-latest` labels outright (policy.json forbiddenHostedRunnerLabels), for the
+  # same reason the Linux lanes pin ubuntu-24.04 — an image roll must be a
+  # reviewed commit, not a silent Tuesday.
   hook-utils-windows:
-    runs-on: windows-latest
+    runs-on: windows-2025
     timeout-minutes: 20
     defaults:
       run:
