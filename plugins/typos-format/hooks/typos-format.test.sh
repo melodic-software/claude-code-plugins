@@ -171,6 +171,16 @@ if [[ -n "${STUB_LONG:-}" ]]; then
   done
 fi
 
+# STUB_REFLOW: on the WRITE pass, report every surviving finding one line lower
+# than the scan reported it — a sibling formatter (markdown-format on the same
+# .md, say) reflowing the file between the hook's two passes. Claude Code runs
+# matching PostToolUse hooks in parallel, so nothing orders them. typos changed
+# nothing about these findings; only their position moved.
+shift_lines=0
+if ((write == 1)) && [[ -n "${STUB_REFLOW:-}" ]]; then
+  shift_lines=1
+fi
+
 residual=0
 out=""
 lineno=0
@@ -178,6 +188,7 @@ tmp="$target.stubtmp"
 : >"$tmp"
 while IFS= read -r line || [[ -n "$line" ]]; do
   lineno=$((lineno + 1))
+  reported=$((lineno + shift_lines))
   for tok in teh wnat disallowme; do
     case " $line " in
     *" $tok "*) ;;
@@ -185,15 +196,15 @@ while IFS= read -r line || [[ -n "$line" ]]; do
     esac
     case "$tok" in
     teh)
-      out+='{"type":"typo","path":"'"$target"'","line_num":'"$lineno"',"byte_offset":0,"typo":"teh","corrections":["'"${long:-the}"'"]}'$'\n'
+      out+='{"type":"typo","path":"'"$target"'","line_num":'"$reported"',"byte_offset":0,"typo":"teh","corrections":["'"${long:-the}"'"]}'$'\n'
       if ((write == 1)); then line="${line//" teh "/" the "}"; else residual=1; fi
       ;;
     wnat)
-      out+='{"type":"typo","path":"'"$target"'","line_num":'"$lineno"',"byte_offset":0,"typo":"wnat","corrections":["want","what"]}'$'\n'
+      out+='{"type":"typo","path":"'"$target"'","line_num":'"$reported"',"byte_offset":0,"typo":"wnat","corrections":["want","what"]}'$'\n'
       residual=1
       ;;
     disallowme)
-      out+='{"type":"typo","path":"'"$target"'","line_num":'"$lineno"',"byte_offset":0,"typo":"disallowme","corrections":null}'$'\n'
+      out+='{"type":"typo","path":"'"$target"'","line_num":'"$reported"',"byte_offset":0,"typo":"disallowme","corrections":null}'$'\n'
       residual=1
       ;;
     esac

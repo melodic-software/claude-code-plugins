@@ -290,12 +290,24 @@ fi
 # else here (typos itself runs in ~80 ms on a 68 KB file), so the loop is gone
 # and the total spawn count is constant in the number of findings.
 #
-# Residual identity key: line number + the flagged token. Byte offsets shift as
-# earlier corrections on the same line change its length, so an offset-keyed
-# comparison would classify wrongly; a line/token pair is stable across the
-# write because a repeated token on one line always shares one fix decision.
-# The key is built and compared inside jq as a JSON string, so a token carrying
-# a shell or glob metacharacter is data throughout and can never widen a match.
+# Residual identity: the flagged TOKEN, matched by COUNT — never by position.
+# Byte offsets shift as earlier corrections on the same line change its length,
+# and line numbers are no more stable: Claude Code runs every matching
+# PostToolUse hook in parallel, so a sibling formatter can reflow the file
+# between these two passes and carry an untouched finding to a different line.
+# A position-keyed lookup then fails to match that finding against its own scan
+# entry and reports a word typos never touched as a rewrite — a false mutation
+# disclosure on the one channel this hook exists to make trustworthy. Counting
+# per token cannot do that: a scan finding is applied only once its token's
+# residual occurrences are exhausted, so a moved residual still cancels its scan
+# entry. The trade is deliberate and one-directional — counting can only
+# UNDER-report applied (a missing disclosure line), never over-report one.
+# Residual findings are reported from the write pass's own output, so their line
+# numbers are the file's current ones rather than the scan's stale ones.
+# Unclosed by this: a concurrent writer that DELETES a finding outright is still
+# attributed to typos, which needs file locking no hook-level primitive offers.
+# Keys are built and compared inside jq as JSON strings, so a token carrying a
+# shell or glob metacharacter is data throughout and can never widen a match.
 #
 # Membership is an OBJECT lookup, not `index` over an array. `index` is a linear
 # scan, so classification went quadratic exactly when the residual set is large
@@ -321,7 +333,7 @@ fi
 CLASSIFIED=$(printf '%s\n@@typos-format-split@@\n%s\n' "$SCAN_OUTPUT" "$RESIDUAL_OUTPUT" |
   jq -R -s -c --argjson max "$MAX_REPORT" '
     def parse($lines): [$lines[] | select(length > 0) | (fromjson? // empty) | select(.type == "typo")];
-    def keyof: "\(.line_num // 0)\t\(.typo // "")";
+    def tokof: (.typo // "");
     # Entry count is capped, but a single entry is not bounded by that: a token
     # or correction is arbitrary text from the file, so ten of them can still
     # blow the systemMessage character cap. Rendered tokens are elided; the
@@ -331,10 +343,17 @@ CLASSIFIED=$(printf '%s\n@@typos-format-split@@\n%s\n' "$SCAN_OUTPUT" "$RESIDUAL
     def corr1: ((.corrections[0] // "") | elide);
     (split("\n")) as $lines
     | (($lines | index("@@typos-format-split@@")) // ($lines | length)) as $sep
-    | ((parse($lines[($sep + 1):]) | map({(keyof): true}) | add) // {}) as $res
-    | parse($lines[0:$sep]) as $all
-    | ($all | map(select($res[keyof] != null))) as $r
-    | ($all | map(select($res[keyof] == null))) as $a
+    | parse($lines[($sep + 1):]) as $r
+    | (reduce $r[] as $f ({}; ($f | tokof) as $t | .[$t] += 1)) as $rescount
+    # Drop, per token, as many scan findings as survived the write; whatever is
+    # left over is what typos actually applied. Slicing a group is linear. The
+    # final sort undoes group_by clustering so the disclosure still reads in
+    # file order — the order a person checking the rewrites reads the file in.
+    | (parse($lines[0:$sep])
+       | group_by(tokof)
+       | map(.[(($rescount[(.[0] | tokof)]) // 0):])
+       | add // []
+       | sort_by(.line_num // 0)) as $a
     | {
         appliedCount: ($a | length),
         residualCount: ($r | length),
