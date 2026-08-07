@@ -1,0 +1,703 @@
+#!/usr/bin/env bash
+# landed-work.sh — read-only landed-vs-stranded classification for git worktrees.
+#
+# Answers one question per worktree: if this checkout were removed and its branch
+# deleted, would any commit be lost? A commit is STRANDED when it is unpushed AND
+# its content is not already on the base. Everything else is recoverable, and the
+# distinction is the only thing standing between a cleanup sweep and data loss.
+#
+# Read-only by construction: no fetch, no ref write, no checkout, no removal, no
+# network. Every verdict is computed from refs already on disk, so a stale remote
+# ref yields a conservative answer (see the fail-closed rule below), never a wrong
+# destructive one.
+#
+# Consumers: the `worktree` skill's status and cleanup contexts. The script
+# computes; prose maps the record to an operator disposition; the operator judges.
+#
+# FAIL-CLOSED RULE, which governs every branch below: only affirmative proof
+# yields `landed=yes`. Every failed command, empty result set, unresolvable base,
+# and ambiguity yields `?`, and a guard must treat `?` exactly as it treats `no`.
+# The nuisance direction costs a confirmation prompt; the other direction destroys
+# work.
+#
+# Method (measured, not assumed — see the three notes at each site):
+#   * unpushed set is `HEAD --not --remotes`, never `--branches` and never
+#     `@{upstream}..HEAD`;
+#   * `landed` is decided by RANGE patch-id first, because a per-commit primitive
+#     (including `git cherry`) cannot see a multi-commit squash-merge;
+#   * the path-scoped two-dot fallback is direction-tested and stamped with the
+#     base SHA it was computed against, because its verdict decays as the base
+#     advances.
+#
+# Output: one TSV row per target, header first, on stdout. Diagnostics on stderr.
+#
+# Exit codes:
+#   0  success — every target classified
+#   2  usage error
+#   3  no target resolved (no worktree found for the given scope)
+#   4  environment error — git absent, or the scope is not a git repository
+#   5  row-count assertion failed — the emitted rows do not match the worktree
+#      list the run was supposed to cover. A truncated pass must fail loudly; a
+#      short list read as "nothing at risk" is the failure mode this guards.
+
+set -uo pipefail
+
+PROG=${0##*/}
+
+usage() {
+  cat >&2 <<EOF
+$PROG — read-only landed-vs-stranded classification for git worktrees.
+
+Usage:
+  $PROG [--repo-dir <dir>] [--worktree <path>]... [--base <ref>]
+        [--merged-refs-file <path>] [--no-peers]
+  $PROG --path-key <value>
+  $PROG --help
+
+Options:
+  --repo-dir <dir>    Repository whose worktrees are classified. Default: the
+                      current directory. Ignored when --worktree is given.
+  --worktree <path>   Classify exactly this path instead of enumerating.
+                      Repeatable. A path that is not a work-tree ROOT is
+                      reported as notgit rather than silently inheriting the
+                      containing repository's state.
+  --base <ref>        Base to test landedness against. Default: origin/HEAD,
+                      then origin/main, then origin/master. No base resolves
+                      to landed=? — never to no.
+  --merged-refs-file <path>
+                      Newline-separated branch names whose pull request is
+                      MERGED. A landed=no worktree whose branch appears here is
+                      a superseded draft, not stranded work: the base holds a
+                      later revision of the same change. Collected by the
+                      caller (gh), so this script stays offline.
+  --no-peers          Skip peer detection (another worktree holding the same
+                      commits). Peer detection is O(n^2) ancestry probes.
+  --path-key <value>  Print the path comparison key for <value> and exit. A
+                      debug seam the test suite asserts the normalizer through.
+
+Columns:
+  path branch head unpushed landed method base inprogress staged unstaged
+  conflicted untracked peers risk reason
+EOF
+}
+
+die() {
+  printf '%s: %s\n' "$PROG" "$1" >&2
+  exit "${2:-2}"
+}
+
+# ---------------------------------------------------------------------------
+# Path comparison
+# ---------------------------------------------------------------------------
+
+# Windows shells render a drive as /d/repos/x while git emits D:/repos/x, so the
+# two operands compared here differ by CONSTRUCTION — one comes from git, the
+# other from the filesystem. audit-fleet.sh:500's path_key() never had to
+# reconcile that because both of its operands come from one source.
+#
+# cygpath is not used: worktree-create.sh:247 rejects it because it resolves
+# relative paths against the CWD and rewrites MSYS /tmp paths, and its own remedy
+# is a pure separator swap that defers all resolution to existing machinery. A
+# pure drive-letter swap is that same remedy, so this follows the precedent
+# rather than overturning it.
+CASE_INSENSITIVE_PATHS=false
+WINDOWS_PATHS=false
+case "$(uname -s 2>/dev/null || true)" in
+MINGW* | MSYS* | CYGWIN*)
+  CASE_INSENSITIVE_PATHS=true
+  WINDOWS_PATHS=true
+  ;;
+*) ;;
+esac
+
+path_key() {
+  local value="${1//\\//}"
+  if [[ "$WINDOWS_PATHS" == "true" ]]; then
+    case "$value" in
+    /?/*) value="${value:1:1}:${value:2}" ;;
+    /?) value="${value:1:1}:" ;;
+    *) ;;
+    esac
+  fi
+  while [[ "$value" == */ ]]; do value="${value%/}"; done
+  if [[ "$CASE_INSENSITIVE_PATHS" == "true" ]]; then
+    printf '%s' "$value" | tr '[:upper:]' '[:lower:]'
+  else
+    printf '%s' "$value"
+  fi
+}
+
+# ---------------------------------------------------------------------------
+# Arguments
+# ---------------------------------------------------------------------------
+
+REPO_DIR="."
+BASE_REF=""
+MERGED_REFS_FILE=""
+DO_PEERS=true
+EXPLICIT_TARGETS=()
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+  --help | -h)
+    usage
+    exit 0
+    ;;
+  --path-key)
+    [[ $# -ge 2 ]] || die "--path-key requires a value"
+    path_key "$2"
+    printf '\n'
+    exit 0
+    ;;
+  --repo-dir)
+    [[ $# -ge 2 ]] || die "--repo-dir requires a value"
+    REPO_DIR="$2"
+    shift 2
+    ;;
+  --worktree)
+    [[ $# -ge 2 ]] || die "--worktree requires a value"
+    EXPLICIT_TARGETS+=("$2")
+    shift 2
+    ;;
+  --base)
+    [[ $# -ge 2 ]] || die "--base requires a value"
+    BASE_REF="$2"
+    shift 2
+    ;;
+  --merged-refs-file)
+    [[ $# -ge 2 ]] || die "--merged-refs-file requires a value"
+    MERGED_REFS_FILE="$2"
+    shift 2
+    ;;
+  --no-peers)
+    DO_PEERS=false
+    shift
+    ;;
+  *) die "unknown argument: $1" ;;
+  esac
+done
+
+command -v git >/dev/null 2>&1 || die "git not found on PATH" 4
+
+if [[ -n "$MERGED_REFS_FILE" && ! -f "$MERGED_REFS_FILE" ]]; then
+  die "--merged-refs-file not found: $MERGED_REFS_FILE"
+fi
+
+# ---------------------------------------------------------------------------
+# Probes
+# ---------------------------------------------------------------------------
+
+# is_worktree_root <path>: true when <path> is the ROOT of a work tree.
+#
+# `rev-parse --is-inside-work-tree` cannot answer this — it returns true for an
+# empty leftover directory inside a repository, because that directory genuinely
+# IS inside the parent's work tree, and the parent's clean state is then reported
+# as the husk's own. `--show-prefix` is the discriminator that needs no path
+# arithmetic at all: it is empty exactly at a work-tree root and non-empty at any
+# path below one, in every path spelling on every platform.
+is_worktree_root() {
+  local prefix
+  prefix=$(git -C "$1" rev-parse --show-prefix 2>/dev/null) || return 1
+  [[ -z "$prefix" ]]
+}
+
+# inprogress_of <path>: the in-progress sequencer operation, or `none`.
+#
+# Probed through `rev-parse --git-path`, never `<path>/.git/<file>`: a linked
+# worktree's git dir is <main>/.git/worktrees/<name>, and only --git-path
+# resolves the per-worktree vs common-dir split correctly — which is precisely
+# the subject matter here.
+inprogress_of() {
+  local p="$1" name resolved
+  for name in rebase-merge rebase-apply; do
+    resolved=$(git -C "$p" rev-parse --git-path "$name" 2>/dev/null) || continue
+    if [[ -d "$resolved" ]]; then
+      printf 'rebase'
+      return 0
+    fi
+  done
+  for name in MERGE_HEAD CHERRY_PICK_HEAD REVERT_HEAD; do
+    resolved=$(git -C "$p" rev-parse --git-path "$name" 2>/dev/null) || continue
+    if [[ -e "$resolved" ]]; then
+      case "$name" in
+      MERGE_HEAD) printf 'merge' ;;
+      CHERRY_PICK_HEAD) printf 'cherry-pick' ;;
+      *) printf 'revert' ;;
+      esac
+      return 0
+    fi
+  done
+  printf 'none'
+}
+
+S_STAGED=0
+S_UNSTAGED=0
+S_CONFLICTED=0
+S_UNTRACKED=0
+
+# status_counts <path>: split the working tree into four independent counts.
+#
+# A single `dirty` number is not a work-at-risk signal: a paused merge inflates
+# it with the merge's own staged result, which is recomputable at any time,
+# while the branch's own commits — the irreplaceable part — are carried by the
+# unpushed/landed columns instead.
+status_counts() {
+  local p="$1" line x y
+  S_STAGED=0
+  S_UNSTAGED=0
+  S_CONFLICTED=0
+  S_UNTRACKED=0
+  while IFS= read -r line; do
+    [[ -z "$line" ]] && continue
+    x="${line:0:1}"
+    y="${line:1:1}"
+    case "$x$y" in
+    '??')
+      S_UNTRACKED=$((S_UNTRACKED + 1))
+      continue
+      ;;
+    '!!') continue ;;
+    DD | AU | UD | UA | DU | AA | UU)
+      S_CONFLICTED=$((S_CONFLICTED + 1))
+      continue
+      ;;
+    *) ;;
+    esac
+    [[ "$x" != " " ]] && S_STAGED=$((S_STAGED + 1))
+    [[ "$y" != " " ]] && S_UNSTAGED=$((S_UNSTAGED + 1))
+  done < <(git -C "$p" status --porcelain 2>/dev/null)
+}
+
+# resolve_base <path>: the ref landedness is tested against, on stdout.
+resolve_base() {
+  local p="$1" ref
+  if [[ -n "$BASE_REF" ]]; then
+    printf '%s' "$BASE_REF"
+    return 0
+  fi
+  if ref=$(git -C "$p" symbolic-ref --quiet refs/remotes/origin/HEAD 2>/dev/null); then
+    printf '%s' "${ref#refs/remotes/}"
+    return 0
+  fi
+  for ref in origin/main origin/master; do
+    if git -C "$p" rev-parse --verify --quiet "$ref^{commit}" >/dev/null 2>&1; then
+      printf '%s' "$ref"
+      return 0
+    fi
+  done
+  return 1
+}
+
+# patch_ids <path> <range> <outfile>: sorted patch-ids for every non-merge commit
+# in <range>, one per line.
+#
+# One `git log -p` stream into one `git patch-id` process computes the whole set;
+# the per-commit `git show | git patch-id` loop it replaces cost ~13s per
+# worktree and bought nothing.
+#
+# `--no-merges` is explicit rather than incidental: `git log -p` emits no diff for
+# a merge commit, so a merge-only range would otherwise produce an empty id set
+# that is indistinguishable from a failed pipeline — and an empty set makes the
+# "every branch id is on the base" test vacuously TRUE, which is a false `yes` in
+# the data-loss direction. The caller compares this count against
+# `rev-list --count --no-merges` over the same range for exactly that reason.
+patch_ids() {
+  local p="$1" range="$2" out="$3" patches="$WORKDIR/patches.$$"
+  : >"$out"
+  git -C "$p" log -p --no-merges --no-color "$range" >"$patches" 2>/dev/null || {
+    rm -f "$patches"
+    return 1
+  }
+  if [[ ! -s "$patches" ]]; then
+    rm -f "$patches"
+    return 0
+  fi
+  git patch-id --stable <"$patches" | cut -d' ' -f1 | sort >"$out" || {
+    rm -f "$patches"
+    return 1
+  }
+  rm -f "$patches"
+  return 0
+}
+
+L_STATE="?"
+L_METHOD="none"
+L_BASE=""
+L_REASON=""
+
+# classify_landed <path>: set L_STATE (yes|no|?), L_METHOD, L_BASE, L_REASON.
+classify_landed() {
+  local p="$1" base base_sha mb range_id branch_expected branch_count
+  local base_ids branch_ids touched numstat adds matched
+  L_STATE="?"
+  L_METHOD="none"
+  L_BASE=""
+  L_REASON=""
+
+  if ! base=$(resolve_base "$p"); then
+    L_REASON="no-base-ref"
+    return 0
+  fi
+  if ! base_sha=$(git -C "$p" rev-parse --verify --quiet "$base^{commit}" 2>/dev/null); then
+    L_REASON="base-unresolvable:$base"
+    return 0
+  fi
+  L_BASE="$base@${base_sha:0:12}"
+  if ! mb=$(git -C "$p" merge-base "$base_sha" HEAD 2>/dev/null); then
+    L_REASON="no-merge-base"
+    return 0
+  fi
+
+  # Base side. Memoized per (merge-base, base-tip): every sibling worktree of the
+  # same repository sharing that pair reuses the set, and it is the step that
+  # dominates the run.
+  base_ids="$WORKDIR/base.$mb.$base_sha"
+  if [[ ! -f "$base_ids" ]]; then
+    local base_expected
+    base_expected=$(git -C "$p" rev-list --count --no-merges "$mb..$base_sha" 2>/dev/null) || base_expected=""
+    if [[ -z "$base_expected" ]]; then
+      L_REASON="base-range-unreadable"
+      return 0
+    fi
+    if ! patch_ids "$p" "$mb..$base_sha" "$base_ids"; then
+      rm -f "$base_ids"
+      L_REASON="base-patchid-failed"
+      return 0
+    fi
+    if [[ "$base_expected" -gt 0 && ! -s "$base_ids" ]]; then
+      rm -f "$base_ids"
+      L_REASON="base-patchid-empty-for-$base_expected-commits"
+      return 0
+    fi
+  fi
+
+  # Branch side, range first: a squash-merge collapses N commits into ONE patch,
+  # so no individual commit's patch-id can match it, while the branch's RANGE id
+  # equals the squash commit's exactly — and stays in the base's per-commit id set
+  # after the base advances. Range-vs-range does NOT work: the base's own range id
+  # moves as the base advances while the branch's does not.
+  if git -C "$p" diff "$mb..HEAD" >"$WORKDIR/rangediff" 2>/dev/null && [[ -s "$WORKDIR/rangediff" ]]; then
+    range_id=$(git patch-id --stable <"$WORKDIR/rangediff" | cut -d' ' -f1)
+    if [[ -n "$range_id" ]] && grep -Fxq "$range_id" "$base_ids"; then
+      L_STATE="yes"
+      L_METHOD="range-patchid"
+      return 0
+    fi
+  fi
+
+  branch_ids="$WORKDIR/branch.ids"
+  branch_expected=$(git -C "$p" rev-list --count --no-merges "$mb..HEAD" 2>/dev/null) || branch_expected=""
+  if [[ -z "$branch_expected" ]]; then
+    L_REASON="branch-range-unreadable"
+    return 0
+  fi
+  if ! patch_ids "$p" "$mb..HEAD" "$branch_ids"; then
+    L_REASON="branch-patchid-failed"
+    return 0
+  fi
+  branch_count=$(wc -l <"$branch_ids" | tr -d '[:space:]')
+  if [[ "$branch_expected" -gt 0 && "$branch_count" -gt 0 ]]; then
+    # Non-vacuous by construction: the id set is non-empty, so "every id is on the
+    # base" is a real universal, not the empty-set trivially-true reading.
+    if [[ -z "$(comm -23 "$branch_ids" "$base_ids")" ]]; then
+      L_STATE="yes"
+      L_METHOD="per-commit-patchid"
+      return 0
+    fi
+  fi
+
+  # Path-scoped two-dot fallback, with the direction test. Patch-id under-reports
+  # across an EOL or whitespace renormalization, which this rescues; on its own it
+  # decays to a false `no` as the base advances over the same paths, which the
+  # direction test rescues in turn. A verdict from here is only valid against the
+  # base tip stamped in L_BASE.
+  touched="$WORKDIR/touched"
+  numstat="$WORKDIR/numstat"
+  if ! git -C "$p" diff --name-only --no-renames "$mb..HEAD" 2>/dev/null | sort -u >"$touched"; then
+    L_REASON="touched-paths-unreadable"
+    return 0
+  fi
+  if [[ ! -s "$touched" ]]; then
+    L_REASON="branch-adds-no-content"
+    return 0
+  fi
+  if ! git -C "$p" -c core.quotepath=false diff --numstat --no-renames "$base_sha..HEAD" >"$numstat" 2>/dev/null; then
+    L_REASON="two-dot-unreadable"
+    return 0
+  fi
+  # A binary row carries `-` for both counts. Counting it as an addition is the
+  # fail-closed reading: unknown content becomes NOT landed.
+  read -r adds matched < <(awk -F'\t' '
+    NR==FNR { touched[$0]=1; next }
+    ($3 in touched) { matched+=1; if ($1=="-") adds+=1; else adds+=$1 }
+    END { printf "%d %d\n", adds+0, matched+0 }
+  ' "$touched" "$numstat")
+  if [[ "$matched" -eq 0 ]]; then
+    L_STATE="yes"
+    L_METHOD="two-dot-empty"
+    return 0
+  fi
+  if [[ "$adds" -eq 0 ]]; then
+    # HEAD adds nothing the base lacks on the paths it touched; it only lacks what
+    # the base has since gained. That is BEHIND, not stranded.
+    L_STATE="yes"
+    L_METHOD="two-dot-direction"
+    return 0
+  fi
+  L_STATE="no"
+  L_METHOD="two-dot-direction"
+  L_REASON="head-adds-$adds-lines-base-lacks"
+}
+
+# ---------------------------------------------------------------------------
+# Targets
+# ---------------------------------------------------------------------------
+
+WORKDIR=""
+cleanup() { [[ -n "$WORKDIR" ]] && rm -rf "$WORKDIR"; }
+
+T_PATH=()
+T_BRANCH=()
+T_HEAD=()
+
+collect_targets() {
+  local line path head branch detached
+  if [[ ${#EXPLICIT_TARGETS[@]} -gt 0 ]]; then
+    for path in "${EXPLICIT_TARGETS[@]}"; do
+      T_PATH+=("$path")
+      T_BRANCH+=("")
+      T_HEAD+=("")
+    done
+    return 0
+  fi
+  git -C "$REPO_DIR" rev-parse --git-dir >/dev/null 2>&1 ||
+    die "not a git repository: $REPO_DIR" 4
+  path=""
+  head=""
+  branch=""
+  detached=0
+  while IFS= read -r line; do
+    case "$line" in
+    "worktree "*)
+      path="${line#worktree }"
+      head=""
+      branch=""
+      detached=0
+      ;;
+    "HEAD "*) head="${line#HEAD }" ;;
+    "branch "*) branch="${line#branch refs/heads/}" ;;
+    "detached") detached=1 ;;
+    "")
+      if [[ -n "$path" ]]; then
+        T_PATH+=("$path")
+        [[ "$detached" -eq 1 ]] && branch="(detached)"
+        T_BRANCH+=("$branch")
+        T_HEAD+=("$head")
+        path=""
+      fi
+      ;;
+    *) ;;
+    esac
+  done < <(git -C "$REPO_DIR" worktree list --porcelain 2>/dev/null)
+  if [[ -n "$path" ]]; then
+    T_PATH+=("$path")
+    [[ "$detached" -eq 1 ]] && branch="(detached)"
+    T_BRANCH+=("$branch")
+    T_HEAD+=("$head")
+  fi
+}
+
+# assert_row_count <expected> <actual>: a pass that covered fewer worktrees than
+# it enumerated must fail loudly. A short list silently reads as "nothing at
+# risk", which is the one failure mode a stranded-work detector cannot have.
+assert_row_count() {
+  local expected="$1" actual="$2"
+  if [[ "$expected" -ne "$actual" ]]; then
+    printf '%s: row-count assertion failed — enumerated %s worktree(s), emitted %s row(s)\n' \
+      "$PROG" "$expected" "$actual" >&2
+    return 5
+  fi
+  return 0
+}
+
+# Sourcing seam: `LANDED_WORK_LIB=1 . landed-work.sh` defines the functions above
+# without running the collector, so assert_row_count — whose failure path cannot
+# be provoked through the CLI — is directly testable.
+[[ -n "${LANDED_WORK_LIB:-}" ]] && return 0
+
+WORKDIR=$(mktemp -d "${TMPDIR:-/tmp}/landed-work.XXXXXX") || die "cannot create work directory" 4
+trap cleanup EXIT
+
+collect_targets
+[[ ${#T_PATH[@]} -gt 0 ]] || die "no worktree found for the given scope" 3
+
+R_UNPUSHED=()
+R_LANDED=()
+R_METHOD=()
+R_BASE=()
+R_INPROGRESS=()
+R_STAGED=()
+R_UNSTAGED=()
+R_CONFLICTED=()
+R_UNTRACKED=()
+R_REASON=()
+R_NOTGIT=()
+
+merged_ref() {
+  local name="$1"
+  [[ -n "$MERGED_REFS_FILE" && -n "$name" && "$name" != "(detached)" ]] || return 1
+  grep -Fxq "$name" "$MERGED_REFS_FILE"
+}
+
+idx=0
+while [[ $idx -lt ${#T_PATH[@]} ]]; do
+  p="${T_PATH[$idx]}"
+  reason=""
+  if [[ ! -d "$p" ]] || ! is_worktree_root "$p"; then
+    R_NOTGIT+=("yes")
+    R_UNPUSHED+=("?")
+    R_LANDED+=("?")
+    R_METHOD+=("none")
+    R_BASE+=("")
+    R_INPROGRESS+=("?")
+    R_STAGED+=("?")
+    R_UNSTAGED+=("?")
+    R_CONFLICTED+=("?")
+    R_UNTRACKED+=("?")
+    if [[ ! -d "$p" ]]; then
+      R_REASON+=("path-absent")
+    else
+      R_REASON+=("not-a-worktree-root; probing it with git -C reports the containing repository")
+    fi
+    idx=$((idx + 1))
+    continue
+  fi
+  R_NOTGIT+=("no")
+
+  # HEAD, never --branches: on a detached HEAD --branches reports every OTHER
+  # branch in the repository and says nothing about the commits this worktree
+  # actually holds — which is the only case where removal makes commits
+  # unreachable immediately. `@{upstream}..HEAD` is equally wrong here: a
+  # worktree branch created locally has no upstream, and the range then silently
+  # returns nothing for every one of them.
+  unpushed=$(git -C "$p" rev-list --count HEAD --not --remotes 2>/dev/null) || unpushed=""
+  if [[ -z "$unpushed" ]]; then
+    unpushed="?"
+  fi
+  R_UNPUSHED+=("$unpushed")
+
+  if [[ -z "${T_HEAD[$idx]}" ]]; then
+    T_HEAD[idx]=$(git -C "$p" rev-parse HEAD 2>/dev/null || printf '')
+  fi
+  if [[ -z "${T_BRANCH[$idx]}" ]]; then
+    if branch_name=$(git -C "$p" symbolic-ref --quiet --short HEAD 2>/dev/null); then
+      T_BRANCH[idx]="$branch_name"
+    else
+      T_BRANCH[idx]="(detached)"
+    fi
+  fi
+
+  if [[ "$unpushed" == "0" ]]; then
+    # Nothing unpushed means nothing to strand, and skipping the landed
+    # computation here is what lets an empty patch-id set downstream mean ONLY
+    # "something failed" rather than "the range was legitimately empty".
+    R_LANDED+=("n/a")
+    R_METHOD+=("none")
+    R_BASE+=("")
+    reason="nothing-unpushed"
+  else
+    classify_landed "$p"
+    R_LANDED+=("$L_STATE")
+    R_METHOD+=("$L_METHOD")
+    R_BASE+=("$L_BASE")
+    reason="$L_REASON"
+  fi
+
+  inprog=$(inprogress_of "$p")
+  R_INPROGRESS+=("$inprog")
+  status_counts "$p"
+  R_STAGED+=("$S_STAGED")
+  R_UNSTAGED+=("$S_UNSTAGED")
+  R_CONFLICTED+=("$S_CONFLICTED")
+  R_UNTRACKED+=("$S_UNTRACKED")
+  if [[ "$inprog" != "none" ]]; then
+    reason="${reason:+$reason; }$inprog-in-progress: staged tree is that operation's own result, recomputable"
+  fi
+  R_REASON+=("$reason")
+  idx=$((idx + 1))
+done
+
+assert_row_count "${#T_PATH[@]}" "${#R_LANDED[@]}" || exit 5
+
+# Peers: another registered worktree holding the same commits, either at the same
+# HEAD or at a descendant of it. A peer means removal does not make these commits
+# unreachable, which is a different disposition from the same row without one.
+PEERS=()
+idx=0
+while [[ $idx -lt ${#T_PATH[@]} ]]; do
+  PEERS+=("")
+  idx=$((idx + 1))
+done
+if [[ "$DO_PEERS" == "true" && ${#T_PATH[@]} -le 50 ]]; then
+  idx=0
+  while [[ $idx -lt ${#T_PATH[@]} ]]; do
+    if [[ "${R_NOTGIT[$idx]}" == "yes" || -z "${T_HEAD[$idx]}" ]]; then
+      idx=$((idx + 1))
+      continue
+    fi
+    jdx=0
+    while [[ $jdx -lt ${#T_PATH[@]} ]]; do
+      if [[ $jdx -eq $idx || "${R_NOTGIT[$jdx]}" == "yes" || -z "${T_HEAD[$jdx]}" ]]; then
+        jdx=$((jdx + 1))
+        continue
+      fi
+      if [[ "${T_HEAD[$idx]}" == "${T_HEAD[$jdx]}" ]] ||
+        git -C "${T_PATH[$idx]}" merge-base --is-ancestor "${T_HEAD[$idx]}" "${T_HEAD[$jdx]}" 2>/dev/null; then
+        PEERS[idx]="${PEERS[$idx]:+${PEERS[$idx]},}${T_PATH[$jdx]}"
+      fi
+      jdx=$((jdx + 1))
+    done
+    idx=$((idx + 1))
+  done
+elif [[ "$DO_PEERS" == "true" ]]; then
+  printf '%s: peer detection skipped — %s worktrees exceeds the 50-target ancestry budget\n' \
+    "$PROG" "${#T_PATH[@]}" >&2
+fi
+
+printf 'path\tbranch\thead\tunpushed\tlanded\tmethod\tbase\tinprogress\tstaged\tunstaged\tconflicted\tuntracked\tpeers\trisk\treason\n'
+
+emitted=0
+idx=0
+while [[ $idx -lt ${#T_PATH[@]} ]]; do
+  reason="${R_REASON[$idx]}"
+  if [[ "${R_NOTGIT[$idx]}" == "yes" ]]; then
+    risk="notgit"
+  elif [[ "${R_LANDED[$idx]}" == "no" ]] && merged_ref "${T_BRANCH[$idx]}"; then
+    # landed=no AND a merged PR on the same head ref: the base holds a later,
+    # larger revision of this same work. Reporting it as stranded would read as
+    # "do not remove" for a draft that was superseded on purpose.
+    risk="superseded"
+  elif [[ "${R_LANDED[$idx]}" == "no" ]]; then
+    risk="STRANDED"
+  elif [[ "${R_LANDED[$idx]}" == "?" ]]; then
+    risk="UNKNOWN"
+  elif [[ "${R_LANDED[$idx]}" == "yes" ]]; then
+    risk="landed"
+  elif [[ "${R_INPROGRESS[$idx]}" != "none" ]]; then
+    risk="in-progress"
+  elif [[ "${R_CONFLICTED[$idx]}" != "0" || "${R_UNSTAGED[$idx]}" != "0" || "${R_STAGED[$idx]}" != "0" ]]; then
+    risk="dirty"
+  else
+    risk="ok"
+  fi
+  printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+    "${T_PATH[$idx]}" "${T_BRANCH[$idx]}" "${T_HEAD[$idx]:0:12}" "${R_UNPUSHED[$idx]}" \
+    "${R_LANDED[$idx]}" "${R_METHOD[$idx]}" "${R_BASE[$idx]}" "${R_INPROGRESS[$idx]}" \
+    "${R_STAGED[$idx]}" "${R_UNSTAGED[$idx]}" "${R_CONFLICTED[$idx]}" "${R_UNTRACKED[$idx]}" \
+    "${PEERS[$idx]}" "$risk" "$reason"
+  emitted=$((emitted + 1))
+  idx=$((idx + 1))
+done
+
+assert_row_count "${#T_PATH[@]}" "$emitted" || exit 5
+exit 0
