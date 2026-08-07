@@ -49,6 +49,24 @@ All notable changes to the `source-control` plugin are documented here. Format f
   needs no judgement about whether the work matters. The escalation guard's unpushed probe moves
   from `--branches` to `HEAD`.
 
+### Fixed
+
+- **The nesting invariant's evidence and upstream citations were stale.** The as-of stamp moves
+  from 2.1.220 / 2026-07-31 to 2.1.224 / 2026-08-07, and three control arms are added that narrow
+  what the invariant rests on: the leak is not specific to `.claude/worktrees/` (a plain non-dot
+  subdirectory leaks identically, so nesting itself is the cause); a worktree inside an
+  **unrelated** repository is worse rather than better, inheriting `CLAUDE.md` and unconditional
+  rules at `session_start` too; and the mechanism is that session-start ancestor traversal is
+  suppressed for ancestors of the worktree's own repository but not a different one, while
+  `path_glob_match` discovery is suppressed in neither.
+
+  The recheck trigger cited two issues that are both CLOSED — #29599 (`duplicate`, COMPLETED) and
+  #23565 (NOT_PLANNED), verified live against the GitHub API. It now cites #16600, which is OPEN,
+  and states the gap that citation leaves: #16600 concerns memory files, which 2.1.224 already
+  handles correctly, so the surface still leaking — path-scoped rules — has no open upstream issue
+  at all. `context/create.md` carried the same two dead citations and now points at the skill's
+  paragraph rather than restating them, so the state lives in one place.
+
 ## [0.46.2]
 
 ### Fixed
