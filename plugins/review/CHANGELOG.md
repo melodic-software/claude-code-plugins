@@ -15,7 +15,10 @@ All notable changes to the `review` plugin are documented here. Format follows
   modes now append a verbatim coverage clause to every dispatched finding-producing leaf prompt:
   report everything including uncertain/low-severity findings, attach confidence and estimated
   severity, filtering happens downstream. Recall is restored without moving precision work — the
-  pipeline remains the filter.
+  pipeline remains the filter. run-everything's Workflow path carries the same clause in its
+  script: both prompt constructors (`AGENT_PROMPT`, `slicePrompt`) append it, and the slice prompt
+  asks for the high/medium/low confidence level, so the Workflow-accelerated sweep gets the same
+  recall and confidence axis as live dispatch.
 - **`quality-gate`: per-slice template reports coverage-first with a Confidence column.** The slice
   reviewer template now states that severity and confidence label findings rather than deciding
   whether they are reported, and its findings table carries a Confidence column — constrained to
