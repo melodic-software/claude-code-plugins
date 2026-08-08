@@ -441,6 +441,12 @@ assert_eq "non-git project: .claude/settings.json read as the project scope" "tr
 # Case: $HOME is never project context, even though it carries .claude. That
 # directory is USER scope; reading $HOME/.claude/settings.json as the project
 # map would duplicate the user map.
+#
+# Load-bearing only where `mktemp -d` yields a path the shell and the OS spell
+# differently — Git Bash, whose `/tmp/…` mount alias has no drive letter for the
+# normalizer to reconcile against `pwd -W`'s `C:/…`. On a POSIX host both sides
+# already agree, so this case passes there whether or not the exclusion works: a
+# green run off Windows is not evidence about it.
 # ============================================================================
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)

@@ -219,8 +219,21 @@ if [[ -z "$PROJECT_ROOT" && -d "$PWD/.claude" ]]; then
   # so the native spelling is taken where the shell can produce it.
   cwd_native=$(pwd -W 2>/dev/null) || cwd_native="$PWD"
   [[ -n "$cwd_native" ]] || cwd_native="$PWD"
+  # Both sides of the $HOME comparison are spelled by `pwd -W`. Normalizing
+  # `$HOME` as given compares a native path against whatever spelling the
+  # environment happens to carry, and an MSYS MOUNT ALIAS has no drive letter
+  # for the normalizer to reconcile: `$HOME=/tmp/x` never equals the `C:/…`
+  # `pwd -W` reports for that same directory, so the exclusion silently failed
+  # and $HOME became project context — the one outcome this block exists to
+  # prevent. Spelling both sides through the same command is what makes them
+  # comparable; normalizing harder cannot, since the two inputs disagree before
+  # the normalizer sees them.
   home_norm=""
-  [[ -n "${HOME:-}" ]] && home_norm=$(hook::normalize_path "$(hook::physical_path "$HOME")")
+  if [[ -n "${HOME:-}" && -d "$HOME" ]]; then
+    home_native=$(cd "$HOME" 2>/dev/null && { pwd -W 2>/dev/null || pwd; })
+    [[ -n "$home_native" ]] || home_native="$HOME"
+    home_norm=$(hook::normalize_path "$(hook::physical_path "$home_native")")
+  fi
   [[ "$(hook::normalize_path "$(hook::physical_path "$cwd_native")")" != "$home_norm" ]] &&
     PROJECT_ROOT="$cwd_native"
 fi
