@@ -1520,6 +1520,88 @@ resolve_dirs_are "sudo -C fd is not a chdir" "" sudo -C 3 git commit
 # Nested wrappers each contribute, in execution order, for the caller to compose.
 resolve_dirs_are "nested wrappers report both chdirs in order" "a|b" env -C a sudo -D b git commit
 
+# --- resolve_read_slice: shell fixed-point division ---------------------------
+# The slice is produced by shell arithmetic rather than an awk spawn, and its
+# printed form is load-bearing twice over: it is fed to `read -t` and it is
+# re-matched against ^[0-9]+\.[0-9]+$ / ^0+\.0+$ by resolve_read_slice itself.
+# A format regression would not fail loudly — it would silently degrade every
+# hook to the unsliced bound.
+slice_is() {
+  local label="$1" input="$2" want="$3" got
+  got=$(hook::resolve_read_slice "$input")
+  if [[ "$got" == "$want" ]]; then
+    ok "resolve_read_slice: $label"
+  else
+    fail "resolve_read_slice $label: got '$got', want '$want'"
+  fi
+}
+slice_is "the default bound splits into four 500 ms slices" 2 "0.500 4"
+slice_is "an integer bound divides exactly" 10 "2.500 4"
+slice_is "a fractional bound keeps three decimals" 0.5 "0.125 4"
+slice_is "a sub-slice bound still yields a usable slice" 0.004 "0.001 4"
+# A quotient that formats as 0.000 is unusable as a `read -t` value, so the
+# helper must degrade to the unsliced form rather than emit it.
+slice_is "a zero bound falls back to the unsliced form" 0.000 "0.000 1"
+# Anything the numeric pattern rejects degrades the same way — the branch the
+# awk-failure path used to cover.
+slice_is "a non-numeric bound falls back to the unsliced form" abc "abc 1"
+
+# --- jq_fields: one jq process, index-parallel results ------------------------
+# The newline and CR are JSON escapes, not raw control bytes — raw ones are
+# invalid inside a JSON string and jq would reject the whole payload.
+jf_input='{"tool_name":"Bash","tool_input":{"command":"git status\nsecond line\r"},"session_id":"s-1"}'
+
+if hook::jq_fields "$jf_input" '.tool_input.command' '.tool_name' '.session_id'; then
+  if [[ "${#HOOK_JQ_FIELDS[@]}" -eq 3 &&
+    "${HOOK_JQ_FIELDS[0]}" == $'git status\nsecond line' &&
+    "${HOOK_JQ_FIELDS[1]}" == "Bash" &&
+    "${HOOK_JQ_FIELDS[2]}" == "s-1" ]]; then
+    ok "jq_fields: multi-line, CR-carrying values survive the NUL-separated read"
+  else
+    fail "jq_fields values: got (${#HOOK_JQ_FIELDS[@]}) '${HOOK_JQ_FIELDS[0]-}' / '${HOOK_JQ_FIELDS[1]-}' / '${HOOK_JQ_FIELDS[2]-}'"
+  fi
+else
+  fail "jq_fields returned $? on a well-formed payload"
+fi
+
+# The reason this helper uses `// ""` and not `// empty`: a dropped field would
+# shift every later value onto the wrong index, so an absent field must hold its
+# slot as the empty string.
+if hook::jq_fields "$jf_input" '.tool_input.file_path' '.tool_name'; then
+  if [[ "${#HOOK_JQ_FIELDS[@]}" -eq 2 && -z "${HOOK_JQ_FIELDS[0]}" && "${HOOK_JQ_FIELDS[1]}" == "Bash" ]]; then
+    ok "jq_fields: an absent field keeps its slot instead of shifting the rest"
+  else
+    fail "jq_fields absent-field slot: got (${#HOOK_JQ_FIELDS[@]}) '${HOOK_JQ_FIELDS[0]-}' / '${HOOK_JQ_FIELDS[1]-}'"
+  fi
+else
+  fail "jq_fields returned $? when a requested field was absent"
+fi
+
+# A payload jq cannot parse yields no values at all — never a partial set the
+# caller could mistake for a complete read.
+if hook::jq_fields 'not json at all' '.tool_name' '.session_id'; then
+  fail "jq_fields accepted an unparsable payload"
+elif ((${#HOOK_JQ_FIELDS[@]} == 0)); then
+  ok "jq_fields: an unparsable payload returns non-zero and leaves no values"
+else
+  fail "jq_fields left ${#HOOK_JQ_FIELDS[@]} values after an unparsable payload"
+fi
+
+if hook::jq_fields "$jf_input"; then
+  fail "jq_fields accepted a call with no filters"
+else
+  ok "jq_fields: a call with no filters returns non-zero"
+fi
+
+# Non-string JSON values are stringified rather than dropped, so a numeric or
+# null field cannot desynchronize the indexes either.
+if hook::jq_fields '{"a":5,"b":null}' '.a' '.b' &&
+  [[ "${HOOK_JQ_FIELDS[0]}" == "5" && -z "${HOOK_JQ_FIELDS[1]}" ]]; then
+  ok "jq_fields: a number stringifies and a null becomes the empty string"
+else
+  fail "jq_fields non-string handling: got '${HOOK_JQ_FIELDS[0]-}' / '${HOOK_JQ_FIELDS[1]-}'"
+fi
+
 echo
 echo "PASS=$PASS FAIL=$FAIL"
 [[ $FAIL -eq 0 ]]
