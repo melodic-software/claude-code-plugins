@@ -1,0 +1,197 @@
+#!/usr/bin/env bash
+# Deterministic acceptance gate for a dispatched /discovery:explore run.
+#
+# The explorer agent's return payload is a CLAIM about a run; this gate reads
+# the run's actual output off disk instead. It takes the memory-slice path the
+# PARENT resolved before dispatching — never a path read out of the payload —
+# because the failure it exists to catch is a payload that arrives malformed,
+# carrying no artifact pointer at all. A check that sources its own input from
+# the suspect payload cannot see that failure.
+#
+# Usage:
+#   bash check-explore-artifact.sh <memory-slice-path> [--expect-sidecars <n>]
+#   bash check-explore-artifact.sh --help
+#
+# What it checks, in order:
+#   1. Exactly one EXPLORE.md exists — at the slice root, or one level below it
+#      in a sub-slice (the sanctioned collision path). Two is ambiguous: the
+#      gate cannot tell which run this dispatch produced.
+#   2. That index is non-empty.
+#   3. It names at least one `EXPLORE-<section>.md` sidecar, and every sidecar
+#      it names exists beside it and is non-empty. A mid-stream stub passes a
+#      bare non-empty test; it does not pass this one.
+#   4. With --expect-sidecars, the count the payload reported matches the count
+#      the index actually names. Secondary: the payload is the suspect party.
+#
+# Exit 0 = a usable artifact set is on disk (status=usable)
+# Exit 1 = the slice is readable but its artifact set is NOT usable — no index,
+#          an empty index, an index naming no sidecars, a named sidecar that is
+#          missing or empty, or a sidecar-count mismatch (status=unusable).
+#          The parent discards the run; it does not proceed.
+# Exit 2 = the gate cannot grade — the slice path is missing, is not a
+#          directory, or holds more than one candidate index — plus usage
+#          errors. FAIL CLOSED: a slice this gate cannot read is never reported
+#          as usable.
+#
+# Output (stdout, greppable):
+#   `index=<path> sidecars=<n> missing=<m> status=<usable|unusable>`
+# On a failure the specific reason is named on stderr.
+
+set -uo pipefail
+
+usage() {
+  # Sentinel range (not fixed line numbers) so the printed usage never silently
+  # truncates when the header grows or shrinks on a future edit.
+  sed -n '/^# Deterministic acceptance gate/,/^# Output/p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+}
+
+slice=""
+expect_sidecars=""
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+  --help | -h)
+    usage
+    exit 0
+    ;;
+  --expect-sidecars)
+    if [[ $# -lt 2 ]]; then
+      echo "error: --expect-sidecars requires a count" >&2
+      exit 2
+    fi
+    if [[ ! "$2" =~ ^[0-9]+$ ]]; then
+      echo "error: --expect-sidecars takes a non-negative integer, got: $2" >&2
+      exit 2
+    fi
+    expect_sidecars="$2"
+    shift 2
+    ;;
+  -*)
+    echo "error: unknown argument: $1" >&2
+    exit 2
+    ;;
+  *)
+    if [[ -n "$slice" ]]; then
+      echo "error: expected exactly one memory-slice path, got a second: $1" >&2
+      exit 2
+    fi
+    slice="$1"
+    shift
+    ;;
+  esac
+done
+
+if [[ -z "$slice" ]]; then
+  echo "error: a memory-slice path is required" >&2
+  exit 2
+fi
+
+# A trailing slash would turn `$slice/EXPLORE.md` into a double-slashed path in
+# every message this gate prints, and the printed path is what the parent acts
+# on. Strip it, while leaving a bare `/` intact.
+while [[ "$slice" == */ && "$slice" != "/" ]]; do
+  slice="${slice%/}"
+done
+
+if [[ ! -d "$slice" ]]; then
+  echo "error: memory slice not found or not a directory: $slice" >&2
+  exit 2
+fi
+
+# Candidate indexes: the slice root, plus exactly one level below it. One level
+# is the whole sub-slice rule — an index deeper than that is not a placement
+# this workflow sanctions, and globbing for it would start matching unrelated
+# artifacts that happen to live under the slice.
+#
+# Each candidate is existence-tested rather than left to the glob. `nullglob`
+# drops a PATTERN that matches nothing; it does nothing to a literal path with
+# no wildcard in it, so `"$slice"/EXPLORE.md` would survive into the array as a
+# path to a file that is not there — and a slice holding only a sub-slice index
+# would then read as ambiguous.
+candidates=()
+if [[ -f "$slice/EXPLORE.md" ]]; then
+  candidates+=("$slice/EXPLORE.md")
+fi
+shopt -s nullglob
+for candidate in "$slice"/*/EXPLORE.md; do
+  if [[ -f "$candidate" ]]; then
+    candidates+=("$candidate")
+  fi
+done
+shopt -u nullglob
+
+if [[ ${#candidates[@]} -eq 0 ]]; then
+  echo "unusable: no EXPLORE.md in $slice or in a sub-slice one level below it" >&2
+  echo "index=<none> sidecars=0 missing=0 status=unusable"
+  exit 1
+fi
+
+if [[ ${#candidates[@]} -gt 1 ]]; then
+  # Ungradeable rather than unusable: one of these may well be a fine artifact,
+  # but the gate cannot tell which one THIS dispatch wrote, and guessing is how
+  # a prior run's artifact gets accepted as evidence that a failed run
+  # succeeded. The parent assigns sub-slices, so it can disambiguate and re-run
+  # this gate against the specific one.
+  echo "error: ${#candidates[@]} candidate indexes under $slice — cannot tell which run wrote which:" >&2
+  printf '  %s\n' "${candidates[@]}" >&2
+  exit 2
+fi
+
+index="${candidates[0]}"
+index_dir="$(dirname "$index")"
+
+if [[ ! -s "$index" ]]; then
+  echo "unusable: index is empty: $index" >&2
+  echo "index=$index sidecars=0 missing=0 status=unusable"
+  exit 1
+fi
+
+# Sidecar references are harvested by filename pattern rather than by parsing
+# the index's section -> file table. The table's markdown shape is free to
+# change; the sidecar filename contract (`EXPLORE-<section>.md`, a sibling of
+# the index) is the part the artifact-shape spoke pins down, so keying on it
+# keeps this gate from breaking on a formatting edit. The angle-bracketed
+# placeholder itself does not match, so an index that only ever wrote
+# `EXPLORE-<section>.md` reads as naming no sidecar — which it does not.
+#
+# Read with a while loop rather than `mapfile`, which is bash 4+ only; this
+# gate has to run wherever a consuming project's shell does.
+referenced=()
+while IFS= read -r name; do
+  [[ -n "$name" ]] || continue
+  referenced+=("$name")
+done < <(grep -oE 'EXPLORE-[A-Za-z0-9._-]+\.md' "$index" | sort -u)
+
+if [[ ${#referenced[@]} -eq 0 ]]; then
+  echo "unusable: index names no EXPLORE-<section>.md sidecar: $index" >&2
+  echo "index=$index sidecars=0 missing=0 status=unusable"
+  exit 1
+fi
+
+missing=0
+for name in "${referenced[@]}"; do
+  sidecar="$index_dir/$name"
+  if [[ ! -f "$sidecar" ]]; then
+    echo "unusable: index names a sidecar that was never written: $sidecar" >&2
+    missing=$((missing + 1))
+  elif [[ ! -s "$sidecar" ]]; then
+    echo "unusable: index names an empty sidecar: $sidecar" >&2
+    missing=$((missing + 1))
+  fi
+done
+
+count=${#referenced[@]}
+
+if [[ -n "$expect_sidecars" && "$expect_sidecars" -ne "$count" ]]; then
+  echo "unusable: payload reported $expect_sidecars sidecar(s); the index names $count" >&2
+  echo "index=$index sidecars=$count missing=$missing status=unusable"
+  exit 1
+fi
+
+if [[ "$missing" -gt 0 ]]; then
+  echo "index=$index sidecars=$count missing=$missing status=unusable"
+  exit 1
+fi
+
+echo "index=$index sidecars=$count missing=0 status=usable"
+exit 0

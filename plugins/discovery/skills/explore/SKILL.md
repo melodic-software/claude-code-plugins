@@ -38,6 +38,19 @@ discovery-explore-preload-8e2b7d
 
 A missing or mismatched token is a **hard failure: the parent discards the run**, never downgrades or accepts the artifact. Without it, a preload miss produces an undisciplined run that still writes an artifact — indistinguishable from success at every other seam.
 
+**Post-dispatch acceptance gate — parent-side, before the payload is believed.** `status: complete` is the agent's claim about its own run, and a claim is not evidence. Grade the run **off disk**, against the memory-slice path the parent resolved *before* dispatching — never a path read out of the payload, because the failure this gate exists to catch is a payload that comes back carrying no pointer at all. In order:
+
+1. **The payload is well-formed** — `preload_token` matches the sentinel verbatim, and an `artifact:` pointer is present. Missing either is a **failed dispatch** whatever the `status` field says; a missing token is a discard, per the rule above.
+2. **The artifact set is actually on disk**, which is the only check robust to any return-path defect:
+
+   ```bash
+   bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-explore-artifact.sh" <memory-slice-path> --expect-sidecars <the payload's sidecars: count>
+   ```
+
+   Cite the **exit status** — 0 usable, 1 no usable artifact set, 2 ungradeable — not a reading of the directory, because the context most motivated to call the dispatch finished is the one that would be doing the reading. It fails closed. `--expect-sidecars` is optional and secondary: it cross-checks a self-reported number, while the exit status alone depends on nothing the payload said.
+
+**Any non-zero exit halts the workflow.** Report it, and do **not** proceed to research, planning, or an edit on the strength of an exploration that did not happen — proceeding is the damage a silently-empty return actually causes; the missing artifact is only how it starts. Recovery ladder, and why a resume beats a re-dispatch: [`${CLAUDE_PLUGIN_ROOT}/skills/explore/reference/dispatch.md`](${CLAUDE_PLUGIN_ROOT}/skills/explore/reference/dispatch.md).
+
 **Coverage discipline** when fanning out: (1) write a numbered gap-list before any deepen pass; (2) fan out by disjoint area — never split the six dimensions across agents; (3) whoever holds the workflow writes `EXPLORE.md` — `discovery:explorer` writes its own, while built-in Explore agents cannot write one at all, so their caller does.
 
 ## Purpose
