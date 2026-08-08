@@ -13,7 +13,10 @@
     target that left the session and inherits nothing. A worker pasted that brief was previously
     told to spec five things and given no slot for the one a spawned worker most conspicuously
     lacks.
-  - Sourced from Anthropic's Fable 5 prompting guide, "Give the reason, not only the request".
+  - Sourced from Anthropic's Fable 5 prompting guide, "Give the reason, not only the request", with
+    the citation added to `context/sources.md` under imperative 2 — that ledger backs every
+    imperative with the page it came from, so a field added without one would be the only unsourced
+    clause in the brief.
 
 ## [0.18.0]
 

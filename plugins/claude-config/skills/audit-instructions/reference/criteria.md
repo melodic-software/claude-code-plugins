@@ -1281,7 +1281,10 @@ confident removals.
   this row's subject**, however well instrumented its trigger: the measurement decides only when to
   ask, and the model still decides whether to stop, so the injection manufactures the initiative
   rather than replacing it. The contrast that fixes the line is a `PreToolUse` deny — there the
-  mechanism decides and the text is only the consequence.
+  mechanism decides and the text is only the consequence. **The exemption never covers surfacing the
+  count itself.** A determination is a resolved verdict the model consumes; a raw remaining-context
+  number is data it must interpret, which is the disclosure arm of Detect and is a finding whoever
+  computed it. Being measured makes a mechanism's *trigger* trustworthy, never its payload.
 - **Must NOT flag: a user-invoked skill whose purpose is the continuation itself** — a handoff
   writer, a continuation router, a compaction helper. The skill existing is not an instruction to
   watch the budget; a skill body that additionally tells the model to invoke it off a self-estimated

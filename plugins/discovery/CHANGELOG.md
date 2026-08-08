@@ -10,14 +10,16 @@
   boundaries — and none carried intent. That guide singles out long-running agents drawing on
   multiple workstreams as where the omission costs most, and a dispatched worker is that case at its
   sharpest: it has no conversation to infer intent from.
-  - `skills/explore/SKILL.md` — the pre-dispatch envelope the parent resolves now includes the
-    reason the exploration is being run and what it feeds, beside scope, memory-slice path, memory
-    root, budget, and capability flags.
-  - `skills/research/context/dispatch.md` — the envelope table gains a row for the reason, with the
-    same "why the agent cannot supply it" justification the other rows carry. The failure mode is
-    worse than a missing topic and the row says so: a missing topic is silence the agent can report,
-    while a missing reason is invisible — the agent researches the topic as written, returns
-    something well-formed, and neither side learns it answered the wrong question.
+  - Both halves of each contract move together, which is the part that makes it bind. The parent
+    side states the field in the envelope (`skills/explore/SKILL.md`, `skills/research/SKILL.md`,
+    and the envelope table in `skills/research/context/dispatch.md`), and the worker side adds it to
+    the list it refuses to guess (`agents/explorer.md`, `agents/researcher.md`). Adding it to the
+    parent alone would leave a worker that accepts a reason-less prompt without noticing, which is
+    the silent failure the field exists to stop.
+  - The justification travels with the field in every one of those places: a missing topic or scope
+    is silence the agent can report, while a missing reason is invisible — the agent works the topic
+    as written, returns something well-formed, and neither side learns it answered the wrong
+    question. Intent is what decides which of several defensible readings is the one wanted.
 
 ## [0.10.0]
 
