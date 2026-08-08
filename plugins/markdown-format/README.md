@@ -29,8 +29,11 @@ config has chosen no Markdown style, so the hook does not run there at all
   exclude machinery, not `.gitignore` alone: every `.gitignore` between the file
   and the repository root, `$GIT_DIR/info/exclude`, and your global
   `core.excludesFile`. A **tracked** file is never treated as ignored, even when
-  a pattern matches it. Set `markdown_format_lint_gitignored` to `true` to lint
-  ignored files anyway. When the verdict cannot be determined (no `git` on
+  a pattern matches it. Set `markdown_format_lint_gitignored` to `true` to bypass
+  **this hook's** git check. That is the only thing it bypasses:
+  markdownlint-cli2 applies its own `ignores` / `gitignore` config downstream, so
+  a path your markdownlint config also excludes stays untouched even with the
+  option on. When the verdict cannot be determined (no `git` on
   `PATH`, no working tree, `git check-ignore` erroring), the hook lints — a
   scope check that failed closed would disable the plugin invisibly.
 - **Auto-fix on edit.** Fixable violations (final newline, list-marker style,
@@ -145,7 +148,7 @@ Three `userConfig` options tune the hook itself:
 | Option | Type | Default | Effect |
 |--------|------|---------|--------|
 | `markdown_format_enabled` | boolean | `true` | Toggle the markdown-format hook; set `false` for a clean no-op. |
-| `markdown_format_lint_gitignored` | boolean | `false` | Lint files git ignores. Off by default: an excluded path is neither rewritten nor reported on. |
+| `markdown_format_lint_gitignored` | boolean | `false` | Bypass this hook's git-ignore check. Off by default: an excluded path is neither rewritten nor reported on. Turning it on does not override markdownlint-cli2's own `ignores` / `gitignore` config, which still applies. |
 | `markdown_format_max_findings` | number | `20` | How many individual violations are listed per run. The total count and the leading rule codes are always reported regardless. `0` = unlimited. |
 
 Set them interactively with `/plugin configure markdown-format`, or headless on

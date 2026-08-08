@@ -25,7 +25,7 @@
     "markdown_format_lint_gitignored": {
       "type": "boolean",
       "title": "Lint files git ignores",
-      "description": "By default the hook leaves gitignored files alone — a scratch tier the repo excludes is neither rewritten nor reported on. Set true to lint them anyway.",
+      "description": "By default the hook leaves gitignored files alone — a scratch tier the repo excludes is neither rewritten nor reported on. Set true to bypass THIS HOOK's git check; markdownlint-cli2's own ignores/gitignore config still applies downstream, so a path your markdownlint config also excludes stays untouched.",
       "default": false
     },
     "markdown_format_max_findings": {
