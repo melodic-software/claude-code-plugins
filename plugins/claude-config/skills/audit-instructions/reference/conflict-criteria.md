@@ -21,8 +21,9 @@ modes remove a tool from Claude's pool; a change to **which hook events inject h
 the session's context**, to the events `additionalContext` is accepted on, or to the handler types
 that can return it; the removal, renaming, or restructuring of the hooks page's **per-event exit-2
 table** this file defers to for blockability, or a change to the set of locations a hook may be
-declared in. A row added to or changed within that table needs no recheck — nothing here restates
-its rows.
+declared in; a change to the table's `SubagentStop`, `PostToolUse`, or `PreToolUse` rows — the
+three the worked examples below cite. A row added to the table, or a change to any row this file
+does not cite, needs no recheck — the partition itself is never restated here.
 
 ## Sources
 

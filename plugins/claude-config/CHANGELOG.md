@@ -3,7 +3,7 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.25.2]
+## [0.26.1]
 
 ### Fixed
 
@@ -21,6 +21,38 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   the `PostToolUse`/`PreToolUse` worked pair are kept as examples. The file's recheck trigger no
   longer fires on a row added to the upstream table, and `evals/evals.json` eval 16 now tests the
   lookup procedure rather than the memorized split.
+
+## [0.26.0]
+
+### Added
+
+- **`audit-instructions`: I23 gains a pre-scan pattern, and the calibration it was waiting on is
+  now recorded** (catalog 1.20.0). The row shipped unseeded because the threshold and
+  window-position phrasings vary far more than the fixed shapes I8-b matches, and because a
+  continuation skill can barely be model-invocable without naming a context trigger somewhere — so
+  a loose pattern would have fired on every consumer's handoff skill. **What the seeding actually
+  waited on was a policy, not a regex.** It is now stated: three signals license a surface to route
+  into a handoff, a fork, or a new session — the user's own report, an instrument that measures the
+  window, and visible decay in the model's own output — and a self-estimated budget is none of the
+  three. Under that rule the population the blast-radius argument feared resolves into true
+  positives rather than noise.
+
+  Two supporting clauses ship with it. **Residency is a severity input, not an admission test:** a
+  trigger in a `description` is resident whenever the skill listing admits it, which is the default
+  since `disable-model-invocation: true` also suppresses the description from context
+  (<https://code.claude.com/docs/en/skills>, verified 2026-08-08), while a body-borne trigger costs
+  context only on load or at subagent startup under preloading — both are findings, the resident one
+  merely costlier to leave. And **remediation moves the trigger rather than withdrawing the skill:**
+  flipping continuation skills to `disable-model-invocation: true` was considered and refused, since
+  it forfeits every model-side invocation the skill has to remove one clause.
+
+- **`instruction-scan.sh` emits `I23` candidate rows.** The pattern marks budget phrasing alone and
+  never the stop/summarize/hand-off verb it licenses, because the trigger and the action routinely
+  sit in different sentences; counter-steer text, documents about the pattern, and operator-facing
+  budgets therefore match too, on the same advisory over-production contract the I8 families carry.
+  It is deliberately not anchored to the bare term "context window" — ordinary vocabulary in any
+  surface discussing sessions, and matching it would return the corpus instead of a candidate set.
+  Measured over the marketplace's 193 skills the pattern yields 20 rows in 10 files.
 
 ## [0.25.0]
 

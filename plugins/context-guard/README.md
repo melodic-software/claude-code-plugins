@@ -22,8 +22,14 @@ tool that needs it — so long-running workflows can route heavy work away from 
   `~/.claude/context-guard/zones.json` when present and valid, else from the shipped defaults.
   Zones say *where you are*; consumers decide *what to do*.
 - **Zone-crossing hooks** (`hooks/`) — the first shipped consumer. Once per transition into a
-  worse zone, a PostToolBatch/UserPromptSubmit hook injects continuation guidance (advisory;
-  silent on unchanged, improving, or `unknown` zones). A PostCompact hook writes an
+  worse zone, a PostToolBatch/UserPromptSubmit hook reports the crossing (advisory; silent on
+  unchanged, improving, or `unknown` zones), **splitting the report by audience**: the
+  continuation menu — continue, `/clear`, handoff-then-`/clear`, `/compact` — renders to the
+  operator on `systemMessage`, because choosing among them is the human's call; the model's
+  channel carries the zone determination plus the counter-steer that a zone word is a measurement
+  and not a decay signal, and never an exit menu. An exit menu injected into model context
+  manufactures the model's own initiative to stop, summarize, or hand off, which the
+  instruction-audit catalog flags as check I23. A PostCompact hook writes an
   evidence-degraded marker next to the session's snapshot, and both zone consumers honor it: a
   compacted session's effective zone is dumb regardless of its post-compaction numbers. An
   optional **blocking** mode (`zone_hook_mode` userConfig) adds a PreToolUse gate that denies new
