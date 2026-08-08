@@ -7,6 +7,11 @@ All notable changes to the `songwriting` plugin are documented here. Format foll
 
 ### Fixed
 
+- **Every craft skill's `pat-pattison` directory mention is plugin-root-relative.** The eight
+  SKILL.md bodies referenced the shared method tree as a bare `context/pat-pattison/`, which the
+  skill-quality ref check resolves skill-relative (a path none of them contains); all eight now
+  write `${CLAUDE_PLUGIN_ROOT}/context/pat-pattison/`, matching the `rhyme` skill's own datamuse
+  precedent.
 - **Title-type taxonomy reconciled with `hook.md`.** `research/response-filter.md`,
   `research/idea-to-title.md`, `research/title-game.md`, and `templates/idea-to-title-prompt.md`
   each cited `hook.md`'s seven title types while listing a different set; all four now carry

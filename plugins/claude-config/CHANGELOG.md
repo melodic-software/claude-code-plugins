@@ -42,13 +42,24 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   rationale, keeping the anti-relitigation content.
 - **`audit`'s Phase 4 report table carries a worked example row**, so a model generating the report
   has a concrete shape to match rather than a bare header.
+- **`audit-pass`: the 892-line run contract is split per topic.** `reference/run-contract.md` is
+  now a routing index over five topic files that follow the contract's own section structure —
+  `terms.md`, `finding-identity.md` (§1), `report-location-and-schema.md` (§2, §7),
+  `run-state-and-resumability.md` (§3, §5), `suppression.md` (§4), `determinism-tiers.md` (§6) —
+  so a lane needing one mechanic loads that file, not the whole contract. Content moved verbatim,
+  the §-numbering travels with it, inbound links repointed to the owning files, and the one
+  remaining authoring-history clause is restated in present tense.
 
 ### Fixed
 
-- **`audit`'s copyable checklist claimed coverage the skill does not perform.** Phase 1 is driven
-  by `check-structure.sh`, which never reads managed settings, but the checklist told the user to
-  tick "+ managed settings if present" — a false coverage claim on the highest-precedence layer.
-  The clause is removed so the template matches the procedure.
+- **`audit` now actually covers machine-scope managed settings, closing the false coverage claim
+  its checklist made.** Phase 1's `check-structure.sh` resolves the OS-specific managed-settings
+  path (macOS `/Library/Application Support/ClaudeCode/`, Linux/WSL `/etc/claude-code/`, Windows
+  `%ProgramFiles%\ClaudeCode\`; the pre-v2.1.75 ProgramData location deliberately unprobed) and
+  reports the file and its `managed-settings.d/` drop-in directory structure-only — same
+  no-secrets posture as `settings.local.json` — with the Config Files table naming the layer as
+  report-only routing that `--fix` never edits. The checklist's "+ managed settings" tick is
+  restored, now truthful. Paths verified against the live settings doc 2026-08-08.
 - **`audit-automation-gaps`' checklist replaced two unmeasurable thresholds with the real gate.**
   "cost > 2× expected benefit" and "false-positive risk > 30% on representative sample" appeared
   only in the template; neither cost, benefit, nor a representative sample is defined or measured

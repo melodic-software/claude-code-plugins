@@ -188,7 +188,8 @@ Skill supports different scopes:
 
 ### Session handoff protocol
 
-When context is getting large (>40% used) or a session ending mid-pipeline:
+When the session has run long or quality is degrading, a compaction has occurred, or a session is
+ending mid-pipeline:
 
 1. **Write a continuation prompt** to `<course-dir>/continuation-prompt.md`
 2. Include: what was completed, what remains, task-by-task breakdown, known issues, quality notes
@@ -203,7 +204,7 @@ Courses can have 60+ lessons. Processing all in one session may hit context limi
 
 - **After discovering course structure** (Phase 1): present module/lesson list and ask user which modules to process, or confirm "all"
 - **After each module completes**: save progress immediately — a crash shouldn't lose work
-- **If context is getting large** (>50% used): suggest saving progress and resuming in a new session with `/knowledge:course-digest resume <slug>`
+- **At a module boundary, if the session has run long, quality is degrading, or a compaction has occurred**: suggest saving progress and resuming in a new session with `/knowledge:course-digest resume <slug>`
 
 ## Analysis output format
 

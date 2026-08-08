@@ -13,6 +13,11 @@ only after that version increases.
   Phase 2 pacing list the phase table routes execution at. Per-lesson crash-safe saving, the
   per-module save, and the context-pressure checkpoint are unchanged, so extraction durability and
   the resume path are untouched — only the forced interim status is gone.
+- **`course-digest` keys session handoff to observable signals instead of a self-estimated context
+  percentage.** The handoff protocol and the pacing checkpoint carried inconsistent `>40%` and
+  `>50%` thresholds, and a model cannot measure its own context occupancy. Both now trigger on a
+  long or quality-degraded session, a compaction, or a session ending mid-pipeline. The
+  continuation-prompt contents, the phase markers, and both resume paths are unchanged.
 
 ## [0.10.23]
 

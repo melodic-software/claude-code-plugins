@@ -55,7 +55,7 @@ and their tools:
 
 `audit-pass` reads a tracked suppression record layered per the marketplace's config-cascade
 convention. Read the operative shape from
-`${CLAUDE_PLUGIN_ROOT}/skills/audit-pass/reference/run-contract.md` rather than inferring it — that
+`${CLAUDE_PLUGIN_ROOT}/skills/audit-pass/reference/suppression.md` rather than inferring it — that
 reference ships inside this plugin, so it resolves in an installed cache where a path out to the
 marketplace's own docs does not. The cross-consumer key contract is the marketplace's published
 **finding-suppression** convention, which is not a runtime dependency of this plugin. All layers
