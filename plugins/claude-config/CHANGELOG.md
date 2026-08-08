@@ -3,6 +3,23 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.25.3]
+
+### Fixed
+
+- **`audit-instructions`: two internally-inconsistent claims in the criteria preamble** (criteria
+  1.19.0 → 1.19.1; issue #1989 row 248). The per-row-trigger rationale justified stamps as naming
+  "only the events the Sources set would *miss*" — but a value change on a Sources page IS a change
+  to that page, so the catalog trigger already fires and nothing is missed. The paragraph now states
+  what a per-row trigger actually buys: **specificity about what to re-read** — the literal the row
+  restates and the event that would move it — so a re-verification pass goes straight to that value
+  instead of re-reading the page to find what mattered. The recheck-trigger paragraph's "Every check
+  cites one of those pages" was falsified by the four rows whose Source line reads `none` (I16, I19,
+  I22, I27); it is now scoped to checks that cite a source, with the exception stated on its own
+  logic — a row resting on no upstream page cannot be staled by a docs change, so it needs no
+  watcher. No source was invented for any sourceless row, and the catalog-trigger-wins precedence
+  and whole-catalog firing rule are unchanged.
+
 ## [0.25.0]
 
 ### Added
