@@ -270,12 +270,14 @@ instructed self-check, `I8-b` conservative-reporting, `I8-c` don't-think / don't
 tag-naming sub-detect is lane-only, not seeded, as are I8's base row and `I8-d` short-turn
 assumptions, whose phrasings are too varied for a pattern that would earn its false-positive rate;
 `I8-e` forced interim-status cadence is likewise unseeded, but on a narrower ground — its skeleton is
-patternable, and it waits only on an attested instance to calibrate the interval forms against), and
-I27 (effort-for-brevity: an effort-lowering directive paired with a brevity token on one line);
-`--count` prints the row count. Advisory — a
-grep cannot judge whether a rationale is genuinely present, whether a restraint clause is a
-reporting gate, or which model a row targets, so the lane refines every candidate against the
-catalog's fences and the run's resolved target model.
+patternable, and it waits only on an attested instance to calibrate the interval forms against), I23
+(self-estimated context-budget phrasing — the budget clause alone, never the stop/summarize/hand-off
+verb it licenses, which routinely sits in a different sentence), and I27 (effort-for-brevity: an
+effort-lowering directive paired with a brevity token on one line); `--count` prints the row count.
+Advisory — a grep cannot judge whether a rationale is genuinely present, whether a restraint clause
+is a reporting gate, whether a budget mention is a directive or the counter-steer against one, or
+which model a row targets, so the lane refines every candidate against the catalog's fences and the
+run's resolved target model.
 
 Bound concurrency to 3–5 lanes at a time; the skills surface fans out one lane per skill. Before the
 total dispatch count (lanes plus Phase C verifiers) would exceed ~20, confirm with the user.
