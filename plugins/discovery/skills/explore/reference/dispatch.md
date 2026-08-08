@@ -30,6 +30,33 @@ an addition to it. Drop the flag outright on a payload that reported no `sidecar
 `0` for a field the run never wrote asks the gate a false question, and it will answer it
 truthfully.
 
+## Why existence is not the same as freshness
+
+An artifact being *there* does not mean this dispatch put it there. A slice that already holds a
+complete set from an earlier exploration satisfies every on-disk check even when the run just
+failed without writing a byte — and the sidecar count agrees too, because both runs write the same
+sections. The gate would report success and planning would proceed against a stale snapshot of the
+codebase, which is the original failure wearing a different hat.
+
+So the parent touches `<slice>/.explore-dispatch` immediately before dispatching and passes it as
+`--newer-than`. The index has to be strictly newer than that baseline. A baseline the parent named
+but that is not on disk exits 2 rather than quietly reporting `freshness=unchecked`: a check the
+caller asked for and only appeared to get is worse than one it knowingly skipped, which is why
+every opt-in check reports `unchecked` in the verdict line instead of being absent from it.
+
+## Why the payload's pointer is checked against the graded index
+
+The gate finds the index from the parent's own slice path, so the payload's `artifact:` value plays
+no part in selecting what gets graded. That leaves them free to disagree — and a payload naming some
+other file is not corroborating the artifact that passed. Worse, its `verification_request.target`
+carries the same wrong path, so the sibling verifier would grade a file the gate never looked at,
+and the handoff would point a fresh session at it too.
+
+`--expect-index` therefore compares the two, resolving both to a canonical directory plus basename
+so that two spellings of one file are one file. On `pointer=mismatch` the **gate's** `index=` path is
+authoritative for the verifier and the handoff, and the disagreement itself is treated as a payload
+defect, not reconciled silently.
+
 ## Why "non-empty" was not enough on its own
 
 The obvious version of this check is `test -s EXPLORE.md`. A mid-stream stub passes it. So does an

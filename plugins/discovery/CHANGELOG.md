@@ -15,11 +15,15 @@
     before dispatching, and grades the run off disk: exactly one `EXPLORE.md` (slice root or one
     level below, the sanctioned sub-slice depth), non-empty, naming at least one
     `EXPLORE-<section>.md` sidecar, with every named sidecar present beside it and non-empty. Exit 0
-    usable, 1 no usable artifact set, 2 ungradeable. An optional `--expect-sidecars <n>` cross-checks
-    the payload's self-reported count against what the index names.
-  - `scripts/check-explore-artifact.test.sh` — new. 30 black-box cases, weighted toward the readings
+    usable, 1 no usable artifact set, 2 ungradeable. Three opt-in checks extend it — `--newer-than`
+    (the index is newer than a baseline the parent touched pre-dispatch), `--expect-index` (the
+    payload's pointer resolves to the file that was graded), and `--expect-sidecars` (the payload's
+    count matches what the index names). Each reports `unchecked` in the verdict line when it is not
+    run, so a skipped check never reads as a passed one.
+  - `scripts/check-explore-artifact.test.sh` — new. 46 black-box cases, weighted toward the readings
     that would be invisible if wrong: an empty slice, a stub index, an index naming files nobody
-    wrote, and two candidate indexes must never report `usable`.
+    wrote, a stale artifact from an earlier run, a payload pointing somewhere else, and two candidate
+    indexes must never report `usable`.
   - `skills/explore/SKILL.md` — new parent-side acceptance gate in the routing section, citing the
     script's **exit status** rather than a reading of the directory, and stating the halt explicitly:
     a non-zero exit stops the workflow rather than annotating it.
@@ -27,6 +31,16 @@
   **The path deliberately comes from the parent's envelope, never from `artifact:`.** The payload is
   the broken party in the reported failure, so a check that reads its own input from the payload
   cannot see that failure at all.
+
+  **Two ways an on-disk check can still pass a failed run, both now closed.** Existence is not
+  freshness: a slice already holding an earlier run's complete artifact set satisfies every check
+  even when this dispatch wrote nothing, and the sidecar count agrees because both runs write the
+  same sections — hence the pre-dispatch `.explore-dispatch` baseline and `--newer-than`. And because
+  the gate selects the index from the parent's slice path rather than from the payload, the two are
+  free to disagree: a payload naming another file is not corroborating what was graded, and its
+  `verification_request.target` would aim the sibling verifier at a file the gate never looked at —
+  hence `--expect-index`, with the gate's own `index=` authoritative for the verifier and the
+  handoff.
 
 - **The missing half of validate-on-receipt.** The parent's rule covered a missing or mismatched
   `preload_token` and nothing else. A payload carrying **no artifact pointer** is now stated to be a

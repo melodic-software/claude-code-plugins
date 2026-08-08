@@ -9,7 +9,10 @@
 # the suspect payload cannot see that failure.
 #
 # Usage:
-#   bash check-explore-artifact.sh <memory-slice-path> [--expect-sidecars <n>]
+#   bash check-explore-artifact.sh <memory-slice-path> \
+#     [--newer-than <pre-dispatch baseline file>] \
+#     [--expect-index <the payload's artifact: value>] \
+#     [--expect-sidecars <the payload's sidecars: count>]
 #   bash check-explore-artifact.sh --help
 #
 # What it checks, in order:
@@ -20,21 +23,37 @@
 #   3. It names at least one `EXPLORE-<section>.md` sidecar, and every sidecar
 #      it names exists beside it and is non-empty. A mid-stream stub passes a
 #      bare non-empty test; it does not pass this one.
-#   4. With --expect-sidecars, the count the payload reported matches the count
+#   4. With --newer-than, the index is strictly newer than a file the parent
+#      touched immediately BEFORE dispatching. Existence alone cannot tell this
+#      run's artifact from one an earlier run left in the same slice, so without
+#      a baseline a dispatch that wrote nothing can be accepted on stale
+#      evidence and planning proceeds against an outdated snapshot.
+#   5. With --expect-index, the pointer the payload returned resolves to the
+#      same file this gate graded. A payload naming some OTHER path is not
+#      corroborating this artifact, and its verification_request.target would
+#      send the verifier at the wrong file.
+#   6. With --expect-sidecars, the count the payload reported matches the count
 #      the index actually names. Secondary: the payload is the suspect party.
+#
+# Checks 4-6 are opt-in, so each reports `unchecked` in the output line rather
+# than passing silently — a skipped check that looks like a passed one is the
+# same failure class this gate exists to refuse.
 #
 # Exit 0 = a usable artifact set is on disk (status=usable)
 # Exit 1 = the slice is readable but its artifact set is NOT usable — no index,
 #          an empty index, an index naming no sidecars, a named sidecar that is
-#          missing or empty, or a sidecar-count mismatch (status=unusable).
-#          The parent discards the run; it does not proceed.
+#          missing or empty, an index no newer than the baseline, a payload
+#          pointer naming a different file, or a sidecar-count mismatch
+#          (status=unusable). The parent discards the run; it does not proceed.
 # Exit 2 = the gate cannot grade — the slice path is missing, is not a
-#          directory, or holds more than one candidate index — plus usage
-#          errors. FAIL CLOSED: a slice this gate cannot read is never reported
-#          as usable.
+#          directory, holds more than one candidate index, or names a baseline
+#          file that does not exist — plus usage errors. FAIL CLOSED: a slice
+#          this gate cannot read is never reported as usable.
 #
 # Output (stdout, greppable):
-#   `index=<path> sidecars=<n> missing=<m> status=<usable|unusable>`
+#   `index=<path> sidecars=<n> missing=<m> freshness=<newer|stale|unchecked>
+#    pointer=<matches|mismatch|unchecked> status=<usable|unusable>`
+#   (one line; wrapped here only for the comment width)
 # On a failure the specific reason is named on stderr.
 
 set -uo pipefail
@@ -47,12 +66,47 @@ usage() {
 
 slice=""
 expect_sidecars=""
+newer_than=""
+expect_index=""
+
+# Resolve a path to its canonical directory plus its basename, so that two
+# spellings of one file compare equal. Deliberately not `realpath`, which is not
+# everywhere, and deliberately NOT resolving the basename itself — the question
+# is which file the payload named, not what a symlink points at. A path whose
+# directory does not exist is returned unchanged, which cannot match a real
+# index, and mismatch is the correct verdict for a pointer into nowhere.
+canonical() {
+  local path="$1" dir base
+  dir="$(dirname "$path")"
+  base="$(basename "$path")"
+  if [[ -d "$dir" ]]; then
+    printf '%s/%s' "$(cd "$dir" && pwd -P)" "$base"
+  else
+    printf '%s' "$path"
+  fi
+}
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
   --help | -h)
     usage
     exit 0
+    ;;
+  --newer-than)
+    if [[ $# -lt 2 ]]; then
+      echo "error: --newer-than requires a baseline file path" >&2
+      exit 2
+    fi
+    newer_than="$2"
+    shift 2
+    ;;
+  --expect-index)
+    if [[ $# -lt 2 ]]; then
+      echo "error: --expect-index requires the payload's artifact: path" >&2
+      exit 2
+    fi
+    expect_index="$2"
+    shift 2
     ;;
   --expect-sidecars)
     if [[ $# -lt 2 ]]; then
@@ -98,6 +152,26 @@ if [[ ! -d "$slice" ]]; then
   exit 2
 fi
 
+# A baseline that is not there makes freshness ungradeable, and the parent asked
+# for it — so this is an envelope error (2), never a quiet downgrade to
+# `freshness=unchecked`. Downgrading would turn the check the caller requested
+# into one it only appeared to get.
+if [[ -n "$newer_than" && ! -e "$newer_than" ]]; then
+  echo "error: --newer-than baseline does not exist: $newer_than" >&2
+  exit 2
+fi
+
+# Reported in every verdict line, so an opt-in check that did not run says so
+# rather than looking like one that passed.
+freshness="unchecked"
+pointer="unchecked"
+
+# verdict <index> <sidecars> <missing> <status>
+verdict() {
+  printf 'index=%s sidecars=%s missing=%s freshness=%s pointer=%s status=%s\n' \
+    "$1" "$2" "$3" "$freshness" "$pointer" "$4"
+}
+
 # Candidate indexes: the slice root, plus exactly one level below it. One level
 # is the whole sub-slice rule — an index deeper than that is not a placement
 # this workflow sanctions, and globbing for it would start matching unrelated
@@ -122,7 +196,7 @@ shopt -u nullglob
 
 if [[ ${#candidates[@]} -eq 0 ]]; then
   echo "unusable: no EXPLORE.md in $slice or in a sub-slice one level below it" >&2
-  echo "index=<none> sidecars=0 missing=0 status=unusable"
+  verdict "<none>" 0 0 unusable
   exit 1
 fi
 
@@ -142,7 +216,7 @@ index_dir="$(dirname "$index")"
 
 if [[ ! -s "$index" ]]; then
   echo "unusable: index is empty: $index" >&2
-  echo "index=$index sidecars=0 missing=0 status=unusable"
+  verdict "$index" 0 0 unusable
   exit 1
 fi
 
@@ -181,17 +255,54 @@ for name in "${referenced[@]}"; do
 done
 
 count=${#referenced[@]}
+unusable=$((missing > 0 ? 1 : 0))
+
+# Freshness. Existence proves an artifact is there, not that THIS dispatch put
+# it there — a slice that already held a complete set from an earlier
+# exploration satisfies every check above even when the run just failed without
+# writing a byte, and the sidecar count would match too, because both runs write
+# the same sections. Planning then proceeds against a stale snapshot with the
+# gate reporting success. So the parent touches a baseline file immediately
+# before dispatching, and the index has to be strictly newer than it.
+#
+# `-nt` compares mtimes without `stat`, whose flags differ across platforms. It
+# is strict, so an index written inside the filesystem's mtime granularity of
+# the baseline reads as stale — a false halt, which is the safe direction, and
+# not a realistic one for a run that reads a codebase first.
+if [[ -n "$newer_than" ]]; then
+  if [[ "$index" -nt "$newer_than" ]]; then
+    freshness="newer"
+  else
+    freshness="stale"
+    echo "unusable: index is not newer than the pre-dispatch baseline — this run may have written nothing: $index" >&2
+    unusable=1
+  fi
+fi
+
+# Pointer agreement. The gate finds the index from the parent's own slice path,
+# so a payload whose `artifact:` names some OTHER file is not corroborating what
+# was graded — and its `verification_request.target` would aim the sibling
+# verifier at a file this gate never looked at. Disagreement is a defect in the
+# payload, not a naming preference to reconcile silently.
+if [[ -n "$expect_index" ]]; then
+  if [[ "$(canonical "$expect_index")" == "$(canonical "$index")" ]]; then
+    pointer="matches"
+  else
+    pointer="mismatch"
+    echo "unusable: payload pointer names $expect_index; this gate graded $index" >&2
+    unusable=1
+  fi
+fi
 
 if [[ -n "$expect_sidecars" && "$expect_sidecars" -ne "$count" ]]; then
   echo "unusable: payload reported $expect_sidecars sidecar(s); the index names $count" >&2
-  echo "index=$index sidecars=$count missing=$missing status=unusable"
+  unusable=1
+fi
+
+if [[ "$unusable" -ne 0 ]]; then
+  verdict "$index" "$count" "$missing" unusable
   exit 1
 fi
 
-if [[ "$missing" -gt 0 ]]; then
-  echo "index=$index sidecars=$count missing=$missing status=unusable"
-  exit 1
-fi
-
-echo "index=$index sidecars=$count missing=0 status=usable"
+verdict "$index" "$count" "$missing" usable
 exit 0
