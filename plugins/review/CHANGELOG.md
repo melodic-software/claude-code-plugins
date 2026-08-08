@@ -23,7 +23,12 @@ All notable changes to the `review` plugin are documented here. Format follows
   stage instead of leaving slice findings unscored (an unlabeled finding ranks above
   honestly-labeled low-confidence ones). The seams consume it end-to-end: the fanout normalization
   parse contract records the slice surface's native confidence and Stage 2 passes the label
-  through, and quality-gate's own Step 3 report table gains the Confidence column.
+  through, and quality-gate's own Step 3 report table gains the Confidence column. The agent
+  leaves carry the same field: architecture-guardian and doc-drift-detector gain per-finding
+  high/medium/low confidence in their output formats, code-reviewer extends its confidence line
+  from design-smell findings to every finding (smells stay capped at medium), and
+  security-reviewer's no-findings line no longer reads as a low-confidence reporting filter —
+  matching the dispatch clause's ask and the parse contract's expectations.
 
 ### Changed
 

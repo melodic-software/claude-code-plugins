@@ -48,6 +48,10 @@ Review against whichever architectural patterns the code actually uses — apply
 2. **Risks** — patterns that could lead to violations as the codebase grows (never a blocking tier)
 3. **Opportunities** — refactoring suggestions that would strengthen the architecture
 
+Give every finding a `Confidence: high|medium|low` line (the severity baseline's confidence axis) —
+high when the rule and the violating reference are both verified at the cited site, medium for a
+pattern match or partial trace, low for a suspicious shape not yet traced.
+
 A finding lands in **Violations** only when a documented project rule, a failing check, or a demonstrable defect backs it. Design-smell and convention findings without that backing are judgement calls — advisory, reviewer-tier — and belong under Risks or Opportunities, never framed as hard violations.
 
 Severity baseline when the caller needs tiers: `${CLAUDE_PLUGIN_ROOT}/context/severity.md` — a Violation maps to CRITICAL (broken rule) or IMPORTANT (drift) by content; Risks and Opportunities map to SUGGESTION.

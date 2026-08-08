@@ -350,7 +350,8 @@ three trigger phrases (see Source), so this fires for every target model.
   which appears nowhere in the Opus 5 guide** — is stated in the Sonnet 5 guide and again in the
   Opus 4.8 guide ("Code review harnesses"), which repeats the claim, the coverage prompt, and the
   concrete-bar half near-verbatim for its own model; the Sonnet 5 guide states that half as: "be
-  concrete about where the bar is rather than using qualitative terms like "important"." (Opus 4.8
+  concrete about where the bar is rather than using qualitative terms like 'important'" (the
+  upstream page double-quotes the word). (Opus 4.8
   corroboration verified 2026-08-08 against that guide's raw `.md`, 15,905 bytes, MD5
   `6b9db5b784ad6a7b2e6307c1481b8be9`; the gate was already met without it.)
 
@@ -958,7 +959,7 @@ Severity `warning` · Model scope: `sonnet-5`.
   reasoning over tool calls" — with no thinking-off coupling, so it is not a second statement of
   this claim; the halves the two guides do share (effort as a tool-usage lever, describe-why-and-how
   tool instruction) are general advice, not this row's detect condition.
-- **Source:** Sonnet 5 guide, "Tool use triggering" — the two quoted sentences above, plus the
+- **Source:** Sonnet 5 guide, "Tool use triggering" — the sentence quoted above, plus the
   effort-lever sentence.
 - **Verified 2026-08-08** against the Sonnet 5 guide (15,864 bytes, MD5
   `6d23959f0ed226feb06bf20c314029e3`) and, for the scope negative, the Opus 4.8 guide (15,905

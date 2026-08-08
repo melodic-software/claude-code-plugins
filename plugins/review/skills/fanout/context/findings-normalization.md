@@ -8,10 +8,10 @@ The 5-stage main-thread pipeline that turns heterogeneous free-text findings fro
 
 | Surface | Native severity | Native confidence | Line basis |
 |---|---|---|---|
-| `code-reviewer` | CRITICAL / IMPORTANT / SUGGESTION | medium / low on design-smell findings; — otherwise | `file:line` (inferred) |
+| `code-reviewer` | CRITICAL / IMPORTANT / SUGGESTION | high / medium / low (smells capped at medium) | `file:line` (inferred) |
 | `security-reviewer` | P1–P5 (CVSS); A04 tier-less | high / medium / low | `file:line` or `module` (inferred) |
-| `architecture-guardian` | Violations / Risks / Opportunities | — | file-only (Violations); none (Risks/Opportunities) |
-| `doc-drift-detector` | Stale / Missing / Aspirational | — | doc-file line (table) |
+| `architecture-guardian` | Violations / Risks / Opportunities | high / medium / low | file-only (Violations); none (Risks/Opportunities) |
+| `doc-drift-detector` | Stale / Missing / Aspirational | high / medium / low (table column) | doc-file line (table) |
 | slice-subagents | project's tiers (or baseline) | high / medium / low (template column) | `file:line` (inferred) |
 | `code-review` plugin | none (flat issue list) | 0–100, filters <80 | GitHub permalink `#L[s]-L[e]` |
 | `pr-review-toolkit` orchestrator | Critical / Important / Suggestion | — | `[file:line]` (inferred) |
@@ -42,7 +42,7 @@ Map native severity → the tier vocabulary in effect (the project's own, else `
 
 ## Stage 2 — Confidence enum (deterministic / Haiku)
 
-Per `${CLAUDE_PLUGIN_ROOT}/context/severity.md` "Confidence axis": plugin-filtered high scores → `high`; a native high/medium/low label (security-reviewer always; code-reviewer on design-smell findings; slice-subagents via the per-slice template's Confidence column) passes straight through; surfaces emitting none → `unscored`. **Absent confidence ≠ low.**
+Per `${CLAUDE_PLUGIN_ROOT}/context/severity.md` "Confidence axis": plugin-filtered high scores → `high`; a native high/medium/low label (all four agent leaves per their output formats; slice-subagents via the per-slice template's Confidence column) passes straight through; surfaces emitting none → `unscored`. **Absent confidence ≠ low.**
 
 ## Stage 3 — Dedup (Sonnet)
 

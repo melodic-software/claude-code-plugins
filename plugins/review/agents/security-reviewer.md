@@ -107,7 +107,8 @@ Flat numbered list. Each finding has 5 required fields:
 
 When a caller needs the plugin's general tiers, fold per `${CLAUDE_PLUGIN_ROOT}/context/severity.md`: P1/P2 → CRITICAL, P3 → IMPORTANT, P4/P5 → SUGGESTION.
 
-If no findings: write `No findings.` Do not pad with low-confidence speculation.
+If no findings: write `No findings.` — do not invent findings to fill the report. A real
+observation at low confidence is a finding to report (labeled `low`), never padding.
 
 You are a subagent and cannot ask the user questions. Flag ambiguities explicitly in your report instead.
 
