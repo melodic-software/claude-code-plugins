@@ -67,6 +67,55 @@ run "path-qualified python3.exe -c open write (blocked)" \
 run "notpython3 -c open (allowed)" \
   "notpython3 -c \"open('x','w').write('a')\"" 0
 
+# --- open() write-mode discrimination ---------------------------------------
+# `open(` alone is direction-agnostic (`open(f,'w')` writes, `open(f)` reads),
+# so it is a write indicator ONLY alongside an argument-position write-mode
+# literal — a quoted mode token carrying w / a / x / +. Read modes carry none.
+# The reproduced consumer false positive, verbatim in shape: a read-mode open
+# feeding json.load.
+run "python3 -c read-only open() feeding json.load (allowed)" \
+  "python3 -c \"import json; d=json.load(open('x.json'))\"" 0
+run "python3 -c bare open(f) (allowed)" "python3 -c \"open(f).read()\"" 0
+run "python3 -c open mode 'r' (allowed)" "python3 -c \"open('x','r').read()\"" 0
+run "python3 -c open mode 'rb' (allowed)" "python3 -c \"open('x','rb').read()\"" 0
+# A dict SUBSCRIPT that looks like a mode token is preceded by `[`, not by a
+# comma, so the argument-position anchor keeps this common read shape clear.
+run "python3 -c open() + dict subscript ['a'] (allowed)" \
+  "python3 -c \"import json;print(json.load(open('p'))['a'])\"" 0
+# Write modes still block, in every spelling.
+run "python3 -c open mode 'a' append (blocked)" "python3 -c \"open('x','a')\"" 2
+run "python3 -c open mode 'r+' update (blocked)" "python3 -c \"open('x','r+')\"" 2
+run "python3 -c open mode='w' keyword (blocked)" "python3 -c \"open('x', mode='w')\"" 2
+# REGRESSION FLOOR — must not be reintroduced: the check is co-occurrence, not
+# positional, precisely so a nested call between `open(` and the mode argument
+# cannot fail it open (a positional `open\([^)]*'w'` stops at the first `)`).
+run "python3 -c open(nested-call, 'w') (blocked)" \
+  "python3 -c \"open(os.path.join(a,b),'w')\"" 2
+# ACCEPTED RESIDUAL, fail-CLOSED direction: a read-only open() in a command that
+# separately carries an argument-position mode-shaped literal still blocks.
+run "python3 -c read open + unrelated ', \\\"a\\\"' literal (accepted over-block)" \
+  "python3 -c \"print(open('f').read(), 'a')\"" 2
+
+# --- cat > /dev/null is a discard, not a write -------------------------------
+# The exemption the echo/printf lane already grants now applies to `cat >` too,
+# in every spelling the strip can produce.
+run "cat > /dev/null discard (allowed)" "cat > /dev/null" 0
+run "cat>/dev/null no space (allowed)" "cat>/dev/null" 0
+run "cat >> /dev/null append discard (allowed)" "cat >> /dev/null" 0
+run "cat >/dev/null 2>&1 (allowed)" "cat >/dev/null 2>&1" 0
+run "cat >> /dev/null 2>&1 append + fd dup (allowed)" "cat >> /dev/null 2>&1" 0
+run "cat > /dev/null; trailing separator (allowed)" "cat > /dev/null; echo done" 0
+# A real append target with the same trailing fd dup is still a write.
+run "cat >> real.txt 2>&1 still blocked" "cat >> real.txt 2>&1" 2
+run "cat > fully-quoted /dev/null (allowed)" 'cat > "/dev/null"' 0
+run "cat > partially-quoted /dev/null (allowed)" 'cat > /dev/"null"' 0
+# REGRESSION FLOOR — must not be reintroduced: the exemption is SEGMENT-scoped.
+# A command-scoped exemption would let the real write in the second segment pass.
+run "cat > /dev/null && cat > real.txt still blocked" \
+  "cat > /dev/null && cat > real.txt" 2
+run "cat > real.txt; cat > /dev/null still blocked" \
+  "cat > real.txt; cat > /dev/null" 2
+
 # --- Redirect false-positive regression -------------------------------------
 # stderr/fd redirects + /dev/null discards are NOT file-write bypasses, even
 # when an `echo` appears in the same compound command.
@@ -515,17 +564,26 @@ run_pwsh "PS: python3 script run, open( in an arg, no -c (allowed)" \
 run_pwsh "PS: python3 -m module run, open( in an arg, no -c (allowed)" \
   "python3 -m mytool \"open('x','w')\"" 0
 # here-string mention stays inert (blanked before the probe, like the git lane).
-run_pwsh "PS: here-string mentions python3 -c open (allowed)" \
-  "$(printf "@'\npython3 -c open(\n'@\nWrite-Output ok")" 0
+# Spelled with a WRITE MODE so the here-string blanking is what makes this
+# allowed — a bare `open(` would now be allowed for the unrelated reason that it
+# is no longer a write indicator.
+run_pwsh "PS: here-string mentions python3 -c open write (allowed)" \
+  "$(printf '@%s\npython3 -c open(f,"w")\n%s@\nWrite-Output ok' "'" "'")" 0
 # ACCEPTED OVER-BLOCK (fail-closed): a MENTION of python3 … -c + a write indicator in
 # prose, a line comment, or a quoted string now blocks — the guard cannot prove a
-# non-tokenizable PowerShell command is a mere mention.
-run_pwsh "PS: prose mention of python3 -c open now over-blocks (blocked)" \
-  "Write-Output 'run python3 -c open() later'" 2
-run_pwsh "PS: line-comment mention of python3 -c open now over-blocks (blocked)" \
-  "Write-Output ok # python3 -c open(" 2
-run_pwsh "PS: quoted &{python3 -c open( string now over-blocks (blocked)" \
-  "Write-Output '&{python3 -c open(}'" 2
+# non-tokenizable PowerShell command is a mere mention. The mentioned write is
+# spelled with a WRITE MODE, because a bare `open(` is no longer a write
+# indicator in either lane (see the open() write-mode discrimination above).
+run_pwsh "PS: prose mention of python3 -c open write now over-blocks (blocked)" \
+  "Write-Output 'run python3 -c open(f,\"w\") later'" 2
+run_pwsh "PS: line-comment mention of python3 -c open write now over-blocks (blocked)" \
+  "Write-Output ok # python3 -c open(f,'w')" 2
+run_pwsh "PS: quoted &{python3 -c open( write string now over-blocks (blocked)" \
+  "Write-Output '&{python3 -c open(f,\"w\")}'" 2
+# The same three MENTION shapes carrying only a read-mode open are no longer
+# write indicators at all, so they stay allowed — this is the fix, not a hole.
+run_pwsh "PS: prose mention of a read-only python3 -c open (allowed)" \
+  "Write-Output 'run python3 -c open(f) later'" 0
 # Quoted / path-qualified / brace-glued / backtick-obfuscated python3 with -c: all
 # caught by the token+`-c` probe (quote-intact, backtick-recovered).
 run_pwsh "PS: & 'python3' -c open write (blocked)" \
