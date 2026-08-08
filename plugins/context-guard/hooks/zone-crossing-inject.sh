@@ -124,9 +124,9 @@ fi
 prev_label="${last:-unobserved}"
 zone_label="$zone"
 [[ -n "$degraded" ]] && zone_label="dumb (evidence-degraded: this session was compacted, so its context evidence is already lossy regardless of the snapshot's numbers)"
-guidance="context-guard: this session crossed from the ${prev_label} into the ${zone_label} context zone (snapshot seam, conservative-min over percentage and token bands). Response quality degrades as context occupancy grows. Prefer finishing the current step, then choose the continuation mechanism deliberately: (1) continue in-session only if the remaining work is small or simple enough for degraded context; (2) /clear if this session's context is disposable; (3) write a durable handoff then /clear if state must survive — run /session-flow:handoff (if that plugin is installed; otherwise write a resume file by hand before clearing); (4) /compact only at a phase boundary, as a last resort. For the full continuation router, run /session-flow:workflow (if installed)."
+guidance="context-guard: this session crossed from the ${prev_label} into the ${zone_label} context zone (snapshot seam, conservative-min over percentage and token bands). On many models response quality degrades as context occupancy grows; onset varies by model — some vendor model guides state consistency through the full window — and the bands are tunable defaults (zones.json). Compaction distance shrinks regardless of model. Prefer finishing the current step, then choose the continuation mechanism deliberately: (1) continue in-session only if the remaining work is small or simple enough for degraded context; (2) /clear if this session's context is disposable; (3) write a durable handoff then /clear if state must survive — run /session-flow:handoff (if that plugin is installed; otherwise write a resume file by hand before clearing); (4) /compact only at a phase boundary, as a last resort. For the full continuation router, run /session-flow:workflow (if installed)."
 if [[ "$zone" == "dumb" ]]; then
-  guidance+=" The dumb zone means degradation is likely already measurable: avoid starting new complex work in this window."
+  guidance+=" The dumb zone means degradation is likely already measurable on degradation-prone models: avoid starting new complex work in this window."
 fi
 
 hook::emit_channels "$EVENT" "$guidance" ""
