@@ -257,10 +257,14 @@ COMMAND_LC="${COMMAND,,}"
 # Scanned PER SEGMENT (see cat_redirect_bypass), so `;|&()` never reach it — the
 # leading class is kept for the pre-segmentation shape and costs nothing.
 _cat_redir='(^|[[:space:];|&()]+)cat[[:space:]]*>'
-# `cat > /dev/null` is a DISCARD, not a file write — the same exemption
-# _echo_devnull already grants the echo/printf lane. Segment-scoped so a compound
-# `cat > /dev/null && cat > real.txt` still blocks on its second segment.
-_cat_devnull='(^|[[:space:];|&()]+)cat[[:space:]]*>>?[[:space:]]*/dev/null([[:space:]]|$)'
+# One stdout redirect and its target word. `[^0-9&]` before the operator keeps
+# other-fd (`2>`, `21>`) and combined (`&>`) redirects out, while the optional
+# `1` admits the EXPLICIT stdout spelling — `1>file` is stdout exactly as `>file`
+# is, and omitting it left `cat >/dev/null 1>real.txt` reading as a discard. The
+# target class excludes `&`, so an fd dup (`>&1`) is not mistaken for a file.
+# Used by set_last_stdout_target, never matched alone: the PRESENCE of a
+# `/dev/null` redirect proves nothing (see below).
+_redir_scan='(^|[^0-9&])1?>>?[[:space:]]*([^|&>[:space:]]+)'
 # A simple-command segment whose command token is `echo` or `printf` — the
 # content producers a `> file` redirect turns into a Write/Edit bypass. Anchored
 # to the segment start (see producer_redirect_bypass), so it never matches an
@@ -305,16 +309,17 @@ _modifier_optend='^--([[:space:]]|$)'
 # A leading redirection element (`> file cmd`, `< in cmd`, `2> f cmd`, `>& n cmd`):
 # bash permits redirections before the command word, so a producer can hide behind
 # one (`> real.txt echo x`). Peeled (operator + its target word) — like _cmd_prefix
-# — to expose the producer for _producer_head, while _echo_file_out/_echo_devnull
+# — to expose the producer for _producer_head, while _echo_file_out and the
 # still run on the UN-peeled segment so the redirect itself remains the write
 # signal. Not anchored to stdout-to-file: any leading redirect is peeled for
 # producer exposure; whether a real file write exists is decided by _echo_file_out.
 _leading_redir='^([0-9]*(>>?|<)&?|&>>?)[[:space:]]*'
 # stdout-to-file redirect: `>` / `>>` NOT preceded by an fd digit or `&`, so
-# stderr/fd redirects (`2>/dev/null`, `2>&1`, `&>`) do not trip. _echo_devnull
-# exempts a stdout discard (`>/dev/null`) — that's not a Write/Edit bypass.
+# stderr/fd redirects (`2>/dev/null`, `2>&1`, `&>`) do not trip. A stdout discard
+# is exempt — that's not a Write/Edit bypass — but the exemption is decided by
+# set_last_stdout_target, not by this pattern: the discard must be the EFFECTIVE
+# target, not merely present somewhere in the segment.
 _echo_file_out='(^|[^0-9&])>>?[[:space:]]*[^|&>[:space:]]'
-_echo_devnull='(^|[^0-9&])>>?[[:space:]]*/dev/null'
 # python file-write indicators that are unambiguous on their own. `pathlib` /
 # `path(` are identifier-boundary anchored so they match the write-capable
 # `pathlib.Path(` producer but NOT the read-only `os.path.*path(` helpers
@@ -422,6 +427,29 @@ normalize_segments() {
   NORMALIZED_SEGMENTS="$normalized"
 }
 
+# The EFFECTIVE stdout destination of a segment, into LAST_STDOUT_TARGET (empty
+# when the segment redirects stdout nowhere).
+#
+# Bash applies redirections LEFT TO RIGHT, so the last one wins: `cat >
+# /dev/null > real.txt` writes to real.txt, and `cat > /dev/null 1>real.txt`
+# does too. A check that exempted a segment on merely CONTAINING a `/dev/null`
+# redirect would hand an attacker a one-token bypass of this whole guard — write
+# the discard first, the real file second. Only the final target may exempt.
+#
+# Sets a global rather than echoing: this runs per segment on every Bash call,
+# and a command substitution would add a fork to each one.
+LAST_STDOUT_TARGET=""
+set_last_stdout_target() {
+  local rest="$1"
+  LAST_STDOUT_TARGET=""
+  while [[ "$rest" =~ $_redir_scan ]]; do
+    LAST_STDOUT_TARGET="${BASH_REMATCH[2]}"
+    # Quoted so the consumed text is stripped literally — a target may hold glob
+    # metacharacters, and an unquoted pattern would eat the wrong span.
+    rest="${rest#*"${BASH_REMATCH[0]}"}"
+  done
+}
+
 # `cat >` with no input file is content authoring redirected into a file — the
 # heredoc/typed-content Write bypass. Scanned per segment so the /dev/null
 # DISCARD exemption cannot leak across a compound command: `cat > /dev/null &&
@@ -430,7 +458,8 @@ cat_redirect_bypass() {
   local seg
   while IFS= read -r seg || [[ -n "$seg" ]]; do
     [[ "$seg" =~ $_cat_redir ]] || continue
-    [[ "$seg" =~ $_cat_devnull ]] && continue
+    set_last_stdout_target "$seg"
+    [[ "$LAST_STDOUT_TARGET" == "/dev/null" ]] && continue
     return 0
   done <<<"$NORMALIZED_SEGMENTS"
   return 1
@@ -447,7 +476,7 @@ producer_redirect_bypass() {
     # compound-command header / group opener / negation (`; do echo x > f`, `if echo
     # x > f`, `while echo ...`, `! echo ...`, `{ echo ...`), or a leading redirect
     # (`> real.txt echo x`) is still seen as the segment's command word. The redirect
-    # itself is left in `seg`: _echo_file_out/_echo_devnull below decide whether a
+    # itself is left in `seg`: _echo_file_out and set_last_stdout_target below decide whether a
     # real file write exists, so a leading redirect stays the write signal.
     local head="$seg" tgt prev_mod=""
     while :; do
@@ -486,7 +515,10 @@ producer_redirect_bypass() {
     done
     [[ "$head" =~ $_producer_head ]] || continue
     [[ "$seg" =~ $_echo_file_out ]] || continue
-    [[ "$seg" =~ $_echo_devnull ]] && continue
+    # Same left-to-right rule as the cat lane: `echo x > /dev/null > real.txt`
+    # writes to real.txt. The old presence test exempted it.
+    set_last_stdout_target "$seg"
+    [[ "$LAST_STDOUT_TARGET" == "/dev/null" ]] && continue
     return 0
   done <<<"$NORMALIZED_SEGMENTS"
   return 1

@@ -116,6 +116,30 @@ run "cat > /dev/null && cat > real.txt still blocked" \
 run "cat > real.txt; cat > /dev/null still blocked" \
   "cat > real.txt; cat > /dev/null" 2
 
+# REGRESSION FLOOR — must not be reintroduced: bash applies redirects LEFT TO
+# RIGHT, so the LAST stdout target wins. Exempting a segment merely because a
+# /dev/null redirect appears in it is a one-token bypass of the whole guard:
+# write the discard first, the real file second, within a single segment.
+run "cat > /dev/null > real.txt still blocked" \
+  "cat > /dev/null > real.txt" 2
+run "cat >/dev/null 1>real.txt still blocked" \
+  "cat >/dev/null 1>real.txt" 2
+run "cat > /dev/null >> real.txt still blocked" \
+  "cat > /dev/null >> real.txt" 2
+# The inverse order is a genuine discard — real.txt is opened but stdout ends at
+# /dev/null, so the last-target rule must still ALLOW it.
+run "cat > real.txt > /dev/null is a discard (allowed)" \
+  "cat > real.txt > /dev/null" 0
+# Same rule on the echo/printf lane, which had the identical order-blind test.
+run "echo x > /dev/null > real.txt still blocked" \
+  "echo x > /dev/null > real.txt" 2
+run "printf x > /dev/null > real.txt still blocked" \
+  "printf x > /dev/null > real.txt" 2
+# A trailing stderr redirect is not a stdout target and must not displace the
+# /dev/null verdict — the fd-qualified form is excluded from the scan.
+run "cat > /dev/null 2> err.log (allowed)" \
+  "cat > /dev/null 2> err.log" 0
+
 # --- Redirect false-positive regression -------------------------------------
 # stderr/fd redirects + /dev/null discards are NOT file-write bypasses, even
 # when an `echo` appears in the same compound command.
