@@ -173,14 +173,16 @@ out-of-session inventory cannot read are in
 resolved controls in the report's tier-transparency line.
 
 **Hook enablement is a liveness control, and configuration alone does not establish it.**
-`disableAllHooks` turns off the hooks configured at its own settings level and below without
-removing them, so an enabled plugin's handler, or one wired in project settings, sits on disk unable
-to run — and a gate that cannot run this session constrains nothing to compare against. Resolve it
-by scope rather than by any single file: it cannot disable hooks configured in **managed** settings
-unless managed settings sets it too, so managed hook text stays live against a project or local
-`disableAllHooks` and must not be dropped with the rest. Omit every hook surface it disables — both
-kinds, prompt-type and context-injecting alike, since neither reaches this session when the handler
-never fires — and report the resolved value with the other controls.
+`disableAllHooks` turns off hooks without removing them, so an enabled plugin's handler, or one wired
+in project settings, sits on disk unable to run — and a gate that cannot run this session constrains
+nothing to compare against. Its reach is all hooks with exactly one carve-out, and that carve-out is
+what makes this a per-scope resolution rather than a per-file one: set in user, project, or local
+settings it cannot disable **managed** hooks, so managed hook text stays live against it and must not
+be dropped with the rest; only a managed-level `disableAllHooks` reaches those too. The mirror
+control, `allowManagedHooksOnly`, cuts the other way and blocks user, project, and plugin hooks,
+exempting plugins force-enabled in managed `enabledPlugins`. Omit every hook surface they disable —
+both kinds, prompt-type and context-injecting alike, since neither reaches this session when the
+handler never fires — and report both resolved values with the other controls.
 
 Exclude from the **editable** set, and hold for the routing subsection: auto-memory
 (`projects/<project>/memory/` under the resolved user root, owned by `claude-memory`), installed
@@ -217,16 +219,17 @@ involving one still carries the no-change representation and its routing recomme
 - **Each enabled agent's own memory, under that same gate** — an agent definition carrying a
   `memory` field gets its **own** memory directory, separate from the main conversation's and named
   per agent, and that subagent reads and writes its own `MEMORY.md` there. The field's value is the
-  scope, and each scope has its own location: `user` → `agent-memory/<agent-name>/` under the
+  scope, and each scope has its own location: `user` → `agent-memory/<name-of-agent>/` under the
   **resolved** user root above (never a hardcoded `~/.claude`, for the reason the entry above gives),
-  `project` → `.claude/agent-memory/<agent-name>/`, `local` →
-  `.claude/agent-memory-local/<agent-name>/`.
+  `project` → `.claude/agent-memory/<name-of-agent>/`, `local` →
+  `.claude/agent-memory-local/<name-of-agent>/`.
   [reference/conflict-criteria.md](reference/conflict-criteria.md) keeps an agent-definition-versus-
   its-own-memory contradiction in scope precisely because those two *do* co-reside in that subagent,
   so this inventory has to reach it: enumerate that `MEMORY.md` for every inventoried agent whose
   definition enables the field, under the same loaded-portion bound. The gate is the effective state
-  resolved just above — with auto memory off the field has no effect and the subagent launches
-  without it — so an agent memory left on disk after the switch flipped is not inventoried.
+  resolved just above: subagent memory is part of auto memory, so with auto memory off the `memory`
+  field has no effect and the subagent launches without the memory instructions or the memory tool
+  access — an agent memory left on disk after the switch flipped is not inventoried.
   Read-only and `claude-memory`-owned exactly as the main entrypoint is.
 - **Org-managed policy** — the managed-policy `CLAUDE.md`, any `claudeMd` value in managed settings,
   and hook instruction text configured in managed settings, of **both** kinds above. All three are

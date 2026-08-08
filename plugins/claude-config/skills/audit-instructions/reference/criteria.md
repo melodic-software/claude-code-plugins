@@ -210,7 +210,7 @@ Tier `mechanical` · Authority `ANTHROPIC-DOCS` · Severity `warning` · Surface
   loads when invoked", the combined `description` and `when_to_use` text "is truncated at 1,536
   characters in the skill listing to reduce context usage", and "Plugin skills are not affected by
   `skillOverrides`."; subagents, on a skill named in an agent's `skills:` field — "The full content
-  of each listed skill is injected, not only the description."
+  of each listed skill is injected into the subagent's context at startup."
 
 ### I4: Inferable or redundant content
 
@@ -634,12 +634,12 @@ skill bodies.
 - **Must NOT flag:** an instruction to read a surface that is *not* auto-loaded — `AGENTS.md`,
   contributing guides, ADRs, CI workflow files, per-ecosystem convention docs. Those are ordinary
   progressive disclosure — **but only while no active startup import reaches them.** A startup file
-  that carries `@docs/CONTRIBUTING.md`, or the `@AGENTS.md` the docs themselves prescribe for an
+  that carries `@docs/CONTRIBUTING.md`, or the `@AGENTS.md` the docs themselves recommend for an
   `AGENTS.md` repo, has that file expanded into context at launch, so the document is resident and
   an instruction to go read it is exactly the redundant retrieval this check exists to find.
-  **Resolve the startup set's `@path` imports first** — recursively, to the hop limit memory states
-  — and add what they reach to the loaded set; this exemption applies only to what no such import
-  reaches. **Any read where the file is the operation's subject rather than its
+  **Resolve the startup set's `@path` imports first** — recursively, to memory's documented maximum
+  depth of four hops — and add what they reach to the loaded set; this exemption applies only to what
+  no such import reaches. **Any read where the file is the operation's subject rather than its
   instructions** — auditing it, editing it, patching it, reporting on it, or anything else needing
   current disk contents. The startup copy is a snapshot taken at launch; another process can have
   changed the file since, and a pre-edit read cut on the grounds that "it is already in context"
@@ -652,9 +652,10 @@ skill bodies.
   *the main conversation loads* is what bounds this check: memory documents lazy loading for
   "path-specific rules or lazy-loaded files in subdirectories", so those are outside the guarantee.
   memory, on `@path` imports — "Imported files are expanded and loaded into context at launch
-  alongside the CLAUDE.md that references them", recursively to a documented hop limit — is what
-  puts an imported supporting document inside it; memory's `AGENTS.md` guidance prescribes exactly
-  such an import.
+  alongside the CLAUDE.md that references them", and "Imported files can recursively import other
+  files, with a maximum depth of four hops" — is what puts an imported supporting document inside it;
+  memory's `AGENTS.md` guidance recommends exactly such an import, and requires it on Windows, where
+  the symlink alternative needs elevation.
 
 ### I15: Cross-surface instruction conflict
 
