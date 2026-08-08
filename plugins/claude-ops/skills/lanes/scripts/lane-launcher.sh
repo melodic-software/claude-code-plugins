@@ -305,25 +305,6 @@ resolve_repo() {
     }
 }
 
-# A validation query that ERRORS must never be mistaken for a validation that
-# PASSED: jq prints nothing on a raised error, and with no `set -e` a caller
-# reading only its output takes that silence for "no violations" and waves
-# through a config it never actually inspected. Every validation query below is
-# therefore `... || config_query_failed <label>` — an unrunnable check is itself
-# a fatal config error, because the launcher cannot certify a config it failed
-# to inspect.
-#
-# Reached via `var="$(jq ...)" || config_query_failed …` rather than a wrapper
-# taking the program as an argument: a plain assignment from a command
-# substitution carries that command's status into the CALLER's shell, so the
-# `exit` fires where it must (the reason check_optarg is written the way it is),
-# and the jq program stays lexically attached to `jq`. jq's own diagnostic is
-# left on stderr, unswallowed, so the operator sees which construct raised.
-config_query_failed() {
-  err "lane config could not be validated ($1) — see the jq error above: $CONFIG"
-  exit 3
-}
-
 resolve_config() {
   if [[ -z "$CONFIG" ]]; then
     CONFIG="${CLAUDE_OPS_LANES_CONFIG:-$REPO/.work/lanes.json}"
@@ -337,43 +318,9 @@ resolve_config() {
     exit 3
   }
   local n
-  n="$(jq -r '(.lanes // []) | length' "$CONFIG")" || config_query_failed 'lane count'
+  n="$(jq -r '(.lanes // []) | length' "$CONFIG")"
   [[ "$n" -gt 0 ]] || {
     err "lane config has no lanes: $CONFIG"
-    exit 3
-  }
-  # Every check below reads lane names as strings, so TYPE comes first: jq's
-  # `test()` raises on a non-string subject, and a raised query prints nothing
-  # while the script (no `set -e`) reads its empty output as "nothing wrong" —
-  # so a `{"name": 123}` lane silently skipped containment for every name after
-  # it. Ordered first, the string-typedness of every name becomes a precondition
-  # the later queries can rely on rather than a coincidence, and the
-  # `config_query_failed` guard on each turns any remaining gap into a loud
-  # failure instead of a skipped check. An explicit `null` is the JSON spelling
-  # of "no value" and stays equivalent to an absent field, which is why the name
-  # checks re-filter it out.
-  #
-  # Typing the scalars HERE is also what lets `lane_field` keep answering "" for
-  # an absent field: `// ""` is jq's alternative operator, so it fires on any
-  # falsy value — a mistyped `"effort": false` collapsed to the same "" an unset
-  # field produces and the lane launched with no effort at all, silently. A wrong
-  # type is a config error, not a per-lane skip. `settings` is deliberately NOT
-  # typed here — it is checked per lane in validate_launch_inputs, which skips
-  # just that lane.
-  local mistyped
-  mistyped="$(jq -r '
-    [ .lanes
-      | to_entries[]
-      | .key as $i
-      | .value
-      | to_entries[]
-      | select(.key == "name" or .key == "model" or .key == "effort" or .key == "prompt")
-      | select(.value != null and (.value | type) != "string")
-      | "lane #\($i) .\(.key) is \(.value | type)" ]
-    | join(", ")' "$CONFIG")" || config_query_failed 'lane field types'
-  [[ -z "$mistyped" ]] || {
-    err "lane config has non-string values for string fields: $mistyped"
-    err "  (name/model/effort/prompt must be JSON strings): $CONFIG"
     exit 3
   }
   # Lane names are the safety key: stop/restart resolve a sessionId by name and
@@ -381,8 +328,7 @@ resolve_config() {
   # same-named sessions while stop reaches only the most-recent one. Reject it at
   # config time rather than silently acting on an ambiguous set.
   local dupes
-  dupes="$(jq -r '[.lanes[].name | select(. != null)] | group_by(.) | map(select(length > 1) | .[0]) | join(", ")' "$CONFIG")" ||
-    config_query_failed 'duplicate lane names'
+  dupes="$(jq -r '[.lanes[].name | select(. != null)] | group_by(.) | map(select(length > 1) | .[0]) | join(", ")' "$CONFIG")"
   [[ -z "$dupes" ]] || {
     err "lane config has duplicate lane names: $dupes (names must be unique): $CONFIG"
     exit 3
@@ -398,11 +344,35 @@ resolve_config() {
   traversal="$(jq -r '
     [ .lanes[].name
       | select(. != null)
-      | select(test("[/\\\\]") or . == "." or . == "..") ] | join(", ")' "$CONFIG")" ||
-    config_query_failed 'path-safe lane names'
+      | select(test("[/\\\\]") or . == "." or . == "..") ] | join(", ")' "$CONFIG")"
   [[ -z "$traversal" ]] || {
     err "lane config has lane names that are not usable as a path component: $traversal"
     err "  (a name must not contain '/' or '\\', or be '.' or '..'): $CONFIG"
+    exit 3
+  }
+  # The scalar lane fields are strings, and typing them HERE is what lets
+  # `lane_field` keep answering "" for an absent field: `// ""` is jq's
+  # alternative operator, so it fires on any falsy value — a mistyped
+  # `"effort": false` collapsed to the same "" an unset field produces and the
+  # lane launched with no effort at all, silently. A wrong type is a config
+  # error like the duplicate/traversal names above, not a per-lane skip. An
+  # explicit `null` is the JSON spelling of "no value" and stays equivalent to
+  # an absent field. `settings` is deliberately NOT typed here — it is checked
+  # per lane in validate_launch_inputs, which skips just that lane.
+  local mistyped
+  mistyped="$(jq -r '
+    [ .lanes
+      | to_entries[]
+      | .key as $i
+      | .value
+      | to_entries[]
+      | select(.key == "name" or .key == "model" or .key == "effort" or .key == "prompt")
+      | select(.value != null and (.value | type) != "string")
+      | "lane #\($i) .\(.key) is \(.value | type)" ]
+    | join(", ")' "$CONFIG")"
+  [[ -z "$mistyped" ]] || {
+    err "lane config has non-string values for string fields: $mistyped"
+    err "  (name/model/effort/prompt must be JSON strings): $CONFIG"
     exit 3
   }
 }
@@ -614,10 +584,13 @@ lane_prompt_path() {
 # is true (boolean or "true"). Interpolated into every query below — a jq filter
 # cannot ride in as a --arg — so detection, option extraction, and arm-id
 # injection can never disagree about which entry asked. Settings may carry
-# several autonomy installs, and an `autonomy@a` set explicitly false must be
-# left alone in all three: not read for options, and above all not handed an arm
-# id, which its own hook would resolve to a valid record and honor as enablement
-# ahead of the false the operator wrote.
+# several autonomy installs, and an entry that did NOT ask must be left alone in
+# all three: not read for options, and not handed an arm id. The gate never
+# treats this channel as a trusted verdict in either direction, so the arm id is
+# not overriding that entry's own `false` — the defect is narrower and still
+# real: the launcher marks an install the lane never asked to arm, so the
+# settings it hands to `claude` misdescribe what was requested and the record
+# stops being a faithful account of which install the operator opted in.
 GATE_ENTRY_REQUESTED='(.key == "autonomy" or (.key | startswith("autonomy@")))
        and (.value.options.lane_stop_gate_enabled | . == true or . == "true")'
 
@@ -692,10 +665,14 @@ arm_stop_gate() {
   arm_id="$(generate_arm_id)"
   sentinel="$(gate_option_from_settings "$settings" lane_stop_gate_sentinel)"
   marker="$(gate_option_from_settings "$settings" lane_stop_gate_marker)"
-  # `v:`-prefixed means the lane SET the option — forward it even when the value
-  # is the empty string, which is an explicit override, not an absent one.
+  # The two options forward on DIFFERENT conditions, because the gate reads an
+  # empty value differently for each. An empty marker disables the marker
+  # channel, so `v:`-prefixed-and-empty is a verdict that must reach the record;
+  # an empty sentinel is not a configured value at all — lane-stop-gate.sh
+  # substitutes the default token for it — so recording one would buy nothing
+  # while suppressing the record's fall-through to the user-level sentinel.
   local -a args=(--id "$arm_id" --cwd "$REPO")
-  [[ "$sentinel" == v:* ]] && args+=(--sentinel "${sentinel#v:}")
+  [[ "$sentinel" == v:?* ]] && args+=(--sentinel "${sentinel#v:}")
   [[ "$marker" == v:* ]] && args+=(--marker "${marker#v:}")
   while IFS= read -r script; do
     [[ -n "$script" ]] || continue

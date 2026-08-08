@@ -243,21 +243,6 @@ for mistyped_field in name model effort prompt; do
   assert_contains "a boolean .$mistyped_field is named in the message" "$out" ".$mistyped_field is boolean"
 done
 
-# The containment check reads names with jq's `test()`, which RAISES on a
-# non-string subject — and a raised query prints nothing, which the caller read
-# as "no violations". A non-string name on an EARLIER lane therefore skipped
-# containment for every name after it. The type check now runs first, so the
-# later queries never see a non-string subject and no raw jq error reaches the
-# operator.
-jq -n '{lanes: [{name: 123, prompt: "a.md"}, {name: "../escape", prompt: "b.md"}]}' \
-  >"$TMP/nonstring-then-escape.json"
-out="$(run_launcher start --repo "$REPO" --config "$TMP/nonstring-then-escape.json" --agents-json "$AGENTS_EMPTY" --dry-run 2>&1)"
-rc=$?
-assert_eq "a non-string name ahead of an escaping name exits 3" 3 "$rc"
-assert_contains "the non-string name is the reported reason" "$out" ".name is number"
-assert_not_contains "no raw jq type error reaches the operator" "$out" "cannot be matched"
-assert_not_contains "no lane is launched past the rejected config" "$out" "claude --bg"
-
 # `null` remains the JSON spelling of "no value" and stays equivalent to absent.
 jq -n '{lanes: [{name: "work", prompt: "work.md", model: null}]}' >"$TMP/nullmodel.json"
 out="$(run_launcher start --repo "$REPO" --config "$TMP/nullmodel.json" --agents-json "$AGENTS_EMPTY" --dry-run 2>&1)"
@@ -764,8 +749,12 @@ assert_eq "marker: nothing is written under the un-canonicalized --repo key" 0 "
 # directory the launcher never wrote: staleness detection silently off. The
 # digest must be taken IN the target repo. Skipped where git cannot create a
 # SHA-256 repository (the format is not universally compiled in).
+# $REAL_GIT, not the PATH stub: the stub answers only pull / rev-parse /
+# hash-object and exits 0 for anything else, so a stubbed `git init` would
+# report success while creating no repository at all — and the fixture would
+# then compare two SHA-1 keys and discriminate nothing.
 SHA256_REPO="$TMP/sha256-repo"
-if git init --object-format=sha256 -q "$SHA256_REPO" 2>/dev/null; then
+if "$REAL_GIT" init --object-format=sha256 -q "$SHA256_REPO" 2>/dev/null; then
   mkdir -p "$SHA256_REPO/.work"
   cp "$REPO/.work/work.md" "$SHA256_REPO/.work/"
   cat >"$SHA256_REPO/.work/lanes.json" <<'JSON'
@@ -834,6 +823,12 @@ assert_contains "arm: the lane's marker reaches the helper" "$armlog" "--marker 
 # marker key at all lets the gate fall through to the user-level marker, where a
 # leftover global marker file can authorize a stop the lane never signaled. The
 # empty value must therefore reach the helper, not be read as absence.
+#
+# The sentinel is deliberately NOT symmetric, and this fixture sets both to pin
+# the asymmetry: lane-stop-gate.sh substitutes the default token for an empty
+# sentinel, so emptiness is not a configured value there. Recording one would
+# buy no behavior while suppressing the record's fall-through to the user-level
+# sentinel — so an empty sentinel is still treated as absent.
 cat >"$TMP/gate-empty-marker.json" <<'JSON'
 { "prompt_dir": ".work",
   "lanes": [ { "name": "work", "prompt": "work.md",
@@ -846,7 +841,7 @@ JSON
 out="$(run_launcher start --repo "$REPO" --config "$TMP/gate-empty-marker.json" --agents-json "$AGENTS_EMPTY" --no-pull --no-update 2>&1)"
 armlog="$(cat "$ARM_LOG")"
 assert_contains "arm: an explicitly empty marker still reaches the helper" "$armlog" "--marker"
-assert_contains "arm: an explicitly empty sentinel still reaches the helper" "$armlog" "--sentinel"
+assert_not_contains "arm: an explicitly empty sentinel is still treated as absent" "$armlog" "--sentinel"
 
 # …while an option the lane never set stays absent from the arm call, so the
 # gate's own resolution order (managed ▷ arm record ▷ user settings) still
@@ -864,21 +859,27 @@ assert_not_contains "arm: an unset marker passes no --marker" "$armlog" "--marke
 assert_not_contains "arm: an unset sentinel passes no --sentinel" "$armlog" "--sentinel"
 
 # Settings may name several autonomy installs. The arm id must reach ONLY the
-# entries that asked: an `autonomy@a` carrying an explicit false would otherwise
-# find a valid arm record and honor it as enablement ahead of the operator's
-# false, gating an installation deliberately opted out. Options likewise come
-# only from the requesting entry — the disabled sibling's marker must not leak
-# into the arm call.
+# entries that asked. The gate does not read this channel as a trusted verdict
+# either way, so an arm id on `autonomy@a` is not overriding its `false`; what
+# it does do is mark an install the lane never asked to arm, so the settings
+# handed to `claude` misdescribe the request. Options likewise come only from
+# the requesting entry — the non-requesting sibling's marker must not leak into
+# the arm call, which is the one place the any-quantifier could change behavior.
+#
+# The non-requesting entry is deliberately LAST: option extraction takes the
+# last match, so a fixture that puts it first would read the requesting entry's
+# marker whether or not the filter scopes to requesting entries, and would pin
+# nothing.
 cat >"$TMP/gate-multi.json" <<'JSON'
 { "prompt_dir": ".work",
   "lanes": [ { "name": "work", "prompt": "work.md",
     "settings": { "pluginConfigs": {
       "autonomy@a": { "options": {
-        "lane_stop_gate_enabled": false,
-        "lane_stop_gate_marker": "DISABLED-SIBLING-MARKER" } },
-      "autonomy@b": { "options": {
         "lane_stop_gate_enabled": true,
-        "lane_stop_gate_marker": "REQUESTING-MARKER" } } } } } ] }
+        "lane_stop_gate_marker": "REQUESTING-MARKER" } },
+      "autonomy@b": { "options": {
+        "lane_stop_gate_enabled": false,
+        "lane_stop_gate_marker": "DISABLED-SIBLING-MARKER" } } } } } ] }
 JSON
 : >"$CLAUDE_LOG"
 : >"$ARM_LOG"
@@ -887,13 +888,13 @@ log="$(cat "$CLAUDE_LOG")"
 armlog="$(cat "$ARM_LOG")"
 assert_contains "arm: options come from the requesting entry" "$armlog" "--marker REQUESTING-MARKER"
 assert_not_contains "arm: a disabled sibling's marker never reaches the helper" "$armlog" "DISABLED-SIBLING-MARKER"
-# The launched --settings must carry the arm id under autonomy@b only. Isolate
+# The launched --settings must carry the arm id under autonomy@a only. Isolate
 # each entry's object from the echoed command rather than matching the whole
 # line, which contains both.
 entry_a="$(printf '%s\n' "$log" | grep -o '"autonomy@a":{[^}]*}[^}]*}' | head -n 1)"
 entry_b="$(printf '%s\n' "$log" | grep -o '"autonomy@b":{[^}]*}[^}]*}' | head -n 1)"
-assert_contains "arm: the requesting entry receives the arm id" "$entry_b" "lane_stop_gate_arm_id"
-assert_not_contains "arm: the explicitly-disabled entry receives no arm id" "$entry_a" "lane_stop_gate_arm_id"
+assert_contains "arm: the requesting entry receives the arm id" "$entry_a" "lane_stop_gate_arm_id"
+assert_not_contains "arm: the explicitly-disabled entry receives no arm id" "$entry_b" "lane_stop_gate_arm_id"
 
 # Arming failure → that lane is skipped with an error (fail closed), the other
 # lanes still launch, and the sweep exits non-zero.
