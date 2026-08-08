@@ -189,9 +189,9 @@ zone bands, zones.json shape) are owned by
    Shell-syntax guard: the wrapped form passes the user's command as ARGV — the shell that runs
    the `statusLine` command splits the whole line into words and consumes its quotes, and the shim
    `exec`s those words unchanged. It therefore only works for plain `executable arg…` commands. If
-   the current command carries shell syntax no ARGV word can express (an inline env assignment like
-   `THEME=dark my-statusline`, a pipe, `&&`, `;`, or a redirection), print the shell-wrapped variant
-   instead:
+   the current command carries — UNQUOTED, at the top level — shell syntax no ARGV word can express
+   (an inline env assignment like `THEME=dark my-statusline`, a pipe, `&&`, `;`, or a redirection),
+   print the shell-wrapped variant instead:
 
    ```json
    {
@@ -208,14 +208,18 @@ zone bands, zones.json shape) are owned by
    raw quotes left to fix. Verify your printed edit round-trips: mentally unquote it back and
    confirm it reproduces the original command byte-for-byte.
 
-   **Quoting is not shell syntax for this test.** The shell running the `statusLine` command has
-   already consumed the quotes by the time the shim sees ARGV, so a quoted argument reaches the
-   renderer intact through the plain wrapped form. That covers an operator's own `sh -c '<string>'`,
-   the one shape rule 2 preserves: `sh` is the executable, `-c` and the carried string are two
-   ordinary ARGV words, so it is ALREADY a plain `executable arg…` command — substitute it VERBATIM.
-   Counting its quotes as a trigger is what turns an operator's `sh -c 'ulimit -n'` into
-   `sh -c 'sh -c '\''ulimit -n'\'''` — one more shell on every refresh, and the same compounding
-   rule 2 exists to prevent.
+   **Syntax inside a quoted argument does not count, and bare quoting is never itself a trigger.**
+   The quotes make it one ordinary ARGV word that reaches the renderer intact through the plain
+   wrapped form. So an operator's own `sh -c '<string>'` — the one shape rule 2 preserves — is
+   ALREADY a plain `executable arg…` command: `sh` is the executable, `-c` and the carried string
+   are two ordinary ARGV words. Substitute it VERBATIM.
+
+   That scoping is what makes this test and rule 2's peel test unable to BOTH wrap the same
+   `sh -c '<string>'`. Rule 2 peels the shape exactly when the carried string holds shell syntax, so
+   whatever survives rule 2 holds none and cannot trigger the guard; what rule 2 does peel arrives
+   here as top-level syntax and is wrapped once — the layer it started with. Firing on the quotes
+   instead is what turned an operator's `sh -c 'ulimit -n'` into `sh -c 'sh -c '\''ulimit -n'\'''`,
+   one more shell on every refresh and the same compounding rule 2 exists to prevent.
 
    Sibling tees compose by nesting, each through its OWN shim — the tees are transparent wrappers,
    so the innermost command still owns stdout and the exit code. Print this form only when

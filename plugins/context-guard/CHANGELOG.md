@@ -21,11 +21,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   (<https://code.claude.com/docs/en/statusline>, fetched 2026-08-07), so that shell consumes the
   quotes and hands words to `statusline-shim.sh`, which `exec`s them unchanged. A quoted argument —
   and an operator's `sh -c '<string>'`, where `sh` is the executable and `-c` and the carried string
-  are two ordinary ARGV words — already survives the plain wrapped form intact. The trigger list is
-  now the syntax no ARGV word can express: an inline env assignment, a pipe, `&&`, `;`, or a
-  redirection. The two conditions that produced the double wrap are now mutually exclusive — the
-  peel rule preserves an `sh -c '<string>'` only when its carried string carries no shell syntax,
-  and such a renderer no longer matches the guard.
+  are two ordinary ARGV words — already survives the plain wrapped form intact. The trigger is now
+  the syntax no ARGV word can express — an inline env assignment, a pipe, `&&`, `;`, or a
+  redirection — and only where it stands UNQUOTED at the top level, so syntax sealed inside a quoted
+  argument no longer counts either. That scoping is what makes the two conditions unable to both
+  wrap the same `sh -c '<string>'`: the peel rule takes the shape exactly when its carried string
+  holds shell syntax, so what the peel rule preserves holds none and cannot match the guard, and
+  what it peels arrives at the guard as top-level syntax and is wrapped once.
 
 - **`check` no longer reports a differing installed shim as harmless.** The report said an older or
   hand-edited copy "still resolves the newest tee", which stopped being true when
