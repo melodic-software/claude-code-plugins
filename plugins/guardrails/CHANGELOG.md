@@ -23,8 +23,8 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
 
   **Acceptance behavior is unchanged** (hence a patch bump): the literal-SHA form was already
   accepted, and the plain `--force`, bare `--force-with-lease`, refname-only, movable-name, and
-  unresolved-substitution forms are all still blocked. New cases assert the message text itself, the
-  surface that was wrong.
+  `${VAR}` / `$(…)`-in-`<expect>` forms are all still blocked. New cases assert the message text
+  itself, the surface that was wrong.
 
 ## [0.19.3]
 
