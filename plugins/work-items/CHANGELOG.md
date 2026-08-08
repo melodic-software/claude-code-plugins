@@ -3,6 +3,18 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.34.0]
+
+### Changed
+
+- **`work`: Step 4 staleness pre-check states its scope explicitly.** The step listed two referent
+  shapes (a file to modify, a test to add) with no rule for the rest; current models do not
+  silently generalize an instruction from one item to another (Sonnet 5 / Opus 4.8 prompting
+  guides, "More literal instruction following"), so an item naming a config key, doc section, URL,
+  or linked issue got no staleness check at all on the unattended `work-loop` path. The step now
+  opens with "check every concrete referent the item names" and labels the bullets as examples,
+  not the list.
+
 ## [0.33.0]
 
 ### Changed

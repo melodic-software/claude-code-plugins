@@ -53,6 +53,22 @@ Parse the flag (`--yes` / `-y`) out of `$ARGUMENTS` first, then route on the rem
 
 Both review modes share the roster ([context/leaf-roster.md](context/leaf-roster.md)) and the normalization pipeline — no duplicated roster or pipeline.
 
+**Dispatch contract (both review modes):** every dispatched finding-producing leaf prompt carries
+this coverage clause verbatim, appended to the leaf's own instructions — for slice leaves, appended
+to the instantiated per-slice template (whose own coverage sentence is quality-gate's standalone
+posture and states the same rule, not a competing contract): "Your goal at this stage is coverage:
+it is better to surface a finding that later gets filtered out than to silently drop a real bug.
+Report every issue you find, including ones you are uncertain about or consider low-severity. Do
+not filter for importance or confidence at this stage — a separate normalization pass deduplicates
+and ranks findings downstream. For each finding, include your confidence level (high / medium /
+low) and an estimated severity." Current models follow a stated severity bar faithfully at the
+finding stage — they investigate fully, then withhold findings judged below the bar — so a harness
+with a downstream filter that does not say so converts investigations into silence (Sonnet 5
+prompting guide, "Code review harnesses",
+<https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-sonnet-5>;
+the Opus 4.8 guide states the same). The clause restores recall without moving the precision work:
+the pipeline's dedup and agreement/rank stages remain the filter.
+
 ## Pre-flight gate (both review modes)
 
 **Ask-shape check first, before any diff resolution:** when the ask is a whole-repository security audit rather than a change review, emit the deep-scan escalation from [context/leaf-roster.md](context/leaf-roster.md) "Deep-scan escalation" and STOP — regardless of diff state. A tracked diff or open PR does not convert that ask into a change review; a diff-scoped fan-out would answer a question the user did not ask.

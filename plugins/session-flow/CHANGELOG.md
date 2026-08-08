@@ -1,5 +1,18 @@
 # Changelog — session-flow plugin
 
+## [0.20.0]
+
+### Changed
+
+- **`retro` quick mode: the findings bar is now a decidable test, not a qualitative label.** "Only
+  errors, regressions, or significant behavioral gaps — skip minor issues" gated findings on
+  "significant"/"minor", which current models apply faithfully at the finding stage and convert
+  into withheld findings (Sonnet 5 prompting guide, "Code review harnesses": state the bar
+  concretely "rather than using qualitative terms"). The bar now enumerates what qualifies — a
+  wrong result produced, a regression against earlier session behavior, a skipped or failed
+  verification, a repeated user correction — and what is omitted (style, phrasing, self-corrected
+  one-off friction). The max-3 cap is unchanged.
+
 ## [0.19.0]
 
 ### Changed

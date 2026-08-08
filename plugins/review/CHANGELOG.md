@@ -3,6 +3,57 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.17.0]
+
+### Added
+
+- **`fanout`: dispatch contract — finder leaves are told coverage is their job.** The skill runs a
+  5-stage normalization pipeline (dedup, agreement/rank) downstream of its leaves, and the Sonnet 5
+  and Opus 4.8 prompting guides both state that current models follow a stated severity bar
+  faithfully at the finding stage — same investigation depth, fewer reported findings — and that a
+  harness with a separate filter stage should say so explicitly at the finder stage. Both review
+  modes now append a verbatim coverage clause to every dispatched finding-producing leaf prompt:
+  report everything including uncertain/low-severity findings, attach confidence and estimated
+  severity, filtering happens downstream. Recall is restored without moving precision work — the
+  pipeline remains the filter. run-everything's Workflow path carries the same clause in its
+  script: both prompt constructors (`AGENT_PROMPT`, `slicePrompt`) append it, and the slice prompt
+  asks for the high/medium/low confidence level, so the Workflow-accelerated sweep gets the same
+  recall and confidence axis as live dispatch.
+- **`quality-gate`: per-slice template reports coverage-first with a Confidence column.** The slice
+  reviewer template now states that severity and confidence label findings rather than deciding
+  whether they are reported, and its findings table carries a Confidence column — constrained to
+  the severity baseline's high / medium / low vocabulary — feeding the fanout pipeline's confidence
+  stage instead of leaving slice findings unscored (an unlabeled finding ranks above
+  honestly-labeled low-confidence ones). The seams consume it end-to-end: the fanout normalization
+  parse contract records the slice surface's native confidence and Stage 2 passes the label
+  through, and quality-gate's own Step 3 report table gains the Confidence column. The agent
+  leaves carry the same field: architecture-guardian and doc-drift-detector gain per-finding
+  high/medium/low confidence in their output formats, code-reviewer extends its confidence line
+  from design-smell findings to every finding (smells stay capped at medium), and
+  security-reviewer's no-findings line no longer reads as a low-confidence reporting filter —
+  matching the dispatch clause's ask and the parse contract's expectations.
+
+### Changed
+
+- **Agents: instruction scope made explicit where literal executors under-covered.** Current
+  models do not silently generalize an instruction from one item to another (Sonnet 5 / Opus 4.8
+  prompting guides, "More literal instruction following"), so four spots that demonstrated one
+  instance while meaning a class now state the class:
+  - `code-reviewer`, `security-reviewer`, `architecture-guardian`: the `REVIEW.md` code-span
+    citation step now enumerates and resolves **every** citation of the `<path>.md#<heading>`
+    shape (deduplicating repeated paths) instead of describing the procedure for "a citation" —
+    a literal read resolved the first and silently truncated the criteria set.
+  - `security-reviewer`: ecosystems with no dedicated section (Go, Rust, Ruby, Java, …) now have a
+    stated floor — the OWASP table plus the cross-ecosystem list, with the unlisted status named
+    in the report — instead of an accidental gap behind "apply the sections matching the
+    ecosystems actually touched".
+  - `ecosystem-specialist`: a detected ecosystem with no generic default (e.g. PowerShell) is no
+    longer conflated with "has no such phase" — commands resolve from the repo, and a phase that
+    resolves nowhere reports UNVERIFIED rather than skipping silently.
+  - `security-reviewer`, `architecture-guardian`: the change-set step now says to Read the
+    untracked files `git ls-files --others` lists (previously stated only in `code-reviewer`), so
+    two dispatched reviewers no longer run a command whose output nothing told them to use.
+
 ## [0.16.1]
 
 ### Changed

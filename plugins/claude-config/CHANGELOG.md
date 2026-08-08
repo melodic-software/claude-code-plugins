@@ -3,6 +3,52 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.24.0]
+
+### Added
+
+- **`audit-instructions`: four checks from the Sonnet 5 and Opus 4.8 prompting guides**
+  (catalog 1.18.0). Every behavioral claim was verified 2026-08-08 against the raw-`.md` channel of
+  its source page, with byte sizes and MD5 stamps recorded per row:
+  - **I24 — instruction relying on silent generalization** (unscoped; gate met by the two guides'
+    "More literal instruction following" sections, whose Detect sentences are stated
+    verbatim-identically). Flags text demonstrating one instance where a whole class is meant — a
+    worked example standing in for a rule, an undecidable "etc." tail, a single item named inside
+    an iterating procedure, an unstated per-item iteration — and proposes explicit scope
+    statements. Additive, so the stopping condition does not bind it.
+  - **I25 — sampling parameter prescribed where the model rejects it** (unscoped; range as Detect
+    condition: Opus 4.7 or later, Sonnet 5, Fable 5, and Mythos 5 — the Fable/Mythos arm carries
+    over from Opus 5 per the migration guide). Prescribing non-default
+    `temperature`/`top_p`/`top_k` — variety steering, `temperature = 0` determinism — publishes a
+    400. Fences: model-gated claims, SDK/config expressions (config-mechanics discriminator),
+    non-sampling senses of "temperature", meta discussion.
+  - **I26 — generic negative steering on open-ended design briefs** (unscoped; both guides'
+    "Design and frontend defaults" sections converge). Generic negatives shift the model to a
+    different fixed palette; remediation is a concrete spec or the propose-N-directions step — on
+    Sonnet 5 the documented variety mechanism now that `temperature` is not accepted. Concrete
+    enumerable negatives (the guides' own anti-slop snippet shape) stay sanctioned.
+  - **I17-d — tool reliance with thinking disabled and no explicit tool nudge** (Model scope:
+    `sonnet-5`; the coupling — "With thinking disabled, the model is less likely to reach for tools
+    or consider searching" — is stated only there; the Opus 4.8 guide states an uncoupled,
+    different default, recorded as the scope negative).
+
+### Changed
+
+- **`audit-instructions`: I8-e (forced interim-status cadence) unscoped — its own recheck trigger
+  fired.** The row shipped `sonnet-5`-scoped with the trigger "any second model guide stating the
+  claim"; the Opus 4.8 guide's "User-facing progress updates" section now states the claim
+  near-verbatim, so the promotion gate is met and the row fires for every target model. I8-d cedes
+  the cadence shape to I8-e fleet-wide (one finding per line) and keeps the remaining short-turn
+  shapes; the Fable 5 verified negative was re-verified 2026-08-08 and is retained as a reading,
+  no longer load-bearing for scope.
+- **`audit-instructions`: I8-b corroboration extended.** The Opus 4.8 guide states the same three
+  trigger phrases, coverage prompt, and concrete-bar remediation; recorded alongside the existing
+  Opus 5 + Sonnet 5 citations (gate was already met). "don't nitpick" appears nowhere in the
+  Opus 5 guide — re-verified 2026-08-08 against that guide's raw `.md`.
+- **`audit-instructions`: Sources list** gains the Opus 4.8 prompting guide and What's new in
+  Claude Sonnet 5; the migration-guide entry now also names the sampling-parameter ranges it
+  carries. Both SKILL.md catalog ranges updated to I26.
+
 ## [0.23.0]
 
 ### Added
