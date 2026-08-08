@@ -16,6 +16,11 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   are now spelled by the same command before they are compared. Normalizing harder could not have
   fixed it: the two inputs disagreed before the normalizer saw them.
 
+  Both spellings go through `builtin cd` / `builtin pwd`, extending the shadow discipline the
+  script already applies to its own directory resolution. An exported `cd` that returns success
+  without moving would otherwise resolve `$HOME` to the cwd, collapsing every corroborated non-git
+  project onto `$HOME` and stripping its project settings — the inverse failure, and a worse one.
+
 ## [0.27.1]
 
 ### Changed

@@ -217,7 +217,7 @@ if [[ -z "$PROJECT_ROOT" && -d "$PWD/.claude" ]]; then
   # CC-written projectPath records carry. A raw MSYS mount alias like /tmp
   # resolves to a different string than the record even after normalization,
   # so the native spelling is taken where the shell can produce it.
-  cwd_native=$(pwd -W 2>/dev/null) || cwd_native="$PWD"
+  cwd_native=$(builtin pwd -W 2>/dev/null) || cwd_native="$PWD"
   [[ -n "$cwd_native" ]] || cwd_native="$PWD"
   # Both sides of the $HOME comparison are spelled by `pwd -W`. Normalizing
   # `$HOME` as given compares a native path against whatever spelling the
@@ -229,8 +229,12 @@ if [[ -z "$PROJECT_ROOT" && -d "$PWD/.claude" ]]; then
   # comparable; normalizing harder cannot, since the two inputs disagree before
   # the normalizer sees them.
   home_norm=""
+  # `builtin` on both, matching this script's existing shadow discipline: an
+  # exported `cd` function that returns success WITHOUT changing directory would
+  # otherwise make home_native the cwd, so every corroborated non-git project
+  # would compare equal to $HOME and lose its project settings entirely.
   if [[ -n "${HOME:-}" && -d "$HOME" ]]; then
-    home_native=$(cd "$HOME" 2>/dev/null && { pwd -W 2>/dev/null || pwd; })
+    home_native=$(builtin cd "$HOME" 2>/dev/null && { builtin pwd -W 2>/dev/null || builtin pwd; })
     [[ -n "$home_native" ]] || home_native="$HOME"
     home_norm=$(hook::normalize_path "$(hook::physical_path "$home_native")")
   fi

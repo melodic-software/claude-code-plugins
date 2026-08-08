@@ -473,6 +473,46 @@ current_flag=$(jq -r '.installed[0].currentProject' <<<"$out" 2>/dev/null)
 assert_eq "home exclusion: \$HOME with .claude is user scope, not project context" "null" "$current_flag"
 
 # ============================================================================
+# Case: an exported `cd` function cannot collapse a real project onto $HOME.
+# The exclusion spells $HOME by changing into it, so a hijacked `cd` that
+# returns success WITHOUT moving would make $HOME resolve to the cwd — and
+# every corroborated non-git project would then compare equal to $HOME and
+# lose both its project settings and its currentProject marker. The resolution
+# uses `builtin cd`/`builtin pwd`, so the shadow is never consulted. Unlike the
+# exclusion case above, this one is load-bearing on every platform: the failure
+# is the shadow being honoured, not a path-spelling mismatch.
+# ============================================================================
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+proj_dir="$case_dir/real-project"
+fake_home="$case_dir/elsewhere-home"
+mkdir -p "$proj_dir/.claude" "$fake_home"
+write "$proj_dir/.claude/settings.json" '{"enabledPlugins":{"alpha@market1": true}}'
+# Native spelling, as the non-git-project case above derives it: a record built
+# from the MSYS path could never match what the script resolves, which would
+# make this case report `false` whether or not the shadow was honoured.
+proj_native=$(cd "$proj_dir" && (pwd -W 2>/dev/null || pwd))
+native_proj_path="${proj_native//\//\\}"
+write "$case_dir/installed_plugins.json" "$(
+  jq -cn --arg p "$native_proj_path" \
+    '{version: 1, plugins: {"alpha@market1": [{scope: "project", projectPath: $p, installPath: "x", version: "0.1.0"}]}}'
+)"
+write "$case_dir/known_marketplaces.json" '{"market1": {"source": {"source": "github", "repo": "example/market1"}, "installLocation": "z", "lastUpdated": "2026-01-01T00:00:00Z"}}'
+write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "alpha"}]}'
+write "$case_dir/user_settings.json" '{"enabledPlugins":{}}'
+out=$(
+  cd "$proj_dir" && env -u CLAUDE_PROJECT_DIR HOME="$fake_home" \
+    "BASH_FUNC_cd%%=() { return 0; }" \
+    FLEET_STATE_INSTALLED_JSON="$case_dir/installed_plugins.json" \
+    FLEET_STATE_MARKETPLACES_JSON="$case_dir/known_marketplaces.json" \
+    FLEET_STATE_USER_SETTINGS="$case_dir/user_settings.json" \
+    FLEET_STATE_CATALOG_DIR="$case_dir/catalog" \
+    bash "$SCRIPT" --marketplace market1 2>&1
+)
+current_flag=$(jq -r '.installed[0].currentProject' <<<"$out" 2>/dev/null)
+assert_eq "cd shadow cannot collapse a real project onto \$HOME" "true" "$current_flag"
+
+# ============================================================================
 # Case: --all sweeps every marketplace; one absent-catalog failure does not
 # abort the sweep
 # ============================================================================
