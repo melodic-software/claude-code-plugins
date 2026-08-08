@@ -5,6 +5,34 @@ All notable changes to the `context-guard` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.6]
+
+### Fixed
+
+- **The statusline shell-syntax guard no longer counts quoting as a trigger, so an operator's own
+  `sh -c '<command>'` renderer stops being wrapped in a second one.** 0.4.4 stopped the unwrap rules
+  from PEELING an `sh -c` the operator wrote themselves. The guard that decides whether to EMIT an
+  adapter still listed bare quoting among the syntax needing one, so the preserved renderer reached
+  it, matched on its own quote characters, and was printed back as
+  `sh -c 'sh -c '\''ulimit -n'\'''` — one more shell on every refresh, exactly the compounding the
+  peel rule exists to prevent. A faithful reading of the guard failed this skill's own eval 9.
+
+  Quoting was never a valid trigger. The `statusLine` `command` field "runs in a shell"
+  (<https://code.claude.com/docs/en/statusline>, fetched 2026-08-07), so that shell consumes the
+  quotes and hands words to `statusline-shim.sh`, which `exec`s them unchanged. A quoted argument —
+  and an operator's `sh -c '<string>'`, where `sh` is the executable and `-c` and the carried string
+  are two ordinary ARGV words — already survives the plain wrapped form intact. The trigger list is
+  now the syntax no ARGV word can express: an inline env assignment, a pipe, `&&`, `;`, or a
+  redirection. The two conditions that produced the double wrap are now mutually exclusive — the
+  peel rule preserves an `sh -c '<string>'` only when its carried string carries no shell syntax,
+  and such a renderer no longer matches the guard.
+
+- **`check` no longer reports a differing installed shim as harmless.** The report said an older or
+  hand-edited copy "still resolves the newest tee", which stopped being true when
+  `# shim-revision: 3` added the orphan skip: a copy predating it picks by mtime alone, so it also
+  resolves a tee left behind by an UNINSTALLED plugin and keeps teeing for the whole ~14-day grace
+  window. `check` now states which of the two behaviors the installed copy has.
+
 ## [0.4.5]
 
 ### Fixed

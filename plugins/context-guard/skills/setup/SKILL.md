@@ -186,10 +186,12 @@ zone bands, zones.json shape) are owned by
    }
    ```
 
-   Shell-syntax guard: the wrapped form passes the user's command as ARGV — it only works for
-   plain `executable arg…` commands. If the current command contains shell syntax (an inline env
-   assignment like `THEME=dark my-statusline`, a pipe, `&&`, `;`, or quoting), print the
-   shell-wrapped variant instead:
+   Shell-syntax guard: the wrapped form passes the user's command as ARGV — the shell that runs
+   the `statusLine` command splits the whole line into words and consumes its quotes, and the shim
+   `exec`s those words unchanged. It therefore only works for plain `executable arg…` commands. If
+   the current command carries shell syntax no ARGV word can express (an inline env assignment like
+   `THEME=dark my-statusline`, a pipe, `&&`, `;`, or a redirection), print the shell-wrapped variant
+   instead:
 
    ```json
    {
@@ -206,18 +208,12 @@ zone bands, zones.json shape) are owned by
    raw quotes left to fix. Verify your printed edit round-trips: mentally unquote it back and
    confirm it reproduces the original command byte-for-byte.
 
-   **Never adapt a renderer that is itself already `sh -c '<string>'`.** Rule 2 reached this step
-   having made one of two decisions, and neither one wants a second adapter:
-
-   - It PEELED a generated layer, so what arrives here is the recovered inner renderer. Judge that
-     on its own contents — adapt it if IT carries shell syntax, exactly as for any other renderer.
-   - It PRESERVED the operator's own `sh -c`, so that form arrives intact. It is already a plain
-     `executable arg…` command — `sh` is the executable, `-c` and the carried string are two
-     ordinary ARGV words — so it survives the wrapped form untouched, and its quote characters
-     delimit that one word rather than awaiting a shell. Substitute it VERBATIM into the plain
-     wrapped form above; its own quoting is not a reason to adapt it.
-
-   Adapting a preserved `sh -c` is what turns an operator's `sh -c 'ulimit -n'` into
+   **Quoting is not shell syntax for this test.** The shell running the `statusLine` command has
+   already consumed the quotes by the time the shim sees ARGV, so a quoted argument reaches the
+   renderer intact through the plain wrapped form. That covers an operator's own `sh -c '<string>'`,
+   the one shape rule 2 preserves: `sh` is the executable, `-c` and the carried string are two
+   ordinary ARGV words, so it is ALREADY a plain `executable arg…` command — substitute it VERBATIM.
+   Counting its quotes as a trigger is what turns an operator's `sh -c 'ulimit -n'` into
    `sh -c 'sh -c '\''ulimit -n'\'''` — one more shell on every refresh, and the same compounding
    rule 2 exists to prevent.
 

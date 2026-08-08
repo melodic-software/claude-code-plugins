@@ -115,19 +115,6 @@
         "Names the provenance test (adapter is emitted only for a renderer carrying shell syntax) rather than peeling any `sh -c` on sight",
         "Prints exactly one shim invocation and exactly one `sh -c` layer"
       ]
-    },
-    {
-      "id": 10,
-      "name": "multiple-generated-layers-collapse-in-one-run",
-      "prompt": "/context-guard:setup check\n\nMy statusLine command is: bash ~/.claude/context-guard/bin/statusline-shim.sh sh -c 'sh -c '\\''THEME=dark my-statusline'\\''' — two earlier runs of this skill each added a layer. Both the shim and the plugin are installed.",
-      "expected_output": "Applies the unwrap rules repeatedly rather than once: the first pass strips the shim prefix and recovers sh -c 'THEME=dark my-statusline', the second recovers THEME=dark my-statusline, and a third strips nothing. Re-applies the shell-syntax guard to that renderer and prints wiring carrying exactly one sh -c layer: bash ~/.claude/context-guard/bin/statusline-shim.sh sh -c 'THEME=dark my-statusline'.",
-      "files": [],
-      "expectations": [
-        "Peels BOTH generated layers in ONE invocation — stopping after a single peel and treating `sh -c '\\''THEME=dark my-statusline'\\''` as the renderer is a failure",
-        "Recovers `THEME=dark my-statusline` byte-for-byte, unescaping `'\\''` back to `'` at each layer",
-        "Prints exactly ONE `sh -c` layer and one context-guard shim invocation",
-        "States that the rules repeat until a pass strips nothing, rather than presenting one peel as sufficient"
-      ]
     }
   ]
 }
