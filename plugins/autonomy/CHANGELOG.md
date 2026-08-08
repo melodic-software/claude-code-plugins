@@ -28,11 +28,24 @@ merged work-package PRs (#333, #343, #356, #372, #377, #600, #676).
   fetched 2026-08-08). Copying the upstream text would have violated this repository's own rule
   against hand-copying upstream content; the file carries the pointer and a recheck trigger instead.
 
+  **The block is internally consistent about the two things it is easiest to get wrong**, both
+  caught in review of the first draft. An action being visible outside the working tree does not by
+  itself make it one to ask about — the pause test is irreversibility, an outward action the request
+  did not ask for, a scope change, or user-only input, so authorizing "opening a draft" no longer
+  contradicts the pause clause. And naming further work is a *report* once the run is complete but a
+  *deferral* mid-run, so the enumerated shape is now "a mid-run offer to do work already within this
+  run's scope" rather than any offer at all; the discriminator is whether the run is over, stated in
+  the block itself.
+
   **Two boundaries ship with it**, because an artifact that reads as universally applicable would be
   applied where it does damage. An **attended** lane deliberately does not carry the reminder —
   "recommend, then wait for my direction" is the opposite posture, and pasting the block into one
   converts a working human-in-the-loop review into an agent acting on its own recommendations, which
-  is why this repository's two-of-three lane split is the contract rather than an inconsistency. And
+  is why this repository's two-of-three lane split is the contract rather than an inconsistency. **No
+  lane references this file**, and the reference says so rather than implying otherwise: launch
+  prompts are pasted into a terminal that may have no plugin installed, so they stay self-contained
+  by design. The clauses previously existed only as prose duplicated across two launch surfaces and
+  reusable by nobody, which is the gap this file closes. And
   the `lane-stop-gate` hook mechanizes exactly **one** clause: it performs no content classification
   beyond its literal sentinel check, so it cannot tell a blocked-on-user stop from a lazy one, and
   every other clause is carried by instruction alone. That scope is now stated in the hook's own

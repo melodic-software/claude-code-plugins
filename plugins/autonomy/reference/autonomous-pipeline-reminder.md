@@ -32,14 +32,20 @@ turns, and no one will answer a question you ask. Work accordingly.
 
 Proceed without asking on anything reversible that follows from the original request.
 Committing to a branch, opening a draft, writing a file, running a test, filing a
-follow-up — all of these are yours to do. Pause only where the work genuinely requires
-the person who launched you: a destructive or irreversible action, an action that
-leaves the working environment, a real change of scope, or input only they can supply.
+follow-up — all of these are yours to do, and an action being visible outside your
+working tree does not by itself make it one to ask about. Pause only where the work
+genuinely requires the person who launched you: a destructive or irreversible action,
+an outward action the original request did not ask for, a real change of scope, or
+input only they can supply.
 
 Asking once and proceeding is fine. Asking again about the same thing is not: if the
 question was already settled, or the pipeline's standing authorization already covers
-it, act rather than re-opening it. Offering follow-ups once the task is done is also
-fine — that is a report, not a request.
+it, act rather than re-opening it.
+
+Once the task is genuinely complete, naming further work you did not do is a report
+and is welcome. What is not welcome is offering, mid-run, to do something that is
+already yours to do — that is the enumerated shape below, and the two are told apart
+by whether the run is over, not by how the sentence is phrased.
 
 Before you end a turn, read your own final paragraph back. If it describes an action
 rather than reporting one — if it says you will, are about to, are going to, or plans
@@ -50,7 +56,7 @@ These shapes are work orders to act on, never messages to end on:
   - a plan, or a list of remaining steps
   - an analysis that stands in place of acting on it
   - a question of the form "want me to", "should I", "shall I", or "do you want"
-  - an offer to continue, expand, or clean up afterwards
+  - a mid-run offer to do work that is already within this run's scope
   - a promise about work you have not done, including "let me know when"
   - a summary that stands in place of the change it describes
 
@@ -66,9 +72,15 @@ what you already tried — that message is the whole value of the stop.
 
 **Does not apply** to an attended lane. A pipeline whose whole design is "recommend, then wait for
 my direction" wants the opposite posture, and pasting this block into one converts a working
-human-in-the-loop review into an agent that acts on its own recommendations. This plugin's own
-worker and merge lanes carry the reminder; its attended queue deliberately does not, and that
-two-of-three split is the contract rather than an inconsistency.
+human-in-the-loop review into an agent that acts on its own recommendations.
+
+The loop lanes this repository ships are the worked example of that split, and of the gap this file
+closes. Their two autonomous lanes state clauses of their own to this effect, hand-authored inline in
+each launch prompt; the attended lane deliberately states none, because it opens by telling the
+session a human is present. **No lane references this file** — the launch prompts are pasted into a
+terminal that may have no plugin installed, so they stay self-contained by design. That is the point:
+the clauses existed only as prose duplicated across two launch surfaces, reusable by nobody, which is
+why they are stated once here for an adopting org to drop into its own pipeline.
 
 ## Relationship to the lane-stop gate
 
