@@ -470,8 +470,9 @@ cause Claude to make mistakes?' If not, cut it," and "If Claude already does som
 without the instruction, delete it or convert it to a hook"
 ([best-practices](https://code.claude.com/docs/en/best-practices), verified 2026-08-08). Anthropic
 applied the same doctrine to Claude Code itself, removing over 80% of its system prompt for the
-Opus 5 / Fable 5 generation with no measurable loss on its coding evaluations (Anthropic blog,
-"new rules of context engineering", claude.com/blog, verified 2026-08-08). Four rules follow:
+Opus 5 / Fable 5 generation with no measurable loss on its coding evaluations
+([The new rules of context engineering for Claude 5 generation models](https://claude.com/blog/the-new-rules-of-context-engineering-for-claude-5-generation-models),
+verified 2026-08-08). Four rules follow:
 
 - **Evidence-gated additions.** A new standing instruction requires observed, repeated stumble
   evidence against the current model — the same failure seen more than once — never anticipation

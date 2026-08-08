@@ -52,7 +52,15 @@ repeatedly stumbles on the same thing, and the re-added line cites the evidence.
 ## State
 
 `${CLAUDE_PLUGIN_DATA}/unhobble/<experiment-id>/` where `<experiment-id>` is
-`<repo-basename>-<model-version>-<YYYYMMDD>`:
+`<repo-basename>-<model-version>-<YYYYMMDD>-<nonce>` (a short random suffix minted at snapshot).
+The basename is a convenience label, not the identity: `${CLAUDE_PLUGIN_DATA}` is machine-global,
+so two checkouts sharing a basename (a fork, a same-named worktree) running the same model on the
+same day would otherwise resolve to one directory and cross-restore each other's settings. The
+manifest therefore records the canonical checkout identity — the resolved absolute worktree path
+and, when a remote exists, the origin URL — and every later phase verifies it matches the current
+checkout before acting; a mismatch aborts with the conflicting path named. `snapshot` never reuses
+an existing experiment directory: a fresh run mints a fresh id, and resuming an open experiment
+means passing its phase commands from inside the same checkout its manifest names.
 
 - `manifest.json` — every surface found, its classification (`behavioral` | `policy` | `convention`),
   what was stripped, how to restore it (path, restore mechanism, backup location), branch name,
@@ -70,9 +78,16 @@ repeatedly stumbles on the same thing, and the re-added line cites the evidence.
 2. Inventory the live project instruction surfaces (the same liveness discipline as
    `audit-instructions` Phase A, lighter: what actually loads in a session here, not what is merely
    on disk). Record line counts per surface.
-3. Classify each hook and each rule: `policy` (enforces team/safety policy regardless of model —
-   kept), `behavioral` (corrects or scaffolds model behavior — stripped), `convention` (team
-   conventions in git — operator's call, default kept per the official carve-out).
+3. Classify **every surface the strip plan will touch** — hooks, rules, instruction files
+   (CLAUDE.md / CLAUDE.local.md, `.claude/skills/`, `.claude/agents/`), and project-enabled
+   plugins alike: `policy` (enforces team/safety policy regardless of model — kept), `behavioral`
+   (corrects or scaffolds model behavior — stripped), `convention` (team conventions in git —
+   operator's call, default kept per the official carve-out). Classification is per unit that
+   Phase 2 acts on: a hook entry, a rule file, a skill, an agent, a plugin. A **mixed** instruction
+   file — a CLAUDE.md carrying both convention sections and behavioral lines is the common case —
+   is not classified whole: split it in the strip plan, naming which sections are stripped and
+   which are preserved (extracted to a retained file or left in place), so the convention
+   carve-out holds at section granularity rather than being deleted wholesale with the file.
 4. Write `manifest.json`; present the strip plan (what goes, what stays and why) and stop for
    confirmation.
 
@@ -80,8 +95,11 @@ repeatedly stumbles on the same thing, and the re-added line cites the evidence.
 
 Apply the confirmed strip plan:
 
-- Tracked instruction files: `git rm` / `git mv` on the experiment branch (one commit, message
-  `experiment: strip instruction surfaces for unhobble baseline`).
+- Tracked instruction files: per the plan's per-file (and, for mixed files, per-section)
+  classification — `git rm` / `git mv` a file classified behavioral whole; for a mixed file,
+  remove the behavioral sections and keep the convention sections in place or in an extracted
+  retained file. One commit, message
+  `experiment: strip instruction surfaces for unhobble baseline`.
 - Project-settings hook entries classified `behavioral`: back up the settings file to `backups/`,
   remove the entries, record the exact JSON paths removed in the manifest.
 - Project-enabled plugins: record the current enabled set in the manifest, then disable the ones
