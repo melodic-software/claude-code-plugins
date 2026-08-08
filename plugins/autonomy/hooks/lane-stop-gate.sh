@@ -157,13 +157,16 @@ GATE_ARM_JSON=""
 #
 # FAIL DIRECTION, unchanged: a store this hook cannot write leaves no claim file
 # at all and the arm is HONORED. Being gated is never the harm here; the harm is
-# a legitimate lane silently losing its gate. Two reads share that direction —
-# the existence recheck that tells "another session claimed it" apart from "the
-# store is unwritable" is itself racy, and a claim file that exists but yields
-# no owner (unreadable, or read in the instant between the exclusive create and
-# its write) honors as well. Both cost at most one extra gated stop for one
-# event: the persisted binding still names exactly one session, so every later
-# stop resolves to it.
+# a legitimate lane silently losing its gate. Two more reads share that
+# direction — the existence recheck that tells "another session claimed it"
+# apart from "an unwritable store" is itself racy, and a claim that exists but
+# yields no owner honors as well. Read in the instant between the exclusive
+# create and its write, that costs one extra gated stop and the binding that
+# lands still names one session. Durably ownerless — a create that won whose
+# write never landed — or a durably unwritable store honors every presenter for
+# as long as it lasts: the same unbounded over-gating a failed claim write
+# already produced before this change, in the same direction. An extra nudge,
+# never an ungated lane.
 #
 # The comparison runs on a newline-stripped session id so the value written and
 # the value read back are the same shape whatever the payload carried.
