@@ -19,12 +19,6 @@ All notable changes to the `miro` plugin are documented here. Format follows
   the same correction 0.21.2/0.17.2/0.3.1 landed for `claude-ops`, `session-flow`, and
   `rate-limit-guard`.
 
-### Changed
-
-- Plugin manifest only. The bundled MCP server carries no change in this release, so
-  `package.json`, the server's MCP `Implementation` version, the lockfile, and the committed bundle
-  stay at `0.2.2` rather than advertising a server build that is byte-identical to the last one.
-
 ## [0.2.2]
 
 ### Added

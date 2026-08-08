@@ -59,10 +59,11 @@ claude plugin enable miro -s <scope>
 
 Both placeholders are bootstrap inputs, not lookups: before the first install there is no record
 to read them from. `<marketplace>` is the name the catalog registers under when it is added, and
-`<scope>` is the scope the bootstrap chooses — `user`, `project`, or `local`; every command
-defaults to `user` when the flag is omitted. Carry the same `<scope>` through all three. Note the
-asymmetry: `marketplace add` spells it `--scope` only, while `install` and `enable` also accept the
-`-s` short form. Registering at `user` while installing at `project` leaves the marketplace
+`<scope>` is the scope the bootstrap chooses — `user`, `project`, or `local`; `marketplace add`
+and `install` default to `user` when the flag is omitted, while `enable` auto-detects. Carry the
+same `<scope>` through all three. Note the asymmetry: `marketplace add` spells it `--scope` only,
+while `install` and `enable` also accept the `-s` short form. Registering at `user` while
+installing at `project` leaves the marketplace
 declaration out of the project's checked-in settings, so a fresh clone or CI agent carries the
 enabled plugin with no registered marketplace to resolve it from.
 
@@ -85,10 +86,10 @@ claude plugin enable miro -s <scope>
 ```
 
 Never re-run `install --config` against an existing install expecting it to take effect. Read the
-scope from `claude plugin list` and carry that SAME `-s <scope>` through all three commands — they
-default to `user`, so omitting it against a `project`- or `local`-scope install removes a
-different record than the one that is loading and reinstalls at a scope that does not load,
-leaving the old token in use. For a `project`- or `local`-scope install, run every command from
+scope from `claude plugin list` and carry that SAME `-s <scope>` through all three commands —
+`uninstall` and `install` default to `user` and `enable` auto-detects, so omitting it against a
+`project`- or `local`-scope install removes a different record than the one that is loading and
+reinstalls at a scope that does not load, leaving the old token in use. For a `project`- or `local`-scope install, run every command from
 that project directory, since those scopes resolve against the current project.
 
 `-y` only skips `uninstall`'s `--prune` confirmation; this recipe never passes `--prune`, so `-y`
