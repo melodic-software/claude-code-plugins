@@ -181,9 +181,15 @@ repo-specific policy of their own:
   placeholders, `tests/fixtures` / `tests/testdata` trees, `settings.local.json`,
   `CLAUDE.local.md`, and hook scripts.
 - **CLI-flag tuning.** `cli-flag-verify` checks a default binary set
-  (`claude gh dotnet docker npm kubectl terraform az aws`); override with the
+  (`claude gh dotnet docker kubectl terraform az aws`); override with the
   `cli_flag_verify_bins` option (`bin1,bin2,…`) and skip specific binaries
-  with `cli_flag_verify_skip_bins`.
+  with `cli_flag_verify_skip_bins`. `npm` is **excluded by default**, alongside
+  `git` and `npx`: every npm config key is a flag on every subcommand
+  (`npm <command> --key=value`), so per-subcommand `--help` is non-exhaustive by
+  design and the authoritative list (`npm config ls -l`) prints `prefix = "…"`
+  rather than `--prefix` — a generic `--help` parser cannot consume it, and
+  verifying against one produces false "unknown flag" findings. Re-add it with
+  `cli_flag_verify_bins` if your project wants it checked anyway.
 - **Hook-manager prefixes.** `block-no-verify` reads its recognized
   hook-manager disable-env-var prefixes from `block_no_verify_hook_manager_prefixes`
   (comma list, default `lefthook, husky, pre_commit, simple_git_hooks`). Add a
