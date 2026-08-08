@@ -4,6 +4,18 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.7.1]
+
+### Added
+
+- **`fable-5`: model-adaptation chapters made discoverable from the skill listing** (issue #1996
+  decision d). The skill description now names the per-model adaptation chapters (Opus 5,
+  Opus 4.8, Sonnet 5) with Opus 5 trigger phrases — previously the chapters were reachable only
+  through a skill whose listing entry never mentioned them, so an Opus 5 consumer who had not
+  read the plugin docs could not find them. Description stays well under the documented
+  1,536-character listing truncation (verified against the Skills doc this session); aggregate
+  listing budget re-checked (1,801/8,000 chars).
+
 ## [0.7.0]
 
 ### Changed
