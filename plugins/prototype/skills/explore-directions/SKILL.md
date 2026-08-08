@@ -129,6 +129,12 @@ Constraints:
   so do not delete it — it must still be readable when they open it.
 - **Markdown captures the answer.** Copy the winning-variant key and notes into your durable
   answer (per the shared discipline); the HTML is throwaway.
+- **Each variant declares its visual direction.** The mockup has no project styling system to
+  inherit, so with no declared direction every variant renders in one default house aesthetic.
+  Before writing a variant, state its direction — background hex, accent hex, typeface, one-line
+  rationale — and make it differ from its siblings on that axis as well as structurally. Generic
+  steering ("make it clean") only swaps one fixed palette for another; a concrete per-variant
+  declaration is what produces variety.
 
 ## Process
 
@@ -148,10 +154,13 @@ Each variant must respect:
 - The project's component library / styling system
 - A clear exported component name (`VariantA`, `VariantB`, `VariantC`)
 
-**Variants must be structurally different** — different layout, different information hierarchy,
-different primary affordance. Not just different colors. Three slightly-tweaked card grids isn't a
-UI prototype, it's wallpaper. If two drafts come out too similar, redo one with an explicit
-constraint ("do not use a card grid").
+**Variants must be structurally different and visually distinct** — different layout, different
+information hierarchy, different primary affordance; a recolor alone is not a variant. Three
+slightly-tweaked card grids isn't a UI prototype, it's wallpaper. Structure is the floor, not the
+whole exercise: on the real stack the project's styling system carries the visual axis, and where
+it leaves room (and always on the HTML mockup substrate) each variant also declares its own visual
+direction rather than sharing one default aesthetic. If two drafts come out too similar, redo one
+with an explicit constraint ("do not use a card grid").
 
 ### 3. Wire them together
 
@@ -193,7 +202,7 @@ Don't leave variant components or the switcher lying around. They rot fast.
 ## Anti-patterns
 
 - **Variants differing only in color or copy.** That's a tweak, not a prototype. Real variants
-  disagree about structure.
+  disagree about structure — and then differ visually on top of it, not instead of it.
 - **Sharing too much code between variants.** A shared `<Header>` is fine; a shared `<Layout>`
   defeats the point. Each variant should be free to throw out the layout.
 - **Wiring variants to real mutations.** Read-only prototypes are fine. Stub mutations — the

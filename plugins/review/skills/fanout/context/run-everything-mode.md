@@ -63,16 +63,26 @@ const TIER2_AGENTS = [
 ]
 const TIER2_SLICES = OWNERLESS_SLICES.map(s => ({ label: 'slice:' + s, slice: s }))
 
+// SKILL.md "Dispatch contract": every finding-producing leaf prompt carries this clause verbatim.
+const COVERAGE_CLAUSE =
+  ' Your goal at this stage is coverage: it is better to surface a finding that later gets filtered ' +
+  'out than to silently drop a real bug. Report every issue you find, including ones you are ' +
+  'uncertain about or consider low-severity. Do not filter for importance or confidence at this ' +
+  'stage — a separate normalization pass deduplicates and ranks findings downstream. For each ' +
+  'finding, include your confidence level (high / medium / low) and an estimated severity.'
+
 const AGENT_PROMPT =
   'Review the current change set. Run `git diff ' + REVIEW_DIFF + '` yourself to see the changes, plus ' +
   '`git ls-files --others --exclude-standard` for untracked files. Read the project review criteria and ' +
-  'conventions relevant to your concern when present. Report findings in your normal output format.'
+  'conventions relevant to your concern when present. Report findings in your normal output format.' +
+  COVERAGE_CLAUSE
 
 function slicePrompt(slice) {
   return 'Read the project review criteria document "' + slice + '". Run `git diff ' + REVIEW_DIFF + '` ' +
     'yourself to see the changes. Review the diff against ONLY that document\'s criteria. List each finding ' +
-    'with file:line, a severity tier, and a one-line description. If the diff does not touch this concern, ' +
-    'reply "No findings for ' + slice + '."'
+    'with file:line, a severity tier, a confidence level (high / medium / low), and a one-line description. ' +
+    'If the diff does not touch this concern, reply "No findings for ' + slice + '."' +
+    COVERAGE_CLAUSE
 }
 
 phase('Review')

@@ -3,7 +3,7 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.22.1]
+## [0.25.1]
 
 ### Fixed
 
@@ -67,6 +67,180 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   mid-run on a bare `command not found` rather than on a named prerequisite. Only
   `conflict-scan.sh` probes and `exit 2`s. Both surfaces now name all three skills, and the README's
   requirements section names `awk` and `sort` alongside `jq` and `curl`.
+
+## [0.25.0]
+
+### Added
+
+- **`audit-instructions`: new catalog row I27 — effort lowered to shorten the response** (criteria
+  1.18.0 → 1.19.0; issue #1996 decision b). Detects instruction text premising response brevity on
+  a lower effort level — a misconception both the Opus 5 prompting guide and the effort page's
+  Opus 5 section refute ("lowering effort can reduce thinking volume without reliably shortening
+  the visible response"). `Model scope: opus-5` (both statements are model-qualified; promotion
+  gate unmet, with the unscope trigger recorded on the row). Seeded by a new `instruction-scan.sh`
+  I27 family (an effort-lowering directive and a brevity token required on one line; regression cases
+  added) with cost/latency-ground, length-instruction-only, audience-test, and config-value
+  fences; both statements verified against the live pages 2026-08-08 (guide raw-`.md`
+  byte-identical to the 2026-07-25 corpus capture).
+
+### Changed
+
+- **`audit-instructions`: family-alias abort now suggests the normalized token** (issue #1996
+  decision e). The fail-loud abort on a version-ambiguous `--target-model`/settings value (e.g. a
+  bare `opus` pin) still refuses to guess, and now ALSO names the normalized version token the
+  alias currently resolves to per the live model-config docs as a suggested `--target-model`
+  value the user confirms — turning the dead-end abort into a one-confirmation retry without
+  weakening the never-guess contract.
+
+### Fixed
+
+- **`audit-instructions`: stale check-range in `evals/evals.json`** — the memory-layer eval still
+  said "I6-I16" (predating I17–I22) and credited `--opinion` gating to I16 alone; now "I6-I27"
+  with the current `OPINION`-gated set (I16, I19, I22).
+
+## [0.24.0]
+
+### Added
+
+- **`audit-instructions`: four checks from the Sonnet 5 and Opus 4.8 prompting guides**
+  (catalog 1.18.0). Every behavioral claim was verified 2026-08-08 against the raw-`.md` channel of
+  its source page, with byte sizes and MD5 stamps recorded per row:
+  - **I24 — instruction relying on silent generalization** (unscoped; gate met by the two guides'
+    "More literal instruction following" sections, whose Detect sentences are stated
+    verbatim-identically). Flags text demonstrating one instance where a whole class is meant — a
+    worked example standing in for a rule, an undecidable "etc." tail, a single item named inside
+    an iterating procedure, an unstated per-item iteration — and proposes explicit scope
+    statements. Additive, so the stopping condition does not bind it.
+  - **I25 — sampling parameter prescribed where the model rejects it** (unscoped; range as Detect
+    condition: Opus 4.7 or later, Sonnet 5, Fable 5, and Mythos 5 — the Fable/Mythos arm carries
+    over from Opus 5 per the migration guide). Prescribing non-default
+    `temperature`/`top_p`/`top_k` — variety steering, `temperature = 0` determinism — publishes a
+    400. Fences: model-gated claims, SDK/config expressions (config-mechanics discriminator),
+    non-sampling senses of "temperature", meta discussion.
+  - **I26 — generic negative steering on open-ended design briefs** (unscoped; both guides'
+    "Design and frontend defaults" sections converge). Generic negatives shift the model to a
+    different fixed palette; remediation is a concrete spec or the propose-N-directions step — on
+    Sonnet 5 the documented variety mechanism now that `temperature` is not accepted. Concrete
+    enumerable negatives (the guides' own anti-slop snippet shape) stay sanctioned.
+  - **I17-d — tool reliance with thinking disabled and no explicit tool nudge** (Model scope:
+    `sonnet-5`; the coupling — "With thinking disabled, the model is less likely to reach for tools
+    or consider searching" — is stated only there; the Opus 4.8 guide states an uncoupled,
+    different default, recorded as the scope negative).
+
+### Changed
+
+- **`audit-instructions`: I8-e (forced interim-status cadence) unscoped — its own recheck trigger
+  fired.** The row shipped `sonnet-5`-scoped with the trigger "any second model guide stating the
+  claim"; the Opus 4.8 guide's "User-facing progress updates" section now states the claim
+  near-verbatim, so the promotion gate is met and the row fires for every target model. I8-d cedes
+  the cadence shape to I8-e fleet-wide (one finding per line) and keeps the remaining short-turn
+  shapes; the Fable 5 verified negative was re-verified 2026-08-08 and is retained as a reading,
+  no longer load-bearing for scope.
+- **`audit-instructions`: I8-b corroboration extended.** The Opus 4.8 guide states the same three
+  trigger phrases, coverage prompt, and concrete-bar remediation; recorded alongside the existing
+  Opus 5 + Sonnet 5 citations (gate was already met). "don't nitpick" appears nowhere in the
+  Opus 5 guide — re-verified 2026-08-08 against that guide's raw `.md`.
+- **`audit-instructions`: Sources list** gains the Opus 4.8 prompting guide and What's new in
+  Claude Sonnet 5; the migration-guide entry now also names the sampling-parameter ranges it
+  carries. Both SKILL.md catalog ranges updated to I26.
+
+## [0.23.0]
+
+### Added
+
+- **I23 — context-budget directive to stop, summarize, or hand off** (criteria 1.16.0 → 1.17.0).
+  Tier `behavioral`, `Model scope: fable-5` with the promotion gate unmet, carrying the four-part
+  stamp plus a **verified negative**: both sibling guides were fetched as raw markdown and searched,
+  and neither states the claim.
+  - Detects instruction text telling the model to watch its own remaining context and stop,
+    summarize, hand off, or trim its work on that basis, and injected hook output surfacing a
+    remaining-context count where the surface could avoid it. The guide names the count as the usual
+    trigger, so the disclosure and the directive are one subject; the row tracks the guide's "where
+    possible" hedge rather than reading it as an absolute.
+  - The discriminator is who decides, on what evidence: a directive tells the model to judge its own
+    window, a mechanism resolves the window from an instrumented signal and acts itself. **A hook
+    that injects an exit menu stays in scope** however well instrumented its trigger, because the
+    measurement decides only when to ask and the model still decides whether to stop — the injection
+    manufactures the initiative rather than replacing it. A `PreToolUse` deny is the contrast that
+    fixes the line.
+  - Fenced against a measured-signal mechanism, a user-invoked continuation skill (including a router
+    falling back to its own judgement when no instrument is available), a routing condition that
+    sizes an artifact rather than abandoning the work, a budget rendered to the operator, and a
+    document about the pattern. A playbook stating the counter-steer is exempt on **polarity** rather
+    than audience — it instructs the opposite of Detect, so it never satisfies Detect at all.
+  - No pre-scan pattern is seeded, and the row says why in its own terms rather than borrowing
+    I8-e's: an unfenced true positive is attested, so this row waits on calibration of the threshold
+    and window-position phrasings, not on an instance. The blast radius is the reason that
+    calibration is owed first — a continuation skill can barely be model-invocable without naming a
+    context trigger somewhere, and one such trigger lives in a `description`, which is resident
+    whenever the listing admits it.
+- **A section covering `effort:` and `model:` frontmatter on skills and agents** in
+  `skills/audit/reference/audit-checklist.md`, category H. This closes a seam between two skills
+  this plugin ships: I21 in the instruction-audit catalog explicitly hands frontmatter pins to
+  `claude-config:audit`, and that skill's category H read only `settings.json` keys — so a component
+  pinning an effort level was reached by neither, each pointing at the other. The rows report a
+  missing re-derivation rather than a preferred level, exempt a pin at the resolved model's own
+  default, and carry a dated stamp for the claim that a definition's `effort` overrides the session
+  level.
+
+### Changed
+
+- **The catalog states an admission rule.** A row's observable must be **anchored to** text that is
+  present: a check detects a passage a surface contains — what it says, or an attribute it lacks
+  while saying it — and an obligation anchored to no passage at all is refused on shape rather than
+  weighed on its source. Integrating one model guide raised that question at four separate sections
+  and answered it four times by hand; the rule now settles it once, and requires an audit declining a
+  row on this ground to name where the guidance routed instead — doctrine or a mechanism — so "no
+  row" never reads as "not covered".
+  - **The line is the anchor, not the polarity of the sentence.** I6 (a prohibition carrying no
+    rationale marker) and I7 (a request stating no motivation) are both worded as absences and both
+    admissible, because each names a line a reader can point at. A rule tested on polarity would have
+    refused two shipped rows, which is what an adversarial pass on this change caught before merge.
+- **I8's base row now cites the general principle, not only the migration framing.** Both of its
+  sources sat in sections about migrating older material, which pointed an auditor at what looks
+  like leftover prior-model scaffolding and past freshly authored over-enumeration — the same defect
+  with no legacy provenance to recognize it by. The row now also cites "Strong instruction
+  following", where the principle is stated on its own, and says plainly that age is not an element
+  of the check.
+- **I8-a records the second-guide corroboration for its independence carve-out.** Read without it,
+  the Opus 5 guide ("remove verification instructions") and the Fable 5 guide ("make
+  self-verification explicit", "separate, fresh-context verifier subagents tend to outperform
+  self-critique") look contradictory, and a reader had to resolve that alone. They are not: the
+  anti-pattern is the instructed *self*-check, and the architected independent verifier is what the
+  Fable 5 guide is asking for. The scope annotation does not move — the gate wants a second guide
+  stating this row's *detection* claim, and the Fable 5 guide states no such thing.
+- **New `unhobble` skill — the empirical bare-baseline experiment.** Reversibly strips a project's
+  standing instruction surfaces (CLAUDE.md, rules, behavioral hooks, skills, enabled plugins) on a
+  dedicated experiment branch, has the operator work normally against the bare model while logging
+  observed stumbles to a ledger, then re-adds only instructions with repeated same-cause evidence —
+  each restore citing its ledger rows. Policy-classified hooks and managed settings are never
+  stripped; every mutation is human-gated; state persists under `${CLAUDE_PLUGIN_DATA}/unhobble/`
+  for resume. The canonical trigger is a frontier model release. Operationalizes the
+  delete-and-re-add doctrine from official best-practices ("Would removing this cause Claude to
+  make mistakes? If not, cut it") and Anthropic's own 80% system-prompt reduction for the
+  Opus 5 / Fable 5 generation; `audit-instructions` remains the static text-vs-doctrine
+  counterpart and receives routed rewrite judgments. Tracked-file stripping is delete-with-net
+  (`git rm` on the experiment branch) rather than in-place disable — a deliberate choice: git is
+  the restore mechanism, and a renamed-but-present file could still be read.
+
+## [0.22.1]
+
+### Fixed
+
+- **`audit-instructions`: three precision fixes from a conformance audit of the catalog against
+  its own sources** (criteria 1.16.0 → 1.16.1). `instruction-scan.sh`'s header comments still
+  described all three I8 pattern families as "Opus-5-scoped catalog rows" — stale since I8-b's
+  promotion to unscoped; the comments now state the split (I8-a/I8-c scoped, I8-b unscoped).
+  I8-a's Detect line truncated the guide's trigger phrase ("include a final verification step"
+  → the guide's "include a final verification step for any non-trivial task"). I8-b's opening
+  claimed the Sonnet 5 guide states the same claim "about the same three trigger phrases" while
+  its own Source paragraph concedes "don't nitpick" appears nowhere in the Opus 5 guide; the
+  annotation now matches its Source (two shared phrases, third's provenance in the Source line).
+- **`audit-instructions`: the normalized version token's grammar is now stated.** SKILL.md's
+  resolution ladder said to normalize alias → version "against the live model-config docs" but
+  never defined the token shape those docs do not publish; the ladder now names the local
+  grammar (lowercase family-hyphen-version, e.g. `opus-5`) so a consumer resolving a full model
+  name or alias lands on the exact string the catalog's `Model scope` annotations match against.
 
 ## [0.22.0]
 

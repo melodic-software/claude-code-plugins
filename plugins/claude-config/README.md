@@ -1,7 +1,8 @@
 # claude-config
 
-A Claude Code plugin bundling five audit skills for one cohesive capability: keeping a repo's Claude
-Code configuration healthy. Each skill answers a different question about the same surface:
+A Claude Code plugin bundling six configuration-health skills (plus a `setup` skill) for one
+cohesive capability: keeping a repo's Claude Code configuration healthy. Each skill answers a
+different question about the same surface:
 
 | Skill | Question it answers |
 |---|---|
@@ -10,6 +11,7 @@ Code configuration healthy. Each skill answers a different question about the sa
 | `/claude-config:audit-permission-grants` | Are the permission GRANTS (`allowed-tools`, `permissions.allow`) portable and durable — do they survive auto mode, work across machines, and live where they can take effect? |
 | `/claude-config:audit-instructions` | Are the INSTRUCTIONS you wrote (CLAUDE.md, rules, skill bodies, agents, hooks, output styles) still earning their context cost against current model capability, or is prior-model scar tissue holding the model back? |
 | `/claude-config:audit-pass` | Can all of that run as ONE ordered, resumable pass over a named target — every scope inventoried before any check, one reconciled findings artifact, one human gate — instead of several separate runs whose results nobody reconciles? |
+| `/claude-config:unhobble` | What does the CURRENT MODEL actually still need — measured, not reasoned: reversibly strip the project's standing instructions to a bare baseline, log real stumbles, and re-add only what the evidence earns back? |
 
 The instruction/memory-layer *hygiene* question (is `CLAUDE.md` too long, well-placed, free of
 inferable content) is owned by the `audit` skill in the separate `claude-memory` plugin;
@@ -117,6 +119,28 @@ The target is the active project root, and a `target` argument naming anything e
 delegated skills accept no target of their own, so a run pointed elsewhere would report that path
 while every delegated finding came from the active project. Audit another repository by opening it
 as the project.
+
+### unhobble
+
+The empirical counterpart to `audit-instructions`: instead of judging instruction *text* against
+doctrine, it measures the *model* against the repo with the instructions gone. Four resumable
+phases: **snapshot** (inventory the live project surfaces on a dedicated experiment branch, classify
+hooks policy-vs-behavioral), **bare** (reversibly strip the behavioral tier — tracked files via git,
+settings entries via manifest-recorded backups; policy gates and managed settings are never
+touched), **observe** (work normally in fresh sessions, logging real stumbles to a ledger), and
+**readd** (restore only instructions with at least two same-cause ledger rows, each restore citing
+its evidence; everything else stays deleted, with git history as the archive). The canonical trigger
+is a frontier model release — instructions written for the previous generation are the experiment's
+subject. Human-gated at every mutation; state persists under `${CLAUDE_PLUGIN_DATA}` for resume.
+
+```shell
+/claude-config:unhobble            # guided full flow
+/claude-config:unhobble snapshot   # inventory + classify + strip plan
+/claude-config:unhobble bare       # apply the confirmed strip plan
+/claude-config:unhobble observe    # ledger instructions for the observation window
+/claude-config:unhobble readd      # evidence-gated restores; close the experiment
+/claude-config:unhobble status     # manifest summary: phase, ledger rows, candidates
+```
 
 ## Consumer conventions
 
