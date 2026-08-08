@@ -3,6 +3,24 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.22.0]
+
+### Added
+
+- **New `unhobble` skill — the empirical bare-baseline experiment.** Reversibly strips a project's
+  standing instruction surfaces (CLAUDE.md, rules, behavioral hooks, skills, enabled plugins) on a
+  dedicated experiment branch, has the operator work normally against the bare model while logging
+  observed stumbles to a ledger, then re-adds only instructions with repeated same-cause evidence —
+  each restore citing its ledger rows. Policy-classified hooks and managed settings are never
+  stripped; every mutation is human-gated; state persists under `${CLAUDE_PLUGIN_DATA}/unhobble/`
+  for resume. The canonical trigger is a frontier model release. Operationalizes the
+  delete-and-re-add doctrine from official best-practices ("Would removing this cause Claude to
+  make mistakes? If not, cut it") and Anthropic's own 80% system-prompt reduction for the
+  Opus 5 / Fable 5 generation; `audit-instructions` remains the static text-vs-doctrine
+  counterpart and receives routed rewrite judgments. Tracked-file stripping is delete-with-net
+  (`git rm` on the experiment branch) rather than in-place disable — a deliberate choice: git is
+  the restore mechanism, and a renamed-but-present file could still be read.
+
 ## [0.21.9]
 
 ### Removed

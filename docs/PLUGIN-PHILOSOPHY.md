@@ -460,6 +460,50 @@ path and prerequisite tests, local `--plugin-dir` smoke tests, and the repositor
 Apply the standards principles of explicit behavior, fail-fast boundaries, idempotency, one mechanism
 per concern, cross-platform operation, and stress-testing before presentation.
 
+## Instruction economy
+
+Every standing instruction this marketplace ships — a CLAUDE.md line, a hook that corrects model
+behavior, a skill's always-loaded listing text — is a per-session tax on every consumer, paid
+whether or not the instruction ever fires. Official doctrine is explicit: "CLAUDE.md is loaded
+every session, so only include things that apply broadly… For each line, ask: 'Would removing this
+cause Claude to make mistakes?' If not, cut it," and "If Claude already does something correctly
+without the instruction, delete it or convert it to a hook"
+([best-practices](https://code.claude.com/docs/en/best-practices), verified 2026-08-08). Anthropic
+applied the same doctrine to Claude Code itself, removing over 80% of its system prompt for the
+Opus 5 / Fable 5 generation with no measurable loss on its coding evaluations (Anthropic blog,
+"new rules of context engineering", claude.com/blog, verified 2026-08-08). Four rules follow:
+
+- **Evidence-gated additions.** A new standing instruction requires observed, repeated stumble
+  evidence against the current model — the same failure seen more than once — never anticipation
+  of a failure a past model had. Name the evidence where the instruction is added (PR body or an
+  adjacent comment). Anticipatory instructions are the veteran-engineer failure mode: they encode
+  the last model's weaknesses as the next model's ceiling.
+- **Generation-triggered ablation.** Instructions are disposable per model generation. At each
+  frontier model release, re-audit standing instruction surfaces against the new model
+  (`claude-config:audit-instructions` for the static text-vs-doctrine pass;
+  `claude-config:unhobble` for the empirical bare-baseline experiment) and delete what the model no
+  longer needs. The trigger is the model release, not the calendar.
+- **Evals outlive instructions.** Per-skill evals are the durable asset across this churn: keep and
+  extend them until a model generation saturates them, then replace them with evals derived from
+  newly observed struggles. Expect an eval to outlive the instructions it graded by roughly one to
+  three model generations. Deleting an instruction never deletes its eval; the eval is how the next
+  deletion round proves itself safe.
+- **The durable tier is exempt.** Deterministic policy hooks (gates that enforce team or safety
+  policy regardless of model capability) and team conventions checked into git are the officially
+  carved-out durable instruction tiers. Classify a hook honestly before keeping it: a hook that
+  enforces policy survives ablation; a hook that corrects model behavior is an ablation candidate
+  like any prose instruction.
+
+Model-capability claims never relax the security posture. Injection resistance in current models is
+measurably better but bounded and hedged in the primary sources; the plugin-acceptance security
+review's deny-by-default stance on egress and trust delegation is policy, not a model-era
+workaround, and stays regardless of model generation.
+
+The complementary task-design doctrine — describe the task, guardrails, and exit criteria, give the
+model a way to verify its own work, and skip step-by-step procedure — is already this marketplace's
+encoded practice: the `verification`, `planning` (goal conditions), `tdd`, and `testing` plugins are
+its implementation, and need no new mechanism on its account.
+
 ## Fresh-eyes checkpoints
 
 A context that produced work is structurally the weakest place to judge that work: the reasoning that
