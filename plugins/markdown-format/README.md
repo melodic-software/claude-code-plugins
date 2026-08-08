@@ -21,6 +21,21 @@ config has chosen no Markdown style, so the hook does not run there at all
   `bash-format`'s shfmt gate. A `package.json` `markdownlint-cli2` property
   does not open the gate: markdownlint-cli2 honors it only under an explicit
   `--config` flag, not by discovery.
+- **Gitignored paths are out of scope.** A file git excludes — a scratch tier
+  such as `.work/**`, build output, a vendored tree — is neither rewritten nor
+  reported on. Your ignore rules already say which paths are not part of the
+  reviewable artifact, so the hook reads them rather than asking for a second
+  declaration. The verdict comes from `git check-ignore`, so it is git's full
+  exclude machinery, not `.gitignore` alone: every `.gitignore` between the file
+  and the repository root, `$GIT_DIR/info/exclude`, and your global
+  `core.excludesFile`. A **tracked** file is never treated as ignored, even when
+  a pattern matches it. Set `markdown_format_lint_gitignored` to `true` to bypass
+  **this hook's** git check. That is the only thing it bypasses:
+  markdownlint-cli2 applies its own `ignores` / `gitignore` config downstream, so
+  a path your markdownlint config also excludes stays untouched even with the
+  option on. When the verdict cannot be determined (no `git` on
+  `PATH`, no working tree, `git check-ignore` erroring), the hook lints — a
+  scope check that failed closed would disable the plugin invisibly.
 - **Auto-fix on edit.** Fixable violations (final newline, list-marker style,
   trailing spaces, …) are corrected in place, and the count of fixes written is
   reported to Claude and to you — a run that changed your file never passes
@@ -118,11 +133,22 @@ The rules themselves are never configured here — the plugin's only rule source
 the markdownlint config already in your repository, which it reads automatically.
 To change the rules, edit your repo's markdownlint config.
 
-Two `userConfig` options tune the hook itself:
+Which paths are in scope is also not configured here: the hook asks
+`git check-ignore` and leaves the paths git excludes alone — that means your
+`.gitignore` files, `$GIT_DIR/info/exclude`, and your global `core.excludesFile`
+together. To exempt a path that git tracks, use `markdownlint-cli2`'s own
+`ignores` (or `gitignore`) key in a `.markdownlint-cli2.*` config — the hook
+passes the edited file to
+`markdownlint-cli2`, which applies those itself (verified against
+markdownlint-cli2 v0.23.2; the tool's documentation does not state the behavior
+for an explicitly named file, so confirm it against your own version).
+
+Three `userConfig` options tune the hook itself:
 
 | Option | Type | Default | Effect |
 |--------|------|---------|--------|
 | `markdown_format_enabled` | boolean | `true` | Toggle the markdown-format hook; set `false` for a clean no-op. |
+| `markdown_format_lint_gitignored` | boolean | `false` | Bypass this hook's git-ignore check. Off by default: an excluded path is neither rewritten nor reported on. Turning it on does not override markdownlint-cli2's own `ignores` / `gitignore` config, which still applies. |
 | `markdown_format_max_findings` | number | `20` | How many individual violations are listed per run. The total count and the leading rule codes are always reported regardless. `0` = unlimited. |
 
 Set them interactively with `/plugin configure markdown-format`, or headless on

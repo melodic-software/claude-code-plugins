@@ -6,7 +6,11 @@
 # repo test-runner convention for optional toolchains.
 set -uo pipefail
 
-cd "$(dirname "${BASH_SOURCE[0]}")" || exit 1
+# Resolve before the cd: BASH_SOURCE is the path as invoked, so re-deriving it
+# afterwards resolves a relative invocation against the NEW cwd and silently
+# lands somewhere else.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" || exit 1
+cd "$SCRIPT_DIR" || exit 1
 
 PY=""
 for candidate in python3 python; do
@@ -30,13 +34,22 @@ if ! "$PY" -m unittest discover -s tests -p 'test_*.py'; then
   FAILED=1
 fi
 
-if command -v ruff >/dev/null 2>&1; then
-  echo "== ruff =="
-  if ! ruff check . tests; then
+# Lint through the repo's CI pin (.github/requirements-ci.txt) rather than a
+# bare PATH ruff: a workstation global that auto-upgraded past the pin false-
+# reds a clean tree with findings CI does not report (#1856).
+REPO_ROOT="$(cd "$SCRIPT_DIR/../../../../.." && pwd)"
+RUN_RUFF="$REPO_ROOT/scripts/run-ruff.sh"
+if [[ -f "$RUN_RUFF" ]]; then
+  echo "== ruff (CI pin via scripts/run-ruff.sh) =="
+  ruff_rc=0
+  bash "$RUN_RUFF" check . tests || ruff_rc=$?
+  if [[ "$ruff_rc" -eq 127 ]]; then
+    echo "SKIP: pinned ruff not available (install uv or the CI pin; lint pass omitted)"
+  elif [[ "$ruff_rc" -ne 0 ]]; then
     FAILED=1
   fi
 else
-  echo "SKIP: ruff not installed (lint pass omitted)"
+  echo "SKIP: scripts/run-ruff.sh not found (lint pass omitted)"
 fi
 
 echo "== guarded-wrapper behavior =="
