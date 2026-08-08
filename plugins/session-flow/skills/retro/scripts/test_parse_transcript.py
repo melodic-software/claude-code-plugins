@@ -501,6 +501,76 @@ def test_multi_session_all_missing_is_error(tmp_path):
     assert all(s["transcript_present"] is False for s in output["sessions"])
 
 
+def test_chain_coverage_reports_the_unwalked_remainder(tmp_path):
+    """A chain covering 2 of 5 project transcripts says so in chain_coverage.
+
+    A `previous_handoff` walk stops at the first session that wrote no handoff
+    file, and without this field a 2-of-10 walk reads exactly like a genuine
+    2-session chain.
+    """
+    for sid in ("sid-a", "sid-b", "sid-c", "sid-d", "sid-e"):
+        _write_assistant_event(tmp_path, sid)
+    result = _run_multi(["--sessions", "sid-a", "sid-b", "--base", str(tmp_path)])
+    result.check_returncode()
+    output = json.loads(result.stdout)
+    cov = output["chain_coverage"]
+    assert cov["requested"] == 2
+    assert cov["found"] == 2
+    assert cov["available"] == 5
+    assert cov["ratio"] == 0.4
+    # The ratio is also visible without reading the structured field.
+    assert "2 of 5 transcript(s)" in output["summary"]
+
+
+def test_chain_coverage_full_when_the_walk_saw_everything(tmp_path):
+    """Covering every transcript in the base directory reports ratio 1.0."""
+    _write_assistant_event(tmp_path, "sid-a")
+    _write_assistant_event(tmp_path, "sid-b")
+    result = _run_multi(["--sessions", "sid-a", "sid-b", "--base", str(tmp_path)])
+    result.check_returncode()
+    cov = json.loads(result.stdout)["chain_coverage"]
+    assert cov == {"requested": 2, "found": 2, "available": 2, "ratio": 1.0}
+
+
+def test_multi_session_comma_joined(tmp_path):
+    """--sessions a,b resolves the same list a space-separated invocation does.
+
+    argparse took the whole comma-joined string as ONE token, which matched no
+    transcript file — so a chain whose transcripts all exist reported zero found
+    instead of erroring on the caller's shape.
+    """
+    _write_assistant_event(tmp_path, "sid-curr")
+    _write_assistant_event(tmp_path, "sid-prev")
+    result = _run_multi(["--sessions", "sid-curr,sid-prev", "--base", str(tmp_path)])
+    result.check_returncode()
+    output = json.loads(result.stdout)
+    assert output["status"] == "pass"
+    assert [s["id"] for s in output["sessions"]] == ["sid-curr", "sid-prev"]
+    assert all(s["transcript_present"] for s in output["sessions"])
+    # Order carries meaning: the first id is the current session.
+    assert output["sessions"][0]["role"] == "current"
+
+
+def test_multi_session_mixed_separators_and_empty_fragments(tmp_path):
+    """Comma and space forms mix, and empty fragments are dropped, not parsed."""
+    _write_assistant_event(tmp_path, "sid-a")
+    _write_assistant_event(tmp_path, "sid-b")
+    _write_assistant_event(tmp_path, "sid-c")
+    result = _run_multi(
+        ["--sessions", "sid-a, sid-b,", ",sid-c", "--base", str(tmp_path)]
+    )
+    result.check_returncode()
+    output = json.loads(result.stdout)
+    assert [s["id"] for s in output["sessions"]] == ["sid-a", "sid-b", "sid-c"]
+
+
+def test_multi_session_only_separators_is_usage_error(tmp_path):
+    """--sessions , yields no ids at all → the no-session-id usage error."""
+    result = _run_multi(["--sessions", ",", "--base", str(tmp_path)])
+    assert result.returncode == 2
+    assert json.loads(result.stdout)["status"] == "error"
+
+
 def test_notebook_edit_counts_as_file_modification(tmp_path):
     """NotebookEdit tool_use file_path lands in files_modified."""
     data = _run_with_event(

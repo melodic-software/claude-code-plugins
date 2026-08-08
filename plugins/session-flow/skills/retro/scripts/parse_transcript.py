@@ -13,7 +13,8 @@ Usage (multi-session, new):
 Arguments:
     session_id    Single UUID session identifier (positional, backward compat)
     base_path     Base directory containing session JSONL files (positional)
-    --sessions    Multiple UUIDs to parse + aggregate (first = current, rest = chained prior)
+    --sessions    Multiple UUIDs to parse + aggregate (first = current, rest = chained prior).
+                  Space-separated or comma-joined; both forms mean the same list.
     --chain-from  Walk session chain via handoff frontmatter (previous_handoff)
                   starting from the given handoff journal entry file; emits aggregated multi-session output
     --base        Base directory containing session JSONL files (required with --sessions / --chain-from)
@@ -29,6 +30,12 @@ Output:
         {
           "status": "...",
           "summary": "...",
+          "chain_coverage": {
+            "requested": N,   # session-ids this run was asked to parse
+            "found": N,       # of those, how many had a transcript
+            "available": N,   # transcripts present in <base> (null if unreadable)
+            "ratio": 0.0-1.0, # found / available; omitted when available is 0/null
+          },
           "sessions": [
             {"id": "<UUID>", "role": "current"|"previous",
              "transcript_present": true|false, "subagents_present": true|false,
@@ -633,6 +640,30 @@ def build_multi_session_output(
             tagged["session_id"] = sid
             agg_subagents.append(tagged)
 
+    # Chain coverage: how much of what this project HAS did the chain cover?
+    # A backward `previous_handoff` walk terminates at the first session that
+    # wrote no handoff file, and a walk that stopped early is indistinguishable
+    # in this output from a genuinely short chain — the reported failure was a
+    # 10-session chain retro authored from 2 sessions with nothing signalling
+    # the gap. `available` counts the transcripts sitting in the same base
+    # directory, which IS the per-project transcript directory, so the ratio
+    # answers "did we look at most of this project's sessions?" without
+    # asserting that every sibling transcript belongs to this chain — some will
+    # not, which is why this is coverage evidence for a reader, not a filter.
+    try:
+        available = len([p for p in base_path.glob("*.jsonl") if p.is_file()])
+    except OSError:
+        # An unreadable base directory is already reported per session; coverage
+        # is diagnostic, so degrade to "unknown" rather than fail the parse.
+        available = None
+    chain_coverage: dict[str, Any] = {
+        "requested": len(session_ids),
+        "found": transcripts_present,
+        "available": available,
+    }
+    if available:
+        chain_coverage["ratio"] = round(transcripts_present / available, 3)
+
     if transcripts_present == len(session_ids):
         status = "pass"
     elif transcripts_present > 0 or agg_subagents:
@@ -642,17 +673,25 @@ def build_multi_session_output(
         # Nothing found at all — a bad base dir, stale chain, or wrong SIDs
         # must fail loudly, not read as a successful all-zero retro.
         status = "error"
+    coverage_note = ""
+    if available:
+        coverage_note = (
+            f", covering {transcripts_present} of {available} transcript(s) "
+            f"present for this project"
+        )
     summary = (
         f"Multi-session retro: {len(session_ids)} chained session(s) "
         f"({transcripts_present} with transcript), "
         f"{total_assistant} assistant turns total, "
         f"{total_human} human messages, "
         f"{total_compactions} compaction(s)"
+        f"{coverage_note}"
     )
 
     return {
         "status": status,
         "summary": summary,
+        "chain_coverage": chain_coverage,
         "sessions": sessions_out,
         "aggregate": {
             "total_assistant_turns": total_assistant,
@@ -710,6 +749,23 @@ def _parse_legacy_or_argparse(argv: list[str]) -> argparse.Namespace:
     )
     ns = parser.parse_args(argv)
     ns.session_id = None
+    if ns.sessions:
+        # `--sessions a,b,c` is the shape a caller reaches for when the ids were
+        # just written into prose, and `nargs="+"` takes the whole comma-joined
+        # string as ONE token. That token matches no transcript file, so the run
+        # reported "0 with transcript" for a chain whose transcripts all exist —
+        # a wrong answer, not an error. A session id never contains a comma, so
+        # splitting on it is unambiguous and cannot change the meaning of a
+        # correctly space-separated invocation. Empty fragments (a trailing
+        # comma, `a,,b`) are dropped rather than passed on as an id that cannot
+        # exist; if every token was empty the list goes falsy and main() reports
+        # the no-session-id usage error.
+        ns.sessions = [
+            sid
+            for token in ns.sessions
+            for sid in (part.strip() for part in token.split(","))
+            if sid
+        ]
     return ns
 
 

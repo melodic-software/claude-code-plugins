@@ -1,5 +1,31 @@
 # Changelog — session-flow plugin
 
+## [0.18.0]
+
+### Added
+
+- **`retro`: the multi-session parser now reports chain coverage (#1980).** Chain discovery walks
+  `previous_handoff` pointers backwards, so it stops at the first session that wrote no handoff
+  file — and a walk that ended early was indistinguishable in the output from a genuinely short
+  chain. The reported case ran a 10-session chain linked by hand-pasted continuation prompts and
+  got a retrospective authored from 2 sessions, with nothing signalling the gap. The multi-session
+  output carries a `chain_coverage` block (`requested` / `found` / `available` / `ratio`), where
+  `available` counts the transcripts present for the project — the denominator the walk itself
+  cannot see — and the human-readable `summary` carries the same ratio. The skill now states its
+  discovery basis and must not present a low-coverage chain retro silently; below ~0.5 it names the
+  counts and offers `--sessions` with the ids enumerated.
+
+### Fixed
+
+- **`retro`: `parse_transcript.py --sessions` accepts a comma-joined list instead of silently
+  resolving nothing (#1980).** The option is declared `nargs="+"`, so `--sessions a,b,c` — the
+  shape a caller reaches for when the ids were just written into prose — was consumed as ONE
+  literal token. It matched no transcript file, and the run reported "0 with transcript" for a
+  chain whose transcripts all existed: a wrong answer rather than an error. Tokens are now split on
+  `,` after parsing (a session id never contains one, so the split cannot change the meaning of a
+  correctly space-separated invocation), empty fragments are dropped, and a `--sessions` value that
+  resolves to no ids at all reaches the existing usage error.
+
 ## [0.17.24]
 
 ### Fixed

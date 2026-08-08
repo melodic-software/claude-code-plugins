@@ -105,6 +105,15 @@ parser's `--chain-from` walks `previous_handoff` frontmatter pointers
 backwards from the newest handoff file and aggregates metrics across every chained transcript. See
 `context/session.md` Phase 1.
 
+**State the discovery basis, and never present a low-coverage chain retro silently.** The walk
+follows `previous_handoff` pointers, so it stops at the first session that wrote no handoff file —
+a chain linked by hand-pasted continuation prompts instead of save-points can end after one hop.
+The parser reports what it saw in `chain_coverage` (`requested` / `found` / `available` / `ratio`,
+where `available` counts the transcripts present for this project). When `ratio` is below ~0.5, say
+so before presenting: name the found and available counts, and offer `--sessions` with the ids
+enumerated explicitly. A retro authored from a fifth of the evidence must not read like a complete
+one.
+
 ## What this skill does NOT do
 
 - **Does not run builds or tests** — that's the consuming repo's verify stage
