@@ -1370,7 +1370,9 @@ confident removals.
   suppresses the description from context ([Skills](https://code.claude.com/docs/en/skills), verified
   2026-08-08) — while a body-borne trigger costs context only once the skill loads, or at startup in
   a subagent with the skill preloaded. Both are findings; the resident one is the more expensive to
-  leave.
+  leave. **Second-source recheck trigger:** that page's invocation-control table changing which
+  fields keep a description in context, which would re-rank the two residencies and is the only fact
+  this clause and the remediation below rest on.
 - **Remediate by moving the trigger, never by withdrawing the skill.** Flipping continuation skills
   to `disable-model-invocation: true` is the considered alternative and is refused: it costs every
   model-side invocation the skill has — including the ones a user asks for in the words its
