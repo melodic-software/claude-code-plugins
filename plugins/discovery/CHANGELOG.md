@@ -20,6 +20,10 @@
     is silence the agent can report, while a missing reason is invisible — the agent works the topic
     as written, returns something well-formed, and neither side learns it answered the wrong
     question. Intent is what decides which of several defensible readings is the one wanted.
+  - **The enforcement sentence names the reason too.** Listing a field under "refuse to guess" and
+    then omitting it from the `status: truncated` rule directly below leaves the field advisory: the
+    agent reads the obligation and nothing makes a missing reason stop the run. Both agents now halt
+    on an absent or ambiguous reason exactly as they do for an absent scope, topic, or slice path.
 
 ## [0.10.1]
 

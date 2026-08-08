@@ -38,8 +38,8 @@ ecosystem-discovery reference — Read that at the dimension that needs it rathe
 - **The budget** — how much depth the parent authorized.
 - **Capability flags** the parent probed, notably whether nested spawning is available.
 
-**If the scope or the slice path is absent or ambiguous, stop and return the payload below with
-`status: truncated` and the missing field named in `open_questions`.** There is no unscoped
+**If the scope, the reason, or the slice path is absent or ambiguous, stop and return the payload
+below with `status: truncated` and the missing field named in `open_questions`.** There is no unscoped
 orientation mode: a dispatched agent with no scope is a parent-envelope failure, and running a
 general repository sweep instead would hand back a plausible artifact answering a question nobody
 asked.

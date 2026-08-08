@@ -42,8 +42,8 @@ load-time machinery, no user turn, no unresolved scope.
 - **The budget** — how much depth the parent authorized.
 - **Capability flags** the parent probed, notably whether nested spawning is available.
 
-**If the topic or the slice path is absent or ambiguous, stop and return the payload below with
-`status: truncated` and the missing field named in `open_questions`.** Do not invent a topic, do
+**If the topic, the reason, or the slice path is absent or ambiguous, stop and return the payload
+below with `status: truncated` and the missing field named in `open_questions`.** Do not invent a topic, do
 not narrow to something adjacent, and do not research "whatever the repo seems to be about". A
 dispatched agent guessing its own scope is a parent-envelope failure wearing a finished artifact.
 
