@@ -43,11 +43,14 @@ the non-obvious VM caveats a fresh Cursor Cloud agent needs.
   `.node-version` (24.18.0), installed through `nvm`. The exec-daemon prepends
   `/exec-daemon` (Node 22) to `PATH` *after* `~/.bashrc` runs, so it shadows
   `nvm`. The fix is a trailing `PATH` prepend in `~/.bashrc` (already applied and
-  baked into the VM snapshot) that puts the pinned Node bin — plus
-  `/workspace/node_modules/.bin` (the `claude` CLI and Biome) and `~/.local/bin`
-  (CI hygiene binaries) — ahead of `/exec-daemon`. If a fresh VM ever reverts to
-  Node 22, re-run the version-pin activation via `nvm install "$(cat
-  .node-version)" && nvm alias default "$(cat .node-version)"`.
+  baked into the VM snapshot) that puts the pinned Node bin — plus the
+  repository's own `node_modules/.bin` (the `claude` CLI and Biome; `npm ci` at
+  the repo root creates it, and `.claude/hooks/session-start.sh` exports that
+  same `$repo_root/node_modules/.bin`, so use the checkout path rather than a
+  fixed `/workspace` one) and `~/.local/bin` (CI hygiene binaries) — ahead of
+  `/exec-daemon`. If a fresh VM ever reverts to Node 22, re-run the version-pin
+  activation via `nvm install "$(cat .node-version)" && nvm alias default "$(cat
+  .node-version)"`.
 - **`FORCE_COLOR=0` breaks output-parsing tests (non-obvious).** The daemon sets
   `FORCE_COLOR=0`, which the Rust `anstream` crate (used by `ruff`, hence the
   `ruff-format` plugin) treats as "force color ON", overriding `NO_COLOR=1` and
