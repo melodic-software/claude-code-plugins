@@ -99,6 +99,19 @@ SDK-based host.
 | Permission modes | <https://code.claude.com/docs/en/permission-modes> | 2026-08-06 |
 | Environment variables | <https://code.claude.com/docs/en/env-vars> | 2026-08-06 |
 
+## Evaluation guidance (platform docs)
+
+The only rows in this index outside `code.claude.com`: this marketplace authors model-graded eval
+fixtures for its skills (see the migration playbook's eval warrant policy) and ships the `evals`
+plugin distilling this guidance, so the platform-side evaluation pages are plugin-relevant here.
+The platform docs' own self-updating master list is
+[`https://platform.claude.com/docs/llms.txt`](https://platform.claude.com/docs/llms.txt).
+
+| Page | Official doc page | Verified date |
+|---|---|---|
+| Define success criteria and build evaluations | <https://platform.claude.com/docs/en/test-and-evaluate/develop-tests> | 2026-08-08 |
+| Evals cookbook (source: `anthropics/claude-cookbooks` `misc/building_evals.ipynb`) | <https://platform.claude.com/cookbook/misc-building-evals> | 2026-08-08 |
+
 ## Reference / schemas
 
 | Page | Official doc page | Verified date |

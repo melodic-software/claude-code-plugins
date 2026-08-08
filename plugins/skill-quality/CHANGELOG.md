@@ -3,6 +3,21 @@
 All notable changes to the `skill-quality` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.13.0]
+
+### Changed
+
+- **The evals schema now requires a grading criterion on every case**: at
+  least one of `expected_output`, `expectations`, or `assertions` must be
+  present (`anyOf` on the case object). Previously a case validated with
+  only `id` + `prompt` — an eval with no success criterion, which
+  contradicts the eval anatomy in Anthropic's evaluation guidance (a case
+  that cannot be graded is not an eval; guidance now indexed in
+  `docs/OFFICIAL-DOCS.md`). All 1,050 existing cases across the
+  marketplace already satisfy the requirement, so no fixture changes;
+  downstream consumers with criterion-free cases will now get a
+  validation failure from `validate-evals` pointing at the case to fix.
+
 ## [0.12.2]
 
 ### Fixed

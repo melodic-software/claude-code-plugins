@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://melodic-software.github.io/claude-code-plugins/skill-quality/evals.schema.json",
   "title": "Skill evaluations",
-  "description": "Schema for a skill's evals/evals.json. Supports both rich and minimal forms. Rich form adds per-case `name` (kebab-case) and `expectations` (or the upstream-named `assertions`). Both `assertions` and `expectations` are permitted as optional alternatives (skill-creator upstream uses `assertions`; rich-form skills often use `expectations`).",
+  "description": "Schema for a skill's evals/evals.json. Supports both rich and minimal forms, but every case must carry a grading criterion: at least one of `expected_output`, `expectations`, or `assertions` (a case that cannot be graded is not an eval — per the eval anatomy in Anthropic's evaluation guidance, indexed in docs/OFFICIAL-DOCS.md). Rich form adds per-case `name` (kebab-case) and `expectations` (or the upstream-named `assertions`; skill-creator upstream uses `assertions`, rich-form skills here use `expectations`).",
   "type": "object",
   "additionalProperties": false,
   "required": ["skill_name", "evals"],
@@ -23,6 +23,11 @@
       "type": "object",
       "additionalProperties": false,
       "required": ["id", "prompt"],
+      "anyOf": [
+        { "required": ["expected_output"] },
+        { "required": ["expectations"] },
+        { "required": ["assertions"] }
+      ],
       "properties": {
         "id": {
           "oneOf": [
