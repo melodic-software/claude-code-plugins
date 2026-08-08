@@ -3,6 +3,17 @@
 All notable changes to the `rate-limit-guard` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.2]
+
+### Added
+
+- **Reader contract: an operable read cadence for the reactive-only detection records.** The
+  contract told consumers to "react to the detection records" with no when and no recency bound —
+  the one thing a lane agent cannot derive. It now specifies: read on entering reactive-only and
+  again before each new work claim; records newer than the last resume attempt are live signal,
+  older ones are history and never justify a new pause on their own. The two inlined floors in
+  `prompts/loops/loop-lane-prompts.md` are updated in the same change.
+
 ## [0.4.1]
 
 ### Changed
