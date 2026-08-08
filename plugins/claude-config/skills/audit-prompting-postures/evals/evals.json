@@ -1,0 +1,39 @@
+{
+  "skill_name": "audit-prompting-postures",
+  "evals": [
+    {
+      "id": 1,
+      "name": "bare-invocation-stays-read-only",
+      "prompt": "/claude-config:audit-prompting-postures",
+      "expected_output": "Fetches the current prompting-guide pages, inventories locally-owned instruction components, classifies each by purpose, judges only the postures whose predicates match, and produces a report of MISSING/PRESENT/NOT-APPLICABLE verdicts with proposed additions as diffs, persisted to CLAUDE_PLUGIN_DATA. It never edits a component: proposals are artifacts the human applies, and a clean audit (all PRESENT or NOT-APPLICABLE) is a valid, expected outcome.",
+      "files": [],
+      "expectations": [
+        "Fetches the guide pages live before judging; proposal wording comes from the fetch, not the catalog",
+        "Produces a report with proposed additions and does not Edit or Write any audited component",
+        "Defaults to NOT-APPLICABLE where a posture's predicate does not match the component's purpose, rather than manufacturing findings"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "routes-present-and-wrong-text-out",
+      "prompt": "/claude-config:audit-prompting-postures my skill says 'CRITICAL: You MUST use this tool' — should that change?",
+      "expected_output": "Recognizes that judging existing instruction text (over-aggressive emphasis is audit-instructions' I24) is out of this skill's scope and routes to claude-config:audit-instructions, rather than proposing a rewrite itself. This skill owns only absent-and-needed posture guidance.",
+      "files": [],
+      "expectations": [
+        "Routes present-and-wrong instruction text to claude-config:audit-instructions",
+        "Does not propose a rewrite of existing text under this skill's own contract"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "human-gated-design-not-flagged",
+      "prompt": "/claude-config:audit-prompting-postures skills — one of my skills is report-only and always ends by asking the user to approve findings; is it missing an autonomy posture?",
+      "expected_output": "Applies P6's predicate correctly: a report-only flow ending at a human gate is NOT-APPLICABLE for the autonomy posture — the posture binds components that claim unattended operation. The skill reports NOT-APPLICABLE with the failed predicate rather than proposing an autonomous-pipeline branch.",
+      "files": [],
+      "expectations": [
+        "Judges P6 NOT-APPLICABLE for a report-only, human-gated component",
+        "Names the failed predicate in the verdict instead of manufacturing a finding"
+      ]
+    }
+  ]
+}

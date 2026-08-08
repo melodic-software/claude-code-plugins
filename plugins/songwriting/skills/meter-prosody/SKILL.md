@@ -10,8 +10,8 @@ disable-model-invocation: false
 
 Before emitting a scansion verdict, stability call, phrasing judgement, or any rewrite, run
 **§6 Form filter** of [response-filter](../../context/pat-pattison/research/response-filter.md)
-(add **§2 Line-writing** when producing lines). NAME each box's pass / fail / skip-with-reason;
-correct before emission. Skips are valid; silent skips are not.
+(add **§2 Line-writing** when producing lines). NAME each box's pass / fail / skip-with-reason
+(aloud or in reasoning); correct before emission. Skips are valid; silent skips are not.
 
 ## Purpose
 

@@ -99,13 +99,28 @@ SDK-based host.
 | Permission modes | <https://code.claude.com/docs/en/permission-modes> | 2026-08-06 |
 | Environment variables | <https://code.claude.com/docs/en/env-vars> | 2026-08-06 |
 
+## Prompting doctrine (platform docs)
+
+The instruction text a plugin ships — skill bodies, agent definitions, hook-injected prose,
+embedded sample prompts — is authored against these pages. They live on `platform.claude.com`
+(model behavior), not `code.claude.com` (harness behavior); the platform docs' own self-updating
+master list is
+[`https://platform.claude.com/docs/llms.txt`](https://platform.claude.com/docs/llms.txt).
+
+| Page | Official doc page | Verified date |
+|---|---|---|
+| Prompting best practices (all current models) | <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices> | 2026-08-08 |
+| Prompting Claude Fable 5 | <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5> | 2026-08-08 |
+| Prompting Claude Sonnet 5 | <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-sonnet-5> | 2026-08-08 |
+| Prompting Claude Opus 5 | <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5> | 2026-08-08 |
+| Prompting Claude Opus 4.8 | <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-4-8> | 2026-08-08 |
+| Thinking (adaptive thinking, `display`, disable-rejection set, sampling-param 400 set) | <https://platform.claude.com/docs/en/build-with-claude/thinking> | 2026-08-08 |
+
 ## Evaluation guidance (platform docs)
 
-The only rows in this index outside `code.claude.com`: this marketplace authors model-graded eval
-fixtures for its skills (see the migration playbook's eval warrant policy) and ships the `evals`
-plugin distilling this guidance, so the platform-side evaluation pages are plugin-relevant here.
-The platform docs' own self-updating master list is
-[`https://platform.claude.com/docs/llms.txt`](https://platform.claude.com/docs/llms.txt).
+This marketplace authors model-graded eval fixtures for its skills (see the migration playbook's
+eval warrant policy) and ships the `evals` plugin distilling this guidance, so the platform-side
+evaluation pages are plugin-relevant here alongside the prompting-doctrine rows above.
 
 | Page | Official doc page | Verified date |
 |---|---|---|

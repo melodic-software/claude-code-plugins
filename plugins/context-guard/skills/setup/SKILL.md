@@ -200,10 +200,11 @@ zone bands, zones.json shape) are owned by
    `<escaped original command>` is the original command POSIX-escaped for single-quote embedding:
    replace every `'` in it with `'\''` before substituting (then JSON-escape the whole `command`
    string as usual). Show the final, fully escaped line — never hand the operator a template with
-   raw quotes left to fix. Verify your printed edit round-trips: mentally unquote it back and
-   confirm it reproduces the original command byte-for-byte. Print this variant only when the
-   UNWRAPPED renderer still carries shell syntax — an already-adapted command reaching this step
-   with its `sh -c` layer intact is rule 2 above having been skipped, and wrapping it adds a layer.
+   raw quotes left to fix. Verify your printed edit round-trips: run
+   `printf '%s\n' '<escaped original command>'` and confirm the output matches the original
+   command. Print this variant only when the UNWRAPPED renderer still carries shell syntax — an
+   already-adapted command reaching this step with its `sh -c` layer intact is rule 2 above
+   having been skipped, and wrapping it adds a layer.
 
    Sibling tees compose by nesting, each through its OWN shim — the tees are transparent wrappers,
    so the innermost command still owns stdout and the exit code. Print this form only when

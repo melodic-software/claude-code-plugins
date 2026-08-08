@@ -3,6 +3,29 @@
 All notable changes to the `songwriting` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.1]
+
+### Fixed
+
+- **Title-type taxonomy reconciled with `hook.md`.** `research/response-filter.md`,
+  `research/idea-to-title.md`, `research/title-game.md`, and `templates/idea-to-title-prompt.md`
+  each cited `hook.md`'s seven title types while listing a different set; all four now carry
+  hook.md's One-word / Place-name / Person-name / Color-or-sensory / Comparative / Word-play /
+  Sonic-bonding. A maintainer holding Pattison's source can re-split the taxonomy — adding the
+  displaced Statement / Question / Command / Phrase-from-lyric / Image-as-noun /
+  Idiom-recontextualized / Name set to `hook.md` under its own heading and repointing those
+  citations there — if it proves to be a genuine second framework.
+
+### Changed
+
+- **Pre-flight filter narration may live in reasoning.** All eight craft skills' mandatory
+  pre-flight blocks now read "(aloud or in reasoning)", and `research/response-filter.md`'s no-op
+  confirmation drops its visible-response mandate. The gate must still provably run.
+- **`/songwriting:suno clean` states what changed and why in its response** rather than showing a
+  diff in reasoning.
+- Book-citation guidance in `research/book-references.md` reworded from an ALL-CAPS prohibition to
+  a plain directive.
+
 ## [0.7.0]
 
 Two changes in one release: a fix for the plugin's central failure — craft

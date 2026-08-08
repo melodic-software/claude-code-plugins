@@ -202,7 +202,6 @@ The `continue` action reads the continuation prompt and reconstructs task contex
 Courses can have 60+ lessons. Processing all in one session may hit context limits.
 
 - **After discovering course structure** (Phase 1): present module/lesson list and ask user which modules to process, or confirm "all"
-- **After every 5 lessons extracted**: report progress ("Extracted 5/67 lessons. Continuing...")
 - **After each module completes**: save progress immediately — a crash shouldn't lose work
 - **If context is getting large** (>50% used): suggest saving progress and resuming in a new session with `/knowledge:course-digest resume <slug>`
 

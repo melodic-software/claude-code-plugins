@@ -215,8 +215,8 @@ not unchanged and the idempotence property is unfalsifiable by construction.
   recorded whether or not a file exists there yet: the exclusion is about the path this run is about
   to write, not about what it found there.
 - **A redirect destination is accepted only if it is an `audit-pass`-owned report, or a new path that
-  is not a recognized instruction surface.** Recording the path unconditionally was right for the
-  *exclusion* and wrong as a licence to *write*: `--report-to CLAUDE.md` would overwrite an audited
+  is not a recognized instruction surface.** Recording the path unconditionally is right for the
+  *exclusion* and no licence to *write*: `--report-to CLAUDE.md` would overwrite an audited
   instruction surface with a JSON report, with no `--fix` and no confirmation — a read-only
   invocation destroying target content — and then exclude the corrupted path from every later run, so
   the damage hides itself.
@@ -406,7 +406,7 @@ classification two implementations must reach identically or `--resume` is nonde
 
 **The governing rule: suppression is always central. There is no inline marker, at any target.**
 
-An inline form was specified and withdrawn, recorded here so it is not re-proposed. A marker would
+An inline form is rejected, recorded here so it is not re-proposed. A marker would
 have to carry the same constituents a central entry does — `check`, `claim`, every site, reason,
 date — because the key is derived from them, so it duplicates the central record instead of
 simplifying it. It cannot express a pairwise finding at all: a marker sits at one site, and a
@@ -645,7 +645,7 @@ So the run **measures** its own precondition:
   dirty set both hold still. The gate would then report a legitimate external-state change as a
   determinism **defect** rather than `indeterminate` — an accusation instead of an abstention, which
   is the worse of the two errors. If Phase 1 inventoried a surface, the digest covers it.
-- **A count is not enough and was the earlier mistake:** editing a dirty file's contents, or swapping
+- **A count is not enough:** editing a dirty file's contents, or swapping
   one dirty path for another, leaves both HEAD and the count identical, so a count-based gate would
   evaluate P1–P3 as though the tree held still while different lanes in fact read different states.
   Pairing each path with its content is what makes both movements visible.
@@ -766,11 +766,11 @@ detection-behavior input not covered by the digest is a defect in the digest.
   Fix-comparable ⇒ every finding a fix targeted is absent from R2, and **every derived addition in
   `D(R2) \ D(R1)` is attributable to an accepted edit**.
 
-  **The subset form was still unconditional and still rejected the remediation this relation was
-  written to admit.** Moving material out of `CLAUDE.md` into a newly created skill makes `D(R2)`
-  gain that skill's own inventory identity — a derived *addition* — so `D(R2) ⊆ D(R1)` fails even
-  though the entire delta traces to the accepted edit. Fixing comparability and leaving the subset
-  assertion alone half-fixed it. The condition is therefore attribution, exactly as comparability
+  **An unconditional subset form rejects the remediation this relation is written to admit.** Moving
+  material out of `CLAUDE.md` into a newly created skill makes `D(R2)` gain that skill's own
+  inventory identity — a derived *addition* — so `D(R2) ⊆ D(R1)` fails even though the entire delta
+  traces to the accepted edit. Fixing comparability without also conditioning the subset assertion
+  leaves the defect in place. The condition is therefore attribution, exactly as comparability
   is: additions the accepted edit accounts for are expected, and a **non-attributable** addition is
   the real failure — that is spontaneous growth during a fix round, which is P3's concern arriving
   through the convergence door.
@@ -781,7 +781,7 @@ detection-behavior input not covered by the digest is a defect in the digest.
   as they were — so a blanket requirement would declare a perfectly good fix non-convergent, which is
   the wrong verdict on the commonest fix there is.
 
-  **`D(R2) ⊊ D(R1)` was still the wrong shape even conditionally, because a proper subset forbids
+  **`D(R2) ⊊ D(R1)` is the wrong shape even conditionally, because a proper subset forbids
   additions that the attribution rule above explicitly permits.** Resolving a derived
   shadowed-definition finding by renaming one of the two definitions removes the targeted finding
   *and* adds that renamed definition's inventory identity — attributable, expected, and fatal to any

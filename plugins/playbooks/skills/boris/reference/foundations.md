@@ -39,6 +39,8 @@ Beyond the terminal, run additional sessions on claude.ai/code:
 
 ## 2. Model Selection
 
+> **Superseded (Jun 9, 2026):** Fable 5 is now the strongest coding model (Section 94).
+
 ### Use Opus 4.5 with Thinking for Everything
 
 Boris's reasoning: "It's the best coding model I've ever used, and even though it's bigger & slower than Sonnet, since you have to steer it less and it's better at tool use, it is almost always faster than using a smaller model in the end."

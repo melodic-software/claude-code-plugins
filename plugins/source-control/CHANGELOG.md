@@ -3,6 +3,20 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.48.1]
+
+### Changed
+
+- **`pull-request`: the CI-log grep rule leads with the instruction instead of a `CRITICAL:` prefix.**
+  `reference/monitor.md` opened with "CRITICAL: Do NOT use `grep -i ...`", which states the
+  prohibition before the thing to do. It now says to grep for `##[error]` annotations first and gives
+  the reason — a broad keyword grep matches cleanup steps, variable names, and incidental output. The
+  worked "Bad credentials" example and the fall-back-if-empty rule are unchanged.
+
+- **`pull-request`: section 1.3's heading is "Verify every finding".** The shout-caps `EVERY` and the
+  `(CRITICAL)` parenthetical restated emphasis the numbered verification procedure below already
+  carries. No step, classification, or drop rule changed.
+
 ## [0.48.0]
 
 ### Changed

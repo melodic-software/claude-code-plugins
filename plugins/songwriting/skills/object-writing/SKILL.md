@@ -10,9 +10,9 @@ disable-model-invocation: false
 
 Before emitting any image, metaphor, sensory prompt, or rewrite, run **§7 Image filter (object
 writing + metaphor)** of [response-filter](../../context/pat-pattison/research/response-filter.md)
-(add **§2 Line-writing** when producing lines). NAME each box's pass / fail / skip-with-reason;
-correct before emission. Skips are valid; silent skips are not — abstract telling and cliche
-imagery are the defaults this filter catches.
+(add **§2 Line-writing** when producing lines). NAME each box's pass / fail / skip-with-reason
+(aloud or in reasoning); correct before emission. Skips are valid; silent skips are not — abstract
+telling and cliche imagery are the defaults this filter catches.
 
 ## Purpose
 
