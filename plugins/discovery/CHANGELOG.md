@@ -14,13 +14,16 @@
     would have spread it to `EnterPlanMode`, replacing a claim that is too strong with one that is
     too weak — and too weak in the direction that matters, since it would imply a dispatched run
     could enter plan mode. The two tools are now stated separately.
-  - **The surrounding conclusion survives and is now grounded rather than asserted.** Both sites
-    conclude that a dispatched run's read-only boundary is the agent's own instruction, not harness
-    enforcement, and that remains true for a sharper reason: entering plan mode mid-run needs
-    `EnterPlanMode`, which is filtered with no exception, so the only route into plan mode is
-    *starting* there via a definition's `permissionMode: plan` — which is precisely why such a
-    subagent keeps `ExitPlanMode`, as its way back out. `agents/explorer.md` declares no
-    `permissionMode`, so the conclusion now follows from a checkable property of the definition.
+  - **The surrounding conclusion survives, and now rests on the `tools` allowlist rather than on
+    the filter alone.** Both sites conclude that a dispatched run's read-only boundary is the
+    agent's own instruction, not harness enforcement. Deriving that from `permissionMode` would
+    not hold: the same page states subagents "inherit the permission context from the main
+    conversation", naming only `bypassPermissions`, `acceptEdits`, and `auto` in its precedence
+    rules, so a definition's silence on `permissionMode` does not by itself settle which mode the
+    subagent runs in. `agents/explorer.md` instead declares `tools: "Read, Grep, Glob, Bash,
+    Write, Skill, Agent"` — an allowlist naming neither plan-mode tool — so it holds neither
+    however the filters and inheritance resolve. That is a property of the definition in the
+    repository, checkable without reasoning about permission-mode precedence at all.
 
 ## [0.11.0]
 

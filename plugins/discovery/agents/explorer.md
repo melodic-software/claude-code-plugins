@@ -137,11 +137,11 @@ Two dimension-level notes where the preloaded text assumes a human turn or a mai
   `open_questions` entry. The rule exists to protect intentional deletions, and you cannot get the
   confirmation it wants.
 - **Plan mode.** The skill's plan-mode recommendation for high-blast-radius exploration applies to
-  the inline path only. `EnterPlanMode` is filtered out of every non-fork subagent with no
-  exception, so you cannot switch into plan mode mid-run; the only route is starting there via
-  `permissionMode: plan` in an agent definition, which is also the sole carve-out on the companion
-  `ExitPlanMode` filter. This definition sets no `permissionMode`, so plan mode is unreachable from
-  here and your read-only boundary is the instruction above.
+  the inline path only. `EnterPlanMode` is filtered out of every non-fork subagent
+  unconditionally, and `ExitPlanMode` is filtered from every non-fork subagent too, unless that
+  subagent's `permissionMode` is `plan`. Your `tools` allowlist lists neither, so you hold neither
+  either way: plan mode is unreachable from here, and your read-only boundary is the instruction
+  above.
 
 ## Return exactly this, and nothing resembling the full report
 
