@@ -1,7 +1,7 @@
 # Cross-Surface Conflict Criteria
 
-Version: 1.3.0
-Last updated: 2026-07-31
+Version: 1.4.0
+Last updated: 2026-08-08
 
 **The adjudication procedure for check I15.** [criteria.md](criteria.md)'s I15 entry owns the
 definition — what a cross-surface conflict *is*, its comparison set, its import and symlink
@@ -19,8 +19,10 @@ precedence or load-order text; a change to the skills page's statements about in
 any new instruction surface added to the product; a change to how permission rules or permission
 modes remove a tool from Claude's pool; a change to **which hook events inject handler output into
 the session's context**, to the events `additionalContext` is accepted on, or to the handler types
-that can return it; a change to **which events exit 2 can actually block** in the hooks page's
-per-event exit-2 table, or to the set of locations a hook may be declared in.
+that can return it; the removal, renaming, or restructuring of the hooks page's **per-event exit-2
+table** this file defers to for blockability, or a change to the set of locations a hook may be
+declared in. A row added to or changed within that table needs no recheck — nothing here restates
+its rows.
 
 ## Sources
 
@@ -208,21 +210,29 @@ Three consequences for residency, and each one bounds a pair rather than admitti
 - **Exit-2 stderr is turn-scoped error feedback, not a standing directive — and only some events
   have an act to block.** "Exit 2 means a blocking error … stderr text is fed back to Claude as an
   error message." It reaches Claude, so it is not nothing; but it is a one-turn message, never a
-  standing rule. Whether it also carries a *gate* is event-specific, and the hooks page's per-event
-  exit-2 table settles it — resolve the handler's event before applying any gate abstraction:
-  - **Blockable events** — `PreToolUse`, `UserPromptSubmit`, `Stop`, `SubagentStop`, `PreCompact`,
-    and `UserPromptExpansion`. Here exit 2 does prevent something, so the conflict-bearing content
-    is the act it blocks — the treatment the prompt-hook bullets above already give. `SubagentStop`
-    is blockable but subagent-scoped: its act pairs inside the subagent, under the subagent-scoping
+  standing rule. Whether it also carries a *gate* is event-specific, and the sole authority on that
+  is the hooks page's
+  [Exit code 2 behavior per event](https://code.claude.com/docs/en/hooks#exit-code-2-behavior-per-event)
+  table. Its rows are not reproduced here in either direction: the event set grows, so any list
+  copied into this file becomes a closed partition that silently misgrades the next event added.
+  Resolve the handler's event, read that event's row, and pair on the row's own `Can block?` cell:
+  - **The cell says yes** — the conflict-bearing content is whatever that row states is prevented,
+    quoted from the row rather than assumed. What a row prevents is not always a tool call or a
+    prompt; the cell, never the gate abstraction, supplies the paired content. `SubagentStop`
+    blocks but is subagent-scoped: its act pairs inside the subagent, under the subagent-scoping
     rule above, and never against a main-session surface.
-  - **Non-blockable events** — `PostToolUse`, `Notification`, `SubagentStart`, `SessionStart`, and
-    `SessionEnd`. Nothing is prevented, so there is no act and no gate to pair; the table says so
-    outright for `PostToolUse` ("the tool already ran"), and this repository's own `PostToolUse`
-    linter records the same thing at `plugins/actionlint/hooks/actionlint-check.sh`. Treat the
-    message as transient feedback and pair it as nothing. Reading a `PostToolUse` linter's exit-2
-    stderr as a prohibition on the tool it ran *after* would manufacture an unsatisfiable conflict
-    against any instruction requiring that tool — the tool already ran, and the hook can neither
-    block nor undo it.
+  - **The cell says no** — nothing is prevented, so there is no act and no gate to pair; treat the
+    message as transient feedback and pair it as nothing. `PostToolUse` is the worked example: its
+    row says so outright ("the tool already ran"), and this repository's own `PostToolUse` linter
+    records the same thing at `plugins/actionlint/hooks/actionlint-check.sh`. Reading that linter's
+    exit-2 stderr as a prohibition on the tool it ran *after* would manufacture an unsatisfiable
+    conflict against any instruction requiring that tool — the tool already ran, and the hook can
+    neither block nor undo it. Registered instead on `PreToolUse`, whose row blocks the tool call,
+    the same handler WOULD enter the comparison set as the act it blocks.
+  - **The event has no row, or the table could not be reached** — record the surface with its event
+    as `blockability-unresolved` and report the pair as such, on the same terms the
+    `text-unresolved` rule below gives. Never infer blockability from the event's name, its prefix,
+    or from what a hook of that shape usually does.
 - **A hook's own configuration is still not instruction text.** The command line, its arguments, and
   its `matcher` are the gate, not prose addressed to the model. Extract only what is injected, under
   the same no-secrets handling every settings-sourced surface gets.
