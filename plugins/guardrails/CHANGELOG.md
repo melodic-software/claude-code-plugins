@@ -3,6 +3,95 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.19.2]
+
+### Changed
+
+- **Shared `hook-utils.sh`: a hook invocation spawns three fewer external processes (#1978).**
+  Every hook that buffers its stdin paid an `awk` (one float division, to slice the read timeout), a
+  `printf | tr -d '\r'` pipeline (a fork and an exec to delete one byte class from a string bash
+  rewrites in place), and a `jq -e .` validity probe over a buffer the read loop had already parsed
+  with jq. On Windows Git Bash, where process creation is `fork()` emulation, each spawn costs
+  ~140 ms. Behavior is unchanged: the slice keeps the three-decimal form `read -t` is given, the
+  buffer is CR-stripped as before, and the completeness verdict is reused only when jq itself
+  produced it — so a host without jq still fails open exactly as it did. Also adds
+  `hook::jq_fields`, which extracts several fields from one payload in a single jq process for
+  hooks that read two or three of them. Synced from `lib/hook-utils.sh`.
+
+## [0.19.1]
+
+### Fixed
+
+- **The PowerShell git sink no longer blocks a call-operator / dot-source of a CONSTANT target
+  (#1968).** `ps::might_invoke_git`'s call-target branch matched any quote character after `&` or
+  `.`, so `& "C:\tools\publish.ps1"` — the ordinary PowerShell script-invocation idiom, carrying no
+  `git` token and a compile-time-constant path — routed to the fail-closed sink and was refused by
+  a *git* guard. Both quote styles and the dot-source form were affected, and because the predicate
+  is shared, the identical command false-blocked twice: once from `block-dangerous-git` and once
+  from `block-no-verify`. The branch now matches only a genuinely computed target — a bare variable
+  or subexpression (`& $tool`, `& (…)`), or a double-quoted string that INTERPOLATES
+  (`& "$tool"`, `& "C:\tools\$ver\x.exe"`). Per PowerShell
+  [`about_Quoting_Rules`](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_quoting_rules),
+  a `$`-free double-quoted string and any single-quoted string are compile-time constants, so such
+  a target is statically decidable as non-git. No fail-open: the literal-git probe runs
+  quote-INTACT, so `& 'git' …`, `& "git" …`, and `& "C:\Git\cmd\git.exe" …` are still caught by
+  name; the interpolated forms still block. Regression cases for both directions are checked in on
+  both guards' suites.
+
+- **The sink's block message named constructs that were not present, and omitted the one that
+  was.** Both unparsable-command messages listed backtick / `--%` / subexpression / script-block /
+  here-string regardless of which of the four sink triggers actually fired, so an operator blocked
+  by a launcher or a computed call target was told to "remove the unparsable construct" when there
+  was none to remove. `ps::classify_git_command` now records the trigger in `PS_SINK_TRIGGER` and
+  each message prints a remediation line specific to it.
+
+- **The unbalanced-here-string message names the terminator that matches the opener.** PowerShell
+  pairs `@'` with `'@` and `@"` with `"@`
+  ([`about_Quoting_Rules`](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_quoting_rules)),
+  but the remediation line always said `'@`. An operator whose `@"` body was flagged and who
+  followed the advice literally produced a command that was still unbalanced and still blocked.
+  `ps::blank_herestrings` now records the hanging opener's quote in `PS_HERESTRING_QUOTE` and the
+  line names the matching terminator, falling back to naming both when no opener was recorded.
+
+- **The dynamic-invocation message no longer prescribes the form the operator already used.** It
+  told them to "invoke the target by its literal name" and asserted that a constant quoted path is
+  not blocked — but the invocation FORM is what routes a command to this branch, so
+  `& 'git' reset --hard` names its program literally and is blocked anyway. Following the advice
+  changed nothing. The detection is unchanged and correct: `&` plus a quoted string is what the
+  guard's Bash tokenizer cannot read, so the command is refused unless it is provably git-free.
+  The line now says to drop the `iex` / `&` / `.` and write the program as a plain command word,
+  which is actionable for every shape that reaches it.
+
+- **The sink remediation lines are now asserted on their TEXT, not just their exit code.** Both
+  message defects above survived because every PowerShell sink case checked only that the command
+  was blocked; `block-no-verify.test.sh` now captures stderr and pins the terminator selection and
+  the drop-the-operator advice.
+
+- **The fail-closed sink message now names its kill switch.** Unlike the sibling too-long and
+  alias-cap fail-closed messages, the unparsable-command messages omitted the
+  `block_dangerous_git_enabled` / `block_no_verify_enabled` escape hatch, leaving an over-blocked
+  operator with no documented way out.
+
+### Changed
+
+- **Telemetry distinguishes the four sink triggers.** Both guards emitted a single
+  `powershell-unparsable` form token for all four shapes that reach the fail-closed sink, which
+  hid which one was responsible for a false-positive rate. The token now carries the trigger:
+  `powershell-unparsable-herestring-unbalanced`, `-special-construct`, `-dynamic-invocation`,
+  `-launcher`.
+
+- **The git and python-write lanes answer "is this call target computed?" with one shared
+  predicate.** The two lanes had drifted to different regexes for the same question — the git
+  lane's blanket quote match is what produced the false positive above, while the python lane's
+  interpolation-only match was already correct. The separator class and operator shape now live in
+  one place (`ps::call_target_is_bare_computed`, `ps::call_target_is_interpolating_string`); each
+  lane states at its call site which of the two shapes it admits. The python lane's behavior is
+  unchanged — it takes the interpolating-string half only, as before. The shared operator prefix is
+  spelled out in each predicate rather than concatenated in from a variable: mixing an unquoted
+  variable with adjacent literal regex text in a `[[ =~ ]]` pattern is version-sensitive, and a
+  predicate that quietly stops matching fails OPEN. The two named functions are the seam that
+  prevents drift; a string constant would not have added to that.
+
 ## [0.19.0]
 
 ### Changed
