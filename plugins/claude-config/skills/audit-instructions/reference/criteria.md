@@ -1,5 +1,5 @@
 ---
-version: 1.19.0
+version: 1.20.0
 last-updated: 2026-08-08
 ---
 
@@ -90,7 +90,7 @@ non-memory surfaces (skill bodies, agent definitions, hook instruction text, out
 memory-layer surfaces (CLAUDE.md, CLAUDE.local.md, `.claude/rules/`, `~/.claude/rules/`) their
 findings route to the `claude-memory` plugin's `audit` skill when it is installed, and fall back
 to the official include/exclude guidance (I1–I5 source below) when it is not. Checks I6–I12 and
-I15–I26 apply to all surfaces; I13 and I14 name narrower surface sets in their own rows.
+I15–I27 apply to all surfaces; I13 and I14 name narrower surface sets in their own rows.
 
 ## Sources
 
@@ -1514,6 +1514,44 @@ promotion gate MET: two model guides converge (see Source).
 - **Verified 2026-08-08** against both guides, fetched as raw markdown (hashes as in I24).
   **Recheck trigger:** either guide's design section dropping the fixed-palette claim or the
   propose-options recommendation.
+
+### I27: Effort lowered to shorten the response
+
+Tier `mechanical` · Authority `ANTHROPIC-DOCS` · Severity `warning` · Surfaces: all ·
+Model scope: `opus-5` (both statements of the property are qualified to Claude Opus 5 — the guide's,
+and the effort page's inside its Opus 5 section; no model-agnostic page states it, so the promotion
+gate is unmet).
+
+- **Detect:** instruction text directing a reader or model to lower effort IN ORDER TO shorten the
+  visible response — "lower effort to keep replies short", "reduce effort so answers stay concise" —
+  the premise being that the effort level controls response length. Seeded by the scanner's I27
+  family (an effort-lowering directive and a brevity token on one line); the lane adjudicates that
+  the line actually premises brevity on effort rather than merely co-locating the two.
+- **Remediate:** replace the effort clause with an explicit length or style instruction — the
+  documented control for response length ("To control response length, prompt for it explicitly") —
+  keeping any effort change only where its stated ground is thinking volume, cost, or latency.
+- **Must NOT flag: effort lowered on thinking-volume, cost, or latency grounds** — "reduce effort to
+  cut thinking cost on mechanical work" states the property the docs confirm; this row fires only on
+  the length premise.
+- **Must NOT flag: response-length instructions themselves.** "Keep responses short" with no effort
+  clause is the documented remediation, not the defect.
+- **Must NOT flag: a document *about* the misconception** — this row, a model-delta chapter, a
+  verification record quoting the premise to refute it — on the audience test I8-b applies.
+- **Must NOT flag: `effortLevel` settings keys and `effort:` frontmatter as such**, on the same
+  discriminator as I21 and I17: a config value implements a choice without stating the premise;
+  this row audits instruction text, including instruction text that lives in a config file.
+- **Source:** Opus 5 prompting guide — "The effort parameter controls how much the model thinks
+  rather than how much it says: lowering effort can reduce thinking volume without reliably
+  shortening the visible response. To control response length, prompt for it explicitly."
+  Corroborated by Effort, whose Opus 5 section states it unhedged: "Effort controls thinking
+  volume, not visible response length: on Claude Opus 5, changing effort does not reliably shorten
+  responses, so prompt for length instead." The guide's "can" hedge is quoted as written — the
+  detection needs only the negative half (not reliably shortening), which both pages state.
+- **Verified 2026-08-08** against the live guide raw-`.md` (11,225 bytes, MD5
+  `8579d63fc9f793784b8c56320fd74e71`, byte-identical to the 2026-07-25 corpus capture) and the
+  effort page's Opus 5 section, both fetched that day. **Recheck trigger:** either page restating
+  the property model-agnostically or a second model guide stating it (gate met → unscope), or
+  either statement disappearing from its page.
 
 ---
 

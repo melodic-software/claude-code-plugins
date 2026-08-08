@@ -3,12 +3,12 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.25.0]
+## [0.26.0]
 
 ### Added
 
 - **`audit-instructions`: I23 gains a pre-scan pattern, and the calibration it was waiting on is
-  now recorded** (catalog 1.19.0). The row shipped unseeded because the threshold and
+  now recorded** (catalog 1.20.0). The row shipped unseeded because the threshold and
   window-position phrasings vary far more than the fixed shapes I8-b matches, and because a
   continuation skill can barely be model-invocable without naming a context trigger somewhere — so
   a loose pattern would have fired on every consumer's handoff skill. **What the seeding actually
@@ -34,6 +34,36 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   It is deliberately not anchored to the bare term "context window" — ordinary vocabulary in any
   surface discussing sessions, and matching it would return the corpus instead of a candidate set.
   Measured over the marketplace's 193 skills the pattern yields 20 rows in 10 files.
+
+## [0.25.0]
+
+### Added
+
+- **`audit-instructions`: new catalog row I27 — effort lowered to shorten the response** (criteria
+  1.18.0 → 1.19.0; issue #1996 decision b). Detects instruction text premising response brevity on
+  a lower effort level — a misconception both the Opus 5 prompting guide and the effort page's
+  Opus 5 section refute ("lowering effort can reduce thinking volume without reliably shortening
+  the visible response"). `Model scope: opus-5` (both statements are model-qualified; promotion
+  gate unmet, with the unscope trigger recorded on the row). Seeded by a new `instruction-scan.sh`
+  I27 family (an effort-lowering directive and a brevity token required on one line; regression cases
+  added) with cost/latency-ground, length-instruction-only, audience-test, and config-value
+  fences; both statements verified against the live pages 2026-08-08 (guide raw-`.md`
+  byte-identical to the 2026-07-25 corpus capture).
+
+### Changed
+
+- **`audit-instructions`: family-alias abort now suggests the normalized token** (issue #1996
+  decision e). The fail-loud abort on a version-ambiguous `--target-model`/settings value (e.g. a
+  bare `opus` pin) still refuses to guess, and now ALSO names the normalized version token the
+  alias currently resolves to per the live model-config docs as a suggested `--target-model`
+  value the user confirms — turning the dead-end abort into a one-confirmation retry without
+  weakening the never-guess contract.
+
+### Fixed
+
+- **`audit-instructions`: stale check-range in `evals/evals.json`** — the memory-layer eval still
+  said "I6-I16" (predating I17–I22) and credited `--opinion` gating to I16 alone; now "I6-I27"
+  with the current `OPINION`-gated set (I16, I19, I22).
 
 ## [0.24.0]
 

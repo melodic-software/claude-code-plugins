@@ -35,13 +35,18 @@
 #       emits the counter-steer text that forbids the behavior (inverted
 #       polarity), documents ABOUT the pattern, and operator-facing budgets:
 #       all three are criteria-owned exemptions the model lane applies.
+#   I27 effort-for-brevity candidates: a line pairing an effort-lowering
+#       directive ("lower/reduce/decrease/drop … effort") with a brevity token
+#       (short/brief/concise/terse/length/verbose/wordy). The model lane
+#       adjudicates whether the line actually premises brevity on effort.
 #
 # Advisory: prints candidate rows, ALWAYS exits 0 (candidates never fail a run).
 # Requires grep; exits 2 when grep is absent.
 #
 # Rows are `file:line:check-id` (grep -n convention). With no rationale on a line
 # a prohibition surfaces as an I6 row; a line may surface once per matching check
-# id (I6, I10, I23, and one of the I8 families). Nonexistent path arguments are
+# id (I6, I10, I23, I27, and one of the I8 families). Nonexistent path arguments
+# are
 # skipped, not errors.
 #
 # Usage:
@@ -53,7 +58,7 @@ set -uo pipefail
 
 usage() {
   cat <<'EOF'
-instruction-scan.sh — mark I6/I8/I10 instruction candidates in given files.
+instruction-scan.sh — mark I6/I8/I10/I23/I27 instruction candidates in given files.
 
 Usage: instruction-scan.sh [--count|--help] FILE...
 
@@ -63,7 +68,9 @@ Usage: instruction-scan.sh [--count|--help] FILE...
 
 I8 pattern families (model-era candidates; model lane adjudicates): I8-a
 instructed self-check, I8-b conservative-reporting, I8-c don't-think /
-don't-reason. I23 marks self-estimated context-budget phrasing.
+don't-reason. I23 marks self-estimated context-budget phrasing. I27 marks
+effort-for-brevity candidates (effort-lowering directive paired with a brevity
+token on one line).
 
 Advisory — always exits 0 (candidates never fail the run). Requires grep
 (exit 2 when absent). Seeds the candidate set of the audit-instructions
@@ -124,6 +131,12 @@ I23_ERE="${I23_ERE}|remaining[- ](context|window|tokens)|context[- ](budget|perc
 I23_ERE="${I23_ERE}|(check|checking|watch|watching|monitor|monitoring) (the |your )?/context|/context output"
 I23_ERE="${I23_ERE}|(final|last) (third|quarter|half) of (the|your|its) window|window position"
 I23_ERE="${I23_ERE}|(nearing|approaching) (the )?(context|token)[- ](limit|cap|budget|window)"
+# I27 effort-for-brevity: both patterns must hit the SAME line — the AND lives
+# in scan_file. Stem forms catch inflections (decrease/decreasing via the bare
+# stem, drop/dropped/dropping via the doubled-p form; verbos carries no left
+# boundary so compounds match too); over-production is the contract, as with I8.
+I27_EFFORT_ERE="(lower|reduc|decreas|dropp?)(e|ed|es|ing|s)? (the |your )?effort" # spellchecker:disable-line
+I27_BREVITY_ERE="${WB_L}short|${WB_L}brief|${WB_L}concise|${WB_L}terse|${WB_L}length|verbos|${WB_L}wordy"
 
 rows=()
 
@@ -165,6 +178,14 @@ scan_file() {
       rows+=("$file:$lineno:I8-$fam")
     done < <(grep -niE "$ere" "$file" 2>/dev/null)
   done
+
+  while IFS= read -r hit; do
+    [[ -n "$hit" ]] || continue
+    lineno="${hit%%:*}"
+    text="${hit#*:}"
+    printf '%s\n' "$text" | grep -qiE "$I27_BREVITY_ERE" || continue
+    rows+=("$file:$lineno:I27")
+  done < <(grep -niE "$I27_EFFORT_ERE" "$file" 2>/dev/null)
 }
 
 for file in "$@"; do
