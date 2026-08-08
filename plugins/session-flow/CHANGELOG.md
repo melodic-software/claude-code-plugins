@@ -1,5 +1,43 @@
 # Changelog — session-flow plugin
 
+## [0.18.0]
+
+### Added
+
+- **`retro`: the multi-session parser now reports chain coverage (#1980).** Chain discovery walks
+  `previous_handoff` pointers backwards, so it stops at the first session that wrote no handoff
+  file — and a walk that ended early was indistinguishable in the output from a genuinely short
+  chain. The reported case ran a 10-session chain linked by hand-pasted continuation prompts and
+  got a retrospective authored from 2 sessions, with nothing signalling the gap. The multi-session
+  output carries a `chain_coverage` block (`requested` / `found` / `available` / `ratio`), where
+  `available` counts the transcripts present for the project — the denominator the walk itself
+  cannot see — and the human-readable `summary` carries the same ratio. The skill now states its
+  discovery basis and must not present a low-coverage chain retro silently; below ~0.5 it names the
+  counts and offers `--sessions` with the ids enumerated.
+
+### Fixed
+
+- **`retro`: `parse_transcript.py --sessions` accepts a comma-joined list instead of silently
+  resolving nothing (#1980).** The option is declared `nargs="+"`, so `--sessions a,b,c` — the
+  shape a caller reaches for when the ids were just written into prose — was consumed as ONE
+  literal token. It matched no transcript file, and the run reported "0 with transcript" for a
+  chain whose transcripts all existed: a wrong answer rather than an error. Tokens are now split on
+  `,` after parsing (a session id never contains one, so the split cannot change the meaning of a
+  correctly space-separated invocation), empty fragments are dropped, and a `--sessions` value that
+  resolves to no ids at all reaches the existing usage error.
+
+- **`retro`: a repeated session-id is parsed once, not once per mention.** Every multi-session
+  number is a sum over the requested list, so naming one id twice — easy once a comma-joined list
+  can be mixed with a space-separated one — doubled the aggregate token and turn totals and counted
+  a single transcript twice against an `available` denominator that counts its file once,
+  publishing a `chain_coverage.ratio` of 2.0 and a summary reading "covering 2 of 1 transcript(s)".
+  `build_multi_session_output` now deduplicates its ids first-occurrence-wins, which keeps the
+  order the roles depend on (first id = current session). The rule lives in that one function so
+  every entry point is covered, `--chain-from` included; the walk's own cycle guard stays, because
+  a pointer cycle has to terminate the walk rather than be cleaned up after it.
+  `chain_coverage.requested` and the `pass` status now compare against the deduplicated list, so a
+  run that named an id twice reports `requested: 1` and still passes.
+
 ## [0.17.24]
 
 ### Fixed

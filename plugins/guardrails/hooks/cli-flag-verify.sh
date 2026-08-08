@@ -93,8 +93,9 @@ fi
 REPO_ROOT="$(hook::repo_root "$(dirname "$FILE")")"
 
 # Known binaries to check. Override via the cli_flag_verify_bins userConfig option.
-# `git` and `npx` are intentionally EXCLUDED — both are unreliable `--help`
-# flag lists whose residuals are all real-flag false positives:
+# `git`, `npx`, and `npm` are intentionally EXCLUDED — all three have unreliable
+# or non-exhaustive `--help` flag lists whose residuals are all real-flag false
+# positives:
 #   - `git <subcmd> --help` routes to the man page (or a short synopsis under
 #     timeout), not a parseable per-subcommand flag list, AND the flaky output
 #     poisons the 24h --help cache → persistent FPs.
@@ -102,8 +103,18 @@ REPO_ROOT="$(hook::repo_root "$(dirname "$FILE")")"
 #     package's, not npx's) and an uninstalled `<pkg>` can trigger a network
 #     fetch. Working cases produce no residual (invisible benefit); failing
 #     cases produce visible FPs — same shape that excludes git.
-# Re-add either via the env var if it ever ships a stdout-parseable flag list.
-DEFAULT_BINS="claude gh dotnet docker npm kubectl terraform az aws"
+#   - `npm <subcmd> --help` lists only that subcommand's own options, but EVERY
+#     npm config key is simultaneously a command-line flag on every subcommand —
+#     `npm --help` says so itself: "Specify configs in the ini-formatted file …
+#     or on the command line via: npm <command> --key=value". So the global
+#     config flags (`--prefix`, `--registry`, `--userconfig`, …) appear in
+#     NEITHER `npm <subcmd> --help` NOR `npm --help`, and every use of one is a
+#     false positive. The authoritative list (`npm config ls -l`) prints
+#     `prefix = "…"`, not `--prefix`, so it cannot be consumed by a generic
+#     `--help` flag-list parser without an npm-specific transform.
+# Re-add any of them via the option if it ever ships a stdout-parseable,
+# exhaustive flag list.
+DEFAULT_BINS="claude gh dotnet docker kubectl terraform az aws"
 BINS_RAW="${CLAUDE_PLUGIN_OPTION_CLI_FLAG_VERIFY_BINS:-$DEFAULT_BINS}"
 # Normalize: comma OR space separated → space separated.
 BINS="${BINS_RAW//,/ }"
