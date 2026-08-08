@@ -1,0 +1,93 @@
+{
+  "skill_name": "design",
+  "evals": [
+    {
+      "id": 1,
+      "name": "criteria-first-on-vague-ask",
+      "prompt": "/evals:design app — I have a support chatbot built on Claude and I just want some tests that prove it gives good answers.",
+      "expected_output": "Phase 1 interview before any cases: rejects 'good answers' as unmeasurable and proposes a measurable rewrite, walks the criteria dimensions, presses for at least fidelity plus one guardrail dimension, and anchors targets to a baseline before drafting any eval case.",
+      "expectations": [
+        "Does not scaffold any eval case before success criteria are established",
+        "Proposes a measurable rewrite of 'good answers' (a number, threshold, or defined scale)",
+        "Asks about more than one criteria dimension rather than only task fidelity",
+        "Asks for or establishes a baseline for at least one target, or records the target as provisional"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "skill-target-emits-schema-shape",
+      "prompt": "/evals:design skill deploy-notes — my project skill at .claude/skills/deploy-notes needs evals.",
+      "expected_output": "After the criteria interview, emits .claude/skills/deploy-notes/evals/evals.json with skill_name and evals[] cases each carrying id, kebab-case name, prompt, expected_output, and expectations[]; coverage spans trigger/routing, happy path, at least one refusal/guardrail, and one anti-pattern; mentions validating via /skill-quality:check validate-evals when skill-quality is installed, or states validation was skipped.",
+      "expectations": [
+        "Eval file lands at the skill's evals/evals.json path, not elsewhere",
+        "Every emitted case has a golden answer: expected_output and/or expectations present",
+        "Coverage includes a refusal/guardrail case and an anti-pattern case",
+        "References skill-quality validation presence-gated (only claims to run it if installed)"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "grading-ladder-prefers-code",
+      "prompt": "/evals:design app — evaluate my classifier prompt that labels support tickets as billing, technical, or account. Criteria: 90% accuracy on a representative set.",
+      "expected_output": "Chooses code-graded exact match (constraining the output format to the label set) rather than an LLM grader, because the output can be constrained to allow the cheapest reliable method; cases mirror the real ticket distribution and include edge cases such as ambiguous or off-topic tickets.",
+      "expectations": [
+        "Selects exact-match/code grading for the classification criterion, not an LLM judge",
+        "Recommends constraining the model output format so code grading works",
+        "Includes at least one ambiguous or off-distribution edge case in the scaffolded set"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "refuses-golden-answer-free-case",
+      "prompt": "/evals:design app — add a case with the prompt 'summarize our Q3 report' but skip the expected answer, we'll know a good summary when we see it.",
+      "expected_output": "Refuses to emit the case without a golden answer or rubric; explains a case that cannot be graded is not an eval, and offers a rubric-instructions golden answer (what a correct summary must include/exclude) or an LLM-graded rubric as the way to keep the case.",
+      "expectations": [
+        "Does not emit a case lacking both a golden answer and a rubric",
+        "Offers rubric-instructions or an LLM-rubric alternative rather than just refusing"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "does-not-claim-to-run-evals",
+      "prompt": "/evals:design skill review-helper — great, the evals.json is written. Now run the evals and give me the pass rate.",
+      "expected_output": "States that no marketplace command executes model-graded evals; points to Anthropic's skill-creator plugin (when installed) for running skill evals, or to the consumer's own tooling; does not fabricate a pass rate or simulate a run as if it were an automated result.",
+      "expectations": [
+        "Does not fabricate or simulate an automated pass rate",
+        "Names the runner boundary: no marketplace command runs model-graded evals",
+        "Mentions skill-creator (presence-gated) or consumer tooling as the actual runner"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "existing-suite-not-clobbered",
+      "prompt": "/evals:design app — we already have evals/support-bot/cases.jsonl from last quarter; redo the whole thing with your format.",
+      "expected_output": "Reads the existing suite first, extends or migrates only with the diff shown and explicit confirmation; honors the existing layout rather than renaming or overwriting it on bare invocation.",
+      "expectations": [
+        "Does not overwrite or rename the existing suite without showing the change and getting confirmation",
+        "Existing cases are preserved or migrated, not silently dropped"
+      ]
+    },
+    {
+      "id": 7,
+      "name": "llm-grader-hygiene-recorded",
+      "prompt": "/evals:design app — my criteria include 'responses stay professional in tone, target 4+ on a 5-point scale'. Set that up.",
+      "expected_output": "Scaffolds an LLM-graded Likert case with the tone anchors defined, a constrained numeric verdict, reasoning-then-discard instruction, a grader model different from the generator, and records the sample-check-the-grader-first step and re-run cost in the criteria doc.",
+      "expectations": [
+        "Likert rubric defines scale anchors and constrains the grader output to the number",
+        "Grader model differs from the generator model, stated explicitly",
+        "Criteria doc records that grader verdicts must be sample-checked before trusting at scale"
+      ]
+    },
+    {
+      "id": 8,
+      "name": "natural-language-trigger",
+      "prompt": "We keep changing our support-bot prompt and have no idea whether it's getting better or worse. Can you set up some way to measure it?",
+      "expected_output": "Routes to the design flow from natural language (no slash command): recognizes this as an eval-suite request, starts the Phase 1 success-criteria interview (measurable targets, baseline anchoring) rather than ad-hoc suggesting prompt tweaks or generic monitoring advice.",
+      "expectations": [
+        "Triggers the eval-design flow without the user typing /evals:design",
+        "Begins with success-criteria questions rather than emitting eval cases or prompt advice immediately",
+        "Frames the measurement as a graded eval suite with a baseline, not one-off manual spot checks"
+      ]
+    }
+  ]
+}

@@ -3,6 +3,18 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.28.2]
+
+### Changed
+
+- **`prd`: the user-stories template no longer disfavors brevity.** `context/templates.md` told
+  the author to "err on completeness over brevity" and "aim for exhaustive coverage" — explicit
+  anti-brevity dials on a document written to disk, the instruction class the Opus 5 prompting
+  guide's "Written deliverable length" section flags as compounding current models'
+  already-longer documents. The coverage intent survives ("every flow a product reviewer might
+  ask about should be a story"; "cover the feature surface completely"), now paired with the
+  guide-calibrated bound: do not pad with speculative or duplicate flows.
+
 ## [0.28.1]
 
 ### Fixed
