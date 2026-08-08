@@ -79,9 +79,9 @@ anchors for the file tools, not shell-command expansion). A rule like
 Two substitutions *are* expanded in `allowed-tools`: per
 [skills](https://code.claude.com/docs/en/skills#available-string-substitutions), Claude Code
 substitutes `${CLAUDE_SKILL_DIR}` and `${CLAUDE_PROJECT_DIR}` in the skill's markdown content and in
-Bash rules in `allowed-tools` (version floors: `${CLAUDE_SKILL_DIR}` v2.1.129+,
-`${CLAUDE_PROJECT_DIR}` v2.1.196+; below the floor the rule stays a literal string and never
-matches). `${CLAUDE_PLUGIN_ROOT}` is **not** among them — it does not appear anywhere on that page —
+Bash rules in `allowed-tools` (the `${CLAUDE_PROJECT_DIR}` substitution requires Claude Code
+v2.1.196 or later; below that floor the rule stays a literal string and never matches).
+`${CLAUDE_PLUGIN_ROOT}` is **not** among them — it does not appear anywhere on that page —
 so a rule written with it stays a literal string, never matches, and the grant is inert.
 
 `${CLAUDE_SKILL_DIR}` is therefore the correct token for a rule that must match a skill's own bundled
@@ -95,9 +95,10 @@ written.
 
 Three official constraints mean the operative allow-rule cannot be shipped by the skill or plugin:
 
-- **Skill `allowed-tools` is skill-scoped and (per anti-pattern 1) ineffective for auto-mode-gated
-  action classes.** It "grants permission for the listed tools while the skill is active … It does not
-  restrict which tools are available" —
+- **Skill `allowed-tools` is turn-scoped and (per anti-pattern 1) ineffective for auto-mode-gated
+  action classes.** It "grants permission for the listed tools during the turn that invokes the
+  skill", "The grant clears when you send your next message", and "It does not restrict which tools
+  are available" —
   [skills](https://code.claude.com/docs/en/skills) — but auto mode still drops the broad/interpreter
   shapes.
 - **A plugin cannot ship permission rules.** A plugin's `settings.json` supports "Only the `agent` and
