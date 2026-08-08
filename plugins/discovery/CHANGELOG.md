@@ -1,5 +1,65 @@
 # Changelog — discovery plugin
 
+## [0.10.0]
+
+### Added
+
+- **A deterministic acceptance gate for a dispatched `/discovery:explore` run.** A consuming project
+  reported an `explorer` dispatch that returned `status: completed` carrying a mid-stream narration
+  line as its entire payload — no `preload_token`, no summary, no artifact path — and the parent
+  proceeded as though exploration had finished. The contract that was supposed to stop that was
+  already present as prose, and had been since `78e89e12`, four days before the run that failed;
+  another paragraph would have been the same category of thing. So the check is now runnable and
+  fails closed.
+  - `scripts/check-explore-artifact.sh` — new. Takes the memory-slice path the **parent** resolved
+    before dispatching, and grades the run off disk: exactly one `EXPLORE.md` (slice root or one
+    level below, the sanctioned sub-slice depth), non-empty, naming at least one
+    `EXPLORE-<section>.md` sidecar, with every named sidecar present beside it and non-empty. Exit 0
+    usable, 1 no usable artifact set, 2 ungradeable. Three opt-in checks extend it — `--newer-than`
+    (the index is newer than a baseline the parent touched pre-dispatch), `--expect-index` (the
+    payload's pointer resolves to the file that was graded), and `--expect-sidecars` (the payload's
+    count matches what the index names). Each reports `unchecked` in the verdict line when it is not
+    run, so a skipped check never reads as a passed one.
+  - `scripts/check-explore-artifact.test.sh` — new. 46 black-box cases, weighted toward the readings
+    that would be invisible if wrong: an empty slice, a stub index, an index naming files nobody
+    wrote, a stale artifact from an earlier run, a payload pointing somewhere else, and two candidate
+    indexes must never report `usable`.
+  - `skills/explore/SKILL.md` — new parent-side acceptance gate in the routing section, citing the
+    script's **exit status** rather than a reading of the directory, and stating the halt explicitly:
+    a non-zero exit stops the workflow rather than annotating it.
+
+  **The path deliberately comes from the parent's envelope, never from `artifact:`.** The payload is
+  the broken party in the reported failure, so a check that reads its own input from the payload
+  cannot see that failure at all.
+
+  **Two ways an on-disk check can still pass a failed run, both now closed.** Existence is not
+  freshness: a slice already holding an earlier run's complete artifact set satisfies every check
+  even when this dispatch wrote nothing, and the sidecar count agrees because both runs write the
+  same sections — hence the pre-dispatch `.explore-dispatch` baseline and `--newer-than`. And because
+  the gate selects the index from the parent's slice path rather than from the payload, the two are
+  free to disagree: a payload naming another file is not corroborating what was graded, and its
+  `verification_request.target` would aim the sibling verifier at a file the gate never looked at —
+  hence `--expect-index`, with the gate's own `index=` authoritative for the verifier and the
+  handoff.
+
+- **The missing half of validate-on-receipt.** The parent's rule covered a missing or mismatched
+  `preload_token` and nothing else. A payload carrying **no artifact pointer** is now stated to be a
+  failed dispatch regardless of the `status` field it reports.
+
+- **`skills/explore/reference/dispatch.md`** — new spoke carrying the parent's obligations, why
+  `test -s` alone was not enough, and the recovery ladder the reporting session had to find by trial
+  at a cost of roughly eight minutes. Resume the agent by **agent ID** with `SendMessage` when it is
+  still live; fix the envelope yourself on an exit 2; discard and re-dispatch on a refused resume.
+  Verified 2026-08-08 against the official subagents page
+  (<https://code.claude.com/docs/en/sub-agents>): "When a subagent completes, Claude receives its
+  agent ID", "Claude uses the `SendMessage` tool with the agent's ID or name as the `to` field to
+  resume it", "A completed subagent that receives a `SendMessage` auto-resumes in the background
+  without a new `Agent` invocation", and — the reason the ladder says ID rather than name — "As of
+  v2.1.199, `SendMessage` checks that a name still refers to the same agent it reached earlier in
+  the conversation". The same page bounds the claim: a subagent the **user** stopped "doesn't
+  auto-resume", and the built-in Explore agent this skill names as its one alternative is one-shot
+  and "can't be resumed", so the ladder is scoped to the custom `discovery:explorer`.
+
 ## [0.9.3]
 
 ### Fixed
