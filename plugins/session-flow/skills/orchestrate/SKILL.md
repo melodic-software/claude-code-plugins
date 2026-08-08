@@ -49,9 +49,8 @@ told:
    explicit task boundaries, and a deliberately chosen model tier. Vague delegation makes workers
    duplicate each other, leave gaps, or wander; absent a consumer-level subagent-model override,
    an unspecified model silently inherits the parent session's — often its most expensive — model.
-   The reason is the field workers most often lack and least often ask for: a worker holding only
-   an objective resolves each ambiguity toward the sentence you wrote rather than the outcome you
-   wanted, and returns something well-formed and wrong.
+   Holding only an objective, a worker resolves each ambiguity toward the sentence you wrote rather
+   than the outcome you wanted, and returns something well-formed and wrong.
 3. FRESH-CONTEXT VERIFY — after an edit batch or a finding set, hand it to a SEPARATE verifier;
    never self-audit in the context that produced it. Give the verifier concrete pass/fail criteria
    ("run the full suite, report all failures"), scope it to correctness/requirements (not style),
