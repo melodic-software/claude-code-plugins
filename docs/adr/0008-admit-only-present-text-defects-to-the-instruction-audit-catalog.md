@@ -49,9 +49,16 @@ The three real alternatives, and why each lost:
 
 ## Decision
 
-**The instruction-audit catalog admits a row only when its observable is text that is present.** A
-row detects something a surface *says*. An obligation that a surface *should say* something does not
-become a row, however well sourced.
+**The instruction-audit catalog admits a row only when its observable is anchored to text that is
+present.** A row detects a passage a surface actually contains — either what it says, or an attribute
+it lacks while saying it. An obligation that a surface *should say* something, anchored to no passage
+at all, does not become a row, however well sourced.
+
+**The line is the anchor, not the polarity of the sentence**, and getting that wrong would refuse two
+shipped rows. I6 detects a prohibition carrying no rationale marker; I7 detects a request stating no
+motivation. Both are worded as absences and both are admissible, because each names a line a reader
+can point at and judges what is missing *from that line*. The refused shape has no such line: its
+finding cites no passage, and its population is every file that lacks the pattern.
 
 Absence-shaped guidance from a model guide routes one of two ways, and the audit records which:
 
@@ -80,8 +87,10 @@ keeps that visible rather than silent, and it is the whole of the mitigation —
 oblige the two plugins to depend on each other.
 
 The rule is a ceiling on the catalog, so it constrains future rows more than existing ones. Every row
-through I23 already satisfies it; the check is on admission, and a proposed row whose Detect clause
-reads "a surface that does not …" is refused on shape before its source is weighed.
+through I23 satisfies it, **including the two whose Detect clauses are worded as absences** — the
+anchor test above is what admits them, and an earlier draft of this record that tested polarity
+instead would have refused both. The check is on admission, and a proposed row citing no passage at
+all is refused on shape before its source is weighed.
 
 An audit against a new model guide now has a cheap first pass: sort the guide's sections into
 defect-shaped and absence-shaped before reading a single repository file, because only the first kind

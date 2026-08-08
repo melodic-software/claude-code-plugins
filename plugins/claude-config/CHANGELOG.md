@@ -44,12 +44,17 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
 
 ### Changed
 
-- **The catalog states an admission rule.** A row's observable must be text that is present: a check
-  detects what a surface says, and an obligation that a surface *should* say something is refused on
-  shape rather than weighed on its source. Integrating one model guide raised that question at four
-  separate sections and answered it four times by hand; the rule now settles it once, and requires an
-  audit declining a row on this ground to name where the guidance routed instead — doctrine or a
-  mechanism — so "no row" never reads as "not covered". Every row through I23 already satisfies it.
+- **The catalog states an admission rule.** A row's observable must be **anchored to** text that is
+  present: a check detects a passage a surface contains — what it says, or an attribute it lacks
+  while saying it — and an obligation anchored to no passage at all is refused on shape rather than
+  weighed on its source. Integrating one model guide raised that question at four separate sections
+  and answered it four times by hand; the rule now settles it once, and requires an audit declining a
+  row on this ground to name where the guidance routed instead — doctrine or a mechanism — so "no
+  row" never reads as "not covered".
+  - **The line is the anchor, not the polarity of the sentence.** I6 (a prohibition carrying no
+    rationale marker) and I7 (a request stating no motivation) are both worded as absences and both
+    admissible, because each names a line a reader can point at. A rule tested on polarity would have
+    refused two shipped rows, which is what an adversarial pass on this change caught before merge.
 - **I8's base row now cites the general principle, not only the migration framing.** Both of its
   sources sat in sections about migrating older material, which pointed an auditor at what looks
   like leftover prior-model scaffolding and past freshly authored over-enumeration — the same defect
