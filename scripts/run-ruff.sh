@@ -38,16 +38,17 @@ if [[ -z "$pin" ]]; then
   exit 2
 fi
 
+# `ruff --version` prints "ruff X.Y.Z"; anything else (including a failed probe)
+# is reported as the caller's fallback rather than treated as a version.
+ruff_reported_version() {
+  local out
+  out="$(ruff --version 2>/dev/null)" || return 1
+  printf '%s\n' "${out##* }"
+}
+
 if command -v ruff >/dev/null 2>&1; then
-  # Probe PATH ruff outside conditionals so SC2310 does not fire on set -e.
-  set +e
-  out="$(ruff --version 2>/dev/null)"
-  rc=$?
-  set -e
-  got=""
-  if [[ $rc -eq 0 ]]; then
-    got="${out##* }"
-  fi
+  # shellcheck disable=SC2310  # the probe's only failure is "no version", handled by the fallback
+  got="$(ruff_reported_version)" || got=""
   if [[ "$got" == "$pin" ]]; then
     exec ruff "$@"
   fi
@@ -58,14 +59,8 @@ if command -v uvx >/dev/null 2>&1; then
 fi
 
 if command -v ruff >/dev/null 2>&1; then
-  set +e
-  out="$(ruff --version 2>/dev/null)"
-  rc=$?
-  set -e
-  got="unknown"
-  if [[ $rc -eq 0 ]]; then
-    got="${out##* }"
-  fi
+  # shellcheck disable=SC2310  # same probe, same fallback — reported, never trusted
+  got="$(ruff_reported_version)" || got="unknown"
   echo "error: ruff on PATH is ${got}, but CI pins ruff==${pin} (.github/requirements-ci.txt)." >&2
   echo "error: install the pin, or install uv and re-run (uvx ruff==${pin} ...)." >&2
   exit 2

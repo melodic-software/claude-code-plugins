@@ -16,6 +16,14 @@ All notable changes to the `source-control` plugin are documented here. Format f
   time, so this follows the repository's version wherever it goes rather than freezing a value
   here.
 
+- **`engine.test.sh` finds that wrapper on a relative invocation, so the lint pass actually runs.**
+  The suite re-derived the repository root from `BASH_SOURCE` *after* `cd`-ing into its own
+  directory. `BASH_SOURCE` holds the path as invoked, so a relative invocation resolved against the
+  new working directory and landed outside the repository: the wrapper was never found, the harness
+  printed `SKIP: scripts/run-ruff.sh not found (lint pass omitted)`, and the suite exited 0 having
+  linted nothing. `scripts/run-plugin-tests.sh` runs it from the repository root, so that was the
+  path CI took every time. The script directory is now captured once, before the `cd`.
+
 ## [0.47.1]
 
 ### Changed
