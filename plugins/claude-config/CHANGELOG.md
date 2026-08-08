@@ -14,11 +14,12 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   what a per-row trigger actually buys: **specificity about what to re-read** — the literal the row
   restates and the event that would move it — so a re-verification pass goes straight to that value
   instead of re-reading the page to find what mattered. The recheck-trigger paragraph's "Every check
-  cites one of those pages" was falsified by the four rows whose Source line reads `none` (I16, I19,
-  I22, I27); it is now scoped to checks that cite a source, with the exception stated on its own
-  logic — a row resting on no upstream page cannot be staled by a docs change, so it needs no
-  watcher. No source was invented for any sourceless row, and the catalog-trigger-wins precedence
-  and whole-catalog firing rule are unchanged.
+  cites one of those pages" was falsified by the three checks whose Source line reads `none` — I16,
+  I19, I22 (the Stopping condition rule is sourceless too, but is not a check) — and is now scoped
+  to checks that cite a source, with the exception stated on its own logic: a row resting on no
+  upstream page cannot be staled by a docs change, so it needs no watcher. No source was invented
+  for any sourceless row, and the catalog-trigger-wins precedence and whole-catalog firing rule are
+  unchanged.
 
 ## [0.25.0]
 

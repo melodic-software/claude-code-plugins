@@ -15,8 +15,7 @@ docs when any fires: a new frontier model release; **a change to any page listed
 below**. Every check that cites a source cites one of those pages, so the trigger set is the source
 set — naming a subset would leave the harness-behavior rows depending on pages nothing watches. A
 row whose Source line reads `none` rests on no upstream page, so no docs change can stale it and it
-needs no watcher; it is covered by the model-release trigger like every other row. One staleness
-event fires the whole catalog, not the check that noticed it. Model-specific pages — the per-model
+needs no watcher. One staleness event fires the whole catalog, not the check that noticed it. Model-specific pages — the per-model
 prompting guides under Sources — are superseded on each model generation.
 
 **Per-row verification stamps.** A row that restates a volatile upstream *literal* — a level name, a
