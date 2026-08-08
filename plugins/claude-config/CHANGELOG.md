@@ -20,10 +20,15 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   executable, not in exec form, and the fix is a real binary plus the script path in `args`.
 
   Category D now follows the page's own guidance — "Prefer exec form for any hook that references a
-  path placeholder. In shell form, wrap each placeholder in double quotes" — while explicitly not
-  flagging shell form where the page endorses it (pipes, `&&`, redirects, `.cmd`/`.bat` shims). A
-  further row flags the bare `$CLAUDE_PROJECT_DIR` spelling in a PowerShell shell-form hook, which
-  the page says "PowerShell parses … as an undefined local variable and resolves … to `$null`".
+  path placeholder. In shell form, wrap each placeholder in double quotes" — and flags only the
+  unquoted placeholder, never shell form itself. Quoted shell form stays a correct spelling, which
+  it must: the page endorses omitting `args` for pipes, `&&`, redirects, and `.cmd`/`.bat` shims,
+  and this repository's own hooks use it. The replacement warns without swinging into the
+  mirror-image false positive the old row produced. The executable-resolution row is scoped to
+  Windows-targeting repos, since `bash` and `sh` are ordinary executables elsewhere, and it names
+  `"shell": "bash"` alongside the `node`-plus-`args` pattern as a documented fix. A further row
+  flags the bare `$CLAUDE_PROJECT_DIR` spelling in a PowerShell shell-form hook, which the page says
+  "PowerShell parses … as an undefined local variable and resolves … to `$null`".
 
 ### Added
 

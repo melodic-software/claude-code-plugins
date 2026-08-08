@@ -45,10 +45,10 @@ Load the audit checklist alongside these: [audit-checklist.md](../reference/audi
 - Matchers take their intended evaluation path — only letters, digits, `_`, `-`, spaces, `,`, `|`
   makes it an exact-string list; any other character makes it an unanchored JavaScript regex, which
   needs `^…$` to match a whole string (`Edit.*` also matches `NotebookEdit`)
-- Path-placeholder hooks prefer exec form (`args`); a shell-form one quotes each placeholder — but
-  shell form is correct when the hook needs pipes, `&&`, redirects, or a `.cmd`/`.bat` shim
-- Exec-form `command` resolves to a real executable — `bash` there finds the WSL relay on Windows
-  and the hook silently never launches
+- A shell-form hook quotes each path placeholder; exec form is the docs' preference but shell form
+  is correct when the hook needs pipes, `&&`, redirects, or a `.cmd`/`.bat` shim — do not flag it
+- On a Windows-targeting repo, exec-form `command` resolves to a real executable — `bash` there
+  finds the WSL relay and the hook silently never launches
 - A shell-form PowerShell hook uses `${CLAUDE_PROJECT_DIR}` or `$env:CLAUDE_PROJECT_DIR`, never the
   bare `$CLAUDE_PROJECT_DIR`, which PowerShell resolves to `$null`
 - No duplicate hooks (same script registered twice for same event)
