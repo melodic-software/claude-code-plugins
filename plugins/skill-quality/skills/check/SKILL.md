@@ -1,6 +1,6 @@
 ---
 name: check
-description: "Skill-authoring QA for Claude Code skills. Use when: 'check this skill', 'skill quality', 'lint my skill', 'is this SKILL.md valid', 'validate skill frontmatter', 'check skill before publishing', 'validate evals.json', 'shared listing budget', 'is the skill listing overflowing', or before shipping a skill or plugin. Actions: `check [<skill-name>]` runs a twenty-two-check static contract gate (frontmatter, per-skill listing-entry cap, trigger-keyword preservation vs HEAD, line caps, broken internal refs, markdownlint, gotchas surface, evals presence, precompute opportunity, injection shell-declaration, fresh-eyes declaration conformance) and reports PASS/FAIL with warnings; `validate-evals [<skill-name>]` checks a skill's evals/evals.json against the bundled schema; `listing-budget [<root> ...]` reports the SHARED aggregate listing-budget estimate across every listing-eligible skill under the resolved root(s) — advisory only, never blocks. Not for: writing new skills, or running model-graded evals."
+description: "Skill-authoring QA for Claude Code skills. Use when: 'check this skill', 'skill quality', 'lint my skill', 'is this SKILL.md valid', 'validate skill frontmatter', 'check skill before publishing', 'validate evals.json', 'shared listing budget', 'is the skill listing overflowing', or before shipping a skill or plugin. Actions: `check [<skill-name>]` runs a twenty-two-check static contract gate (frontmatter, per-skill listing-entry cap, trigger-keyword preservation vs HEAD, line caps, broken internal refs, markdownlint, gotchas surface, evals presence, precompute opportunity, injection shell-declaration, fresh-eyes declaration conformance) and reports PASS/FAIL with warnings; `validate-evals [<skill-name>]` checks a skill's evals/evals.json against the bundled schema, then runs a deterministic eval-quality lint (duplicate case ids/names, missing fixtures, empty or vague grading criteria, set-coverage warnings); `listing-budget [<root> ...]` reports the SHARED aggregate listing-budget estimate across every listing-eligible skill under the resolved root(s) — advisory only, never blocks. Not for: writing new skills, or running model-graded evals."
 argument-hint: "[check|validate-evals|listing-budget] [<skill-name-or-root> ...] — omit the action for check; omit the name/root to run over every skill under the resolved root"
 user-invocable: true
 disable-model-invocation: false
@@ -15,7 +15,9 @@ metadata:
 Static, deterministic quality gate for skill authoring. The `check` action runs the bundled
 `check-skill.sh` — twenty-two checks with no model invocation, so results are reproducible in CI or a
 pre-commit hook. The `validate-evals` action checks a skill's `<skill>/evals/evals.json` against the bundled
-JSON schema. The `listing-budget` action runs `check-listing-budget.sh` — a separate, always-advisory
+JSON schema, then runs the bundled `check-evals-quality.sh` — a deterministic eval-quality lint
+(duplicate case ids/names, missing fixtures, empty or vague grading criteria, set-coverage
+warnings) that goes beyond structure without ever running a model-graded eval. The `listing-budget` action runs `check-listing-budget.sh` — a separate, always-advisory
 report on the SHARED listing budget every loaded skill draws from together (a different, cross-skill
 limit from `check`'s per-skill entry cap). Catches the failure that static analysis catches best: a
 rewrite silently dropping a `description` trigger phrase, which degrades auto-invocation.
@@ -109,6 +111,20 @@ that line before editing, since it may be an illustrative example path rather th
    array, or a non-empty `assertions` array (a case that cannot be graded is not an eval); a
    rich-form case may add `name` (kebab-case) and `files`.
 4. Report each violation with its JSON path, or confirm the file conforms.
+5. Run the deterministic eval-quality lint over every located file (all at once — the script
+   accepts multiple paths):
+
+   ```shell
+   bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-evals-quality.sh" <skills-root>/<skill>/evals/evals.json
+   ```
+
+   Report its `FAIL:` lines verbatim (each is an actionable defect — duplicate case ids/names,
+   an unresolvable `files` fixture, an empty criterion item), then its `WARN:` lines grouped
+   after (advisory quality heuristics — vague criterion phrasing, thin sole-criterion
+   `expected_output`, identical prompt+files pairs, a set with no refusal/anti-pattern case).
+   The script exits 0 when only warnings remain; run `--help` for the full Q1-Q9 check list.
+   If `jq` is absent the script exits 2 — report that the quality lint was skipped for that
+   reason; the schema verdict from steps 3-4 still stands.
 
 ## Action: listing-budget
 
@@ -187,6 +203,16 @@ silent skip or a coerced-to-zero budget.
   defect — like a check-5 ref, hand-verify the block before converting it. It reads only fenced shell
   blocks (not prose "run `git status` first") and stays silent whenever the skill already uses any `!`
   injection, so it under-reports by design; a clean run is not proof there is no precompute opportunity.
+- `check-evals-quality.sh` requires `jq` (exit 2 without it — the schema validation of
+  `validate-evals` steps 3-4 is unaffected). Its WARN-tier checks (Q5-Q9) are lexical heuristics:
+  Q9 (set-coverage) detects refusal/anti-pattern cases by wording, so a set whose guardrail case
+  phrases the prohibition unusually can WARN despite covering it — read the set before adding a
+  case. It deliberately does NOT flag low case count: the marketplace's low volume is a recorded
+  divergence from the evaluation guidance, revisited when the deferred eval runner lands.
+- `check-evals-quality.sh` resolves each case's `files` entries relative to the skill directory
+  first, then the evals directory. An entry that is prose (environment description) rather than a
+  real path FAILs Q4 — describe environment state in the case's `prompt` parenthetical instead,
+  or ship a fixture.
 - `listing-budget` never asserts a resolved live value (context window and `skillListingBudgetFraction`
   are both consumer settings this static check cannot observe) — it reports against a documented,
   overridable default and always exits 0. A clean report is a signal to investigate against `/doctor`
