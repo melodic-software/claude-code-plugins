@@ -3,6 +3,24 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.27.2]
+
+### Fixed
+
+- **`plugins` no longer treats `$HOME` as project context when the shell and the OS spell it
+  differently.** The exclusion that keeps `$HOME` out of project scope compared `pwd -W`'s native
+  path against `$HOME` exactly as the environment carried it. Those are the same directory in two
+  spellings, and an MSYS mount alias carries no drive letter for the normalizer to reconcile, so
+  `/tmp/x` never matched the `C:/…` reported for it — the exclusion silently failed and
+  `$HOME/.claude/settings.json` was read as the project map, duplicating the user map. Both sides
+  are now spelled by the same command before they are compared. Normalizing harder could not have
+  fixed it: the two inputs disagreed before the normalizer saw them.
+
+  Both spellings go through `builtin cd` / `builtin pwd`, extending the shadow discipline the
+  script already applies to its own directory resolution. An exported `cd` that returns success
+  without moving would otherwise resolve `$HOME` to the cwd, collapsing every corroborated non-git
+  project onto `$HOME` and stripping its project settings — the inverse failure, and a worse one.
+
 ## [0.27.1]
 
 ### Changed
