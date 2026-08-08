@@ -7,18 +7,21 @@ All notable changes to the `work-items` plugin are documented here. Format follo
 
 ### Fixed
 
-- **`work-loop` evaluates its drain exit against the cycle-start snapshot instead of a bare live
-  frontier reading.** Criterion 1 called `list-frontier --autonomous` at cycle end and accepted any
-  non-empty answer, so an item that became autonomous-eligible *after* the snapshot — a bot filing
-  agent-ready intake, an operator flipping a role label, a ratification landing mid-cycle — kept the
-  criterion false forever and repeating intake could hold a drain open indefinitely. That is the
-  failure the loop-lane convention's snapshot drain exit exists to prevent, and the skill's own
-  step 1 and "Do not chase intake" gotcha already promised the snapshot semantics criterion 1 did
-  not implement. The reading is now scoped to candidates the snapshot already held — as a frontier
-  candidate, an open item, or an untriaged intake item. Scoping is not freezing: intake the snapshot
-  held and this cycle's sweep promoted to autonomous-eligible still holds the drain open and still
-  gets worked; only post-snapshot arrivals are excluded, and they are named in the final report
-  rather than chased, because a completed drain has no next cycle to sweep them.
+- **`work-loop` evaluates its drain exit against the cycle-start snapshot's retained ids instead of
+  a live frontier reading.** The exit condition said it evaluated against the snapshot, then
+  implemented its first criterion as a live `list-frontier --autonomous` emptiness read. An item
+  that joined the frontier *after* the snapshot — a bot filing agent-ready intake, an operator
+  flipping a role label, a ratification landing mid-cycle — landed in that read and could hold a
+  drain open indefinitely, the exact failure the skill's own step 1 and its "Do not chase intake"
+  gotcha already promised the snapshot semantics prevented. That criterion is now removed rather
+  than rescoped: the frontier is derived by filtering `state == open`, so every snapshot frontier
+  candidate is already a snapshot open item and the remaining snapshot-scoped test covers it — an
+  item the snapshot held as untriaged intake and this cycle's sweep promoted still holds the drain
+  open and still gets worked. A second frontier limb could only ever block, never catch anything the
+  remaining test misses, and absence from a later frontier read is not resolution: an item another
+  session claims, or one that becomes blocked, leaves the frontier unresolved. Step 1 now retains
+  the captured ids the exit tests, and both stop paths name the post-snapshot intake left unworked,
+  which is what keeps "reported, never chased" true once there is no next cycle to sweep it.
 
 - **`setup` proves the checkout is a GitHub repository before auto-binding the `github` provider.**
   The unattended first bind required only that `gh` was installed and `gh auth status` succeeded —
