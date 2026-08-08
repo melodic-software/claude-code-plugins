@@ -56,6 +56,17 @@ clean disk-hygiene,repo-hygiene
 # suite -- unrelated domains, and the namespace disambiguates.
 diagnose songwriting,testing
 
+# Kept on merit. planning:design designs an implementation approach for a code
+# change; evals:design designs an evaluation suite (success criteria + graded
+# cases). Unrelated artifacts; the namespace supplies the object in both.
+design evals,planning
+
+# Noun reserved for knowledge routers (PLUGIN-PHILOSOPHY.md, Naming). Each
+# routes its own domain's method literature: event-storming:methodology the
+# EventStorming practice, evals:methodology Anthropic's evaluation guidance.
+# The namespace supplies the domain; qualifying the noun would say it twice.
+methodology evals,event-storming
+
 # D19, kept on merit. planning:plan is the root-echo core action of its domain;
 # testing:plan is a test-strategy plan. The bare token still belongs to the
 # built-in plan-mode toggle, which neither shadows.
