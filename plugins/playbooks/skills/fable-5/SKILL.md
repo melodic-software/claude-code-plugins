@@ -1,6 +1,6 @@
 ---
 name: fable-5
-description: "Claude Fable 5's operating doctrine — calibration, reasoning moves, problem framing, planning, debugging, execution, orchestration, verification, communication, recovery, context economy, and trust boundaries — authored by Fable 5 as standing instructions that arm the current session immediately, with chapters loading on demand at their trigger moments. Use when: 'fable playbook', 'fable-5-playbook', 'operate like Fable', 'load the playbook', at the start of any substantive engineering session, or proactively before any multi-step task where judgment quality matters."
+description: "Claude Fable 5's operating doctrine — calibration, reasoning moves, problem framing, planning, debugging, execution, orchestration, verification, communication, recovery, context economy, and trust boundaries — authored by Fable 5 as standing instructions that arm the current session immediately, with chapters loading on demand at their trigger moments. Use when: 'fable playbook', 'fable-5-playbook', 'operate like Fable', 'load the playbook', at the start of any substantive engineering session, or proactively before any multi-step task where judgment quality matters. Also hosts the per-model adaptation chapters (Opus 5, Opus 4.8, Sonnet 5) — use when running on Opus 5 or another non-Fable model, or adapting a repo's prompts/instructions to Opus 5: 'opus 5 adaptation', 'opus 5 model delta', 'model adaptation chapter'."
 argument-hint: "[full | <chapter>]"
 user-invocable: true
 disable-model-invocation: false
@@ -89,7 +89,7 @@ The distillation of every chapter, grouped in operating-loop order. Each line is
 ### Delegation — orchestration
 
 - Delegate only on genuine fan-out (5+ independent items), context-flooding side work, or isolation-as-the-product. The stay-inline conditions override all three — except the fresh-context verifier, which they never displace.
-- Spec every spawn as a contract: outcome objective, exact output contract with evidence format, hoisted shared context, boundaries with the verbatim blocked-path rule.
+- Spec every spawn as a contract: outcome objective, the reason it is being asked and who the output is for, exact output contract with evidence format, hoisted shared context, boundaries with the verbatim blocked-path rule.
 - Every worker return is recall-grade — promote a claim to session-verified evidence before it drives an edit.
 - Dispatch is not a blocking call: take the next piece no pending return feeds, check the wave against the drift signals rather than waiting it out, and continue an already-oriented worker on a shared subject instead of respawning one to re-read the same material.
 

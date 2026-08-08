@@ -30,11 +30,16 @@ ecosystem-discovery reference — Read that at the dimension that needs it rathe
   tell from the path alone which ancestor is the configured root, and the root is where the
   self-ignoring `.gitignore` guard belongs. Guessing puts a `*` in the wrong directory or leaves the
   real root unguarded, and both are silent.
+- **The reason the exploration is being run** — what it feeds and who the output is for. Same
+  blindness as the scope, with a worse failure mode: a missing scope is silence you can report,
+  while a missing reason is invisible. You explore the scope as written, return something
+  well-formed, and neither side learns it answered the wrong question. Intent is what decides which
+  of several defensible readings of a scope is the one wanted.
 - **The budget** — how much depth the parent authorized.
 - **Capability flags** the parent probed, notably whether nested spawning is available.
 
-**If the scope or the slice path is absent or ambiguous, stop and return the payload below with
-`status: truncated` and the missing field named in `open_questions`.** There is no unscoped
+**If the scope, the reason, or the slice path is absent or ambiguous, stop and return the payload
+below with `status: truncated` and the missing field named in `open_questions`.** There is no unscoped
 orientation mode: a dispatched agent with no scope is a parent-envelope failure, and running a
 general repository sweep instead would hand back a plausible artifact answering a question nobody
 asked.

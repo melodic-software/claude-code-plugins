@@ -5,6 +5,20 @@ All notable changes to the `context-guard` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.9]
+
+### Changed
+
+- **Zone-crossing guidance no longer asserts context degradation as a universal fact.** The
+  injected text stated "Response quality degrades as context occupancy grows" unconditionally and
+  told the model the dumb zone means measurable degradation — a premise that is stale on models
+  whose vendor guides state consistency through the full window (the Opus 5 prompting guide's
+  long-context bullet), while the bands can resolve `dumb` at 400k of a 1M window where compaction
+  is not in play. The guidance now conditions the degradation claim ("on many models… onset varies
+  by model"), names the bands as tunable defaults (`zones.json`), and keeps the model-independent
+  part — compaction distance shrinks regardless — unconditional. Zone mechanics, bands, and
+  telemetry unchanged.
+
 ## [0.4.8]
 
 ### Fixed
